@@ -2,6 +2,8 @@
 
 Auth0 SDK for signing in to your Next.js applications.
 
+> Note: This library is currently in an experimental state and support is best effort.
+
 [![License](https://img.shields.io/:license-mit-blue.svg?style=flat)](https://opensource.org/licenses/MIT)
 
 ## Table of Contents
@@ -224,6 +226,29 @@ export default async function getCustomers(req, res) {
     res.status(error.status || 500).end(error.message)
   }
 }
+```
+
+## Contributing
+
+Run NPM install first to install the dependencies of this project:
+
+```bash
+npm install
+```
+
+In order to build a release you can run the following commands and the output will be stored in the `dist` folder:
+
+```bash
+npm run clean
+npm run lint
+npm run build
+```
+
+Additionally you can also run tests:
+
+```bash
+npm run test
+npm run test:watch
 ```
 
 ## Support + Feedback
