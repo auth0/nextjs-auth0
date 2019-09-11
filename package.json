@@ -1,0 +1,89 @@
+{
+  "name": "@auth0/nextjs-auth0",
+  "version": "0.1.0",
+  "description": "Next.js SDK for signing in with Auth0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "clean": "rimraf dist",
+    "pretty": "prettier --write \"src/**/*.ts\" \"src/*.ts\"",
+    "lint": "eslint --fix --ext .ts ./src",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "jest --coverage",
+    "test:watch": "jest --coverage --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/auth0/nextjs-auth0.git"
+  },
+  "keywords": [
+    "auth0",
+    "next.js",
+    "react",
+    "oidc",
+    "authentication",
+    "zeit"
+  ],
+  "author": "Auth0 (https://auth0.com)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/auth0/nextjs-auth0/issues"
+  },
+  "homepage": "https://github.com/auth0/nextjs-auth0#readme",
+  "devDependencies": {
+    "@panva/jose": "^1.9.0",
+    "@types/cookie": "^0.3.3",
+    "@types/hapi__iron": "^5.1.0",
+    "@types/jest": "^24.0.18",
+    "@types/jsonwebtoken": "^8.3.3",
+    "@types/node": "^12.7.4",
+    "@types/openid-client": "^3.1.6",
+    "@types/react": "^16.9.2",
+    "@types/react-dom": "^16.9.0",
+    "@types/request": "^2.48.2",
+    "@typescript-eslint/eslint-plugin": "^2.1.0",
+    "@typescript-eslint/parser": "^2.1.0",
+    "eslint": "^6.3.0",
+    "eslint-config-airbnb-base": "^14.0.0",
+    "eslint-config-prettier": "^6.2.0",
+    "eslint-import-resolver-typescript": "^1.1.1",
+    "eslint-plugin-import": "^2.18.2",
+    "jest": "^24.9.0",
+    "nock": "^11.3.3",
+    "prettier": "^1.18.2",
+    "request": "^2.88.0",
+    "ts-jest": "^24.0.2",
+    "typescript": "^3.6.2"
+  },
+  "dependencies": {
+    "@hapi/iron": "^5.1.1",
+    "base64url": "^3.0.1",
+    "cookie": "^0.4.0",
+    "next": "^9.0.5",
+    "openid-client": "^3.6.2",
+    "react": "^16.9.0",
+    "react-dom": "^16.9.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "rootDir": "./",
+    "moduleFileExtensions": [
+      "ts",
+      "js"
+    ],
+    "coveragePathIgnorePatterns": [
+      "/node_modules/",
+      "/tests/",
+      "./jest.config.js"
+    ],
+    "coverageReporters": [
+      "lcov",
+      "text",
+      "text-summary"
+    ],
+    "preset": "ts-jest"
+  }
+}
