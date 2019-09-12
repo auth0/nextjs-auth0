@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import { IncomingMessage, ServerResponse } from 'http';
-import { ISession } from '../session';
 import { ISessionStore } from '../store';
+import { ISession } from '../session';
 import CookieSessionStoreSettings from './settings';
 export default class CookieSessionStore implements ISessionStore {
     private settings;

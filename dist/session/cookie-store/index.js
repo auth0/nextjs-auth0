@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const tslib_1 = require("tslib");
 const iron_1 = tslib_1.__importDefault(require("@hapi/iron"));
+const session_1 = tslib_1.__importDefault(require("../session"));
 const cookies_1 = require("../../utils/cookies");
 class CookieSessionStore {
     constructor(settings) {
@@ -33,8 +34,8 @@ class CookieSessionStore {
     save(_, res, session) {
         return tslib_1.__awaiter(this, void 0, void 0, function* () {
             const { cookieSecret, cookieName, cookiePath, cookieLifetime } = this.settings;
-            const { idToken, accessToken } = session, claims = tslib_1.__rest(session, ["idToken", "accessToken"]);
-            const persistedSession = Object.assign({}, claims);
+            const { idToken, accessToken, user, createdAt } = session;
+            const persistedSession = new session_1.default(user, createdAt);
             if (this.settings.storeIdToken && idToken) {
                 persistedSession.idToken = idToken;
             }

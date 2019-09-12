@@ -1,8 +1,8 @@
 export interface ISession {
     /**
-     * Any of the custom clails from the token.
+     * Any of the claims from the id_token.
      */
-    readonly [key: string]: string | undefined;
+    readonly user: IClaims;
     /**
      * The id token.
      */
@@ -11,4 +11,21 @@ export interface ISession {
      * The access token.
      */
     readonly accessToken?: string | undefined;
+    /**
+     * The time on which the session was created.
+     */
+    readonly createdAt: number;
+}
+/**
+ * Key-value store for the user's claims.
+ */
+export interface IClaims {
+    [key: string]: string;
+}
+export default class Session implements ISession {
+    user: IClaims;
+    idToken?: string | undefined;
+    accessToken?: string | undefined;
+    createdAt: number;
+    constructor(user: IClaims, createdAt?: number);
 }

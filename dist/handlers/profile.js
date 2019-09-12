@@ -10,18 +10,11 @@ function profileHandler(sessionStore) {
             throw new Error('Response is not available');
         }
         const session = yield sessionStore.read(req);
-        if (!session) {
+        if (!session || !session.user) {
             res.status(401).json({ error: 'Not authenticated' });
             return;
         }
-        const claims = tslib_1.__rest(session, []);
-        if (claims.idToken) {
-            delete claims.idToken;
-        }
-        if (claims.accessToken) {
-            delete claims.accessToken;
-        }
-        res.json(claims);
+        res.json(session.user);
     });
 }
 exports.default = profileHandler;

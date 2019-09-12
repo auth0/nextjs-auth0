@@ -23,9 +23,27 @@ function callbackHandler(settings, clientProvider, sessionStore) {
         const tokenSet = yield client.callback(settings.redirectUri, params, {
             state
         });
-        // Create the session.
+        // Get the claims without any OIDC specific claim.
         const claims = tokenSet.claims();
-        const session = Object.assign(Object.assign({}, claims), { idToken: tokenSet.id_token, accessToken: tokenSet.access_token });
+        if (claims.aud) {
+            delete claims.aud;
+        }
+        if (claims.exp) {
+            delete claims.exp;
+        }
+        if (claims.iat) {
+            delete claims.iat;
+        }
+        if (claims.iss) {
+            delete claims.iss;
+        }
+        // Create the session.
+        const session = {
+            user: Object.assign({}, claims),
+            idToken: tokenSet.id_token,
+            accessToken: tokenSet.access_token,
+            createdAt: Date.now()
+        };
         // Create the session.
         yield sessionStore.save(req, res, session);
         // Redirect to the homepage.
