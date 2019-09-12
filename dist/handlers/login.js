@@ -30,7 +30,7 @@ function loginHandler(settings, clientProvider) {
             scope: settings.scope,
             response_type: 'code'
         });
-        // Remove the cookies
+        // Set the necessary cookies
         cookies_1.setCookies(res, [
             {
                 name: 'a0:state',
