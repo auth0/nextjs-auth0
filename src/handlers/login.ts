@@ -37,7 +37,7 @@ export default function loginHandler(settings: IAuth0Settings, clientProvider: I
       response_type: 'code'
     });
 
-    // Remove the cookies
+    // Set the necessary cookies
     setCookies(res, [
       {
         name: 'a0:state',

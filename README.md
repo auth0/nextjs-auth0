@@ -1,4 +1,4 @@
-# @auth0/auth0-nextjs
+# @auth0/nextjs-auth0
 
 Auth0 SDK for signing in to your Next.js applications.
 
@@ -170,9 +170,8 @@ If you need to access the user's session from within an API route or a Server-re
 ```js
 Profile.getInitialProps = async ({ req, res }) => {
   if (typeof window === 'undefined') {
-    const session = await auth0.getSession(req);
-
-    if (!session) {
+    const { user } = await auth0.getSession(req);
+    if (!user) {
       res.writeHead(302, {
         Location: '/api/login'
       });
@@ -180,7 +179,7 @@ Profile.getInitialProps = async ({ req, res }) => {
       return;
     }
 
-    return { user: { session } }
+    return { user }
   }
 }
 ```
