@@ -41,12 +41,32 @@ export default function callbackHandler(
       state
     });
 
-    // Create the session.
+    // Get the claims without any OIDC specific claim.
     const claims = tokenSet.claims();
+    if (claims.aud) {
+      delete claims.aud;
+    }
+
+    if (claims.exp) {
+      delete claims.exp;
+    }
+
+    if (claims.iat) {
+      delete claims.iat;
+    }
+
+    if (claims.iss) {
+      delete claims.iss;
+    }
+
+    // Create the session.
     const session: ISession = {
-      ...claims,
+      user: {
+        ...claims
+      },
       idToken: tokenSet.id_token,
-      accessToken: tokenSet.access_token
+      accessToken: tokenSet.access_token,
+      createdAt: Date.now()
     };
 
     // Create the session.

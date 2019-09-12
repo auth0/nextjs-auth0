@@ -41,7 +41,8 @@ describe('cookie store', () => {
       test('should set the cookie name', async () => {
         const { req, res } = getRequestResponse();
         await store.save(req, res, {
-          sub: '123'
+          user: { sub: '123' },
+          createdAt: Date.now()
         });
 
         expect(res.setHeader).toHaveBeenCalledWith('Set-Cookie', expect.stringMatching('my-cookie='));
@@ -54,7 +55,8 @@ describe('cookie store', () => {
       test('should use default settings', async () => {
         const { req, res } = getRequestResponse();
         await store.save(req, res, {
-          sub: '123'
+          user: { sub: '123' },
+          createdAt: Date.now()
         });
 
         expect(res.setHeader).toHaveBeenCalledWith('Set-Cookie', expect.stringMatching('a0:session='));
@@ -68,8 +70,13 @@ describe('cookie store', () => {
 
       test('should not store the access_token', async () => {
         const { req, res, setHeaderFn } = getRequestResponse();
+        const now = Date.now();
 
-        await store.save(req, res, { sub: '123', accessToken: 'my-access-token' });
+        await store.save(req, res, {
+          user: { sub: '123' },
+          createdAt: now,
+          accessToken: 'my-access-token'
+        });
 
         const [, cookie] = setHeaderFn.mock.calls[0];
         req.headers = {
@@ -77,7 +84,10 @@ describe('cookie store', () => {
         };
 
         const session = await store.read(req);
-        expect(session).toEqual({ sub: '123' });
+        expect(session).toEqual({
+          user: { sub: '123' },
+          createdAt: now
+        });
       });
     });
 
@@ -88,8 +98,13 @@ describe('cookie store', () => {
 
       test('should store the access_token', async () => {
         const { req, res, setHeaderFn } = getRequestResponse();
+        const now = Date.now();
 
-        await store.save(req, res, { sub: '123', accessToken: 'my-access-token' });
+        await store.save(req, res, {
+          user: { sub: '123' },
+          createdAt: now,
+          accessToken: 'my-access-token'
+        });
 
         const [, cookie] = setHeaderFn.mock.calls[0];
         req.headers = {
@@ -97,7 +112,11 @@ describe('cookie store', () => {
         };
 
         const session = await store.read(req);
-        expect(session).toEqual({ sub: '123', accessToken: 'my-access-token' });
+        expect(session).toEqual({
+          user: { sub: '123' },
+          createdAt: now,
+          accessToken: 'my-access-token'
+        });
       });
     });
   });
@@ -108,8 +127,15 @@ describe('cookie store', () => {
 
       test('should not store the id_token', async () => {
         const { req, res, setHeaderFn } = getRequestResponse();
+        const now = Date.now();
 
-        await store.save(req, res, { sub: '123', idToken: 'my-id-token' });
+        await store.save(req, res, {
+          user: {
+            sub: '123'
+          },
+          createdAt: now,
+          idToken: 'my-id-token'
+        });
 
         const [, cookie] = setHeaderFn.mock.calls[0];
         req.headers = {
@@ -117,7 +143,10 @@ describe('cookie store', () => {
         };
 
         const session = await store.read(req);
-        expect(session).toEqual({ sub: '123' });
+        expect(session).toEqual({
+          createdAt: now,
+          user: { sub: '123' }
+        });
       });
     });
 
@@ -128,8 +157,15 @@ describe('cookie store', () => {
 
       test('should store the id_token', async () => {
         const { req, res, setHeaderFn } = getRequestResponse();
+        const now = Date.now();
 
-        await store.save(req, res, { sub: '123', idToken: 'my-id-token' });
+        await store.save(req, res, {
+          user: {
+            sub: '123'
+          },
+          createdAt: now,
+          idToken: 'my-id-token'
+        });
 
         const [, cookie] = setHeaderFn.mock.calls[0];
         req.headers = {
@@ -137,7 +173,11 @@ describe('cookie store', () => {
         };
 
         const session = await store.read(req);
-        expect(session).toEqual({ sub: '123', idToken: 'my-id-token' });
+        expect(session).toEqual({
+          createdAt: now,
+          idToken: 'my-id-token',
+          user: { sub: '123' }
+        });
       });
     });
   });

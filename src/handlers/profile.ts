@@ -13,19 +13,11 @@ export default function profileHandler(sessionStore: ISessionStore) {
     }
 
     const session = await sessionStore.read(req);
-    if (!session) {
+    if (!session || !session.user) {
       res.status(401).json({ error: 'Not authenticated' });
       return;
     }
 
-    const { ...claims } = session;
-    if (claims.idToken) {
-      delete claims.idToken;
-    }
-    if (claims.accessToken) {
-      delete claims.accessToken;
-    }
-
-    res.json(claims);
+    res.json(session.user);
   };
 }

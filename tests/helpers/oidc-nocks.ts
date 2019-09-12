@@ -66,7 +66,13 @@ export function jwksEndpoint(settings: IAuth0Settings, keyset: JSONWebKeySet): n
     .reply(200, keyset);
 }
 
-export function codeExchange(settings: IAuth0Settings, code: string, key: JWK.Key, payload: object, overrides?: object): nock.Scope {
+export function codeExchange(
+  settings: IAuth0Settings,
+  code: string,
+  key: JWK.Key,
+  payload: object,
+  overrides?: object
+): nock.Scope {
   const idToken = createToken(key, {
     iss: `https://${settings.domain}/`,
     aud: settings.clientId,
@@ -75,7 +81,8 @@ export function codeExchange(settings: IAuth0Settings, code: string, key: JWK.Ke
   });
 
   return nock(`https://${settings.domain}`)
-    .post('/oauth/token', `grant_type=authorization_code&code=${code}&redirect_uri=${encodeURIComponent(settings.redirectUri)}`)
+    .post('/oauth/token',
+      `grant_type=authorization_code&code=${code}&redirect_uri=${encodeURIComponent(settings.redirectUri)}`)
     .reply(200, {
       access_token: 'eyJz93a...k4laUWw',
       refresh_token: 'GEbRxBN...edjnXbL',
@@ -84,7 +91,13 @@ export function codeExchange(settings: IAuth0Settings, code: string, key: JWK.Ke
     });
 }
 
-export function codeExchangeWithAccessToken(settings: IAuth0Settings, code: string, key: JWK.Key, payload: object, overrides?: object): nock.Scope {
+export function codeExchangeWithAccessToken(
+  settings: IAuth0Settings,
+  code: string,
+  key: JWK.Key,
+  payload: object,
+  overrides?: object
+): nock.Scope {
   const idToken = createToken(key, {
     iss: `https://${settings.domain}/`,
     aud: settings.clientId,
@@ -93,7 +106,8 @@ export function codeExchangeWithAccessToken(settings: IAuth0Settings, code: stri
   });
 
   return nock(`https://${settings.domain}`)
-    .post('/oauth/token', `grant_type=authorization_code&code=${code}&redirect_uri=${encodeURIComponent(settings.redirectUri)}`)
+    .post('/oauth/token',
+      `grant_type=authorization_code&code=${code}&redirect_uri=${encodeURIComponent(settings.redirectUri)}`)
     .reply(200, {
       access_token: 'an_access_token',
       id_token: idToken,

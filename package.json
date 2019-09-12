@@ -55,6 +55,7 @@
     "nock": "^11.3.3",
     "prettier": "^1.18.2",
     "request": "^2.88.0",
+    "timekeeper": "^2.2.0",
     "ts-jest": "^24.0.2",
     "typescript": "^3.6.2"
   },

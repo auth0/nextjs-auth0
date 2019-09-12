@@ -1,8 +1,8 @@
 import Iron from '@hapi/iron';
 import { IncomingMessage, ServerResponse } from 'http';
 
-import { ISession } from '../session';
 import { ISessionStore } from '../store';
+import Session, { ISession } from '../session';
 import CookieSessionStoreSettings from './settings';
 import { setCookie, parseCookies } from '../../utils/cookies';
 
@@ -43,10 +43,10 @@ export default class CookieSessionStore implements ISessionStore {
       cookieSecret, cookieName, cookiePath, cookieLifetime
     } = this.settings;
 
-    const { idToken, accessToken, ...claims } = session;
-    const persistedSession = {
-      ...claims
-    };
+    const {
+      idToken, accessToken, user, createdAt
+    } = session;
+    const persistedSession = new Session(user, createdAt);
 
     if (this.settings.storeIdToken && idToken) {
       persistedSession.idToken = idToken;

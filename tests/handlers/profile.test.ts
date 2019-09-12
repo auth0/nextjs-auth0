@@ -44,9 +44,12 @@ describe('profile handler', () => {
 
   describe('when signed in', () => {
     const store = getStore({
-      sub: '123',
+      user: {
+        sub: '123'
+      },
       idToken: 'my-id-token',
-      accessToken: 'my-access-token'
+      accessToken: 'my-access-token',
+      createdAt: Date.now()
     });
 
     const { req, res, jsonFn } = getRequestResponse();

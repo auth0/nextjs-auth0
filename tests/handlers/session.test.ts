@@ -5,11 +5,16 @@ import getRequestResponse from '../helpers/http';
 
 describe('session handler', () => {
   test('should return the session', async () => {
+    const now = Date.now();
     const { req } = getRequestResponse();
+
     const store: ISessionStore = {
       read(): Promise<ISession | null> {
         return Promise.resolve({
-          sub: '123',
+          user: {
+            sub: '123'
+          },
+          createdAt: now,
           idToken: 'my-id-token'
         });
       },
@@ -20,6 +25,10 @@ describe('session handler', () => {
 
     const sessionHandler = handlers.SessionHandler(store);
     const session = await sessionHandler(req);
-    expect(session).toEqual({ sub: '123', idToken: 'my-id-token' });
+    expect(session).toEqual({
+      user: { sub: '123' },
+      createdAt: now,
+      idToken: 'my-id-token'
+    });
   });
 });
