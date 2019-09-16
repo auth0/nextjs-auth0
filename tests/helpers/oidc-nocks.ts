@@ -1,8 +1,8 @@
 import nock from 'nock';
 import { JSONWebKeySet, JWK } from '@panva/jose';
 
-import IAuth0Settings from '../../src/settings';
 import createToken from './tokens';
+import IAuth0Settings from '../../src/settings';
 
 export function discovery(settings: IAuth0Settings): nock.Scope {
   return nock(`https://${settings.domain}`)
@@ -60,6 +60,14 @@ export function discovery(settings: IAuth0Settings): nock.Scope {
     });
 }
 
+export function userInfoWithDelay(settings: IAuth0Settings, delay: number): nock.Scope {
+  return nock(`https://${settings.domain}`)
+    .get('/userinfo')
+    .reply((_uri, _requestBody, cb) => {
+      setTimeout(() => cb(null, [200, {}]), delay);
+    });
+}
+
 export function jwksEndpoint(settings: IAuth0Settings, keyset: JSONWebKeySet): nock.Scope {
   return nock(`https://${settings.domain}`)
     .get('/.well-known/jwks.json')
@@ -88,6 +96,33 @@ export function codeExchange(
       refresh_token: 'GEbRxBN...edjnXbL',
       id_token: idToken,
       token_type: 'Bearer'
+    });
+}
+
+export function codeExchangeWithTimeout(
+  settings: IAuth0Settings,
+  code: string,
+  key: JWK.Key,
+  payload: object,
+  overrides?: object
+): nock.Scope {
+  const idToken = createToken(key, {
+    iss: `https://${settings.domain}/`,
+    aud: settings.clientId,
+    ...payload,
+    ...(overrides || {})
+  });
+
+  return nock(`https://${settings.domain}`)
+    .post('/oauth/token',
+      `grant_type=authorization_code&code=${code}&redirect_uri=${encodeURIComponent(settings.redirectUri)}`)
+    .reply((_uri, _requestBody, cb) => {
+      setTimeout(() => cb(null, [200, {
+        access_token: 'eyJz93a...k4laUWw',
+        refresh_token: 'GEbRxBN...edjnXbL',
+        id_token: idToken,
+        token_type: 'Bearer'
+      }]), 500);
     });
 }
 

@@ -1,3 +1,4 @@
+import HttpClientSettings from './http-settings';
 import { ICookieSessionStoreSettings } from './session/cookie-store/settings';
 
 export default interface IAuth0Settings {
@@ -40,4 +41,9 @@ export default interface IAuth0Settings {
    * Settings related to the session.
    */
   session: ICookieSessionStoreSettings;
+
+  /**
+   * Settings for the Http Client which performs the code exchange.
+   */
+  httpClient?: HttpClientSettings;
 }

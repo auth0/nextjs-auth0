@@ -33,7 +33,7 @@ yarn add @auth0/nextjs-auth0
 
 ## Getting Started
 
-### Configure the Auth0 plugin
+### Build Time Configuration
 
 Create a `next.config.js` file in which you load the Auth0 plugin:
 
@@ -47,7 +47,7 @@ module.exports = withAuth0({
 })
 ```
 
-### Configure the Auth0 plugin
+### Runtime Configuration
 
 And then create an instance of the Auth0 plugin (eg: under `/utils/auth0.js`):
 
@@ -70,6 +70,10 @@ export default useAuth0({
     storeIdToken: false,
     // Store the access_token in the session. Defaults to false.
     storeAccessToken: false
+  },
+  httpClient: {
+    // Optionally configure the timeout for the HTTP client.
+    timeout: 2500
   }
 });
 ```
