@@ -1,0 +1,11 @@
+coverage
+node_modules
+src
+tests
+.editorconfig
+.eslintrc
+.gitignore
+.npmignore
+.github
+tsconfig.build.json
+tsconfig.json
