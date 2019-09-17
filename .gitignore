@@ -58,4 +58,4 @@ typings/
 .env
 
 # Distribution directories
-# dist/
+dist/
