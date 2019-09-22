@@ -55,7 +55,7 @@ And then create an instance of the Auth0 plugin (eg: under `/utils/auth0.js`):
 import { useAuth0 } from '@auth0/nextjs-auth0';
 
 export default useAuth0({
-  domain: '<AUTH0_DOMAIN>'
+  domain: '<AUTH0_DOMAIN>',
   clientId: '<AUTH0_CLIENT_ID>',
   clientSecret: '<AUTH0_CLIENT_SECRET>',
   scope: 'openid profile',
