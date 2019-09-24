@@ -15,6 +15,11 @@ export interface ISession {
   readonly accessToken?: string | undefined;
 
   /**
+   * The refresh token.
+   */
+  readonly refreshToken?: string | undefined;
+
+  /**
    * The time on which the session was created.
    */
   readonly createdAt: number;
@@ -33,6 +38,8 @@ export default class Session implements ISession {
   idToken?: string | undefined;
 
   accessToken?: string | undefined;
+
+  refreshToken?: string | undefined;
 
   createdAt: number;
 

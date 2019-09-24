@@ -66,6 +66,7 @@ export default function callbackHandler(
       },
       idToken: tokenSet.id_token,
       accessToken: tokenSet.access_token,
+      refreshToken: tokenSet.refresh_token,
       createdAt: Date.now()
     };
 

@@ -55,7 +55,9 @@ export default useAuth0({
     // Store the id_token in the session. Defaults to false.
     storeIdToken: false,
     // Store the access_token in the session. Defaults to false.
-    storeAccessToken: false
+    storeAccessToken: false,
+    // Store the refresh_token in the session. Defaults to false.
+    storeRefreshToken: false
   },
   httpClient: {
     // Optionally configure the timeout for the HTTP client.

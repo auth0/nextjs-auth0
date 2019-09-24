@@ -122,7 +122,7 @@ describe('cookie store', () => {
   });
 
   describe('with storeIdToken', () => {
-    describe('configured', () => {
+    describe('not configured', () => {
       const store = getStore({});
 
       test('should not store the id_token', async () => {
@@ -150,7 +150,7 @@ describe('cookie store', () => {
       });
     });
 
-    describe('not configured', () => {
+    describe('configured', () => {
       const store = getStore({
         storeIdToken: true
       });
@@ -176,6 +176,69 @@ describe('cookie store', () => {
         expect(session).toEqual({
           createdAt: now,
           idToken: 'my-id-token',
+          user: { sub: '123' }
+        });
+      });
+    });
+  });
+
+  describe('with storeRefreshToken', () => {
+    describe('not configured', () => {
+      const store = getStore({});
+
+      test('should not store the refresh_token', async () => {
+        const { req, res, setHeaderFn } = getRequestResponse();
+        const now = Date.now();
+
+        await store.save(req, res, {
+          user: {
+            sub: '123'
+          },
+          createdAt: now,
+          idToken: 'my-id-token',
+          refreshToken: 'my-refresh-token'
+        });
+
+        const [, cookie] = setHeaderFn.mock.calls[0];
+        req.headers = {
+          cookie: `a0:session=${parse(cookie)['a0:session']}`
+        };
+
+        const session = await store.read(req);
+        expect(session).toEqual({
+          createdAt: now,
+          user: { sub: '123' }
+        });
+      });
+    });
+
+    describe('configured', () => {
+      const store = getStore({
+        storeRefreshToken: true
+      });
+
+      test('should store the refresh_token', async () => {
+        const { req, res, setHeaderFn } = getRequestResponse();
+        const now = Date.now();
+
+        await store.save(req, res, {
+          user: {
+            sub: '123'
+          },
+          createdAt: now,
+          idToken: 'my-id-token',
+          refreshToken: 'my-refresh-token'
+        });
+
+        const [, cookie] = setHeaderFn.mock.calls[0];
+        req.headers = {
+          cookie: `a0:session=${parse(cookie)['a0:session']}`
+        };
+
+        const session = await store.read(req);
+        expect(session).toEqual({
+          createdAt: now,
+          refreshToken: 'my-refresh-token',
           user: { sub: '123' }
         });
       });
