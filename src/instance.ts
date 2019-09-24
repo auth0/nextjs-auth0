@@ -13,11 +13,7 @@ export interface ISignInWithAuth0 {
   /**
    * Callback handler which will complete the transaction and create a local session.
    */
-  handleCallback: (
-    req: IncomingMessage,
-    res: ServerResponse,
-    options: CallbackOptions
-  ) => Promise<void>;
+  handleCallback: (req: IncomingMessage, res: ServerResponse, options: CallbackOptions) => Promise<void>;
 
   /**
    * Logout handler which will clear the local session and the Auth0 session

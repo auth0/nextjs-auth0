@@ -12,11 +12,7 @@ export default function callbackHandler(
   clientProvider: IOidcClientFactory,
   sessionStore: ISessionStore
 ) {
-  return async (
-    req: IncomingMessage,
-    res: ServerResponse,
-    options?: CallbackOptions
-  ): Promise<void> => {
+  return async (req: IncomingMessage, res: ServerResponse, options?: CallbackOptions): Promise<void> => {
     if (!res) {
       throw new Error('Response is not available');
     }
