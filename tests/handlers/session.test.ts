@@ -15,7 +15,8 @@ describe('session handler', () => {
             sub: '123'
           },
           createdAt: now,
-          idToken: 'my-id-token'
+          idToken: 'my-id-token',
+          refreshToken: 'my-refresh-token'
         });
       },
       save(): Promise<void> {
@@ -28,7 +29,8 @@ describe('session handler', () => {
     expect(session).toEqual({
       user: { sub: '123' },
       createdAt: now,
-      idToken: 'my-id-token'
+      idToken: 'my-id-token',
+      refreshToken: 'my-refresh-token'
     });
   });
 });
