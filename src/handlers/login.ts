@@ -8,10 +8,12 @@ import { setCookies } from '../utils/cookies';
 import { IOidcClientFactory } from '../utils/oidc-client';
 
 function telemetry(): string {
-  const bytes = Buffer.from(JSON.stringify({
-    name: 'nextjs-auth0',
-    version
-  }));
+  const bytes = Buffer.from(
+    JSON.stringify({
+      name: 'nextjs-auth0',
+      version
+    })
+  );
 
   return bytes
     .toString('base64')
