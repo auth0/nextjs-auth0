@@ -33,20 +33,6 @@ yarn add @auth0/nextjs-auth0
 
 ## Getting Started
 
-### Build Time Configuration
-
-Create a `next.config.js` file in which you load the Auth0 plugin:
-
-```js
-const { withAuth0 } = require('@auth0/nextjs-auth0');
-
-module.exports = withAuth0({
-  webpack(config, options) {
-    return config
-  }
-})
-```
-
 ### Runtime Configuration
 
 And then create an instance of the Auth0 plugin (eg: under `/utils/auth0.js`):
@@ -221,7 +207,7 @@ import auth0 from '../../utils/auth0';
 export default async function getCustomers(req, res) {
   try {
     const { accessToken } = await auth0.getSession(req);
-    
+
     const apiClient = new MyApiClient(accessToken);
     return apiClient.getCustomers();
   } catch(error) {
