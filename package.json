@@ -4,7 +4,7 @@
   "description": "Next.js SDK for signing in with Auth0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "browser": "dist/instance.browser.js",
+  "browser": "dist/index.browser.js",
   "directories": {
     "test": "tests"
   },
