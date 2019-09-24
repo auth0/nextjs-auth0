@@ -15,7 +15,7 @@
     "build": "tsc -p tsconfig.build.json",
     "test": "jest --coverage",
     "test:watch": "jest --coverage --watch",
-    "prepublishOnly" : "npm test && npm run lint",
+    "prepublishOnly": "npm test && npm run lint",
     "prepublish": "npm run build"
   },
   "repository": {
