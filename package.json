@@ -55,6 +55,7 @@
     "eslint-import-resolver-typescript": "^1.1.1",
     "eslint-plugin-import": "^2.18.2",
     "jest": "^24.9.0",
+    "next": "^9.0.5",
     "nock": "^11.3.3",
     "prettier": "^1.18.2",
     "request": "^2.88.0",
@@ -66,10 +67,10 @@
     "@hapi/iron": "^5.1.1",
     "base64url": "^3.0.1",
     "cookie": "^0.4.0",
-    "next": "^9.0.5",
-    "openid-client": "^3.6.2",
-    "react": "^16.9.0",
-    "react-dom": "^16.9.0"
+    "openid-client": "^3.6.2"
+  },
+  "peerDependencies": {
+    "next": "^9.0.5"
   },
   "jest": {
     "testEnvironment": "node",
