@@ -9,4 +9,4 @@ export function useAuth0(settings: IAuth0Settings): ISignInWithAuth0 {
   }
 
   return require('./instance.node').default(settings);
-};
+}
