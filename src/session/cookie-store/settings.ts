@@ -33,6 +33,12 @@ export interface ICookieSessionStoreSettings {
    * Defaults to 'false'
    */
   storeAccessToken?: boolean;
+
+  /**
+   * Save the refresh_token in the cookie.
+   * Defaults to 'false'
+   */
+  storeRefreshToken?: boolean;
 }
 
 export default class CookieSessionStoreSettings {
@@ -47,6 +53,8 @@ export default class CookieSessionStoreSettings {
   readonly storeIdToken: boolean;
 
   readonly storeAccessToken: boolean;
+
+  readonly storeRefreshToken: boolean;
 
   constructor(settings: ICookieSessionStoreSettings) {
     this.cookieSecret = settings.cookieSecret;
@@ -72,5 +80,6 @@ export default class CookieSessionStoreSettings {
 
     this.storeIdToken = settings.storeIdToken || false;
     this.storeAccessToken = settings.storeAccessToken || false;
+    this.storeRefreshToken = settings.storeRefreshToken || false;
   }
 }

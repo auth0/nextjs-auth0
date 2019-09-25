@@ -49,6 +49,7 @@ describe('profile handler', () => {
       },
       idToken: 'my-id-token',
       accessToken: 'my-access-token',
+      refreshToken: 'my-refresh-token',
       createdAt: Date.now()
     });
 
