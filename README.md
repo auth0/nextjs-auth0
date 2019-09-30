@@ -65,6 +65,7 @@ export default useAuth0({
   }
 });
 ```
+Add 'http://localhost:3000/api/callback' to your list of Allowed Callback URLs in your auth0 account.
 
 ### Login
 
