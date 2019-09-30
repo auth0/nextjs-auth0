@@ -2,7 +2,7 @@
 import IAuth0Settings from './settings';
 import { ISignInWithAuth0 } from './instance';
 
-export function useAuth0(settings: IAuth0Settings): ISignInWithAuth0 {
+export function initAuth0(settings: IAuth0Settings): ISignInWithAuth0 {
   const isBrowser = typeof window !== 'undefined' || (process as any).browser;
   if (isBrowser) {
     return require('./instance.browser').default(settings);
