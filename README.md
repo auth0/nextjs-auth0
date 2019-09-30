@@ -38,9 +38,9 @@ yarn add @auth0/nextjs-auth0
 And then create an instance of the Auth0 plugin (eg: under `/utils/auth0.js`):
 
 ```js
-import { useAuth0 } from '@auth0/nextjs-auth0';
+import { initAuth0 } from '@auth0/nextjs-auth0';
 
-export default useAuth0({
+export default initAuth0({
   domain: '<AUTH0_DOMAIN>',
   clientId: '<AUTH0_CLIENT_ID>',
   clientSecret: '<AUTH0_CLIENT_SECRET>',
@@ -183,9 +183,9 @@ It's a common pattern to use Next.js API Routes and proxy them to external APIs.
 In order to get an access_token for an API you'll need to configure the `audience` on the Auth0 plugin and configure it to store the `access_token` in the cookie:
 
 ```js
-import { useAuth0 } from '@auth0/nextjs-auth0';
+import { initAuth0 } from '@auth0/nextjs-auth0';
 
-export default useAuth0({
+export default initAuth0({
   domain: '<AUTH0_DOMAIN>'
   clientId: '<AUTH0_CLIENT_ID>',
   clientSecret: '<AUTH0_CLIENT_SECRET>',
