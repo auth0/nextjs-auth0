@@ -36,7 +36,8 @@ export default function loginHandler(settings: IAuth0Settings, clientProvider: I
     const authorizationUrl = client.authorizationUrl({
       redirect_uri: settings.redirectUri,
       scope: settings.scope,
-      response_type: 'code'
+      response_type: 'code',
+      audience: settings.audience
     });
 
     // Set the necessary cookies
