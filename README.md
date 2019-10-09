@@ -220,6 +220,32 @@ export default async function getCustomers(req, res) {
 }
 ```
 
+### Requiring Authentication
+
+If you have API routes for which you want to require the user to be authenticated you can use the `requireAuthentication` handler:
+
+```js
+import auth0 from '../../lib/auth0';
+
+export default auth0.requireAuthentication(async function billingInfo(req, res) {
+  const { user } = await auth0.getSession(req);
+  res.json({
+    email: user.email,
+    country: 'United States',
+    paymentMethod: 'Paypal'
+  })
+});
+```
+
+If the user is authenticated then your API route will simply execute, but if the user is not authenticated an error (401) will be returned:
+
+```json
+{
+  "error": "not_authenticated",
+  "description": "The user does not have an active session or is not authenticated"
+}
+```
+
 ## Contributing
 
 Run NPM install first to install the dependencies of this project:
