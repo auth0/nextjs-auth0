@@ -2,8 +2,12 @@ import { NextApiResponse, NextApiRequest } from 'next';
 
 import { ISessionStore } from '../session/store';
 
-export default function profileHandler(sessionStore: ISessionStore) {
-  return async (req: NextApiRequest, res: NextApiResponse): Promise<void> => {
+export interface IApiRoute {
+  (req: NextApiRequest, res: NextApiResponse): Promise<void>;
+}
+
+export default function requireAuthentication(sessionStore: ISessionStore) {
+  return (apiRoute: IApiRoute): IApiRoute => async (req: NextApiRequest, res: NextApiResponse): Promise<void> => {
     if (!req) {
       throw new Error('Request is not available');
     }
@@ -21,6 +25,6 @@ export default function profileHandler(sessionStore: ISessionStore) {
       return;
     }
 
-    res.json(session.user);
+    await apiRoute(req, res);
   };
 }

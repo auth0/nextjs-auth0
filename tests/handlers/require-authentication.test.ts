@@ -1,9 +1,18 @@
+import { NextApiRequest, NextApiResponse } from 'next';
+
 import handlers from '../../src/handlers';
 import { ISession } from '../../src/session/session';
 import { ISessionStore } from '../../src/session/store';
 import getRequestResponse from '../helpers/http';
 
-describe('profile handler', () => {
+describe('require authentication handle handler', () => {
+  const apiRoute = async (_: NextApiRequest, res: NextApiResponse): Promise<void> => {
+    await Promise.resolve();
+    res.json({
+      foo: 'bar'
+    });
+  };
+
   const getStore = (session?: ISession): ISessionStore => {
     const store: ISessionStore = {
       read(): Promise<ISession | null | undefined> {
@@ -19,24 +28,24 @@ describe('profile handler', () => {
   describe('when the call is invalid', () => {
     test('should throw an error if the request is null', async () => {
       const store = getStore();
-      const profileHandler = handlers.ProfileHandler(store);
+      const requireAuthenticationHandler = handlers.RequireAuthentication(store);
 
       const req: any = null;
       const { res } = getRequestResponse();
 
-      return expect(profileHandler(req, res)).rejects.toEqual(
+      return expect(requireAuthenticationHandler(apiRoute)(req, res)).rejects.toEqual(
         new Error('Request is not available')
       );
     });
 
     test('should throw an error if the response is null', async () => {
       const store = getStore();
-      const profileHandler = handlers.ProfileHandler(store);
+      const requireAuthenticationHandler = handlers.RequireAuthentication(store);
 
       const { req } = getRequestResponse();
       const res: any = null;
 
-      return expect(profileHandler(req, res)).rejects.toEqual(
+      return expect(requireAuthenticationHandler(apiRoute)(req, res)).rejects.toEqual(
         new Error('Response is not available')
       );
     });
@@ -55,12 +64,12 @@ describe('profile handler', () => {
 
     const { req, res, jsonFn } = getRequestResponse();
 
-    test('should return the profile without any tokens', async () => {
-      const profileHandler = handlers.ProfileHandler(store);
-      await profileHandler(req, res);
+    test('should execute the API route', async () => {
+      const requireAuthenticationHandler = handlers.RequireAuthentication(store);
+      await requireAuthenticationHandler(apiRoute)(req, res);
 
       expect(jsonFn).toBeCalledWith({
-        sub: '123'
+        foo: 'bar'
       });
     });
   });
@@ -72,8 +81,8 @@ describe('profile handler', () => {
     } = getRequestResponse();
 
     test('should return not authenticated', async () => {
-      const profileHandler = handlers.ProfileHandler(store);
-      await profileHandler(req, res);
+      const requireAuthenticationHandler = handlers.RequireAuthentication(store);
+      await requireAuthenticationHandler(apiRoute)(req, res);
 
       expect(statusFn).toBeCalledWith(401);
       expect(jsonFn).toBeCalledWith({
