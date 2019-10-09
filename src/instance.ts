@@ -2,6 +2,7 @@ import { IncomingMessage, ServerResponse } from 'http';
 import { NextApiRequest, NextApiResponse } from 'next';
 
 import { ISession } from './session/session';
+import { IApiRoute } from './handlers/require-authentication';
 import { CallbackOptions } from './handlers/callback-options';
 
 export interface ISignInWithAuth0 {
@@ -26,7 +27,12 @@ export interface ISignInWithAuth0 {
   handleProfile: (req: NextApiRequest, res: NextApiResponse) => Promise<void>;
 
   /**
-   * Profile handler which return profile information about the user.
+   * Session handler which returns the current session
    */
   getSession: (req: IncomingMessage) => Promise<ISession | null | undefined>;
+
+  /**
+   * Handle to require authentication for an API route.
+   */
+  requireAuthentication: (apiRoute: IApiRoute) => IApiRoute;
 }
