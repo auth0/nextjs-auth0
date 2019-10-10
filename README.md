@@ -269,7 +269,8 @@ export default initAuth0({
     ...
   },
   oidcClient: {
-    clockTolerance: 10 // In seconds.
+    // Eg: increase the tolerance to 10 seconds.
+    clockTolerance: 10000
   }
 });
 ```
