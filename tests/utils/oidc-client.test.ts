@@ -37,8 +37,8 @@ describe('oidc client', () => {
 
     const clientFactory = getClient({
       ...withoutApi,
-      httpClient: {
-        timeout: 3000
+      oidcClient: {
+        httpTimeout: 3000
       }
     });
 

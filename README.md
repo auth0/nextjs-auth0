@@ -59,9 +59,11 @@ export default initAuth0({
     // Store the refresh_token in the session. Defaults to false.
     storeRefreshToken: false
   },
-  httpClient: {
-    // Optionally configure the timeout for the HTTP client.
-    timeout: 2500
+  oidcClient: {
+    // Optionally configure the timeout in milliseconds for HTTP requests to Auth0.
+    httpTimeout: 2500,
+    // Optionally configure the clock tolerance in milliseconds, if the time on your server is running behind.
+    clockTolerance: 10000
   }
 });
 ```
@@ -251,6 +253,26 @@ If the user is authenticated then your API route will simply execute, but if the
 ### Cookies
 
 All cookies will be set as `HttpOnly` cookies and will be forced to HTTPS (`Secure`) if the application is running with `NODE_ENV=production` and not running on localhost.
+
+## Troubleshooting
+
+### Error `id_token issued in the future, now 1570650460, iat 1570650461`
+
+Increase the clock tolerance for id_token validation:
+
+```js
+import { initAuth0 } from '@auth0/nextjs-auth0';
+
+export default initAuth0({
+  ...
+  session: {
+    ...
+  },
+  oidcClient: {
+    clockTolerance: 10 // In seconds.
+  }
+});
+```
 
 ## Contributing
 
