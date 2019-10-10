@@ -1,4 +1,4 @@
-import HttpClientSettings from './http-settings';
+import OidcClientSettings from './oidc-client-settings';
 import { ICookieSessionStoreSettings } from './session/cookie-store/settings';
 
 export default interface IAuth0Settings {
@@ -43,7 +43,7 @@ export default interface IAuth0Settings {
   session: ICookieSessionStoreSettings;
 
   /**
-   * Settings for the Http Client which performs the code exchange.
+   * Settings for the OIDC Client which performs the code exchange.
    */
-  httpClient?: HttpClientSettings;
+  oidcClient?: OidcClientSettings;
 }

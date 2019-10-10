@@ -26,6 +26,10 @@ export default class HttpServer {
     });
   }
 
+  setHandler(handler: IHandler): void {
+    this.handler = handler;
+  }
+
   start(done: () => void): void {
     this.httpServer.listen(done);
   }

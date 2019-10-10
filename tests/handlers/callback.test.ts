@@ -32,7 +32,7 @@ describe('callback handler', () => {
     return keystore.generate('RSA');
   });
 
-  beforeAll((done) => {
+  beforeEach((done) => {
     discovery(withoutApi);
     jwksEndpoint(withoutApi, keystore.toJWKS());
 
@@ -116,6 +116,61 @@ describe('callback handler', () => {
 
     expect(statusCode).toBe(500);
     expect(body).toEqual('unexpected iss value, expected https://acme.auth0.local/, got: other-issuer');
+  });
+
+  test('should validate the issued at', async () => {
+    const overrides = {
+      iat: Math.floor(new Date(new Date().getTime() + 50 * 1000).getTime() / 1000)
+    };
+
+    codeExchange(withoutApi, 'with-expiration', keystore.get(), {
+      name: 'john doe',
+      email: 'john@test.com',
+      sub: '123'
+    }, overrides);
+
+    const { statusCode, body } = await getAsync({
+      url: `${httpServer.getUrl()}?state=foo&code=with-expiration`,
+      followRedirect: false,
+      headers: {
+        cookie: 'a0:state=foo;'
+      }
+    });
+
+    expect(statusCode).toBe(500);
+    expect(body).toContain('id_token issued in the future');
+  });
+
+  describe('when oidcClient.clockTolerance is configured', () => {
+    test('should allow id_tokens to be set in the future', async () => {
+      const overrides = {
+        iat: Math.floor(new Date(new Date().getTime() + 10 * 1000).getTime() / 1000)
+      };
+
+      const options = {
+        ...withoutApi,
+        oidcClient: {
+          clockTolerance: 12000
+        }
+      };
+
+      codeExchange(withoutApi, 'with-clock-skew', keystore.get(), {
+        name: 'john doe',
+        email: 'john@test.com',
+        sub: '123'
+      }, overrides);
+
+      httpServer.setHandler(callback(withoutApi, getClient(options), store));
+      const { statusCode } = await getAsync({
+        url: `${httpServer.getUrl()}?state=foo&code=with-clock-skew`,
+        followRedirect: false,
+        headers: {
+          cookie: 'a0:state=foo;'
+        }
+      });
+
+      expect(statusCode).toBe(302);
+    });
   });
 
   describe('when signing in the user', () => {

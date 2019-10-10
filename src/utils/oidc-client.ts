@@ -1,23 +1,27 @@
-import { Issuer, custom } from 'openid-client';
+import {
+  Issuer,
+  custom,
+  Client
+} from 'openid-client';
 
 import IAuth0Settings from '../settings';
-import HttpClientSettings from '../http-settings';
+import OidcClientSettings from '../oidc-client-settings';
 
 export interface IOidcClientFactory {
-  (): Promise<any>;
+  (): Promise<Client>;
 }
 
-interface OidcClientSettings {
+interface ClientSettings {
   timeout: number;
 }
 
 export default function getClient(settings: IAuth0Settings): IOidcClientFactory {
   let client: any = null;
-  const clientSettings: HttpClientSettings = settings.httpClient || {
-    timeout: 2500
+  const clientSettings: OidcClientSettings = settings.oidcClient || {
+    httpTimeout: 2500
   };
 
-  return async (): Promise<any> => {
+  return async (): Promise<Client> => {
     if (client) {
       return client;
     }
@@ -30,12 +34,20 @@ export default function getClient(settings: IAuth0Settings): IOidcClientFactory 
       response_types: ['code']
     });
 
-    client[custom.http_options] = function setHttpOptions(options: OidcClientSettings): OidcClientSettings {
-      return {
-        ...options,
-        timeout: clientSettings.timeout
+    if (clientSettings.httpTimeout) {
+      const timeout = clientSettings.httpTimeout;
+      client[custom.http_options] = function setHttpOptions(options: ClientSettings): ClientSettings {
+        return {
+          ...options,
+          timeout
+        };
       };
-    };
+    }
+
+    if (clientSettings.clockTolerance) {
+      client[custom.clock_tolerance] = clientSettings.clockTolerance / 1000;
+    }
+
     return client;
   };
 }
