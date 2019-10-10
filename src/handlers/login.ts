@@ -23,7 +23,7 @@ function telemetry(): string {
 }
 
 export default function loginHandler(settings: IAuth0Settings, clientProvider: IOidcClientFactory) {
-  return async (_req: IncomingMessage, res: ServerResponse): Promise<void> => {
+  return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     if (!res) {
       throw new Error('Response is not available');
     }
@@ -41,7 +41,7 @@ export default function loginHandler(settings: IAuth0Settings, clientProvider: I
     });
 
     // Set the necessary cookies
-    setCookies(res, [
+    setCookies(req, res, [
       {
         name: 'a0:state',
         value: state,

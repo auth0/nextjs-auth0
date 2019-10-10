@@ -13,13 +13,13 @@ function createLogoutUrl(settings: IAuth0Settings): string {
 }
 
 export default function logoutHandler(settings: IAuth0Settings, sessionSettings: CookieSessionStoreSettings) {
-  return async (_: IncomingMessage, res: ServerResponse): Promise<void> => {
+  return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     if (!res) {
       throw new Error('Response is not available');
     }
 
     // Remove the cookies
-    setCookies(res, [
+    setCookies(req, res, [
       {
         name: 'a0:state',
         value: '',
