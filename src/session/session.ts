@@ -29,7 +29,7 @@ export interface ISession {
  * Key-value store for the user's claims.
  */
 export interface IClaims {
-  [key: string]: string;
+  [key: string]: any;
 }
 
 export default class Session implements ISession {
