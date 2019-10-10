@@ -1,7 +1,6 @@
-import { Socket } from 'net';
 import { parse } from 'cookie';
-import { ServerResponse, IncomingMessage } from 'http';
 
+import getRequestResponse from '../helpers/http';
 import CookieStore from '../../src/session/cookie-store';
 import CookieSessionStoreSettings from '../../src/session/cookie-store/settings';
 
@@ -14,22 +13,6 @@ describe('cookie store', () => {
       })
     );
     return store;
-  };
-
-  const getRequestResponse = (): { req: IncomingMessage; res: ServerResponse; setHeaderFn: jest.Mock } => {
-    const setHeaderFn = jest.fn();
-    const req = new IncomingMessage(
-      new Socket()
-    );
-
-    const res = new ServerResponse(req);
-    res.setHeader = setHeaderFn;
-
-    return {
-      req,
-      res,
-      setHeaderFn
-    };
   };
 
   describe('with cookie name', () => {

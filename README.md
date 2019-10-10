@@ -246,6 +246,12 @@ If the user is authenticated then your API route will simply execute, but if the
 }
 ```
 
+## Documentation
+
+### Cookies
+
+All cookies will be set as `HttpOnly` cookies and will be forced to HTTPS (`Secure`) if the application is running with `NODE_ENV=production` and not running on localhost.
+
 ## Contributing
 
 Run NPM install first to install the dependencies of this project:

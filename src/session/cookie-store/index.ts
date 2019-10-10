@@ -38,7 +38,7 @@ export default class CookieSessionStore implements ISessionStore {
    * Write the session to the cookie.
    * @param req HTTP request
    */
-  async save(_: IncomingMessage, res: ServerResponse, session: ISession): Promise<void> {
+  async save(req: IncomingMessage, res: ServerResponse, session: ISession): Promise<void> {
     const {
       cookieSecret, cookieName, cookiePath, cookieLifetime
     } = this.settings;
@@ -61,7 +61,7 @@ export default class CookieSessionStore implements ISessionStore {
     }
 
     const encryptedSession = await Iron.seal(persistedSession, cookieSecret, Iron.defaults);
-    setCookie(res, {
+    setCookie(req, res, {
       name: cookieName,
       value: encryptedSession,
       path: cookiePath,
