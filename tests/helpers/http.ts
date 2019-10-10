@@ -10,9 +10,12 @@ export interface IHttpHelpers {
 }
 
 export default function getRequestResponse(): IHttpHelpers {
-  const req: any = new IncomingMessage(
+  const req: IncomingMessage = new IncomingMessage(
     new Socket()
   );
+  req.headers = {
+    host: 'localhost'
+  };
 
   const res: any = new ServerResponse(req);
   res.setHeader = jest.fn();
