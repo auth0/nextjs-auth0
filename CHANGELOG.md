@@ -1,3 +1,9 @@
+## [v0.4.0](https://github.com/auth0/nextjs-auth0/tree/v0.4.0) (2019-10-10)
+
+- Rename the `httpClient` to `oidcClient` setting to support more OIDC related settings.
+- Added support for `id_token` leeway for when the time on your server is running behind on Auth0.
+- Improve handling of `Secure` cookies. Don't force `Secure` cookies when running on localhost (to fix issues related to `next start`)
+
 ## [v0.3.0](https://github.com/auth0/nextjs-auth0/tree/v0.3.0) (2019-10-09)
 
 - Fixed issue related to `audience` not being passed to the `/authorize` request
