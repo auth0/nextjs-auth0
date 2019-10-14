@@ -1,3 +1,7 @@
+## [v0.5.0](https://github.com/auth0/nextjs-auth0/tree/v0.5.0) (2019-10-14)
+
+- Added support for custom authorization parameters in the Login handler
+
 ## [v0.4.0](https://github.com/auth0/nextjs-auth0/tree/v0.4.0) (2019-10-10)
 
 - Rename the `httpClient` to `oidcClient` setting to support more OIDC related settings.
