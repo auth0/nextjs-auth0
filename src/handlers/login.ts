@@ -22,8 +22,24 @@ function telemetry(): string {
     .replace(/=+$/, '');
 }
 
+export interface AuthorizationParameters {
+  acr_values?: string;
+  audience?: string;
+  display?: string;
+  login_hint?: string;
+  max_age?: string;
+  prompt?: string;
+  scope?: string;
+  ui_locales?: string;
+  [key: string]: unknown;
+}
+
+export interface LoginOptions {
+  authParams?: AuthorizationParameters;
+}
+
 export default function loginHandler(settings: IAuth0Settings, clientProvider: IOidcClientFactory) {
-  return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+  return async (req: IncomingMessage, res: ServerResponse, options: LoginOptions = {}): Promise<void> => {
     if (!res) {
       throw new Error('Response is not available');
     }
@@ -33,11 +49,15 @@ export default function loginHandler(settings: IAuth0Settings, clientProvider: I
 
     // Create the authorization url.
     const client = await clientProvider();
+    const authParams = (options && options.authParams) || {};
     const authorizationUrl = client.authorizationUrl({
       redirect_uri: settings.redirectUri,
       scope: settings.scope,
       response_type: 'code',
-      audience: settings.audience
+      audience: settings.audience,
+      state,
+      auth0Client: telemetry(),
+      ...authParams
     });
 
     // Set the necessary cookies
@@ -51,7 +71,7 @@ export default function loginHandler(settings: IAuth0Settings, clientProvider: I
 
     // Redirect to the authorize endpoint.
     res.writeHead(302, {
-      Location: `${authorizationUrl}&state=${state}&auth0Client=${telemetry()}`
+      Location: authorizationUrl
     });
     res.end();
   };

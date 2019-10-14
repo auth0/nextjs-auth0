@@ -107,6 +107,32 @@ export default async function callback(req, res) {
 }
 ```
 
+You can optionally send extra parameters to Auth0 to influence the transaction, for example:
+
+- Showing the login page
+- Filling in the user's email address
+- Exposing information to the custom login page (eg: to show the signup tab)
+
+```js
+import auth0 from '../../utils/auth0';
+
+export default async function login(req, res) {
+  try {
+    await auth0.handleLogin(req, res, {
+      authParams: {
+        login_hint: 'foo@acme.com',
+        ui_locales: 'nl',
+        scope: 'some other scope',
+        foo: 'bar'
+      }
+    });
+  } catch(error) {
+    console.error(error)
+    res.status(error.status || 400).end(error.message)
+  }
+}
+```
+
 ### Logout
 
 For signing the user out we'll also need a logout link:
