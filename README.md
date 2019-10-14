@@ -147,7 +147,7 @@ export default async function me(req, res) {
 }
 ```
 
-You can then load the user after the page has been redered on the server:
+You can then load the user after the page has been rendered on the server:
 
 ```js
 async componentDidMount() {
