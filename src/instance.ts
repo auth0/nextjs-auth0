@@ -2,8 +2,8 @@ import { IncomingMessage, ServerResponse } from 'http';
 import { NextApiRequest, NextApiResponse } from 'next';
 
 import { ISession } from './session/session';
+import { CallbackOptions } from './handlers/callback';
 import { IApiRoute } from './handlers/require-authentication';
-import { CallbackOptions } from './handlers/callback-options';
 
 export interface ISignInWithAuth0 {
   /**
