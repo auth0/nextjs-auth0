@@ -2,25 +2,29 @@ import request from 'request';
 import { parse } from 'cookie';
 import { promisify } from 'util';
 
-import login from '../../src/handlers/login';
-import getClient from '../../src/utils/oidc-client';
-
 import HttpServer from '../helpers/server';
 import { discovery } from '../helpers/oidc-nocks';
+import getClient from '../../src/utils/oidc-client';
 import { withoutApi, withApi } from '../helpers/default-settings';
+import login, { LoginOptions } from '../../src/handlers/login';
+
 
 const [getAsync] = [request.get].map(promisify);
 
 describe('login handler', () => {
   let httpServer: HttpServer;
+  let loginHandler: any;
+  let loginOptions: LoginOptions | null;
 
-  beforeAll((done) => {
+  beforeEach((done) => {
     discovery(withoutApi);
-    httpServer = new HttpServer(login(withoutApi, getClient(withoutApi)));
+    loginOptions = null;
+    loginHandler = login(withoutApi, getClient(withoutApi));
+    httpServer = new HttpServer((req, res) => loginHandler(req, res, loginOptions));
     httpServer.start(done);
   });
 
-  afterAll((done) => {
+  afterEach((done) => {
     httpServer.stop(done);
   });
 
@@ -49,18 +53,52 @@ describe('login handler', () => {
         + `&response_type=code&redirect_uri=${encodeURIComponent(withoutApi.redirectUri)}`
         + `&state=${state['a0:state']}`);
   });
+
+  test('should contain the telemetry querystring', async () => {
+    const { statusCode, headers } = await getAsync({
+      url: httpServer.getUrl(),
+      followRedirect: false
+    });
+    expect(statusCode).toBe(302);
+    expect(headers.location)
+      .toContain('&auth0Client=');
+  });
+
+  test('should allow sending custom parameters to the authorization server', async () => {
+    loginOptions = {
+      authParams: {
+        max_age: '123',
+        login_hint: 'foo@acme.com',
+        ui_locales: 'nl',
+        scope: 'some other scope',
+        foo: 'bar'
+      }
+    };
+    const { statusCode, headers } = await getAsync({
+      url: httpServer.getUrl(),
+      followRedirect: false
+    });
+
+    expect(statusCode).toBe(302);
+    expect(headers.location)
+      .toContain(`https://${withoutApi.domain}/authorize?`
+        + `client_id=${withoutApi.clientId}&scope=${encodeURIComponent(withoutApi.scope)}`
+        + `&response_type=code&redirect_uri=${encodeURIComponent(withoutApi.redirectUri)}`);
+    expect(headers.location)
+      .toContain('&max_age=123&foo=bar');
+  });
 });
 
 describe('withApi login handler', () => {
   let httpServer: HttpServer;
 
-  beforeAll(done => {
+  beforeAll((done) => {
     discovery(withApi);
     httpServer = new HttpServer(login(withApi, getClient(withApi)));
     httpServer.start(done);
   });
 
-  afterAll(done => {
+  afterAll((done) => {
     httpServer.stop(done);
   });
 
@@ -84,11 +122,11 @@ describe('withApi login handler', () => {
 
     const state = parse(headers['set-cookie'][0]);
     expect(headers.location).toContain(
-      `https://${withApi.domain}/authorize?` +
-        `client_id=${withApi.clientId}&scope=${encodeURIComponent(withApi.scope)}` +
-        `&response_type=code&redirect_uri=${encodeURIComponent(withApi.redirectUri)}` +
-        `&audience=${encodeURIComponent(withApi.audience)}` +
-        `&state=${state['a0:state']}`
+      `https://${withApi.domain}/authorize?`
+      + `client_id=${withApi.clientId}&scope=${encodeURIComponent(withApi.scope)}`
+      + `&response_type=code&redirect_uri=${encodeURIComponent(withApi.redirectUri)}`
+      + `&audience=${encodeURIComponent(withApi.audience)}`
+      + `&state=${state['a0:state']}`
     );
   });
 });

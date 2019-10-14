@@ -5,7 +5,10 @@ import { ISession } from '../session/session';
 import { parseCookies } from '../utils/cookies';
 import { ISessionStore } from '../session/store';
 import { IOidcClientFactory } from '../utils/oidc-client';
-import { CallbackOptions } from './callback-options';
+
+export type CallbackOptions = {
+  redirectTo?: string;
+};
 
 export default function callbackHandler(
   settings: IAuth0Settings,
