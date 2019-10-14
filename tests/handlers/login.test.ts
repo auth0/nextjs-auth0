@@ -82,10 +82,10 @@ describe('login handler', () => {
     expect(statusCode).toBe(302);
     expect(headers.location)
       .toContain(`https://${withoutApi.domain}/authorize?`
-        + `client_id=${withoutApi.clientId}&scope=${encodeURIComponent(withoutApi.scope)}`
+        + `client_id=${withoutApi.clientId}&scope=${encodeURIComponent('some other scope')}`
         + `&response_type=code&redirect_uri=${encodeURIComponent(withoutApi.redirectUri)}`);
     expect(headers.location)
-      .toContain('&max_age=123&foo=bar');
+      .toContain('&max_age=123&login_hint=foo%40acme.com&ui_locales=nl&foo=bar');
   });
 });
 
