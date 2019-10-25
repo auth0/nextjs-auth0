@@ -8,6 +8,9 @@
   "directories": {
     "test": "tests"
   },
+  "engines": {
+    "node": "^10.13.0 || >=12.0.0"
+  },
   "scripts": {
     "clean": "rimraf dist",
     "pretty": "prettier --write \"src/**/*.ts\" \"src/*.ts\"",
@@ -55,7 +58,7 @@
     "eslint-plugin-import": "^2.18.2",
     "jest": "^24.9.0",
     "next": "^9.1.1",
-    "nock": "^11.4.0",
+    "nock": "^11.6.0",
     "prettier": "^1.18.2",
     "request": "^2.88.0",
     "timekeeper": "^2.2.0",
@@ -66,7 +69,7 @@
     "@hapi/iron": "^5.1.4",
     "base64url": "^3.0.1",
     "cookie": "^0.4.0",
-    "openid-client": "^3.7.2"
+    "openid-client": "^3.7.4"
   },
   "peerDependencies": {
     "next": "^9.0.5"
