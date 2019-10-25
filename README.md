@@ -31,7 +31,16 @@ Using [yarn](https://yarnpkg.com):
 yarn add @auth0/nextjs-auth0
 ```
 
+> Note that this package supports the following versions of Node.js: `^10.13.0 || >=12.0.0`
+
 ## Getting Started
+
+### Auth0 Configuration
+
+Create a **Regular Web Application** in the [Auth0 Dashboard](https://manage.auth0.com/). If you're using an existing application you'll want to very that the following settings are configured as follows:
+
+ - `Json Web Token Signature Algorithm`: **RS256**
+ - `OIDC Conformant`: **True**
 
 ### Runtime Configuration
 
