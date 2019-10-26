@@ -47,6 +47,40 @@ describe('cookie store', () => {
     });
   });
 
+  describe('with cookie domain', () => {
+    describe('configured', () => {
+      const store = getStore({
+        cookieDomain: ".quirk.fyi",
+      })
+
+      test('should set cookie domain', async () => {
+        const { req, res, setHeaderFn } = getRequestResponse();
+        await store.save(req, res, {
+          user: { sub: '123' },
+          createdAt: Date.now()
+        });
+
+        const [, cookie] = setHeaderFn.mock.calls[0];
+        expect(parse(cookie).Domain).toBe(".quirk.fyi")
+      })
+    }),
+
+    describe('not configured', () => {
+      const store = getStore({})
+
+      test('should set cookie domain', async () => {
+        const { req, res, setHeaderFn } = getRequestResponse();
+        await store.save(req, res, {
+          user: { sub: '123' },
+          createdAt: Date.now()
+        });
+
+        const [, cookie] = setHeaderFn.mock.calls[0];
+        expect(parse(cookie).Domain).toBeUndefined()
+      })
+    })
+  })
+
   describe('with storeAccessToken', () => {
     describe('configured', () => {
       const store = getStore({});
