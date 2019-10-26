@@ -23,6 +23,13 @@ export interface ICookieSessionStoreSettings {
   cookiePath?: string;
 
   /**
+   * The Domain option to set on the cookie.
+   * Defaults to omitting the option, which restricts the cookie
+   * to the host of the current document URL, not including subdomains.
+   */
+  cookieDomain?: string;
+
+  /**
    * Save the id_token in the cookie.
    * Defaults to 'false'
    */
@@ -50,6 +57,8 @@ export default class CookieSessionStoreSettings {
 
   readonly cookiePath: string;
 
+  readonly cookieDomain: string;
+
   readonly storeIdToken: boolean;
 
   readonly storeAccessToken: boolean;
@@ -72,6 +81,8 @@ export default class CookieSessionStoreSettings {
     }
 
     this.cookieLifetime = settings.cookieLifetime || 60 * 60 * 8;
+
+    this.cookieDomain = settings.cookieDomain || "";
 
     this.cookiePath = settings.cookiePath || '/';
     if (!this.cookiePath || !this.cookiePath.length) {
