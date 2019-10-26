@@ -39,8 +39,15 @@ yarn add @auth0/nextjs-auth0
 
 Create a **Regular Web Application** in the [Auth0 Dashboard](https://manage.auth0.com/). If you're using an existing application you'll want to very that the following settings are configured as follows:
 
- - `Json Web Token Signature Algorithm`: **RS256**
- - `OIDC Conformant`: **True**
+ - **Json Web Token Signature Algorithm**: `RS256`
+ - **OIDC Conformant**: `True`
+
+Go ahead and configure the URLs for your application:
+
+- **Allowed Callback URLs**: http://localhost:3000/api/callback
+- **Allowed Logout URLs**: http://localhost:3000/
+
+Take note of the **Client ID**, **Client Secret** and **Domain** of your application because you'll need it in the next step.
 
 ### Runtime Configuration
 
@@ -76,7 +83,8 @@ export default initAuth0({
   }
 });
 ```
-Add 'http://localhost:3000/api/callback' to your list of Allowed Callback URLs in your auth0 account.
+
+> Note that when you have configured a Custom Domain in your Auth0 account you should be using that domain (eg: `login.acme.com` instead of `acme.auth0.com`) as the AUTH0_DOMAIN. [You might also need to make changes to your Login page](https://auth0.com/docs/custom-domains/additional-configuration).
 
 ### Login
 
