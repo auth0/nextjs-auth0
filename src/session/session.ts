@@ -23,6 +23,11 @@ export interface ISession {
    * The time on which the session was created.
    */
   readonly createdAt: number;
+
+  /**
+   * The time on which the accessToken will expire
+   */
+  readonly expiresAt?: number;
 }
 
 /**
@@ -42,6 +47,8 @@ export default class Session implements ISession {
   refreshToken?: string | undefined;
 
   createdAt: number;
+
+  expiresAt?: number;
 
   constructor(user: IClaims, createdAt?: number) {
     this.user = user;

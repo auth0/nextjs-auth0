@@ -149,3 +149,28 @@ export function codeExchangeWithAccessToken(
       token_type: 'Bearer'
     });
 }
+
+export function refreshToken(
+  settings: IAuth0Settings,
+  refreshToken: string,
+  key: JWK.Key,
+  payload: object,
+  newToken?: string
+): nock.Scope {
+  const idToken = createToken(key, {
+    iss: `https://${settings.domain}/`,
+    aud: settings.clientId,
+    ...payload
+  });
+
+  return nock(`https://${settings.domain}`)
+    .post('/oauth/token',
+      `grant_type=refresh_token&refresh_token=${refreshToken}`)
+    .reply(200, {
+      access_token: newToken || 'eyJz93a...k4laUWw',
+      refresh_token: 'GEbRxBN...edjnXbL',
+      id_token: idToken,
+      token_type: 'Bearer',
+      expires_at: Date.now() / 1000
+    });
+}

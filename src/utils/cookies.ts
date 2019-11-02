@@ -85,7 +85,7 @@ function serializeCookie(cookie: ICookie, secure: boolean): string {
  * @param res The HTTP response on which the cookie will be set.
  */
 export function setCookies(req: IncomingMessage, res: ServerResponse, cookies: Array<ICookie>): void {
-  res.setHeader('Set-Cookie', cookies.map((c) => serializeCookie(c, isSecureEnvironment(req))));
+  res.setHeader('Set-Cookie', cookies.map(c => serializeCookie(c, isSecureEnvironment(req))));
 }
 
 /**

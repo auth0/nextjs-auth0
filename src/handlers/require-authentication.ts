@@ -16,7 +16,7 @@ export default function requireAuthentication(sessionStore: ISessionStore) {
       throw new Error('Response is not available');
     }
 
-    const session = await sessionStore.read(req);
+    const session = await sessionStore.read(req, res);
     if (!session || !session.user) {
       res.status(401).json({
         error: 'not_authenticated',

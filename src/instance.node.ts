@@ -16,7 +16,7 @@ export default function createInstance(settings: IAuth0Settings): ISignInWithAut
   const clientProvider = getClient(settings);
 
   const sessionSettings = new CookieSessionStoreSettings(settings.session);
-  const store: ISessionStore = new CookieSessionStore(sessionSettings);
+  const store: ISessionStore = new CookieSessionStore(sessionSettings, clientProvider);
 
   return {
     handleLogin: handlers.LoginHandler(settings, clientProvider),

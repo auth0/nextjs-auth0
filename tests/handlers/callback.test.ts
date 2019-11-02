@@ -27,7 +27,8 @@ describe('callback handler', () => {
       new CookieSessionStoreSettings({
         cookieSecret: 'keyboardcat-keyboardcat-keyboardcat-keyboardcat',
         cookieLifetime: 60 * 60
-      })
+      }),
+      getClient(withoutApi)
     );
     return keystore.generate('RSA');
   });
@@ -208,12 +209,12 @@ describe('callback handler', () => {
       expect(responseStatus).toBe(302);
       expect(responseHeaders['set-cookie'][0]).toContain('a0:session');
 
-      const { req } = getRequestResponse();
+      const { req, res } = getRequestResponse();
       req.headers = {
         cookie: `a0:session=${parse(responseHeaders['set-cookie'][0])['a0:session']}`
       };
 
-      const session = await store.read(req);
+      const session = await store.read(req, res);
       expect(session).toStrictEqual({
         createdAt: time.getTime(),
         user: {
