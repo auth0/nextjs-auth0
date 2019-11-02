@@ -149,3 +149,15 @@ export function codeExchangeWithAccessToken(
       token_type: 'Bearer'
     });
 }
+
+export function userInfo(
+  settings: IAuth0Settings,
+  token: string,
+  payload: object
+): nock.Scope {
+  return nock(`https://${settings.domain}`, {
+    reqheaders: {
+      authorization: `Bearer ${token}`
+    }
+  }).get('/userinfo').reply(200, payload);
+}
