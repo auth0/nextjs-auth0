@@ -69,6 +69,8 @@
     "@hapi/iron": "^5.1.4",
     "base64url": "^3.0.1",
     "cookie": "^0.4.0",
+    "jsonwebtoken": "^8.5.1",
+    "jwks-rsa": "^1.6.0",
     "openid-client": "^3.7.4"
   },
   "peerDependencies": {

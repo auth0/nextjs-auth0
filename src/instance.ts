@@ -35,4 +35,9 @@ export interface ISignInWithAuth0 {
    * Handle to require authentication for an API route.
    */
   requireAuthentication: (apiRoute: IApiRoute) => IApiRoute;
+
+  /**
+   * Handle to require permissions for an API route.
+   */
+  requirePermissions: (apiRoute: IApiRoute, expectedScopes: string[], options: { checkAllScopes: boolean }) => IApiRoute;
 }

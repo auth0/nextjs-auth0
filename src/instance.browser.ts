@@ -21,6 +21,9 @@ export default function createDummyBrowserInstance(): ISignInWithAuth0 & { isBro
     },
     requireAuthentication: () => (): Promise<void> => {
       throw new Error('The requireAuthentication method can only be used from the server side');
+    },
+    requirePermissions: () => (): Promise<void> => {
+      throw new Error('The requirePermissions method can only be used from the server side');
     }
   };
 }
