@@ -60,7 +60,6 @@
     "next": "^9.1.1",
     "nock": "^11.6.0",
     "prettier": "^1.18.2",
-    "request": "^2.88.0",
     "timekeeper": "^2.2.0",
     "ts-jest": "^24.1.0",
     "typescript": "^3.6.4"
@@ -69,7 +68,8 @@
     "@hapi/iron": "^5.1.4",
     "base64url": "^3.0.1",
     "cookie": "^0.4.0",
-    "openid-client": "^3.7.4"
+    "openid-client": "^3.7.4",
+    "request": "^2.88.0"
   },
   "peerDependencies": {
     "next": "^9.0.5"

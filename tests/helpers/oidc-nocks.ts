@@ -150,6 +150,7 @@ export function codeExchangeWithAccessToken(
     });
 }
 
+
 export function refreshToken(
   settings: IAuth0Settings,
   refreshToken: string,
@@ -173,4 +174,16 @@ export function refreshToken(
       token_type: 'Bearer',
       expires_at: Date.now() / 1000
     });
+
+export function userInfo(
+  settings: IAuth0Settings,
+  token: string,
+  payload: object
+): nock.Scope {
+  return nock(`https://${settings.domain}`, {
+    reqheaders: {
+      authorization: `Bearer ${token}`
+    }
+  }).get('/userinfo').reply(200, payload);
+
 }
