@@ -37,10 +37,10 @@ yarn add @auth0/nextjs-auth0
 
 ### Auth0 Configuration
 
-Create a **Regular Web Application** in the [Auth0 Dashboard](https://manage.auth0.com/). If you're using an existing application you'll want to very that the following settings are configured as follows:
+Create a **Regular Web Application** in the [Auth0 Dashboard](https://manage.auth0.com/). If you're using an existing application you'll want to verify that the following settings are configured as follows:
 
- - **Json Web Token Signature Algorithm**: `RS256`
- - **OIDC Conformant**: `True`
+- **Json Web Token Signature Algorithm**: `RS256`
+- **OIDC Conformant**: `True`
 
 Go ahead and configure the URLs for your application:
 
@@ -55,6 +55,7 @@ And then create an instance of the Auth0 plugin (eg: under `/utils/auth0.js`):
 
 ```js
 import { initAuth0 } from '@auth0/nextjs-auth0';
+import config from './config';
 
 export default initAuth0({
   domain: '<AUTH0_DOMAIN>',
@@ -68,17 +69,21 @@ export default initAuth0({
     cookieSecret: '<RANDOMLY_GENERATED_SECRET>',
     // The cookie lifetime (expiration) in seconds. Set to 8 hours by default.
     cookieLifetime: 60 * 60 * 8,
-    // Store the id_token in the session. Defaults to false.
+    // (Optional) The cookie domain this should run on. Leave it blank to restrict it to your domain.
+    cookieDomain: 'your-domain.com',
+    // (Optional) SameSite configuration for the session cookie. Defaults to 'lax', but can be changed to 'strict' or 'none'. Set it to false if you want to disable the SameSite setting.
+    cookieSameSite: 'lax',
+    // (Optional) Store the id_token in the session. Defaults to false.
     storeIdToken: false,
-    // Store the access_token in the session. Defaults to false.
+    // (Optional) Store the access_token in the session. Defaults to false.
     storeAccessToken: false,
-    // Store the refresh_token in the session. Defaults to false.
+    // (Optional) Store the refresh_token in the session. Defaults to false.
     storeRefreshToken: false
   },
   oidcClient: {
-    // Optionally configure the timeout in milliseconds for HTTP requests to Auth0.
+    // (Optional) Configure the timeout in milliseconds for HTTP requests to Auth0.
     httpTimeout: 2500,
-    // Optionally configure the clock tolerance in milliseconds, if the time on your server is running behind.
+    // (Optional) Configure the clock tolerance in milliseconds, if the time on your server is running behind.
     clockTolerance: 10000
   }
 });
@@ -91,7 +96,7 @@ export default initAuth0({
 In order to sign in the user we'll first need a link to the login route.
 
 ```html
-<a href='/api/login'>Login</a>
+<a href="/api/login">Login</a>
 ```
 
 Create an [API Route](https://nextjs.org/docs#api-routes) for this route (`/pages/api/login.js`) which uses the client:
@@ -102,9 +107,9 @@ import auth0 from '../../utils/auth0';
 export default async function login(req, res) {
   try {
     await auth0.handleLogin(req, res);
-  } catch(error) {
-    console.error(error)
-    res.status(error.status || 400).end(error.message)
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 400).end(error.message);
   }
 }
 ```
@@ -117,9 +122,9 @@ import auth0 from '../../utils/auth0';
 export default async function callback(req, res) {
   try {
     await auth0.handleCallback(req, res, { redirectTo: '/' });
-  } catch(error) {
-    console.error(error)
-    res.status(error.status || 400).end(error.message)
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 400).end(error.message);
   }
 }
 ```
@@ -129,6 +134,7 @@ You can optionally send extra parameters to Auth0 to influence the transaction, 
 - Showing the login page
 - Filling in the user's email address
 - Exposing information to the custom login page (eg: to show the signup tab)
+- Using a custom `state`
 
 ```js
 import auth0 from '../../utils/auth0';
@@ -140,12 +146,13 @@ export default async function login(req, res) {
         login_hint: 'foo@acme.com',
         ui_locales: 'nl',
         scope: 'some other scope',
+        state: 'a custom state',
         foo: 'bar'
       }
     });
-  } catch(error) {
-    console.error(error)
-    res.status(error.status || 400).end(error.message)
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 400).end(error.message);
   }
 }
 ```
@@ -155,7 +162,7 @@ export default async function login(req, res) {
 For signing the user out we'll also need a logout link:
 
 ```html
-<a href='/api/logout'>Logout</a>
+<a href="/api/logout">Logout</a>
 ```
 
 Create an [API Route](https://nextjs.org/docs#api-routes) for this route (`/pages/api/logout.js`) which uses the client:
@@ -166,9 +173,9 @@ import auth0 from '../../utils/auth0';
 export default async function logout(req, res) {
   try {
     await auth0.handleLogout(req, res);
-  } catch(error) {
-    console.error(error)
-    res.status(error.status || 400).end(error.message)
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 400).end(error.message);
   }
 }
 ```
@@ -183,9 +190,9 @@ import auth0 from '../../utils/auth0';
 export default async function me(req, res) {
   try {
     await auth0.handleProfile(req, res);
-  } catch(error) {
-    console.error(error)
-    res.status(error.status || 500).end(error.message)
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).end(error.message);
   }
 }
 ```
@@ -232,9 +239,9 @@ Profile.getInitialProps = async ({ req, res }) => {
       return;
     }
 
-    return { user }
+    return { user };
   }
-}
+};
 ```
 
 ### Calling an API
@@ -257,6 +264,7 @@ export default initAuth0({
   session: {
     cookieSecret: '<RANDOMLY_GENERATED_SECRET>',
     cookieLifetime: 60 * 60 * 8,
+    cookieDomain: 'https://mycompany.com',
     storeAccessToken: true
   }
 });
@@ -273,9 +281,9 @@ export default async function getCustomers(req, res) {
 
     const apiClient = new MyApiClient(accessToken);
     return apiClient.getCustomers();
-  } catch(error) {
-    console.error(error)
-    res.status(error.status || 500).end(error.message)
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).end(error.message);
   }
 }
 ```
@@ -293,7 +301,7 @@ export default auth0.requireAuthentication(async function billingInfo(req, res) 
     email: user.email,
     country: 'United States',
     paymentMethod: 'Paypal'
-  })
+  });
 });
 ```
 
@@ -310,7 +318,9 @@ If the user is authenticated then your API route will simply execute, but if the
 
 ### Cookies
 
-All cookies will be set as `HttpOnly` cookies and will be forced to HTTPS (`Secure`) if the application is running with `NODE_ENV=production` and not running on localhost.
+All cookies will be set as `HttpOnly, SameSite=Lax` cookies and will be forced to HTTPS (`Secure`) if the application is running with `NODE_ENV=production` and not running on localhost.
+
+The `HttpOnly` setting will make sure that client-side javascript is unabled to access the cookie to reduce the attack surface of XSS attacks while `SameSite=Lax` will help mitigate CSRF attacks. Read more about SameSite [here](https://auth0.com/blog/browser-behavior-changes-what-developers-need-to-know/).
 
 ## Troubleshooting
 

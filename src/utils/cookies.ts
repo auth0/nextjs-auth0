@@ -26,6 +26,16 @@ interface ICookie {
    * The path of the cookie
    */
   path?: string;
+
+  /**
+   * The domain of the cookie
+   */
+  domain?: string;
+
+  /**
+   * SameSite configuration for the session cookie.
+   */
+  sameSite?: boolean | 'lax' | 'strict' | 'none' | undefined;
 }
 
 /**
@@ -76,7 +86,9 @@ function serializeCookie(cookie: ICookie, secure: boolean): string {
     expires: new Date(Date.now() + cookie.maxAge * 1000),
     httpOnly: true,
     secure,
-    path: cookie.path
+    path: cookie.path,
+    domain: cookie.domain,
+    sameSite: cookie.sameSite
   });
 }
 
@@ -85,7 +97,10 @@ function serializeCookie(cookie: ICookie, secure: boolean): string {
  * @param res The HTTP response on which the cookie will be set.
  */
 export function setCookies(req: IncomingMessage, res: ServerResponse, cookies: Array<ICookie>): void {
-  res.setHeader('Set-Cookie', cookies.map(c => serializeCookie(c, isSecureEnvironment(req))));
+  res.setHeader(
+    'Set-Cookie',
+    cookies.map(c => serializeCookie(c, isSecureEnvironment(req)))
+  );
 }
 
 /**

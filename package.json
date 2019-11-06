@@ -1,6 +1,6 @@
 {
   "name": "@auth0/nextjs-auth0",
-  "version": "0.5.0",
+  "version": "0.7.0",
   "description": "Next.js SDK for signing in with Auth0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -51,11 +51,12 @@
     "@types/request": "^2.48.3",
     "@typescript-eslint/eslint-plugin": "^2.3.3",
     "@typescript-eslint/parser": "^2.3.3",
-    "eslint": "^6.5.1",
+    "eslint": "^6.7.2",
     "eslint-config-airbnb-base": "^14.0.0",
-    "eslint-config-prettier": "^6.4.0",
+    "eslint-config-prettier": "^6.7.0",
     "eslint-import-resolver-typescript": "^1.1.1",
     "eslint-plugin-import": "^2.18.2",
+    "eslint-plugin-prettier": "^3.1.2",
     "jest": "^24.9.0",
     "next": "^9.1.1",
     "nock": "^11.6.0",
@@ -68,8 +69,7 @@
     "@hapi/iron": "^5.1.4",
     "base64url": "^3.0.1",
     "cookie": "^0.4.0",
-    "openid-client": "^3.7.4",
-    "request": "^2.88.0"
+    "openid-client": "^3.7.4"
   },
   "peerDependencies": {
     "next": "^9.0.5"
