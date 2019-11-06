@@ -30,7 +30,7 @@ export interface ISignInWithAuth0 {
   /**
    * Session handler which returns the current session
    */
-  getSession: (req: IncomingMessage) => Promise<ISession | null | undefined>;
+  getSession: (req: NextApiRequest, res: NextApiResponse) => Promise<ISession | null | undefined>;
 
   /**
    * Handle to require authentication for an API route.
