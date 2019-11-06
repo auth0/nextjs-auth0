@@ -174,6 +174,7 @@ export function refreshToken(
       token_type: 'Bearer',
       expires_at: Date.now() / 1000
     });
+}
 
 export function userInfo(
   settings: IAuth0Settings,
@@ -185,5 +186,6 @@ export function userInfo(
       authorization: `Bearer ${token}`
     }
   }).get('/userinfo').reply(200, payload);
+
 
 }
