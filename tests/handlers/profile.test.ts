@@ -1,3 +1,4 @@
+import { NextApiRequest, NextApiResponse } from 'next';
 import handlers from '../../src/handlers';
 import { ISession } from '../../src/session/session';
 import { ISessionStore } from '../../src/session/store';
@@ -9,8 +10,8 @@ describe('profile handler', () => {
       read(): Promise<ISession | null | undefined> {
         return Promise.resolve(session);
       },
-      save(): Promise<void> {
-        return Promise.resolve();
+      save(_req: NextApiRequest, _res: NextApiResponse, session: ISession): Promise<ISession> {
+        return Promise.resolve(session);
       }
     };
     return store;

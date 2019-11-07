@@ -1,3 +1,4 @@
+import { NextApiRequest, NextApiResponse } from 'next';
 import handlers from '../../src/handlers';
 import { ISession } from '../../src/session/session';
 import { ISessionStore } from '../../src/session/store';
@@ -6,7 +7,7 @@ import getRequestResponse from '../helpers/http';
 describe('session handler', () => {
   test('should return the session', async () => {
     const now = Date.now();
-    const { req } = getRequestResponse();
+    const { req, res } = getRequestResponse();
 
     const store: ISessionStore = {
       read(): Promise<ISession | null> {
@@ -19,13 +20,13 @@ describe('session handler', () => {
           refreshToken: 'my-refresh-token'
         });
       },
-      save(): Promise<void> {
-        return Promise.resolve();
+      save(_req: NextApiRequest, _res: NextApiResponse, session: ISession): Promise<ISession> {
+        return Promise.resolve(session);
       }
     };
 
     const sessionHandler = handlers.SessionHandler(store);
-    const session = await sessionHandler(req);
+    const session = await sessionHandler(req, res);
     expect(session).toEqual({
       user: { sub: '123' },
       createdAt: now,
