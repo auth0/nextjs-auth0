@@ -129,6 +129,7 @@ You can optionally send extra parameters to Auth0 to influence the transaction, 
 - Showing the login page
 - Filling in the user's email address
 - Exposing information to the custom login page (eg: to show the signup tab)
+- Using a custom `state`
 
 ```js
 import auth0 from '../../utils/auth0';
@@ -140,6 +141,7 @@ export default async function login(req, res) {
         login_hint: 'foo@acme.com',
         ui_locales: 'nl',
         scope: 'some other scope',
+        state: 'a custom state',
         foo: 'bar'
       }
     });

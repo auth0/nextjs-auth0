@@ -87,6 +87,22 @@ describe('login handler', () => {
     expect(headers.location)
       .toContain('&max_age=123&login_hint=foo%40acme.com&ui_locales=nl&foo=bar');
   });
+
+  test('should allow sending custom state to the authorization server', async () => {
+    loginOptions = {
+      authParams: {
+        state: 'custom-state',
+      }
+    };
+    const { statusCode, headers } = await getAsync({
+      url: httpServer.getUrl(),
+      followRedirect: false
+    });
+
+    expect(statusCode).toBe(302);
+    expect(headers.location)
+      .toContain('&state=custom-state');
+  });
 });
 
 describe('withApi login handler', () => {
