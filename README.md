@@ -37,7 +37,7 @@ yarn add @auth0/nextjs-auth0
 
 ### Auth0 Configuration
 
-Create a **Regular Web Application** in the [Auth0 Dashboard](https://manage.auth0.com/). If you're using an existing application you'll want to very that the following settings are configured as follows:
+Create a **Regular Web Application** in the [Auth0 Dashboard](https://manage.auth0.com/). If you're using an existing application you'll want to verify that the following settings are configured as follows:
 
  - **Json Web Token Signature Algorithm**: `RS256`
  - **OIDC Conformant**: `True`
