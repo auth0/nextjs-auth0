@@ -7,8 +7,12 @@ import { ISessionStore } from '../session/store';
 
 const [getAsync] = [request.get].map(promisify);
 
+export type ProfileOptions = {
+  refetch?: boolean;
+};
+
 export default function profileHandler(settings: IAuth0Settings, sessionStore: ISessionStore) {
-  return async (req: NextApiRequest, res: NextApiResponse, { refetch } = { refetch: false }): Promise<void> => {
+  return async (req: NextApiRequest, res: NextApiResponse, options?: ProfileOptions): Promise<void> => {
     if (!req) {
       throw new Error('Request is not available');
     }
@@ -26,7 +30,7 @@ export default function profileHandler(settings: IAuth0Settings, sessionStore: I
       return;
     }
 
-    if (refetch) {
+    if (options && options.refetch) {
       if (!session.accessToken) {
         throw new Error('The access token needs to be saved in the session for the user to be fetched');
       }
