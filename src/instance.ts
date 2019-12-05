@@ -1,6 +1,7 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { NextApiRequest, NextApiResponse } from 'next';
 
+import { LoginOptions } from './handlers/login';
 import { ISession } from './session/session';
 import { CallbackOptions } from './handlers/callback';
 import { IApiRoute } from './handlers/require-authentication';
@@ -9,7 +10,7 @@ export interface ISignInWithAuth0 {
   /**
    * Login handler which will redirect the user to Auth0.
    */
-  handleLogin: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
+  handleLogin: (req: IncomingMessage, res: ServerResponse, options: LoginOptions) => Promise<void>;
 
   /**
    * Callback handler which will complete the transaction and create a local session.
