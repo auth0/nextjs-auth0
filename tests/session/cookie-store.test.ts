@@ -68,7 +68,7 @@ describe('cookie store', () => {
     describe('not configured', () => {
       const store = getStore({})
 
-      test('should set cookie domain', async () => {
+      test('should not set the cookie domain', async () => {
         const { req, res, setHeaderFn } = getRequestResponse();
         await store.save(req, res, {
           user: { sub: '123' },

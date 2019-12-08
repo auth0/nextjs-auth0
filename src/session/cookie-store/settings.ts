@@ -82,7 +82,7 @@ export default class CookieSessionStoreSettings {
 
     this.cookieLifetime = settings.cookieLifetime || 60 * 60 * 8;
 
-    this.cookieDomain = settings.cookieDomain || "";
+    this.cookieDomain = settings.cookieDomain || '';
 
     this.cookiePath = settings.cookiePath || '/';
     if (!this.cookiePath || !this.cookiePath.length) {
