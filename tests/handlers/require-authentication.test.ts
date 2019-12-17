@@ -18,8 +18,8 @@ describe('require authentication handle handler', () => {
       read(): Promise<ISession | null | undefined> {
         return Promise.resolve(session);
       },
-      save(): Promise<void> {
-        return Promise.resolve();
+      save(): Promise<ISession | null | undefined> {
+        return Promise.resolve(session);
       }
     };
     return store;

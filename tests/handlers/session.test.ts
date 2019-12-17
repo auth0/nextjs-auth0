@@ -6,7 +6,7 @@ import getRequestResponse from '../helpers/http';
 describe('session handler', () => {
   test('should return the session', async () => {
     const now = Date.now();
-    const { req } = getRequestResponse();
+    const { req, res } = getRequestResponse();
 
     const store: ISessionStore = {
       read(): Promise<ISession | null> {
@@ -19,13 +19,13 @@ describe('session handler', () => {
           refreshToken: 'my-refresh-token'
         });
       },
-      save(): Promise<void> {
-        return Promise.resolve();
+      save(): Promise<ISession | null | undefined> {
+        return Promise.resolve(session);
       }
     };
 
     const sessionHandler = handlers.SessionHandler(store);
-    const session = await sessionHandler(req);
+    const session = await sessionHandler(req, res);
     expect(session).toEqual({
       user: { sub: '123' },
       createdAt: now,
