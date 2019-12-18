@@ -55,6 +55,7 @@ And then create an instance of the Auth0 plugin (eg: under `/utils/auth0.js`):
 
 ```js
 import { initAuth0 } from '@auth0/nextjs-auth0';
+import config from './config';
 
 export default initAuth0({
   domain: '<AUTH0_DOMAIN>',
@@ -70,6 +71,8 @@ export default initAuth0({
     cookieLifetime: 60 * 60 * 8,
     // (Optional) The cookie domain this should run on. Leave it blank to restrict it to your domain.
     cookieDomain: 'your-domain.com',
+    // (Optional) SameSite configuration for the session cookie. Defaults to 'lax', but can be changed to 'strict' or 'none'. Set it to false if you want to disable the SameSite setting.
+    cookieSameSite: 'lax',
     // (Optional) Store the id_token in the session. Defaults to false.
     storeIdToken: false,
     // (Optional) Store the access_token in the session. Defaults to false.
@@ -300,7 +303,9 @@ If the user is authenticated then your API route will simply execute, but if the
 
 ### Cookies
 
-All cookies will be set as `HttpOnly` cookies and will be forced to HTTPS (`Secure`) if the application is running with `NODE_ENV=production` and not running on localhost.
+All cookies will be set as `HttpOnly, SameSite=Lax` cookies and will be forced to HTTPS (`Secure`) if the application is running with `NODE_ENV=production` and not running on localhost.
+
+The `HttpOnly` setting will make sure that client-side javascript is unabled to access the cookie to reduce the attack surface of XSS attacks while `SameSite=Lax` will help mitigate CSRF attacks. Read more about SameSite [here](https://auth0.com/blog/browser-behavior-changes-what-developers-need-to-know/).
 
 ## Troubleshooting
 
