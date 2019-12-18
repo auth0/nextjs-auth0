@@ -1,3 +1,7 @@
+## [v0.670](https://github.com/auth0/nextjs-auth0/tree/v0.7.0) (2019-12-18)
+
+- Add support for `SameSite` and set to `Lax` by default to mitigate CSRF attacks.
+
 ## [v0.6.0](https://github.com/auth0/nextjs-auth0/tree/v0.6.0) (2019-12-18)
 
 - Add support for the `cookieDomain` option which allows you to share the session across subdomains.
