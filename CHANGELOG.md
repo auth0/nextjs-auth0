@@ -1,3 +1,9 @@
+## [v0.6.0](https://github.com/auth0/nextjs-auth0/tree/v0.6.0) (2019-12-18)
+
+- Add support for the `cookieDomain` option which allows you to share the session across subdomains.
+- Fix the interface for the `handleLogin` method.
+- Support sending a custom `state` to Auth0.
+
 ## [v0.5.0](https://github.com/auth0/nextjs-auth0/tree/v0.5.0) (2019-10-14)
 
 - Added support for custom authorization parameters in the Login handler

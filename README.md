@@ -39,8 +39,8 @@ yarn add @auth0/nextjs-auth0
 
 Create a **Regular Web Application** in the [Auth0 Dashboard](https://manage.auth0.com/). If you're using an existing application you'll want to verify that the following settings are configured as follows:
 
- - **Json Web Token Signature Algorithm**: `RS256`
- - **OIDC Conformant**: `True`
+- **Json Web Token Signature Algorithm**: `RS256`
+- **OIDC Conformant**: `True`
 
 Go ahead and configure the URLs for your application:
 
@@ -68,19 +68,19 @@ export default initAuth0({
     cookieSecret: '<RANDOMLY_GENERATED_SECRET>',
     // The cookie lifetime (expiration) in seconds. Set to 8 hours by default.
     cookieLifetime: 60 * 60 * 8,
-    // The cookie domain this should run on. Leave it blank to restrict it to your domain.
+    // (Optional) The cookie domain this should run on. Leave it blank to restrict it to your domain.
     cookieDomain: 'your-domain.com',
-    // Store the id_token in the session. Defaults to false.
+    // (Optional) Store the id_token in the session. Defaults to false.
     storeIdToken: false,
-    // Store the access_token in the session. Defaults to false.
+    // (Optional) Store the access_token in the session. Defaults to false.
     storeAccessToken: false,
-    // Store the refresh_token in the session. Defaults to false.
+    // (Optional) Store the refresh_token in the session. Defaults to false.
     storeRefreshToken: false
   },
   oidcClient: {
-    // Optionally configure the timeout in milliseconds for HTTP requests to Auth0.
+    // (Optional) Configure the timeout in milliseconds for HTTP requests to Auth0.
     httpTimeout: 2500,
-    // Optionally configure the clock tolerance in milliseconds, if the time on your server is running behind.
+    // (Optional) Configure the clock tolerance in milliseconds, if the time on your server is running behind.
     clockTolerance: 10000
   }
 });
@@ -93,7 +93,7 @@ export default initAuth0({
 In order to sign in the user we'll first need a link to the login route.
 
 ```html
-<a href='/api/login'>Login</a>
+<a href="/api/login">Login</a>
 ```
 
 Create an [API Route](https://nextjs.org/docs#api-routes) for this route (`/pages/api/login.js`) which uses the client:
@@ -104,9 +104,9 @@ import auth0 from '../../utils/auth0';
 export default async function login(req, res) {
   try {
     await auth0.handleLogin(req, res);
-  } catch(error) {
-    console.error(error)
-    res.status(error.status || 400).end(error.message)
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 400).end(error.message);
   }
 }
 ```
@@ -119,9 +119,9 @@ import auth0 from '../../utils/auth0';
 export default async function callback(req, res) {
   try {
     await auth0.handleCallback(req, res, { redirectTo: '/' });
-  } catch(error) {
-    console.error(error)
-    res.status(error.status || 400).end(error.message)
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 400).end(error.message);
   }
 }
 ```
@@ -147,9 +147,9 @@ export default async function login(req, res) {
         foo: 'bar'
       }
     });
-  } catch(error) {
-    console.error(error)
-    res.status(error.status || 400).end(error.message)
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 400).end(error.message);
   }
 }
 ```
@@ -159,7 +159,7 @@ export default async function login(req, res) {
 For signing the user out we'll also need a logout link:
 
 ```html
-<a href='/api/logout'>Logout</a>
+<a href="/api/logout">Logout</a>
 ```
 
 Create an [API Route](https://nextjs.org/docs#api-routes) for this route (`/pages/api/logout.js`) which uses the client:
@@ -170,9 +170,9 @@ import auth0 from '../../utils/auth0';
 export default async function logout(req, res) {
   try {
     await auth0.handleLogout(req, res);
-  } catch(error) {
-    console.error(error)
-    res.status(error.status || 400).end(error.message)
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 400).end(error.message);
   }
 }
 ```
@@ -187,9 +187,9 @@ import auth0 from '../../utils/auth0';
 export default async function me(req, res) {
   try {
     await auth0.handleProfile(req, res);
-  } catch(error) {
-    console.error(error)
-    res.status(error.status || 500).end(error.message)
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).end(error.message);
   }
 }
 ```
@@ -221,9 +221,9 @@ Profile.getInitialProps = async ({ req, res }) => {
       return;
     }
 
-    return { user }
+    return { user };
   }
-}
+};
 ```
 
 ### Calling an API
@@ -263,9 +263,9 @@ export default async function getCustomers(req, res) {
 
     const apiClient = new MyApiClient(accessToken);
     return apiClient.getCustomers();
-  } catch(error) {
-    console.error(error)
-    res.status(error.status || 500).end(error.message)
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).end(error.message);
   }
 }
 ```
@@ -283,7 +283,7 @@ export default auth0.requireAuthentication(async function billingInfo(req, res) 
     email: user.email,
     country: 'United States',
     paymentMethod: 'Paypal'
-  })
+  });
 });
 ```
 
