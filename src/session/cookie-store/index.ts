@@ -39,13 +39,9 @@ export default class CookieSessionStore implements ISessionStore {
    * @param req HTTP request
    */
   async save(req: IncomingMessage, res: ServerResponse, session: ISession): Promise<void> {
-    const {
-      cookieSecret, cookieName, cookiePath, cookieLifetime, cookieDomain
-    } = this.settings;
+    const { cookieSecret, cookieName, cookiePath, cookieLifetime, cookieDomain, cookieSameSite } = this.settings;
 
-    const {
-      idToken, accessToken, refreshToken, user, createdAt
-    } = session;
+    const { idToken, accessToken, refreshToken, user, createdAt } = session;
     const persistedSession = new Session(user, createdAt);
 
     if (this.settings.storeIdToken && idToken) {
@@ -66,7 +62,8 @@ export default class CookieSessionStore implements ISessionStore {
       value: encryptedSession,
       path: cookiePath,
       maxAge: cookieLifetime,
-      domain: cookieDomain
+      domain: cookieDomain,
+      sameSite: cookieSameSite
     });
   }
 }
