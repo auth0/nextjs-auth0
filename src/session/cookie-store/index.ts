@@ -39,7 +39,8 @@ export default class CookieSessionStore implements ISessionStore {
     const { expiresAt, refreshToken } = unsealed as ISession;
 
     // Check if the token has expired
-    // There is an edge case where we might have some clock skew where our code assumes the token is still valid but in reality it's not.
+    // There is an edge case where we might have some clock skew where our code
+    // assumes the token is still valid but in reality it's not.
     // adding a skew of 1 minute to compensate
     if (refreshToken && expiresAt && expiresAt * 1000 - 60000 < Date.now()) {
       const client = await this.clientProvider();
@@ -67,9 +68,7 @@ export default class CookieSessionStore implements ISessionStore {
   async save(req: IncomingMessage, res: ServerResponse, session: ISession): Promise<ISession> {
     const { cookieSecret, cookieName, cookiePath, cookieLifetime, cookieDomain, cookieSameSite } = this.settings;
 
-    const {
-      idToken, accessToken, refreshToken, user, createdAt, expiresAt
-    } = session;
+    const { idToken, accessToken, refreshToken, user, createdAt, expiresAt } = session;
     const persistedSession = new Session(user, createdAt);
 
     if (this.settings.storeIdToken && idToken) {
@@ -85,8 +84,8 @@ export default class CookieSessionStore implements ISessionStore {
     }
 
     if (
-      (this.settings.storeIdToken || this.settings.storeAccessToken || this.settings.storeRefreshToken)
-      && expiresAt
+      (this.settings.storeIdToken || this.settings.storeAccessToken || this.settings.storeRefreshToken) &&
+      expiresAt
     ) {
       persistedSession.expiresAt = expiresAt;
     }
