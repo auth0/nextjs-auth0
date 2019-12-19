@@ -84,7 +84,10 @@ export default class CookieSessionStore implements ISessionStore {
       persistedSession.refreshToken = refreshToken;
     }
 
-    if (this.settings.storeRefreshToken && refreshToken && expiresAt) {
+    if (
+      (this.settings.storeIdToken || this.settings.storeAccessToken || this.settings.storeRefreshToken)
+      && expiresAt
+    ) {
       persistedSession.expiresAt = expiresAt;
     }
 
