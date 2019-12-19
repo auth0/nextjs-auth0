@@ -31,22 +31,16 @@ export default function profileHandler(clientProvider: IOidcClientFactory, sessi
       }
 
       const client = await clientProvider();
-      const userInfo = await client.userinfo(session.accessToken);
+      const user = await client.userinfo(session.accessToken);
 
       /*
-       Merge the current user in the session with the new claims we get from userinfo
+       TODO: Merge the current user in the session with the new claims we get from userinfo
        There are cases where some claims are in the id_token but when they are not returned as part of userinfo.
        If that happens, we don't want to break the current session.
        We just want to make sure we can get the newest info and update that in the session.
       */
-      await sessionStore.save(req, res, {
-        ...session,
-        user: {
-          ...session.user,
-          ...userInfo
-        }
-      });
-      res.json(userInfo);
+      await sessionStore.save(req, res, { ...session, user });
+      res.json(user);
       return;
     }
 
