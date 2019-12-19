@@ -1,17 +1,12 @@
 import { NextApiResponse, NextApiRequest } from 'next';
-import request from 'request';
-import { promisify } from 'util';
-
-import IAuth0Settings from '../settings';
 import { ISessionStore } from '../session/store';
-
-const [getAsync] = [request.get].map(promisify);
+import { IOidcClientFactory } from '../utils/oidc-client';
 
 export type ProfileOptions = {
   refetch?: boolean;
 };
 
-export default function profileHandler(settings: IAuth0Settings, sessionStore: ISessionStore) {
+export default function profileHandler(clientProvider: IOidcClientFactory, sessionStore: ISessionStore) {
   return async (req: NextApiRequest, res: NextApiResponse, options?: ProfileOptions): Promise<void> => {
     if (!req) {
       throw new Error('Request is not available');
@@ -35,17 +30,11 @@ export default function profileHandler(settings: IAuth0Settings, sessionStore: I
         throw new Error('The access token needs to be saved in the session for the user to be fetched');
       }
 
-      const { body: user } = await getAsync({
-        baseUrl: `https://${settings.domain}`,
-        url: 'userinfo',
-        json: true,
-        headers: {
-          Authorization: `Bearer ${session.accessToken}`
-        }
-      });
+      const client = await clientProvider();
+      const userInfo = await client.userinfo(session.accessToken);
 
-      await sessionStore.save(req, res, { ...session, user });
-      res.json(user);
+      await sessionStore.save(req, res, { ...session, user: userInfo });
+      res.json(userInfo);
       return;
     }
 

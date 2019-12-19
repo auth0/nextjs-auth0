@@ -3,7 +3,8 @@ import handlers from '../../src/handlers';
 import { ISession } from '../../src/session/session';
 import { ISessionStore } from '../../src/session/store';
 import getRequestResponse from '../helpers/http';
-import { userInfo } from '../helpers/oidc-nocks';
+import getClient from '../../src/utils/oidc-client';
+import { userInfo, oauthAuthorizationServer, discovery } from '../helpers/oidc-nocks';
 
 describe('profile handler', () => {
   const getStore = (session?: ISession, saveStore?: jest.Mock): ISessionStore => {
@@ -26,7 +27,7 @@ describe('profile handler', () => {
   describe('when the call is invalid', () => {
     test('should throw an error if the request is null', async () => {
       const store = getStore();
-      const profileHandler = handlers.ProfileHandler(withoutApi, store);
+      const profileHandler = handlers.ProfileHandler(getClient(withoutApi), store);
 
       const req: any = null;
       const { res } = getRequestResponse();
@@ -38,7 +39,7 @@ describe('profile handler', () => {
 
     test('should throw an error if the response is null', async () => {
       const store = getStore();
-      const profileHandler = handlers.ProfileHandler(withoutApi, store);
+      const profileHandler = handlers.ProfileHandler(getClient(withoutApi), store);
 
       const { req } = getRequestResponse();
       const res: any = null;
@@ -64,7 +65,7 @@ describe('profile handler', () => {
       const { req, res, jsonFn } = getRequestResponse();
 
       test('should return the profile without any tokens', async () => {
-        const profileHandler = handlers.ProfileHandler(withoutApi, store);
+        const profileHandler = handlers.ProfileHandler(getClient(withoutApi), store);
         await profileHandler(req, res);
 
         expect(jsonFn).toBeCalledWith({
@@ -82,8 +83,7 @@ describe('profile handler', () => {
           createdAt: Date.now()
         });
 
-        const profileHandler = handlers.ProfileHandler(withoutApi, store);
-
+        const profileHandler = handlers.ProfileHandler(getClient(withoutApi), store);
         const { req, res } = getRequestResponse();
 
         return expect(profileHandler(req, res, {refetch: true})).rejects.toEqual(
@@ -107,9 +107,10 @@ describe('profile handler', () => {
           sub: '123',
           email_verified: true
         });
+        oauthAuthorizationServer(withoutApi);
+        discovery(withoutApi);
 
-        const profileHandler = handlers.ProfileHandler(withoutApi, store);
-
+        const profileHandler = handlers.ProfileHandler(getClient(withoutApi), store);
         const { req, res, jsonFn } = getRequestResponse();
         await profileHandler(req, res, {refetch: true});
 
@@ -139,7 +140,7 @@ describe('profile handler', () => {
     } = getRequestResponse();
 
     test('should return not authenticated', async () => {
-      const profileHandler = handlers.ProfileHandler(withoutApi, store);
+      const profileHandler = handlers.ProfileHandler(getClient(withoutApi), store);
       await profileHandler(req, res);
 
       expect(statusFn).toBeCalledWith(401);

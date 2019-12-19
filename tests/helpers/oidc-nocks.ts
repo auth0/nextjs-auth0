@@ -187,5 +187,11 @@ export function userInfo(
     }
   }).get('/userinfo').reply(200, payload);
 
+}
 
+
+export function oauthAuthorizationServer(settings: IAuth0Settings): nock.Scope {
+  return nock(`https://${settings.domain}`)
+    .get('/.well-known/oauth-authorization-server')
+    .reply(200);
 }
