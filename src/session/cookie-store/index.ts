@@ -39,7 +39,9 @@ export default class CookieSessionStore implements ISessionStore {
     const { expiresAt, refreshToken } = unsealed as ISession;
 
     // Check if the token has expired
-    if (refreshToken && expiresAt && expiresAt * 1000 < Date.now()) {
+    // There is an edge case where we might have some clock skew where our code assumes the token is still valid but in reality it's not.
+    // adding a skew of 1 minute to compensate
+    if (refreshToken && expiresAt && expiresAt * 1000 - 60000 < Date.now()) {
       const client = await this.clientProvider();
 
       // Refresh the token
