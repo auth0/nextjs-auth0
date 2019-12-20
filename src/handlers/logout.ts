@@ -18,6 +18,10 @@ export default function logoutHandler(settings: IAuth0Settings, sessionSettings:
       throw new Error('Response is not available');
     }
 
+    if (!req) {
+      throw new Error('Request is not available');
+    }
+
     // Remove the cookies
     setCookies(req, res, [
       {
