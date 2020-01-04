@@ -1,8 +1,4 @@
-import {
-  Issuer,
-  custom,
-  Client
-} from 'openid-client';
+import { Issuer, custom, Client } from 'openid-client';
 
 import IAuth0Settings from '../settings';
 import OidcClientSettings from '../oidc-client-settings';

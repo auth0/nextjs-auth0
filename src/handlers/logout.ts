@@ -6,9 +6,9 @@ import CookieSessionStoreSettings from '../session/cookie-store/settings';
 
 function createLogoutUrl(settings: IAuth0Settings): string {
   return (
-    `https://${settings.domain}/v2/logout?`
-    + `client_id=${settings.clientId}`
-    + `&returnTo=${encodeURIComponent(settings.postLogoutRedirectUri)}`
+    `https://${settings.domain}/v2/logout?` +
+    `client_id=${settings.clientId}` +
+    `&returnTo=${encodeURIComponent(settings.postLogoutRedirectUri)}`
   );
 }
 
