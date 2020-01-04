@@ -15,7 +15,7 @@ export default interface IAuth0Settings {
   /**
    * Auth0 client secret.
    */
-  clientSecret: string;
+  clientSecret?: string;
 
   /**
    * Url to redirect to after the user has signed in.
@@ -40,7 +40,7 @@ export default interface IAuth0Settings {
   /**
    * Settings related to the session.
    */
-  session: ICookieSessionStoreSettings;
+  session?: ICookieSessionStoreSettings;
 
   /**
    * Settings for the OIDC Client which performs the code exchange.
