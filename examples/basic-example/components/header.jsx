@@ -24,8 +24,13 @@ const Header = () => {
             (user ? (
               <>
                 <li>
-                  <a href="/profile">Profile</a>
-                </li>
+                  <Link href="/profile">
+                    <a>Profile</a>
+                  </Link>
+                </li>{' '}
+                <li>
+                  <a href="/profile-ssr">Profile (SSR)</a>
+                </li>{' '}
                 <li>
                   <a href="/api/logout">Logout</a>
                 </li>
