@@ -1,4 +1,9 @@
-## [v0.670](https://github.com/auth0/nextjs-auth0/tree/v0.7.0) (2019-12-18)
+## [v0.8.0](https://github.com/auth0/nextjs-auth0/tree/v0.8.0) (2020-01-08)
+
+- Improved TypeScript types
+- Added support to automatically refresh access tokens
+
+## [v0.7.0](https://github.com/auth0/nextjs-auth0/tree/v0.7.0) (2019-12-18)
 
 - Add support for `SameSite` and set to `Lax` by default to mitigate CSRF attacks.
 
