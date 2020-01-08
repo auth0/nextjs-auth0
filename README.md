@@ -229,6 +229,39 @@ Profile.getInitialProps = async ({ req, res }) => {
 };
 ```
 
+### Getting an Access Token
+
+The user's access token can be stored in the user's session. However, this token will expire after some amount of time. It is possible to use a refresh token to retrieve a new access token. A token cache is available that will handle all of the checks and necessary refresh logic for you:
+
+```js
+const tokenCache = await auth0.tokenCache(req, res);
+const { accessToken } = await tokenCache.getAccessToken();
+```
+
+This method will do all of the necessary work to get you a valid access token. If a new access token is requested using a Refresh Token, the update profile and tokens will be stored in the session.
+
+If for some reason it's not possible to get a new access token an error will be thrown (`AccessTokenError`).
+
+> Note that the current session structure only supports storing a single access token in the cookie. This means that you can't have multiple refresh tokens/access token for different APIs stored in a single session.
+
+You can also require a scope to be present in the requested access token. If you need to call an endpoint which requires the `delete:file` scope you can require this as such:
+
+```js
+const tokenCache = await auth0.tokenCache(req, res);
+const { accessToken } = await tokenCache.getAccessToken({
+  scope: [`delete:file`]
+});
+```
+
+If a previous access token has that scope we can continue. If not an error will be thrown and the user will be required to sign in again so you can request new scopes.
+
+For this functionality to work correctly you'll need to persist the access token and refresh token in the session:
+
+```js
+  storeAccessToken: true,
+  storeRefreshToken: true
+```
+
 ### Calling an API
 
 It's a common pattern to use Next.js API Routes and proxy them to external APIs. When doing so these APIs typically require an `access_token` to be provided. These APIs can then be configured in Auth0.
@@ -262,7 +295,8 @@ import auth0 from '../../utils/auth0';
 
 export default async function getCustomers(req, res) {
   try {
-    const { accessToken } = await auth0.getSession(req);
+    const tokenCache = await auth0.tokenCache(req, res);
+    const { accessToken } = await tokenCache.getAccessToken();
 
     const apiClient = new MyApiClient(accessToken);
     return apiClient.getCustomers();

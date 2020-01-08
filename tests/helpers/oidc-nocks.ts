@@ -29,16 +29,9 @@ export function discovery(settings: IAuth0Settings): nock.Scope {
         'phone',
         'address'
       ],
-      response_types_supported: [
-        'code'
-      ],
-      id_token_signing_alg_values_supported: [
-        'RS256'
-      ],
-      token_endpoint_auth_methods_supported: [
-        'client_secret_basic',
-        'client_secret_post'
-      ],
+      response_types_supported: ['code'],
+      id_token_signing_alg_values_supported: ['RS256'],
+      token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post'],
       claims_supported: [
         'aud',
         'auth_time',
@@ -89,10 +82,14 @@ export function codeExchange(
   });
 
   return nock(`https://${settings.domain}`)
-    .post('/oauth/token',
-      `grant_type=authorization_code&code=${code}&redirect_uri=${encodeURIComponent(settings.redirectUri)}`)
+    .post(
+      '/oauth/token',
+      `grant_type=authorization_code&code=${code}&redirect_uri=${encodeURIComponent(settings.redirectUri)}`
+    )
     .reply(200, {
       access_token: 'eyJz93a...k4laUWw',
+      expires_in: 750,
+      scope: 'read:foo delete:foo',
       refresh_token: 'GEbRxBN...edjnXbL',
       id_token: idToken,
       token_type: 'Bearer'
@@ -114,15 +111,26 @@ export function codeExchangeWithTimeout(
   });
 
   return nock(`https://${settings.domain}`)
-    .post('/oauth/token',
-      `grant_type=authorization_code&code=${code}&redirect_uri=${encodeURIComponent(settings.redirectUri)}`)
+    .post(
+      '/oauth/token',
+      `grant_type=authorization_code&code=${code}&redirect_uri=${encodeURIComponent(settings.redirectUri)}`
+    )
     .reply((_uri, _requestBody, cb) => {
-      setTimeout(() => cb(null, [200, {
-        access_token: 'eyJz93a...k4laUWw',
-        refresh_token: 'GEbRxBN...edjnXbL',
-        id_token: idToken,
-        token_type: 'Bearer'
-      }]), 500);
+      setTimeout(
+        () =>
+          cb(null, [
+            200,
+            {
+              access_token: 'eyJz93a...k4laUWw',
+              expires_in: 750,
+              scope: 'read:foo delete:foo',
+              refresh_token: 'GEbRxBN...edjnXbL',
+              id_token: idToken,
+              token_type: 'Bearer'
+            }
+          ]),
+        500
+      );
     });
 }
 
@@ -141,11 +149,64 @@ export function codeExchangeWithAccessToken(
   });
 
   return nock(`https://${settings.domain}`)
-    .post('/oauth/token',
-      `grant_type=authorization_code&code=${code}&redirect_uri=${encodeURIComponent(settings.redirectUri)}`)
+    .post(
+      '/oauth/token',
+      `grant_type=authorization_code&code=${code}&redirect_uri=${encodeURIComponent(settings.redirectUri)}`
+    )
     .reply(200, {
       access_token: 'an_access_token',
+      expires_in: 750,
+      scope: 'read:foo delete:foo',
       id_token: idToken,
       token_type: 'Bearer'
+    });
+}
+
+export function refreshTokenExchange(
+  settings: IAuth0Settings,
+  refreshToken: string,
+  key: JWK.Key,
+  payload: object,
+  newToken?: string
+): nock.Scope {
+  const idToken = createToken(key, {
+    iss: `https://${settings.domain}/`,
+    aud: settings.clientId,
+    ...payload
+  });
+
+  return nock(`https://${settings.domain}`)
+    .post('/oauth/token', `grant_type=refresh_token&refresh_token=${refreshToken}`)
+    .reply(200, {
+      access_token: newToken || 'eyJz93a...k4laUWw',
+      id_token: idToken,
+      token_type: 'Bearer',
+      expires_in: 750,
+      scope: 'read:foo write:foo'
+    });
+}
+
+export function refreshTokenRotationExchange(
+  settings: IAuth0Settings,
+  refreshToken: string,
+  key: JWK.Key,
+  payload: object,
+  newToken?: string
+): nock.Scope {
+  const idToken = createToken(key, {
+    iss: `https://${settings.domain}/`,
+    aud: settings.clientId,
+    ...payload
+  });
+
+  return nock(`https://${settings.domain}`)
+    .post('/oauth/token', `grant_type=refresh_token&refresh_token=${refreshToken}`)
+    .reply(200, {
+      access_token: newToken || 'eyJz93a...k4laUWw',
+      refresh_token: 'GEbRxBN...edjnXbL',
+      id_token: idToken,
+      token_type: 'Bearer',
+      expires_in: 750,
+      scope: 'read:foo write:foo'
     });
 }

@@ -1,10 +1,5 @@
 import { AddressInfo } from 'net';
-import {
-  IncomingMessage,
-  ServerResponse,
-  createServer,
-  Server
-} from 'http';
+import { IncomingMessage, ServerResponse, createServer, Server } from 'http';
 
 interface IHandler {
   (req: IncomingMessage, res: ServerResponse): Promise<void>;
@@ -18,11 +13,10 @@ export default class HttpServer {
   constructor(handler: IHandler) {
     this.handler = handler;
     this.httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
-      this.handler(req, res)
-        .catch((e) => {
-          res.statusCode = 500;
-          res.end(e.message);
-        });
+      this.handler(req, res).catch(e => {
+        res.statusCode = 500;
+        res.end(e.message);
+      });
     });
   }
 

@@ -19,8 +19,15 @@ describe('session handler', () => {
           refreshToken: 'my-refresh-token'
         });
       },
-      save(): Promise<void> {
-        return Promise.resolve();
+      save(): Promise<ISession> {
+        return Promise.resolve({
+          user: {
+            sub: '123'
+          },
+          createdAt: now,
+          idToken: 'my-id-token',
+          refreshToken: 'my-refresh-token'
+        });
       }
     };
 

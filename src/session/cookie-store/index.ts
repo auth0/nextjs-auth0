@@ -38,10 +38,10 @@ export default class CookieSessionStore implements ISessionStore {
    * Write the session to the cookie.
    * @param req HTTP request
    */
-  async save(req: IncomingMessage, res: ServerResponse, session: ISession): Promise<void> {
+  async save(req: IncomingMessage, res: ServerResponse, session: ISession): Promise<ISession | null> {
     const { cookieSecret, cookieName, cookiePath, cookieLifetime, cookieDomain, cookieSameSite } = this.settings;
 
-    const { idToken, accessToken, refreshToken, user, createdAt } = session;
+    const { idToken, accessToken, accessTokenExpiresAt, accessTokenScope, refreshToken, user, createdAt } = session;
     const persistedSession = new Session(user, createdAt);
 
     if (this.settings.storeIdToken && idToken) {
@@ -50,6 +50,8 @@ export default class CookieSessionStore implements ISessionStore {
 
     if (this.settings.storeAccessToken && accessToken) {
       persistedSession.accessToken = accessToken;
+      persistedSession.accessTokenScope = accessTokenScope;
+      persistedSession.accessTokenExpiresAt = accessTokenExpiresAt;
     }
 
     if (this.settings.storeRefreshToken && refreshToken) {
@@ -65,5 +67,7 @@ export default class CookieSessionStore implements ISessionStore {
       domain: cookieDomain,
       sameSite: cookieSameSite
     });
+
+    return persistedSession;
   }
 }

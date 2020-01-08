@@ -1,3 +1,4 @@
+import { ITokenCache } from './tokens/token-cache';
 import { ISession } from './session/session';
 import { ISignInWithAuth0 } from './instance';
 
@@ -21,6 +22,9 @@ export default function createDummyBrowserInstance(): ISignInWithAuth0 & { isBro
     },
     requireAuthentication: () => (): Promise<void> => {
       throw new Error('The requireAuthentication method can only be used from the server side');
+    },
+    tokenCache: (): ITokenCache => {
+      throw new Error('The tokenCache method can only be used from the server side');
     }
   };
 }

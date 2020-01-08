@@ -1,9 +1,7 @@
 import handlers from './handlers';
-
 import getClient from './utils/oidc-client';
 import IAuth0Settings from './settings';
 import { ISignInWithAuth0 } from './instance';
-
 import { ISessionStore } from './session/store';
 import CookieSessionStore from './session/cookie-store';
 import CookieSessionStoreSettings from './session/cookie-store/settings';
@@ -40,6 +38,7 @@ export default function createInstance(settings: IAuth0Settings): ISignInWithAut
     handleCallback: handlers.CallbackHandler(settings, clientProvider, store),
     handleProfile: handlers.ProfileHandler(store),
     getSession: handlers.SessionHandler(store),
-    requireAuthentication: handlers.RequireAuthentication(store)
+    requireAuthentication: handlers.RequireAuthentication(store),
+    tokenCache: handlers.TokenCache(clientProvider, store)
   };
 }

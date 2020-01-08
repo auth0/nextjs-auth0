@@ -4,7 +4,7 @@ import getRequestResponse from '../helpers/http';
 import CookieStore from '../../src/session/cookie-store';
 import CookieSessionStoreSettings from '../../src/session/cookie-store/settings';
 
-describe('cookie store', () => {
+describe('CookieStore', () => {
   const getStore = (settings = {}): CookieStore => {
     const store = new CookieStore(
       new CookieSessionStoreSettings({
@@ -132,17 +132,19 @@ describe('cookie store', () => {
   });
 
   describe('with storeAccessToken', () => {
-    describe('configured', () => {
+    describe('not configured', () => {
       const store = getStore({});
 
-      test('should not store the access_token', async () => {
+      test('should not store the access_token fields', async () => {
         const { req, res, setHeaderFn } = getRequestResponse();
         const now = Date.now();
 
         await store.save(req, res, {
           user: { sub: '123' },
           createdAt: now,
-          accessToken: 'my-access-token'
+          accessToken: 'my-access-token',
+          accessTokenScope: 'read:foo',
+          accessTokenExpiresAt: 500
         });
 
         const [, cookie] = setHeaderFn.mock.calls[0];
@@ -158,7 +160,7 @@ describe('cookie store', () => {
       });
     });
 
-    describe('not configured', () => {
+    describe('configured', () => {
       const store = getStore({
         storeAccessToken: true
       });
@@ -170,7 +172,9 @@ describe('cookie store', () => {
         await store.save(req, res, {
           user: { sub: '123' },
           createdAt: now,
-          accessToken: 'my-access-token'
+          accessToken: 'my-access-token',
+          accessTokenScope: 'read:foo',
+          accessTokenExpiresAt: 500
         });
 
         const [, cookie] = setHeaderFn.mock.calls[0];
@@ -182,7 +186,9 @@ describe('cookie store', () => {
         expect(session).toEqual({
           user: { sub: '123' },
           createdAt: now,
-          accessToken: 'my-access-token'
+          accessToken: 'my-access-token',
+          accessTokenScope: 'read:foo',
+          accessTokenExpiresAt: 500
         });
       });
     });

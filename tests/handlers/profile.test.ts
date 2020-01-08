@@ -9,8 +9,8 @@ describe('profile handler', () => {
       read(): Promise<ISession | null | undefined> {
         return Promise.resolve(session);
       },
-      save(): Promise<void> {
-        return Promise.resolve();
+      save(): Promise<ISession | null | undefined> {
+        return Promise.resolve(session);
       }
     };
     return store;
@@ -24,9 +24,7 @@ describe('profile handler', () => {
       const req: any = null;
       const { res } = getRequestResponse();
 
-      return expect(profileHandler(req, res)).rejects.toEqual(
-        new Error('Request is not available')
-      );
+      return expect(profileHandler(req, res)).rejects.toEqual(new Error('Request is not available'));
     });
 
     test('should throw an error if the response is null', async () => {
@@ -36,9 +34,7 @@ describe('profile handler', () => {
       const { req } = getRequestResponse();
       const res: any = null;
 
-      return expect(profileHandler(req, res)).rejects.toEqual(
-        new Error('Response is not available')
-      );
+      return expect(profileHandler(req, res)).rejects.toEqual(new Error('Response is not available'));
     });
   });
 
@@ -67,9 +63,7 @@ describe('profile handler', () => {
 
   describe('when not signed in', () => {
     const store = getStore();
-    const {
-      req, res, jsonFn, statusFn
-    } = getRequestResponse();
+    const { req, res, jsonFn, statusFn } = getRequestResponse();
 
     test('should return not authenticated', async () => {
       const profileHandler = handlers.ProfileHandler(store);
