@@ -307,6 +307,8 @@ export default async function getCustomers(req, res) {
 }
 ```
 
+> A [full example](./examples/api-call-example) is available here.
+
 ### Requiring Authentication
 
 If you have API routes for which you want to require the user to be authenticated you can use the `requireAuthentication` handler:
