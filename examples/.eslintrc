@@ -1,0 +1,30 @@
+{
+  "extends": ["plugin:prettier/recommended", "plugin:react/recommended"],
+  "plugins": ["prettier", "react"],
+  "root": true,
+  "env": {
+    "node": true,
+    "jest": true,
+    "es6": true,
+    "browser": true
+  },
+  "parserOptions": {
+    "ecmaVersion": 2019,
+    "sourceType": "module"
+  },
+  "rules": {
+    "prettier/prettier": "error",
+    "indent": ["error", 2],
+    "no-console": [
+      1,
+      {
+        "allow": ["error", "info", "warn"]
+      }
+    ],
+    "react/prop-types": 0,
+    "max-len": ["error", 120],
+    "comma-dangle": ["error", "never"],
+    "no-trailing-spaces": "error",
+    "semi": ["off"]
+  }
+}
