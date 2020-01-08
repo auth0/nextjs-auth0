@@ -40,12 +40,13 @@ export interface LoginOptions {
 }
 
 export default function loginHandler(settings: IAuth0Settings, clientProvider: IOidcClientFactory) {
-  return async (req: IncomingMessage, res: ServerResponse, options: LoginOptions = {}): Promise<void> => {
+  return async (req: IncomingMessage, res: ServerResponse, options?: LoginOptions): Promise<void> => {
     if (!res) {
       throw new Error('Response is not available');
     }
 
-    const { state = base64url(randomBytes(48)), ...authParams } = (options && options.authParams) || {};
+    const opt = options || {};
+    const { state = base64url(randomBytes(48)), ...authParams } = (opt && opt.authParams) || {};
 
     // Create the authorization url.
     const client = await clientProvider();
