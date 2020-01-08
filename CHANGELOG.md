@@ -1,3 +1,7 @@
+## [v0.9.0](https://github.com/auth0/nextjs-auth0/tree/v0.9.0) (2020-01-08)
+
+- Make `options` on the login handler optional
+
 ## [v0.8.0](https://github.com/auth0/nextjs-auth0/tree/v0.8.0) (2020-01-08)
 
 - Improved TypeScript types
