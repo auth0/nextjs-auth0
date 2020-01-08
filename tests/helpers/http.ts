@@ -10,9 +10,7 @@ export interface IHttpHelpers {
 }
 
 export default function getRequestResponse(): IHttpHelpers {
-  const req: IncomingMessage = new IncomingMessage(
-    new Socket()
-  );
+  const req: IncomingMessage = new IncomingMessage(new Socket());
   req.headers = {
     host: 'localhost'
   };

@@ -15,5 +15,5 @@ export interface ISessionStore {
    * @param res The HTTP response.
    * @param session The session to persist.
    */
-  save(req: IncomingMessage, res: ServerResponse, session: ISession): Promise<void>;
+  save(req: IncomingMessage, res: ServerResponse, session: ISession): Promise<ISession | null | undefined>;
 }

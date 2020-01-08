@@ -1,8 +1,9 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { NextApiRequest, NextApiResponse } from 'next';
 
-import { LoginOptions } from './handlers/login';
 import { ISession } from './session/session';
+import { LoginOptions } from './handlers/login';
+import { ITokenCache } from './tokens/token-cache';
 import { CallbackOptions } from './handlers/callback';
 import { IApiRoute } from './handlers/require-authentication';
 
@@ -36,4 +37,9 @@ export interface ISignInWithAuth0 {
    * Handle to require authentication for an API route.
    */
   requireAuthentication: (apiRoute: IApiRoute) => IApiRoute;
+
+  /**
+   * Token cache which allows you to get an access token for the current user.
+   */
+  tokenCache: (req: IncomingMessage, res: ServerResponse) => ITokenCache;
 }

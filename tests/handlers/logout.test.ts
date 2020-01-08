@@ -12,12 +12,12 @@ const [getAsync] = [request.get].map(promisify);
 describe('logout handler', () => {
   let httpServer: HttpServer;
 
-  beforeAll((done) => {
+  beforeAll(done => {
     httpServer = new HttpServer(logout(withoutApi, new CookieSessionStoreSettings(withoutApi.session)));
     httpServer.start(done);
   });
 
-  afterAll((done) => {
+  afterAll(done => {
     httpServer.stop(done);
   });
 
@@ -28,8 +28,9 @@ describe('logout handler', () => {
     });
 
     expect(statusCode).toBe(302);
-    expect(headers.location)
-      .toBe(`https://${withoutApi.domain}/v2/logout?client_id=${withoutApi.clientId}&returnTo=https%3A%2F%2Fwww.acme.com`);
+    expect(headers.location).toBe(
+      `https://${withoutApi.domain}/v2/logout?client_id=${withoutApi.clientId}&returnTo=https%3A%2F%2Fwww.acme.com`
+    );
   });
 
   test('should delete the state and session', async () => {

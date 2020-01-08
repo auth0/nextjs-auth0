@@ -26,9 +26,7 @@ describe('oidc client', () => {
     });
 
     const client = await clientFactory();
-    return expect(client.userinfo('foo')).rejects.toEqual(
-      new Error('Timeout awaiting \'request\' for 2500ms')
-    );
+    return expect(client.userinfo('foo')).rejects.toEqual(new Error("Timeout awaiting 'request' for 2500ms"));
   });
 
   test('should allow overriding the request timeout slow requests', async () => {

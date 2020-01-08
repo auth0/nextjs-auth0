@@ -1,10 +1,10 @@
 import { IncomingMessage, ServerResponse } from 'http';
 
 import IAuth0Settings from '../settings';
-import { ISession } from '../session/session';
 import { parseCookies } from '../utils/cookies';
 import { ISessionStore } from '../session/store';
 import { IOidcClientFactory } from '../utils/oidc-client';
+import getSessionFromTokenSet from '../utils/session';
 
 export type CallbackOptions = {
   redirectTo?: string;
@@ -41,33 +41,7 @@ export default function callbackHandler(
     });
 
     // Get the claims without any OIDC specific claim.
-    const claims = tokenSet.claims();
-    if (claims.aud) {
-      delete claims.aud;
-    }
-
-    if (claims.exp) {
-      delete claims.exp;
-    }
-
-    if (claims.iat) {
-      delete claims.iat;
-    }
-
-    if (claims.iss) {
-      delete claims.iss;
-    }
-
-    // Create the session.
-    const session: ISession = {
-      user: {
-        ...claims
-      },
-      idToken: tokenSet.id_token,
-      accessToken: tokenSet.access_token,
-      refreshToken: tokenSet.refresh_token,
-      createdAt: Date.now()
-    };
+    const session = getSessionFromTokenSet(tokenSet);
 
     // Create the session.
     await sessionStore.save(req, res, session);

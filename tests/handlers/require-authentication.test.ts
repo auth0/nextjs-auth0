@@ -18,8 +18,8 @@ describe('require authentication handle handler', () => {
       read(): Promise<ISession | null | undefined> {
         return Promise.resolve(session);
       },
-      save(): Promise<void> {
-        return Promise.resolve();
+      save(): Promise<ISession | null | undefined> {
+        return Promise.resolve(session);
       }
     };
     return store;
@@ -76,9 +76,7 @@ describe('require authentication handle handler', () => {
 
   describe('when not signed in', () => {
     const store = getStore();
-    const {
-      req, res, jsonFn, statusFn
-    } = getRequestResponse();
+    const { req, res, jsonFn, statusFn } = getRequestResponse();
 
     test('should return not authenticated', async () => {
       const requireAuthenticationHandler = handlers.RequireAuthentication(store);

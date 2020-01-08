@@ -15,6 +15,16 @@ export interface ISession {
   readonly accessToken?: string | undefined;
 
   /**
+   * The expiration of the access token.
+   */
+  readonly accessTokenExpiresAt?: number;
+
+  /**
+   * The access token scopes.
+   */
+  readonly accessTokenScope?: string | undefined;
+
+  /**
    * The refresh token.
    */
   readonly refreshToken?: string | undefined;
@@ -38,6 +48,10 @@ export default class Session implements ISession {
   idToken?: string | undefined;
 
   accessToken?: string | undefined;
+
+  accessTokenScope?: string | undefined;
+
+  accessTokenExpiresAt?: number;
 
   refreshToken?: string | undefined;
 
