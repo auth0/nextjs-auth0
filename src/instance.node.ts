@@ -1,4 +1,3 @@
-import { ITokenCache } from './tokens/token-cache';
 import handlers from './handlers';
 import getClient from './utils/oidc-client';
 import IAuth0Settings from './settings';
