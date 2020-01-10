@@ -14,6 +14,10 @@ function createLogoutUrl(settings: IAuth0Settings): string {
 
 export default function logoutHandler(settings: IAuth0Settings, sessionSettings: CookieSessionStoreSettings) {
   return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+    if (!req) {
+      throw new Error('Request is not available');
+    }
+
     if (!res) {
       throw new Error('Response is not available');
     }

@@ -305,6 +305,7 @@ describe('CookieStore', () => {
 
         const [, cookie] = setHeaderFn.mock.calls[0];
         req.headers = {
+          ...req.headers,
           cookie: `a0:session=${parse(cookie)['a0:session']}`
         };
 
