@@ -60,7 +60,7 @@ describe('profile handler', () => {
 
       const { req, res, jsonFn } = getRequestResponse();
 
-      test('should return the profile without any tokens', async () => {
+      test('should return the profile', async () => {
         const profileHandler = handlers.ProfileHandler(store, getClient(withoutApi));
         await profileHandler(req, res);
 
@@ -90,21 +90,21 @@ describe('profile handler', () => {
       test('should refetch the user and update the session', async () => {
         const now = Date.now();
         const saveStore = jest.fn();
-        const store = getStore(
-          {
-            user: {
-              sub: '123',
-              email_verified: false
-            },
-            accessToken: 'my-access-token',
-            accessTokenExpiresAt: now + 60 * 1000,
-            createdAt: now
+        const session = {
+          user: {
+            sub: '123',
+            someCustomClaim: 'someCustomValue',
+            email_verified: false
           },
-          saveStore
-        );
+          accessToken: 'my-access-token',
+          accessTokenExpiresAt: now + 60 * 1000,
+          createdAt: now
+        };
+        const store = getStore(session, saveStore);
 
         userInfo(withoutApi, 'my-access-token', {
           sub: '123',
+          email: 'something@something.com',
           email_verified: true
         });
 
@@ -114,10 +114,12 @@ describe('profile handler', () => {
         const { req, res, jsonFn } = getRequestResponse();
         await profileHandler(req, res, { refetch: true });
 
-        // Saves the new user in the session
+        // Saves the new user in the session and merge the updated info with new values.
         expect(saveStore.mock.calls[0][2]).toEqual({
           user: {
             sub: '123',
+            someCustomClaim: 'someCustomValue',
+            email: 'something@something.com',
             email_verified: true
           },
           accessToken: 'my-access-token',
@@ -128,6 +130,8 @@ describe('profile handler', () => {
         // Returns the new user
         expect(jsonFn).toBeCalledWith({
           sub: '123',
+          someCustomClaim: 'someCustomValue',
+          email: 'something@something.com',
           email_verified: true
         });
       });
