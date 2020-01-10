@@ -83,7 +83,7 @@ describe('profile handler', () => {
         const { req, res } = getRequestResponse();
 
         return expect(profileHandler(req, res, { refetch: true })).rejects.toEqual(
-          new Error('The access token needs to be saved in the session for the user to be fetched')
+          new Error('The user does not have a valid access token.')
         );
       });
 
@@ -97,6 +97,7 @@ describe('profile handler', () => {
               email_verified: false
             },
             accessToken: 'my-access-token',
+            accessTokenExpiresAt: now + 60 * 1000,
             createdAt: now
           },
           saveStore
@@ -106,7 +107,7 @@ describe('profile handler', () => {
           sub: '123',
           email_verified: true
         });
-        oauthAuthorizationServer(withoutApi);
+
         discovery(withoutApi);
 
         const profileHandler = handlers.ProfileHandler(store, getClient(withoutApi));
@@ -120,6 +121,7 @@ describe('profile handler', () => {
             email_verified: true
           },
           accessToken: 'my-access-token',
+          accessTokenExpiresAt: now + 60 * 1000,
           createdAt: now
         });
 

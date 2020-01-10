@@ -57,14 +57,14 @@ describe('SessionTokenCache', () => {
       }
     });
 
-    test('should fail if accessTokenExpiresAt is missing', async () => {
+    test('should fail if access_token and refresh_token are missing', async () => {
       expect.assertions(1);
 
       try {
         const { cache } = getTokenCache();
         await cache.getAccessToken();
       } catch (e) {
-        expect(e.code).toMatch('access_token_expired');
+        expect(e.code).toMatch('invalid_session');
       }
     });
 
@@ -73,6 +73,7 @@ describe('SessionTokenCache', () => {
 
       try {
         const { cache } = getTokenCache({
+          accessToken: 'foo',
           expiresIn: -60
         });
         await cache.getAccessToken();
