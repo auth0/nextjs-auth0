@@ -9,3 +9,4 @@ tests
 .github
 tsconfig.build.json
 tsconfig.json
+examples
