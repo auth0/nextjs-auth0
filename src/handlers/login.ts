@@ -41,6 +41,10 @@ export interface LoginOptions {
 
 export default function loginHandler(settings: IAuth0Settings, clientProvider: IOidcClientFactory) {
   return async (req: IncomingMessage, res: ServerResponse, options?: LoginOptions): Promise<void> => {
+    if (!req) {
+      throw new Error('Request is not available');
+    }
+
     if (!res) {
       throw new Error('Response is not available');
     }

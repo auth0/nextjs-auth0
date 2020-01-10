@@ -5,6 +5,7 @@ import { ISession } from './session/session';
 import { LoginOptions } from './handlers/login';
 import { ITokenCache } from './tokens/token-cache';
 import { CallbackOptions } from './handlers/callback';
+import { ProfileOptions } from './handlers/profile';
 import { IApiRoute } from './handlers/require-authentication';
 
 export interface ISignInWithAuth0 {
@@ -26,7 +27,7 @@ export interface ISignInWithAuth0 {
   /**
    * Profile handler which return profile information about the user.
    */
-  handleProfile: (req: NextApiRequest, res: NextApiResponse) => Promise<void>;
+  handleProfile: (req: NextApiRequest, res: NextApiResponse, options: ProfileOptions) => Promise<void>;
 
   /**
    * Session handler which returns the current session

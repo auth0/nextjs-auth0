@@ -1,10 +1,13 @@
+import { withoutApi } from '../helpers/default-settings';
 import handlers from '../../src/handlers';
 import { ISession } from '../../src/session/session';
 import { ISessionStore } from '../../src/session/store';
 import getRequestResponse from '../helpers/http';
+import getClient from '../../src/utils/oidc-client';
+import { userInfo, discovery } from '../helpers/oidc-nocks';
 
 describe('profile handler', () => {
-  const getStore = (session?: ISession): ISessionStore => {
+  const getStore = (session?: ISession, saveStore?: jest.Mock): ISessionStore => {
     const store: ISessionStore = {
       read(): Promise<ISession | null | undefined> {
         return Promise.resolve(session);
@@ -13,13 +16,18 @@ describe('profile handler', () => {
         return Promise.resolve(session);
       }
     };
+
+    if (saveStore) {
+      store.save = saveStore;
+    }
+
     return store;
   };
 
   describe('when the call is invalid', () => {
     test('should throw an error if the request is null', async () => {
       const store = getStore();
-      const profileHandler = handlers.ProfileHandler(store);
+      const profileHandler = handlers.ProfileHandler(store, getClient(withoutApi));
 
       const req: any = null;
       const { res } = getRequestResponse();
@@ -29,7 +37,7 @@ describe('profile handler', () => {
 
     test('should throw an error if the response is null', async () => {
       const store = getStore();
-      const profileHandler = handlers.ProfileHandler(store);
+      const profileHandler = handlers.ProfileHandler(store, getClient(withoutApi));
 
       const { req } = getRequestResponse();
       const res: any = null;
@@ -39,24 +47,87 @@ describe('profile handler', () => {
   });
 
   describe('when signed in', () => {
-    const store = getStore({
-      user: {
-        sub: '123'
-      },
-      idToken: 'my-id-token',
-      accessToken: 'my-access-token',
-      refreshToken: 'my-refresh-token',
-      createdAt: Date.now()
+    describe('when not asked to refetch', () => {
+      const store = getStore({
+        user: {
+          sub: '123'
+        },
+        idToken: 'my-id-token',
+        accessToken: 'my-access-token',
+        refreshToken: 'my-refresh-token',
+        createdAt: Date.now()
+      });
+
+      const { req, res, jsonFn } = getRequestResponse();
+
+      test('should return the profile without any tokens', async () => {
+        const profileHandler = handlers.ProfileHandler(store, getClient(withoutApi));
+        await profileHandler(req, res);
+
+        expect(jsonFn).toBeCalledWith({
+          sub: '123'
+        });
+      });
     });
 
-    const { req, res, jsonFn } = getRequestResponse();
+    describe('when asked to refetch', () => {
+      test('should throw an error if the accessToken is missing', async () => {
+        const store = getStore({
+          user: {
+            sub: '123'
+          },
+          createdAt: Date.now()
+        });
 
-    test('should return the profile without any tokens', async () => {
-      const profileHandler = handlers.ProfileHandler(store);
-      await profileHandler(req, res);
+        const profileHandler = handlers.ProfileHandler(store, getClient(withoutApi));
+        const { req, res } = getRequestResponse();
 
-      expect(jsonFn).toBeCalledWith({
-        sub: '123'
+        return expect(profileHandler(req, res, { refetch: true })).rejects.toEqual(
+          new Error('The access token needs to be saved in the session for the user to be fetched')
+        );
+      });
+
+      test('should refetch the user and update the session', async () => {
+        const now = Date.now();
+        const saveStore = jest.fn();
+        const store = getStore(
+          {
+            user: {
+              sub: '123',
+              email_verified: false
+            },
+            accessToken: 'my-access-token',
+            createdAt: now
+          },
+          saveStore
+        );
+
+        userInfo(withoutApi, 'my-access-token', {
+          sub: '123',
+          email_verified: true
+        });
+        oauthAuthorizationServer(withoutApi);
+        discovery(withoutApi);
+
+        const profileHandler = handlers.ProfileHandler(store, getClient(withoutApi));
+        const { req, res, jsonFn } = getRequestResponse();
+        await profileHandler(req, res, { refetch: true });
+
+        // Saves the new user in the session
+        expect(saveStore.mock.calls[0][2]).toEqual({
+          user: {
+            sub: '123',
+            email_verified: true
+          },
+          accessToken: 'my-access-token',
+          createdAt: now
+        });
+
+        // Returns the new user
+        expect(jsonFn).toBeCalledWith({
+          sub: '123',
+          email_verified: true
+        });
       });
     });
   });
@@ -66,7 +137,7 @@ describe('profile handler', () => {
     const { req, res, jsonFn, statusFn } = getRequestResponse();
 
     test('should return not authenticated', async () => {
-      const profileHandler = handlers.ProfileHandler(store);
+      const profileHandler = handlers.ProfileHandler(store, getClient(withoutApi));
       await profileHandler(req, res);
 
       expect(statusFn).toBeCalledWith(401);

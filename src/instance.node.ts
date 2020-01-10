@@ -1,3 +1,4 @@
+import { ITokenCache } from './tokens/token-cache';
 import handlers from './handlers';
 import getClient from './utils/oidc-client';
 import IAuth0Settings from './settings';
@@ -36,7 +37,7 @@ export default function createInstance(settings: IAuth0Settings): ISignInWithAut
     handleLogin: handlers.LoginHandler(settings, clientProvider),
     handleLogout: handlers.LogoutHandler(settings, sessionSettings),
     handleCallback: handlers.CallbackHandler(settings, clientProvider, store),
-    handleProfile: handlers.ProfileHandler(store),
+    handleProfile: handlers.ProfileHandler(store, clientProvider),
     getSession: handlers.SessionHandler(store),
     requireAuthentication: handlers.RequireAuthentication(store),
     tokenCache: handlers.TokenCache(clientProvider, store)
