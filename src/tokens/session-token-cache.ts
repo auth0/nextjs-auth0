@@ -29,6 +29,10 @@ export default class SessionTokenCache implements ITokenCache {
       throw new AccessTokenError('invalid_session', 'The user does not have a valid session.');
     }
 
+    if (!session.accessToken && !session.refreshToken) {
+      throw new AccessTokenError('invalid_session', 'The user does not have a valid access token.');
+    }
+
     if (!session.accessTokenExpiresAt) {
       throw new AccessTokenError(
         'access_token_expired',

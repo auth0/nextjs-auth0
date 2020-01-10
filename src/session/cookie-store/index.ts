@@ -18,6 +18,10 @@ export default class CookieSessionStore implements ISessionStore {
    * @param req HTTP request
    */
   async read(req: IncomingMessage): Promise<ISession | null> {
+    if (!req) {
+      throw new Error('Request is not available');
+    }
+
     const { cookieSecret, cookieName } = this.settings;
 
     const cookies = parseCookies(req);
@@ -39,6 +43,14 @@ export default class CookieSessionStore implements ISessionStore {
    * @param req HTTP request
    */
   async save(req: IncomingMessage, res: ServerResponse, session: ISession): Promise<ISession | null> {
+    if (!res) {
+      throw new Error('Response is not available');
+    }
+
+    if (!req) {
+      throw new Error('Request is not available');
+    }
+
     const { cookieSecret, cookieName, cookiePath, cookieLifetime, cookieDomain, cookieSameSite } = this.settings;
 
     const { idToken, accessToken, accessTokenExpiresAt, accessTokenScope, refreshToken, user, createdAt } = session;

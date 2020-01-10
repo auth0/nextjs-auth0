@@ -197,6 +197,21 @@ export default async function me(req, res) {
 }
 ```
 
+If you need to refetch the user from the server, you can pass an extra parameter, which will also update it in the session:
+
+```js
+import auth0 from '../../utils/auth0';
+
+export default async function me(req, res) {
+  try {
+    await auth0.handleProfile(req, res, { refetch: true });
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).end(error.message);
+  }
+}
+```
+
 You can then load the user after the page has been rendered on the server:
 
 ```js
