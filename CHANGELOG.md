@@ -1,3 +1,7 @@
+## [v0.10.0](https://github.com/auth0/nextjs-auth0/tree/v0.10.0) (2020-01-10)
+
+- Add support to refetch the user in the profile handler.
+
 ## [v0.9.0](https://github.com/auth0/nextjs-auth0/tree/v0.9.0) (2020-01-08)
 
 - Make `options` on the login handler optional
