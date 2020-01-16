@@ -1,4 +1,4 @@
-import jose from '@panva/jose';
+import jose from 'jose';
 
 import getRequestResponse from '../helpers/http';
 import getClient from '../../src/utils/oidc-client';

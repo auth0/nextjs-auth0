@@ -1,5 +1,5 @@
 import nock from 'nock';
-import { JSONWebKeySet, JWK } from '@panva/jose';
+import { JSONWebKeySet, JWK } from 'jose';
 
 import createToken from './tokens';
 import IAuth0Settings from '../../src/settings';

@@ -358,27 +358,6 @@ All cookies will be set as `HttpOnly, SameSite=Lax` cookies and will be forced t
 
 The `HttpOnly` setting will make sure that client-side javascript is unabled to access the cookie to reduce the attack surface of XSS attacks while `SameSite=Lax` will help mitigate CSRF attacks. Read more about SameSite [here](https://auth0.com/blog/browser-behavior-changes-what-developers-need-to-know/).
 
-## Troubleshooting
-
-### Error `id_token issued in the future, now 1570650460, iat 1570650461`
-
-Increase the clock tolerance for id_token validation:
-
-```js
-import { initAuth0 } from '@auth0/nextjs-auth0';
-
-export default initAuth0({
-  ...
-  session: {
-    ...
-  },
-  oidcClient: {
-    // Eg: increase the tolerance to 10 seconds.
-    clockTolerance: 10000
-  }
-});
-```
-
 ## Contributing
 
 Run NPM install first to install the dependencies of this project:

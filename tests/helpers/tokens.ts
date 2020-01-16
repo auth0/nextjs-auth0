@@ -1,4 +1,4 @@
-import { JWS, JWK } from '@panva/jose';
+import { JWS, JWK } from 'jose';
 
 export default function createToken(key: JWK.Key, payload: object): string {
   const now = (): number => Math.floor(Date.now() / 1000);
