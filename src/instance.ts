@@ -12,12 +12,12 @@ export interface ISignInWithAuth0 {
   /**
    * Login handler which will redirect the user to Auth0.
    */
-  handleLogin: (req: IncomingMessage, res: ServerResponse, options: LoginOptions) => Promise<void>;
+  handleLogin: (req: IncomingMessage, res: ServerResponse, options?: LoginOptions) => Promise<void>;
 
   /**
    * Callback handler which will complete the transaction and create a local session.
    */
-  handleCallback: (req: IncomingMessage, res: ServerResponse, options: CallbackOptions) => Promise<void>;
+  handleCallback: (req: IncomingMessage, res: ServerResponse, options?: CallbackOptions) => Promise<void>;
 
   /**
    * Logout handler which will clear the local session and the Auth0 session
@@ -27,7 +27,7 @@ export interface ISignInWithAuth0 {
   /**
    * Profile handler which return profile information about the user.
    */
-  handleProfile: (req: NextApiRequest, res: NextApiResponse, options: ProfileOptions) => Promise<void>;
+  handleProfile: (req: NextApiRequest, res: NextApiResponse, options?: ProfileOptions) => Promise<void>;
 
   /**
    * Session handler which returns the current session
