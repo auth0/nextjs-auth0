@@ -53,3 +53,40 @@ describe('logout handler', () => {
     });
   });
 });
+
+describe('logout handler with cookieDomain', () => {
+  const cookieDomain = 'www.acme.com';
+  let httpServer: HttpServer;
+
+  beforeAll(done => {
+    httpServer = new HttpServer(
+      logout(withoutApi, new CookieSessionStoreSettings({ ...withoutApi.session, cookieDomain }))
+    );
+    httpServer.start(done);
+  });
+
+  afterAll(done => {
+    httpServer.stop(done);
+  });
+
+  test('should delete the state and session', async () => {
+    const { headers } = await getAsync({
+      url: httpServer.getUrl(),
+      headers: {
+        cookie: ['a0:state=foo', 'a0:session=bar'].join('; ')
+      },
+      followRedirect: false
+    });
+
+    const [stateCookie, sessionCookie] = headers['set-cookie'];
+    expect(parse(stateCookie)).toMatchObject({
+      'a0:state': '',
+      'Max-Age': '-1'
+    });
+    expect(parse(sessionCookie)).toMatchObject({
+      'a0:session': '',
+      'Max-Age': '-1',
+      Domain: cookieDomain
+    });
+  });
+});
