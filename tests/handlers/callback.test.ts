@@ -220,7 +220,7 @@ describe('callback handler', () => {
           url: `${httpServer.getUrl()}?state=foo&code=bar`,
           followRedirect: false,
           headers: {
-            cookie: 'a0:state=foo;'
+            cookie: 'a0:state=foo;a0:redirectTo=/custom-url;'
           }
         });
 
@@ -259,6 +259,11 @@ describe('callback handler', () => {
         const cookie = parse(responseHeaders['set-cookie'][0]);
         expect(cookie['Max-Age']).toBe('3600');
         expect(cookie.Expires).toBe(new Date(time.getTime() + 3600 * 1000).toUTCString());
+      });
+
+      test('should redirect to cookie url', async () => {
+        expect(responseStatus).toBe(302);
+        expect(responseHeaders.location).toBe('/custom-url');
       });
     });
   });

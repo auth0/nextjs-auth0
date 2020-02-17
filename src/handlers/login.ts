@@ -37,6 +37,7 @@ export interface AuthorizationParameters {
 
 export interface LoginOptions {
   authParams?: AuthorizationParameters;
+  redirectTo?: string;
 }
 
 export default function loginHandler(settings: IAuth0Settings, clientProvider: IOidcClientFactory) {
@@ -51,6 +52,7 @@ export default function loginHandler(settings: IAuth0Settings, clientProvider: I
 
     const opt = options || {};
     const { state = base64url(randomBytes(48)), ...authParams } = (opt && opt.authParams) || {};
+    const { redirectTo } = opt;
 
     // Create the authorization url.
     const client = await clientProvider();
@@ -70,7 +72,8 @@ export default function loginHandler(settings: IAuth0Settings, clientProvider: I
         name: 'a0:state',
         value: state,
         maxAge: 60 * 60
-      }
+      },
+      ...(redirectTo ? [{ name: 'a0:redirectTo', value: redirectTo, maxAge: 60 * 60 }] : [])
     ]);
 
     // Redirect to the authorize endpoint.
