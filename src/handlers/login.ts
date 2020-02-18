@@ -73,7 +73,11 @@ export default function loginHandler(settings: IAuth0Settings, clientProvider: I
         value: state,
         maxAge: 60 * 60
       },
-      ...(redirectTo ? [{ name: 'a0:redirectTo', value: redirectTo, maxAge: 60 * 60 }] : [])
+      {
+        name: 'a0:redirectTo',
+        value: redirectTo || '/',
+        maxAge: 60 * 60
+      }
     ]);
 
     // Redirect to the authorize endpoint.
