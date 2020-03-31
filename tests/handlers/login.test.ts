@@ -17,7 +17,7 @@ describe('login handler', () => {
 
   beforeEach(done => {
     discovery(withoutApi);
-    loginOptions = null;
+    loginOptions = { redirectTo: '/custom-url' };
     loginHandler = login(withoutApi, getClient(withoutApi));
     httpServer = new HttpServer((req, res) => loginHandler(req, res, loginOptions));
     httpServer.start(done);
@@ -35,6 +35,18 @@ describe('login handler', () => {
 
     const state = parse(headers['set-cookie'][0]);
     expect(state).toBeTruthy();
+  });
+
+  test('should create a redirectTo cookie', async () => {
+    const { headers } = await getAsync({
+      url: httpServer.getUrl(),
+      followRedirect: false
+    });
+
+    const state = parse(headers['set-cookie'][0]);
+    const redirectTo = parse(headers['set-cookie'][1]);
+    expect(state).toBeTruthy();
+    expect(redirectTo['a0:redirectTo']).toEqual('/custom-url');
   });
 
   test('should redirect to the identity provider', async () => {

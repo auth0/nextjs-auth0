@@ -135,6 +135,7 @@ You can optionally send extra parameters to Auth0 to influence the transaction, 
 - Filling in the user's email address
 - Exposing information to the custom login page (eg: to show the signup tab)
 - Using a custom `state`
+- Redirecting the user to a `redirectTo` url after the transaction is finished
 
 ```js
 import auth0 from '../../utils/auth0';
@@ -148,7 +149,8 @@ export default async function login(req, res) {
         scope: 'some other scope',
         state: 'a custom state',
         foo: 'bar'
-      }
+      },
+      redirectTo: '/custom-url'
     });
   } catch (error) {
     console.error(error);
