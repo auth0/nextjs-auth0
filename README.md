@@ -135,7 +135,7 @@ You can optionally send extra parameters to Auth0 to influence the transaction, 
 - Filling in the user's email address
 - Exposing information to the custom login page (eg: to show the signup tab)
 - Using a custom `state`
-- Redirecting the user to a `redirectTo` url after the transaction is finished
+- Redirecting the user to a `redirectTo` url after the transaction is finished (`redirectTo` is infered from `req` by default. If not present there either, the default is `'/'`.)
 
 ```js
 import auth0 from '../../utils/auth0';
