@@ -1,3 +1,9 @@
+## [v0.11.0](https://github.com/auth0/nextjs-auth0/tree/v0.11.0) (2020-03-31)
+
+- Make options optional in handlers ([#78](https://github.com/auth0/nextjs-auth0/pull/78))
+- Add domain when clearing cookie ([#79](https://github.com/auth0/nextjs-auth0/pull/79))
+- Add redirectTo support ([#81](https://github.com/auth0/nextjs-auth0/pull/81))
+
 ## [v0.10.0](https://github.com/auth0/nextjs-auth0/tree/v0.10.0) (2020-01-10)
 
 - Add support to refetch the user in the profile handler.
