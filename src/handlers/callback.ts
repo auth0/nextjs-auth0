@@ -46,8 +46,8 @@ export default function callbackHandler(
     // Create the session.
     await sessionStore.save(req, res, session);
 
-    // Redirect to the homepage.
-    const redirectTo = (options && options.redirectTo) || '/';
+    // Redirect to the homepage or custom url.
+    const redirectTo = (options && options.redirectTo) || cookies['a0:redirectTo'] || '/';
     res.writeHead(302, {
       Location: redirectTo
     });
