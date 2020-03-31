@@ -1,6 +1,6 @@
 import base64url from 'base64url';
 import { randomBytes } from 'crypto';
-import { IncomingMessage, ServerResponse } from 'http';
+import { NextApiRequest, NextApiResponse } from 'next';
 
 import version from '../version';
 import IAuth0Settings from '../settings';
@@ -41,7 +41,7 @@ export interface LoginOptions {
 }
 
 export default function loginHandler(settings: IAuth0Settings, clientProvider: IOidcClientFactory) {
-  return async (req: IncomingMessage, res: ServerResponse, options?: LoginOptions): Promise<void> => {
+  return async (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions): Promise<void> => {
     if (!req) {
       throw new Error('Request is not available');
     }
@@ -75,7 +75,7 @@ export default function loginHandler(settings: IAuth0Settings, clientProvider: I
       },
       {
         name: 'a0:redirectTo',
-        value: redirectTo || '/',
+        value: redirectTo || req.query.redirectTo as string || '/',
         maxAge: 60 * 60
       }
     ]);
