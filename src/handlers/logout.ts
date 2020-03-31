@@ -33,7 +33,8 @@ export default function logoutHandler(settings: IAuth0Settings, sessionSettings:
         name: sessionSettings.cookieName,
         value: '',
         maxAge: -1,
-        path: sessionSettings.cookiePath
+        path: sessionSettings.cookiePath,
+        domain: sessionSettings.cookieDomain
       }
     ]);
 
