@@ -29,13 +29,10 @@ export default function callbackHandler(
     const cookies = parseCookies(req);
 
     // Require that we have a state.
-    /*
-    const state = cookies['a0:state'];
+    const state = options.state || cookies['a0:state'];
     if (!state) {
       throw new Error('Invalid request, an initial state could not be found');
     }
-    */
-    const state = options.state;
 
     // Execute the code exchange
     const client = await clientProvider();
