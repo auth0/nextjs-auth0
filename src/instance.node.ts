@@ -34,7 +34,7 @@ export default function createInstance(settings: IAuth0Settings): ISignInWithAut
 
   return {
     handleLogin: handlers.LoginHandler(settings, clientProvider),
-    handleLogout: handlers.LogoutHandler(settings, sessionSettings),
+    handleLogout: handlers.LogoutHandler(settings, sessionSettings, clientProvider, store),
     handleCallback: handlers.CallbackHandler(settings, clientProvider, store),
     handleProfile: handlers.ProfileHandler(store, clientProvider),
     getSession: handlers.SessionHandler(store),
