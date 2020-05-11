@@ -34,7 +34,7 @@ describe('callback handler', () => {
   describe('without api', () => {
     let httpServer: HttpServer;
 
-    beforeEach(done => {
+    beforeEach((done) => {
       discovery(withoutApi);
       jwksEndpoint(withoutApi, keystore.toJWKS());
 
@@ -42,7 +42,7 @@ describe('callback handler', () => {
       httpServer.start(done);
     });
 
-    afterAll(done => {
+    afterAll((done) => {
       httpServer.stop(done);
     });
 
@@ -130,35 +130,6 @@ describe('callback handler', () => {
 
       expect(statusCode).toBe(500);
       expect(body).toEqual('unexpected iss value, expected https://acme.auth0.local/, got: other-issuer');
-    });
-
-    test('should validate the issued at', async () => {
-      const overrides = {
-        iat: Math.floor(new Date(new Date().getTime() + 50 * 1000).getTime() / 1000)
-      };
-
-      codeExchange(
-        withoutApi,
-        'with-expiration',
-        keystore.get(),
-        {
-          name: 'john doe',
-          email: 'john@test.com',
-          sub: '123'
-        },
-        overrides
-      );
-
-      const { statusCode, body } = await getAsync({
-        url: `${httpServer.getUrl()}?state=foo&code=with-expiration`,
-        followRedirect: false,
-        headers: {
-          cookie: 'a0:state=foo;'
-        }
-      });
-
-      expect(statusCode).toBe(500);
-      expect(body).toContain('id_token issued in the future');
     });
 
     describe('when oidcClient.clockTolerance is configured', () => {
@@ -271,7 +242,7 @@ describe('callback handler', () => {
   describe('with api', () => {
     let serverWithApi: HttpServer;
 
-    beforeEach(done => {
+    beforeEach((done) => {
       discovery(withApi);
       jwksEndpoint(withApi, keystore.toJWKS());
 
@@ -287,7 +258,7 @@ describe('callback handler', () => {
       serverWithApi.start(done);
     });
 
-    afterAll(done => {
+    afterAll((done) => {
       serverWithApi.stop(done);
     });
 

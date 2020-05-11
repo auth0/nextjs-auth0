@@ -10,6 +10,7 @@ import { discovery } from '../helpers/oidc-nocks';
 import { ISessionStore } from '../../src/session/store';
 import { ISession } from '../../src/session/session';
 import getClient from '../../src/utils/oidc-client';
+
 import nock = require('nock');
 
 const [getAsync] = [request.get].map(promisify);
@@ -34,12 +35,14 @@ const sessionStore: ISessionStore = {
 describe('logout handler', () => {
   let httpServer: HttpServer;
 
-  beforeEach(done => {
-    httpServer = new HttpServer(logout(withoutApi, new CookieSessionStoreSettings(withoutApi.session), getClient(withoutApi), sessionStore));
+  beforeEach((done) => {
+    httpServer = new HttpServer(
+      logout(withoutApi, new CookieSessionStoreSettings(withoutApi.session), getClient(withoutApi), sessionStore)
+    );
     httpServer.start(done);
   });
 
-  afterEach(done => {
+  afterEach((done) => {
     // We mock discovery in different ways, thus it has to be cleaned after each test
     nock.cleanAll();
     httpServer.stop(done);
@@ -69,7 +72,8 @@ describe('logout handler', () => {
 
     expect(statusCode).toBe(302);
     expect(headers.location).toBe(
-      `https://my-end-session-endpoint/logout?id_token_hint=my-id-token&post_logout_redirect_uri=https%253A%252F%252Fwww.acme.com`
+      `https://my-end-session-endpoint/logout` +
+        `?id_token_hint=my-id-token&post_logout_redirect_uri=https%253A%252F%252Fwww.acme.com`
     );
   });
 
@@ -100,17 +104,22 @@ describe('logout handler with cookieDomain', () => {
   const cookieDomain = 'www.acme.com';
   let httpServer: HttpServer;
 
-  beforeAll(done => {
+  beforeAll((done) => {
     httpServer = new HttpServer(
-      logout(withoutApi, new CookieSessionStoreSettings({
-        ...withoutApi.session,
-        cookieDomain
-      }), getClient(withoutApi), sessionStore)
+      logout(
+        withoutApi,
+        new CookieSessionStoreSettings({
+          ...withoutApi.session,
+          cookieDomain
+        }),
+        getClient(withoutApi),
+        sessionStore
+      )
     );
     httpServer.start(done);
   });
 
-  afterAll(done => {
+  afterAll((done) => {
     httpServer.stop(done);
   });
 
