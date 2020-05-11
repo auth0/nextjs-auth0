@@ -99,7 +99,7 @@ function serializeCookie(cookie: ICookie, secure: boolean): string {
 export function setCookies(req: IncomingMessage, res: ServerResponse, cookies: Array<ICookie>): void {
   res.setHeader(
     'Set-Cookie',
-    cookies.map(c => serializeCookie(c, isSecureEnvironment(req)))
+    cookies.map((c) => serializeCookie(c, isSecureEnvironment(req)))
   );
 }
 

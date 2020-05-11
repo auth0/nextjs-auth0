@@ -4,6 +4,7 @@ import { promisify } from 'util';
 
 import HttpServer from '../helpers/server';
 import { discovery } from '../helpers/oidc-nocks';
+import { decodeState } from '../../src/utils/state';
 import getClient from '../../src/utils/oidc-client';
 import { withoutApi, withApi } from '../helpers/default-settings';
 import login, { LoginOptions } from '../../src/handlers/login';
@@ -15,7 +16,7 @@ describe('login handler', () => {
   let loginHandler: any;
   let loginOptions: LoginOptions | null;
 
-  beforeEach(done => {
+  beforeEach((done) => {
     discovery(withoutApi);
     loginOptions = { redirectTo: '/custom-url' };
     loginHandler = login(withoutApi, getClient(withoutApi));
@@ -23,7 +24,7 @@ describe('login handler', () => {
     httpServer.start(done);
   });
 
-  afterEach(done => {
+  afterEach((done) => {
     httpServer.stop(done);
   });
 
@@ -35,18 +36,22 @@ describe('login handler', () => {
 
     const state = parse(headers['set-cookie'][0]);
     expect(state).toBeTruthy();
+
+    const decodedState = decodeState(state['a0:state']);
+    expect(decodedState.nonce).toBeTruthy();
   });
 
-  test('should create a redirectTo cookie', async () => {
+  test('should add redirectTo to the state', async () => {
     const { headers } = await getAsync({
       url: httpServer.getUrl(),
       followRedirect: false
     });
 
     const state = parse(headers['set-cookie'][0]);
-    const redirectTo = parse(headers['set-cookie'][1]);
     expect(state).toBeTruthy();
-    expect(redirectTo['a0:redirectTo']).toEqual('/custom-url');
+
+    const decodedState = decodeState(state['a0:state']);
+    expect(decodedState.redirectTo).toEqual('/custom-url');
   });
 
   test('should redirect to the identity provider', async () => {
@@ -113,18 +118,92 @@ describe('login handler', () => {
     expect(statusCode).toBe(302);
     expect(headers.location).toContain('&state=custom-state');
   });
+
+  test('should allow adding custom data to the state', async () => {
+    loginOptions = {
+      getState: (): Record<string, any> => {
+        return {
+          foo: 'bar'
+        };
+      }
+    };
+    const { headers } = await getAsync({
+      url: httpServer.getUrl(),
+      followRedirect: false
+    });
+
+    const state = parse(headers['set-cookie'][0]);
+    expect(state['a0:state']).toBeTruthy();
+
+    const decodedState = decodeState(state['a0:state']);
+    expect(decodedState).toEqual({
+      foo: 'bar',
+      nonce: expect.any(String)
+    });
+  });
+
+  test('should merge redirectTo and state', async () => {
+    loginOptions = {
+      redirectTo: '/profile',
+      getState: (): Record<string, any> => {
+        return {
+          foo: 'bar'
+        };
+      }
+    };
+    const { headers } = await getAsync({
+      url: httpServer.getUrl(),
+      followRedirect: false
+    });
+
+    const state = parse(headers['set-cookie'][0]);
+    expect(state['a0:state']).toBeTruthy();
+
+    const decodedState = decodeState(state['a0:state']);
+    expect(decodedState).toEqual({
+      foo: 'bar',
+      redirectTo: '/profile',
+      nonce: expect.any(String)
+    });
+  });
+
+  test('should allow the getState method to overwrite redirectTo', async () => {
+    loginOptions = {
+      redirectTo: '/profile',
+      getState: (): Record<string, any> => {
+        return {
+          foo: 'bar',
+          redirectTo: '/other-path'
+        };
+      }
+    };
+    const { headers } = await getAsync({
+      url: httpServer.getUrl(),
+      followRedirect: false
+    });
+
+    const state = parse(headers['set-cookie'][0]);
+    expect(state['a0:state']).toBeTruthy();
+
+    const decodedState = decodeState(state['a0:state']);
+    expect(decodedState).toEqual({
+      foo: 'bar',
+      redirectTo: '/other-path',
+      nonce: expect.any(String)
+    });
+  });
 });
 
 describe('withApi login handler', () => {
   let httpServer: HttpServer;
 
-  beforeAll(done => {
+  beforeAll((done) => {
     discovery(withApi);
     httpServer = new HttpServer(login(withApi, getClient(withApi)));
     httpServer.start(done);
   });
 
-  afterAll(done => {
+  afterAll((done) => {
     httpServer.stop(done);
   });
 

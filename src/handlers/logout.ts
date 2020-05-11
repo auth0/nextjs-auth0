@@ -30,7 +30,7 @@ export default function logoutHandler(
     }
 
     const session = await store.read(req);
-    let endSessionUrl = undefined;
+    let endSessionUrl;
 
     try {
       const client = await clientProvider();

@@ -3,8 +3,9 @@ import request from 'request';
 import { parse } from 'cookie';
 import { promisify } from 'util';
 import timekeeper from 'timekeeper';
+import callback, { CallbackOptions } from '../../src/handlers/callback';
 
-import callback from '../../src/handlers/callback';
+import { createState } from '../../src/utils/state';
 import getClient from '../../src/utils/oidc-client';
 import CookieSessionStore from '../../src/session/cookie-store';
 
@@ -13,6 +14,7 @@ import getRequestResponse from '../helpers/http';
 import { withoutApi, withApi } from '../helpers/default-settings';
 import { discovery, jwksEndpoint, codeExchange } from '../helpers/oidc-nocks';
 import CookieSessionStoreSettings from '../../src/session/cookie-store/settings';
+import { ISession } from '../../src/session/session';
 
 const [getAsync] = [request.get].map(promisify);
 
@@ -182,16 +184,18 @@ describe('callback handler', () => {
         codeExchange(withoutApi, 'bar', keystore.get(), {
           name: 'john doe',
           email: 'john@test.com',
-          sub: '123',
-          aud: 'my-client',
-          iss: 'auth0'
+          sub: '123'
+        });
+
+        const state = createState({
+          redirectTo: '/custom-url'
         });
 
         const { statusCode, headers } = await getAsync({
-          url: `${httpServer.getUrl()}?state=foo&code=bar`,
+          url: `${httpServer.getUrl()}?state=${state}&code=bar`,
           followRedirect: false,
           headers: {
-            cookie: 'a0:state=foo;a0:redirectTo=/custom-url;'
+            cookie: `a0:state=${state};`
           }
         });
 
@@ -317,6 +321,163 @@ describe('callback handler', () => {
         });
 
         timekeeper.reset();
+      });
+    });
+  });
+
+  describe('with user loaded hook', () => {
+    let responseStatus: number;
+    let responseHeaders: any;
+    let httpServer: HttpServer;
+    let callbackOptions: CallbackOptions | undefined;
+
+    beforeAll(async () => {
+      discovery(withoutApi);
+      jwksEndpoint(withoutApi, keystore.toJWKS());
+
+      const callbackHandler = callback(withoutApi, getClient(withoutApi), store);
+      httpServer = new HttpServer((req, res) => callbackHandler(req, res, callbackOptions));
+      await httpServer.start();
+    });
+
+    afterAll((done) => {
+      httpServer.stop(done);
+    });
+
+    describe('when hook changes the session', () => {
+      beforeEach(async () => {
+        callbackOptions = {
+          onUserLoaded: async (_req, _res, session): Promise<ISession> => {
+            const updatedSession = {
+              ...session,
+              user: {
+                ...session.user,
+                age: 20
+              }
+            };
+
+            delete updatedSession.refreshToken;
+
+            return updatedSession;
+          }
+        };
+
+        codeExchange(withoutApi, 'bar', keystore.get(), {
+          name: 'john doe',
+          email: 'john@test.com',
+          sub: '123'
+        });
+
+        const state = createState();
+
+        const { statusCode, headers } = await getAsync({
+          url: `${httpServer.getUrl()}?state=${state}&code=bar`,
+          followRedirect: false,
+          headers: {
+            cookie: `a0:state=${state};`
+          }
+        });
+
+        responseStatus = statusCode;
+        responseHeaders = headers;
+      });
+
+      test('tokens can be removed', async () => {
+        expect(responseStatus).toBe(302);
+        expect(responseHeaders['set-cookie'][0]).toContain('a0:session');
+
+        const { req } = getRequestResponse();
+        req.headers = {
+          cookie: `a0:session=${parse(responseHeaders['set-cookie'][0])['a0:session']}`
+        };
+
+        const session = await store.read(req);
+        expect(session && session.refreshToken).toBeUndefined();
+      });
+
+      test('additional fields should be added to the user', async () => {
+        expect(responseStatus).toBe(302);
+        expect(responseHeaders['set-cookie'][0]).toContain('a0:session');
+
+        const { req } = getRequestResponse();
+        req.headers = {
+          cookie: `a0:session=${parse(responseHeaders['set-cookie'][0])['a0:session']}`
+        };
+
+        const session = await store.read(req);
+        expect(session && session.user).toStrictEqual({
+          age: 20,
+          email: 'john@test.com',
+          name: 'john doe',
+          sub: '123'
+        });
+      });
+    });
+
+    describe('when hook throws', () => {
+      beforeEach(async () => {
+        callbackOptions = {
+          onUserLoaded: async (): Promise<ISession> => {
+            throw new Error('Access denied!');
+          }
+        };
+
+        codeExchange(withoutApi, 'bar', keystore.get(), {
+          name: 'john doe',
+          email: 'john@test.com',
+          sub: '123'
+        });
+
+        const state = createState();
+
+        const { statusCode, headers } = await getAsync({
+          url: `${httpServer.getUrl()}?state=${state}&code=bar`,
+          followRedirect: false,
+          headers: {
+            cookie: `a0:state=${state};`
+          }
+        });
+
+        responseStatus = statusCode;
+        responseHeaders = headers;
+      });
+
+      test('callback should fail', async () => {
+        expect(responseStatus).toBe(500);
+        expect(responseHeaders['set-cookie']).toBeFalsy();
+      });
+    });
+
+    describe('when hook throws and a callback failed handler is configured', () => {
+      beforeEach(async () => {
+        callbackOptions = {
+          onUserLoaded: async (): Promise<ISession> => {
+            throw new Error('Access denied!');
+          }
+        };
+
+        codeExchange(withoutApi, 'bar', keystore.get(), {
+          name: 'john doe',
+          email: 'john@test.com',
+          sub: '123'
+        });
+
+        const state = createState();
+
+        const { statusCode, headers } = await getAsync({
+          url: `${httpServer.getUrl()}?state=${state}&code=bar`,
+          followRedirect: false,
+          headers: {
+            cookie: `a0:state=${state};`
+          }
+        });
+        responseStatus = statusCode;
+        responseHeaders = headers;
+      });
+
+      test('callback should fail', async () => {
+        expect(responseStatus).toBe(500);
+        expect(responseHeaders['set-cookie']).toBeFalsy();
       });
     });
   });
