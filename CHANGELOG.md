@@ -1,3 +1,9 @@
+## [v0.12.0](https://github.com/auth0/nextjs-auth0/tree/v0.12.0) (2020-05-11)
+
+- Support end_session_endpoint ([#102](https://github.com/auth0/nextjs-auth0/pull/102))
+- Allow full control over the state generation
+- Allow full control over the session creation
+
 ## [v0.11.0](https://github.com/auth0/nextjs-auth0/tree/v0.11.0) (2020-03-31)
 
 - Make options optional in handlers ([#78](https://github.com/auth0/nextjs-auth0/pull/78))
