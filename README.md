@@ -232,16 +232,15 @@ If you need to access the user's session from within an API route or a Server-re
 ```js
 Profile.getInitialProps = async ({ req, res }) => {
   if (typeof window === 'undefined') {
-    const { user } = await auth0.getSession(req);
-    if (!user) {
+    const session = await auth0.getSession(req);
+    if (!session || !session.user) {
       res.writeHead(302, {
         Location: '/api/login'
       });
       res.end();
       return;
     }
-
-    return { user };
+    return { user: session.user };
   }
 };
 ```
