@@ -4,7 +4,7 @@ import { JSONWebKeySet, JWK } from '@panva/jose';
 import createToken from './tokens';
 import IAuth0Settings from '../../src/settings';
 
-export function discovery(settings: IAuth0Settings): nock.Scope {
+export function discovery(settings: IAuth0Settings, discoveryOptions?: any): nock.Scope {
   return nock(`https://${settings.domain}`)
     .get('/.well-known/openid-configuration')
     .reply(200, {
@@ -49,7 +49,8 @@ export function discovery(settings: IAuth0Settings): nock.Scope {
         'phone_number',
         'picture',
         'sub'
-      ]
+      ],
+      ...(discoveryOptions || {})
     });
 }
 
@@ -62,9 +63,7 @@ export function userInfoWithDelay(settings: IAuth0Settings, delay: number): nock
 }
 
 export function jwksEndpoint(settings: IAuth0Settings, keyset: JSONWebKeySet): nock.Scope {
-  return nock(`https://${settings.domain}`)
-    .get('/.well-known/jwks.json')
-    .reply(200, keyset);
+  return nock(`https://${settings.domain}`).get('/.well-known/jwks.json').reply(200, keyset);
 }
 
 export function codeExchange(
