@@ -20,3 +20,5 @@ jobs:
       - run: node --version
       - run: npm install
       - run: npm test
+        env:
+          CI: true
