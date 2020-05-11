@@ -13,7 +13,7 @@ export default class HttpServer {
   constructor(handler: IHandler) {
     this.handler = handler;
     this.httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
-      this.handler(req, res).catch(e => {
+      this.handler(req, res).catch((e) => {
         res.statusCode = 500;
         res.end(e.message);
       });
@@ -24,8 +24,16 @@ export default class HttpServer {
     this.handler = handler;
   }
 
-  start(done: () => void): void {
-    this.httpServer.listen(done);
+  start(done?: () => void): Promise<void> {
+    return new Promise((resolve) => {
+      this.httpServer.listen(() => {
+        if (done) {
+          done();
+        }
+
+        resolve();
+      });
+    });
   }
 
   stop(done: (err?: Error) => void): void {

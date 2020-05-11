@@ -1,7 +1,7 @@
 export function intersect(a: Array<string>, b: Array<string>): Set<string> {
   const set1 = new Set(a);
   const set2 = new Set(b);
-  return new Set([...set1].filter(x => set2.has(x)));
+  return new Set([...set1].filter((x) => set2.has(x)));
 }
 
 export function match(arr1: Array<string>, arr2: Array<string>): boolean {

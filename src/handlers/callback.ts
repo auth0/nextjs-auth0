@@ -1,6 +1,8 @@
 import { IncomingMessage, ServerResponse } from 'http';
 
 import IAuth0Settings from '../settings';
+import { decodeState } from '../utils/state';
+import { ISession } from '../session/session';
 import { parseCookies } from '../utils/cookies';
 import { ISessionStore } from '../session/store';
 import { IOidcClientFactory } from '../utils/oidc-client';
@@ -8,6 +10,12 @@ import getSessionFromTokenSet from '../utils/session';
 
 export type CallbackOptions = {
   redirectTo?: string;
+  onUserLoaded?: (
+    req: IncomingMessage,
+    res: ServerResponse,
+    session: ISession,
+    state: Record<string, any>
+  ) => Promise<ISession>;
 };
 
 export default function callbackHandler(
@@ -39,15 +47,21 @@ export default function callbackHandler(
     const tokenSet = await client.callback(settings.redirectUri, params, {
       state
     });
+    const decodedState = decodeState(state);
 
     // Get the claims without any OIDC specific claim.
-    const session = getSessionFromTokenSet(tokenSet);
+    let session = getSessionFromTokenSet(tokenSet);
+
+    // Run the identity validated hook.
+    if (options && options.onUserLoaded) {
+      session = await options.onUserLoaded(req, res, session, decodedState);
+    }
 
     // Create the session.
     await sessionStore.save(req, res, session);
 
     // Redirect to the homepage or custom url.
-    const redirectTo = (options && options.redirectTo) || cookies['a0:redirectTo'] || '/';
+    const redirectTo = (options && options.redirectTo) || decodedState.redirectTo || '/';
     res.writeHead(302, {
       Location: redirectTo
     });

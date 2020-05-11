@@ -134,7 +134,6 @@ You can optionally send extra parameters to Auth0 to influence the transaction, 
 - Showing the login page
 - Filling in the user's email address
 - Exposing information to the custom login page (eg: to show the signup tab)
-- Using a custom `state`
 - Redirecting the user to a `redirectTo` url after the transaction is finished
 
 ```js
@@ -147,10 +146,31 @@ export default async function login(req, res) {
         login_hint: 'foo@acme.com',
         ui_locales: 'nl',
         scope: 'some other scope',
-        state: 'a custom state',
         foo: 'bar'
       },
       redirectTo: '/custom-url'
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 400).end(error.message);
+  }
+}
+```
+
+You can also control the contents of the state parameter. The nonce will automatically be added to this object.
+
+```js
+import auth0 from '../../utils/auth0';
+
+export default async function login(req, res) {
+  try {
+    await auth0.handleLogin(req, res, {
+      getState: (req) => {
+        return {
+          someValue: '123',
+          redirectTo: '/other-url'
+        };
+      }
     });
   } catch (error) {
     console.error(error);
@@ -324,6 +344,43 @@ export default async function getCustomers(req, res) {
 ```
 
 > A [full example](./examples/api-call-example) is available here.
+
+### Controlling the callback
+
+There might be a need for you to have more control over the callback handler. The `onUserLoaded` hook allows you to control what happens before a session is created. You can use this for example to add/remove infromation in the session.
+
+```js
+import auth0 from '../../utils/auth0';
+
+export default async function callback(req, res) {
+  try {
+    await auth0.handleCallback(req, res, {
+      onUserLoaded: async (req, res, session, state) => {
+        return {
+          ...session,
+          user: {
+            ...session.user,
+            age: 20
+          }
+        };
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 400).end(error.message);
+  }
+}
+```
+
+An other example could also include preventing the user from signing in (if they don't have the required role, ...):
+
+```js
+await auth0.handleCallback(req, res, {
+  onUserLoaded: async (req, res, session, state) => {
+    throw new Error('You are not allowed to sign in');
+  }
+});
+```
 
 ### Requiring Authentication
 

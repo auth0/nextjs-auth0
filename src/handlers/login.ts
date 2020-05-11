@@ -1,10 +1,9 @@
-import base64url from 'base64url';
-import { randomBytes } from 'crypto';
 import { IncomingMessage, ServerResponse } from 'http';
 
 import version from '../version';
 import IAuth0Settings from '../settings';
 import { setCookies } from '../utils/cookies';
+import { createState } from '../utils/state';
 import { IOidcClientFactory } from '../utils/oidc-client';
 
 function telemetry(): string {
@@ -15,11 +14,7 @@ function telemetry(): string {
     })
   );
 
-  return bytes
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
+  return bytes.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
 export interface AuthorizationParameters {
@@ -36,6 +31,7 @@ export interface AuthorizationParameters {
 }
 
 export interface LoginOptions {
+  getState?: (req: IncomingMessage) => Record<string, any>;
   authParams?: AuthorizationParameters;
   redirectTo?: string;
 }
@@ -51,8 +47,20 @@ export default function loginHandler(settings: IAuth0Settings, clientProvider: I
     }
 
     const opt = options || {};
-    const { state = base64url(randomBytes(48)), ...authParams } = (opt && opt.authParams) || {};
-    const { redirectTo } = opt;
+    const getLoginState =
+      opt.getState ||
+      function getLoginState(): Record<string, any> {
+        return {};
+      };
+
+    const {
+      // Generate a state which contains a nonce, the redirectTo uri and potentially custom data
+      state = createState({
+        redirectTo: options?.redirectTo,
+        ...getLoginState(req)
+      }),
+      ...authParams
+    } = (opt && opt.authParams) || {};
 
     // Create the authorization url.
     const client = await clientProvider();
@@ -71,11 +79,6 @@ export default function loginHandler(settings: IAuth0Settings, clientProvider: I
       {
         name: 'a0:state',
         value: state,
-        maxAge: 60 * 60
-      },
-      {
-        name: 'a0:redirectTo',
-        value: redirectTo || '/',
         maxAge: 60 * 60
       }
     ]);
