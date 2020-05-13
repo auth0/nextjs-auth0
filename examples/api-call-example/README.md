@@ -6,17 +6,23 @@ When the call is being proxied it will fetch the access token from the session (
 
 In order to run this project you'll need to configure and launch the [sample-api](../sample-api) project.
 
-## Configuration
+## Using this example
 
-So in order for this to work you will need to pass a few additional settings to the library:
+Configure your Auth0 account as [described here](https://github.com/auth0/nextjs-auth0#auth0-configuration) and then create a `.env` file based on the `.env.template`, eg:
 
-- If your API requires specific scopes (like `read:shows`) you'll need to add this to the configuration
-- By adding the `offline_access` scope you'll receive a refresh token when signing in. This is needed in order to request new access tokens.
-- An audience needs to be provided for which we'll request the access token on the user's behalf. This is the audience of the sample API.
+```
+AUTH0_DOMAIN=your-tenant.auth0.com
+AUTH0_CLIENT_ID=your-auth0-client-id
+AUTH0_CLIENT_SECRET=your-auth0-client-secret
+REDIRECT_URI=http://localhost:3000/api/callback
+POST_LOGOUT_REDIRECT_URI=http://localhost:3000/
+SESSION_COOKIE_SECRET=aE1OUWcLTmSLn8I79hNJPzjTo5-aE1OUWcLTmSLn8I79hNJPzjTo5-aE1OUWcLTmSLn8I79hNJPzjTo5
+```
 
-```js
-AUTH0_SCOPE: 'openid profile read:shows offline_access',
-API_AUDIENCE: 'https://api/tv-shows',
+After that you can run the example in development mode:
+
+```bash
+npm run dev
 ```
 
 ## How does this work?
@@ -39,7 +45,7 @@ export default function TvShows() {
           <p>My favourite TV shows:</p>
           <pre>
             {JSON.stringify(
-              response.shows.map(s => s.show.name),
+              response.shows.map((s) => s.show.name),
               null,
               2
             )}
@@ -78,4 +84,17 @@ export default async function shows(req, res) {
     });
   }
 }
+```
+
+### Configuration
+
+So in order for this to work you will need to pass a few additional settings to the library:
+
+- If your API requires specific scopes (like `read:shows`) you'll need to add this to the configuration
+- By adding the `offline_access` scope you'll receive a refresh token when signing in. This is needed in order to request new access tokens.
+- An audience needs to be provided for which we'll request the access token on the user's behalf. This is the audience of the sample API.
+
+```js
+AUTH0_SCOPE: 'openid profile read:shows offline_access',
+API_AUDIENCE: 'https://api/tv-shows',
 ```
