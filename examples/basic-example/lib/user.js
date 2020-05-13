@@ -44,7 +44,7 @@ export const useFetchUser = () => {
 
     let isMounted = true;
 
-    fetchUser().then(user => {
+    fetchUser().then((user) => {
       // Only set the user if the component is still mounted
       if (isMounted) {
         setUser({ user, loading: false });
