@@ -20,6 +20,11 @@ const Header = () => {
               <a>About</a>
             </Link>
           </li>
+          <li>
+            <Link href="/protected-page">
+              <a>Protected Page</a>
+            </Link>
+          </li>
           {!loading &&
             (user ? (
               <>
@@ -64,7 +69,7 @@ const Header = () => {
         li {
           margin-right: 1rem;
         }
-        li:nth-child(2) {
+        li:nth-child(3) {
           margin-right: auto;
         }
         a {
