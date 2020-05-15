@@ -1,4 +1,4 @@
-import { IncomingMessage, ServerResponse } from 'http';
+import { NextApiRequest, NextApiResponse } from 'next';
 
 import { ISessionStore } from '../session/store';
 import { ITokenCache } from '../tokens/token-cache';
@@ -6,7 +6,7 @@ import { IOidcClientFactory } from '../utils/oidc-client';
 import SessionTokenCache from '../tokens/session-token-cache';
 
 export default function tokenCacheHandler(clientProvider: IOidcClientFactory, sessionStore: ISessionStore) {
-  return (req: IncomingMessage, res: ServerResponse): ITokenCache => {
+  return (req: NextApiRequest, res: NextApiResponse): ITokenCache => {
     if (!req) {
       throw new Error('Request is not available');
     }

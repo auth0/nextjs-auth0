@@ -1,8 +1,13 @@
+import crypto from 'crypto';
 import { AddressInfo } from 'net';
-import { IncomingMessage, ServerResponse, createServer, Server } from 'http';
+import { parse as parseUrl } from 'url';
+import { parse as parseQs } from 'querystring';
+import { NextApiRequest, NextApiResponse } from 'next';
+import { IncomingMessage, ServerResponse, Server, createServer } from 'http';
+import { apiResolver, ApiError } from 'next/dist/next-server/server/api-utils';
 
 interface IHandler {
-  (req: IncomingMessage, res: ServerResponse): Promise<void>;
+  (req: NextApiRequest, res: NextApiResponse): Promise<void>;
 }
 
 export default class HttpServer {
@@ -13,16 +18,40 @@ export default class HttpServer {
   constructor(handler: IHandler) {
     this.handler = handler;
     this.httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
-      this.handler(req, res).catch((e) => {
-        res.statusCode = 500;
-        res.end(e.message);
-      });
+      if (!req.url) {
+        throw new Error('No url provided');
+      }
+
+      const parsedUrl = parseUrl(req.url);
+      const parsedQuery = (parsedUrl.query && parseQs(parsedUrl.query)) || {};
+
+      const previewMode = {
+        previewModeId: crypto.randomBytes(16).toString('hex'),
+        previewModeSigningKey: crypto.randomBytes(32).toString('hex'),
+        previewModeEncryptionKey: crypto.randomBytes(32).toString('hex')
+      };
+
+      apiResolver(req, res, parsedQuery, this.handleRequest(), previewMode);
     });
   }
 
   setHandler(handler: IHandler): void {
     this.handler = handler;
   }
+
+  handleRequest = () => async (req: NextApiRequest, res: NextApiResponse): Promise<void> => {
+    try {
+      await this.handler(req, res);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        res.statusCode = err.statusCode;
+        res.end(err.message);
+      } else {
+        res.statusCode = 500;
+        res.end(err.message);
+      }
+    }
+  };
 
   start(done?: () => void): Promise<void> {
     return new Promise((resolve) => {

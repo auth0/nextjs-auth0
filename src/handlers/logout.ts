@@ -1,4 +1,4 @@
-import { IncomingMessage, ServerResponse } from 'http';
+import { NextApiRequest, NextApiResponse } from 'next';
 
 import IAuth0Settings from '../settings';
 import { setCookies } from '../utils/cookies';
@@ -20,7 +20,7 @@ export default function logoutHandler(
   clientProvider: IOidcClientFactory,
   store: ISessionStore
 ) {
-  return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+  return async (req: NextApiRequest, res: NextApiResponse): Promise<void> => {
     if (!req) {
       throw new Error('Request is not available');
     }

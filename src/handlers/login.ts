@@ -1,7 +1,9 @@
-import { IncomingMessage, ServerResponse } from 'http';
+import { NextApiRequest, NextApiResponse } from 'next';
 
 import version from '../version';
 import IAuth0Settings from '../settings';
+import isRelative from '../utils/url-helpers';
+
 import { setCookies } from '../utils/cookies';
 import { createState } from '../utils/state';
 import { IOidcClientFactory } from '../utils/oidc-client';
@@ -31,19 +33,29 @@ export interface AuthorizationParameters {
 }
 
 export interface LoginOptions {
-  getState?: (req: IncomingMessage) => Record<string, any>;
+  getState?: (req: NextApiRequest) => Record<string, any>;
   authParams?: AuthorizationParameters;
   redirectTo?: string;
 }
 
 export default function loginHandler(settings: IAuth0Settings, clientProvider: IOidcClientFactory) {
-  return async (req: IncomingMessage, res: ServerResponse, options?: LoginOptions): Promise<void> => {
+  return async (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions): Promise<void> => {
     if (!req) {
       throw new Error('Request is not available');
     }
 
     if (!res) {
       throw new Error('Response is not available');
+    }
+
+    if (req.query.redirectTo) {
+      if (typeof req.query.redirectTo !== 'string') {
+        throw new Error('Invalid value provided for redirectTo, must be a string');
+      }
+
+      if (!isRelative(req.query.redirectTo)) {
+        throw new Error('Invalid value provided for redirectTo, must be a relative url');
+      }
     }
 
     const opt = options || {};
@@ -56,7 +68,7 @@ export default function loginHandler(settings: IAuth0Settings, clientProvider: I
     const {
       // Generate a state which contains a nonce, the redirectTo uri and potentially custom data
       state = createState({
-        redirectTo: options?.redirectTo,
+        redirectTo: req.query?.redirectTo || options?.redirectTo,
         ...getLoginState(req)
       }),
       ...authParams

@@ -77,7 +77,7 @@
     "openid-client": "^3.15.0"
   },
   "peerDependencies": {
-    "next": "^9.0.5"
+    "next": "^9.0.0"
   },
   "jest": {
     "testEnvironment": "node",
