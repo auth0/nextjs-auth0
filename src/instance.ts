@@ -1,4 +1,3 @@
-import { IncomingMessage, ServerResponse } from 'http';
 import { NextApiRequest, NextApiResponse } from 'next';
 
 import { ISession } from './session/session';
@@ -12,17 +11,17 @@ export interface ISignInWithAuth0 {
   /**
    * Login handler which will redirect the user to Auth0.
    */
-  handleLogin: (req: IncomingMessage, res: ServerResponse, options?: LoginOptions) => Promise<void>;
+  handleLogin: (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions) => Promise<void>;
 
   /**
    * Callback handler which will complete the transaction and create a local session.
    */
-  handleCallback: (req: IncomingMessage, res: ServerResponse, options?: CallbackOptions) => Promise<void>;
+  handleCallback: (req: NextApiRequest, res: NextApiResponse, options?: CallbackOptions) => Promise<void>;
 
   /**
    * Logout handler which will clear the local session and the Auth0 session
    */
-  handleLogout: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
+  handleLogout: (req: NextApiRequest, res: NextApiResponse) => Promise<void>;
 
   /**
    * Profile handler which return profile information about the user.
@@ -32,7 +31,7 @@ export interface ISignInWithAuth0 {
   /**
    * Session handler which returns the current session
    */
-  getSession: (req: IncomingMessage) => Promise<ISession | null | undefined>;
+  getSession: (req: NextApiRequest) => Promise<ISession | null | undefined>;
 
   /**
    * Handle to require authentication for an API route.
@@ -42,5 +41,5 @@ export interface ISignInWithAuth0 {
   /**
    * Token cache which allows you to get an access token for the current user.
    */
-  tokenCache: (req: IncomingMessage, res: ServerResponse) => ITokenCache;
+  tokenCache: (req: NextApiRequest, res: NextApiResponse) => ITokenCache;
 }
