@@ -1,3 +1,8 @@
+## [v0.13.0](https://github.com/auth0/nextjs-auth0/tree/v0.13.0) (2020-05-15)
+
+- Updated handlers to use `NextApiRequest` and `NextApiResponse`
+- Automatically redirect to what is provided in the redirectTo querystring parameter, eg: `/api/login?redirectTo=/profile`
+
 ## [v0.12.0](https://github.com/auth0/nextjs-auth0/tree/v0.12.0) (2020-05-11)
 
 - Support end_session_endpoint ([#102](https://github.com/auth0/nextjs-auth0/pull/102))
