@@ -19,7 +19,7 @@ export default function TvShows() {
           <p>My favourite TV shows:</p>
           <pre>
             {JSON.stringify(
-              response.shows.map(s => s.show.name),
+              response.shows.map((s) => s.show.name),
               null,
               2
             )}
