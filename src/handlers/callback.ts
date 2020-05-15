@@ -1,4 +1,4 @@
-import { IncomingMessage, ServerResponse } from 'http';
+import { NextApiRequest, NextApiResponse } from 'next';
 
 import IAuth0Settings from '../settings';
 import { decodeState } from '../utils/state';
@@ -11,8 +11,8 @@ import getSessionFromTokenSet from '../utils/session';
 export type CallbackOptions = {
   redirectTo?: string;
   onUserLoaded?: (
-    req: IncomingMessage,
-    res: ServerResponse,
+    req: NextApiRequest,
+    res: NextApiResponse,
     session: ISession,
     state: Record<string, any>
   ) => Promise<ISession>;
@@ -23,7 +23,7 @@ export default function callbackHandler(
   clientProvider: IOidcClientFactory,
   sessionStore: ISessionStore
 ) {
-  return async (req: IncomingMessage, res: ServerResponse, options?: CallbackOptions): Promise<void> => {
+  return async (req: NextApiRequest, res: NextApiResponse, options?: CallbackOptions): Promise<void> => {
     if (!res) {
       throw new Error('Response is not available');
     }

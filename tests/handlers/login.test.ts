@@ -192,6 +192,67 @@ describe('login handler', () => {
       nonce: expect.any(String)
     });
   });
+
+  test('should allow the redirectTo url to be provided in the querystring', async () => {
+    loginOptions = {
+      redirectTo: '/default-redirect'
+    };
+
+    const { headers } = await getAsync({
+      url: `${httpServer.getUrl()}?redirectTo=/my-profile`,
+      followRedirect: false
+    });
+
+    const state = parse(headers['set-cookie'][0]);
+    expect(state['a0:state']).toBeTruthy();
+
+    const decodedState = decodeState(state['a0:state']);
+    expect(decodedState).toEqual({
+      redirectTo: '/my-profile',
+      nonce: expect.any(String)
+    });
+  });
+
+  test('should not allow absolute urls to be provided in the querystring', async () => {
+    loginOptions = {
+      redirectTo: '/default-redirect'
+    };
+
+    const { statusCode, body } = await getAsync({
+      url: `${httpServer.getUrl()}?redirectTo=https://google.com`,
+      followRedirect: false
+    });
+
+    expect(statusCode).toBe(500);
+    expect(body).toEqual('Invalid value provided for redirectTo, must be a relative url');
+  });
+
+  test('should allow the redirectTo url to be be overwritten by getState() when provided in the querystring', async () => {
+    loginOptions = {
+      redirectTo: '/profile',
+      getState: (): Record<string, any> => {
+        return {
+          foo: 'bar',
+          redirectTo: '/other-path'
+        };
+      }
+    };
+
+    const { headers } = await getAsync({
+      url: `${httpServer.getUrl()}?redirectTo=/my-profile`,
+      followRedirect: false
+    });
+
+    const state = parse(headers['set-cookie'][0]);
+    expect(state['a0:state']).toBeTruthy();
+
+    const decodedState = decodeState(state['a0:state']);
+    expect(decodedState).toEqual({
+      foo: 'bar',
+      redirectTo: '/other-path',
+      nonce: expect.any(String)
+    });
+  });
 });
 
 describe('withApi login handler', () => {
