@@ -2,6 +2,10 @@
   "name": "with-apollo-hasura-ssr",
   "version": "1.0.0",
   "description": "Apollo + Hasura + Auth0 + SSR + API:s + Logging",
+  "author": {
+    "name": "Henrik Feldt",
+    "url": "https://logary.tech"
+  },
   "license": "MIT",
   "scripts": {
     "dev": "next",
