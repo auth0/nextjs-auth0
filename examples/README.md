@@ -17,7 +17,11 @@ Go to the [Auth0 dashboard](https://manage.auth0.com/) and create a new applicat
 
 ### Configuring Next.js
 
-In the Next.js configuration file (`next.config.js`) you'll see that different environment variables are being loaded in the server runtime configuration.
+Set env vars in the `.env` files. Variables prefixed `NEXT_PUBLIC_` will be available in the client-side bundle, otherwise
+they will only be available in the server-side bundle. With bundle, I mean the packaged and minified JavaScript.
+
+For Vercel-based hosting, use `now.json`, [as documented on their site](https://vercel.com/docs/configuration#project/env);
+this includes serverless hosting.
 
 ### Local Development
 
@@ -32,7 +36,7 @@ POST_LOGOUT_REDIRECT_URI=http://localhost:3000/
 SESSION_COOKIE_SECRET=viloxyf_z2GW6K4CT-KQD_MoLEA2wqv5jWuq4Jd0P7ymgG5GJGMpvMneXZzhK3sL (at least 32 characters, used to encrypt the cookie)
 ```
 
-### Hosting in Zeit Now
+### Hosting in Vercel Now
 
 When deploying these examples to Now.sh you'll want to update the `now.json` configuration file:
 

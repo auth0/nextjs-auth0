@@ -1,0 +1,25 @@
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: with-apollo-hasura-ssr
+
+  labels:
+    app: with-apollo-hasura-ssr
+    component: app
+    tier: frontend
+
+spec:
+  # assuming you'd like to have a wee bit of failover here
+  maxReplicas: 9
+  minReplicas: 3
+
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: with-apollo-hasura-ssr
+
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      targetAverageUtilization: 80

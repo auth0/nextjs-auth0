@@ -1,0 +1,18 @@
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: with-apollo-hasura-ssr
+
+  labels:
+    app: with-apollo-hasura-ssr
+    component: app
+    tier: frontend
+
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      # REMEMBER TO UPDATE WITH kustomization.yaml changes!
+      app: with-apollo-hasura-ssr
+      component: app
+      tier: frontend

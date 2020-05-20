@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: with-apollo-hasura-ssr-db
+
+spec:
+  ports:
+  - name: http
+    port: 80
+    targetPort: http-api
+
+  - name: pgsql
+    port: 5432

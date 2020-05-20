@@ -1,0 +1,36 @@
+{
+  "name": "with-apollo-hasura-ssr",
+  "version": "1.0.0",
+  "description": "Apollo + Hasura + Auth0 + SSR + API:s + Logging",
+  "license": "MIT",
+  "scripts": {
+    "dev": "next",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@apollo/react-hooks": "3.1.5",
+    "@apollo/react-ssr": "3.1.5",
+    "@auth0/nextjs-auth0": "^0.13.0",
+    "apollo-cache-inmemory": "1.6.6",
+    "apollo-client": "2.6.10",
+    "apollo-link-context": "1.0.20",
+    "apollo-link-http": "1.5.17",
+    "apollo-utilities": "^1.3.2",
+    "cross-fetch": "^3.0.4",
+    "graphql": "15.0.0",
+    "graphql-tag": "2.10.3",
+    "next": "9.4.1",
+    "react": "16.13.1",
+    "react-dom": "16.13.1"
+  },
+  "devDependencies": {
+    "@types/react": "^16.9.35",
+    "@typescript-eslint/eslint-plugin": "^2.33.0",
+    "@typescript-eslint/parser": "^2.33.0",
+    "eslint": "^7.0.0",
+    "eslint-plugin-react": "^7.20.0",
+    "eslint-plugin-react-hooks": "^4.0.2",
+    "typescript": "^3.9.2"
+  }
+}

@@ -55,7 +55,8 @@ typings/
 .yarn-integrity
 
 # dotenv environment variables file
-.env
+.env.local
+.env.*.local
 
 # Distribution directories
 dist/

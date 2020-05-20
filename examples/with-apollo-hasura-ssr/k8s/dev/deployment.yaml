@@ -1,0 +1,11 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: with-apollo-hasura-ssr
+
+spec:
+  template:
+    spec:
+      containers:
+      - name: app
+        imagePullPolicy: Never # required if you're testing locally

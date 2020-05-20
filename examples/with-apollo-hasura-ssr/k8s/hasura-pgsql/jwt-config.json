@@ -1,0 +1,4 @@
+{
+  "type": "RS512",
+  "jwk_url": "https://example.eu.auth0.com/.well-known/jwks.json"
+}

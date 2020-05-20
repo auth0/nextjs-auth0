@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "build": {
+    "env": {
+      "HASURA_GRAPHQL_URL": "@hasura-graphql-url",
+      "AUTH0_CLIENT_SECRET": "@auth0-client-secret",
+      "HASURA_GRAPHQL_ADMIN_SECRET": "@hasura-graphql-admin-secret",
+      "SESSION_COOKIE_SECRET": "@session-cookie-secret"
+    }
+  }
+}

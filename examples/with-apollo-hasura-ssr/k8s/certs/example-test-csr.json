@@ -1,0 +1,21 @@
+{
+  "hosts": [
+    "example.test",
+    "*.example.test",
+    "localhost",
+    "127.0.0.1"
+  ],
+  "key": {
+    "algo": "rsa",
+    "size": 4096
+  },
+  "names": [
+    {
+      "C": "SE",
+      "L": "Stockholm",
+      "O": "Logary Tech",
+      "OU": "Logary Analytics Open Source",
+      "ST": ""
+    }
+  ]
+}

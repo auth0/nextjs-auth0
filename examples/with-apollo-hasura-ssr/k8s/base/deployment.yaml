@@ -1,0 +1,66 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: with-apollo-hasura-ssr
+
+spec:
+  template:
+    spec:
+      containers:
+      - name: app
+        image: docker.io/logary/with-apollo-hasura-ssr
+
+        ports:
+        - name: http-web
+          containerPort: 3000
+
+        # Remember: you have to define ALL these env vars in Vercel's secrets
+        # Remember: you have to mirrow these in .env in this repo
+        env:
+        - name: AUTH0_DOMAIN
+          value: example.eu.auth0.com
+
+        - name: AUTH0_CLIENT_ID
+          value: osYIvISdXp2gG2YAuybkM80jJx63DUyc
+      
+        - name: AUTH0_CLIENT_SECRET
+          value: CHANGE_ME
+          # TODO: move to SealedSecret
+
+        - name: ANALYTICS_APP_GRAPHQL_URL
+          value: https://api.example.test/graphql
+
+        - name: REDIRECT_URI
+          value: https://app.example.test/api/auth0-callback
+
+        - name: POST_LOGOUT_REDIRECT_URI
+          value: https://app.example.test/logged-out
+  
+        - name: SESSION_COOKIE_SECRET
+          value: 712DB0C60F984F73A158DB8483FFFC97
+          # TODO: move to SealedSecret
+        
+        - name: SECURE_COOKIE
+          value: "true"
+
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 500Mi
+          requests:
+            cpu: 10m
+            memory: 20Mi
+
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 3
+          periodSeconds: 3
+
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 3
+          periodSeconds: 3

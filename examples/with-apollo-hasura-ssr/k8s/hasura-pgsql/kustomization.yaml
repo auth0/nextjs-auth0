@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+- deployment.yaml
+- service.yaml
+
+commonLabels:
+  app: with-apollo-hasura-ssr
+  component: hasura
+  tier: backend
+
+# TODO: change to bitnami SealedSecrets to keep in git!
+secretGenerator:
+- name: with-apollo-hasura-ssr
+  literals:
+  - admin-pg-pass=940B0E8A0B314AE8A428A4267AA01477
+  - admin-conn-str=postgres://with-apollo-hasura-ssr:940B0E8A0B314AE8A428A4267AA01477@with-apollo-hasura-ssr-db:5432/apollo-hasura-ssr
+  - graphql-admin-secret=A3F96299E29D4DD59209D2944828AD6D
+  files:
+  - jwt-config.json
+
+namespace: app

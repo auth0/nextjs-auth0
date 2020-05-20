@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: with-apollo-hasura-ssr-db
+
+spec:
+  replicas: 1 # as long as you have a DB in here, you can't bump this!
+
+  template:
+    metadata:
+      labels:
+        component: hasura
+
+    spec:
+      containers:
+      - name: hasura
+        image: hasura/graphql-engine:v1.2.1
+
+        env:
+        - name: HASURA_GRAPHQL_ENABLE_CONSOLE
+          value: "true"
+
+        - name: HASURA_GRAPHQL_ADMIN_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: analytics
+              key: graphql-admin-secret
+
+        - name: HASURA_GRAPHQL_DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: with-apollo-hasura-ssr
+              key: admin-conn-str
+
+        - name: HASURA_GRAPHQL_JWT_SECRET
+          valueFrom:
+            configMapKeyRef:
+              name: with-apollo-hasura-ssr
+              key: jwt-config.json
+
+        # Serve public traffic, too
+        - name: HASURA_GRAPHQL_UNAUTHORIZED_ROLE
+          value: anonymous
+
+        ports:
+        - name: http-api
+          containerPort: 8080
+
+        resources:
+          limits:
+            memory: 2048Mi
+            cpu: 4000m
+          requests:
+            memory: 64Mi
+            cpu: 10m
+
+      # use e.g. Zalando Postgres Operator instead of this!
+      - name: pgsql
+        image: postgres:11.8-alpine
+
+        env:
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: with-apollo-hasura-ssr
+              key: admin-pg-password
+
+        - name: POSTGRES_USER # => = POSTGRES_DB
+          value: with-apollo-hasura-ssr
+
+        volumeMounts:
+        - mountPath: /var/lib/postgresql/data
+          name: data
+
+        resources:
+          limits:
+            memory: 2048Mi
+            cpu: 1000m
+          requests:
+            memory: 64Mi
+            cpu: 10m
+
+      # use e.g. Zalando Postgres Operator instead of this!
+      volumes:
+      - name: data
+        hostPath:
+          path: /tmp/with-apollo-hasura-ssr/data

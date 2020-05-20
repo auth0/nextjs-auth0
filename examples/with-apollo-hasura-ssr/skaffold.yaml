@@ -1,0 +1,10 @@
+apiVersion: skaffold/v1beta13
+kind: Config
+
+build:
+  artifacts:
+  - image: docker.io/logary/with-apollo-hasura-ssr
+
+deploy:
+  kustomize:
+    path: ./k8s/dev

@@ -1,0 +1,19 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: with-apollo-hasura-ssr
+
+spec:
+  hosts:
+  - app.example.test
+
+  gateways:
+    - istio-system/ingress
+    
+  http:
+  - name: with-apollo-hasura-ssr
+    route:
+    - destination:
+        host: with-apollo-hasura-ssr.app.svc.cluster.local
+        port:
+          number: 80

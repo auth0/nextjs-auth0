@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+mkdir -p test ca
+
+if ! [ -f example-test-csr.json ]; then
+  cat >example-test-csr.json <<EOF
+{
+  "hosts": [
+    "example.test",
+    "*.example.test",
+    "localhost",
+    "127.0.0.1"
+  ],
+  "key": {
+    "algo": "rsa",
+    "size": 4096
+  },
+  "names": [
+    {
+      "C": "SE",
+      "L": "Stockholm",
+      "O": "Logary Tech",
+      "OU": "Logary Analytics Open Source",
+      "ST": ""
+    }
+  ]
+}
+EOF
+fi
+
+if ! [ -f ca/ca-key.pem ]; then
+  echo 'Creating example Test CA...'
+  cfssl genkey -initca example-test-csr.json | cfssljson -bare ca/ca
+fi
+
+if ! [ -f test/example-test.pem ]; then
+  echo 'Creating example Test TLS cert'
+  cfssl gencert -ca-key ca/ca-key.pem -ca ca/ca.pem example-test-csr.json | cfssljson -bare test/example-test
+fi
+
+echo "Creating TLS secret in ../dev/example-test-tls-secret.yaml"
+  echo | tee ../dev/example-test-tls-secret.yaml <<EOF
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/tls
+
+metadata:
+  name: example-test-tls
+  namespace: cert-manager
+  annotations:
+    replicator.v1.mittwald.de/replication-allowed: "true"
+    replicator.v1.mittwald.de/replication-allowed-namespaces: "*"
+
+data:
+  tls.crt: `cat test/example-test.pem | base64`
+  tls.key: `cat test/example-test-key.pem | base64`
+EOF
+
+
+echo ''
+echo For Firefox you can set "security.enterprise_roots.enabled" preference to true in about:config, to support this CA.
+echo ''
