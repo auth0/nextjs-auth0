@@ -2,10 +2,7 @@ import Head from 'next/head'
 import { ReactNode } from 'react'
 import Header from './Header'
 
-type Props = Readonly<{
-  loading?: boolean;
-  children: ReactNode;
-}>
+type Props = Readonly<{ children: ReactNode }>
 
 const Layout = ({ children }: Props) => (
   <div id='layout'>
