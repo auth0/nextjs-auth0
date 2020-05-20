@@ -22,6 +22,29 @@ You can now test with
 
 and then surfing to [http://localhost:3000](http://localhost:3000).
 
+## Points of interest
+
+- All pages are in `./pages` and all API endpoints in `./pages/api`
+- This sample works without Hasura / the `/api/graphql` endpoint, but if you want to try it, follow along below:
+
+## Running in Kubernetes with Hasura/pgsql (optional)
+
+1. Ensure your `docker-desktop` is running (or similar)
+1. `make deploy_dev`
+1. `kubectl -n app port-forward srv/with-apollo-hasura-ssr 8080:80`
+1. Open a browser on `http://localhost:8080`
+
+You can verify the state of things with:
+
+- `kubectl get events --all-namespaces -w`
+- `kubectl get pods -n app`
+- `kubectl describe deployment with-apollo-hasura-ssr,with-apollo-hasura-ssr-db`
+
+I also recommend downloading `stern` that takes a regex to tail:
+
+    brew install stern
+    stern with-apollo --since 5s
+
 ## Developing with Kubernetes / Docker (optional)
 
 This repo also has Skaffold configured for Kubernetes + Kustomize, e.g. do:
