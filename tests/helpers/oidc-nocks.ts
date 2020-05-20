@@ -166,7 +166,8 @@ export function refreshTokenExchange(
   refreshToken: string,
   key: JWK.Key,
   payload: object,
-  newToken?: string
+  newToken?: string,
+  newScopes?: string[],
 ): nock.Scope {
   const idToken = createToken(key, {
     iss: `https://${settings.domain}/`,
@@ -174,14 +175,17 @@ export function refreshTokenExchange(
     ...payload
   });
 
+  // Encode scopes for application/x-www-form-urlencoded.
+  const scope = newScopes ? `scope=${newScopes.map(encodeURIComponent).join("+")}&` : "";
+
   return nock(`https://${settings.domain}`)
-    .post('/oauth/token', `grant_type=refresh_token&refresh_token=${refreshToken}`)
+    .post('/oauth/token', `${scope}grant_type=refresh_token&refresh_token=${refreshToken}`)
     .reply(200, {
       access_token: newToken || 'eyJz93a...k4laUWw',
       id_token: idToken,
       token_type: 'Bearer',
       expires_in: 750,
-      scope: 'read:foo write:foo'
+      scope: newScopes ? newScopes.join(" ") : 'read:foo write:foo'
     });
 }
 

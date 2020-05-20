@@ -75,7 +75,8 @@ export default class SessionTokenCache implements ITokenCache {
     // Adding a skew of 1 minute to compensate.
     if (session.refreshToken && session.accessTokenExpiresAt * 1000 - 60000 < Date.now()) {
       const client = await this.clientProvider();
-      const tokenSet = await client.refresh(session.refreshToken);
+      const extras = accessTokenRequest ? { exchangeBody: { scope: accessTokenRequest.scopes?.join(" ") } } : undefined;
+      const tokenSet = await client.refresh(session.refreshToken, extras);
 
       // Update the session.
       const newSession = getSessionFromTokenSet(tokenSet);

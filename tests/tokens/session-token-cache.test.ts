@@ -178,6 +178,52 @@ describe('SessionTokenCache', () => {
           }
         });
       });
+
+      test('should retrieve a new access token with newly requested scopes', async () => {
+        expect.assertions(2);
+
+        const { cache, getSession } = getTokenCache({
+          expiresIn: -65,
+          accessToken: 'ey123',
+          refreshToken: 'abc',
+          scope: "read:foo write:foo delete:foo bar:foo"
+        });
+
+        discovery(withApi);
+        jwksEndpoint(withApi, keystore.toJWKS());
+        refreshTokenExchange(
+          withApi,
+          'abc',
+          keystore.get(),
+          {
+            email: 'john@test.com',
+            name: 'john doe',
+            sub: '123'
+          },
+          'new-token',
+          ["read:foo", "write:foo", "bar:foo"],
+        );
+
+        const result = await cache.getAccessToken({
+          scopes: ["read:foo", "write:foo", "bar:foo"],
+        });
+        expect(result.accessToken).toMatch('new-token');
+
+        const session = await getSession();
+        expect(session).toStrictEqual({
+          accessToken: 'new-token',
+          refreshToken: 'abc',
+          idToken: expect.any(String),
+          accessTokenExpiresAt: expect.any(Number),
+          accessTokenScope: 'read:foo write:foo bar:foo',
+          createdAt: expect.any(Number),
+          user: {
+            email: 'john@test.com',
+            name: 'john doe',
+            sub: '123'
+          }
+        });
+      });
     });
   });
 });
