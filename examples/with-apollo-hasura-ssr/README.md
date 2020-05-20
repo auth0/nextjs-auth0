@@ -6,10 +6,11 @@ Getting started:
 
     git clone https://github.com/auth0/nextjs-auth0.git
     cd nextjs-auth0/examples/with-apollo-hasura-ssr
+    cp .env.local.template .env.local
 
-Now, correct for your own Auth0 in:
+Now, correct for your own Auth0 tenant/application in:
 
-- `.env.local` (from `.env.local.template`)
+- `.env.local`
 - `.env.production` (change `example.com` to your own domain)
 
 If you want to deploy to Vercel NOW, use the `now` CLI to set the secrets found in `now.json`.
