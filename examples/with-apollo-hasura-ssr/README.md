@@ -13,7 +13,7 @@ Now, correct for your own Auth0 tenant/application in:
 - `.env.local`
 - `.env.production` (change `example.com` to your own domain)
 
-If you want to deploy to Vercel NOW, use the `now` CLI to set the secrets found in `now.json`.
+If you want to deploy to Vercel NOW, [use the `now` CLI](https://vercel.com/docs/cli#commands/secrets) to set the secrets found in `now.json`.
 
 You can now test with
 
