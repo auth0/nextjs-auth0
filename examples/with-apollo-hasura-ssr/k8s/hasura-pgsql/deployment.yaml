@@ -1,3 +1,5 @@
+# TO CONSIDER: Argo Deployment CRD instead of k8s Deployment
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
