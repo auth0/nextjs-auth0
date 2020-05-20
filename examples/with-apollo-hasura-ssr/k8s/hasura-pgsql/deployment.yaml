@@ -23,7 +23,7 @@ spec:
         - name: HASURA_GRAPHQL_ADMIN_SECRET
           valueFrom:
             secretKeyRef:
-              name: analytics
+              name: with-apollo-hasura-ssr
               key: graphql-admin-secret
 
         - name: HASURA_GRAPHQL_DATABASE_URL
@@ -34,7 +34,7 @@ spec:
 
         - name: HASURA_GRAPHQL_JWT_SECRET
           valueFrom:
-            configMapKeyRef:
+            secretKeyRef:
               name: with-apollo-hasura-ssr
               key: jwt-config.json
 
