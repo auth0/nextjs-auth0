@@ -9,15 +9,14 @@ import fetchUserAtClient from './fetchUserAtClient'
 
 type HasUser = Readonly<{ user: IClaims }>
 
-const loginPath = '/api/login'
-
 /**
  * Only displays this page if the user is authenticated, otherwise redirects.
  * @param PageComponent The page to wrap with Auth — will require users to login before seeing it.
  */
 export default function withAuth<P extends Record<string, any> = {}, IP = P>(
   PageComponent: NextPage<P, IP>,
-  log = false
+  log = false,
+  loginPath = '/api/login'
 ): NextPage<P, IP> {
 
   // This is the component that renders in the browser or on the server, before
@@ -84,7 +83,9 @@ export default function withAuth<P extends Record<string, any> = {}, IP = P>(
     const session = await auth0.getSession(req)
 
     // Server-side, unauthenticated, just returns the location header
-    if (!session || !session.user) {
+    if (!session
+        || !session.user
+        || /* is expired? */ Date.now() > session.accessTokenExpiresAt * 1000 - 60000) {
       const loginURL = createLoginURL(loginPath, req.url)
       if (log) console.info('WithAuth.getInitialProps unauthenticated case, redirecting to', loginURL)
 
@@ -92,7 +93,7 @@ export default function withAuth<P extends Record<string, any> = {}, IP = P>(
         location: loginURL
       })
       res.end()
-      return
+      return {}
     }
 
     if (log) console.info('WithAuth.getInitialProps authenticated case, user=', session.user, '\n---')

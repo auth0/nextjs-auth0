@@ -15,7 +15,8 @@ export interface ISession {
   readonly accessToken?: string | undefined;
 
   /**
-   * The expiration of the access token.
+   * Access token expiration timestamp, represented as the number of seconds since
+   * the epoch (January 1, 1970 00:00:00 UTC).
    */
   readonly accessTokenExpiresAt?: number;
 

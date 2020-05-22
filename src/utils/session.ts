@@ -25,6 +25,7 @@ export default function getSessionFromTokenSet(tokenSet: TokenSet): ISession {
     user: {
       ...claims
     },
+    // https://github.com/panva/node-openid-client/blob/master/docs/README.md#new-tokensetinput
     idToken: tokenSet.id_token,
     accessToken: tokenSet.access_token,
     accessTokenScope: tokenSet.scope,
