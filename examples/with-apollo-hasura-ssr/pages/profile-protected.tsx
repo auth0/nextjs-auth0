@@ -1,5 +1,6 @@
 import React from 'react'
 import Layout from '../components/Layout'
+import auth0 from '../lib/auth0'
 import useUser from '../lib/useUser'
 import withAuth from '../lib/withAuth'
 
@@ -24,4 +25,4 @@ function ProfileProtected() {
   )
 }
 
-export default withAuth(ProfileProtected)
+export default withAuth(ProfileProtected, auth0)

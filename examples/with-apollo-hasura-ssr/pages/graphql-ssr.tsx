@@ -1,6 +1,7 @@
 import { NextPage } from 'next'
 import Layout from '../components/Layout'
 import UserList from '../components/UserQuery'
+import auth0 from '../lib/auth0'
 import useUser from '../lib/useUser'
 import withApollo from '../lib/withApollo'
 import withAuth from '../lib/withAuth'
@@ -32,4 +33,4 @@ GraphQLSSR.getInitialProps = async () => {
   return { clientId }
 }
 
-export default withApollo(withAuth(GraphQLSSR))
+export default withApollo(withAuth(GraphQLSSR, auth0))

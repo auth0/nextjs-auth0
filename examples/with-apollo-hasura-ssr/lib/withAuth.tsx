@@ -1,15 +1,13 @@
+import { ISignInWithAuth0 } from '@auth0/nextjs-auth0/dist/instance'
 import { IClaims } from '@auth0/nextjs-auth0/dist/session/session'
 import { NextPage, NextPageContext } from 'next'
 import { useRouter } from 'next/router'
 import React, { useEffect, useMemo } from 'react'
 import { UserProvider } from '../components/UserProvider'
-import auth0 from './auth0'
 import createLoginURL from './createLoginURL'
 import fetchUserAtClient from './fetchUserAtClient'
 
 type HasUser = Readonly<{ user: IClaims }>
-
-const loginPath = '/api/login'
 
 /**
  * Only displays this page if the user is authenticated, otherwise redirects.
@@ -17,7 +15,9 @@ const loginPath = '/api/login'
  */
 export default function withAuth<P extends Record<string, any> = {}, IP = P>(
   PageComponent: NextPage<P, IP>,
-  log = false
+  auth0: ISignInWithAuth0,
+  log = false,
+  loginPath = '/api/login'
 ): NextPage<P, IP> {
 
   // This is the component that renders in the browser or on the server, before
@@ -68,7 +68,7 @@ export default function withAuth<P extends Record<string, any> = {}, IP = P>(
   WithAuth.getInitialProps = async (ctx: NextPageContext) => {
     if(log) console.info('WithAuth.getInitialProps initial')
 
-    const req = ctx.req, res = ctx.res // to help TypeScript
+    const {res, req} = ctx // to help TypeScript
 
     // Client-side rendering
     if (req == null || res == null) {
@@ -80,11 +80,13 @@ export default function withAuth<P extends Record<string, any> = {}, IP = P>(
       }
     }
 
-    // @ts-ignore
+    // @ts-ignore CHANGE ME WHEN #113 merges
     const session = await auth0.getSession(req)
 
     // Server-side, unauthenticated, just returns the location header
-    if (!session || !session.user) {
+    if (session == null
+        || session.user == null
+        || /* is expired? */ Date.now() > session.accessTokenExpiresAt * 1000 - 60000) {
       const loginURL = createLoginURL(loginPath, req.url)
       if (log) console.info('WithAuth.getInitialProps unauthenticated case, redirecting to', loginURL)
 
@@ -92,7 +94,7 @@ export default function withAuth<P extends Record<string, any> = {}, IP = P>(
         location: loginURL
       })
       res.end()
-      return
+      return {}
     }
 
     if (log) console.info('WithAuth.getInitialProps authenticated case, user=', session.user, '\n---')
