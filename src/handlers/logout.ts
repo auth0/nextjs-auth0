@@ -36,7 +36,7 @@ export default function logoutHandler(
       const client = await clientProvider();
       endSessionUrl = client.endSessionUrl({
         id_token_hint: session ? session.idToken : undefined,
-        post_logout_redirect_uri: encodeURIComponent(settings.postLogoutRedirectUri)
+        post_logout_redirect_uri: settings.postLogoutRedirectUri
       });
     } catch (err) {
       if (/end_session_endpoint must be configured/.exec(err)) {
