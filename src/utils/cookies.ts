@@ -95,18 +95,26 @@ function serializeCookie(cookie: ICookie, secure: boolean): string {
 /**
  * Set one or more cookies.
  * @param res The HTTP response on which the cookie will be set.
+ * @returns {void}
  */
 export function setCookies(req: IncomingMessage, res: ServerResponse, cookies: Array<ICookie>): void {
-  res.setHeader(
-    'Set-Cookie',
-    cookies.map((c) => serializeCookie(c, isSecureEnvironment(req)))
-  );
+  const strCookies = cookies.map((c) => serializeCookie(c, isSecureEnvironment(req)));
+  const previousCookies = res.getHeader('Set-Cookie');
+  if (previousCookies) {
+    if (previousCookies instanceof Array) {
+      Array.prototype.push.apply(strCookies, previousCookies);
+    } else if (typeof previousCookies === 'string') {
+      strCookies.push(previousCookies);
+    }
+  }
+  res.setHeader('Set-Cookie', strCookies);
 }
 
 /**
  * Set one or more cookies.
  * @param res The HTTP response on which the cookie will be set.
+ * @returns {void}
  */
 export function setCookie(req: IncomingMessage, res: ServerResponse, cookie: ICookie): void {
-  res.setHeader('Set-Cookie', serializeCookie(cookie, isSecureEnvironment(req)));
+  setCookies(req, res, [cookie]);
 }
