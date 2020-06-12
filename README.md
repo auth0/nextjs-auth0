@@ -131,6 +131,8 @@ export default async function callback(req, res) {
 }
 ```
 
+The `handleCallback` function ends the request and sends the response (the redirect), so if you need to set any other cookies, do it before calling the said function and they will kept in the final response.
+
 You can optionally send extra parameters to Auth0 to influence the transaction, for example:
 
 - Showing the login page
