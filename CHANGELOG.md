@@ -1,3 +1,7 @@
+## [v0.14.0](https://github.com/auth0/nextjs-auth0/tree/v0.14.0) (2020-07-08)
+
+- Allow overriding the `returnTo` setting when signing out a user (in the `logoutHandler`)
+
 ## [v0.13.0](https://github.com/auth0/nextjs-auth0/tree/v0.13.0) (2020-05-15)
 
 - Updated handlers to use `NextApiRequest` and `NextApiResponse`
