@@ -3,7 +3,7 @@ import { parse } from 'cookie';
 import { promisify } from 'util';
 
 import HttpServer from '../helpers/server';
-import logout from '../../src/handlers/logout';
+import logout, { LogoutOptions } from '../../src/handlers/logout';
 import { withoutApi } from '../helpers/default-settings';
 import CookieSessionStoreSettings from '../../src/session/cookie-store/settings';
 import { discovery } from '../helpers/oidc-nocks';
@@ -34,11 +34,18 @@ const sessionStore: ISessionStore = {
 
 describe('logout handler', () => {
   let httpServer: HttpServer;
+  let logoutHandler: any;
+  let logoutOptions: LogoutOptions | null;
 
   beforeEach((done) => {
-    httpServer = new HttpServer(
-      logout(withoutApi, new CookieSessionStoreSettings(withoutApi.session), getClient(withoutApi), sessionStore)
+    logoutHandler = logout(
+      withoutApi,
+      new CookieSessionStoreSettings(withoutApi.session),
+      getClient(withoutApi),
+      sessionStore
     );
+    logoutOptions = {};
+    httpServer = new HttpServer((req, res) => logoutHandler(req, res, logoutOptions));
     httpServer.start(done);
   });
 
@@ -59,6 +66,26 @@ describe('logout handler', () => {
     expect(statusCode).toBe(302);
     expect(headers.location).toBe(
       `https://${withoutApi.domain}/v2/logout?client_id=${withoutApi.clientId}&returnTo=https%3A%2F%2Fwww.acme.com`
+    );
+  });
+
+  test('should return to the custom path', async () => {
+    const customReturnTo = 'https://www.foo.bar';
+    logoutOptions = {
+      returnTo: customReturnTo
+    };
+    discovery(withoutApi);
+
+    const { statusCode, headers } = await getAsync({
+      url: httpServer.getUrl(),
+      followRedirect: false
+    });
+
+    expect(statusCode).toBe(302);
+    expect(headers.location).toBe(
+      `https://${withoutApi.domain}/v2/logout?client_id=${withoutApi.clientId}&returnTo=${encodeURIComponent(
+        customReturnTo
+      )}`
     );
   });
 

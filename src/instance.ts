@@ -5,6 +5,7 @@ import { LoginOptions } from './handlers/login';
 import { ITokenCache } from './tokens/token-cache';
 import { CallbackOptions } from './handlers/callback';
 import { ProfileOptions } from './handlers/profile';
+import { LogoutOptions } from './handlers/logout';
 import { IApiRoute } from './handlers/require-authentication';
 
 export interface ISignInWithAuth0 {
@@ -19,9 +20,9 @@ export interface ISignInWithAuth0 {
   handleCallback: (req: NextApiRequest, res: NextApiResponse, options?: CallbackOptions) => Promise<void>;
 
   /**
-   * Logout handler which will clear the local session and the Auth0 session
+   * Logout handler which will clear the local session and the Auth0 session.
    */
-  handleLogout: (req: NextApiRequest, res: NextApiResponse) => Promise<void>;
+  handleLogout: (req: NextApiRequest, res: NextApiResponse, options?: LogoutOptions) => Promise<void>;
 
   /**
    * Profile handler which return profile information about the user.
