@@ -11,7 +11,9 @@ export interface LogoutOptions {
 }
 
 function createLogoutUrl(settings: IAuth0Settings, returnToUrl: string): string {
-  return `https://${settings.domain}/v2/logout?client_id=${settings.clientId}&returnTo=${returnToUrl}`;
+  return `https://${settings.domain}/v2/logout?client_id=${settings.clientId}&returnTo=${encodeURIComponent(
+    returnToUrl
+  )}`;
 }
 
 export default function logoutHandler(
