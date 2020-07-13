@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 
 import version from '../version';
 import IAuth0Settings from '../settings';
-import isRelative from '../utils/url-helpers';
+import isSafeRedirect from '../utils/url-helpers';
 
 import { setCookies } from '../utils/cookies';
 import { createState } from '../utils/state';
@@ -53,7 +53,7 @@ export default function loginHandler(settings: IAuth0Settings, clientProvider: I
         throw new Error('Invalid value provided for redirectTo, must be a string');
       }
 
-      if (!isRelative(req.query.redirectTo)) {
+      if (!isSafeRedirect(req.query.redirectTo)) {
         throw new Error('Invalid value provided for redirectTo, must be a relative url');
       }
     }
