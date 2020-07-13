@@ -28,7 +28,10 @@ describe('CookieStore', () => {
           createdAt: Date.now()
         });
 
-        expect(res.setHeader).toHaveBeenCalledWith('Set-Cookie', expect.stringMatching('my-cookie='));
+        expect(res.setHeader).toHaveBeenCalledWith(
+          'Set-Cookie',
+          expect.arrayContaining([expect.stringMatching('my-cookie=')])
+        );
       });
     });
 
@@ -42,7 +45,10 @@ describe('CookieStore', () => {
           createdAt: Date.now()
         });
 
-        expect(res.setHeader).toHaveBeenCalledWith('Set-Cookie', expect.stringMatching('a0:session='));
+        expect(res.setHeader).toHaveBeenCalledWith(
+          'Set-Cookie',
+          expect.arrayContaining([expect.stringMatching('a0:session=')])
+        );
       });
     });
   });
@@ -60,7 +66,7 @@ describe('CookieStore', () => {
           createdAt: Date.now()
         });
 
-        const [, cookie] = setHeaderFn.mock.calls[0];
+        const [, [cookie]] = setHeaderFn.mock.calls[0];
         expect(parse(cookie).Domain).toBe('.quirk.fyi');
       });
     });
@@ -75,7 +81,7 @@ describe('CookieStore', () => {
           createdAt: Date.now()
         });
 
-        const [, cookie] = setHeaderFn.mock.calls[0];
+        const [, [cookie]] = setHeaderFn.mock.calls[0];
         expect(parse(cookie).Domain).toBeUndefined();
       });
     });
@@ -94,7 +100,7 @@ describe('CookieStore', () => {
           createdAt: Date.now()
         });
 
-        const [, cookie] = setHeaderFn.mock.calls[0];
+        const [, [cookie]] = setHeaderFn.mock.calls[0];
         expect(parse(cookie).SameSite).toBe('Strict');
       });
     });
@@ -109,7 +115,7 @@ describe('CookieStore', () => {
           createdAt: Date.now()
         });
 
-        const [, cookie] = setHeaderFn.mock.calls[0];
+        const [, [cookie]] = setHeaderFn.mock.calls[0];
         expect(parse(cookie).SameSite).toBe('Lax');
       });
     });
@@ -125,7 +131,7 @@ describe('CookieStore', () => {
           createdAt: Date.now()
         });
 
-        const [, cookie] = setHeaderFn.mock.calls[0];
+        const [, [cookie]] = setHeaderFn.mock.calls[0];
         expect(parse(cookie).SameSite).toBeUndefined();
       });
     });
@@ -147,7 +153,7 @@ describe('CookieStore', () => {
           accessTokenExpiresAt: 500
         });
 
-        const [, cookie] = setHeaderFn.mock.calls[0];
+        const [, [cookie]] = setHeaderFn.mock.calls[0];
         req.headers = {
           cookie: `a0:session=${parse(cookie)['a0:session']}`
         };
@@ -177,7 +183,7 @@ describe('CookieStore', () => {
           accessTokenExpiresAt: 500
         });
 
-        const [, cookie] = setHeaderFn.mock.calls[0];
+        const [, [cookie]] = setHeaderFn.mock.calls[0];
         req.headers = {
           cookie: `a0:session=${parse(cookie)['a0:session']}`
         };
@@ -210,7 +216,7 @@ describe('CookieStore', () => {
           idToken: 'my-id-token'
         });
 
-        const [, cookie] = setHeaderFn.mock.calls[0];
+        const [, [cookie]] = setHeaderFn.mock.calls[0];
         req.headers = {
           cookie: `a0:session=${parse(cookie)['a0:session']}`
         };
@@ -240,7 +246,7 @@ describe('CookieStore', () => {
           idToken: 'my-id-token'
         });
 
-        const [, cookie] = setHeaderFn.mock.calls[0];
+        const [, [cookie]] = setHeaderFn.mock.calls[0];
         req.headers = {
           cookie: `a0:session=${parse(cookie)['a0:session']}`
         };
@@ -272,7 +278,7 @@ describe('CookieStore', () => {
           refreshToken: 'my-refresh-token'
         });
 
-        const [, cookie] = setHeaderFn.mock.calls[0];
+        const [, [cookie]] = setHeaderFn.mock.calls[0];
         req.headers = {
           cookie: `a0:session=${parse(cookie)['a0:session']}`
         };
@@ -303,7 +309,7 @@ describe('CookieStore', () => {
           refreshToken: 'my-refresh-token'
         });
 
-        const [, cookie] = setHeaderFn.mock.calls[0];
+        const [, [cookie]] = setHeaderFn.mock.calls[0];
         req.headers = {
           ...req.headers,
           cookie: `a0:session=${parse(cookie)['a0:session']}`

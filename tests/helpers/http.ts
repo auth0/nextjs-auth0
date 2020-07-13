@@ -17,6 +17,7 @@ export default function getRequestResponse(): IHttpHelpers {
 
   const res: any = new ServerResponse(req);
   res.setHeader = jest.fn();
+  res.getHeader = jest.fn();
   res.json = jest.fn();
   res.status = jest.fn(() => res);
 
