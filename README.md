@@ -114,7 +114,7 @@ export default async function login(req, res) {
 }
 ```
 
-> Note: This route supports providing `redirectTo` in the querystring, eg: (`/api/login?redirectTo=/profile`). The user will automatically be redirect to this URL after signing in.
+> Note: This route supports providing `redirectTo` in the query string, eg: (`/api/login?redirectTo=/profile`). The user will automatically be redirect to this URL after signing in.
 
 This will redirect the user to Auth0. After the transaction is completed Auth0 will redirect the user back to your application. This is why the callback route (`/pages/api/callback.js`) needs to be created which will create a session cookie:
 
@@ -203,6 +203,8 @@ export default async function logout(req, res) {
   }
 }
 ```
+
+Note that the third parameter of `handleLogout` accepts an optional `returnTo` to allow request-time configuration of where to redirect the user to on logout.
 
 ### User Profile
 
