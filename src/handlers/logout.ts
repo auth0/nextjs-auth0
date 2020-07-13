@@ -31,7 +31,7 @@ export default function logoutHandler(
 
     const session = await store.read(req);
     let endSessionUrl;
-    const returnToUrl = encodeURIComponent(options?.returnTo || settings.postLogoutRedirectUri);
+    const returnToUrl = options?.returnTo || settings.postLogoutRedirectUri;
 
     try {
       const client = await clientProvider();
