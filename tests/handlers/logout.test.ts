@@ -100,7 +100,7 @@ describe('logout handler', () => {
     expect(statusCode).toBe(302);
     expect(headers.location).toBe(
       `https://my-end-session-endpoint/logout` +
-        `?id_token_hint=my-id-token&post_logout_redirect_uri=https%253A%252F%252Fwww.acme.com`
+        `?id_token_hint=my-id-token&post_logout_redirect_uri=https%3A%2F%2Fwww.acme.com`
     );
   });
 
