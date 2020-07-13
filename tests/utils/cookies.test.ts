@@ -1,4 +1,5 @@
 import timekeeper from 'timekeeper';
+import { serialize } from 'cookie';
 
 import getRequestResponse from '../helpers/http';
 import { setCookie } from '../../src/utils/cookies';
@@ -33,7 +34,55 @@ describe('cookies', () => {
       });
 
       expect(res.setHeader.mock.calls).toEqual([
-        ['Set-Cookie', `foo=bar; Max-Age=1000; Path=/; Expires=${timeString}; HttpOnly`]
+        ['Set-Cookie', [`foo=bar; Max-Age=1000; Path=/; Expires=${timeString}; HttpOnly`]]
+      ]);
+    });
+
+    test('should keep the previously set cookie on the response', () => {
+      const { req, res } = getRequestResponse();
+      const previousCookie = serialize('previous', 'value');
+      res.getHeader.mockReturnValueOnce([previousCookie]);
+      setCookie(req, res, {
+        name: 'foo',
+        value: 'bar',
+        maxAge: 1000,
+        path: '/'
+      });
+
+      expect(res.setHeader.mock.calls).toEqual([
+        ['Set-Cookie', [`foo=bar; Max-Age=1000; Path=/; Expires=${timeString}; HttpOnly`, previousCookie]]
+      ]);
+    });
+
+    test('should keep the previously set single string cookie on the response', () => {
+      const { req, res } = getRequestResponse();
+      const previousCookie = serialize('previous', 'value');
+      res.getHeader.mockReturnValueOnce(previousCookie);
+      setCookie(req, res, {
+        name: 'foo',
+        value: 'bar',
+        maxAge: 1000,
+        path: '/'
+      });
+
+      expect(res.setHeader.mock.calls).toEqual([
+        ['Set-Cookie', [`foo=bar; Max-Age=1000; Path=/; Expires=${timeString}; HttpOnly`, previousCookie]]
+      ]);
+    });
+
+    test('should keep multiple previously set cookies on the response', () => {
+      const { req, res } = getRequestResponse();
+      const previousCookies = [serialize('previous', 'value'), serialize('lady', 'gaga')];
+      res.getHeader.mockReturnValueOnce(previousCookies);
+      setCookie(req, res, {
+        name: 'foo',
+        value: 'bar',
+        maxAge: 1000,
+        path: '/'
+      });
+
+      expect(res.setHeader.mock.calls).toEqual([
+        ['Set-Cookie', [`foo=bar; Max-Age=1000; Path=/; Expires=${timeString}; HttpOnly`, ...previousCookies]]
       ]);
     });
 
@@ -50,7 +99,7 @@ describe('cookies', () => {
         });
 
         expect(res.setHeader.mock.calls).toEqual([
-          ['Set-Cookie', `foo=bar; Max-Age=1000; Path=/; Expires=${timeString}; HttpOnly`]
+          ['Set-Cookie', [`foo=bar; Max-Age=1000; Path=/; Expires=${timeString}; HttpOnly`]]
         ]);
       });
     });
@@ -68,7 +117,7 @@ describe('cookies', () => {
         });
 
         expect(res.setHeader.mock.calls).toEqual([
-          ['Set-Cookie', `foo=bar; Max-Age=1000; Path=/; Expires=${timeString}; HttpOnly`]
+          ['Set-Cookie', [`foo=bar; Max-Age=1000; Path=/; Expires=${timeString}; HttpOnly`]]
         ]);
       });
 
@@ -85,7 +134,7 @@ describe('cookies', () => {
           });
 
           expect(res.setHeader.mock.calls).toEqual([
-            ['Set-Cookie', `foo=bar; Max-Age=1000; Path=/; Expires=${timeString}; HttpOnly; Secure`]
+            ['Set-Cookie', [`foo=bar; Max-Age=1000; Path=/; Expires=${timeString}; HttpOnly; Secure`]]
           ]);
         });
       });
