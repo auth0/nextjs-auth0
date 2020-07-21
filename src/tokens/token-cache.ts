@@ -1,5 +1,6 @@
 export interface AccessTokenRequest {
   scopes?: Array<string>;
+  refresh?: boolean;
 }
 
 export interface AccessTokenResponse {

@@ -73,7 +73,10 @@ export default class SessionTokenCache implements ITokenCache {
     // Check if the token has expired.
     // There is an edge case where we might have some clock skew where our code assumes the token is still valid.
     // Adding a skew of 1 minute to compensate.
-    if (session.refreshToken && session.accessTokenExpiresAt * 1000 - 60000 < Date.now()) {
+    if (
+      (session.refreshToken && session.accessTokenExpiresAt * 1000 - 60000 < Date.now()) ||
+      (session.refreshToken && accessTokenRequest && accessTokenRequest.refresh)
+    ) {
       const client = await this.clientProvider();
       const tokenSet = await client.refresh(session.refreshToken);
 
