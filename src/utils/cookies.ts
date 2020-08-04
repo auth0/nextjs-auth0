@@ -67,6 +67,10 @@ function isSecureEnvironment(req: IncomingMessage): boolean {
     return false;
   }
 
+  if (process.env.AUTH0_ALLOW_INSECURE_COOKIE === 'true') {
+    return false;
+  }
+
   const host = (req.headers.host.indexOf(':') > -1 && req.headers.host.split(':')[0]) || req.headers.host;
   if (['localhost', '127.0.0.1'].indexOf(host) > -1) {
     return false;

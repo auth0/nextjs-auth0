@@ -138,6 +138,47 @@ describe('cookies', () => {
           ]);
         });
       });
+
+      describe('when NODE_ENV is not production', () => {
+        test('should not set a secure cookie on the response', async () => {
+          const { req, res } = getRequestResponse();
+          req.headers.host = 'www.acme.com';
+
+          process.env.NODE_ENV = 'development';
+          
+          setCookie(req, res, {
+            name: 'foo',
+            value: 'bar',
+            maxAge: 1000,
+            path: '/'
+          });
+
+          expect(res.setHeader.mock.calls).toEqual([
+            ['Set-Cookie', [`foo=bar; Max-Age=1000; Path=/; Expires=${timeString}; HttpOnly`]]
+          ]);
+        });
+      });
+
+      describe('when AUTH0_ALLOW_INSECURE_COOKIE is \'true\'', () => {
+        test('should not set a secure cookie on the response', async () => {
+          const { req, res } = getRequestResponse();
+          req.headers.host = 'www.acme.com';
+
+          process.env.NODE_ENV = 'production';
+          process.env.AUTH0_ALLOW_INSECURE_COOKIE = 'true';
+          
+          setCookie(req, res, {
+            name: 'foo',
+            value: 'bar',
+            maxAge: 1000,
+            path: '/'
+          });
+
+          expect(res.setHeader.mock.calls).toEqual([
+            ['Set-Cookie', [`foo=bar; Max-Age=1000; Path=/; Expires=${timeString}; HttpOnly`]]
+          ]);
+        });
+      });
     });
   });
 });
