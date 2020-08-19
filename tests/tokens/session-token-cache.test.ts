@@ -178,6 +178,48 @@ describe('SessionTokenCache', () => {
           }
         });
       });
+    
+      test('should retrieve a new access token if force refresh is set', async () => {
+        expect.assertions(2);
+
+        const { cache, getSession } = getTokenCache({
+          expiresIn: 6500,
+          accessToken: 'ey123',
+          refreshToken: 'abc'
+        });
+
+        discovery(withApi);
+        jwksEndpoint(withApi, keystore.toJWKS());
+        refreshTokenExchange(
+          withApi,
+          'abc',
+          keystore.get(),
+          {
+            email: 'john@test.com',
+            name: 'john doe',
+            sub: '123'
+          },
+          'new-token'
+        );
+
+        const result = await cache.getAccessToken({refresh:true});
+        expect(result.accessToken).toMatch('new-token');
+
+        const session = await getSession();
+        expect(session).toStrictEqual({
+          accessToken: 'new-token',
+          refreshToken: 'abc',
+          idToken: expect.any(String),
+          accessTokenExpiresAt: expect.any(Number),
+          accessTokenScope: 'read:foo write:foo',
+          createdAt: expect.any(Number),
+          user: {
+            email: 'john@test.com',
+            name: 'john doe',
+            sub: '123'
+          }
+        });
+      });
     });
   });
 });
