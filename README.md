@@ -276,7 +276,7 @@ Profile.getInitialProps = async ({ req, res }) => {
 The user's access token can be stored in the user's session. However, this token will expire after some amount of time. It is possible to use a refresh token to retrieve a new access token. A token cache is available that will handle all of the checks and necessary refresh logic for you:
 
 ```js
-const tokenCache = await auth0.tokenCache(req, res);
+const tokenCache = auth0.tokenCache(req, res);
 const { accessToken } = await tokenCache.getAccessToken();
 ```
 
@@ -289,7 +289,7 @@ If for some reason it's not possible to get a new access token an error will be 
 You can also require a scope to be present in the requested access token. If you need to call an endpoint which requires the `delete:file` scope you can require this as such:
 
 ```js
-const tokenCache = await auth0.tokenCache(req, res);
+const tokenCache = auth0.tokenCache(req, res);
 const { accessToken } = await tokenCache.getAccessToken({
   scope: [`delete:file`]
 });
@@ -337,7 +337,7 @@ import auth0 from '../../utils/auth0';
 
 export default async function getCustomers(req, res) {
   try {
-    const tokenCache = await auth0.tokenCache(req, res);
+    const tokenCache = auth0.tokenCache(req, res);
     const { accessToken } = await tokenCache.getAccessToken();
 
     const apiClient = new MyApiClient(accessToken);
