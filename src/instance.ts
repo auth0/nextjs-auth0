@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-
+import { IncomingMessage } from 'http';
 import { ISession } from './session/session';
 import { LoginOptions } from './handlers/login';
 import { ITokenCache } from './tokens/token-cache';
@@ -32,7 +32,7 @@ export interface ISignInWithAuth0 {
   /**
    * Session handler which returns the current session
    */
-  getSession: (req: NextApiRequest) => Promise<ISession | null | undefined>;
+  getSession: (req: IncomingMessage) => Promise<ISession | null | undefined>;
 
   /**
    * Handle to require authentication for an API route.
