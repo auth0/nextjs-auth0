@@ -304,6 +304,17 @@ For this functionality to work correctly you'll need to persist the access token
   storeRefreshToken: true
 ```
 
+The token cache will serve a token from the cache for as long as this token is valid. If you want to force the library to retrieve a new `access_token` you can provide the `refresh` option as follows:
+
+```js
+const { accessToken } = await tokenCache.getAccessToken({
+  scope: [`delete:file`],
+  refresh: true
+});
+```
+
+This is useful in cases when the user profile changed and you want the `access_token` to contain the updated claims.
+
 ### Calling an API
 
 It's a common pattern to use Next.js API Routes and proxy them to external APIs. When doing so these APIs typically require an `access_token` to be provided. These APIs can then be configured in Auth0.
