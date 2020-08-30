@@ -120,65 +120,72 @@ describe('cookies', () => {
           ['Set-Cookie', [`foo=bar; Max-Age=1000; Path=/; Expires=${timeString}; HttpOnly`]]
         ]);
       });
+    });
 
-      describe('when not running on localhost', () => {
-        test('should set a secure cookie on the response', async () => {
-          const { req, res } = getRequestResponse();
-          req.headers.host = 'www.acme.com';
+    describe('when not running on localhost', () => {
+      test('should set a secure cookie on the response', async () => {
+        const { req, res } = getRequestResponse();
+        req.headers.host = 'www.acme.com';
 
-          setCookie(req, res, {
-            name: 'foo',
-            value: 'bar',
-            maxAge: 1000,
-            path: '/'
-          });
-
-          expect(res.setHeader.mock.calls).toEqual([
-            ['Set-Cookie', [`foo=bar; Max-Age=1000; Path=/; Expires=${timeString}; HttpOnly; Secure`]]
-          ]);
+        setCookie(req, res, {
+          name: 'foo',
+          value: 'bar',
+          maxAge: 1000,
+          path: '/'
         });
+
+        expect(res.setHeader.mock.calls).toEqual([
+          ['Set-Cookie', [`foo=bar; Max-Age=1000; Path=/; Expires=${timeString}; HttpOnly; Secure`]]
+        ]);
+      });
+    });
+
+    describe("when AUTH0_ALLOW_INSECURE_COOKIE is 'true'", () => {
+      const initialEnvVar = process.env.AUTH0_ALLOW_INSECURE_COOKIE;
+      beforeEach(() => {
+        process.env.AUTH0_ALLOW_INSECURE_COOKIE = 'true';
       });
 
-      describe('when NODE_ENV is not production', () => {
-        test('should not set a secure cookie on the response', async () => {
-          const { req, res } = getRequestResponse();
-          req.headers.host = 'www.acme.com';
-
-          process.env.NODE_ENV = 'development';
-          
-          setCookie(req, res, {
-            name: 'foo',
-            value: 'bar',
-            maxAge: 1000,
-            path: '/'
-          });
-
-          expect(res.setHeader.mock.calls).toEqual([
-            ['Set-Cookie', [`foo=bar; Max-Age=1000; Path=/; Expires=${timeString}; HttpOnly`]]
-          ]);
-        });
+      afterEach(() => {
+        process.env.AUTH0_ALLOW_INSECURE_COOKIE = initialEnvVar;
       });
 
-      describe('when AUTH0_ALLOW_INSECURE_COOKIE is \'true\'', () => {
-        test('should not set a secure cookie on the response', async () => {
-          const { req, res } = getRequestResponse();
-          req.headers.host = 'www.acme.com';
+      test('should not set a secure cookie on the response', async () => {
+        const { req, res } = getRequestResponse();
+        req.headers.host = 'www.acme.com';
 
-          process.env.NODE_ENV = 'production';
-          process.env.AUTH0_ALLOW_INSECURE_COOKIE = 'true';
-          
-          setCookie(req, res, {
-            name: 'foo',
-            value: 'bar',
-            maxAge: 1000,
-            path: '/'
-          });
-
-          expect(res.setHeader.mock.calls).toEqual([
-            ['Set-Cookie', [`foo=bar; Max-Age=1000; Path=/; Expires=${timeString}; HttpOnly`]]
-          ]);
+        setCookie(req, res, {
+          name: 'foo',
+          value: 'bar',
+          maxAge: 1000,
+          path: '/'
         });
+
+        expect(res.setHeader.mock.calls).toEqual([
+          ['Set-Cookie', [`foo=bar; Max-Age=1000; Path=/; Expires=${timeString}; HttpOnly`]]
+        ]);
       });
+    });
+  });
+
+  describe('when not running in production', () => {
+    beforeEach(() => {
+      process.env.NODE_ENV = 'development';
+    });
+    test('should not set a secure cookie on the response', async () => {
+      const { req, res } = getRequestResponse();
+      req.headers.host = 'www.acme.com';
+
+      setCookie(req, res, {
+        name: 'foo',
+        value: 'bar',
+        maxAge: 1000,
+        path: '/'
+      });
+
+      expect(res.setHeader.mock.calls).toEqual([
+        ['Set-Cookie', [`foo=bar; Max-Age=1000; Path=/; Expires=${timeString}; HttpOnly`]]
+      ]);
     });
   });
 });
