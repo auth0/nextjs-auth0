@@ -67,7 +67,7 @@ function isSecureEnvironment(req: IncomingMessage): boolean {
     return false;
   }
 
-  if (process.env.AUTH0_ALLOW_INSECURE_COOKIE === 'true') {
+  if (/^true$/i.test(process.env.AUTH0_ALLOW_INSECURE_COOKIE)) {
     return false;
   }
 
