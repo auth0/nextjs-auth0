@@ -1,5 +1,6 @@
 import jose from '@panva/jose';
 
+import { IncomingMessage, ServerResponse } from 'http';
 import getRequestResponse from '../helpers/http';
 import getClient from '../../src/utils/oidc-client';
 import { withApi } from '../helpers/default-settings';
@@ -15,7 +16,7 @@ describe('SessionTokenCache', () => {
 
   function getTokenCache(
     options: { expiresIn?: number; scope?: string; accessToken?: string; refreshToken?: string } = {}
-  ): { getSession: () => Promise<ISession | null>; cache: ITokenCache } {
+  ): { getSession: () => Promise<ISession | null>; cache: ITokenCache; store: MemoryStore } {
     const client = getClient(withApi);
     const { req, res } = getRequestResponse();
     const session: ISession = {
@@ -32,6 +33,7 @@ describe('SessionTokenCache', () => {
 
     const store = new MemoryStore(session);
     return {
+      store,
       getSession: (): Promise<ISession | null> => store.read(),
       cache: new SessionTokenCache(store, client, req, res)
     };
@@ -178,7 +180,7 @@ describe('SessionTokenCache', () => {
           }
         });
       });
-    
+
       test('should retrieve a new access token if force refresh is set', async () => {
         expect.assertions(2);
 
@@ -202,7 +204,7 @@ describe('SessionTokenCache', () => {
           'new-token'
         );
 
-        const result = await cache.getAccessToken({refresh:true});
+        const result = await cache.getAccessToken({ refresh: true });
         expect(result.accessToken).toMatch('new-token');
 
         const session = await getSession();
@@ -217,6 +219,61 @@ describe('SessionTokenCache', () => {
             email: 'john@test.com',
             name: 'john doe',
             sub: '123'
+          }
+        });
+      });
+
+      test('should preserve user session when refreshing access token', async () => {
+        expect.assertions(2);
+
+        const { cache, getSession, store } = getTokenCache({
+          expiresIn: 6500,
+          accessToken: 'ey123',
+          refreshToken: 'abc'
+        });
+
+        const initialSession = await getSession();
+
+        store.save((undefined as unknown) as IncomingMessage, (undefined as unknown) as ServerResponse, {
+          ...initialSession,
+          user: {
+            ...initialSession?.user,
+            age: 20
+          },
+          createdAt: 0
+        });
+
+        discovery(withApi);
+        jwksEndpoint(withApi, keystore.toJWKS());
+        refreshTokenExchange(
+          withApi,
+          'abc',
+          keystore.get(),
+          {
+            email: 'john@test.com',
+            name: 'john doe',
+            sub: '123'
+          },
+          'new-token'
+        );
+
+        const result = await cache.getAccessToken({ refresh: true });
+        expect(result.accessToken).toMatch('new-token');
+
+        const session = await getSession();
+
+        expect(session).toStrictEqual({
+          accessToken: 'new-token',
+          refreshToken: 'abc',
+          idToken: expect.any(String),
+          accessTokenExpiresAt: expect.any(Number),
+          accessTokenScope: 'read:foo write:foo',
+          createdAt: expect.any(Number),
+          user: {
+            email: 'john@test.com',
+            name: 'john doe',
+            sub: '123',
+            age: 20
           }
         });
       });
