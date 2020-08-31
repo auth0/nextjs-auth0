@@ -84,6 +84,10 @@ export default class SessionTokenCache implements ITokenCache {
       const newSession = getSessionFromTokenSet(tokenSet);
       await this.store.save(this.req, this.res, {
         ...newSession,
+        user: {
+          ...session.user,
+          ...newSession.user
+        },
         refreshToken: newSession.refreshToken || session.refreshToken
       });
 
