@@ -234,7 +234,7 @@ describe('SessionTokenCache', () => {
 
         const initialSession = await getSession();
 
-        store.save((undefined as unknown) as IncomingMessage, (undefined as unknown) as ServerResponse, {
+        await store.save((undefined as unknown) as IncomingMessage, (undefined as unknown) as ServerResponse, {
           ...initialSession,
           user: {
             ...initialSession?.user,
