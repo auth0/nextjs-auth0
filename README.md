@@ -325,7 +325,7 @@ In order to get an access_token for an API you'll need to configure the `audienc
 import { initAuth0 } from '@auth0/nextjs-auth0';
 
 export default initAuth0({
-  domain: '<AUTH0_DOMAIN>'
+  domain: '<AUTH0_DOMAIN>',
   clientId: '<AUTH0_CLIENT_ID>',
   clientSecret: '<AUTH0_CLIENT_SECRET>',
   audience: 'https://api.mycompany.com/',
