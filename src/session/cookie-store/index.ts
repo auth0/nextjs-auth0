@@ -4,7 +4,7 @@ import { IncomingMessage, ServerResponse } from 'http';
 import { ISessionStore } from '../store';
 import Session, { ISession } from '../session';
 import CookieSessionStoreSettings from './settings';
-import { setCookie, parseCookies } from '../../utils/cookies';
+import { setCookies, parseCookies } from '../../utils/cookies';
 
 export default class CookieSessionStore implements ISessionStore {
   private settings: CookieSessionStoreSettings;
@@ -25,12 +25,17 @@ export default class CookieSessionStore implements ISessionStore {
     const { cookieSecret, cookieName } = this.settings;
 
     const cookies = parseCookies(req);
-    const cookie = cookies[cookieName];
-    if (!cookie || cookie.length === 0) {
-      return null;
+    const cookieCount = cookies[`${cookieName}.c`] || 1;
+    let cookie = '';
+    for (let i = 0; i < cookieCount; i += 1) {
+      const cookiePart = cookies[`${cookieName}.${i}`];
+      if (!cookiePart || cookiePart.length === 0) {
+        return null; // missing or broken cookie part
+      }
+      cookie += cookiePart;
     }
 
-    const unsealed = await Iron.unseal(cookies[cookieName], cookieSecret, Iron.defaults);
+    const unsealed = await Iron.unseal(cookie, cookieSecret, Iron.defaults);
     if (!unsealed) {
       return null;
     }
@@ -71,14 +76,31 @@ export default class CookieSessionStore implements ISessionStore {
     }
 
     const encryptedSession = await Iron.seal(persistedSession, cookieSecret, Iron.defaults);
-    setCookie(req, res, {
-      name: cookieName,
-      value: encryptedSession,
+
+    const cookies = [];
+    let start = 0;
+    do {
+      cookies.push({
+        name: `${cookieName}.${cookies.length}`,
+        value: encryptedSession.slice(start, start + 4000),
+        path: cookiePath,
+        maxAge: cookieLifetime,
+        domain: cookieDomain,
+        sameSite: cookieSameSite
+      });
+      start += 4000;
+    } while (encryptedSession.length > start);
+
+    cookies.push({
+      name: `${cookieName}.c`,
+      value: cookies.length.toString(),
       path: cookiePath,
       maxAge: cookieLifetime,
       domain: cookieDomain,
       sameSite: cookieSameSite
     });
+
+    setCookies(req, res, cookies);
 
     return persistedSession;
   }

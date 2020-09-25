@@ -211,7 +211,7 @@ describe('callback handler', () => {
 
         const { req } = getRequestResponse();
         req.headers = {
-          cookie: `a0:session=${parse(responseHeaders['set-cookie'][0])['a0:session']}`
+          cookie: responseHeaders['set-cookie'].join('; ')
         };
 
         const session = await store.read(req);
@@ -303,7 +303,7 @@ describe('callback handler', () => {
 
         const { req } = getRequestResponse();
         req.headers = {
-          cookie: `a0:session=${parse(responseHeaders['set-cookie'][0])['a0:session']}`
+          cookie: responseHeaders['set-cookie'].join('; ')
         };
 
         const session = await store.read(req);
@@ -388,7 +388,7 @@ describe('callback handler', () => {
 
         const { req } = getRequestResponse();
         req.headers = {
-          cookie: `a0:session=${parse(responseHeaders['set-cookie'][0])['a0:session']}`
+          cookie: responseHeaders['set-cookie'].join('; ')
         };
 
         const session = await store.read(req);
@@ -401,7 +401,7 @@ describe('callback handler', () => {
 
         const { req } = getRequestResponse();
         req.headers = {
-          cookie: `a0:session=${parse(responseHeaders['set-cookie'][0])['a0:session']}`
+          cookie: responseHeaders['set-cookie'].join('; ')
         };
 
         const session = await store.read(req);

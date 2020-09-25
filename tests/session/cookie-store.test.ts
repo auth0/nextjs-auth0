@@ -30,7 +30,7 @@ describe('CookieStore', () => {
 
         expect(res.setHeader).toHaveBeenCalledWith(
           'Set-Cookie',
-          expect.arrayContaining([expect.stringMatching('my-cookie=')])
+          expect.arrayContaining([expect.stringMatching('my-cookie.0=')])
         );
       });
     });
@@ -47,7 +47,7 @@ describe('CookieStore', () => {
 
         expect(res.setHeader).toHaveBeenCalledWith(
           'Set-Cookie',
-          expect.arrayContaining([expect.stringMatching('a0:session=')])
+          expect.arrayContaining([expect.stringMatching('a0:session.0=')])
         );
       });
     });
@@ -137,6 +137,87 @@ describe('CookieStore', () => {
     });
   });
 
+  describe('with very long content', () => {
+    const longContent = '1234567890'.repeat(500);
+
+    test('should create small cookies', async () => {
+      const store = getStore();
+      const { req, res, setHeaderFn } = getRequestResponse();
+      await store.save(req, res, {
+        user: { sub: '123', payload: longContent },
+        createdAt: Date.now()
+      });
+
+      const [, cookieHeaders] = setHeaderFn.mock.calls[0];
+      expect(cookieHeaders.length).toBeGreaterThan(1);
+
+      const cookies = parse(cookieHeaders.join('; '));
+      expect(parseInt(cookies['a0:session.c'], 10)).toBeGreaterThan(1);
+
+      for (let i = 0; i < parseInt(cookies['a0:session.c'], 10); i += 1) {
+        expect(cookies[`a0:session.${i}`].length).toBeGreaterThan(0);
+        expect(cookies[`a0:session.${i}`].length).toBeLessThanOrEqual(4000);
+      }
+    });
+
+    test('should be able to read split cookies', async () => {
+      const store = getStore();
+      const { req, res, setHeaderFn } = getRequestResponse();
+
+      const input = {
+        user: { sub: '123', payload: longContent },
+        createdAt: Date.now()
+      };
+
+      await store.save(req, res, input);
+
+      const [, cookies] = setHeaderFn.mock.calls[0];
+
+      req.headers = {
+        cookie: cookies.join('; ')
+      };
+
+      const session = await store.read(req);
+      expect(session).toEqual(input);
+    });
+
+    describe('when some of the cookies are lost', () => {
+      const store = getStore();
+
+      test('missing content cookies turn the session null', async () => {
+        const { req, res, setHeaderFn } = getRequestResponse();
+        const input = {
+          user: { sub: '123', payload: longContent },
+          createdAt: Date.now()
+        };
+        await store.save(req, res, input);
+        const [, [content1, , count]] = setHeaderFn.mock.calls[0];
+        req.headers = {
+          cookie: [content1, count].join('; ')
+        };
+
+        const session = await store.read(req);
+        expect(session).toBeNull();
+      });
+
+      test('missing count cookie is survivable is content is short', async () => {
+        const { req, res, setHeaderFn } = getRequestResponse();
+        const input = {
+          user: { sub: '123' },
+          createdAt: Date.now()
+        };
+        await store.save(req, res, input);
+        const [, [content1]] = setHeaderFn.mock.calls[0];
+        req.headers = {
+          cookie: content1
+        };
+
+        const session = await store.read(req);
+        expect(session).toEqual(input);
+      });
+    });
+  });
+
   describe('with storeAccessToken', () => {
     describe('not configured', () => {
       const store = getStore({});
@@ -153,9 +234,9 @@ describe('CookieStore', () => {
           accessTokenExpiresAt: 500
         });
 
-        const [, [cookie]] = setHeaderFn.mock.calls[0];
+        const [, cookies] = setHeaderFn.mock.calls[0];
         req.headers = {
-          cookie: `a0:session=${parse(cookie)['a0:session']}`
+          cookie: cookies.join('; ')
         };
 
         const session = await store.read(req);
@@ -183,9 +264,9 @@ describe('CookieStore', () => {
           accessTokenExpiresAt: 500
         });
 
-        const [, [cookie]] = setHeaderFn.mock.calls[0];
+        const [, cookies] = setHeaderFn.mock.calls[0];
         req.headers = {
-          cookie: `a0:session=${parse(cookie)['a0:session']}`
+          cookie: cookies.join('; ')
         };
 
         const session = await store.read(req);
@@ -216,9 +297,9 @@ describe('CookieStore', () => {
           idToken: 'my-id-token'
         });
 
-        const [, [cookie]] = setHeaderFn.mock.calls[0];
+        const [, cookies] = setHeaderFn.mock.calls[0];
         req.headers = {
-          cookie: `a0:session=${parse(cookie)['a0:session']}`
+          cookie: cookies.join('; ')
         };
 
         const session = await store.read(req);
@@ -246,9 +327,9 @@ describe('CookieStore', () => {
           idToken: 'my-id-token'
         });
 
-        const [, [cookie]] = setHeaderFn.mock.calls[0];
+        const [, cookies] = setHeaderFn.mock.calls[0];
         req.headers = {
-          cookie: `a0:session=${parse(cookie)['a0:session']}`
+          cookie: cookies.join('; ')
         };
 
         const session = await store.read(req);
@@ -278,9 +359,9 @@ describe('CookieStore', () => {
           refreshToken: 'my-refresh-token'
         });
 
-        const [, [cookie]] = setHeaderFn.mock.calls[0];
+        const [, cookies] = setHeaderFn.mock.calls[0];
         req.headers = {
-          cookie: `a0:session=${parse(cookie)['a0:session']}`
+          cookie: cookies.join('; ')
         };
 
         const session = await store.read(req);
@@ -309,10 +390,10 @@ describe('CookieStore', () => {
           refreshToken: 'my-refresh-token'
         });
 
-        const [, [cookie]] = setHeaderFn.mock.calls[0];
+        const [, cookies] = setHeaderFn.mock.calls[0];
         req.headers = {
           ...req.headers,
-          cookie: `a0:session=${parse(cookie)['a0:session']}`
+          cookie: cookies.join('; ')
         };
 
         const session = await store.read(req);
