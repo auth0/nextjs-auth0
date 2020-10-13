@@ -1,0 +1,16 @@
+{
+  "name": "@auth0/nextjs-auth0",
+  "out": "./docs/",
+  "toc": [
+    "initAuth0",
+    "IAuth0Settings"
+  ],
+  "mode": "file",
+  "excludeExternals": true,
+  "excludePrivate": true,
+  "excludeNotExported": true,
+  "includeDeclarations": true,
+  "hideGenerator": true,
+  "theme": "minimal",
+  "readme": "./README.md"
+}

@@ -16,6 +16,7 @@
     "pretty": "prettier --write \"src/**/*.ts\" \"src/*.ts\"",
     "lint": "eslint --fix --ext .ts ./src",
     "build": "tsc -p tsconfig.build.json",
+    "docs": "typedoc --options typedoc.json src",
     "test": "jest --coverage --forceExit --maxWorkers=10",
     "test:watch": "jest --coverage --watch",
     "prepublishOnly": "npm test && npm run lint",
@@ -68,6 +69,7 @@
     "request": "^2.88.2",
     "timekeeper": "^2.2.0",
     "ts-jest": "^25.5.1",
+    "typedoc": "^0.19.2",
     "typescript": "^3.8.3"
   },
   "dependencies": {
