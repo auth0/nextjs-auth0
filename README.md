@@ -325,7 +325,7 @@ In order to get an access_token for an API you'll need to configure the `audienc
 import { initAuth0 } from '@auth0/nextjs-auth0';
 
 export default initAuth0({
-  domain: '<AUTH0_DOMAIN>'
+  domain: '<AUTH0_DOMAIN>',
   clientId: '<AUTH0_CLIENT_ID>',
   clientSecret: '<AUTH0_CLIENT_SECRET>',
   audience: 'https://api.mycompany.com/',
@@ -364,7 +364,7 @@ export default async function getCustomers(req, res) {
 
 ### Controlling the callback
 
-There might be a need for you to have more control over the callback handler. The `onUserLoaded` hook allows you to control what happens before a session is created. You can use this for example to add/remove infromation in the session.
+There might be a need for you to have more control over the callback handler. The `onUserLoaded` hook allows you to control what happens before a session is created. You can use this for example to add/remove information in the session.
 
 ```js
 import auth0 from '../../utils/auth0';
