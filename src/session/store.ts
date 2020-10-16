@@ -1,19 +1,34 @@
-import { IncomingMessage, ServerResponse } from 'http';
+import { NextApiRequest } from 'next';
+import { TokenSet } from 'openid-client';
+import { Config, SessionCache as ISessionCache } from '../auth0-session';
+import Session, { fromTokenSet } from './session';
 
-import { ISession } from './session';
-
-export interface ISessionStore {
-  /**
-   * Read the session.
-   * @param req The HTTP Request.
-   */
-  read(req: IncomingMessage): Promise<ISession | null | undefined>;
-
-  /**
-   * Persist the session.
-   * @param req The HTTP request.
-   * @param res The HTTP response.
-   * @param session The session to persist.
-   */
-  save(req: IncomingMessage, res: ServerResponse, session: ISession): Promise<ISession | null | undefined>;
+export default class SessionCache implements ISessionCache {
+  private cache: WeakMap<NextApiRequest, Session | null>;
+  constructor(private config: Config) {
+    this.cache = new WeakMap();
+  }
+  create(req: NextApiRequest, tokenSet: TokenSet): void {
+    this.cache.set(req, fromTokenSet(tokenSet, this.config));
+  }
+  delete(req: NextApiRequest): void {
+    this.set(req, null);
+  }
+  has(req: NextApiRequest): boolean {
+    return this.cache.has(req);
+  }
+  isAuthenticated(req: NextApiRequest): boolean {
+    let session = this.get(req);
+    return !!session?.user;
+  }
+  getIdToken(req: NextApiRequest): string | undefined {
+    let session = this.get(req);
+    return session?.idToken;
+  }
+  set(req: NextApiRequest, session: Session | null) {
+    this.cache.set(req, session);
+  }
+  get(req: NextApiRequest) {
+    return this.cache.get(req);
+  }
 }

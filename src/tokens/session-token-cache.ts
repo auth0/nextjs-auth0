@@ -1,30 +1,21 @@
-import { IncomingMessage, ServerResponse } from 'http';
-
-import { ISessionStore } from '../session/store';
+import { NextApiRequest } from 'next';
 import AccessTokenError from './access-token-error';
-import getSessionFromTokenSet from '../utils/session';
 import { intersect, match } from '../utils/array';
-import { IOidcClientFactory } from '../utils/oidc-client';
 import { ITokenCache, AccessTokenRequest, AccessTokenResponse } from './token-cache';
+import { ClientFactory, Config } from '../auth0-session';
+import SessionCache from '../session/store';
+import { fromTokenSet } from '../session/session';
 
 export default class SessionTokenCache implements ITokenCache {
-  private store: ISessionStore;
-
-  private clientProvider: IOidcClientFactory;
-
-  private req: IncomingMessage;
-
-  private res: ServerResponse;
-
-  constructor(store: ISessionStore, clientProvider: IOidcClientFactory, req: IncomingMessage, res: ServerResponse) {
-    this.store = store;
-    this.clientProvider = clientProvider;
-    this.req = req;
-    this.res = res;
-  }
+  constructor(
+    private getClient: ClientFactory,
+    private config: Config,
+    private store: SessionCache,
+    private req: NextApiRequest
+  ) {}
 
   async getAccessToken(accessTokenRequest?: AccessTokenRequest): Promise<AccessTokenResponse> {
-    const session = await this.store.read(this.req);
+    const session = await this.store.get(this.req);
     if (!session) {
       throw new AccessTokenError('invalid_session', 'The user does not have a valid session.');
     }
@@ -77,15 +68,13 @@ export default class SessionTokenCache implements ITokenCache {
       (session.refreshToken && session.accessTokenExpiresAt * 1000 - 60000 < Date.now()) ||
       (session.refreshToken && accessTokenRequest && accessTokenRequest.refresh)
     ) {
-      const client = await this.clientProvider();
+      const client = await this.getClient();
       const tokenSet = await client.refresh(session.refreshToken);
 
       // Update the session.
-      const newSession = getSessionFromTokenSet(tokenSet);
-      await this.store.save(this.req, this.res, {
-        ...newSession,
-        refreshToken: newSession.refreshToken || session.refreshToken
-      });
+      const newSession = fromTokenSet(tokenSet, this.config);
+      newSession.refreshToken = newSession.refreshToken || session.refreshToken;
+      this.store.set(this.req, newSession);
 
       // Return the new access token.
       return {

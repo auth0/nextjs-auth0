@@ -15,7 +15,7 @@ export default function withAuth(InnerComponent) {
         };
       }
 
-      const session = await auth0.getSession(ctx.req);
+      const session = await auth0.getSession(ctx.req, ctx.res);
       if (!session || !session.user) {
         ctx.res.writeHead(302, {
           Location: createLoginUrl(ctx.req.url)

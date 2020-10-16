@@ -1,11 +1,9 @@
 {
   "compilerOptions": {
-    "allowSyntheticDefaultImports": true,
     "alwaysStrict": true,
     "declaration": true,
-    "emitDecoratorMetadata": true,
+    "declarationMap": true,
     "esModuleInterop": true,
-    "experimentalDecorators": true,
     "forceConsistentCasingInFileNames": true,
     "importHelpers": true,
     "module": "commonjs",
@@ -21,22 +19,9 @@
     "target": "es6",
     "jsx": "react",
     "outDir": "./dist",
-    "types": ["jest", "node"],
-    "baseUrl": "./",
-    "paths": {
-      "*": [
-        "src/*",
-        "typings/*"
-      ]
-    }
+    "types": ["jest", "node"]
   },
   "include": [
-    "src/*",
-    "src/**/*",
-    "typings/*"
-  ],
-  "exclude": [
-    "dist",
-    "node_modules"
+    "src"
   ]
 }
