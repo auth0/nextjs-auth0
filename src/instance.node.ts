@@ -1,44 +1,41 @@
-import handlers from './handlers';
-import getClient from './utils/oidc-client';
-import IAuth0Settings from './settings';
-import { ISignInWithAuth0 } from './instance';
-import { ISessionStore } from './session/store';
-import CookieSessionStore from './session/cookie-store';
-import CookieSessionStoreSettings from './session/cookie-store/settings';
+import { NextApiRequest, NextApiResponse } from 'next';
+import onHeaders from 'on-headers';
+import {
+  ConfigParameters,
+  getConfig,
+  CookieStore,
+  TransientCookieHandler,
+  logoutHandler,
+  callbackHandler,
+  clientFactory
+} from './auth0-session';
+import { profileHandler, requireAuthentication, tokenCache, sessionHandler, loginHandler } from './handlers';
+import { fromJson } from './session/session';
+import SessionCache from './session/store';
 
-export default function createInstance(settings: IAuth0Settings): ISignInWithAuth0 {
-  if (!settings.domain) {
-    throw new Error('A valid Auth0 Domain must be provided');
-  }
+export default function createInstance(params: ConfigParameters) {
+  const config = getConfig(params);
+  const getClient = clientFactory(config);
+  const transientHandler = new TransientCookieHandler(config);
+  const cookieStore = new CookieStore(config);
+  const sessionCache = new SessionCache(config);
 
-  if (!settings.clientId) {
-    throw new Error('A valid Auth0 Client ID must be provided');
-  }
-
-  if (!settings.clientSecret) {
-    throw new Error('A valid Auth0 Client Secret must be provided');
-  }
-
-  if (!settings.session) {
-    throw new Error('The session configuration is required');
-  }
-
-  if (!settings.session.cookieSecret) {
-    throw new Error('A valid session cookie secret is required');
-  }
-
-  const clientProvider = getClient(settings);
-
-  const sessionSettings = new CookieSessionStoreSettings(settings.session);
-  const store: ISessionStore = new CookieSessionStore(sessionSettings);
+  const applyCookies = (fn: Function) => (req: NextApiRequest, res: NextApiResponse, ...args: []) => {
+    if (!sessionCache.has(req)) {
+      const [json, iat] = cookieStore.read(req);
+      sessionCache.set(req, fromJson(json));
+      onHeaders(res, () => cookieStore.save(req, res, sessionCache.get(req), iat));
+    }
+    return fn(req, res, ...args);
+  };
 
   return {
-    handleLogin: handlers.LoginHandler(settings, clientProvider),
-    handleLogout: handlers.LogoutHandler(settings, sessionSettings, clientProvider, store),
-    handleCallback: handlers.CallbackHandler(settings, clientProvider, store),
-    handleProfile: handlers.ProfileHandler(store, clientProvider),
-    getSession: handlers.SessionHandler(store),
-    requireAuthentication: handlers.RequireAuthentication(store),
-    tokenCache: handlers.TokenCache(clientProvider, store)
+    handleLogin: applyCookies(loginHandler(config, getClient, transientHandler)),
+    handleLogout: applyCookies(logoutHandler(config, getClient, sessionCache)),
+    handleCallback: applyCookies(callbackHandler(config, getClient, sessionCache, transientHandler)),
+    handleProfile: applyCookies(profileHandler(config, sessionCache, getClient)),
+    requireAuthentication: applyCookies(requireAuthentication(sessionCache)),
+    tokenCache: applyCookies(tokenCache(getClient, config, sessionCache)),
+    getSession: applyCookies(sessionHandler(sessionCache))
   };
 }

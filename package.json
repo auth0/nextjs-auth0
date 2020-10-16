@@ -41,11 +41,14 @@
   "homepage": "https://github.com/auth0/nextjs-auth0#readme",
   "devDependencies": {
     "@panva/jose": "^1.9.3",
+    "@types/clone": "^2.1.0",
     "@types/cookie": "^0.3.3",
     "@types/hapi__iron": "^5.1.0",
+    "@types/hapi__joi": "^17.1.6",
     "@types/jest": "^25.2.1",
     "@types/jsonwebtoken": "^8.3.9",
     "@types/node": "^13.13.5",
+    "@types/on-headers": "^1.0.0",
     "@types/react": "^16.9.35",
     "@types/react-dom": "^16.9.8",
     "@types/request": "^2.48.4",
@@ -65,16 +68,28 @@
     "next": "^9.3.6",
     "nock": "^12.0.3",
     "prettier": "^2.0.5",
+    "react": "^16.13.1",
+    "react-dom": "^16.13.1",
     "request": "^2.88.2",
     "timekeeper": "^2.2.0",
     "ts-jest": "^25.5.1",
     "typescript": "^3.8.3"
   },
   "dependencies": {
-    "@hapi/iron": "^5.1.4",
+    "@hapi/joi": "^17.1.1",
+    "@types/debug": "^4.1.5",
+    "@types/http-errors": "^1.8.0",
+    "@types/url-join": "^4.0.0",
     "base64url": "^3.0.1",
+    "clone": "^2.1.2",
     "cookie": "^0.4.1",
-    "openid-client": "^3.15.0"
+    "debug": "^4.2.0",
+    "futoin-hkdf": "^1.3.2",
+    "http-errors": "^1.8.0",
+    "jose": "^2.0.2",
+    "on-headers": "^1.0.2",
+    "openid-client": "^4.0.0",
+    "url-join": "^4.0.1"
   },
   "peerDependencies": {
     "next": "^9.0.0"
