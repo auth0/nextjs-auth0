@@ -1,44 +1,21 @@
 import handlers from './handlers';
-import getClient from './utils/oidc-client';
-import IAuth0Settings from './settings';
-import { ISignInWithAuth0 } from './instance';
-import { ISessionStore } from './session/store';
-import CookieSessionStore from './session/cookie-store';
-import CookieSessionStoreSettings from './session/cookie-store/settings';
+import { getConfig, TransientCookieHandler } from './auth0-session';
+import { ConfigParameters } from 'auth0-session/config';
+import CookieStore from 'auth0-session/cookie-store';
 
-export default function createInstance(settings: IAuth0Settings): ISignInWithAuth0 {
-  if (!settings.domain) {
-    throw new Error('A valid Auth0 Domain must be provided');
-  }
+export default function createInstance(params: ConfigParameters) {
+  const config = getConfig(params);
 
-  if (!settings.clientId) {
-    throw new Error('A valid Auth0 Client ID must be provided');
-  }
-
-  if (!settings.clientSecret) {
-    throw new Error('A valid Auth0 Client Secret must be provided');
-  }
-
-  if (!settings.session) {
-    throw new Error('The session configuration is required');
-  }
-
-  if (!settings.session.cookieSecret) {
-    throw new Error('A valid session cookie secret is required');
-  }
-
-  const clientProvider = getClient(settings);
-
-  const sessionSettings = new CookieSessionStoreSettings(settings.session);
-  const store: ISessionStore = new CookieSessionStore(sessionSettings);
+  const sessionStore = new CookieStore(config);
+  const transient = new TransientCookieHandler(config);
 
   return {
-    handleLogin: handlers.LoginHandler(settings, clientProvider),
-    handleLogout: handlers.LogoutHandler(settings, sessionSettings, clientProvider, store),
-    handleCallback: handlers.CallbackHandler(settings, clientProvider, store),
-    handleProfile: handlers.ProfileHandler(store, clientProvider),
-    getSession: handlers.SessionHandler(store),
-    requireAuthentication: handlers.RequireAuthentication(store),
-    tokenCache: handlers.TokenCache(clientProvider, store)
+    handleLogin: handlers.LoginHandler(config),
+    handleLogout: handlers.LogoutHandler(config),
+    handleCallback: handlers.CallbackHandler(config),
+    handleProfile: handlers.ProfileHandler(config),
+    getSession: handlers.SessionHandler(config)
+    // requireAuthentication: handlers.RequireAuthentication(store),
+    // tokenCache: handlers.TokenCache(clientProvider, store)
   };
 }

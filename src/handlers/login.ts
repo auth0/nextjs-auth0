@@ -1,23 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-
-import version from '../version';
 import IAuth0Settings from '../settings';
 import isSafeRedirect from '../utils/url-helpers';
-
-import { setCookies } from '../utils/cookies';
-import { createState } from '../utils/state';
-import { IOidcClientFactory } from '../utils/oidc-client';
-
-function telemetry(): string {
-  const bytes = Buffer.from(
-    JSON.stringify({
-      name: 'nextjs-auth0',
-      version
-    })
-  );
-
-  return bytes.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
+import { ResponseContext } from 'auth0-session';
 
 export interface AuthorizationParameters {
   acr_values?: string;
@@ -38,16 +22,8 @@ export interface LoginOptions {
   redirectTo?: string;
 }
 
-export default function loginHandler(settings: IAuth0Settings, clientProvider: IOidcClientFactory) {
-  return async (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions): Promise<void> => {
-    if (!req) {
-      throw new Error('Request is not available');
-    }
-
-    if (!res) {
-      throw new Error('Response is not available');
-    }
-
+export default function loginHandler(config: IAuth0Settings) {
+  return async (req: NextApiRequest, res: NextApiResponse /*, options?: LoginOptions */): Promise<void> => {
     if (req.query.redirectTo) {
       if (typeof req.query.redirectTo !== 'string') {
         throw new Error('Invalid value provided for redirectTo, must be a string');
@@ -58,47 +34,9 @@ export default function loginHandler(settings: IAuth0Settings, clientProvider: I
       }
     }
 
-    const opt = options || {};
-    const getLoginState =
-      opt.getState ||
-      function getLoginState(): Record<string, any> {
-        return {};
-      };
+    // new RequestContext(config, req, res),
+    const resOidc = new ResponseContext(config, req, res);
 
-    const {
-      // Generate a state which contains a nonce, the redirectTo uri and potentially custom data
-      state = createState({
-        redirectTo: req.query?.redirectTo || options?.redirectTo,
-        ...getLoginState(req)
-      }),
-      ...authParams
-    } = (opt && opt.authParams) || {};
-
-    // Create the authorization url.
-    const client = await clientProvider();
-    const authorizationUrl = client.authorizationUrl({
-      redirect_uri: settings.redirectUri,
-      scope: settings.scope,
-      response_type: 'code',
-      audience: settings.audience,
-      state,
-      auth0Client: telemetry(),
-      ...authParams
-    });
-
-    // Set the necessary cookies
-    setCookies(req, res, [
-      {
-        name: 'a0:state',
-        value: state,
-        maxAge: 60 * 60
-      }
-    ]);
-
-    // Redirect to the authorize endpoint.
-    res.writeHead(302, {
-      Location: authorizationUrl
-    });
-    res.end();
+    await (resOidc as any).login({ returnTo: req.query.redirectTo });
   };
 }

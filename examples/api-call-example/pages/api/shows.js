@@ -1,7 +1,6 @@
 import fetch from 'isomorphic-unfetch';
 
 import auth0 from '../../lib/auth0';
-import config from '../../lib/config';
 
 export default async function shows(req, res) {
   try {
@@ -10,7 +9,7 @@ export default async function shows(req, res) {
       scopes: ['read:shows']
     });
 
-    const url = `${config.API_BASE_URL}/api/my/shows`;
+    const url = `${process.env.API_BASE_URL}/api/my/shows`;
     const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${accessToken}`

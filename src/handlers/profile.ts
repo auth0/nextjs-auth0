@@ -1,25 +1,21 @@
 import { NextApiResponse, NextApiRequest } from 'next';
+import { applyMw, assertReqRes } from './utils';
 
-import tokenCacheHandler from './token-cache';
-import { ISessionStore } from '../session/store';
-import { IOidcClientFactory } from '../utils/oidc-client';
+// import tokenCacheHandler from './token-cache';
+// import { ISessionStore } from '../session/store';
+// import { IOidcClientFactory } from '../utils/oidc-client';
 
 export type ProfileOptions = {
   refetch?: boolean;
 };
 
-export default function profileHandler(sessionStore: ISessionStore, clientProvider: IOidcClientFactory) {
-  return async (req: NextApiRequest, res: NextApiResponse, options?: ProfileOptions): Promise<void> => {
-    if (!req) {
-      throw new Error('Request is not available');
-    }
+export default function profileHandler(config) {
+  return async (req: NextApiRequest, res: NextApiResponse/*, options?: ProfileOptions*/): Promise<void> => {
+    assertReqRes(req, res);
 
-    if (!res) {
-      throw new Error('Response is not available');
-    }
+    const [ reqOidc ] = await applyMw(req, res, config);
 
-    const session = await sessionStore.read(req);
-    if (!session || !session.user) {
+    if (!(reqOidc as any).isAuthenticated()) {
       res.status(401).json({
         error: 'not_authenticated',
         description: 'The user does not have an active session or is not authenticated'
@@ -27,30 +23,9 @@ export default function profileHandler(sessionStore: ISessionStore, clientProvid
       return;
     }
 
-    if (options && options.refetch) {
-      const tokenCache = tokenCacheHandler(clientProvider, sessionStore)(req, res);
-      const { accessToken } = await tokenCache.getAccessToken();
-      if (!accessToken) {
-        throw new Error('No access token available to refetch the profile');
-      }
+    // if (options && options.refetch) {
+    // }
 
-      const client = await clientProvider();
-      const userInfo = await client.userinfo(accessToken);
-
-      const updatedUser = {
-        ...session.user,
-        ...userInfo
-      };
-
-      await sessionStore.save(req, res, {
-        ...session,
-        user: updatedUser
-      });
-
-      res.json(updatedUser);
-      return;
-    }
-
-    res.json(session.user);
+    res.json((reqOidc as any).user);
   };
 }

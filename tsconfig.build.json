@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "allowJs": true,
     "allowSyntheticDefaultImports": true,
     "alwaysStrict": true,
     "declaration": true,
@@ -18,7 +19,7 @@
     "noUnusedParameters": true,
     "sourceMap": true,
     "strict": true,
-    "target": "es6",
+    "target": "es2017",
     "jsx": "react",
     "outDir": "./dist",
     "types": ["jest", "node"],

@@ -3,7 +3,7 @@ import { IncomingMessage } from 'http';
 import { ISession } from './session/session';
 import { LoginOptions } from './handlers/login';
 import { ITokenCache } from './tokens/token-cache';
-import { CallbackOptions } from './handlers/callback';
+// import { CallbackOptions } from './handlers/callback';
 import { ProfileOptions } from './handlers/profile';
 import { LogoutOptions } from './handlers/logout';
 import { IApiRoute } from './handlers/require-authentication';
@@ -17,7 +17,7 @@ export interface ISignInWithAuth0 {
   /**
    * Callback handler which will complete the transaction and create a local session.
    */
-  handleCallback: (req: NextApiRequest, res: NextApiResponse, options?: CallbackOptions) => Promise<void>;
+  handleCallback: (req: NextApiRequest, res: NextApiResponse/*, options?: CallbackOptions */) => Promise<void>;
 
   /**
    * Logout handler which will clear the local session and the Auth0 session.

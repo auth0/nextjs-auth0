@@ -1,14 +1,15 @@
 import { IncomingMessage } from 'http';
 
-import { ISession } from '../session/session';
-import { ISessionStore } from '../session/store';
+// import { ISession } from '../session/session';
+// import { ISessionStore } from '../session/store';
+import { applyMw, assertReqRes } from './utils';
 
-export default function sessionHandler(sessionStore: ISessionStore) {
-  return (req: IncomingMessage): Promise<ISession | null | undefined> => {
-    if (!req) {
-      throw new Error('Request is not available');
-    }
+export default function sessionHandler(config) {
+  return async (req: IncomingMessage, res) => {
 
-    return sessionStore.read(req);
+    assertReqRes(req, res);
+
+    const [ reqOidc ] = await applyMw(req, res, config);
+    return reqOidc;
   };
 }
