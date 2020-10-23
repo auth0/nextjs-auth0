@@ -1,11 +1,14 @@
+import { IncomingMessage, ServerResponse } from 'http';
 import { strict as assert, AssertionError } from 'assert';
+import onHeaders from 'on-headers';
 import { JWE, JWK, JWKS, errors } from 'jose';
 import { encryption as deriveKey } from './hkdf';
 import weakRef from './weak-cache';
 import createDebug from './debug';
 import { getAll as getCookies, clear as clearCookie, set as setCookie } from './cookies';
-import { IncomingMessage, ServerResponse } from 'http';
-import { Config, SessionConfig } from 'auth0-session/config';
+import { Config } from './config';
+import { ClientFactory } from './client';
+import Session from './session';
 
 const debug = createDebug('cookie-store');
 const epoch = (): number => (Date.now() / 1000) | 0;
@@ -16,17 +19,15 @@ const enc = 'A256GCM';
 const notNull = <T>(value: T | null): value is T => value !== null;
 
 export default class CookieStore {
-  private config: SessionConfig;
   private keystore: JWKS.KeyStore;
   private currentKey: JWK.OctKey | undefined;
 
-  constructor(config: Config) {
+  constructor(public config: Config, public getClient: ClientFactory) {
     const secrets = Array.isArray(config.secret) ? config.secret : [config.secret];
-    this.config = config.session;
     this.keystore = new JWKS.KeyStore();
 
     secrets.forEach((secretString: string, i: number) => {
-      const key = JWK.asKey(deriveKey(secretString).toString());
+      const key = JWK.asKey(deriveKey(secretString));
       if (i === 0) {
         this.currentKey = key as JWK.OctKey;
       }
@@ -35,6 +36,11 @@ export default class CookieStore {
   }
 
   private encrypt(payload: string, headers: object): string {
+    console.log('alg', alg);
+    console.log('enc', enc);
+    console.log('key', this.currentKey);
+    console.log('payload', payload);
+
     return JWE.encrypt(payload, this.currentKey as JWK.OctKey, {
       alg,
       enc,
@@ -51,7 +57,7 @@ export default class CookieStore {
   }
 
   private calculateExp(iat: number, uat: number) {
-    let { absoluteDuration, rolling, rollingDuration } = this.config;
+    let { absoluteDuration, rolling, rollingDuration } = this.config.session;
     absoluteDuration = typeof absoluteDuration !== 'number' ? 0 : absoluteDuration;
 
     if (!rolling) {
@@ -61,14 +67,9 @@ export default class CookieStore {
     return Math.min(...[uat + rollingDuration, iat + absoluteDuration].filter(Boolean));
   }
 
-  read(req: IncomingMessage): { header: { iat?: number; uat?: number; exp?: number }; cleartext: string } {
-    const ref = weakRef(req);
-    if (ref.hasOwnProperty('session')) {
-      return ref.session;
-    }
-
+  private read(req: IncomingMessage, res: ServerResponse) {
     const cookies = getCookies(req);
-    const { name: sessionName, rollingDuration, absoluteDuration } = this.config;
+    const { name: sessionName, rollingDuration, absoluteDuration } = this.config.session;
 
     let iat;
     let uat;
@@ -121,7 +122,7 @@ export default class CookieStore {
           assert(iat + absoluteDuration > epoch(), 'it is expired based on current absoluteDuration rules');
         }
 
-        ref.session = { header, cleartext };
+        this.set(req, res, Session.fromString(cleartext.toString(), this.config, this.getClient, iat));
       }
     } catch (err) {
       if (err instanceof AssertionError) {
@@ -132,35 +133,43 @@ export default class CookieStore {
         debug('unexpected error handling session', err);
       }
     }
-
-    return ref.session;
   }
 
-  save(req: IncomingMessage, res: ServerResponse) {
-    let session = this.read(req);
-    if (!session) {
-      return;
-    }
-    const { header, cleartext } = session;
-    const { uat = epoch(), iat = uat, exp = this.calculateExp(iat, uat) } = header;
+  private save(req: IncomingMessage, res: ServerResponse) {
+    const ref = weakRef(req);
+    const session = ref.session;
+
     const {
       cookie: { transient, ...cookieConfig },
       name: sessionName
-    } = this.config;
+    } = this.config.session;
+
+    if (!session) {
+      debug('clearing all matching session cookies');
+      for (const cookieName of Object.keys(getCookies(req))) {
+        if (cookieName.match(`^${sessionName}(?:\\.\\d)?$`)) {
+          clearCookie(res, cookieName, {
+            domain: cookieConfig.domain,
+            path: cookieConfig.path
+          });
+        }
+      }
+      return;
+    }
+
+    const uat = epoch();
+    const { createdAt = uat } = session;
+    const iat = createdAt;
+    const exp = this.calculateExp(iat, uat);
+
     const cookieOptions = {
       ...cookieConfig,
-      expires: transient ? 0 : new Date(exp * 1000),
-      secure: cookieConfig.hasOwnProperty('secure')
-        ? cookieConfig.secure
-        : req.url !== undefined && req.url.startsWith('https://') // @TODO check
+      maxAge: transient ? -1 : exp, // @TODO check
+      secure: 'secure' in cookieConfig ? cookieConfig.secure : req.url?.startsWith('https:') // @TODO check
     };
 
     debug('found session, creating signed session cookie(s) with name %o(.i)', sessionName);
-    const value = this.encrypt(cleartext, {
-      iat,
-      uat,
-      exp
-    });
+    const value = this.encrypt(session.toString(), { iat, uat, exp });
 
     const chunkCount = Math.ceil(value.length / CHUNK_BYTE_SIZE);
     if (chunkCount > 1) {
@@ -175,19 +184,24 @@ export default class CookieStore {
     }
   }
 
-  delete(req: IncomingMessage, res: ServerResponse) {
+  public get(req: IncomingMessage, res: ServerResponse) {
     const ref = weakRef(req);
-    const { cookie: cookieOptions, name: sessionName } = this.config;
-    delete ref.session;
-
-    debug('clearing all matching session cookies');
-    for (const cookieName of getCookies(req)) {
-      if (cookieName.match(`^${sessionName}(?:\\.\\d)?$`)) {
-        clearCookie(res, cookieName, {
-          domain: cookieOptions.domain,
-          path: cookieOptions.path
-        });
-      }
+    if (!ref.session) {
+      this.read(req, res);
     }
+    return ref.session;
+  }
+
+  public set(req: IncomingMessage, res: ServerResponse, session: Session | null) {
+    const ref = weakRef(req);
+    ref.session = session;
+    if (!ref.sessionSaved) {
+      ref.sessionSaved = true;
+      onHeaders(res, () => this.save(req, res));
+    }
+  }
+
+  public delete(req: IncomingMessage, res: ServerResponse) {
+    this.set(req, res, null);
   }
 }

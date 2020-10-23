@@ -22,7 +22,7 @@ const requireAuth = jwt({
 
   audience: process.env.AUTH0_API_IDENTIFIER,
   issuer: `https://${process.env.AUTH0_DOMAIN}/`,
-  algorithm: ['RS256']
+  algorithms: ['RS256']
 });
 
 /**
@@ -30,13 +30,13 @@ const requireAuth = jwt({
  */
 app.get('/api/shows', (req, res) => {
   fetch('https://api.tvmaze.com/shows')
-    .then(r => r.json())
-    .then(shows => {
+    .then((r) => r.json())
+    .then((shows) => {
       res.send({
         shows
       });
     })
-    .catch(err =>
+    .catch((err) =>
       res.status(500).send({
         error: err.message
       })
@@ -48,13 +48,13 @@ app.get('/api/shows', (req, res) => {
  */
 app.get('/api/my/shows', requireAuth, (req, res) => {
   fetch('https://api.tvmaze.com/search/shows?q=identity')
-    .then(r => r.json())
-    .then(shows => {
+    .then((r) => r.json())
+    .then((shows) => {
       res.send({
         shows
       });
     })
-    .catch(err =>
+    .catch((err) =>
       res.status(500).send({
         error: err.message
       })

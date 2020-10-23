@@ -1,11 +1,9 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-
-import { ISessionStore } from '../session/store';
+import { Config, CookieStore } from '../auth0-session';
 import { ITokenCache } from '../tokens/token-cache';
-import { IOidcClientFactory } from '../utils/oidc-client';
 import SessionTokenCache from '../tokens/session-token-cache';
 
-export default function tokenCacheHandler(clientProvider: IOidcClientFactory, sessionStore: ISessionStore) {
+export default function tokenCacheHandler(config: Config, sessionStore: CookieStore) {
   return (req: NextApiRequest, res: NextApiResponse): ITokenCache => {
     if (!req) {
       throw new Error('Request is not available');
@@ -15,6 +13,6 @@ export default function tokenCacheHandler(clientProvider: IOidcClientFactory, se
       throw new Error('Response is not available');
     }
 
-    return new SessionTokenCache(sessionStore, clientProvider, req, res);
+    return new SessionTokenCache(config, sessionStore, req, res);
   };
 }

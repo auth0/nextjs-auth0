@@ -1,5 +1,7 @@
-const base64url = require('base64url');
-const debug = require('../debug')('get-login-state');
+import base64url from 'base64url';
+import createDebug from '../debug';
+
+const debug = createDebug('get-login-state');
 
 /**
  * Generate the state value for use during login transactions. It is used to store the intended
@@ -11,7 +13,7 @@ const debug = require('../debug')('get-login-state');
  *
  * @return {object}
  */
-function defaultState(req, options) {
+export function defaultState(req, options) {
   const state = { returnTo: options.returnTo || req.originalUrl };
   debug('adding default state %O', state);
   return state;
@@ -24,7 +26,7 @@ function defaultState(req, options) {
  *
  * @return {string}
  */
-function encodeState(stateObject = {}) {
+export function encodeState(stateObject = {}) {
   // this filters out nonce, code_verifier, and max_age from the state object so that the values are
   // only stored in its dedicated transient cookie
   const { nonce, code_verifier, max_age, ...filteredState } = stateObject; // eslint-disable-line no-unused-vars
@@ -38,10 +40,6 @@ function encodeState(stateObject = {}) {
  *
  * @return {object}
  */
-function decodeState(stateValue) {
+export function decodeState(stateValue) {
   return JSON.parse(base64url.decode(stateValue));
 }
-
-module.exports.defaultState = defaultState;
-module.exports.encodeState = encodeState;
-module.exports.decodeState = decodeState;

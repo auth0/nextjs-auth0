@@ -1,8 +1,8 @@
-import { AuthorizationParameters } from 'openid-client';
+import { IncomingMessage } from 'http';
+import { AuthorizationParameters as OidcAuthorizationParameters } from 'openid-client';
 import Joi from '@hapi/joi';
 import clone from 'clone';
 import { defaultState as getLoginState } from './hooks/get-login-state';
-import { IncomingMessage } from 'http';
 
 /**
  * Configuration properties.
@@ -143,7 +143,7 @@ export interface Config {
    * }))
    * ``
    */
-  getLoginState: (req: IncomingMessage, options: LoginOptions) => object;
+  getLoginState: (req: IncomingMessage, options: LoginOptions) => Record<string, any>;
 
   /**
    * Array value of claims to remove from the ID token before storing the cookie session.
@@ -282,13 +282,19 @@ export interface CookieConfig {
    * Passed to the [Response cookie](https://expressjs.com/en/api.html#res.cookie) as `samesite`.
    * Defaults to "Lax" but will be adjusted based on {@link AuthorizationParameters.response_type}.
    */
-  sameSite: string;
+  sameSite: boolean | 'lax' | 'strict' | 'none';
+}
+
+export interface AuthorizationParameters extends OidcAuthorizationParameters {
+  scope: string;
+  response_mode: 'query' | 'form_post';
+  response_type: 'id_token' | 'code id_token' | 'code';
 }
 
 /**
  * Custom options to pass to login.
  */
-interface LoginOptions {
+export interface LoginOptions {
   /**
    * Override the default {@link ConfigParams.authorizationParams authorizationParams}
    */
@@ -296,6 +302,16 @@ interface LoginOptions {
 
   /**
    *  URL to return to after login, overrides the Default is {@link Request.originalUrl}
+   */
+  returnTo?: string;
+}
+
+/**
+ * Custom options to pass to logout.
+ */
+export interface LogoutOptions {
+  /**
+   *  URL to returnTo after logout, overrides the Default in {@link ConfigParams.routes.postLogoutRedirect routes.postLogoutRedirect}
    */
   returnTo?: string;
 }
@@ -353,7 +369,7 @@ const paramsSchema = Joi.object({
       .optional()
       .when('response_type', {
         is: 'code',
-        then: Joi.valid('query', 'form_post'),
+        then: Joi.valid('query', 'query'),
         otherwise: Joi.valid('form_post').default('form_post')
       })
   })

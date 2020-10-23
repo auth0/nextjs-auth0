@@ -17,7 +17,7 @@ Go to the [Auth0 dashboard](https://manage.auth0.com/) and create a new applicat
 
 ### Configuring Next.js
 
-In the Next.js configuration file (`next.config.ts`) you'll see that different environment variables are being loaded in the server runtime configuration.
+In the Next.js configuration file (`next.config.js`) you'll see that different environment variables are being loaded in the server runtime configuration.
 
 ### Local Development
 

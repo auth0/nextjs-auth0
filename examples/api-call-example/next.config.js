@@ -14,20 +14,5 @@ module.exports = {
     POST_LOGOUT_REDIRECT_URI: process.env.POST_LOGOUT_REDIRECT_URI || 'http://localhost:3000/',
     SESSION_COOKIE_SECRET: process.env.SESSION_COOKIE_SECRET,
     SESSION_COOKIE_LIFETIME: 7200 // 2 hours
-  },
-  webpackDevMiddleware: config => {
-    // Don't ignore all node modules.
-    config.watchOptions.ignored = config.watchOptions.ignored.filter(
-      ignore => !ignore.toString().includes('node_modules')
-    );
-
-    // Ignore all node modules except those here.
-    config.watchOptions.ignored = [
-      ...config.watchOptions.ignored,
-      /node_modules\/(?!@auth0\/.+)/,
-      /@auth0\/.+\/node_modules/
-    ];
-
-    return config;
-  },
+  }
 };

@@ -1,15 +1,12 @@
-import { IncomingMessage } from 'http';
+import { IncomingMessage, ServerResponse } from 'http';
+import { Session, CookieStore } from '../auth0-session';
 
-// import { ISession } from '../session/session';
-// import { ISessionStore } from '../session/store';
-import { applyMw, assertReqRes } from './utils';
+export default function sessionHandler(sessionStore: CookieStore) {
+  return (req: IncomingMessage, res: ServerResponse): Session | null | undefined => {
+    if (!req) {
+      throw new Error('Request is not available');
+    }
 
-export default function sessionHandler(config) {
-  return async (req: IncomingMessage, res) => {
-
-    assertReqRes(req, res);
-
-    const [ reqOidc ] = await applyMw(req, res, config);
-    return reqOidc;
+    return sessionStore.get(req, res);
   };
 }

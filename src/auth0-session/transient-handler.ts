@@ -1,7 +1,14 @@
+import { IncomingMessage, ServerResponse } from 'http';
 import { generators } from 'openid-client';
 import { JWKS, JWS, JWK } from 'jose';
 import { signing as deriveKey } from './hkdf';
-import { set as setCookie } from './cookies';
+import { get as getCookie, clear as clearCookie, set as setCookie } from './cookies';
+import { Config, CookieConfig } from './config';
+
+export interface StoreOptions {
+  sameSite?: boolean | 'lax' | 'strict' | 'none';
+  value?: string;
+}
 
 const header = { alg: 'HS256', b64: false, crit: ['b64'] };
 const getPayload = (cookie: string, value: string) => Buffer.from(`${cookie}=${value}`);
@@ -28,7 +35,7 @@ const verifySignature = (cookie: string, value: string, signature: string, keyst
     return false;
   }
 };
-const getCookieValue = (cookie, value, keystore) => {
+const getCookieValue = (cookie: string, value: string, keystore: JWKS.KeyStore) => {
   if (!value) {
     return undefined;
   }
@@ -41,13 +48,18 @@ const getCookieValue = (cookie, value, keystore) => {
   return undefined;
 };
 
-const generateCookieValue = (cookie, value, key) => {
+const generateCookieValue = (cookie: string, value: string, key: JWK.Key) => {
   const signature = generateSignature(cookie, value, key);
   return `${value}.${signature}`;
 };
 
 class TransientCookieHandler {
-  constructor({ secret, session, legacySameSiteCookie }) {
+  private currentKey: JWK.Key | undefined;
+  private keyStore: JWKS.KeyStore;
+  private sessionCookieConfig: CookieConfig;
+  private legacySameSiteCookie: boolean;
+
+  constructor({ secret, session, legacySameSiteCookie }: Config) {
     let current;
 
     const secrets = Array.isArray(secret) ? secret : [secret];
@@ -60,12 +72,9 @@ class TransientCookieHandler {
       keystore.add(key);
     });
 
-    if (keystore.size === 1) {
-      keystore = current;
-    }
     this.currentKey = current;
     this.keyStore = keystore;
-    this.sessionCookieConfig = (session && session.cookie) || {};
+    this.sessionCookieConfig = session.cookie;
     this.legacySameSiteCookie = legacySameSiteCookie;
   }
 
@@ -73,27 +82,31 @@ class TransientCookieHandler {
    * Set a cookie with a value or a generated nonce.
    *
    * @param {String} key Cookie name to use.
-   * @param {Object} req Express Request object.
-   * @param {Object} res Express Response object.
+   * @param {IncomingMessage} req Server Request object.
+   * @param {ServerResponse} res Server Response object.
    * @param {Object} opts Options object.
    * @param {String} opts.sameSite SameSite attribute of "None," "Lax," or "Strict". Default is "None."
    * @param {String} opts.value Cookie value. Omit this key to store a generated value.
-   * @param {Boolean} opts.legacySameSiteCookie Should a fallback cookie be set? Default is true.
    *
    * @return {String} Cookie value that was set.
    */
-  store(key, req, res, { sameSite = 'None', value = this.generateNonce() } = {}) {
-    const isSameSiteNone = sameSite === 'None';
+  store(
+    key: string,
+    req: IncomingMessage,
+    res: ServerResponse,
+    { sameSite = 'none', value = this.generateNonce() }: StoreOptions = {}
+  ) {
+    const isSameSiteNone = sameSite === 'none';
     const { domain, path, secure } = this.sessionCookieConfig;
     const basicAttr = {
       httpOnly: true,
-      secure: typeof secure === 'boolean' ? secure : req.protocol === 'https',
+      secure: typeof secure === 'boolean' ? secure : req.url?.startsWith('https://'), // @TODO check
       domain,
       path
     };
 
     {
-      const cookieValue = generateCookieValue(key, value, this.currentKey);
+      const cookieValue = generateCookieValue(key, value, this.currentKey as JWK.Key);
       // Set the cookie with the SameSite attribute and, if needed, the Secure flag.
       setCookie(res, key, cookieValue, {
         ...basicAttr,
@@ -103,7 +116,7 @@ class TransientCookieHandler {
     }
 
     if (isSameSiteNone && this.legacySameSiteCookie) {
-      const cookieValue = generateCookieValue(`_${key}`, value, this.currentKey);
+      const cookieValue = generateCookieValue(`_${key}`, value, this.currentKey as JWK.Key);
       // Set the fallback cookie with no SameSite or Secure attributes.
       setCookie(res, `_${key}`, cookieValue, basicAttr);
     }
@@ -115,25 +128,25 @@ class TransientCookieHandler {
    * Get a cookie value then delete it.
    *
    * @param {String} key Cookie name to use.
-   * @param {Object} req Express Request object.
-   * @param {Object} res Express Response object.
+   * @param {IncomingMessage} req Express Request object.
+   * @param {ServerResponse} res Express Response object.
    *
    * @return {String|undefined} Cookie value or undefined if cookie was not found.
    */
-  getOnce(key, req, res) {
-    if (!req[COOKIES]) {
-      return undefined;
-    }
+  getOnce(key: string, req: IncomingMessage, res: ServerResponse) {
+    const cookie = getCookie(req, key);
+    const { domain, path } = this.sessionCookieConfig;
 
-    let value = getCookieValue(key, req[COOKIES][key], this.keyStore);
-    this.deleteCookie(key, res);
+    let value = getCookieValue(key, cookie, this.keyStore);
+    clearCookie(res, key, { domain, path });
 
     if (this.legacySameSiteCookie) {
       const fallbackKey = `_${key}`;
       if (!value) {
-        value = getCookieValue(fallbackKey, req[COOKIES][fallbackKey], this.keyStore);
+        const fallbackCookie = getCookie(req, fallbackKey);
+        value = getCookieValue(fallbackKey, fallbackCookie, this.keyStore);
       }
-      this.deleteCookie(fallbackKey, res);
+      clearCookie(res, fallbackKey, { domain, path });
     }
 
     return value;
@@ -141,7 +154,6 @@ class TransientCookieHandler {
 
   /**
    * Generates a nonce value.
-   *
    * @return {String}
    */
   generateNonce() {
@@ -150,7 +162,6 @@ class TransientCookieHandler {
 
   /**
    * Generates a code_verifier value.
-   *
    * @return {String}
    */
   generateCodeVerifier() {
@@ -159,30 +170,12 @@ class TransientCookieHandler {
 
   /**
    * Calculates a code_challenge value for a given codeVerifier
-   *
    * @param {String} codeVerifier Code Verifier to calculate the code_challenge value from.
-   *
    * @return {String}
    */
-  calculateCodeChallenge(codeVerifier) {
+  calculateCodeChallenge(codeVerifier: string) {
     return generators.codeChallenge(codeVerifier);
-  }
-
-  /**
-   * Clears the cookie from the browser by setting an empty value and an expiration date in the past
-   *
-   * @param {String} name Cookie name
-   * @param {Object} res Express Response object
-   */
-  deleteCookie(name, res) {
-    const { domain, path } = this.sessionCookieConfig;
-    setCookie(res, name, '', {
-      domain,
-      path,
-      maxAge: 0,
-      expires: 0
-    });
   }
 }
 
-module.exports = TransientCookieHandler;
+export default TransientCookieHandler;
