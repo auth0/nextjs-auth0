@@ -1,3 +1,4 @@
+// eslint-disable-next-line import/no-extraneous-dependencies
 import React, { ReactElement, useState, useEffect, useContext, createContext } from 'react';
 
 declare const fetch: any;
@@ -13,7 +14,7 @@ export interface UserProfile {
   [key: string]: unknown; // Any custom claim which could be in the profile
 }
 
-interface UserContext {
+export interface UserContext {
   user: UserProfile | null;
   loading: boolean;
 }
@@ -27,7 +28,7 @@ const User = createContext<UserContext>({ user: null, loading: false });
 
 export const useUser = (): UserContext => useContext<UserContext>(User);
 
-export const UserProvider = ({ children, user: initialUser }: UserProviderProps): ReactElement<UserContext> => {
+export default ({ children, user: initialUser }: UserProviderProps): ReactElement<UserContext> => {
   const [user, setUser] = useState<UserProfile>(() => initialUser); // if used withAuth, initialUser is populated
   const [loading, setLoading] = useState<boolean>(() => !initialUser); // if initialUser is populated, no loading needed
 
