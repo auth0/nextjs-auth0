@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 
 import IAuth0Settings from '../settings';
-import { setCookies } from '../utils/cookies';
+import { setCookies, parseCookies } from '../utils/cookies';
 import { IOidcClientFactory } from '../utils/oidc-client';
 import CookieSessionStoreSettings from '../session/cookie-store/settings';
 import { ISessionStore } from '../session/store';
@@ -50,6 +50,10 @@ export default function logoutHandler(
       }
     }
 
+    const cookies = parseCookies(req);
+    const firstCookie = cookies[`${sessionSettings.cookieName}--0`].match(/^(\d).(.*)/);
+    const cookiesLength = firstCookie ? Number(firstCookie[1]) : 0;
+
     // Remove the cookies
     setCookies(req, res, [
       {
@@ -65,6 +69,18 @@ export default function logoutHandler(
         domain: sessionSettings.cookieDomain
       }
     ]);
+
+    for (let i = 0; i < cookiesLength; i += 1) {
+      setCookies(req, res, [
+        {
+          name: `${sessionSettings.cookieName}--${i}`,
+          value: '',
+          maxAge: -1,
+          path: sessionSettings.cookiePath,
+          domain: sessionSettings.cookieDomain
+        }
+      ]);
+    }
 
     // Redirect to the logout endpoint.
     res.writeHead(302, {

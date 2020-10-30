@@ -1,6 +1,7 @@
 import Iron from '@hapi/iron';
 import { IncomingMessage, ServerResponse } from 'http';
 
+// import { serialize } from 'cookie';
 import { ISessionStore } from '../store';
 import Session, { ISession } from '../session';
 import CookieSessionStoreSettings from './settings';
@@ -25,17 +26,24 @@ export default class CookieSessionStore implements ISessionStore {
     const { cookieSecret, cookieName } = this.settings;
 
     const cookies = parseCookies(req);
-    const cookie = cookies[cookieName];
-    if (!cookie || cookie.length === 0) {
+    const firstCookie = cookies[`${cookieName}--0`].match(/^(\d).(.*)/);
+
+    if (firstCookie) {
       return null;
     }
 
-    const unsealed = await Iron.unseal(cookies[cookieName], cookieSecret, Iron.defaults);
-    if (!unsealed) {
+    let cookieContents = firstCookie ? firstCookie[2] : '';
+    const cookiesLength = firstCookie ? Number(firstCookie[1]) : 0;
+    for (let i = 1; i < cookiesLength; i += 1) {
+      cookieContents += cookies[`${cookieName}--${i}`];
+    }
+    const unsealedCookie = await Iron.unseal(cookieContents, cookieSecret, Iron.defaults);
+
+    if (!unsealedCookie) {
       return null;
     }
 
-    return unsealed as ISession;
+    return unsealedCookie as ISession;
   }
 
   /**
@@ -70,15 +78,31 @@ export default class CookieSessionStore implements ISessionStore {
       persistedSession.refreshToken = refreshToken;
     }
 
+    // to do
+    const COOKIE_MAX = 4000;
+
     const encryptedSession = await Iron.seal(persistedSession, cookieSecret, Iron.defaults);
-    setCookie(req, res, {
-      name: cookieName,
-      value: encryptedSession,
-      path: cookiePath,
-      maxAge: cookieLifetime,
-      domain: cookieDomain,
-      sameSite: cookieSameSite
-    });
+    const buffer = Buffer.from(encryptedSession);
+    const cookiePieces = Math.ceil(buffer.byteLength / COOKIE_MAX);
+
+    const cookies = [];
+    for (let i = 0; i < cookiePieces; i += 1) {
+      const start = i * COOKIE_MAX;
+      let cookieValue = buffer.toString('utf8', start, start + COOKIE_MAX);
+      if (i === 0) cookieValue = `${cookiePieces}.${cookieValue}`;
+      cookies.push(cookieValue);
+    }
+
+    for (let i = 0; i < cookies.length; i += 1) {
+      setCookie(req, res, {
+        name: `${cookieName}--${i}`,
+        value: cookies[i],
+        path: cookiePath,
+        maxAge: cookieLifetime,
+        domain: cookieDomain,
+        sameSite: cookieSameSite
+      });
+    }
 
     return persistedSession;
   }
