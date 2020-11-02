@@ -1,7 +1,7 @@
 import React from 'react';
+import { useUser } from '@auth0/nextjs-auth0';
 
 import Layout from '../components/layout';
-import { useUser } from '@auth0/nextjs-auth0';
 
 export default function Home() {
   const { user, loading } = useUser();
