@@ -2,14 +2,12 @@ import React from 'react';
 
 import useApi from '../lib/use-api';
 import Layout from '../components/layout';
-import { useFetchUser } from '../lib/user';
 
 export default function TvShows() {
-  const { user, loading } = useFetchUser();
   const { response, error, isLoading } = useApi('/api/shows');
 
   return (
-    <Layout user={user} loading={loading}>
+    <Layout>
       <h1>TV Shows</h1>
 
       {isLoading && <p>Loading TV shows...</p>}

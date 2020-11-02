@@ -1,10 +1,13 @@
 import React from 'react';
-import NextApp from 'next/app';
 import type { AppProps } from 'next/app';
+import { UserProvider } from '@auth0/nextjs-auth0';
 
-export default class App extends NextApp<AppProps> {
-  render(): JSX.Element {
-    const { pageProps, Component } = this.props;
-    return <Component {...pageProps} />;
-  }
+export default function App({ Component, pageProps }: AppProps): React.ReactElement<AppProps> {
+  const { user, ...otherProps } = pageProps;
+
+  return (
+    <UserProvider user={user}>
+      <Component {...otherProps} />
+    </UserProvider>
+  );
 }

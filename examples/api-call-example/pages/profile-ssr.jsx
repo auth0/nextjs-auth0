@@ -4,7 +4,7 @@ import Layout from '../components/layout';
 import withAuth from '../components/with-auth';
 
 const Profile = ({ user }) => (
-  <Layout user={user}>
+  <Layout>
     <h1>Profile</h1>
 
     <div>

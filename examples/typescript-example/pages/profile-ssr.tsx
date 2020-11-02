@@ -1,13 +1,13 @@
 import React from 'react';
+import { UserProfile } from '@auth0/nextjs-auth0';
 
 import Layout from '../components/layout';
 import withAuth from '../components/with-auth';
-import { UserProfile } from '../lib/user';
 
 type ProfileProps = { user: UserProfile };
 
-const Profile = ({ user }: ProfileProps) => (
-  <Layout loading={false} user={user}>
+const Profile = ({ user }: ProfileProps): React.ReactElement => (
+  <Layout>
     <h1>Profile</h1>
 
     <div>
