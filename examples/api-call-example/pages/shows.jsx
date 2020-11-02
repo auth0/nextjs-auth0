@@ -1,11 +1,11 @@
 import React from 'react';
+import { useUser } from '@auth0/nextjs-auth0';
 
 import useApi from '../lib/use-api';
 import Layout from '../components/layout';
-import { useFetchUser } from '../lib/user';
 
 export default function TvShows() {
-  const { user, loading } = useFetchUser();
+  const { user, loading } = useUser();
   const { response, error, isLoading } = useApi('/api/shows');
 
   return (
