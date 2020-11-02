@@ -11,7 +11,7 @@ export default class RedirectToLogin extends Component {
 
   render(): React.ReactElement {
     return (
-      <Layout loading={true}>
+      <Layout>
         <div>Signing you in...</div>
       </Layout>
     );

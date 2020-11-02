@@ -1,13 +1,13 @@
 import React from 'react';
+import { useUser } from '@auth0/nextjs-auth0';
 
 import Layout from '../components/layout';
-import { useFetchUser } from '../lib/user';
 
 export default function Profile() {
-  const { user, loading } = useFetchUser();
+  const { user, loading } = useUser();
 
   return (
-    <Layout user={user} loading={loading}>
+    <Layout>
       <h1>Profile</h1>
 
       {loading && <p>Loading profile...</p>}

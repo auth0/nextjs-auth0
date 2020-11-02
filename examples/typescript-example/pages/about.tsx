@@ -1,13 +1,10 @@
 import React from 'react';
 
 import Layout from '../components/layout';
-import { useFetchUser } from '../lib/user';
 
-const About: React.FC = () => {
-  const { user, loading } = useFetchUser();
-
+export default function About(): React.ReactElement {
   return (
-    <Layout user={user} loading={loading}>
+    <Layout>
       <h1>About</h1>
       <p>
         This is the about page, navigating between this page and <i>Home</i> is always pretty fast. However, when you
@@ -15,5 +12,4 @@ const About: React.FC = () => {
       </p>
     </Layout>
   );
-};
-export default About;
+}

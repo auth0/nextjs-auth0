@@ -1,14 +1,14 @@
 import React from 'react';
+import { useUser } from '@auth0/nextjs-auth0';
 
 import Layout from '../components/layout';
-import { useFetchUser } from '../lib/user';
 import withAuth from '../components/with-auth';
 
 export function ProtectedPage() {
-  const { user, loading } = useFetchUser();
+  const { user, loading } = useUser();
 
   return (
-    <Layout user={user} loading={loading}>
+    <Layout>
       <h1>Protected Page</h1>
 
       {loading && <p>Loading profile...</p>}
