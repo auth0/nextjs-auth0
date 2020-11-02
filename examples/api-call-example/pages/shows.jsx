@@ -1,15 +1,13 @@
 import React from 'react';
-import { useUser } from '@auth0/nextjs-auth0';
 
 import useApi from '../lib/use-api';
 import Layout from '../components/layout';
 
 export default function TvShows() {
-  const { user, loading } = useUser();
   const { response, error, isLoading } = useApi('/api/shows');
 
   return (
-    <Layout user={user} loading={loading}>
+    <Layout>
       <h1>TV Shows</h1>
 
       {isLoading && <p>Loading TV shows...</p>}
