@@ -1,8 +1,6 @@
 // eslint-disable-next-line import/no-extraneous-dependencies
 import React, { ReactElement, useState, useEffect, useContext, createContext } from 'react';
 
-declare const fetch: any;
-
 export interface UserProfile {
   email: string | null | undefined;
   email_verified: boolean | null | undefined;

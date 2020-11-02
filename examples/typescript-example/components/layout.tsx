@@ -3,9 +3,7 @@ import Head from 'next/head';
 
 import Header from './header';
 
-type LayoutProps = {
-  children: React.ReactNode;
-};
+type LayoutProps = React.PropsWithChildren<void>;
 
 const Layout: React.FunctionComponent<LayoutProps> = ({ children }: LayoutProps) => (
   <>

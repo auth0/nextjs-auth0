@@ -6,10 +6,7 @@ import auth0 from '../lib/auth0';
 import createLoginUrl from '../lib/url-helper';
 import RedirectToLogin from '../components/login-redirect';
 
-type AuthenticatedProps = {
-  user?: UserProfile;
-  children: React.ReactNode;
-};
+type AuthenticatedProps = React.PropsWithChildren<{ user?: UserProfile }>;
 
 export default function withAuth(
   InnerComponent: React.ElementType | React.FunctionComponent
@@ -39,6 +36,7 @@ export default function withAuth(
         Location: createLoginUrl(context.req.url)
       });
       context.res.end();
+
       return;
     }
 

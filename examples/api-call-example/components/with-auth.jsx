@@ -31,6 +31,7 @@ export default function withAuth(InnerComponent) {
         Location: createLoginUrl(ctx.req.url)
       });
       ctx.res.end();
+
       return;
     }
 
