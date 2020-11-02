@@ -1,13 +1,13 @@
 import React from 'react';
+import { useUser } from '@auth0/nextjs-auth0';
 
 import Layout from '../components/layout';
-import { useFetchUser } from '../lib/user';
 
 export default function Home(): React.ReactElement {
-  const { user, loading } = useFetchUser();
+  const { user, loading } = useUser();
 
   return (
-    <Layout user={user} loading={loading}>
+    <Layout>
       <h1>Next.js and Auth0 Example</h1>
 
       {loading && <p>Loading login info...</p>}

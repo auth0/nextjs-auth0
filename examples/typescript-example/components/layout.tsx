@@ -2,16 +2,13 @@ import React from 'react';
 import Head from 'next/head';
 
 import Header from './header';
-import { UserProvider } from '../lib/user';
 
 type LayoutProps = {
-  user?: any;
-  loading: boolean;
   children: React.ReactNode;
 };
 
-const Layout: React.FunctionComponent<LayoutProps> = ({ user, loading = false, children }: LayoutProps) => (
-  <UserProvider value={{ user, loading }}>
+const Layout: React.FunctionComponent<LayoutProps> = ({ children }: LayoutProps) => (
+  <>
     <Head>
       <title>Next.js with Auth0</title>
     </Head>
@@ -35,7 +32,7 @@ const Layout: React.FunctionComponent<LayoutProps> = ({ user, loading = false, c
         font-family: -apple-system, 'Segoe UI';
       }
     `}</style>
-  </UserProvider>
+  </>
 );
 
 export default Layout;
