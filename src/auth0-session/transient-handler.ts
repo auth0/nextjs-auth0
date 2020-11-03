@@ -11,7 +11,7 @@ export interface StoreOptions {
 }
 
 const header = { alg: 'HS256', b64: false, crit: ['b64'] };
-const getPayload = (cookie: string, value: string) => Buffer.from(`${cookie}=${value}`);
+const getPayload = (cookie: string, value: string): Buffer => Buffer.from(`${cookie}=${value}`);
 const flattenedJWSFromCookie = (cookie: string, value: string, signature: string): JWS.FlattenedJWS => ({
   protected: Buffer.from(JSON.stringify(header))
     .toString('base64')
@@ -21,7 +21,7 @@ const flattenedJWSFromCookie = (cookie: string, value: string, signature: string
   payload: getPayload(cookie, value),
   signature
 });
-const generateSignature = (cookie: string, value: string, key: JWK.Key) => {
+const generateSignature = (cookie: string, value: string, key: JWK.Key): string => {
   const payload = getPayload(cookie, value);
   return JWS.sign.flattened(payload, key, header).signature;
 };
@@ -35,7 +35,7 @@ const verifySignature = (cookie: string, value: string, signature: string, keyst
     return false;
   }
 };
-const getCookieValue = (cookie: string, value: string, keystore: JWKS.KeyStore) => {
+const getCookieValue = (cookie: string, value: string, keystore: JWKS.KeyStore): string | undefined => {
   if (!value) {
     return undefined;
   }
@@ -48,22 +48,25 @@ const getCookieValue = (cookie: string, value: string, keystore: JWKS.KeyStore) 
   return undefined;
 };
 
-const generateCookieValue = (cookie: string, value: string, key: JWK.Key) => {
+const generateCookieValue = (cookie: string, value: string, key: JWK.Key): string => {
   const signature = generateSignature(cookie, value, key);
   return `${value}.${signature}`;
 };
 
 class TransientCookieHandler {
   private currentKey: JWK.Key | undefined;
+
   private keyStore: JWKS.KeyStore;
+
   private sessionCookieConfig: CookieConfig;
+
   private legacySameSiteCookie: boolean;
 
   constructor({ secret, session, legacySameSiteCookie }: Config) {
     let current;
 
     const secrets = Array.isArray(secret) ? secret : [secret];
-    let keystore = new JWKS.KeyStore();
+    const keystore = new JWKS.KeyStore();
     secrets.forEach((secretString, i) => {
       const key = JWK.asKey(deriveKey(secretString));
       if (i === 0) {
@@ -95,7 +98,7 @@ class TransientCookieHandler {
     req: IncomingMessage,
     res: ServerResponse,
     { sameSite = 'none', value = this.generateNonce() }: StoreOptions = {}
-  ) {
+  ): string {
     const isSameSiteNone = sameSite === 'none';
     const { domain, path, secure } = this.sessionCookieConfig;
     const basicAttr = {
@@ -133,7 +136,7 @@ class TransientCookieHandler {
    *
    * @return {String|undefined} Cookie value or undefined if cookie was not found.
    */
-  getOnce(key: string, req: IncomingMessage, res: ServerResponse) {
+  getOnce(key: string, req: IncomingMessage, res: ServerResponse): string | undefined {
     const cookie = getCookie(req, key);
     const { domain, path } = this.sessionCookieConfig;
 
@@ -156,7 +159,7 @@ class TransientCookieHandler {
    * Generates a nonce value.
    * @return {String}
    */
-  generateNonce() {
+  generateNonce(): string {
     return generators.nonce();
   }
 
@@ -164,7 +167,7 @@ class TransientCookieHandler {
    * Generates a code_verifier value.
    * @return {String}
    */
-  generateCodeVerifier() {
+  generateCodeVerifier(): string {
     return generators.codeVerifier();
   }
 
@@ -173,7 +176,7 @@ class TransientCookieHandler {
    * @param {String} codeVerifier Code Verifier to calculate the code_challenge value from.
    * @return {String}
    */
-  calculateCodeChallenge(codeVerifier: string) {
+  calculateCodeChallenge(codeVerifier: string): string {
     return generators.codeChallenge(codeVerifier);
   }
 }

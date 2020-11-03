@@ -12,15 +12,16 @@ import {
 import { profileHandler, requireAuthentication, tokenCache, sessionHandler, loginHandler } from './handlers';
 import { fromJson } from './session/session';
 import SessionCache from './session/store';
+import { ISignInWithAuth0 } from './instance';
 
-export default function createInstance(params: ConfigParameters) {
+export default function createInstance(params: ConfigParameters): ISignInWithAuth0 {
   const config = getConfig(params);
   const getClient = clientFactory(config);
   const transientHandler = new TransientCookieHandler(config);
   const cookieStore = new CookieStore(config);
   const sessionCache = new SessionCache(config);
 
-  const applyCookies = (fn: Function) => (req: NextApiRequest, res: NextApiResponse, ...args: []) => {
+  const applyCookies = (fn: Function) => (req: NextApiRequest, res: NextApiResponse, ...args: []): any => {
     if (!sessionCache.has(req)) {
       const [json, iat] = cookieStore.read(req);
       sessionCache.set(req, fromJson(json));
@@ -34,7 +35,7 @@ export default function createInstance(params: ConfigParameters) {
     handleLogout: applyCookies(logoutHandler(config, getClient, sessionCache)),
     handleCallback: applyCookies(callbackHandler(config, getClient, sessionCache, transientHandler)),
     handleProfile: applyCookies(profileHandler(config, sessionCache, getClient)),
-    requireAuthentication: applyCookies(requireAuthentication(sessionCache)),
+    requireAuthentication: requireAuthentication(sessionCache, applyCookies),
     tokenCache: applyCookies(tokenCache(getClient, config, sessionCache)),
     getSession: applyCookies(sessionHandler(sessionCache))
   };

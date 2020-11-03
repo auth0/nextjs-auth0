@@ -21,7 +21,7 @@ const telemetryHeader = {
   }
 };
 
-function sortSpaceDelimitedString(str: string) {
+function sortSpaceDelimitedString(str: string): string {
   return str.split(' ').sort().join(' ');
 }
 
@@ -33,8 +33,9 @@ export default function get(config: Config): ClientFactory {
       return client;
     }
 
-    const defaultHttpOptions = (options: HttpOptions) => {
-      options.headers = {
+    const defaultHttpOptions = (options: HttpOptions): HttpOptions => ({
+      ...options,
+      headers: {
         ...options.headers,
         'User-Agent': `${pkg.name}/${pkg.version}`,
         ...(config.enableTelemetry
@@ -42,12 +43,13 @@ export default function get(config: Config): ClientFactory {
               'Auth0-Client': Buffer.from(JSON.stringify(telemetryHeader)).toString('base64')
             }
           : undefined)
-      };
-      options.timeout = 5000;
-      return options;
+      },
+      timeout: 5000
+    });
+    const applyHttpOptionsCustom = (entity: Issuer<Client> | typeof Issuer | Client): void => {
+      // eslint-disable-next-line no-param-reassign
+      entity[custom.http_options] = defaultHttpOptions;
     };
-    const applyHttpOptionsCustom = (entity: Issuer<Client> | typeof Issuer | Client) =>
-      (entity[custom.http_options] = defaultHttpOptions);
 
     applyHttpOptionsCustom(Issuer);
     const issuer = await Issuer.discover(config.issuerBaseURL);
@@ -69,7 +71,7 @@ export default function get(config: Config): ClientFactory {
     issuerRespTypes.map(sortSpaceDelimitedString);
     if (!issuerRespTypes.includes(configRespType)) {
       debug(
-        'Response type %o is not supported by the issuer. ' + 'Supported response types are: %o.',
+        'Response type %o is not supported by the issuer. Supported response types are: %o.',
         configRespType,
         issuerRespTypes
       );
@@ -79,7 +81,7 @@ export default function get(config: Config): ClientFactory {
     const issuerRespModes = Array.isArray(issuer.response_modes_supported) ? issuer.response_modes_supported : [];
     if (configRespMode && !issuerRespModes.includes(configRespMode)) {
       debug(
-        'Response mode %o is not supported by the issuer. ' + 'Supported response modes are %o.',
+        'Response mode %o is not supported by the issuer. Supported response modes are %o.',
         configRespMode,
         issuerRespModes
       );

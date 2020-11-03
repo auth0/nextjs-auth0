@@ -9,7 +9,7 @@ import TransientCookieHandler from '../transient-handler';
 import { decodeState } from '../hooks/get-login-state';
 import { SessionCache } from '../session-cache';
 
-function getRedirectUri(config: Config) {
+function getRedirectUri(config: Config): string {
   return urlJoin(config.baseURL, config.routes.callback);
 }
 
@@ -32,7 +32,7 @@ export default function callbackHandler(
     try {
       const callbackParams = client.callbackParams(req);
       expectedState = transientCookieHandler.getOnce('state', req, res);
-      let max_age = transientCookieHandler.getOnce('max_age', req, res);
+      const max_age = transientCookieHandler.getOnce('max_age', req, res);
       const code_verifier = transientCookieHandler.getOnce('code_verifier', req, res);
       const nonce = transientCookieHandler.getOnce('nonce', req, res);
 

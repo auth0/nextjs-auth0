@@ -1,6 +1,6 @@
 import base64url from 'base64url';
-import createDebug from '../utils/debug';
 import { IncomingMessage } from 'http';
+import createDebug from '../utils/debug';
 import { LoginOptions } from '../config';
 
 const debug = createDebug('get-login-state');
@@ -15,7 +15,7 @@ const debug = createDebug('get-login-state');
  *
  * @return {object}
  */
-export function defaultState(req: IncomingMessage, options: LoginOptions) {
+export function defaultState(req: IncomingMessage, options: LoginOptions): { [key: string]: any } {
   const state = { returnTo: options.returnTo || req.url };
   debug('adding default state %O', state);
   return state;
@@ -28,10 +28,11 @@ export function defaultState(req: IncomingMessage, options: LoginOptions) {
  *
  * @return {string}
  */
-export function encodeState(stateObject: any = {}) {
+export function encodeState(stateObject: any = {}): string {
   // this filters out nonce, code_verifier, and max_age from the state object so that the values are
   // only stored in its dedicated transient cookie
-  const { nonce, code_verifier, max_age, ...filteredState } = stateObject; // eslint-disable-line no-unused-vars
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { nonce, code_verifier, max_age, ...filteredState } = stateObject;
   return base64url.encode(JSON.stringify(filteredState));
 }
 
@@ -42,6 +43,6 @@ export function encodeState(stateObject: any = {}) {
  *
  * @return {object}
  */
-export function decodeState(stateValue: string) {
+export function decodeState(stateValue: string): { [key: string]: any } {
   return JSON.parse(base64url.decode(stateValue));
 }
