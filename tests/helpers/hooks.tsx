@@ -1,7 +1,7 @@
 import React from 'react';
 import { UserProfile, UserProvider } from '../../src';
 
-type FetchMock = {
+type FetchUserMock = {
   ok: boolean;
   json: (() => Promise<UserProfile>) | undefined;
 };
@@ -22,12 +22,12 @@ export const withUser = (user: UserProfile | null) => {
   );
 };
 
-export const fetchUserMock = (): FetchMock => ({
+export const fetchUserMock = (): FetchUserMock => ({
   ok: true,
   json: (): Promise<UserProfile> => Promise.resolve(user)
 });
 
-export const fetchUserFailureMock = (): FetchMock => ({
+export const fetchUserFailureMock = (): FetchUserMock => ({
   ok: false,
   json: undefined
 });

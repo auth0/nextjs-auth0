@@ -5,8 +5,6 @@ import { fetchUserMock, fetchUserFailureMock, withUser, user } from '../helpers/
 
 describe('context wrapper', () => {
   test('should use the initial user', async () => {
-    (global as any).fetch = fetchUserMock;
-
     const { result } = renderHook(() => useUser(), { wrapper: withUser(user) });
 
     expect(result.current.user).toEqual(user);
