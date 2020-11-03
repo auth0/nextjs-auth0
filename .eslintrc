@@ -2,6 +2,7 @@
   "parser": "@typescript-eslint/parser",
   "extends": [
     "plugin:prettier/recommended",
+    "plugin:react/recommended",
     "plugin:@typescript-eslint/recommended"
   ],
   "plugins": [
@@ -35,6 +36,7 @@
     "max-len": ["error", 120],
     "comma-dangle": ["error", "never"],
     "no-trailing-spaces": "error",
+    "react/display-name": 0,
     "semi": ["off"],
     "@typescript-eslint/semi": ["error"],
     "@typescript-eslint/camelcase": 0,

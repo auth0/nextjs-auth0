@@ -16,7 +16,7 @@
     "pretty": "prettier --write \"src/**/*.ts\" \"src/*.ts\"",
     "lint": "eslint --fix --ext .ts ./src",
     "build": "tsc -p tsconfig.build.json",
-    "test": "jest --coverage --forceExit --maxWorkers=10",
+    "test": "jest tests/hooks/ --coverage --maxWorkers=10",
     "test:watch": "jest --coverage --watch",
     "prepublishOnly": "npm test && npm run lint",
     "prepublish": "npm run build"
@@ -31,7 +31,7 @@
     "react",
     "oidc",
     "authentication",
-    "zeit"
+    "vercel"
   ],
   "author": "Auth0 (https://auth0.com)",
   "license": "MIT",
@@ -41,17 +41,19 @@
   "homepage": "https://github.com/auth0/nextjs-auth0#readme",
   "devDependencies": {
     "@panva/jose": "^1.9.3",
+    "@testing-library/react-hooks": "^3.4.2",
     "@types/clone": "^2.1.0",
     "@types/cookie": "^0.3.3",
     "@types/hapi__iron": "^5.1.0",
     "@types/hapi__joi": "^17.1.6",
-    "@types/jest": "^25.2.1",
+    "@types/jest": "^26.0.15",
     "@types/jsonwebtoken": "^8.3.9",
     "@types/node": "^13.13.5",
     "@types/on-headers": "^1.0.0",
-    "@types/react": "^16.9.35",
-    "@types/react-dom": "^16.9.8",
+    "@types/react": "^16.9.55",
+    "@types/react-dom": "^16.9.9",
     "@types/request": "^2.48.4",
+    "@types/webpack": "^4.41.24",
     "@typescript-eslint/eslint-plugin": "^2.31.0",
     "@typescript-eslint/parser": "^2.31.0",
     "eslint": "^7.0.0",
@@ -64,15 +66,16 @@
     "eslint-plugin-prettier": "^3.1.3",
     "eslint-plugin-react": "^7.19.0",
     "eslint-plugin-react-hooks": "^4.0.0",
-    "jest": "^25.2.1",
-    "next": "^9.3.6",
+    "jest": "^26.6.2",
+    "next": "^9.4.0",
     "nock": "^12.0.3",
     "prettier": "^2.0.5",
-    "react": "^16.13.1",
-    "react-dom": "^16.13.1",
+    "react": "^16.14.0",
+    "react-dom": "^16.14.0",
+    "react-test-renderer": "^16.14.0",
     "request": "^2.88.2",
     "timekeeper": "^2.2.0",
-    "ts-jest": "^25.5.1",
+    "ts-jest": "^26.4.3",
     "typescript": "^3.8.3"
   },
   "dependencies": {
@@ -92,13 +95,14 @@
     "url-join": "^4.0.1"
   },
   "peerDependencies": {
-    "next": "^9.0.0"
+    "next": "^9.4.0"
   },
   "jest": {
     "testEnvironment": "node",
     "rootDir": "./",
     "moduleFileExtensions": [
       "ts",
+      "tsx",
       "js"
     ],
     "coveragePathIgnorePatterns": [
