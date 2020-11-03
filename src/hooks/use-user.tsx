@@ -1,4 +1,3 @@
-// eslint-disable-next-line import/no-extraneous-dependencies
 import React, { ReactElement, useState, useEffect, useContext, createContext } from 'react';
 
 export interface UserProfile {
