@@ -3,7 +3,7 @@ import { UserProfile, UserProvider } from '../../src';
 
 type FetchMock = {
   ok: boolean;
-  json: () => Promise<UserProfile> | undefined;
+  json: (() => Promise<UserProfile>) | undefined;
 };
 
 export const user: UserProfile = {
