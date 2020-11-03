@@ -7,7 +7,7 @@ export default function loginHandler(
   config: Config,
   getClient: ClientFactory,
   transientHandler: TransientCookieHandler
-) {
+): (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions) => Promise<void> {
   const handler = getLoginHandler(config, getClient, transientHandler);
   return async (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions): Promise<void> => {
     if (req.query.returnTo) {

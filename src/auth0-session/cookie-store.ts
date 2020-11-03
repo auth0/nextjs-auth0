@@ -7,7 +7,7 @@ import { getAll as getCookies, clear as clearCookie, set as setCookie } from './
 import { Config } from './config';
 
 const debug = createDebug('cookie-store');
-const epoch = (): number => (Date.now() / 1000) | 0;
+const epoch = (): number => (Date.now() / 1000) | 0; // eslint-disable-line no-bitwise
 const CHUNK_BYTE_SIZE = 4000;
 const alg = 'dir';
 const enc = 'A256GCM';
@@ -16,6 +16,7 @@ const notNull = <T>(value: T | null): value is T => value !== null;
 
 export default class CookieStore {
   private keystore: JWKS.KeyStore;
+
   private currentKey: JWK.OctKey | undefined;
 
   constructor(public config: Config) {
@@ -47,8 +48,9 @@ export default class CookieStore {
     });
   }
 
-  private calculateExp(iat: number, uat: number) {
-    let { absoluteDuration, rolling, rollingDuration } = this.config.session;
+  private calculateExp(iat: number, uat: number): number {
+    let { absoluteDuration } = this.config.session;
+    const { rolling, rollingDuration } = this.config.session;
     absoluteDuration = typeof absoluteDuration !== 'number' ? 0 : absoluteDuration;
 
     if (!rolling) {
@@ -68,11 +70,11 @@ export default class CookieStore {
     let existingSessionValue;
 
     try {
-      if (cookies.hasOwnProperty(sessionName)) {
+      if (sessionName in cookies) {
         // get JWE from unchunked session cookie
         debug('reading session from %s cookie', sessionName);
         existingSessionValue = cookies[sessionName];
-      } else if (cookies.hasOwnProperty(`${sessionName}.0`)) {
+      } else if (`${sessionName}.0` in cookies) {
         // get JWE from chunked session cookie
         // iterate all cookie names
         // match and filter for the ones that match sessionName.<number>
@@ -96,6 +98,7 @@ export default class CookieStore {
           })
           .join('');
       }
+
       if (existingSessionValue) {
         const { protected: header, cleartext } = this.decrypt(existingSessionValue);
         ({ iat, uat, exp } = header as { iat: number; uat: number; exp: number });
@@ -133,7 +136,7 @@ export default class CookieStore {
     res: ServerResponse,
     session: { [key: string]: any } | undefined | null,
     createdAt?: number
-  ) {
+  ): void {
     const {
       cookie: { transient, ...cookieConfig },
       name: sessionName
@@ -153,8 +156,7 @@ export default class CookieStore {
     }
 
     const uat = epoch();
-    createdAt = typeof createdAt === 'number' ? createdAt : uat;
-    const iat = createdAt;
+    const iat = typeof createdAt === 'number' ? createdAt : uat;
     const exp = this.calculateExp(iat, uat);
 
     const cookieOptions = {

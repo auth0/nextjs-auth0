@@ -1,7 +1,7 @@
+import { NextApiRequest, NextApiResponse } from 'next';
 import { LoginOptions, LogoutOptions } from './auth0-session';
 import { ProfileOptions } from './handlers/profile';
 import { IApiRoute } from './handlers/require-authentication';
-import { NextApiRequest, NextApiResponse } from 'next';
 import { ITokenCache } from './tokens/token-cache';
 import Session from './session/session';
 
@@ -14,7 +14,7 @@ export interface ISignInWithAuth0 {
   /**
    * Callback handler which will complete the transaction and create a local session.
    */
-  handleCallback: (req: NextApiRequest, res: NextApiResponse /*, options?: CallbackOptions */) => Promise<void>;
+  handleCallback: (req: NextApiRequest, res: NextApiResponse /* , options?: CallbackOptions */) => Promise<void>;
 
   /**
    * Logout handler which will clear the local session and the Auth0 session.
@@ -29,7 +29,7 @@ export interface ISignInWithAuth0 {
   /**
    * Session handler which returns the current session
    */
-  getSession: (req: NextApiRequest) => Promise<Session | undefined>;
+  getSession: (req: NextApiRequest, res: NextApiResponse) => Promise<Session | undefined>;
 
   /**
    * Handle to require authentication for an API route.
