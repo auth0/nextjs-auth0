@@ -1,8 +1,9 @@
 import React from 'react';
-import { UserProfile } from '@auth0/nextjs-auth0';
+import { UserProfile, withAuth } from '@auth0/nextjs-auth0';
 
 import Layout from '../components/layout';
-import withAuth from '../components/with-auth';
+import LoginRedirect from '../components/login-redirect';
+import auth0 from '../lib/auth0';
 
 type ProfileProps = { user: UserProfile };
 
@@ -17,4 +18,4 @@ const Profile = ({ user }: ProfileProps): React.ReactElement => (
   </Layout>
 );
 
-export default withAuth(Profile);
+export default withAuth(Profile, LoginRedirect, auth0);

@@ -17,7 +17,7 @@ export const user: UserProfile = {
 };
 
 export const withUser = (user: UserProfile | null) => {
-  return ({ children }: React.PropsWithChildren<void>): React.ReactElement => (
+  return ({ children }: React.PropsWithChildren<{}>): React.ReactElement => (
     <UserProvider user={user}>{children}</UserProvider>
   );
 };
