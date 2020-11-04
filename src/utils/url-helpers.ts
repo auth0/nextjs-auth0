@@ -2,7 +2,7 @@
  * Helper which tests if a URL can safely be redirected to. Requires the URL to be relative.
  * @param url
  */
-export default function isSafeRedirect(url: string): boolean {
+export function isSafeRedirect(url: string): boolean {
   if (typeof url !== 'string') {
     throw new TypeError(`Invalid url: ${url}`);
   }
@@ -13,4 +13,16 @@ export default function isSafeRedirect(url: string): boolean {
   }
 
   return !/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(url);
+}
+
+/**
+ * Helper which creates the login URL to redirect to.
+ * @param redirectTo
+ */
+export function createLoginUrl(redirectTo?: string): string {
+  if (redirectTo) {
+    return `/api/login?redirectTo=${encodeURIComponent(redirectTo)}`;
+  }
+
+  return `/api/login`;
 }

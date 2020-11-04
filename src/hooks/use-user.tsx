@@ -11,23 +11,25 @@ export interface UserProfile {
   [key: string]: unknown; // Any custom claim which could be in the profile
 }
 
+export type NullableUserProfile = UserProfile | null;
+
 export interface UserContext {
-  user: UserProfile | null;
+  user: NullableUserProfile;
   loading: boolean;
 }
-
-type UserProviderProps = React.PropsWithChildren<{ user: UserProfile | null }>;
 
 const User = createContext<UserContext>({ user: null, loading: false });
 
 export const useUser = (): UserContext => useContext<UserContext>(User);
 
+type UserProviderProps = React.PropsWithChildren<{ user: NullableUserProfile }>;
+
 export default ({ children, user: initialUser }: UserProviderProps): ReactElement<UserContext> => {
-  const [user, setUser] = useState<UserProfile | null>(() => initialUser); // if used withAuth, initialUser is populated
+  const [user, setUser] = useState<NullableUserProfile>(() => initialUser); // with withAuth, initialUser gets populated
   const [loading, setLoading] = useState<boolean>(() => !initialUser); // if initialUser is populated, no loading needed
 
   useEffect((): void => {
-    if (user) return; // if initialUser is populated, no loading required
+    if (user) return; // if initialUser is populated, no loading needed
 
     (async (): Promise<void> => {
       const response = await fetch('/api/me');

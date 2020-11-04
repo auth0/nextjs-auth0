@@ -1,6 +1,6 @@
 import { NextApiResponse, NextApiRequest } from 'next';
 import { ClientFactory, Config, loginHandler as getLoginHandler, LoginOptions } from '../auth0-session';
-import isSafeRedirect from '../utils/url-helpers';
+import { isSafeRedirect } from '../utils/url-helpers';
 import TransientCookieHandler from '../auth0-session/transient-handler';
 
 export default function loginHandler(
