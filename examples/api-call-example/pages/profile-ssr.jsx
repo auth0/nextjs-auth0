@@ -1,7 +1,9 @@
 import React from 'react';
+import { withAuth } from '@auth0/nextjs-auth0';
 
 import Layout from '../components/layout';
-import withAuth from '../components/with-auth';
+import LoginRedirect from '../components/login-redirect';
+import auth0 from '../lib/auth0';
 
 const Profile = ({ user }) => (
   <Layout>
@@ -14,4 +16,4 @@ const Profile = ({ user }) => (
   </Layout>
 );
 
-export default withAuth(Profile);
+export default withAuth(Profile, LoginRedirect, auth0);
