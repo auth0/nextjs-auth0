@@ -11,10 +11,6 @@ type RedirectToLoginProps = {
 };
 
 class RedirectToLogin extends Component<RedirectToLoginProps> {
-  public constructor(props: RedirectToLoginProps) {
-    super(props);
-  }
-
   public componentDidMount(): void {
     window.location.assign(createLoginUrl(Router.pathname));
   }
@@ -46,7 +42,7 @@ export default function withAuth(
       const response = await fetch('/api/me');
       const result = response.ok ? await response.json() : null;
 
-      return { user: result, children: undefined };
+      return { user: result };
     }
 
     const session = await instance.getSession(context.req as NextApiRequest, context.res as NextApiResponse);
@@ -57,10 +53,10 @@ export default function withAuth(
       });
       context.res?.end();
 
-      return { user: null, children: undefined };
+      return { user: null };
     }
 
-    return { user: session.user as NullableUserProfile, children: undefined };
+    return { user: session.user as NullableUserProfile };
   };
 
   return Authenticated;
