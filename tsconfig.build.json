@@ -17,6 +17,7 @@
     "sourceMap": true,
     "strict": true,
     "target": "es6",
+    "resolveJsonModule": true,
     "jsx": "react",
     "outDir": "./dist",
     "types": ["jest", "node"]

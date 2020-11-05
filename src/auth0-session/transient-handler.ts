@@ -48,7 +48,7 @@ const getCookieValue = (cookie: string, value: string, keystore: JWKS.KeyStore):
   return undefined;
 };
 
-const generateCookieValue = (cookie: string, value: string, key: JWK.Key): string => {
+export const generateCookieValue = (cookie: string, value: string, key: JWK.Key): string => {
   const signature = generateSignature(cookie, value, key);
   return `${value}.${signature}`;
 };
