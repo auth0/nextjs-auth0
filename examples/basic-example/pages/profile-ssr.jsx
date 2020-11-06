@@ -9,7 +9,7 @@ const Profile = ({ user }) => (
 
     <div>
       <h3>Profile (server rendered)</h3>
-      <pre>{JSON.stringify(user, null, 2)}</pre>
+      <pre id="profile">{JSON.stringify(user, null, 2)}</pre>
     </div>
   </Layout>
 );
