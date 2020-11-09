@@ -8,8 +8,8 @@ if (!EMAIL || !PASSWORD) {
 const loginToAuth0 = (): void => {
   cy.visit('/');
   cy.get('#login').click();
-  cy.get('.auth0-lock-input-username .auth0-lock-input').clear().type(EMAIL);
-  cy.get('.auth0-lock-input-password .auth0-lock-input').clear().type(PASSWORD);
+  cy.get('.auth0-lock-input-email input').focus().clear().type(EMAIL);
+  cy.get('.auth0-lock-input-password input').focus().clear().type(PASSWORD);
   cy.get('.auth0-lock-submit').click();
 };
 
@@ -26,6 +26,7 @@ describe('Smoke tests', () => {
   it('should protect a client-side rendered route', () => {
     loginToAuth0();
 
+    cy.url().should('eq', `${Cypress.config().baseUrl}/`);
     cy.visit('/profile');
     cy.url().should('eq', `${Cypress.config().baseUrl}/profile`);
     cy.get('#profile').contains(EMAIL);
@@ -35,6 +36,7 @@ describe('Smoke tests', () => {
   it('should protect a server-side-rendered route', () => {
     loginToAuth0();
 
+    cy.url().should('eq', `${Cypress.config().baseUrl}/`);
     cy.visit('/profile-ssr');
     cy.url().should('eq', `${Cypress.config().baseUrl}/profile-ssr`);
     cy.get('#profile').contains(EMAIL);
