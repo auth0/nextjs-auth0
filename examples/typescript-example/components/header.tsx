@@ -36,13 +36,13 @@ const Header: React.FunctionComponent = () => {
                   <a href="/profile-ssr">Profile (SSR)</a>
                 </li>{' '}
                 <li>
-                  <a href="/api/logout">Logout</a>
+                  <a href="/api/logout" id="logout">Logout</a>
                 </li>
               </>
             ) : (
               <>
                 <li>
-                  <a href="/api/login">Login</a>
+                  <a href="/api/login" id="login">Login</a>
                 </li>
               </>
             ))}
