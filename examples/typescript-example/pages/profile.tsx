@@ -15,7 +15,7 @@ export default function Profile(): React.ReactElement {
       {!loading && user && (
         <>
           <p>Profile:</p>
-          <pre>{JSON.stringify(user, null, 2)}</pre>
+          <pre id="profile">{JSON.stringify(user, null, 2)}</pre>
         </>
       )}
     </Layout>

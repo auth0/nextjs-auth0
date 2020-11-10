@@ -1,0 +1,31 @@
+version: 2.1
+
+jobs:
+  build:
+    docker:
+      - image: circleci/node:12.9.1-browsers
+    steps:
+      - checkout
+      - restore_cache:
+          key: dependencies-{{ .Branch }}-{{ checksum "package-lock.json" }}-{{ checksum "examples/basic-example/package.json" }}-{{ checksum "examples/typescript-example/package.json" }}-{{ checksum "examples/api-call-example/package.json" }}-{{ checksum "examples/sample-api/package-lock.json" }}
+      - run: npm ci
+      - run: npm run install:examples
+      - save_cache:
+          key: dependencies-{{ .Branch }}-{{ checksum "package-lock.json" }}-{{ checksum "examples/basic-example/package.json" }}-{{ checksum "examples/typescript-example/package.json" }}-{{ checksum "examples/api-call-example/package.json" }}-{{ checksum "examples/sample-api/package-lock.json" }}
+          paths:
+            - ~/.npm
+            - ~/.cache
+      - run: npm run build
+      - run: npm test
+      - run: npm run test:integration
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: cypress/videos
+      - store_artifacts:
+          path: cypress/screenshots
+
+workflows:
+  Build and Test:
+    jobs:
+      - build
