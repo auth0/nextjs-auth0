@@ -1,5 +1,5 @@
 export { default as CookieStore } from './cookie-store';
-export { default as TransientCookieHandler } from './transient-handler';
+export { default as TransientStore } from './transient-store';
 export { Config, SessionConfig, CookieConfig, LoginOptions, LogoutOptions } from './config';
 export { get as getConfig, ConfigParameters } from './get-config';
 export { default as loginHandler } from './handlers/login';

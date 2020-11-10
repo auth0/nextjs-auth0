@@ -28,7 +28,7 @@ export function defaultState(req: IncomingMessage, options: LoginOptions): { [ke
  *
  * @return {string}
  */
-export function encodeState(stateObject: any = {}): string {
+export function encodeState(stateObject: { [key: string]: any } = {}): string {
   // this filters out nonce, code_verifier, and max_age from the state object so that the values are
   // only stored in its dedicated transient cookie
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

@@ -2,7 +2,7 @@ import { IncomingMessage, ServerResponse } from 'http';
 import urlJoin from 'url-join';
 import { strict as assert } from 'assert';
 import { Config, LoginOptions } from '../config';
-import TransientCookieHandler, { StoreOptions } from '../transient-handler';
+import TransientStore, { StoreOptions } from '../transient-store';
 import { encodeState } from '../hooks/get-login-state';
 import { ClientFactory } from '../client';
 import createDebug from '../utils/debug';
@@ -13,11 +13,7 @@ function getRedirectUri(config: Config): string {
   return urlJoin(config.baseURL, config.routes.callback);
 }
 
-export default function loginHandler(
-  config: Config,
-  getClient: ClientFactory,
-  transientHandler: TransientCookieHandler
-) {
+export default function loginHandler(config: Config, getClient: ClientFactory, transientHandler: TransientStore) {
   return async (req: IncomingMessage, res: ServerResponse, options: LoginOptions = {}): Promise<void> => {
     const client = await getClient();
 
@@ -45,7 +41,7 @@ export default function loginHandler(
     }
     stateValue.nonce = transientHandler.generateNonce();
 
-    const usePKCE = opts.authorizationParams.response_type?.includes('code');
+    const usePKCE = (opts.authorizationParams.response_type as string).includes('code');
     if (usePKCE) {
       debug('response_type includes code, the authorization request will use PKCE');
       stateValue.code_verifier = transientHandler.generateCodeVerifier();
@@ -53,15 +49,15 @@ export default function loginHandler(
 
     const authParams = {
       ...opts.authorizationParams,
-      nonce: transientHandler.store('nonce', req, res, transientOpts),
-      state: transientHandler.store('state', req, res, {
+      nonce: transientHandler.save('nonce', req, res, transientOpts),
+      state: transientHandler.save('state', req, res, {
         ...transientOpts,
         value: encodeState(stateValue)
       }),
       ...(usePKCE
         ? {
             code_challenge: transientHandler.calculateCodeChallenge(
-              transientHandler.store('code_verifier', req, res, transientOpts)
+              transientHandler.save('code_verifier', req, res, transientOpts)
             ),
             code_challenge_method: 'S256'
           }
@@ -70,13 +66,13 @@ export default function loginHandler(
 
     const validResponseTypes = ['id_token', 'code id_token', 'code'];
     assert(
-      validResponseTypes.includes(authParams.response_type),
+      validResponseTypes.includes(authParams.response_type as string),
       `response_type should be one of ${validResponseTypes.join(', ')}`
     );
-    assert(/\bopenid\b/.test(authParams.scope), 'scope should contain "openid"');
+    assert(/\bopenid\b/.test(authParams.scope as string), 'scope should contain "openid"');
 
     if (authParams.max_age) {
-      transientHandler.store('max_age', req, res, {
+      transientHandler.save('max_age', req, res, {
         ...transientOpts,
         value: authParams.max_age.toString()
       });

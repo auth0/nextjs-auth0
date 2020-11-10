@@ -1,12 +1,12 @@
 import { NextApiResponse, NextApiRequest } from 'next';
 import { ClientFactory, Config, loginHandler as getLoginHandler, LoginOptions } from '../auth0-session';
 import isSafeRedirect from '../utils/url-helpers';
-import TransientCookieHandler from '../auth0-session/transient-handler';
+import TransientStore from '../auth0-session/transient-store';
 
 export default function loginHandler(
   config: Config,
   getClient: ClientFactory,
-  transientHandler: TransientCookieHandler
+  transientHandler: TransientStore
 ): (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions) => Promise<void> {
   const handler = getLoginHandler(config, getClient, transientHandler);
   return async (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions): Promise<void> => {

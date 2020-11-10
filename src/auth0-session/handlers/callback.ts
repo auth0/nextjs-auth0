@@ -5,7 +5,7 @@ import { BadRequest } from 'http-errors';
 import { TokenSet } from 'openid-client';
 import { Config } from '../config';
 import { ClientFactory } from '../client';
-import TransientCookieHandler from '../transient-handler';
+import TransientStore from '../transient-store';
 import { decodeState } from '../hooks/get-login-state';
 import { SessionCache } from '../session-cache';
 
@@ -17,13 +17,10 @@ export default function callbackHandler(
   config: Config,
   getClient: ClientFactory,
   sessionCache: SessionCache,
-  transientCookieHandler: TransientCookieHandler
+  transientCookieHandler: TransientStore
 ) {
   return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     const client = await getClient();
-    if (!client) {
-      return;
-    }
 
     const redirectUri = getRedirectUri(config);
 
@@ -31,10 +28,10 @@ export default function callbackHandler(
     let tokenSet;
     try {
       const callbackParams = client.callbackParams(req);
-      expectedState = transientCookieHandler.getOnce('state', req, res);
-      const max_age = transientCookieHandler.getOnce('max_age', req, res);
-      const code_verifier = transientCookieHandler.getOnce('code_verifier', req, res);
-      const nonce = transientCookieHandler.getOnce('nonce', req, res);
+      expectedState = transientCookieHandler.read('state', req, res);
+      const max_age = transientCookieHandler.read('max_age', req, res);
+      const code_verifier = transientCookieHandler.read('code_verifier', req, res);
+      const nonce = transientCookieHandler.read('nonce', req, res);
 
       tokenSet = await client.callback(redirectUri, callbackParams, {
         max_age: max_age !== undefined ? +max_age : undefined,
