@@ -6,19 +6,16 @@ import { IncomingMessage, request as nodeHttpRequest } from 'http';
 import { request as nodeHttpsRequest } from 'https';
 import { ConfigParameters } from '../../../src/auth0-session';
 
-const baseUrl = 'http://localhost:3000';
-const baseUrlHttps = 'http://localhost:3000';
 const secret = '__test_session_secret__';
 const clientId = '__test_client_id__';
-export const defaultConfig: ConfigParameters & { secret: string; baseURL: string } = {
+export const defaultConfig: Omit<ConfigParameters, 'baseURL'> = {
   secret,
   clientID: clientId,
-  baseURL: baseUrl,
   issuerBaseURL: 'https://op.example.com',
   authRequired: false
 };
 
-export const toSignedCookieJar = (cookies: { [key: string]: string }, url = baseUrl): CookieJar => {
+export const toSignedCookieJar = (cookies: { [key: string]: string }, url: string): CookieJar => {
   const cookieJar = new CookieJar();
   const jwk = JWK.asKey(deriveKey(secret));
   for (const [key, value] of Object.entries(cookies)) {
@@ -27,7 +24,7 @@ export const toSignedCookieJar = (cookies: { [key: string]: string }, url = base
   return cookieJar;
 };
 
-export const toCookieJar = (cookies: { [key: string]: string }, url = baseUrl): CookieJar => {
+export const toCookieJar = (cookies: { [key: string]: string }, url: string): CookieJar => {
   const cookieJar = new CookieJar();
   for (const [key, value] of Object.entries(cookies)) {
     cookieJar.setCookieSync(`${key}=${value}`, url);
@@ -35,34 +32,29 @@ export const toCookieJar = (cookies: { [key: string]: string }, url = baseUrl): 
   return cookieJar;
 };
 
-export const fromCookieJar = (cookieJar: CookieJar, url = baseUrl): { [key: string]: string } =>
+export const fromCookieJar = (cookieJar: CookieJar, url: string): { [key: string]: string } =>
   cookieJar.getCookiesSync(url).reduce((obj: { [key: string]: string }, { key, value }) => {
     obj[key] = value.split('.')[0];
     return obj;
   }, {});
 
-export const getCookie = (findKey: string, cookieJar: CookieJar, url = baseUrl): Cookie | undefined =>
+export const getCookie = (findKey: string, cookieJar: CookieJar, url: string): Cookie | undefined =>
   cookieJar.getCookiesSync(url).find(({ key }) => key === findKey);
 
 const request = (
-  path: string,
+  url: string,
   method = 'GET',
-  {
-    body,
-    cookieJar,
-    fullResponse,
-    https
-  }: { body?: { [key: string]: string }; cookieJar?: CookieJar; fullResponse?: boolean; https?: boolean }
+  { body, cookieJar, fullResponse }: { body?: { [key: string]: string }; cookieJar?: CookieJar; fullResponse?: boolean }
 ): Promise<{ [key: string]: string } | string | { data: { [key: string]: string } | string; res: IncomingMessage }> =>
   new Promise((resolve, reject) => {
-    const url = https ? baseUrlHttps : baseUrl;
-    const req = (https ? nodeHttpsRequest : nodeHttpRequest)(
+    const { pathname, port, protocol } = new URL(url);
+    const req = (protocol === 'https:' ? nodeHttpsRequest : nodeHttpRequest)(
       {
         method,
         host: 'localhost',
-        port: 3000,
-        path,
-        protocol: https ? 'https:' : 'http:',
+        port,
+        path: pathname,
+        protocol,
         rejectUnauthorized: false
       },
       (res) => {
@@ -99,18 +91,19 @@ const request = (
   });
 
 export const get = async (
-  url: string,
-  { cookieJar, fullResponse, https }: { cookieJar?: CookieJar; fullResponse?: boolean; https?: boolean } = {}
+  baseURL: string,
+  path: string,
+  { cookieJar, fullResponse }: { cookieJar?: CookieJar; fullResponse?: boolean } = {}
 ): Promise<any | Response> => {
-  return request(url, 'GET', { cookieJar, fullResponse, https });
+  return request(`${baseURL}${path}`, 'GET', { cookieJar, fullResponse });
 };
 
 export const post = async (
-  url: string,
+  baseURL: string,
+  path: string,
   {
     cookieJar,
     body,
-    fullResponse,
-    https
+    fullResponse
   }: { body: { [key: string]: string }; cookieJar?: CookieJar; fullResponse?: boolean; https?: boolean }
-): Promise<any | Response> => request(url, 'POST', { body, cookieJar, fullResponse, https });
+): Promise<any | Response> => request(`${baseURL}${path}`, 'POST', { body, cookieJar, fullResponse });
