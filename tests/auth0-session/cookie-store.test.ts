@@ -6,7 +6,9 @@ import { defaultConfig, fromCookieJar, get, toCookieJar } from './fixture/helper
 import { encryption as deriveKey } from '../../src/auth0-session/utils/hkdf';
 import { makeIdToken } from './fixture/cert';
 
-const key = JWK.asKey(deriveKey(defaultConfig.secret));
+const hr = 60 * 60 * 1000;
+const day = 24 * hr;
+const key = JWK.asKey(deriveKey(defaultConfig.secret as string));
 
 const encrypted = (payload: Partial<IdTokenClaims> = { sub: '__test_sub__' }): string => {
   const epochNow = (Date.now() / 1000) | 0;
@@ -29,39 +31,37 @@ const encrypted = (payload: Partial<IdTokenClaims> = { sub: '__test_sub__' }): s
     }
   );
 };
-// const { cleartext: decrypted } = JWE.decrypt(encrypted, key, {
-//   complete: true,
-//   contentEncryptionAlgorithms: [encryptOpts.enc],
-//   keyManagementAlgorithms: [encryptOpts.alg]
-// });
 
 describe('CookieStore', () => {
   afterEach(teardown);
 
   it('should not create a session when there are no cookies', async () => {
-    await setup(defaultConfig);
-    await expect(get('/session')).rejects.toThrowError('Unauthorized');
+    const baseURL = await setup(defaultConfig);
+    await expect(get(baseURL, '/session')).rejects.toThrowError('Unauthorized');
   });
 
   it('should not throw for malformed sessions', async () => {
-    await setup(defaultConfig);
-    const cookieJar = toCookieJar({
-      appSession: '__invalid_identity__'
-    });
-    await expect(get('/session', { cookieJar })).rejects.toThrowError('Unauthorized');
+    const baseURL = await setup(defaultConfig);
+    const cookieJar = toCookieJar(
+      {
+        appSession: '__invalid_identity__'
+      },
+      baseURL
+    );
+    await expect(get(baseURL, '/session', { cookieJar })).rejects.toThrowError('Unauthorized');
   });
 
   it('should not error with JWEDecryptionFailed when using old secrets', async () => {
-    await setup({ ...defaultConfig, secret: '__invalid_secret__' });
-    const cookieJar = toCookieJar({ appSession: encrypted() });
-    await expect(get('/session', { cookieJar })).rejects.toThrowError('Unauthorized');
+    const baseURL = await setup({ ...defaultConfig, secret: '__invalid_secret__' });
+    const cookieJar = toCookieJar({ appSession: encrypted() }, baseURL);
+    await expect(get(baseURL, '/session', { cookieJar })).rejects.toThrowError('Unauthorized');
   });
 
   it('should get an existing session', async () => {
-    await setup(defaultConfig);
+    const baseURL = await setup(defaultConfig);
     const appSession = encrypted();
-    const cookieJar = toCookieJar({ appSession });
-    const session = await get('/session', { cookieJar });
+    const cookieJar = toCookieJar({ appSession }, baseURL);
+    const session = await get(baseURL, '/session', { cookieJar });
     expect(session).toMatchObject({
       access_token: '__test_access_token__',
       token_type: 'Bearer',
@@ -81,282 +81,211 @@ describe('CookieStore', () => {
   });
 
   it('should chunk and accept chunked cookies over 4kb', async () => {
-    await setup(defaultConfig);
+    const baseURL = await setup(defaultConfig);
     const appSession = encrypted({
-      big_claim: randomBytes(4000).toString('base64')
+      big_claim: randomBytes(2000).toString('base64')
     });
-    const cookieJar = toCookieJar({ appSession });
-    await get('/session', { cookieJar });
-    const cookies = fromCookieJar(cookieJar);
-    expect(cookies).toHaveProperty('appSession.0');
-    expect(cookies).toHaveProperty('appSession.1');
-    const session = await get('/session', { cookieJar });
+    expect(appSession.length).toBeGreaterThan(4000);
+    const cookieJar = toCookieJar(
+      {
+        'appSession.0': appSession.slice(0, 2000),
+        'appSession.1': appSession.slice(2000)
+      },
+      baseURL
+    );
+    await get(baseURL, '/session', { cookieJar });
+    const cookies = fromCookieJar(cookieJar, baseURL);
+    expect(cookies['appSession.0']).toEqual(expect.any(String));
+    expect(cookies['appSession.1']).toEqual(expect.any(String));
+    const session = await get(baseURL, '/session', { cookieJar });
     expect(session.claims).toHaveProperty('big_claim');
   });
 
   it('should handle unordered chunked cookies', async () => {
-    await setup(defaultConfig);
+    const baseURL = await setup(defaultConfig);
     const appSession = encrypted({ sub: '__chunked_sub__' });
-    const cookieJar = toCookieJar({
-      'appSession.2': appSession.slice(20),
-      'appSession.0': appSession.slice(0, 10),
-      'appSession.1': appSession.slice(10, 20)
-    });
-    const session = await get('/session', { cookieJar });
+    const cookieJar = toCookieJar(
+      {
+        'appSession.2': appSession.slice(20),
+        'appSession.0': appSession.slice(0, 10),
+        'appSession.1': appSession.slice(10, 20)
+      },
+      baseURL
+    );
+    const session = await get(baseURL, '/session', { cookieJar });
     expect(session.claims.sub).toEqual('__chunked_sub__');
   });
 
   it('should not throw for malformed cookie chunks', async () => {
-    await setup(defaultConfig);
-    const cookieJar = toCookieJar({
-      'appSession.2': 'foo',
-      'appSession.0': 'bar'
-    });
-    await expect(get('/session', { cookieJar })).rejects.toThrowError('Unauthorized');
+    const baseURL = await setup(defaultConfig);
+    const cookieJar = toCookieJar(
+      {
+        'appSession.2': 'foo',
+        'appSession.0': 'bar'
+      },
+      baseURL
+    );
+    await expect(get(baseURL, '/session', { cookieJar })).rejects.toThrowError('Unauthorized');
   });
 
   it('should set the default cookie options on http', async () => {
-    await setup(defaultConfig);
+    const baseURL = await setup(defaultConfig);
     const appSession = encrypted();
-    const cookieJar = toCookieJar({ appSession });
-    await get('/session', { cookieJar });
-    const [cookie] = cookieJar.getCookiesSync(defaultConfig.baseURL);
+    const cookieJar = toCookieJar({ appSession }, baseURL);
+    await get(baseURL, '/session', { cookieJar });
+    const [cookie] = cookieJar.getCookiesSync(baseURL);
     expect(cookie).toMatchObject({
       domain: 'localhost',
       httpOnly: true,
       key: 'appSession',
       maxAge: expect.any(Number),
       path: '/',
-      sameSite: 'lax'
+      sameSite: 'lax',
+      secure: false
     });
   });
 
-  it('should set the default cookie options on http', async () => {
-    await setup(defaultConfig);
+  it('should set custom cookie options on http', async () => {
+    const baseURL = await setup({ ...defaultConfig, session: { cookie: { httpOnly: false } } });
     const appSession = encrypted();
-    const cookieJar = toCookieJar({ appSession });
-    await get('/session', { cookieJar });
-    const [cookie] = cookieJar.getCookiesSync(defaultConfig.baseURL);
+    const cookieJar = toCookieJar({ appSession }, baseURL);
+    await get(baseURL, '/session', { cookieJar });
+    const [cookie] = cookieJar.getCookiesSync(baseURL);
+    expect(cookie).toMatchObject({
+      httpOnly: false
+    });
+  });
+
+  it('should set the default cookie options on https', async () => {
+    const baseURL = await setup(defaultConfig, { https: true });
+    const appSession = encrypted();
+    const cookieJar = toCookieJar({ appSession }, baseURL);
+    await get(baseURL, '/session', { cookieJar });
+    const [cookie] = cookieJar.getCookiesSync(baseURL);
     expect(cookie).toMatchObject({
       domain: 'localhost',
       httpOnly: true,
       key: 'appSession',
       maxAge: expect.any(Number),
       path: '/',
-      sameSite: 'lax'
+      sameSite: 'lax',
+      secure: true
     });
   });
-  //
-  // it('should set the custom cookie options', async () => {
-  //   server = await createServer(
-  //     appSession(
-  //       getConfig({
-  //         ...defaultConfig,
-  //         session: {
-  //           cookie: {
-  //             httpOnly: false,
-  //             sameSite: 'Strict'
-  //           }
-  //         }
-  //       })
-  //     )
-  //   );
-  //   const jar = request.jar();
-  //   await request.get('/session', {
-  //     baseUrl,
-  //     json: true,
-  //     jar,
-  //     headers: {
-  //       cookie: `appSession=${encrypted}`
-  //     }
-  //   });
-  //   const [cookie] = jar.getCookies(baseUrl);
-  //   assert.deepInclude(cookie, {
-  //     key: 'appSession',
-  //     httpOnly: false,
-  //     extensions: ['SameSite=Strict']
-  //   });
-  // });
-  //
-  // it('should use a custom cookie name', async () => {
-  //   server = await createServer(
-  //     appSession(
-  //       getConfig({
-  //         ...defaultConfig,
-  //         session: { name: 'customName' }
-  //       })
-  //     )
-  //   );
-  //   const jar = request.jar();
-  //   const res = await request.get('/session', {
-  //     baseUrl,
-  //     json: true,
-  //     jar,
-  //     headers: {
-  //       cookie: `customName=${encrypted}`
-  //     }
-  //   });
-  //   const [cookie] = jar.getCookies(baseUrl);
-  //   assert.equal(res.statusCode, 200);
-  //   assert.equal(cookie.key, 'customName');
-  // });
-  //
-  // it('should set an ephemeral cookie', async () => {
-  //   server = await createServer(
-  //     appSession(
-  //       getConfig({
-  //         ...defaultConfig,
-  //         session: { cookie: { transient: true } }
-  //       })
-  //     )
-  //   );
-  //   const jar = request.jar();
-  //   const res = await request.get('/session', {
-  //     baseUrl,
-  //     json: true,
-  //     jar,
-  //     headers: {
-  //       cookie: `appSession=${encrypted}`
-  //     }
-  //   });
-  //   const [cookie] = jar.getCookies(baseUrl);
-  //   assert.equal(res.statusCode, 200);
-  //   assert.isFalse(cookie.hasOwnProperty('expires'));
-  // });
-  //
-  // it('should not throw for expired cookies', async () => {
-  //   const twoWeeks = 2 * 7 * 24 * 60 * 60 * 1000;
-  //   const clock = sinon.useFakeTimers({
-  //     now: Date.now(),
-  //     toFake: ['Date']
-  //   });
-  //   server = await createServer(appSession(getConfig(defaultConfig)));
-  //   const jar = request.jar();
-  //   clock.tick(twoWeeks);
-  //   const res = await request.get('/session', {
-  //     baseUrl,
-  //     json: true,
-  //     jar,
-  //     headers: {
-  //       cookie: `appSession=${encrypted}`
-  //     }
-  //   });
-  //   assert.equal(res.statusCode, 200);
-  //   clock.restore();
-  // });
-  //
-  // it('should throw for duplicate mw', async () => {
-  //   server = await createServer((req, res, next) => {
-  //     req.appSession = {};
-  //     appSession(getConfig(defaultConfig))(req, res, next);
-  //   });
-  //   const res = await request.get('/session', { baseUrl, json: true });
-  //   assert.equal(res.statusCode, 500);
-  //   assert.equal(res.body.err.message, 'req[appSession] is already set, did you run this middleware twice?');
-  // });
-  //
-  // it('should throw for reassigning session', async () => {
-  //   server = await createServer((req, res, next) => {
-  //     appSession(getConfig(defaultConfig))(req, res, () => {
-  //       req.appSession = {};
-  //       next();
-  //     });
-  //   });
-  //   const res = await request.get('/session', { baseUrl, json: true });
-  //   assert.equal(res.statusCode, 500);
-  //   assert.equal(res.body.err.message, 'session object cannot be reassigned');
-  // });
-  //
-  // it('should not throw for reassigining session to empty', async () => {
-  //   server = await createServer((req, res, next) => {
-  //     appSession(getConfig(defaultConfig))(req, res, () => {
-  //       req.appSession = null;
-  //       req.appSession = undefined;
-  //       next();
-  //     });
-  //   });
-  //   const res = await request.get('/session', { baseUrl, json: true });
-  //   assert.equal(res.statusCode, 200);
-  // });
-  //
-  // it('should expire after 24hrs of inactivity by default', async () => {
-  //   const clock = sinon.useFakeTimers({ toFake: ['Date'] });
-  //   server = await createServer(appSession(getConfig(defaultConfig)));
-  //   const jar = await login({ sub: '__test_sub__' });
-  //   let res = await request.get('/session', { baseUrl, jar, json: true });
-  //   assert.isNotEmpty(res.body);
-  //   clock.tick(23 * HR_MS);
-  //   res = await request.get('/session', { baseUrl, jar, json: true });
-  //   assert.isNotEmpty(res.body);
-  //   clock.tick(25 * HR_MS);
-  //   res = await request.get('/session', { baseUrl, jar, json: true });
-  //   assert.isEmpty(res.body);
-  //   clock.restore();
-  // });
-  //
-  // it('should expire after 7days regardless of activity by default', async () => {
-  //   const clock = sinon.useFakeTimers({ toFake: ['Date'] });
-  //   server = await createServer(appSession(getConfig(defaultConfig)));
-  //   const jar = await login({ sub: '__test_sub__' });
-  //   let days = 7;
-  //   while (days--) {
-  //     clock.tick(23 * HR_MS);
-  //     let res = await request.get('/session', { baseUrl, jar, json: true });
-  //     assert.isNotEmpty(res.body);
-  //   }
-  //   clock.tick(8 * HR_MS);
-  //   let res = await request.get('/session', { baseUrl, jar, json: true });
-  //   assert.isEmpty(res.body);
-  //   clock.restore();
-  // });
-  //
-  // it('should expire only after defined absoluteDuration', async () => {
-  //   const clock = sinon.useFakeTimers({ toFake: ['Date'] });
-  //   server = await createServer(
-  //     appSession(
-  //       getConfig({
-  //         ...defaultConfig,
-  //         session: {
-  //           rolling: false,
-  //           absoluteDuration: 10 * 60 * 60
-  //         }
-  //       })
-  //     )
-  //   );
-  //   const jar = await login({ sub: '__test_sub__' });
-  //   clock.tick(9 * HR_MS);
-  //   let res = await request.get('/session', { baseUrl, jar, json: true });
-  //   assert.isNotEmpty(res.body);
-  //   clock.tick(2 * HR_MS);
-  //   res = await request.get('/session', { baseUrl, jar, json: true });
-  //   assert.isEmpty(res.body);
-  //   clock.restore();
-  // });
-  //
-  // it('should expire only after defined rollingDuration period of inactivty', async () => {
-  //   const clock = sinon.useFakeTimers({ toFake: ['Date'] });
-  //   server = await createServer(
-  //     appSession(
-  //       getConfig({
-  //         ...defaultConfig,
-  //         session: {
-  //           rolling: true,
-  //           rollingDuration: 24 * 60 * 60,
-  //           absoluteDuration: false
-  //         }
-  //       })
-  //     )
-  //   );
-  //   const jar = await login({ sub: '__test_sub__' });
-  //   let days = 30;
-  //   while (days--) {
-  //     clock.tick(23 * HR_MS);
-  //     let res = await request.get('/session', { baseUrl, jar, json: true });
-  //     assert.isNotEmpty(res.body);
-  //   }
-  //   clock.tick(25 * HR_MS);
-  //   let res = await request.get('/session', { baseUrl, jar, json: true });
-  //   assert.isEmpty(res.body);
-  //   clock.restore();
-  // });
+
+  it('should set custom secure option on https', async () => {
+    const baseURL = await setup({ ...defaultConfig, session: { cookie: { secure: false } } }, { https: true });
+    const appSession = encrypted();
+    const cookieJar = toCookieJar({ appSession }, baseURL);
+    await get(baseURL, '/session', { cookieJar });
+    const [cookie] = cookieJar.getCookiesSync(baseURL);
+    expect(cookie).toMatchObject({
+      sameSite: 'lax',
+      secure: false
+    });
+  });
+
+  it('should set custom sameSite option on https', async () => {
+    const baseURL = await setup({ ...defaultConfig, session: { cookie: { sameSite: 'none' } } }, { https: true });
+    const appSession = encrypted();
+    const cookieJar = toCookieJar({ appSession }, baseURL);
+    await get(baseURL, '/session', { cookieJar });
+    const [cookie] = cookieJar.getCookiesSync(baseURL);
+    expect(cookie).toMatchObject({
+      sameSite: 'none',
+      secure: true
+    });
+  });
+
+  it('should use a custom cookie name', async () => {
+    const baseURL = await setup({ ...defaultConfig, session: { name: 'myCookie' } });
+    const appSession = encrypted();
+    const cookieJar = toCookieJar({ myCookie: appSession }, baseURL);
+    await get(baseURL, '/session', { cookieJar });
+    const [cookie] = cookieJar.getCookiesSync(baseURL);
+    expect(cookie).toMatchObject({
+      key: 'myCookie'
+    });
+  });
+
+  it('should set an ephemeral cookie', async () => {
+    const baseURL = await setup({ ...defaultConfig, session: { cookie: { transient: true } } });
+    const appSession = encrypted();
+    const cookieJar = toCookieJar({ appSession }, baseURL);
+    await get(baseURL, '/session', { cookieJar });
+    const [cookie] = cookieJar.getCookiesSync(baseURL);
+    expect(cookie).toMatchObject({
+      maxAge: null
+    });
+  });
+
+  it('should expire after 1 day of inactivity by default', async () => {
+    const clock = jest.useFakeTimers('modern');
+
+    const baseURL = await setup(defaultConfig);
+    const appSession = encrypted();
+    const cookieJar = toCookieJar({ appSession }, baseURL);
+    await expect(get(baseURL, '/session', { cookieJar })).resolves.not.toThrow();
+    jest.advanceTimersByTime(25 * hr);
+    await expect(get(baseURL, '/session', { cookieJar })).rejects.toThrowError('Unauthorized');
+    clock.restoreAllMocks();
+  });
+
+  it('should expire after 7 days regardless of activity by default', async () => {
+    const clock = jest.useFakeTimers('modern');
+    let days = 7;
+
+    const baseURL = await setup(defaultConfig);
+    const appSession = encrypted();
+    const cookieJar = toCookieJar({ appSession }, baseURL);
+    while (days--) {
+      jest.advanceTimersByTime(23 * hr);
+      await expect(get(baseURL, '/session', { cookieJar })).resolves.not.toThrow();
+    }
+    jest.advanceTimersByTime(23 * hr);
+    await expect(get(baseURL, '/session', { cookieJar })).rejects.toThrowError('Unauthorized');
+    clock.restoreAllMocks();
+  });
+
+  it('should expire only after custom absoluteDuration', async () => {
+    const clock = jest.useFakeTimers('modern');
+
+    const baseURL = await setup({
+      ...defaultConfig,
+      session: {
+        rolling: false,
+        absoluteDuration: (10 * day) / 1000
+      }
+    });
+    const appSession = encrypted();
+    const cookieJar = toCookieJar({ appSession }, baseURL);
+    await expect(get(baseURL, '/session', { cookieJar })).resolves.not.toThrow();
+    jest.advanceTimersByTime(9 * day);
+    await expect(get(baseURL, '/session', { cookieJar })).resolves.not.toThrow();
+    jest.advanceTimersByTime(2 * day);
+    await expect(get(baseURL, '/session', { cookieJar })).rejects.toThrowError('Unauthorized');
+    clock.restoreAllMocks();
+  });
+
+  it('should expire only after defined rollingDuration period of inactivty', async () => {
+    const clock = jest.useFakeTimers('modern');
+    const baseURL = await setup({
+      ...defaultConfig,
+      session: {
+        rolling: true,
+        absoluteDuration: false,
+        rollingDuration: day / 1000
+      }
+    });
+    const appSession = encrypted();
+    const cookieJar = toCookieJar({ appSession }, baseURL);
+    let days = 30;
+    while (days--) {
+      jest.advanceTimersByTime(23 * hr);
+      await expect(get(baseURL, '/session', { cookieJar })).resolves.not.toThrow();
+    }
+    jest.advanceTimersByTime(25 * hr);
+    await expect(get(baseURL, '/session', { cookieJar })).rejects.toThrowError('Unauthorized');
+    clock.restoreAllMocks();
+  });
 });

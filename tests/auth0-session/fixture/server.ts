@@ -22,6 +22,7 @@ import wellKnown from './well-known.json';
 import { jwks } from './cert';
 import { cert, key } from './https';
 import { Claims } from '../../../src/session/session';
+import { AddressInfo } from 'net';
 
 export type SessionResponse = TokenSetParameters & { claims: Claims };
 
@@ -125,18 +126,20 @@ const requestListener = (
 
 let server: HttpServer | HttpsServer;
 
-export const setup = (
-  params: ConfigParameters,
+export const setup = async (
+  params: Omit<ConfigParameters, 'baseURL'>,
   {
     loginOptions,
     logoutOptions,
-    customListener
+    customListener,
+    https
   }: {
+    https?: boolean;
     loginOptions?: LoginOptions;
     logoutOptions?: LogoutOptions;
     customListener?: (req: IncomingMessage, res: ServerResponse) => void;
   } = {}
-): Promise<HttpServer | HttpsServer> => {
+): Promise<string> => {
   if (!nock.isActive()) {
     nock.activate();
   }
@@ -154,18 +157,23 @@ export const setup = (
 
   nock('https://test.eu.auth0.com', { allowUnmocked: true }).persist().get('/.well-known/jwks.json').reply(200, jwks);
 
-  const { protocol } = url.parse(params.baseURL as string);
-  server = (protocol === 'https:' ? createHttpServer : createHttpsServer)(
+  let listener: any = null;
+  const listen = (req: IncomingMessage, res: ServerResponse): Promise<void> | null => listener(req, res);
+
+  server = (https ? createHttpsServer : createHttpServer)(
     {
-      maxHeaderSize: 8192 * 20,
       cert,
       key,
       rejectUnauthorized: false
     },
-    customListener || requestListener(createHandlers(params), { loginOptions, logoutOptions })
+    listen
   );
 
-  return new Promise((resolve) => server.listen(3000, () => resolve(server)));
+  const port = await new Promise((resolve) => server.listen(0, () => resolve((server.address() as AddressInfo).port)));
+  const baseURL = `http${https ? 's' : ''}://localhost:${port}`;
+
+  listener = customListener || requestListener(createHandlers({ ...params, baseURL }), { loginOptions, logoutOptions });
+  return baseURL;
 };
 
 export const teardown = (): Promise<void> | void => {
