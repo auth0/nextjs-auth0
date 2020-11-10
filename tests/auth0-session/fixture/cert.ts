@@ -1,4 +1,5 @@
 import { JWK, JWKS, JWT } from 'jose';
+import { IdTokenClaims } from 'openid-client';
 
 const k = JWK.asKey({
   e: 'AQAB',
@@ -37,7 +38,7 @@ export const jwks = new JWKS.KeyStore([k]).toJWKS(false);
 export const key = k.toPEM(true);
 export const kid = k.kid;
 
-export const makeIdToken = (payload?: { [key: string]: any }): string => {
+export const makeIdToken = (payload?: Partial<IdTokenClaims>): string => {
   payload = Object.assign(
     {
       nickname: '__test_nickname__',

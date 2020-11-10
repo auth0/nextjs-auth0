@@ -4,7 +4,7 @@ import {
   ConfigParameters,
   getConfig,
   CookieStore,
-  TransientCookieHandler,
+  TransientStore,
   logoutHandler,
   callbackHandler,
   clientFactory
@@ -17,7 +17,7 @@ import { ISignInWithAuth0 } from './instance';
 export default function createInstance(params: ConfigParameters): ISignInWithAuth0 {
   const config = getConfig(params);
   const getClient = clientFactory(config);
-  const transientHandler = new TransientCookieHandler(config);
+  const transientHandler = new TransientStore(config);
   const cookieStore = new CookieStore(config);
   const sessionCache = new SessionCache(config);
 
