@@ -53,7 +53,7 @@ export const generateCookieValue = (cookie: string, value: string, key: JWK.Key)
   return `${value}.${signature}`;
 };
 
-class TransientStore {
+export default class TransientStore {
   private currentKey: JWK.Key | undefined;
 
   private keyStore: JWKS.KeyStore;
@@ -175,5 +175,3 @@ class TransientStore {
     return generators.codeChallenge(codeVerifier);
   }
 }
-
-export default TransientStore;
