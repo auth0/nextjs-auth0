@@ -154,29 +154,4 @@ describe('logout route', () => {
     expect(res.statusCode).toEqual(302);
     expect(res.headers.location).toEqual(returnTo);
   });
-  //
-  // it('should logout when scoped to a sub path', async () => {
-  //   server = await createServer(
-  //     auth({
-  //       ...defaultConfig,
-  //       session: {
-  //         cookie: {
-  //           path: '/foo',
-  //         },
-  //       },
-  //     }),
-  //     null,
-  //     '/foo'
-  //   );
-  //   const baseUrl = 'http://localhost:3000/foo';
-  //
-  //   const { jar, session: loggedInSession } = await login(baseUrl);
-  //   assert.ok(loggedInSession.id_token);
-  //   const sessionCookie = jar
-  //     .getCookies('http://localhost:3000/foo')
-  //     .find(({ key }) => key === 'appSession');
-  //   assert.equal(sessionCookie.path, '/foo');
-  //   const { session: loggedOutSession } = await logout(jar, baseUrl);
-  //   assert.notOk(loggedOutSession.id_token);
-  // });
 });

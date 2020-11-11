@@ -164,7 +164,7 @@ export default class CookieStore {
     const cookieOptions = {
       ...cookieConfig,
       maxAge: transient ? undefined : exp,
-      secure: 'secure' in cookieConfig ? cookieConfig.secure : this.config.baseURL.startsWith('https:') // @TODO check
+      secure: 'secure' in cookieConfig ? cookieConfig.secure : this.config.baseURL.startsWith('https:')
     };
 
     debug('found session, creating signed session cookie(s) with name %o(.i)', sessionName);
