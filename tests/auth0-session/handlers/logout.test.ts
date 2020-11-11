@@ -1,7 +1,7 @@
 import { parse } from 'url';
 import { CookieJar } from 'tough-cookie';
 import { SessionResponse, setup, teardown } from '../fixture/server';
-import { toSignedCookieJar, defaultConfig, get, post } from '../fixture/helpers';
+import { toSignedCookieJar, defaultConfig, get, post, fromCookieJar } from '../fixture/helpers';
 import { makeIdToken } from '../fixture/cert';
 import { encodeState } from '../../../src/auth0-session/hooks/get-login-state';
 
@@ -35,6 +35,23 @@ describe('logout route', () => {
 
     expect(res.statusCode).toEqual(302);
     expect(res.headers.location).toEqual(baseURL);
+  });
+
+  it('should delete session cookies on logout', async () => {
+    const baseURL = await setup({ ...defaultConfig, idpLogout: false });
+    const cookieJar = await login(baseURL);
+    cookieJar.setCookieSync('foo=bar', baseURL);
+
+    await get(baseURL, '/session', { cookieJar });
+    expect(fromCookieJar(cookieJar, baseURL)).toMatchObject({
+      appSession: expect.any(String),
+      foo: 'bar'
+    });
+
+    await get(baseURL, '/logout', { cookieJar, fullResponse: true });
+    const cookies = fromCookieJar(cookieJar, baseURL);
+    expect(cookies).toHaveProperty('foo');
+    expect(cookies).not.toHaveProperty('appSession');
   });
 
   it('should perform a distributed logout', async () => {

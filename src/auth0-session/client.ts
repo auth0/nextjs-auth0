@@ -98,7 +98,7 @@ export default function get(config: Config, { name, version }: Telemetry): Clien
     client[custom.clock_tolerance] = config.clockTolerance;
 
     if (config.idpLogout && !issuer.end_session_endpoint) {
-      if (config.auth0Logout || url.parse(issuer.metadata.issuer).hostname?.match('\\.auth0\\.com$')) {
+      if (config.auth0Logout || (url.parse(issuer.metadata.issuer).hostname as string).match('\\.auth0\\.com$')) {
         Object.defineProperty(client, 'endSessionUrl', {
           value(params: EndSessionParameters) {
             const parsedUrl = url.parse(urlJoin(issuer.metadata.issuer, '/v2/logout'));

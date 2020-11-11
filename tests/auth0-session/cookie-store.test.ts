@@ -52,7 +52,7 @@ describe('CookieStore', () => {
   });
 
   it('should not error with JWEDecryptionFailed when using old secrets', async () => {
-    const baseURL = await setup({ ...defaultConfig, secret: '__invalid_secret__' });
+    const baseURL = await setup({ ...defaultConfig, secret: ['__invalid_secret__', '__also_invalid__'] });
     const cookieJar = toCookieJar({ appSession: encrypted() }, baseURL);
     await expect(get(baseURL, '/session', { cookieJar })).rejects.toThrowError('Unauthorized');
   });
@@ -107,6 +107,7 @@ describe('CookieStore', () => {
     const cookieJar = toCookieJar(
       {
         'appSession.2': appSession.slice(20),
+        foo: 'baz',
         'appSession.0': appSession.slice(0, 10),
         'appSession.1': appSession.slice(10, 20)
       },

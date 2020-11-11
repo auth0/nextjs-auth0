@@ -120,6 +120,7 @@ export default class CookieStore {
         return [JSON.parse(cleartext.toString()), iat];
       }
     } catch (err) {
+      /* istanbul ignore else */
       if (err instanceof AssertionError) {
         debug('existing session was rejected because', err.message);
       } else if (err instanceof errors.JOSEError) {

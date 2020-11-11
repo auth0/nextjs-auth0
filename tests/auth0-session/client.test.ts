@@ -111,4 +111,25 @@ describe('clientFactory', function () {
       'https://test.eu.auth0.com/v2/logout?returnTo=foo&client_id=__test_client_id__'
     );
   });
+
+  it('should handle limited openid-configuration', async function () {
+    nock('https://op2.example.com')
+      .get('/.well-known/openid-configuration')
+      .reply(
+        200,
+        Object.assign({}, wellKnown, {
+          id_token_signing_alg_values_supported: undefined,
+          response_types_supported: undefined,
+          response_modes_supported: 'foo',
+          end_session_endpoint: undefined
+        })
+      );
+
+    await expect(
+      getClient({
+        issuerBaseURL: 'https://op2.example.com',
+        idpLogout: true
+      })
+    ).resolves.not.toThrow();
+  });
 });
