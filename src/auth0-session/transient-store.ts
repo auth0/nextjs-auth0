@@ -92,7 +92,7 @@ class TransientStore {
     key: string,
     _req: IncomingMessage,
     res: ServerResponse,
-    { sameSite = 'none', value = this.generateNonce() }: StoreOptions = {}
+    { sameSite = 'none', value = this.generateNonce() }: StoreOptions
   ): string {
     const isSameSiteNone = sameSite === 'none';
     const { domain, path, secure } = this.config.session.cookie;
