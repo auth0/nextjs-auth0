@@ -1,3 +1,4 @@
+import { AddressInfo } from 'net';
 import { createServer as createHttpServer, IncomingMessage, Server as HttpServer, ServerResponse } from 'http';
 import { createServer as createHttpsServer, Server as HttpsServer } from 'https';
 import url from 'url';
@@ -22,7 +23,7 @@ import wellKnown from './well-known.json';
 import { jwks } from './cert';
 import { cert, key } from './https';
 import { Claims } from '../../../src/session/session';
-import { AddressInfo } from 'net';
+import version from '../../../src/version';
 
 export type SessionResponse = TokenSetParameters & { claims: Claims };
 
@@ -54,7 +55,7 @@ type Handlers = {
 
 const createHandlers = (params: ConfigParameters): Handlers => {
   const config = getConfig(params);
-  const getClient = clientFactory(config);
+  const getClient = clientFactory(config, { name: 'nextjs-auth0', version });
   const transientStore = new TransientStore(config);
   const cookieStore = new CookieStore(config);
   const sessionCache = new TestSessionCache();
@@ -143,15 +144,11 @@ export const setup = async (
   if (!nock.isActive()) {
     nock.activate();
   }
-  nock('https://op.example.com', { allowUnmocked: true })
-    .persist()
-    .get('/.well-known/openid-configuration')
-    .reply(200, wellKnown);
+  nock('https://op.example.com').get('/.well-known/openid-configuration').reply(200, wellKnown);
 
-  nock('https://op.example.com', { allowUnmocked: true }).persist().get('/.well-known/jwks.json').reply(200, jwks);
+  nock('https://op.example.com').get('/.well-known/jwks.json').reply(200, jwks);
 
-  nock('https://test.eu.auth0.com', { allowUnmocked: true })
-    .persist()
+  nock('https://test.eu.auth0.com')
     .get('/.well-known/openid-configuration')
     .reply(200, { ...wellKnown, issuer: 'https://test.eu.auth0.com/', end_session_endpoint: undefined });
 

@@ -10,22 +10,16 @@ export interface ClientFactory {
   (): Promise<Client>;
 }
 
-// @TODO
-const pkg = { name: 'some-name', version: 'some-version' };
-
-const telemetryHeader = {
-  name: 'nextjs-auth0',
-  version: pkg.version,
-  env: {
-    node: process.version
-  }
+export type Telemetry = {
+  name: string;
+  version: string;
 };
 
 function sortSpaceDelimitedString(str: string): string {
   return str.split(' ').sort().join(' ');
 }
 
-export default function get(config: Config): ClientFactory {
+export default function get(config: Config, { name, version }: Telemetry): ClientFactory {
   let client: Client | null = null;
 
   return async (): Promise<Client> => {
@@ -37,10 +31,18 @@ export default function get(config: Config): ClientFactory {
       ...options,
       headers: {
         ...options.headers,
-        'User-Agent': `${pkg.name}/${pkg.version}`,
+        'User-Agent': `${name}/${version}`,
         ...(config.enableTelemetry
           ? {
-              'Auth0-Client': Buffer.from(JSON.stringify(telemetryHeader)).toString('base64')
+              'Auth0-Client': Buffer.from(
+                JSON.stringify({
+                  name,
+                  version,
+                  env: {
+                    node: process.version
+                  }
+                })
+              ).toString('base64')
             }
           : undefined)
       },
