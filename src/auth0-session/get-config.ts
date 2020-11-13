@@ -36,7 +36,7 @@ const paramsSchema = Joi.object({
       domain: Joi.string().optional(),
       transient: Joi.boolean().optional().default(false),
       httpOnly: Joi.boolean().optional().default(true),
-      sameSite: Joi.string().valid('Lax', 'Strict', 'None').optional().default('Lax'),
+      sameSite: Joi.string().valid('lax', 'strict', 'none').optional().default('lax'),
       secure: Joi.boolean().optional(),
       path: Joi.string().uri({ relativeOnly: true }).optional()
     })
@@ -115,7 +115,7 @@ const paramsSchema = Joi.object({
     .unknown(false)
 });
 
-type DeepPartial<T> = {
+export type DeepPartial<T> = {
   [P in keyof T]?: T[P] extends Array<infer I> ? Array<DeepPartial<I>> : DeepPartial<T[P]>;
 };
 

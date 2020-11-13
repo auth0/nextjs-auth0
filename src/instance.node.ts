@@ -4,7 +4,7 @@ import {
   ConfigParameters,
   getConfig,
   CookieStore,
-  TransientCookieHandler,
+  TransientStore,
   logoutHandler,
   callbackHandler,
   clientFactory
@@ -13,11 +13,12 @@ import { profileHandler, requireAuthentication, tokenCache, sessionHandler, logi
 import { fromJson } from './session/session';
 import SessionCache from './session/store';
 import { ISignInWithAuth0 } from './instance';
+import version from './version';
 
 export default function createInstance(params: ConfigParameters): ISignInWithAuth0 {
   const config = getConfig(params);
-  const getClient = clientFactory(config);
-  const transientHandler = new TransientCookieHandler(config);
+  const getClient = clientFactory(config, { name: 'nextjs-auth0', version });
+  const transientHandler = new TransientStore(config);
   const cookieStore = new CookieStore(config);
   const sessionCache = new SessionCache(config);
 

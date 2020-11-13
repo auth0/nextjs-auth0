@@ -49,15 +49,16 @@ export default class CookieStore {
   }
 
   private calculateExp(iat: number, uat: number): number {
-    let { absoluteDuration } = this.config.session;
+    const { absoluteDuration } = this.config.session;
     const { rolling, rollingDuration } = this.config.session;
-    absoluteDuration = typeof absoluteDuration !== 'number' ? 0 : absoluteDuration;
 
+    if (typeof absoluteDuration !== 'number') {
+      return uat + rollingDuration;
+    }
     if (!rolling) {
       return iat + absoluteDuration;
     }
-
-    return Math.min(...[uat + rollingDuration, iat + absoluteDuration].filter(Boolean));
+    return Math.min(uat + rollingDuration, iat + absoluteDuration);
   }
 
   public read(req: IncomingMessage): [{ [key: string]: any }?, number?] {
@@ -119,6 +120,7 @@ export default class CookieStore {
         return [JSON.parse(cleartext.toString()), iat];
       }
     } catch (err) {
+      /* istanbul ignore else */
       if (err instanceof AssertionError) {
         debug('existing session was rejected because', err.message);
       } else if (err instanceof errors.JOSEError) {
@@ -161,8 +163,8 @@ export default class CookieStore {
 
     const cookieOptions = {
       ...cookieConfig,
-      maxAge: transient ? -1 : exp, // @TODO check
-      secure: 'secure' in cookieConfig ? cookieConfig.secure : req.url?.startsWith('https:') // @TODO check
+      maxAge: transient ? undefined : exp,
+      secure: 'secure' in cookieConfig ? cookieConfig.secure : this.config.baseURL.startsWith('https:')
     };
 
     debug('found session, creating signed session cookie(s) with name %o(.i)', sessionName);
