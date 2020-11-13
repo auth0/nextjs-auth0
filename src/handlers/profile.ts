@@ -1,24 +1,23 @@
 import { NextApiResponse, NextApiRequest } from 'next';
-import { ClientFactory, Config } from '../auth0-session';
-import SessionCache from '../session/store';
-import SessionTokenCache from '../tokens/session-token-cache';
-import Session, { fromJson } from '../session/session';
+import { ClientFactory } from '../auth0-session';
+import { SessionCache, Session, fromJson, GetAccessToken } from '../session';
+import { assertReqRes } from '../utils/assert';
 
 export type ProfileOptions = {
   refetch?: boolean;
 };
 
-export default function profileHandler(config: Config, sessionCache: SessionCache, getClient: ClientFactory) {
-  return async (req: NextApiRequest, res: NextApiResponse, options?: ProfileOptions): Promise<void> => {
-    if (!req) {
-      throw new Error('Request is not available');
-    }
+export type HandleProfile = (req: NextApiRequest, res: NextApiResponse, options?: ProfileOptions) => Promise<void>;
 
-    if (!res) {
-      throw new Error('Response is not available');
-    }
+export default function profileHandler(
+  sessionCache: SessionCache,
+  getClient: ClientFactory,
+  getAccessToken: GetAccessToken
+): HandleProfile {
+  return async (req, res, options): Promise<void> => {
+    assertReqRes(req, res);
 
-    if (!sessionCache.isAuthenticated(req)) {
+    if (!sessionCache.isAuthenticated(req, res)) {
       res.status(401).json({
         error: 'not_authenticated',
         description: 'The user does not have an active session or is not authenticated'
@@ -26,11 +25,10 @@ export default function profileHandler(config: Config, sessionCache: SessionCach
       return;
     }
 
-    const session = sessionCache.get(req) as Session;
+    const session = sessionCache.get(req, res) as Session;
 
     if (options && options.refetch) {
-      const tokenCache = new SessionTokenCache(getClient, config, sessionCache, req);
-      const { accessToken } = await tokenCache.getAccessToken();
+      const { accessToken } = await getAccessToken(req, res);
       if (!accessToken) {
         throw new Error('No access token available to refetch the profile');
       }
@@ -45,6 +43,7 @@ export default function profileHandler(config: Config, sessionCache: SessionCach
 
       sessionCache.set(
         req,
+        res,
         fromJson({
           ...session,
           user: updatedUser

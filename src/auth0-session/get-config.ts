@@ -1,5 +1,4 @@
 import Joi from '@hapi/joi';
-import clone from 'clone';
 import { defaultState as getLoginState } from './hooks/get-login-state';
 import { Config } from './config';
 
@@ -90,8 +89,8 @@ const paramsSchema = Joi.object({
     ),
   clockTolerance: Joi.number().optional().default(60),
   enableTelemetry: Joi.boolean().optional().default(true),
-  errorOnRequiredAuth: Joi.boolean().optional().default(false),
-  attemptSilentLogin: Joi.boolean().optional().default(false),
+  errorOnRequiredAuth: Joi.boolean().optional().default(false), // ?
+  attemptSilentLogin: Joi.boolean().optional().default(false), // ?
   getLoginState: Joi.function()
     .optional()
     .default(() => getLoginState),
@@ -104,7 +103,7 @@ const paramsSchema = Joi.object({
   idTokenSigningAlg: Joi.string().insensitive().not('none').optional().default('RS256'),
   issuerBaseURL: Joi.string().uri().required(),
   legacySameSiteCookie: Joi.boolean().optional().default(true),
-  authRequired: Joi.boolean().optional().default(true),
+  authRequired: Joi.boolean().optional().default(true), // ?
   routes: Joi.object({
     login: Joi.alternatives([Joi.string().uri({ relativeOnly: true }), Joi.boolean().valid(false)]).default('/login'),
     logout: Joi.alternatives([Joi.string().uri({ relativeOnly: true }), Joi.boolean().valid(false)]).default('/logout'),
@@ -112,7 +111,7 @@ const paramsSchema = Joi.object({
     postLogoutRedirect: Joi.string().uri({ allowRelative: true }).default('')
   })
     .default()
-    .unknown(false)
+    .unknown(false) // ?
 });
 
 export type DeepPartial<T> = {
@@ -121,15 +120,14 @@ export type DeepPartial<T> = {
 
 export type ConfigParameters = DeepPartial<Config>;
 
-export const get = (params?: ConfigParameters): Config => {
-  let config = typeof params === 'object' ? clone(params) : {}; // @TODO need clone?
-  config = {
+export const get = (params: ConfigParameters = {}): Config => {
+  const config = {
     secret: process.env.SECRET,
     issuerBaseURL: process.env.ISSUER_BASE_URL,
     baseURL: process.env.BASE_URL,
     clientID: process.env.CLIENT_ID,
     clientSecret: process.env.CLIENT_SECRET,
-    ...config
+    ...params
   };
 
   const paramsValidation = paramsSchema.validate(config);

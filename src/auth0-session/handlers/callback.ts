@@ -48,6 +48,7 @@ export default function callbackHandler(
     // intentional clone of the properties on tokenSet
     sessionCache.create(
       req,
+      res,
       new TokenSet({
         access_token: tokenSet.access_token,
         token_type: tokenSet.token_type,

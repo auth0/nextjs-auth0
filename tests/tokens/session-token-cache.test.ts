@@ -6,7 +6,7 @@ import { withApi } from '../helpers/default-settings';
 
 import { ISession } from '../../src/session/session';
 import MemoryStore from '../../src/session/memory-store';
-import { ITokenCache } from '../../src/tokens/token-cache';
+import { ITokenCache } from '../../src/tokens/get-token';
 import SessionTokenCache from '../../src/tokens/session-token-cache';
 import { discovery, refreshTokenExchange, jwksEndpoint } from '../helpers/oidc-nocks';
 
@@ -178,7 +178,7 @@ describe('SessionTokenCache', () => {
           }
         });
       });
-    
+
       test('should retrieve a new access token if force refresh is set', async () => {
         expect.assertions(2);
 
@@ -202,7 +202,7 @@ describe('SessionTokenCache', () => {
           'new-token'
         );
 
-        const result = await cache.getAccessToken({refresh:true});
+        const result = await cache.getAccessToken({ refresh: true });
         expect(result.accessToken).toMatch('new-token');
 
         const session = await getSession();

@@ -1,29 +1,31 @@
-import { ITokenCache } from './tokens/token-cache';
-import { ISignInWithAuth0 } from './instance';
-import Session from './session/session';
+/* eslint-disable @typescript-eslint/explicit-function-return-type */
+import { SignInWithAuth0 } from './instance';
 
-export default function createDummyBrowserInstance(): ISignInWithAuth0 & { isBrowser: boolean } {
+export default function createDummyBrowserInstance(): SignInWithAuth0 & { isBrowser: boolean } {
   return {
     isBrowser: true,
-    handleLogin: (): Promise<void> => {
+    handleLogin: () => {
       throw new Error('The handleLogin method can only be used from the server side');
     },
-    handleLogout: (): Promise<void> => {
+    handleLogout: () => {
       throw new Error('The handleLogout method can only be used from the server side');
     },
-    handleCallback: (): Promise<void> => {
+    handleCallback: () => {
       throw new Error('The handleCallback method can only be used from the server side');
     },
-    handleProfile: (): Promise<void> => {
+    handleProfile: () => {
       throw new Error('The handleProfile method can only be used from the server side');
     },
-    getSession: (): Promise<Session | undefined> => {
+    getSession: () => {
       throw new Error('The getSession method can only be used from the server side');
     },
-    requireAuthentication: () => (): Promise<void> => {
-      throw new Error('The requireAuthentication method can only be used from the server side');
+    getAccessToken: () => {
+      throw new Error('The tokenCache method can only be used from the server side');
     },
-    tokenCache: (): ITokenCache => {
+    withApiAuth: () => {
+      throw new Error('The withApiAuth method can only be used from the server side');
+    },
+    withPageAuth: () => {
       throw new Error('The tokenCache method can only be used from the server side');
     }
   };

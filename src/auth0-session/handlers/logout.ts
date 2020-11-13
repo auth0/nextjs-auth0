@@ -21,7 +21,7 @@ export default function logoutHandler(config: Config, getClient: ClientFactory, 
       returnURL = urlJoin(config.baseURL, returnURL);
     }
 
-    if (!sessionCache.isAuthenticated(req)) {
+    if (!sessionCache.isAuthenticated(req, res)) {
       debug('end-user already logged out, redirecting to %s', returnURL);
       res.writeHead(302, {
         Location: returnURL
@@ -30,7 +30,7 @@ export default function logoutHandler(config: Config, getClient: ClientFactory, 
       return;
     }
 
-    sessionCache.delete(req);
+    sessionCache.delete(req, res);
 
     if (!config.idpLogout) {
       debug('performing a local only logout, redirecting to %s', returnURL);
@@ -44,7 +44,7 @@ export default function logoutHandler(config: Config, getClient: ClientFactory, 
     const client = await getClient();
     returnURL = client.endSessionUrl({
       post_logout_redirect_uri: returnURL,
-      id_token_hint: sessionCache.getIdToken(req)
+      id_token_hint: sessionCache.getIdToken(req, res)
     });
 
     debug('logging out of identity provider, redirecting to %s', returnURL);
