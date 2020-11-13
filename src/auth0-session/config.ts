@@ -297,7 +297,7 @@ export interface LoginOptions {
   /**
    * Override the default {@link Config.authorizationParams authorizationParams}
    */
-  authorizationParams?: AuthorizationParameters;
+  authorizationParams?: Partial<AuthorizationParameters>;
 
   /**
    *  URL to return to after login, overrides the Default is {@link Config.baseURL}

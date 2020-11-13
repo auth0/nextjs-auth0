@@ -2,7 +2,7 @@ import { IncomingMessage, ServerResponse } from 'http';
 import { CookieSerializeOptions, parse, serialize } from 'cookie';
 
 export const getAll = (req: IncomingMessage): { [key: string]: string } => {
-  return parse(req?.headers?.cookie || '');
+  return parse(req.headers.cookie || '');
 };
 
 export const get = (req: IncomingMessage, name: string): string => {
@@ -18,7 +18,7 @@ export const set = (res: ServerResponse, name: string, value: string, options: C
     previousCookies = [previousCookies as string];
   }
 
-  res.setHeader('Set-Cookie', [strCookie, ...previousCookies]);
+  res.setHeader('Set-Cookie', [...previousCookies, strCookie]);
 };
 
 export const clear = (res: ServerResponse, name: string, options: CookieSerializeOptions = {}): void => {

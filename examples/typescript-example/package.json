@@ -4,7 +4,7 @@
   "description": "Typescript example for nextjs-auth0",
   "main": "index.js",
   "scripts": {
-    "dev": "NODE_OPTIONS='--inspect' next dev",
+    "dev": "next",
     "build": "next build",
     "start": "next start",
     "format": "prettier --write \"{components,pages}/**/*.{ts,tsx}\"",

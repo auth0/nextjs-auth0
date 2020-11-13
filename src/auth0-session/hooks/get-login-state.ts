@@ -10,13 +10,13 @@ const debug = createDebug('get-login-state');
  * return URL after the user authenticates. State is not used to carry unique PRNG values here
  * because the library utilizes either nonce or PKCE for CSRF protection.
  *
- * @param {IncomingMessage} req
+ * @param {IncomingMessage} _req
  * @param {LoginOptions} options
  *
  * @return {object}
  */
-export function defaultState(req: IncomingMessage, options: LoginOptions): { [key: string]: any } {
-  const state = { returnTo: options.returnTo || req.url };
+export function defaultState(_req: IncomingMessage, options: LoginOptions): { [key: string]: any } {
+  const state = { returnTo: options.returnTo };
   debug('adding default state %O', state);
   return state;
 }
@@ -28,7 +28,7 @@ export function defaultState(req: IncomingMessage, options: LoginOptions): { [ke
  *
  * @return {string}
  */
-export function encodeState(stateObject: any = {}): string {
+export function encodeState(stateObject: { [key: string]: any }): string {
   // this filters out nonce, code_verifier, and max_age from the state object so that the values are
   // only stored in its dedicated transient cookie
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
