@@ -7,7 +7,7 @@ import logout, { LogoutOptions } from '../../src/handlers/logout';
 import { withoutApi } from '../helpers/default-settings';
 import CookieSessionStoreSettings from '../../src/session/cookie-store/settings';
 import { discovery } from '../helpers/oidc-nocks';
-import { ISessionStore } from '../../src/session/store';
+import { ISessionStore } from '../../src/session/cache';
 import { ISession } from '../../src/session/session';
 import getClient from '../../src/utils/oidc-client';
 

@@ -1,25 +1,23 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { LoginOptions, LogoutOptions } from './auth0-session';
-import { ProfileOptions } from './handlers/profile';
-import { IApiRoute } from './handlers/require-authentication';
-import { ITokenCache } from './tokens/token-cache';
-import Session from './session/session';
+import { ProfileOptions, HandleLogin, HandleLogout, HandleCallback } from './handlers';
+import { GetSession, GetAccessToken } from './session';
+import { WithApiAuth, WithPageAuth } from './helpers';
 
-export interface ISignInWithAuth0 {
+export interface SignInWithAuth0 {
   /**
    * Login handler which will redirect the user to Auth0.
    */
-  handleLogin: (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions) => Promise<void>;
+  handleLogin: HandleLogin;
 
   /**
    * Callback handler which will complete the transaction and create a local session.
    */
-  handleCallback: (req: NextApiRequest, res: NextApiResponse /* , options?: CallbackOptions */) => Promise<void>;
+  handleCallback: HandleCallback;
 
   /**
    * Logout handler which will clear the local session and the Auth0 session.
    */
-  handleLogout: (req: NextApiRequest, res: NextApiResponse, options?: LogoutOptions) => Promise<void>;
+  handleLogout: HandleLogout;
 
   /**
    * Profile handler which return profile information about the user.
@@ -27,17 +25,22 @@ export interface ISignInWithAuth0 {
   handleProfile: (req: NextApiRequest, res: NextApiResponse, options?: ProfileOptions) => Promise<void>;
 
   /**
-   * Session handler which returns the current session
+   * Session getter
    */
-  getSession: (req: NextApiRequest, res: NextApiResponse) => Promise<Session | undefined>;
+  getSession: GetSession;
 
   /**
-   * Handle to require authentication for an API route.
+   * Access Token getter
    */
-  requireAuthentication: (apiRoute: IApiRoute) => IApiRoute;
+  getAccessToken: GetAccessToken;
 
   /**
-   * Token cache which allows you to get an access token for the current user.
+   * Helper that adds auth to an API Route
    */
-  tokenCache: (req: NextApiRequest, res: NextApiResponse) => ITokenCache;
+  withApiAuth: WithApiAuth;
+
+  /**
+   * Helper that adds auth to an SSR Page Route
+   */
+  withPageAuth: WithPageAuth;
 }

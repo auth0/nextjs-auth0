@@ -1,5 +1,4 @@
-export { default as sessionHandler } from './session';
-export { default as profileHandler } from './profile';
-export { default as requireAuthentication } from './require-authentication';
-export { default as tokenCache } from './token-cache';
-export { default as loginHandler } from './login';
+export { default as callbackHandler, HandleCallback } from './callback';
+export { default as loginHandler, HandleLogin } from './login';
+export { default as logoutHandler, HandleLogout } from './logout';
+export { default as profileHandler, HandleProfile, ProfileOptions } from './profile';

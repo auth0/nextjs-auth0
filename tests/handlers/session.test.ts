@@ -1,6 +1,6 @@
 import handlers from '../../src/handlers';
 import { ISession } from '../../src/session/session';
-import { ISessionStore } from '../../src/session/store';
+import { ISessionStore } from '../../src/session/cache';
 import getRequestResponse from '../helpers/http';
 
 describe('session handler', () => {

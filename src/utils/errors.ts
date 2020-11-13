@@ -1,4 +1,4 @@
-export default class AccessTokenError extends Error {
+export class AccessTokenError extends Error {
   public code: string;
 
   constructor(code: string, message: string) {

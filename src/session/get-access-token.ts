@@ -1,21 +1,35 @@
-import { NextApiRequest } from 'next';
-import AccessTokenError from './access-token-error';
-import { intersect, match } from '../utils/array';
-import { ITokenCache, AccessTokenRequest, AccessTokenResponse } from './token-cache';
+import { IncomingMessage, ServerResponse } from 'http';
 import { ClientFactory, Config } from '../auth0-session';
-import SessionCache from '../session/store';
-import { fromTokenSet } from '../session/session';
+import { AccessTokenError } from '../utils/errors';
+import { intersect, match } from '../utils/array';
+import { SessionCache, fromTokenSet } from '../session';
+import { NextApiRequest, NextApiResponse } from 'next';
 
-export default class SessionTokenCache implements ITokenCache {
-  constructor(
-    private getClient: ClientFactory,
-    private config: Config,
-    private store: SessionCache,
-    private req: NextApiRequest
-  ) {}
+export interface AccessTokenRequest {
+  scopes?: string[];
+  refresh?: boolean;
+}
 
-  async getAccessToken(accessTokenRequest?: AccessTokenRequest): Promise<AccessTokenResponse> {
-    const session = await this.store.get(this.req);
+export interface GetAccessTokenResult {
+  /**
+   * Access token returned from the token cache.
+   */
+  accessToken?: string | undefined;
+}
+
+export type GetAccessToken = (
+  req: IncomingMessage | NextApiRequest,
+  res: ServerResponse | NextApiResponse,
+  accessTokenRequest?: AccessTokenRequest
+) => Promise<GetAccessTokenResult>;
+
+export default function accessTokenFactory(
+  getClient: ClientFactory,
+  config: Config,
+  sessionCache: SessionCache
+): GetAccessToken {
+  return async (req, res, accessTokenRequest): Promise<GetAccessTokenResult> => {
+    const session = sessionCache.get(req, res);
     if (!session) {
       throw new AccessTokenError('invalid_session', 'The user does not have a valid session.');
     }
@@ -68,13 +82,13 @@ export default class SessionTokenCache implements ITokenCache {
       (session.refreshToken && session.accessTokenExpiresAt * 1000 - 60000 < Date.now()) ||
       (session.refreshToken && accessTokenRequest && accessTokenRequest.refresh)
     ) {
-      const client = await this.getClient();
+      const client = await getClient();
       const tokenSet = await client.refresh(session.refreshToken);
 
       // Update the session.
-      const newSession = fromTokenSet(tokenSet, this.config);
+      const newSession = fromTokenSet(tokenSet, config);
       newSession.refreshToken = newSession.refreshToken || session.refreshToken;
-      this.store.set(this.req, newSession);
+      sessionCache.set(req, res, newSession);
 
       // Return the new access token.
       return {
@@ -91,5 +105,5 @@ export default class SessionTokenCache implements ITokenCache {
     return {
       accessToken: session.accessToken
     };
-  }
+  };
 }

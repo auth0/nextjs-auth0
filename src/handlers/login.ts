@@ -1,15 +1,18 @@
 import { NextApiResponse, NextApiRequest } from 'next';
-import { ClientFactory, Config, loginHandler as getLoginHandler, LoginOptions } from '../auth0-session';
+import { ClientFactory, Config, loginHandler, LoginOptions, TransientStore } from '../auth0-session';
 import isSafeRedirect from '../utils/url-helpers';
-import TransientStore from '../auth0-session/transient-store';
+import { assertReqRes } from '../utils/assert';
 
-export default function loginHandler(
+export type HandleLogin = (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions) => Promise<void>;
+
+export default function handleLoginFactory(
   config: Config,
   getClient: ClientFactory,
   transientHandler: TransientStore
-): (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions) => Promise<void> {
-  const handler = getLoginHandler(config, getClient, transientHandler);
-  return async (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions): Promise<void> => {
+): HandleLogin {
+  const handler = loginHandler(config, getClient, transientHandler);
+  return async (req, res, options): Promise<void> => {
+    assertReqRes(req, res);
     if (req.query.returnTo) {
       if (typeof req.query.returnTo !== 'string') {
         throw new Error('Invalid value provided for returnTo, must be a string');

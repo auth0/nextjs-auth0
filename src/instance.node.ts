@@ -1,43 +1,27 @@
-import { NextApiRequest, NextApiResponse } from 'next';
-import onHeaders from 'on-headers';
-import {
-  ConfigParameters,
-  getConfig,
-  CookieStore,
-  TransientStore,
-  logoutHandler,
-  callbackHandler,
-  clientFactory
-} from './auth0-session';
-import { profileHandler, requireAuthentication, tokenCache, sessionHandler, loginHandler } from './handlers';
-import { fromJson } from './session/session';
-import SessionCache from './session/store';
-import { ISignInWithAuth0 } from './instance';
+import { ConfigParameters, getConfig, CookieStore, TransientStore, clientFactory } from './auth0-session';
+import { profileHandler, loginHandler, logoutHandler, callbackHandler } from './handlers';
+import { sessionFactory, accessTokenFactory, SessionCache } from './session/';
+import { withPageAuthFactory, withApiAuthFactory } from './helpers';
+import { SignInWithAuth0 } from './instance';
 import version from './version';
 
-export default function createInstance(params: ConfigParameters): ISignInWithAuth0 {
+export default function createInstance(params: ConfigParameters): SignInWithAuth0 {
   const config = getConfig(params);
   const getClient = clientFactory(config, { name: 'nextjs-auth0', version });
   const transientHandler = new TransientStore(config);
   const cookieStore = new CookieStore(config);
-  const sessionCache = new SessionCache(config);
-
-  const applyCookies = (fn: Function) => (req: NextApiRequest, res: NextApiResponse, ...args: []): any => {
-    if (!sessionCache.has(req)) {
-      const [json, iat] = cookieStore.read(req);
-      sessionCache.set(req, fromJson(json));
-      onHeaders(res, () => cookieStore.save(req, res, sessionCache.get(req), iat));
-    }
-    return fn(req, res, ...args);
-  };
+  const sessionCache = new SessionCache(config, cookieStore);
+  const getSession = sessionFactory(sessionCache);
+  const getAccessToken = accessTokenFactory(getClient, config, sessionCache);
 
   return {
-    handleLogin: applyCookies(loginHandler(config, getClient, transientHandler)),
-    handleLogout: applyCookies(logoutHandler(config, getClient, sessionCache)),
-    handleCallback: applyCookies(callbackHandler(config, getClient, sessionCache, transientHandler)),
-    handleProfile: applyCookies(profileHandler(config, sessionCache, getClient)),
-    requireAuthentication: requireAuthentication(sessionCache, applyCookies),
-    tokenCache: applyCookies(tokenCache(getClient, config, sessionCache)),
-    getSession: applyCookies(sessionHandler(sessionCache))
+    handleLogin: loginHandler(config, getClient, transientHandler),
+    handleLogout: logoutHandler(config, getClient, sessionCache),
+    handleCallback: callbackHandler(config, getClient, sessionCache, transientHandler),
+    handleProfile: profileHandler(sessionCache, getClient, getAccessToken),
+    withApiAuth: withApiAuthFactory(sessionCache),
+    withPageAuth: withPageAuthFactory(sessionCache),
+    getSession,
+    getAccessToken
   };
 }
