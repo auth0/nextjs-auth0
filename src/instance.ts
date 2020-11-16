@@ -1,5 +1,4 @@
-import { NextApiRequest, NextApiResponse } from 'next';
-import { ProfileOptions, HandleLogin, HandleLogout, HandleCallback } from './handlers';
+import { HandleLogin, HandleLogout, HandleCallback, HandleProfile } from './handlers';
 import { GetSession, GetAccessToken } from './session';
 import { WithApiAuth, WithPageAuth } from './helpers';
 
@@ -22,7 +21,7 @@ export interface SignInWithAuth0 {
   /**
    * Profile handler which return profile information about the user.
    */
-  handleProfile: (req: NextApiRequest, res: NextApiResponse, options?: ProfileOptions) => Promise<void>;
+  handleProfile: HandleProfile;
 
   /**
    * Session getter
