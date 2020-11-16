@@ -32,7 +32,7 @@ class TestSessionCache implements SessionCache {
   constructor() {
     this.cache = new WeakMap<IncomingMessage, TokenSet>();
   }
-  create(req: IncomingMessage, tokenSet: TokenSet): void {
+  create(req: IncomingMessage, _res: ServerResponse, tokenSet: TokenSet): void {
     this.cache.set(req, tokenSet);
   }
   delete(req: IncomingMessage): void {
