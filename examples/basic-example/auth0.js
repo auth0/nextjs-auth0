@@ -12,16 +12,16 @@ export default initAuth0({
   session: {
     cookie: {
       path: '/'
-    },
+    }
   },
   authorizationParams: {
     response_type: 'code',
     audience: process.env.API_AUDIENCE,
-    scope: process.env.AUTH0_SCOPE,
+    scope: process.env.AUTH0_SCOPE
   },
   routes: {
     callback,
     postLogoutRedirect: process.env.POST_LOGOUT_REDIRECT_URI
   },
-  secret: process.env.SESSION_COOKIE_SECRET,
+  secret: process.env.SESSION_COOKIE_SECRET
 });
