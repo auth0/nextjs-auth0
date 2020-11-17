@@ -1,7 +1,7 @@
 import { initAuth0 } from '@auth0/nextjs-auth0';
 
-const baseURL = 'http://localhost:3000'
-const callback = '/api/callback'; // @TODO
+const baseURL = 'http://localhost:3000';
+const callback = '/api/auth/callback'; // @TODO
 
 export default initAuth0({
   baseURL,
