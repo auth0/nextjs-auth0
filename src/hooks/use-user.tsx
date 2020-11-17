@@ -30,7 +30,7 @@ export default ({ children, user: initialUser }: UserProviderProps): ReactElemen
     if (user) return; // if initialUser is populated, no loading required
 
     (async (): Promise<void> => {
-      const response = await fetch('/api/me');
+      const response = await fetch('/api/auth/me');
       const result = response.ok ? await response.json() : null;
 
       setUser(result);

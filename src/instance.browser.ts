@@ -4,6 +4,12 @@ import { SignInWithAuth0 } from './instance';
 export default function createDummyBrowserInstance(): SignInWithAuth0 & { isBrowser: boolean } {
   return {
     isBrowser: true,
+    getSession: () => {
+      throw new Error('The getSession method can only be used from the server side');
+    },
+    getAccessToken: () => {
+      throw new Error('The tokenCache method can only be used from the server side');
+    },
     handleLogin: () => {
       throw new Error('The handleLogin method can only be used from the server side');
     },
@@ -16,17 +22,14 @@ export default function createDummyBrowserInstance(): SignInWithAuth0 & { isBrow
     handleProfile: () => {
       throw new Error('The handleProfile method can only be used from the server side');
     },
-    getSession: () => {
-      throw new Error('The getSession method can only be used from the server side');
-    },
-    getAccessToken: () => {
-      throw new Error('The tokenCache method can only be used from the server side');
-    },
-    withApiAuth: () => {
+    withApiAuthRequired: () => {
       throw new Error('The withApiAuth method can only be used from the server side');
     },
-    withPageAuth: () => {
+    withPageAuthRequired: () => {
       throw new Error('The tokenCache method can only be used from the server side');
+    },
+    createHandlers: () => {
+      throw new Error('The createHandlers method can only be used from the server side');
     }
   };
 }

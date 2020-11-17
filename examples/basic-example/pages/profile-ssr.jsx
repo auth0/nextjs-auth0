@@ -1,7 +1,6 @@
 import React from 'react';
-
+import auth0 from '../auth0';
 import Layout from '../components/layout';
-import withAuth from '../components/with-auth';
 
 const Profile = ({ user }) => (
   <Layout>
@@ -14,4 +13,6 @@ const Profile = ({ user }) => (
   </Layout>
 );
 
-export default withAuth(Profile);
+export default Profile;
+
+export const getServerSideProps = auth0.withPageAuthRequired();

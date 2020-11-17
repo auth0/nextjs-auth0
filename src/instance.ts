@@ -1,8 +1,18 @@
-import { HandleLogin, HandleLogout, HandleCallback, HandleProfile } from './handlers';
 import { GetSession, GetAccessToken } from './session';
-import { WithApiAuth, WithPageAuth } from './helpers';
+import { WithApiAuthRequired, WithPageAuthRequired } from './helpers';
+import { CreateHandlers, HandleCallback, HandleLogin, HandleLogout, HandleProfile } from './handlers';
 
 export interface SignInWithAuth0 {
+  /**
+   * Session getter
+   */
+  getSession: GetSession;
+
+  /**
+   * Access Token getter
+   */
+  getAccessToken: GetAccessToken;
+
   /**
    * Login handler which will redirect the user to Auth0.
    */
@@ -24,22 +34,17 @@ export interface SignInWithAuth0 {
   handleProfile: HandleProfile;
 
   /**
-   * Session getter
-   */
-  getSession: GetSession;
-
-  /**
-   * Access Token getter
-   */
-  getAccessToken: GetAccessToken;
-
-  /**
    * Helper that adds auth to an API Route
    */
-  withApiAuth: WithApiAuth;
+  withApiAuthRequired: WithApiAuthRequired;
 
   /**
    * Helper that adds auth to an SSR Page Route
    */
-  withPageAuth: WithPageAuth;
+  withPageAuthRequired: WithPageAuthRequired;
+
+  /**
+   * Create the main handlers for your api routes
+   */
+  createHandlers: CreateHandlers;
 }
