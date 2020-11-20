@@ -90,7 +90,7 @@ function serializeCookie(cookie: ICookie, secure: boolean): string {
     expires: new Date(Date.now() + cookie.maxAge * 1000),
     httpOnly: true,
     secure,
-    path: cookie.path,
+    path: cookie.path ? cookie.path : '/',
     domain: cookie.domain,
     sameSite: cookie.sameSite
   });
