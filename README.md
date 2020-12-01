@@ -425,6 +425,53 @@ If the user is authenticated then your API route will simply execute, but if the
 }
 ```
 
+### Setting the session with a token set
+
+In case you want to set session tokens programmatically you can use the `setSession` method.
+
+This is useful for example if you need interoperability between `@auth0/nextjs-auth0` and an existing legacy sign up endpoint which uses the password grant type for silent authentication.
+
+If you want to expose a route which creates a new user and then silently authenticates them (eg: `/pages/api/signup.js`):
+
+```js
+// Importing the `auth0` package to use the password grant type
+import { AuthenticationClient } from 'auth0';
+import auth0 from '../../utils/auth0';
+import { createUserInUpstreamService } from '../../utils/signup';
+
+const auth0AuthClient = new AuthenticationClient({
+  domain: process.env.NEXT_PUBLIC_AUTH0_DOMAIN,
+  clientId: process.env.NEXT_PUBLIC_AUTH0_CLIENT_ID,
+  clientSecret: process.env.AUTH0_CLIENT_SECRET
+});
+
+export default async function signup(req, res) {
+  try {
+    // POST http://api.acme.com/signup will create
+    // the user in the ACME database and in Auth0
+    await createUserInUpstreamService(req.body);
+
+    // Once the user is created successfully then silently authenticate
+    // them using the password grant type
+    const tokens = await auth0AuthClient.oauth.passwordGrant({
+      username: req.body.username,
+      password: req.body.password,
+      scope: 'openid profile email offline_access'
+    });
+
+    // Set the session with the tokens from the password grant
+    await auth0.setSession(req, res, tokens);
+
+    res.status(201).end();
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).end(error.message);
+  }
+}
+```
+
+NOTE: For the above example to work you will need to enable the password grant type on your Auth0 client application settings dashboard.
+
 ## Documentation
 
 ### Cookies
