@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { IncomingMessage } from 'http';
+import { TokenSetParameters } from 'openid-client';
 import { ISession } from './session/session';
 import { LoginOptions } from './handlers/login';
 import { ITokenCache } from './tokens/token-cache';
@@ -33,6 +34,11 @@ export interface ISignInWithAuth0 {
    * Session handler which returns the current session
    */
   getSession: (req: IncomingMessage) => Promise<ISession | null | undefined>;
+
+  /**
+   * Set session handler which sets the current session with a token set.
+   */
+  setSession: (req: NextApiRequest, res: NextApiResponse, tokenSetParameters: TokenSetParameters) => Promise<void>;
 
   /**
    * Handle to require authentication for an API route.
