@@ -8,8 +8,8 @@ function getServerSetting(environmentVariable: string, defaultValue?: string): s
   return defaultValue || null;
 }
 
-const baseURL = 'http://localhost:3000'
-const callback = '/api/callback'; // @TODO
+const baseURL = 'http://localhost:3000';
+const callback = '/api/auth/callback'; // @TODO
 
 export default initAuth0({
   baseURL,
@@ -20,16 +20,16 @@ export default initAuth0({
   session: {
     cookie: {
       path: '/'
-    },
+    }
   },
   authorizationParams: {
     response_type: 'code',
     audience: getServerSetting('API_AUDIENCE'),
-    scope: getServerSetting('AUTH0_SCOPE'),
+    scope: getServerSetting('AUTH0_SCOPE')
   },
   routes: {
     callback,
     postLogoutRedirect: getServerSetting('POST_LOGOUT_REDIRECT_URI')
   },
-  secret: getServerSetting('SESSION_COOKIE_SECRET'),
+  secret: getServerSetting('SESSION_COOKIE_SECRET')
 });

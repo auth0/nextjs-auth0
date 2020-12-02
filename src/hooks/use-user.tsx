@@ -16,13 +16,17 @@ export interface UserContext {
   loading: boolean;
 }
 
-type UserProviderProps = React.PropsWithChildren<{ user: UserProfile | null }>;
+type UserProviderProps = React.PropsWithChildren<{ user: UserProfile | null; profileUrl?: string }>;
 
 const User = createContext<UserContext>({ user: null, loading: false });
 
 export const useUser = (): UserContext => useContext<UserContext>(User);
 
-export default ({ children, user: initialUser }: UserProviderProps): ReactElement<UserContext> => {
+export default ({
+  children,
+  user: initialUser,
+  profileUrl = '/api/auth/me'
+}: UserProviderProps): ReactElement<UserContext> => {
   const [user, setUser] = useState<UserProfile | null>(() => initialUser); // if used withAuth, initialUser is populated
   const [loading, setLoading] = useState<boolean>(() => !initialUser); // if initialUser is populated, no loading needed
 
@@ -30,7 +34,7 @@ export default ({ children, user: initialUser }: UserProviderProps): ReactElemen
     if (user) return; // if initialUser is populated, no loading required
 
     (async (): Promise<void> => {
-      const response = await fetch('/api/auth/me');
+      const response = await fetch(profileUrl);
       const result = response.ok ? await response.json() : null;
 
       setUser(result);
