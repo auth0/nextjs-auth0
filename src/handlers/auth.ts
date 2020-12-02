@@ -11,7 +11,7 @@ export interface Handlers {
   profile: HandleProfile;
 }
 
-export type CreateHandlers = (userHandlers?: Partial<Handlers>) => NextApiHandler;
+export type HandleAuth = (userHandlers?: Partial<Handlers>) => NextApiHandler;
 
 const wrapErrorHandling = (fn: NextApiHandler): NextApiHandler => async (
   req: NextApiRequest,
@@ -25,12 +25,7 @@ const wrapErrorHandling = (fn: NextApiHandler): NextApiHandler => async (
   }
 };
 
-export default function handlerFactory({
-  handleLogin,
-  handleLogout,
-  handleCallback,
-  handleProfile
-}: any): CreateHandlers {
+export default function handlerFactory({ handleLogin, handleLogout, handleCallback, handleProfile }: any): HandleAuth {
   return (userHandlers: Partial<Handlers> = {}): NextApiHandler => {
     const { login, logout, callback, profile } = {
       login: wrapErrorHandling(handleLogin),

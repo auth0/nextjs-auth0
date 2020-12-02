@@ -1,6 +1,6 @@
 import { GetSession, GetAccessToken } from './session';
 import { WithApiAuthRequired, WithPageAuthRequired } from './helpers';
-import { CreateHandlers, HandleCallback, HandleLogin, HandleLogout, HandleProfile } from './handlers';
+import { HandleAuth, HandleCallback, HandleLogin, HandleLogout, HandleProfile } from './handlers';
 
 export interface SignInWithAuth0 {
   /**
@@ -46,5 +46,5 @@ export interface SignInWithAuth0 {
   /**
    * Create the main handlers for your api routes
    */
-  createHandlers: CreateHandlers;
+  handleAuth: HandleAuth;
 }
