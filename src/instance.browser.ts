@@ -28,8 +28,8 @@ export default function createDummyBrowserInstance(): SignInWithAuth0 & { isBrow
     withPageAuthRequired: () => {
       throw new Error('The tokenCache method can only be used from the server side');
     },
-    createHandlers: () => {
-      throw new Error('The createHandlers method can only be used from the server side');
+    handleAuth: () => {
+      throw new Error('The handleAuth method can only be used from the server side');
     }
   };
 }
