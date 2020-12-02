@@ -2,19 +2,21 @@ import React from 'react';
 import { UserProfile } from '@auth0/nextjs-auth0';
 
 import Layout from '../components/layout';
-import withAuth from '../components/with-auth';
+import auth0 from '../lib/auth0';
 
 type ProfileProps = { user: UserProfile };
 
-const Profile = ({ user }: ProfileProps): React.ReactElement => (
-  <Layout>
-    <h1>Profile</h1>
+export default function Profile({ user }: ProfileProps): React.ReactElement {
+  return (
+    <Layout>
+      <h1>Profile</h1>
 
-    <div>
-      <h3>Profile (server rendered)</h3>
-      <pre id="profile">{JSON.stringify(user, null, 2)}</pre>
-    </div>
-  </Layout>
-);
+      <div>
+        <h3>Profile (server rendered)</h3>
+        <pre id="profile">{JSON.stringify(user, null, 2)}</pre>
+      </div>
+    </Layout>
+  );
+}
 
-export default withAuth(Profile);
+export const getServerSideProps = auth0.withPageAuthRequired();
