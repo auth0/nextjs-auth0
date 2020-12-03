@@ -3,19 +3,15 @@
 Recipes for various authentication scenarios with Auth0 and Next.js
 
 - [nextjs-auth0 (Session auth)](#nextjs-auth0--session-auth-)
-  - [Basic configuration](#basic-configuration)
-  - [Customise handlers behaviour](#customise-handlers-behaviour)
-  - [Use custom auth urls](#use-custom-auth-urls)
-  - [Protect an API Route with a Session](#protect-an-api-route-with-a-session)
+  - [Protect an API Route](#protect-an-api-route)
   - [Protecting a Server Side Rendered (SSR) Page](#protecting-a-server-side-rendered--ssr--page)
   - [Protecting a Client Side Rendered (CSR) Page](#protecting-a-client-side-rendered--csr--page)
-  - [Prefill the user hook when Server Side Rendering a page](#prefill-the-user-hook-when-server-side-rendering-a-page)
-  - [Access an External API from a Next.js API Route](#access-an-external-api-from-a-nextjs-api-route)
+  - [Access an External API from an API Route](#access-an-external-api-from-an-api-route)
   - [Access an External API from the front end](#access-an-external-api-from-the-front-end)
 - [auth0-react (JWT auth)](#auth0-react--jwt-auth-)
   - [Protecting a Client Side Rendered (CSR) Page](#protecting-a-client-side-rendered--csr--page-1)
+  - [Access an API Route](#access-a-nextjs-api-route)
   - [Access an External API from the front end](#access-an-external-api-from-the-front-end-1)
-  - [Access a Next.js API Route](#access-a-nextjs-api-route)
 
 ## nextjs-auth0 (Session auth)
 
@@ -23,112 +19,7 @@ Uses a session to protect resources, the session is stored in an encrypted `Http
 
 **TODO** Architecture document
 
-### Basic configuration
-
-Basic configuration for login/logout using nextjs-auth
-
-Configure the SDK with environment variables:
-
-```bash
-# .env
-AUTH0_SECRET="long-secret-code"
-AUTH0_ISSUER_BASE_URL="https://foo.auth0.com"
-AUTH0_BASE_URL="http://localhost:3000"
-AUTH0_CLIENT_ID="MY_CLIENT_ID"
-```
-
-Create the `/login`, `/logout`, `/callback`, `/me` handlers under `/api/auth/` using `handleAuth` (You'll need to add `http://localhost:3000/api/auth/callback` to 'Allowed Callback URLs' in your Auth0 dashboard)
-
-```javascript
-// /pages/api/auth/[...auth0].js
-import { handleAuth } from '@auth0/nextjs-auth0';
-
-export default handleAuth();
-```
-
-Access the user from your frontend components:
-
-```javascript
-// /pages/index.js
-import { useUser } from '@auth0/nextjs-auth0';
-
-export default () => {
-  const { user, isLoading } = useUser();
-
-  if (isLoading) {
-    return <div>Loading...</div>;
-  }
-
-  if (user) {
-    return (
-      <div>
-        Hello {user.name}, <a href="/api/auth/logout">Logout</a>
-      </div>
-    );
-  } else {
-    return <a href="/api/auth/login">Login</a>;
-  }
-};
-```
-
-### Customise handlers behaviour
-
-Pass custom parameters to the auth handlers or add your own logging and error handling.
-
-```javascript
-// /pages/api/auth/[...auth0].js
-import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
-import { myCustomLogger, myCustomErrorReporter } from '../utils';
-
-export default handleAuth({
-  async login(req, res) {
-    try {
-      // Add your own custom logger
-      myCustomLogger('Logging in');
-
-      // Pass custom parameters to login
-      await handleLogin(req, res, {
-        authorizationParams: {
-          custom_param: 'custom'
-        },
-        returnTo: '/custom-page'
-      });
-    } catch (error) {
-      // Add your own custom error handling
-      myCustomErrorReporter(error);
-      res.status(error.status || 400).end(error.message);
-    }
-  }
-});
-```
-
-### Use custom auth urls
-
-Instead of (or in addition to) creating `/pages/api/auth/[...auth0].js` to handle all requests, you can create them individually at different urls.
-
-eg for login:
-
-```javascript
-// api/custom-login.js
-import { handleLogin } from '@auth0/nextjs-auth0';
-
-export default async function login(req, res) {
-  try {
-    await handleLogin(req, res);
-  } catch (error) {
-    res.status(error.status || 400).end(error.message);
-  }
-}
-```
-
-```javascript
-// /components/login-button.js
-export default () => <a href="/api/custom-login">Login</a>;
-```
-
-**TODO** you need to call `withPageAuthRequired` with custom login url
-
-### Protect an API Route with a Session
+### Protect an API Route
 
 Requests to `/pages/api/protected` without a valid session cookie will fail with `401`.
 
@@ -192,39 +83,7 @@ export default withPageAuthRequired(function Profile({ user }) {
 });
 ```
 
-### Prefill the user hook when Server Side Rendering a page
-
-If you are pre-rendering the page on the server for whatever reason. You should optionally prefill
-the `useUser` hook by returning the user object in your `getServerSideProps` call
-(`withPageAuthRequired` does this by default).
-
-```javascript
-// pages/index.js
-import { useUser } from '@auth0/nextjs-auth0';
-
-export default function Home() {
-  // You would not need to check `isLoading` here, because `user` is preloaded
-  const { user } = useUser();
-
-  if (user) {
-    return (
-      <div>
-        Hello {user.name}, <a href="/api/auth/logout">Logout</a>
-      </div>
-    );
-  } else {
-    return <a href="/api/auth/login">Login</a>;
-  }
-}
-
-export async function getServerSideProps({ req, res }) {
-  const { user } = await getSession(req, res);
-  const otherProps = getMyOtherProps();
-  return { props: { user, ...otherProps } };
-}
-```
-
-### Access an External API from a Next.js API Route
+### Access an External API from an API Route
 
 Get an Access Token by specifying `response_type: 'code'` and providing your API's audience and scopes
 
@@ -390,36 +249,6 @@ export default withAuthenticationRequired(Profile);
 
 See [Next.js auth0-react example app](https://github.com/auth0/auth0-react/tree/master/examples/nextjs-app)
 
-### Access an External API from the front end
-
-Get an Access Token for the External API and call it directly.
-
-```javascript
-import React, { useEffect, useState } from 'react';
-import { useAuth0 } from '@auth0/auth0-react';
-
-export default withPageAuthRequired(function Products() {
-  const { getAccessTokenSilently } = useAuth0();
-  const { data, error } = useSWR('https://api.example.com/products', async (url) => {
-    const accessToken = await getAccessTokenSilently({ scope: 'read:products', audience: 'https://api.example.com/' });
-    const response = await fetch(uri, {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
-    return response.json();
-  });
-
-  if (error) return <div>oops... {error.message}</div>;
-  if (data === undefined) return <div>Loading...</div>;
-  return (
-    <ul>
-      {data.map(({ name }) => (
-        <li>{name}</li>
-      ))}
-    </ul>
-  );
-});
-```
-
 ### Access a Next.js API Route
 
 Protect the API Route with JWT authorization.
@@ -468,6 +297,36 @@ export default withPageAuthRequired(function Products() {
     });
     return response.json();
   });
+  if (error) return <div>oops... {error.message}</div>;
+  if (data === undefined) return <div>Loading...</div>;
+  return (
+    <ul>
+      {data.map(({ name }) => (
+        <li>{name}</li>
+      ))}
+    </ul>
+  );
+});
+```
+
+### Access an External API from the front end
+
+Get an Access Token for the External API and call it directly.
+
+```javascript
+import React, { useEffect, useState } from 'react';
+import { useAuth0 } from '@auth0/auth0-react';
+
+export default withPageAuthRequired(function Products() {
+  const { getAccessTokenSilently } = useAuth0();
+  const { data, error } = useSWR('https://api.example.com/products', async (url) => {
+    const accessToken = await getAccessTokenSilently({ scope: 'read:products', audience: 'https://api.example.com/' });
+    const response = await fetch(uri, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    return response.json();
+  });
+
   if (error) return <div>oops... {error.message}</div>;
   if (data === undefined) return <div>Loading...</div>;
   return (
