@@ -9,7 +9,7 @@ import { IOidcClientFactory } from '../utils/oidc-client';
 import getSessionFromTokenSet from '../utils/session';
 
 export type CallbackOptions = {
-  redirectTo?: string | (() => string | null | Promise<string | null>);
+  redirectTo?: string | ((session: ISession) => string | null | Promise<string | null>);
   onUserLoaded?: (
     req: NextApiRequest,
     res: NextApiResponse,
@@ -66,7 +66,7 @@ export default function callbackHandler(
       if (typeof options.redirectTo === 'string') {
         redirectTo = options.redirectTo;
       } else if (typeof options.redirectTo === 'function') {
-        redirectTo = await options.redirectTo();
+        redirectTo = await options.redirectTo(session);
       }
     }
     res.writeHead(302, {
