@@ -407,9 +407,6 @@ await auth0.handleCallback(req, res, {
     // "new_user" is a theoretical field here, you should replace it
     // with something else in your implementation
     return session.new_user ? '/onboarding': '/dashboard'
-  },
-  onUserLoaded: async (req, res, session, state) => {
-    throw new Error('You are not allowed to sign in');
   }
 });
 ```
