@@ -12,7 +12,7 @@ export type PageRoute = (cts: GetServerSidePropsContext) => Promise<GetServerSid
 export type WithPageAuthRequired = ({}: { getServerSideProps?: GetServerSideProps; loginUrl?: string }) => PageRoute;
 
 export default function withPageAuthRequiredFactory(sessionCache: SessionCache): WithPageAuthRequired {
-  return ({ getServerSideProps, loginUrl = '/api/auth/login' }): PageRoute => async (
+  return ({ getServerSideProps, loginUrl = '/api/auth/login' } = {}): PageRoute => async (
     ctx
   ): Promise<GetServerSidePropsResultWithSession> => {
     assertCtx(ctx);
