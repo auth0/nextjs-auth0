@@ -9,18 +9,20 @@ export type GetServerSidePropsResultWithSession = GetServerSidePropsResult<{
 
 export type PageRoute = (cts: GetServerSidePropsContext) => Promise<GetServerSidePropsResultWithSession>;
 
-export type WithPageAuthRequired = (fn?: GetServerSideProps, authRequired?: boolean) => PageRoute;
+export type WithPageAuthRequired = ({}: { getServerSideProps?: GetServerSideProps; loginUrl?: string }) => PageRoute;
 
-export default function withPageAuthFactory(sessionCache: SessionCache): WithPageAuthRequired {
-  return (fn?: GetServerSideProps): PageRoute => async (ctx): Promise<GetServerSidePropsResultWithSession> => {
+export default function withPageAuthRequiredFactory(sessionCache: SessionCache): WithPageAuthRequired {
+  return ({ getServerSideProps, loginUrl = '/api/auth/login' }): PageRoute => async (
+    ctx
+  ): Promise<GetServerSidePropsResultWithSession> => {
     assertCtx(ctx);
     if (!sessionCache.isAuthenticated(ctx.req, ctx.res)) {
-      return { unstable_redirect: { destination: `/api/auth/login?returnTo=${ctx.req.url}`, permanent: false } };
+      return { unstable_redirect: { destination: `${loginUrl}?returnTo=${ctx.req.url}`, permanent: false } };
     }
     const session = sessionCache.get(ctx.req, ctx.res);
     let ret: GetServerSidePropsResultWithSession = {};
-    if (fn) {
-      ret = await fn(ctx);
+    if (getServerSideProps) {
+      ret = await getServerSideProps(ctx);
     }
     return { ...ret, props: { ...(ret.props || {}), user: (session as Session).user } };
   };
