@@ -325,6 +325,90 @@ describe('callback handler', () => {
     });
   });
 
+  describe('with redirectTo callback', () => {
+    let responseStatus: number;
+    let responseHeaders: any;
+    let httpServer: HttpServer;
+    let callbackOptions: CallbackOptions | undefined;
+
+    beforeAll(async () => {
+      discovery(withoutApi);
+      jwksEndpoint(withoutApi, keystore.toJWKS());
+
+      const callbackHandler = callback(withoutApi, getClient(withoutApi), store);
+      httpServer = new HttpServer((req, res) => callbackHandler(req, res, callbackOptions));
+      await httpServer.start();
+    });
+
+    afterAll((done) => {
+      httpServer.stop(done);
+    });
+
+    describe('when callback returns a string', () => {
+      beforeEach(async () => {
+        callbackOptions = {
+          redirectTo: async () => '/custom-redirect-uri'
+        };
+
+        codeExchange(withoutApi, 'bar', keystore.get(), {
+          name: 'john doe',
+          email: 'john@test.com',
+          sub: '123'
+        });
+
+        const state = createState();
+
+        const { statusCode, headers } = await getAsync({
+          url: `${httpServer.getUrl()}?state=${state}&code=bar`,
+          followRedirect: false,
+          headers: {
+            cookie: `a0:state=${state};`
+          }
+        });
+
+        responseStatus = statusCode;
+        responseHeaders = headers;
+      });
+
+      test('callback should fail', async () => {
+        expect(responseStatus).toBe(302);
+        expect(responseHeaders.location).toBe('/custom-redirect-uri');
+      });
+    });
+
+    describe('when callback returns null', () => {
+      beforeEach(async () => {
+        callbackOptions = {
+          redirectTo: () => null
+        };
+
+        codeExchange(withoutApi, 'bar', keystore.get(), {
+          name: 'john doe',
+          email: 'john@test.com',
+          sub: '123'
+        });
+
+        const state = createState();
+
+        const { statusCode, headers } = await getAsync({
+          url: `${httpServer.getUrl()}?state=${state}&code=bar`,
+          followRedirect: false,
+          headers: {
+            cookie: `a0:state=${state};`
+          }
+        });
+
+        responseStatus = statusCode;
+        responseHeaders = headers;
+      });
+
+      test('callback should fail', async () => {
+        expect(responseStatus).toBe(302);
+        expect(responseHeaders.location).toBe('/');
+      });
+    });
+  });
+
   describe('with user loaded hook', () => {
     let responseStatus: number;
     let responseHeaders: any;
