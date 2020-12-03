@@ -399,6 +399,21 @@ await auth0.handleCallback(req, res, {
 });
 ```
 
+If you need to choose a redirect path based on certain parameters of the loaded user, you can feed a function to `redirectTo`
+
+```js
+await auth0.handleCallback(req, res, {
+  redirectTo: async (session) => {
+    // "new_user" is a theoretical field here, you should replace it
+    // with something else in your implementation
+    return session.new_user ? '/onboarding': '/dashboard'
+  },
+  onUserLoaded: async (req, res, session, state) => {
+    throw new Error('You are not allowed to sign in');
+  }
+});
+```
+
 ### Requiring Authentication
 
 If you have API routes for which you want to require the user to be authenticated you can use the `requireAuthentication` handler:
