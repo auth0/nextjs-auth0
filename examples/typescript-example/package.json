@@ -34,8 +34,7 @@
   },
   "dependencies": {
     "@auth0/nextjs-auth0": "file:../../",
-    "isomorphic-unfetch": "^3.0.0",
-    "next": "^9.5.3",
+    "next": "file:../../node_modules/next",
     "react": "file:../../node_modules/react",
     "react-dom": "file:../../node_modules/react-dom"
   },
