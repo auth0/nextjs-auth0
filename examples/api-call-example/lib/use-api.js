@@ -1,4 +1,3 @@
-import fetch from 'isomorphic-unfetch';
 import React, { useEffect, useState } from 'react';
 
 function initialState(args) {
