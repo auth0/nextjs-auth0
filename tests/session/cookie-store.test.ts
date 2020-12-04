@@ -218,6 +218,33 @@ describe('CookieStore', () => {
     });
   });
 
+  describe('with legacy cookies', () => {
+    test('should be able to read them', async() => {
+      const store = getStore({});
+      const { req, res, setHeaderFn } = getRequestResponse();
+      
+      const now = Date.now();
+      await store.save(req, res, {
+        user: { sub: '123' },
+        createdAt: now,
+        accessToken: 'my-access-token',
+        accessTokenScope: 'read:foo',
+        accessTokenExpiresAt: 500
+      });
+
+      const [, cookies] = setHeaderFn.mock.calls[0];
+      
+      req.headers = {
+        cookie: `a0:session=${cookies[0].substr(13)}` // legacy cookie store used a single cookie to store data
+      }
+      const session = await store.read(req);
+      expect(session).toEqual({
+        user: { sub: '123' },
+        createdAt: now
+      });
+    });
+  });
+
   describe('with storeAccessToken', () => {
     describe('not configured', () => {
       const store = getStore({});

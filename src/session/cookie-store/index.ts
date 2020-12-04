@@ -28,7 +28,14 @@ export default class CookieSessionStore implements ISessionStore {
     const cookieCount = cookies[`${cookieName}.c`] || 1;
     let cookie = '';
     for (let i = 0; i < cookieCount; i += 1) {
-      const cookiePart = cookies[`${cookieName}.${i}`];
+      let cookiePart = cookies[`${cookieName}.${i}`];
+
+      // derecated: this could be removed later, once compatibility with legacy store is not needed
+      if (i == 0 && !cookiePart) {
+        cookiePart = cookies[`${cookieName}`];
+      }
+      // end of deprecated code
+
       if (!cookiePart || cookiePart.length === 0) {
         return null; // missing or broken cookie part
       }
