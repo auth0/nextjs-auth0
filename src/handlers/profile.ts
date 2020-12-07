@@ -9,7 +9,7 @@ export type ProfileOptions = {
   refetch?: boolean;
 };
 
-export default function profileHandler(sessionStore: ISessionStore, clientProvider: IOidcClientFactory) {
+export function ProfileHandler(sessionStore: ISessionStore, clientProvider: IOidcClientFactory) {
   return async (req: NextApiRequest, res: NextApiResponse, options?: ProfileOptions): Promise<void> => {
     if (!req) {
       throw new Error('Request is not available');
@@ -31,14 +31,14 @@ export default function profileHandler(sessionStore: ISessionStore, clientProvid
     let userResponse = session.user;
 
     if (options && options.refetch) {
-      userResponse = refetchProfile(sessionStore, clientProvider)(req, res, session);
+      userResponse = RefetchProfile(sessionStore, clientProvider)(req, res, session);
     }
 
     res.json(userResponse);
   };
 }
 
-export function refetchProfile(sessionStore: ISessionStore, clientProvider: IOidcClientFactory) {
+export function RefetchProfile(sessionStore: ISessionStore, clientProvider: IOidcClientFactory) {
   return async (req: NextApiRequest, res: NextApiResponse, session: ISession): Promise<void> => {
     const tokenCache = tokenCacheHandler(clientProvider, sessionStore)(req, res);
     const { accessToken } = await tokenCache.getAccessToken();
