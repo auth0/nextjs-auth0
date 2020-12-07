@@ -31,14 +31,14 @@ export function ProfileHandler(sessionStore: ISessionStore, clientProvider: IOid
     let userResponse = session.user;
 
     if (options && options.refetch) {
-      userResponse = RefetchProfile(sessionStore, clientProvider)(req, res, session);
+      userResponse = RefreshProfile(sessionStore, clientProvider)(req, res, session);
     }
 
     res.json(userResponse);
   };
 }
 
-export function RefetchProfile(sessionStore: ISessionStore, clientProvider: IOidcClientFactory) {
+export function RefreshProfile(sessionStore: ISessionStore, clientProvider: IOidcClientFactory) {
   return async (req: NextApiRequest, res: NextApiResponse, session: ISession): Promise<void> => {
     const tokenCache = tokenCacheHandler(clientProvider, sessionStore)(req, res);
     const { accessToken } = await tokenCache.getAccessToken();

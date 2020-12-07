@@ -30,9 +30,9 @@ export interface ISignInWithAuth0 {
   handleProfile: (req: NextApiRequest, res: NextApiResponse, options?: ProfileOptions) => Promise<void>;
 
   /**
-   * Refetch Profile handler which updates session object with up-to-date user profile
+   * Refresh Profile handler which updates session object with up-to-date user profile
    */
-  refetchProfile: (req: NextApiRequest, res: NextApiResponse, session: ISession) => Promise<void>;
+  refreshProfile: (req: NextApiRequest, res: NextApiResponse, session: ISession) => Promise<void>;
 
   /**
    * Session handler which returns the current session

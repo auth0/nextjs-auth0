@@ -1,7 +1,7 @@
 import LoginHandler from './login';
 import LogoutHandler from './logout';
 import CallbackHandler from './callback';
-import { ProfileHandler, RefetchProfile } from './profile';
+import { ProfileHandler, RefreshProfile } from './profile';
 import SessionHandler from './session';
 import RequireAuthentication from './require-authentication';
 import TokenCache from './token-cache';
@@ -11,7 +11,7 @@ export default {
   LoginHandler,
   LogoutHandler,
   ProfileHandler,
-  RefetchProfile,
+  RefreshProfile,
   SessionHandler,
   RequireAuthentication,
   TokenCache
