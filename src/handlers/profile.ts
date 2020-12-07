@@ -27,6 +27,8 @@ export default function profileHandler(sessionStore: ISessionStore, clientProvid
       return;
     }
 
+    let userResponse = session.user;
+
     if (options && options.refetch) {
       const tokenCache = tokenCacheHandler(clientProvider, sessionStore)(req, res);
       const { accessToken } = await tokenCache.getAccessToken();
@@ -37,20 +39,17 @@ export default function profileHandler(sessionStore: ISessionStore, clientProvid
       const client = await clientProvider();
       const userInfo = await client.userinfo(accessToken);
 
-      const updatedUser = {
+      userResponse = {
         ...session.user,
         ...userInfo
       };
 
       await sessionStore.save(req, res, {
         ...session,
-        user: updatedUser
+        user: userResponse
       });
-
-      res.json(updatedUser);
-      return;
     }
 
-    res.json(session.user);
+    res.json(userResponse);
   };
 }
