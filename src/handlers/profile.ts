@@ -38,7 +38,7 @@ export default function profileHandler(sessionStore: ISessionStore, clientProvid
   };
 }
 
-function refetchProfile(sessionStore: ISessionStore, clientProvider: IOidcClientFactory) {
+export function refetchProfile(sessionStore: ISessionStore, clientProvider: IOidcClientFactory) {
   return async (req: NextApiRequest, res: NextApiResponse, session: ISession): Promise<void> => {
     const tokenCache = tokenCacheHandler(clientProvider, sessionStore)(req, res);
     const { accessToken } = await tokenCache.getAccessToken();
