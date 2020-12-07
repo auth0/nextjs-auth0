@@ -370,7 +370,7 @@ describe('callback handler', () => {
         responseHeaders = headers;
       });
 
-      test('callback should fail', async () => {
+      test('should redirect to custom uri', async () => {
         expect(responseStatus).toBe(302);
         expect(responseHeaders.location).toBe('/custom-redirect-uri');
       });
@@ -402,7 +402,7 @@ describe('callback handler', () => {
         responseHeaders = headers;
       });
 
-      test('callback should fail', async () => {
+      test('should redirect to root', async () => {
         expect(responseStatus).toBe(302);
         expect(responseHeaders.location).toBe('/');
       });
