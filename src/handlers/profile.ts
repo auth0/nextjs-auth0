@@ -3,6 +3,7 @@ import { NextApiResponse, NextApiRequest } from 'next';
 import tokenCacheHandler from './token-cache';
 import { ISessionStore } from '../session/store';
 import { IOidcClientFactory } from '../utils/oidc-client';
+import { ISession } from 'session/session';
 
 export type ProfileOptions = {
   refetch?: boolean;
@@ -30,26 +31,34 @@ export default function profileHandler(sessionStore: ISessionStore, clientProvid
     let userResponse = session.user;
 
     if (options && options.refetch) {
-      const tokenCache = tokenCacheHandler(clientProvider, sessionStore)(req, res);
-      const { accessToken } = await tokenCache.getAccessToken();
-      if (!accessToken) {
-        throw new Error('No access token available to refetch the profile');
-      }
-
-      const client = await clientProvider();
-      const userInfo = await client.userinfo(accessToken);
-
-      userResponse = {
-        ...session.user,
-        ...userInfo
-      };
-
-      await sessionStore.save(req, res, {
-        ...session,
-        user: userResponse
-      });
+      userResponse = refetchProfile(sessionStore, clientProvider)(req, res, session);
     }
 
     res.json(userResponse);
+  };
+}
+
+function refetchProfile(sessionStore: ISessionStore, clientProvider: IOidcClientFactory) {
+  return async (req: NextApiRequest, res: NextApiResponse, session: ISession): Promise<void> => {
+    const tokenCache = tokenCacheHandler(clientProvider, sessionStore)(req, res);
+    const { accessToken } = await tokenCache.getAccessToken();
+    if (!accessToken) {
+      throw new Error('No access token available to refetch the profile');
+    }
+
+    const client = await clientProvider();
+    const userInfo = await client.userinfo(accessToken);
+
+    const updatedUser = {
+      ...session.user,
+      ...userInfo
+    };
+
+    await sessionStore.save(req, res, {
+      ...session,
+      user: updatedUser
+    });
+
+    return updatedUser;
   };
 }
