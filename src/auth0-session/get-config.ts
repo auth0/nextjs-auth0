@@ -2,6 +2,8 @@ import Joi from '@hapi/joi';
 import { defaultState as getLoginState } from './hooks/get-login-state';
 import { Config } from './config';
 
+const isHttps = /^https:/i;
+
 const paramsSchema = Joi.object({
   secret: Joi.alternatives([
     Joi.string().min(8),
@@ -36,7 +38,22 @@ const paramsSchema = Joi.object({
       transient: Joi.boolean().optional().default(false),
       httpOnly: Joi.boolean().optional().default(true),
       sameSite: Joi.string().valid('lax', 'strict', 'none').optional().default('lax'),
-      secure: Joi.boolean().optional(),
+      secure: Joi.when(Joi.ref('/baseURL'), {
+        is: Joi.string().pattern(isHttps),
+        then: Joi.boolean()
+          .default(true)
+          .custom((value, { warn }) => {
+            if (!value) warn('insecure.cookie');
+            return value;
+          })
+          .messages({
+            'insecure.cookie':
+              "Setting your cookie to insecure when over https is not recommended, I hope you know what you're doing."
+          }),
+        otherwise: Joi.boolean().valid(false).default(false).messages({
+          'any.only': 'Cookies set with the `Secure` property wont be attached to http requests'
+        })
+      }),
       path: Joi.string().uri({ relativeOnly: true }).optional()
     })
       .default()
@@ -55,14 +72,27 @@ const paramsSchema = Joi.object({
       .optional()
       .when('response_type', {
         is: 'code',
-        then: Joi.valid('query', 'query'),
+        then: Joi.valid('query', 'form_post'),
         otherwise: Joi.valid('form_post').default('form_post')
       })
   })
     .optional()
     .unknown(true)
     .default(),
-  baseURL: Joi.string().uri().required(),
+  baseURL: Joi.string()
+    .uri()
+    .required()
+    .when(Joi.ref('authorizationParams.response_mode'), {
+      is: 'form_post',
+      then: Joi.string()
+        .pattern(isHttps)
+        .rule({
+          warn: true,
+          message:
+            "Using 'form_post' for response_mode may cause issues for you logging in over http, " +
+            'see https://github.com/auth0/express-openid-connect/blob/master/FAQ.md'
+        })
+    }),
   clientID: Joi.string().required(),
   clientSecret: Joi.string()
     .when(
@@ -89,8 +119,6 @@ const paramsSchema = Joi.object({
     ),
   clockTolerance: Joi.number().optional().default(60),
   enableTelemetry: Joi.boolean().optional().default(true),
-  errorOnRequiredAuth: Joi.boolean().optional().default(false), // ?
-  attemptSilentLogin: Joi.boolean().optional().default(false), // ?
   getLoginState: Joi.function()
     .optional()
     .default(() => getLoginState),
@@ -103,7 +131,6 @@ const paramsSchema = Joi.object({
   idTokenSigningAlg: Joi.string().insensitive().not('none').optional().default('RS256'),
   issuerBaseURL: Joi.string().uri().required(),
   legacySameSiteCookie: Joi.boolean().optional().default(true),
-  authRequired: Joi.boolean().optional().default(true), // ?
   routes: Joi.object({
     login: Joi.alternatives([Joi.string().uri({ relativeOnly: true }), Joi.boolean().valid(false)]).default('/login'),
     logout: Joi.alternatives([Joi.string().uri({ relativeOnly: true }), Joi.boolean().valid(false)]).default('/logout'),
@@ -111,7 +138,13 @@ const paramsSchema = Joi.object({
     postLogoutRedirect: Joi.string().uri({ allowRelative: true }).default('')
   })
     .default()
-    .unknown(false) // ?
+    .unknown(false),
+  clientAuthMethod: Joi.string()
+    .valid('client_secret_basic', 'client_secret_post', 'none')
+    .optional()
+    .default((parent) => {
+      return parent.authorizationParams.response_type === 'id_token' ? 'none' : 'client_secret_basic';
+    })
 });
 
 export type DeepPartial<T> = {
@@ -130,10 +163,13 @@ export const get = (params: ConfigParameters = {}): Config => {
     ...params
   };
 
-  const paramsValidation = paramsSchema.validate(config);
-  if (paramsValidation.error) {
-    throw new TypeError(paramsValidation.error.details[0].message);
+  const { value, error, warning } = paramsSchema.validate(config);
+  if (error) {
+    throw new TypeError(error.details[0].message);
+  }
+  if (warning) {
+    console.warn(warning.message);
   }
 
-  return paramsValidation.value;
+  return value;
 };

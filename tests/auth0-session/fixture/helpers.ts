@@ -11,8 +11,7 @@ const clientId = '__test_client_id__';
 export const defaultConfig: Omit<ConfigParameters, 'baseURL'> = {
   secret,
   clientID: clientId,
-  issuerBaseURL: 'https://op.example.com',
-  authRequired: false
+  issuerBaseURL: 'https://op.example.com'
 };
 
 export const toSignedCookieJar = (cookies: { [key: string]: string }, url: string): CookieJar => {

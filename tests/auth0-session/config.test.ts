@@ -20,8 +20,7 @@ describe('Config', () => {
         response_type: 'id_token',
         response_mode: 'form_post',
         scope: 'openid profile email'
-      },
-      authRequired: true
+      }
     });
   });
 
@@ -41,8 +40,7 @@ describe('Config', () => {
         response_type: 'id_token',
         response_mode: 'form_post',
         scope: 'openid profile email'
-      },
-      authRequired: true
+      }
     });
     process.env = _env;
   });
@@ -59,8 +57,7 @@ describe('Config', () => {
       authorizationParams: {
         response_type: 'code',
         scope: 'openid profile email'
-      },
-      authRequired: true
+      }
     });
   });
 
@@ -473,7 +470,7 @@ describe('Config', () => {
         response_type: 'code',
         response_mode: ('' as unknown) as undefined
       })
-    ).toThrowError(new TypeError('"authorizationParams.response_mode" must be [query]'));
+    ).toThrowError(new TypeError('"authorizationParams.response_mode" must be one of [query, form_post]'));
   });
 
   it('should not allow response_type id_token and response_mode query', () => {

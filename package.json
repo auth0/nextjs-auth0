@@ -133,6 +133,9 @@
       "text",
       "text-summary"
     ],
-    "preset": "ts-jest"
+    "preset": "ts-jest",
+    "setupFilesAfterEnv": [
+      "./tests/setup.ts"
+    ]
   }
 }

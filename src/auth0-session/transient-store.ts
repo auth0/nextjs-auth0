@@ -98,7 +98,7 @@ export default class TransientStore {
     const { domain, path, secure } = this.config.session.cookie;
     const basicAttr = {
       httpOnly: true,
-      secure: typeof secure === 'boolean' ? secure : this.config.baseURL.startsWith('https:'), // @TODO check
+      secure,
       domain,
       path
     };
