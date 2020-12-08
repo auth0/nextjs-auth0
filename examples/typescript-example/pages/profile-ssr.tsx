@@ -1,8 +1,6 @@
 import React from 'react';
-import { UserProfile } from '@auth0/nextjs-auth0';
-
+import { UserProfile, withPageAuthRequired } from '@auth0/nextjs-auth0';
 import Layout from '../components/layout';
-import auth0 from '../lib/auth0';
 
 type ProfileProps = { user: UserProfile };
 
@@ -19,4 +17,4 @@ export default function Profile({ user }: ProfileProps): React.ReactElement {
   );
 }
 
-export const getServerSideProps = auth0.withPageAuthRequired();
+export const getServerSideProps = withPageAuthRequired();

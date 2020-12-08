@@ -20,7 +20,11 @@ type UserProviderProps = React.PropsWithChildren<{ user: UserProfile | null; pro
 
 const User = createContext<UserContext>({ user: null, loading: false });
 
-export const useUser = (): UserContext => useContext<UserContext>(User);
+export type UseUser = () => UserContext;
+
+export const useUser: UseUser = () => useContext<UserContext>(User);
+
+export type UserProvider = (props: UserProviderProps) => ReactElement<UserContext>;
 
 export default ({
   children,
