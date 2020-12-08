@@ -1,3 +1,3 @@
-import auth0 from '../../../auth0';
+import { handleAuth } from '@auth0/nextjs-auth0';
 
-export default auth0.handleAuth();
+export default handleAuth();

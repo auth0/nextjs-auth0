@@ -1,6 +1,7 @@
 import { GetSession, GetAccessToken } from './session';
 import { WithApiAuthRequired, WithPageAuthRequired } from './helpers';
 import { HandleAuth, HandleCallback, HandleLogin, HandleLogout, HandleProfile } from './handlers';
+import { ConfigParameters } from './auth0-session';
 
 export interface SignInWithAuth0 {
   /**
@@ -48,3 +49,5 @@ export interface SignInWithAuth0 {
    */
   handleAuth: HandleAuth;
 }
+
+export type InitAuth0 = (params?: ConfigParameters) => SignInWithAuth0;

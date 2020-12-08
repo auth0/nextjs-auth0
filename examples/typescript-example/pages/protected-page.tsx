@@ -1,8 +1,6 @@
 import React from 'react';
-import { useUser } from '@auth0/nextjs-auth0';
-
+import { useUser, withPageAuthRequired } from '@auth0/nextjs-auth0';
 import Layout from '../components/layout';
-import auth0 from '../lib/auth0';
 
 export default function ProtectedPage(): React.ReactElement {
   const { user, loading } = useUser();
@@ -23,4 +21,4 @@ export default function ProtectedPage(): React.ReactElement {
   );
 }
 
-export const getServerSideProps = auth0.withPageAuthRequired();
+export const getServerSideProps = withPageAuthRequired();

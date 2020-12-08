@@ -1,13 +1,12 @@
-import auth0 from '../../lib/auth0';
+import { getAccessToken } from '@auth0/nextjs-auth0';
 
 export default async function shows(req, res) {
   try {
-    const { accessToken } = await auth0.getAccessToken(req, res, {
+    const { accessToken } = await getAccessToken(req, res, {
       scopes: ['read:shows']
     });
 
-    const url = `${process.env.API_BASE_URL}/api/my/shows`;
-    const response = await fetch(url, {
+    const response = await fetch('http://localhost:3001/api/my/shows', {
       headers: {
         Authorization: `Bearer ${accessToken}`
       }
