@@ -272,7 +272,7 @@ export interface CookieConfig {
   /**
    * Marks the cookie to be used over secure channels only.
    * Passed to the [Response cookie](https://expressjs.com/en/api.html#res.cookie) as `secure`.
-   * Defaults to {@link Request.secure}.
+   * Defaults to the protocol of {@link Config.baseURL}.
    */
   secure?: boolean;
 
