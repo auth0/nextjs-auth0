@@ -8,4 +8,9 @@ With default config - [Code Flow with PKCE](https://auth0.com/docs/flows/authori
 
 ## Access an External API from an API Route
 
-![login](./external-api.png)
+![external-api](./external-api.png)
+
+## auth0-react (JWT auth)
+### Protecting a Client Side Rendered (CSR) Page
+
+![react](./react.png)
