@@ -1,10 +1,8 @@
 import React from 'react';
-import { useUser } from '@auth0/nextjs-auth0';
-
+import { useUser, withPageAuthRequired } from '@auth0/nextjs-auth0';
 import Layout from '../components/layout';
-import withAuth from '../components/with-auth';
 
-export function ProtectedPage() {
+export default function ProtectedPage() {
   const { user, loading } = useUser();
 
   return (
@@ -23,4 +21,4 @@ export function ProtectedPage() {
   );
 }
 
-export default withAuth(ProtectedPage);
+export const getServerSideProps = withPageAuthRequired({ loginUrl: '/api/login' });

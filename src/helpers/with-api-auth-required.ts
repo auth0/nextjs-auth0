@@ -6,9 +6,9 @@ export interface ApiRoute {
   (req: NextApiRequest, res: NextApiResponse): Promise<void>;
 }
 
-export type WithApiAuth = (apiRoute: ApiRoute) => ApiRoute;
+export type WithApiAuthRequired = (apiRoute: ApiRoute) => ApiRoute;
 
-export default function withApiAuthFactory(sessionCache: SessionCache): WithApiAuth {
+export default function withApiAuthFactory(sessionCache: SessionCache): WithApiAuthRequired {
   return (apiRoute) => async (req: NextApiRequest, res: NextApiResponse): Promise<void> => {
     assertReqRes(req, res);
 
