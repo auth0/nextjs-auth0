@@ -71,4 +71,6 @@ export const handleCallback: HandleCallback = (...args) => getInstance().handleC
 export const handleProfile: HandleProfile = (...args) => getInstance().handleProfile(...args);
 export const handleAuth: HandleAuth = (...args) => getInstance().handleAuth(...args);
 
+export * from './auth0-session/config';
+
 export { default as UserProvider, UserProfile, UserContext, useUser } from './hooks/use-user';

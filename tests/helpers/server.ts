@@ -31,7 +31,7 @@ export default class HttpServer {
         previewModeEncryptionKey: crypto.randomBytes(32).toString('hex')
       };
 
-      apiResolver(req, res, parsedQuery, this.handleRequest(), previewMode);
+      apiResolver(req, res, parsedQuery, this.handleRequest(), previewMode, true);
     });
   }
 
@@ -70,7 +70,7 @@ export default class HttpServer {
   }
 
   getUrl(): string {
-    const { address, port } = this.httpServer.address() as AddressInfo;
-    return `http://${address}:${port}`;
+    const { port } = this.httpServer.address() as AddressInfo;
+    return `http://localhost:${port}`;
   }
 }

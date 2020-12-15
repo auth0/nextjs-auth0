@@ -1,30 +1,27 @@
 /**
  * Default settings which don't include authorization.
  */
-export const withoutApi = {
-  domain: 'acme.auth0.local',
-  clientId: 'client_id',
+import { ConfigParameters } from '../../src/auth0-session';
+
+export const withoutApi: ConfigParameters = {
+  issuerBaseURL: 'https://acme.auth0.local',
+  clientID: 'client_id',
   clientSecret: 'client_secret',
-  redirectUri: 'https://www.acme.com/callback',
-  postLogoutRedirectUri: 'https://www.acme.com',
-  scope: 'openid profile',
-  session: {
-    cookieSecret: 'keyboardcat.keyboardcat.keyboardcat.keyboardcat.keyboardcat.keyboardcat.keyboardcat.keyboardcat'
-  }
+  baseURL: 'https://www.acme.com/',
+  secret: 'keyboardcat.keyboardcat.keyboardcat.keyboardcat.keyboardcat.keyboardcat.keyboardcat.keyboardcat'
 };
 
 /**
  * Default settings which include an audience.
  */
-export const withApi = {
-  domain: 'acme.auth0.local',
-  clientId: 'client_id',
+export const withApi: ConfigParameters = {
+  issuerBaseURL: 'https://acme.auth0.local',
+  clientID: 'client_id',
   clientSecret: 'client_secret',
-  redirectUri: 'https://www.acme.com/callback',
-  postLogoutRedirectUri: 'https://www.acme.com',
-  scope: 'openid profile read:customer',
-  audience: 'https://api.acme.com',
-  session: {
-    cookieSecret: 'keyboardcat.keyboardcat.keyboardcat.keyboardcat.keyboardcat.keyboardcat.keyboardcat.keyboardcat'
+  baseURL: 'https://www.acme.com/',
+  secret: 'keyboardcat.keyboardcat.keyboardcat.keyboardcat.keyboardcat.keyboardcat.keyboardcat.keyboardcat',
+  authorizationParams: {
+    scope: 'openid profile read:customer',
+    audience: 'https://api.acme.com'
   }
 };
