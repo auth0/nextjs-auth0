@@ -27,7 +27,7 @@
     "start:api": "npm start --prefix=examples/sample-api",
     "test:basic": "start-server-and-test start:basic 3000 cypress:run",
     "test:basic:watch": "start-server-and-test start:basic 3000 cypress:open",
-    "test:typescript": "DEBUG=* start-server-and-test start:typescript 3000 cypress:run",
+    "test:typescript": "start-server-and-test start:typescript 3000 cypress:run",
     "test:typescript:watch": "start-server-and-test start:typescript 3000 cypress:open",
     "test:apiCall": "start-server-and-test start:apiCall 3000 cypress:run",
     "test:apiCall:watch": "start-server-and-test start:apiCall 3000 cypress:open",
