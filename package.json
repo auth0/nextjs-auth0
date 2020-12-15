@@ -31,7 +31,7 @@
     "test:typescript:watch": "start-server-and-test start:typescript 3000 cypress:open",
     "test:apiCall": "start-server-and-test start:apiCall 3000 cypress:run",
     "test:apiCall:watch": "start-server-and-test start:apiCall 3000 cypress:open",
-    "test:integration": "npm run test:basic && npm run test:typescript && npm run test:apiCall",
+    "test:integration": "npm run test:basic && npm run test:apiCall",
     "cypress:run": "cypress run",
     "cypress:open": "cypress open"
   },
