@@ -16,7 +16,7 @@
     "pretty": "prettier --write \"src/**/*.ts\" \"src/*.ts\"",
     "lint": "eslint --fix --ext .ts ./src",
     "build": "tsc -p tsconfig.build.json",
-    "test": "jest tests/hooks/ tests/auth0-session --coverage --maxWorkers=10",
+    "test": "jest tests/hooks/ tests/auth0-session tests/handlers/login.test.ts --coverage --maxWorkers=10",
     "test:watch": "jest --coverage --watch",
     "prepublishOnly": "npm test && npm run lint",
     "prepublish": "npm run build",

@@ -2,17 +2,17 @@ import nock from 'nock';
 import { JSONWebKeySet, JWK } from '@panva/jose';
 
 import createToken from './tokens';
-import IAuth0Settings from '../../src/settings';
+import { ConfigParameters } from '../../dist/auth0-session';
 
-export function discovery(settings: IAuth0Settings, discoveryOptions?: any): nock.Scope {
-  return nock(`https://${settings.domain}`)
+export function discovery(params: ConfigParameters, discoveryOptions?: any): nock.Scope {
+  return nock(params.issuerBaseURL as string)
     .get('/.well-known/openid-configuration')
     .reply(200, {
-      issuer: `https://${settings.domain}/`,
-      authorization_endpoint: `https://${settings.domain}/authorize`,
-      token_endpoint: `https://${settings.domain}/oauth/token`,
-      userinfo_endpoint: `https://${settings.domain}/userinfo`,
-      jwks_uri: `https://${settings.domain}/.well-known/jwks.json`,
+      issuer: `${params.issuerBaseURL}/`,
+      authorization_endpoint: `${params.issuerBaseURL}/authorize`,
+      token_endpoint: `${params.issuerBaseURL}/oauth/token`,
+      userinfo_endpoint: `${params.issuerBaseURL}/userinfo`,
+      jwks_uri: `${params.issuerBaseURL}/.well-known/jwks.json`,
       scopes_supported: [
         'openid',
         'profile',
@@ -54,36 +54,40 @@ export function discovery(settings: IAuth0Settings, discoveryOptions?: any): noc
     });
 }
 
-export function userInfoWithDelay(settings: IAuth0Settings, delay: number): nock.Scope {
-  return nock(`https://${settings.domain}`)
+export function userInfoWithDelay(params: ConfigParameters, delay: number): nock.Scope {
+  return nock(params.issuerBaseURL as string)
     .get('/userinfo')
     .reply((_uri, _requestBody, cb) => {
       setTimeout(() => cb(null, [200, {}]), delay);
     });
 }
 
-export function jwksEndpoint(settings: IAuth0Settings, keyset: JSONWebKeySet): nock.Scope {
-  return nock(`https://${settings.domain}`).get('/.well-known/jwks.json').reply(200, keyset);
+export function jwksEndpoint(params: ConfigParameters, keyset: JSONWebKeySet): nock.Scope {
+  return nock(params.issuerBaseURL as string)
+    .get('/.well-known/jwks.json')
+    .reply(200, keyset);
 }
 
 export function codeExchange(
-  settings: IAuth0Settings,
+  params: ConfigParameters,
   code: string,
   key: JWK.Key,
   payload: object,
   overrides?: object
 ): nock.Scope {
   const idToken = createToken(key, {
-    iss: `https://${settings.domain}/`,
-    aud: settings.clientId,
+    iss: `${params.issuerBaseURL}/`,
+    aud: params.clientID,
     ...payload,
     ...(overrides || {})
   });
 
-  return nock(`https://${settings.domain}`)
+  return nock(`${params.issuerBaseURL}`)
     .post(
       '/oauth/token',
-      `grant_type=authorization_code&code=${code}&redirect_uri=${encodeURIComponent(settings.redirectUri)}`
+      `grant_type=authorization_code&code=${code}&redirect_uri=${encodeURIComponent(
+        `${params.baseURL}/api/auth/callback`
+      )}`
     )
     .reply(200, {
       access_token: 'eyJz93a...k4laUWw',
@@ -96,23 +100,25 @@ export function codeExchange(
 }
 
 export function codeExchangeWithTimeout(
-  settings: IAuth0Settings,
+  params: ConfigParameters,
   code: string,
   key: JWK.Key,
   payload: object,
   overrides?: object
 ): nock.Scope {
   const idToken = createToken(key, {
-    iss: `https://${settings.domain}/`,
-    aud: settings.clientId,
+    iss: `${params.issuerBaseURL}/`,
+    aud: params.clientID,
     ...payload,
     ...(overrides || {})
   });
 
-  return nock(`https://${settings.domain}`)
+  return nock(`${params.issuerBaseURL}`)
     .post(
       '/oauth/token',
-      `grant_type=authorization_code&code=${code}&redirect_uri=${encodeURIComponent(settings.redirectUri)}`
+      `grant_type=authorization_code&code=${code}&redirect_uri=${encodeURIComponent(
+        `${params.baseURL}/api/auth/callback`
+      )}`
     )
     .reply((_uri, _requestBody, cb) => {
       setTimeout(
@@ -134,23 +140,25 @@ export function codeExchangeWithTimeout(
 }
 
 export function codeExchangeWithAccessToken(
-  settings: IAuth0Settings,
+  params: ConfigParameters,
   code: string,
   key: JWK.Key,
   payload: object,
   overrides?: object
 ): nock.Scope {
   const idToken = createToken(key, {
-    iss: `https://${settings.domain}/`,
-    aud: settings.clientId,
+    iss: `${params.issuerBaseURL}/`,
+    aud: params.clientID,
     ...payload,
     ...(overrides || {})
   });
 
-  return nock(`https://${settings.domain}`)
+  return nock(`${params.issuerBaseURL}`)
     .post(
       '/oauth/token',
-      `grant_type=authorization_code&code=${code}&redirect_uri=${encodeURIComponent(settings.redirectUri)}`
+      `grant_type=authorization_code&code=${code}&redirect_uri=${encodeURIComponent(
+        `${params.baseURL}/api/auth/callback`
+      )}`
     )
     .reply(200, {
       access_token: 'an_access_token',
@@ -162,19 +170,19 @@ export function codeExchangeWithAccessToken(
 }
 
 export function refreshTokenExchange(
-  settings: IAuth0Settings,
+  params: ConfigParameters,
   refreshToken: string,
   key: JWK.Key,
   payload: object,
   newToken?: string
 ): nock.Scope {
   const idToken = createToken(key, {
-    iss: `https://${settings.domain}/`,
-    aud: settings.clientId,
+    iss: `${params.issuerBaseURL}/`,
+    aud: params.clientID,
     ...payload
   });
 
-  return nock(`https://${settings.domain}`)
+  return nock(`${params.issuerBaseURL}`)
     .post('/oauth/token', `grant_type=refresh_token&refresh_token=${refreshToken}`)
     .reply(200, {
       access_token: newToken || 'eyJz93a...k4laUWw',
@@ -186,19 +194,19 @@ export function refreshTokenExchange(
 }
 
 export function refreshTokenRotationExchange(
-  settings: IAuth0Settings,
+  params: ConfigParameters,
   refreshToken: string,
   key: JWK.Key,
   payload: object,
   newToken?: string
 ): nock.Scope {
   const idToken = createToken(key, {
-    iss: `https://${settings.domain}/`,
-    aud: settings.clientId,
+    iss: `${params.issuerBaseURL}/`,
+    aud: params.clientID,
     ...payload
   });
 
-  return nock(`https://${settings.domain}`)
+  return nock(`${params.issuerBaseURL}`)
     .post('/oauth/token', `grant_type=refresh_token&refresh_token=${refreshToken}`)
     .reply(200, {
       access_token: newToken || 'eyJz93a...k4laUWw',
@@ -210,8 +218,8 @@ export function refreshTokenRotationExchange(
     });
 }
 
-export function userInfo(settings: IAuth0Settings, token: string, payload: object): nock.Scope {
-  return nock(`https://${settings.domain}`, {
+export function userInfo(params: ConfigParameters, token: string, payload: object): nock.Scope {
+  return nock(`${params.issuerBaseURL}`, {
     reqheaders: {
       authorization: `Bearer ${token}`
     }

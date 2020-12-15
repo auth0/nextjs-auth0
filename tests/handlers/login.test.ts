@@ -1,27 +1,26 @@
-import request from 'request';
+import { parse as urlParse } from 'url';
 import { parse } from 'cookie';
-import { promisify } from 'util';
-
+import 'next'; // get fetch polyfil
 import HttpServer from '../helpers/server';
 import { discovery } from '../helpers/oidc-nocks';
-import { decodeState } from '../../src/utils/state';
-import getClient from '../../src/utils/oidc-client';
 import { withoutApi, withApi } from '../helpers/default-settings';
-import login, { LoginOptions } from '../../src/handlers/login';
+import { LoginOptions, initAuth0 } from '../../src';
+import { decodeState } from '../../src/auth0-session/hooks/get-login-state';
 
-const [getAsync] = [request.get].map(promisify);
+const getAsync = ({ url, ...opts }: RequestInit & { url: string }): Promise<Response> => fetch(url, opts);
+const parseCookies = (headers: Headers): any => (headers.get('set-cookie') as string).split(',').map((s) => parse(s));
+const getCookie = (key: string, cookies: any[]): any => cookies.find((cookie: any) => !!cookie[key]);
 
 describe('login handler', () => {
   let httpServer: HttpServer;
-  let loginHandler: any;
-  let loginOptions: LoginOptions | null;
+  let loginOptions: LoginOptions | undefined;
 
-  beforeEach((done) => {
+  beforeEach(async () => {
     discovery(withoutApi);
-    loginOptions = { redirectTo: '/custom-url' };
-    loginHandler = login(withoutApi, getClient(withoutApi));
-    httpServer = new HttpServer((req, res) => loginHandler(req, res, loginOptions));
-    httpServer.start(done);
+    loginOptions = { returnTo: '/custom-url' };
+    const { handleLogin } = await initAuth0(withoutApi);
+    httpServer = new HttpServer((req, res) => handleLogin(req, res, loginOptions));
+    await httpServer.start();
   });
 
   afterEach((done) => {
@@ -31,97 +30,100 @@ describe('login handler', () => {
   test('should create a state', async () => {
     const { headers } = await getAsync({
       url: httpServer.getUrl(),
-      followRedirect: false
+      redirect: 'manual'
     });
 
-    const state = parse(headers['set-cookie'][0]);
-    expect(state).toBeTruthy();
-
-    const decodedState = decodeState(state['a0:state']);
-    expect(decodedState.nonce).toBeTruthy();
+    const cookies = parseCookies(headers);
+    expect(cookies).toEqual(
+      expect.arrayContaining([
+        {
+          nonce: expect.any(String),
+          Path: '/',
+          SameSite: 'Lax'
+        },
+        {
+          state: expect.any(String),
+          Path: '/',
+          SameSite: 'Lax'
+        },
+        {
+          code_verifier: expect.any(String),
+          Path: '/',
+          SameSite: 'Lax'
+        }
+      ])
+    );
   });
 
   test('should add redirectTo to the state', async () => {
     const { headers } = await getAsync({
       url: httpServer.getUrl(),
-      followRedirect: false
+      redirect: 'manual'
     });
 
-    const state = parse(headers['set-cookie'][0]);
+    const cookies = parseCookies(headers);
+    const { state } = getCookie('state', cookies);
     expect(state).toBeTruthy();
 
-    const decodedState = decodeState(state['a0:state']);
-    expect(decodedState.redirectTo).toEqual('/custom-url');
+    const decodedState = decodeState(state.split('.')[0]);
+    expect(decodedState.returnTo).toEqual('/custom-url');
   });
 
   test('should redirect to the identity provider', async () => {
-    const { statusCode, headers } = await getAsync({
+    const { status, headers } = await getAsync({
       url: httpServer.getUrl(),
-      followRedirect: false
+      redirect: 'manual'
     });
 
-    expect(statusCode).toBe(302);
+    expect(status).toBe(302);
 
-    const state = parse(headers['set-cookie'][0]);
-    expect(headers.location).toContain(
-      `https://${withoutApi.domain}/authorize?` +
-        `client_id=${withoutApi.clientId}&scope=${encodeURIComponent(withoutApi.scope)}` +
-        `&response_type=code&redirect_uri=${encodeURIComponent(withoutApi.redirectUri)}` +
-        `&state=${state['a0:state']}`
-    );
-  });
-
-  test('should contain the telemetry querystring', async () => {
-    const { statusCode, headers } = await getAsync({
-      url: httpServer.getUrl(),
-      followRedirect: false
+    const cookies = parseCookies(headers);
+    const { state } = getCookie('state', cookies);
+    expect(urlParse(headers.get('location') as string, true)).toMatchObject({
+      protocol: 'https:',
+      host: 'acme.auth0.local',
+      hash: null,
+      query: {
+        client_id: 'client_id',
+        scope: 'openid profile email',
+        response_type: 'code',
+        redirect_uri: `https://www.acme.com/api/auth/callback`,
+        nonce: expect.any(String),
+        state: state.split('.')[0],
+        code_challenge: expect.any(String),
+        code_challenge_method: 'S256'
+      },
+      pathname: '/authorize'
     });
-    expect(statusCode).toBe(302);
-    expect(headers.location).toContain('&auth0Client=');
   });
 
   test('should allow sending custom parameters to the authorization server', async () => {
     loginOptions = {
-      authParams: {
-        max_age: '123',
+      authorizationParams: {
+        max_age: 123,
         login_hint: 'foo@acme.com',
         ui_locales: 'nl',
-        scope: 'some other scope',
+        scope: 'some other scope openid',
         foo: 'bar'
       }
     };
-    const { statusCode, headers } = await getAsync({
+    const { status, headers } = await getAsync({
       url: httpServer.getUrl(),
-      followRedirect: false
+      redirect: 'manual'
     });
 
-    expect(statusCode).toBe(302);
-    expect(headers.location).toContain(
-      `https://${withoutApi.domain}/authorize?` +
-        `client_id=${withoutApi.clientId}&scope=${encodeURIComponent('some other scope')}` +
-        `&response_type=code&redirect_uri=${encodeURIComponent(withoutApi.redirectUri)}`
-    );
-    expect(headers.location).toContain('&max_age=123&login_hint=foo%40acme.com&ui_locales=nl&foo=bar');
-  });
-
-  test('should allow sending custom state to the authorization server', async () => {
-    loginOptions = {
-      authParams: {
-        state: 'custom-state'
+    expect(status).toBe(302);
+    expect(urlParse(headers.get('location') as string, true)).toMatchObject({
+      query: {
+        ...loginOptions.authorizationParams,
+        max_age: '123'
       }
-    };
-    const { statusCode, headers } = await getAsync({
-      url: httpServer.getUrl(),
-      followRedirect: false
     });
-
-    expect(statusCode).toBe(302);
-    expect(headers.location).toContain('&state=custom-state');
   });
 
   test('should allow adding custom data to the state', async () => {
     loginOptions = {
-      getState: (): Record<string, any> => {
+      getLoginState: (): Record<string, any> => {
         return {
           foo: 'bar'
         };
@@ -129,23 +131,23 @@ describe('login handler', () => {
     };
     const { headers } = await getAsync({
       url: httpServer.getUrl(),
-      followRedirect: false
+      redirect: 'manual'
     });
 
-    const state = parse(headers['set-cookie'][0]);
-    expect(state['a0:state']).toBeTruthy();
+    const cookies = parseCookies(headers);
+    const { state } = getCookie('state', cookies);
 
-    const decodedState = decodeState(state['a0:state']);
+    const decodedState = decodeState(state.split('.')[0]);
     expect(decodedState).toEqual({
       foo: 'bar',
-      nonce: expect.any(String)
+      returnTo: 'https://www.acme.com/'
     });
   });
 
-  test('should merge redirectTo and state', async () => {
+  test('should merge returnTo and state', async () => {
     loginOptions = {
-      redirectTo: '/profile',
-      getState: (): Record<string, any> => {
+      returnTo: '/profile',
+      getLoginState: (): Record<string, any> => {
         return {
           foo: 'bar'
         };
@@ -153,104 +155,96 @@ describe('login handler', () => {
     };
     const { headers } = await getAsync({
       url: httpServer.getUrl(),
-      followRedirect: false
+      redirect: 'manual'
     });
 
-    const state = parse(headers['set-cookie'][0]);
-    expect(state['a0:state']).toBeTruthy();
+    const cookies = parseCookies(headers);
+    const { state } = getCookie('state', cookies);
 
-    const decodedState = decodeState(state['a0:state']);
+    const decodedState = decodeState(state.split('.')[0]);
     expect(decodedState).toEqual({
       foo: 'bar',
-      redirectTo: '/profile',
-      nonce: expect.any(String)
+      returnTo: '/profile'
     });
   });
 
-  test('should allow the getState method to overwrite redirectTo', async () => {
+  test('should allow the getState method to overwrite returnTo', async () => {
     loginOptions = {
-      redirectTo: '/profile',
-      getState: (): Record<string, any> => {
+      returnTo: '/profile',
+      getLoginState: (): Record<string, any> => {
         return {
           foo: 'bar',
-          redirectTo: '/other-path'
+          returnTo: '/foo'
         };
       }
     };
     const { headers } = await getAsync({
       url: httpServer.getUrl(),
-      followRedirect: false
+      redirect: 'manual'
     });
 
-    const state = parse(headers['set-cookie'][0]);
-    expect(state['a0:state']).toBeTruthy();
+    const cookies = parseCookies(headers);
+    const { state } = getCookie('state', cookies);
 
-    const decodedState = decodeState(state['a0:state']);
+    const decodedState = decodeState(state.split('.')[0]);
     expect(decodedState).toEqual({
       foo: 'bar',
-      redirectTo: '/other-path',
-      nonce: expect.any(String)
+      returnTo: '/foo'
     });
   });
 
-  test('should allow the redirectTo url to be provided in the querystring', async () => {
+  test('should allow the returnTo url to be provided in the querystring', async () => {
     loginOptions = {
-      redirectTo: '/default-redirect'
+      returnTo: '/profile'
     };
-
     const { headers } = await getAsync({
-      url: `${httpServer.getUrl()}?redirectTo=/my-profile`,
-      followRedirect: false
+      url: `${httpServer.getUrl()}?returnTo=/foo`,
+      redirect: 'manual'
     });
 
-    const state = parse(headers['set-cookie'][0]);
-    expect(state['a0:state']).toBeTruthy();
+    const cookies = parseCookies(headers);
+    const { state } = getCookie('state', cookies);
 
-    const decodedState = decodeState(state['a0:state']);
+    const decodedState = decodeState(state.split('.')[0]);
     expect(decodedState).toEqual({
-      redirectTo: '/my-profile',
-      nonce: expect.any(String)
+      returnTo: '/foo'
     });
   });
 
   test('should not allow absolute urls to be provided in the querystring', async () => {
     loginOptions = {
-      redirectTo: '/default-redirect'
+      returnTo: '/default-redirect'
     };
 
-    const { statusCode, body } = await getAsync({
-      url: `${httpServer.getUrl()}?redirectTo=https://google.com`,
-      followRedirect: false
+    const res = await getAsync({
+      url: `${httpServer.getUrl()}?returnTo=https://google.com`,
+      redirect: 'manual'
     });
 
-    expect(statusCode).toBe(500);
-    expect(body).toEqual('Invalid value provided for redirectTo, must be a relative url');
+    expect(res.status).toBe(500);
+    expect(await res.text()).toEqual('Invalid value provided for returnTo, must be a relative url');
   });
 
-  test('should allow the redirectTo url to be be overwritten by getState() when provided in the querystring', async () => {
+  test('should allow the returnTo to be be overwritten by getState() when provided in the querystring', async () => {
     loginOptions = {
-      redirectTo: '/profile',
-      getState: (): Record<string, any> => {
+      returnTo: '/profile',
+      getLoginState: (): Record<string, any> => {
         return {
-          foo: 'bar',
-          redirectTo: '/other-path'
+          returnTo: '/foo'
         };
       }
     };
-
     const { headers } = await getAsync({
-      url: `${httpServer.getUrl()}?redirectTo=/my-profile`,
-      followRedirect: false
+      url: `${httpServer.getUrl()}?returnTo=bar`,
+      redirect: 'manual'
     });
 
-    const state = parse(headers['set-cookie'][0]);
-    expect(state['a0:state']).toBeTruthy();
+    const cookies = parseCookies(headers);
+    const { state } = getCookie('state', cookies);
 
-    const decodedState = decodeState(state['a0:state']);
+    const decodedState = decodeState(state.split('.')[0]);
     expect(decodedState).toEqual({
-      foo: 'bar',
-      redirectTo: '/other-path',
-      nonce: expect.any(String)
+      returnTo: '/foo'
     });
   });
 });
@@ -258,41 +252,56 @@ describe('login handler', () => {
 describe('withApi login handler', () => {
   let httpServer: HttpServer;
 
-  beforeAll((done) => {
+  beforeEach(async () => {
     discovery(withApi);
-    httpServer = new HttpServer(login(withApi, getClient(withApi)));
-    httpServer.start(done);
+    const { handleLogin } = await initAuth0(withApi);
+    httpServer = new HttpServer((req, res) => handleLogin(req, res));
+    await httpServer.start();
   });
 
-  afterAll((done) => {
+  afterEach((done) => {
     httpServer.stop(done);
   });
 
   test('should create a state', async () => {
     const { headers } = await getAsync({
       url: httpServer.getUrl(),
-      followRedirect: false
+      redirect: 'manual'
     });
 
-    const state = parse(headers['set-cookie'][0]);
-    expect(state).toBeTruthy();
+    const cookies = parseCookies(headers);
+    expect(cookies).toEqual(
+      expect.arrayContaining([
+        {
+          nonce: expect.any(String),
+          Path: '/',
+          SameSite: 'Lax'
+        },
+        {
+          state: expect.any(String),
+          Path: '/',
+          SameSite: 'Lax'
+        },
+        {
+          code_verifier: expect.any(String),
+          Path: '/',
+          SameSite: 'Lax'
+        }
+      ])
+    );
   });
 
   test('should redirect to the identity provider', async () => {
-    const { statusCode, headers } = await getAsync({
+    const { status, headers } = await getAsync({
       url: httpServer.getUrl(),
-      followRedirect: false
+      redirect: 'manual'
     });
 
-    expect(statusCode).toBe(302);
+    expect(status).toBe(302);
 
-    const state = parse(headers['set-cookie'][0]);
-    expect(headers.location).toContain(
-      `https://${withApi.domain}/authorize?` +
-        `client_id=${withApi.clientId}&scope=${encodeURIComponent(withApi.scope)}` +
-        `&response_type=code&redirect_uri=${encodeURIComponent(withApi.redirectUri)}` +
-        `&audience=${encodeURIComponent(withApi.audience)}` +
-        `&state=${state['a0:state']}`
-    );
+    expect(urlParse(headers.get('location') as string, true).query).toMatchObject({
+      scope: 'openid profile read:customer',
+      audience: 'https://api.acme.com'
+    });
   });
 });
