@@ -28,6 +28,9 @@ const Header: React.FunctionComponent = () => {
             (user ? (
               <>
                 <li>
+                  <a href="/shows">My TV Shows</a>
+                </li>{' '}
+                <li>
                   <Link href="/profile">
                     <a>Profile</a>
                   </Link>
