@@ -360,7 +360,7 @@ export default async function getCustomers(req, res) {
 }
 ```
 
-> A [full example](./examples/typescript-example) is available here.
+> A [full example](./examples/kitchen-sync-example) is available here.
 
 ### Controlling the callback
 
