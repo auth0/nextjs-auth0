@@ -3,7 +3,7 @@ import React from 'react';
 import useApi from '../lib/use-api';
 import Layout from '../components/layout';
 
-export default function TvShows() {
+export default function TvShows(): React.ReactElement {
   const { response, error, isLoading } = useApi('/api/shows');
 
   return (
