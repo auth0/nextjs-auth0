@@ -1,35 +1,45 @@
 import { parse as urlParse } from 'url';
 import { parse } from 'cookie';
-import 'next'; // get fetch polyfil
-import HttpServer from '../helpers/server';
+import { start, stop } from '../helpers/server';
 import { discovery } from '../helpers/oidc-nocks';
 import { withoutApi, withApi } from '../helpers/default-settings';
 import { LoginOptions, initAuth0 } from '../../src';
 import { decodeState } from '../../src/auth0-session/hooks/get-login-state';
+import { ConfigParameters } from '../../dist/auth0-session';
 
 const getAsync = ({ url, ...opts }: RequestInit & { url: string }): Promise<Response> => fetch(url, opts);
 const parseCookies = (headers: Headers): any => (headers.get('set-cookie') as string).split(',').map((s) => parse(s));
 const getCookie = (key: string, cookies: any[]): any => cookies.find((cookie: any) => !!cookie[key]);
 
-describe('login handler', () => {
-  let httpServer: HttpServer;
-  let loginOptions: LoginOptions | undefined;
-
-  beforeEach(async () => {
-    discovery(withoutApi);
-    loginOptions = { returnTo: '/custom-url' };
-    const { handleLogin } = await initAuth0(withoutApi);
-    httpServer = new HttpServer((req, res) => handleLogin(req, res, loginOptions));
-    await httpServer.start();
+const setupHandler = async (
+  config: ConfigParameters,
+  loginOptions: LoginOptions = { returnTo: '/custom-url' }
+): Promise<string> => {
+  discovery(config);
+  const { handleAuth, handleLogin } = await initAuth0(config);
+  (global as any).handleAuth = handleAuth.bind(null, {
+    async login(req, res) {
+      try {
+        await handleLogin(req, res, loginOptions);
+      } catch (error) {
+        res.status(error.status || 500).end(error.message);
+      }
+    }
   });
+  return start();
+};
 
-  afterEach((done) => {
-    httpServer.stop(done);
+describe('login handler', () => {
+  afterEach(async () => {
+    delete (global as any).handleAuth;
+    await stop();
+    jest.resetModules();
   });
 
   test('should create a state', async () => {
+    const baseUrl = await setupHandler(withoutApi);
     const { headers } = await getAsync({
-      url: httpServer.getUrl(),
+      url: `${baseUrl}/api/auth/login`,
       redirect: 'manual'
     });
 
@@ -56,8 +66,9 @@ describe('login handler', () => {
   });
 
   test('should add redirectTo to the state', async () => {
+    const baseUrl = await setupHandler(withoutApi);
     const { headers } = await getAsync({
-      url: httpServer.getUrl(),
+      url: `${baseUrl}/api/auth/login`,
       redirect: 'manual'
     });
 
@@ -70,8 +81,9 @@ describe('login handler', () => {
   });
 
   test('should redirect to the identity provider', async () => {
+    const baseUrl = await setupHandler(withoutApi);
     const { status, headers } = await getAsync({
-      url: httpServer.getUrl(),
+      url: `${baseUrl}/api/auth/login`,
       redirect: 'manual'
     });
 
@@ -98,7 +110,7 @@ describe('login handler', () => {
   });
 
   test('should allow sending custom parameters to the authorization server', async () => {
-    loginOptions = {
+    const loginOptions = {
       authorizationParams: {
         max_age: 123,
         login_hint: 'foo@acme.com',
@@ -107,8 +119,9 @@ describe('login handler', () => {
         foo: 'bar'
       }
     };
+    const baseUrl = await setupHandler(withoutApi, loginOptions);
     const { status, headers } = await getAsync({
-      url: httpServer.getUrl(),
+      url: `${baseUrl}/api/auth/login`,
       redirect: 'manual'
     });
 
@@ -122,15 +135,16 @@ describe('login handler', () => {
   });
 
   test('should allow adding custom data to the state', async () => {
-    loginOptions = {
+    const loginOptions = {
       getLoginState: (): Record<string, any> => {
         return {
           foo: 'bar'
         };
       }
     };
+    const baseUrl = await setupHandler(withoutApi, loginOptions);
     const { headers } = await getAsync({
-      url: httpServer.getUrl(),
+      url: `${baseUrl}/api/auth/login`,
       redirect: 'manual'
     });
 
@@ -145,7 +159,7 @@ describe('login handler', () => {
   });
 
   test('should merge returnTo and state', async () => {
-    loginOptions = {
+    const loginOptions = {
       returnTo: '/profile',
       getLoginState: (): Record<string, any> => {
         return {
@@ -153,8 +167,9 @@ describe('login handler', () => {
         };
       }
     };
+    const baseUrl = await setupHandler(withoutApi, loginOptions);
     const { headers } = await getAsync({
-      url: httpServer.getUrl(),
+      url: `${baseUrl}/api/auth/login`,
       redirect: 'manual'
     });
 
@@ -169,7 +184,7 @@ describe('login handler', () => {
   });
 
   test('should allow the getState method to overwrite returnTo', async () => {
-    loginOptions = {
+    const loginOptions = {
       returnTo: '/profile',
       getLoginState: (): Record<string, any> => {
         return {
@@ -178,8 +193,9 @@ describe('login handler', () => {
         };
       }
     };
+    const baseUrl = await setupHandler(withoutApi, loginOptions);
     const { headers } = await getAsync({
-      url: httpServer.getUrl(),
+      url: `${baseUrl}/api/auth/login`,
       redirect: 'manual'
     });
 
@@ -194,11 +210,12 @@ describe('login handler', () => {
   });
 
   test('should allow the returnTo url to be provided in the querystring', async () => {
-    loginOptions = {
+    const loginOptions = {
       returnTo: '/profile'
     };
+    const baseUrl = await setupHandler(withoutApi, loginOptions);
     const { headers } = await getAsync({
-      url: `${httpServer.getUrl()}?returnTo=/foo`,
+      url: `${`${baseUrl}/api/auth/login`}?returnTo=/foo`,
       redirect: 'manual'
     });
 
@@ -212,12 +229,13 @@ describe('login handler', () => {
   });
 
   test('should not allow absolute urls to be provided in the querystring', async () => {
-    loginOptions = {
+    const loginOptions = {
       returnTo: '/default-redirect'
     };
+    const baseUrl = await setupHandler(withoutApi, loginOptions);
 
     const res = await getAsync({
-      url: `${httpServer.getUrl()}?returnTo=https://google.com`,
+      url: `${baseUrl}/api/auth/login?returnTo=https://google.com`,
       redirect: 'manual'
     });
 
@@ -226,7 +244,7 @@ describe('login handler', () => {
   });
 
   test('should allow the returnTo to be be overwritten by getState() when provided in the querystring', async () => {
-    loginOptions = {
+    const loginOptions = {
       returnTo: '/profile',
       getLoginState: (): Record<string, any> => {
         return {
@@ -234,8 +252,9 @@ describe('login handler', () => {
         };
       }
     };
+    const baseUrl = await setupHandler(withoutApi, loginOptions);
     const { headers } = await getAsync({
-      url: `${httpServer.getUrl()}?returnTo=bar`,
+      url: `${`${baseUrl}/api/auth/login`}?returnTo=bar`,
       redirect: 'manual'
     });
 
@@ -247,53 +266,11 @@ describe('login handler', () => {
       returnTo: '/foo'
     });
   });
-});
 
-describe('withApi login handler', () => {
-  let httpServer: HttpServer;
-
-  beforeEach(async () => {
-    discovery(withApi);
-    const { handleLogin } = await initAuth0(withApi);
-    httpServer = new HttpServer((req, res) => handleLogin(req, res));
-    await httpServer.start();
-  });
-
-  afterEach((done) => {
-    httpServer.stop(done);
-  });
-
-  test('should create a state', async () => {
-    const { headers } = await getAsync({
-      url: httpServer.getUrl(),
-      redirect: 'manual'
-    });
-
-    const cookies = parseCookies(headers);
-    expect(cookies).toEqual(
-      expect.arrayContaining([
-        {
-          nonce: expect.any(String),
-          Path: '/',
-          SameSite: 'Lax'
-        },
-        {
-          state: expect.any(String),
-          Path: '/',
-          SameSite: 'Lax'
-        },
-        {
-          code_verifier: expect.any(String),
-          Path: '/',
-          SameSite: 'Lax'
-        }
-      ])
-    );
-  });
-
-  test('should redirect to the identity provider', async () => {
+  test('should redirect to the identity provider with scope and audience', async () => {
+    const baseUrl = await setupHandler(withApi);
     const { status, headers } = await getAsync({
-      url: httpServer.getUrl(),
+      url: `${baseUrl}/api/auth/login`,
       redirect: 'manual'
     });
 

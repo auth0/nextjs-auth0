@@ -1,76 +1,24 @@
-import crypto from 'crypto';
+import { createServer as createHttpServer, Server } from 'http';
+import next from 'next';
+import { default as NextServer } from 'next/dist/next-server/server/next-server';
+import path from 'path';
+import { parse } from 'url';
 import { AddressInfo } from 'net';
-import { parse as parseUrl } from 'url';
-import { parse as parseQs } from 'querystring';
-import { NextApiRequest, NextApiResponse } from 'next';
-import { IncomingMessage, ServerResponse, Server, createServer } from 'http';
-import { apiResolver, ApiError } from 'next/dist/next-server/server/api-utils';
 
-interface IHandler {
-  (req: NextApiRequest, res: NextApiResponse): Promise<void>;
-}
+let server: Server;
 
-export default class HttpServer {
-  private handler: IHandler;
+export const start = async (): Promise<string> => {
+  const app: NextServer = next({ dev: false, dir: path.join(__dirname, 'test-app'), customServer: true });
+  await app.prepare();
+  const handle = app.getRequestHandler();
+  server = createHttpServer(async (req, res) => {
+    const parsedUrl = parse(req.url as string, true);
+    await handle(req, res, parsedUrl);
+  });
+  const port = await new Promise((resolve) => server.listen(0, () => resolve((server.address() as AddressInfo).port)));
+  return `http://localhost:${port}`;
+};
 
-  private httpServer: Server;
-
-  constructor(handler: IHandler) {
-    this.handler = handler;
-    this.httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
-      if (!req.url) {
-        throw new Error('No url provided');
-      }
-
-      const parsedUrl = parseUrl(req.url);
-      const parsedQuery = (parsedUrl.query && parseQs(parsedUrl.query)) || {};
-
-      const previewMode = {
-        previewModeId: crypto.randomBytes(16).toString('hex'),
-        previewModeSigningKey: crypto.randomBytes(32).toString('hex'),
-        previewModeEncryptionKey: crypto.randomBytes(32).toString('hex')
-      };
-
-      apiResolver(req, res, parsedQuery, this.handleRequest(), previewMode, true);
-    });
-  }
-
-  setHandler(handler: IHandler): void {
-    this.handler = handler;
-  }
-
-  handleRequest = () => async (req: NextApiRequest, res: NextApiResponse): Promise<void> => {
-    try {
-      await this.handler(req, res);
-    } catch (err) {
-      if (err instanceof ApiError) {
-        res.statusCode = err.statusCode;
-        res.end(err.message);
-      } else {
-        res.statusCode = 500;
-        res.end(err.message);
-      }
-    }
-  };
-
-  start(done?: () => void): Promise<void> {
-    return new Promise((resolve) => {
-      this.httpServer.listen(() => {
-        if (done) {
-          done();
-        }
-
-        resolve();
-      });
-    });
-  }
-
-  stop(done: (err?: Error) => void): void {
-    this.httpServer.close(done);
-  }
-
-  getUrl(): string {
-    const { port } = this.httpServer.address() as AddressInfo;
-    return `http://localhost:${port}`;
-  }
-}
+export const stop = async (): Promise<void> => {
+  await new Promise((resolve) => server.close(resolve as (err?: Error) => {}));
+};
