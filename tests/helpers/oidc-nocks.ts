@@ -2,7 +2,7 @@ import nock from 'nock';
 import { JSONWebKeySet, JWK } from '@panva/jose';
 
 import createToken from './tokens';
-import { ConfigParameters } from '../../dist/auth0-session';
+import { ConfigParameters } from '../../src/auth0-session';
 
 export function discovery(params: ConfigParameters, discoveryOptions?: any): nock.Scope {
   return nock(params.issuerBaseURL as string)

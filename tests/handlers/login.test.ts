@@ -96,10 +96,10 @@ describe('login handler', () => {
       host: 'acme.auth0.local',
       hash: null,
       query: {
-        client_id: 'client_id',
+        client_id: '__test_client_id__',
         scope: 'openid profile email',
         response_type: 'code',
-        redirect_uri: `https://www.acme.com/api/auth/callback`,
+        redirect_uri: 'http://www.acme.com/api/auth/callback',
         nonce: expect.any(String),
         state: state.split('.')[0],
         code_challenge: expect.any(String),
@@ -154,7 +154,7 @@ describe('login handler', () => {
     const decodedState = decodeState(state.split('.')[0]);
     expect(decodedState).toEqual({
       foo: 'bar',
-      returnTo: 'https://www.acme.com/'
+      returnTo: 'http://www.acme.com/'
     });
   });
 
