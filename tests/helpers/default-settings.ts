@@ -5,10 +5,10 @@ import { ConfigParameters } from '../../src/auth0-session';
 
 export const withoutApi: ConfigParameters = {
   issuerBaseURL: 'https://acme.auth0.local',
-  clientID: 'client_id',
+  clientID: '__test_client_id__',
   clientSecret: 'client_secret',
-  baseURL: 'https://www.acme.com/',
-  secret: 'keyboardcat.keyboardcat.keyboardcat.keyboardcat.keyboardcat.keyboardcat.keyboardcat.keyboardcat'
+  baseURL: 'http://www.acme.com/',
+  secret: '__test_session_secret__'
 };
 
 /**
@@ -16,10 +16,10 @@ export const withoutApi: ConfigParameters = {
  */
 export const withApi: ConfigParameters = {
   issuerBaseURL: 'https://acme.auth0.local',
-  clientID: 'client_id',
+  clientID: '__test_client_id__',
   clientSecret: 'client_secret',
-  baseURL: 'https://www.acme.com/',
-  secret: 'keyboardcat.keyboardcat.keyboardcat.keyboardcat.keyboardcat.keyboardcat.keyboardcat.keyboardcat',
+  baseURL: 'http://www.acme.com/',
+  secret: '__test_session_secret__',
   authorizationParams: {
     scope: 'openid profile read:customer',
     audience: 'https://api.acme.com'
