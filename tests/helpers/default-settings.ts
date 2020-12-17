@@ -1,6 +1,3 @@
-/**
- * Default settings which don't include authorization.
- */
 import { ConfigParameters } from '../../src/auth0-session';
 
 export const withoutApi: ConfigParameters = {

@@ -46,13 +46,13 @@ const request = (
   { body, cookieJar, fullResponse }: { body?: { [key: string]: string }; cookieJar?: CookieJar; fullResponse?: boolean }
 ): Promise<{ [key: string]: string } | string | { data: { [key: string]: string } | string; res: IncomingMessage }> =>
   new Promise((resolve, reject) => {
-    const { pathname, port, protocol } = new URL(url);
+    const { pathname, port, protocol, search = '' } = new URL(url);
     const req = (protocol === 'https:' ? nodeHttpsRequest : nodeHttpRequest)(
       {
         method,
         host: 'localhost',
         port,
-        path: pathname,
+        path: pathname + search,
         protocol,
         rejectUnauthorized: false
       },

@@ -13,13 +13,15 @@ function getRedirectUri(config: Config): string {
   return urlJoin(config.baseURL, config.routes.callback);
 }
 
+export type AfterCallback = (
+  req: IncomingMessage,
+  res: ServerResponse,
+  tokenSet: TokenSet,
+  state: Record<string, any>
+) => Promise<TokenSet> | TokenSet;
+
 export type CallbackOptions = {
-  afterCallback?: (
-    req: IncomingMessage,
-    res: ServerResponse,
-    tokenSet: TokenSet,
-    state: Record<string, any>
-  ) => Promise<TokenSet> | TokenSet;
+  afterCallback?: AfterCallback;
 };
 
 export default function callbackHandler(
@@ -53,15 +55,7 @@ export default function callbackHandler(
     }
 
     const openidState: { returnTo?: string } = decodeState(expectedState as string);
-    tokenSet = new TokenSet({
-      access_token: tokenSet.access_token,
-      token_type: tokenSet.token_type,
-      id_token: tokenSet.id_token,
-      refresh_token: tokenSet.refresh_token,
-      expires_at: tokenSet.expires_at,
-      session_state: tokenSet.session_state,
-      scope: tokenSet.scope
-    });
+    tokenSet = new TokenSet(tokenSet);
 
     if (options?.afterCallback) {
       tokenSet = await options.afterCallback(req, res, tokenSet, openidState);

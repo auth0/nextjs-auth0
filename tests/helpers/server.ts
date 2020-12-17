@@ -1,6 +1,5 @@
 import { createServer as createHttpServer, Server } from 'http';
 import next from 'next';
-import { default as NextServer } from 'next/dist/next-server/server/next-server';
 import path from 'path';
 import { parse } from 'url';
 import { AddressInfo } from 'net';
@@ -8,7 +7,7 @@ import { AddressInfo } from 'net';
 let server: Server;
 
 export const start = async (): Promise<string> => {
-  const app: NextServer = next({ dev: false, dir: path.join(__dirname, 'test-app'), customServer: true });
+  const app = next({ dev: false, dir: path.join(__dirname, 'test-app'), customServer: true });
   await app.prepare();
   const handle = app.getRequestHandler();
   server = createHttpServer(async (req, res) => {

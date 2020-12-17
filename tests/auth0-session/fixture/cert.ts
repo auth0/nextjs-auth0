@@ -51,6 +51,7 @@ export const makeIdToken = (payload?: Partial<IdTokenClaims>): string => {
     },
     payload
   );
+
   return JWT.sign(payload, k.toPEM(true), {
     algorithm: 'RS256',
     header: { kid: k.kid }

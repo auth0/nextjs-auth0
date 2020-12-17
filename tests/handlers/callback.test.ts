@@ -1,40 +1,12 @@
-import { start, stop } from '../helpers/server';
-import { ConfigParameters } from '../../src/auth0-session';
 import { withApi, withoutApi } from '../helpers/default-settings';
-import { codeExchange, discovery, jwksEndpoint } from '../helpers/oidc-nocks';
-import { jwks, makeIdToken /*, makeIdToken*/ } from '../auth0-session/fixture/cert';
-import { initAuth0 } from '../../src';
+import { makeIdToken } from '../auth0-session/fixture/cert';
 import { get, post, toSignedCookieJar } from '../auth0-session/fixture/helpers';
 import { encodeState } from '../../src/auth0-session/hooks/get-login-state';
 import { CookieJar } from 'tough-cookie';
 import timekeeper = require('timekeeper');
-import { CallbackOptions } from '../../src/auth0-session';
 import { TokenSet } from 'openid-client';
-import nock = require('nock');
-
-const setupHandler = async (
-  config: ConfigParameters,
-  idTokenClaims: any = {},
-  callbackOptions?: CallbackOptions,
-  discoveryOptions?: any
-): Promise<string> => {
-  discovery(config, discoveryOptions);
-  jwksEndpoint(config, jwks);
-  codeExchange(config, makeIdToken(idTokenClaims));
-  const { handleAuth, handleCallback, getSession } = await initAuth0(config);
-  (global as any).handleAuth = handleAuth.bind(null, {
-    async callback(req, res) {
-      try {
-        await handleCallback(req, res, callbackOptions);
-      } catch (error) {
-        res.statusMessage = error.message;
-        res.status(error.status || 500).end(error.message);
-      }
-    }
-  });
-  (global as any).getSession = getSession;
-  return start();
-};
+import { AfterCallback } from '../../src/auth0-session/handlers/callback';
+import { setup, teardown } from '../helpers/setup';
 
 const callback = (baseUrl: string, body: any, cookieJar?: CookieJar): Promise<any> =>
   post(baseUrl, `/api/auth/callback`, {
@@ -44,14 +16,10 @@ const callback = (baseUrl: string, body: any, cookieJar?: CookieJar): Promise<an
   });
 
 describe('callback handler', () => {
-  afterEach(async () => {
-    jest.resetModules();
-    nock.cleanAll();
-    await stop();
-  });
+  afterEach(teardown);
 
   test('should require a state', async () => {
-    const baseUrl = await setupHandler(withoutApi);
+    const baseUrl = await setup(withoutApi);
     await expect(
       callback(baseUrl, {
         state: '__test_state__'
@@ -60,7 +28,7 @@ describe('callback handler', () => {
   });
 
   test('should validate the state', async () => {
-    const baseUrl = await setupHandler(withoutApi);
+    const baseUrl = await setup(withoutApi);
     const cookieJar = toSignedCookieJar(
       {
         state: '__other_state__'
@@ -79,7 +47,7 @@ describe('callback handler', () => {
   });
 
   test('should validate the audience', async () => {
-    const baseUrl = await setupHandler(withoutApi, { aud: 'bar', iss: 'https://acme.auth0.local/' });
+    const baseUrl = await setup(withoutApi, { idTokenClaims: { aud: 'bar' } });
     const state = encodeState({ returnTo: baseUrl });
     const cookieJar = toSignedCookieJar(
       {
@@ -101,7 +69,7 @@ describe('callback handler', () => {
   });
 
   test('should validate the issuer', async () => {
-    const baseUrl = await setupHandler(withoutApi, { aud: 'bar', iss: 'other-issuer' });
+    const baseUrl = await setup(withoutApi, { idTokenClaims: { aud: 'bar', iss: 'other-issuer' } });
     const state = encodeState({ returnTo: baseUrl });
     const cookieJar = toSignedCookieJar(
       {
@@ -124,9 +92,10 @@ describe('callback handler', () => {
 
   test('should allow id_tokens to be set in the future', async () => {
     // TODO: see if you can make this fail on master
-    const baseUrl = await setupHandler(withoutApi, {
-      iss: 'https://acme.auth0.local/',
-      iat: Math.floor(new Date(new Date().getTime() + 10 * 1000).getTime() / 1000)
+    const baseUrl = await setup(withoutApi, {
+      idTokenClaims: {
+        iat: Math.floor(new Date(new Date().getTime() + 10 * 1000).getTime() / 1000)
+      }
     });
     const state = encodeState({ returnTo: baseUrl });
     const cookieJar = toSignedCookieJar(
@@ -148,7 +117,7 @@ describe('callback handler', () => {
   });
 
   test('should create the session without OIDC claims', async () => {
-    const baseUrl = await setupHandler(withoutApi, { iss: 'https://acme.auth0.local/' });
+    const baseUrl = await setup(withoutApi);
     const state = encodeState({ returnTo: baseUrl });
     const cookieJar = toSignedCookieJar(
       {
@@ -176,7 +145,7 @@ describe('callback handler', () => {
 
   test('should set the correct expiration', async () => {
     timekeeper.freeze(0);
-    const baseUrl = await setupHandler(withoutApi, { iss: 'https://acme.auth0.local/' });
+    const baseUrl = await setup(withoutApi);
     const state = encodeState({ returnTo: baseUrl });
     const cookieJar = toSignedCookieJar(
       {
@@ -203,7 +172,7 @@ describe('callback handler', () => {
 
   test('should create the session without OIDC claims with api config', async () => {
     timekeeper.freeze(0);
-    const baseUrl = await setupHandler(withApi, { iss: 'https://acme.auth0.local/' });
+    const baseUrl = await setup(withApi);
     const state = encodeState({ returnTo: baseUrl });
     const cookieJar = toSignedCookieJar(
       {
@@ -245,7 +214,7 @@ describe('callback handler', () => {
       delete tokenSet.refresh_token;
       return tokenSet;
     };
-    const baseUrl = await setupHandler(withApi, { iss: 'https://acme.auth0.local/' }, { afterCallback });
+    const baseUrl = await setup(withApi, { callbackOptions: { afterCallback } });
     const state = encodeState({ returnTo: baseUrl });
     const cookieJar = toSignedCookieJar(
       {
@@ -280,11 +249,11 @@ describe('callback handler', () => {
 
   test('add properties to session with afterCallback hook', async () => {
     timekeeper.freeze(0);
-    const afterCallback = (_req: any, _res: any, tokenSet: TokenSet): TokenSet => {
+    const afterCallback: AfterCallback = (_req, _res, tokenSet): TokenSet => {
       tokenSet.foo = 'bar';
       return tokenSet;
     };
-    const baseUrl = await setupHandler(withApi, { iss: 'https://acme.auth0.local/' }, { afterCallback });
+    const baseUrl = await setup(withApi, { callbackOptions: { afterCallback } });
     const state = encodeState({ returnTo: baseUrl });
     const cookieJar = toSignedCookieJar(
       {
@@ -318,7 +287,7 @@ describe('callback handler', () => {
     const afterCallback = (): TokenSet => {
       throw new Error('some validation error.');
     };
-    const baseUrl = await setupHandler(withApi, { iss: 'https://acme.auth0.local/' }, { afterCallback });
+    const baseUrl = await setup(withApi, { callbackOptions: { afterCallback } });
     const state = encodeState({ returnTo: baseUrl });
     const cookieJar = toSignedCookieJar(
       {

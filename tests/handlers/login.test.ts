@@ -1,79 +1,48 @@
 import { parse as urlParse } from 'url';
-import { parse } from 'cookie';
-import { start, stop } from '../helpers/server';
-import { discovery } from '../helpers/oidc-nocks';
 import { withoutApi, withApi } from '../helpers/default-settings';
-import { LoginOptions, initAuth0 } from '../../src';
 import { decodeState } from '../../src/auth0-session/hooks/get-login-state';
-import { ConfigParameters } from '../../dist/auth0-session';
-
-const getAsync = ({ url, ...opts }: RequestInit & { url: string }): Promise<Response> => fetch(url, opts);
-const parseCookies = (headers: Headers): any => (headers.get('set-cookie') as string).split(',').map((s) => parse(s));
-const getCookie = (key: string, cookies: any[]): any => cookies.find((cookie: any) => !!cookie[key]);
-
-const setupHandler = async (
-  config: ConfigParameters,
-  loginOptions: LoginOptions = { returnTo: '/custom-url' }
-): Promise<string> => {
-  discovery(config);
-  const { handleAuth, handleLogin } = await initAuth0(config);
-  (global as any).handleAuth = handleAuth.bind(null, {
-    async login(req, res) {
-      try {
-        await handleLogin(req, res, loginOptions);
-      } catch (error) {
-        res.status(error.status || 500).end(error.message);
-      }
-    }
-  });
-  return start();
-};
+import { setup, teardown } from '../helpers/setup';
+import { get, getCookie } from '../auth0-session/fixture/helpers';
+import { Cookie, CookieJar } from 'tough-cookie';
 
 describe('login handler', () => {
-  afterEach(async () => {
-    delete (global as any).handleAuth;
-    await stop();
-    jest.resetModules();
-  });
+  afterEach(teardown);
 
   test('should create a state', async () => {
-    const baseUrl = await setupHandler(withoutApi);
-    const { headers } = await getAsync({
-      url: `${baseUrl}/api/auth/login`,
-      redirect: 'manual'
-    });
+    const baseUrl = await setup(withoutApi);
+    const cookieJar = new CookieJar();
+    await get(baseUrl, '/api/auth/login', { cookieJar });
 
-    const cookies = parseCookies(headers);
-    expect(cookies).toEqual(
+    expect(cookieJar.getCookiesSync(baseUrl)).toEqual(
       expect.arrayContaining([
-        {
-          nonce: expect.any(String),
-          Path: '/',
-          SameSite: 'Lax'
-        },
-        {
-          state: expect.any(String),
-          Path: '/',
-          SameSite: 'Lax'
-        },
-        {
-          code_verifier: expect.any(String),
-          Path: '/',
-          SameSite: 'Lax'
-        }
+        expect.objectContaining({
+          key: 'nonce',
+          value: expect.any(String),
+          path: '/',
+          sameSite: 'lax'
+        }),
+        expect.objectContaining({
+          key: 'state',
+          value: expect.any(String),
+          path: '/',
+          sameSite: 'lax'
+        }),
+        expect.objectContaining({
+          key: 'code_verifier',
+          value: expect.any(String),
+          path: '/',
+          sameSite: 'lax'
+        })
       ])
     );
   });
 
   test('should add redirectTo to the state', async () => {
-    const baseUrl = await setupHandler(withoutApi);
-    const { headers } = await getAsync({
-      url: `${baseUrl}/api/auth/login`,
-      redirect: 'manual'
-    });
+    const baseUrl = await setup(withoutApi);
+    const cookieJar = new CookieJar();
+    await get(baseUrl, '/api/auth/login', { cookieJar });
 
-    const cookies = parseCookies(headers);
-    const { state } = getCookie('state', cookies);
+    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
     expect(state).toBeTruthy();
 
     const decodedState = decodeState(state.split('.')[0]);
@@ -81,17 +50,16 @@ describe('login handler', () => {
   });
 
   test('should redirect to the identity provider', async () => {
-    const baseUrl = await setupHandler(withoutApi);
-    const { status, headers } = await getAsync({
-      url: `${baseUrl}/api/auth/login`,
-      redirect: 'manual'
-    });
+    const baseUrl = await setup(withoutApi);
+    const cookieJar = new CookieJar();
+    const {
+      res: { statusCode, headers }
+    } = await get(baseUrl, '/api/auth/login', { cookieJar, fullResponse: true });
 
-    expect(status).toBe(302);
+    expect(statusCode).toBe(302);
 
-    const cookies = parseCookies(headers);
-    const { state } = getCookie('state', cookies);
-    expect(urlParse(headers.get('location') as string, true)).toMatchObject({
+    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
+    expect(urlParse(headers.location, true)).toMatchObject({
       protocol: 'https:',
       host: 'acme.auth0.local',
       hash: null,
@@ -119,14 +87,14 @@ describe('login handler', () => {
         foo: 'bar'
       }
     };
-    const baseUrl = await setupHandler(withoutApi, loginOptions);
-    const { status, headers } = await getAsync({
-      url: `${baseUrl}/api/auth/login`,
-      redirect: 'manual'
-    });
+    const baseUrl = await setup(withoutApi, { loginOptions });
+    const cookieJar = new CookieJar();
+    const {
+      res: { statusCode, headers }
+    } = await get(baseUrl, '/api/auth/login', { cookieJar, fullResponse: true });
 
-    expect(status).toBe(302);
-    expect(urlParse(headers.get('location') as string, true)).toMatchObject({
+    expect(statusCode).toBe(302);
+    expect(urlParse(headers.location, true)).toMatchObject({
       query: {
         ...loginOptions.authorizationParams,
         max_age: '123'
@@ -142,14 +110,11 @@ describe('login handler', () => {
         };
       }
     };
-    const baseUrl = await setupHandler(withoutApi, loginOptions);
-    const { headers } = await getAsync({
-      url: `${baseUrl}/api/auth/login`,
-      redirect: 'manual'
-    });
+    const baseUrl = await setup(withoutApi, { loginOptions });
+    const cookieJar = new CookieJar();
+    await get(baseUrl, '/api/auth/login', { cookieJar });
 
-    const cookies = parseCookies(headers);
-    const { state } = getCookie('state', cookies);
+    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
 
     const decodedState = decodeState(state.split('.')[0]);
     expect(decodedState).toEqual({
@@ -167,14 +132,11 @@ describe('login handler', () => {
         };
       }
     };
-    const baseUrl = await setupHandler(withoutApi, loginOptions);
-    const { headers } = await getAsync({
-      url: `${baseUrl}/api/auth/login`,
-      redirect: 'manual'
-    });
+    const baseUrl = await setup(withoutApi, { loginOptions });
+    const cookieJar = new CookieJar();
+    await get(baseUrl, '/api/auth/login', { cookieJar });
 
-    const cookies = parseCookies(headers);
-    const { state } = getCookie('state', cookies);
+    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
 
     const decodedState = decodeState(state.split('.')[0]);
     expect(decodedState).toEqual({
@@ -193,14 +155,11 @@ describe('login handler', () => {
         };
       }
     };
-    const baseUrl = await setupHandler(withoutApi, loginOptions);
-    const { headers } = await getAsync({
-      url: `${baseUrl}/api/auth/login`,
-      redirect: 'manual'
-    });
+    const baseUrl = await setup(withoutApi, { loginOptions });
+    const cookieJar = new CookieJar();
+    await get(baseUrl, '/api/auth/login', { cookieJar });
 
-    const cookies = parseCookies(headers);
-    const { state } = getCookie('state', cookies);
+    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
 
     const decodedState = decodeState(state.split('.')[0]);
     expect(decodedState).toEqual({
@@ -213,14 +172,10 @@ describe('login handler', () => {
     const loginOptions = {
       returnTo: '/profile'
     };
-    const baseUrl = await setupHandler(withoutApi, loginOptions);
-    const { headers } = await getAsync({
-      url: `${`${baseUrl}/api/auth/login`}?returnTo=/foo`,
-      redirect: 'manual'
-    });
-
-    const cookies = parseCookies(headers);
-    const { state } = getCookie('state', cookies);
+    const baseUrl = await setup(withoutApi, { loginOptions });
+    const cookieJar = new CookieJar();
+    await get(baseUrl, '/api/auth/login?returnTo=/foo', { cookieJar });
+    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
 
     const decodedState = decodeState(state.split('.')[0]);
     expect(decodedState).toEqual({
@@ -232,15 +187,11 @@ describe('login handler', () => {
     const loginOptions = {
       returnTo: '/default-redirect'
     };
-    const baseUrl = await setupHandler(withoutApi, loginOptions);
+    const baseUrl = await setup(withoutApi, { loginOptions });
 
-    const res = await getAsync({
-      url: `${baseUrl}/api/auth/login?returnTo=https://google.com`,
-      redirect: 'manual'
-    });
-
-    expect(res.status).toBe(500);
-    expect(await res.text()).toEqual('Invalid value provided for returnTo, must be a relative url');
+    await expect(
+      get(baseUrl, '/api/auth/login?returnTo=https://www.google.com', { fullResponse: true })
+    ).rejects.toThrow('Invalid value provided for returnTo, must be a relative url');
   });
 
   test('should allow the returnTo to be be overwritten by getState() when provided in the querystring', async () => {
@@ -252,14 +203,10 @@ describe('login handler', () => {
         };
       }
     };
-    const baseUrl = await setupHandler(withoutApi, loginOptions);
-    const { headers } = await getAsync({
-      url: `${`${baseUrl}/api/auth/login`}?returnTo=bar`,
-      redirect: 'manual'
-    });
-
-    const cookies = parseCookies(headers);
-    const { state } = getCookie('state', cookies);
+    const baseUrl = await setup(withoutApi, { loginOptions });
+    const cookieJar = new CookieJar();
+    await get(baseUrl, '/api/auth/login', { cookieJar });
+    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
 
     const decodedState = decodeState(state.split('.')[0]);
     expect(decodedState).toEqual({
@@ -268,15 +215,14 @@ describe('login handler', () => {
   });
 
   test('should redirect to the identity provider with scope and audience', async () => {
-    const baseUrl = await setupHandler(withApi);
-    const { status, headers } = await getAsync({
-      url: `${baseUrl}/api/auth/login`,
-      redirect: 'manual'
-    });
+    const baseUrl = await setup(withApi);
+    const {
+      res: { statusCode, headers }
+    } = await get(baseUrl, '/api/auth/login', { fullResponse: true });
 
-    expect(status).toBe(302);
+    expect(statusCode).toBe(302);
 
-    expect(urlParse(headers.get('location') as string, true).query).toMatchObject({
+    expect(urlParse(headers.location, true).query).toMatchObject({
       scope: 'openid profile read:customer',
       audience: 'https://api.acme.com'
     });
