@@ -1,12 +1,12 @@
+import { CookieJar } from 'tough-cookie';
+import timekeeper = require('timekeeper');
 import { withApi, withoutApi } from '../helpers/default-settings';
 import { makeIdToken } from '../auth0-session/fixture/cert';
 import { get, post, toSignedCookieJar } from '../auth0-session/fixture/helpers';
 import { encodeState } from '../../src/auth0-session/hooks/get-login-state';
-import { CookieJar } from 'tough-cookie';
-import timekeeper = require('timekeeper');
-import { TokenSet } from 'openid-client';
 import { AfterCallback } from '../../src/auth0-session/handlers/callback';
 import { setup, teardown } from '../helpers/setup';
+import { Session } from '../../src/session';
 
 const callback = (baseUrl: string, body: any, cookieJar?: CookieJar): Promise<any> =>
   post(baseUrl, `/api/auth/callback`, {
@@ -209,10 +209,10 @@ describe('callback handler', () => {
 
   test('remove tokens with afterCallback hook', async () => {
     timekeeper.freeze(0);
-    const afterCallback = (_req: any, _res: any, tokenSet: TokenSet): TokenSet => {
-      delete tokenSet.access_token;
-      delete tokenSet.refresh_token;
-      return tokenSet;
+    const afterCallback = (_req: any, _res: any, session: Session): Session => {
+      delete session.accessToken;
+      delete session.refreshToken;
+      return session;
     };
     const baseUrl = await setup(withApi, { callbackOptions: { afterCallback } });
     const state = encodeState({ returnTo: baseUrl });
@@ -249,9 +249,9 @@ describe('callback handler', () => {
 
   test('add properties to session with afterCallback hook', async () => {
     timekeeper.freeze(0);
-    const afterCallback: AfterCallback = (_req, _res, tokenSet): TokenSet => {
-      tokenSet.foo = 'bar';
-      return tokenSet;
+    const afterCallback: AfterCallback = (_req, _res, session: Session): Session => {
+      session.foo = 'bar';
+      return session;
     };
     const baseUrl = await setup(withApi, { callbackOptions: { afterCallback } });
     const state = encodeState({ returnTo: baseUrl });
@@ -284,7 +284,7 @@ describe('callback handler', () => {
   });
 
   test('throws from afterCallback hook', async () => {
-    const afterCallback = (): TokenSet => {
+    const afterCallback = (): Session => {
       throw new Error('some validation error.');
     };
     const baseUrl = await setup(withApi, { callbackOptions: { afterCallback } });

@@ -23,8 +23,8 @@ export default class SessionCache implements ISessionCache {
     }
   }
 
-  create(req: NextApiOrPageRequest, res: NextApiOrPageResponse, tokenSet: TokenSet): void {
-    this.cache.set(req, fromTokenSet(tokenSet, this.config));
+  create(req: NextApiOrPageRequest, res: NextApiOrPageResponse, session: Session): void {
+    this.cache.set(req, session);
     onHeaders(res, () => this.cookieStore.save(req, res, this.cache.get(req)));
   }
 
@@ -53,5 +53,9 @@ export default class SessionCache implements ISessionCache {
   get(req: NextApiOrPageRequest, res: NextApiOrPageResponse): Session | null | undefined {
     this.init(req, res);
     return this.cache.get(req);
+  }
+
+  fromTokenSet(tokenSet: TokenSet): Session {
+    return fromTokenSet(tokenSet, this.config);
   }
 }

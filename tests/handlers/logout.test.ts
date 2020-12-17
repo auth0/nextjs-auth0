@@ -1,34 +1,14 @@
 import { parse } from 'cookie';
 import { parse as parseUrl } from 'url';
-import { ConfigParameters } from '../../src/auth0-session';
 import { withoutApi } from '../helpers/default-settings';
-import { CookieJar } from 'tough-cookie';
-import { encodeState } from '../../src/auth0-session/hooks/get-login-state';
-import { post, toSignedCookieJar } from '../auth0-session/fixture/helpers';
-import { makeIdToken } from '../auth0-session/fixture/cert';
-import { setup, teardown } from '../helpers/setup';
-
-const login = async (baseUrl: string, config: ConfigParameters): Promise<CookieJar> => {
-  const nonce = '__test_nonce__';
-  const state = encodeState({ returnTo: '/' });
-  const cookieJar = toSignedCookieJar({ state, nonce }, baseUrl);
-  await post(baseUrl, '/api/auth/callback', {
-    fullResponse: true,
-    body: {
-      state,
-      id_token: makeIdToken({ nonce, iss: `${config.issuerBaseURL}/` })
-    },
-    cookieJar
-  });
-  return cookieJar;
-};
+import { setup, teardown, login } from '../helpers/setup';
 
 describe('logout handler', () => {
   afterEach(teardown);
 
   test('should redirect to the identity provider', async () => {
     const baseUrl = await setup(withoutApi);
-    const cookieJar = await login(baseUrl, withoutApi);
+    const cookieJar = await login(baseUrl);
 
     const { status, headers } = await fetch(`${baseUrl}/api/auth/logout`, {
       redirect: 'manual',
@@ -54,7 +34,7 @@ describe('logout handler', () => {
     const baseUrl = await setup(withoutApi, {
       logoutOptions: { returnTo: customReturnTo }
     });
-    const cookieJar = await login(baseUrl, withoutApi);
+    const cookieJar = await login(baseUrl);
 
     const { status, headers } = await fetch(`${baseUrl}/api/auth/logout`, {
       redirect: 'manual',
@@ -73,7 +53,7 @@ describe('logout handler', () => {
     const baseUrl = await setup(withoutApi, {
       discoveryOptions: { end_session_endpoint: 'https://my-end-session-endpoint/logout' }
     });
-    const cookieJar = await login(baseUrl, withoutApi);
+    const cookieJar = await login(baseUrl);
 
     const { status, headers } = await fetch(`${baseUrl}/api/auth/logout`, {
       redirect: 'manual',
@@ -93,7 +73,7 @@ describe('logout handler', () => {
     const baseUrl = await setup(withoutApi, {
       discoveryOptions: { end_session_endpoint: 'https://my-end-session-endpoint/logout' }
     });
-    const cookieJar = await login(baseUrl, withoutApi);
+    const cookieJar = await login(baseUrl);
 
     const res = await fetch(`${baseUrl}/api/auth/logout`, {
       redirect: 'manual',

@@ -22,7 +22,7 @@ import {
 import wellKnown from './well-known.json';
 import { jwks } from './cert';
 import { cert, key } from './https';
-import { Claims } from '../../../src/session/session';
+import { Claims } from '../../../src/session';
 import version from '../../../src/version';
 
 export type SessionResponse = TokenSetParameters & { claims: Claims };
@@ -43,6 +43,9 @@ class TestSessionCache implements SessionCache {
   }
   getIdToken(req: IncomingMessage): string | undefined {
     return this.cache.get(req)?.id_token;
+  }
+  fromTokenSet(tokenSet: TokenSet): { [p: string]: any } {
+    return tokenSet;
   }
 }
 
