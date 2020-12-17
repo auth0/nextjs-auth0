@@ -139,7 +139,7 @@ describe('CookieStore', () => {
       domain: 'localhost',
       httpOnly: true,
       key: 'appSession',
-      maxAge: expect.any(Number),
+      expires: expect.any(Date),
       path: '/',
       sameSite: 'lax',
       secure: false
@@ -167,7 +167,7 @@ describe('CookieStore', () => {
       domain: 'localhost',
       httpOnly: true,
       key: 'appSession',
-      maxAge: expect.any(Number),
+      expires: expect.any(Date),
       path: '/',
       sameSite: 'lax',
       secure: true

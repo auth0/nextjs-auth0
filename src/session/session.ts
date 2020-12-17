@@ -51,24 +51,24 @@ export function fromTokenSet(tokenSet: TokenSet, config: Config): Session {
     delete claims[claim];
   });
 
-  return Object.assign(new Session({ ...claims }), {
-    idToken: tokenSet.id_token,
-    accessToken: tokenSet.access_token,
-    accessTokenScope: tokenSet.scope,
-    accessTokenExpiresAt: tokenSet.expires_at,
-    refreshToken: tokenSet.refresh_token
-  });
+  const { id_token, access_token, scope, expires_at, refresh_token, ...remainder } = tokenSet;
+
+  return Object.assign(
+    new Session({ ...claims }),
+    {
+      idToken: id_token,
+      accessToken: access_token,
+      accessTokenScope: scope,
+      accessTokenExpiresAt: expires_at,
+      refreshToken: refresh_token
+    },
+    remainder
+  );
 }
 
 export function fromJson(json: { [key: string]: any } | undefined): Session | null {
   if (!json) {
     return null;
   }
-  return Object.assign(new Session({ ...json.user }), {
-    idToken: json.idToken,
-    accessToken: json.accessToken,
-    accessTokenScope: json.accessTokenScope,
-    accessTokenExpiresAt: json.accessTokenExpiresAt,
-    refreshToken: json.refreshToken
-  });
+  return Object.assign(new Session({ ...json.user }), json);
 }
