@@ -5,6 +5,7 @@ import { encryption as deriveKey } from './utils/hkdf';
 import createDebug from './utils/debug';
 import { getAll as getCookies, clear as clearCookie, set as setCookie } from './utils/cookies';
 import { Config } from './config';
+import { CookieSerializeOptions } from 'cookie';
 
 const debug = createDebug('cookie-store');
 const epoch = (): number => (Date.now() / 1000) | 0; // eslint-disable-line no-bitwise
@@ -161,10 +162,12 @@ export default class CookieStore {
     const iat = typeof createdAt === 'number' ? createdAt : uat;
     const exp = this.calculateExp(iat, uat);
 
-    const cookieOptions = {
-      ...cookieConfig,
-      maxAge: transient ? undefined : exp
+    const cookieOptions: CookieSerializeOptions = {
+      ...cookieConfig
     };
+    if (!transient) {
+      cookieOptions.expires = new Date(exp * 1000);
+    }
 
     debug('found session, creating signed session cookie(s) with name %o(.i)', sessionName);
     const value = this.encrypt(JSON.stringify(session), { iat, uat, exp });

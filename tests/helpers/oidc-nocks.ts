@@ -7,50 +7,52 @@ import { ConfigParameters } from '../../src/auth0-session';
 export function discovery(params: ConfigParameters, discoveryOptions?: any): nock.Scope {
   return nock(params.issuerBaseURL as string)
     .get('/.well-known/openid-configuration')
-    .reply(200, {
-      issuer: `${params.issuerBaseURL}/`,
-      authorization_endpoint: `${params.issuerBaseURL}/authorize`,
-      token_endpoint: `${params.issuerBaseURL}/oauth/token`,
-      userinfo_endpoint: `${params.issuerBaseURL}/userinfo`,
-      jwks_uri: `${params.issuerBaseURL}/.well-known/jwks.json`,
-      scopes_supported: [
-        'openid',
-        'profile',
-        'offline_access',
-        'name',
-        'given_name',
-        'family_name',
-        'nickname',
-        'email',
-        'email_verified',
-        'picture',
-        'created_at',
-        'identities',
-        'phone',
-        'address'
-      ],
-      response_types_supported: ['code'],
-      id_token_signing_alg_values_supported: ['RS256'],
-      token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post'],
-      claims_supported: [
-        'aud',
-        'auth_time',
-        'created_at',
-        'email',
-        'email_verified',
-        'exp',
-        'family_name',
-        'given_name',
-        'iat',
-        'identities',
-        'iss',
-        'name',
-        'nickname',
-        'phone_number',
-        'picture',
-        'sub'
-      ],
-      ...(discoveryOptions || {})
+    .reply(200, () => {
+      return {
+        issuer: `${params.issuerBaseURL}/`,
+        authorization_endpoint: `${params.issuerBaseURL}/authorize`,
+        token_endpoint: `${params.issuerBaseURL}/oauth/token`,
+        userinfo_endpoint: `${params.issuerBaseURL}/userinfo`,
+        jwks_uri: `${params.issuerBaseURL}/.well-known/jwks.json`,
+        scopes_supported: [
+          'openid',
+          'profile',
+          'offline_access',
+          'name',
+          'given_name',
+          'family_name',
+          'nickname',
+          'email',
+          'email_verified',
+          'picture',
+          'created_at',
+          'identities',
+          'phone',
+          'address'
+        ],
+        response_types_supported: ['code'],
+        id_token_signing_alg_values_supported: ['RS256'],
+        token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post'],
+        claims_supported: [
+          'aud',
+          'auth_time',
+          'created_at',
+          'email',
+          'email_verified',
+          'exp',
+          'family_name',
+          'given_name',
+          'iat',
+          'identities',
+          'iss',
+          'name',
+          'nickname',
+          'phone_number',
+          'picture',
+          'sub'
+        ],
+        ...(discoveryOptions || {})
+      };
     });
 }
 
@@ -68,25 +70,12 @@ export function jwksEndpoint(params: ConfigParameters, keyset: JSONWebKeySet): n
     .reply(200, keyset);
 }
 
-export function codeExchange(
-  params: ConfigParameters,
-  code: string,
-  key: JWK.Key,
-  payload: object,
-  overrides?: object
-): nock.Scope {
-  const idToken = createToken(key, {
-    iss: `${params.issuerBaseURL}/`,
-    aud: params.clientID,
-    ...payload,
-    ...(overrides || {})
-  });
-
+export function codeExchange(params: ConfigParameters, idToken: string, code = 'code'): nock.Scope {
   return nock(`${params.issuerBaseURL}`)
     .post(
       '/oauth/token',
       `grant_type=authorization_code&code=${code}&redirect_uri=${encodeURIComponent(
-        `${params.baseURL}/api/auth/callback`
+        `${params.baseURL}api/auth/callback`
       )}`
     )
     .reply(200, {

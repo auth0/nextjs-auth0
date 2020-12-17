@@ -1,484 +1,341 @@
-import jose from '@panva/jose';
-import request from 'request';
-import { parse } from 'cookie';
-import { promisify } from 'util';
-import timekeeper from 'timekeeper';
-import callback, { CallbackOptions } from '../../src/handlers/callback';
+import { start, stop } from '../helpers/server';
+import { ConfigParameters } from '../../src/auth0-session';
+import { withApi, withoutApi } from '../helpers/default-settings';
+import { codeExchange, discovery, jwksEndpoint } from '../helpers/oidc-nocks';
+import { jwks, makeIdToken /*, makeIdToken*/ } from '../auth0-session/fixture/cert';
+import { initAuth0 } from '../../src';
+import { get, post, toSignedCookieJar } from '../auth0-session/fixture/helpers';
+import { encodeState } from '../../src/auth0-session/hooks/get-login-state';
+import { CookieJar } from 'tough-cookie';
+import timekeeper = require('timekeeper');
+import { CallbackOptions } from '../../src/auth0-session';
+import { TokenSet } from 'openid-client';
+import nock = require('nock');
 
-import { createState } from '../../src/utils/state';
-import getClient from '../../src/utils/oidc-client';
-import CookieSessionStore from '../../src/session/cookie-store';
+const setupHandler = async (
+  config: ConfigParameters,
+  idTokenClaims: any = {},
+  callbackOptions?: CallbackOptions,
+  discoveryOptions?: any
+): Promise<string> => {
+  discovery(config, discoveryOptions);
+  jwksEndpoint(config, jwks);
+  codeExchange(config, makeIdToken(idTokenClaims));
+  const { handleAuth, handleCallback, getSession } = await initAuth0(config);
+  (global as any).handleAuth = handleAuth.bind(null, {
+    async callback(req, res) {
+      try {
+        await handleCallback(req, res, callbackOptions);
+      } catch (error) {
+        res.statusMessage = error.message;
+        res.status(error.status || 500).end(error.message);
+      }
+    }
+  });
+  (global as any).getSession = getSession;
+  return start();
+};
 
-import HttpServer from '../helpers/server';
-import getRequestResponse from '../helpers/http';
-import { withoutApi, withApi } from '../helpers/default-settings';
-import { discovery, jwksEndpoint, codeExchange } from '../helpers/oidc-nocks';
-import CookieSessionStoreSettings from '../../src/session/cookie-store/settings';
-import { ISession } from '../../src/session/session';
-
-const [getAsync] = [request.get].map(promisify);
+const callback = (baseUrl: string, body: any, cookieJar?: CookieJar): Promise<any> =>
+  post(baseUrl, `/api/auth/callback`, {
+    body,
+    cookieJar,
+    fullResponse: true
+  });
 
 describe('callback handler', () => {
-  let keystore: jose.JWKS.KeyStore;
-  let store: CookieSessionStore;
+  afterEach(async () => {
+    jest.resetModules();
+    nock.cleanAll();
+    await stop();
+  });
 
-  beforeAll(() => {
-    keystore = new jose.JWKS.KeyStore();
-    store = new CookieSessionStore(
-      new CookieSessionStoreSettings({
-        cookieSecret: 'keyboardcat-keyboardcat-keyboardcat-keyboardcat',
-        cookieLifetime: 60 * 60
+  test('should require a state', async () => {
+    const baseUrl = await setupHandler(withoutApi);
+    await expect(
+      callback(baseUrl, {
+        state: '__test_state__'
       })
+    ).rejects.toThrow('checks.state argument is missing');
+  });
+
+  test('should validate the state', async () => {
+    const baseUrl = await setupHandler(withoutApi);
+    const cookieJar = toSignedCookieJar(
+      {
+        state: '__other_state__'
+      },
+      baseUrl
     );
-    return keystore.generate('RSA');
-  });
-
-  describe('without api', () => {
-    let httpServer: HttpServer;
-
-    beforeEach((done) => {
-      discovery(withoutApi);
-      jwksEndpoint(withoutApi, keystore.toJWKS());
-
-      httpServer = new HttpServer(callback(withoutApi, getClient(withoutApi), store));
-      httpServer.start(done);
-    });
-
-    afterAll((done) => {
-      httpServer.stop(done);
-    });
-
-    test('should require a state', async () => {
-      const { body } = await getAsync({
-        url: httpServer.getUrl(),
-        followRedirect: false
-      });
-
-      expect(body).toBe('Invalid request, an initial state could not be found');
-    });
-
-    test('should validate the state', async () => {
-      codeExchange(withoutApi, 'bar', keystore.get(), {
-        name: 'john doe',
-        email: 'john@test.com',
-        sub: '123'
-      });
-
-      const { statusCode, body } = await getAsync({
-        url: `${httpServer.getUrl()}?state=invalid&code=bar`,
-        followRedirect: false,
-        headers: {
-          cookie: 'a0:state=foo;'
-        }
-      });
-
-      expect(statusCode).toBe(500);
-      expect(body).toEqual('state mismatch, expected foo, got: invalid');
-    });
-
-    test('should validate the audience', async () => {
-      const overrides = {
-        aud: 'other-audience'
-      };
-
-      codeExchange(
-        withoutApi,
-        'with-invalid-audience',
-        keystore.get(),
+    await expect(
+      callback(
+        baseUrl,
         {
-          name: 'john doe',
-          email: 'john@test.com',
-          sub: '123'
+          state: '__test_state__'
         },
-        overrides
-      );
+        cookieJar
+      )
+    ).rejects.toThrow('state mismatch, expected __other_state__, got: __test_state__');
+  });
 
-      const { statusCode, body } = await getAsync({
-        url: `${httpServer.getUrl()}?state=foo&code=with-invalid-audience`,
-        followRedirect: false,
-        headers: {
-          cookie: 'a0:state=foo;'
-        }
-      });
-
-      expect(statusCode).toBe(500);
-      expect(body).toEqual('aud mismatch, expected client_id, got: other-audience');
-    });
-
-    test('should validate the issuer', async () => {
-      const overrides = {
-        iss: 'other-issuer'
-      };
-
-      codeExchange(
-        withoutApi,
-        'with-invalid-issuer',
-        keystore.get(),
+  test('should validate the audience', async () => {
+    const baseUrl = await setupHandler(withoutApi, { aud: 'bar', iss: 'https://acme.auth0.local/' });
+    const state = encodeState({ returnTo: baseUrl });
+    const cookieJar = toSignedCookieJar(
+      {
+        state,
+        nonce: '__test_nonce__'
+      },
+      baseUrl
+    );
+    await expect(
+      callback(
+        baseUrl,
         {
-          name: 'john doe',
-          email: 'john@test.com',
-          sub: '123'
+          state,
+          code: 'code'
         },
-        overrides
-      );
+        cookieJar
+      )
+    ).rejects.toThrow('aud mismatch, expected __test_client_id__, got: bar');
+  });
 
-      const { statusCode, body } = await getAsync({
-        url: `${httpServer.getUrl()}?state=foo&code=with-invalid-issuer`,
-        followRedirect: false,
-        headers: {
-          cookie: 'a0:state=foo;'
-        }
-      });
+  test('should validate the issuer', async () => {
+    const baseUrl = await setupHandler(withoutApi, { aud: 'bar', iss: 'other-issuer' });
+    const state = encodeState({ returnTo: baseUrl });
+    const cookieJar = toSignedCookieJar(
+      {
+        state,
+        nonce: '__test_nonce__'
+      },
+      baseUrl
+    );
+    await expect(
+      callback(
+        baseUrl,
+        {
+          state,
+          code: 'code'
+        },
+        cookieJar
+      )
+    ).rejects.toThrow('unexpected iss value, expected https://acme.auth0.local/, got: other-issuer');
+  });
 
-      expect(statusCode).toBe(500);
-      expect(body).toEqual('unexpected iss value, expected https://acme.auth0.local/, got: other-issuer');
+  test('should allow id_tokens to be set in the future', async () => {
+    // TODO: see if you can make this fail on master
+    const baseUrl = await setupHandler(withoutApi, {
+      iss: 'https://acme.auth0.local/',
+      iat: Math.floor(new Date(new Date().getTime() + 10 * 1000).getTime() / 1000)
     });
+    const state = encodeState({ returnTo: baseUrl });
+    const cookieJar = toSignedCookieJar(
+      {
+        state,
+        nonce: '__test_nonce__'
+      },
+      baseUrl
+    );
+    const { res } = await callback(
+      baseUrl,
+      {
+        state,
+        code: 'code'
+      },
+      cookieJar
+    );
+    expect(res.statusCode).toBe(302);
+  });
 
-    describe('when oidcClient.clockTolerance is configured', () => {
-      test('should allow id_tokens to be set in the future', async () => {
-        const overrides = {
-          iat: Math.floor(new Date(new Date().getTime() + 10 * 1000).getTime() / 1000)
-        };
+  test('should create the session without OIDC claims', async () => {
+    const baseUrl = await setupHandler(withoutApi, { iss: 'https://acme.auth0.local/' });
+    const state = encodeState({ returnTo: baseUrl });
+    const cookieJar = toSignedCookieJar(
+      {
+        state,
+        nonce: '__test_nonce__'
+      },
+      baseUrl
+    );
+    const { res } = await callback(
+      baseUrl,
+      {
+        state,
+        code: 'code'
+      },
+      cookieJar
+    );
+    expect(res.statusCode).toBe(302);
+    const body = await get(baseUrl, `/api/session`, { cookieJar });
 
-        const options = {
-          ...withoutApi,
-          oidcClient: {
-            clockTolerance: 12000
-          }
-        };
-
-        codeExchange(
-          withoutApi,
-          'with-clock-skew',
-          keystore.get(),
-          {
-            name: 'john doe',
-            email: 'john@test.com',
-            sub: '123'
-          },
-          overrides
-        );
-
-        httpServer.setHandler(callback(withoutApi, getClient(options), store));
-        const { statusCode } = await getAsync({
-          url: `${httpServer.getUrl()}?state=foo&code=with-clock-skew`,
-          followRedirect: false,
-          headers: {
-            cookie: 'a0:state=foo;'
-          }
-        });
-
-        expect(statusCode).toBe(302);
-      });
-    });
-
-    describe('when signing in the user', () => {
-      let time: Date;
-      let responseStatus: number;
-      let responseHeaders: any;
-
-      beforeAll(async () => {
-        time = new Date();
-        timekeeper.freeze(time);
-
-        codeExchange(withoutApi, 'bar', keystore.get(), {
-          name: 'john doe',
-          email: 'john@test.com',
-          sub: '123'
-        });
-
-        const state = createState({
-          redirectTo: '/custom-url'
-        });
-
-        const { statusCode, headers } = await getAsync({
-          url: `${httpServer.getUrl()}?state=${state}&code=bar`,
-          followRedirect: false,
-          headers: {
-            cookie: `a0:state=${state};`
-          }
-        });
-
-        timekeeper.reset();
-        responseStatus = statusCode;
-        responseHeaders = headers;
-      });
-
-      test('should create the session without OIDC claims', async () => {
-        timekeeper.freeze(time);
-        expect(responseStatus).toBe(302);
-        expect(responseHeaders['set-cookie'][0]).toContain('a0:session');
-
-        const { req } = getRequestResponse();
-        req.headers = {
-          cookie: `a0:session=${parse(responseHeaders['set-cookie'][0])['a0:session']}`
-        };
-
-        const session = await store.read(req);
-        expect(session).toStrictEqual({
-          createdAt: time.getTime(),
-          user: {
-            email: 'john@test.com',
-            name: 'john doe',
-            sub: '123'
-          }
-        });
-
-        timekeeper.reset();
-      });
-
-      test('should set the correct expiration', async () => {
-        expect(responseStatus).toBe(302);
-        expect(responseHeaders['set-cookie'][0]).toContain('a0:session');
-
-        const cookie = parse(responseHeaders['set-cookie'][0]);
-        expect(cookie['Max-Age']).toBe('3600');
-        expect(cookie.Expires).toBe(new Date(time.getTime() + 3600 * 1000).toUTCString());
-      });
-
-      test('should redirect to cookie url', async () => {
-        expect(responseStatus).toBe(302);
-        expect(responseHeaders.location).toBe('/custom-url');
-      });
+    expect(body.user).toStrictEqual({
+      nickname: '__test_nickname__',
+      sub: '__test_sub__'
     });
   });
 
-  describe('with api', () => {
-    let serverWithApi: HttpServer;
-
-    beforeEach((done) => {
-      discovery(withApi);
-      jwksEndpoint(withApi, keystore.toJWKS());
-
-      store = new CookieSessionStore(
-        new CookieSessionStoreSettings({
-          storeAccessToken: true,
-          storeRefreshToken: true,
-          cookieSecret: 'keyboardcat-keyboardcat-keyboardcat-keyboardcat',
-          cookieLifetime: 60 * 60
-        })
-      );
-      serverWithApi = new HttpServer(callback(withApi, getClient(withApi), store));
-      serverWithApi.start(done);
+  test('should set the correct expiration', async () => {
+    timekeeper.freeze(0);
+    const baseUrl = await setupHandler(withoutApi, { iss: 'https://acme.auth0.local/' });
+    const state = encodeState({ returnTo: baseUrl });
+    const cookieJar = toSignedCookieJar(
+      {
+        state,
+        nonce: '__test_nonce__'
+      },
+      baseUrl
+    );
+    const { res } = await post(baseUrl, `/api/auth/callback`, {
+      fullResponse: true,
+      cookieJar,
+      body: {
+        state,
+        code: 'code'
+      }
     });
+    expect(res.statusCode).toBe(302);
 
-    afterAll((done) => {
-      serverWithApi.stop(done);
-    });
-
-    describe('when signing in the user', () => {
-      let time: Date;
-      let responseStatus: number;
-      let responseHeaders: any;
-
-      beforeEach(async () => {
-        time = new Date();
-        timekeeper.freeze(time);
-
-        codeExchange(withApi, 'something2', keystore.get(), {
-          name: 'john doe',
-          email: 'john@test.com',
-          sub: '123',
-          aud: 'client_id',
-          iss: 'https://acme.auth0.local/'
-        });
-
-        const { statusCode, headers } = await getAsync({
-          url: `${serverWithApi.getUrl()}?state=foo&code=something2`,
-          followRedirect: false,
-          headers: {
-            cookie: 'a0:state=foo;'
-          }
-        });
-
-        timekeeper.reset();
-        responseStatus = statusCode;
-        responseHeaders = headers;
-      });
-
-      test('should create the session without OIDC claims', async () => {
-        timekeeper.freeze(time);
-        expect(responseStatus).toBe(302);
-        expect(responseHeaders['set-cookie'][0]).toContain('a0:session');
-
-        const { req } = getRequestResponse();
-        req.headers = {
-          cookie: `a0:session=${parse(responseHeaders['set-cookie'][0])['a0:session']}`
-        };
-
-        const session = await store.read(req);
-        expect(session).toStrictEqual({
-          accessToken: 'eyJz93a...k4laUWw',
-          refreshToken: 'GEbRxBN...edjnXbL',
-          accessTokenExpiresAt: expect.any(Number),
-          accessTokenScope: 'read:foo delete:foo',
-          createdAt: time.getTime(),
-          user: {
-            email: 'john@test.com',
-            name: 'john doe',
-            sub: '123'
-          }
-        });
-
-        timekeeper.reset();
-      });
-    });
+    const [sessionCookie] = cookieJar.getCookiesSync(baseUrl);
+    const expiryInHrs = new Date(sessionCookie.expires).getTime() / 1000 / 60 / 60;
+    expect(expiryInHrs).toBe(24);
+    timekeeper.reset();
   });
 
-  describe('with user loaded hook', () => {
-    let responseStatus: number;
-    let responseHeaders: any;
-    let httpServer: HttpServer;
-    let callbackOptions: CallbackOptions | undefined;
+  test('should create the session without OIDC claims with api config', async () => {
+    timekeeper.freeze(0);
+    const baseUrl = await setupHandler(withApi, { iss: 'https://acme.auth0.local/' });
+    const state = encodeState({ returnTo: baseUrl });
+    const cookieJar = toSignedCookieJar(
+      {
+        state,
+        nonce: '__test_nonce__'
+      },
+      baseUrl
+    );
+    const { res } = await callback(
+      baseUrl,
+      {
+        state,
+        code: 'code'
+      },
+      cookieJar
+    );
+    expect(res.statusCode).toBe(302);
+    const session = await get(baseUrl, `/api/session`, { cookieJar });
 
-    beforeAll(async () => {
-      discovery(withoutApi);
-      jwksEndpoint(withoutApi, keystore.toJWKS());
-
-      const callbackHandler = callback(withoutApi, getClient(withoutApi), store);
-      httpServer = new HttpServer((req, res) => callbackHandler(req, res, callbackOptions));
-      await httpServer.start();
+    expect(session).toStrictEqual({
+      accessToken: 'eyJz93a...k4laUWw',
+      accessTokenExpiresAt: 750,
+      accessTokenScope: 'read:foo delete:foo',
+      idToken: makeIdToken({ iss: 'https://acme.auth0.local/' }),
+      token_type: 'Bearer',
+      refreshToken: 'GEbRxBN...edjnXbL',
+      user: {
+        nickname: '__test_nickname__',
+        sub: '__test_sub__'
+      }
     });
+    timekeeper.reset();
+  });
 
-    afterAll((done) => {
-      httpServer.stop(done);
+  test('remove tokens with afterCallback hook', async () => {
+    timekeeper.freeze(0);
+    const afterCallback = (_req: any, _res: any, tokenSet: TokenSet): TokenSet => {
+      delete tokenSet.access_token;
+      delete tokenSet.refresh_token;
+      return tokenSet;
+    };
+    const baseUrl = await setupHandler(withApi, { iss: 'https://acme.auth0.local/' }, { afterCallback });
+    const state = encodeState({ returnTo: baseUrl });
+    const cookieJar = toSignedCookieJar(
+      {
+        state,
+        nonce: '__test_nonce__'
+      },
+      baseUrl
+    );
+    const { res } = await callback(
+      baseUrl,
+      {
+        state,
+        code: 'code'
+      },
+      cookieJar
+    );
+    expect(res.statusCode).toBe(302);
+    const session = await get(baseUrl, `/api/session`, { cookieJar });
+
+    expect(session).toStrictEqual({
+      accessTokenExpiresAt: 750,
+      accessTokenScope: 'read:foo delete:foo',
+      idToken: makeIdToken({ iss: 'https://acme.auth0.local/' }),
+      token_type: 'Bearer',
+      user: {
+        nickname: '__test_nickname__',
+        sub: '__test_sub__'
+      }
     });
+    timekeeper.reset();
+  });
 
-    describe('when hook changes the session', () => {
-      beforeEach(async () => {
-        callbackOptions = {
-          onUserLoaded: async (_req, _res, session): Promise<ISession> => {
-            const updatedSession = {
-              ...session,
-              user: {
-                ...session.user,
-                age: 20
-              }
-            };
+  test('add properties to session with afterCallback hook', async () => {
+    timekeeper.freeze(0);
+    const afterCallback = (_req: any, _res: any, tokenSet: TokenSet): TokenSet => {
+      tokenSet.foo = 'bar';
+      return tokenSet;
+    };
+    const baseUrl = await setupHandler(withApi, { iss: 'https://acme.auth0.local/' }, { afterCallback });
+    const state = encodeState({ returnTo: baseUrl });
+    const cookieJar = toSignedCookieJar(
+      {
+        state,
+        nonce: '__test_nonce__'
+      },
+      baseUrl
+    );
+    const { res } = await callback(
+      baseUrl,
+      {
+        state,
+        code: 'code'
+      },
+      cookieJar
+    );
+    expect(res.statusCode).toBe(302);
+    const session = await get(baseUrl, '/api/session', { cookieJar });
 
-            delete updatedSession.refreshToken;
-
-            return updatedSession;
-          }
-        };
-
-        codeExchange(withoutApi, 'bar', keystore.get(), {
-          name: 'john doe',
-          email: 'john@test.com',
-          sub: '123'
-        });
-
-        const state = createState();
-
-        const { statusCode, headers } = await getAsync({
-          url: `${httpServer.getUrl()}?state=${state}&code=bar`,
-          followRedirect: false,
-          headers: {
-            cookie: `a0:state=${state};`
-          }
-        });
-
-        responseStatus = statusCode;
-        responseHeaders = headers;
-      });
-
-      test('tokens can be removed', async () => {
-        expect(responseStatus).toBe(302);
-        expect(responseHeaders['set-cookie'][0]).toContain('a0:session');
-
-        const { req } = getRequestResponse();
-        req.headers = {
-          cookie: `a0:session=${parse(responseHeaders['set-cookie'][0])['a0:session']}`
-        };
-
-        const session = await store.read(req);
-        expect(session && session.refreshToken).toBeUndefined();
-      });
-
-      test('additional fields should be added to the user', async () => {
-        expect(responseStatus).toBe(302);
-        expect(responseHeaders['set-cookie'][0]).toContain('a0:session');
-
-        const { req } = getRequestResponse();
-        req.headers = {
-          cookie: `a0:session=${parse(responseHeaders['set-cookie'][0])['a0:session']}`
-        };
-
-        const session = await store.read(req);
-        expect(session && session.user).toStrictEqual({
-          age: 20,
-          email: 'john@test.com',
-          name: 'john doe',
-          sub: '123'
-        });
-      });
+    expect(session).toMatchObject({
+      foo: 'bar',
+      user: {
+        nickname: '__test_nickname__',
+        sub: '__test_sub__'
+      }
     });
+    timekeeper.reset();
+  });
 
-    describe('when hook throws', () => {
-      beforeEach(async () => {
-        callbackOptions = {
-          onUserLoaded: async (): Promise<ISession> => {
-            throw new Error('Access denied!');
-          }
-        };
-
-        codeExchange(withoutApi, 'bar', keystore.get(), {
-          name: 'john doe',
-          email: 'john@test.com',
-          sub: '123'
-        });
-
-        const state = createState();
-
-        const { statusCode, headers } = await getAsync({
-          url: `${httpServer.getUrl()}?state=${state}&code=bar`,
-          followRedirect: false,
-          headers: {
-            cookie: `a0:state=${state};`
-          }
-        });
-
-        responseStatus = statusCode;
-        responseHeaders = headers;
-      });
-
-      test('callback should fail', async () => {
-        expect(responseStatus).toBe(500);
-        expect(responseHeaders['set-cookie']).toBeFalsy();
-      });
-    });
-
-    describe('when hook throws and a callback failed handler is configured', () => {
-      beforeEach(async () => {
-        callbackOptions = {
-          onUserLoaded: async (): Promise<ISession> => {
-            throw new Error('Access denied!');
-          }
-        };
-
-        codeExchange(withoutApi, 'bar', keystore.get(), {
-          name: 'john doe',
-          email: 'john@test.com',
-          sub: '123'
-        });
-
-        const state = createState();
-
-        const { statusCode, headers } = await getAsync({
-          url: `${httpServer.getUrl()}?state=${state}&code=bar`,
-          followRedirect: false,
-          headers: {
-            cookie: `a0:state=${state};`
-          }
-        });
-        responseStatus = statusCode;
-        responseHeaders = headers;
-      });
-
-      test('callback should fail', async () => {
-        expect(responseStatus).toBe(500);
-        expect(responseHeaders['set-cookie']).toBeFalsy();
-      });
-    });
+  test('throws from afterCallback hook', async () => {
+    const afterCallback = (): TokenSet => {
+      throw new Error('some validation error.');
+    };
+    const baseUrl = await setupHandler(withApi, { iss: 'https://acme.auth0.local/' }, { afterCallback });
+    const state = encodeState({ returnTo: baseUrl });
+    const cookieJar = toSignedCookieJar(
+      {
+        state,
+        nonce: '__test_nonce__'
+      },
+      baseUrl
+    );
+    await expect(
+      callback(
+        baseUrl,
+        {
+          state,
+          code: 'code'
+        },
+        cookieJar
+      )
+    ).rejects.toThrow('some validation error.');
   });
 });
