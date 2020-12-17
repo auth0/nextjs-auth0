@@ -1,8 +1,6 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import urlJoin from 'url-join';
 import { BadRequest } from 'http-errors';
-
-import { TokenSet } from 'openid-client';
 import { Config } from '../config';
 import { ClientFactory } from '../client';
 import TransientStore from '../transient-store';
@@ -16,9 +14,9 @@ function getRedirectUri(config: Config): string {
 export type AfterCallback = (
   req: IncomingMessage,
   res: ServerResponse,
-  tokenSet: TokenSet,
+  session: any,
   state: Record<string, any>
-) => Promise<TokenSet> | TokenSet;
+) => Promise<any> | any;
 
 export type CallbackOptions = {
   afterCallback?: AfterCallback;
@@ -55,13 +53,13 @@ export default function callbackHandler(
     }
 
     const openidState: { returnTo?: string } = decodeState(expectedState as string);
-    tokenSet = new TokenSet(tokenSet);
+    let session = sessionCache.fromTokenSet(tokenSet);
 
     if (options?.afterCallback) {
-      tokenSet = await options.afterCallback(req, res, tokenSet, openidState);
+      session = await options.afterCallback(req, res, session, openidState);
     }
 
-    sessionCache.create(req, res, tokenSet);
+    sessionCache.create(req, res, session);
 
     res.writeHead(302, {
       Location: openidState.returnTo || config.baseURL

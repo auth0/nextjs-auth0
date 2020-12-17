@@ -1,3 +1,5 @@
+import nock = require('nock');
+import { CookieJar } from 'tough-cookie';
 import { CallbackOptions, ConfigParameters, LoginOptions, LogoutOptions } from '../../src/auth0-session';
 import { codeExchange, discovery, jwksEndpoint, userInfo } from './oidc-nocks';
 import { jwks, makeIdToken } from '../auth0-session/fixture/cert';
@@ -5,7 +7,8 @@ import { initAuth0 } from '../../src';
 import { start, stop } from './server';
 import { Claims } from '../../src/session';
 import { ProfileOptions } from '../../src/handlers';
-import nock = require('nock');
+import { encodeState } from '../../src/auth0-session/hooks/get-login-state';
+import { post, toSignedCookieJar } from '../auth0-session/fixture/helpers';
 
 export type SetupOptions = {
   idTokenClaims?: Claims;
@@ -76,4 +79,19 @@ export const teardown = async (): Promise<void> => {
   await stop();
   delete (global as any).getSession;
   delete (global as any).handleAuth;
+};
+
+export const login = async (baseUrl: string): Promise<CookieJar> => {
+  const nonce = '__test_nonce__';
+  const state = encodeState({ returnTo: '/' });
+  const cookieJar = toSignedCookieJar({ state, nonce }, baseUrl);
+  await post(baseUrl, '/api/auth/callback', {
+    fullResponse: true,
+    body: {
+      state,
+      code: 'code'
+    },
+    cookieJar
+  });
+  return cookieJar;
 };

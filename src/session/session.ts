@@ -39,6 +39,8 @@ export default class Session {
    */
   refreshToken?: string | undefined;
 
+  [key: string]: any;
+
   constructor(user: Claims) {
     this.user = user;
   }

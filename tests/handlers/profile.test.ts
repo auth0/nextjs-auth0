@@ -1,25 +1,8 @@
 import { withoutApi } from '../helpers/default-settings';
 import { userInfo } from '../helpers/oidc-nocks';
-import { get, post, toSignedCookieJar } from '../auth0-session/fixture/helpers';
-import { CookieJar } from 'tough-cookie';
-import { encodeState } from '../../src/auth0-session/hooks/get-login-state';
-import { TokenSet } from 'openid-client';
-import { setup, teardown } from '../helpers/setup';
-
-const login = async (baseUrl: string): Promise<CookieJar> => {
-  const nonce = '__test_nonce__';
-  const state = encodeState({ returnTo: '/' });
-  const cookieJar = toSignedCookieJar({ state, nonce }, baseUrl);
-  await post(baseUrl, '/api/auth/callback', {
-    fullResponse: true,
-    body: {
-      state,
-      code: 'code'
-    },
-    cookieJar
-  });
-  return cookieJar;
-};
+import { get } from '../auth0-session/fixture/helpers';
+import { setup, teardown, login } from '../helpers/setup';
+import { Session } from '../../src/session';
 
 describe('profile handler', () => {
   afterEach(teardown);
@@ -39,9 +22,9 @@ describe('profile handler', () => {
   });
 
   test('should throw if re-fetching with no Access Token', async () => {
-    const afterCallback = (_req: any, _res: any, tokenSet: TokenSet): TokenSet => {
-      delete tokenSet.access_token;
-      return tokenSet;
+    const afterCallback = (_req: any, _res: any, session: Session): Session => {
+      delete session.accessToken;
+      return session;
     };
     const baseUrl = await setup(withoutApi, { profileOptions: { refetch: true }, callbackOptions: { afterCallback } });
     const cookieJar = await login(baseUrl);
