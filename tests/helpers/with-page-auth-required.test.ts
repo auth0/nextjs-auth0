@@ -22,7 +22,7 @@ describe('with-page-auth-required', () => {
       data
     } = await get(baseUrl, '/protected', { cookieJar, fullResponse: true });
     expect(statusCode).toBe(200);
-    expect(data).toMatch(/<div>document<\/div>/);
+    expect(data).toMatch(/<div>Blank Document<\/div>/);
   });
 
   test('use a custom login url', async () => {

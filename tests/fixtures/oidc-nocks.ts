@@ -1,8 +1,8 @@
 import nock from 'nock';
-import { JSONWebKeySet, JWK } from '@panva/jose';
+import { JSONWebKeySet } from '@panva/jose';
 
-import createToken from './tokens';
 import { ConfigParameters } from '../../src/auth0-session';
+import { makeIdToken } from '../auth0-session/fixtures/cert';
 
 export function discovery(params: ConfigParameters, discoveryOptions?: any): nock.Scope {
   return nock(params.issuerBaseURL as string)
@@ -91,11 +91,10 @@ export function codeExchange(params: ConfigParameters, idToken: string, code = '
 export function refreshTokenExchange(
   params: ConfigParameters,
   refreshToken: string,
-  key: JWK.Key,
   payload: object,
   newToken?: string
 ): nock.Scope {
-  const idToken = createToken(key, {
+  const idToken = makeIdToken({
     iss: `${params.issuerBaseURL}/`,
     aud: params.clientID,
     ...payload
@@ -115,11 +114,11 @@ export function refreshTokenExchange(
 export function refreshTokenRotationExchange(
   params: ConfigParameters,
   refreshToken: string,
-  key: JWK.Key,
   payload: object,
-  newToken?: string
+  newToken?: string,
+  newrefreshToken?: string
 ): nock.Scope {
-  const idToken = createToken(key, {
+  const idToken = makeIdToken({
     iss: `${params.issuerBaseURL}/`,
     aud: params.clientID,
     ...payload
@@ -129,7 +128,7 @@ export function refreshTokenRotationExchange(
     .post('/oauth/token', `grant_type=refresh_token&refresh_token=${refreshToken}`)
     .reply(200, {
       access_token: newToken || 'eyJz93a...k4laUWw',
-      refresh_token: 'GEbRxBN...edjnXbL',
+      refresh_token: newrefreshToken || 'GEbRxBN...edjnXbL',
       id_token: idToken,
       token_type: 'Bearer',
       expires_in: 750,
