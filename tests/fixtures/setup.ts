@@ -5,11 +5,12 @@ import { codeExchange, discovery, jwksEndpoint, userInfo } from './oidc-nocks';
 import { jwks, makeIdToken } from '../auth0-session/fixtures/cert';
 import { initAuth0 } from '../../src';
 import { start, stop } from './server';
-import { Claims } from '../../src/session';
+import { AccessTokenRequest, Claims, GetAccessTokenResult } from '../../src/session';
 import { ProfileOptions } from '../../src/handlers';
 import { encodeState } from '../../src/auth0-session/hooks/get-login-state';
 import { post, toSignedCookieJar } from '../auth0-session/fixtures/helpers';
 import { WithPageAuthRequiredOptions } from '../../src/helpers/with-page-auth-required';
+import { NextApiRequest, NextApiResponse } from 'next';
 
 export type SetupOptions = {
   idTokenClaims?: Claims;
@@ -18,6 +19,7 @@ export type SetupOptions = {
   logoutOptions?: LogoutOptions;
   profileOptions?: ProfileOptions;
   withPageAuthRequiredOptions?: WithPageAuthRequiredOptions;
+  getAccessTokenOptions?: AccessTokenRequest;
   discoveryOptions?: object;
   userInfoPayload?: object;
 };
@@ -31,6 +33,7 @@ export const setup = async (
     loginOptions = { returnTo: '/custom-url' },
     profileOptions,
     withPageAuthRequiredOptions,
+    getAccessTokenOptions,
     discoveryOptions,
     userInfoPayload = {}
   }: SetupOptions = {}
@@ -46,6 +49,7 @@ export const setup = async (
     handleLogout,
     handleProfile,
     getSession,
+    getAccessToken,
     withApiAuthRequired,
     withPageAuthRequired
   } = await initAuth0(config);
@@ -85,6 +89,8 @@ export const setup = async (
   (global as any).getSession = getSession;
   (global as any).withApiAuthRequired = withApiAuthRequired;
   (global as any).withPageAuthRequired = withPageAuthRequired.bind(null, withPageAuthRequiredOptions);
+  (global as any).getAccessToken = (req: NextApiRequest, res: NextApiResponse): Promise<GetAccessTokenResult> =>
+    getAccessToken(req, res, getAccessTokenOptions);
   return start();
 };
 

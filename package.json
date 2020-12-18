@@ -17,7 +17,7 @@
     "lint": "eslint --fix --ext .ts ./src",
     "build": "tsc -p tsconfig.build.json",
     "build:test": "next build tests/fixtures/test-app",
-    "test": "jest tests/hooks/ tests/auth0-session tests/handlers tests/utils tests/helpers --coverage --maxWorkers=10",
+    "test": "jest tests --coverage --maxWorkers=10",
     "test:watch": "jest --coverage --watch",
     "prepublishOnly": "npm test && npm run lint",
     "prepublish": "npm run build",
@@ -135,7 +135,6 @@
       "text-summary"
     ],
     "preset": "ts-jest",
-    "testTimeout": 20000,
     "globalSetup": "./tests/global-setup.ts",
     "setupFilesAfterEnv": [
       "./tests/setup.ts"
