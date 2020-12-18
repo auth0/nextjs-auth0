@@ -163,4 +163,11 @@ describe('get access token', () => {
     const { refreshToken } = await get(baseUrl, '/api/session', { cookieJar });
     expect(refreshToken).toEqual('new-refresh-token');
   });
+
+  test('should return an access token with the given scopes', async () => {
+    const baseUrl = await setup(withApi, { getAccessTokenOptions: { scopes: ['read:foo'] } });
+    const cookieJar = await login(baseUrl);
+    const { accessToken } = await get(baseUrl, '/api/access-token', { cookieJar });
+    expect(accessToken).toEqual('eyJz93a...k4laUWw');
+  });
 });

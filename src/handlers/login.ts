@@ -14,15 +14,13 @@ export default function handleLoginFactory(
   return async (req, res, options): Promise<void> => {
     assertReqRes(req, res);
     if (req.query.returnTo) {
-      if (typeof req.query.returnTo !== 'string') {
-        throw new Error('Invalid value provided for returnTo, must be a string');
-      }
+      const returnTo = Array.isArray(req.query.returnTo) ? req.query.returnTo[0] : req.query.returnTo;
 
-      if (!isSafeRedirect(req.query.returnTo)) {
+      if (!isSafeRedirect(returnTo)) {
         throw new Error('Invalid value provided for returnTo, must be a relative url');
       }
 
-      options = { ...options, returnTo: req.query.returnTo };
+      options = { ...options, returnTo };
     }
 
     return handler(req, res, options);
