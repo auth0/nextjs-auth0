@@ -1,8 +1,8 @@
 import { parse } from 'url';
 import { CookieJar } from 'tough-cookie';
-import { SessionResponse, setup, teardown } from '../fixture/server';
-import { toSignedCookieJar, defaultConfig, get, post, fromCookieJar } from '../fixture/helpers';
-import { makeIdToken } from '../fixture/cert';
+import { SessionResponse, setup, teardown } from '../fixtures/server';
+import { toSignedCookieJar, defaultConfig, get, post, fromCookieJar } from '../fixtures/helpers';
+import { makeIdToken } from '../fixtures/cert';
 import { encodeState } from '../../../src/auth0-session/hooks/get-login-state';
 
 const login = async (baseURL: string): Promise<CookieJar> => {

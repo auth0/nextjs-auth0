@@ -1,5 +1,5 @@
 import Joi from '@hapi/joi';
-import { defaultState as getLoginState } from './hooks/get-login-state';
+import { getLoginState } from './hooks/get-login-state';
 import { Config } from './config';
 
 const isHttps = /^https:/i;

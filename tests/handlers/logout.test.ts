@@ -1,175 +1,91 @@
-import request from 'request';
 import { parse } from 'cookie';
-import { promisify } from 'util';
-
-import HttpServer from '../helpers/server';
-import logout, { LogoutOptions } from '../../src/handlers/logout';
-import { withoutApi } from '../helpers/default-settings';
-import CookieSessionStoreSettings from '../../src/session/cookie-store/settings';
-import { discovery } from '../helpers/oidc-nocks';
-import { ISessionStore } from '../../src/session/cache';
-import { ISession } from '../../src/session/session';
-import getClient from '../../src/utils/oidc-client';
-
-import nock = require('nock');
-
-const [getAsync] = [request.get].map(promisify);
-
-const now = Date.now();
-const sessionStore: ISessionStore = {
-  read(): Promise<ISession | null> {
-    return Promise.resolve({
-      user: {
-        sub: '123'
-      },
-      createdAt: now,
-      idToken: 'my-id-token',
-      refreshToken: 'my-refresh-token'
-    });
-  },
-  save(): Promise<ISession | null> {
-    return Promise.resolve(null);
-  }
-};
+import { parse as parseUrl } from 'url';
+import { withoutApi } from '../fixtures/default-settings';
+import { setup, teardown, login } from '../fixtures/setup';
 
 describe('logout handler', () => {
-  let httpServer: HttpServer;
-  let logoutHandler: any;
-  let logoutOptions: LogoutOptions | null;
-
-  beforeEach((done) => {
-    logoutHandler = logout(
-      withoutApi,
-      new CookieSessionStoreSettings(withoutApi.session),
-      getClient(withoutApi),
-      sessionStore
-    );
-    logoutOptions = {};
-    httpServer = new HttpServer((req, res) => logoutHandler(req, res, logoutOptions));
-    httpServer.start(done);
-  });
-
-  afterEach((done) => {
-    // We mock discovery in different ways, thus it has to be cleaned after each test
-    nock.cleanAll();
-    httpServer.stop(done);
-  });
+  afterEach(teardown);
 
   test('should redirect to the identity provider', async () => {
-    discovery(withoutApi);
+    const baseUrl = await setup(withoutApi);
+    const cookieJar = await login(baseUrl);
 
-    const { statusCode, headers } = await getAsync({
-      url: httpServer.getUrl(),
-      followRedirect: false
+    const { status, headers } = await fetch(`${baseUrl}/api/auth/logout`, {
+      redirect: 'manual',
+      headers: {
+        cookie: cookieJar.getCookieStringSync(baseUrl)
+      }
     });
 
-    expect(statusCode).toBe(302);
-    expect(headers.location).toBe(
-      `https://${withoutApi.domain}/v2/logout?client_id=${withoutApi.clientId}&returnTo=https%3A%2F%2Fwww.acme.com`
-    );
+    expect(status).toBe(302);
+    expect(parseUrl(headers.get('location') as string, true)).toMatchObject({
+      protocol: 'https:',
+      host: 'acme.auth0.local',
+      query: {
+        returnTo: 'http://www.acme.com',
+        client_id: '__test_client_id__'
+      },
+      pathname: '/v2/logout'
+    });
   });
 
   test('should return to the custom path', async () => {
     const customReturnTo = 'https://www.foo.bar';
-    logoutOptions = {
-      returnTo: customReturnTo
-    };
-    discovery(withoutApi);
+    const baseUrl = await setup(withoutApi, {
+      logoutOptions: { returnTo: customReturnTo }
+    });
+    const cookieJar = await login(baseUrl);
 
-    const { statusCode, headers } = await getAsync({
-      url: httpServer.getUrl(),
-      followRedirect: false
+    const { status, headers } = await fetch(`${baseUrl}/api/auth/logout`, {
+      redirect: 'manual',
+      headers: {
+        cookie: cookieJar.getCookieStringSync(baseUrl)
+      }
     });
 
-    expect(statusCode).toBe(302);
-    expect(headers.location).toBe(
-      `https://${withoutApi.domain}/v2/logout?client_id=${withoutApi.clientId}&returnTo=${encodeURIComponent(
-        customReturnTo
-      )}`
-    );
+    expect(status).toBe(302);
+    expect(parseUrl(headers.get('location') as string, true).query).toMatchObject({
+      returnTo: 'https://www.foo.bar'
+    });
   });
 
   test('should use end_session_endpoint if available', async () => {
-    discovery(withoutApi, { end_session_endpoint: 'https://my-end-session-endpoint/logout' });
-
-    const { statusCode, headers } = await getAsync({
-      url: httpServer.getUrl(),
-      followRedirect: false
+    const baseUrl = await setup(withoutApi, {
+      discoveryOptions: { end_session_endpoint: 'https://my-end-session-endpoint/logout' }
     });
+    const cookieJar = await login(baseUrl);
 
-    expect(statusCode).toBe(302);
-    expect(headers.location).toBe(
-      `https://my-end-session-endpoint/logout` +
-        `?id_token_hint=my-id-token&post_logout_redirect_uri=https%3A%2F%2Fwww.acme.com`
-    );
-  });
-
-  test('should delete the state and session', async () => {
-    discovery(withoutApi);
-
-    const { headers } = await getAsync({
-      url: httpServer.getUrl(),
+    const { status, headers } = await fetch(`${baseUrl}/api/auth/logout`, {
+      redirect: 'manual',
       headers: {
-        cookie: ['a0:state=foo', 'a0:session=bar'].join('; ')
-      },
-      followRedirect: false
+        cookie: cookieJar.getCookieStringSync(baseUrl)
+      }
     });
 
-    const [stateCookie, sessionCookie] = headers['set-cookie'];
-    expect(parse(stateCookie)).toMatchObject({
-      'a0:state': '',
-      'Max-Age': '-1'
-    });
-    expect(parse(sessionCookie)).toMatchObject({
-      'a0:session': '',
-      'Max-Age': '-1'
+    expect(status).toBe(302);
+    expect(parseUrl(headers.get('location') as string)).toMatchObject({
+      host: 'my-end-session-endpoint',
+      pathname: '/logout'
     });
   });
-});
 
-describe('logout handler with cookieDomain', () => {
-  const cookieDomain = 'www.acme.com';
-  let httpServer: HttpServer;
+  test('should delete the session', async () => {
+    const baseUrl = await setup(withoutApi, {
+      discoveryOptions: { end_session_endpoint: 'https://my-end-session-endpoint/logout' }
+    });
+    const cookieJar = await login(baseUrl);
 
-  beforeAll((done) => {
-    httpServer = new HttpServer(
-      logout(
-        withoutApi,
-        new CookieSessionStoreSettings({
-          ...withoutApi.session,
-          cookieDomain
-        }),
-        getClient(withoutApi),
-        sessionStore
-      )
-    );
-    httpServer.start(done);
-  });
-
-  afterAll((done) => {
-    httpServer.stop(done);
-  });
-
-  test('should delete the state and session', async () => {
-    discovery(withoutApi);
-
-    const { headers } = await getAsync({
-      url: httpServer.getUrl(),
+    const res = await fetch(`${baseUrl}/api/auth/logout`, {
+      redirect: 'manual',
       headers: {
-        cookie: ['a0:state=foo', 'a0:session=bar'].join('; ')
-      },
-      followRedirect: false
+        cookie: cookieJar.getCookieStringSync(baseUrl)
+      }
     });
 
-    const [stateCookie, sessionCookie] = headers['set-cookie'];
-    expect(parse(stateCookie)).toMatchObject({
-      'a0:state': '',
-      'Max-Age': '-1'
-    });
-    expect(parse(sessionCookie)).toMatchObject({
-      'a0:session': '',
-      'Max-Age': '-1',
-      Domain: cookieDomain
+    expect(parse(res.headers.get('set-cookie') as string)).toMatchObject({
+      appSession: '',
+      'Max-Age': '0',
+      Path: '/'
     });
   });
 });

@@ -6,4 +6,5 @@ beforeEach(() => {
 
 afterEach(() => {
   jest.restoreAllMocks();
+  jest.resetModules();
 });

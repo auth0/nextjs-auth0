@@ -1,7 +1,7 @@
 import { parse } from 'url';
 import { CookieJar } from 'tough-cookie';
-import { setup, teardown } from '../fixture/server';
-import { defaultConfig, fromCookieJar, get } from '../fixture/helpers';
+import { setup, teardown } from '../fixtures/server';
+import { defaultConfig, fromCookieJar, get } from '../fixtures/helpers';
 import { decodeState, encodeState } from '../../../src/auth0-session/hooks/get-login-state';
 import { LoginOptions } from '../../../src/auth0-session';
 import { IncomingMessage } from 'http';
