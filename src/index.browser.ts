@@ -3,7 +3,7 @@ import { GetAccessToken, GetSession } from './session';
 import { WithApiAuthRequired, WithPageAuthRequired } from './helpers';
 import { HandleAuth, HandleCallback, HandleLogin, HandleLogout, HandleProfile } from './handlers';
 
-export { default as UserProvider, UserProfile, UserContext, useUser } from './hooks/use-user';
+export { UserProvider, UserProfile, UserContext, useUser, withPageAuthenticationRequired } from './frontend';
 
 export const initAuth0: InitAuth0 = () => {
   throw new Error('The initAuth0 method can only be used from the server side');
