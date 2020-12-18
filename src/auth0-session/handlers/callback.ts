@@ -1,8 +1,6 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import urlJoin from 'url-join';
 import { BadRequest } from 'http-errors';
-
-import { TokenSet } from 'openid-client';
 import { Config } from '../config';
 import { ClientFactory } from '../client';
 import TransientStore from '../transient-store';
@@ -13,13 +11,24 @@ function getRedirectUri(config: Config): string {
   return urlJoin(config.baseURL, config.routes.callback);
 }
 
+export type AfterCallback = (
+  req: IncomingMessage,
+  res: ServerResponse,
+  session: any,
+  state: Record<string, any>
+) => Promise<any> | any;
+
+export type CallbackOptions = {
+  afterCallback?: AfterCallback;
+};
+
 export default function callbackHandler(
   config: Config,
   getClient: ClientFactory,
   sessionCache: SessionCache,
   transientCookieHandler: TransientStore
 ) {
-  return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+  return async (req: IncomingMessage, res: ServerResponse, options?: CallbackOptions): Promise<void> => {
     const client = await getClient();
 
     const redirectUri = getRedirectUri(config);
@@ -44,21 +53,13 @@ export default function callbackHandler(
     }
 
     const openidState: { returnTo?: string } = decodeState(expectedState as string);
+    let session = sessionCache.fromTokenSet(tokenSet);
 
-    // intentional clone of the properties on tokenSet
-    sessionCache.create(
-      req,
-      res,
-      new TokenSet({
-        access_token: tokenSet.access_token,
-        token_type: tokenSet.token_type,
-        id_token: tokenSet.id_token,
-        refresh_token: tokenSet.refresh_token,
-        expires_at: tokenSet.expires_at,
-        session_state: tokenSet.session_state,
-        scope: tokenSet.scope
-      })
-    );
+    if (options?.afterCallback) {
+      session = await options.afterCallback(req, res, session, openidState);
+    }
+
+    sessionCache.create(req, res, session);
 
     res.writeHead(302, {
       Location: openidState.returnTo || config.baseURL

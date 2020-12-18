@@ -3,8 +3,8 @@ import { JWK, JWS } from 'jose';
 import { CookieJar } from 'tough-cookie';
 import { getConfig, TransientStore } from '../../src/auth0-session';
 import { signing as deriveKey } from '../../src/auth0-session/utils/hkdf';
-import { defaultConfig, fromCookieJar, get, getCookie, toSignedCookieJar } from './fixture/helpers';
-import { setup as createServer, teardown } from './fixture/server';
+import { defaultConfig, fromCookieJar, get, getCookie, toSignedCookieJar } from './fixtures/helpers';
+import { setup as createServer, teardown } from './fixtures/server';
 
 const generateSignature = (cookie: string, value: string): string => {
   const key = JWK.asKey(deriveKey(defaultConfig.secret as string));

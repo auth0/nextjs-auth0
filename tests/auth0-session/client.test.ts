@@ -1,9 +1,9 @@
 import nock from 'nock';
 import { Client } from 'openid-client';
 import { getConfig, clientFactory, ConfigParameters } from '../../src/auth0-session';
-import { jwks } from './fixture/cert';
+import { jwks } from './fixtures/cert';
 import pkg from '../../package.json';
-import wellKnown from './fixture/well-known.json';
+import wellKnown from './fixtures/well-known.json';
 import version from '../../src/version';
 
 const defaultConfig = {
