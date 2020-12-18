@@ -275,7 +275,10 @@ describe('CookieStore', () => {
       session: {
         rolling: true,
         absoluteDuration: false,
-        rollingDuration: day / 1000
+        rollingDuration: day / 1000,
+        cookie: {
+          transient: true
+        }
       }
     });
     const appSession = encrypted();

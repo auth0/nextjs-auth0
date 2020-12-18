@@ -1,6 +1,6 @@
 import { ConfigParameters } from './auth0-session';
 
-const FALSEY = ['n', 'no', 'false', '0', 'on', 'off'];
+const FALSEY = ['n', 'no', 'false', '0', 'off'];
 
 const bool = (param?: any, defaultValue?: boolean): boolean | undefined => {
   if (param === undefined || param === '') return defaultValue;
