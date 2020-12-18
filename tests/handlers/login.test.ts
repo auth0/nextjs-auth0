@@ -1,8 +1,8 @@
 import { parse as urlParse } from 'url';
-import { withoutApi, withApi } from '../helpers/default-settings';
+import { withoutApi, withApi } from '../fixtures/default-settings';
 import { decodeState } from '../../src/auth0-session/hooks/get-login-state';
-import { setup, teardown } from '../helpers/setup';
-import { get, getCookie } from '../auth0-session/fixture/helpers';
+import { setup, teardown } from '../fixtures/setup';
+import { get, getCookie } from '../auth0-session/fixtures/helpers';
 import { Cookie, CookieJar } from 'tough-cookie';
 
 describe('login handler', () => {

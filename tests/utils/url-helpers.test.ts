@@ -1,6 +1,6 @@
 import isSafeRedirect from '../../src/utils/url-helpers';
 
-describe('url-helpers', () => {
+describe('url-fixtures', () => {
   describe('isSafeRedirect', () => {
     test('should not allow absolute urls', () => {
       expect(isSafeRedirect('file://foo')).toEqual(false);

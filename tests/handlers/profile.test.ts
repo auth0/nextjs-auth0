@@ -1,7 +1,7 @@
-import { withoutApi } from '../helpers/default-settings';
-import { userInfo } from '../helpers/oidc-nocks';
-import { get } from '../auth0-session/fixture/helpers';
-import { setup, teardown, login } from '../helpers/setup';
+import { withoutApi } from '../fixtures/default-settings';
+import { userInfo } from '../fixtures/oidc-nocks';
+import { get } from '../auth0-session/fixtures/helpers';
+import { setup, teardown, login } from '../fixtures/setup';
 import { Session } from '../../src/session';
 
 describe('profile handler', () => {

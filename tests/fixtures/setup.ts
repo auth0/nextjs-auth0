@@ -2,13 +2,14 @@ import nock = require('nock');
 import { CookieJar } from 'tough-cookie';
 import { CallbackOptions, ConfigParameters, LoginOptions, LogoutOptions } from '../../src/auth0-session';
 import { codeExchange, discovery, jwksEndpoint, userInfo } from './oidc-nocks';
-import { jwks, makeIdToken } from '../auth0-session/fixture/cert';
+import { jwks, makeIdToken } from '../auth0-session/fixtures/cert';
 import { initAuth0 } from '../../src';
 import { start, stop } from './server';
 import { Claims } from '../../src/session';
 import { ProfileOptions } from '../../src/handlers';
 import { encodeState } from '../../src/auth0-session/hooks/get-login-state';
-import { post, toSignedCookieJar } from '../auth0-session/fixture/helpers';
+import { post, toSignedCookieJar } from '../auth0-session/fixtures/helpers';
+import { WithPageAuthRequiredOptions } from '../../src/helpers/with-page-auth-required';
 
 export type SetupOptions = {
   idTokenClaims?: Claims;
@@ -16,6 +17,7 @@ export type SetupOptions = {
   loginOptions?: LoginOptions;
   logoutOptions?: LogoutOptions;
   profileOptions?: ProfileOptions;
+  withPageAuthRequiredOptions?: WithPageAuthRequiredOptions;
   discoveryOptions?: object;
   userInfoPayload?: object;
 };
@@ -28,6 +30,7 @@ export const setup = async (
     logoutOptions,
     loginOptions = { returnTo: '/custom-url' },
     profileOptions,
+    withPageAuthRequiredOptions,
     discoveryOptions,
     userInfoPayload = {}
   }: SetupOptions = {}
@@ -36,7 +39,16 @@ export const setup = async (
   jwksEndpoint(config, jwks);
   codeExchange(config, makeIdToken({ iss: 'https://acme.auth0.local/', ...idTokenClaims }));
   userInfo(config, 'eyJz93a...k4laUWw', userInfoPayload);
-  const { handleAuth, handleCallback, handleLogin, handleLogout, handleProfile, getSession } = await initAuth0(config);
+  const {
+    handleAuth,
+    handleCallback,
+    handleLogin,
+    handleLogout,
+    handleProfile,
+    getSession,
+    withApiAuthRequired,
+    withPageAuthRequired
+  } = await initAuth0(config);
   (global as any).handleAuth = handleAuth.bind(null, {
     async callback(req, res) {
       try {
@@ -71,6 +83,8 @@ export const setup = async (
     }
   });
   (global as any).getSession = getSession;
+  (global as any).withApiAuthRequired = withApiAuthRequired;
+  (global as any).withPageAuthRequired = withPageAuthRequired.bind(null, withPageAuthRequiredOptions);
   return start();
 };
 

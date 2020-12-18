@@ -7,7 +7,7 @@ import { AddressInfo } from 'net';
 let server: Server;
 
 export const start = async (): Promise<string> => {
-  const app = next({ dev: false, dir: path.join(__dirname, 'test-app'), customServer: true });
+  const app = next({ dev: false, dir: path.join(__dirname, 'test-app') });
   await app.prepare();
   const handle = app.getRequestHandler();
   server = createHttpServer(async (req, res) => {

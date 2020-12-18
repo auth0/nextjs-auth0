@@ -1,11 +1,11 @@
 import { CookieJar } from 'tough-cookie';
 import timekeeper = require('timekeeper');
-import { withApi, withoutApi } from '../helpers/default-settings';
-import { makeIdToken } from '../auth0-session/fixture/cert';
-import { get, post, toSignedCookieJar } from '../auth0-session/fixture/helpers';
+import { withApi, withoutApi } from '../fixtures/default-settings';
+import { makeIdToken } from '../auth0-session/fixtures/cert';
+import { get, post, toSignedCookieJar } from '../auth0-session/fixtures/helpers';
 import { encodeState } from '../../src/auth0-session/hooks/get-login-state';
 import { AfterCallback } from '../../src/auth0-session/handlers/callback';
-import { setup, teardown } from '../helpers/setup';
+import { setup, teardown } from '../fixtures/setup';
 import { Session } from '../../src/session';
 
 const callback = (baseUrl: string, body: any, cookieJar?: CookieJar): Promise<any> =>
@@ -209,7 +209,7 @@ describe('callback handler', () => {
 
   test('remove tokens with afterCallback hook', async () => {
     timekeeper.freeze(0);
-    const afterCallback = (_req: any, _res: any, session: Session): Session => {
+    const afterCallback: AfterCallback = (_req, _res, session: Session): Session => {
       delete session.accessToken;
       delete session.refreshToken;
       return session;

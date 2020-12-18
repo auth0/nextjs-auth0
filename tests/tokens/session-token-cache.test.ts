@@ -1,14 +1,14 @@
 import jose from '@panva/jose';
 
-import getRequestResponse from '../helpers/http';
+import getRequestResponse from '../fixtures/http';
 import getClient from '../../src/utils/oidc-client';
-import { withApi } from '../helpers/default-settings';
+import { withApi } from '../fixtures/default-settings';
 
 import { ISession } from '../../src/session/session';
 import MemoryStore from '../../src/session/memory-store';
 import { ITokenCache } from '../../src/tokens/get-token';
 import SessionTokenCache from '../../src/tokens/session-token-cache';
-import { discovery, refreshTokenExchange, jwksEndpoint } from '../helpers/oidc-nocks';
+import { discovery, refreshTokenExchange, jwksEndpoint } from '../fixtures/oidc-nocks';
 
 describe('SessionTokenCache', () => {
   let keystore: jose.JWKS.KeyStore;
