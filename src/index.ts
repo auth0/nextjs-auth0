@@ -71,4 +71,4 @@ export const handleCallback: HandleCallback = (...args) => getInstance().handleC
 export const handleProfile: HandleProfile = (...args) => getInstance().handleProfile(...args);
 export const handleAuth: HandleAuth = (...args) => getInstance().handleAuth(...args);
 
-export { default as UserProvider, UserProfile, UserContext, useUser } from './hooks/use-user';
+export { UserProvider, UserProfile, UserContext, useUser, withPageAuthenticationRequired } from './frontend';

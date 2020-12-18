@@ -14,9 +14,9 @@ describe('context wrapper', () => {
   test('should fetch the user', async () => {
     (global as any).fetch = fetchUserMock;
 
-    const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUser(null) });
+    const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUser(undefined) });
 
-    expect(result.current.user).toEqual(null);
+    expect(result.current.user).toEqual(undefined);
     expect(result.current.loading).toEqual(true);
 
     await waitForValueToChange(() => result.current.loading);
@@ -28,14 +28,14 @@ describe('context wrapper', () => {
   test('should fail to fetch the user', async () => {
     (global as any).fetch = fetchUserFailureMock;
 
-    const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUser(null) });
+    const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUser(undefined) });
 
-    expect(result.current.user).toEqual(null);
+    expect(result.current.user).toEqual(undefined);
     expect(result.current.loading).toEqual(true);
 
     await waitForValueToChange(() => result.current.loading);
 
-    expect(result.current.user).toEqual(null);
+    expect(result.current.user).toEqual(undefined);
     expect(result.current.loading).toEqual(false);
   });
 

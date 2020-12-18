@@ -16,7 +16,7 @@ export const user: UserProfile = {
   updated_at: null
 };
 
-export const withUser = (user: UserProfile | null) => {
+export const withUser = (user?: UserProfile) => {
   return ({ children }: React.PropsWithChildren<void>): React.ReactElement => (
     <UserProvider user={user}>{children}</UserProvider>
   );
