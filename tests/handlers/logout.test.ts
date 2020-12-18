@@ -1,7 +1,7 @@
 import { parse } from 'cookie';
 import { parse as parseUrl } from 'url';
-import { withoutApi } from '../helpers/default-settings';
-import { setup, teardown, login } from '../helpers/setup';
+import { withoutApi } from '../fixtures/default-settings';
+import { setup, teardown, login } from '../fixtures/setup';
 
 describe('logout handler', () => {
   afterEach(teardown);

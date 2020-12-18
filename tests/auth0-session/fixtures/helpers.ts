@@ -66,7 +66,12 @@ const request = (
         });
         res.on('end', () => {
           const str = Buffer.concat(buffers).toString();
-          const data = str ? JSON.parse(str) : str;
+          let data;
+          try {
+            data = str ? JSON.parse(str) : str;
+          } catch (e) {
+            data = str;
+          }
           if (fullResponse) {
             resolve({ res, data });
           } else {

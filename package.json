@@ -16,8 +16,8 @@
     "pretty": "prettier --write \"src/**/*.ts\" \"src/*.ts\"",
     "lint": "eslint --fix --ext .ts ./src",
     "build": "tsc -p tsconfig.build.json",
-    "build:test": "next build tests/helpers/test-app",
-    "test": "jest tests/hooks/ tests/auth0-session tests/handlers --coverage --maxWorkers=10",
+    "build:test": "next build tests/fixtures/test-app",
+    "test": "jest tests/hooks/ tests/auth0-session tests/handlers tests/utils tests/helpers --coverage --maxWorkers=10",
     "test:watch": "jest --coverage --watch",
     "prepublishOnly": "npm test && npm run lint",
     "prepublish": "npm run build",
@@ -88,8 +88,8 @@
     "next": "^10.0.3",
     "nock": "^13.0.5",
     "prettier": "^2.0.5",
-    "react": "^16.14.0",
-    "react-dom": "^16.14.0",
+    "react": "^17.0.1",
+    "react-dom": "^17.0.1",
     "react-test-renderer": "^16.14.0",
     "request": "^2.88.2",
     "start-server-and-test": "^1.11.5",
@@ -114,7 +114,7 @@
     "url-join": "^4.0.1"
   },
   "peerDependencies": {
-    "next": "10"
+    "next": ">=10"
   },
   "jest": {
     "testEnvironment": "node",
@@ -135,6 +135,7 @@
       "text-summary"
     ],
     "preset": "ts-jest",
+    "testTimeout": 20000,
     "globalSetup": "./tests/global-setup.ts",
     "setupFilesAfterEnv": [
       "./tests/setup.ts"
