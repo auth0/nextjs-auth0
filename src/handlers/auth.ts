@@ -35,9 +35,11 @@ export default function handlerFactory({ handleLogin, handleLogout, handleCallba
       ...userHandlers
     };
     return async (req, res): Promise<void> => {
-      const {
+      let {
         query: { auth0: route }
       } = req;
+
+      route = Array.isArray(route) ? route[0] : route;
 
       switch (route) {
         case 'login':

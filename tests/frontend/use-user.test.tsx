@@ -1,7 +1,7 @@
 import { renderHook } from '@testing-library/react-hooks';
 
 import { useUser } from '../../src';
-import { fetchUserMock, fetchUserFailureMock, withUser, user } from '../helpers/hooks';
+import { fetchUserMock, fetchUserFailureMock, withUser, user } from '../fixtures/hooks';
 
 describe('context wrapper', () => {
   test('should use the initial user', async () => {

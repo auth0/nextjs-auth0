@@ -21,6 +21,7 @@ export default function loginHandler(config: Config, getClient: ClientFactory, t
 
     const opts = {
       returnTo,
+      getLoginState: config.getLoginState,
       ...options
     };
 
@@ -35,11 +36,12 @@ export default function loginHandler(config: Config, getClient: ClientFactory, t
       sameSite: opts.authorizationParams.response_mode === 'form_post' ? 'none' : 'lax'
     };
 
-    const stateValue = await config.getLoginState(req, opts);
+    const stateValue = await opts.getLoginState(req, opts);
     if (typeof stateValue !== 'object') {
       throw new Error('Custom state value must be an object.');
     }
     stateValue.nonce = transientHandler.generateNonce();
+    stateValue.returnTo = stateValue.returnTo || opts.returnTo;
 
     const usePKCE = (opts.authorizationParams.response_type as string).includes('code');
     if (usePKCE) {

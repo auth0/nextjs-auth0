@@ -29,5 +29,11 @@ describe('array', () => {
       const providedScopes = ['read:connections'];
       expect(match(requestedScopes, providedScopes)).toBeFalsy();
     });
+
+    test('should return false if there are some matches', () => {
+      const providedScopes = ['read:users', 'read:clients'];
+      const requestedScopes = ['read:users', 'read:connections'];
+      expect(match(requestedScopes, providedScopes)).toBeFalsy();
+    });
   });
 });

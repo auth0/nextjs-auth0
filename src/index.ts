@@ -71,4 +71,5 @@ export const handleCallback: HandleCallback = (...args) => getInstance().handleC
 export const handleProfile: HandleProfile = (...args) => getInstance().handleProfile(...args);
 export const handleAuth: HandleAuth = (...args) => getInstance().handleAuth(...args);
 
+export * from './auth0-session/config';
 export { UserProvider, UserProfile, UserContext, useUser, withPageAuthenticationRequired } from './frontend';

@@ -2,9 +2,9 @@ import nock from 'nock';
 import { CookieJar } from 'tough-cookie';
 import { JWT } from 'jose';
 import { encodeState } from '../../../src/auth0-session/hooks/get-login-state';
-import { SessionResponse, setup, teardown } from '../fixture/server';
-import { makeIdToken } from '../fixture/cert';
-import { toSignedCookieJar, get, post, defaultConfig } from '../fixture/helpers';
+import { SessionResponse, setup, teardown } from '../fixtures/server';
+import { makeIdToken } from '../fixtures/cert';
+import { toSignedCookieJar, get, post, defaultConfig } from '../fixtures/helpers';
 
 const expectedDefaultState = encodeState({ returnTo: 'https://example.org' });
 
