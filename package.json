@@ -124,10 +124,10 @@
       "tsx",
       "js"
     ],
-    "coveragePathIgnorePatterns": [
-      "/node_modules/",
-      "/tests/",
-      "./jest.config.js"
+    "collectCoverageFrom": [
+      "src/**/*.*",
+      "!src/index.browser.ts",
+      "!src/index.ts"
     ],
     "coverageReporters": [
       "lcov",

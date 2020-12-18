@@ -1,6 +1,6 @@
 import isSafeRedirect from '../../src/utils/url-helpers';
 
-describe('url-fixtures', () => {
+describe('url-helpers', () => {
   describe('isSafeRedirect', () => {
     test('should not allow absolute urls', () => {
       expect(isSafeRedirect('file://foo')).toEqual(false);
@@ -16,6 +16,10 @@ describe('url-fixtures', () => {
     test('should prevent open redirects', () => {
       expect(isSafeRedirect('//google.com')).toEqual(false);
       expect(isSafeRedirect('///google.com')).toEqual(false);
+    });
+
+    test('should throw when non string provided', () => {
+      expect(isSafeRedirect.bind(null)).toThrow('Invalid url: undefined');
     });
   });
 });
