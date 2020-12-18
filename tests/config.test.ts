@@ -3,7 +3,17 @@ import { ConfigParameters } from '../src/auth0-session';
 
 const getParamsWithEnv = (env: any = {}, opts?: any): ConfigParameters => {
   const bkp = process.env;
-  process.env = { ...process.env, ...env };
+  process.env = {
+    ...process.env,
+    ...{
+      AUTH0_SECRET: undefined,
+      AUTH0_ISSUER_BASE_URL: undefined,
+      AUTH0_BASE_URL: undefined,
+      AUTH0_CLIENT_ID: undefined,
+      AUTH0_CLIENT_SECRET: undefined
+    },
+    ...env
+  };
   try {
     return getParams(opts);
   } catch (e) {
