@@ -183,6 +183,21 @@ describe('login handler', () => {
     });
   });
 
+  test('should take the first returnTo url provided in the querystring', async () => {
+    const loginOptions = {
+      returnTo: '/profile'
+    };
+    const baseUrl = await setup(withoutApi, { loginOptions });
+    const cookieJar = new CookieJar();
+    await get(baseUrl, '/api/auth/login?returnTo=/foo&returnTo=/bar', { cookieJar });
+    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
+
+    const decodedState = decodeState(state.split('.')[0]);
+    expect(decodedState).toEqual({
+      returnTo: '/foo'
+    });
+  });
+
   test('should not allow absolute urls to be provided in the querystring', async () => {
     const loginOptions = {
       returnTo: '/default-redirect'
