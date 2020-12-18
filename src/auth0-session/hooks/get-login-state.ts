@@ -1,7 +1,6 @@
 import base64url from 'base64url';
-import { IncomingMessage } from 'http';
 import createDebug from '../utils/debug';
-import { LoginOptions } from '../config';
+import { GetLoginState } from '../config';
 
 const debug = createDebug('get-login-state');
 
@@ -15,11 +14,11 @@ const debug = createDebug('get-login-state');
  *
  * @return {object}
  */
-export function defaultState(_req: IncomingMessage, options: LoginOptions): { [key: string]: any } {
+export const getLoginState: GetLoginState = (_req, options) => {
   const state = { returnTo: options.returnTo };
   debug('adding default state %O', state);
   return state;
-}
+};
 
 /**
  * Prepare a state object to send.

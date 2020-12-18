@@ -1,10 +1,10 @@
 import { randomBytes } from 'crypto';
 import { JWK, JWE } from 'jose';
 import { IdTokenClaims } from 'openid-client';
-import { setup, teardown } from './fixture/server';
-import { defaultConfig, fromCookieJar, get, toCookieJar } from './fixture/helpers';
+import { setup, teardown } from './fixtures/server';
+import { defaultConfig, fromCookieJar, get, toCookieJar } from './fixtures/helpers';
 import { encryption as deriveKey } from '../../src/auth0-session/utils/hkdf';
-import { makeIdToken } from './fixture/cert';
+import { makeIdToken } from './fixtures/cert';
 
 const hr = 60 * 60 * 1000;
 const day = 24 * hr;
@@ -139,7 +139,7 @@ describe('CookieStore', () => {
       domain: 'localhost',
       httpOnly: true,
       key: 'appSession',
-      maxAge: expect.any(Number),
+      expires: expect.any(Date),
       path: '/',
       sameSite: 'lax',
       secure: false
@@ -167,7 +167,7 @@ describe('CookieStore', () => {
       domain: 'localhost',
       httpOnly: true,
       key: 'appSession',
-      maxAge: expect.any(Number),
+      expires: expect.any(Date),
       path: '/',
       sameSite: 'lax',
       secure: true
