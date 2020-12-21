@@ -14,29 +14,26 @@ const defaultOnRedirecting = (): JSX.Element => <></>;
 export interface WithCSRAuthRequiredOptions {
   /**
    * ```js
-   * withAuthenticationRequired(Profile, {
+   * withCSRAuthRequired(Profile, {
    *   returnTo: '/profile'
    * })
    * ```
    *
-   * or
-   *
-   * ```js
-   * withAuthenticationRequired(Profile, {
-   *   returnTo: () => router.pathname
-   * })
-   * ```
-   *
-   * Add a path for the `onRedirectCallback` handler to return the user to after login.
+   * Add a path to return the user to after login.
    */
   returnTo?: string;
   /**
-   * The path of your custom login API route. // TODO: Complete
+   * ```js
+   * withCSRAuthRequired(Profile, {
+   *   loginUrl: '/api/login'
+   * })
+   * ```
+   * The path of your custom login API route.
    */
   loginUrl?: string;
   /**
    * ```js
-   * withAuthenticationRequired(Profile, {
+   * withCSRAuthRequired(Profile, {
    *   onRedirecting: () => <div>Redirecting you to the login...</div>
    * })
    * ```
