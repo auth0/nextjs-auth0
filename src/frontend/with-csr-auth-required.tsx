@@ -49,7 +49,7 @@ export interface WithCSRAuthRequiredOptions {
  * ```
  *
  * When you wrap your pages in this Higher Order Component and an anonymous user visits your page
- * they will be redirected to the login page and returned to the page they were redirected from after login.
+ * they will be redirected to the login page and then returned to the page they were redirected from (after login).
  */
 const withCSRAuthRequired = <P extends object>(
   Component: ComponentType<P>,
