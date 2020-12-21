@@ -2,8 +2,9 @@ import React from 'react';
 import { useUser } from '@auth0/nextjs-auth0';
 
 import Layout from '../components/layout';
+import withAutenticationRequired from '../lib/with-authentication-required';
 
-export default function Profile(): React.ReactElement {
+export default withAutenticationRequired(function Profile(): React.ReactElement {
   const { user, loading } = useUser();
 
   return (
@@ -20,4 +21,6 @@ export default function Profile(): React.ReactElement {
       )}
     </Layout>
   );
-}
+}, {
+  returnTo: '/profile'
+});
