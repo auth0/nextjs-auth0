@@ -3,7 +3,7 @@ import { UserProfile, UserProvider } from '../../src';
 
 type FetchUserMock = {
   ok: boolean;
-  json: (() => Promise<UserProfile>) | undefined;
+  json?: () => Promise<UserProfile>;
 };
 
 export const user: UserProfile = {
@@ -16,10 +16,8 @@ export const user: UserProfile = {
   updated_at: null
 };
 
-export const withUser = (user?: UserProfile) => {
-  return ({ children }: React.PropsWithChildren<void>): React.ReactElement => (
-    <UserProvider user={user}>{children}</UserProvider>
-  );
+export const withUser = (user?: UserProfile): React.ComponentType => {
+  return (props: any): React.ReactElement => <UserProvider {...props} user={user} />;
 };
 
 export const fetchUserMock = (): FetchUserMock => ({

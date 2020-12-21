@@ -9,7 +9,7 @@ import { AccessTokenRequest, Claims, GetAccessTokenResult } from '../../src/sess
 import { ProfileOptions } from '../../src/handlers';
 import { encodeState } from '../../src/auth0-session/hooks/get-login-state';
 import { post, toSignedCookieJar } from '../auth0-session/fixtures/helpers';
-import { WithPageAuthRequiredOptions } from '../../src/helpers/with-page-auth-required';
+import { WithSSRAuthRequiredOptions } from '../../src/helpers/with-ssr-auth-required';
 import { NextApiRequest, NextApiResponse } from 'next';
 
 export type SetupOptions = {
@@ -18,7 +18,7 @@ export type SetupOptions = {
   loginOptions?: LoginOptions;
   logoutOptions?: LogoutOptions;
   profileOptions?: ProfileOptions;
-  withPageAuthRequiredOptions?: WithPageAuthRequiredOptions;
+  withSSRAuthRequiredOptions?: WithSSRAuthRequiredOptions;
   getAccessTokenOptions?: AccessTokenRequest;
   discoveryOptions?: object;
   userInfoPayload?: object;
@@ -32,7 +32,7 @@ export const setup = async (
     logoutOptions,
     loginOptions = { returnTo: '/custom-url' },
     profileOptions,
-    withPageAuthRequiredOptions,
+    withSSRAuthRequiredOptions,
     getAccessTokenOptions,
     discoveryOptions,
     userInfoPayload = {}
@@ -51,7 +51,7 @@ export const setup = async (
     getSession,
     getAccessToken,
     withApiAuthRequired,
-    withPageAuthRequired
+    withSSRAuthRequired
   } = await initAuth0(config);
   (global as any).handleAuth = handleAuth.bind(null, {
     async callback(req, res) {
@@ -88,7 +88,7 @@ export const setup = async (
   });
   (global as any).getSession = getSession;
   (global as any).withApiAuthRequired = withApiAuthRequired;
-  (global as any).withPageAuthRequired = withPageAuthRequired.bind(null, withPageAuthRequiredOptions);
+  (global as any).withSSRAuthRequired = withSSRAuthRequired.bind(null, withSSRAuthRequiredOptions);
   (global as any).getAccessToken = (req: NextApiRequest, res: NextApiResponse): Promise<GetAccessTokenResult> =>
     getAccessToken(req, res, getAccessTokenOptions);
   return start();
