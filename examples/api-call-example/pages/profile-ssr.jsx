@@ -1,5 +1,6 @@
 import React from 'react';
-import { withPageAuthRequired } from '@auth0/nextjs-auth0';
+import { withSSRAuthRequired } from '@auth0/nextjs-auth0';
+
 import Layout from '../components/layout';
 
 export default function Profile({ user }) {
@@ -15,4 +16,4 @@ export default function Profile({ user }) {
   );
 }
 
-export const getServerSideProps = withPageAuthRequired({ loginUrl: '/api/login' });
+export const getServerSideProps = withSSRAuthRequired({ loginUrl: '/api/login' });

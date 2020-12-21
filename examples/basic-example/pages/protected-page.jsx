@@ -1,5 +1,6 @@
 import React from 'react';
-import { useUser, withPageAuthRequired } from '@auth0/nextjs-auth0';
+import { useUser, withSSRAuthRequired } from '@auth0/nextjs-auth0';
+
 import Layout from '../components/layout';
 
 export default function ProtectedPage() {
@@ -21,4 +22,4 @@ export default function ProtectedPage() {
   );
 }
 
-export const getServerSideProps = withPageAuthRequired();
+export const getServerSideProps = withSSRAuthRequired();
