@@ -13,9 +13,9 @@ import {
 } from './handlers';
 import { sessionFactory, accessTokenFactory, SessionCache, GetSession, GetAccessToken } from './session/';
 import {
-  withPageAuthRequiredFactory,
+  withSSRAuthRequiredFactory,
   withApiAuthRequiredFactory,
-  WithPageAuthRequired,
+  WithSSRAuthRequired,
   WithApiAuthRequired
 } from './helpers';
 import { InitAuth0, SignInWithAuth0 } from './instance';
@@ -41,7 +41,7 @@ export const initAuth0: InitAuth0 = (params) => {
   const getSession = sessionFactory(sessionCache);
   const getAccessToken = accessTokenFactory(getClient, config, sessionCache);
   const withApiAuthRequired = withApiAuthRequiredFactory(sessionCache);
-  const withPageAuthRequired = withPageAuthRequiredFactory(sessionCache);
+  const withSSRAuthRequired = withSSRAuthRequiredFactory(sessionCache);
   const handleLogin = loginHandler(config, getClient, transientStore);
   const handleLogout = logoutHandler(config, getClient, sessionCache);
   const handleCallback = callbackHandler(config, getClient, sessionCache, transientStore);
@@ -52,7 +52,7 @@ export const initAuth0: InitAuth0 = (params) => {
     getSession,
     getAccessToken,
     withApiAuthRequired,
-    withPageAuthRequired,
+    withSSRAuthRequired,
     handleLogin,
     handleLogout,
     handleCallback,
@@ -64,7 +64,7 @@ export const initAuth0: InitAuth0 = (params) => {
 export const getSession: GetSession = (...args) => getInstance().getSession(...args);
 export const getAccessToken: GetAccessToken = (...args) => getInstance().getAccessToken(...args);
 export const withApiAuthRequired: WithApiAuthRequired = (...args) => getInstance().withApiAuthRequired(...args);
-export const withPageAuthRequired: WithPageAuthRequired = (...args) => getInstance().withPageAuthRequired(...args);
+export const withSSRAuthRequired: WithSSRAuthRequired = (...args) => getInstance().withSSRAuthRequired(...args);
 export const handleLogin: HandleLogin = (...args) => getInstance().handleLogin(...args);
 export const handleLogout: HandleLogout = (...args) => getInstance().handleLogout(...args);
 export const handleCallback: HandleCallback = (...args) => getInstance().handleCallback(...args);
@@ -72,4 +72,4 @@ export const handleProfile: HandleProfile = (...args) => getInstance().handlePro
 export const handleAuth: HandleAuth = (...args) => getInstance().handleAuth(...args);
 
 export * from './auth0-session/config';
-export { UserProvider, UserProfile, UserContext, useUser, withPageAuthenticationRequired } from './frontend';
+export { UserProvider, UserProfile, UserContext, useUser, withCSRAuthRequired } from './frontend';

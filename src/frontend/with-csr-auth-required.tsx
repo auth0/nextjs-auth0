@@ -1,4 +1,4 @@
-import React, { ComponentType, useEffect, FC } from 'react';
+import React, { ComponentType, useEffect } from 'react';
 import { useRouter } from 'next/router';
 
 import { useUser } from './use-user';
@@ -9,9 +9,9 @@ import { useUser } from './use-user';
 const defaultOnRedirecting = (): JSX.Element => <></>;
 
 /**
- * Options for the withAuthenticationRequired Higher Order Component
+ * Options for the withCSRAuthRequired Higher Order Component
  */
-export interface WithPageAuthenticationRequiredOptions {
+export interface WithCSRAuthRequiredOptions {
   /**
    * ```js
    * withAuthenticationRequired(Profile, {
@@ -48,17 +48,17 @@ export interface WithPageAuthenticationRequiredOptions {
 
 /**
  * ```js
- * const MyProtectedPage = withAuthenticationRequired(MyPage);
+ * const MyProtectedPage = withCSRAuthRequired(MyPage);
  * ```
  *
  * When you wrap your pages in this Higher Order Component and an anonymous user visits your page
  * they will be redirected to the login page and returned to the page they were redirected from after login.
  */
-const withPageAuthenticationRequired = <P extends object>(
+const withCSRAuthRequired = <P extends object>(
   Component: ComponentType<P>,
-  options: WithPageAuthenticationRequiredOptions = {}
-): FC<P> => {
-  return function WithAuthenticationRequired(props: P): JSX.Element {
+  options: WithCSRAuthRequiredOptions = {}
+): React.FC<P> => {
+  return function WithCRSAuthRequired(props: P): JSX.Element {
     const router = useRouter();
     const { returnTo = router.asPath, onRedirecting = defaultOnRedirecting, loginUrl = '/api/auth/login' } = options;
     const { user, loading } = useUser();
@@ -67,7 +67,7 @@ const withPageAuthenticationRequired = <P extends object>(
       if (user || loading) return;
 
       (async (): Promise<void> => {
-        await router.push(`${loginUrl}?returnTo=${encodeURIComponent(returnTo)}`);
+        await router.push(`${loginUrl}?returnTo=${returnTo}`);
       })();
     }, [user, loading, router, loginUrl, returnTo]);
 
@@ -75,4 +75,4 @@ const withPageAuthenticationRequired = <P extends object>(
   };
 };
 
-export default withPageAuthenticationRequired;
+export default withCSRAuthRequired;

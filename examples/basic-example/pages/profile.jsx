@@ -1,9 +1,9 @@
 import React from 'react';
-import { useUser } from '@auth0/nextjs-auth0';
+import { useUser, withCSRAuthRequired } from '@auth0/nextjs-auth0';
 
 import Layout from '../components/layout';
 
-export default function Profile() {
+export default withCSRAuthRequired(function Profile() {
   const { user, loading } = useUser();
 
   return (
@@ -20,4 +20,4 @@ export default function Profile() {
       )}
     </Layout>
   );
-}
+});
