@@ -55,7 +55,7 @@ const withCSRAuthRequired = <P extends object>(
   Component: ComponentType<P>,
   options: WithCSRAuthRequiredOptions = {}
 ): React.FC<P> => {
-  return function WithCRSAuthRequired(props: P): JSX.Element {
+  return function WithCSRAuthRequired(props: P): JSX.Element {
     const router = useRouter();
     const { returnTo = router.asPath, onRedirecting = defaultOnRedirecting, loginUrl = '/api/auth/login' } = options;
     const { user, loading } = useUser();
