@@ -55,7 +55,6 @@
   },
   "homepage": "https://github.com/auth0/nextjs-auth0#readme",
   "devDependencies": {
-    "@auth0/auth0-spa-js": "^1.13.5",
     "@panva/jose": "^1.9.3",
     "@testing-library/jest-dom": "^5.11.6",
     "@testing-library/react": "^11.2.2",
