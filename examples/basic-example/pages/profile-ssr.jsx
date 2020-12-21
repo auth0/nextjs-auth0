@@ -1,5 +1,6 @@
 import React from 'react';
-import { withPageAuthRequired } from '@auth0/nextjs-auth0';
+import { withSSRAuthRequired } from '@auth0/nextjs-auth0';
+
 import Layout from '../components/layout';
 
 const Profile = ({ user }) => (
@@ -15,4 +16,4 @@ const Profile = ({ user }) => (
 
 export default Profile;
 
-export const getServerSideProps = withPageAuthRequired();
+export const getServerSideProps = withSSRAuthRequired();
