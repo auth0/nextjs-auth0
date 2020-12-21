@@ -20,16 +20,13 @@ const Header: React.FunctionComponent = () => {
             </Link>
           </li>
           <li>
-            <Link href="/protected-page">
-              <a>Protected Page</a>
+            <Link href="/shows">
+              <a>TV Shows</a>
             </Link>
           </li>
           {!loading &&
             (user ? (
               <>
-                <li>
-                  <a href="/shows">My TV Shows</a>
-                </li>{' '}
                 <li>
                   <Link href="/profile">
                     <a>Profile</a>

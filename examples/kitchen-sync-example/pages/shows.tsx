@@ -2,8 +2,9 @@ import React from 'react';
 
 import useApi from '../lib/use-api';
 import Layout from '../components/layout';
+import withAutenticationRequired from '../lib/with-authentication-required';
 
-export default function TvShows(): React.ReactElement {
+export default withAutenticationRequired(function TvShows(): React.ReactElement {
   const { response, error, isLoading } = useApi('/api/shows');
 
   return (
@@ -33,4 +34,6 @@ export default function TvShows(): React.ReactElement {
       )}
     </Layout>
   );
-}
+}, {
+  returnTo: '/shows'
+});
