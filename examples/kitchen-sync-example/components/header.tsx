@@ -20,8 +20,8 @@ const Header: React.FunctionComponent = () => {
             </Link>
           </li>
           <li>
-            <Link href="/protected-page">
-              <a>Protected Page</a>
+            <Link href="/shows">
+              <a>TV Shows</a>
             </Link>
           </li>
           {!loading &&
