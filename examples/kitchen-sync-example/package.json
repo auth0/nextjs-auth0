@@ -1,5 +1,5 @@
 {
-  "name": "nextjs-auth0-typescript-example",
+  "name": "nextjs-auth0-kitchen-sync-example",
   "version": "0.0.1",
   "description": "Typescript example for nextjs-auth0",
   "main": "index.js",
@@ -21,6 +21,7 @@
   "devDependencies": {
     "@types/node": "14.10.1",
     "@types/react": "16.9.49",
+    "@types/styled-jsx": "^2.2.8",
     "@typescript-eslint/eslint-plugin": "3.10.1",
     "@typescript-eslint/parser": "3.10.1",
     "eslint": "^7.9.0",
