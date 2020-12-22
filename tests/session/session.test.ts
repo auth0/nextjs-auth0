@@ -1,7 +1,7 @@
 import { TokenSet } from 'openid-client';
-import { fromJson, fromTokenSet, Session } from '../../src/session';
+import { fromJson, fromTokenSet } from '../../src/session';
 import { makeIdToken } from '../auth0-session/fixtures/cert';
-import { Config } from '../../src';
+import { Config, Session } from '../../src';
 
 describe('session', () => {
   test('should construct a session with a user', async () => {

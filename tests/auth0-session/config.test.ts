@@ -1,5 +1,4 @@
-import { Config, ConfigParameters, getConfig } from '../../src/auth0-session';
-import { AuthorizationParameters } from '../../src/auth0-session/config';
+import { Config, ConfigParameters, getConfig, AuthorizationParameters } from '../../src/auth0-session';
 import { DeepPartial } from '../../src/auth0-session/get-config';
 
 const defaultConfig = {

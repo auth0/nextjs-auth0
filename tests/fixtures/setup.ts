@@ -1,15 +1,22 @@
 import nock = require('nock');
 import { CookieJar } from 'tough-cookie';
-import { CallbackOptions, ConfigParameters, LoginOptions, LogoutOptions } from '../../src/auth0-session';
+import {
+  CallbackOptions,
+  ConfigParameters,
+  LoginOptions,
+  LogoutOptions,
+  ProfileOptions,
+  WithPageAuthRequiredOptions,
+  initAuth0,
+  AccessTokenRequest,
+  Claims,
+  GetAccessTokenResult
+} from '../../src';
 import { codeExchange, discovery, jwksEndpoint, userInfo } from './oidc-nocks';
 import { jwks, makeIdToken } from '../auth0-session/fixtures/cert';
-import { initAuth0 } from '../../src';
 import { start, stop } from './server';
-import { AccessTokenRequest, Claims, GetAccessTokenResult } from '../../src/session';
-import { ProfileOptions } from '../../src/handlers';
 import { encodeState } from '../../src/auth0-session/hooks/get-login-state';
 import { post, toSignedCookieJar } from '../auth0-session/fixtures/helpers';
-import { WithPageAuthRequiredOptions } from '../../src/helpers/with-page-auth-required';
 import { NextApiRequest, NextApiResponse } from 'next';
 
 export type SetupOptions = {

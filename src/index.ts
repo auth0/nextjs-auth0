@@ -1,22 +1,37 @@
-import { getConfig, CookieStore, TransientStore, clientFactory } from './auth0-session';
+import { getConfig, CookieStore, TransientStore, clientFactory, AfterCallback } from './auth0-session';
 import {
   handlerFactory,
   callbackHandler,
   loginHandler,
   logoutHandler,
   profileHandler,
+  Handlers,
   HandleAuth,
   HandleLogin,
   HandleProfile,
   HandleLogout,
-  HandleCallback
+  HandleCallback,
+  ProfileOptions
 } from './handlers';
-import { sessionFactory, accessTokenFactory, SessionCache, GetSession, GetAccessToken } from './session/';
+import {
+  sessionFactory,
+  accessTokenFactory,
+  SessionCache,
+  GetSession,
+  GetAccessToken,
+  Session,
+  AccessTokenRequest,
+  GetAccessTokenResult,
+  Claims
+} from './session/';
 import {
   withPageAuthRequiredFactory,
   withApiAuthRequiredFactory,
   WithApiAuthRequired,
-  WithPageAuthRequired
+  WithPageAuthRequired,
+  GetServerSidePropsResultWithSession,
+  WithPageAuthRequiredOptions,
+  PageRoute
 } from './helpers';
 import { InitAuth0, SignInWithAuth0 } from './instance';
 import version from './version';
@@ -72,5 +87,38 @@ export const handleCallback: HandleCallback = (...args) => getInstance().handleC
 export const handleProfile: HandleProfile = (...args) => getInstance().handleProfile(...args);
 export const handleAuth: HandleAuth = (...args) => getInstance().handleAuth(...args);
 
-export * from './auth0-session/config';
 export { UserProvider, UserProfile, UserContext, useUser } from './frontend';
+
+export {
+  Config,
+  SessionConfig,
+  CookieConfig,
+  LoginOptions,
+  LogoutOptions,
+  AuthorizationParameters,
+  ConfigParameters,
+  CallbackOptions
+} from './auth0-session';
+
+export {
+  AfterCallback,
+  HandleAuth,
+  HandleLogin,
+  HandleProfile,
+  HandleLogout,
+  HandleCallback,
+  ProfileOptions,
+  Handlers,
+  GetServerSidePropsResultWithSession,
+  WithPageAuthRequiredOptions,
+  PageRoute,
+  WithApiAuthRequired,
+  WithPageAuthRequired,
+  SessionCache,
+  GetSession,
+  GetAccessToken,
+  Session,
+  Claims,
+  AccessTokenRequest,
+  GetAccessTokenResult
+};

@@ -1,7 +1,6 @@
 import nock from 'nock';
 import { JSONWebKeySet } from '@panva/jose';
-
-import { ConfigParameters } from '../../src/auth0-session';
+import { ConfigParameters } from '../../src';
 import { makeIdToken } from '../auth0-session/fixtures/cert';
 
 export function discovery(params: ConfigParameters, discoveryOptions?: any): nock.Scope {
