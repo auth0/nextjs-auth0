@@ -1,298 +1,245 @@
-import request from 'request';
-import { parse } from 'cookie';
-import { promisify } from 'util';
-
-import HttpServer from '../helpers/server';
-import { discovery } from '../helpers/oidc-nocks';
-import { decodeState } from '../../src/utils/state';
-import getClient from '../../src/utils/oidc-client';
-import { withoutApi, withApi } from '../helpers/default-settings';
-import login, { LoginOptions } from '../../src/handlers/login';
-
-const [getAsync] = [request.get].map(promisify);
+import { parse as urlParse } from 'url';
+import { withoutApi, withApi } from '../fixtures/default-settings';
+import { decodeState } from '../../src/auth0-session/hooks/get-login-state';
+import { setup, teardown } from '../fixtures/setup';
+import { get, getCookie } from '../auth0-session/fixtures/helpers';
+import { Cookie, CookieJar } from 'tough-cookie';
 
 describe('login handler', () => {
-  let httpServer: HttpServer;
-  let loginHandler: any;
-  let loginOptions: LoginOptions | null;
-
-  beforeEach((done) => {
-    discovery(withoutApi);
-    loginOptions = { redirectTo: '/custom-url' };
-    loginHandler = login(withoutApi, getClient(withoutApi));
-    httpServer = new HttpServer((req, res) => loginHandler(req, res, loginOptions));
-    httpServer.start(done);
-  });
-
-  afterEach((done) => {
-    httpServer.stop(done);
-  });
+  afterEach(teardown);
 
   test('should create a state', async () => {
-    const { headers } = await getAsync({
-      url: httpServer.getUrl(),
-      followRedirect: false
-    });
+    const baseUrl = await setup(withoutApi);
+    const cookieJar = new CookieJar();
+    await get(baseUrl, '/api/auth/login', { cookieJar });
 
-    const state = parse(headers['set-cookie'][0]);
-    expect(state).toBeTruthy();
-
-    const decodedState = decodeState(state['a0:state']);
-    expect(decodedState.nonce).toBeTruthy();
+    expect(cookieJar.getCookiesSync(baseUrl)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: 'nonce',
+          value: expect.any(String),
+          path: '/',
+          sameSite: 'lax'
+        }),
+        expect.objectContaining({
+          key: 'state',
+          value: expect.any(String),
+          path: '/',
+          sameSite: 'lax'
+        }),
+        expect.objectContaining({
+          key: 'code_verifier',
+          value: expect.any(String),
+          path: '/',
+          sameSite: 'lax'
+        })
+      ])
+    );
   });
 
   test('should add redirectTo to the state', async () => {
-    const { headers } = await getAsync({
-      url: httpServer.getUrl(),
-      followRedirect: false
-    });
+    const baseUrl = await setup(withoutApi);
+    const cookieJar = new CookieJar();
+    await get(baseUrl, '/api/auth/login', { cookieJar });
 
-    const state = parse(headers['set-cookie'][0]);
+    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
     expect(state).toBeTruthy();
 
-    const decodedState = decodeState(state['a0:state']);
-    expect(decodedState.redirectTo).toEqual('/custom-url');
+    const decodedState = decodeState(state.split('.')[0]);
+    expect(decodedState.returnTo).toEqual('/custom-url');
   });
 
   test('should redirect to the identity provider', async () => {
-    const { statusCode, headers } = await getAsync({
-      url: httpServer.getUrl(),
-      followRedirect: false
-    });
+    const baseUrl = await setup(withoutApi);
+    const cookieJar = new CookieJar();
+    const {
+      res: { statusCode, headers }
+    } = await get(baseUrl, '/api/auth/login', { cookieJar, fullResponse: true });
 
     expect(statusCode).toBe(302);
 
-    const state = parse(headers['set-cookie'][0]);
-    expect(headers.location).toContain(
-      `https://${withoutApi.domain}/authorize?` +
-        `client_id=${withoutApi.clientId}&scope=${encodeURIComponent(withoutApi.scope)}` +
-        `&response_type=code&redirect_uri=${encodeURIComponent(withoutApi.redirectUri)}` +
-        `&state=${state['a0:state']}`
-    );
-  });
-
-  test('should contain the telemetry querystring', async () => {
-    const { statusCode, headers } = await getAsync({
-      url: httpServer.getUrl(),
-      followRedirect: false
+    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
+    expect(urlParse(headers.location, true)).toMatchObject({
+      protocol: 'https:',
+      host: 'acme.auth0.local',
+      hash: null,
+      query: {
+        client_id: '__test_client_id__',
+        scope: 'openid profile email',
+        response_type: 'code',
+        redirect_uri: 'http://www.acme.com/api/auth/callback',
+        nonce: expect.any(String),
+        state: state.split('.')[0],
+        code_challenge: expect.any(String),
+        code_challenge_method: 'S256'
+      },
+      pathname: '/authorize'
     });
-    expect(statusCode).toBe(302);
-    expect(headers.location).toContain('&auth0Client=');
   });
 
   test('should allow sending custom parameters to the authorization server', async () => {
-    loginOptions = {
-      authParams: {
-        max_age: '123',
+    const loginOptions = {
+      authorizationParams: {
+        max_age: 123,
         login_hint: 'foo@acme.com',
         ui_locales: 'nl',
-        scope: 'some other scope',
+        scope: 'some other scope openid',
         foo: 'bar'
       }
     };
-    const { statusCode, headers } = await getAsync({
-      url: httpServer.getUrl(),
-      followRedirect: false
-    });
+    const baseUrl = await setup(withoutApi, { loginOptions });
+    const cookieJar = new CookieJar();
+    const {
+      res: { statusCode, headers }
+    } = await get(baseUrl, '/api/auth/login', { cookieJar, fullResponse: true });
 
     expect(statusCode).toBe(302);
-    expect(headers.location).toContain(
-      `https://${withoutApi.domain}/authorize?` +
-        `client_id=${withoutApi.clientId}&scope=${encodeURIComponent('some other scope')}` +
-        `&response_type=code&redirect_uri=${encodeURIComponent(withoutApi.redirectUri)}`
-    );
-    expect(headers.location).toContain('&max_age=123&login_hint=foo%40acme.com&ui_locales=nl&foo=bar');
-  });
-
-  test('should allow sending custom state to the authorization server', async () => {
-    loginOptions = {
-      authParams: {
-        state: 'custom-state'
+    expect(urlParse(headers.location, true)).toMatchObject({
+      query: {
+        ...loginOptions.authorizationParams,
+        max_age: '123'
       }
-    };
-    const { statusCode, headers } = await getAsync({
-      url: httpServer.getUrl(),
-      followRedirect: false
     });
-
-    expect(statusCode).toBe(302);
-    expect(headers.location).toContain('&state=custom-state');
   });
 
   test('should allow adding custom data to the state', async () => {
-    loginOptions = {
-      getState: (): Record<string, any> => {
+    const loginOptions = {
+      getLoginState: (): Record<string, any> => {
         return {
           foo: 'bar'
         };
       }
     };
-    const { headers } = await getAsync({
-      url: httpServer.getUrl(),
-      followRedirect: false
-    });
+    const baseUrl = await setup(withoutApi, { loginOptions });
+    const cookieJar = new CookieJar();
+    await get(baseUrl, '/api/auth/login', { cookieJar });
 
-    const state = parse(headers['set-cookie'][0]);
-    expect(state['a0:state']).toBeTruthy();
+    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
 
-    const decodedState = decodeState(state['a0:state']);
+    const decodedState = decodeState(state.split('.')[0]);
     expect(decodedState).toEqual({
       foo: 'bar',
-      nonce: expect.any(String)
+      returnTo: 'http://www.acme.com/'
     });
   });
 
-  test('should merge redirectTo and state', async () => {
-    loginOptions = {
-      redirectTo: '/profile',
-      getState: (): Record<string, any> => {
+  test('should merge returnTo and state', async () => {
+    const loginOptions = {
+      returnTo: '/profile',
+      getLoginState: (): Record<string, any> => {
         return {
           foo: 'bar'
         };
       }
     };
-    const { headers } = await getAsync({
-      url: httpServer.getUrl(),
-      followRedirect: false
-    });
+    const baseUrl = await setup(withoutApi, { loginOptions });
+    const cookieJar = new CookieJar();
+    await get(baseUrl, '/api/auth/login', { cookieJar });
 
-    const state = parse(headers['set-cookie'][0]);
-    expect(state['a0:state']).toBeTruthy();
+    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
 
-    const decodedState = decodeState(state['a0:state']);
+    const decodedState = decodeState(state.split('.')[0]);
     expect(decodedState).toEqual({
       foo: 'bar',
-      redirectTo: '/profile',
-      nonce: expect.any(String)
+      returnTo: '/profile'
     });
   });
 
-  test('should allow the getState method to overwrite redirectTo', async () => {
-    loginOptions = {
-      redirectTo: '/profile',
-      getState: (): Record<string, any> => {
+  test('should allow the getState method to overwrite returnTo', async () => {
+    const loginOptions = {
+      returnTo: '/profile',
+      getLoginState: (): Record<string, any> => {
         return {
           foo: 'bar',
-          redirectTo: '/other-path'
+          returnTo: '/foo'
         };
       }
     };
-    const { headers } = await getAsync({
-      url: httpServer.getUrl(),
-      followRedirect: false
-    });
+    const baseUrl = await setup(withoutApi, { loginOptions });
+    const cookieJar = new CookieJar();
+    await get(baseUrl, '/api/auth/login', { cookieJar });
 
-    const state = parse(headers['set-cookie'][0]);
-    expect(state['a0:state']).toBeTruthy();
+    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
 
-    const decodedState = decodeState(state['a0:state']);
+    const decodedState = decodeState(state.split('.')[0]);
     expect(decodedState).toEqual({
       foo: 'bar',
-      redirectTo: '/other-path',
-      nonce: expect.any(String)
+      returnTo: '/foo'
     });
   });
 
-  test('should allow the redirectTo url to be provided in the querystring', async () => {
-    loginOptions = {
-      redirectTo: '/default-redirect'
+  test('should allow the returnTo url to be provided in the querystring', async () => {
+    const loginOptions = {
+      returnTo: '/profile'
     };
+    const baseUrl = await setup(withoutApi, { loginOptions });
+    const cookieJar = new CookieJar();
+    await get(baseUrl, '/api/auth/login?returnTo=/foo', { cookieJar });
+    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
 
-    const { headers } = await getAsync({
-      url: `${httpServer.getUrl()}?redirectTo=/my-profile`,
-      followRedirect: false
-    });
-
-    const state = parse(headers['set-cookie'][0]);
-    expect(state['a0:state']).toBeTruthy();
-
-    const decodedState = decodeState(state['a0:state']);
+    const decodedState = decodeState(state.split('.')[0]);
     expect(decodedState).toEqual({
-      redirectTo: '/my-profile',
-      nonce: expect.any(String)
+      returnTo: '/foo'
+    });
+  });
+
+  test('should take the first returnTo url provided in the querystring', async () => {
+    const loginOptions = {
+      returnTo: '/profile'
+    };
+    const baseUrl = await setup(withoutApi, { loginOptions });
+    const cookieJar = new CookieJar();
+    await get(baseUrl, '/api/auth/login?returnTo=/foo&returnTo=/bar', { cookieJar });
+    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
+
+    const decodedState = decodeState(state.split('.')[0]);
+    expect(decodedState).toEqual({
+      returnTo: '/foo'
     });
   });
 
   test('should not allow absolute urls to be provided in the querystring', async () => {
-    loginOptions = {
-      redirectTo: '/default-redirect'
+    const loginOptions = {
+      returnTo: '/default-redirect'
     };
+    const baseUrl = await setup(withoutApi, { loginOptions });
 
-    const { statusCode, body } = await getAsync({
-      url: `${httpServer.getUrl()}?redirectTo=https://google.com`,
-      followRedirect: false
-    });
-
-    expect(statusCode).toBe(500);
-    expect(body).toEqual('Invalid value provided for redirectTo, must be a relative url');
+    await expect(
+      get(baseUrl, '/api/auth/login?returnTo=https://www.google.com', { fullResponse: true })
+    ).rejects.toThrow('Invalid value provided for returnTo, must be a relative url');
   });
 
-  test('should allow the redirectTo url to be be overwritten by getState() when provided in the querystring', async () => {
-    loginOptions = {
-      redirectTo: '/profile',
-      getState: (): Record<string, any> => {
+  test('should allow the returnTo to be be overwritten by getState() when provided in the querystring', async () => {
+    const loginOptions = {
+      returnTo: '/profile',
+      getLoginState: (): Record<string, any> => {
         return {
-          foo: 'bar',
-          redirectTo: '/other-path'
+          returnTo: '/foo'
         };
       }
     };
+    const baseUrl = await setup(withoutApi, { loginOptions });
+    const cookieJar = new CookieJar();
+    await get(baseUrl, '/api/auth/login', { cookieJar });
+    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
 
-    const { headers } = await getAsync({
-      url: `${httpServer.getUrl()}?redirectTo=/my-profile`,
-      followRedirect: false
-    });
-
-    const state = parse(headers['set-cookie'][0]);
-    expect(state['a0:state']).toBeTruthy();
-
-    const decodedState = decodeState(state['a0:state']);
+    const decodedState = decodeState(state.split('.')[0]);
     expect(decodedState).toEqual({
-      foo: 'bar',
-      redirectTo: '/other-path',
-      nonce: expect.any(String)
+      returnTo: '/foo'
     });
   });
-});
 
-describe('withApi login handler', () => {
-  let httpServer: HttpServer;
-
-  beforeAll((done) => {
-    discovery(withApi);
-    httpServer = new HttpServer(login(withApi, getClient(withApi)));
-    httpServer.start(done);
-  });
-
-  afterAll((done) => {
-    httpServer.stop(done);
-  });
-
-  test('should create a state', async () => {
-    const { headers } = await getAsync({
-      url: httpServer.getUrl(),
-      followRedirect: false
-    });
-
-    const state = parse(headers['set-cookie'][0]);
-    expect(state).toBeTruthy();
-  });
-
-  test('should redirect to the identity provider', async () => {
-    const { statusCode, headers } = await getAsync({
-      url: httpServer.getUrl(),
-      followRedirect: false
-    });
+  test('should redirect to the identity provider with scope and audience', async () => {
+    const baseUrl = await setup(withApi);
+    const {
+      res: { statusCode, headers }
+    } = await get(baseUrl, '/api/auth/login', { fullResponse: true });
 
     expect(statusCode).toBe(302);
 
-    const state = parse(headers['set-cookie'][0]);
-    expect(headers.location).toContain(
-      `https://${withApi.domain}/authorize?` +
-        `client_id=${withApi.clientId}&scope=${encodeURIComponent(withApi.scope)}` +
-        `&response_type=code&redirect_uri=${encodeURIComponent(withApi.redirectUri)}` +
-        `&audience=${encodeURIComponent(withApi.audience)}` +
-        `&state=${state['a0:state']}`
-    );
+    expect(urlParse(headers.location, true).query).toMatchObject({
+      scope: 'openid profile read:customer',
+      audience: 'https://api.acme.com'
+    });
   });
 });

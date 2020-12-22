@@ -17,5 +17,9 @@ describe('url-helpers', () => {
       expect(isSafeRedirect('//google.com')).toEqual(false);
       expect(isSafeRedirect('///google.com')).toEqual(false);
     });
+
+    test('should throw when non string provided', () => {
+      expect(isSafeRedirect.bind(null)).toThrow('Invalid url: undefined');
+    });
   });
 });

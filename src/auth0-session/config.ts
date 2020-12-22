@@ -272,7 +272,7 @@ export interface CookieConfig {
   /**
    * Marks the cookie to be used over secure channels only.
    * Passed to the [Response cookie](https://expressjs.com/en/api.html#res.cookie) as `secure`.
-   * Defaults to {@link Request.secure}.
+   * Defaults to the protocol of {@link Config.baseURL}.
    */
   secure?: boolean;
 
@@ -290,6 +290,8 @@ export interface AuthorizationParameters extends OidcAuthorizationParameters {
   response_type: 'id_token' | 'code id_token' | 'code';
 }
 
+export type GetLoginState = (req: IncomingMessage, options: LoginOptions) => { [key: string]: any };
+
 /**
  * Custom options to pass to login.
  */
@@ -303,6 +305,11 @@ export interface LoginOptions {
    *  URL to return to after login, overrides the Default is {@link Config.baseURL}
    */
   returnTo?: string;
+
+  /**
+   *  Generate a unique state value for use during login transactions.
+   */
+  getLoginState?: GetLoginState;
 }
 
 /**

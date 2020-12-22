@@ -22,12 +22,16 @@
       "node": {
         "extensions": [".js", ".jsx", ".ts", ".tsx"]
       }
+    },
+    "react": {
+      "version": "detect"
     }
   },
   "parserOptions": {
     "ecmaVersion": 2019,
     "sourceType": "module"
   },
+  "ignorePatterns": ["examples/**/*"],
   "rules": {
     "prettier/prettier": "error",
     "no-console": [1, {

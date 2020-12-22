@@ -1,5 +1,4 @@
-import { IncomingMessage, ServerResponse } from 'http';
-import { NextApiRequest, NextApiResponse } from 'next';
+import { GetServerSidePropsContext, NextApiRequest, NextApiResponse } from 'next';
 
 export const assertReqRes = (req: NextApiRequest, res: NextApiResponse): void => {
   if (!req) {
@@ -10,7 +9,7 @@ export const assertReqRes = (req: NextApiRequest, res: NextApiResponse): void =>
   }
 };
 
-export const assertCtx = (req: IncomingMessage, res: ServerResponse): void => {
+export const assertCtx = ({ req, res }: GetServerSidePropsContext<any>): void => {
   if (!req) {
     throw new Error('Request is not available');
   }
