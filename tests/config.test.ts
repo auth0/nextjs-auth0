@@ -1,5 +1,5 @@
 import { getParams } from '../src/config';
-import { ConfigParameters } from '../src/auth0-session';
+import { ConfigParameters } from '../src';
 
 const getParamsWithEnv = (env: any = {}, opts?: any): ConfigParameters => {
   const bkp = process.env;

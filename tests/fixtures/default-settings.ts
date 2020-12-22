@@ -1,4 +1,4 @@
-import { ConfigParameters } from '../../src/auth0-session';
+import { ConfigParameters } from '../../src';
 
 export const withoutApi: ConfigParameters = {
   issuerBaseURL: 'https://acme.auth0.local',
