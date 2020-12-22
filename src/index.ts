@@ -13,10 +13,10 @@ import {
 } from './handlers';
 import { sessionFactory, accessTokenFactory, SessionCache, GetSession, GetAccessToken } from './session/';
 import {
-  withSSRAuthRequiredFactory,
+  withPageAuthRequiredFactory,
   withApiAuthRequiredFactory,
-  WithSSRAuthRequired,
-  WithApiAuthRequired
+  WithApiAuthRequired,
+  WithPageAuthRequired
 } from './helpers';
 import { InitAuth0, SignInWithAuth0 } from './instance';
 import version from './version';
@@ -41,7 +41,7 @@ export const initAuth0: InitAuth0 = (params) => {
   const getSession = sessionFactory(sessionCache);
   const getAccessToken = accessTokenFactory(getClient, config, sessionCache);
   const withApiAuthRequired = withApiAuthRequiredFactory(sessionCache);
-  const withSSRAuthRequired = withSSRAuthRequiredFactory(sessionCache);
+  const withPageAuthRequired = withPageAuthRequiredFactory(sessionCache);
   const handleLogin = loginHandler(config, getClient, transientStore);
   const handleLogout = logoutHandler(config, getClient, sessionCache);
   const handleCallback = callbackHandler(config, getClient, sessionCache, transientStore);
@@ -52,7 +52,7 @@ export const initAuth0: InitAuth0 = (params) => {
     getSession,
     getAccessToken,
     withApiAuthRequired,
-    withSSRAuthRequired,
+    withPageAuthRequired,
     handleLogin,
     handleLogout,
     handleCallback,
@@ -64,7 +64,8 @@ export const initAuth0: InitAuth0 = (params) => {
 export const getSession: GetSession = (...args) => getInstance().getSession(...args);
 export const getAccessToken: GetAccessToken = (...args) => getInstance().getAccessToken(...args);
 export const withApiAuthRequired: WithApiAuthRequired = (...args) => getInstance().withApiAuthRequired(...args);
-export const withSSRAuthRequired: WithSSRAuthRequired = (...args) => getInstance().withSSRAuthRequired(...args);
+export const withPageAuthRequired: WithPageAuthRequired = (...args: any[]): any =>
+  getInstance().withPageAuthRequired(...args);
 export const handleLogin: HandleLogin = (...args) => getInstance().handleLogin(...args);
 export const handleLogout: HandleLogout = (...args) => getInstance().handleLogout(...args);
 export const handleCallback: HandleCallback = (...args) => getInstance().handleCallback(...args);

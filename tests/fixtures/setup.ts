@@ -9,7 +9,7 @@ import { AccessTokenRequest, Claims, GetAccessTokenResult } from '../../src/sess
 import { ProfileOptions } from '../../src/handlers';
 import { encodeState } from '../../src/auth0-session/hooks/get-login-state';
 import { post, toSignedCookieJar } from '../auth0-session/fixtures/helpers';
-import { WithSSRAuthRequiredOptions } from '../../src/helpers/with-ssr-auth-required';
+import { WithSSRAuthRequiredOptions } from '../../src/helpers/with-page-auth-required';
 import { NextApiRequest, NextApiResponse } from 'next';
 
 export type SetupOptions = {

@@ -1,7 +1,7 @@
 export { default as withApiAuthRequiredFactory, ApiRoute, WithApiAuthRequired } from './with-api-auth-required';
 export {
-  default as withSSRAuthRequiredFactory,
+  default as withPageAuthRequiredFactory,
   GetServerSidePropsResultWithSession,
-  WithSSRAuthRequired,
+  WithPageAuthRequired,
   PageRoute
-} from './with-ssr-auth-required';
+} from './with-page-auth-required';
