@@ -15,11 +15,6 @@ const Header = () => {
             </Link>
           </li>
           <li>
-            <Link href="/about">
-              <a>About</a>
-            </Link>
-          </li>
-          <li>
             <Link href="/protected-page">
               <a>Protected Page</a>
             </Link>
@@ -27,14 +22,6 @@ const Header = () => {
           {!loading &&
             (user ? (
               <>
-                <li>
-                  <Link href="/profile">
-                    <a>Profile</a>
-                  </Link>
-                </li>{' '}
-                <li>
-                  <a href="/profile-ssr">Profile (SSR)</a>
-                </li>{' '}
                 <li>
                   <a href="/api/auth/logout" id="logout">
                     Logout
@@ -72,7 +59,7 @@ const Header = () => {
         li {
           margin-right: 1rem;
         }
-        li:nth-child(3) {
+        li:nth-child(2) {
           margin-right: auto;
         }
         a {
