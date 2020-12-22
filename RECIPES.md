@@ -2,13 +2,13 @@
 
 Recipes for various authentication scenarios with Auth0 and Next.js
 
-- [nextjs-auth0 (Session auth)](#nextjs-auth0--session-auth-)
+- [nextjs-auth0 (Session auth)](#nextjs-auth0-session-auth)
   - [Protect an API Route](#protect-an-api-route)
-  - [Protecting a Server Side Rendered (SSR) Page](#protecting-a-server-side-rendered--ssr--page)
-  - [Protecting a Client Side Rendered (CSR) Page](#protecting-a-client-side-rendered--csr--page)
+  - [Protecting a Server Side Rendered (SSR) Page](#protecting-a-server-side-rendered-ssr-page)
+  - [Protecting a Client Side Rendered (CSR) Page](#protecting-a-client-side-rendered-csr-page)
   - [Access an External API from an API Route](#access-an-external-api-from-an-api-route)
   - [Access an External API from the front end](#access-an-external-api-from-the-front-end)
-- [auth0-react (Access Token auth)](#auth0-react--access-token-auth-)
+- [auth0-react (Access Token auth)](#auth0-react-access-token-auth)
   - [Protecting a Client Side Rendered (CSR) Page](#protecting-a-client-side-rendered--csr--page-1)
   - [Access an API Route](#access-a-nextjs-api-route)
   - [Access an External API from the front end](#access-an-external-api-from-the-front-end-1)
