@@ -1,8 +1,8 @@
 import { InitAuth0 } from './instance';
 import { GetAccessToken, GetSession } from './session';
-import { WithApiAuthRequired, WithSSRAuthRequired } from './helpers';
+import { WithApiAuthRequired } from './helpers';
 import { HandleAuth, HandleCallback, HandleLogin, HandleLogout, HandleProfile } from './handlers';
-export { UserProvider, UserProfile, UserContext, useUser, withCSRAuthRequired } from './frontend';
+export { UserProvider, UserProfile, UserContext, useUser, withPageAuthRequired } from './frontend';
 
 export const initAuth0: InitAuth0 = () => {
   throw new Error('The initAuth0 method can only be used from the server side');
@@ -15,9 +15,6 @@ export const getAccessToken: GetAccessToken = () => {
 };
 export const withApiAuthRequired: WithApiAuthRequired = () => {
   throw new Error('The withApiAuthRequired method can only be used from the server side');
-};
-export const withSSRAuthRequired: WithSSRAuthRequired = () => {
-  throw new Error('The withSSRAuthRequired method can only be used from the server side');
 };
 export const handleLogin: HandleLogin = () => {
   throw new Error('The handleLogin method can only be used from the server side');

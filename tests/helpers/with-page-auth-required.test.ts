@@ -2,7 +2,7 @@ import { login, setup, teardown } from '../fixtures/setup';
 import { withoutApi } from '../fixtures/default-settings';
 import { get } from '../auth0-session/fixtures/helpers';
 
-describe('with-ssr-auth-required', () => {
+describe('with-page-auth-required ssr', () => {
   afterEach(teardown);
 
   test('protect a page', async () => {
@@ -26,7 +26,7 @@ describe('with-ssr-auth-required', () => {
   });
 
   test('use a custom login url', async () => {
-    const baseUrl = await setup(withoutApi, { withSSRAuthRequiredOptions: { loginUrl: '/api/foo' } });
+    const baseUrl = await setup(withoutApi, { withPageAuthRequiredOptions: { loginUrl: '/api/foo' } });
     const {
       res: { statusCode, headers }
     } = await get(baseUrl, '/protected', { fullResponse: true });
@@ -37,7 +37,7 @@ describe('with-ssr-auth-required', () => {
   test('use custom server side props', async () => {
     const spy = jest.fn().mockReturnValue({ props: {} });
     const baseUrl = await setup(withoutApi, {
-      withSSRAuthRequiredOptions: {
+      withPageAuthRequiredOptions: {
         getServerSideProps: spy
       }
     });
@@ -47,5 +47,14 @@ describe('with-ssr-auth-required', () => {
     } = await get(baseUrl, '/protected', { cookieJar, fullResponse: true });
     expect(statusCode).toBe(200);
     expect(spy).toHaveBeenCalledWith(expect.objectContaining({ req: expect.anything(), res: expect.anything() }));
+  });
+
+  test('is a noop when invoked as a client side protection from the server', async () => {
+    const baseUrl = await setup(withoutApi);
+    const cookieJar = await login(baseUrl);
+    const {
+      res: { statusCode }
+    } = await get(baseUrl, '/csr-protected', { cookieJar, fullResponse: true });
+    expect(statusCode).toBe(200);
   });
 });

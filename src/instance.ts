@@ -40,7 +40,7 @@ export interface SignInWithAuth0 {
   withApiAuthRequired: WithApiAuthRequired;
 
   /**
-   * Helper that adds auth to an SSR Page Route
+   * Helper that adds auth to a Page Route
    */
   withPageAuthRequired: WithPageAuthRequired;
 

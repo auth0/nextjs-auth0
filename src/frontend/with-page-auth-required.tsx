@@ -9,12 +9,12 @@ import { useUser } from './use-user';
 const defaultOnRedirecting = (): JSX.Element => <></>;
 
 /**
- * Options for the withCSRAuthRequired Higher Order Component
+ * Options for the withPageAuthRequired Higher Order Component
  */
-export interface WithCSRAuthRequiredOptions {
+export interface WithPageAuthRequiredOptions {
   /**
    * ```js
-   * withCSRAuthRequired(Profile, {
+   * withPageAuthRequired(Profile, {
    *   returnTo: '/profile'
    * })
    * ```
@@ -24,7 +24,7 @@ export interface WithCSRAuthRequiredOptions {
   returnTo?: string;
   /**
    * ```js
-   * withCSRAuthRequired(Profile, {
+   * withPageAuthRequired(Profile, {
    *   loginUrl: '/api/login'
    * })
    * ```
@@ -33,7 +33,7 @@ export interface WithCSRAuthRequiredOptions {
   loginUrl?: string;
   /**
    * ```js
-   * withCSRAuthRequired(Profile, {
+   * withPageAuthRequired(Profile, {
    *   onRedirecting: () => <div>Redirecting you to the login...</div>
    * })
    * ```
@@ -45,17 +45,17 @@ export interface WithCSRAuthRequiredOptions {
 
 /**
  * ```js
- * const MyProtectedPage = withCSRAuthRequired(MyPage);
+ * const MyProtectedPage = withPageAuthRequired(MyPage);
  * ```
  *
  * When you wrap your pages in this Higher Order Component and an anonymous user visits your page
  * they will be redirected to the login page and then returned to the page they were redirected from (after login).
  */
-const withCSRAuthRequired = <P extends object>(
+const withPageAuthRequired = <P extends object>(
   Component: ComponentType<P>,
-  options: WithCSRAuthRequiredOptions = {}
+  options: WithPageAuthRequiredOptions = {}
 ): React.FC<P> => {
-  return function WithCSRAuthRequired(props: P): JSX.Element {
+  return function withPageAuthRequired(props: P): JSX.Element {
     const router = useRouter();
     const { returnTo = router.asPath, onRedirecting = defaultOnRedirecting, loginUrl = '/api/auth/login' } = options;
     const { user, loading } = useUser();
@@ -72,4 +72,4 @@ const withCSRAuthRequired = <P extends object>(
   };
 };
 
-export default withCSRAuthRequired;
+export default withPageAuthRequired;

@@ -73,4 +73,4 @@ export const handleProfile: HandleProfile = (...args) => getInstance().handlePro
 export const handleAuth: HandleAuth = (...args) => getInstance().handleAuth(...args);
 
 export * from './auth0-session/config';
-export { UserProvider, UserProfile, UserContext, useUser, withCSRAuthRequired } from './frontend';
+export { UserProvider, UserProfile, UserContext, useUser } from './frontend';
