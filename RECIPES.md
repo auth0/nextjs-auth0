@@ -8,7 +8,7 @@ Recipes for various authentication scenarios with Auth0 and Next.js
   - [Protecting a Client Side Rendered (CSR) Page](#protecting-a-client-side-rendered--csr--page)
   - [Access an External API from an API Route](#access-an-external-api-from-an-api-route)
   - [Access an External API from the front end](#access-an-external-api-from-the-front-end)
-- [auth0-react (JWT auth)](#auth0-react--jwt-auth-)
+- [auth0-react (Access Token auth)](#auth0-react--access-token-auth-)
   - [Protecting a Client Side Rendered (CSR) Page](#protecting-a-client-side-rendered--csr--page-1)
   - [Access an API Route](#access-a-nextjs-api-route)
   - [Access an External API from the front end](#access-an-external-api-from-the-front-end-1)
@@ -183,7 +183,7 @@ export default withPageAuthRequired(function Products() {
 });
 ```
 
-## auth0-react (JWT auth)
+## auth0-react (Access Token auth)
 
 Uses an Access Token to protect resources, the Access Token is stored on the front end.
 
@@ -251,7 +251,7 @@ See [Next.js auth0-react example app](https://github.com/auth0/auth0-react/tree/
 
 ### Access a Next.js API Route
 
-Protect the API Route with JWT authorization.
+Protect the API Route with Access Token authorization.
 
 ```javascript
 // pages/api/products.js
@@ -292,7 +292,7 @@ export default withPageAuthRequired(function Products() {
   const { getAccessTokenSilently } = useAuth0();
   const { data, error } = useSWR('/api/products', async (url) => {
     const accessToken = await getAccessTokenSilently({ scope: 'read:products', audience: 'https://example.com/api' });
-    const response = await fetch(uri, {
+    const response = await fetch(url, {
       headers: { Authorization: `Bearer ${accessToken}` }
     });
     return response.json();
