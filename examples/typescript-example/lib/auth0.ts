@@ -2,7 +2,7 @@ import { initAuth0 } from '@auth0/nextjs-auth0';
 
 function getServerSetting(environmentVariable: string, defaultValue?: string) {
   if (typeof window === 'undefined') {
-    return process.env[environmentVariable] ?? defaultValue;
+    return process.env[environmentVariable] ?? defaultValue ?? null;
   }
 
   return defaultValue ?? null;
