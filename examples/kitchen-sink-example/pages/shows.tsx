@@ -2,9 +2,9 @@ import React from 'react';
 
 import useApi from '../lib/use-api';
 import Layout from '../components/layout';
-import { withCSRAuthRequired } from '@auth0/nextjs-auth0';
+import { withPageAuthRequired } from '@auth0/nextjs-auth0';
 
-export default withCSRAuthRequired(function TvShows(): React.ReactElement {
+export default withPageAuthRequired(function TvShows(): React.ReactElement {
   const { response, error, isLoading } = useApi('/api/shows');
 
   return (

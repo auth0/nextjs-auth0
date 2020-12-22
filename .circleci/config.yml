@@ -7,11 +7,11 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: dependencies-{{ .Branch }}-{{ checksum "package-lock.json" }}-{{ checksum "examples/basic-example/package.json" }}-{{ checksum "examples/kitchen-sync-example/package.json" }}-{{ checksum "examples/sample-api/package-lock.json" }}
+          key: dependencies-{{ .Branch }}-{{ checksum "package-lock.json" }}-{{ checksum "examples/basic-example/package.json" }}-{{ checksum "examples/kitchen-sink-example/package.json" }}-{{ checksum "examples/sample-api/package-lock.json" }}
       - run: npm ci
       - run: npm run install:examples
       - save_cache:
-          key: dependencies-{{ .Branch }}-{{ checksum "package-lock.json" }}-{{ checksum "examples/basic-example/package.json" }}-{{ checksum "examples/kitchen-sync-example/package.json" }}-{{ checksum "examples/sample-api/package-lock.json" }}
+          key: dependencies-{{ .Branch }}-{{ checksum "package-lock.json" }}-{{ checksum "examples/basic-example/package.json" }}-{{ checksum "examples/kitchen-sink-example/package.json" }}-{{ checksum "examples/sample-api/package-lock.json" }}
           paths:
             - ~/.npm
             - ~/.cache

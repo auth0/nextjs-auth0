@@ -1,5 +1,5 @@
 import React from 'react';
-import { UserProfile, withSSRAuthRequired } from '@auth0/nextjs-auth0';
+import { UserProfile, withPageAuthRequired } from '@auth0/nextjs-auth0';
 
 import Layout from '../components/layout';
 
@@ -18,4 +18,4 @@ export default function Profile({ user }: ProfileProps): React.ReactElement {
   );
 }
 
-export const getServerSideProps = withSSRAuthRequired();
+export const getServerSideProps = withPageAuthRequired();
