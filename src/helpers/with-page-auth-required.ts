@@ -2,8 +2,8 @@ import { GetServerSideProps, GetServerSidePropsContext, GetServerSidePropsResult
 import { Claims, Session, SessionCache } from '../session';
 import { assertCtx } from '../utils/assert';
 import React, { ComponentType } from 'react';
-import { WithCSRAuthRequiredOptions } from '../frontend/with-csr-auth-required';
-import { withCSRAuthRequired } from '../frontend';
+import { WithPageAuthRequiredOptions as WithPageAuthRequiredCSROptions } from '../frontend/with-page-auth-required';
+import { withPageAuthRequired as withPageAuthRequiredCSR } from '../frontend';
 
 export type GetServerSidePropsResultWithSession = GetServerSidePropsResult<{
   user?: Claims | null;
@@ -12,20 +12,20 @@ export type GetServerSidePropsResultWithSession = GetServerSidePropsResult<{
 
 export type PageRoute = (cts: GetServerSidePropsContext) => Promise<GetServerSidePropsResultWithSession>;
 
-export type WithSSRAuthRequiredOptions = { getServerSideProps?: GetServerSideProps; loginUrl?: string };
+export type WithPageAuthRequiredOptions = { getServerSideProps?: GetServerSideProps; loginUrl?: string };
 
 export type WithPageAuthRequired = {
-  (opts?: WithSSRAuthRequiredOptions): PageRoute;
-  <P extends object>(Component: ComponentType<P>, options?: WithCSRAuthRequiredOptions): React.FC<P>;
+  (opts?: WithPageAuthRequiredOptions): PageRoute;
+  <P extends object>(Component: ComponentType<P>, options?: WithPageAuthRequiredCSROptions): React.FC<P>;
 };
 
 export default function withPageAuthRequiredFactory(sessionCache: SessionCache): WithPageAuthRequired {
   return (
-    optsOrComponent: WithSSRAuthRequiredOptions | ComponentType = {},
-    csrOpts?: WithCSRAuthRequiredOptions
+    optsOrComponent: WithPageAuthRequiredOptions | ComponentType = {},
+    csrOpts?: WithPageAuthRequiredCSROptions
   ): any => {
     if (typeof optsOrComponent === 'function') {
-      return withCSRAuthRequired(optsOrComponent, csrOpts);
+      return withPageAuthRequiredCSR(optsOrComponent, csrOpts);
     }
     const { getServerSideProps, loginUrl = '/api/auth/login' } = optsOrComponent;
     return async (ctx: GetServerSidePropsContext): Promise<GetServerSidePropsResultWithSession> => {

@@ -9,7 +9,7 @@ import { AccessTokenRequest, Claims, GetAccessTokenResult } from '../../src/sess
 import { ProfileOptions } from '../../src/handlers';
 import { encodeState } from '../../src/auth0-session/hooks/get-login-state';
 import { post, toSignedCookieJar } from '../auth0-session/fixtures/helpers';
-import { WithSSRAuthRequiredOptions } from '../../src/helpers/with-page-auth-required';
+import { WithPageAuthRequiredOptions } from '../../src/helpers/with-page-auth-required';
 import { NextApiRequest, NextApiResponse } from 'next';
 
 export type SetupOptions = {
@@ -18,7 +18,7 @@ export type SetupOptions = {
   loginOptions?: LoginOptions;
   logoutOptions?: LogoutOptions;
   profileOptions?: ProfileOptions;
-  withSSRAuthRequiredOptions?: WithSSRAuthRequiredOptions;
+  withPageAuthRequiredOptions?: WithPageAuthRequiredOptions;
   getAccessTokenOptions?: AccessTokenRequest;
   discoveryOptions?: object;
   userInfoPayload?: object;
@@ -32,7 +32,7 @@ export const setup = async (
     logoutOptions,
     loginOptions = { returnTo: '/custom-url' },
     profileOptions,
-    withSSRAuthRequiredOptions,
+    withPageAuthRequiredOptions,
     getAccessTokenOptions,
     discoveryOptions,
     userInfoPayload = {}
@@ -51,7 +51,7 @@ export const setup = async (
     getSession,
     getAccessToken,
     withApiAuthRequired,
-    withSSRAuthRequired
+    withPageAuthRequired
   } = await initAuth0(config);
   (global as any).handleAuth = handleAuth.bind(null, {
     async callback(req, res) {
@@ -86,9 +86,11 @@ export const setup = async (
       }
     }
   });
+
   (global as any).getSession = getSession;
   (global as any).withApiAuthRequired = withApiAuthRequired;
-  (global as any).withSSRAuthRequired = withSSRAuthRequired.bind(null, withSSRAuthRequiredOptions);
+  (global as any).withPageAuthRequired = (): any => withPageAuthRequired(withPageAuthRequiredOptions);
+  (global as any).withPageAuthRequiredCSR = withPageAuthRequired;
   (global as any).getAccessToken = (req: NextApiRequest, res: NextApiResponse): Promise<GetAccessTokenResult> =>
     getAccessToken(req, res, getAccessTokenOptions);
   return start();
@@ -99,6 +101,10 @@ export const teardown = async (): Promise<void> => {
   await stop();
   delete (global as any).getSession;
   delete (global as any).handleAuth;
+  delete (global as any).withApiAuthRequired;
+  delete (global as any).withPageAuthRequired;
+  delete (global as any).withPageAuthRequiredCSR;
+  delete (global as any).getAccessToken;
 };
 
 export const login = async (baseUrl: string): Promise<CookieJar> => {
