@@ -2,9 +2,9 @@ import React from 'react';
 
 import useApi from '../lib/use-api';
 import Layout from '../components/layout';
-import withAutenticationRequired from '../lib/with-authentication-required';
+import { withCSRAuthRequired } from '@auth0/nextjs-auth0';
 
-export default withAutenticationRequired(function TvShows(): React.ReactElement {
+export default withCSRAuthRequired(function TvShows(): React.ReactElement {
   const { response, error, isLoading } = useApi('/api/shows');
 
   return (
@@ -34,6 +34,4 @@ export default withAutenticationRequired(function TvShows(): React.ReactElement 
       )}
     </Layout>
   );
-}, {
-  returnTo: '/shows'
 });
