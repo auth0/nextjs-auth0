@@ -9,11 +9,11 @@ export type GetServerSidePropsResultWithSession = GetServerSidePropsResult<{
 
 export type PageRoute = (cts: GetServerSidePropsContext) => Promise<GetServerSidePropsResultWithSession>;
 
-export type WithPageAuthRequiredOptions = { getServerSideProps?: GetServerSideProps; loginUrl?: string };
+export type WithSSRAuthRequiredOptions = { getServerSideProps?: GetServerSideProps; loginUrl?: string };
 
-export type WithPageAuthRequired = (opts?: WithPageAuthRequiredOptions) => PageRoute;
+export type WithSSRAuthRequired = (opts?: WithSSRAuthRequiredOptions) => PageRoute;
 
-export default function withPageAuthRequiredFactory(sessionCache: SessionCache): WithPageAuthRequired {
+export default function withSSRAuthRequiredFactory(sessionCache: SessionCache): WithSSRAuthRequired {
   return ({ getServerSideProps, loginUrl = '/api/auth/login' } = {}): PageRoute => async (
     ctx
   ): Promise<GetServerSidePropsResultWithSession> => {
