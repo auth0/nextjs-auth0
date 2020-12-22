@@ -1,7 +1,7 @@
 import { login, setup, teardown } from '../fixtures/setup';
 import { withApi } from '../fixtures/default-settings';
 import { get } from '../auth0-session/fixtures/helpers';
-import { Session } from '../../src/session';
+import { Session } from '../../src';
 import { refreshTokenExchange, refreshTokenRotationExchange } from '../fixtures/oidc-nocks';
 
 describe('get access token', () => {

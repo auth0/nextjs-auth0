@@ -1,12 +1,8 @@
-import { NextApiResponse, NextApiRequest } from 'next';
+import { NextApiResponse, NextApiRequest, NextApiHandler } from 'next';
 import { SessionCache } from '../session';
 import { assertReqRes } from '../utils/assert';
 
-export interface ApiRoute {
-  (req: NextApiRequest, res: NextApiResponse): Promise<void>;
-}
-
-export type WithApiAuthRequired = (apiRoute: ApiRoute) => ApiRoute;
+export type WithApiAuthRequired = (apiRoute: NextApiHandler) => NextApiHandler;
 
 export default function withApiAuthFactory(sessionCache: SessionCache): WithApiAuthRequired {
   return (apiRoute) => async (req: NextApiRequest, res: NextApiResponse): Promise<void> => {

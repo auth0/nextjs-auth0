@@ -4,9 +4,8 @@ import { withApi, withoutApi } from '../fixtures/default-settings';
 import { makeIdToken } from '../auth0-session/fixtures/cert';
 import { get, post, toSignedCookieJar } from '../auth0-session/fixtures/helpers';
 import { encodeState } from '../../src/auth0-session/hooks/get-login-state';
-import { AfterCallback } from '../../src/auth0-session/handlers/callback';
 import { setup, teardown } from '../fixtures/setup';
-import { Session } from '../../src/session';
+import { Session, AfterCallback } from '../../src';
 
 const callback = (baseUrl: string, body: any, cookieJar?: CookieJar): Promise<any> =>
   post(baseUrl, `/api/auth/callback`, {

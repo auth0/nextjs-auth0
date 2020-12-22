@@ -3,9 +3,8 @@ import { withoutApi } from '../fixtures/default-settings';
 import { userInfo } from '../fixtures/oidc-nocks';
 import { get } from '../auth0-session/fixtures/helpers';
 import { setup, teardown, login } from '../fixtures/setup';
-import { Session } from '../../src/session';
+import { Session, AfterCallback } from '../../src';
 import { makeIdToken } from '../auth0-session/fixtures/cert';
-import { AfterCallback } from '../../src/auth0-session/handlers/callback';
 
 describe('profile handler', () => {
   afterEach(teardown);
