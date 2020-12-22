@@ -1,5 +1,5 @@
 import { GetSession, GetAccessToken } from './session';
-import { WithApiAuthRequired, WithSSRAuthRequired } from './helpers';
+import { WithApiAuthRequired, WithPageAuthRequired } from './helpers';
 import { HandleAuth, HandleCallback, HandleLogin, HandleLogout, HandleProfile } from './handlers';
 import { ConfigParameters } from './auth0-session';
 
@@ -42,7 +42,7 @@ export interface SignInWithAuth0 {
   /**
    * Helper that adds auth to an SSR Page Route
    */
-  withSSRAuthRequired: WithSSRAuthRequired;
+  withPageAuthRequired: WithPageAuthRequired;
 
   /**
    * Create the main handlers for your api routes
