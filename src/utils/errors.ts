@@ -1,3 +1,8 @@
+/**
+ * The error thrown by {@link GetAccessToken}
+ *
+ * @category Server
+ */
 export class AccessTokenError extends Error {
   public code: string;
 

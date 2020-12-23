@@ -3,12 +3,28 @@ import { ClientFactory } from '../auth0-session';
 import { SessionCache, Session, fromJson, GetAccessToken } from '../session';
 import { assertReqRes } from '../utils/assert';
 
+/**
+ * Custom options for {@link HandleProfile}
+ *
+ * @category Server
+ */
 export type ProfileOptions = {
+  /**
+   * If set to `true` this will refetch the user profile information from `/userinfo` and save it to the session.
+   */
   refetch?: boolean;
 };
 
+/**
+ * The handler for the `/api/auth/me` route.
+ *
+ * @category Server
+ */
 export type HandleProfile = (req: NextApiRequest, res: NextApiResponse, options?: ProfileOptions) => Promise<void>;
 
+/**
+ * @ignore
+ */
 export default function profileHandler(
   sessionCache: SessionCache,
   getClient: ClientFactory,

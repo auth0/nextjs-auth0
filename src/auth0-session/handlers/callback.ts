@@ -11,12 +11,7 @@ function getRedirectUri(config: Config): string {
   return urlJoin(config.baseURL, config.routes.callback);
 }
 
-export type AfterCallback = (
-  req: IncomingMessage,
-  res: ServerResponse,
-  session: any,
-  state: Record<string, any>
-) => Promise<any> | any;
+export type AfterCallback = (req: any, res: any, session: any, state: Record<string, any>) => Promise<any> | any;
 
 export type CallbackOptions = {
   afterCallback?: AfterCallback;
@@ -56,7 +51,7 @@ export default function callbackHandler(
     let session = sessionCache.fromTokenSet(tokenSet);
 
     if (options?.afterCallback) {
-      session = await options.afterCallback(req, res, session, openidState);
+      session = await options.afterCallback(req as any, res as any, session, openidState);
     }
 
     sessionCache.create(req, res, session);
