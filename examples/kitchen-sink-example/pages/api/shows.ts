@@ -1,5 +1,4 @@
-import { getAccessToken } from '@auth0/nextjs-auth0';
-import { withApiAuthRequired } from '@auth0/nextjs-auth0';
+import { withApiAuthRequired, getAccessToken } from '@auth0/nextjs-auth0';
 
 export default withApiAuthRequired(async function shows(req, res) {
   try {
@@ -7,11 +6,13 @@ export default withApiAuthRequired(async function shows(req, res) {
       scopes: ['read:shows']
     });
 
-    const baseURL = process.env.AUTH0_BASE_URL?.indexOf('http') === 0 ? 
-      process.env.AUTH0_BASE_URL : 
-      `https://${process.env.AUTH0_BASE_URL}`;
+    const baseURL =
+      process.env.AUTH0_BASE_URL?.indexOf('http') === 0
+        ? process.env.AUTH0_BASE_URL
+        : `https://${process.env.AUTH0_BASE_URL}`;
 
-    const response = await fetch(baseURL + 'api/my/shows', {
+    // This is a contrived example, normally your external API would exist on another domain.
+    const response = await fetch(baseURL + '/api/my/shows', {
       headers: {
         Authorization: `Bearer ${accessToken}`
       }
