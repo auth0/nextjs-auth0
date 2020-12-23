@@ -5,11 +5,29 @@ import { intersect, match } from '../utils/array';
 import { SessionCache, fromTokenSet } from '../session';
 import { NextApiRequest, NextApiResponse } from 'next';
 
+/**
+ * Custom options to get an Access Token.
+ *
+ * @category Server
+ */
 export interface AccessTokenRequest {
+  /**
+   * A list of desired scopes fro you Access Token.
+   */
   scopes?: string[];
+
+  /**
+   * If set to `true`, a new Access Token will be requested with the Refresh Token grant, regardless of whether
+   * the Access Token has expired or not.
+   */
   refresh?: boolean;
 }
 
+/**
+ * Response from requesting an Access Token.
+ *
+ * @category Server
+ */
 export interface GetAccessTokenResult {
   /**
    * Access token returned from the token cache.
@@ -17,12 +35,20 @@ export interface GetAccessTokenResult {
   accessToken?: string | undefined;
 }
 
+/**
+ * Get an Access Token to access an external API.
+ *
+ * @category Server
+ */
 export type GetAccessToken = (
   req: IncomingMessage | NextApiRequest,
   res: ServerResponse | NextApiResponse,
   accessTokenRequest?: AccessTokenRequest
 ) => Promise<GetAccessTokenResult>;
 
+/**
+ * @ignore
+ */
 export default function accessTokenFactory(
   getClient: ClientFactory,
   config: Config,
