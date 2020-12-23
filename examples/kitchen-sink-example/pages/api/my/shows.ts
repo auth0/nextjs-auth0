@@ -1,4 +1,4 @@
-const { NextJwtVerifier } = require('@serverless-jwt/next');
+import { NextJwtVerifier } from '@serverless-jwt/next';
 
 const verifyJwt = NextJwtVerifier({
   issuer: process.env.AUTH0_ISSUER_BASE_URL,
@@ -7,7 +7,7 @@ const verifyJwt = NextJwtVerifier({
 
 const requireScope = (scope, apiRoute) =>
   verifyJwt(async (req, res) => {
-    const { claims } = req.identityContext;
+    const { claims } = (req as any).identityContext;
     if (!claims || !claims.scope || claims.scope.indexOf(scope) === -1) {
       return res.status(403).json({
         error: 'access_denied',
@@ -17,19 +17,19 @@ const requireScope = (scope, apiRoute) =>
     return apiRoute(req, res);
   });
 
-  const apiRoute = async (req, res) => {
-    try {
-        const response = await fetch('https://api.tvmaze.com/search/shows?q=identity');
-        const shows = await response.json();
-    
-        res.status(200).json({shows});
-      } catch (error) {
-        console.error(error);
-        res.status(error.status || 500).json({
-          code: error.code,
-          error: error.message
-        });
-      }
-  };
+const apiRoute = async (req, res) => {
+  try {
+    const response = await fetch('https://api.tvmaze.com/search/shows?q=identity');
+    const shows = await response.json();
 
-  export default requireScope('read:shows', apiRoute);
+    res.status(200).json({ shows });
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({
+      code: error.code,
+      error: error.message
+    });
+  }
+};
+
+export default requireScope('read:shows', apiRoute);

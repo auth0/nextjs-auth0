@@ -9,7 +9,7 @@ function initialState(args) {
   };
 }
 
-export default (url, options = {}) => {
+const useApi = (url, options = {}) => {
   const [state, setState] = useState(() => initialState());
 
   useEffect(() => {
@@ -49,3 +49,5 @@ export default (url, options = {}) => {
   }, []);
   return state;
 };
+
+export default useApi;
