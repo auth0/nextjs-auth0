@@ -134,6 +134,14 @@
       "text",
       "text-summary"
     ],
+    "coverageThreshold": {
+      "global": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      }
+    },
     "preset": "ts-jest",
     "globalSetup": "./tests/global-setup.ts",
     "setupFilesAfterEnv": [
