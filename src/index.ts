@@ -1,4 +1,4 @@
-import { getConfig, CookieStore, TransientStore, clientFactory, AfterCallback } from './auth0-session';
+import { getConfig, CookieStore, TransientStore, clientFactory } from './auth0-session';
 import {
   handlerFactory,
   callbackHandler,
@@ -11,7 +11,12 @@ import {
   HandleProfile,
   HandleLogout,
   HandleCallback,
-  ProfileOptions
+  LoginOptions,
+  LogoutOptions,
+  GetLoginState,
+  ProfileOptions,
+  CallbackOptions,
+  AfterCallback
 } from './handlers';
 import {
   sessionFactory,
@@ -35,7 +40,7 @@ import {
 } from './helpers';
 import { InitAuth0, SignInWithAuth0 } from './instance';
 import version from './version';
-import { getParams } from './config';
+import { getParams, Config, SessionConfig, CookieConfig, AuthorizationParameters, ConfigParameters } from './config';
 
 let instance: SignInWithAuth0;
 
@@ -93,15 +98,8 @@ export {
   Config,
   SessionConfig,
   CookieConfig,
-  LoginOptions,
-  LogoutOptions,
   AuthorizationParameters,
   ConfigParameters,
-  CallbackOptions
-} from './auth0-session';
-
-export {
-  AfterCallback,
   HandleAuth,
   HandleLogin,
   HandleProfile,
@@ -120,5 +118,10 @@ export {
   Session,
   Claims,
   AccessTokenRequest,
-  GetAccessTokenResult
+  GetAccessTokenResult,
+  CallbackOptions,
+  AfterCallback,
+  LoginOptions,
+  LogoutOptions,
+  GetLoginState
 };

@@ -21,6 +21,7 @@
     "test:watch": "jest --coverage --watch",
     "prepublishOnly": "npm test && npm run lint",
     "prepublish": "npm run build",
+    "docs": "typedoc --options typedoc.js src",
     "install:examples": "npm i --prefix=examples/basic-example --no-package-lock && npm i --prefix=examples/kitchen-sink-example --no-package-lock",
     "start:basic": "npm run dev --prefix=examples/basic-example",
     "start:kitchen-sink": "npm run dev --prefix=examples/kitchen-sink-example",
@@ -93,6 +94,7 @@
     "timekeeper": "^2.2.0",
     "tough-cookie": "^4.0.0",
     "ts-jest": "^26.4.4",
+    "typedoc": "^0.19.2",
     "typescript": "^3.8.3"
   },
   "dependencies": {
@@ -132,6 +134,14 @@
       "text",
       "text-summary"
     ],
+    "coverageThreshold": {
+      "global": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      }
+    },
     "preset": "ts-jest",
     "globalSetup": "./tests/global-setup.ts",
     "setupFilesAfterEnv": [

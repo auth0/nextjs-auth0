@@ -2,7 +2,14 @@ import { InitAuth0 } from './instance';
 import { GetAccessToken, GetSession } from './session';
 import { WithApiAuthRequired } from './helpers';
 import { HandleAuth, HandleCallback, HandleLogin, HandleLogout, HandleProfile } from './handlers';
-export { UserProvider, UserProfile, UserContext, useUser, withPageAuthRequired } from './frontend';
+export {
+  UserProvider,
+  UserProfile,
+  UserContext,
+  useUser,
+  withPageAuthRequired,
+  WithPageAuthRequired
+} from './frontend';
 
 export const initAuth0: InitAuth0 = () => {
   throw new Error('The initAuth0 method can only be used from the server side');

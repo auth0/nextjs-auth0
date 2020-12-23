@@ -3,11 +3,18 @@ import { Config } from '../auth0-session';
 
 /**
  * Key-value store for the user's claims.
+ *
+ * @category Server
  */
 export interface Claims {
   [key: string]: any;
 }
 
+/**
+ * The user's session
+ *
+ * @category Server
+ */
 export default class Session {
   /**
    * Any of the claims from the id_token.
@@ -25,12 +32,12 @@ export default class Session {
   accessToken?: string | undefined;
 
   /**
-   * The expiration of the access token.
+   * The access token scopes.
    */
   accessTokenScope?: string | undefined;
 
   /**
-   * The access token scopes.
+   * The expiration of the access token.
    */
   accessTokenExpiresAt?: number;
 
@@ -46,6 +53,9 @@ export default class Session {
   }
 }
 
+/**
+ * @ignore
+ */
 export function fromTokenSet(tokenSet: TokenSet, config: Config): Session {
   // Get the claims without any OIDC specific claim.
   const claims = tokenSet.claims();
@@ -68,6 +78,9 @@ export function fromTokenSet(tokenSet: TokenSet, config: Config): Session {
   );
 }
 
+/**
+ * @ignore
+ */
 export function fromJson(json: { [key: string]: any } | undefined): Session | null {
   if (!json) {
     return null;
