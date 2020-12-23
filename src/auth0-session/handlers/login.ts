@@ -36,7 +36,7 @@ export default function loginHandler(config: Config, getClient: ClientFactory, t
       sameSite: opts.authorizationParams.response_mode === 'form_post' ? 'none' : 'lax'
     };
 
-    const stateValue = await opts.getLoginState(req, opts);
+    const stateValue = await opts.getLoginState(req as any, opts);
     if (typeof stateValue !== 'object') {
       throw new Error('Custom state value must be an object.');
     }

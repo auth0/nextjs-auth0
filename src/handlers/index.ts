@@ -1,5 +1,5 @@
-export { default as callbackHandler, HandleCallback } from './callback';
-export { default as loginHandler, HandleLogin } from './login';
-export { default as logoutHandler, HandleLogout } from './logout';
+export { default as callbackHandler, HandleCallback, CallbackOptions, AfterCallback } from './callback';
+export { default as loginHandler, HandleLogin, LoginOptions, GetLoginState } from './login';
+export { default as logoutHandler, HandleLogout, LogoutOptions } from './logout';
 export { default as profileHandler, HandleProfile, ProfileOptions } from './profile';
 export { default as handlerFactory, Handlers, HandleAuth } from './auth';

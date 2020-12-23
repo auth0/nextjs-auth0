@@ -1,15 +1,402 @@
-import { ConfigParameters } from './auth0-session';
+import { IncomingMessage } from 'http';
+import { AuthorizationParameters as OidcAuthorizationParameters } from 'openid-client';
+import { LoginOptions, DeepPartial } from './auth0-session';
 
+/**
+ * ## Configuration properties.
+ *
+ * The Server part of the SDK can be configured in 2 ways.
+ *
+ * ### 1. Environmental Variables
+ *
+ * The simplest way to use the SDK is to use the named exports ({@link HandleAuth}, {@link HandleLogin},
+ * {@link HandleLogout}, {@link HandleCallback}, {@link HandleProfile}, {@link GetSession}, {@link GetAccessToken},
+ * {@link WithApiAuthRequired} and {@link WithPageAuthRequired}), eg:
+ *
+ * ```js
+ * // pages/api/auth/[...auth0].js
+ * import { handleAuth } from '@auth0/nextjs-auth0';
+ *
+ * return handleAuth();
+ * ```
+ *
+ * When you use these named exports, an instance of the SDK is created for you which you can configure using
+ * environmental variables:
+ *
+ * ### Required
+ *
+ * - `AUTH0_SECRET`: See {@link secret}
+ * - `AUTH0_ISSUER_BASE_URL`: See {@link issuerBaseURL}
+ * - `AUTH0_BASE_URL`: See {@link baseURL}
+ * - `AUTH0_CLIENT_ID`: See {@link clientID}
+ * - `AUTH0_CLIENT_SECRET`: See {@link clientSecret}
+ *
+ * ### Optional
+ *
+ * - `AUTH0_CLOCK_TOLERANCE`: See {@link clockTolerance}
+ * - `AUTH0_ENABLE_TELEMETRY`: See {@link enableTelemetry}
+ * - `AUTH0_IDP_LOGOUT`: See {@link idpLogout}
+ * - `AUTH0_ID_TOKEN_SIGNING_ALG`: See {@link idTokenSigningAlg}
+ * - `AUTH0_LEGACY_SAME_SITE_COOKIE`: See {@link legacySameSiteCookie}
+ * - `AUTH0_POST_LOGOUT_REDIRECT`: See {@link Config.routes}
+ * - `AUTH0_AUDIENCE`: See {@link Config.authorizationParams}
+ * - `AUTH0_SCOPE`: See {@link Config.authorizationParams}
+ * - `AUTH0_SESSION_NAME`: See {@link SessionConfig.name}
+ * - `AUTH0_SESSION_ROLLING`: See {@link SessionConfig.rolling}
+ * - `AUTH0_SESSION_ROLLING_DURATION`: See {@link SessionConfig.rollingDuration}
+ * - `AUTH0_SESSION_ABSOLUTE_DURATION`: See {@link SessionConfig.absoluteDuration}
+ * - `AUTH0_COOKIE_DOMAIN`: See {@link CookieConfig.domain}
+ * - `AUTH0_COOKIE_PATH`: See {@link CookieConfig.path}
+ * - `AUTH0_COOKIE_TRANSIENT`: See {@link CookieConfig.transient}
+ * - `AUTH0_COOKIE_HTTP_ONLY`: See {@link CookieConfig.httpOnly}
+ * - `AUTH0_COOKIE_SECURE`: See {@link CookieConfig.secure}
+ * - `AUTH0_COOKIE_SAME_SITE`: See {@link CookieConfig.sameSite}
+ *
+ * ### 2. Create your own instance using {@link InitAuth0}
+ *
+ * If you don't want to configure the SDK with environment variables or you want more fine grained control over the
+ * instance, you can create an instance yourself and use the handlers and helpers from that, eg:
+ *
+ * ```js
+ * // utils/auth0.js
+ * import { initAuth0 } from '@auth0/nextjs-auth0';
+ *
+ * export default initAuth0({ ...ConfigParameters... });
+ *
+ * // pages/api/auth/[...auth0].js
+ * import auth0 from '../../../../utils/auth0';
+ *
+ * return auth0.handleAuth();
+ * ```
+ *
+ * **Note** If you use {@link InitAuth0}, you should *not* use the other named exports as they will use a different
+ * instance of the SDK.
+ *
+ * @category Server
+ */
+export interface Config {
+  /**
+   * The secret(s) used to derive an encryption key for the user identity in a session cookie and
+   * to sign the transient cookies used by the login callback.
+   * Use a single string key or array of keys for an encrypted session cookie.
+   * Can use env key SECRET instead.
+   */
+  secret: string | Array<string>;
+
+  /**
+   * Object defining application session cookie attributes.
+   */
+  session: SessionConfig;
+
+  /**
+   * Boolean value to enable Auth0's logout feature.
+   */
+  auth0Logout: boolean;
+
+  /**
+   *  URL parameters used when redirecting users to the authorization server to log in.
+   *
+   *  If this property is not provided by your application, its default values will be:
+   *
+   * ```js
+   * {
+   *   response_type: 'id_token',
+   *   response_mode: 'form_post,
+   *   scope: openid profile email'
+   * }
+   * ```
+   *
+   * New values can be passed in to change what is returned from the authorization server
+   * depending on your specific scenario.
+   *
+   * For example, to receive an access token for an API, you could initialize like the sample below.
+   * Note that `response_mode` can be omitted because the OAuth2 default mode of `query` is fine:
+   *
+   * ```js
+   * app.use(
+   *   auth({
+   *     authorizationParams: {
+   *       response_type: 'code',
+   *       scope: 'openid profile email read:reports',
+   *       audience: 'https://your-api-identifier',
+   *     },
+   *   })
+   * );
+   * ```
+   *
+   * Additional custom parameters can be added as well:
+   *
+   * ```js
+   * app.use(auth({
+   *   authorizationParams: {
+   *     // Note: you need to provide required parameters if this object is set.
+   *     response_type: "id_token",
+   *     response_mode: "form_post",
+   *     scope: "openid profile email"
+   *    // Additional parameters
+   *    acr_value: "tenant:test-tenant",
+   *    custom_param: "custom-value"
+   *   }
+   * }));
+   * ```
+   */
+  authorizationParams: AuthorizationParameters;
+
+  /**
+   * The root URL for the application router, eg https://localhost
+   * Can use env key BASE_URL instead.
+   */
+  baseURL: string;
+
+  /**
+   * The Client ID for your application.
+   * Can be read from CLIENT_ID instead.
+   */
+  clientID: string;
+
+  /**
+   * The Client Secret for your application.
+   * Required when requesting access tokens.
+   * Can be read from CLIENT_SECRET instead.
+   */
+  clientSecret?: string;
+
+  /**
+   * Integer value for the system clock's tolerance (leeway) in seconds for ID token verification.`
+   * Default is 60
+   */
+  clockTolerance: number;
+
+  /**
+   * To opt-out of sending the library and node version to your authorization server
+   * via the `Auth0-Client` header. Default is `true
+   */
+  enableTelemetry: boolean;
+
+  /**
+   * Throw a 401 error instead of triggering the login process for routes that require authentication.
+   * Default is `false`
+   */
+  errorOnRequiredAuth: boolean;
+
+  /**
+   * Attempt silent login (`prompt: 'none'`) on the first unauthenticated route the user visits.
+   * For protected routes this can be useful if your Identity Provider does not default to
+   * `prompt: 'none'` and you'd like to attempt this before requiring the user to interact with a login prompt.
+   * For unprotected routes this can be useful if you want to check the user's logged in state on their IDP, to
+   * show them a login/logout button for example.
+   * Default is `false`
+   */
+  attemptSilentLogin: boolean;
+
+  /**
+   * Function that returns an object with URL-safe state values for `res.oidc.login()`.
+   * Used for passing custom state parameters to your authorization server.
+   *
+   * ```js
+   * app.use(auth({
+   *   ...
+   *   getLoginState(req, options) {
+   *     return {
+   *       returnTo: options.returnTo || req.originalUrl,
+   *       customState: 'foo'
+   *     };
+   *   }
+   * }))
+   * ``
+   */
+  getLoginState: (req: IncomingMessage, options: LoginOptions) => Record<string, any>;
+
+  /**
+   * Array value of claims to remove from the ID token before storing the cookie session.
+   * Default is `['aud', 'iss', 'iat', 'exp', 'nbf', 'nonce', 'azp', 'auth_time', 's_hash', 'at_hash', 'c_hash' ]`
+   */
+  identityClaimFilter: string[];
+
+  /**
+   * Boolean value to log the user out from the identity provider on application logout. Default is `false`
+   */
+  idpLogout: boolean;
+
+  /**
+   * String value for the expected ID token algorithm. Default is 'RS256'
+   */
+  idTokenSigningAlg: string;
+
+  /**
+   * REQUIRED. The root URL for the token issuer with no trailing slash.
+   * Can use env key ISSUER_BASE_URL instead.
+   */
+  issuerBaseURL: string;
+
+  /**
+   * Set a fallback cookie with no SameSite attribute when response_mode is form_post.
+   * Default is true
+   */
+  legacySameSiteCookie: boolean;
+
+  /**
+   * Require authentication for all routes.
+   */
+  authRequired: boolean;
+
+  /**
+   * Boolean value to automatically install the login and logout routes.
+   */
+  routes: {
+    /**
+     * Relative path to application login.
+     */
+    login: string | false;
+
+    /**
+     * Relative path to application logout.
+     */
+    logout: string | false;
+
+    /**
+     * Either a relative path to the application or a valid URI to an external domain.
+     * This value must be registered on the authorization server.
+     * The user will be redirected to this after a logout has been performed.
+     */
+    postLogoutRedirect: string;
+
+    /**
+     * Relative path to the application callback to process the response from the authorization server.
+     */
+    callback: string;
+  };
+}
+
+/**
+ * Configuration parameters used for the application session.
+ *
+ * @category Server
+ */
+export interface SessionConfig {
+  /**
+   * String value for the cookie name used for the internal session.
+   * This value must only include letters, numbers, and underscores.
+   * Default is `appSession`.
+   */
+  name: string;
+
+  /**
+   * If you want your session duration to be rolling, eg reset everytime the
+   * user is active on your site, set this to a `true`. If you want the session
+   * duration to be absolute, where the user is logged out a fixed time after login,
+   * regardless of activity, set this to `false`
+   * Default is `true`.
+   */
+  rolling: boolean;
+
+  /**
+   * Integer value, in seconds, for application session rolling duration.
+   * The amount of time for which the user must be idle for then to be logged out.
+   * Default is 86400 seconds (1 day).
+   */
+  rollingDuration: number;
+
+  /**
+   * Integer value, in seconds, for application absolute rolling duration.
+   * The amount of time after the user has logged in that they will be logged out.
+   * Set this to `false` if you don't want an absolute duration on your session.
+   * Default is 604800 seconds (7 days).
+   */
+  absoluteDuration: boolean | number;
+
+  cookie: CookieConfig;
+}
+
+/**
+ * Configure how the session cookie and transient cookies are stored.
+ *
+ * @category Server
+ */
+export interface CookieConfig {
+  /**
+   * Domain name for the cookie.
+   * Passed to the [Response cookie](https://expressjs.com/en/api.html#res.cookie) as `domain`
+   */
+  domain?: string;
+
+  /**
+   * Path for the cookie.
+   * Passed to the [Response cookie](https://expressjs.com/en/api.html#res.cookie) as `path`
+   *
+   * This defaults to `/`
+   */
+  path?: string;
+
+  /**
+   * Set to true to use a transient cookie (cookie without an explicit expiration).
+   * Default is `false`
+   */
+  transient: boolean;
+
+  /**
+   * Flags the cookie to be accessible only by the web server.
+   * Passed to the [Response cookie](https://expressjs.com/en/api.html#res.cookie) as `httponly`.
+   * Defaults to `true`.
+   */
+  httpOnly: boolean;
+
+  /**
+   * Marks the cookie to be used over secure channels only.
+   * Passed to the [Response cookie](https://expressjs.com/en/api.html#res.cookie) as `secure`.
+   * Defaults to the protocol of {@link Config.baseURL}.
+   */
+  secure?: boolean;
+
+  /**
+   * Value of the SameSite Set-Cookie attribute.
+   * Passed to the [Response cookie](https://expressjs.com/en/api.html#res.cookie) as `samesite`.
+   * Defaults to "Lax" but will be adjusted based on {@link AuthorizationParameters.response_type}.
+   */
+  sameSite: boolean | 'lax' | 'strict' | 'none';
+}
+
+/**
+ * Authorization parameters that will be passed to the identity provider on login.
+ *
+ * The library uses `response_mode: 'query'` and `response_type: 'code'` (with PKCE) by default.
+ *
+ * @category Server
+ */
+export interface AuthorizationParameters extends OidcAuthorizationParameters {
+  scope: string;
+  response_mode: 'query' | 'form_post';
+  response_type: 'id_token' | 'code id_token' | 'code';
+}
+
+/**
+ * See {@link Config}
+ * @category Server
+ */
+export type ConfigParameters = DeepPartial<Config>;
+
+/**
+ * @ignore
+ */
 const FALSEY = ['n', 'no', 'false', '0', 'off'];
 
+/**
+ * @ignore
+ */
 const bool = (param?: any, defaultValue?: boolean): boolean | undefined => {
   if (param === undefined || param === '') return defaultValue;
   if (param && typeof param === 'string') return !FALSEY.includes(param.toLowerCase().trim());
   return !!param;
 };
 
+/**
+ * @ignore
+ */
 const num = (param?: string): number | undefined => (param === undefined || param === '' ? undefined : +param);
 
+/**
+ * @ignore
+ */
 export const getParams = (params?: ConfigParameters): ConfigParameters => {
   const {
     AUTH0_SECRET,

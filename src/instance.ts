@@ -3,6 +3,15 @@ import { WithApiAuthRequired, WithPageAuthRequired } from './helpers';
 import { HandleAuth, HandleCallback, HandleLogin, HandleLogout, HandleProfile } from './handlers';
 import { ConfigParameters } from './auth0-session';
 
+/**
+ * The SDK server instance.
+ *
+ * This is created for you when you use the named exports, or you can create your own using {@link InitAuth0}
+ *
+ * See {@link Config} fro more info.
+ *
+ * @category Server
+ */
 export interface SignInWithAuth0 {
   /**
    * Session getter
@@ -50,4 +59,11 @@ export interface SignInWithAuth0 {
   handleAuth: HandleAuth;
 }
 
+/**
+ * Initialise your own instance of the SDK.
+ *
+ * See {@link Config}
+ *
+ * @category Server
+ */
 export type InitAuth0 = (params?: ConfigParameters) => SignInWithAuth0;
