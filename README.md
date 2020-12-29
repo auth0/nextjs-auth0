@@ -98,9 +98,8 @@ export default () => {
         Welcome {user.name}! <a href="/api/auth/logout">Logout</a>
       </div>
     );
-  } else {
-    return <a href="/api/auth/login">Login</a>;
   }
+  return <a href="/api/auth/login">Login</a>;
 };
 ```
 
