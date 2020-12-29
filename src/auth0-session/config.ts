@@ -4,7 +4,7 @@ import { AuthorizationParameters as OidcAuthorizationParameters } from 'openid-c
 /**
  * Configuration properties.
  *
- * ```js
+ * ```.env
  * ISSUER_BASE_URL=https://YOUR_DOMAIN
  * CLIENT_ID=YOUR_CLIENT_ID
  * BASE_URL=https://YOUR_APPLICATION_ROOT_URL
@@ -290,7 +290,7 @@ export interface AuthorizationParameters extends OidcAuthorizationParameters {
   response_type: 'id_token' | 'code id_token' | 'code';
 }
 
-export type GetLoginState = (req: IncomingMessage, options: LoginOptions) => { [key: string]: any };
+export type GetLoginState = (req: any, options: LoginOptions) => { [key: string]: any };
 
 /**
  * Custom options to pass to login.

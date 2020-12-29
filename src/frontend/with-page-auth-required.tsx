@@ -10,6 +10,8 @@ const defaultOnRedirecting = (): JSX.Element => <></>;
 
 /**
  * Options for the withPageAuthRequired Higher Order Component
+ *
+ * @category Client
  */
 export interface WithPageAuthRequiredOptions {
   /**
@@ -50,12 +52,19 @@ export interface WithPageAuthRequiredOptions {
  *
  * When you wrap your pages in this Higher Order Component and an anonymous user visits your page
  * they will be redirected to the login page and then returned to the page they were redirected from (after login).
+ *
+ * @category Client
  */
-const withPageAuthRequired = <P extends object>(
+export type WithPageAuthRequired = <P extends object>(
   Component: ComponentType<P>,
-  options: WithPageAuthRequiredOptions = {}
-): React.FC<P> => {
-  return function withPageAuthRequired(props: P): JSX.Element {
+  options?: WithPageAuthRequiredOptions
+) => React.FC<P>;
+
+/**
+ * @ignore
+ */
+const withPageAuthRequired: WithPageAuthRequired = (Component, options = {}) => {
+  return function withPageAuthRequired(props): JSX.Element {
     const router = useRouter();
     const { returnTo = router.asPath, onRedirecting = defaultOnRedirecting, loginUrl = '/api/auth/login' } = options;
     const { user, loading } = useUser();

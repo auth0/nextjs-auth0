@@ -1,10 +1,66 @@
 import { NextApiResponse, NextApiRequest } from 'next';
-import { ClientFactory, Config, loginHandler, LoginOptions, TransientStore } from '../auth0-session';
+import { AuthorizationParameters, ClientFactory, Config, loginHandler, TransientStore } from '../auth0-session';
 import isSafeRedirect from '../utils/url-helpers';
 import { assertReqRes } from '../utils/assert';
 
+/**
+ * Use this to store additional state for the user before they visit the Identity Provider to login.
+ *
+ * ```js
+ * // pages/api/auth/[...auth0].js
+ * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
+ *
+ * const getLoginState = (req, loginOptions) => {
+ *   return { basket_id: getBasketId(req) }
+ * };
+ *
+ * export handleAuth({
+ *   async login(req, res) {
+ *     try {
+ *       await handleLogin(req, res, { getLoginState });
+ *     } catch (error) {
+ *       res.status(error.status || 500).end(error.message);
+ *     }
+ *   }
+ * });
+ * ```
+ *
+ * @category Server
+ */
+export type GetLoginState = (req: NextApiRequest, options: LoginOptions) => { [key: string]: any };
+
+/**
+ * Custom options to pass to login.
+ *
+ * @category Server
+ */
+export interface LoginOptions {
+  /**
+   * Override the default {@link Config.authorizationParams authorizationParams}
+   */
+  authorizationParams?: Partial<AuthorizationParameters>;
+
+  /**
+   *  URL to return to after login, overrides the Default is {@link Config.baseURL}
+   */
+  returnTo?: string;
+
+  /**
+   *  Generate a unique state value for use during login transactions.
+   */
+  getLoginState?: GetLoginState;
+}
+
+/**
+ * The handler for the `api/auth/login` route.
+ *
+ * @category Server
+ */
 export type HandleLogin = (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions) => Promise<void>;
 
+/**
+ * @ignore
+ */
 export default function handleLoginFactory(
   config: Config,
   getClient: ClientFactory,
