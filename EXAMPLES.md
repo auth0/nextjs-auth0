@@ -142,6 +142,9 @@ export default withPageAuthRequired(function Products() {
 });
 ```
 
+See a running example in the kitchen-sink example app, the [protected API route](./examples/kitchen-sink-example/pages/api/shows.ts) and
+the [frontend code to access the protected API](./examples/kitchen-sink-example/pages/shows.tsx).
+
 ## Protecting a Server Side Rendered (SSR) Page
 
 Requests to `/pages/profile` without a valid session cookie will be redirected to the login page.
@@ -157,6 +160,8 @@ export default function Profile({ user }) {
 export const getServerSideProps = withPageAuthRequired();
 ```
 
+See a running example of a [SSR protected page](./examples/kitchen-sink-example/pages/profile-ssr.tsx) in the kitchen-sink example app.
+
 ## Protecting a Client Side Rendered (CSR) Page
 
 Requests to `/pages/profile` without a valid session cookie will be redirected to the login page.
@@ -168,6 +173,8 @@ export default withPageAuthRequired(function Profile({ user }) {
   return <div>Hello {user.name}</div>;
 });
 ```
+
+See a running example of a [CSR protected page](./examples/kitchen-sink-example/pages/profile.tsx) in the kitchen-sink example app.
 
 ## Access an External API from an API Route
 
@@ -211,6 +218,8 @@ export default withApiAuthRequired(async function products(req, res) {
 });
 ```
 
+See a running example of the [API route acting as a proxy to an External API](./examples/kitchen-sink-example/pages/api/shows.ts) in the kitchen-sink example app.
+
 ## Access an External API from the front end
 
 In some instances you might to interact with a protected External API directly from the front end,
@@ -220,7 +229,7 @@ for example it might be a Web Socket API that can't be easily proxied through a 
 > using an encrypted `HttpOnly` cookie session. This example bypasses this security model by giving
 > the front end direct access to the Access Token, so adds a risk (similar to a SPA) that this could
 > be stolen via XSS - and therefore should be avoided if possible. If this is your main data fetching
-> model, you may find that a SPA and `auth0-react` is more suitable for your needs. See the Next.js
+> model, you may find that a SPA and `auth0-react` is more suitable for your needs. See the Next.js example
 > at https://github.com/auth0/auth0-react/blob/master/EXAMPLES.md#3-protecting-a-route-in-a-nextjs-app-in-spa-mode
 
 Create an API route that returns the Access Token as a JSON response.
