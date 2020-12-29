@@ -91,6 +91,7 @@ export default () => {
   const { user, isLoading } = useUser();
 
   if (isLoading) return <div>Loading...</div>;
+  
   if (user) {
     return (
       <div>
