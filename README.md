@@ -15,6 +15,7 @@ Auth0 SDK for signing in to your Next.js applications.
   - [Auth0 Configuration](#auth0-configuration)
   - [Basic Setup](#basic-setup)
 - [Documentation](#documentation)
+  - [Architecture](./ARCHITECTURE.md)
   - [API Reference](#api-reference)
   - [Cookies and Security](#cookies-and-security)
   - [Comparison with auth0-react](#comparison-with-auth0-react)
