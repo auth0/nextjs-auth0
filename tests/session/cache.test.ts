@@ -67,5 +67,6 @@ describe('SessionCache', () => {
     cache.set(req, res, new Session({ sub: '__new_user__' }));
     expect(cache.get(req, res)?.user).toEqual({ sub: '__new_user__' });
     expect(cookieStore.read).toHaveBeenCalledTimes(1);
+    expect(cookieStore.save).toHaveBeenCalledTimes(1);
   });
 });
