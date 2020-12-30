@@ -42,8 +42,6 @@ export default class SessionCache implements ISessionCache {
   getIdToken(req: NextApiOrPageRequest, res: NextApiOrPageResponse): string | undefined {
     this.init(req, res);
     const session = this.cache.get(req);
-    // TODO: sessionCache tests
-    /* istanbul ignore next */
     return session?.idToken;
   }
 

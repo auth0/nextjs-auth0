@@ -90,7 +90,6 @@ describe('callback handler', () => {
   });
 
   test('should allow id_tokens to be set in the future', async () => {
-    // TODO: see if you can make this fail on master
     const baseUrl = await setup(withoutApi, {
       idTokenClaims: {
         iat: Math.floor(new Date(new Date().getTime() + 10 * 1000).getTime() / 1000)
