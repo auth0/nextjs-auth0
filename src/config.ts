@@ -100,44 +100,25 @@ export interface Config {
    *
    * ```js
    * {
-   *   response_type: 'id_token',
-   *   response_mode: 'form_post,
-   *   scope: openid profile email'
+   *   response_type: 'code',
+   *   scope: 'openid profile email'
    * }
    * ```
    *
    * New values can be passed in to change what is returned from the authorization server
    * depending on your specific scenario.
    *
-   * For example, to receive an access token for an API, you could initialize like the sample below.
-   * Note that `response_mode` can be omitted because the OAuth2 default mode of `query` is fine:
-   *
-   * ```js
-   * app.use(
-   *   auth({
-   *     authorizationParams: {
-   *       response_type: 'code',
-   *       scope: 'openid profile email read:reports',
-   *       audience: 'https://your-api-identifier',
-   *     },
-   *   })
-   * );
-   * ```
-   *
    * Additional custom parameters can be added as well:
    *
    * ```js
-   * app.use(auth({
-   *   authorizationParams: {
-   *     // Note: you need to provide required parameters if this object is set.
-   *     response_type: "id_token",
-   *     response_mode: "form_post",
-   *     scope: "openid profile email"
-   *    // Additional parameters
-   *    acr_value: "tenant:test-tenant",
-   *    custom_param: "custom-value"
-   *   }
-   * }));
+   * {
+   *   // Note: you need to provide required parameters if this object is set.
+   *   response_type: 'code',
+   *   scope: 'openid profile email'
+   *  // Additional parameters
+   *  acr_value: "tenant:test-tenant",
+   *  custom_param: "custom-value"
+   * };
    * ```
    */
   authorizationParams: AuthorizationParameters;
@@ -145,6 +126,8 @@ export interface Config {
   /**
    * The root URL for the application router, eg https://localhost
    * Can use env key BASE_URL instead.
+   * If you provide a domain, we will prefix it with `https://` - This can be useful when assigning it to
+   * `VERCEL_URL` for preview deploys
    */
   baseURL: string;
 
@@ -174,27 +157,22 @@ export interface Config {
   enableTelemetry: boolean;
 
   /**
-   * Throw a 401 error instead of triggering the login process for routes that require authentication.
-   * Default is `false`
+   * @ignore
    */
   errorOnRequiredAuth: boolean;
 
   /**
-   * Attempt silent login (`prompt: 'none'`) on the first unauthenticated route the user visits.
-   * For protected routes this can be useful if your Identity Provider does not default to
-   * `prompt: 'none'` and you'd like to attempt this before requiring the user to interact with a login prompt.
-   * For unprotected routes this can be useful if you want to check the user's logged in state on their IDP, to
-   * show them a login/logout button for example.
-   * Default is `false`
+   * @ignore
    */
   attemptSilentLogin: boolean;
 
   /**
    * Function that returns an object with URL-safe state values for `res.oidc.login()`.
    * Used for passing custom state parameters to your authorization server.
+   * Can also be passed in to {@link HandleLogin}
    *
    * ```js
-   * app.use(auth({
+   * {
    *   ...
    *   getLoginState(req, options) {
    *     return {
@@ -202,7 +180,7 @@ export interface Config {
    *       customState: 'foo'
    *     };
    *   }
-   * }))
+   * }
    * ``
    */
   getLoginState: (req: IncomingMessage, options: LoginOptions) => Record<string, any>;
@@ -214,7 +192,7 @@ export interface Config {
   identityClaimFilter: string[];
 
   /**
-   * Boolean value to log the user out from the identity provider on application logout. Default is `false`
+   * Boolean value to log the user out from the identity provider on application logout. Default is `true`
    */
   idpLogout: boolean;
 
@@ -225,6 +203,7 @@ export interface Config {
 
   /**
    * REQUIRED. The root URL for the token issuer with no trailing slash.
+   * This is `https://` plus your Auth0 domain
    * Can use env key ISSUER_BASE_URL instead.
    */
   issuerBaseURL: string;
@@ -236,7 +215,7 @@ export interface Config {
   legacySameSiteCookie: boolean;
 
   /**
-   * Require authentication for all routes.
+   * @ignore
    */
   authRequired: boolean;
 
@@ -245,12 +224,12 @@ export interface Config {
    */
   routes: {
     /**
-     * Relative path to application login.
+     * @ignore
      */
     login: string | false;
 
     /**
-     * Relative path to application logout.
+     * @ignore
      */
     logout: string | false;
 
@@ -316,13 +295,11 @@ export interface SessionConfig {
 export interface CookieConfig {
   /**
    * Domain name for the cookie.
-   * Passed to the [Response cookie](https://expressjs.com/en/api.html#res.cookie) as `domain`
    */
   domain?: string;
 
   /**
    * Path for the cookie.
-   * Passed to the [Response cookie](https://expressjs.com/en/api.html#res.cookie) as `path`
    *
    * This defaults to `/`
    */
@@ -336,21 +313,18 @@ export interface CookieConfig {
 
   /**
    * Flags the cookie to be accessible only by the web server.
-   * Passed to the [Response cookie](https://expressjs.com/en/api.html#res.cookie) as `httponly`.
    * Defaults to `true`.
    */
   httpOnly: boolean;
 
   /**
    * Marks the cookie to be used over secure channels only.
-   * Passed to the [Response cookie](https://expressjs.com/en/api.html#res.cookie) as `secure`.
    * Defaults to the protocol of {@link Config.baseURL}.
    */
   secure?: boolean;
 
   /**
    * Value of the SameSite Set-Cookie attribute.
-   * Passed to the [Response cookie](https://expressjs.com/en/api.html#res.cookie) as `samesite`.
    * Defaults to "Lax" but will be adjusted based on {@link AuthorizationParameters.response_type}.
    */
   sameSite: boolean | 'lax' | 'strict' | 'none';
