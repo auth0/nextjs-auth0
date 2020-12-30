@@ -94,7 +94,7 @@
     "timekeeper": "^2.2.0",
     "tough-cookie": "^4.0.0",
     "ts-jest": "^26.4.4",
-    "typedoc": "^0.19.2",
+    "typedoc": "^0.20.1",
     "typescript": "^3.8.3"
   },
   "dependencies": {
