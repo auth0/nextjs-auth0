@@ -133,7 +133,7 @@ Generated [API Docs](https://auth0.github.io/nextjs-auth0/)
 
 ### Cookies and Security
 
-All cookies will be set as `HttpOnly, SameSite=Lax` and will be forced to HTTPS (`Secure`) if the application's `AUTH0_BASE_URL` is `https`
+All cookies will be set as `HttpOnly, SameSite=Lax` and will be forced to HTTPS (`Secure`) if the application's `AUTH0_BASE_URL` is `https`.
 
 The `HttpOnly` setting will make sure that client-side javascript is unable to access the cookie to reduce the attack surface of XSS attacks while `SameSite=Lax` will help mitigate CSRF attacks. Read more about SameSite [here](https://auth0.com/blog/browser-behavior-changes-what-developers-need-to-know/).
 
