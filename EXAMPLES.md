@@ -10,7 +10,7 @@
 - [Access an External API from the front end](#access-an-external-api-from-the-front-end)
 - [Create your own instance of the SDK](#create-your-own-instance-of-the-sdk)
 
-All examples cab be seen running in the [Kitchen Sink example app](./examples/kitchen-sink-example)
+All examples can be seen running in the [Kitchen Sink example app](./examples/kitchen-sink-example)
 
 ## Basic Setup
 
@@ -44,6 +44,7 @@ export default () => {
   const { user, isLoading } = useUser();
 
   if (isLoading) return <div>Loading...</div>;
+  
   if (user) {
     return (
       <div>
@@ -55,7 +56,7 @@ export default () => {
 };
 ```
 
-Have a look at the `basic-example` app [./examples/basic-example](./examples/basic-example)
+Have a look at the `basic-example` app [./examples/basic-example](./examples/basic-example).
 
 ## Customise handlers behaviour
 
@@ -65,6 +66,7 @@ Pass custom parameters to the auth handlers or add your own logging and error ha
 // /pages/api/auth/[...auth0].js
 import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
 import { myCustomLogger, myCustomErrorReporter } from '../utils';
+
 export default handleAuth({
   async login(req, res) {
     try {
@@ -90,11 +92,12 @@ export default handleAuth({
 
 Instead of (or in addition to) creating `/pages/api/auth/[...auth0].js` to handle all requests, you can create them individually at different urls.
 
-eg for login:
+Eg for login:
 
 ```javascript
 // api/custom-login.js
 import { handleLogin } from '@auth0/nextjs-auth0';
+
 export default async function login(req, res) {
   try {
     await handleLogin(req, res);
@@ -118,6 +121,7 @@ Requests to `/pages/api/protected` without a valid session cookie will fail with
 ```javascript
 // pages/api/protected.js
 import { withApiAuthRequired } from '@auth0/nextjs-auth0';
+
 export default withApiAuthRequired(async function myApiRoute(req, res) {
   res.json({ protected });
 });
@@ -129,10 +133,12 @@ Then you can access your API from the frontend with a valid session cookie.
 // pages/products
 import useSWR from 'swr';
 import { withPageAuthRequired } from '@auth0/nextjs-auth0';
+
 const fetcher = async (uri) => {
   const response = await fetch(uri);
   return response.json();
 };
+
 export default withPageAuthRequired(function Products() {
   const { data, error } = useSWR('/api/protected', fetcher);
   if (error) return <div>oops... {error.message}</div>;
@@ -151,9 +157,11 @@ Requests to `/pages/profile` without a valid session cookie will be redirected t
 ```javascript
 // pages/profile.js
 import { withPageAuthRequired } from '@auth0/nextjs-auth0';
+
 export default function Profile({ user }) {
   return <div>Hello {user.name}</div>;
 }
+
 // You can optionally pass your own `getServerSideProps` function into
 // `withPageAuthRequired` and the props will be merged with the `user` prop
 export const getServerSideProps = withPageAuthRequired();
@@ -168,6 +176,7 @@ Requests to `/pages/profile` without a valid session cookie will be redirected t
 ```javascript
 // pages/profile.js
 import { withPageAuthRequired } from '@auth0/nextjs-auth0';
+
 export default withPageAuthRequired(function Profile({ user }) {
   return <div>Hello {user.name}</div>;
 });
@@ -177,11 +186,12 @@ See a running example of a [CSR protected page](./examples/kitchen-sink-example/
 
 ## Access an External API from an API Route
 
-Get an Access Token by specifying `response_type: 'code'` and providing your API's audience and scopes
+Get an Access Token by specifying `response_type: 'code'` and providing your API's audience and scopes.
 
 ```javascript
 // /pages/api/auth/[...auth0].js
 import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
+
 export default handleAuth({
   async login(req, res) {
     try {
@@ -203,6 +213,7 @@ The API route serves as a proxy between your front end and the external API.
 ```javascript
 // /pages/api/products.js
 import { getAccessToken, withApiAuthRequired } from '@auth0/nextjs-auth0';
+
 export default withApiAuthRequired(async function products(req, res) {
   const { accessToken } = await getAccessToken(req, res, {
     scopes: ['read:products']
@@ -221,7 +232,7 @@ See a running example of the [API route acting as a proxy to an External API](./
 
 ## Access an External API from the front end
 
-In some instances you might to interact with a protected External API directly from the front end,
+In some instances you might want to interact with a protected External API directly from the front end,
 for example it might be a Web Socket API that can't be easily proxied through a Next API Route.
 
 > _Note_ the security model of `nextjs-auth0` is that the tokens are witheld from the front end
@@ -236,6 +247,7 @@ Create an API route that returns the Access Token as a JSON response.
 ```javascript
 // pages/api/token.js
 import { getAccessToken, withApiAuthRequired } from '@auth0/nextjs-auth0';
+
 export default withApiAuthRequired(async function token(req, res) {
   const { accessToken } = await getAccessToken(req, res, {
     scopes: ['read:products']
@@ -250,6 +262,7 @@ Fetch the Access Token in the front end and use it to access an External API dir
 // pages/products
 import useSWR from 'swr';
 import { withPageAuthRequired } from '@auth0/nextjs-auth0';
+
 const fetcher = async (uri) => {
   const atResponse = await fetch('/api/token');
   const { accessToken } = await atResponse.json();
@@ -258,6 +271,7 @@ const fetcher = async (uri) => {
   });
   return response.json();
 };
+
 export default withPageAuthRequired(function Products() {
   const { data, error } = useSWR('https://api.example.com/products', fetcher);
   if (error) return <div>oops... {error.message}</div>;
@@ -274,7 +288,7 @@ export default withPageAuthRequired(function Products() {
 
 ## Create your own instance of the SDK
 
-When you use the named exports, the SDK creates an instance of the SDK for you and configures it with the provided environmental variables, eg.
+When you use the named exports, the SDK creates an instance of the SDK for you and configures it with the provided environmental variables, eg:
 
 ```js
 // These named exports create and manage their own instance of the SDK configured with
@@ -323,7 +337,7 @@ export default auth0.handleAuth();
 ```
 
 > Note: You should not use the instance methods in combination with the named exports,
-> otherwise you will be creating multiple instances of the sdk, eg
+> otherwise you will be creating multiple instances of the sdk, eg:
 
 ```js
 // DON'T Mix instance methods and named exports
