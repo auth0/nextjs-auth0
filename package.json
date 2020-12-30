@@ -1,6 +1,6 @@
 {
   "name": "@auth0/nextjs-auth0",
-  "version": "0.16.0",
+  "version": "1.0.0-beta.0",
   "description": "Next.js SDK for signing in with Auth0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -8,6 +8,10 @@
   "directories": {
     "test": "tests"
   },
+  "files": [
+    "dist",
+    "src"
+  ],
   "engines": {
     "node": "^10.13.0 || >=12.0.0"
   },

@@ -75,9 +75,9 @@ const User = createContext<UserContext>({ loading: false });
  * import { useUser } from '@auth0/nextjs-auth0`;
  *
  * export default function Profile() {
- *   const { isLoading, user } = useUser();
+ *   const { loading, user } = useUser();
  *
- *   if (isLoading) return <div>Loading...</div>;
+ *   if (loading) return <div>Loading...</div>;
  *   if (!user) return <Link href="/api/auth/login"><a>Login</a></Link>;
  *   return <div>Hello {user.name}, <Link href="/api/auth/logout"><a>Logout</a></Link></div>;
  * }

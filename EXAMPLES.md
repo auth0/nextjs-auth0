@@ -34,6 +34,26 @@ export default handleAuth();
 
 This will create the following urls: `/api/auth/login`, `/api/auth/callback`, `/api/auth/logout` and `/api/auth/me`.
 
+Wrap your `pages/_app.jsx` component in the `UserProvider` component.
+
+```jsx
+// pages/_app.jsx
+import React from 'react';
+import { UserProvider } from '@auth0/nextjs-auth0';
+
+export default function App({ Component, pageProps }) {
+  // You can optionally pass the `user` prop from pages that require server side
+  // rendering to prepopulate the `useUser` hook.
+  const { user } = pageProps;
+
+  return (
+    <UserProvider user={user}>
+      <Component {...pageProps} />
+    </UserProvider>
+  );
+}
+```
+
 Check the user's authentication state and log them in or out from the front end using the `useUser` hook.
 
 ```jsx
@@ -41,10 +61,10 @@ Check the user's authentication state and log them in or out from the front end 
 import { useUser } from '@auth0/nextjs-auth0';
 
 export default () => {
-  const { user, isLoading } = useUser();
+  const { user, loading } = useUser();
 
-  if (isLoading) return <div>Loading...</div>;
-  
+  if (loading) return <div>Loading...</div>;
+
   if (user) {
     return (
       <div>
