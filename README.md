@@ -103,7 +103,7 @@ export default () => {
 };
 ```
 
-For more extensive examples see [EXAMPLES.md](./EXAMPLES.md)
+For more extensive examples see [EXAMPLES.md](./EXAMPLES.md).
 
 ## Documentation
 
