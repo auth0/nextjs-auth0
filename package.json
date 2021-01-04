@@ -21,6 +21,8 @@
     "lint": "eslint --fix --ext .ts ./src",
     "build": "tsc -p tsconfig.build.json",
     "build:test": "next build tests/fixtures/test-app",
+    "build:kitchen-sync": "npm run build --prefix=examples/kitchen-sync-example",
+    "build:examples": "npm run build:kitchen-sync",
     "test": "jest tests --coverage --maxWorkers=10",
     "test:watch": "jest --coverage --watch",
     "prepublishOnly": "npm test && npm run lint",
@@ -33,7 +35,8 @@
     "test:kitchen-sink:watch": "start-server-and-test start:kitchen-sink 3000 cypress:open",
     "test:integration": "npm run test:kitchen-sink",
     "cypress:run": "cypress run",
-    "cypress:open": "cypress open"
+    "cypress:open": "cypress open",
+    "build:vercel": "npm run install:examples && npm run build && npm run build:examples"
   },
   "repository": {
     "type": "git",
