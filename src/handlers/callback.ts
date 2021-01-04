@@ -23,7 +23,7 @@ import { assertReqRes } from '../utils/assert';
  * export handleAuth({
  *   async callback(req, res) {
  *     try {
- *       await handleLogin(req, res, { afterCallback });
+ *       await handleCallback(req, res, { afterCallback });
  *     } catch (error) {
  *       res.status(error.status || 500).end(error.message);
  *     }
@@ -46,7 +46,7 @@ import { assertReqRes } from '../utils/assert';
  * export handleAuth({
  *   async callback(req, res) {
  *     try {
- *       await handleLogin(req, res, { afterCallback });
+ *       await handleCallback(req, res, { afterCallback });
  *     } catch (error) {
  *       res.status(error.status || 500).end(error.message);
  *     }
