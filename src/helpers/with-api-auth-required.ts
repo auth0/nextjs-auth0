@@ -8,7 +8,7 @@ import { assertReqRes } from '../utils/assert';
  *
  * ```js
  * // pages/api/protected-route.js
- * import { withApiAuthRequired, getSession } from '@auth0/nextjs-auth0'
+ * import { withApiAuthRequired, getSession } from '@auth0/nextjs-auth0';
  *
  * export default withApiAuthRequired(function ProtectedRoute(req, res) {
  *   const session = getSession(req, res);
@@ -16,7 +16,7 @@ import { assertReqRes } from '../utils/assert';
  * });
  * ```
  *
- * If you visit `/api/protected-route` with out a valid session cookie, you will get a 401 response.
+ * If you visit `/api/protected-route` without a valid session cookie, you will get a 401 response.
  *
  * @category Server
  */

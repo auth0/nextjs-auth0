@@ -10,7 +10,7 @@
 - [Access an External API from the front end](#access-an-external-api-from-the-front-end)
 - [Create your own instance of the SDK](#create-your-own-instance-of-the-sdk)
 
-All examples can be seen running in the [Kitchen Sink example app](./examples/kitchen-sink-example)
+All examples can be seen running in the [Kitchen Sink example app](./examples/kitchen-sink-example).
 
 ## Basic Setup
 
@@ -24,7 +24,7 @@ AUTH0_CLIENT_ID=CLIENT_ID
 AUTH0_CLIENT_SECRET=CLIENT_SECRET
 ```
 
-Create a [Dynamic API Route handler](https://nextjs.org/docs/api-routes/dynamic-api-routes) at `/pages/api/auth/[...auth0].js`
+Create a [Dynamic API Route handler](https://nextjs.org/docs/api-routes/dynamic-api-routes) at `/pages/api/auth/[...auth0].js`.
 
 ```javascript
 import { handleAuth } from '@auth0/nextjs-auth0';

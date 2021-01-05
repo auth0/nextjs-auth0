@@ -50,15 +50,13 @@ export interface Config {
    * Note that `response_mode` can be omitted because the OAuth2 default mode of `query` is fine:
    *
    * ```js
-   * app.use(
-   *   auth({
-   *     authorizationParams: {
-   *       response_type: 'code',
-   *       scope: 'openid profile email read:reports',
-   *       audience: 'https://your-api-identifier',
-   *     },
-   *   })
-   * );
+   * app.use(auth({
+   *   authorizationParams: {
+   *     response_type: 'code',
+   *     scope: 'openid profile email read:reports',
+   *     audience: 'https://your-api-identifier'
+   *   }
+   * }));
    * ```
    *
    * Additional custom parameters can be added as well:
@@ -69,10 +67,10 @@ export interface Config {
    *     // Note: you need to provide required parameters if this object is set.
    *     response_type: "id_token",
    *     response_mode: "form_post",
-   *     scope: "openid profile email"
-   *    // Additional parameters
-   *    acr_value: "tenant:test-tenant",
-   *    custom_param: "custom-value"
+   *     scope: "openid profile email",
+   *     // Additional parameters
+   *     acr_value: "tenant:test-tenant",
+   *     custom_param: "custom-value"
    *   }
    * }));
    * ```
@@ -139,7 +137,7 @@ export interface Config {
    *       customState: 'foo'
    *     };
    *   }
-   * }))
+   * }));
    * ``
    */
   getLoginState: (req: IncomingMessage, options: LoginOptions) => Record<string, any>;
