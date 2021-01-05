@@ -16,6 +16,7 @@ Auth0 SDK for signing in to your Next.js applications.
   - [Basic Setup](#basic-setup)
 - [Documentation](#documentation)
   - [Architecture](./ARCHITECTURE.md)
+  - [v1 Migration Guide](./V1_MIGRATION_GUIDE.md)
   - [API Reference](#api-reference)
   - [Cookies and Security](#cookies-and-security)
   - [Comparison with auth0-react](#comparison-with-auth0-react)
@@ -23,7 +24,7 @@ Auth0 SDK for signing in to your Next.js applications.
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
 - [Vulnerability Reporting](#vulnerability-reporting)
-- [What is Auth0?](#what-is-auth0-)
+- [What is Auth0?](#what-is-auth0)
 - [License](#license)
 
 ## Installation
@@ -56,7 +57,7 @@ Take note of the **Client ID**, **Client Secret** and **Domain** of your applica
 
 The library needs the following required configuration keys. These can be configured in a `.env.local` file in the root of your application (See more info about [loading environmental variables in Next.js](https://nextjs.org/docs/basic-features/environment-variables)):
 
-```dotenv
+```sh
 # A long secret value used to encrypt the session cookie
 AUTH0_SECRET=LONG_RANDOM_VALUE
 # The url of your auth0 tenant domain
