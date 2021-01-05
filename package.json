@@ -17,7 +17,7 @@
   },
   "scripts": {
     "clean": "rimraf dist",
-    "pretty": "prettier --write \"src/**/*.ts\" \"src/*.ts\"",
+    "pretty": "prettier --write \"src/**/*.{ts,tsx}\" \"src/*.ts\"",
     "lint": "eslint --fix --ext .ts ./src",
     "build": "tsc -p tsconfig.build.json",
     "build:test": "next build tests/fixtures/test-app",
