@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useUser } from '@auth0/nextjs-auth0';
 
 const Header: React.FunctionComponent = () => {
-  const { user, loading } = useUser();
+  const { user, isLoading } = useUser();
 
   return (
     <header>
@@ -24,7 +24,7 @@ const Header: React.FunctionComponent = () => {
               <a>TV Shows</a>
             </Link>
           </li>
-          {!loading &&
+          {!isLoading &&
             (user ? (
               <>
                 <li>

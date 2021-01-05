@@ -4,15 +4,15 @@ import { useUser } from '@auth0/nextjs-auth0';
 import Layout from '../components/layout';
 
 export default function Home() {
-  const { user, loading } = useUser();
+  const { user, isLoading } = useUser();
 
   return (
     <Layout>
       <h1>Next.js and Auth0 Example</h1>
 
-      {loading && <p>Loading login info...</p>}
+      {isLoading && <p>Loading login info...</p>}
 
-      {!loading && !user && (
+      {!isLoading && !user && (
         <>
           <p>
             To test the login click in <i>Login</i>
