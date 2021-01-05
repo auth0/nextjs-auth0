@@ -151,4 +151,14 @@ describe('config params', () => {
       }
     });
   });
+
+  test('should allow hostnames as baseURL', () => {
+    expect(
+      getParamsWithEnv({
+        AUTH0_BASE_URL: 'foo.auth0.com'
+      })
+    ).toMatchObject({
+      baseURL: 'https://foo.auth0.com'
+    });
+  });
 });
