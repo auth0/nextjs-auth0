@@ -97,10 +97,10 @@ export default function App({ Component, pageProps }) {
 }
 ```
 
-Check the user's authentication state and log them in or out from the front end.
+Check whether a user is authenticated by checking that `user` has a value, and log them in or out from the front end by redirecting to the appropriate automatically-generated route.
 
-```jsx
-// pages/index.jsx
+```js
+// pages/index.js
 import { useUser } from '@auth0/nextjs-auth0';
 
 export default () => {
@@ -115,6 +115,7 @@ export default () => {
       </div>
     );
   }
+
   return <a href="/api/auth/login">Login</a>;
 };
 ```
