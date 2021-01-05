@@ -67,15 +67,15 @@ const withPageAuthRequired: WithPageAuthRequired = (Component, options = {}) => 
   return function withPageAuthRequired(props): JSX.Element {
     const router = useRouter();
     const { returnTo = router.asPath, onRedirecting = defaultOnRedirecting, loginUrl = '/api/auth/login' } = options;
-    const { user, loading } = useUser();
+    const { user, isLoading } = useUser();
 
     useEffect(() => {
-      if (user || loading) return;
+      if (user || isLoading) return;
 
       (async (): Promise<void> => {
         await router.push(`${loginUrl}?returnTo=${returnTo}`);
       })();
-    }, [user, loading, router, loginUrl, returnTo]);
+    }, [user, isLoading, router, loginUrl, returnTo]);
 
     return user ? <Component {...props} /> : onRedirecting();
   };

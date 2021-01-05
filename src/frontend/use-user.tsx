@@ -23,7 +23,7 @@ export interface UserProfile {
  */
 export interface UserContext {
   user?: UserProfile;
-  loading: boolean;
+  isLoading: boolean;
 }
 
 /**
@@ -63,7 +63,7 @@ type UserProviderProps = React.PropsWithChildren<{ user?: UserProfile; profileUr
 /**
  * @ignore
  */
-const User = createContext<UserContext>({ loading: false });
+const User = createContext<UserContext>({ isLoading: false });
 
 /**
  * The `useUser` hook, which will get you the {@link UserProfile} object from the server side session by requesting it
@@ -75,9 +75,9 @@ const User = createContext<UserContext>({ loading: false });
  * import { useUser } from '@auth0/nextjs-auth0`;
  *
  * export default function Profile() {
- *   const { loading, user } = useUser();
+ *   const { user, isLoading } = useUser();
  *
- *   if (loading) return <div>Loading...</div>;
+ *   if (isLoading) return <div>Loading...</div>;
  *   if (!user) return <Link href="/api/auth/login"><a>Login</a></Link>;
  *   return <div>Hello {user.name}, <Link href="/api/auth/logout"><a>Logout</a></Link></div>;
  * }
@@ -105,7 +105,7 @@ export default ({
   profileUrl = '/api/auth/me'
 }: UserProviderProps): ReactElement<UserContext> => {
   const [user, setUser] = useState<UserProfile | undefined>(() => initialUser);
-  const [loading, setLoading] = useState<boolean>(() => !initialUser);
+  const [isLoading, setIsLoading] = useState<boolean>(() => !initialUser);
 
   useEffect((): void => {
     if (user) return;
@@ -115,9 +115,9 @@ export default ({
       const result = response.ok ? await response.json() : undefined;
 
       setUser(result);
-      setLoading(false);
+      setIsLoading(false);
     })();
   }, [user]);
 
-  return <User.Provider value={{ user, loading }}>{children}</User.Provider>;
+  return <User.Provider value={{ user, isLoading }}>{children}</User.Provider>;
 };

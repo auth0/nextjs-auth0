@@ -104,9 +104,9 @@ Check whether a user is authenticated by checking that `user` has a value, and l
 import { useUser } from '@auth0/nextjs-auth0';
 
 export default () => {
-  const { user, loading } = useUser();
+  const { user, isLoading } = useUser();
 
-  if (loading) return <div>Loading...</div>;
+  if (isLoading) return <div>Loading...</div>;
 
   if (user) {
     return (
