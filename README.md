@@ -47,7 +47,7 @@ Create a **Regular Web Application** in the [Auth0 Dashboard](https://manage.aut
 
 Go ahead and configure the URLs for your application:
 
-- **Allowed Callback URLs**: http://localhost:3000/api/callback
+- **Allowed Callback URLs**: http://localhost:3000/api/auth/callback
 - **Allowed Logout URLs**: http://localhost:3000/
 
 Take note of the **Client ID**, **Client Secret** and **Domain** of your application because you'll need it in the next step.
