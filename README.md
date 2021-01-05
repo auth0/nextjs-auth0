@@ -47,7 +47,7 @@ Create a **Regular Web Application** in the [Auth0 Dashboard](https://manage.aut
 
 Go ahead and configure the URLs for your application:
 
-- **Allowed Callback URLs**: http://localhost:3000/api/callback
+- **Allowed Callback URLs**: http://localhost:3000/api/auth/callback
 - **Allowed Logout URLs**: http://localhost:3000/
 
 Take note of the **Client ID**, **Client Secret** and **Domain** of your application because you'll need it in the next step.
@@ -81,30 +81,26 @@ export default handleAuth();
 
 This will create the following urls: `/api/auth/login`, `/api/auth/callback`, `/api/auth/logout` and `/api/auth/me`.
 
-Wrap your `pages/_app.jsx` component in the `UserProvider` component.
+Wrap your `pages/_app.js` component in the `UserProvider` component.
 
-```jsx
-// pages/_app.jsx
+```js
+// pages/_app.js
 import React from 'react';
 import { UserProvider } from '@auth0/nextjs-auth0';
 
 export default function App({ Component, pageProps }) {
-  // You can optionally pass the `user` prop from pages that require server side
-  // rendering to prepopulate the `useUser` hook.
-  const { user } = pageProps;
-
   return (
-    <UserProvider user={user}>
+    <UserProvider>
       <Component {...pageProps} />
     </UserProvider>
   );
 }
 ```
 
-Check the user's authentication state and log them in or out from the front end.
+Check whether a user is authenticated by checking that `user` has a value, and log them in or out from the front end by redirecting to the appropriate automatically-generated route.
 
-```jsx
-// pages/index.jsx
+```js
+// pages/index.js
 import { useUser } from '@auth0/nextjs-auth0';
 
 export default () => {
@@ -119,6 +115,7 @@ export default () => {
       </div>
     );
   }
+
   return <a href="/api/auth/login">Login</a>;
 };
 ```

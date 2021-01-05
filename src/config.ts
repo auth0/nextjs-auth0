@@ -57,14 +57,20 @@ import { LoginOptions, DeepPartial } from './auth0-session';
  * ### 2. Create your own instance using {@link InitAuth0}
  *
  * If you don't want to configure the SDK with environment variables or you want more fine grained control over the
- * instance, you can create an instance yourself and use the handlers and helpers from that, eg:
+ * instance, you can create an instance yourself and use the handlers and helpers from that.
+ *
+ * First, export your configured instance from another module:
  *
  * ```js
  * // utils/auth0.js
  * import { initAuth0 } from '@auth0/nextjs-auth0';
  *
  * export default initAuth0({ ...ConfigParameters... });
+ * ```
  *
+ * Then import it into your route handler:
+ *
+ * ```js
  * // pages/api/auth/[...auth0].js
  * import auth0 from '../../../../utils/auth0';
  *
@@ -108,15 +114,15 @@ export interface Config {
    * ```
    *
    * New values can be passed in to change what is returned from the authorization server
-   * depending on your specific scenario.
+   * depending on your specific scenario. Additional custom parameters can be added as well.
    *
-   * Additional custom parameters can be added as well:
+   * **Note:** You must provide the required parameters if this object is set.
    *
    * ```js
    * {
-   *   // Note: you need to provide required parameters if this object is set.
    *   response_type: 'code',
    *   scope: 'openid profile email',
+   *
    *   // Additional parameters
    *   acr_value: "tenant:test-tenant",
    *   custom_param: "custom-value"
