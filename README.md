@@ -81,20 +81,16 @@ export default handleAuth();
 
 This will create the following urls: `/api/auth/login`, `/api/auth/callback`, `/api/auth/logout` and `/api/auth/me`.
 
-Wrap your `pages/_app.jsx` component in the `UserProvider` component.
+Wrap your `pages/_app.js` component in the `UserProvider` component.
 
-```jsx
-// pages/_app.jsx
+```js
+// pages/_app.js
 import React from 'react';
 import { UserProvider } from '@auth0/nextjs-auth0';
 
 export default function App({ Component, pageProps }) {
-  // You can optionally pass the `user` prop from pages that require server side
-  // rendering to prepopulate the `useUser` hook.
-  const { user } = pageProps;
-
   return (
-    <UserProvider user={user}>
+    <UserProvider>
       <Component {...pageProps} />
     </UserProvider>
   );
