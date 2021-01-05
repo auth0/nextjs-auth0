@@ -164,4 +164,14 @@ describe('config params', () => {
       baseURL: 'https://foo.auth0.com'
     });
   });
+
+  test('should accept optional callback path', () => {
+    expect(
+      getParamsWithEnv({
+        AUTH0_CALLBACK: '/api/custom-callback'
+      })
+    ).toMatchObject({
+      routes: expect.objectContaining({ callback: '/api/custom-callback' })
+    });
+  });
 });
