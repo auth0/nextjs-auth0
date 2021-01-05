@@ -34,6 +34,7 @@ import { LoginOptions, DeepPartial } from './auth0-session';
  * ### Optional
  *
  * - `AUTH0_CLOCK_TOLERANCE`: See {@link clockTolerance}
+ * - `AUTH0_HTTP_TIMEOUT`: See {@link httpTimeout}
  * - `AUTH0_ENABLE_TELEMETRY`: See {@link enableTelemetry}
  * - `AUTH0_IDP_LOGOUT`: See {@link idpLogout}
  * - `AUTH0_ID_TOKEN_SIGNING_ALG`: See {@link idTokenSigningAlg}
@@ -149,6 +150,12 @@ export interface Config {
    * Default is 60
    */
   clockTolerance: number;
+
+  /**
+   * Integer value for the http timeout in ms for authentication requests.
+   * Default is 5000
+   */
+  httpTimeout: number;
 
   /**
    * To opt-out of sending the library and node version to your authorization server
@@ -379,6 +386,7 @@ export const getParams = (params?: ConfigParameters): ConfigParameters => {
     AUTH0_CLIENT_ID,
     AUTH0_CLIENT_SECRET,
     AUTH0_CLOCK_TOLERANCE,
+    AUTH0_HTTP_TIMEOUT,
     AUTH0_ENABLE_TELEMETRY,
     AUTH0_IDP_LOGOUT,
     AUTH0_ID_TOKEN_SIGNING_ALG,
@@ -408,6 +416,7 @@ export const getParams = (params?: ConfigParameters): ConfigParameters => {
     clientID: AUTH0_CLIENT_ID,
     clientSecret: AUTH0_CLIENT_SECRET,
     clockTolerance: num(AUTH0_CLOCK_TOLERANCE),
+    httpTimeout: num(AUTH0_HTTP_TIMEOUT),
     enableTelemetry: bool(AUTH0_ENABLE_TELEMETRY),
     idpLogout: bool(AUTH0_IDP_LOGOUT, true),
     auth0Logout: bool(AUTH0_IDP_LOGOUT, true),

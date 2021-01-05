@@ -103,6 +103,12 @@ export interface Config {
   clockTolerance: number;
 
   /**
+   * Integer value for the http timeout in ms for authentication requests.
+   * Default is 5000
+   */
+  httpTimeout: number;
+
+  /**
    * To opt-out of sending the library and node version to your authorization server
    * via the `Auth0-Client` header. Default is `true
    */
