@@ -40,6 +40,7 @@ import { LoginOptions, DeepPartial } from './auth0-session';
  * - `AUTH0_ID_TOKEN_SIGNING_ALG`: See {@link idTokenSigningAlg}
  * - `AUTH0_LEGACY_SAME_SITE_COOKIE`: See {@link legacySameSiteCookie}
  * - `AUTH0_POST_LOGOUT_REDIRECT`: See {@link Config.routes}
+ * - `AUTH0_CALLBACK`: See {@link Config.routes}
  * - `AUTH0_AUDIENCE`: See {@link Config.authorizationParams}
  * - `AUTH0_SCOPE`: See {@link Config.authorizationParams}
  * - `AUTH0_SESSION_NAME`: See {@link SessionConfig.name}
@@ -392,6 +393,7 @@ export const getParams = (params?: ConfigParameters): ConfigParameters => {
     AUTH0_ID_TOKEN_SIGNING_ALG,
     AUTH0_LEGACY_SAME_SITE_COOKIE,
     AUTH0_POST_LOGOUT_REDIRECT,
+    AUTH0_CALLBACK,
     AUTH0_AUDIENCE,
     AUTH0_SCOPE,
     AUTH0_SESSION_NAME,
@@ -449,7 +451,7 @@ export const getParams = (params?: ConfigParameters): ConfigParameters => {
       }
     },
     routes: {
-      callback: '/api/auth/callback',
+      callback: AUTH0_CALLBACK || '/api/auth/callback',
       postLogoutRedirect: AUTH0_POST_LOGOUT_REDIRECT,
       ...params?.routes
     }

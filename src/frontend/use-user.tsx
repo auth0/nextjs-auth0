@@ -102,7 +102,7 @@ export type UserProvider = (props: UserProviderProps) => ReactElement<UserContex
 export default ({
   children,
   user: initialUser,
-  profileUrl = '/api/auth/me' // TODO: Change to /api/auth/user
+  profileUrl = '/api/auth/me'
 }: UserProviderProps): ReactElement<UserContext> => {
   const [user, setUser] = useState<UserProfile | undefined>(() => initialUser);
   const [loading, setLoading] = useState<boolean>(() => !initialUser);
