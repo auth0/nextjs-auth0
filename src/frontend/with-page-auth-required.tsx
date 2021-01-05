@@ -18,7 +18,7 @@ export interface WithPageAuthRequiredOptions {
    * ```js
    * withPageAuthRequired(Profile, {
    *   returnTo: '/profile'
-   * })
+   * });
    * ```
    *
    * Add a path to return the user to after login.
@@ -28,7 +28,7 @@ export interface WithPageAuthRequiredOptions {
    * ```js
    * withPageAuthRequired(Profile, {
    *   loginUrl: '/api/login'
-   * })
+   * });
    * ```
    * The path of your custom login API route.
    */
@@ -37,7 +37,7 @@ export interface WithPageAuthRequiredOptions {
    * ```js
    * withPageAuthRequired(Profile, {
    *   onRedirecting: () => <div>Redirecting you to the login...</div>
-   * })
+   * });
    * ```
    *
    * Render a message to show that the user is being redirected to the login.
