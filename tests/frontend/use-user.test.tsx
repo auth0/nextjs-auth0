@@ -8,7 +8,7 @@ describe('context wrapper', () => {
     const { result } = renderHook(() => useUser(), { wrapper: withUser(user) });
 
     expect(result.current.user).toEqual(user);
-    expect(result.current.loading).toEqual(false);
+    expect(result.current.isLoading).toEqual(false);
   });
 
   test('should fetch the user', async () => {
@@ -17,12 +17,12 @@ describe('context wrapper', () => {
     const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUser() });
 
     expect(result.current.user).toEqual(undefined);
-    expect(result.current.loading).toEqual(true);
+    expect(result.current.isLoading).toEqual(true);
 
-    await waitForValueToChange(() => result.current.loading);
+    await waitForValueToChange(() => result.current.isLoading);
 
     expect(result.current.user).toEqual(user);
-    expect(result.current.loading).toEqual(false);
+    expect(result.current.isLoading).toEqual(false);
   });
 
   test('should fail to fetch the user', async () => {
@@ -31,12 +31,12 @@ describe('context wrapper', () => {
     const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUser() });
 
     expect(result.current.user).toEqual(undefined);
-    expect(result.current.loading).toEqual(true);
+    expect(result.current.isLoading).toEqual(true);
 
-    await waitForValueToChange(() => result.current.loading);
+    await waitForValueToChange(() => result.current.isLoading);
 
     expect(result.current.user).toEqual(undefined);
-    expect(result.current.loading).toEqual(false);
+    expect(result.current.isLoading).toEqual(false);
   });
 
   afterAll(() => {

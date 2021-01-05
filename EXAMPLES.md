@@ -61,9 +61,9 @@ Check the user's authentication state and log them in or out from the front end 
 import { useUser } from '@auth0/nextjs-auth0';
 
 export default () => {
-  const { user, loading } = useUser();
+  const { user, isLoading } = useUser();
 
-  if (loading) return <div>Loading...</div>;
+  if (isLoading) return <div>Loading...</div>;
 
   if (user) {
     return (
