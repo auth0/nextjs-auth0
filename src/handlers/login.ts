@@ -11,7 +11,7 @@ import { assertReqRes } from '../utils/assert';
  * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
  *
  * const getLoginState = (req, loginOptions) => {
- *   return { basket_id: getBasketId(req) }
+ *   return { basket_id: getBasketId(req) };
  * };
  *
  * export handleAuth({

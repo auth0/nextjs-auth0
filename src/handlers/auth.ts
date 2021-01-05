@@ -26,7 +26,7 @@ import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next';
  *       res.status(error.status || 500).end(error.message);
  *     }
  *   }
- * })
+ * });
  * ```
  *
  * @category Server
@@ -45,9 +45,9 @@ export interface Handlers {
  *
  * ```js
  * // pages/api/auth/[...auth0].js
- * import { handleAuth, } from '@auth0/nextjs-auth0';
+ * import { handleAuth } from '@auth0/nextjs-auth0';
  *
- * export default handleAuth()
+ * export default handleAuth();
  * ```
  *
  * This will create 4 handlers for the following urls:

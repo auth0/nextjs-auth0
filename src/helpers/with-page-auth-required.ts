@@ -11,11 +11,11 @@ import { withPageAuthRequired as withPageAuthRequiredCSR } from '../frontend';
  *
  * ```js
  * // pages/profile.js
- * import { withPageAuthRequired } from '@auth0/nextjs-auth0'
+ * import { withPageAuthRequired } from '@auth0/nextjs-auth0';
  *
  * export default function Profile({ user }) {
  *   return <div>Hello {user.name}</div>;
- * });
+ * }
  *
  * export const getServerSideProps = withPageAuthRequired();
  * ```
@@ -42,17 +42,17 @@ export type PageRoute = (cts: GetServerSidePropsContext) => Promise<GetServerSid
  *
  * ```js
  * // pages/protected-page.js
- * import { withPageAuthRequired } from '@auth0/nextjs-auth0'
+ * import { withPageAuthRequired } from '@auth0/nextjs-auth0';
  *
  * export default function ProtectedPage({ user, customProp }) {
  *   return <div>Protected content</div>;
- * });
+ * }
  *
  * export const getServerSideProps = withPageAuthRequired({
- *    loginUrl: '/api/auth/login',
- *    getServerSideProps(ctx) {
- *      return { props: { customProp: 'foo' } }
- *    }
+ *   loginUrl: '/api/auth/login',
+ *   async getServerSideProps(ctx) {
+ *     return { props: { customProp: 'foo' } };
+ *   }
  * });
  * ```
  *
@@ -65,11 +65,11 @@ export type WithPageAuthRequiredOptions = { getServerSideProps?: GetServerSidePr
  *
  * ```js
  * // pages/protected-page.js
- * import { withPageAuthRequired } from '@auth0/nextjs-auth0'
+ * import { withPageAuthRequired } from '@auth0/nextjs-auth0';
  *
  * export default function ProtectedPage() {
  *   return <div>Protected content</div>;
- * });
+ * }
  *
  * export const getServerSideProps = withPageAuthRequired();
  * ```

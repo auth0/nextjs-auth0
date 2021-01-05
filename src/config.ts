@@ -114,10 +114,10 @@ export interface Config {
    * {
    *   // Note: you need to provide required parameters if this object is set.
    *   response_type: 'code',
-   *   scope: 'openid profile email'
-   *  // Additional parameters
-   *  acr_value: "tenant:test-tenant",
-   *  custom_param: "custom-value"
+   *   scope: 'openid profile email',
+   *   // Additional parameters
+   *   acr_value: "tenant:test-tenant",
+   *   custom_param: "custom-value"
    * };
    * ```
    */
