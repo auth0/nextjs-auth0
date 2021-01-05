@@ -36,6 +36,7 @@ describe('config params', () => {
       clientID: undefined,
       clientSecret: undefined,
       clockTolerance: undefined,
+      httpTimeout: undefined,
       enableTelemetry: undefined,
       idTokenSigningAlg: undefined,
       idpLogout: true,
@@ -98,11 +99,13 @@ describe('config params', () => {
     expect(
       getParamsWithEnv({
         AUTH0_CLOCK_TOLERANCE: '100',
+        AUTH0_HTTP_TIMEOUT: '9999',
         AUTH0_SESSION_ROLLING_DURATION: '0',
         AUTH0_SESSION_ABSOLUTE_DURATION: '1'
       })
     ).toMatchObject({
       clockTolerance: 100,
+      httpTimeout: 9999,
       session: {
         rolling: undefined,
         rollingDuration: 0,
@@ -149,6 +152,26 @@ describe('config params', () => {
         },
         name: 'quuuux'
       }
+    });
+  });
+
+  test('should allow hostnames as baseURL', () => {
+    expect(
+      getParamsWithEnv({
+        AUTH0_BASE_URL: 'foo.auth0.com'
+      })
+    ).toMatchObject({
+      baseURL: 'https://foo.auth0.com'
+    });
+  });
+
+  test('should accept optional callback path', () => {
+    expect(
+      getParamsWithEnv({
+        AUTH0_CALLBACK: '/api/custom-callback'
+      })
+    ).toMatchObject({
+      routes: expect.objectContaining({ callback: '/api/custom-callback' })
     });
   });
 });

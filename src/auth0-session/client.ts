@@ -46,7 +46,7 @@ export default function get(config: Config, { name, version }: Telemetry): Clien
             }
           : undefined)
       },
-      timeout: 5000
+      timeout: config.httpTimeout
     });
     const applyHttpOptionsCustom = (entity: Issuer<Client> | typeof Issuer | Client): void => {
       // eslint-disable-next-line no-param-reassign

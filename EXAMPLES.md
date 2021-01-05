@@ -3,9 +3,9 @@
 - [Basic Setup](#basic-setup)
 - [Customise handlers behaviour](#customise-handlers-behaviour)
 - [Use custom auth urls](#use-custom-auth-urls)
-- [Protect an API Route](#protect-an-api-route)
 - [Protecting a Server Side Rendered (SSR) Page](#protecting-a-server-side-rendered-ssr-page)
 - [Protecting a Client Side Rendered (CSR) Page](#protecting-a-client-side-rendered-csr-page)
+- [Protect an API Route](#protect-an-api-route)
 - [Access an External API from an API Route](#access-an-external-api-from-an-api-route)
 - [Access an External API from the front end](#access-an-external-api-from-the-front-end)
 - [Create your own instance of the SDK](#create-your-own-instance-of-the-sdk)
@@ -134,42 +134,6 @@ export default () => <a href="/api/custom-login">Login</a>;
 
 > Note: you will need to specify this custom login URL when calling `withPageAuthRequired` both the [front end version](https://auth0.github.io/nextjs-auth0/interfaces/frontend_with_page_auth_required.withpageauthrequiredoptions.html#loginurl) and [server side version](https://auth0.github.io/nextjs-auth0/modules/helpers_with_page_auth_required.html#withpageauthrequiredoptions)
 
-## Protect an API Route
-
-Requests to `/pages/api/protected` without a valid session cookie will fail with `401`.
-
-```javascript
-// pages/api/protected.js
-import { withApiAuthRequired } from '@auth0/nextjs-auth0';
-
-export default withApiAuthRequired(async function myApiRoute(req, res) {
-  res.json({ protected });
-});
-```
-
-Then you can access your API from the frontend with a valid session cookie.
-
-```jsx
-// pages/products
-import useSWR from 'swr';
-import { withPageAuthRequired } from '@auth0/nextjs-auth0';
-
-const fetcher = async (uri) => {
-  const response = await fetch(uri);
-  return response.json();
-};
-
-export default withPageAuthRequired(function Products() {
-  const { data, error } = useSWR('/api/protected', fetcher);
-  if (error) return <div>oops... {error.message}</div>;
-  if (data === undefined) return <div>Loading...</div>;
-  return <div>{data.protected}</div>;
-});
-```
-
-See a running example in the kitchen-sink example app, the [protected API route](./examples/kitchen-sink-example/pages/api/shows.ts) and
-the [frontend code to access the protected API](./examples/kitchen-sink-example/pages/shows.tsx).
-
 ## Protecting a Server Side Rendered (SSR) Page
 
 Requests to `/pages/profile` without a valid session cookie will be redirected to the login page.
@@ -203,6 +167,42 @@ export default withPageAuthRequired(function Profile({ user }) {
 ```
 
 See a running example of a [CSR protected page](./examples/kitchen-sink-example/pages/profile.tsx) in the kitchen-sink example app.
+
+## Protect an API Route
+
+Requests to `/pages/api/protected` without a valid session cookie will fail with `401`.
+
+```javascript
+// pages/api/protected.js
+import { withApiAuthRequired } from '@auth0/nextjs-auth0';
+
+export default withApiAuthRequired(async function myApiRoute(req, res) {
+  res.json({ protected: 'My Secret' });
+});
+```
+
+Then you can access your API from the frontend with a valid session cookie.
+
+```jsx
+// pages/products
+import useSWR from 'swr';
+import { withPageAuthRequired } from '@auth0/nextjs-auth0';
+
+const fetcher = async (uri) => {
+  const response = await fetch(uri);
+  return response.json();
+};
+
+export default withPageAuthRequired(function Products() {
+  const { data, error } = useSWR('/api/protected', fetcher);
+  if (error) return <div>oops... {error.message}</div>;
+  if (data === undefined) return <div>Loading...</div>;
+  return <div>{data.protected}</div>;
+});
+```
+
+See a running example in the kitchen-sink example app, the [protected API route](./examples/kitchen-sink-example/pages/api/shows.ts) and
+the [frontend code to access the protected API](./examples/kitchen-sink-example/pages/shows.tsx).
 
 ## Access an External API from an API Route
 

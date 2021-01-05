@@ -34,11 +34,13 @@ import { LoginOptions, DeepPartial } from './auth0-session';
  * ### Optional
  *
  * - `AUTH0_CLOCK_TOLERANCE`: See {@link clockTolerance}
+ * - `AUTH0_HTTP_TIMEOUT`: See {@link httpTimeout}
  * - `AUTH0_ENABLE_TELEMETRY`: See {@link enableTelemetry}
  * - `AUTH0_IDP_LOGOUT`: See {@link idpLogout}
  * - `AUTH0_ID_TOKEN_SIGNING_ALG`: See {@link idTokenSigningAlg}
  * - `AUTH0_LEGACY_SAME_SITE_COOKIE`: See {@link legacySameSiteCookie}
  * - `AUTH0_POST_LOGOUT_REDIRECT`: See {@link Config.routes}
+ * - `AUTH0_CALLBACK`: See {@link Config.routes}
  * - `AUTH0_AUDIENCE`: See {@link Config.authorizationParams}
  * - `AUTH0_SCOPE`: See {@link Config.authorizationParams}
  * - `AUTH0_SESSION_NAME`: See {@link SessionConfig.name}
@@ -149,6 +151,12 @@ export interface Config {
    * Default is 60
    */
   clockTolerance: number;
+
+  /**
+   * Integer value for the http timeout in ms for authentication requests.
+   * Default is 5000
+   */
+  httpTimeout: number;
 
   /**
    * To opt-out of sending the library and node version to your authorization server
@@ -379,11 +387,13 @@ export const getParams = (params?: ConfigParameters): ConfigParameters => {
     AUTH0_CLIENT_ID,
     AUTH0_CLIENT_SECRET,
     AUTH0_CLOCK_TOLERANCE,
+    AUTH0_HTTP_TIMEOUT,
     AUTH0_ENABLE_TELEMETRY,
     AUTH0_IDP_LOGOUT,
     AUTH0_ID_TOKEN_SIGNING_ALG,
     AUTH0_LEGACY_SAME_SITE_COOKIE,
     AUTH0_POST_LOGOUT_REDIRECT,
+    AUTH0_CALLBACK,
     AUTH0_AUDIENCE,
     AUTH0_SCOPE,
     AUTH0_SESSION_NAME,
@@ -398,7 +408,8 @@ export const getParams = (params?: ConfigParameters): ConfigParameters => {
     AUTH0_COOKIE_SAME_SITE
   } = process.env;
 
-  const baseURL = AUTH0_BASE_URL && !AUTH0_BASE_URL.startsWith('http') ? `https://${AUTH0_BASE_URL}` : AUTH0_BASE_URL;
+  const baseURL =
+    AUTH0_BASE_URL && !/^https?:\/\//.test(AUTH0_BASE_URL as string) ? `https://${AUTH0_BASE_URL}` : AUTH0_BASE_URL;
 
   return {
     secret: AUTH0_SECRET,
@@ -407,6 +418,7 @@ export const getParams = (params?: ConfigParameters): ConfigParameters => {
     clientID: AUTH0_CLIENT_ID,
     clientSecret: AUTH0_CLIENT_SECRET,
     clockTolerance: num(AUTH0_CLOCK_TOLERANCE),
+    httpTimeout: num(AUTH0_HTTP_TIMEOUT),
     enableTelemetry: bool(AUTH0_ENABLE_TELEMETRY),
     idpLogout: bool(AUTH0_IDP_LOGOUT, true),
     auth0Logout: bool(AUTH0_IDP_LOGOUT, true),
@@ -439,7 +451,7 @@ export const getParams = (params?: ConfigParameters): ConfigParameters => {
       }
     },
     routes: {
-      callback: '/api/auth/callback',
+      callback: AUTH0_CALLBACK || '/api/auth/callback',
       postLogoutRedirect: AUTH0_POST_LOGOUT_REDIRECT,
       ...params?.routes
     }
