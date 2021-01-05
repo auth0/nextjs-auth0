@@ -4,7 +4,7 @@ Guide to migrating from `0.x` to `1.x` (Beta)
 
 ### Config changes
 
-> Note: If you only use environment variables to configure the SDK you don't need to create an instance of the SDK, you can use the named exports (`handleAuth`, `getSession`) directly from `@auth0/nextjs-auth` and they will lazily create an instance of the SDK for you, and configure it using the following [environment variables](https://auth0.github.io/nextjs-auth0/interfaces/config.config-1.html). See the [Basic setup](./EXAMPLES.md#basic-setup) as an example.
+> Note: If you only use environment variables to configure the SDK, you don't need to create an instance of the SDK. You can use the named exports (`handleAuth`, `getSession`) directly from `@auth0/nextjs-auth` and they will lazily create an instance of the SDK for you, and configure it using the following [environment variables](https://auth0.github.io/nextjs-auth0/interfaces/config.config-1.html). See the [Basic setup](./EXAMPLES.md#basic-setup) as an example.
 
 If you still want to create the SDK instance yourself, note that the configuration options have changed as follows.
 
@@ -78,7 +78,7 @@ export default initAuth0({
 });
 ```
 
-See the API docs for a [full list of configuration options](https://auth0.github.io/nextjs-auth0/interfaces/config.config-1.html)
+See the API docs for a [full list of configuration options](https://auth0.github.io/nextjs-auth0/interfaces/config.config-1.html).
 
 ### getSession
 
@@ -88,7 +88,7 @@ See the API docs for a [full list of configuration options](https://auth0.github
 
 ```js
 // pages/api/shows.js
-import auth0 from '../lib/auth0';
+import auth0 from '../../lib/auth0';
 
 export default function showsHandler(req, res) {
   const session = auth0.getSession(req);
@@ -100,7 +100,7 @@ export default function showsHandler(req, res) {
 
 ```js
 // pages/api/shows.js
-import auth0 from '../lib/auth0';
+import auth0 from '../../lib/auth0';
 
 export default function showsHandler(req, res) {
   const session = auth0.getSession(req, res); // Note: the extra argument
@@ -108,7 +108,7 @@ export default function showsHandler(req, res) {
 }
 ```
 
-See the [getSession docs](https://auth0.github.io/nextjs-auth0/modules/session_get_session.html)
+See the [getSession docs](https://auth0.github.io/nextjs-auth0/modules/session_get_session.html).
 
 ### getAccessToken
 
@@ -143,14 +143,14 @@ export default async function shows(req, res) {
 }
 ```
 
-See the [getAccessToken docs](https://auth0.github.io/nextjs-auth0/modules/session_get_access_token.html)
+See the [getAccessToken docs](https://auth0.github.io/nextjs-auth0/modules/session_get_access_token.html).
 
 ### handleLogin
 
-The options passed to `handleLogin` have changed
+The options passed to `handleLogin` have changed.
 
 - `authParams` is now `authorizationParams`
-- `redirectTo` is now `returnTo`.
+- `redirectTo` is now `returnTo`
 
 #### Before
 
@@ -200,20 +200,20 @@ export default async function login(req, res) {
 }
 ```
 
-See the [handleLogin docs](https://auth0.github.io/nextjs-auth0/modules/handlers_login.html)
+See the [handleLogin docs](https://auth0.github.io/nextjs-auth0/modules/handlers_login.html).
 
 ### handleLogout
 
-The options passed to `handleLogout` have changed
+The options passed to `handleLogout` have changed.
 
-- `redirectTo` is now `returnTo`.
+- `redirectTo` is now `returnTo`
 
-See the [handleLogout docs](https://auth0.github.io/nextjs-auth0/modules/handlers_logout.html)
+See the [handleLogout docs](https://auth0.github.io/nextjs-auth0/modules/handlers_logout.html).
 
 ### handleCallback
 
-The options passed to `handleCallback` have changed
+The options passed to `handleCallback` have changed.
 
-- `onUserLoaded` is now `afterCallback`.
+- `onUserLoaded` is now `afterCallback`
 
-See the [handleCallback docs](https://auth0.github.io/nextjs-auth0/modules/handlers_callback.html)
+See the [handleCallback docs](https://auth0.github.io/nextjs-auth0/modules/handlers_callback.html).
