@@ -114,15 +114,15 @@ export interface Config {
    * ```
    *
    * New values can be passed in to change what is returned from the authorization server
-   * depending on your specific scenario.
+   * depending on your specific scenario. Additional custom parameters can be added as well.
    *
-   * Additional custom parameters can be added as well:
+   * **Note:** You must provide the required parameters if this object is set.
    *
    * ```js
    * {
-   *   // Note: you need to provide required parameters if this object is set.
    *   response_type: 'code',
    *   scope: 'openid profile email',
+   *
    *   // Additional parameters
    *   acr_value: "tenant:test-tenant",
    *   custom_param: "custom-value"
