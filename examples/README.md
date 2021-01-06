@@ -43,13 +43,13 @@ Because our deployment is a bit different from a standard Next.js repository, we
 - Build Command: `npm run build:vercel`
 - Output Directory: `examples/kitchen-sync-example/.next`
 
-The reason why we need to overrride these settings is because the vercel app we want to build does not sit in the root of the repository. The example application is also dependent on the NextJS SDK, so we will need to ensure that Vercel does the following commands when running `npm run build:vercel`:
+The reason why we need to overrride these settings is because the Next.js app we want to build does not sit in the root of the repository. The example application is also dependent on the Next.js SDK, so we will need to ensure that Vercel executes the following commands when running `npm run build:vercel`:
 
 - Build the SDK: `npm run build`
 - Install the dependencies for the sample application: `npm i --prefix=examples/kitchen-sink-example`
 - Build the sample application: `npm run build --prefix=examples/kitchen-sink-example`
 
-As vercel wants one single build command, we make use of the `build:vercel` npm script to run all of the above:
+As Vercel wants one single build command, we make use of the `build:vercel` npm script to run all of the above:
 
 ```
 "build:vercel": "npm run install:examples && npm run build && npm run build:examples",
@@ -59,7 +59,7 @@ As vercel wants one single build command, we make use of the `build:vercel` npm 
 
 
 #### Environment Variables
-Once the application is configured and deployed (the first deploy will fail because of the missing environment variables, but we need to hit deploy before continuing), move to the application's Environment Variables (Settings > Environment Variables) and ensure to configure the following variables:
+Once the application is configured and deployed (the first deploy will fail because of the missing environment variables, but we need to hit deploy before continuing as we need to configure a more complex set of variables which is not possible from the import screen), move to the application's Environment Variables (Settings > Environment Variables) and ensure to configure the following variables:
 
 | Name  | Type  | Value |
 | ------------- | ------------- | ------------- |
