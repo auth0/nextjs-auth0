@@ -38,8 +38,8 @@ Go to the Application Settings on your [Auth0 dashboard](https://manage.auth0.co
 
 | Setting               | Description                                                                                                                                                            |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Allowed Callback URLs | Should be set to `https://nextjs-auth0-*.vercel.app/api/auth/callback` when deploying to vercel. |
-| Allowed Logout URLs   | Should be set to `https://nextjs-auth0-*.vercel.app/` when deploying to vercel.   
+| Allowed Callback URLs | Should be set to `https://{YOUR_VERCEL_PROJECT_NAME}-*.vercel.app/api/auth/callback` when deploying to vercel. |
+| Allowed Logout URLs   | Should be set to `https://{YOUR_VERCEL_PROJECT_NAME}-*.vercel.app/` when deploying to vercel.   
 
 **Note**: As we are making use of Preview Deployments, we need to configure the above URLs using wildcards, as every preview deployment will get a unique URL.
 
