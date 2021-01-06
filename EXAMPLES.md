@@ -18,8 +18,8 @@ Configure the required options in an `.env.local` file in the root of your appli
 
 ```dotenv
 AUTH0_SECRET=LONG_RANDOM_VALUE
-AUTH0_ISSUER_BASE_URL=https://your-tenant.auth0.com
 AUTH0_BASE_URL=http://localhost:3000
+AUTH0_ISSUER_BASE_URL=https://your-tenant.auth0.com
 AUTH0_CLIENT_ID=CLIENT_ID
 AUTH0_CLIENT_SECRET=CLIENT_SECRET
 ```
