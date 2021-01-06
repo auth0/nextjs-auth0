@@ -1,6 +1,6 @@
 # @auth0/nextjs-auth0
 
-Auth0 SDK for signing in to your Next.js applications.
+Auth0 SDK for signing in to your Next.js applications.  
 
 > Note: This library is currently in **Beta** and has not had a complete security review. We do not recommend using this library in production yet. As we move towards general availability, please be aware that releases may contain breaking changes.
 
