@@ -23,6 +23,7 @@ export interface UserProfile {
  */
 export interface UserContext {
   user?: UserProfile;
+  error?: Error;
   isLoading: boolean;
 }
 
@@ -42,7 +43,7 @@ export interface UserContext {
  * export default function App({ Component, pageProps }) {
  *   // If you've used `withAuth`, pageProps.user can pre-populate the hook
  *   // if you haven't used `withAuth`, pageProps.user is undefined so the hook
- *   // fetches the user from the API routes
+ *   // fetches the user from the API route
  *   const { user } = pageProps;
  *
  *   return (
@@ -75,9 +76,10 @@ const User = createContext<UserContext>({ isLoading: false });
  * import { useUser } from '@auth0/nextjs-auth0`;
  *
  * export default function Profile() {
- *   const { user, isLoading } = useUser();
+ *   const { user, error, isLoading } = useUser();
  *
  *   if (isLoading) return <div>Loading...</div>;
+ *   if (error) return <div>{error.message}</div>;
  *   if (!user) return <Link href="/api/auth/login"><a>Login</a></Link>;
  *   return <div>Hello {user.name}, <Link href="/api/auth/logout"><a>Logout</a></Link></div>;
  * }
@@ -105,19 +107,25 @@ export default ({
   profileUrl = '/api/auth/me'
 }: UserProviderProps): ReactElement<UserContext> => {
   const [user, setUser] = useState<UserProfile | undefined>(() => initialUser);
+  const [error, setError] = useState<Error | undefined>();
   const [isLoading, setIsLoading] = useState<boolean>(() => !initialUser);
 
   useEffect((): void => {
     if (user) return;
 
     (async (): Promise<void> => {
-      const response = await fetch(profileUrl);
-      const result = response.ok ? await response.json() : undefined;
+      try {
+        const response = await fetch(profileUrl);
 
-      setUser(result);
-      setIsLoading(false);
+        setUser(await response.json());
+        setError(undefined);
+      } catch (_e) {
+        setError(new Error(`The request to ${profileUrl} failed`));
+      } finally {
+        setIsLoading(false);
+      }
     })();
   }, [user]);
 
-  return <User.Provider value={{ user, isLoading }}>{children}</User.Provider>;
+  return <User.Provider value={{ user, error, isLoading }}>{children}</User.Provider>;
 };

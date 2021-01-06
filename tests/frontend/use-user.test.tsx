@@ -8,6 +8,7 @@ describe('context wrapper', () => {
     const { result } = renderHook(() => useUser(), { wrapper: withUser(user) });
 
     expect(result.current.user).toEqual(user);
+    expect(result.current.error).toEqual(undefined);
     expect(result.current.isLoading).toEqual(false);
   });
 
@@ -17,11 +18,13 @@ describe('context wrapper', () => {
     const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUser() });
 
     expect(result.current.user).toEqual(undefined);
+    expect(result.current.error).toEqual(undefined);
     expect(result.current.isLoading).toEqual(true);
 
     await waitForValueToChange(() => result.current.isLoading);
 
     expect(result.current.user).toEqual(user);
+    expect(result.current.error).toEqual(undefined);
     expect(result.current.isLoading).toEqual(false);
   });
 
@@ -31,11 +34,13 @@ describe('context wrapper', () => {
     const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUser() });
 
     expect(result.current.user).toEqual(undefined);
+    expect(result.current.error).toEqual(undefined);
     expect(result.current.isLoading).toEqual(true);
 
     await waitForValueToChange(() => result.current.isLoading);
 
     expect(result.current.user).toEqual(undefined);
+    expect(result.current.error).toEqual(new Error('The request to /api/auth/me failed'));
     expect(result.current.isLoading).toEqual(false);
   });
 
