@@ -2,7 +2,6 @@ import React from 'react';
 import { UserProfile, UserProvider } from '../../src';
 
 type FetchUserMock = {
-  ok: boolean;
   json?: () => Promise<UserProfile>;
 };
 
@@ -20,12 +19,8 @@ export const withUser = (user?: UserProfile): React.ComponentType => {
   return (props: any): React.ReactElement => <UserProvider {...props} user={user} />;
 };
 
-export const fetchUserMock = (): FetchUserMock => ({
-  ok: true,
-  json: (): Promise<UserProfile> => Promise.resolve(user)
-});
+export const fetchUserMock = (): Promise<FetchUserMock> => {
+  return Promise.resolve({ json: (): Promise<UserProfile> => Promise.resolve(user) });
+};
 
-export const fetchUserFailureMock = (): FetchUserMock => ({
-  ok: false,
-  json: undefined
-});
+export const fetchUserFailureMock = (): Promise<FetchUserMock> => Promise.reject(new Error('Error'));

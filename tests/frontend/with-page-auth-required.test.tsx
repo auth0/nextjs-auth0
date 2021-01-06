@@ -44,6 +44,16 @@ describe('with-page-auth-required csr', () => {
     await waitFor(() => expect(screen.getByText('Redirecting')).toBeInTheDocument());
   });
 
+  it('should show a fallback in case of error', async () => {
+    (global as any).fetch = fetchUserFailureMock;
+    const MyPage = (): JSX.Element => <>Private</>;
+    const OnError = (): JSX.Element => <>Error</>;
+    const ProtectedPage = withPageAuthRequired(MyPage, { onError: OnError });
+
+    render(<ProtectedPage />, { wrapper: withUser() });
+    await waitFor(() => expect(screen.getByText('Error')).toBeInTheDocument());
+  });
+
   it('should accept a returnTo url', async () => {
     const MyPage = (): JSX.Element => <>Private</>;
     const ProtectedPage = withPageAuthRequired(MyPage, { returnTo: '/foo' });
