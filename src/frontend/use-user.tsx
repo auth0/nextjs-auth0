@@ -35,7 +35,6 @@ export interface UserContext {
  *
  * ```js
  * // pages/_app.js
- *
  * import React from 'react';
  * import { UserProvider } from '@auth0/nextjs-auth0';
  *
