@@ -58,7 +58,7 @@ export interface UserContext {
  *
  * @category Client
  */
-type UserProviderProps = React.PropsWithChildren<{ user?: UserProfile; profileUrl?: string }>;
+export type UserProviderProps = React.PropsWithChildren<{ user?: UserProfile; profileUrl?: string }>;
 
 /**
  * @ignore
@@ -115,8 +115,7 @@ export default ({
     (async (): Promise<void> => {
       try {
         const response = await fetch(profileUrl);
-
-        setUser(await response.json());
+        setUser(response.ok ? await response.json() : undefined);
         setError(undefined);
       } catch (_e) {
         setError(new Error(`The request to ${profileUrl} failed`));
