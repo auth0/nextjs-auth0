@@ -90,7 +90,7 @@ See the API docs for a [full list of configuration options](https://auth0.github
 // pages/api/shows.js
 import auth0 from '../../lib/auth0';
 
-export default function showsHandler(req, res) {
+export default function shows(req, res) {
   const session = auth0.getSession(req);
   // ...
 }
@@ -102,7 +102,7 @@ export default function showsHandler(req, res) {
 // pages/api/shows.js
 import auth0 from '../../lib/auth0';
 
-export default function showsHandler(req, res) {
+export default function shows(req, res) {
   const session = auth0.getSession(req, res); // Note: the extra argument
   // ...
 }
@@ -117,7 +117,7 @@ See the [getSession docs](https://auth0.github.io/nextjs-auth0/modules/session_g
 ### Before
 
 ```js
-// pages/api/login.js
+// pages/api/shows.js
 import auth0 from '../../lib/auth0';
 
 export default async function shows(req, res) {
@@ -132,7 +132,7 @@ export default async function shows(req, res) {
 ### After
 
 ```js
-// pages/api/login.js
+// pages/api/shows.js
 import auth0 from '../../lib/auth0';
 
 export default async function shows(req, res) {
