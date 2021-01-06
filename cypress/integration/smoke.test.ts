@@ -23,7 +23,7 @@ describe('Smoke tests', () => {
     cy.get('#login').should('exist');
   });
 
-  it('should protect a client-side rendered route', () => {
+  it('should protect a client-side rendered page', () => {
     loginToAuth0();
 
     cy.url().should('eq', `${Cypress.config().baseUrl}/`);
@@ -33,7 +33,7 @@ describe('Smoke tests', () => {
     cy.get('#logout').click();
   });
 
-  it('should protect a server-side-rendered route', () => {
+  it('should protect a server-side-rendered page', () => {
     loginToAuth0();
 
     cy.url().should('eq', `${Cypress.config().baseUrl}/`);

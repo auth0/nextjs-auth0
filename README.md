@@ -60,10 +60,10 @@ The library needs the following required configuration keys. These can be config
 ```sh
 # A long secret value used to encrypt the session cookie
 AUTH0_SECRET=LONG_RANDOM_VALUE
-# The url of your auth0 tenant domain
-AUTH0_ISSUER_BASE_URL=https://YOUR_AUTH0_DOMAIN.auth0.com
 # The base url of your application
 AUTH0_BASE_URL=http://localhost:3000
+# The url of your Auth0 tenant domain
+AUTH0_ISSUER_BASE_URL=https://YOUR_AUTH0_DOMAIN.auth0.com
 # Your Auth0 application's Client ID
 AUTH0_CLIENT_ID=YOUR_AUTH0_CLIENT_ID
 # Your Auth0 application's Client Secret
@@ -185,7 +185,7 @@ If you're using Jest, we recommend using `jest.resetModules()` after each test. 
 
 Increase the clock tolerance for id_token validation:
 
-```dotenv
+```sh
 #  .env.local
 AUTH0_CLOCK_TOLERANCE=10000 # Increase tolerance to 10 secs
 ```
@@ -199,13 +199,13 @@ We appreciate feedback and contribution to this repo! Before you get started, pl
 
 Run NPM install first to install the dependencies of this project:
 
-```bash
+```sh
 npm install
 ```
 
 In order to build a release you can run the following commands and the output will be stored in the `dist` folder:
 
-```bash
+```sh
 npm run clean
 npm run lint
 npm run build
@@ -213,7 +213,7 @@ npm run build
 
 Additionally you can also run tests:
 
-```bash
+```sh
 npm run build:test # Build the Next.js test app
 npm run test
 npm run test:watch
@@ -221,21 +221,21 @@ npm run test:watch
 
 ## Vulnerability Reporting
 
-Please do not report security vulnerabilities on the public GitHub issue tracker. The [Responsible Disclosure Program](https://auth0.com/whitehat) details the procedure for disclosing security issues.
+Please do not report security vulnerabilities on the public GitHub issue tracker. The [Responsible Disclosure Program](https://auth0.com/responsible-disclosure-policy) details the procedure for disclosing security issues.
 
 ## What is Auth0?
 
 Auth0 helps you to easily:
 
-- implement authentication with multiple identity providers, including social (e.g., Google, Facebook, Microsoft, LinkedIn, GitHub, Twitter, etc), or enterprise (e.g., Windows Azure AD, Google Apps, Active Directory, ADFS, SAML, etc.)
-- log in users with username/password databases, passwordless, or multi-factor authentication
-- link multiple user accounts together
-- generate signed JSON Web Tokens to authorize your API calls and flow the user identity securely
-- access demographics and analytics detailing how, when, and where users are logging in
-- enrich user profiles from other data sources using customizable JavaScript rules
+- Implement authentication with multiple identity providers, including social (e.g., Google, Facebook, Microsoft, LinkedIn, GitHub, Twitter, etc), or enterprise (e.g., Windows Azure AD, Google Apps, Active Directory, ADFS, SAML, etc.)
+- Log in users with username/password databases, passwordless, or multi-factor authentication
+- Link multiple user accounts together
+- Generate signed JSON Web Tokens to authorize your API calls and flow the user identity securely
+- Access demographics and analytics detailing how, when, and where users are logging in
+- Enrich user profiles from other data sources using customizable JavaScript rules
 
 [Why Auth0?](https://auth0.com/why-auth0)
 
 ## License
 
-This project is licensed under the MIT license. See the [LICENSE](https://github.com/auth0/nextjs-auth0/blob/master/LICENSE) file for more info.
+This project is licensed under the MIT license. See the [LICENSE](LICENSE) file for more info.
