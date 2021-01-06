@@ -3,7 +3,7 @@
 In this folder we'll be showing off different examples on how to use the [@auth0/nextjs-auth0](https://www.npmjs.com/package/@auth0/nextjs-auth0) package in your Next.js applications.
 
 ## Configuration
-                                  |
+
 ### Local Development
 
 #### Configuring Auth0
