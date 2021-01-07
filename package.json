@@ -58,7 +58,6 @@
   "homepage": "https://github.com/auth0/nextjs-auth0#readme",
   "devDependencies": {
     "@panva/jose": "^1.9.3",
-    "@serverless-jwt/next": "^0.2.0",
     "@testing-library/jest-dom": "^5.11.8",
     "@testing-library/react": "^11.2.2",
     "@testing-library/react-hooks": "^3.7.0",
