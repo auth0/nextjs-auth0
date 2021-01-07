@@ -1,5 +1,5 @@
 import React from 'react';
-import { UserProvider, UserProviderProps, UserProfile } from '../../src/frontend';
+import { UserProvider, UserProviderProps, UserProfile } from '../../src';
 
 type FetchUserMock = {
   ok: boolean;
