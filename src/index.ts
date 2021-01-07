@@ -92,7 +92,7 @@ export const handleCallback: HandleCallback = (...args) => getInstance().handleC
 export const handleProfile: HandleProfile = (...args) => getInstance().handleProfile(...args);
 export const handleAuth: HandleAuth = (...args) => getInstance().handleAuth(...args);
 
-export { UserProvider, UserProfile, UserContext, useUser } from './frontend';
+export { UserProvider, UserProviderProps, UserProfile, UserContext, useUser } from './frontend';
 
 export {
   Config,
