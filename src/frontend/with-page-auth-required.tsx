@@ -98,7 +98,7 @@ const withPageAuthRequired: WithPageAuthRequired = (Component, options = {}) => 
     }, [user, error, isLoading]);
 
     if (error) return onError(error);
-    else if (user) return <Component {...props} />;
+    if (user) return <Component {...props} />;
 
     return onRedirecting();
   };
