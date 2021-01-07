@@ -4,6 +4,7 @@ import { WithApiAuthRequired } from './helpers';
 import { HandleAuth, HandleCallback, HandleLogin, HandleLogout, HandleProfile } from './handlers';
 export {
   UserProvider,
+  UserProviderProps,
   UserProfile,
   UserContext,
   useUser,

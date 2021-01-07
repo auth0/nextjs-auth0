@@ -4,7 +4,7 @@ import { useUser } from '@auth0/nextjs-auth0';
 import Layout from '../components/layout';
 
 export default function Home() {
-  const { user, isLoading } = useUser();
+  const { user, error, isLoading } = useUser();
 
   return (
     <Layout>
@@ -12,14 +12,10 @@ export default function Home() {
 
       {isLoading && <p>Loading login info...</p>}
 
-      {!isLoading && !user && (
+      {error && (
         <>
-          <p>
-            To test the login click in <i>Login</i>
-          </p>
-          <p>
-            Once you have logged in you should be able to click in <i>Protected Page</i> and <i>Logout</i>
-          </p>
+          <h4>Error</h4>
+          <pre>{error.message}</pre>
         </>
       )}
 
@@ -27,6 +23,17 @@ export default function Home() {
         <>
           <h4>Rendered user info on the client</h4>
           <pre id="profile">{JSON.stringify(user, null, 2)}</pre>
+        </>
+      )}
+
+      {!isLoading && !error && !user && (
+        <>
+          <p>
+            To test the login click in <i>Login</i>
+          </p>
+          <p>
+            Once you have logged in you should be able to click in <i>Protected Page</i> and <i>Logout</i>
+          </p>
         </>
       )}
     </Layout>
