@@ -9,6 +9,11 @@ import { useUser } from './use-user';
 const defaultOnRedirecting = (): JSX.Element => <></>;
 
 /**
+ * @ignore
+ */
+const defaultOnError = (): JSX.Element => <></>;
+
+/**
  * Options for the withPageAuthRequired Higher Order Component
  *
  * @category Client
@@ -43,6 +48,16 @@ export interface WithPageAuthRequiredOptions {
    * Render a message to show that the user is being redirected to the login.
    */
   onRedirecting?: () => JSX.Element;
+  /**
+   * ```js
+   * withPageAuthRequired(Profile, {
+   *   onError: error => <div>Error: {error.message}</div>
+   * });
+   * ```
+   *
+   * Render a fallback in case of error fetching the user from the profile API route.
+   */
+  onError?: (error: Error) => JSX.Element;
 }
 
 /**
@@ -66,18 +81,26 @@ export type WithPageAuthRequired = <P extends object>(
 const withPageAuthRequired: WithPageAuthRequired = (Component, options = {}) => {
   return function withPageAuthRequired(props): JSX.Element {
     const router = useRouter();
-    const { returnTo = router.asPath, onRedirecting = defaultOnRedirecting, loginUrl = '/api/auth/login' } = options;
-    const { user, isLoading } = useUser();
+    const {
+      returnTo = router.asPath,
+      onRedirecting = defaultOnRedirecting,
+      onError = defaultOnError,
+      loginUrl = '/api/auth/login'
+    } = options;
+    const { user, error, isLoading } = useUser();
 
     useEffect(() => {
-      if (user || isLoading) return;
+      if ((user && !error) || isLoading) return;
 
       (async (): Promise<void> => {
         await router.push(`${loginUrl}?returnTo=${returnTo}`);
       })();
-    }, [user, isLoading, router, loginUrl, returnTo]);
+    }, [user, error, isLoading]);
 
-    return user ? <Component {...props} /> : onRedirecting();
+    if (error) return onError(error);
+    if (user) return <Component {...props} />;
+
+    return onRedirecting();
   };
 };
 

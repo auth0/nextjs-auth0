@@ -4,7 +4,7 @@ import { useUser, withPageAuthRequired } from '@auth0/nextjs-auth0';
 import Layout from '../components/layout';
 
 export default withPageAuthRequired(function Profile(): React.ReactElement {
-  const { user, isLoading } = useUser();
+  const { user, error, isLoading } = useUser();
 
   return (
     <Layout>
@@ -12,9 +12,16 @@ export default withPageAuthRequired(function Profile(): React.ReactElement {
 
       {isLoading && <p>Loading profile...</p>}
 
-      {!isLoading && user && (
+      {error && (
         <>
-          <p>Profile:</p>
+          <h4>Error</h4>
+          <pre>{error.message}</pre>
+        </>
+      )}
+
+      {user && (
+        <>
+          <h4>Profile</h4>
           <pre id="profile">{JSON.stringify(user, null, 2)}</pre>
         </>
       )}
