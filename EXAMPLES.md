@@ -16,17 +16,17 @@ All examples can be seen running in the [Kitchen Sink example app](./examples/ki
 
 Configure the required options in an `.env.local` file in the root of your application:
 
-```dotenv
-AUTH0_SECRET=LONG_RANDOM_VALUE
-AUTH0_BASE_URL=http://localhost:3000
-AUTH0_ISSUER_BASE_URL=https://your-tenant.auth0.com
-AUTH0_CLIENT_ID=CLIENT_ID
-AUTH0_CLIENT_SECRET=CLIENT_SECRET
+```sh
+AUTH0_SECRET='LONG_RANDOM_VALUE'
+AUTH0_BASE_URL='http://localhost:3000'
+AUTH0_ISSUER_BASE_URL='https://your-tenant.auth0.com'
+AUTH0_CLIENT_ID='CLIENT_ID'
+AUTH0_CLIENT_SECRET='CLIENT_SECRET'
 ```
 
 Create a [Dynamic API Route handler](https://nextjs.org/docs/api-routes/dynamic-api-routes) at `/pages/api/auth/[...auth0].js`.
 
-```javascript
+```js
 import { handleAuth } from '@auth0/nextjs-auth0';
 
 export default handleAuth();
@@ -83,7 +83,7 @@ Have a look at the `basic-example` app [./examples/basic-example](./examples/bas
 
 Pass custom parameters to the auth handlers or add your own logging and error handling.
 
-```javascript
+```js
 // /pages/api/auth/[...auth0].js
 import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
 import { myCustomLogger, myCustomErrorReporter } from '../utils';
@@ -115,7 +115,7 @@ Instead of (or in addition to) creating `/pages/api/auth/[...auth0].js` to handl
 
 Eg for login:
 
-```javascript
+```js
 // api/custom-login.js
 import { handleLogin } from '@auth0/nextjs-auth0';
 
@@ -128,7 +128,7 @@ export default async function login(req, res) {
 }
 ```
 
-```javascript
+```jsx
 // /components/login-button.js
 export default () => <a href="/api/custom-login">Login</a>;
 ```
@@ -139,7 +139,7 @@ export default () => <a href="/api/custom-login">Login</a>;
 
 Requests to `/pages/profile` without a valid session cookie will be redirected to the login page.
 
-```javascript
+```jsx
 // pages/profile.js
 import { withPageAuthRequired } from '@auth0/nextjs-auth0';
 
@@ -158,7 +158,7 @@ See a running example of a [SSR protected page](./examples/kitchen-sink-example/
 
 Requests to `/pages/profile` without a valid session cookie will be redirected to the login page.
 
-```javascript
+```jsx
 // pages/profile.js
 import { withPageAuthRequired } from '@auth0/nextjs-auth0';
 
@@ -173,7 +173,7 @@ See a running example of a [CSR protected page](./examples/kitchen-sink-example/
 
 Requests to `/pages/api/protected` without a valid session cookie will fail with `401`.
 
-```javascript
+```js
 // pages/api/protected.js
 import { withApiAuthRequired } from '@auth0/nextjs-auth0';
 
@@ -209,7 +209,7 @@ the [frontend code to access the protected API](./examples/kitchen-sink-example/
 
 Get an Access Token by specifying `response_type: 'code'` and providing your API's audience and scopes.
 
-```javascript
+```js
 // /pages/api/auth/[...auth0].js
 import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
 
@@ -231,7 +231,7 @@ export default handleAuth({
 Use the Session to protect your API Route and the Access Token to protect your external API.
 The API route serves as a proxy between your front end and the external API.
 
-```javascript
+```js
 // /pages/api/products.js
 import { getAccessToken, withApiAuthRequired } from '@auth0/nextjs-auth0';
 
@@ -265,7 +265,7 @@ for example it might be a Web Socket API that can't be easily proxied through a 
 
 Create an API route that returns the Access Token as a JSON response.
 
-```javascript
+```js
 // pages/api/token.js
 import { getAccessToken, withApiAuthRequired } from '@auth0/nextjs-auth0';
 
