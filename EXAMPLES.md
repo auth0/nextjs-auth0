@@ -84,7 +84,7 @@ Have a look at the `basic-example` app [./examples/basic-example](./examples/bas
 Pass custom parameters to the auth handlers or add your own logging and error handling.
 
 ```js
-// /pages/api/auth/[...auth0].js
+// pages/api/auth/[...auth0].js
 import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
 import { myCustomLogger, myCustomErrorReporter } from '../utils';
 
@@ -129,7 +129,7 @@ export default async function login(req, res) {
 ```
 
 ```jsx
-// /components/login-button.js
+// components/login-button.js
 export default () => <a href="/api/custom-login">Login</a>;
 ```
 
@@ -210,7 +210,7 @@ the [frontend code to access the protected API](./examples/kitchen-sink-example/
 Get an Access Token by specifying `response_type: 'code'` and providing your API's audience and scopes.
 
 ```js
-// /pages/api/auth/[...auth0].js
+// pages/api/auth/[...auth0].js
 import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
 
 export default handleAuth({
@@ -232,7 +232,7 @@ Use the Session to protect your API Route and the Access Token to protect your e
 The API route serves as a proxy between your front end and the external API.
 
 ```js
-// /pages/api/products.js
+// pages/api/products.js
 import { getAccessToken, withApiAuthRequired } from '@auth0/nextjs-auth0';
 
 export default withApiAuthRequired(async function products(req, res) {
