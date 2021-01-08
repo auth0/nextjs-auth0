@@ -69,7 +69,7 @@ const User = createContext<UserContext>({ isLoading: false });
  * The `useUser` hook, which will get you the {@link UserProfile} object from the server side session by requesting it
  * from the {@link HandleProfile} API Route handler.
  *
- * ```javascript
+ * ```js
  * // pages/profile.js
  * import Link from 'next/link';
  * import { useUser } from '@auth0/nextjs-auth0`;
