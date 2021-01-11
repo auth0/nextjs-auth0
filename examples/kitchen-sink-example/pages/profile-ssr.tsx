@@ -12,7 +12,7 @@ export default function Profile({ user }: ProfileProps): React.ReactElement {
 
       <div>
         <h3>Profile (server rendered)</h3>
-        <pre id="profile">{JSON.stringify(user, null, 2)}</pre>
+        <pre data-testid="profile">{JSON.stringify(user, null, 2)}</pre>
       </div>
     </Layout>
   );
