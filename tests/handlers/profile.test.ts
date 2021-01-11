@@ -23,6 +23,14 @@ describe('profile handler', () => {
     expect(profile).toStrictEqual({ nickname: '__test_nickname__', sub: '__test_sub__' });
   });
 
+  test('should not allow caching the profile response', async () => {
+    const baseUrl = await setup(withoutApi);
+    const cookieJar = await login(baseUrl);
+
+    const { res } = await get(baseUrl, '/api/auth/me', { cookieJar, fullResponse: true });
+    expect(res.headers['cache-control']).toEqual('no-store');
+  });
+
   test('should throw if re-fetching with no Access Token', async () => {
     const afterCallback: AfterCallback = (_req, _res, session: Session): Session => {
       delete session.accessToken;
