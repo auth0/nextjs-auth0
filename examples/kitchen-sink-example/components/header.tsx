@@ -2,8 +2,8 @@ import React from 'react';
 import Link from 'next/link';
 import { useUser } from '@auth0/nextjs-auth0';
 
-const Header: React.FunctionComponent = () => {
-  const { user, isLoading } = useUser();
+const Header = (): React.ReactElement => {
+  const { user } = useUser();
 
   return (
     <header>
@@ -24,32 +24,31 @@ const Header: React.FunctionComponent = () => {
               <a>TV Shows</a>
             </Link>
           </li>
-          {!isLoading &&
-            (user ? (
-              <>
-                <li>
-                  <Link href="/profile">
-                    <a>Profile</a>
-                  </Link>
-                </li>{' '}
-                <li>
-                  <a href="/profile-ssr">Profile (SSR)</a>
-                </li>{' '}
-                <li>
-                  <a href="/api/auth/logout" id="logout">
-                    Logout
-                  </a>
-                </li>
-              </>
-            ) : (
-              <>
-                <li>
-                  <a href="/api/auth/login" id="login">
-                    Login
-                  </a>
-                </li>
-              </>
-            ))}
+          {user ? (
+            <>
+              <li>
+                <Link href="/profile">
+                  <a>Profile</a>
+                </Link>
+              </li>{' '}
+              <li>
+                <a href="/profile-ssr">Profile (SSR)</a>
+              </li>{' '}
+              <li>
+                <a href="/api/auth/logout" data-testid="logout">
+                  Logout
+                </a>
+              </li>
+            </>
+          ) : (
+            <>
+              <li>
+                <a href="/api/auth/login" data-testid="login">
+                  Login
+                </a>
+              </li>
+            </>
+          )}
         </ul>
       </nav>
 
