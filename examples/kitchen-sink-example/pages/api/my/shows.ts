@@ -1,21 +1,39 @@
-import { NextJwtVerifier } from '@serverless-jwt/next';
+import { promisify } from 'util';
+import jwt from 'express-jwt';
+import jwtAuthz from 'express-jwt-authz';
+import jwksRsa from 'jwks-rsa';
 
-const verifyJwt = NextJwtVerifier({
-  issuer: process.env.AUTH0_ISSUER_BASE_URL,
-  audience: process.env.AUTH0_AUDIENCE
-});
+const verifyJwt = promisify(
+  jwt({
+    secret: jwksRsa.expressJwtSecret({
+      cache: true,
+      rateLimit: true,
+      jwksRequestsPerMinute: 5,
+      jwksUri: `${process.env.AUTH0_ISSUER_BASE_URL}.well-known/jwks.json`
+    }),
+    audience: process.env.AUTH0_AUDIENCE,
+    issuer: process.env.AUTH0_ISSUER_BASE_URL,
+    algorithms: ['RS256']
+  })
+);
 
-const requireScope = (scope, apiRoute) =>
-  verifyJwt(async (req, res) => {
-    const { claims } = (req as any).identityContext;
-    if (!claims || !claims.scope || claims.scope.indexOf(scope) === -1) {
-      return res.status(403).json({
-        error: 'access_denied',
-        error_description: `Token does not contain the required '${scope}' scope`
-      });
-    }
-    return apiRoute(req, res);
-  });
+const checkScopes = promisify(jwtAuthz(['read:shows'], { failWithError: true }));
+
+const requireScope = (apiRoute) => async (req, res) => {
+  try {
+    res.append = () => {
+      //noop
+    };
+    await verifyJwt(req, res);
+    await checkScopes(req, res);
+  } catch (e) {
+    return res.status(e.statusCode).json({
+      error: e.error,
+      error_description: e.message
+    });
+  }
+  return apiRoute(req, res);
+};
 
 const apiRoute = async (req, res) => {
   try {
@@ -32,4 +50,4 @@ const apiRoute = async (req, res) => {
   }
 };
 
-export default requireScope('read:shows', apiRoute);
+export default requireScope(apiRoute);

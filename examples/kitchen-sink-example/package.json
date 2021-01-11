@@ -35,7 +35,9 @@
   },
   "dependencies": {
     "@auth0/nextjs-auth0": "file:../../",
-    "@serverless-jwt/next": "^0.2.0",
+    "express-jwt": "^6.0.0",
+    "jwks-rsa": "^1.12.2",
+    "express-jwt-authz": "^2.4.1",
     "next": "file:../../node_modules/next",
     "react": "file:../../node_modules/react",
     "react-dom": "file:../../node_modules/react-dom"
