@@ -70,6 +70,7 @@ export default function profileHandler(
       return;
     }
 
+    res.setHeader('Cache-Control', 'no-store');
     res.json(session.user);
   };
 }
