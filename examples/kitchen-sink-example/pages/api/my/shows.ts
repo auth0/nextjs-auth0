@@ -21,9 +21,6 @@ const checkScopes = promisify(jwtAuthz(['read:shows'], { failWithError: true }))
 
 const requireScope = (apiRoute) => async (req, res) => {
   try {
-    res.append = () => {
-      //noop
-    };
     await verifyJwt(req, res);
     await checkScopes(req, res);
   } catch (e) {
