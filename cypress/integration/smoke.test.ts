@@ -14,10 +14,6 @@ describe('smoke tests', () => {
     cy.get('button[name=submit], button[name=action]').click();
   });
 
-  after(() => {
-    cy.get('[data-testid=logout]').click();
-  });
-
   it('should do basic login and show user', () => {
     cy.url().should('eq', `${Cypress.config().baseUrl}/`);
     cy.get('[data-testid=profile]').contains(EMAIL);
@@ -34,5 +30,10 @@ describe('smoke tests', () => {
     cy.visit('/profile-ssr');
     cy.url().should('eq', `${Cypress.config().baseUrl}/profile-ssr`);
     cy.get('[data-testid=profile]').contains(EMAIL);
+  });
+
+  it('should logout and return to the index page', () => {
+    cy.get('[data-testid=logout]').click();
+    cy.url().should('eq', `${Cypress.config().baseUrl}/`);
   });
 });
