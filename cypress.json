@@ -5,9 +5,11 @@
   "viewportHeight": 1000,
   "fixturesFolder": false,
   "pluginsFile": false,
-  "supportFile": false,
   "reporter": "junit",
   "reporterOptions": {
     "mochaFile": "test-results/cypress/junit-[hash].xml"
+  },
+  "retries": {
+    "runMode": 3
   }
 }
