@@ -35,5 +35,6 @@ describe('smoke tests', () => {
   it('should logout and return to the index page', () => {
     cy.get('[data-testid=logout]').click();
     cy.url().should('eq', `${Cypress.config().baseUrl}/`);
+    cy.get('[data-testid=login]').should('exist');
   });
 });
