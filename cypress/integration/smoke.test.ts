@@ -9,7 +9,7 @@ describe('smoke tests', () => {
   beforeEach(() => {
     cy.visit('/');
     cy.get('[data-testid=login]').click();
-    cy.get('input[name=username]').focus().clear().type(EMAIL);
+    cy.get('input[name=email], input[name=username]').focus().clear().type(EMAIL);
     cy.get('input[name=password]').focus().clear().type(PASSWORD);
     cy.get('button[name=submit], button[name=action]').click();
   });
