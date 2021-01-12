@@ -3,9 +3,7 @@ import Head from 'next/head';
 
 import Header from './header';
 
-type LayoutProps = React.PropsWithChildren<{}>;
-
-const Layout: React.FunctionComponent<LayoutProps> = ({ children }: LayoutProps) => (
+const Layout = ({ children }: React.PropsWithChildren<unknown>): React.ReactElement => (
   <>
     <Head>
       <title>Next.js with Auth0</title>

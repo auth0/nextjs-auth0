@@ -5,41 +5,36 @@ if (!EMAIL || !PASSWORD) {
   throw new Error('You must provide CYPRESS_USER_EMAIL and CYPRESS_USER_PASSWORD environment variables');
 }
 
-const loginToAuth0 = (): void => {
-  cy.visit('/');
-  cy.get('#login').click();
-  cy.get('.auth0-lock-input-email input').focus().clear().type(EMAIL);
-  cy.get('.auth0-lock-input-password input').focus().clear().type(PASSWORD);
-  cy.get('.auth0-lock-submit').click();
-};
+describe('smoke tests', () => {
+  before(() => {
+    cy.visit('/');
+    cy.get('[data-testid=login]').click();
+    cy.get('input[name=email], input[name=username]').focus().clear().type(EMAIL);
+    cy.get('input[name=password]').focus().clear().type(PASSWORD);
+    cy.get('button[name=submit], button[name=action]').click();
+  });
 
-describe('Smoke tests', () => {
   it('should do basic login and show user', () => {
-    loginToAuth0();
-
     cy.url().should('eq', `${Cypress.config().baseUrl}/`);
-    cy.get('#profile').contains(EMAIL);
-    cy.get('#logout').click();
-    cy.get('#login').should('exist');
+    cy.get('[data-testid=profile]').contains(EMAIL);
+    cy.get('[data-testid=logout]').should('exist');
   });
 
   it('should protect a client-side rendered page', () => {
-    loginToAuth0();
-
-    cy.url().should('eq', `${Cypress.config().baseUrl}/`);
     cy.visit('/profile');
     cy.url().should('eq', `${Cypress.config().baseUrl}/profile`);
-    cy.get('#profile').contains(EMAIL);
-    cy.get('#logout').click();
+    cy.get('[data-testid=profile]').contains(EMAIL);
   });
 
   it('should protect a server-side-rendered page', () => {
-    loginToAuth0();
-
-    cy.url().should('eq', `${Cypress.config().baseUrl}/`);
     cy.visit('/profile-ssr');
     cy.url().should('eq', `${Cypress.config().baseUrl}/profile-ssr`);
-    cy.get('#profile').contains(EMAIL);
-    cy.get('#logout').click();
+    cy.get('[data-testid=profile]').contains(EMAIL);
+  });
+
+  it('should logout and return to the index page', () => {
+    cy.get('[data-testid=logout]').click();
+    cy.url().should('eq', `${Cypress.config().baseUrl}/`);
+    cy.get('[data-testid=login]').should('exist');
   });
 });
