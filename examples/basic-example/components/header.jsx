@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useUser } from '@auth0/nextjs-auth0';
 
 const Header = () => {
-  const { user, isLoading } = useUser();
+  const { user } = useUser();
 
   return (
     <header>
@@ -19,24 +19,23 @@ const Header = () => {
               <a>Protected Page</a>
             </Link>
           </li>
-          {!isLoading &&
-            (user ? (
-              <>
-                <li>
-                  <a href="/api/auth/logout" id="logout">
-                    Logout
-                  </a>
-                </li>
-              </>
-            ) : (
-              <>
-                <li>
-                  <a href="/api/auth/login" id="login">
-                    Login
-                  </a>
-                </li>
-              </>
-            ))}
+          {user ? (
+            <>
+              <li>
+                <a href="/api/auth/logout" data-testid="logout">
+                  Logout
+                </a>
+              </li>
+            </>
+          ) : (
+            <>
+              <li>
+                <a href="/api/auth/login" data-testid="login">
+                  Login
+                </a>
+              </li>
+            </>
+          )}
         </ul>
       </nav>
 

@@ -22,7 +22,7 @@ export default withPageAuthRequired(function Profile(): React.ReactElement {
       {user && (
         <>
           <h4>Profile</h4>
-          <pre id="profile">{JSON.stringify(user, null, 2)}</pre>
+          <pre data-testid="profile">{JSON.stringify(user, null, 2)}</pre>
         </>
       )}
     </Layout>
