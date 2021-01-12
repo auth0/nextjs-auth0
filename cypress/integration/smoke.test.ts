@@ -6,7 +6,7 @@ if (!EMAIL || !PASSWORD) {
 }
 
 describe('smoke tests', () => {
-  beforeEach(() => {
+  before(() => {
     cy.visit('/');
     cy.get('[data-testid=login]').click();
     cy.get('input[name=email], input[name=username]').focus().clear().type(EMAIL);
@@ -14,7 +14,7 @@ describe('smoke tests', () => {
     cy.get('button[name=submit], button[name=action]').click();
   });
 
-  afterEach(() => {
+  after(() => {
     cy.get('[data-testid=logout]').click();
   });
 
@@ -25,14 +25,12 @@ describe('smoke tests', () => {
   });
 
   it('should protect a client-side rendered page', () => {
-    cy.url().should('eq', `${Cypress.config().baseUrl}/`);
     cy.visit('/profile');
     cy.url().should('eq', `${Cypress.config().baseUrl}/profile`);
     cy.get('[data-testid=profile]').contains(EMAIL);
   });
 
   it('should protect a server-side-rendered page', () => {
-    cy.url().should('eq', `${Cypress.config().baseUrl}/`);
     cy.visit('/profile-ssr');
     cy.url().should('eq', `${Cypress.config().baseUrl}/profile-ssr`);
     cy.get('[data-testid=profile]').contains(EMAIL);
