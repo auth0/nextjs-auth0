@@ -22,7 +22,7 @@ export default function Home(): React.ReactElement {
       {user && (
         <>
           <h4>Rendered user info on the client</h4>
-          <pre id="profile">{JSON.stringify(user, null, 2)}</pre>
+          <pre data-testid="profile">{JSON.stringify(user, null, 2)}</pre>
         </>
       )}
 
