@@ -1,5 +1,5 @@
 import nock from 'nock';
-import { Client } from 'openid-client';
+import { Client, Issuer } from 'openid-client';
 import { getConfig, clientFactory, ConfigParameters } from '../../src/auth0-session';
 import { jwks } from './fixtures/cert';
 import pkg from '../../package.json';
@@ -131,5 +131,17 @@ describe('clientFactory', function () {
         idpLogout: true
       })
     ).resolves.not.toThrow();
+  });
+
+  it('should not disclose stack trace in AggregateError message when discovery fails', async () => {
+    nock.cleanAll();
+    nock('https://op.example.com').get('/.well-known/oauth-authorization-server').reply(500);
+    nock('https://op.example.com').get('/.well-known/openid-configuration').reply(500);
+    await expect(getClient()).rejects.toThrowError(new Error('expected 200 OK, got: 500 Internal Server Error'));
+  });
+
+  it('should not normalize individual errors from discovery', async () => {
+    jest.spyOn(Issuer, 'discover').mockRejectedValue(new Error('foo'));
+    await expect(getClient()).rejects.toThrowError(new Error('foo'));
   });
 });

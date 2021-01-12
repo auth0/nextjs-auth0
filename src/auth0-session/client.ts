@@ -19,6 +19,17 @@ function sortSpaceDelimitedString(str: string): string {
   return str.split(' ').sort().join(' ');
 }
 
+// Issuer.discover throws an `AggregateError` in some cases, this error includes the stack trace in the
+// message which causes the stack to be exposed when reporting the error in production. Am using the non standard
+// `_errors` property to identify the polyfilled `AggregateError`
+// See https://github.com/sindresorhus/aggregate-error/issues/4#issuecomment-488356468
+function normalizeAggregateError(e: Error | (Error & { _errors: Error[] })): Error {
+  if ('_errors' in e) {
+    return e._errors[0];
+  }
+  return e;
+}
+
 export default function get(config: Config, { name, version }: Telemetry): ClientFactory {
   let client: Client | null = null;
 
@@ -54,7 +65,12 @@ export default function get(config: Config, { name, version }: Telemetry): Clien
     };
 
     applyHttpOptionsCustom(Issuer);
-    const issuer = await Issuer.discover(config.issuerBaseURL);
+    let issuer: Issuer<Client>;
+    try {
+      issuer = await Issuer.discover(config.issuerBaseURL);
+    } catch (e) {
+      throw normalizeAggregateError(e);
+    }
     applyHttpOptionsCustom(issuer);
 
     const issuerTokenAlgs = Array.isArray(issuer.id_token_signing_alg_values_supported)
