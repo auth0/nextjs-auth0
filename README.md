@@ -1,4 +1,4 @@
-# @auth0/nextjs-auth0
+# @auth0/nextjs-auth0 Beta
 
 Auth0 SDK for signing in to your Next.js applications.
 
@@ -15,10 +15,11 @@ Auth0 SDK for signing in to your Next.js applications.
   - [Auth0 Configuration](#auth0-configuration)
   - [Basic Setup](#basic-setup)
 - [Documentation](#documentation)
-  - [Architecture](./ARCHITECTURE.md)
-  - [v1 Migration Guide](./V1_MIGRATION_GUIDE.md)
+  - [QuickStart](https://auth0.com/docs/quickstart/webapp/nextjs)
   - [API Reference](#api-reference)
+  - [v1 Migration Guide](./V1_MIGRATION_GUIDE.md)
   - [Cookies and Security](#cookies-and-security)
+  - [Architecture](./ARCHITECTURE.md)
   - [Comparison with auth0-react](#comparison-with-auth0-react)
   - [Testing](#testing)
 - [Troubleshooting](#troubleshooting)

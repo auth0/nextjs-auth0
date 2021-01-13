@@ -88,7 +88,8 @@
 						<section class="tsd-index-section ">
 							<h3>Properties</h3>
 							<ul class="tsd-index-list">
-								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="frontend_use_user.usercontext.html#loading" class="tsd-kind-icon">loading</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="frontend_use_user.usercontext.html#error" class="tsd-kind-icon">error</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="frontend_use_user.usercontext.html#isloading" class="tsd-kind-icon">is<wbr>Loading</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="frontend_use_user.usercontext.html#user" class="tsd-kind-icon">user</a></li>
 							</ul>
 						</section>
@@ -98,22 +99,32 @@
 			<section class="tsd-panel-group tsd-member-group ">
 				<h2>Properties</h2>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
-					<a name="loading" class="tsd-anchor"></a>
-					<h3>loading</h3>
-					<div class="tsd-signature tsd-kind-icon">loading<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span></div>
+					<a name="error" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagOptional">Optional</span> error</h3>
+					<div class="tsd-signature tsd-kind-icon">error<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">Error</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/3a3a747/src/frontend/use-user.tsx#L26">src/frontend/use-user.tsx:26</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/frontend/use-user.tsx#L26">src/frontend/use-user.tsx:26</a></li>
+						</ul>
+					</aside>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
+					<a name="isloading" class="tsd-anchor"></a>
+					<h3>is<wbr>Loading</h3>
+					<div class="tsd-signature tsd-kind-icon">is<wbr>Loading<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/frontend/use-user.tsx#L27">src/frontend/use-user.tsx:27</a></li>
 						</ul>
 					</aside>
 				</section>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
 					<a name="user" class="tsd-anchor"></a>
 					<h3><span class="tsd-flag ts-flagOptional">Optional</span> user</h3>
-					<div class="tsd-signature tsd-kind-icon">user<span class="tsd-signature-symbol">:</span> <a href="frontend_use_user.userprofile.html" class="tsd-signature-type" data-tsd-kind="Interface">UserProfile</a></div>
+					<div class="tsd-signature tsd-kind-icon">user<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><a href="frontend_use_user.userprofile.html" class="tsd-signature-type" data-tsd-kind="Interface">UserProfile</a></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/3a3a747/src/frontend/use-user.tsx#L25">src/frontend/use-user.tsx:25</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/frontend/use-user.tsx#L25">src/frontend/use-user.tsx:25</a></li>
 						</ul>
 					</aside>
 				</section>
@@ -195,7 +206,10 @@
 						<a href="frontend_use_user.usercontext.html" class="tsd-kind-icon">User<wbr>Context</a>
 						<ul>
 							<li class=" tsd-kind-property tsd-parent-kind-interface">
-								<a href="frontend_use_user.usercontext.html#loading" class="tsd-kind-icon">loading</a>
+								<a href="frontend_use_user.usercontext.html#error" class="tsd-kind-icon">error</a>
+							</li>
+							<li class=" tsd-kind-property tsd-parent-kind-interface">
+								<a href="frontend_use_user.usercontext.html#isloading" class="tsd-kind-icon">is<wbr>Loading</a>
 							</li>
 							<li class=" tsd-kind-property tsd-parent-kind-interface">
 								<a href="frontend_use_user.usercontext.html#user" class="tsd-kind-icon">user</a>
@@ -212,6 +226,9 @@
 					</li>
 					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
 						<a href="../modules/frontend_use_user.html#userprovider" class="tsd-kind-icon">User<wbr>Provider</a>
+					</li>
+					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
+						<a href="../modules/frontend_use_user.html#userproviderprops" class="tsd-kind-icon">User<wbr>Provider<wbr>Props</a>
 					</li>
 					<li class=" tsd-kind-property tsd-parent-kind-module">
 						<a href="../modules/frontend_use_user.html#default" class="tsd-kind-icon">default</a>

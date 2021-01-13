@@ -102,11 +102,13 @@
 					</a>
 					<ul>
 						<li><code>AUTH0_CLOCK_TOLERANCE</code>: See <a href="config.config-1.html#clocktolerance">clockTolerance</a></li>
+						<li><code>AUTH0_HTTP_TIMEOUT</code>: See <a href="config.config-1.html#httptimeout">httpTimeout</a></li>
 						<li><code>AUTH0_ENABLE_TELEMETRY</code>: See <a href="config.config-1.html#enabletelemetry">enableTelemetry</a></li>
 						<li><code>AUTH0_IDP_LOGOUT</code>: See <a href="config.config-1.html#idplogout">idpLogout</a></li>
 						<li><code>AUTH0_ID_TOKEN_SIGNING_ALG</code>: See <a href="config.config-1.html#idtokensigningalg">idTokenSigningAlg</a></li>
 						<li><code>AUTH0_LEGACY_SAME_SITE_COOKIE</code>: See <a href="config.config-1.html#legacysamesitecookie">legacySameSiteCookie</a></li>
 						<li><code>AUTH0_POST_LOGOUT_REDIRECT</code>: See <a href="config.config-1.html#routes">Config.routes</a></li>
+						<li><code>AUTH0_CALLBACK</code>: See <a href="config.config-1.html#routes">Config.routes</a></li>
 						<li><code>AUTH0_AUDIENCE</code>: See <a href="config.config-1.html#authorizationparams">Config.authorizationParams</a></li>
 						<li><code>AUTH0_SCOPE</code>: See <a href="config.config-1.html#authorizationparams">Config.authorizationParams</a></li>
 						<li><code>AUTH0_SESSION_NAME</code>: See <a href="config.sessionconfig.html#name">SessionConfig.name</a></li>
@@ -124,13 +126,15 @@
 						<h3>2. Create your own instance using <a href="../modules/instance.html#initauth0">InitAuth0</a></h3>
 					</a>
 					<p>If you don&#39;t want to configure the SDK with environment variables or you want more fine grained control over the
-					instance, you can create an instance yourself and use the handlers and helpers from that, eg:</p>
+					instance, you can create an instance yourself and use the handlers and helpers from that.</p>
+					<p>First, export your configured instance from another module:</p>
 					<pre><code class="language-js"><span style="color: #008000">// utils/auth0.js</span>
 <span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">initAuth0</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@auth0/nextjs-auth0&#039;</span><span style="color: #000000">;</span>
 
 <span style="color: #AF00DB">export</span><span style="color: #000000"> </span><span style="color: #AF00DB">default</span><span style="color: #000000"> </span><span style="color: #795E26">initAuth0</span><span style="color: #000000">({ ...</span><span style="color: #001080">ConfigParameters</span><span style="color: #000000">... });</span>
-
-<span style="color: #008000">// pages/api/auth/[...auth0].js</span>
+</code></pre>
+					<p>Then import it into your route handler:</p>
+					<pre><code class="language-js"><span style="color: #008000">// pages/api/auth/[...auth0].js</span>
 <span style="color: #AF00DB">import</span><span style="color: #000000"> </span><span style="color: #001080">auth0</span><span style="color: #000000"> </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;../../../../utils/auth0&#039;</span><span style="color: #000000">;</span>
 
 <span style="color: #AF00DB">return</span><span style="color: #000000"> </span><span style="color: #001080">auth0</span><span style="color: #000000">.</span><span style="color: #795E26">handleAuth</span><span style="color: #000000">();</span>
@@ -162,6 +166,7 @@
 								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="config.config-1.html#clocktolerance" class="tsd-kind-icon">clock<wbr>Tolerance</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="config.config-1.html#enabletelemetry" class="tsd-kind-icon">enable<wbr>Telemetry</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="config.config-1.html#getloginstate" class="tsd-kind-icon">get<wbr>Login<wbr>State</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="config.config-1.html#httptimeout" class="tsd-kind-icon">http<wbr>Timeout</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="config.config-1.html#idtokensigningalg" class="tsd-kind-icon">id<wbr>Token<wbr>Signing<wbr>Alg</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="config.config-1.html#identityclaimfilter" class="tsd-kind-icon">identity<wbr>Claim<wbr>Filter</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="config.config-1.html#idplogout" class="tsd-kind-icon">idp<wbr>Logout</a></li>
@@ -183,7 +188,7 @@
 					<div class="tsd-signature tsd-kind-icon">auth0<wbr>Logout<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/3a3a747/src/config.ts#L94">src/config.ts:94</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/config.ts#L102">src/config.ts:102</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -198,7 +203,7 @@
 					<div class="tsd-signature tsd-kind-icon">authorization<wbr>Params<span class="tsd-signature-symbol">:</span> <a href="config.authorizationparameters.html" class="tsd-signature-type" data-tsd-kind="Interface">AuthorizationParameters</a></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/3a3a747/src/config.ts#L124">src/config.ts:124</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/config.ts#L132">src/config.ts:132</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -212,15 +217,15 @@
 <span style="color: #000000">}</span>
 </code></pre>
 						<p>New values can be passed in to change what is returned from the authorization server
-						depending on your specific scenario.</p>
-						<p>Additional custom parameters can be added as well:</p>
+						depending on your specific scenario. Additional custom parameters can be added as well.</p>
+						<p><strong>Note:</strong> You must provide the required parameters if this object is set.</p>
 						<pre><code class="language-js"><span style="color: #000000">{</span>
-<span style="color: #000000">  </span><span style="color: #008000">// Note: you need to provide required parameters if this object is set.</span>
 <span style="color: #000000">  response_type: </span><span style="color: #A31515">&#039;code&#039;</span><span style="color: #000000">,</span>
-<span style="color: #000000">  scope: </span><span style="color: #A31515">&#039;openid profile email&#039;</span>
-<span style="color: #000000"> </span><span style="color: #008000">// Additional parameters</span>
-<span style="color: #000000"> acr_value: </span><span style="color: #A31515">&quot;tenant:test-tenant&quot;</span><span style="color: #000000">,</span>
-<span style="color: #000000"> custom_param: </span><span style="color: #A31515">&quot;custom-value&quot;</span>
+<span style="color: #000000">  scope: </span><span style="color: #A31515">&#039;openid profile email&#039;</span><span style="color: #000000">,</span>
+
+<span style="color: #000000">  </span><span style="color: #008000">// Additional parameters</span>
+<span style="color: #000000">  acr_value: </span><span style="color: #A31515">&quot;tenant:test-tenant&quot;</span><span style="color: #000000">,</span>
+<span style="color: #000000">  custom_param: </span><span style="color: #A31515">&quot;custom-value&quot;</span>
 <span style="color: #000000">};</span>
 </code></pre>
 					</div>
@@ -231,7 +236,7 @@
 					<div class="tsd-signature tsd-kind-icon">baseURL<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/3a3a747/src/config.ts#L132">src/config.ts:132</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/config.ts#L140">src/config.ts:140</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -249,7 +254,7 @@
 					<div class="tsd-signature tsd-kind-icon">clientID<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/3a3a747/src/config.ts#L138">src/config.ts:138</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/config.ts#L146">src/config.ts:146</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -262,10 +267,10 @@
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
 					<a name="clientsecret" class="tsd-anchor"></a>
 					<h3><span class="tsd-flag ts-flagOptional">Optional</span> client<wbr>Secret</h3>
-					<div class="tsd-signature tsd-kind-icon">client<wbr>Secret<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
+					<div class="tsd-signature tsd-kind-icon">client<wbr>Secret<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/3a3a747/src/config.ts#L145">src/config.ts:145</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/config.ts#L153">src/config.ts:153</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -282,7 +287,7 @@
 					<div class="tsd-signature tsd-kind-icon">clock<wbr>Tolerance<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/3a3a747/src/config.ts#L151">src/config.ts:151</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/config.ts#L159">src/config.ts:159</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -298,7 +303,7 @@
 					<div class="tsd-signature tsd-kind-icon">enable<wbr>Telemetry<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/3a3a747/src/config.ts#L157">src/config.ts:157</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/config.ts#L171">src/config.ts:171</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -314,7 +319,7 @@
 					<div class="tsd-signature tsd-kind-icon">get<wbr>Login<wbr>State<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">IncomingMessage</span>, options<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">LoginOptions</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Record</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/3a3a747/src/config.ts#L186">src/config.ts:186</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/config.ts#L200">src/config.ts:200</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -361,12 +366,28 @@
 					</div>
 				</section>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
+					<a name="httptimeout" class="tsd-anchor"></a>
+					<h3>http<wbr>Timeout</h3>
+					<div class="tsd-signature tsd-kind-icon">http<wbr>Timeout<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/config.ts#L165">src/config.ts:165</a></li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>Integer value for the http timeout in ms for authentication requests.
+							Default is 5000</p>
+						</div>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
 					<a name="idtokensigningalg" class="tsd-anchor"></a>
 					<h3>id<wbr>Token<wbr>Signing<wbr>Alg</h3>
 					<div class="tsd-signature tsd-kind-icon">id<wbr>Token<wbr>Signing<wbr>Alg<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/3a3a747/src/config.ts#L202">src/config.ts:202</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/config.ts#L216">src/config.ts:216</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -381,7 +402,7 @@
 					<div class="tsd-signature tsd-kind-icon">identity<wbr>Claim<wbr>Filter<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/3a3a747/src/config.ts#L192">src/config.ts:192</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/config.ts#L206">src/config.ts:206</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -397,7 +418,7 @@
 					<div class="tsd-signature tsd-kind-icon">idp<wbr>Logout<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/3a3a747/src/config.ts#L197">src/config.ts:197</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/config.ts#L211">src/config.ts:211</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -412,7 +433,7 @@
 					<div class="tsd-signature tsd-kind-icon">issuer<wbr>BaseURL<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/3a3a747/src/config.ts#L209">src/config.ts:209</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/config.ts#L223">src/config.ts:223</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -429,7 +450,7 @@
 					<div class="tsd-signature tsd-kind-icon">legacy<wbr>Same<wbr>Site<wbr>Cookie<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/3a3a747/src/config.ts#L215">src/config.ts:215</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/config.ts#L229">src/config.ts:229</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -445,7 +466,7 @@
 					<div class="tsd-signature tsd-kind-icon">routes<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">{ </span>callback<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">; </span>postLogoutRedirect<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> }</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/3a3a747/src/config.ts#L225">src/config.ts:225</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/config.ts#L239">src/config.ts:239</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -480,10 +501,10 @@
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
 					<a name="secret" class="tsd-anchor"></a>
 					<h3>secret</h3>
-					<div class="tsd-signature tsd-kind-icon">secret<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">Array</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">&gt;</span></div>
+					<div class="tsd-signature tsd-kind-icon">secret<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/3a3a747/src/config.ts#L84">src/config.ts:84</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/config.ts#L92">src/config.ts:92</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -501,7 +522,7 @@
 					<div class="tsd-signature tsd-kind-icon">session<span class="tsd-signature-symbol">:</span> <a href="config.sessionconfig.html" class="tsd-signature-type" data-tsd-kind="Interface">SessionConfig</a></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/3a3a747/src/config.ts#L89">src/config.ts:89</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/config.ts#L97">src/config.ts:97</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -613,6 +634,9 @@
 							</li>
 							<li class=" tsd-kind-property tsd-parent-kind-interface">
 								<a href="config.config-1.html#getloginstate" class="tsd-kind-icon">get<wbr>Login<wbr>State</a>
+							</li>
+							<li class=" tsd-kind-property tsd-parent-kind-interface">
+								<a href="config.config-1.html#httptimeout" class="tsd-kind-icon">http<wbr>Timeout</a>
 							</li>
 							<li class=" tsd-kind-property tsd-parent-kind-interface">
 								<a href="config.config-1.html#idtokensigningalg" class="tsd-kind-icon">id<wbr>Token<wbr>Signing<wbr>Alg</a>
