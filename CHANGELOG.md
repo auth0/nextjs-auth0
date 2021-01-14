@@ -1,3 +1,36 @@
+## [1.0.0-beta.0](https://github.com/auth0/nextjs-auth0/tree/v1.0.0-beta.0) (2021-01-14)
+
+**Install**
+
+```sh
+npm install @auth0/nextjs-auth0@beta
+```
+
+**New features**
+
+- New suite of frontend tools:
+  - `useUser` hook and `UserProvider` to simplify checking and managing the user’s logged in state on the client.
+  - `withPageAuthRequired` higher order component to protect client side routes.
+- New `handleAuth` feature to reduce the amount of boilerplate required to set up the server side authentication handlers.
+- Simpler server side API where creation of an SDK instance is handled by the SDK.
+
+**Breaking changes**
+
+For a full list of breaking changes and migration guide, checkout the [V1_MIGRATION_GUIDE.md](./V1_MIGRATION_GUIDE.md)
+
+**Changes**
+
+- AggregateError#message from `Issuer.discover` includes stack trace [#236](https://github.com/auth0/nextjs-auth0/pull/236) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Prevent caching the `/me` request [#233](https://github.com/auth0/nextjs-auth0/pull/233) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Added error handling to useUser [SDK-2236] [#229](https://github.com/auth0/nextjs-auth0/pull/229) ([Widcket](https://github.com/Widcket))
+- Rename loading to isLoading [#222](https://github.com/auth0/nextjs-auth0/pull/222) ([Widcket](https://github.com/Widcket))
+- Prepare application to be deployable with Vercel [#218](https://github.com/auth0/nextjs-auth0/pull/218) ([frederikprijck](https://github.com/frederikprijck))
+- Added withCSRAuthRequired HOC [SDK-2120] [#209](https://github.com/auth0/nextjs-auth0/pull/209) ([Widcket](https://github.com/Widcket))
+- [SDK-2057] Express mw tests [#191](https://github.com/auth0/nextjs-auth0/pull/191) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Add withAuth HOC [SDK-2120] [#189](https://github.com/auth0/nextjs-auth0/pull/189) ([Widcket](https://github.com/Widcket))
+- Add frontend hook tests [SDK-2117] [#188](https://github.com/auth0/nextjs-auth0/pull/188) ([Widcket](https://github.com/Widcket))
+- Add frontend hook CH: Added [#187](https://github.com/auth0/nextjs-auth0/pull/187) ([Widcket](https://github.com/Widcket))
+
 ## [v0.16.0](https://github.com/auth0/nextjs-auth0/tree/v0.16.0) (2020-08-19)
 
 - Updating dependencies with security issues

@@ -84,8 +84,8 @@
 					<div class="tsd-signature tsd-kind-icon">With<wbr>Api<wbr>Auth<wbr>Required<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span>apiRoute<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiHandler</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">NextApiHandler</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/3a3a747/src/helpers/with-api-auth-required.ts#L23">src/helpers/with-api-auth-required.ts:23</a></li>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/3a3a747/src/helpers/index.ts#L1">src/helpers/index.ts:1</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/helpers/with-api-auth-required.ts#L23">src/helpers/with-api-auth-required.ts:23</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/helpers/index.ts#L1">src/helpers/index.ts:1</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -94,20 +94,20 @@
 							401 Unauthorized.</p>
 						</div>
 						<pre><code class="language-js"><span style="color: #008000">// pages/api/protected-route.js</span>
-<span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">withApiAuthRequired</span><span style="color: #000000">, </span><span style="color: #001080">getSession</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@auth0/nextjs-auth0&#039;</span>
+<span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">withApiAuthRequired</span><span style="color: #000000">, </span><span style="color: #001080">getSession</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@auth0/nextjs-auth0&#039;</span><span style="color: #000000">;</span>
 
 <span style="color: #AF00DB">export</span><span style="color: #000000"> </span><span style="color: #AF00DB">default</span><span style="color: #000000"> </span><span style="color: #795E26">withApiAuthRequired</span><span style="color: #000000">(</span><span style="color: #0000FF">function</span><span style="color: #000000"> </span><span style="color: #795E26">ProtectedRoute</span><span style="color: #000000">(</span><span style="color: #001080">req</span><span style="color: #000000">, </span><span style="color: #001080">res</span><span style="color: #000000">) {</span>
 <span style="color: #000000">  </span><span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">session</span><span style="color: #000000"> = </span><span style="color: #795E26">getSession</span><span style="color: #000000">(</span><span style="color: #001080">req</span><span style="color: #000000">, </span><span style="color: #001080">res</span><span style="color: #000000">);</span>
 <span style="color: #000000">  ...</span>
 <span style="color: #000000">});</span>
 </code></pre>
-						<p>If you visit <code>/api/protected-route</code> with out a valid session cookie, you will get a 401 response.</p>
+						<p>If you visit <code>/api/protected-route</code> without a valid session cookie, you will get a 401 response.</p>
 					</div>
 					<div class="tsd-type-declaration">
 						<h4>Type declaration</h4>
 						<ul class="tsd-parameters">
 							<li class="tsd-parameter-signature">
-								<ul class="tsd-signatures tsd-kind-type-literal tsd-parent-kind-module">
+								<ul class="tsd-signatures tsd-kind-type-literal tsd-parent-kind-type-alias">
 									<li class="tsd-signature tsd-kind-icon"><span class="tsd-signature-symbol">(</span>apiRoute<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiHandler</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiHandler</span></li>
 								</ul>
 								<ul class="tsd-descriptions">

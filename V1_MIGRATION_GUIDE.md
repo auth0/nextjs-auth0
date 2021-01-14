@@ -171,7 +171,7 @@ export default async function login(req, res) {
     });
   } catch (error) {
     console.error(error);
-    res.status(error.status || 400).end(error.message);
+    res.status(error.status || 500).end(error.message);
   }
 }
 ```
@@ -195,7 +195,7 @@ export default async function login(req, res) {
     });
   } catch (error) {
     console.error(error);
-    res.status(error.status || 400).end(error.message);
+    res.status(error.status || 500).end(error.message);
   }
 }
 ```
@@ -208,6 +208,42 @@ The options passed to `handleLogout` have changed.
 
 - `redirectTo` is now `returnTo`
 
+#### Before
+
+```js
+// pages/api/logout.js
+import auth0 from '../../utils/auth0';
+
+export default async function logout(req, res) {
+  try {
+    await auth0.handleLogout(req, res, {
+      redirectTo: '/custom-url'
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).end(error.message);
+  }
+}
+```
+
+#### After
+
+```js
+// pages/api/logout.js
+import auth0 from '../../utils/auth0';
+
+export default async function logout(req, res) {
+  try {
+    await auth0.handleLogout(req, res, {
+      returnTo: '/custom-url'
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).end(error.message);
+  }
+}
+```
+
 See the [handleLogout docs](https://auth0.github.io/nextjs-auth0/modules/handlers_logout.html).
 
 ### handleCallback
@@ -215,5 +251,45 @@ See the [handleLogout docs](https://auth0.github.io/nextjs-auth0/modules/handler
 The options passed to `handleCallback` have changed.
 
 - `onUserLoaded` is now `afterCallback`
+
+#### Before
+
+```js
+// pages/api/callback.js
+import auth0 from '../../utils/auth0';
+
+export default async function callback(req, res) {
+  try {
+    await auth0.handleCallback(req, res, {
+      async onUserLoaded(req, res, session, state) {
+        return session;
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).end(error.message);
+  }
+}
+```
+
+#### After
+
+```js
+// pages/api/callback.js
+import auth0 from '../../utils/auth0';
+
+export default async function callback(req, res) {
+  try {
+    await auth0.handleCallback(req, res, {
+      async afterCallback(req, res, session, state) {
+        return session;
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).end(error.message);
+  }
+}
+```
 
 See the [handleCallback docs](https://auth0.github.io/nextjs-auth0/modules/handlers_callback.html).
