@@ -81,7 +81,10 @@ export type WithPageAuthRequiredOptions = { getServerSideProps?: GetServerSidePr
  */
 export type WithPageAuthRequired = {
   (opts?: WithPageAuthRequiredOptions): PageRoute;
-  <P extends object>(Component: ComponentType<P>, options?: WithPageAuthRequiredCSROptions): React.FC<P>;
+  <P extends { [key: string]: any }>(
+    Component: ComponentType<P>,
+    options?: WithPageAuthRequiredCSROptions
+  ): React.FC<P>;
 };
 
 /**

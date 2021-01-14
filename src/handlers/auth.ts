@@ -79,7 +79,17 @@ const wrapErrorHandling = (fn: NextApiHandler): NextApiHandler => async (
 /**
  * @ignore
  */
-export default function handlerFactory({ handleLogin, handleLogout, handleCallback, handleProfile }: any): HandleAuth {
+export default function handlerFactory({
+  handleLogin,
+  handleLogout,
+  handleCallback,
+  handleProfile
+}: {
+  handleLogin: HandleLogin;
+  handleLogout: HandleLogout;
+  handleCallback: HandleCallback;
+  handleProfile: HandleProfile;
+}): HandleAuth {
   return (userHandlers: Partial<Handlers> = {}): NextApiHandler => {
     const { login, logout, callback, profile } = {
       login: wrapErrorHandling(handleLogin),
