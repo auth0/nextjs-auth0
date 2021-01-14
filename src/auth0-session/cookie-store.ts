@@ -33,7 +33,7 @@ export default class CookieStore {
     });
   }
 
-  private encrypt(payload: string, headers: object): string {
+  private encrypt(payload: string, headers: { [key: string]: any }): string {
     return JWE.encrypt(payload, this.currentKey as JWK.OctKey, {
       alg,
       enc,
