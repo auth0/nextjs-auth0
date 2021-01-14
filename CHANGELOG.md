@@ -1,6 +1,20 @@
 ## [1.0.0-beta.0](https://github.com/auth0/nextjs-auth0/tree/v1.0.0-beta.0) (2021-01-14)
 
-Install using the **beta** tag `npm install @auth0/nextjs-auth0@beta`
+**Install**
+
+```sh
+npm install @auth0/nextjs-auth0@beta
+```
+
+**New features**
+
+- New suite of frontend tools:
+  - `useUser` hook and `UserProvider` to simplify checking and managing the user’s logged in state on the client.
+  - `withPageAuthRequired` higher order component to protect client side routes.
+- New `handleAuth` feature to reduce the amount of boilerplate required to set up the server side authentication handlers.
+- Simpler server side API where creation of an SDK instance is handled by the SDK.
+
+**Breaking changes**
 
 For a full list of breaking changes and migration guide, checkout the [V1_MIGRATION_GUIDE.md](./V1_MIGRATION_GUIDE.md)
 
