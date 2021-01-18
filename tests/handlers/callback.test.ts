@@ -89,31 +89,6 @@ describe('callback handler', () => {
     ).rejects.toThrow('unexpected iss value, expected https://acme.auth0.local/, got: other-issuer');
   });
 
-  test('should allow id_tokens to be set in the future', async () => {
-    const baseUrl = await setup(withoutApi, {
-      idTokenClaims: {
-        iat: Math.floor(new Date(new Date().getTime() + 10 * 1000).getTime() / 1000)
-      }
-    });
-    const state = encodeState({ returnTo: baseUrl });
-    const cookieJar = toSignedCookieJar(
-      {
-        state,
-        nonce: '__test_nonce__'
-      },
-      baseUrl
-    );
-    const { res } = await callback(
-      baseUrl,
-      {
-        state,
-        code: 'code'
-      },
-      cookieJar
-    );
-    expect(res.statusCode).toBe(302);
-  });
-
   test('should create the session without OIDC claims', async () => {
     const baseUrl = await setup(withoutApi);
     const state = encodeState({ returnTo: baseUrl });

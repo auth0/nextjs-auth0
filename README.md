@@ -22,7 +22,6 @@ Auth0 SDK for signing in to your Next.js applications.
   - [Architecture](./ARCHITECTURE.md)
   - [Comparison with auth0-react](#comparison-with-auth0-react)
   - [Testing](#testing)
-- [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
 - [Vulnerability Reporting](#vulnerability-reporting)
 - [What is Auth0?](#what-is-auth0)
@@ -180,17 +179,6 @@ By default the SDK creates and manages a singleton instance to run for the lifet
 testing your application you may need to reset this instance, so it's state does not leak between tests.
 If you're using Jest, we recommend using `jest.resetModules()` after each test. Alternatively you can look at
 [creating your own instance of the SDK](./EXAMPLES.md#create-your-own-instance-of-the-sdk) so it can be recreated between tests.
-
-## Troubleshooting
-
-### Error `id_token issued in the future, now 1570650460, iat 1570650461`
-
-Increase the clock tolerance for id_token validation:
-
-```sh
-#  .env.local
-AUTH0_CLOCK_TOLERANCE=10000 # Increase tolerance to 10 secs
-```
 
 ## Contributing
 
