@@ -59,7 +59,6 @@
   },
   "homepage": "https://github.com/auth0/nextjs-auth0#readme",
   "devDependencies": {
-    "@panva/jose": "^1.9.3",
     "@testing-library/jest-dom": "^5.11.9",
     "@testing-library/react": "^11.2.3",
     "@testing-library/react-hooks": "^4.0.1",
@@ -111,9 +110,9 @@
     "debug": "^4.3.1",
     "futoin-hkdf": "^1.3.2",
     "http-errors": "^1.8.0",
-    "jose": "^2.0.3",
+    "jose": "^2.0.4",
     "on-headers": "^1.0.2",
-    "openid-client": "^4.2.2",
+    "openid-client": "^4.2.3",
     "url-join": "^4.0.1"
   },
   "peerDependencies": {
