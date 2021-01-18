@@ -207,7 +207,7 @@ the [frontend code to access the protected API](./examples/kitchen-sink-example/
 
 ## Access an External API from an API Route
 
-Get an Access Token by specifying `response_type: 'code'` and providing your API's audience and scopes.
+Get an Access Token by providing your API's audience and scopes. You can pass them directly to the `handlelogin` method, or use environment variables instead.
 
 ```js
 // pages/api/auth/[...auth0].js
@@ -217,9 +217,8 @@ export default handleAuth({
   async login(req, res) {
     try {
       await handleLogin(req, res, {
-        response_type: 'code',
-        audience: 'https://api.example.com/products',
-        scope: 'openid profile email read:products'
+        audience: 'https://api.example.com/products', // or AUTH0_AUDIENCE
+        scope: 'openid profile email read:products' // or AUTH0_SCOPE
       });
     } catch (error) {
       res.status(error.status || 400).end(error.message);
