@@ -3,21 +3,21 @@ version: 2.1
 jobs:
   build:
     docker:
-      - image: circleci/node:12.9.1-browsers
+      - image: circleci/node:lts-browsers
     steps:
       - checkout
       - restore_cache:
-          key: dependencies-{{ .Branch }}-{{ checksum "package-lock.json" }}-{{ checksum "examples/basic-example/package.json" }}-{{ checksum "examples/kitchen-sink-example/package.json" }}
+          key: dependencies-{{ .Branch }}-{{ checksum "package-lock.json" }}-{{ checksum "examples/kitchen-sink-example/package.json" }}
       - run: npm ci
-      - run: npm run install:examples
+      - run: npm run install:kitchen-sink
       - save_cache:
-          key: dependencies-{{ .Branch }}-{{ checksum "package-lock.json" }}-{{ checksum "examples/basic-example/package.json" }}-{{ checksum "examples/kitchen-sink-example/package.json" }}
+          key: dependencies-{{ .Branch }}-{{ checksum "package-lock.json" }}-{{ checksum "examples/kitchen-sink-example/package.json" }}
           paths:
             - ~/.npm
             - ~/.cache
       - run: npm run build
       - run: npm test
-      - run: npm run test:integration
+      - run: npm run test:kitchen-sink
       - store_test_results:
           path: test-results
       - store_artifacts:
