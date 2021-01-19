@@ -7,7 +7,6 @@
 - [Protecting a Client Side Rendered (CSR) Page](#protecting-a-client-side-rendered-csr-page)
 - [Protect an API Route](#protect-an-api-route)
 - [Access an External API from an API Route](#access-an-external-api-from-an-api-route)
-- [Access an External API from the front end](#access-an-external-api-from-the-front-end)
 - [Create your own instance of the SDK](#create-your-own-instance-of-the-sdk)
 
 All examples can be seen running in the [Kitchen Sink example app](./examples/kitchen-sink-example).
@@ -249,62 +248,6 @@ export default withApiAuthRequired(async function products(req, res) {
 ```
 
 See a running example of the [API route acting as a proxy to an External API](./examples/kitchen-sink-example/pages/api/shows.ts) in the kitchen-sink example app.
-
-## Access an External API from the front end
-
-In some instances you might want to interact with a protected External API directly from the front end,
-for example it might be a Web Socket API that can't be easily proxied through a Next API Route.
-
-> _Note_ the security model of `nextjs-auth0` is that the tokens are witheld from the front end
-> using an encrypted `HttpOnly` cookie session. This example bypasses this security model by giving
-> the front end direct access to the Access Token, so adds a risk (similar to a SPA) that this could
-> be stolen via XSS - and therefore should be avoided if possible. If this is your main data fetching
-> model, you may find that a SPA and `auth0-react` is more suitable for your needs. See the Next.js example
-> at https://github.com/auth0/auth0-react/blob/master/EXAMPLES.md#3-protecting-a-route-in-a-nextjs-app-in-spa-mode
-
-Create an API route that returns the Access Token as a JSON response.
-
-```js
-// pages/api/token.js
-import { getAccessToken, withApiAuthRequired } from '@auth0/nextjs-auth0';
-
-export default withApiAuthRequired(async function token(req, res) {
-  const { accessToken } = await getAccessToken(req, res, {
-    scopes: ['read:products']
-  });
-  res.status(200).json({ accessToken });
-});
-```
-
-Fetch the Access Token in the front end and use it to access an External API directly.
-
-```jsx
-// pages/products
-import useSWR from 'swr';
-import { withPageAuthRequired } from '@auth0/nextjs-auth0';
-
-const fetcher = async (uri) => {
-  const atResponse = await fetch('/api/token');
-  const { accessToken } = await atResponse.json();
-  const response = await fetch(uri, {
-    headers: { Authorization: `Bearer ${accessToken}` }
-  });
-  return response.json();
-};
-
-export default withPageAuthRequired(function Products() {
-  const { data, error } = useSWR('https://api.example.com/products', fetcher);
-  if (error) return <div>oops... {error.message}</div>;
-  if (data === undefined) return <div>Loading...</div>;
-  return (
-    <ul>
-      {data.map(({ name }) => (
-        <li>{name}</li>
-      ))}
-    </ul>
-  );
-});
-```
 
 ## Create your own instance of the SDK
 
