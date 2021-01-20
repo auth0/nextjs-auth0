@@ -1,4 +1,4 @@
-# @auth0/nextjs-auth0 Beta
+# @auth0/nextjs-auth0 Beta 
 
 Auth0 SDK for signing in to your Next.js applications.
 
