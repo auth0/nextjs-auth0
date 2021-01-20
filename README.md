@@ -1,4 +1,4 @@
-# @auth0/nextjs-auth0
+# @auth0/nextjs-auth0 
 
 Auth0 SDK for signing in to your Next.js applications.
 
