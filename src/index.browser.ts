@@ -12,33 +12,35 @@ export {
   WithPageAuthRequired
 } from './frontend';
 
+const serverSideOnly = (method: string): string => `The ${method} method can only be used from the server side`;
+
 const instance: SignInWithAuth0 = {
   getSession() {
-    throw new Error('The getSession method can only be used from the server side');
+    throw new Error(serverSideOnly('getSession'));
   },
   getAccessToken() {
-    throw new Error('The getAccessToken method can only be used from the server side');
+    throw new Error(serverSideOnly('getAccessToken'));
   },
   withApiAuthRequired() {
-    throw new Error('The withApiAuthRequired method can only be used from the server side');
+    throw new Error(serverSideOnly('withApiAuthRequired'));
   },
   handleLogin() {
-    throw new Error('The handleLogin method can only be used from the server side');
+    throw new Error(serverSideOnly('handleLogin'));
   },
   handleLogout() {
-    throw new Error('The handleLogout method can only be used from the server side');
+    throw new Error(serverSideOnly('handleLogout'));
   },
   handleCallback() {
-    throw new Error('The handleCallback method can only be used from the server side');
+    throw new Error(serverSideOnly('handleCallback'));
   },
   handleProfile() {
-    throw new Error('The handleProfile method can only be used from the server side');
+    throw new Error(serverSideOnly('handleProfile'));
   },
   handleAuth() {
-    throw new Error('The handleAuth method can only be used from the server side');
+    throw new Error(serverSideOnly('handleAuth'));
   },
   withPageAuthRequired() {
-    throw new Error('The withPageAuthRequired method can only be used from the server side');
+    throw new Error(serverSideOnly('withPageAuthRequired'));
   }
 };
 

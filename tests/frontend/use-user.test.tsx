@@ -16,14 +16,14 @@ describe('context wrapper', () => {
     (global as any).fetch = fetchUserMock;
     const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUserProvider() });
 
-    expect(result.current.user).toEqual(undefined);
-    expect(result.current.error).toEqual(undefined);
+    expect(result.current.user).toBeUndefined();
+    expect(result.current.error).toBeUndefined();
     expect(result.current.isLoading).toEqual(true);
 
     await waitForValueToChange(() => result.current.isLoading);
 
     expect(result.current.user).toEqual(user);
-    expect(result.current.error).toEqual(undefined);
+    expect(result.current.error).toBeUndefined();
     expect(result.current.isLoading).toEqual(false);
   });
 
@@ -31,14 +31,14 @@ describe('context wrapper', () => {
     (global as any).fetch = fetchUserUnsuccessfulMock;
     const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUserProvider() });
 
-    expect(result.current.user).toEqual(undefined);
-    expect(result.current.error).toEqual(undefined);
+    expect(result.current.user).toBeUndefined();
+    expect(result.current.error).toBeUndefined();
     expect(result.current.isLoading).toEqual(true);
 
     await waitForValueToChange(() => result.current.isLoading);
 
-    expect(result.current.user).toEqual(undefined);
-    expect(result.current.error).toEqual(undefined);
+    expect(result.current.user).toBeUndefined();
+    expect(result.current.error).toBeUndefined();
     expect(result.current.isLoading).toEqual(false);
   });
 
@@ -46,13 +46,13 @@ describe('context wrapper', () => {
     (global as any).fetch = fetchUserErrorMock;
     const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUserProvider() });
 
-    expect(result.current.user).toEqual(undefined);
-    expect(result.current.error).toEqual(undefined);
+    expect(result.current.user).toBeUndefined();
+    expect(result.current.error).toBeUndefined();
     expect(result.current.isLoading).toEqual(true);
 
     await waitForValueToChange(() => result.current.isLoading);
 
-    expect(result.current.user).toEqual(undefined);
+    expect(result.current.user).toBeUndefined();
     expect(result.current.error).toEqual(new Error('The request to /api/auth/me failed'));
     expect(result.current.isLoading).toEqual(false);
   });
@@ -61,12 +61,12 @@ describe('context wrapper', () => {
     const { result } = renderHook(() => useUser(), { wrapper: withUserProvider({ user }) });
 
     expect(result.current.user).toEqual(user);
-    expect(result.current.error).toEqual(undefined);
+    expect(result.current.error).toBeUndefined();
     expect(result.current.isLoading).toEqual(false);
   });
 
   test('should use a custom profileUrl', async () => {
-    const fetchSpy = jest.fn().mockReturnValue({ then: () => Promise.resolve() });
+    const fetchSpy = jest.fn().mockReturnValue(Promise.resolve());
     (global as any).fetch = fetchSpy;
     const { result, waitForValueToChange } = renderHook(() => useUser(), {
       wrapper: withUserProvider({ profileUrl: '/api/custom-url' })
@@ -87,7 +87,7 @@ describe('context wrapper', () => {
 
     await act(async () => await result.current.checkSession());
     expect(result.current.user).toEqual(user);
-    expect(result.current.error).toEqual(undefined);
+    expect(result.current.error).toBeUndefined();
     expect(result.current.isLoading).toEqual(false);
   });
 
@@ -102,7 +102,16 @@ describe('context wrapper', () => {
 
     await act(async () => await result.current.checkSession());
     expect(result.current.user).toBeUndefined();
-    expect(result.current.error).toEqual(undefined);
+    expect(result.current.error).toBeUndefined();
     expect(result.current.isLoading).toEqual(false);
+  });
+
+  test('should throw an error when not wrapped in UserProvider', async () => {
+    const { result } = renderHook(() => useUser());
+
+    expect(() => result.current.user).toThrowError('You forgot to wrap your app in <UserProvider>');
+    expect(() => result.current.error).toThrowError('You forgot to wrap your app in <UserProvider>');
+    expect(() => result.current.isLoading).toThrowError('You forgot to wrap your app in <UserProvider>');
+    expect(result.current.checkSession).toThrowError('You forgot to wrap your app in <UserProvider>');
   });
 });
