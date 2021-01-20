@@ -1,4 +1,4 @@
-import React, { ReactElement, useState, useEffect, useContext, createContext } from 'react';
+import React, { ReactElement, useState, useEffect, useCallback, useContext, createContext } from 'react';
 
 /**
  * The user claims returned from the {@link useUser} hook.
@@ -25,6 +25,7 @@ export interface UserContext {
   user?: UserProfile;
   error?: Error;
   isLoading: boolean;
+  checkSession: () => Promise<void>;
 }
 
 /**
@@ -63,7 +64,25 @@ export type UserProviderProps = React.PropsWithChildren<{ user?: UserProfile; pr
 /**
  * @ignore
  */
-const User = createContext<UserContext>({ isLoading: false });
+const missingUserProvider = 'You forgot to wrap your app in <UserProvider>';
+
+/**
+ * @ignore
+ */
+const User = createContext<UserContext>({
+  get user(): never {
+    throw new Error(missingUserProvider);
+  },
+  get error(): never {
+    throw new Error(missingUserProvider);
+  },
+  get isLoading(): never {
+    throw new Error(missingUserProvider);
+  },
+  checkSession: (): never => {
+    throw new Error(missingUserProvider);
+  }
+});
 
 /**
  * The `useUser` hook, which will get you the {@link UserProfile} object from the server side session by requesting it
@@ -109,21 +128,24 @@ export default ({
   const [error, setError] = useState<Error | undefined>();
   const [isLoading, setIsLoading] = useState<boolean>(() => !initialUser);
 
+  const checkSession = useCallback(async (): Promise<void> => {
+    try {
+      const response = await fetch(profileUrl);
+      setUser(response.ok ? await response.json() : undefined);
+      setError(undefined);
+    } catch (_e) {
+      setUser(undefined);
+      setError(new Error(`The request to ${profileUrl} failed`));
+    }
+  }, [profileUrl]);
+
   useEffect((): void => {
     if (user) return;
-
     (async (): Promise<void> => {
-      try {
-        const response = await fetch(profileUrl);
-        setUser(response.ok ? await response.json() : undefined);
-        setError(undefined);
-      } catch (_e) {
-        setError(new Error(`The request to ${profileUrl} failed`));
-      } finally {
-        setIsLoading(false);
-      }
+      await checkSession();
+      setIsLoading(false);
     })();
   }, [user]);
 
-  return <User.Provider value={{ user, error, isLoading }}>{children}</User.Provider>;
+  return <User.Provider value={{ user, error, isLoading, checkSession }}>{children}</User.Provider>;
 };
