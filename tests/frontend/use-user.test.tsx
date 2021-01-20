@@ -107,11 +107,12 @@ describe('context wrapper', () => {
   });
 
   test('should throw an error when not wrapped in UserProvider', async () => {
+    const expectedError = 'You forgot to wrap your app in <UserProvider>';
     const { result } = renderHook(() => useUser());
 
-    expect(() => result.current.user).toThrowError('You forgot to wrap your app in <UserProvider>');
-    expect(() => result.current.error).toThrowError('You forgot to wrap your app in <UserProvider>');
-    expect(() => result.current.isLoading).toThrowError('You forgot to wrap your app in <UserProvider>');
-    expect(result.current.checkSession).toThrowError('You forgot to wrap your app in <UserProvider>');
+    expect(() => result.current.user).toThrowError(expectedError);
+    expect(() => result.current.error).toThrowError(expectedError);
+    expect(() => result.current.isLoading).toThrowError(expectedError);
+    expect(result.current.checkSession).toThrowError(expectedError);
   });
 });
