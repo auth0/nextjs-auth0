@@ -1,6 +1,5 @@
-import { renderHook } from '@testing-library/react-hooks';
+import { renderHook, act } from '@testing-library/react-hooks';
 
-import { useUser } from '../../src';
 import {
   fetchUserMock,
   fetchUserUnsuccessfulMock,
@@ -8,20 +7,23 @@ import {
   withUserProvider,
   user
 } from '../fixtures/frontend';
+import { useUser } from '../../src';
 
 describe('context wrapper', () => {
+  afterEach(() => delete (global as any).fetch);
+
   test('should fetch the user', async () => {
     (global as any).fetch = fetchUserMock;
     const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUserProvider() });
 
-    expect(result.current.user).toEqual(undefined);
-    expect(result.current.error).toEqual(undefined);
+    expect(result.current.user).toBeUndefined();
+    expect(result.current.error).toBeUndefined();
     expect(result.current.isLoading).toEqual(true);
 
     await waitForValueToChange(() => result.current.isLoading);
 
     expect(result.current.user).toEqual(user);
-    expect(result.current.error).toEqual(undefined);
+    expect(result.current.error).toBeUndefined();
     expect(result.current.isLoading).toEqual(false);
   });
 
@@ -29,14 +31,14 @@ describe('context wrapper', () => {
     (global as any).fetch = fetchUserUnsuccessfulMock;
     const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUserProvider() });
 
-    expect(result.current.user).toEqual(undefined);
-    expect(result.current.error).toEqual(undefined);
+    expect(result.current.user).toBeUndefined();
+    expect(result.current.error).toBeUndefined();
     expect(result.current.isLoading).toEqual(true);
 
     await waitForValueToChange(() => result.current.isLoading);
 
-    expect(result.current.user).toEqual(undefined);
-    expect(result.current.error).toEqual(undefined);
+    expect(result.current.user).toBeUndefined();
+    expect(result.current.error).toBeUndefined();
     expect(result.current.isLoading).toEqual(false);
   });
 
@@ -44,13 +46,13 @@ describe('context wrapper', () => {
     (global as any).fetch = fetchUserErrorMock;
     const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUserProvider() });
 
-    expect(result.current.user).toEqual(undefined);
-    expect(result.current.error).toEqual(undefined);
+    expect(result.current.user).toBeUndefined();
+    expect(result.current.error).toBeUndefined();
     expect(result.current.isLoading).toEqual(true);
 
     await waitForValueToChange(() => result.current.isLoading);
 
-    expect(result.current.user).toEqual(undefined);
+    expect(result.current.user).toBeUndefined();
     expect(result.current.error).toEqual(new Error('The request to /api/auth/me failed'));
     expect(result.current.isLoading).toEqual(false);
   });
@@ -59,12 +61,12 @@ describe('context wrapper', () => {
     const { result } = renderHook(() => useUser(), { wrapper: withUserProvider({ user }) });
 
     expect(result.current.user).toEqual(user);
-    expect(result.current.error).toEqual(undefined);
+    expect(result.current.error).toBeUndefined();
     expect(result.current.isLoading).toEqual(false);
   });
 
   test('should use a custom profileUrl', async () => {
-    const fetchSpy = jest.fn();
+    const fetchSpy = jest.fn().mockReturnValue(Promise.resolve());
     (global as any).fetch = fetchSpy;
     const { result, waitForValueToChange } = renderHook(() => useUser(), {
       wrapper: withUserProvider({ profileUrl: '/api/custom-url' })
@@ -74,7 +76,43 @@ describe('context wrapper', () => {
     expect(fetchSpy).toHaveBeenCalledWith('/api/custom-url');
   });
 
-  afterAll(() => {
-    delete (global as any).fetch;
+  test('should check the session when logged in', async () => {
+    (global as any).fetch = fetchUserUnsuccessfulMock;
+    const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUserProvider() });
+
+    await waitForValueToChange(() => result.current.isLoading);
+    expect(result.current.user).toBeUndefined;
+
+    (global as any).fetch = fetchUserMock;
+
+    await act(async () => await result.current.checkSession());
+    expect(result.current.user).toEqual(user);
+    expect(result.current.error).toBeUndefined();
+    expect(result.current.isLoading).toEqual(false);
+  });
+
+  test('should check the session when logged out', async () => {
+    (global as any).fetch = fetchUserMock;
+    const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUserProvider() });
+
+    await waitForValueToChange(() => result.current.isLoading);
+    expect(result.current.user).toEqual(user);
+
+    (global as any).fetch = fetchUserUnsuccessfulMock;
+
+    await act(async () => await result.current.checkSession());
+    expect(result.current.user).toBeUndefined();
+    expect(result.current.error).toBeUndefined();
+    expect(result.current.isLoading).toEqual(false);
+  });
+
+  test('should throw an error when not wrapped in UserProvider', async () => {
+    const expectedError = 'You forgot to wrap your app in <UserProvider>';
+    const { result } = renderHook(() => useUser());
+
+    expect(() => result.current.user).toThrowError(expectedError);
+    expect(() => result.current.error).toThrowError(expectedError);
+    expect(() => result.current.isLoading).toThrowError(expectedError);
+    expect(result.current.checkSession).toThrowError(expectedError);
   });
 });
