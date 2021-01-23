@@ -26,12 +26,25 @@ describe('with-page-auth-required ssr', () => {
   });
 
   test('use a custom login url', async () => {
-    const baseUrl = await setup(withoutApi, { withPageAuthRequiredOptions: { loginUrl: '/api/foo' } });
+    process.env.NEXT_PUBLIC_AUTH0_LOGIN = '/api/foo';
+    const baseUrl = await setup(withoutApi);
     const {
       res: { statusCode, headers }
     } = await get(baseUrl, '/protected', { fullResponse: true });
     expect(statusCode).toBe(307);
     expect(headers.location).toBe('/api/foo?returnTo=/protected');
+    delete process.env.NEXT_PUBLIC_AUTH0_LOGIN;
+  });
+
+  test('use a custom returnTo url', async () => {
+    process.env.NEXT_PUBLIC_AUTH0_POST_LOGIN_REDIRECT = '/foo';
+    const baseUrl = await setup(withoutApi);
+    const {
+      res: { statusCode, headers }
+    } = await get(baseUrl, '/protected', { fullResponse: true });
+    expect(statusCode).toBe(307);
+    expect(headers.location).toBe('/api/auth/login?returnTo=/foo');
+    delete process.env.NEXT_PUBLIC_AUTH0_POST_LOGIN_REDIRECT;
   });
 
   test('use custom server side props', async () => {

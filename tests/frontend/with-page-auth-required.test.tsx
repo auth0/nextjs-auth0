@@ -75,12 +75,25 @@ describe('with-page-auth-required csr', () => {
     await waitFor(() => expect(screen.getByText('Error')).toBeInTheDocument());
   });
 
-  it('should accept a returnTo url', async () => {
+  it('should use a custom login url', async () => {
+    process.env.NEXT_PUBLIC_AUTH0_LOGIN = '/api/foo';
     (global as any).fetch = fetchUserUnsuccessfulMock;
     const MyPage = (): JSX.Element => <>Private</>;
-    const ProtectedPage = withPageAuthRequired(MyPage, { returnTo: '/foo' });
+    const ProtectedPage = withPageAuthRequired(MyPage);
+
+    render(<ProtectedPage />, { wrapper: withUserProvider() });
+    await waitFor(() => expect(routerMock.push).toHaveBeenCalledWith(expect.stringContaining('/api/foo')));
+    delete process.env.NEXT_PUBLIC_AUTH0_LOGIN;
+  });
+
+  it('should use a custom returnTo url', async () => {
+    process.env.NEXT_PUBLIC_AUTH0_POST_LOGIN_REDIRECT = '/foo';
+    (global as any).fetch = fetchUserUnsuccessfulMock;
+    const MyPage = (): JSX.Element => <>Private</>;
+    const ProtectedPage = withPageAuthRequired(MyPage);
 
     render(<ProtectedPage />, { wrapper: withUserProvider() });
     await waitFor(() => expect(routerMock.push).toHaveBeenCalledWith(expect.stringContaining('?returnTo=/foo')));
+    delete process.env.NEXT_PUBLIC_AUTH0_POST_LOGIN_REDIRECT;
   });
 });

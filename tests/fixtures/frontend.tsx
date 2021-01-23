@@ -1,5 +1,7 @@
 import React from 'react';
+
 import { UserProvider, UserProviderProps, UserProfile } from '../../src';
+import { ConfigProvider, ConfigProviderProps } from '../../src/frontend';
 
 type FetchUserMock = {
   ok: boolean;
@@ -16,8 +18,15 @@ export const user: UserProfile = {
   updated_at: null
 };
 
-export const withUserProvider = ({ user, profileUrl }: UserProviderProps = {}): React.ComponentType => {
-  return (props: any): React.ReactElement => <UserProvider {...props} user={user} profileUrl={profileUrl} />;
+export const withUserProvider = ({
+  user,
+  profileUrl,
+  loginUrl,
+  returnTo
+}: UserProviderProps = {}): React.ComponentType => {
+  return (props: any): React.ReactElement => (
+    <UserProvider {...props} user={user} profileUrl={profileUrl} loginUrl={loginUrl} returnTo={returnTo} />
+  );
 };
 
 export const fetchUserMock = (): Promise<FetchUserMock> => {
@@ -34,3 +43,7 @@ export const fetchUserUnsuccessfulMock = (): Promise<FetchUserMock> => {
 };
 
 export const fetchUserErrorMock = (): Promise<FetchUserMock> => Promise.reject(new Error('Error'));
+
+export const withConfigProvider = ({ loginUrl, returnTo }: ConfigProviderProps = {}): React.ComponentType => {
+  return (props: any): React.ReactElement => <ConfigProvider {...props} loginUrl={loginUrl} returnTo={returnTo} />;
+};

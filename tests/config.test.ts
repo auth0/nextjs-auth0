@@ -43,8 +43,10 @@ describe('config params', () => {
       issuerBaseURL: undefined,
       legacySameSiteCookie: undefined,
       routes: {
-        callback: '/api/auth/callback',
-        postLogoutRedirect: undefined
+        login: '/api/auth/login',
+        postLoginRedirect: undefined,
+        postLogoutRedirect: undefined,
+        callback: '/api/auth/callback'
       },
       secret: undefined,
       session: {

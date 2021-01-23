@@ -1,5 +1,7 @@
 import { IncomingMessage, ServerResponse } from 'http';
-import { ClientFactory, Config } from '../auth0-session';
+
+import { ClientFactory } from '../auth0-session';
+import { Config } from '../config';
 import { AccessTokenError } from '../utils/errors';
 import { intersect, match } from '../utils/array';
 import { SessionCache, fromTokenSet } from '../session';

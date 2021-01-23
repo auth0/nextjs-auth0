@@ -1,6 +1,6 @@
-import { IncomingMessage } from 'http';
 import { AuthorizationParameters as OidcAuthorizationParameters } from 'openid-client';
-import { LoginOptions, DeepPartial } from './auth0-session';
+
+import { DeepPartial, Config as SessionLayerConfig } from './auth0-session';
 
 /**
  * ## Configuration properties.
@@ -39,6 +39,8 @@ import { LoginOptions, DeepPartial } from './auth0-session';
  * - `AUTH0_IDP_LOGOUT`: See {@link idpLogout}
  * - `AUTH0_ID_TOKEN_SIGNING_ALG`: See {@link idTokenSigningAlg}
  * - `AUTH0_LEGACY_SAME_SITE_COOKIE`: See {@link legacySameSiteCookie}
+ * - `NEXT_PUBLIC_AUTH0_LOGIN`: See {@link Config.routes}
+ * - `NEXT_PUBLIC_AUTH0_POST_LOGIN_REDIRECT`: See {@link Config.routes}
  * - `AUTH0_POST_LOGOUT_REDIRECT`: See {@link Config.routes}
  * - `AUTH0_CALLBACK`: See {@link Config.routes}
  * - `AUTH0_AUDIENCE`: See {@link Config.authorizationParams}
@@ -82,180 +84,35 @@ import { LoginOptions, DeepPartial } from './auth0-session';
  *
  * @category Server
  */
-export interface Config {
+export interface Config extends SessionLayerConfig {
   /**
-   * The secret(s) used to derive an encryption key for the user identity in a session cookie and
-   * to sign the transient cookies used by the login callback.
-   * Use a single string key or array of keys for an encrypted session cookie.
-   * Can use env key SECRET instead.
-   */
-  secret: string | Array<string>;
-
-  /**
-   * Object defining application session cookie attributes.
-   */
-  session: SessionConfig;
-
-  /**
-   * Boolean value to enable Auth0's logout feature.
-   */
-  auth0Logout: boolean;
-
-  /**
-   *  URL parameters used when redirecting users to the authorization server to log in.
-   *
-   *  If this property is not provided by your application, its default values will be:
-   *
-   * ```js
-   * {
-   *   response_type: 'code',
-   *   scope: 'openid profile email'
-   * }
-   * ```
-   *
-   * New values can be passed in to change what is returned from the authorization server
-   * depending on your specific scenario. Additional custom parameters can be added as well.
-   *
-   * **Note:** You must provide the required parameters if this object is set.
-   *
-   * ```js
-   * {
-   *   response_type: 'code',
-   *   scope: 'openid profile email',
-   *
-   *   // Additional parameters
-   *   acr_value: "tenant:test-tenant",
-   *   custom_param: "custom-value"
-   * };
-   * ```
-   */
-  authorizationParams: AuthorizationParameters;
-
-  /**
-   * The root URL for the application router, eg https://localhost
-   * Can use env key BASE_URL instead.
-   * If you provide a domain, we will prefix it with `https://` - This can be useful when assigning it to
-   * `VERCEL_URL` for preview deploys
-   */
-  baseURL: string;
-
-  /**
-   * The Client ID for your application.
-   * Can be read from CLIENT_ID instead.
-   */
-  clientID: string;
-
-  /**
-   * The Client Secret for your application.
-   * Required when requesting access tokens.
-   * Can be read from CLIENT_SECRET instead.
-   */
-  clientSecret?: string;
-
-  /**
-   * Integer value for the system clock's tolerance (leeway) in seconds for ID token verification.`
-   * Default is 60
-   */
-  clockTolerance: number;
-
-  /**
-   * Integer value for the http timeout in ms for authentication requests.
-   * Default is 5000
-   */
-  httpTimeout: number;
-
-  /**
-   * To opt-out of sending the library and node version to your authorization server
-   * via the `Auth0-Client` header. Default is `true
-   */
-  enableTelemetry: boolean;
-
-  /**
-   * @ignore
-   */
-  errorOnRequiredAuth: boolean;
-
-  /**
-   * @ignore
-   */
-  attemptSilentLogin: boolean;
-
-  /**
-   * Function that returns an object with URL-safe state values for `res.oidc.login()`.
-   * Used for passing custom state parameters to your authorization server.
-   * Can also be passed in to {@link HandleLogin}
-   *
-   * ```js
-   * {
-   *   ...
-   *   getLoginState(req, options) {
-   *     return {
-   *       returnTo: options.returnTo || req.originalUrl,
-   *       customState: 'foo'
-   *     };
-   *   }
-   * }
-   * ``
-   */
-  getLoginState: (req: IncomingMessage, options: LoginOptions) => Record<string, any>;
-
-  /**
-   * Array value of claims to remove from the ID token before storing the cookie session.
-   * Default is `['aud', 'iss', 'iat', 'exp', 'nbf', 'nonce', 'azp', 'auth_time', 's_hash', 'at_hash', 'c_hash' ]`
-   */
-  identityClaimFilter: string[];
-
-  /**
-   * Boolean value to log the user out from the identity provider on application logout. Default is `true`
-   */
-  idpLogout: boolean;
-
-  /**
-   * String value for the expected ID token algorithm. Default is 'RS256'
-   */
-  idTokenSigningAlg: string;
-
-  /**
-   * REQUIRED. The root URL for the token issuer with no trailing slash.
-   * This is `https://` plus your Auth0 domain
-   * Can use env key ISSUER_BASE_URL instead.
-   */
-  issuerBaseURL: string;
-
-  /**
-   * Set a fallback cookie with no SameSite attribute when response_mode is form_post.
-   * Default is true
-   */
-  legacySameSiteCookie: boolean;
-
-  /**
-   * @ignore
-   */
-  authRequired: boolean;
-
-  /**
-   * Boolean value to automatically install the login and logout routes.
+   * Configuration parameters to override the default authentication URLs.
    */
   routes: {
     /**
-     * @ignore
+     * Relative path to the login handler.
      */
-    login: string | false;
-
-    /**
-     * @ignore
-     */
-    logout: string | false;
+    login: string;
 
     /**
      * Either a relative path to the application or a valid URI to an external domain.
-     * This value must be registered on the authorization server.
+     * The user will be redirected to this after a login has been performed.
+     */
+    postLoginRedirect: string;
+
+    /**
+     * @ignore
+     */
+    logout: string;
+
+    /**
+     * Either a relative path to the application or a valid URI to an external domain.
      * The user will be redirected to this after a logout has been performed.
      */
     postLogoutRedirect: string;
 
     /**
-     * Relative path to the application callback to process the response from the authorization server.
+     * Relative path to the callback handler.
      */
     callback: string;
   };
@@ -398,6 +255,8 @@ export const getParams = (params?: ConfigParameters): ConfigParameters => {
     AUTH0_IDP_LOGOUT,
     AUTH0_ID_TOKEN_SIGNING_ALG,
     AUTH0_LEGACY_SAME_SITE_COOKIE,
+    NEXT_PUBLIC_AUTH0_LOGIN,
+    NEXT_PUBLIC_AUTH0_POST_LOGIN_REDIRECT,
     AUTH0_POST_LOGOUT_REDIRECT,
     AUTH0_CALLBACK,
     AUTH0_AUDIENCE,
@@ -457,8 +316,10 @@ export const getParams = (params?: ConfigParameters): ConfigParameters => {
       }
     },
     routes: {
-      callback: AUTH0_CALLBACK || '/api/auth/callback',
+      login: NEXT_PUBLIC_AUTH0_LOGIN || '/api/auth/login',
+      postLoginRedirect: NEXT_PUBLIC_AUTH0_POST_LOGIN_REDIRECT,
       postLogoutRedirect: AUTH0_POST_LOGOUT_REDIRECT,
+      callback: AUTH0_CALLBACK || '/api/auth/callback',
       ...params?.routes
     }
   };

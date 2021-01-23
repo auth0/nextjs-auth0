@@ -1,7 +1,9 @@
+import React, { ComponentType } from 'react';
 import { GetServerSideProps, GetServerSidePropsContext, GetServerSidePropsResult } from 'next';
+
+import { Config } from '../config';
 import { Claims, Session, SessionCache } from '../session';
 import { assertCtx } from '../utils/assert';
-import React, { ComponentType } from 'react';
 import { WithPageAuthRequiredOptions as WithPageAuthRequiredCSROptions } from '../frontend/with-page-auth-required';
 import { withPageAuthRequired as withPageAuthRequiredCSR } from '../frontend';
 
@@ -58,7 +60,7 @@ export type PageRoute = (cts: GetServerSidePropsContext) => Promise<GetServerSid
  *
  * @category Server
  */
-export type WithPageAuthRequiredOptions = { getServerSideProps?: GetServerSideProps; loginUrl?: string };
+export type WithPageAuthRequiredOptions = { getServerSideProps?: GetServerSideProps };
 
 /**
  * Wrap your `getServerSideProps` with this method to make sure the user is authenticated before visiting the page.
@@ -90,7 +92,7 @@ export type WithPageAuthRequired = {
 /**
  * @ignore
  */
-export default function withPageAuthRequiredFactory(sessionCache: SessionCache): WithPageAuthRequired {
+export default function withPageAuthRequiredFactory(config: Config, sessionCache: SessionCache): WithPageAuthRequired {
   return (
     optsOrComponent: WithPageAuthRequiredOptions | ComponentType = {},
     csrOpts?: WithPageAuthRequiredCSROptions
@@ -98,14 +100,17 @@ export default function withPageAuthRequiredFactory(sessionCache: SessionCache):
     if (typeof optsOrComponent === 'function') {
       return withPageAuthRequiredCSR(optsOrComponent, csrOpts);
     }
-    const { getServerSideProps, loginUrl = '/api/auth/login' } = optsOrComponent;
+    const { getServerSideProps } = optsOrComponent;
+    const { login, postLoginRedirect } = config.routes;
     return async (ctx: GetServerSidePropsContext): Promise<GetServerSidePropsResultWithSession> => {
       assertCtx(ctx);
       if (!sessionCache.isAuthenticated(ctx.req, ctx.res)) {
         // 10 - redirect
         // 9.5.4 - unstable_redirect
         // 9.4 - res.setHeaders
-        return { redirect: { destination: `${loginUrl}?returnTo=${ctx.resolvedUrl}`, permanent: false } };
+        return {
+          redirect: { destination: `${login}?returnTo=${postLoginRedirect || ctx.resolvedUrl}`, permanent: false }
+        };
       }
       const session = sessionCache.get(ctx.req, ctx.res) as Session;
       let ret: any = { props: {} };

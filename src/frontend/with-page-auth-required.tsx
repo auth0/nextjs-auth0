@@ -1,6 +1,7 @@
 import React, { ComponentType, useEffect } from 'react';
 import { useRouter } from 'next/router';
 
+import { useConfig } from './use-config';
 import { useUser } from './use-user';
 
 /**
@@ -19,25 +20,6 @@ const defaultOnError = (): JSX.Element => <></>;
  * @category Client
  */
 export interface WithPageAuthRequiredOptions {
-  /**
-   * ```js
-   * withPageAuthRequired(Profile, {
-   *   returnTo: '/profile'
-   * });
-   * ```
-   *
-   * Add a path to return the user to after login.
-   */
-  returnTo?: string;
-  /**
-   * ```js
-   * withPageAuthRequired(Profile, {
-   *   loginUrl: '/api/login'
-   * });
-   * ```
-   * The path of your custom login API route.
-   */
-  loginUrl?: string;
   /**
    * ```js
    * withPageAuthRequired(Profile, {
@@ -81,12 +63,8 @@ export type WithPageAuthRequired = <P extends object>(
 const withPageAuthRequired: WithPageAuthRequired = (Component, options = {}) => {
   return function withPageAuthRequired(props): JSX.Element {
     const router = useRouter();
-    const {
-      returnTo = router.asPath,
-      onRedirecting = defaultOnRedirecting,
-      onError = defaultOnError,
-      loginUrl = '/api/auth/login'
-    } = options;
+    const { onRedirecting = defaultOnRedirecting, onError = defaultOnError } = options;
+    const { loginUrl, returnTo } = useConfig();
     const { user, error, isLoading } = useUser();
 
     useEffect(() => {

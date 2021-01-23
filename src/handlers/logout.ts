@@ -1,5 +1,7 @@
 import { NextApiResponse, NextApiRequest } from 'next';
-import { ClientFactory, Config, logoutHandler } from '../auth0-session';
+
+import { ClientFactory, logoutHandler } from '../auth0-session';
+import { Config } from '../config';
 import { SessionCache } from '../session';
 import { assertReqRes } from '../utils/assert';
 

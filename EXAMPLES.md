@@ -132,7 +132,8 @@ export default async function login(req, res) {
 export default () => <a href="/api/custom-login">Login</a>;
 ```
 
-> Note: you will need to specify this custom login URL when calling `withPageAuthRequired` both the [front end version](https://auth0.github.io/nextjs-auth0/interfaces/frontend_with_page_auth_required.withpageauthrequiredoptions.html#loginurl) and [server side version](https://auth0.github.io/nextjs-auth0/modules/helpers_with_page_auth_required.html#withpageauthrequiredoptions)
+> Note: If you customise the login URL you will need to set the environment variable `NEXT_PUBLIC_AUTH0_LOGIN` to this custom value for `withPageAuthRequired` to work correctly. 
+And if you customize the profile URL, you will need to set the `NEXT_PUBLIC_AUTH0_PROFILE` environment variable to this custom value for the `useUser` hook to work properly.
 
 ## Protecting a Server Side Rendered (SSR) Page
 

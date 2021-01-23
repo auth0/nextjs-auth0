@@ -1,5 +1,7 @@
 import React, { ReactElement, useState, useEffect, useCallback, useContext, createContext } from 'react';
 
+import ConfigProvider, { ConfigContext } from './use-config';
+
 /**
  * The user claims returned from the {@link useUser} hook.
  *
@@ -21,12 +23,12 @@ export interface UserProfile {
  *
  * @category Client
  */
-export interface UserContext {
+export type UserContext = {
   user?: UserProfile;
   error?: Error;
   isLoading: boolean;
   checkSession: () => Promise<void>;
-}
+};
 
 /**
  * Configure the {@link UserProvider} component.
@@ -59,7 +61,7 @@ export interface UserContext {
  *
  * @category Client
  */
-export type UserProviderProps = React.PropsWithChildren<{ user?: UserProfile; profileUrl?: string }>;
+export type UserProviderProps = React.PropsWithChildren<{ user?: UserProfile; profileUrl?: string } & ConfigContext>;
 
 /**
  * @ignore
@@ -122,11 +124,13 @@ export type UserProvider = (props: UserProviderProps) => ReactElement<UserContex
 export default ({
   children,
   user: initialUser,
-  profileUrl = '/api/auth/me'
+  profileUrl = process.env.NEXT_PUBLIC_AUTH0_PROFILE || '/api/auth/me',
+  loginUrl,
+  returnTo
 }: UserProviderProps): ReactElement<UserContext> => {
-  const [user, setUser] = useState<UserProfile | undefined>(() => initialUser);
+  const [user, setUser] = useState<UserProfile | undefined>(initialUser);
   const [error, setError] = useState<Error | undefined>();
-  const [isLoading, setIsLoading] = useState<boolean>(() => !initialUser);
+  const [isLoading, setIsLoading] = useState<boolean>(!initialUser);
 
   const checkSession = useCallback(async (): Promise<void> => {
     try {
@@ -147,5 +151,9 @@ export default ({
     })();
   }, [user]);
 
-  return <User.Provider value={{ user, error, isLoading, checkSession }}>{children}</User.Provider>;
+  return (
+    <ConfigProvider loginUrl={loginUrl} returnTo={returnTo}>
+      <User.Provider value={{ user, error, isLoading, checkSession }}>{children}</User.Provider>
+    </ConfigProvider>
+  );
 };

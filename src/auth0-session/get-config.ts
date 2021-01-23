@@ -164,7 +164,7 @@ export const get = (params: ConfigParameters = {}): Config => {
     ...params
   };
 
-  const { value, error, warning } = paramsSchema.validate(config);
+  const { value, error, warning } = paramsSchema.validate(config, { allowUnknown: true });
   if (error) {
     throw new TypeError(error.details[0].message);
   }

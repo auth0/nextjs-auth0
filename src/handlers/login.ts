@@ -1,5 +1,7 @@
 import { NextApiResponse, NextApiRequest } from 'next';
-import { AuthorizationParameters, ClientFactory, Config, loginHandler, TransientStore } from '../auth0-session';
+
+import { AuthorizationParameters, ClientFactory, loginHandler, TransientStore } from '../auth0-session';
+import { Config } from '../config';
 import isSafeRedirect from '../utils/url-helpers';
 import { assertReqRes } from '../utils/assert';
 

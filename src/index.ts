@@ -53,7 +53,7 @@ function getInstance(): SignInWithAuth0 {
 }
 
 export const initAuth0: InitAuth0 = (params) => {
-  const config = getConfig(getParams(params));
+  const config = getConfig(getParams(params)) as Config;
   const getClient = clientFactory(config, { name: 'nextjs-auth0', version });
   const transientStore = new TransientStore(config);
   const cookieStore = new CookieStore(config);
@@ -61,7 +61,7 @@ export const initAuth0: InitAuth0 = (params) => {
   const getSession = sessionFactory(sessionCache);
   const getAccessToken = accessTokenFactory(getClient, config, sessionCache);
   const withApiAuthRequired = withApiAuthRequiredFactory(sessionCache);
-  const withPageAuthRequired = withPageAuthRequiredFactory(sessionCache);
+  const withPageAuthRequired = withPageAuthRequiredFactory(config, sessionCache);
   const handleLogin = loginHandler(config, getClient, transientStore);
   const handleLogout = logoutHandler(config, getClient, sessionCache);
   const handleCallback = callbackHandler(config, getClient, sessionCache, transientStore);
