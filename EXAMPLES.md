@@ -1,7 +1,7 @@
 # Examples
 
 - [Basic Setup](#basic-setup)
-- [Customise handlers behaviour](#customise-handlers-behaviour)
+- [Customize handlers behaviour](#customize-handlers-behaviour)
 - [Use custom auth urls](#use-custom-auth-urls)
 - [Protecting a Server Side Rendered (SSR) Page](#protecting-a-server-side-rendered-ssr-page)
 - [Protecting a Client Side Rendered (CSR) Page](#protecting-a-client-side-rendered-csr-page)
@@ -78,7 +78,7 @@ export default () => {
 
 Have a look at the `basic-example` app [./examples/basic-example](./examples/basic-example).
 
-## Customise handlers behaviour
+## Customize handlers behaviour
 
 Pass custom parameters to the auth handlers or add your own logging and error handling.
 
@@ -132,7 +132,7 @@ export default async function login(req, res) {
 export default () => <a href="/api/custom-login">Login</a>;
 ```
 
-> Note: If you customise the login URL you will need to set the environment variable `NEXT_PUBLIC_AUTH0_LOGIN` to this custom value for `withPageAuthRequired` to work correctly. 
+> Note: If you customize the login URL you will need to set the environment variable `NEXT_PUBLIC_AUTH0_LOGIN` to this custom value for `withPageAuthRequired` to work correctly. 
 And if you customize the profile URL, you will need to set the `NEXT_PUBLIC_AUTH0_PROFILE` environment variable to this custom value for the `useUser` hook to work properly.
 
 ## Protecting a Server Side Rendered (SSR) Page
