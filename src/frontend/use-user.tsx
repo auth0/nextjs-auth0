@@ -121,6 +121,15 @@ export const useUser: UseUser = () => useContext<UserContext>(User);
  */
 export type UserProvider = (props: UserProviderProps) => ReactElement<UserContext>;
 
+/**
+ * @ignore
+ */
+type UserProviderState = {
+  user?: UserProfile;
+  error?: Error;
+  isLoading: boolean;
+};
+
 export default ({
   children,
   user: initialUser,
@@ -128,28 +137,28 @@ export default ({
   loginUrl,
   returnTo
 }: UserProviderProps): ReactElement<UserContext> => {
-  const [user, setUser] = useState<UserProfile | undefined>(initialUser);
-  const [error, setError] = useState<Error | undefined>();
-  const [isLoading, setIsLoading] = useState<boolean>(!initialUser);
+  const [state, setState] = useState<UserProviderState>({ user: initialUser, isLoading: !initialUser });
 
   const checkSession = useCallback(async (): Promise<void> => {
     try {
       const response = await fetch(profileUrl);
-      setUser(response.ok ? await response.json() : undefined);
-      setError(undefined);
+      const user = response.ok ? await response.json() : undefined;
+      setState((previous) => ({ ...previous, user, error: undefined }));
     } catch (_e) {
-      setUser(undefined);
-      setError(new Error(`The request to ${profileUrl} failed`));
+      const error = new Error(`The request to ${profileUrl} failed`);
+      setState((previous) => ({ ...previous, user: undefined, error }));
     }
   }, [profileUrl]);
 
   useEffect((): void => {
-    if (user) return;
+    if (state.user) return;
     (async (): Promise<void> => {
       await checkSession();
-      setIsLoading(false);
+      setState((previous) => ({ ...previous, isLoading: false }));
     })();
-  }, [user]);
+  }, [state.user]);
+
+  const { user, error, isLoading } = state;
 
   return (
     <ConfigProvider loginUrl={loginUrl} returnTo={returnTo}>
