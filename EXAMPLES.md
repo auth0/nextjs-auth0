@@ -132,8 +132,7 @@ export default async function login(req, res) {
 export default () => <a href="/api/custom-login">Login</a>;
 ```
 
-> Note: If you customize the login URL you will need to set the environment variable `NEXT_PUBLIC_AUTH0_LOGIN` to this custom value for `withPageAuthRequired` to work correctly. 
-And if you customize the profile URL, you will need to set the `NEXT_PUBLIC_AUTH0_PROFILE` environment variable to this custom value for the `useUser` hook to work properly.
+> Note: If you customize the login URL you will need to set the environment variable `NEXT_PUBLIC_AUTH0_LOGIN` to this custom value for `withPageAuthRequired` to work correctly. And if you customize the profile URL, you will need to set the `NEXT_PUBLIC_AUTH0_PROFILE` environment variable to this custom value for the `useUser` hook to work properly.
 
 ## Protecting a Server Side Rendered (SSR) Page
 
