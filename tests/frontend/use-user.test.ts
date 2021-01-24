@@ -104,6 +104,7 @@ describe('context wrapper', () => {
     expect(fetchSpy).toHaveBeenCalledWith('/api/custom-url');
     delete process.env.NEXT_PUBLIC_AUTH0_PROFILE;
   });
+
   test('should accept a custom login url', async () => {
     const { result } = renderHook(() => useConfig(), {
       wrapper: withUserProvider({ user, loginUrl: '/api/custom-url' })
