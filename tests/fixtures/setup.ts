@@ -7,7 +7,6 @@ import {
   LogoutOptions,
   ProfileOptions,
   WithPageAuthRequiredOptions,
-  initAuth0,
   AccessTokenRequest,
   Claims,
   GetAccessTokenResult
@@ -18,6 +17,7 @@ import { start, stop } from './server';
 import { encodeState } from '../../src/auth0-session/hooks/get-login-state';
 import { post, toSignedCookieJar } from '../auth0-session/fixtures/helpers';
 import { NextApiRequest, NextApiResponse } from 'next';
+import { SignInWithAuth0 } from '../../src/instance';
 
 export type SetupOptions = {
   idTokenClaims?: Claims;
@@ -45,6 +45,10 @@ export const setup = async (
     userInfoPayload = {}
   }: SetupOptions = {}
 ): Promise<string> => {
+  // Using require here so that jest can reset the instance in the module.
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { initAuth0 } = require('../../src');
+
   discovery(config, discoveryOptions);
   jwksEndpoint(config, jwks);
   codeExchange(config, makeIdToken({ iss: 'https://acme.auth0.local/', ...idTokenClaims }));
@@ -59,7 +63,7 @@ export const setup = async (
     getAccessToken,
     withApiAuthRequired,
     withPageAuthRequired
-  } = await initAuth0(config);
+  }: SignInWithAuth0 = await initAuth0(config);
   (global as any).handleAuth = handleAuth.bind(null, {
     async callback(req, res) {
       try {
