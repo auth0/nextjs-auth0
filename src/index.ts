@@ -61,7 +61,7 @@ export const initAuth0: InitAuth0 = (params) => {
   const getSession = sessionFactory(sessionCache);
   const getAccessToken = accessTokenFactory(getClient, config, sessionCache);
   const withApiAuthRequired = withApiAuthRequiredFactory(sessionCache);
-  const withPageAuthRequired = withPageAuthRequiredFactory(sessionCache);
+  const withPageAuthRequired = withPageAuthRequiredFactory(getSession);
   const handleLogin = loginHandler(config, getClient, transientStore);
   const handleLogout = logoutHandler(config, getClient, sessionCache);
   const handleCallback = callbackHandler(config, getClient, sessionCache, transientStore);
@@ -85,7 +85,7 @@ export const getSession: GetSession = (...args) => getInstance().getSession(...a
 export const getAccessToken: GetAccessToken = (...args) => getInstance().getAccessToken(...args);
 export const withApiAuthRequired: WithApiAuthRequired = (...args) => getInstance().withApiAuthRequired(...args);
 export const withPageAuthRequired: WithPageAuthRequired = (...args: any[]): any =>
-  getInstance().withPageAuthRequired(...args);
+  withPageAuthRequiredFactory(getSession)(...args);
 export const handleLogin: HandleLogin = (...args) => getInstance().handleLogin(...args);
 export const handleLogout: HandleLogout = (...args) => getInstance().handleLogout(...args);
 export const handleCallback: HandleCallback = (...args) => getInstance().handleCallback(...args);
