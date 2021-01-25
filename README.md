@@ -1,8 +1,8 @@
-# @auth0/nextjs-auth0
+# @auth0/nextjs-auth0 (Experimental)
 
 Auth0 SDK for signing in to your Next.js applications.
 
-> Note: This library is currently in an experimental state and support is best effort.
+> Note: This library is currently in an experimental state and support is best effort. New users of this SDK should start with the [Beta](https://github.com/auth0/nextjs-auth0/tree/beta).
 
 [![License](https://img.shields.io/:license-mit-blue.svg?style=flat)](https://opensource.org/licenses/MIT)
 
