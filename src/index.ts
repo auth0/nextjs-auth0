@@ -42,43 +42,17 @@ import { InitAuth0, SignInWithAuth0 } from './instance';
 import version from './version';
 import { getParams, Config, SessionConfig, CookieConfig, AuthorizationParameters, ConfigParameters } from './config';
 
-/**
- * These instances are mutually exclusive. A user should get an error if they try to use a named export and
- * an instance method in the same app, eg:
- *
- * ```js
- * import auth0 from '../utils';
- * import { withApiAuthRequired } from '@auth0/nextjs-auth0';
- *
- * export withApiAuthRequired(function MyApiRoute(req, res) {
- *   // `auth0.getSession` throws because you're already using the `withApiAuthRequired` named export
- *   // you should use the `getSession` named export instead.
- *   const session = await auth0.getSession(req, res);
- * });
- * ```
- */
-let managedInstance: SignInWithAuth0;
-let unmanagedInstance: SignInWithAuth0;
-
-function assertOnlyInstance(otherInstance?: SignInWithAuth0) {
-  if (otherInstance) {
-    throw new Error(
-      "You are creating multiple instances of the Auth0 SDK, this usually means you're mixing named imports and" +
-        "auth0 instance methods or you're not resetting or mocking this module in your tests."
-    );
-  }
-}
+let instance: SignInWithAuth0;
 
 function getInstance(): SignInWithAuth0 {
-  assertOnlyInstance(unmanagedInstance);
-  if (managedInstance) {
-    return managedInstance;
+  if (instance) {
+    return instance;
   }
-  managedInstance = createInstance();
-  return managedInstance;
+  instance = initAuth0();
+  return instance;
 }
 
-const createInstance = (params?: ConfigParameters) => {
+export const initAuth0: InitAuth0 = (params) => {
   const config = getConfig(getParams(params));
   const getClient = clientFactory(config, { name: 'nextjs-auth0', version });
   const transientStore = new TransientStore(config);
@@ -107,11 +81,6 @@ const createInstance = (params?: ConfigParameters) => {
   };
 };
 
-export const initAuth0: InitAuth0 = (params) => {
-  assertOnlyInstance(managedInstance);
-  unmanagedInstance = createInstance(params);
-  return unmanagedInstance;
-};
 export const getSession: GetSession = (...args) => getInstance().getSession(...args);
 export const getAccessToken: GetAccessToken = (...args) => getInstance().getAccessToken(...args);
 export const withApiAuthRequired: WithApiAuthRequired = (...args) => getInstance().withApiAuthRequired(...args);
