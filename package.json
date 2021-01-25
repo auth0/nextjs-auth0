@@ -129,6 +129,7 @@
     "collectCoverageFrom": [
       "src/**/*.*",
       "!src/index.browser.ts",
+      "!src/index.ts",
       "!src/handlers/auth.ts"
     ],
     "coverageReporters": [
