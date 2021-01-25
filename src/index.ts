@@ -42,17 +42,43 @@ import { InitAuth0, SignInWithAuth0 } from './instance';
 import version from './version';
 import { getParams, Config, SessionConfig, CookieConfig, AuthorizationParameters, ConfigParameters } from './config';
 
-let instance: SignInWithAuth0;
+/**
+ * These instances are mutually exclusive. A user should get an error if they try to use a named export and
+ * an instance method in the same app, eg:
+ *
+ * ```js
+ * import auth0 from '../utils';
+ * import { withApiAuthRequired } from '@auth0/nextjs-auth0';
+ *
+ * export withApiAuthRequired(function MyApiRoute(req, res) {
+ *   // `auth0.getSession` throws because you're already using the `withApiAuthRequired` named export
+ *   // you should use the `getSession` named export instead.
+ *   const session = await auth0.getSession(req, res);
+ * });
+ * ```
+ */
+let managedInstance: SignInWithAuth0;
+let unmanagedInstance: SignInWithAuth0;
 
-function getInstance(): SignInWithAuth0 {
-  if (instance) {
-    return instance;
+function assertOnlyInstance(otherInstance?: SignInWithAuth0) {
+  if (otherInstance) {
+    throw new Error(
+      "You are creating multiple instances of the Auth0 SDK, this usually means you're mixing named imports and" +
+        "auth0 instance methods or you're not resetting or mocking this module in your tests."
+    );
   }
-  instance = initAuth0();
-  return instance;
 }
 
-export const initAuth0: InitAuth0 = (params) => {
+function getInstance(): SignInWithAuth0 {
+  assertOnlyInstance(unmanagedInstance);
+  if (managedInstance) {
+    return managedInstance;
+  }
+  managedInstance = createInstance();
+  return managedInstance;
+}
+
+const createInstance = (params?: ConfigParameters) => {
   const config = getConfig(getParams(params));
   const getClient = clientFactory(config, { name: 'nextjs-auth0', version });
   const transientStore = new TransientStore(config);
@@ -61,7 +87,7 @@ export const initAuth0: InitAuth0 = (params) => {
   const getSession = sessionFactory(sessionCache);
   const getAccessToken = accessTokenFactory(getClient, config, sessionCache);
   const withApiAuthRequired = withApiAuthRequiredFactory(sessionCache);
-  const withPageAuthRequired = withPageAuthRequiredFactory(sessionCache);
+  const withPageAuthRequired = withPageAuthRequiredFactory(getSession);
   const handleLogin = loginHandler(config, getClient, transientStore);
   const handleLogout = logoutHandler(config, getClient, sessionCache);
   const handleCallback = callbackHandler(config, getClient, sessionCache, transientStore);
@@ -81,11 +107,16 @@ export const initAuth0: InitAuth0 = (params) => {
   };
 };
 
+export const initAuth0: InitAuth0 = (params) => {
+  assertOnlyInstance(managedInstance);
+  unmanagedInstance = createInstance(params);
+  return unmanagedInstance;
+};
 export const getSession: GetSession = (...args) => getInstance().getSession(...args);
 export const getAccessToken: GetAccessToken = (...args) => getInstance().getAccessToken(...args);
 export const withApiAuthRequired: WithApiAuthRequired = (...args) => getInstance().withApiAuthRequired(...args);
 export const withPageAuthRequired: WithPageAuthRequired = (...args: any[]): any =>
-  getInstance().withPageAuthRequired(...args);
+  withPageAuthRequiredFactory(getSession)(...args);
 export const handleLogin: HandleLogin = (...args) => getInstance().handleLogin(...args);
 export const handleLogout: HandleLogout = (...args) => getInstance().handleLogout(...args);
 export const handleCallback: HandleCallback = (...args) => getInstance().handleCallback(...args);
