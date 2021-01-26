@@ -125,6 +125,8 @@ describe('get access token', () => {
     const cookieJar = await login(baseUrl);
     const { accessToken } = await get(baseUrl, '/api/access-token', { cookieJar });
     expect(accessToken).toEqual('new-token');
+    const { refreshToken } = await get(baseUrl, '/api/session', { cookieJar });
+    expect(refreshToken).toEqual('GEbRxBN...edjnXbL');
   });
 
   test('should retrieve a new access token if force refresh is set', async () => {
@@ -142,6 +144,8 @@ describe('get access token', () => {
     const cookieJar = await login(baseUrl);
     const { accessToken } = await get(baseUrl, '/api/access-token', { cookieJar });
     expect(accessToken).toEqual('new-token');
+    const { refreshToken } = await get(baseUrl, '/api/session', { cookieJar });
+    expect(refreshToken).toEqual('GEbRxBN...edjnXbL');
   });
 
   test('should retrieve a new access token and rotate the refresh token', async () => {
@@ -169,5 +173,44 @@ describe('get access token', () => {
     const cookieJar = await login(baseUrl);
     const { accessToken } = await get(baseUrl, '/api/access-token', { cookieJar });
     expect(accessToken).toEqual('eyJz93a...k4laUWw');
+  });
+
+  test('should not overwrite custom session properties when applying a new access token', async () => {
+    refreshTokenExchange(
+      withApi,
+      'GEbRxBN...edjnXbL',
+      {
+        email: 'john@test.com',
+        name: 'john doe',
+        sub: '123'
+      },
+      'new-token'
+    );
+    const baseUrl = await setup(withApi, {
+      getAccessTokenOptions: { refresh: true },
+      callbackOptions: {
+        afterCallback: (_req, _res, session): Session => {
+          session.foo = 'bar';
+          session.user.bar = 'baz';
+          return session;
+        }
+      }
+    });
+    const cookieJar = await login(baseUrl);
+    const { accessToken } = await get(baseUrl, '/api/access-token', { cookieJar });
+    expect(accessToken).toEqual('new-token');
+    const session = await get(baseUrl, '/api/session', { cookieJar });
+    expect(session).toMatchObject({
+      foo: 'bar',
+      accessToken: 'new-token',
+      refreshToken: 'GEbRxBN...edjnXbL',
+      user: {
+        nickname: '__test_nickname__',
+        email: 'john@test.com',
+        name: 'john doe',
+        sub: '123',
+        bar: 'baz'
+      }
+    });
   });
 });
