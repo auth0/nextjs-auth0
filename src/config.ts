@@ -1,6 +1,6 @@
 import { IncomingMessage } from 'http';
 import { AuthorizationParameters as OidcAuthorizationParameters } from 'openid-client';
-import { LoginOptions, DeepPartial } from './auth0-session';
+import { LoginOptions, DeepPartial, getConfig as getBaseConfig } from './auth0-session';
 
 /**
  * ## Configuration properties.
@@ -82,7 +82,7 @@ import { LoginOptions, DeepPartial } from './auth0-session';
  *
  * @category Server
  */
-export interface Config {
+export interface BaseConfig {
   /**
    * The secret(s) used to derive an encryption key for the user identity in a session cookie and
    * to sign the transient cookies used by the login callback.
@@ -238,16 +238,6 @@ export interface Config {
    */
   routes: {
     /**
-     * @ignore
-     */
-    login: string | false;
-
-    /**
-     * @ignore
-     */
-    logout: string | false;
-
-    /**
      * Either a relative path to the application or a valid URI to an external domain.
      * This value must be registered on the authorization server.
      * The user will be redirected to this after a logout has been performed.
@@ -341,7 +331,7 @@ export interface CookieConfig {
    * Value of the SameSite Set-Cookie attribute.
    * Defaults to "Lax" but will be adjusted based on {@link AuthorizationParameters.response_type}.
    */
-  sameSite: boolean | 'lax' | 'strict' | 'none';
+  sameSite: 'lax' | 'strict' | 'none';
 }
 
 /**
@@ -357,11 +347,13 @@ export interface AuthorizationParameters extends OidcAuthorizationParameters {
   response_type: 'id_token' | 'code id_token' | 'code';
 }
 
+export type NextConfig = Pick<BaseConfig, 'routes' | 'identityClaimFilter'>;
+
 /**
  * See {@link Config}
  * @category Server
  */
-export type ConfigParameters = DeepPartial<Config>;
+export type ConfigParameters = DeepPartial<BaseConfig & NextConfig>;
 
 /**
  * @ignore
@@ -385,7 +377,7 @@ const num = (param?: string): number | undefined => (param === undefined || para
 /**
  * @ignore
  */
-export const getParams = (params?: ConfigParameters): ConfigParameters => {
+export const getConfig = (params?: ConfigParameters): { baseConfig: BaseConfig; nextConfig: NextConfig } => {
   const {
     AUTH0_SECRET,
     AUTH0_ISSUER_BASE_URL,
@@ -417,7 +409,7 @@ export const getParams = (params?: ConfigParameters): ConfigParameters => {
   const baseURL =
     AUTH0_BASE_URL && !/^https?:\/\//.test(AUTH0_BASE_URL as string) ? `https://${AUTH0_BASE_URL}` : AUTH0_BASE_URL;
 
-  return {
+  const baseConfig = getBaseConfig({
     secret: AUTH0_SECRET,
     issuerBaseURL: AUTH0_ISSUER_BASE_URL,
     baseURL: baseURL,
@@ -452,14 +444,23 @@ export const getParams = (params?: ConfigParameters): ConfigParameters => {
         transient: bool(AUTH0_COOKIE_TRANSIENT),
         httpOnly: bool(AUTH0_COOKIE_HTTP_ONLY),
         secure: bool(AUTH0_COOKIE_SECURE),
-        sameSite: bool(AUTH0_COOKIE_SAME_SITE),
+        sameSite: AUTH0_COOKIE_SAME_SITE as 'lax' | 'strict' | 'none' | undefined,
         ...params?.session?.cookie
       }
     },
     routes: {
-      callback: AUTH0_CALLBACK || '/api/auth/callback',
-      postLogoutRedirect: AUTH0_POST_LOGOUT_REDIRECT,
-      ...params?.routes
+      callback: params?.routes?.callback || AUTH0_CALLBACK || '/api/auth/callback',
+      postLogoutRedirect: params?.routes?.postLogoutRedirect || AUTH0_POST_LOGOUT_REDIRECT
     }
+  });
+
+  const nextConfig = {
+    routes: {
+      ...baseConfig.routes
+      // Other NextConfig Routes go here
+    },
+    identityClaimFilter: baseConfig.identityClaimFilter
   };
+
+  return { baseConfig, nextConfig };
 };

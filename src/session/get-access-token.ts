@@ -1,9 +1,10 @@
 import { IncomingMessage, ServerResponse } from 'http';
-import { ClientFactory, Config } from '../auth0-session';
+import { NextApiRequest, NextApiResponse } from 'next';
+import { ClientFactory } from '../auth0-session';
 import { AccessTokenError } from '../utils/errors';
 import { intersect, match } from '../utils/array';
 import { SessionCache, fromTokenSet, fromJson } from '../session';
-import { NextApiRequest, NextApiResponse } from 'next';
+import { NextConfig } from '../config';
 
 /**
  * Custom options to get an Access Token.
@@ -51,7 +52,7 @@ export type GetAccessToken = (
  */
 export default function accessTokenFactory(
   getClient: ClientFactory,
-  config: Config,
+  config: NextConfig,
   sessionCache: SessionCache
 ): GetAccessToken {
   return async (req, res, accessTokenRequest): Promise<GetAccessTokenResult> => {
