@@ -17,13 +17,15 @@ export type CallbackOptions = {
   afterCallback?: AfterCallback;
 };
 
-export default function callbackHandler(
+export type HandleCallback = (req: IncomingMessage, res: ServerResponse, options?: CallbackOptions) => Promise<void>;
+
+export default function callbackHandlerFactory(
   config: Config,
   getClient: ClientFactory,
   sessionCache: SessionCache,
   transientCookieHandler: TransientStore
-) {
-  return async (req: IncomingMessage, res: ServerResponse, options?: CallbackOptions): Promise<void> => {
+): HandleCallback {
+  return async (req, res, options) => {
     const client = await getClient();
 
     const redirectUri = getRedirectUri(config);

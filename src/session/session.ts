@@ -1,5 +1,6 @@
 import { TokenSet } from 'openid-client';
 import { Config } from '../auth0-session';
+import { NextConfig } from '../config';
 
 /**
  * Key-value store for the user's claims.
@@ -56,7 +57,7 @@ export default class Session {
 /**
  * @ignore
  */
-export function fromTokenSet(tokenSet: TokenSet, config: Config): Session {
+export function fromTokenSet(tokenSet: TokenSet, config: Config | NextConfig): Session {
   // Get the claims without any OIDC specific claim.
   const claims = tokenSet.claims();
   config.identityClaimFilter.forEach((claim) => {

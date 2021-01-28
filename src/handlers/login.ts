@@ -1,5 +1,5 @@
 import { NextApiResponse, NextApiRequest } from 'next';
-import { AuthorizationParameters, ClientFactory, Config, loginHandler, TransientStore } from '../auth0-session';
+import { AuthorizationParameters, HandleLogin as BaseHandleLogin } from '../auth0-session';
 import isSafeRedirect from '../utils/url-helpers';
 import { assertReqRes } from '../utils/assert';
 
@@ -61,12 +61,7 @@ export type HandleLogin = (req: NextApiRequest, res: NextApiResponse, options?: 
 /**
  * @ignore
  */
-export default function handleLoginFactory(
-  config: Config,
-  getClient: ClientFactory,
-  transientHandler: TransientStore
-): HandleLogin {
-  const handler = loginHandler(config, getClient, transientHandler);
+export default function handleLoginFactory(handler: BaseHandleLogin): HandleLogin {
   return async (req, res, options): Promise<void> => {
     assertReqRes(req, res);
     if (req.query.returnTo) {

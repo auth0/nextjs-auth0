@@ -1,6 +1,6 @@
 import { NextApiResponse, NextApiRequest } from 'next';
-import { ClientFactory, Config, callbackHandler, TransientStore } from '../auth0-session';
-import { Session, SessionCache } from '../session';
+import { HandleCallback as BaseHandleCallback } from '../auth0-session';
+import { Session } from '../session';
 import { assertReqRes } from '../utils/assert';
 
 /**
@@ -82,13 +82,7 @@ export type HandleCallback = (req: NextApiRequest, res: NextApiResponse, options
 /**
  * @ignore
  */
-export default function handleLoginFactory(
-  config: Config,
-  getClient: ClientFactory,
-  sessionCache: SessionCache,
-  transientHandler: TransientStore
-): HandleCallback {
-  const handler = callbackHandler(config, getClient, sessionCache, transientHandler);
+export default function handleLoginFactory(handler: BaseHandleCallback): HandleCallback {
   return async (req, res, options): Promise<void> => {
     assertReqRes(req, res);
     return handler(req, res, options);

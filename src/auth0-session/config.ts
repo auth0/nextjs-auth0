@@ -186,16 +186,6 @@ export interface Config {
    */
   routes: {
     /**
-     * Relative path to application login.
-     */
-    login: string | false;
-
-    /**
-     * Relative path to application logout.
-     */
-    logout: string | false;
-
-    /**
      * Either a relative path to the application or a valid URI to an external domain.
      * This value must be registered on the authorization server.
      * The user will be redirected to this after a logout has been performed.
@@ -285,7 +275,7 @@ export interface CookieConfig {
    * Passed to the [Response cookie](https://expressjs.com/en/api.html#res.cookie) as `samesite`.
    * Defaults to "Lax" but will be adjusted based on {@link AuthorizationParameters.response_type}.
    */
-  sameSite: boolean | 'lax' | 'strict' | 'none';
+  sameSite: 'lax' | 'strict' | 'none';
 }
 
 export interface AuthorizationParameters extends OidcAuthorizationParameters {
