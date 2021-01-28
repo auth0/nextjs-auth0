@@ -74,7 +74,7 @@
     "@hapi/iron": "^5.1.4",
     "base64url": "^3.0.1",
     "cookie": "^0.4.1",
-    "openid-client": "^3.15.0"
+    "openid-client": "^3.15.10"
   },
   "peerDependencies": {
     "next": "^9.0.0"

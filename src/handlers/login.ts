@@ -24,7 +24,7 @@ export interface AuthorizationParameters {
   audience?: string;
   display?: string;
   login_hint?: string;
-  max_age?: string;
+  max_age?: string | number;
   prompt?: string;
   scope?: string;
   state?: string;
@@ -71,6 +71,7 @@ export default function loginHandler(settings: IAuth0Settings, clientProvider: I
         redirectTo: req.query?.redirectTo || options?.redirectTo,
         ...getLoginState(req)
       }),
+      max_age,
       ...authParams
     } = (opt && opt.authParams) || {};
 
@@ -83,6 +84,7 @@ export default function loginHandler(settings: IAuth0Settings, clientProvider: I
       audience: settings.audience,
       state,
       auth0Client: telemetry(),
+      max_age: max_age === undefined ? max_age : +max_age,
       ...authParams
     });
 
