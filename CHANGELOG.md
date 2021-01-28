@@ -1,3 +1,7 @@
+## [v0.16.1](https://github.com/auth0/nextjs-auth0/tree/v0.16.1) (2021-01-28)
+
+- Updating dependencies with security issues
+
 ## [v0.16.0](https://github.com/auth0/nextjs-auth0/tree/v0.16.0) (2020-08-19)
 
 - Updating dependencies with security issues
