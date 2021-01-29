@@ -7,7 +7,12 @@ import {
   withUserProvider,
   user
 } from '../fixtures/frontend';
+import { useConfig } from '../../src/frontend';
 import { useUser } from '../../src';
+
+jest.mock('next/router', () => ({
+  useRouter: (): any => ({ asPath: '/' })
+}));
 
 describe('context wrapper', () => {
   afterEach(() => delete (global as any).fetch);
@@ -57,7 +62,7 @@ describe('context wrapper', () => {
     expect(result.current.isLoading).toEqual(false);
   });
 
-  test('should use the existing user', async () => {
+  test('should provide the existing user', async () => {
     const { result } = renderHook(() => useUser(), { wrapper: withUserProvider({ user }) });
 
     expect(result.current.user).toEqual(user);
@@ -65,7 +70,18 @@ describe('context wrapper', () => {
     expect(result.current.isLoading).toEqual(false);
   });
 
-  test('should use a custom profileUrl', async () => {
+  test('should use the default profile url', async () => {
+    const fetchSpy = jest.fn().mockReturnValue(Promise.resolve());
+    (global as any).fetch = fetchSpy;
+    const { result, waitForValueToChange } = renderHook(() => useUser(), {
+      wrapper: withUserProvider()
+    });
+
+    await waitForValueToChange(() => result.current.isLoading);
+    expect(fetchSpy).toHaveBeenCalledWith('/api/auth/me');
+  });
+
+  test('should accept a custom profile url', async () => {
     const fetchSpy = jest.fn().mockReturnValue(Promise.resolve());
     (global as any).fetch = fetchSpy;
     const { result, waitForValueToChange } = renderHook(() => useUser(), {
@@ -76,12 +92,33 @@ describe('context wrapper', () => {
     expect(fetchSpy).toHaveBeenCalledWith('/api/custom-url');
   });
 
+  test('should use a custom profile url from an environment variable', async () => {
+    process.env.NEXT_PUBLIC_AUTH0_PROFILE = '/api/custom-url';
+    const fetchSpy = jest.fn().mockReturnValue(Promise.resolve());
+    (global as any).fetch = fetchSpy;
+    const { result, waitForValueToChange } = renderHook(() => useUser(), {
+      wrapper: withUserProvider()
+    });
+
+    await waitForValueToChange(() => result.current.isLoading);
+    expect(fetchSpy).toHaveBeenCalledWith('/api/custom-url');
+    delete process.env.NEXT_PUBLIC_AUTH0_PROFILE;
+  });
+
+  test('should accept a custom login url', async () => {
+    const { result } = renderHook(() => useConfig(), {
+      wrapper: withUserProvider({ user, loginUrl: '/api/custom-url' })
+    });
+
+    expect(result.current.loginUrl).toEqual('/api/custom-url');
+  });
+
   test('should check the session when logged in', async () => {
     (global as any).fetch = fetchUserUnsuccessfulMock;
     const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUserProvider() });
 
     await waitForValueToChange(() => result.current.isLoading);
-    expect(result.current.user).toBeUndefined;
+    expect(result.current.user).toBeUndefined();
 
     (global as any).fetch = fetchUserMock;
 

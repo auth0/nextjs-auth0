@@ -18,7 +18,7 @@ jest.mock('next/router', () => ({ useRouter: (): any => routerMock }));
 describe('with-page-auth-required csr', () => {
   afterEach(() => delete (global as any).fetch);
 
-  it('should block access to a CSR page when not authenticated', async () => {
+  it('should deny access to a CSR page when not authenticated', async () => {
     (global as any).fetch = fetchUserUnsuccessfulMock;
     const MyPage = (): JSX.Element => <>Private</>;
     const ProtectedPage = withPageAuthRequired(MyPage);
@@ -82,5 +82,16 @@ describe('with-page-auth-required csr', () => {
 
     render(<ProtectedPage />, { wrapper: withUserProvider() });
     await waitFor(() => expect(routerMock.push).toHaveBeenCalledWith(expect.stringContaining('?returnTo=/foo')));
+  });
+
+  it('should use a custom login url', async () => {
+    process.env.NEXT_PUBLIC_AUTH0_LOGIN = '/api/foo';
+    (global as any).fetch = fetchUserUnsuccessfulMock;
+    const MyPage = (): JSX.Element => <>Private</>;
+    const ProtectedPage = withPageAuthRequired(MyPage);
+
+    render(<ProtectedPage />, { wrapper: withUserProvider() });
+    await waitFor(() => expect(routerMock.push).toHaveBeenCalledWith(expect.stringContaining('/api/foo')));
+    delete process.env.NEXT_PUBLIC_AUTH0_LOGIN;
   });
 });

@@ -4,6 +4,7 @@ module.exports = {
   exclude: [
     './src/auth0-session/**',
     './src/session/cache.ts',
+    './src/frontend/use-config.tsx',
     './src/utils/!(errors.ts)',
     './src/index.ts',
     './src/index.browser.ts'
