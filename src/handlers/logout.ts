@@ -10,7 +10,7 @@ import { assertReqRes } from '../utils/assert';
 export interface LogoutOptions {
   /**
    *  URL to returnTo after logout, overrides the
-   *  Default in {@link Config.routes.postLogoutRedirect routes.postLogoutRedirect}
+   *  Default in {@link BaseConfig.routes.postLogoutRedirect routes.postLogoutRedirect}
    */
   returnTo?: string;
 }

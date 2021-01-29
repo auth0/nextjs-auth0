@@ -3,20 +3,12 @@ import { AuthorizationParameters as OidcAuthorizationParameters } from 'openid-c
 
 /**
  * Configuration properties.
- *
- * ```.env
- * ISSUER_BASE_URL=https://YOUR_DOMAIN
- * CLIENT_ID=YOUR_CLIENT_ID
- * BASE_URL=https://YOUR_APPLICATION_ROOT_URL
- * SECRET=LONG_RANDOM_VALUE
- * ```
  */
 export interface Config {
   /**
    * The secret(s) used to derive an encryption key for the user identity in a session cookie and
    * to sign the transient cookies used by the login callback.
    * Use a single string key or array of keys for an encrypted session cookie.
-   * Can use env key SECRET instead.
    */
   secret: string | Array<string>;
 
@@ -79,20 +71,17 @@ export interface Config {
 
   /**
    * The root URL for the application router, eg https://localhost
-   * Can use env key BASE_URL instead.
    */
   baseURL: string;
 
   /**
    * The Client ID for your application.
-   * Can be read from CLIENT_ID instead.
    */
   clientID: string;
 
   /**
    * The Client Secret for your application.
    * Required when requesting access tokens.
-   * Can be read from CLIENT_SECRET instead.
    */
   clientSecret?: string;
 
@@ -115,7 +104,7 @@ export interface Config {
   enableTelemetry: boolean;
 
   /**
-   * Function that returns an object with URL-safe state values for `res.oidc.login()`.
+   * Function that returns an object with URL-safe state values for login.
    * Used for passing custom state parameters to your authorization server.
    *
    * ```js
@@ -150,7 +139,6 @@ export interface Config {
 
   /**
    * REQUIRED. The root URL for the token issuer with no trailing slash.
-   * Can use env key ISSUER_BASE_URL instead.
    */
   issuerBaseURL: string;
 

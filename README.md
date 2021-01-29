@@ -70,7 +70,7 @@ AUTH0_CLIENT_ID='YOUR_AUTH0_CLIENT_ID'
 AUTH0_CLIENT_SECRET='YOUR_AUTH0_CLIENT_SECRET'
 ```
 
-For a [full list of configuration options](https://auth0.github.io/nextjs-auth0/interfaces/config.config-1.html) see the docs.
+For a [full list of configuration options](https://auth0.github.io/nextjs-auth0/modules/config.html) see the docs.
 
 Then, create a [Dynamic API Route handler](https://nextjs.org/docs/api-routes/dynamic-api-routes) at `/pages/api/auth/[...auth0].js`.
 
@@ -85,7 +85,6 @@ This will create the following urls: `/api/auth/login`, `/api/auth/callback`, `/
 Wrap your `pages/_app.js` component in the `UserProvider` component.
 
 ```jsx
-// pages/_app.js
 import React from 'react';
 import { UserProvider } from '@auth0/nextjs-auth0';
 
@@ -101,7 +100,6 @@ export default function App({ Component, pageProps }) {
 Check whether a user is authenticated by checking that `user` has a value, and log them in or out from the front end by redirecting to the appropriate automatically-generated route.
 
 ```jsx
-// pages/index.js
 import { useUser } from '@auth0/nextjs-auth0';
 
 export default () => {
@@ -128,7 +126,7 @@ For more extensive examples see [EXAMPLES.md](./EXAMPLES.md).
 
 ### API Reference
 
-- [Configuration Options](https://auth0.github.io/nextjs-auth0/interfaces/config.config-1.html)
+- [Configuration Options](https://auth0.github.io/nextjs-auth0/modules/config.html)
 
 **Server Side methods**:
 
