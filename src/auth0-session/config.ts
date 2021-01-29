@@ -115,16 +115,6 @@ export interface Config {
   enableTelemetry: boolean;
 
   /**
-   * Attempt silent login (`prompt: 'none'`) on the first unauthenticated route the user visits.
-   * For protected routes this can be useful if your Identity Provider does not default to
-   * `prompt: 'none'` and you'd like to attempt this before requiring the user to interact with a login prompt.
-   * For unprotected routes this can be useful if you want to check the user's logged in state on their IDP, to
-   * show them a login/logout button for example.
-   * Default is `false`
-   */
-  attemptSilentLogin: boolean;
-
-  /**
    * Function that returns an object with URL-safe state values for `res.oidc.login()`.
    * Used for passing custom state parameters to your authorization server.
    *
