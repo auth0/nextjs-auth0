@@ -115,12 +115,6 @@ export interface Config {
   enableTelemetry: boolean;
 
   /**
-   * Throw a 401 error instead of triggering the login process for routes that require authentication.
-   * Default is `false`
-   */
-  errorOnRequiredAuth: boolean;
-
-  /**
    * Attempt silent login (`prompt: 'none'`) on the first unauthenticated route the user visits.
    * For protected routes this can be useful if your Identity Provider does not default to
    * `prompt: 'none'` and you'd like to attempt this before requiring the user to interact with a login prompt.
@@ -176,14 +170,6 @@ export interface Config {
    */
   legacySameSiteCookie: boolean;
 
-  /**
-   * Require authentication for all routes.
-   */
-  authRequired: boolean;
-
-  /**
-   * Boolean value to automatically install the login and logout routes.
-   */
   routes: {
     /**
      * Either a relative path to the application or a valid URI to an external domain.

@@ -2,15 +2,11 @@ import { IncomingMessage, ServerResponse } from 'http';
 import url from 'url';
 import urlJoin from 'url-join';
 import createDebug from '../utils/debug';
-import { Config } from '../config';
+import { Config, LogoutOptions } from '../config';
 import { ClientFactory } from '../client';
 import { SessionCache } from '../session-cache';
 
 const debug = createDebug('logout');
-
-export interface LogoutOptions {
-  returnTo?: string;
-}
 
 export type HandleLogout = (req: IncomingMessage, res: ServerResponse, options?: LogoutOptions) => Promise<void>;
 
