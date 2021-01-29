@@ -171,16 +171,6 @@ export interface BaseConfig {
   enableTelemetry: boolean;
 
   /**
-   * @ignore
-   */
-  errorOnRequiredAuth: boolean;
-
-  /**
-   * @ignore
-   */
-  attemptSilentLogin: boolean;
-
-  /**
    * Function that returns an object with URL-safe state values for `res.oidc.login()`.
    * Used for passing custom state parameters to your authorization server.
    * Can also be passed in to {@link HandleLogin}
@@ -229,11 +219,6 @@ export interface BaseConfig {
   legacySameSiteCookie: boolean;
 
   /**
-   * @ignore
-   */
-  authRequired: boolean;
-
-  /**
    * Boolean value to automatically install the login and logout routes.
    */
   routes: {
@@ -246,6 +231,7 @@ export interface BaseConfig {
 
     /**
      * Relative path to the application callback to process the response from the authorization server.
+     * Defaults to `/api/auth/callback`
      */
     callback: string;
   };
