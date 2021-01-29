@@ -85,6 +85,7 @@ This will create the following urls: `/api/auth/login`, `/api/auth/callback`, `/
 Wrap your `pages/_app.js` component in the `UserProvider` component.
 
 ```jsx
+// pages/_app.js
 import React from 'react';
 import { UserProvider } from '@auth0/nextjs-auth0';
 
@@ -100,6 +101,7 @@ export default function App({ Component, pageProps }) {
 Check whether a user is authenticated by checking that `user` has a value, and log them in or out from the front end by redirecting to the appropriate automatically-generated route.
 
 ```jsx
+// pages/index.js
 import { useUser } from '@auth0/nextjs-auth0';
 
 export default () => {
