@@ -4,7 +4,7 @@ Guide to migrating from `0.x` to `1.x` (Beta)
 
 ### Config changes
 
-> Note: If you only use environment variables to configure the SDK, you don't need to create an instance of the SDK. You can use the named exports (`handleAuth`, `getSession`) directly from `@auth0/nextjs-auth` and they will lazily create an instance of the SDK for you, and configure it using the following [environment variables](https://auth0.github.io/nextjs-auth0/interfaces/config.config-1.html). See the [Basic setup](./EXAMPLES.md#basic-setup) as an example.
+> Note: If you only use environment variables to configure the SDK, you don't need to create an instance of the SDK. You can use the named exports (`handleAuth`, `getSession`) directly from `@auth0/nextjs-auth` and they will lazily create an instance of the SDK for you, and configure it using the following [environment variables](https://auth0.github.io/nextjs-auth0/modules/config.html). See the [Basic setup](./EXAMPLES.md#basic-setup) as an example.
 
 If you still want to create the SDK instance yourself, note that the configuration options have changed as follows.
 
@@ -78,7 +78,7 @@ export default initAuth0({
 });
 ```
 
-See the API docs for a [full list of configuration options](https://auth0.github.io/nextjs-auth0/interfaces/config.config-1.html).
+See the API docs for a [full list of configuration options](https://auth0.github.io/nextjs-auth0/modules/config.html).
 
 ### getSession
 
@@ -87,7 +87,6 @@ See the API docs for a [full list of configuration options](https://auth0.github
 #### Before
 
 ```js
-// pages/api/shows.js
 import auth0 from '../../lib/auth0';
 
 export default function shows(req, res) {
@@ -99,7 +98,6 @@ export default function shows(req, res) {
 #### After
 
 ```js
-// pages/api/shows.js
 import auth0 from '../../lib/auth0';
 
 export default function shows(req, res) {
@@ -117,7 +115,6 @@ See the [getSession docs](https://auth0.github.io/nextjs-auth0/modules/session_g
 ### Before
 
 ```js
-// pages/api/shows.js
 import auth0 from '../../lib/auth0';
 
 export default async function shows(req, res) {
@@ -132,7 +129,6 @@ export default async function shows(req, res) {
 ### After
 
 ```js
-// pages/api/shows.js
 import auth0 from '../../lib/auth0';
 
 export default async function shows(req, res) {
@@ -155,7 +151,6 @@ The options passed to `handleLogin` have changed.
 #### Before
 
 ```js
-// pages/api/login.js
 import auth0 from '../../utils/auth0';
 
 export default async function login(req, res) {
@@ -179,7 +174,6 @@ export default async function login(req, res) {
 #### After
 
 ```js
-// pages/api/login.js
 import auth0 from '../../utils/auth0';
 
 export default async function login(req, res) {
@@ -211,7 +205,6 @@ The options passed to `handleLogout` have changed.
 #### Before
 
 ```js
-// pages/api/logout.js
 import auth0 from '../../utils/auth0';
 
 export default async function logout(req, res) {
@@ -229,7 +222,6 @@ export default async function logout(req, res) {
 #### After
 
 ```js
-// pages/api/logout.js
 import auth0 from '../../utils/auth0';
 
 export default async function logout(req, res) {
@@ -255,7 +247,6 @@ The options passed to `handleCallback` have changed.
 #### Before
 
 ```js
-// pages/api/callback.js
 import auth0 from '../../utils/auth0';
 
 export default async function callback(req, res) {
@@ -275,7 +266,6 @@ export default async function callback(req, res) {
 #### After
 
 ```js
-// pages/api/callback.js
 import auth0 from '../../utils/auth0';
 
 export default async function callback(req, res) {
