@@ -24,7 +24,8 @@ const getConfigWithEnv = (env: any = {}, opts?: any): { baseConfig: BaseConfig; 
 
 describe('config params', () => {
   test('should return an object from empty defaults', () => {
-    expect(getConfigWithEnv().baseConfig).toStrictEqual({
+    const { baseConfig, nextConfig } = getConfigWithEnv();
+    expect(baseConfig).toStrictEqual({
       secret: '__long_super_secret_secret__',
       issuerBaseURL: 'https://example.auth0.com',
       baseURL: 'https://example.com',
@@ -72,6 +73,22 @@ describe('config params', () => {
         'c_hash'
       ],
       clientAuthMethod: 'client_secret_basic'
+    });
+    expect(nextConfig).toStrictEqual({
+      identityClaimFilter: [
+        'aud',
+        'iss',
+        'iat',
+        'exp',
+        'nbf',
+        'nonce',
+        'azp',
+        'auth_time',
+        's_hash',
+        'at_hash',
+        'c_hash'
+      ],
+      routes: { callback: '/api/auth/callback', postLogoutRedirect: '' }
     });
   });
 
@@ -175,11 +192,13 @@ describe('config params', () => {
   });
 
   test('should accept optional callback path', () => {
-    expect(
-      getConfigWithEnv({
-        AUTH0_CALLBACK: '/api/custom-callback'
-      }).baseConfig
-    ).toMatchObject({
+    const { baseConfig, nextConfig } = getConfigWithEnv({
+      AUTH0_CALLBACK: '/api/custom-callback'
+    });
+    expect(baseConfig).toMatchObject({
+      routes: expect.objectContaining({ callback: '/api/custom-callback' })
+    });
+    expect(nextConfig).toMatchObject({
       routes: expect.objectContaining({ callback: '/api/custom-callback' })
     });
   });
