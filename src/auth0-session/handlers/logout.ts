@@ -10,7 +10,7 @@ const debug = createDebug('logout');
 
 export type HandleLogout = (req: IncomingMessage, res: ServerResponse, options?: LogoutOptions) => Promise<void>;
 
-export default function logoutHandler(
+export default function logoutHandlerFactory(
   config: Config,
   getClient: ClientFactory,
   sessionCache: SessionCache

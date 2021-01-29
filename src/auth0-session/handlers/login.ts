@@ -15,7 +15,7 @@ function getRedirectUri(config: Config): string {
 
 export type HandleLogin = (req: IncomingMessage, res: ServerResponse, options?: LoginOptions) => Promise<void>;
 
-export default function loginHandler(
+export default function loginHandlerFactory(
   config: Config,
   getClient: ClientFactory,
   transientHandler: TransientStore
