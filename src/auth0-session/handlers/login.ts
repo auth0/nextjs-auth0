@@ -13,8 +13,14 @@ function getRedirectUri(config: Config): string {
   return urlJoin(config.baseURL, config.routes.callback);
 }
 
-export default function loginHandler(config: Config, getClient: ClientFactory, transientHandler: TransientStore) {
-  return async (req: IncomingMessage, res: ServerResponse, options: LoginOptions = {}): Promise<void> => {
+export type HandleLogin = (req: IncomingMessage, res: ServerResponse, options?: LoginOptions) => Promise<void>;
+
+export default function loginHandlerFactory(
+  config: Config,
+  getClient: ClientFactory,
+  transientHandler: TransientStore
+): HandleLogin {
+  return async (req, res, options = {}) => {
     const client = await getClient();
 
     const returnTo = options.returnTo || config.baseURL;

@@ -133,9 +133,7 @@ const paramsSchema = Joi.object({
   issuerBaseURL: Joi.string().uri().required(),
   legacySameSiteCookie: Joi.boolean().optional().default(true),
   routes: Joi.object({
-    login: Joi.alternatives([Joi.string().uri({ relativeOnly: true }), Joi.boolean().valid(false)]).default('/login'),
-    logout: Joi.alternatives([Joi.string().uri({ relativeOnly: true }), Joi.boolean().valid(false)]).default('/logout'),
-    callback: Joi.string().uri({ relativeOnly: true }).default('/callback'),
+    callback: Joi.string().uri({ relativeOnly: true }).required(),
     postLogoutRedirect: Joi.string().uri({ allowRelative: true }).default('')
   })
     .default()
@@ -155,16 +153,7 @@ export type DeepPartial<T> = {
 export type ConfigParameters = DeepPartial<Config>;
 
 export const get = (params: ConfigParameters = {}): Config => {
-  const config = {
-    secret: process.env.SECRET,
-    issuerBaseURL: process.env.ISSUER_BASE_URL,
-    baseURL: process.env.BASE_URL,
-    clientID: process.env.CLIENT_ID,
-    clientSecret: process.env.CLIENT_SECRET,
-    ...params
-  };
-
-  const { value, error, warning } = paramsSchema.validate(config);
+  const { value, error, warning } = paramsSchema.validate(params);
   if (error) {
     throw new TypeError(error.details[0].message);
   }

@@ -1,11 +1,13 @@
-import { Config, ConfigParameters, getConfig, AuthorizationParameters } from '../../src/auth0-session';
-import { DeepPartial } from '../../src/auth0-session/get-config';
+import { Config, ConfigParameters, getConfig, AuthorizationParameters, DeepPartial } from '../../src/auth0-session';
 
 const defaultConfig = {
   secret: '__test_session_secret__',
   clientID: '__test_client_id__',
   issuerBaseURL: 'https://op.example.com',
-  baseURL: 'https://example.org'
+  baseURL: 'https://example.org',
+  routes: {
+    callback: '/callback'
+  }
 };
 
 const validateAuthorizationParams = (authorizationParams: DeepPartial<AuthorizationParameters>): Config =>
@@ -23,25 +25,8 @@ describe('Config', () => {
     });
   });
 
-  it('should get config for default config with environment variables', () => {
-    const _env = process.env;
-    process.env = {
-      ...process.env,
-      ISSUER_BASE_URL: defaultConfig.issuerBaseURL,
-      CLIENT_ID: defaultConfig.clientID,
-      SECRET: defaultConfig.secret,
-      BASE_URL: defaultConfig.baseURL
-    };
-    const config = getConfig();
-    expect(config).toMatchObject({
-      issuerBaseURL: defaultConfig.issuerBaseURL,
-      authorizationParams: {
-        response_type: 'id_token',
-        response_mode: 'form_post',
-        scope: 'openid profile email'
-      }
-    });
-    process.env = _env;
+  it('should throw with empty config', () => {
+    expect(getConfig).toThrow();
   });
 
   it('should get config for response_type=code', () => {
@@ -101,9 +86,7 @@ describe('Config', () => {
   it('should set default route paths', () => {
     const config = getConfig(defaultConfig);
     expect(config.routes).toMatchObject({
-      callback: '/callback',
-      login: '/login',
-      logout: '/logout'
+      callback: '/callback'
     });
   });
 
@@ -112,14 +95,12 @@ describe('Config', () => {
       ...defaultConfig,
       routes: {
         callback: '/custom-callback',
-        login: '/custom-login',
-        logout: '/custom-logout'
+        postLogoutRedirect: '/custom-logout'
       }
     });
     expect(config.routes).toMatchObject({
       callback: '/custom-callback',
-      login: '/custom-login',
-      logout: '/custom-logout'
+      postLogoutRedirect: '/custom-logout'
     });
   });
 
@@ -296,7 +277,7 @@ describe('Config', () => {
         secret: '__test_session_secret__',
         session: {
           cookie: {
-            sameSite: ('__invalid_samesite__' as unknown) as boolean // testing invalid configuration
+            sameSite: ('__invalid_samesite__' as unknown) as any // testing invalid configuration
           }
         }
       })

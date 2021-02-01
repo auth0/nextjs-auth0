@@ -1,5 +1,5 @@
 import { NextApiResponse, NextApiRequest } from 'next';
-import { AuthorizationParameters, ClientFactory, Config, loginHandler, TransientStore } from '../auth0-session';
+import { AuthorizationParameters, HandleLogin as BaseHandleLogin } from '../auth0-session';
 import isSafeRedirect from '../utils/url-helpers';
 import { assertReqRes } from '../utils/assert';
 
@@ -36,12 +36,12 @@ export type GetLoginState = (req: NextApiRequest, options: LoginOptions) => { [k
  */
 export interface LoginOptions {
   /**
-   * Override the default {@link Config.authorizationParams authorizationParams}
+   * Override the default {@link BaseConfig.authorizationParams authorizationParams}
    */
   authorizationParams?: Partial<AuthorizationParameters>;
 
   /**
-   *  URL to return to after login, overrides the Default is {@link Config.baseURL}
+   *  URL to return to after login, overrides the Default is {@link BaseConfig.baseURL}
    */
   returnTo?: string;
 
@@ -61,12 +61,7 @@ export type HandleLogin = (req: NextApiRequest, res: NextApiResponse, options?: 
 /**
  * @ignore
  */
-export default function handleLoginFactory(
-  config: Config,
-  getClient: ClientFactory,
-  transientHandler: TransientStore
-): HandleLogin {
-  const handler = loginHandler(config, getClient, transientHandler);
+export default function handleLoginFactory(handler: BaseHandleLogin): HandleLogin {
   return async (req, res, options): Promise<void> => {
     assertReqRes(req, res);
     if (req.query.returnTo) {

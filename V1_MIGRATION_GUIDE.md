@@ -4,7 +4,7 @@ Guide to migrating from `0.x` to `1.x` (Beta)
 
 ### Config changes
 
-> Note: If you only use environment variables to configure the SDK, you don't need to create an instance of the SDK. You can use the named exports (`handleAuth`, `getSession`) directly from `@auth0/nextjs-auth` and they will lazily create an instance of the SDK for you, and configure it using the following [environment variables](https://auth0.github.io/nextjs-auth0/interfaces/config.config-1.html). See the [Basic setup](./EXAMPLES.md#basic-setup) as an example.
+> Note: If you only use environment variables to configure the SDK, you don't need to create an instance of the SDK. You can use the named exports (`handleAuth`, `getSession`) directly from `@auth0/nextjs-auth` and they will lazily create an instance of the SDK for you, and configure it using the following [environment variables](https://auth0.github.io/nextjs-auth0/modules/config.html). See the [Basic setup](./EXAMPLES.md#basic-setup) as an example.
 
 If you still want to create the SDK instance yourself, note that the configuration options have changed as follows.
 
@@ -78,7 +78,7 @@ export default initAuth0({
 });
 ```
 
-See the API docs for a [full list of configuration options](https://auth0.github.io/nextjs-auth0/interfaces/config.config-1.html).
+See the API docs for a [full list of configuration options](https://auth0.github.io/nextjs-auth0/modules/config.html).
 
 ### getSession
 

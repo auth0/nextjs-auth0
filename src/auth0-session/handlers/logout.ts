@@ -2,18 +2,20 @@ import { IncomingMessage, ServerResponse } from 'http';
 import url from 'url';
 import urlJoin from 'url-join';
 import createDebug from '../utils/debug';
-import { Config } from '../config';
+import { Config, LogoutOptions } from '../config';
 import { ClientFactory } from '../client';
 import { SessionCache } from '../session-cache';
 
 const debug = createDebug('logout');
 
-export interface LogoutOptions {
-  returnTo?: string;
-}
+export type HandleLogout = (req: IncomingMessage, res: ServerResponse, options?: LogoutOptions) => Promise<void>;
 
-export default function logoutHandler(config: Config, getClient: ClientFactory, sessionCache: SessionCache) {
-  return async (req: IncomingMessage, res: ServerResponse, options: LogoutOptions = {}): Promise<void> => {
+export default function logoutHandlerFactory(
+  config: Config,
+  getClient: ClientFactory,
+  sessionCache: SessionCache
+): HandleLogout {
+  return async (req, res, options = {}) => {
     let returnURL = options.returnTo || config.routes.postLogoutRedirect;
     debug('logout() with return url: %s', returnURL);
 

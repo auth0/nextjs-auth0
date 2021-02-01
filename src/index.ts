@@ -1,4 +1,11 @@
-import { getConfig, CookieStore, TransientStore, clientFactory } from './auth0-session';
+import {
+  CookieStore,
+  TransientStore,
+  clientFactory,
+  loginHandler as baseLoginHandler,
+  logoutHandler as baseLogoutHandler,
+  callbackHandler as baseCallbackHandler
+} from './auth0-session';
 import {
   handlerFactory,
   callbackHandler,
@@ -40,7 +47,7 @@ import {
 } from './helpers';
 import { InitAuth0, SignInWithAuth0 } from './instance';
 import version from './version';
-import { getParams, Config, SessionConfig, CookieConfig, AuthorizationParameters, ConfigParameters } from './config';
+import { getConfig, ConfigParameters } from './config';
 
 let instance: SignInWithAuth0;
 
@@ -53,18 +60,25 @@ function getInstance(): SignInWithAuth0 {
 }
 
 export const initAuth0: InitAuth0 = (params) => {
-  const config = getConfig(getParams(params));
-  const getClient = clientFactory(config, { name: 'nextjs-auth0', version });
-  const transientStore = new TransientStore(config);
-  const cookieStore = new CookieStore(config);
-  const sessionCache = new SessionCache(config, cookieStore);
+  const { baseConfig, nextConfig } = getConfig(params);
+
+  // Init base layer (with base config)
+  const getClient = clientFactory(baseConfig, { name: 'nextjs-auth0', version });
+  const transientStore = new TransientStore(baseConfig);
+  const cookieStore = new CookieStore(baseConfig);
+  const sessionCache = new SessionCache(baseConfig, cookieStore);
+  const baseHandleLogin = baseLoginHandler(baseConfig, getClient, transientStore);
+  const baseHandleLogout = baseLogoutHandler(baseConfig, getClient, sessionCache);
+  const baseHandleCallback = baseCallbackHandler(baseConfig, getClient, sessionCache, transientStore);
+
+  // Init Next layer (with next config)
   const getSession = sessionFactory(sessionCache);
-  const getAccessToken = accessTokenFactory(getClient, config, sessionCache);
+  const getAccessToken = accessTokenFactory(getClient, nextConfig, sessionCache);
   const withApiAuthRequired = withApiAuthRequiredFactory(sessionCache);
   const withPageAuthRequired = withPageAuthRequiredFactory(getSession);
-  const handleLogin = loginHandler(config, getClient, transientStore);
-  const handleLogout = logoutHandler(config, getClient, sessionCache);
-  const handleCallback = callbackHandler(config, getClient, sessionCache, transientStore);
+  const handleLogin = loginHandler(baseHandleLogin);
+  const handleLogout = logoutHandler(baseHandleLogout);
+  const handleCallback = callbackHandler(baseHandleCallback);
   const handleProfile = profileHandler(sessionCache, getClient, getAccessToken);
   const handleAuth = handlerFactory({ handleLogin, handleLogout, handleCallback, handleProfile });
 
@@ -95,10 +109,6 @@ export const handleAuth: HandleAuth = (...args) => getInstance().handleAuth(...a
 export { UserProvider, UserProviderProps, UserProfile, UserContext, useUser } from './frontend';
 
 export {
-  Config,
-  SessionConfig,
-  CookieConfig,
-  AuthorizationParameters,
   ConfigParameters,
   HandleAuth,
   HandleLogin,
