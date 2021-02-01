@@ -55,7 +55,7 @@ describe('logout route', () => {
   });
 
   it('should perform a distributed logout', async () => {
-    const baseURL = await setup({ ...defaultConfig, idpLogout: true });
+    const baseURL = await setup({ ...defaultConfig, auth0Logout: false, idpLogout: true });
     const cookieJar = await login(baseURL);
 
     const session: SessionResponse = await get(baseURL, '/session', { cookieJar });
@@ -71,7 +71,10 @@ describe('logout route', () => {
       hostname: 'op.example.com',
       pathname: '/session/end',
       protocol: 'https:',
-      query: expect.objectContaining({ post_logout_redirect_uri: baseURL })
+      query: {
+        post_logout_redirect_uri: baseURL,
+        id_token_hint: session.id_token
+      }
     });
   });
 
