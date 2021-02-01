@@ -1,21 +1,20 @@
-import { getParams } from '../src/config';
-import { ConfigParameters } from '../src';
+import { BaseConfig, NextConfig, getConfig } from '../src/config';
 
-const getParamsWithEnv = (env: any = {}, opts?: any): ConfigParameters => {
+const getConfigWithEnv = (env: any = {}, opts?: any): { baseConfig: BaseConfig; nextConfig: NextConfig } => {
   const bkp = process.env;
   process.env = {
     ...process.env,
     ...{
-      AUTH0_SECRET: undefined,
-      AUTH0_ISSUER_BASE_URL: undefined,
-      AUTH0_BASE_URL: undefined,
-      AUTH0_CLIENT_ID: undefined,
-      AUTH0_CLIENT_SECRET: undefined
+      AUTH0_SECRET: '__long_super_secret_secret__',
+      AUTH0_ISSUER_BASE_URL: 'https://example.auth0.com',
+      AUTH0_BASE_URL: 'https://example.com',
+      AUTH0_CLIENT_ID: '__test_client_id__',
+      AUTH0_CLIENT_SECRET: '__test_client_secret__'
     },
     ...env
   };
   try {
-    return getParams(opts);
+    return getConfig(opts);
   } catch (e) {
     throw e;
   } finally {
@@ -25,69 +24,96 @@ const getParamsWithEnv = (env: any = {}, opts?: any): ConfigParameters => {
 
 describe('config params', () => {
   test('should return an object from empty defaults', () => {
-    expect(getParamsWithEnv()).toStrictEqual({
-      auth0Logout: true,
-      authorizationParams: {
-        audience: undefined,
-        response_type: 'code',
-        scope: undefined
-      },
-      baseURL: undefined,
-      clientID: undefined,
-      clientSecret: undefined,
-      clockTolerance: undefined,
-      httpTimeout: undefined,
-      enableTelemetry: undefined,
-      idTokenSigningAlg: undefined,
+    const { baseConfig, nextConfig } = getConfigWithEnv();
+    expect(baseConfig).toStrictEqual({
+      secret: '__long_super_secret_secret__',
+      issuerBaseURL: 'https://example.auth0.com',
+      baseURL: 'https://example.com',
+      clientID: '__test_client_id__',
+      clientSecret: '__test_client_secret__',
+      clockTolerance: 60,
+      httpTimeout: 5000,
+      enableTelemetry: true,
       idpLogout: true,
-      issuerBaseURL: undefined,
-      legacySameSiteCookie: undefined,
-      routes: {
-        callback: '/api/auth/callback',
-        postLogoutRedirect: undefined
+      auth0Logout: true,
+      idTokenSigningAlg: 'RS256',
+      legacySameSiteCookie: true,
+      authorizationParams: {
+        response_type: 'code',
+        audience: undefined,
+        scope: 'openid profile email'
       },
-      secret: undefined,
       session: {
-        absoluteDuration: undefined,
+        name: 'appSession',
+        rolling: true,
+        rollingDuration: 86400,
+        absoluteDuration: 604800,
         cookie: {
           domain: undefined,
-          httpOnly: undefined,
           path: '/',
-          sameSite: undefined,
-          secure: undefined,
-          transient: undefined
-        },
-        name: undefined,
-        rolling: undefined,
-        rollingDuration: undefined
-      }
+          transient: false,
+          httpOnly: true,
+          secure: true,
+          sameSite: 'lax'
+        }
+      },
+      routes: { callback: '/api/auth/callback', postLogoutRedirect: '' },
+      getLoginState: expect.any(Function),
+      identityClaimFilter: [
+        'aud',
+        'iss',
+        'iat',
+        'exp',
+        'nbf',
+        'nonce',
+        'azp',
+        'auth_time',
+        's_hash',
+        'at_hash',
+        'c_hash'
+      ],
+      clientAuthMethod: 'client_secret_basic'
+    });
+    expect(nextConfig).toStrictEqual({
+      identityClaimFilter: [
+        'aud',
+        'iss',
+        'iat',
+        'exp',
+        'nbf',
+        'nonce',
+        'azp',
+        'auth_time',
+        's_hash',
+        'at_hash',
+        'c_hash'
+      ],
+      routes: { callback: '/api/auth/callback', postLogoutRedirect: '' }
     });
   });
 
   test('should populate booleans', () => {
     expect(
-      getParamsWithEnv({
+      getConfigWithEnv({
         AUTH0_ENABLE_TELEMETRY: 'off',
         AUTH0_LEGACY_SAME_SITE_COOKIE: '0',
         AUTH0_IDP_LOGOUT: 'no',
-        AUTH0_SESSION_ROLLING: false,
         AUTH0_COOKIE_TRANSIENT: true,
         AUTH0_COOKIE_HTTP_ONLY: 'on',
-        AUTH0_COOKIE_SAME_SITE: 'yes',
+        AUTH0_COOKIE_SAME_SITE: 'lax',
         AUTH0_COOKIE_SECURE: 'ok',
-        AUTH0_SESSION_ABSOLUTE_DURATION: 'yes'
-      })
+        AUTH0_SESSION_ABSOLUTE_DURATION: 'no'
+      }).baseConfig
     ).toMatchObject({
       auth0Logout: false,
       enableTelemetry: false,
       idpLogout: false,
       legacySameSiteCookie: false,
       session: {
-        rolling: false,
-        absoluteDuration: true,
+        absoluteDuration: false,
         cookie: {
           httpOnly: true,
-          sameSite: true,
+          sameSite: 'lax',
           secure: true,
           transient: true
         }
@@ -97,17 +123,17 @@ describe('config params', () => {
 
   test('should populate numbers', () => {
     expect(
-      getParamsWithEnv({
+      getConfigWithEnv({
         AUTH0_CLOCK_TOLERANCE: '100',
         AUTH0_HTTP_TIMEOUT: '9999',
         AUTH0_SESSION_ROLLING_DURATION: '0',
         AUTH0_SESSION_ABSOLUTE_DURATION: '1'
-      })
+      }).baseConfig
     ).toMatchObject({
       clockTolerance: 100,
       httpTimeout: 9999,
       session: {
-        rolling: undefined,
+        rolling: true,
         rollingDuration: 0,
         absoluteDuration: 1
       }
@@ -116,39 +142,39 @@ describe('config params', () => {
 
   test('passed in arguments should take precedence', () => {
     expect(
-      getParamsWithEnv(
+      getConfigWithEnv(
         {},
         {
           authorizationParams: {
             audience: 'foo',
-            scope: 'bar'
+            scope: 'openid bar'
           },
-          baseURL: 'baz',
+          baseURL: 'https://baz.com',
           routes: {
             callback: 'qux'
           },
           session: {
-            absoluteDuration: 'quux',
+            absoluteDuration: 100,
             cookie: {
-              transient: 'quuux'
+              transient: false
             },
             name: 'quuuux'
           }
         }
-      )
+      ).baseConfig
     ).toMatchObject({
       authorizationParams: {
         audience: 'foo',
-        scope: 'bar'
+        scope: 'openid bar'
       },
-      baseURL: 'baz',
+      baseURL: 'https://baz.com',
       routes: {
         callback: 'qux'
       },
       session: {
-        absoluteDuration: 'quux',
+        absoluteDuration: 100,
         cookie: {
-          transient: 'quuux'
+          transient: false
         },
         name: 'quuuux'
       }
@@ -157,20 +183,22 @@ describe('config params', () => {
 
   test('should allow hostnames as baseURL', () => {
     expect(
-      getParamsWithEnv({
+      getConfigWithEnv({
         AUTH0_BASE_URL: 'foo.auth0.com'
-      })
+      }).baseConfig
     ).toMatchObject({
       baseURL: 'https://foo.auth0.com'
     });
   });
 
   test('should accept optional callback path', () => {
-    expect(
-      getParamsWithEnv({
-        AUTH0_CALLBACK: '/api/custom-callback'
-      })
-    ).toMatchObject({
+    const { baseConfig, nextConfig } = getConfigWithEnv({
+      AUTH0_CALLBACK: '/api/custom-callback'
+    });
+    expect(baseConfig).toMatchObject({
+      routes: expect.objectContaining({ callback: '/api/custom-callback' })
+    });
+    expect(nextConfig).toMatchObject({
       routes: expect.objectContaining({ callback: '/api/custom-callback' })
     });
   });

@@ -11,7 +11,10 @@ const defaultConfig = {
   clientID: '__test_client_id__',
   clientSecret: '__test_client_secret__',
   issuerBaseURL: 'https://op.example.com',
-  baseURL: 'https://example.org'
+  baseURL: 'https://example.org',
+  routes: {
+    callback: '/callback'
+  }
 };
 
 const getClient = (params: ConfigParameters = {}): Promise<Client> =>

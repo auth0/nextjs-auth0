@@ -1,7 +1,7 @@
 import { TokenSet } from 'openid-client';
 import { fromJson, fromTokenSet } from '../../src/session';
 import { makeIdToken } from '../auth0-session/fixtures/cert';
-import { Config, Session } from '../../src';
+import { Session } from '../../src';
 
 describe('session', () => {
   test('should construct a session with a user', async () => {
@@ -11,8 +11,9 @@ describe('session', () => {
   test('should construct a session from a tokenSet', () => {
     expect(
       fromTokenSet(new TokenSet({ id_token: makeIdToken({ foo: 'bar', bax: 'qux' }) }), {
-        identityClaimFilter: ['baz']
-      } as Config).user
+        identityClaimFilter: ['baz'],
+        routes: { callback: '', postLogoutRedirect: '' }
+      }).user
     ).toEqual({
       aud: '__test_client_id__',
       bax: 'qux',
