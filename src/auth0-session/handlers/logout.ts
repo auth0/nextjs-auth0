@@ -32,6 +32,7 @@ export default function logoutHandlerFactory(
       return;
     }
 
+    const idToken = sessionCache.getIdToken(req, res);
     sessionCache.delete(req, res);
 
     if (!config.idpLogout) {
@@ -46,7 +47,7 @@ export default function logoutHandlerFactory(
     const client = await getClient();
     returnURL = client.endSessionUrl({
       post_logout_redirect_uri: returnURL,
-      id_token_hint: sessionCache.getIdToken(req, res)
+      id_token_hint: idToken
     });
 
     debug('logging out of identity provider, redirecting to %s', returnURL);
