@@ -133,7 +133,7 @@ const paramsSchema = Joi.object({
   issuerBaseURL: Joi.string().uri().required(),
   legacySameSiteCookie: Joi.boolean().optional().default(true),
   routes: Joi.object({
-    callback: Joi.string().uri({ relativeOnly: true }).default('/callback'),
+    callback: Joi.string().uri({ relativeOnly: true }).required(),
     postLogoutRedirect: Joi.string().uri({ allowRelative: true }).default('')
   })
     .default()

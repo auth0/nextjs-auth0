@@ -11,7 +11,10 @@ const clientId = '__test_client_id__';
 export const defaultConfig: Omit<ConfigParameters, 'baseURL'> = {
   secret,
   clientID: clientId,
-  issuerBaseURL: 'https://op.example.com'
+  issuerBaseURL: 'https://op.example.com',
+  routes: {
+    callback: '/callback'
+  }
 };
 
 export const toSignedCookieJar = (cookies: { [key: string]: string }, url: string): CookieJar => {
