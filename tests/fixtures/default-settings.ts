@@ -5,7 +5,10 @@ export const withoutApi: ConfigParameters = {
   clientID: '__test_client_id__',
   clientSecret: 'client_secret',
   baseURL: 'http://www.acme.com/',
-  secret: '__test_session_secret__'
+  secret: '__test_session_secret__',
+  routes: {
+    callback: '/api/auth/callback'
+  }
 };
 
 /**
@@ -20,5 +23,8 @@ export const withApi: ConfigParameters = {
   authorizationParams: {
     scope: 'openid profile read:customer',
     audience: 'https://api.acme.com'
+  },
+  routes: {
+    callback: '/api/auth/callback'
   }
 };

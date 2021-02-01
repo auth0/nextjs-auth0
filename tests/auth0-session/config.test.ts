@@ -4,7 +4,10 @@ const defaultConfig = {
   secret: '__test_session_secret__',
   clientID: '__test_client_id__',
   issuerBaseURL: 'https://op.example.com',
-  baseURL: 'https://example.org'
+  baseURL: 'https://example.org',
+  routes: {
+    callback: '/callback'
+  }
 };
 
 const validateAuthorizationParams = (authorizationParams: DeepPartial<AuthorizationParameters>): Config =>

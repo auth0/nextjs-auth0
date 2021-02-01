@@ -115,7 +115,7 @@ describe('logout route', () => {
 
   it('should redirect to postLogoutRedirect', async () => {
     const postLogoutRedirect = 'https://example.com/post-logout';
-    const baseURL = await setup({ ...defaultConfig, routes: { postLogoutRedirect } });
+    const baseURL = await setup({ ...defaultConfig, routes: { ...defaultConfig.routes, postLogoutRedirect } });
     const cookieJar = await login(baseURL);
 
     const session: SessionResponse = await get(baseURL, '/session', { cookieJar });
