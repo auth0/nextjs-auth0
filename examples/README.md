@@ -34,7 +34,7 @@ The kitchen-sink example application is hosted on Vercel, including preview depl
 
 #### Configuring Auth0
 
-As every environment in Vercel, including every preview deployments, has its unique URL, your Auth0 application needs to be configured to allow the corresponding Callback and Logout URLs.
+As every environment in Vercel, including preview deployments, has its unique URL, your Auth0 application needs to be configured to allow the corresponding Callback and Logout URLs.
 This can be done manually, by going to the Application Settings on your [Auth0 dashboard](https://manage.auth0.com/) and make sure to configure the following:
 
 | Setting               | Description                                                                                                                                                            |
