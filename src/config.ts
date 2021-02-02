@@ -389,6 +389,13 @@ const num = (param?: string): number | undefined => (param === undefined || para
 /**
  * @ignore
  */
+export const getLoginUrl = (): string => {
+  return process.env.NEXT_PUBLIC_AUTH0_LOGIN || '/api/auth/login';
+};
+
+/**
+ * @ignore
+ */
 export const getConfig = (params?: ConfigParameters): { baseConfig: BaseConfig; nextConfig: NextConfig } => {
   const {
     AUTH0_SECRET,
@@ -476,11 +483,4 @@ export const getConfig = (params?: ConfigParameters): { baseConfig: BaseConfig; 
   };
 
   return { baseConfig, nextConfig };
-};
-
-/**
- * @ignore
- */
-export const getLoginUrl = (): string => {
-  return process.env.NEXT_PUBLIC_AUTH0_LOGIN || '/api/auth/login';
 };
