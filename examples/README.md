@@ -34,14 +34,21 @@ The kitchen-sink example application is hosted on Vercel, including preview depl
 
 #### Configuring Auth0
 
-Go to the Application Settings on your [Auth0 dashboard](https://manage.auth0.com/) and make sure to configure the following:
+As every environment in Vercel, including preview deployments, has its unique URL, your Auth0 application needs to be configured to allow the corresponding Callback and Logout URLs.
+This can be done manually, by going to the Application Settings on your [Auth0 dashboard](https://manage.auth0.com/) and make sure to configure the following:
 
 | Setting               | Description                                                                                                                                                            |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Allowed Callback URLs | Should be set to `https://{YOUR_VERCEL_PROJECT_NAME}-*.vercel.app/api/auth/callback` when deploying to vercel. |
-| Allowed Logout URLs   | Should be set to `https://{YOUR_VERCEL_PROJECT_NAME}-*.vercel.app/` when deploying to vercel.   
+| Allowed Callback URLs | Should be set to `https://{YOUR_VERCEL_URL_PREFIX}.vercel.app/api/auth/callback` when deploying to vercel. |
+| Allowed Logout URLs   | Should be set to `https://{YOUR_VERCEL_URL_PREFIX}.vercel.app/` when deploying to vercel.   
 
-**Note**: As we are making use of Preview Deployments, we need to configure the above URLs using wildcards, as every preview deployment will get a unique URL.
+##### Wildcards
+By default, Vercel uses the `vercel.app` domain for all of your environments. Using wildcards for a shared domain opens the possibility to redirect back to a malicious website, as long as the Callback URLs matches the wildcard configuration. Because of that, you should only consider using wildcards for the preview deployments when using a [Custom Deployment Suffix](https://vercel.com/docs/platform/frequently-asked-questions#preview-deployment-suffix), which is available as part of Vercel's Pro or Enterprise plan.
+
+| Setting               | Description                                                                                                                                                            |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Allowed Callback URLs | Should be set to `https://{VERCEL_GIT_REPO_SLUG}-*-{VERCEL_TEAM}.yourdomain.com/api/auth/callback` when deploying to vercel. |
+| Allowed Logout URLs   | Should be set to `https://{VERCEL_GIT_REPO_SLUG}-*-{VERCEL_TEAM}.yourdomain.com/` when deploying to vercel.   
 
 #### Configuring Vercel
 If you do not have a vercel account yet, move over to https://vercel.com/ to sign up for one.
