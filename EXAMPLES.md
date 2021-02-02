@@ -1,10 +1,10 @@
 # Examples
 
 - [Basic Setup](#basic-setup)
-- [Customise handlers behaviour](#customise-handlers-behaviour)
+- [Customize handlers behavior](#customize-handlers-behavior)
 - [Use custom auth urls](#use-custom-auth-urls)
-- [Protecting a Server Side Rendered (SSR) Page](#protecting-a-server-side-rendered-ssr-page)
-- [Protecting a Client Side Rendered (CSR) Page](#protecting-a-client-side-rendered-csr-page)
+- [Protecting a Server-Side Rendered (SSR) Page](#protecting-a-server-side-rendered-ssr-page)
+- [Protecting a Client-Side Rendered (CSR) Page](#protecting-a-client-side-rendered-csr-page)
 - [Protect an API Route](#protect-an-api-route)
 - [Access an External API from an API Route](#access-an-external-api-from-an-api-route)
 - [Create your own instance of the SDK](#create-your-own-instance-of-the-sdk)
@@ -41,7 +41,7 @@ import React from 'react';
 import { UserProvider } from '@auth0/nextjs-auth0';
 
 export default function App({ Component, pageProps }) {
-  // You can optionally pass the `user` prop from pages that require server side
+  // You can optionally pass the `user` prop from pages that require server-side
   // rendering to prepopulate the `useUser` hook.
   const { user } = pageProps;
 
@@ -78,7 +78,7 @@ export default () => {
 
 Have a look at the `basic-example` app [./examples/basic-example](./examples/basic-example).
 
-## Customise handlers behaviour
+## Customize handlers behavior
 
 Pass custom parameters to the auth handlers or add your own logging and error handling.
 
@@ -132,9 +132,9 @@ export default async function login(req, res) {
 export default () => <a href="/api/custom-login">Login</a>;
 ```
 
-> Note: you will need to specify this custom login URL when calling `withPageAuthRequired` both the [front end version](https://auth0.github.io/nextjs-auth0/interfaces/frontend_with_page_auth_required.withpageauthrequiredoptions.html#loginurl) and [server side version](https://auth0.github.io/nextjs-auth0/modules/helpers_with_page_auth_required.html#withpageauthrequiredoptions)
+> Note: If you customize the login url you will need to set the environment variable `NEXT_PUBLIC_AUTH0_LOGIN` to this custom value for `withPageAuthRequired` to work correctly. And if you customize the profile url, you will need to set the `NEXT_PUBLIC_AUTH0_PROFILE` environment variable to this custom value for the `useUser` hook to work properly.
 
-## Protecting a Server Side Rendered (SSR) Page
+## Protecting a Server-Side Rendered (SSR) Page
 
 Requests to `/pages/profile` without a valid session cookie will be redirected to the login page.
 
@@ -153,7 +153,7 @@ export const getServerSideProps = withPageAuthRequired();
 
 See a running example of a [SSR protected page](./examples/kitchen-sink-example/pages/profile-ssr.tsx) in the kitchen-sink example app.
 
-## Protecting a Client Side Rendered (CSR) Page
+## Protecting a Client-Side Rendered (CSR) Page
 
 Requests to `/pages/profile` without a valid session cookie will be redirected to the login page.
 
@@ -177,7 +177,8 @@ Requests to `/pages/api/protected` without a valid session cookie will fail with
 import { withApiAuthRequired } from '@auth0/nextjs-auth0';
 
 export default withApiAuthRequired(async function myApiRoute(req, res) {
-  res.json({ protected: 'My Secret' });
+  const { user } = getSession(req, res);
+  res.json({ protected: 'My Secret', id: user.sub });
 });
 ```
 
@@ -272,7 +273,7 @@ import {
 However, there are various reasons why you might want to create and manage an instance of the SDK yourself:
 
 - You may want to create your own instance for testing
-- You may not want to use environment variables for configuration of secrets (eg using CredStash or AWS's Key Management Service)
+- You may not want to use environment variables for the configuration of secrets (eg using CredStash or AWS's Key Management Service)
 
 In this case you can use the [initAuth0](https://auth0.github.io/nextjs-auth0/modules/instance.html) method to create an instance, eg:
 
@@ -300,7 +301,7 @@ export default auth0.handleAuth();
 ```
 
 > Note: You should not use the instance methods in combination with the named exports,
-> otherwise you will be creating multiple instances of the sdk, eg:
+> otherwise you will be creating multiple instances of the SDK, eg:
 
 ```js
 // DON'T Mix instance methods and named exports

@@ -5,7 +5,7 @@ import { HandleProfile } from './profile';
 import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next';
 
 /**
- * If you want to add some custom behaviour to the default auth handlers, you can pass in custom handlers for
+ * If you want to add some custom behavior to the default auth handlers, you can pass in custom handlers for
  * `login`, `logout`, `callback` and `profile` eg
  *
  * ```js

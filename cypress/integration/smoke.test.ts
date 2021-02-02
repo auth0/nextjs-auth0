@@ -26,7 +26,7 @@ describe('smoke tests', () => {
     cy.get('[data-testid=profile]').contains(EMAIL);
   });
 
-  it('should protect a server-side-rendered page', () => {
+  it('should protect a server-side rendered page', () => {
     cy.visit('/profile-ssr');
     cy.url().should('eq', `${Cypress.config().baseUrl}/profile-ssr`);
     cy.get('[data-testid=profile]').contains(EMAIL);

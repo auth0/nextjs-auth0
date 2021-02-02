@@ -64,7 +64,7 @@ export type AfterCallback = (
 ) => Promise<Session> | Session;
 
 /**
- * Options to customise the callback handler.
+ * Options to customize the callback handler.
  *
  * @category Server
  */
