@@ -33,7 +33,7 @@ export type UserContext = {
 /**
  * Configure the {@link UserProvider} component.
  *
- * If you have any server side rendered pages (eg. using `getServerSideProps`), you should get the user from the server
+ * If you have any server-side rendered pages (eg. using `getServerSideProps`), you should get the user from the server
  * side session and pass it to the `<UserProvider>` component via `pageProps` - this will refill the {@link useUser}
  * hook with the {@link UserProfile} object. eg
  *
@@ -43,8 +43,8 @@ export type UserContext = {
  * import { UserProvider } from '@auth0/nextjs-auth0';
  *
  * export default function App({ Component, pageProps }) {
- *   // If you've used `withAuth`, pageProps.user can pre-populate the hook
- *   // if you haven't used `withAuth`, pageProps.user is undefined so the hook
+ *   // If you've used `withPageAuthRequired`, pageProps.user can pre-populate the hook
+ *   // if you haven't used `withPageAuthRequired`, pageProps.user is undefined so the hook
  *   // fetches the user from the API route
  *   const { user } = pageProps;
  *
@@ -87,7 +87,7 @@ const User = createContext<UserContext>({
 });
 
 /**
- * The `useUser` hook, which will get you the {@link UserProfile} object from the server side session by requesting it
+ * The `useUser` hook, which will get you the {@link UserProfile} object from the server-side session by requesting it
  * from the {@link HandleProfile} API Route handler.
  *
  * ```js

@@ -35,7 +35,7 @@ export type GetServerSidePropsResultWithSession = GetServerSidePropsResult<{
 export type PageRoute = (cts: GetServerSidePropsContext) => Promise<GetServerSidePropsResultWithSession>;
 
 /**
- * If you have a custom login url (the default is `/api/auth/login`) you should specify it in `loginUrl`.
+ * If you have a custom returnTo url you should specify it in `returnTo`.
  *
  * You can pass in your own `getServerSideProps` method, the props returned from thsi will be merged with the
  * user props, eg:
@@ -49,16 +49,16 @@ export type PageRoute = (cts: GetServerSidePropsContext) => Promise<GetServerSid
  * }
  *
  * export const getServerSideProps = withPageAuthRequired({
- *   loginUrl: '/api/auth/login',
+ *   returnTo: '/foo',
  *   async getServerSideProps(ctx) {
- *     return { props: { customProp: 'foo' } };
+ *     return { props: { customProp: 'bar' } };
  *   }
  * });
  * ```
  *
  * @category Server
  */
-export type WithPageAuthRequiredOptions = { getServerSideProps?: GetServerSideProps; loginUrl?: string };
+export type WithPageAuthRequiredOptions = { getServerSideProps?: GetServerSideProps; returnTo?: string };
 
 /**
  * Wrap your `getServerSideProps` with this method to make sure the user is authenticated before visiting the page.
@@ -90,7 +90,7 @@ export type WithPageAuthRequired = {
 /**
  * @ignore
  */
-export default function withPageAuthRequiredFactory(getSession: GetSession): WithPageAuthRequired {
+export default function withPageAuthRequiredFactory(loginUrl: string, getSession: GetSession): WithPageAuthRequired {
   return (
     optsOrComponent: WithPageAuthRequiredOptions | ComponentType = {},
     csrOpts?: WithPageAuthRequiredCSROptions
@@ -98,7 +98,7 @@ export default function withPageAuthRequiredFactory(getSession: GetSession): Wit
     if (typeof optsOrComponent === 'function') {
       return withPageAuthRequiredCSR(optsOrComponent, csrOpts);
     }
-    const { getServerSideProps, loginUrl = '/api/auth/login' } = optsOrComponent;
+    const { getServerSideProps, returnTo } = optsOrComponent;
     return async (ctx: GetServerSidePropsContext): Promise<GetServerSidePropsResultWithSession> => {
       assertCtx(ctx);
       const session = getSession(ctx.req, ctx.res);
@@ -106,7 +106,7 @@ export default function withPageAuthRequiredFactory(getSession: GetSession): Wit
         // 10 - redirect
         // 9.5.4 - unstable_redirect
         // 9.4 - res.setHeaders
-        return { redirect: { destination: `${loginUrl}?returnTo=${ctx.resolvedUrl}`, permanent: false } };
+        return { redirect: { destination: `${loginUrl}?returnTo=${returnTo || ctx.resolvedUrl}`, permanent: false } };
       }
       let ret: any = { props: {} };
       if (getServerSideProps) {

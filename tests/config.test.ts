@@ -88,7 +88,11 @@ describe('config params', () => {
         'at_hash',
         'c_hash'
       ],
-      routes: { callback: '/api/auth/callback', postLogoutRedirect: '' }
+      routes: {
+        login: '/api/auth/login',
+        callback: '/api/auth/callback',
+        postLogoutRedirect: ''
+      }
     });
   });
 

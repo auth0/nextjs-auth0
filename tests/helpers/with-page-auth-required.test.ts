@@ -25,16 +25,16 @@ describe('with-page-auth-required ssr', () => {
     expect(data).toMatch(/<div>Blank Document<\/div>/);
   });
 
-  test('use a custom login url', async () => {
-    const baseUrl = await setup(withoutApi, { withPageAuthRequiredOptions: { loginUrl: '/api/foo' } });
+  test('accept a custom returnTo url', async () => {
+    const baseUrl = await setup(withoutApi, { withPageAuthRequiredOptions: { returnTo: '/foo' } });
     const {
       res: { statusCode, headers }
     } = await get(baseUrl, '/protected', { fullResponse: true });
     expect(statusCode).toBe(307);
-    expect(headers.location).toBe('/api/foo?returnTo=/protected');
+    expect(headers.location).toBe('/api/auth/login?returnTo=/foo');
   });
 
-  test('use custom server side props', async () => {
+  test('accept custom server-side props', async () => {
     const spy = jest.fn().mockReturnValue({ props: {} });
     const baseUrl = await setup(withoutApi, {
       withPageAuthRequiredOptions: {
@@ -49,7 +49,18 @@ describe('with-page-auth-required ssr', () => {
     expect(spy).toHaveBeenCalledWith(expect.objectContaining({ req: expect.anything(), res: expect.anything() }));
   });
 
-  test('is a noop when invoked as a client side protection from the server', async () => {
+  test('use a custom login url', async () => {
+    process.env.NEXT_PUBLIC_AUTH0_LOGIN = '/api/foo';
+    const baseUrl = await setup(withoutApi);
+    const {
+      res: { statusCode, headers }
+    } = await get(baseUrl, '/protected', { fullResponse: true });
+    expect(statusCode).toBe(307);
+    expect(headers.location).toBe('/api/foo?returnTo=/protected');
+    delete process.env.NEXT_PUBLIC_AUTH0_LOGIN;
+  });
+
+  test('is a noop when invoked as a client-side protection from the server', async () => {
     const baseUrl = await setup(withoutApi);
     const cookieJar = await login(baseUrl);
     const {
