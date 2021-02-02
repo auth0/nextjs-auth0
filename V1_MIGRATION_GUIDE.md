@@ -112,7 +112,7 @@ See the [getSession docs](https://auth0.github.io/nextjs-auth0/modules/session_g
 
 ### getAccessToken
 
-`tokenCache` has been removed in favour of a single `getAccessToken` method.
+`tokenCache` has been removed in favor of a single `getAccessToken` method.
 
 ### Before
 

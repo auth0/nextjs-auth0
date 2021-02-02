@@ -168,16 +168,16 @@ directly in the browser and use them to access external APIs directly.
 You should be aware of the security implications of both, but if you are:
 
 - Using [Static HTML Export](https://nextjs.org/docs/advanced-features/static-html-export)
-- You do not need to access user data during Server Side Rendering
+- You do not need to access user data during server-side rendering
 - You want to get the Access Token and call external API's directly from the frontend rather than using Next.js API Routes as a proxy to call external APIs
 
 Then [auth0-react](https://github.com/auth0/auth0-react) may be more suitable for your needs.
 
 ### Testing
 
-By default the SDK creates and manages a singleton instance to run for the lifetime of the application. When
-testing your application you may need to reset this instance, so it's state does not leak between tests.
-If you're using Jest, we recommend using `jest.resetModules()` after each test. Alternatively you can look at
+By default, the SDK creates and manages a singleton instance to run for the lifetime of the application. When
+testing your application you may need to reset this instance, so its state does not leak between tests.
+If you're using Jest, we recommend using `jest.resetModules()` after each test. Alternatively, you can look at
 [creating your own instance of the SDK](./EXAMPLES.md#create-your-own-instance-of-the-sdk) so it can be recreated between tests.
 
 ## Contributing
@@ -193,7 +193,7 @@ Run NPM install first to install the dependencies of this project:
 npm install
 ```
 
-In order to build a release you can run the following commands and the output will be stored in the `dist` folder:
+In order to build a release, you can run the following commands and the output will be stored in the `dist` folder:
 
 ```sh
 npm run clean
@@ -201,7 +201,7 @@ npm run lint
 npm run build
 ```
 
-Additionally you can also run tests:
+Additionally, you can also run tests:
 
 ```sh
 npm run build:test # Build the Next.js test app
