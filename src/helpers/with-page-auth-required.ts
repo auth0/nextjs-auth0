@@ -2,7 +2,6 @@ import { GetServerSideProps, GetServerSidePropsContext, GetServerSidePropsResult
 import { Claims, GetSession } from '../session';
 import { assertCtx } from '../utils/assert';
 import React, { ComponentType } from 'react';
-import { NextConfig } from '../config';
 import { WithPageAuthRequiredOptions as WithPageAuthRequiredCSROptions } from '../frontend/with-page-auth-required';
 import { withPageAuthRequired as withPageAuthRequiredCSR } from '../frontend';
 
