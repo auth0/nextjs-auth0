@@ -3,20 +3,12 @@ import { AuthorizationParameters as OidcAuthorizationParameters } from 'openid-c
 
 /**
  * Configuration properties.
- *
- * ```.env
- * ISSUER_BASE_URL=https://YOUR_DOMAIN
- * CLIENT_ID=YOUR_CLIENT_ID
- * BASE_URL=https://YOUR_APPLICATION_ROOT_URL
- * SECRET=LONG_RANDOM_VALUE
- * ```
  */
 export interface Config {
   /**
    * The secret(s) used to derive an encryption key for the user identity in a session cookie and
    * to sign the transient cookies used by the login callback.
    * Use a single string key or array of keys for an encrypted session cookie.
-   * Can use env key SECRET instead.
    */
   secret: string | Array<string>;
 
@@ -79,20 +71,17 @@ export interface Config {
 
   /**
    * The root URL for the application router, eg https://localhost
-   * Can use env key BASE_URL instead.
    */
   baseURL: string;
 
   /**
    * The Client ID for your application.
-   * Can be read from CLIENT_ID instead.
    */
   clientID: string;
 
   /**
    * The Client Secret for your application.
    * Required when requesting access tokens.
-   * Can be read from CLIENT_SECRET instead.
    */
   clientSecret?: string;
 
@@ -115,23 +104,7 @@ export interface Config {
   enableTelemetry: boolean;
 
   /**
-   * Throw a 401 error instead of triggering the login process for routes that require authentication.
-   * Default is `false`
-   */
-  errorOnRequiredAuth: boolean;
-
-  /**
-   * Attempt silent login (`prompt: 'none'`) on the first unauthenticated route the user visits.
-   * For protected routes this can be useful if your Identity Provider does not default to
-   * `prompt: 'none'` and you'd like to attempt this before requiring the user to interact with a login prompt.
-   * For unprotected routes this can be useful if you want to check the user's logged in state on their IDP, to
-   * show them a login/logout button for example.
-   * Default is `false`
-   */
-  attemptSilentLogin: boolean;
-
-  /**
-   * Function that returns an object with URL-safe state values for `res.oidc.login()`.
+   * Function that returns an object with URL-safe state values for login.
    * Used for passing custom state parameters to your authorization server.
    *
    * ```js
@@ -166,7 +139,6 @@ export interface Config {
 
   /**
    * REQUIRED. The root URL for the token issuer with no trailing slash.
-   * Can use env key ISSUER_BASE_URL instead.
    */
   issuerBaseURL: string;
 
@@ -176,25 +148,7 @@ export interface Config {
    */
   legacySameSiteCookie: boolean;
 
-  /**
-   * Require authentication for all routes.
-   */
-  authRequired: boolean;
-
-  /**
-   * Boolean value to automatically install the login and logout routes.
-   */
   routes: {
-    /**
-     * Relative path to application login.
-     */
-    login: string | false;
-
-    /**
-     * Relative path to application logout.
-     */
-    logout: string | false;
-
     /**
      * Either a relative path to the application or a valid URI to an external domain.
      * This value must be registered on the authorization server.
@@ -285,7 +239,7 @@ export interface CookieConfig {
    * Passed to the [Response cookie](https://expressjs.com/en/api.html#res.cookie) as `samesite`.
    * Defaults to "Lax" but will be adjusted based on {@link AuthorizationParameters.response_type}.
    */
-  sameSite: boolean | 'lax' | 'strict' | 'none';
+  sameSite: 'lax' | 'strict' | 'none';
 }
 
 export interface AuthorizationParameters extends OidcAuthorizationParameters {

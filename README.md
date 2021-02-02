@@ -70,7 +70,7 @@ AUTH0_CLIENT_ID='YOUR_AUTH0_CLIENT_ID'
 AUTH0_CLIENT_SECRET='YOUR_AUTH0_CLIENT_SECRET'
 ```
 
-For a [full list of configuration options](https://auth0.github.io/nextjs-auth0/interfaces/config.config-1.html) see the docs.
+For a [full list of configuration options](https://auth0.github.io/nextjs-auth0/modules/config.html) see the docs.
 
 Then, create a [Dynamic API Route handler](https://nextjs.org/docs/api-routes/dynamic-api-routes) at `/pages/api/auth/[...auth0].js`.
 
@@ -128,7 +128,7 @@ For more extensive examples see [EXAMPLES.md](./EXAMPLES.md).
 
 ### API Reference
 
-- [Configuration Options](https://auth0.github.io/nextjs-auth0/interfaces/config.config-1.html)
+- [Configuration Options](https://auth0.github.io/nextjs-auth0/modules/config.html)
 
 **Server Side methods**:
 

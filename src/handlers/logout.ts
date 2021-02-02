@@ -1,6 +1,5 @@
 import { NextApiResponse, NextApiRequest } from 'next';
-import { ClientFactory, Config, logoutHandler } from '../auth0-session';
-import { SessionCache } from '../session';
+import { HandleLogout as BaseHandleLogout } from '../auth0-session';
 import { assertReqRes } from '../utils/assert';
 
 /**
@@ -11,7 +10,7 @@ import { assertReqRes } from '../utils/assert';
 export interface LogoutOptions {
   /**
    *  URL to returnTo after logout, overrides the
-   *  Default in {@link Config.routes.postLogoutRedirect routes.postLogoutRedirect}
+   *  Default in {@link BaseConfig.routes.postLogoutRedirect routes.postLogoutRedirect}
    */
   returnTo?: string;
 }
@@ -26,12 +25,7 @@ export type HandleLogout = (req: NextApiRequest, res: NextApiResponse, options?:
 /**
  * @ignore
  */
-export default function handleLogoutFactory(
-  config: Config,
-  getClient: ClientFactory,
-  sessionCache: SessionCache
-): HandleLogout {
-  const handler = logoutHandler(config, getClient, sessionCache);
+export default function handleLogoutFactory(handler: BaseHandleLogout): HandleLogout {
   return async (req, res, options): Promise<void> => {
     assertReqRes(req, res);
     return handler(req, res, options);
