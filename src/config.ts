@@ -278,7 +278,11 @@ export interface AuthorizationParameters extends OidcAuthorizationParameters {
 /**
  * @ignore
  */
-export type NextConfig = Pick<BaseConfig, 'routes' | 'identityClaimFilter'>;
+export interface NextConfig extends Pick<BaseConfig, 'identityClaimFilter'> {
+  routes: {
+    login: string;
+  };
+}
 
 /**
  * ## Configuration properties.
@@ -317,8 +321,9 @@ export type NextConfig = Pick<BaseConfig, 'routes' | 'identityClaimFilter'>;
  * - `AUTH0_IDP_LOGOUT`: See {@link idpLogout}
  * - `AUTH0_ID_TOKEN_SIGNING_ALG`: See {@link idTokenSigningAlg}
  * - `AUTH0_LEGACY_SAME_SITE_COOKIE`: See {@link legacySameSiteCookie}
- * - `AUTH0_POST_LOGOUT_REDIRECT`: See {@link BaseConfig.routes}
+ * - `NEXT_PUBLIC_AUTH0_LOGIN`: See {@link NextConfig.routes}
  * - `AUTH0_CALLBACK`: See {@link BaseConfig.routes}
+ * - `AUTH0_POST_LOGOUT_REDIRECT`: See {@link BaseConfig.routes}
  * - `AUTH0_AUDIENCE`: See {@link BaseConfig.authorizationParams}
  * - `AUTH0_SCOPE`: See {@link BaseConfig.authorizationParams}
  * - `AUTH0_SESSION_NAME`: See {@link SessionConfig.name}
@@ -397,8 +402,8 @@ export const getConfig = (params?: ConfigParameters): { baseConfig: BaseConfig; 
     AUTH0_IDP_LOGOUT,
     AUTH0_ID_TOKEN_SIGNING_ALG,
     AUTH0_LEGACY_SAME_SITE_COOKIE,
-    AUTH0_POST_LOGOUT_REDIRECT,
     AUTH0_CALLBACK,
+    AUTH0_POST_LOGOUT_REDIRECT,
     AUTH0_AUDIENCE,
     AUTH0_SCOPE,
     AUTH0_SESSION_NAME,
@@ -463,11 +468,19 @@ export const getConfig = (params?: ConfigParameters): { baseConfig: BaseConfig; 
 
   const nextConfig = {
     routes: {
-      ...baseConfig.routes
+      ...baseConfig.routes,
       // Other NextConfig Routes go here
+      login: params?.routes?.login || getLoginUrl()
     },
     identityClaimFilter: baseConfig.identityClaimFilter
   };
 
   return { baseConfig, nextConfig };
+};
+
+/**
+ * @ignore
+ */
+export const getLoginUrl = (): string => {
+  return process.env.NEXT_PUBLIC_AUTH0_LOGIN || '/api/auth/login';
 };

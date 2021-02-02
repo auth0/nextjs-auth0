@@ -51,8 +51,8 @@ export type GetAccessToken = (
  * @ignore
  */
 export default function accessTokenFactory(
-  getClient: ClientFactory,
   config: NextConfig,
+  getClient: ClientFactory,
   sessionCache: SessionCache
 ): GetAccessToken {
   return async (req, res, accessTokenRequest): Promise<GetAccessTokenResult> => {

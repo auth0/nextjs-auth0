@@ -47,7 +47,7 @@ import {
 } from './helpers';
 import { InitAuth0, SignInWithAuth0 } from './instance';
 import version from './version';
-import { getConfig, ConfigParameters } from './config';
+import { getConfig, getLoginUrl, ConfigParameters } from './config';
 
 let instance: SignInWithAuth0;
 
@@ -73,13 +73,13 @@ export const initAuth0: InitAuth0 = (params) => {
 
   // Init Next layer (with next config)
   const getSession = sessionFactory(sessionCache);
-  const getAccessToken = accessTokenFactory(getClient, nextConfig, sessionCache);
+  const getAccessToken = accessTokenFactory(nextConfig, getClient, sessionCache);
   const withApiAuthRequired = withApiAuthRequiredFactory(sessionCache);
-  const withPageAuthRequired = withPageAuthRequiredFactory(getSession);
+  const withPageAuthRequired = withPageAuthRequiredFactory(nextConfig.routes.login, getSession);
   const handleLogin = loginHandler(baseHandleLogin);
   const handleLogout = logoutHandler(baseHandleLogout);
   const handleCallback = callbackHandler(baseHandleCallback);
-  const handleProfile = profileHandler(sessionCache, getClient, getAccessToken);
+  const handleProfile = profileHandler(getClient, getAccessToken, sessionCache);
   const handleAuth = handlerFactory({ handleLogin, handleLogout, handleCallback, handleProfile });
 
   return {
@@ -99,7 +99,7 @@ export const getSession: GetSession = (...args) => getInstance().getSession(...a
 export const getAccessToken: GetAccessToken = (...args) => getInstance().getAccessToken(...args);
 export const withApiAuthRequired: WithApiAuthRequired = (...args) => getInstance().withApiAuthRequired(...args);
 export const withPageAuthRequired: WithPageAuthRequired = (...args: any[]): any =>
-  withPageAuthRequiredFactory(getSession)(...args);
+  withPageAuthRequiredFactory(getLoginUrl(), getSession)(...args);
 export const handleLogin: HandleLogin = (...args) => getInstance().handleLogin(...args);
 export const handleLogout: HandleLogout = (...args) => getInstance().handleLogout(...args);
 export const handleCallback: HandleCallback = (...args) => getInstance().handleCallback(...args);
