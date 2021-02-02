@@ -39,11 +39,8 @@ This can be done manually, by going to the Application Settings on your [Auth0 d
 
 | Setting               | Description                                                                                                                                                            |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Allowed Callback URLs | Should be set to `https://{YOUR_VERCEL_URL}.vercel.app/api/auth/callback` when deploying to vercel. |
-| Allowed Logout URLs   | Should be set to `https://{YOUR_VERCEL_URL}.vercel.app/` when deploying to vercel.   
-
-##### Automating
-As you might prefer not to manually configure your Auth0 application for every preview deployment that got created, you can look into integrating [Vercel Webhooks](https://vercel.com/docs/api#integrations/webhooks/create-a-webhook) with [Auth0's Management API](https://auth0.com/docs/api/management/v2#!/Clients/patch_clients_by_id) in order to update the Auth0 Application settings whenever a [deployment is ready](https://vercel.com/docs/api#integrations/webhooks/event-payloads/deployment-ready).
+| Allowed Callback URLs | Should be set to `https://{YOUR_VERCEL_URL_PREFIX}.vercel.app/api/auth/callback` when deploying to vercel. |
+| Allowed Logout URLs   | Should be set to `https://{YOUR_VERCEL_URL_PREFIX}.vercel.app/` when deploying to vercel.   
 
 ##### Wildcards
 By default, Vercel uses the `vercel.app` domain for all of your environments. Using wildcards for a shared domain opens the possibility to redirect back to a malicious website, as long as the Callback URLs matches the wildcard configuration. Because of that, you should only consider using wildcards for the preview deployments when using a [Custom Deployment Suffix](https://vercel.com/docs/platform/frequently-asked-questions#preview-deployment-suffix), which is available as part of Vercel's Pro or Enterprise plan.
