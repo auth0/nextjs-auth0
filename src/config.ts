@@ -402,7 +402,6 @@ export const getConfig = (params?: ConfigParameters): { baseConfig: BaseConfig; 
     AUTH0_IDP_LOGOUT,
     AUTH0_ID_TOKEN_SIGNING_ALG,
     AUTH0_LEGACY_SAME_SITE_COOKIE,
-    NEXT_PUBLIC_AUTH0_LOGIN,
     AUTH0_CALLBACK,
     AUTH0_POST_LOGOUT_REDIRECT,
     AUTH0_AUDIENCE,
@@ -471,7 +470,7 @@ export const getConfig = (params?: ConfigParameters): { baseConfig: BaseConfig; 
     routes: {
       ...baseConfig.routes,
       // Other NextConfig Routes go here
-      login: params?.routes?.login || NEXT_PUBLIC_AUTH0_LOGIN || '/api/auth/login'
+      login: params?.routes?.login || getLoginUrl()
     },
     identityClaimFilter: baseConfig.identityClaimFilter
   };
@@ -482,9 +481,6 @@ export const getConfig = (params?: ConfigParameters): { baseConfig: BaseConfig; 
 /**
  * @ignore
  */
-export const getEmptyNextConfig = (): NextConfig => ({
-  routes: {
-    login: ''
-  },
-  identityClaimFilter: []
-});
+export const getLoginUrl = (): string => {
+  return process.env.NEXT_PUBLIC_AUTH0_LOGIN || '/api/auth/login';
+};

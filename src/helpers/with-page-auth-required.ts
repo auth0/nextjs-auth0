@@ -91,7 +91,7 @@ export type WithPageAuthRequired = {
 /**
  * @ignore
  */
-export default function withPageAuthRequiredFactory(config: NextConfig, getSession: GetSession): WithPageAuthRequired {
+export default function withPageAuthRequiredFactory(loginUrl: string, getSession: GetSession): WithPageAuthRequired {
   return (
     optsOrComponent: WithPageAuthRequiredOptions | ComponentType = {},
     csrOpts?: WithPageAuthRequiredCSROptions
@@ -100,7 +100,6 @@ export default function withPageAuthRequiredFactory(config: NextConfig, getSessi
       return withPageAuthRequiredCSR(optsOrComponent, csrOpts);
     }
     const { getServerSideProps, returnTo } = optsOrComponent;
-    const { login } = config.routes;
     return async (ctx: GetServerSidePropsContext): Promise<GetServerSidePropsResultWithSession> => {
       assertCtx(ctx);
       const session = getSession(ctx.req, ctx.res);
@@ -108,7 +107,7 @@ export default function withPageAuthRequiredFactory(config: NextConfig, getSessi
         // 10 - redirect
         // 9.5.4 - unstable_redirect
         // 9.4 - res.setHeaders
-        return { redirect: { destination: `${login}?returnTo=${returnTo || ctx.resolvedUrl}`, permanent: false } };
+        return { redirect: { destination: `${loginUrl}?returnTo=${returnTo || ctx.resolvedUrl}`, permanent: false } };
       }
       let ret: any = { props: {} };
       if (getServerSideProps) {

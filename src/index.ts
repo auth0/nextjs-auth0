@@ -47,10 +47,9 @@ import {
 } from './helpers';
 import { InitAuth0, SignInWithAuth0 } from './instance';
 import version from './version';
-import { getConfig, getEmptyNextConfig, ConfigParameters } from './config';
+import { getConfig, getLoginUrl, ConfigParameters } from './config';
 
 let instance: SignInWithAuth0;
-let config = getEmptyNextConfig();
 
 function getInstance(): SignInWithAuth0 {
   if (instance) {
@@ -62,7 +61,6 @@ function getInstance(): SignInWithAuth0 {
 
 export const initAuth0: InitAuth0 = (params) => {
   const { baseConfig, nextConfig } = getConfig(params);
-  config = nextConfig;
 
   // Init base layer (with base config)
   const getClient = clientFactory(baseConfig, { name: 'nextjs-auth0', version });
@@ -77,7 +75,7 @@ export const initAuth0: InitAuth0 = (params) => {
   const getSession = sessionFactory(sessionCache);
   const getAccessToken = accessTokenFactory(nextConfig, getClient, sessionCache);
   const withApiAuthRequired = withApiAuthRequiredFactory(sessionCache);
-  const withPageAuthRequired = withPageAuthRequiredFactory(nextConfig, getSession);
+  const withPageAuthRequired = withPageAuthRequiredFactory(nextConfig.routes.login, getSession);
   const handleLogin = loginHandler(baseHandleLogin);
   const handleLogout = logoutHandler(baseHandleLogout);
   const handleCallback = callbackHandler(baseHandleCallback);
@@ -101,7 +99,7 @@ export const getSession: GetSession = (...args) => getInstance().getSession(...a
 export const getAccessToken: GetAccessToken = (...args) => getInstance().getAccessToken(...args);
 export const withApiAuthRequired: WithApiAuthRequired = (...args) => getInstance().withApiAuthRequired(...args);
 export const withPageAuthRequired: WithPageAuthRequired = (...args: any[]): any =>
-  withPageAuthRequiredFactory(config, getSession)(...args);
+  withPageAuthRequiredFactory(getLoginUrl(), getSession)(...args);
 export const handleLogin: HandleLogin = (...args) => getInstance().handleLogin(...args);
 export const handleLogout: HandleLogout = (...args) => getInstance().handleLogout(...args);
 export const handleCallback: HandleCallback = (...args) => getInstance().handleCallback(...args);
