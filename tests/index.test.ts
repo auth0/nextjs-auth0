@@ -5,7 +5,7 @@ describe('index', () => {
     const secret = process.env.AUTH0_SECRET;
     delete process.env.AUTH0_SECRET;
     expect(() => withApiAuthRequired(jest.fn())).toThrow('"secret" is required');
-    expect(() => withPageAuthRequired()).not.toThrow();
+    expect(() => withPageAuthRequired(jest.fn())).not.toThrow();
     process.env.AUTH0_SECRET = secret;
   });
 });

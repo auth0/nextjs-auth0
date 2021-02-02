@@ -12,7 +12,7 @@ describe('session', () => {
     expect(
       fromTokenSet(new TokenSet({ id_token: makeIdToken({ foo: 'bar', bax: 'qux' }) }), {
         identityClaimFilter: ['baz'],
-        routes: { callback: '', postLogoutRedirect: '' }
+        routes: { login: '', callback: '', postLogoutRedirect: '' }
       }).user
     ).toEqual({
       aud: '__test_client_id__',

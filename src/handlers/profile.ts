@@ -26,9 +26,9 @@ export type HandleProfile = (req: NextApiRequest, res: NextApiResponse, options?
  * @ignore
  */
 export default function profileHandler(
-  sessionCache: SessionCache,
   getClient: ClientFactory,
-  getAccessToken: GetAccessToken
+  getAccessToken: GetAccessToken,
+  sessionCache: SessionCache
 ): HandleProfile {
   return async (req, res, options): Promise<void> => {
     assertReqRes(req, res);
