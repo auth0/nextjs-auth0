@@ -106,7 +106,7 @@
 					<div class="tsd-signature tsd-kind-icon">absolute<wbr>Duration<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">boolean</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/config.ts#L299">src/config.ts:299</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5834f8e/src/config.ts#L211">src/config.ts:211</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -114,7 +114,8 @@
 							<p>Integer value, in seconds, for application absolute rolling duration.
 								The amount of time after the user has logged in that they will be logged out.
 								Set this to <code>false</code> if you don&#39;t want an absolute duration on your session.
-							Default is 604800 seconds (7 days).</p>
+								Default is 604800 seconds (7 days).
+							You can also use the AUTH0_SESSION_ABSOLUTE_DURATION environment variable.</p>
 						</div>
 					</div>
 				</section>
@@ -124,7 +125,7 @@
 					<div class="tsd-signature tsd-kind-icon">cookie<span class="tsd-signature-symbol">:</span> <a href="config.cookieconfig.html" class="tsd-signature-type" data-tsd-kind="Interface">CookieConfig</a></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/config.ts#L301">src/config.ts:301</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5834f8e/src/config.ts#L213">src/config.ts:213</a></li>
 						</ul>
 					</aside>
 				</section>
@@ -134,14 +135,15 @@
 					<div class="tsd-signature tsd-kind-icon">name<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/config.ts#L275">src/config.ts:275</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5834f8e/src/config.ts#L184">src/config.ts:184</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
 							<p>String value for the cookie name used for the internal session.
 								This value must only include letters, numbers, and underscores.
-							Default is <code>appSession</code>.</p>
+								Default is <code>appSession</code>.
+							You can also use the AUTH0_SESSION_NAME environment variable.</p>
 						</div>
 					</div>
 				</section>
@@ -151,7 +153,7 @@
 					<div class="tsd-signature tsd-kind-icon">rolling<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/config.ts#L284">src/config.ts:284</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5834f8e/src/config.ts#L194">src/config.ts:194</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -160,7 +162,8 @@
 								user is active on your site, set this to a <code>true</code>. If you want the session
 								duration to be absolute, where the user is logged out a fixed time after login,
 								regardless of activity, set this to <code>false</code>
-							Default is <code>true</code>.</p>
+								Default is <code>true</code>.
+							You can also use the AUTH0_SESSION_ROLLING environment variable.</p>
 						</div>
 					</div>
 				</section>
@@ -170,14 +173,15 @@
 					<div class="tsd-signature tsd-kind-icon">rolling<wbr>Duration<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/config.ts#L291">src/config.ts:291</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5834f8e/src/config.ts#L202">src/config.ts:202</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
 							<p>Integer value, in seconds, for application session rolling duration.
 								The amount of time for which the user must be idle for then to be logged out.
-							Default is 86400 seconds (1 day).</p>
+								Default is 86400 seconds (1 day).
+							You can also use the AUTH0_SESSION_ROLLING_DURATION environment variable.</p>
 						</div>
 					</div>
 				</section>
@@ -257,7 +261,7 @@
 						<a href="config.authorizationparameters.html" class="tsd-kind-icon">Authorization<wbr>Parameters</a>
 					</li>
 					<li class=" tsd-kind-interface tsd-parent-kind-module">
-						<a href="config.config-1.html" class="tsd-kind-icon">Config</a>
+						<a href="config.baseconfig.html" class="tsd-kind-icon">Base<wbr>Config</a>
 					</li>
 					<li class=" tsd-kind-interface tsd-parent-kind-module">
 						<a href="config.cookieconfig.html" class="tsd-kind-icon">Cookie<wbr>Config</a>
@@ -299,11 +303,12 @@
 		<h2>Legend</h2>
 		<div class="tsd-legend-group">
 			<ul class="tsd-legend">
-				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>
-				<li class="tsd-kind-property tsd-parent-kind-interface"><span class="tsd-kind-icon">Property</span></li>
+				<li class="tsd-kind-function"><span class="tsd-kind-icon">Function</span></li>
+				<li class="tsd-kind-type-alias"><span class="tsd-kind-icon">Type alias</span></li>
 			</ul>
 			<ul class="tsd-legend">
-				<li class="tsd-kind-type-alias"><span class="tsd-kind-icon">Type alias</span></li>
+				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>
+				<li class="tsd-kind-property tsd-parent-kind-interface"><span class="tsd-kind-icon">Property</span></li>
 			</ul>
 			<ul class="tsd-legend">
 				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>

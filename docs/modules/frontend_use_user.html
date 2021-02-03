@@ -70,7 +70,6 @@
 						<section class="tsd-index-section ">
 							<h3>Client Interfaces</h3>
 							<ul class="tsd-index-list">
-								<li class="tsd-kind-interface tsd-parent-kind-module"><a href="../interfaces/frontend_use_user.usercontext.html" class="tsd-kind-icon">User<wbr>Context</a></li>
 								<li class="tsd-kind-interface tsd-parent-kind-module"><a href="../interfaces/frontend_use_user.userprofile.html" class="tsd-kind-icon">User<wbr>Profile</a></li>
 							</ul>
 						</section>
@@ -78,6 +77,7 @@
 							<h3>Client Type aliases</h3>
 							<ul class="tsd-index-list">
 								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="frontend_use_user.html#useuser" class="tsd-kind-icon">Use<wbr>User</a></li>
+								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="frontend_use_user.html#usercontext" class="tsd-kind-icon">User<wbr>Context</a></li>
 								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="frontend_use_user.html#userprovider" class="tsd-kind-icon">User<wbr>Provider</a></li>
 								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="frontend_use_user.html#userproviderprops" class="tsd-kind-icon">User<wbr>Provider<wbr>Props</a></li>
 							</ul>
@@ -96,15 +96,15 @@
 				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module">
 					<a name="useuser" class="tsd-anchor"></a>
 					<h3>Use<wbr>User</h3>
-					<div class="tsd-signature tsd-kind-icon">Use<wbr>User<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><a href="../interfaces/frontend_use_user.usercontext.html" class="tsd-signature-type" data-tsd-kind="Interface">UserContext</a></div>
+					<div class="tsd-signature tsd-kind-icon">Use<wbr>User<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><a href="frontend_use_user.html#usercontext" class="tsd-signature-type" data-tsd-kind="Type alias">UserContext</a></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/frontend/use-user.tsx#L89">src/frontend/use-user.tsx:89</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5834f8e/src/frontend/use-user.tsx#L110">src/frontend/use-user.tsx:110</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
-							<p>The <code>useUser</code> hook, which will get you the <a href="../interfaces/frontend_use_user.userprofile.html">UserProfile</a> object from the server side session by requesting it
+							<p>The <code>useUser</code> hook, which will get you the <a href="../interfaces/frontend_use_user.userprofile.html">UserProfile</a> object from the server-side session by requesting it
 							from the <a href="handlers_profile.html#handleprofile">HandleProfile</a> API Route handler.</p>
 						</div>
 						<pre><code class="language-js"><span style="color: #008000">// pages/profile.js</span>
@@ -126,11 +126,11 @@
 						<ul class="tsd-parameters">
 							<li class="tsd-parameter-signature">
 								<ul class="tsd-signatures tsd-kind-type-literal tsd-parent-kind-type-alias">
-									<li class="tsd-signature tsd-kind-icon"><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="../interfaces/frontend_use_user.usercontext.html" class="tsd-signature-type" data-tsd-kind="Interface">UserContext</a></li>
+									<li class="tsd-signature tsd-kind-icon"><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="frontend_use_user.html#usercontext" class="tsd-signature-type" data-tsd-kind="Type alias">UserContext</a></li>
 								</ul>
 								<ul class="tsd-descriptions">
 									<li class="tsd-description">
-										<h4 class="tsd-returns-title">Returns <a href="../interfaces/frontend_use_user.usercontext.html" class="tsd-signature-type" data-tsd-kind="Interface">UserContext</a></h4>
+										<h4 class="tsd-returns-title">Returns <a href="frontend_use_user.html#usercontext" class="tsd-signature-type" data-tsd-kind="Type alias">UserContext</a></h4>
 									</li>
 								</ul>
 							</li>
@@ -138,12 +138,57 @@
 					</div>
 				</section>
 				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module">
-					<a name="userprovider" class="tsd-anchor"></a>
-					<h3>User<wbr>Provider</h3>
-					<div class="tsd-signature tsd-kind-icon">User<wbr>Provider<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><a href="frontend_use_user.html#userproviderprops" class="tsd-signature-type" data-tsd-kind="Type alias">UserProviderProps</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/frontend_use_user.usercontext.html" class="tsd-signature-type" data-tsd-kind="Interface">UserContext</a><span class="tsd-signature-symbol">&gt;</span></div>
+					<a name="usercontext" class="tsd-anchor"></a>
+					<h3>User<wbr>Context</h3>
+					<div class="tsd-signature tsd-kind-icon">User<wbr>Context<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">{ </span>checkSession<span class="tsd-signature-symbol">: </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">; </span>error<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">Error</span><span class="tsd-signature-symbol">; </span>isLoading<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">; </span>user<span class="tsd-signature-symbol">?: </span><a href="../interfaces/frontend_use_user.userprofile.html" class="tsd-signature-type" data-tsd-kind="Interface">UserProfile</a><span class="tsd-signature-symbol"> }</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/frontend/use-user.tsx#L101">src/frontend/use-user.tsx:101</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5834f8e/src/frontend/use-user.tsx#L26">src/frontend/use-user.tsx:26</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5834f8e/src/frontend/index.ts#L2">src/frontend/index.ts:2</a></li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>The user context returned from the {@link useUser} hook.</p>
+						</div>
+					</div>
+					<div class="tsd-type-declaration">
+						<h4>Type declaration</h4>
+						<ul class="tsd-parameters">
+							<li class="tsd-parameter">
+								<h5>check<wbr>Session<span class="tsd-signature-symbol">: </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h5>
+								<ul class="tsd-parameters">
+									<li class="tsd-parameter-signature">
+										<ul class="tsd-signatures tsd-kind-type-literal tsd-parent-kind-type-literal">
+											<li class="tsd-signature tsd-kind-icon"><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></li>
+										</ul>
+										<ul class="tsd-descriptions">
+											<li class="tsd-description">
+												<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4>
+											</li>
+										</ul>
+									</li>
+								</ul>
+							</li>
+							<li class="tsd-parameter">
+								<h5><span class="tsd-flag ts-flagOptional">Optional</span> error<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">Error</span></h5>
+							</li>
+							<li class="tsd-parameter">
+								<h5>is<wbr>Loading<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">boolean</span></h5>
+							</li>
+							<li class="tsd-parameter">
+								<h5><span class="tsd-flag ts-flagOptional">Optional</span> user<span class="tsd-signature-symbol">?: </span><a href="../interfaces/frontend_use_user.userprofile.html" class="tsd-signature-type" data-tsd-kind="Interface">UserProfile</a></h5>
+							</li>
+						</ul>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module">
+					<a name="userprovider" class="tsd-anchor"></a>
+					<h3>User<wbr>Provider</h3>
+					<div class="tsd-signature tsd-kind-icon">User<wbr>Provider<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><a href="frontend_use_user.html#userproviderprops" class="tsd-signature-type" data-tsd-kind="Type alias">UserProviderProps</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><a href="frontend_use_user.html#usercontext" class="tsd-signature-type" data-tsd-kind="Type alias">UserContext</a><span class="tsd-signature-symbol">&gt;</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5834f8e/src/frontend/use-user.tsx#L122">src/frontend/use-user.tsx:122</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -156,7 +201,7 @@
 						<ul class="tsd-parameters">
 							<li class="tsd-parameter-signature">
 								<ul class="tsd-signatures tsd-kind-type-literal tsd-parent-kind-type-alias">
-									<li class="tsd-signature tsd-kind-icon"><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><a href="frontend_use_user.html#userproviderprops" class="tsd-signature-type" data-tsd-kind="Type alias">UserProviderProps</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/frontend_use_user.usercontext.html" class="tsd-signature-type" data-tsd-kind="Interface">UserContext</a><span class="tsd-signature-symbol">&gt;</span></li>
+									<li class="tsd-signature tsd-kind-icon"><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><a href="frontend_use_user.html#userproviderprops" class="tsd-signature-type" data-tsd-kind="Type alias">UserProviderProps</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><a href="frontend_use_user.html#usercontext" class="tsd-signature-type" data-tsd-kind="Type alias">UserContext</a><span class="tsd-signature-symbol">&gt;</span></li>
 								</ul>
 								<ul class="tsd-descriptions">
 									<li class="tsd-description">
@@ -166,7 +211,7 @@
 												<h5>props: <a href="frontend_use_user.html#userproviderprops" class="tsd-signature-type" data-tsd-kind="Type alias">UserProviderProps</a></h5>
 											</li>
 										</ul>
-										<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/frontend_use_user.usercontext.html" class="tsd-signature-type" data-tsd-kind="Interface">UserContext</a><span class="tsd-signature-symbol">&gt;</span></h4>
+										<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><a href="frontend_use_user.html#usercontext" class="tsd-signature-type" data-tsd-kind="Type alias">UserContext</a><span class="tsd-signature-symbol">&gt;</span></h4>
 									</li>
 								</ul>
 							</li>
@@ -176,18 +221,18 @@
 				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module">
 					<a name="userproviderprops" class="tsd-anchor"></a>
 					<h3>User<wbr>Provider<wbr>Props</h3>
-					<div class="tsd-signature tsd-kind-icon">User<wbr>Provider<wbr>Props<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">React.PropsWithChildren</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-symbol">{ </span>profileUrl<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">; </span>user<span class="tsd-signature-symbol">?: </span><a href="../interfaces/frontend_use_user.userprofile.html" class="tsd-signature-type" data-tsd-kind="Interface">UserProfile</a><span class="tsd-signature-symbol"> }</span><span class="tsd-signature-symbol">&gt;</span></div>
+					<div class="tsd-signature tsd-kind-icon">User<wbr>Provider<wbr>Props<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">React.PropsWithChildren</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-symbol">{ </span>profileUrl<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">; </span>user<span class="tsd-signature-symbol">?: </span><a href="../interfaces/frontend_use_user.userprofile.html" class="tsd-signature-type" data-tsd-kind="Interface">UserProfile</a><span class="tsd-signature-symbol"> }</span><span class="tsd-signature-symbol"> &amp; </span><span class="tsd-signature-type">ConfigContext</span><span class="tsd-signature-symbol">&gt;</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/frontend/use-user.tsx#L61">src/frontend/use-user.tsx:61</a></li>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/frontend/index.ts#L1">src/frontend/index.ts:1</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5834f8e/src/frontend/use-user.tsx#L64">src/frontend/use-user.tsx:64</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5834f8e/src/frontend/index.ts#L2">src/frontend/index.ts:2</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
 							<p>Configure the <a href="frontend_use_user.html#userprovider">UserProvider</a> component.</p>
 						</div>
-						<p>If you have any server side rendered pages (eg. using <code>getServerSideProps</code>), you should get the user from the server
+						<p>If you have any server-side rendered pages (eg. using <code>getServerSideProps</code>), you should get the user from the server
 							side session and pass it to the <code>&lt;UserProvider&gt;</code> component via <code>pageProps</code> - this will refill the {@link useUser}
 						hook with the <a href="../interfaces/frontend_use_user.userprofile.html">UserProfile</a> object. eg</p>
 						<pre><code class="language-js"><span style="color: #008000">// pages/_app.js</span>
@@ -195,8 +240,8 @@
 <span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">UserProvider</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@auth0/nextjs-auth0&#039;</span><span style="color: #000000">;</span>
 
 <span style="color: #AF00DB">export</span><span style="color: #000000"> </span><span style="color: #AF00DB">default</span><span style="color: #000000"> </span><span style="color: #0000FF">function</span><span style="color: #000000"> </span><span style="color: #795E26">App</span><span style="color: #000000">({ </span><span style="color: #001080">Component</span><span style="color: #000000">, </span><span style="color: #001080">pageProps</span><span style="color: #000000"> }) {</span>
-<span style="color: #000000">  </span><span style="color: #008000">// If you&#039;ve used `withAuth`, pageProps.user can pre-populate the hook</span>
-<span style="color: #000000">  </span><span style="color: #008000">// if you haven&#039;t used `withAuth`, pageProps.user is undefined so the hook</span>
+<span style="color: #000000">  </span><span style="color: #008000">// If you&#039;ve used `withPageAuthRequired`, pageProps.user can pre-populate the hook</span>
+<span style="color: #000000">  </span><span style="color: #008000">// if you haven&#039;t used `withPageAuthRequired`, pageProps.user is undefined so the hook</span>
 <span style="color: #000000">  </span><span style="color: #008000">// fetches the user from the API route</span>
 <span style="color: #000000">  </span><span style="color: #0000FF">const</span><span style="color: #000000"> { </span><span style="color: #0070C1">user</span><span style="color: #000000"> } = </span><span style="color: #001080">pageProps</span><span style="color: #000000">;</span>
 
@@ -217,10 +262,10 @@
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-module">
 					<a name="default" class="tsd-anchor"></a>
 					<h3>default</h3>
-					<div class="tsd-signature tsd-kind-icon">default<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span>__namedParameters<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">PropsWithChildren</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-symbol">{ </span>profileUrl<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">; </span>user<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><a href="../interfaces/frontend_use_user.userprofile.html" class="tsd-signature-type" data-tsd-kind="Interface">UserProfile</a><span class="tsd-signature-symbol"> }</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/frontend_use_user.usercontext.html" class="tsd-signature-type" data-tsd-kind="Interface">UserContext</a><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">null</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">(props: any) &#x3D;&gt; ReactElement&lt;any, string | ... | (new (props: any) &#x3D;&gt; Component&lt;any, any, any&gt;)&gt; | null</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Component</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Component</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">&gt;</span></div>
+					<div class="tsd-signature tsd-kind-icon">default<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span>__namedParameters<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">PropsWithChildren</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-symbol">{ </span>profileUrl<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">; </span>user<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><a href="../interfaces/frontend_use_user.userprofile.html" class="tsd-signature-type" data-tsd-kind="Interface">UserProfile</a><span class="tsd-signature-symbol"> }</span><span class="tsd-signature-symbol"> &amp; </span><span class="tsd-signature-type">ConfigContext</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><a href="frontend_use_user.html#usercontext" class="tsd-signature-type" data-tsd-kind="Type alias">UserContext</a><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">null</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">(props: any) &#x3D;&gt; ReactElement&lt;any, string | ... | (new (props: any) &#x3D;&gt; Component&lt;any, any, any&gt;)&gt; | null</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Component</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Component</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">&gt;</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5c6ef50/src/frontend/index.ts#L1">src/frontend/index.ts:1</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5834f8e/src/frontend/index.ts#L2">src/frontend/index.ts:2</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-type-declaration">
@@ -228,17 +273,17 @@
 						<ul class="tsd-parameters">
 							<li class="tsd-parameter-signature">
 								<ul class="tsd-signatures tsd-kind-type-literal tsd-parent-kind-module">
-									<li class="tsd-signature tsd-kind-icon"><span class="tsd-signature-symbol">(</span>__namedParameters<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">PropsWithChildren</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-symbol">{ </span>profileUrl<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">; </span>user<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><a href="../interfaces/frontend_use_user.userprofile.html" class="tsd-signature-type" data-tsd-kind="Interface">UserProfile</a><span class="tsd-signature-symbol"> }</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/frontend_use_user.usercontext.html" class="tsd-signature-type" data-tsd-kind="Interface">UserContext</a><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">null</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">(props: any) &#x3D;&gt; ReactElement&lt;any, string | ... | (new (props: any) &#x3D;&gt; Component&lt;any, any, any&gt;)&gt; | null</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Component</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Component</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">&gt;</span></li>
+									<li class="tsd-signature tsd-kind-icon"><span class="tsd-signature-symbol">(</span>__namedParameters<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">PropsWithChildren</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-symbol">{ </span>profileUrl<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">; </span>user<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><a href="../interfaces/frontend_use_user.userprofile.html" class="tsd-signature-type" data-tsd-kind="Interface">UserProfile</a><span class="tsd-signature-symbol"> }</span><span class="tsd-signature-symbol"> &amp; </span><span class="tsd-signature-type">ConfigContext</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><a href="frontend_use_user.html#usercontext" class="tsd-signature-type" data-tsd-kind="Type alias">UserContext</a><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">null</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">(props: any) &#x3D;&gt; ReactElement&lt;any, string | ... | (new (props: any) &#x3D;&gt; Component&lt;any, any, any&gt;)&gt; | null</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Component</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Component</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">&gt;</span></li>
 								</ul>
 								<ul class="tsd-descriptions">
 									<li class="tsd-description">
 										<h4 class="tsd-parameters-title">Parameters</h4>
 										<ul class="tsd-parameters">
 											<li>
-												<h5>__namedParameters: <span class="tsd-signature-type">PropsWithChildren</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-symbol">{ </span>profileUrl<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">; </span>user<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><a href="../interfaces/frontend_use_user.userprofile.html" class="tsd-signature-type" data-tsd-kind="Interface">UserProfile</a><span class="tsd-signature-symbol"> }</span><span class="tsd-signature-symbol">&gt;</span></h5>
+												<h5>__namedParameters: <span class="tsd-signature-type">PropsWithChildren</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-symbol">{ </span>profileUrl<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">; </span>user<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><a href="../interfaces/frontend_use_user.userprofile.html" class="tsd-signature-type" data-tsd-kind="Interface">UserProfile</a><span class="tsd-signature-symbol"> }</span><span class="tsd-signature-symbol"> &amp; </span><span class="tsd-signature-type">ConfigContext</span><span class="tsd-signature-symbol">&gt;</span></h5>
 											</li>
 										</ul>
-										<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/frontend_use_user.usercontext.html" class="tsd-signature-type" data-tsd-kind="Interface">UserContext</a><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">null</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">(props: any) &#x3D;&gt; ReactElement&lt;any, string | ... | (new (props: any) &#x3D;&gt; Component&lt;any, any, any&gt;)&gt; | null</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Component</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Component</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">&gt;</span></h4>
+										<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><a href="frontend_use_user.html#usercontext" class="tsd-signature-type" data-tsd-kind="Type alias">UserContext</a><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">null</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">(props: any) &#x3D;&gt; ReactElement&lt;any, string | ... | (new (props: any) &#x3D;&gt; Component&lt;any, any, any&gt;)&gt; | null</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Component</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Component</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">&gt;</span></h4>
 									</li>
 								</ul>
 							</li>
@@ -318,13 +363,13 @@
 			<nav class="tsd-navigation secondary menu-sticky">
 				<ul class="before-current">
 					<li class=" tsd-kind-interface tsd-parent-kind-module">
-						<a href="../interfaces/frontend_use_user.usercontext.html" class="tsd-kind-icon">User<wbr>Context</a>
-					</li>
-					<li class=" tsd-kind-interface tsd-parent-kind-module">
 						<a href="../interfaces/frontend_use_user.userprofile.html" class="tsd-kind-icon">User<wbr>Profile</a>
 					</li>
 					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
 						<a href="frontend_use_user.html#useuser" class="tsd-kind-icon">Use<wbr>User</a>
+					</li>
+					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
+						<a href="frontend_use_user.html#usercontext" class="tsd-kind-icon">User<wbr>Context</a>
 					</li>
 					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
 						<a href="frontend_use_user.html#userprovider" class="tsd-kind-icon">User<wbr>Provider</a>
@@ -345,6 +390,7 @@
 		<h2>Legend</h2>
 		<div class="tsd-legend-group">
 			<ul class="tsd-legend">
+				<li class="tsd-kind-function"><span class="tsd-kind-icon">Function</span></li>
 				<li class="tsd-kind-type-alias"><span class="tsd-kind-icon">Type alias</span></li>
 			</ul>
 			<ul class="tsd-legend">
