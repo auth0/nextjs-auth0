@@ -1,3 +1,18 @@
+## [1.0.0-beta.1](https://github.com/auth0/nextjs-auth0/tree/v1.0.0-beta.1) (2021-02-03)
+
+**Additions**
+
+- Added a new way to configure the custom profile url. Now it can be configured with an environment variable as well.
+
+**Changes**
+
+- The way to configure the custom login url has changed. Instead of passing it in every call to `withPageAuthRequired` now it can be configured with an environment variable.
+- The Vercel configuration docs have been updated with the latest guidance.
+
+**Fixes**
+
+- Fixed a logout issue related to custom IdPs.
+
 ## [1.0.0-beta.0](https://github.com/auth0/nextjs-auth0/tree/v1.0.0-beta.0) (2021-01-14)
 
 **Install**
