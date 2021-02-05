@@ -4,7 +4,7 @@ import { Session } from '../session';
 import { assertReqRes } from '../utils/assert';
 
 /**
- * Use this function for validating additional claims on the user's access token or adding removing items from
+ * Use this function for validating additional claims on the user's ID Token or adding removing items from
  * the session after login, eg
  *
  * ### Validate additional claims
