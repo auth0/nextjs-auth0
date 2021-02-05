@@ -23,7 +23,8 @@ import {
   GetLoginState,
   ProfileOptions,
   CallbackOptions,
-  AfterCallback
+  AfterCallback,
+  AfterRefetch
 } from './handlers';
 import {
   sessionFactory,
@@ -131,6 +132,7 @@ export {
   GetAccessTokenResult,
   CallbackOptions,
   AfterCallback,
+  AfterRefetch,
   LoginOptions,
   LogoutOptions,
   GetLoginState

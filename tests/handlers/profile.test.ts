@@ -31,6 +31,14 @@ describe('profile handler', () => {
     expect(res.headers['cache-control']).toEqual('no-store');
   });
 
+  test('should not allow caching the profile response when refetch is true', async () => {
+    const baseUrl = await setup(withoutApi, { profileOptions: { refetch: true } });
+    const cookieJar = await login(baseUrl);
+
+    const { res } = await get(baseUrl, '/api/auth/me', { cookieJar, fullResponse: true });
+    expect(res.headers['cache-control']).toEqual('no-store');
+  });
+
   test('should throw if re-fetching with no Access Token', async () => {
     const afterCallback: AfterCallback = (_req, _res, session: Session): Session => {
       delete session.accessToken;
@@ -81,5 +89,35 @@ describe('profile handler', () => {
     await expect(get(baseUrl, '/api/auth/me', { cookieJar })).rejects.toThrow(
       'No access token available to refetch the profile'
     );
+  });
+
+  test('should update the session in the afterRefetch hook', async () => {
+    const baseUrl = await setup(withoutApi, {
+      profileOptions: {
+        refetch: true,
+        afterRefetch(_req, _res, session) {
+          session.user.foo = 'bar';
+          return session;
+        }
+      }
+    });
+    const cookieJar = await login(baseUrl);
+
+    const user = await get(baseUrl, '/api/auth/me', { cookieJar });
+    expect(user.foo).toEqual('bar');
+  });
+
+  test('should throw from the afterRefetch hook', async () => {
+    const baseUrl = await setup(withoutApi, {
+      profileOptions: {
+        refetch: true,
+        afterRefetch() {
+          throw new Error('some validation error');
+        }
+      }
+    });
+    const cookieJar = await login(baseUrl);
+
+    await expect(get(baseUrl, '/api/auth/me', { cookieJar })).rejects.toThrowError('some validation error');
   });
 });

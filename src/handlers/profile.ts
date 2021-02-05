@@ -3,6 +3,8 @@ import { ClientFactory } from '../auth0-session';
 import { SessionCache, Session, fromJson, GetAccessToken } from '../session';
 import { assertReqRes } from '../utils/assert';
 
+export type AfterRefetch = (req: NextApiRequest, res: NextApiResponse, session: Session) => Promise<Session> | Session;
+
 /**
  * Custom options for {@link HandleProfile}
  *
@@ -13,6 +15,12 @@ export type ProfileOptions = {
    * If set to `true` this will refetch the user profile information from `/userinfo` and save it to the session.
    */
   refetch?: boolean;
+
+  /**
+   * Like {@AfterCallback} when a session is created, you can use this function to validate or add/remove claims
+   * after the session is updated. Will only run if {@link ProfileOptions.refetch} is `true`
+   */
+  afterRefetch?: AfterRefetch;
 };
 
 /**
@@ -42,8 +50,9 @@ export default function profileHandler(
     }
 
     const session = sessionCache.get(req, res) as Session;
+    res.setHeader('Cache-Control', 'no-store');
 
-    if (options && options.refetch) {
+    if (options?.refetch) {
       const { accessToken } = await getAccessToken(req, res);
       if (!accessToken) {
         throw new Error('No access token available to refetch the profile');
@@ -52,25 +61,24 @@ export default function profileHandler(
       const client = await getClient();
       const userInfo = await client.userinfo(accessToken);
 
-      const updatedUser = {
-        ...session.user,
-        ...userInfo
-      };
+      let newSession = fromJson({
+        ...session,
+        user: {
+          ...session.user,
+          ...userInfo
+        }
+      }) as Session;
 
-      sessionCache.set(
-        req,
-        res,
-        fromJson({
-          ...session,
-          user: updatedUser
-        })
-      );
+      if (options.afterRefetch) {
+        newSession = await options.afterRefetch(req, res, newSession);
+      }
 
-      res.json(updatedUser);
+      sessionCache.set(req, res, newSession);
+
+      res.json(newSession.user);
       return;
     }
 
-    res.setHeader('Cache-Control', 'no-store');
     res.json(session.user);
   };
 }
