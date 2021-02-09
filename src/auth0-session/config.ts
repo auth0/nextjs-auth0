@@ -1,5 +1,6 @@
 import { IncomingMessage } from 'http';
 import { AuthorizationParameters as OidcAuthorizationParameters } from 'openid-client';
+import { Store } from './store';
 
 /**
  * Configuration properties.
@@ -68,6 +69,12 @@ export interface Config {
    * ```
    */
   authorizationParams: AuthorizationParameters;
+
+  /**
+   * Custom instance of store. Will overwrite the CookieStore.
+   * Must implement a read and save function
+   */
+  Store: Store;
 
   /**
    * The root URL for the application router, eg https://localhost

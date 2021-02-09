@@ -1,6 +1,7 @@
 import Joi from '@hapi/joi';
 import { getLoginState } from './hooks/get-login-state';
 import { Config } from './config';
+import { DeepPartial } from 'ts-essentials';
 
 const isHttps = /^https:/i;
 
@@ -145,10 +146,6 @@ const paramsSchema = Joi.object({
       return parent.authorizationParams.response_type === 'id_token' ? 'none' : 'client_secret_basic';
     })
 });
-
-export type DeepPartial<T> = {
-  [P in keyof T]?: T[P] extends Array<infer I> ? Array<DeepPartial<I>> : DeepPartial<T[P]>;
-};
 
 export type ConfigParameters = DeepPartial<Config>;
 

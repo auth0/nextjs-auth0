@@ -2,6 +2,7 @@ import {
   CookieStore,
   TransientStore,
   clientFactory,
+  Store,
   loginHandler as baseLoginHandler,
   logoutHandler as baseLogoutHandler,
   callbackHandler as baseCallbackHandler
@@ -60,14 +61,16 @@ function getInstance(): SignInWithAuth0 {
   return instance;
 }
 
+const getStore = (store: any, config: any): Store => store || new CookieStore(config);
+
 export const initAuth0: InitAuth0 = (params) => {
   const { baseConfig, nextConfig } = getConfig(params);
 
   // Init base layer (with base config)
   const getClient = clientFactory(baseConfig, { name: 'nextjs-auth0', version });
   const transientStore = new TransientStore(baseConfig);
-  const cookieStore = new CookieStore(baseConfig);
-  const sessionCache = new SessionCache(baseConfig, cookieStore);
+  const store = getStore(params?.Store, baseConfig);
+  const sessionCache = new SessionCache(baseConfig, store);
   const baseHandleLogin = baseLoginHandler(baseConfig, getClient, transientStore);
   const baseHandleLogout = baseLogoutHandler(baseConfig, getClient, sessionCache);
   const baseHandleCallback = baseCallbackHandler(baseConfig, getClient, sessionCache, transientStore);

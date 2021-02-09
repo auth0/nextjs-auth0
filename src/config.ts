@@ -1,6 +1,7 @@
 import { IncomingMessage } from 'http';
 import { AuthorizationParameters as OidcAuthorizationParameters } from 'openid-client';
-import { LoginOptions, DeepPartial, getConfig as getBaseConfig } from './auth0-session';
+import { LoginOptions, getConfig as getBaseConfig, Store } from './auth0-session';
+import { DeepPartial } from 'ts-essentials';
 
 /**
  * @category server
@@ -54,6 +55,12 @@ export interface BaseConfig {
    * ```
    */
   authorizationParams: AuthorizationParameters;
+
+  /**
+   * Custom instance of store. Will overwrite the CookieStore.
+   * Must implement a read and save function
+   */
+  Store: Store;
 
   /**
    * The root URL for the application router, eg https://localhost

@@ -2,7 +2,7 @@ import { IncomingMessage, ServerResponse } from 'http';
 import { NextApiRequest, NextApiResponse } from 'next';
 import { TokenSet } from 'openid-client';
 import onHeaders from 'on-headers';
-import { Config, SessionCache as ISessionCache, CookieStore } from '../auth0-session';
+import { Config, SessionCache as ISessionCache, Store } from '../auth0-session';
 import Session, { fromJson, fromTokenSet } from './session';
 
 type NextApiOrPageRequest = IncomingMessage | NextApiRequest;
@@ -11,21 +11,21 @@ type NextApiOrPageResponse = ServerResponse | NextApiResponse;
 export default class SessionCache implements ISessionCache {
   private cache: WeakMap<NextApiOrPageRequest, Session | null>;
 
-  constructor(private config: Config, private cookieStore: CookieStore) {
+  constructor(private config: Config, private store: Store) {
     this.cache = new WeakMap();
   }
 
   init(req: NextApiOrPageRequest, res: NextApiOrPageResponse): void {
     if (!this.cache.has(req)) {
-      const [json, iat] = this.cookieStore.read(req);
+      const [json, iat] = this.store.read(req);
       this.cache.set(req, fromJson(json));
-      onHeaders(res, () => this.cookieStore.save(req, res, this.cache.get(req), iat));
+      onHeaders(res, () => this.store.save(req, res, this.cache.get(req), iat));
     }
   }
 
   create(req: NextApiOrPageRequest, res: NextApiOrPageResponse, session: Session): void {
     this.cache.set(req, session);
-    onHeaders(res, () => this.cookieStore.save(req, res, this.cache.get(req)));
+    onHeaders(res, () => this.store.save(req, res, this.cache.get(req)));
   }
 
   delete(req: NextApiOrPageRequest, res: NextApiOrPageResponse): void {
