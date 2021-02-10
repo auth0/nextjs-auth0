@@ -218,6 +218,7 @@ export default handleAuth({
     try {
       await handleLogin(req, res, {
         audience: 'https://api.example.com/products', // or AUTH0_AUDIENCE
+        // Add the `offline_access` scope to also get a Refresh Token
         scope: 'openid profile email read:products' // or AUTH0_SCOPE
       });
     } catch (error) {
@@ -235,6 +236,8 @@ The API route serves as a proxy between your front end and the external API.
 import { getAccessToken, withApiAuthRequired } from '@auth0/nextjs-auth0';
 
 export default withApiAuthRequired(async function products(req, res) {
+  // If your Access Token is expired and you have a Refresh Token
+  // `getAccessToken` will fetch you a new one using the `refresh_token` grant
   const { accessToken } = await getAccessToken(req, res, {
     scopes: ['read:products']
   });
