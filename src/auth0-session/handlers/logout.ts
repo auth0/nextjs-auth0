@@ -32,7 +32,7 @@ export default function logoutHandlerFactory(
       return;
     }
 
-    const idToken = sessionCache.getIdToken(req, res);
+    const idToken = await sessionCache.getIdToken(req, res);
     sessionCache.delete(req, res);
 
     if (!config.idpLogout) {

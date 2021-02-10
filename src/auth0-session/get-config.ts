@@ -11,6 +11,7 @@ const paramsSchema = Joi.object({
     Joi.binary().min(8),
     Joi.array().items(Joi.string().min(8), Joi.binary().min(8))
   ]).required(),
+  Store: Joi.any(),
   session: Joi.object({
     rolling: Joi.boolean().optional().default(true),
     rollingDuration: Joi.when(Joi.ref('rolling'), {

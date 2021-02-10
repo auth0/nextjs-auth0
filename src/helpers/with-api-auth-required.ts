@@ -29,7 +29,7 @@ export default function withApiAuthFactory(sessionCache: SessionCache): WithApiA
   return (apiRoute) => async (req: NextApiRequest, res: NextApiResponse): Promise<void> => {
     assertReqRes(req, res);
 
-    const session = sessionCache.get(req, res);
+    const session = await sessionCache.get(req, res);
     if (!session || !session.user) {
       res.status(401).json({
         error: 'not_authenticated',

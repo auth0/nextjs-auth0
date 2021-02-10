@@ -49,7 +49,7 @@ export default function profileHandler(
       return;
     }
 
-    const session = sessionCache.get(req, res) as Session;
+    const session = (await sessionCache.get(req, res)) as Session;
     res.setHeader('Cache-Control', 'no-store');
 
     if (options?.refetch) {

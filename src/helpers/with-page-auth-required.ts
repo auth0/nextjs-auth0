@@ -101,7 +101,7 @@ export default function withPageAuthRequiredFactory(loginUrl: string, getSession
     const { getServerSideProps, returnTo } = optsOrComponent;
     return async (ctx: GetServerSidePropsContext): Promise<GetServerSidePropsResultWithSession> => {
       assertCtx(ctx);
-      const session = getSession(ctx.req, ctx.res);
+      const session = await getSession(ctx.req, ctx.res);
       if (!session?.user) {
         // 10 - redirect
         // 9.5.4 - unstable_redirect

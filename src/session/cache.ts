@@ -15,9 +15,9 @@ export default class SessionCache implements ISessionCache {
     this.cache = new WeakMap();
   }
 
-  init(req: NextApiOrPageRequest, res: NextApiOrPageResponse): void {
+  async init(req: NextApiOrPageRequest, res: NextApiOrPageResponse): Promise<void> {
     if (!this.cache.has(req)) {
-      const [json, iat] = this.store.read(req);
+      const [json, iat] = await this.store.read(req);
       this.cache.set(req, fromJson(json));
       onHeaders(res, () => this.store.save(req, res, this.cache.get(req), iat));
     }
@@ -28,30 +28,30 @@ export default class SessionCache implements ISessionCache {
     onHeaders(res, () => this.store.save(req, res, this.cache.get(req)));
   }
 
-  delete(req: NextApiOrPageRequest, res: NextApiOrPageResponse): void {
-    this.init(req, res);
+  async delete(req: NextApiOrPageRequest, res: NextApiOrPageResponse): Promise<void> {
+    await this.init(req, res);
     this.cache.set(req, null);
   }
 
-  isAuthenticated(req: NextApiOrPageRequest, res: NextApiOrPageResponse): boolean {
-    this.init(req, res);
+  async isAuthenticated(req: NextApiOrPageRequest, res: NextApiOrPageResponse): Promise<boolean> {
+    await this.init(req, res);
     const session = this.cache.get(req);
     return !!session?.user;
   }
 
-  getIdToken(req: NextApiOrPageRequest, res: NextApiOrPageResponse): string | undefined {
-    this.init(req, res);
+  async getIdToken(req: NextApiOrPageRequest, res: NextApiOrPageResponse): Promise<string | undefined> {
+    await this.init(req, res);
     const session = this.cache.get(req);
     return session?.idToken;
   }
 
-  set(req: NextApiOrPageRequest, res: NextApiOrPageResponse, session: Session | null): void {
-    this.init(req, res);
+  async set(req: NextApiOrPageRequest, res: NextApiOrPageResponse, session: Session | null): Promise<void> {
+    await this.init(req, res);
     this.cache.set(req, session);
   }
 
-  get(req: NextApiOrPageRequest, res: NextApiOrPageResponse): Session | null | undefined {
-    this.init(req, res);
+  async get(req: NextApiOrPageRequest, res: NextApiOrPageResponse): Promise<Session | null | undefined> {
+    await this.init(req, res);
     return this.cache.get(req);
   }
 

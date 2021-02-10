@@ -56,7 +56,7 @@ export default function accessTokenFactory(
   sessionCache: SessionCache
 ): GetAccessToken {
   return async (req, res, accessTokenRequest): Promise<GetAccessTokenResult> => {
-    const session = sessionCache.get(req, res);
+    const session = await sessionCache.get(req, res);
     if (!session) {
       throw new AccessTokenError('invalid_session', 'The user does not have a valid session.');
     }
