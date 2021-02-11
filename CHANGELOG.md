@@ -1,3 +1,9 @@
+## [1.0.0-beta.2](https://github.com/auth0/nextjs-auth0/tree/v1.0.0-beta.2) (2021-02-11)
+
+**Additions**
+
+- Added `afterRefetch` hook option to `handleProfile` to modify the session after refetching it.
+
 ## [1.0.0-beta.1](https://github.com/auth0/nextjs-auth0/tree/v1.0.0-beta.1) (2021-02-03)
 
 **Additions**
