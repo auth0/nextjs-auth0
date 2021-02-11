@@ -86,13 +86,13 @@
 					<div class="tsd-signature tsd-kind-icon">After<wbr>Callback<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiRequest</span>, res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiResponse</span>, session<span class="tsd-signature-symbol">: </span><a href="../classes/session_session.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a>, state<span class="tsd-signature-symbol">: </span><span class="tsd-signature-symbol">{}</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="../classes/session_session.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol"> | </span><a href="../classes/session_session.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5834f8e/src/handlers/callback.ts#L59">src/handlers/callback.ts:59</a></li>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5834f8e/src/handlers/index.ts#L1">src/handlers/index.ts:1</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/e13ed3d/src/handlers/callback.ts#L59">src/handlers/callback.ts:59</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/e13ed3d/src/handlers/index.ts#L1">src/handlers/index.ts:1</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
-							<p>Use this function for validating additional claims on the user&#39;s access token or adding removing items from
+							<p>Use this function for validating additional claims on the user&#39;s ID Token or adding removing items from
 							the session after login, eg</p>
 						</div>
 						<a href="#validate-additional-claims" id="validate-additional-claims" style="color: inherit; text-decoration: none;">
@@ -103,7 +103,7 @@
 
 <span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #795E26">afterCallback</span><span style="color: #000000"> = (</span><span style="color: #001080">req</span><span style="color: #000000">, </span><span style="color: #001080">res</span><span style="color: #000000">, </span><span style="color: #001080">session</span><span style="color: #000000">, </span><span style="color: #001080">state</span><span style="color: #000000">) </span><span style="color: #0000FF">=&gt;</span><span style="color: #000000"> {</span>
 <span style="color: #000000">  </span><span style="color: #AF00DB">if</span><span style="color: #000000"> (!</span><span style="color: #001080">session</span><span style="color: #000000">.</span><span style="color: #001080">user</span><span style="color: #000000">.</span><span style="color: #001080">isAdmin</span><span style="color: #000000">) {</span>
-<span style="color: #000000">    </span><span style="color: #AF00DB">throw</span><span style="color: #000000"> </span><span style="color: #0000FF">new</span><span style="color: #000000"> </span><span style="color: #267F99">UnauthorizedError</span><span style="color: #000000">(</span><span style="color: #A31515">&#039;User is not admin&#039;</span><span style="color: #000000">);</span>
+<span style="color: #000000">    </span><span style="color: #AF00DB">throw</span><span style="color: #000000"> </span><span style="color: #0000FF">new</span><span style="color: #000000"> </span><span style="color: #795E26">UnauthorizedError</span><span style="color: #000000">(</span><span style="color: #A31515">&#039;User is not admin&#039;</span><span style="color: #000000">);</span>
 <span style="color: #000000">  }</span>
 <span style="color: #000000">  </span><span style="color: #AF00DB">return</span><span style="color: #000000"> </span><span style="color: #001080">session</span><span style="color: #000000">;</span>
 <span style="color: #000000">};</span>
@@ -183,8 +183,8 @@
 					<div class="tsd-signature tsd-kind-icon">Callback<wbr>Options<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">{ </span>afterCallback<span class="tsd-signature-symbol">?: </span><a href="handlers_callback.html#aftercallback" class="tsd-signature-type" data-tsd-kind="Type alias">AfterCallback</a><span class="tsd-signature-symbol"> }</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5834f8e/src/handlers/callback.ts#L71">src/handlers/callback.ts:71</a></li>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5834f8e/src/handlers/index.ts#L1">src/handlers/index.ts:1</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/e13ed3d/src/handlers/callback.ts#L71">src/handlers/callback.ts:71</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/e13ed3d/src/handlers/index.ts#L1">src/handlers/index.ts:1</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -207,8 +207,8 @@
 					<div class="tsd-signature tsd-kind-icon">Handle<wbr>Callback<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiRequest</span>, res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiResponse</span>, options<span class="tsd-signature-symbol">?: </span><a href="handlers_callback.html#callbackoptions" class="tsd-signature-type" data-tsd-kind="Type alias">CallbackOptions</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5834f8e/src/handlers/callback.ts#L80">src/handlers/callback.ts:80</a></li>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5834f8e/src/handlers/index.ts#L1">src/handlers/index.ts:1</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/e13ed3d/src/handlers/callback.ts#L80">src/handlers/callback.ts:80</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/e13ed3d/src/handlers/index.ts#L1">src/handlers/index.ts:1</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
