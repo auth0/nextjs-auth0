@@ -217,9 +217,11 @@ export default handleAuth({
   async login(req, res) {
     try {
       await handleLogin(req, res, {
-        audience: 'https://api.example.com/products', // or AUTH0_AUDIENCE
-        // Add the `offline_access` scope to also get a Refresh Token
-        scope: 'openid profile email read:products' // or AUTH0_SCOPE
+        authorizationParams: {
+          audience: 'https://api.example.com/products', // or AUTH0_AUDIENCE
+          // Add the `offline_access` scope to also get a Refresh Token
+          scope: 'openid profile email read:products' // or AUTH0_SCOPE
+        }
       });
     } catch (error) {
       res.status(error.status || 400).end(error.message);
