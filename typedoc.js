@@ -1,5 +1,5 @@
 module.exports = {
-  name: '@auth0/nextjs-auth0 (Beta Only)',
+  name: '@auth0/nextjs-auth0',
   out: './docs/',
   exclude: [
     './src/auth0-session/**',

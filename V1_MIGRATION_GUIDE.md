@@ -1,6 +1,6 @@
 # V1 Migration Guide
 
-Guide to migrating from `0.x` to `1.x` (Beta)
+Guide to migrating from `0.x` to `1.x`
 
 ### Config changes
 
