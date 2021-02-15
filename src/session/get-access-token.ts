@@ -13,7 +13,7 @@ import { NextConfig } from '../config';
  */
 export interface AccessTokenRequest {
   /**
-   * A list of desired scopes fro you Access Token.
+   * A list of desired scopes for your Access Token.
    */
   scopes?: string[];
 
