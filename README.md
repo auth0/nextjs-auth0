@@ -39,12 +39,13 @@ npm install @auth0/nextjs-auth0
 
 ### Auth0 Configuration
 
-Create a **Regular Web Application** in the [Auth0 Dashboard](https://manage.auth0.com/). If you're using an existing application you'll want to verify that the following settings are configured as follows:
+Create a **Regular Web Application** in the [Auth0 Dashboard](https://manage.auth0.com/). If you're using an existing application you'll want to verify that the following settings are configured as follows.
 
+_In your application's Advanced Settings (click "Show Advanced Settings"):_
 - **Json Web Token Signature Algorithm**: `RS256`
 - **OIDC Conformant**: `True`
 
-Go ahead and configure the URLs for your application:
+_Go ahead and configure the following URLs for your application under Application URIs:_
 
 - **Allowed Callback URLs**: http://localhost:3000/api/auth/callback
 - **Allowed Logout URLs**: http://localhost:3000/
