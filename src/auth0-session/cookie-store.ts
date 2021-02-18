@@ -5,11 +5,11 @@ import { encryption as deriveKey } from './utils/hkdf';
 import createDebug from './utils/debug';
 import { getAll as getCookies, clear as clearCookie, set as setCookie } from './utils/cookies';
 import { Config } from './config';
-import { CookieSerializeOptions } from 'cookie';
+import { CookieSerializeOptions, serialize } from 'cookie';
 
 const debug = createDebug('cookie-store');
 const epoch = (): number => (Date.now() / 1000) | 0; // eslint-disable-line no-bitwise
-const CHUNK_BYTE_SIZE = 4000;
+const MAX_COOKIE_SIZE = 4096;
 const alg = 'dir';
 const enc = 'A256GCM';
 
@@ -19,6 +19,8 @@ export default class CookieStore {
   private keystore: JWKS.KeyStore;
 
   private currentKey: JWK.OctKey | undefined;
+
+  private chunkSize: number;
 
   constructor(public config: Config) {
     const secrets = Array.isArray(config.secret) ? config.secret : [config.secret];
@@ -31,6 +33,20 @@ export default class CookieStore {
       }
       this.keystore.add(key);
     });
+
+    const {
+      cookie: { transient, ...cookieConfig },
+      name: sessionName
+    } = this.config.session;
+    const cookieOptions: CookieSerializeOptions = {
+      ...cookieConfig
+    };
+    if (!transient) {
+      cookieOptions.expires = new Date();
+    }
+
+    const emptyCookie = serialize(`${sessionName}.0`, '', cookieOptions);
+    this.chunkSize = MAX_COOKIE_SIZE - emptyCookie.length;
   }
 
   private encrypt(payload: string, headers: { [key: string]: any }): string {
@@ -172,11 +188,11 @@ export default class CookieStore {
     debug('found session, creating signed session cookie(s) with name %o(.i)', sessionName);
     const value = this.encrypt(JSON.stringify(session), { iat, uat, exp });
 
-    const chunkCount = Math.ceil(value.length / CHUNK_BYTE_SIZE);
+    const chunkCount = Math.ceil(value.length / this.chunkSize);
     if (chunkCount > 1) {
-      debug('cookie size greater than %d, chunking', CHUNK_BYTE_SIZE);
+      debug('cookie size greater than %d, chunking', this.chunkSize);
       for (let i = 0; i < chunkCount; i++) {
-        const chunkValue = value.slice(i * CHUNK_BYTE_SIZE, (i + 1) * CHUNK_BYTE_SIZE);
+        const chunkValue = value.slice(i * this.chunkSize, (i + 1) * this.chunkSize);
         const chunkCookieName = `${sessionName}.${i}`;
         setCookie(res, chunkCookieName, chunkValue, cookieOptions);
       }
