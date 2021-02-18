@@ -20,6 +20,8 @@ export default class CookieStore {
 
   private currentKey: JWK.OctKey | undefined;
 
+  private chunkSize: number;
+
   constructor(public config: Config) {
     const secrets = Array.isArray(config.secret) ? config.secret : [config.secret];
     this.keystore = new JWKS.KeyStore();
@@ -31,6 +33,20 @@ export default class CookieStore {
       }
       this.keystore.add(key);
     });
+
+    const {
+      cookie: { transient, ...cookieConfig },
+      name: sessionName
+    } = this.config.session;
+    const cookieOptions: CookieSerializeOptions = {
+      ...cookieConfig
+    };
+    if (!transient) {
+      cookieOptions.expires = new Date();
+    }
+
+    const emptyCookie = serialize(`${sessionName}.0`, '', cookieOptions);
+    this.chunkSize = MAX_COOKIE_SIZE - emptyCookie.length;
   }
 
   private encrypt(payload: string, headers: { [key: string]: any }): string {
@@ -172,13 +188,11 @@ export default class CookieStore {
     debug('found session, creating signed session cookie(s) with name %o(.i)', sessionName);
     const value = this.encrypt(JSON.stringify(session), { iat, uat, exp });
 
-    const emptyCookie = serialize(`${sessionName}.0`, '', cookieOptions);
-    const chunkSize = MAX_COOKIE_SIZE - emptyCookie.length;
-    const chunkCount = Math.ceil(value.length / chunkSize);
+    const chunkCount = Math.ceil(value.length / this.chunkSize);
     if (chunkCount > 1) {
-      debug('cookie size greater than %d, chunking', chunkSize);
+      debug('cookie size greater than %d, chunking', this.chunkSize);
       for (let i = 0; i < chunkCount; i++) {
-        const chunkValue = value.slice(i * chunkSize, (i + 1) * chunkSize);
+        const chunkValue = value.slice(i * this.chunkSize, (i + 1) * this.chunkSize);
         const chunkCookieName = `${sessionName}.${i}`;
         setCookie(res, chunkCookieName, chunkValue, cookieOptions);
       }
