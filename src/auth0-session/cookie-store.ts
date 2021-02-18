@@ -5,11 +5,11 @@ import { encryption as deriveKey } from './utils/hkdf';
 import createDebug from './utils/debug';
 import { getAll as getCookies, clear as clearCookie, set as setCookie } from './utils/cookies';
 import { Config } from './config';
-import { CookieSerializeOptions } from 'cookie';
+import { CookieSerializeOptions, serialize } from 'cookie';
 
 const debug = createDebug('cookie-store');
 const epoch = (): number => (Date.now() / 1000) | 0; // eslint-disable-line no-bitwise
-const CHUNK_BYTE_SIZE = 4000;
+const MAX_COOKIE_SIZE = 4096;
 const alg = 'dir';
 const enc = 'A256GCM';
 
@@ -172,11 +172,13 @@ export default class CookieStore {
     debug('found session, creating signed session cookie(s) with name %o(.i)', sessionName);
     const value = this.encrypt(JSON.stringify(session), { iat, uat, exp });
 
-    const chunkCount = Math.ceil(value.length / CHUNK_BYTE_SIZE);
+    const emptyCookie = serialize(`${sessionName}.0`, '', cookieOptions);
+    const chunkSize = MAX_COOKIE_SIZE - emptyCookie.length;
+    const chunkCount = Math.ceil(value.length / chunkSize);
     if (chunkCount > 1) {
-      debug('cookie size greater than %d, chunking', CHUNK_BYTE_SIZE);
+      debug('cookie size greater than %d, chunking', chunkSize);
       for (let i = 0; i < chunkCount; i++) {
-        const chunkValue = value.slice(i * CHUNK_BYTE_SIZE, (i + 1) * CHUNK_BYTE_SIZE);
+        const chunkValue = value.slice(i * chunkSize, (i + 1) * chunkSize);
         const chunkCookieName = `${sessionName}.${i}`;
         setCookie(res, chunkCookieName, chunkValue, cookieOptions);
       }
