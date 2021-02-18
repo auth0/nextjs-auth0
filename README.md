@@ -1,10 +1,8 @@
-# @auth0/nextjs-auth0 Beta
+# @auth0/nextjs-auth0
 
 Auth0 SDK for signing in to your Next.js applications.
 
-> Note: This library is currently in **Beta** and has not had a complete security review. We do not recommend using this library in production yet. As we move towards general availability, please be aware that releases may contain breaking changes.
-
-[![CircleCI](https://img.shields.io/circleci/build/github/auth0/nextjs-auth0/beta?style=flat-square)](https://circleci.com/gh/auth0/nextjs-auth0/tree/beta)
+[![CircleCI](https://img.shields.io/circleci/build/github/auth0/nextjs-auth0/main?style=flat-square)](https://circleci.com/gh/auth0/nextjs-auth0/tree/main)
 [![NPM version](https://img.shields.io/npm/v/@auth0/nextjs-auth0.svg?style=flat-square)](https://npmjs.org/package/@auth0/nextjs-auth0)
 [![License](https://img.shields.io/:license-mit-blue.svg?style=flat)](https://opensource.org/licenses/MIT)
 
@@ -32,7 +30,7 @@ Auth0 SDK for signing in to your Next.js applications.
 Using [npm](https://npmjs.org):
 
 ```sh
-npm install @auth0/nextjs-auth0@beta
+npm install @auth0/nextjs-auth0
 ```
 
 > Note that this package supports the following versions of Node.js: `^10.13.0 || >=12.0.0` and the following versions of Next.js: `>=10`.
@@ -41,12 +39,13 @@ npm install @auth0/nextjs-auth0@beta
 
 ### Auth0 Configuration
 
-Create a **Regular Web Application** in the [Auth0 Dashboard](https://manage.auth0.com/). If you're using an existing application you'll want to verify that the following settings are configured as follows:
+Create a **Regular Web Application** in the [Auth0 Dashboard](https://manage.auth0.com/). If you're using an existing application you'll want to verify that the following settings are configured as follows.
 
+_In your application's Advanced Settings (click "Show Advanced Settings"):_
 - **Json Web Token Signature Algorithm**: `RS256`
 - **OIDC Conformant**: `True`
 
-Go ahead and configure the URLs for your application:
+_Go ahead and configure the following URLs for your application under Application URIs:_
 
 - **Allowed Callback URLs**: http://localhost:3000/api/auth/callback
 - **Allowed Logout URLs**: http://localhost:3000/
@@ -184,7 +183,7 @@ If you're using Jest, we recommend using `jest.resetModules()` after each test. 
 
 We appreciate feedback and contribution to this repo! Before you get started, please see the following:
 
-- [Auth0's general contribution guidelines](https://github.com/auth0/.github/blob/master/CONTRIBUTING.md)
+- [Auth0's general contribution guidelines](./CONTRIBUTING.md)
 - [Auth0's code of conduct guidelines](./CODE-OF-CONDUCT.md)
 
 Run NPM install first to install the dependencies of this project:
