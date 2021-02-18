@@ -70,6 +70,8 @@ export type AfterCallback = (
  */
 export type CallbackOptions = {
   afterCallback?: AfterCallback;
+
+  redirectUri?: string;
 };
 
 /**
