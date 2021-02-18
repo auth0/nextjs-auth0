@@ -15,6 +15,8 @@ export type AfterCallback = (req: any, res: any, session: any, state: Record<str
 
 export type CallbackOptions = {
   afterCallback?: AfterCallback;
+
+  redirectUri?: string;
 };
 
 export type HandleCallback = (req: IncomingMessage, res: ServerResponse, options?: CallbackOptions) => Promise<void>;
@@ -27,8 +29,7 @@ export default function callbackHandlerFactory(
 ): HandleCallback {
   return async (req, res, options) => {
     const client = await getClient();
-
-    const redirectUri = getRedirectUri(config);
+    const redirectUri = options?.redirectUri || getRedirectUri(config);
 
     let expectedState;
     let tokenSet;
