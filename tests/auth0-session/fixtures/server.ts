@@ -17,7 +17,8 @@ import {
   logoutHandler,
   callbackHandler,
   LoginOptions,
-  LogoutOptions
+  LogoutOptions,
+  CallbackOptions
 } from '../../../src/auth0-session';
 import wellKnown from './well-known.json';
 import { jwks } from './cert';
@@ -52,7 +53,7 @@ class TestSessionCache implements SessionCache {
 type Handlers = {
   handleLogin: (req: IncomingMessage, res: ServerResponse, opts?: LoginOptions) => Promise<void>;
   handleLogout: (req: IncomingMessage, res: ServerResponse, opts?: LogoutOptions) => Promise<void>;
-  handleCallback: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
+  handleCallback: (req: IncomingMessage, res: ServerResponse, opts?: CallbackOptions) => Promise<void>;
   handleSession: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
 };
 
@@ -103,7 +104,7 @@ const parseJson = (req: IncomingMessage, res: ServerResponse): Promise<IncomingM
 
 const requestListener = (
   handlers: Handlers,
-  { loginOptions, logoutOptions }: { loginOptions?: LoginOptions; logoutOptions?: LogoutOptions }
+  { callbackOptions, loginOptions, logoutOptions }: { callbackOptions?: CallbackOptions; loginOptions?: LoginOptions; logoutOptions?: LogoutOptions }
 ) => async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
   const { pathname } = url.parse(req.url as string, true);
   const parsedReq = await parseJson(req, res);
@@ -115,7 +116,7 @@ const requestListener = (
       case '/logout':
         return await handlers.handleLogout(parsedReq, res, logoutOptions);
       case '/callback':
-        return await handlers.handleCallback(parsedReq, res);
+        return await handlers.handleCallback(parsedReq, res, callbackOptions);
       case '/session':
         return await handlers.handleSession(parsedReq, res);
       default:
@@ -133,12 +134,14 @@ let server: HttpServer | HttpsServer;
 export const setup = async (
   params: Omit<ConfigParameters, 'baseURL'>,
   {
+    callbackOptions,
     loginOptions,
     logoutOptions,
     customListener,
     https
   }: {
     https?: boolean;
+    callbackOptions?: CallbackOptions;
     loginOptions?: LoginOptions;
     logoutOptions?: LogoutOptions;
     customListener?: (req: IncomingMessage, res: ServerResponse) => void;
@@ -172,7 +175,7 @@ export const setup = async (
   const port = await new Promise((resolve) => server.listen(0, () => resolve((server.address() as AddressInfo).port)));
   const baseURL = `http${https ? 's' : ''}://localhost:${port}`;
 
-  listener = customListener || requestListener(createHandlers({ ...params, baseURL }), { loginOptions, logoutOptions });
+  listener = customListener || requestListener(createHandlers({ ...params, baseURL }), { callbackOptions, loginOptions, logoutOptions });
   return baseURL;
 };
 
