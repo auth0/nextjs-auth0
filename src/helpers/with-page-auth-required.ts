@@ -37,7 +37,7 @@ export type PageRoute = (cts: GetServerSidePropsContext) => Promise<GetServerSid
 /**
  * If you have a custom returnTo url you should specify it in `returnTo`.
  *
- * You can pass in your own `getServerSideProps` method, the props returned from thsi will be merged with the
+ * You can pass in your own `getServerSideProps` method, the props returned from this will be merged with the
  * user props, eg:
  *
  * ```js
