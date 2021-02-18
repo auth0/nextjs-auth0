@@ -148,6 +148,37 @@ describe('CookieStore', () => {
     await expect(get(baseURL, '/session', { cookieJar })).rejects.toThrowError('Unauthorized');
   });
 
+  it('should clean up single cookie when switching to chunked', async () => {
+    const baseURL = await setup(defaultConfig);
+    const appSession = encrypted({
+      big_claim: randomBytes(2000).toString('base64')
+    });
+    expect(appSession.length).toBeGreaterThan(4000);
+    const cookieJar = toCookieJar({ appSession }, baseURL);
+    const session = await get(baseURL, '/session', { cookieJar });
+    expect(session.claims).toHaveProperty('big_claim');
+    const cookies = fromCookieJar(cookieJar, baseURL);
+    expect(cookies).toHaveProperty(['appSession.0']);
+    expect(cookies).not.toHaveProperty('appSession');
+  });
+
+  it('should clean up chunked cookies when switching to a single cookie', async () => {
+    const baseURL = await setup(defaultConfig);
+    const appSession = encrypted({ sub: 'foo' });
+    const cookieJar = toCookieJar(
+      {
+        'appSession.0': appSession.slice(0, 100),
+        'appSession.1': appSession.slice(100)
+      },
+      baseURL
+    );
+    const session = await get(baseURL, '/session', { cookieJar });
+    expect(session.claims).toHaveProperty('sub');
+    const cookies = fromCookieJar(cookieJar, baseURL);
+    expect(cookies).toHaveProperty('appSession');
+    expect(cookies).not.toHaveProperty(['appSession.0']);
+  });
+
   it('should set the default cookie options on http', async () => {
     const baseURL = await setup(defaultConfig);
     const appSession = encrypted();
