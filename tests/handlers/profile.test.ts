@@ -108,7 +108,7 @@ describe('profile handler', () => {
     const cookieJar = await login(baseUrl);
     const profile = await get(baseUrl, '/api/auth/me', { cookieJar });
     expect(profile).toMatchObject({ foo: 'bar' });
-    const session = await get(baseUrl, `/api/session`, { cookieJar });
+    const session = await get(baseUrl, '/api/session', { cookieJar });
     expect(session.accessToken).toEqual('new-access-token');
     expect(session.refreshToken).toEqual('new-refresh-token');
   });
