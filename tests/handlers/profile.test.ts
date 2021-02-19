@@ -1,6 +1,6 @@
 import nock from 'nock';
-import { withoutApi } from '../fixtures/default-settings';
-import { userInfo } from '../fixtures/oidc-nocks';
+import { withApi, withoutApi } from '../fixtures/default-settings';
+import { refreshTokenRotationExchange, userInfo } from '../fixtures/oidc-nocks';
 import { get } from '../auth0-session/fixtures/helpers';
 import { setup, teardown, login } from '../fixtures/setup';
 import { Session, AfterCallback } from '../../src';
@@ -89,6 +89,28 @@ describe('profile handler', () => {
     await expect(get(baseUrl, '/api/auth/me', { cookieJar })).rejects.toThrow(
       'No access token available to refetch the profile'
     );
+  });
+
+  test('should refetch the user and preserve new tokens', async () => {
+    const afterCallback: AfterCallback = (_req, _res, session: Session): Session => {
+      session.accessTokenExpiresAt = -60;
+      return session;
+    };
+    const baseUrl = await setup(withApi, {
+      profileOptions: { refetch: true },
+      userInfoPayload: { foo: 'bar' },
+      callbackOptions: {
+        afterCallback
+      },
+      userInfoToken: 'new-access-token'
+    });
+    refreshTokenRotationExchange(withApi, 'GEbRxBN...edjnXbL', {}, 'new-access-token', 'new-refresh-token');
+    const cookieJar = await login(baseUrl);
+    const profile = await get(baseUrl, '/api/auth/me', { cookieJar });
+    expect(profile).toMatchObject({ foo: 'bar' });
+    const session = await get(baseUrl, '/api/session', { cookieJar });
+    expect(session.accessToken).toEqual('new-access-token');
+    expect(session.refreshToken).toEqual('new-refresh-token');
   });
 
   test('should update the session in the afterRefetch hook', async () => {
