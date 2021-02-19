@@ -3,7 +3,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { ClientFactory } from '../auth0-session';
 import { AccessTokenError } from '../utils/errors';
 import { intersect, match } from '../utils/array';
-import { SessionCache, fromTokenSet, fromJson } from '../session';
+import { SessionCache, fromTokenSet } from '../session';
 import { NextConfig } from '../config';
 
 /**
@@ -114,16 +114,11 @@ export default function accessTokenFactory(
 
       // Update the session.
       const newSession = fromTokenSet(tokenSet, config);
-      sessionCache.set(
-        req,
-        res,
-        fromJson({
-          ...session,
-          ...newSession,
-          refreshToken: newSession.refreshToken || session.refreshToken,
-          user: { ...session.user, ...newSession.user }
-        })
-      );
+      Object.assign(session, {
+        ...newSession,
+        refreshToken: newSession.refreshToken || session.refreshToken,
+        user: { ...session.user, ...newSession.user }
+      });
 
       // Return the new access token.
       return {
