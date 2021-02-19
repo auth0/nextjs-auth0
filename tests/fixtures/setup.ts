@@ -29,6 +29,7 @@ export type SetupOptions = {
   getAccessTokenOptions?: AccessTokenRequest;
   discoveryOptions?: object;
   userInfoPayload?: object;
+  userInfoToken?: string;
 };
 
 export const setup = async (
@@ -42,13 +43,14 @@ export const setup = async (
     withPageAuthRequiredOptions,
     getAccessTokenOptions,
     discoveryOptions,
-    userInfoPayload = {}
+    userInfoPayload = {},
+    userInfoToken = 'eyJz93a...k4laUWw'
   }: SetupOptions = {}
 ): Promise<string> => {
   discovery(config, discoveryOptions);
   jwksEndpoint(config, jwks);
   codeExchange(config, makeIdToken({ iss: 'https://acme.auth0.local/', ...idTokenClaims }));
-  userInfo(config, 'eyJz93a...k4laUWw', userInfoPayload);
+  userInfo(config, userInfoToken, userInfoPayload);
   const {
     handleAuth,
     handleCallback,
