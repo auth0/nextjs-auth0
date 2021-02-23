@@ -160,10 +160,11 @@ export default class CookieStore {
       cookie: { transient, ...cookieConfig },
       name: sessionName
     } = this.config.session;
+    const cookies = getCookies(req);
 
     if (!session) {
       debug('clearing all matching session cookies');
-      for (const cookieName of Object.keys(getCookies(req))) {
+      for (const cookieName of Object.keys(cookies)) {
         if (cookieName.match(`^${sessionName}(?:\\.\\d)?$`)) {
           clearCookie(res, cookieName, {
             domain: cookieConfig.domain,
@@ -196,8 +197,22 @@ export default class CookieStore {
         const chunkCookieName = `${sessionName}.${i}`;
         setCookie(res, chunkCookieName, chunkValue, cookieOptions);
       }
+      if (sessionName in cookies) {
+        clearCookie(res, sessionName, {
+          domain: cookieConfig.domain,
+          path: cookieConfig.path
+        });
+      }
     } else {
       setCookie(res, sessionName, value, cookieOptions);
+      for (const cookieName of Object.keys(cookies)) {
+        if (cookieName.match(`^${sessionName}\\.\\d$`)) {
+          clearCookie(res, cookieName, {
+            domain: cookieConfig.domain,
+            path: cookieConfig.path
+          });
+        }
+      }
     }
   }
 }
