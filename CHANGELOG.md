@@ -1,3 +1,15 @@
+## [1.1.0](https://github.com/auth0/nextjs-auth0/tree/v1.1.0) (2021-02-24)
+
+**Added**
+
+- Add `redirect_uri` option to callback handler [#298](https://github.com/auth0/nextjs-auth0/pull/298) ([mariano](https://github.com/mariano))
+
+**Fixed**
+
+- Chunked cookies should not exceed browser max [#301](https://github.com/auth0/nextjs-auth0/pull/301) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Cleanup unused cookies when switching between chunked and unchunked [#303](https://github.com/auth0/nextjs-auth0/pull/303) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- New tokens should be applied to existing session after handleProfile [#307](https://github.com/auth0/nextjs-auth0/pull/307) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [1.0.0](https://github.com/auth0/nextjs-auth0/tree/v1.0.0) (2021-02-15)
 
 **New features**
