@@ -174,7 +174,7 @@ Requests to `/pages/api/protected` without a valid session cookie will fail with
 
 ```js
 // pages/api/protected.js
-import { withApiAuthRequired } from '@auth0/nextjs-auth0';
+import { withApiAuthRequired, getSession } from '@auth0/nextjs-auth0';
 
 export default withApiAuthRequired(async function myApiRoute(req, res) {
   const { user } = getSession(req, res);
