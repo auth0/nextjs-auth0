@@ -84,7 +84,7 @@ export type HandleCallback = (req: NextApiRequest, res: NextApiResponse, options
 /**
  * @ignore
  */
-export default function handleLoginFactory(handler: BaseHandleCallback): HandleCallback {
+export default function handleCallbackFactory(handler: BaseHandleCallback): HandleCallback {
   return async (req, res, options): Promise<void> => {
     assertReqRes(req, res);
     return handler(req, res, options);
