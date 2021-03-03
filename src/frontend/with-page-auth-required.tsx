@@ -62,6 +62,7 @@ export interface WithPageAuthRequiredOptions {
  *
  * @category Client
  */
+// eslint-disable-next-line @typescript-eslint/ban-types
 export type WithPageAuthRequired = <P extends object>(
   Component: ComponentType<P>,
   options?: WithPageAuthRequiredOptions
@@ -73,16 +74,17 @@ export type WithPageAuthRequired = <P extends object>(
 const withPageAuthRequired: WithPageAuthRequired = (Component, options = {}) => {
   return function withPageAuthRequired(props): JSX.Element {
     const router = useRouter();
-    const { returnTo = router.asPath, onRedirecting = defaultOnRedirecting, onError = defaultOnError } = options;
+    const {
+      returnTo = `${router.basePath ?? ''}${router.asPath}`,
+      onRedirecting = defaultOnRedirecting,
+      onError = defaultOnError
+    } = options;
     const { loginUrl } = useConfig();
     const { user, error, isLoading } = useUser();
 
     useEffect(() => {
       if ((user && !error) || isLoading) return;
-
-      (async (): Promise<void> => {
-        await router.push(`${loginUrl}?returnTo=${returnTo}`);
-      })();
+      window.location.assign(`${loginUrl}?returnTo=${returnTo}`);
     }, [user, error, isLoading]);
 
     if (error) return onError(error);
