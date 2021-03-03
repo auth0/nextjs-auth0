@@ -82,7 +82,7 @@
     "body-parser": "^1.19.0",
     "cypress": "^6.2.1",
     "eslint": "^7.17.0",
-    "eslint-config-prettier": "^7.1.0",
+    "eslint-config-prettier": "^8.1.0",
     "eslint-import-resolver-typescript": "^2.3.0",
     "eslint-plugin-import": "^2.22.1",
     "eslint-plugin-jsx-a11y": "^6.4.1",
