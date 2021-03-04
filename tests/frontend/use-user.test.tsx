@@ -8,7 +8,8 @@ import {
   user
 } from '../fixtures/frontend';
 import { useConfig } from '../../src/frontend';
-import { useUser } from '../../src';
+import { useUser, UserContext } from '../../src';
+import React from 'react';
 
 jest.mock('next/router', () => ({
   useRouter: (): any => ({ asPath: '/' })
@@ -151,5 +152,13 @@ describe('context wrapper', () => {
     expect(() => result.current.error).toThrowError(expectedError);
     expect(() => result.current.isLoading).toThrowError(expectedError);
     expect(result.current.checkSession).toThrowError(expectedError);
+  });
+
+  test('should be able to stub UserProvider with UserContext.Provider', async () => {
+    const { result } = renderHook(() => useUser(), {
+      wrapper: (props: any): React.ReactElement => <UserContext.Provider {...props} value={{ user: { foo: 'bar' } }} />
+    });
+
+    expect(result.current.user).toEqual({ foo: 'bar' });
   });
 });
