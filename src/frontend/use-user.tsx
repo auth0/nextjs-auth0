@@ -71,7 +71,7 @@ const missingUserProvider = 'You forgot to wrap your app in <UserProvider>';
 /**
  * @ignore
  */
-const User = createContext<UserContext>({
+export const UserContext = createContext<UserContext>({
   get user(): never {
     throw new Error(missingUserProvider);
   },
@@ -112,7 +112,7 @@ export type UseUser = () => UserContext;
 /**
  * @ignore
  */
-export const useUser: UseUser = () => useContext<UserContext>(User);
+export const useUser: UseUser = () => useContext<UserContext>(UserContext);
 
 /**
  * To use the {@link useUser} hook. You must wrap your application in a `<UserProvider>` component.
@@ -161,7 +161,7 @@ export default ({
 
   return (
     <ConfigProvider loginUrl={loginUrl}>
-      <User.Provider value={{ user, error, isLoading, checkSession }}>{children}</User.Provider>
+      <UserContext.Provider value={{ user, error, isLoading, checkSession }}>{children}</UserContext.Provider>
     </ConfigProvider>
   );
 };
