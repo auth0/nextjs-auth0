@@ -1,3 +1,13 @@
+## [1.2.0](https://github.com/auth0/nextjs-auth0/tree/v1.2.0) (2021-03-10)
+
+**Added**
+
+- Export `UserContext` for overriding default hook initialisation behaviour [#325](https://github.com/auth0/nextjs-auth0/pull/325) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
+**Fixed**
+
+- `returnTo` should respect application’s `basePath` configuration [#317](https://github.com/auth0/nextjs-auth0/pull/317) ([Widcket](https://github.com/Widcket))
+
 ## [1.1.0](https://github.com/auth0/nextjs-auth0/tree/v1.1.0) (2021-02-24)
 
 **Added**
