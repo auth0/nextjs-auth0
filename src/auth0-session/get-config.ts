@@ -1,4 +1,4 @@
-import Joi from '@hapi/joi';
+import Joi from 'joi';
 import { getLoginState } from './hooks/get-login-state';
 import { Config } from './config';
 
