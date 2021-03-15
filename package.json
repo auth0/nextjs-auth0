@@ -66,7 +66,6 @@
     "@types/clone": "^2.1.0",
     "@types/cookie": "^0.4.0",
     "@types/debug": "^4.1.5",
-    "@types/hapi__joi": "^17.1.6",
     "@types/http-errors": "^1.8.0",
     "@types/jest": "^26.0.20",
     "@types/jsonwebtoken": "^8.5.0",
@@ -105,12 +104,12 @@
     "typescript": "^4.1.3"
   },
   "dependencies": {
-    "@hapi/joi": "^17.1.1",
     "base64url": "^3.0.1",
     "cookie": "^0.4.1",
     "debug": "^4.3.1",
     "futoin-hkdf": "^1.3.2",
     "http-errors": "^1.8.0",
+    "joi": "^17.4.0",
     "jose": "^2.0.4",
     "on-headers": "^1.0.2",
     "openid-client": "^4.2.3",
