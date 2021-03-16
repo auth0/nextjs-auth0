@@ -37,8 +37,8 @@ describe('login handler', () => {
     );
   });
 
-  test('should add redirectTo to the state', async () => {
-    const baseUrl = await setup(withoutApi);
+  test('should add returnTo to the state', async () => {
+    const baseUrl = await setup(withoutApi, { loginOptions: { returnTo: '/custom-url' } });
     const cookieJar = new CookieJar();
     await get(baseUrl, '/api/auth/login', { cookieJar });
 
@@ -84,7 +84,9 @@ describe('login handler', () => {
         login_hint: 'foo@acme.com',
         ui_locales: 'nl',
         scope: 'some other scope openid',
-        foo: 'bar'
+        foo: 'bar',
+        organization: 'foo',
+        invitation: 'bar'
       }
     };
     const baseUrl = await setup(withoutApi, { loginOptions });
@@ -98,6 +100,39 @@ describe('login handler', () => {
       query: {
         ...loginOptions.authorizationParams,
         max_age: '123'
+      }
+    });
+  });
+
+  test('should pass organization config to the authorization server', async () => {
+    const baseUrl = await setup({ ...withoutApi, organization: 'foo' });
+    const cookieJar = new CookieJar();
+    const {
+      res: { statusCode, headers }
+    } = await get(baseUrl, '/api/auth/login', { cookieJar, fullResponse: true });
+
+    expect(statusCode).toBe(302);
+    expect(urlParse(headers.location, true)).toMatchObject({
+      query: {
+        organization: 'foo'
+      }
+    });
+  });
+
+  test('should prefer organization auth param to config', async () => {
+    const baseUrl = await setup(
+      { ...withoutApi, organization: 'foo' },
+      { loginOptions: { authorizationParams: { organization: 'bar' } } }
+    );
+    const cookieJar = new CookieJar();
+    const {
+      res: { statusCode, headers }
+    } = await get(baseUrl, '/api/auth/login', { cookieJar, fullResponse: true });
+
+    expect(statusCode).toBe(302);
+    expect(urlParse(headers.location, true)).toMatchObject({
+      query: {
+        organization: 'bar'
       }
     });
   });

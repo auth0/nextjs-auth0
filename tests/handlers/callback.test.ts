@@ -280,4 +280,76 @@ describe('callback handler', () => {
       )
     ).rejects.toThrow('some validation error.');
   });
+
+  test('throws for missing org_id claim', async () => {
+    const baseUrl = await setup({ ...withApi, organization: 'foo' });
+    const state = encodeState({ returnTo: baseUrl });
+    const cookieJar = toSignedCookieJar(
+      {
+        state,
+        nonce: '__test_nonce__'
+      },
+      baseUrl
+    );
+    await expect(
+      callback(
+        baseUrl,
+        {
+          state,
+          code: 'code'
+        },
+        cookieJar
+      )
+    ).rejects.toThrow('Organization Id (org_id) claim must be a string present in the ID token');
+  });
+
+  test('throws for org_id claim mismatch', async () => {
+    const baseUrl = await setup({ ...withApi, organization: 'foo' }, { idTokenClaims: { org_id: 'bar' } });
+    const state = encodeState({ returnTo: baseUrl });
+    const cookieJar = toSignedCookieJar(
+      {
+        state,
+        nonce: '__test_nonce__'
+      },
+      baseUrl
+    );
+    await expect(
+      callback(
+        baseUrl,
+        {
+          state,
+          code: 'code'
+        },
+        cookieJar
+      )
+    ).rejects.toThrow('Organization Id (org_id) claim value mismatch in the ID token; expected "foo", found "bar"');
+  });
+
+  test('accepts a valid organization', async () => {
+    const baseUrl = await setup(withApi, {
+      idTokenClaims: { org_id: 'foo' },
+      callbackOptions: { organization: 'foo' }
+    });
+    const state = encodeState({ returnTo: baseUrl });
+    const cookieJar = toSignedCookieJar(
+      {
+        state,
+        nonce: '__test_nonce__'
+      },
+      baseUrl
+    );
+    await expect(
+      callback(
+        baseUrl,
+        {
+          state,
+          code: 'code'
+        },
+        cookieJar
+      )
+    ).resolves.not.toThrow();
+    const session = await get(baseUrl, '/api/session', { cookieJar });
+
+    expect(session.user.org_id).toEqual('foo');
+  });
 });
