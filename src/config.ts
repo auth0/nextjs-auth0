@@ -276,9 +276,13 @@ export interface AuthorizationParameters extends OidcAuthorizationParameters {
 }
 
 /**
- * @ignore
+ * @category server
  */
 export interface NextConfig extends Pick<BaseConfig, 'identityClaimFilter'> {
+  /**
+   * Log users in to a specific organization.
+   */
+  organization?: string;
   routes: {
     login: string;
   };
@@ -326,6 +330,7 @@ export interface NextConfig extends Pick<BaseConfig, 'identityClaimFilter'> {
  * - `AUTH0_POST_LOGOUT_REDIRECT`: See {@link BaseConfig.routes}
  * - `AUTH0_AUDIENCE`: See {@link BaseConfig.authorizationParams}
  * - `AUTH0_SCOPE`: See {@link BaseConfig.authorizationParams}
+ * - `AUTH0_ORGANIZATION`: See {@link NextConfig.organization}
  * - `AUTH0_SESSION_NAME`: See {@link SessionConfig.name}
  * - `AUTH0_SESSION_ROLLING`: See {@link SessionConfig.rolling}
  * - `AUTH0_SESSION_ROLLING_DURATION`: See {@link SessionConfig.rollingDuration}
@@ -396,7 +401,7 @@ export const getLoginUrl = (): string => {
 /**
  * @ignore
  */
-export const getConfig = (params?: ConfigParameters): { baseConfig: BaseConfig; nextConfig: NextConfig } => {
+export const getConfig = (params: ConfigParameters = {}): { baseConfig: BaseConfig; nextConfig: NextConfig } => {
   const {
     AUTH0_SECRET,
     AUTH0_ISSUER_BASE_URL,
@@ -413,6 +418,7 @@ export const getConfig = (params?: ConfigParameters): { baseConfig: BaseConfig; 
     AUTH0_POST_LOGOUT_REDIRECT,
     AUTH0_AUDIENCE,
     AUTH0_SCOPE,
+    AUTH0_ORGANIZATION,
     AUTH0_SESSION_NAME,
     AUTH0_SESSION_ROLLING,
     AUTH0_SESSION_ROLLING_DURATION,
@@ -428,6 +434,8 @@ export const getConfig = (params?: ConfigParameters): { baseConfig: BaseConfig; 
   const baseURL =
     AUTH0_BASE_URL && !/^https?:\/\//.test(AUTH0_BASE_URL as string) ? `https://${AUTH0_BASE_URL}` : AUTH0_BASE_URL;
 
+  const { organization, ...baseParams } = params;
+
   const baseConfig = getBaseConfig({
     secret: AUTH0_SECRET,
     issuerBaseURL: AUTH0_ISSUER_BASE_URL,
@@ -441,12 +449,12 @@ export const getConfig = (params?: ConfigParameters): { baseConfig: BaseConfig; 
     auth0Logout: bool(AUTH0_IDP_LOGOUT, true),
     idTokenSigningAlg: AUTH0_ID_TOKEN_SIGNING_ALG,
     legacySameSiteCookie: bool(AUTH0_LEGACY_SAME_SITE_COOKIE),
-    ...params,
+    ...baseParams,
     authorizationParams: {
       response_type: 'code',
       audience: AUTH0_AUDIENCE,
       scope: AUTH0_SCOPE,
-      ...params?.authorizationParams
+      ...baseParams.authorizationParams
     },
     session: {
       name: AUTH0_SESSION_NAME,
@@ -456,7 +464,7 @@ export const getConfig = (params?: ConfigParameters): { baseConfig: BaseConfig; 
         AUTH0_SESSION_ABSOLUTE_DURATION && isNaN(Number(AUTH0_SESSION_ABSOLUTE_DURATION))
           ? bool(AUTH0_SESSION_ABSOLUTE_DURATION)
           : num(AUTH0_SESSION_ABSOLUTE_DURATION),
-      ...params?.session,
+      ...baseParams.session,
       cookie: {
         domain: AUTH0_COOKIE_DOMAIN,
         path: AUTH0_COOKIE_PATH || '/',
@@ -464,22 +472,22 @@ export const getConfig = (params?: ConfigParameters): { baseConfig: BaseConfig; 
         httpOnly: bool(AUTH0_COOKIE_HTTP_ONLY),
         secure: bool(AUTH0_COOKIE_SECURE),
         sameSite: AUTH0_COOKIE_SAME_SITE as 'lax' | 'strict' | 'none' | undefined,
-        ...params?.session?.cookie
+        ...baseParams.session?.cookie
       }
     },
     routes: {
-      callback: params?.routes?.callback || AUTH0_CALLBACK || '/api/auth/callback',
-      postLogoutRedirect: params?.routes?.postLogoutRedirect || AUTH0_POST_LOGOUT_REDIRECT
+      callback: baseParams.routes?.callback || AUTH0_CALLBACK || '/api/auth/callback',
+      postLogoutRedirect: baseParams.routes?.postLogoutRedirect || AUTH0_POST_LOGOUT_REDIRECT
     }
   });
 
   const nextConfig = {
     routes: {
       ...baseConfig.routes,
-      // Other NextConfig Routes go here
-      login: params?.routes?.login || getLoginUrl()
+      login: baseParams.routes?.login || getLoginUrl()
     },
-    identityClaimFilter: baseConfig.identityClaimFilter
+    identityClaimFilter: baseConfig.identityClaimFilter,
+    organization: organization || AUTH0_ORGANIZATION
   };
 
   return { baseConfig, nextConfig };
