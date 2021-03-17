@@ -280,7 +280,12 @@ export interface AuthorizationParameters extends OidcAuthorizationParameters {
  */
 export interface NextConfig extends Pick<BaseConfig, 'identityClaimFilter'> {
   /**
-   * Log users in to a specific organization.
+   * Log users in to a specific organization (Organizations is currently a Closed Beta).
+   *
+   * This will specify an `organization` parameter in your user's login request and will add a step to validate
+   * the `org_id` claim in your user's ID Token.
+   *
+   * If your app supports multiple organizations, you should take a look at {@Link AuthorizationParams.organization}
    */
   organization?: string;
   routes: {
