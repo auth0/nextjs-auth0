@@ -9,7 +9,12 @@ jobs:
       - restore_cache:
           key: dependencies-{{ .Branch }}-{{ checksum "package-lock.json" }}-{{ checksum "examples/kitchen-sink-example/package.json" }}
       - run: npm ci
-      - run: npm run install:kitchen-sink
+      - run:
+          name: npm run install:kitchen-sink
+          command: |
+            if [ -z "$CIRCLE_PR_NUMBER" ]; then
+              npm run install:kitchen-sink
+            fi
       - save_cache:
           key: dependencies-{{ .Branch }}-{{ checksum "package-lock.json" }}-{{ checksum "examples/kitchen-sink-example/package.json" }}
           paths:
@@ -17,7 +22,12 @@ jobs:
             - ~/.cache
       - run: npm run build
       - run: npm test
-      - run: npm run test:kitchen-sink
+      - run:
+          name: npm run test:kitchen-sink
+          command: |
+            if [ -z "$CIRCLE_PR_NUMBER" ]; then
+              npm run test:kitchen-sink
+            fi
       - store_test_results:
           path: test-results
       - store_artifacts:
