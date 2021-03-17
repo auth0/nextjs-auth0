@@ -15,7 +15,7 @@ import { NextConfig } from '../config';
  *   return { basket_id: getBasketId(req) };
  * };
  *
- * export handleAuth({
+ * export default handleAuth({
  *   async login(req, res) {
  *     try {
  *       await handleLogin(req, res, { getLoginState });
@@ -37,7 +37,35 @@ export type GetLoginState = (req: NextApiRequest, options: LoginOptions) => { [k
  */
 export interface AuthorizationParams extends Partial<AuthorizationParameters> {
   /**
-   * The invitation id to join an organization.
+   * The invitation id to join an organization (Organizations is currently a Closed Beta).
+   *
+   * To create a link for your user's to accept an organization invite, accept invitation and organization
+   * query params and pass them to the authorization server to log the user in:
+   *
+   * ```js
+   * // pages/api/invite.js
+   * import { handleLogin } from '@auth0/nextjs-auth0';
+   *
+   * export default async function invite(req, res) {
+   *   try {
+   *     const { invitation, organization } = req.query;
+   *     if (!invitation) {
+   *       res.status(400).end('Missing 'invitation' parameter');
+   *     }
+   *     await handleLogin(req, res, {
+   *       authorizationParams: {
+   *         invitation,
+   *         organization
+   *       }
+   *     });
+   *   } catch (error) {
+   *     res.status(error.status || 500).end(error.message);
+   *   }
+   * } ;
+   * ```
+   *
+   * Your invite url can then take the format:
+   * `https://example.com/api/invite?invitation=invitation_id&prganization=org_id`
    */
   invitation?: string;
   /**
