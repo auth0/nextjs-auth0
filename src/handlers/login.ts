@@ -50,7 +50,7 @@ export interface AuthorizationParams extends Partial<AuthorizationParameters> {
    *   try {
    *     const { invitation, organization } = req.query;
    *     if (!invitation) {
-   *       res.status(400).end('Missing 'invitation' parameter');
+   *       res.status(400).end('Missing "invitation" parameter');
    *     }
    *     await handleLogin(req, res, {
    *       authorizationParams: {
@@ -65,7 +65,7 @@ export interface AuthorizationParams extends Partial<AuthorizationParameters> {
    * ```
    *
    * Your invite url can then take the format:
-   * `https://example.com/api/invite?invitation=invitation_id&prganization=org_id`
+   * `https://example.com/api/invite?invitation=invitation_id&organization=org_id`
    */
   invitation?: string;
   /**
