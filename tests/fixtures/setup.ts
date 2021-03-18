@@ -38,7 +38,7 @@ export const setup = async (
     idTokenClaims,
     callbackOptions,
     logoutOptions,
-    loginOptions = { returnTo: '/custom-url' },
+    loginOptions,
     profileOptions,
     withPageAuthRequiredOptions,
     getAccessTokenOptions,

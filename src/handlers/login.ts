@@ -2,6 +2,7 @@ import { NextApiResponse, NextApiRequest } from 'next';
 import { AuthorizationParameters, HandleLogin as BaseHandleLogin } from '../auth0-session';
 import isSafeRedirect from '../utils/url-helpers';
 import { assertReqRes } from '../utils/assert';
+import { NextConfig } from '../config';
 
 /**
  * Use this to store additional state for the user before they visit the Identity Provider to login.
@@ -14,7 +15,7 @@ import { assertReqRes } from '../utils/assert';
  *   return { basket_id: getBasketId(req) };
  * };
  *
- * export handleAuth({
+ * export default handleAuth({
  *   async login(req, res) {
  *     try {
  *       await handleLogin(req, res, { getLoginState });
@@ -30,6 +31,51 @@ import { assertReqRes } from '../utils/assert';
 export type GetLoginState = (req: NextApiRequest, options: LoginOptions) => { [key: string]: any };
 
 /**
+ * Authorization params to pass to the login handler.
+ *
+ * @category Server
+ */
+export interface AuthorizationParams extends Partial<AuthorizationParameters> {
+  /**
+   * The invitation id to join an organization (Organizations is currently a Closed Beta).
+   *
+   * To create a link for your user's to accept an organization invite, read the `invitation` and `organization`
+   * query params and pass them to the authorization server to log the user in:
+   *
+   * ```js
+   * // pages/api/invite.js
+   * import { handleLogin } from '@auth0/nextjs-auth0';
+   *
+   * export default async function invite(req, res) {
+   *   try {
+   *     const { invitation, organization } = req.query;
+   *     if (!invitation) {
+   *       res.status(400).end('Missing "invitation" parameter');
+   *     }
+   *     await handleLogin(req, res, {
+   *       authorizationParams: {
+   *         invitation,
+   *         organization
+   *       }
+   *     });
+   *   } catch (error) {
+   *     res.status(error.status || 500).end(error.message);
+   *   }
+   * } ;
+   * ```
+   *
+   * Your invite url can then take the format:
+   * `https://example.com/api/invite?invitation=invitation_id&organization=org_id`
+   */
+  invitation?: string;
+  /**
+   * This is useful to specify instead of {@Link NextConfig.organization} when your app has multiple
+   * organizations, it should match {@Link CallbackOptions.organization}.
+   */
+  organization?: string;
+}
+
+/**
  * Custom options to pass to login.
  *
  * @category Server
@@ -38,7 +84,7 @@ export interface LoginOptions {
   /**
    * Override the default {@link BaseConfig.authorizationParams authorizationParams}
    */
-  authorizationParams?: Partial<AuthorizationParameters>;
+  authorizationParams?: AuthorizationParams;
 
   /**
    *  URL to return to after login, overrides the Default is {@link BaseConfig.baseURL}
@@ -61,8 +107,8 @@ export type HandleLogin = (req: NextApiRequest, res: NextApiResponse, options?: 
 /**
  * @ignore
  */
-export default function handleLoginFactory(handler: BaseHandleLogin): HandleLogin {
-  return async (req, res, options): Promise<void> => {
+export default function handleLoginFactory(handler: BaseHandleLogin, nextConfig: NextConfig): HandleLogin {
+  return async (req, res, options = {}): Promise<void> => {
     assertReqRes(req, res);
     if (req.query.returnTo) {
       const returnTo = Array.isArray(req.query.returnTo) ? req.query.returnTo[0] : req.query.returnTo;
@@ -72,6 +118,12 @@ export default function handleLoginFactory(handler: BaseHandleLogin): HandleLogi
       }
 
       options = { ...options, returnTo };
+    }
+    if (nextConfig.organization) {
+      options = {
+        ...options,
+        authorizationParams: { organization: nextConfig.organization, ...options.authorizationParams }
+      };
     }
 
     return handler(req, res, options);
