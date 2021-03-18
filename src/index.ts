@@ -77,9 +77,9 @@ export const initAuth0: InitAuth0 = (params) => {
   const getAccessToken = accessTokenFactory(nextConfig, getClient, sessionCache);
   const withApiAuthRequired = withApiAuthRequiredFactory(sessionCache);
   const withPageAuthRequired = withPageAuthRequiredFactory(nextConfig.routes.login, getSession);
-  const handleLogin = loginHandler(baseHandleLogin);
+  const handleLogin = loginHandler(baseHandleLogin, nextConfig);
   const handleLogout = logoutHandler(baseHandleLogout);
-  const handleCallback = callbackHandler(baseHandleCallback);
+  const handleCallback = callbackHandler(baseHandleCallback, nextConfig);
   const handleProfile = profileHandler(getClient, getAccessToken, sessionCache);
   const handleAuth = handlerFactory({ handleLogin, handleLogout, handleCallback, handleProfile });
 

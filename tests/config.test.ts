@@ -92,7 +92,8 @@ describe('config params', () => {
         login: '/api/auth/login',
         callback: '/api/auth/callback',
         postLogoutRedirect: ''
-      }
+      },
+      organization: undefined
     });
   });
 
@@ -145,28 +146,30 @@ describe('config params', () => {
   });
 
   test('passed in arguments should take precedence', () => {
-    expect(
-      getConfigWithEnv(
-        {},
-        {
-          authorizationParams: {
-            audience: 'foo',
-            scope: 'openid bar'
+    const { baseConfig, nextConfig } = getConfigWithEnv(
+      {
+        AUTH0_ORGANIZATION: 'foo'
+      },
+      {
+        authorizationParams: {
+          audience: 'foo',
+          scope: 'openid bar'
+        },
+        baseURL: 'https://baz.com',
+        routes: {
+          callback: 'qux'
+        },
+        session: {
+          absoluteDuration: 100,
+          cookie: {
+            transient: false
           },
-          baseURL: 'https://baz.com',
-          routes: {
-            callback: 'qux'
-          },
-          session: {
-            absoluteDuration: 100,
-            cookie: {
-              transient: false
-            },
-            name: 'quuuux'
-          }
-        }
-      ).baseConfig
-    ).toMatchObject({
+          name: 'quuuux'
+        },
+        organization: 'bar'
+      }
+    );
+    expect(baseConfig).toMatchObject({
       authorizationParams: {
         audience: 'foo',
         scope: 'openid bar'
@@ -182,6 +185,9 @@ describe('config params', () => {
         },
         name: 'quuuux'
       }
+    });
+    expect(nextConfig).toMatchObject({
+      organization: 'bar'
     });
   });
 
