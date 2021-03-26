@@ -3,7 +3,7 @@
 <head>
 	<meta charset="utf-8">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
-	<title>AuthorizationParameters | @auth0/nextjs-auth0</title>
+	<title>CallbackOptions | @auth0/nextjs-auth0</title>
 	<meta name="description" content="Documentation for @auth0/nextjs-auth0">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<link rel="stylesheet" href="../assets/css/main.css">
@@ -53,13 +53,13 @@
 					<a href="../index.html">@auth0/nextjs-auth0</a>
 				</li>
 				<li>
-					<a href="../modules/config.html">config</a>
+					<a href="../modules/handlers_callback.html">handlers/callback</a>
 				</li>
 				<li>
-					<a href="config.authorizationparameters.html">AuthorizationParameters</a>
+					<a href="handlers_callback.callbackoptions.html">CallbackOptions</a>
 				</li>
 			</ul>
-			<h1>Interface AuthorizationParameters</h1>
+			<h1>Interface CallbackOptions</h1>
 		</div>
 	</div>
 </header>
@@ -69,21 +69,15 @@
 			<section class="tsd-panel tsd-comment">
 				<div class="tsd-comment tsd-typography">
 					<div class="lead">
-						<p>Authorization parameters that will be passed to the identity provider on login.</p>
+						<p>Options to customize the callback handler.</p>
 					</div>
-					<p>The library uses <code>response_mode: &#39;query&#39;</code> and <code>response_type: &#39;code&#39;</code> (with PKCE) by default.</p>
 				</div>
 			</section>
 			<section class="tsd-panel tsd-hierarchy">
 				<h3>Hierarchy</h3>
 				<ul class="tsd-hierarchy">
 					<li>
-						<span class="tsd-signature-type">OidcAuthorizationParameters</span>
-						<ul class="tsd-hierarchy">
-							<li>
-								<span class="target">AuthorizationParameters</span>
-							</li>
-						</ul>
+						<span class="target">CallbackOptions</span>
 					</li>
 				</ul>
 			</section>
@@ -94,9 +88,9 @@
 						<section class="tsd-index-section ">
 							<h3>Properties</h3>
 							<ul class="tsd-index-list">
-								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="config.authorizationparameters.html#response_mode" class="tsd-kind-icon">response_<wbr>mode</a></li>
-								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="config.authorizationparameters.html#response_type" class="tsd-kind-icon">response_<wbr>type</a></li>
-								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="config.authorizationparameters.html#scope" class="tsd-kind-icon">scope</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="handlers_callback.callbackoptions.html#aftercallback" class="tsd-kind-icon">after<wbr>Callback</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="handlers_callback.callbackoptions.html#organization" class="tsd-kind-icon">organization</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="handlers_callback.callbackoptions.html#redirecturi" class="tsd-kind-icon">redirect<wbr>Uri</a></li>
 							</ul>
 						</section>
 					</div>
@@ -105,34 +99,46 @@
 			<section class="tsd-panel-group tsd-member-group ">
 				<h2>Properties</h2>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
-					<a name="response_mode" class="tsd-anchor"></a>
-					<h3>response_<wbr>mode</h3>
-					<div class="tsd-signature tsd-kind-icon">response_<wbr>mode<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">&quot;query&quot;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">&quot;form_post&quot;</span></div>
+					<a name="aftercallback" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagOptional">Optional</span> after<wbr>Callback</h3>
+					<div class="tsd-signature tsd-kind-icon">after<wbr>Callback<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><a href="../modules/handlers_callback.html#aftercallback" class="tsd-signature-type" data-tsd-kind="Type alias">AfterCallback</a></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/ff91783/src/config.ts#L274">src/config.ts:274</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/ff91783/src/handlers/callback.ts#L74">src/handlers/callback.ts:74</a></li>
 						</ul>
 					</aside>
 				</section>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
-					<a name="response_type" class="tsd-anchor"></a>
-					<h3>response_<wbr>type</h3>
-					<div class="tsd-signature tsd-kind-icon">response_<wbr>type<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">&quot;id_token&quot;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">&quot;code id_token&quot;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">&quot;code&quot;</span></div>
+					<a name="organization" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagOptional">Optional</span> organization</h3>
+					<div class="tsd-signature tsd-kind-icon">organization<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/ff91783/src/config.ts#L275">src/config.ts:275</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/ff91783/src/handlers/callback.ts#L86">src/handlers/callback.ts:86</a></li>
 						</ul>
 					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>This is useful to specify instead of <a href="config.nextconfig.html#organization">NextConfig.organization</a> when your app has multiple
+							organizations, it should match <a href="handlers_login.loginoptions.html#authorizationparams">LoginOptions.authorizationParams</a>.</p>
+						</div>
+					</div>
 				</section>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
-					<a name="scope" class="tsd-anchor"></a>
-					<h3>scope</h3>
-					<div class="tsd-signature tsd-kind-icon">scope<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
+					<a name="redirecturi" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagOptional">Optional</span> redirect<wbr>Uri</h3>
+					<div class="tsd-signature tsd-kind-icon">redirect<wbr>Uri<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/ff91783/src/config.ts#L273">src/config.ts:273</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/ff91783/src/handlers/callback.ts#L80">src/handlers/callback.ts:80</a></li>
 						</ul>
 					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>This is useful to specify in addition to <a href="config.baseconfig.html#baseurl">BaseConfig.baseURL</a> when your app runs on multiple domains,
+							it should match {@Link LoginOptions.authorizationParams.redirect_uri}.</p>
+						</div>
+					</div>
 				</section>
 			</section>
 		</div>
@@ -142,7 +148,7 @@
 					<li class=" ">
 						<a href="../index.html">Exports</a>
 					</li>
-					<li class="current tsd-kind-module">
+					<li class=" tsd-kind-module">
 						<a href="../modules/config.html">config</a>
 					</li>
 					<li class=" tsd-kind-module">
@@ -160,7 +166,7 @@
 					<li class=" tsd-kind-module">
 						<a href="../modules/handlers_auth.html">handlers/auth</a>
 					</li>
-					<li class=" tsd-kind-module">
+					<li class="current tsd-kind-module">
 						<a href="../modules/handlers_callback.html">handlers/callback</a>
 					</li>
 					<li class=" tsd-kind-module">
@@ -209,35 +215,26 @@
 				</ul>
 				<ul class="current">
 					<li class="current tsd-kind-interface tsd-parent-kind-module">
-						<a href="config.authorizationparameters.html" class="tsd-kind-icon">Authorization<wbr>Parameters</a>
+						<a href="handlers_callback.callbackoptions.html" class="tsd-kind-icon">Callback<wbr>Options</a>
 						<ul>
 							<li class=" tsd-kind-property tsd-parent-kind-interface">
-								<a href="config.authorizationparameters.html#response_mode" class="tsd-kind-icon">response_<wbr>mode</a>
+								<a href="handlers_callback.callbackoptions.html#aftercallback" class="tsd-kind-icon">after<wbr>Callback</a>
 							</li>
 							<li class=" tsd-kind-property tsd-parent-kind-interface">
-								<a href="config.authorizationparameters.html#response_type" class="tsd-kind-icon">response_<wbr>type</a>
+								<a href="handlers_callback.callbackoptions.html#organization" class="tsd-kind-icon">organization</a>
 							</li>
 							<li class=" tsd-kind-property tsd-parent-kind-interface">
-								<a href="config.authorizationparameters.html#scope" class="tsd-kind-icon">scope</a>
+								<a href="handlers_callback.callbackoptions.html#redirecturi" class="tsd-kind-icon">redirect<wbr>Uri</a>
 							</li>
 						</ul>
 					</li>
 				</ul>
 				<ul class="after-current">
-					<li class=" tsd-kind-interface tsd-parent-kind-module">
-						<a href="config.baseconfig.html" class="tsd-kind-icon">Base<wbr>Config</a>
-					</li>
-					<li class=" tsd-kind-interface tsd-parent-kind-module">
-						<a href="config.cookieconfig.html" class="tsd-kind-icon">Cookie<wbr>Config</a>
-					</li>
-					<li class=" tsd-kind-interface tsd-parent-kind-module">
-						<a href="config.nextconfig.html" class="tsd-kind-icon">Next<wbr>Config</a>
-					</li>
-					<li class=" tsd-kind-interface tsd-parent-kind-module">
-						<a href="config.sessionconfig.html" class="tsd-kind-icon">Session<wbr>Config</a>
+					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
+						<a href="../modules/handlers_callback.html#aftercallback" class="tsd-kind-icon">After<wbr>Callback</a>
 					</li>
 					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
-						<a href="../modules/config.html#configparameters" class="tsd-kind-icon">Config<wbr>Parameters</a>
+						<a href="../modules/handlers_callback.html#handlecallback" class="tsd-kind-icon">Handle<wbr>Callback</a>
 					</li>
 				</ul>
 			</nav>

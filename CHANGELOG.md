@@ -1,3 +1,9 @@
+## [1.3.0](https://github.com/auth0/nextjs-auth0/tree/v1.3.0) (2021-03-26)
+
+**Added**
+
+- Organizations support [#343](https://github.com/auth0/nextjs-auth0/pull/343) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [1.2.0](https://github.com/auth0/nextjs-auth0/tree/v1.2.0) (2021-03-10)
 
 **Added**

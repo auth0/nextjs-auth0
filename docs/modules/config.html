@@ -77,6 +77,7 @@
 							<h3>server Interfaces</h3>
 							<ul class="tsd-index-list">
 								<li class="tsd-kind-interface tsd-parent-kind-module"><a href="../interfaces/config.baseconfig.html" class="tsd-kind-icon">Base<wbr>Config</a></li>
+								<li class="tsd-kind-interface tsd-parent-kind-module"><a href="../interfaces/config.nextconfig.html" class="tsd-kind-icon">Next<wbr>Config</a></li>
 							</ul>
 						</section>
 						<section class="tsd-index-section ">
@@ -93,10 +94,10 @@
 				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module">
 					<a name="configparameters" class="tsd-anchor"></a>
 					<h3>Config<wbr>Parameters</h3>
-					<div class="tsd-signature tsd-kind-icon">Config<wbr>Parameters<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">DeepPartial</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/config.baseconfig.html" class="tsd-signature-type" data-tsd-kind="Interface">BaseConfig</a><span class="tsd-signature-symbol"> &amp; </span><span class="tsd-signature-type">NextConfig</span><span class="tsd-signature-symbol">&gt;</span></div>
+					<div class="tsd-signature tsd-kind-icon">Config<wbr>Parameters<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">DeepPartial</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/config.baseconfig.html" class="tsd-signature-type" data-tsd-kind="Interface">BaseConfig</a><span class="tsd-signature-symbol"> &amp; </span><a href="../interfaces/config.nextconfig.html" class="tsd-signature-type" data-tsd-kind="Interface">NextConfig</a><span class="tsd-signature-symbol">&gt;</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/029aedf/src/config.ts#L368">src/config.ts:368</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/ff91783/src/config.ts#L378">src/config.ts:378</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -139,11 +140,12 @@
 							<li><code>AUTH0_IDP_LOGOUT</code>: See <a href="../interfaces/config.baseconfig.html#idplogout">idpLogout</a></li>
 							<li><code>AUTH0_ID_TOKEN_SIGNING_ALG</code>: See <a href="../interfaces/config.baseconfig.html#idtokensigningalg">idTokenSigningAlg</a></li>
 							<li><code>AUTH0_LEGACY_SAME_SITE_COOKIE</code>: See <a href="../interfaces/config.baseconfig.html#legacysamesitecookie">legacySameSiteCookie</a></li>
-							<li><code>NEXT_PUBLIC_AUTH0_LOGIN</code>: See {@link NextConfig.routes}</li>
+							<li><code>NEXT_PUBLIC_AUTH0_LOGIN</code>: See <a href="../interfaces/config.nextconfig.html#routes">NextConfig.routes</a></li>
 							<li><code>AUTH0_CALLBACK</code>: See <a href="../interfaces/config.baseconfig.html#routes">BaseConfig.routes</a></li>
 							<li><code>AUTH0_POST_LOGOUT_REDIRECT</code>: See <a href="../interfaces/config.baseconfig.html#routes">BaseConfig.routes</a></li>
 							<li><code>AUTH0_AUDIENCE</code>: See <a href="../interfaces/config.baseconfig.html#authorizationparams">BaseConfig.authorizationParams</a></li>
 							<li><code>AUTH0_SCOPE</code>: See <a href="../interfaces/config.baseconfig.html#authorizationparams">BaseConfig.authorizationParams</a></li>
+							<li><code>AUTH0_ORGANIZATION</code>: See <a href="../interfaces/config.nextconfig.html#organization">NextConfig.organization</a></li>
 							<li><code>AUTH0_SESSION_NAME</code>: See <a href="../interfaces/config.sessionconfig.html#name">SessionConfig.name</a></li>
 							<li><code>AUTH0_SESSION_ROLLING</code>: See <a href="../interfaces/config.sessionconfig.html#rolling">SessionConfig.rolling</a></li>
 							<li><code>AUTH0_SESSION_ROLLING_DURATION</code>: See <a href="../interfaces/config.sessionconfig.html#rollingduration">SessionConfig.rollingDuration</a></li>
@@ -256,6 +258,9 @@
 					</li>
 					<li class=" tsd-kind-interface tsd-parent-kind-module">
 						<a href="../interfaces/config.cookieconfig.html" class="tsd-kind-icon">Cookie<wbr>Config</a>
+					</li>
+					<li class=" tsd-kind-interface tsd-parent-kind-module">
+						<a href="../interfaces/config.nextconfig.html" class="tsd-kind-icon">Next<wbr>Config</a>
 					</li>
 					<li class=" tsd-kind-interface tsd-parent-kind-module">
 						<a href="../interfaces/config.sessionconfig.html" class="tsd-kind-icon">Session<wbr>Config</a>
