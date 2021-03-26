@@ -3,7 +3,7 @@
 <head>
 	<meta charset="utf-8">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
-	<title>AuthorizationParameters | @auth0/nextjs-auth0</title>
+	<title>NextConfig | @auth0/nextjs-auth0</title>
 	<meta name="description" content="Documentation for @auth0/nextjs-auth0">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<link rel="stylesheet" href="../assets/css/main.css">
@@ -56,32 +56,24 @@
 					<a href="../modules/config.html">config</a>
 				</li>
 				<li>
-					<a href="config.authorizationparameters.html">AuthorizationParameters</a>
+					<a href="config.nextconfig.html">NextConfig</a>
 				</li>
 			</ul>
-			<h1>Interface AuthorizationParameters</h1>
+			<h1>Interface NextConfig</h1>
 		</div>
 	</div>
 </header>
 <div class="container container-main">
 	<div class="row">
 		<div class="col-8 col-content">
-			<section class="tsd-panel tsd-comment">
-				<div class="tsd-comment tsd-typography">
-					<div class="lead">
-						<p>Authorization parameters that will be passed to the identity provider on login.</p>
-					</div>
-					<p>The library uses <code>response_mode: &#39;query&#39;</code> and <code>response_type: &#39;code&#39;</code> (with PKCE) by default.</p>
-				</div>
-			</section>
 			<section class="tsd-panel tsd-hierarchy">
 				<h3>Hierarchy</h3>
 				<ul class="tsd-hierarchy">
 					<li>
-						<span class="tsd-signature-type">OidcAuthorizationParameters</span>
+						<span class="tsd-signature-type">Pick</span><span class="tsd-signature-symbol">&lt;</span><a href="config.baseconfig.html" class="tsd-signature-type" data-tsd-kind="Interface">BaseConfig</a><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">&quot;identityClaimFilter&quot;</span><span class="tsd-signature-symbol">&gt;</span>
 						<ul class="tsd-hierarchy">
 							<li>
-								<span class="target">AuthorizationParameters</span>
+								<span class="target">NextConfig</span>
 							</li>
 						</ul>
 					</li>
@@ -94,9 +86,9 @@
 						<section class="tsd-index-section ">
 							<h3>Properties</h3>
 							<ul class="tsd-index-list">
-								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="config.authorizationparameters.html#response_mode" class="tsd-kind-icon">response_<wbr>mode</a></li>
-								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="config.authorizationparameters.html#response_type" class="tsd-kind-icon">response_<wbr>type</a></li>
-								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="config.authorizationparameters.html#scope" class="tsd-kind-icon">scope</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="config.nextconfig.html#identityclaimfilter" class="tsd-kind-icon">identity<wbr>Claim<wbr>Filter</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="config.nextconfig.html#organization" class="tsd-kind-icon">organization</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="config.nextconfig.html#routes" class="tsd-kind-icon">routes</a></li>
 							</ul>
 						</section>
 					</div>
@@ -105,34 +97,56 @@
 			<section class="tsd-panel-group tsd-member-group ">
 				<h2>Properties</h2>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
-					<a name="response_mode" class="tsd-anchor"></a>
-					<h3>response_<wbr>mode</h3>
-					<div class="tsd-signature tsd-kind-icon">response_<wbr>mode<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">&quot;query&quot;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">&quot;form_post&quot;</span></div>
+					<a name="identityclaimfilter" class="tsd-anchor"></a>
+					<h3>identity<wbr>Claim<wbr>Filter</h3>
+					<div class="tsd-signature tsd-kind-icon">identity<wbr>Claim<wbr>Filter<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/ff91783/src/config.ts#L274">src/config.ts:274</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/ff91783/src/config.ts#L123">src/config.ts:123</a></li>
 						</ul>
 					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>Array value of claims to remove from the ID token before storing the cookie session.
+							Default is <code>[&#39;aud&#39;, &#39;iss&#39;, &#39;iat&#39;, &#39;exp&#39;, &#39;nbf&#39;, &#39;nonce&#39;, &#39;azp&#39;, &#39;auth_time&#39;, &#39;s_hash&#39;, &#39;at_hash&#39;, &#39;c_hash&#39; ]</code></p>
+						</div>
+					</div>
 				</section>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
-					<a name="response_type" class="tsd-anchor"></a>
-					<h3>response_<wbr>type</h3>
-					<div class="tsd-signature tsd-kind-icon">response_<wbr>type<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">&quot;id_token&quot;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">&quot;code id_token&quot;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">&quot;code&quot;</span></div>
+					<a name="organization" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagOptional">Optional</span> organization</h3>
+					<div class="tsd-signature tsd-kind-icon">organization<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/ff91783/src/config.ts#L275">src/config.ts:275</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/ff91783/src/config.ts#L290">src/config.ts:290</a></li>
 						</ul>
 					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>Log users in to a specific organization (Organizations is currently a Closed Beta).</p>
+						</div>
+						<p>This will specify an <code>organization</code> parameter in your user&#39;s login request and will add a step to validate
+						the <code>org_id</code> claim in your user&#39;s ID Token.</p>
+						<p>If your app supports multiple organizations, you should take a look at <a href="handlers_login.authorizationparams.html#organization">AuthorizationParams.organization</a></p>
+					</div>
 				</section>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
-					<a name="scope" class="tsd-anchor"></a>
-					<h3>scope</h3>
-					<div class="tsd-signature tsd-kind-icon">scope<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
+					<a name="routes" class="tsd-anchor"></a>
+					<h3>routes</h3>
+					<div class="tsd-signature tsd-kind-icon">routes<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">{ </span>login<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> }</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/ff91783/src/config.ts#L273">src/config.ts:273</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/ff91783/src/config.ts#L291">src/config.ts:291</a></li>
 						</ul>
 					</aside>
+					<div class="tsd-type-declaration">
+						<h4>Type declaration</h4>
+						<ul class="tsd-parameters">
+							<li class="tsd-parameter">
+								<h5>login<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span></h5>
+							</li>
+						</ul>
+					</div>
 				</section>
 			</section>
 		</div>
@@ -206,33 +220,33 @@
 			</nav>
 			<nav class="tsd-navigation secondary menu-sticky">
 				<ul class="before-current">
-				</ul>
-				<ul class="current">
-					<li class="current tsd-kind-interface tsd-parent-kind-module">
+					<li class=" tsd-kind-interface tsd-parent-kind-module">
 						<a href="config.authorizationparameters.html" class="tsd-kind-icon">Authorization<wbr>Parameters</a>
-						<ul>
-							<li class=" tsd-kind-property tsd-parent-kind-interface">
-								<a href="config.authorizationparameters.html#response_mode" class="tsd-kind-icon">response_<wbr>mode</a>
-							</li>
-							<li class=" tsd-kind-property tsd-parent-kind-interface">
-								<a href="config.authorizationparameters.html#response_type" class="tsd-kind-icon">response_<wbr>type</a>
-							</li>
-							<li class=" tsd-kind-property tsd-parent-kind-interface">
-								<a href="config.authorizationparameters.html#scope" class="tsd-kind-icon">scope</a>
-							</li>
-						</ul>
 					</li>
-				</ul>
-				<ul class="after-current">
 					<li class=" tsd-kind-interface tsd-parent-kind-module">
 						<a href="config.baseconfig.html" class="tsd-kind-icon">Base<wbr>Config</a>
 					</li>
 					<li class=" tsd-kind-interface tsd-parent-kind-module">
 						<a href="config.cookieconfig.html" class="tsd-kind-icon">Cookie<wbr>Config</a>
 					</li>
-					<li class=" tsd-kind-interface tsd-parent-kind-module">
+				</ul>
+				<ul class="current">
+					<li class="current tsd-kind-interface tsd-parent-kind-module">
 						<a href="config.nextconfig.html" class="tsd-kind-icon">Next<wbr>Config</a>
+						<ul>
+							<li class=" tsd-kind-property tsd-parent-kind-interface">
+								<a href="config.nextconfig.html#identityclaimfilter" class="tsd-kind-icon">identity<wbr>Claim<wbr>Filter</a>
+							</li>
+							<li class=" tsd-kind-property tsd-parent-kind-interface">
+								<a href="config.nextconfig.html#organization" class="tsd-kind-icon">organization</a>
+							</li>
+							<li class=" tsd-kind-property tsd-parent-kind-interface">
+								<a href="config.nextconfig.html#routes" class="tsd-kind-icon">routes</a>
+							</li>
+						</ul>
 					</li>
+				</ul>
+				<ul class="after-current">
 					<li class=" tsd-kind-interface tsd-parent-kind-module">
 						<a href="config.sessionconfig.html" class="tsd-kind-icon">Session<wbr>Config</a>
 					</li>
