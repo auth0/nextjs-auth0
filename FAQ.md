@@ -17,7 +17,7 @@ Eg:
 
 ## 2. How can I reduce the cookie size?
 
-The SDK stores the session data in cookies. Since browsers reject cookies larger than 4 KB, the SDK breaks up lenghtier sessions into multiple cookies. However, by default Node.js [limits the header size](https://nodejs.org/en/blog/vulnerability/november-2018-security-releases/#denial-of-service-with-large-http-headers-cve-2018-12121) to 8 KB.
+The SDK stores the session data in cookies. Since browsers reject cookies larger than 4 KB, the SDK breaks up lengthier sessions into multiple cookies. However, by default Node.js [limits the header size](https://nodejs.org/en/blog/vulnerability/november-2018-security-releases/#denial-of-service-with-large-http-headers-cve-2018-12121) to 8 KB.
 
 If the session cookies are pushing the header size over the limit, **you have two options**:
 
