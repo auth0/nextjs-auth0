@@ -3,12 +3,13 @@ import { useUser, withPageAuthRequired } from '@auth0/nextjs-auth0';
 
 import Layout from '../components/layout';
 
-export default function ProtectedPage() {
+function ProtectedPage(props) {
+  // props.data === 'foo
   const { user, error, isLoading } = useUser();
 
   return (
     <Layout>
-      <h1>Protected Page</h1>
+      <h1>Protected Page {props.data}</h1>
 
       {isLoading && <p>Loading profile...</p>}
 
@@ -29,4 +30,12 @@ export default function ProtectedPage() {
   );
 }
 
-export const getServerSideProps = withPageAuthRequired();
+export default withPageAuthRequired(ProtectedPage);
+
+export async function getServerSideProps(context) {
+  const websiteData = await Promise.resolve('foo');
+
+  return {
+    props: { data: websiteData }
+  };
+}
