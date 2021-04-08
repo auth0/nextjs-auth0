@@ -37,7 +37,7 @@ export type GetLoginState = (req: NextApiRequest, options: LoginOptions) => { [k
  */
 export interface AuthorizationParams extends Partial<AuthorizationParameters> {
   /**
-   * The invitation id to join an organization (Organizations is currently a Closed Beta).
+   * The invitation id to join an organization.
    *
    * To create a link for your user's to accept an organization invite, read the `invitation` and `organization`
    * query params and pass them to the authorization server to log the user in:
