@@ -280,7 +280,7 @@ export interface AuthorizationParameters extends OidcAuthorizationParameters {
  */
 export interface NextConfig extends Pick<BaseConfig, 'identityClaimFilter'> {
   /**
-   * Log users in to a specific organization (Organizations is currently a Closed Beta).
+   * Log users in to a specific organization.
    *
    * This will specify an `organization` parameter in your user's login request and will add a step to validate
    * the `org_id` claim in your user's ID Token.
