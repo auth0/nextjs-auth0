@@ -92,7 +92,11 @@ describe('with-page-auth-required csr', () => {
     const ProtectedPage = withPageAuthRequired(MyPage, { returnTo: '/foo' });
 
     render(<ProtectedPage />, { wrapper: withUserProvider() });
-    await waitFor(() => expect(window.location.assign).toHaveBeenCalledWith(expect.stringContaining('?returnTo=/foo')));
+    await waitFor(() =>
+      expect(window.location.assign).toHaveBeenCalledWith(
+        expect.stringContaining(`?returnTo=${encodeURIComponent('/foo')}`)
+      )
+    );
   });
 
   it('should use a custom login url', async () => {
@@ -117,9 +121,24 @@ describe('with-page-auth-required csr', () => {
 
     render(<ProtectedPage />, { wrapper: withUserProvider() });
     await waitFor(() =>
-      expect(window.location.assign).toHaveBeenCalledWith(expect.stringContaining('?returnTo=/foo/bar'))
+      expect(window.location.assign).toHaveBeenCalledWith(
+        expect.stringContaining(`?returnTo=${encodeURIComponent('/foo/bar')}`)
+      )
     );
     routerMock.basePath = basePath;
     routerMock.asPath = asPath;
+  });
+
+  it('should preserve multiple query params in the returnTo URL', async () => {
+    (global as any).fetch = fetchUserUnsuccessfulMock;
+    const MyPage = (): JSX.Element => <>Private</>;
+    const ProtectedPage = withPageAuthRequired(MyPage, { returnTo: '/foo?bar=baz&qux=quux' });
+
+    render(<ProtectedPage />, { wrapper: withUserProvider() });
+    await waitFor(() => {
+      expect(window.location.assign).toHaveBeenCalled();
+    });
+    const url = new URL((window.location.assign as jest.Mock).mock.calls[0][0], 'https://example.com');
+    expect(url.searchParams.get('returnTo')).toEqual('/foo?bar=baz&qux=quux');
   });
 });
