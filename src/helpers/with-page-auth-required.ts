@@ -106,7 +106,12 @@ export default function withPageAuthRequiredFactory(loginUrl: string, getSession
         // 10 - redirect
         // 9.5.4 - unstable_redirect
         // 9.4 - res.setHeaders
-        return { redirect: { destination: `${loginUrl}?returnTo=${returnTo || ctx.resolvedUrl}`, permanent: false } };
+        return {
+          redirect: {
+            destination: `${loginUrl}?returnTo=${encodeURIComponent(returnTo || ctx.resolvedUrl)}`,
+            permanent: false
+          }
+        };
       }
       let ret: any = { props: {} };
       if (getServerSideProps) {
