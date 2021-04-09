@@ -84,7 +84,7 @@ const withPageAuthRequired: WithPageAuthRequired = (Component, options = {}) => 
 
     useEffect(() => {
       if ((user && !error) || isLoading) return;
-      window.location.assign(`${loginUrl}?returnTo=${returnTo}`);
+      window.location.assign(`${loginUrl}?returnTo=${encodeURIComponent(returnTo)}`);
     }, [user, error, isLoading]);
 
     if (error) return onError(error);
