@@ -92,7 +92,11 @@ describe('with-page-auth-required csr', () => {
     const ProtectedPage = withPageAuthRequired(MyPage, { returnTo: '/foo' });
 
     render(<ProtectedPage />, { wrapper: withUserProvider() });
-    await waitFor(() => expect(window.location.assign).toHaveBeenCalledWith(expect.stringContaining('?returnTo=/foo')));
+    await waitFor(() =>
+      expect(window.location.assign).toHaveBeenCalledWith(
+        expect.stringContaining(`?returnTo=${encodeURIComponent('/foo')}`)
+      )
+    );
   });
 
   it('should use a custom login url', async () => {
@@ -117,7 +121,9 @@ describe('with-page-auth-required csr', () => {
 
     render(<ProtectedPage />, { wrapper: withUserProvider() });
     await waitFor(() =>
-      expect(window.location.assign).toHaveBeenCalledWith(expect.stringContaining('?returnTo=/foo/bar'))
+      expect(window.location.assign).toHaveBeenCalledWith(
+        expect.stringContaining(`?returnTo=${encodeURIComponent('/foo/bar')}`)
+      )
     );
     routerMock.basePath = basePath;
     routerMock.asPath = asPath;

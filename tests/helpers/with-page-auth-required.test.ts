@@ -12,7 +12,7 @@ describe('with-page-auth-required ssr', () => {
       res: { statusCode, headers }
     } = await get(baseUrl, '/protected', { fullResponse: true });
     expect(statusCode).toBe(307);
-    expect(headers.location).toBe('/api/auth/login?returnTo=/protected');
+    expect(decodeURIComponent(headers.location)).toBe('/api/auth/login?returnTo=/protected');
   });
 
   test('allow access to a page with a valid session', async () => {
@@ -32,7 +32,7 @@ describe('with-page-auth-required ssr', () => {
       res: { statusCode, headers }
     } = await get(baseUrl, '/protected', { fullResponse: true });
     expect(statusCode).toBe(307);
-    expect(headers.location).toBe('/api/auth/login?returnTo=/foo');
+    expect(decodeURIComponent(headers.location)).toBe('/api/auth/login?returnTo=/foo');
   });
 
   test('accept custom server-side props', async () => {
@@ -57,7 +57,7 @@ describe('with-page-auth-required ssr', () => {
       res: { statusCode, headers }
     } = await get(baseUrl, '/protected', { fullResponse: true });
     expect(statusCode).toBe(307);
-    expect(headers.location).toBe('/api/foo?returnTo=/protected');
+    expect(decodeURIComponent(headers.location)).toBe('/api/foo?returnTo=/protected');
     delete process.env.NEXT_PUBLIC_AUTH0_LOGIN;
   });
 
