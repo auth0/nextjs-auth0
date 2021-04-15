@@ -1,5 +1,4 @@
 import React, { ComponentType, useEffect } from 'react';
-import { useRouter } from 'next/router';
 
 import { useConfig } from './use-config';
 import { useUser } from './use-user';
@@ -73,18 +72,22 @@ export type WithPageAuthRequired = <P extends object>(
  */
 const withPageAuthRequired: WithPageAuthRequired = (Component, options = {}) => {
   return function withPageAuthRequired(props): JSX.Element {
-    const router = useRouter();
-    const {
-      returnTo = `${router.basePath ?? ''}${router.asPath}`,
-      onRedirecting = defaultOnRedirecting,
-      onError = defaultOnError
-    } = options;
+    const { returnTo, onRedirecting = defaultOnRedirecting, onError = defaultOnError } = options;
     const { loginUrl } = useConfig();
     const { user, error, isLoading } = useUser();
 
     useEffect(() => {
       if ((user && !error) || isLoading) return;
-      window.location.assign(`${loginUrl}?returnTo=${encodeURIComponent(returnTo)}`);
+      let returnToPath: string;
+
+      if (!returnTo) {
+        const currentLocation = window.location.toString();
+        returnToPath = currentLocation.replace(new URL(currentLocation).origin, '') || '/';
+      } else {
+        returnToPath = returnTo;
+      }
+
+      window.location.assign(`${loginUrl}?returnTo=${encodeURIComponent(returnToPath)}`);
     }, [user, error, isLoading]);
 
     if (error) return onError(error);
