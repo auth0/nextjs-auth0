@@ -115,7 +115,7 @@ export default function withPageAuthRequiredFactory(loginUrl: string, getSession
       }
       let ret: any = { props: {} };
       if (getServerSideProps) {
-        ret = await getServerSideProps(ctx);
+        ret = await getServerSideProps({ ...ctx, user: session.user });
       }
       return { ...ret, props: { ...ret.props, user: session.user } };
     };
