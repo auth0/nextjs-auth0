@@ -1,3 +1,10 @@
+## [1.3.1](https://github.com/auth0/nextjs-auth0/tree/v1.3.1) (2021-05-05)
+
+**Fixed**
+
+- Use `window.location.toString()` as the default `returnTo` value [#370](https://github.com/auth0/nextjs-auth0/pull/370) ([Widcket](https://github.com/Widcket))
+- `returnTo` should be encoded as it contains url unsafe chars [#365](https://github.com/auth0/nextjs-auth0/pull/365) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [1.3.0](https://github.com/auth0/nextjs-auth0/tree/v1.3.0) (2021-03-26)
 
 **Added**
