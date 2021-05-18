@@ -54,6 +54,6 @@ export default function logoutHandlerFactory(
     res.writeHead(302, {
       Location: returnURL
     });
-    res.end();
+    res.end(returnURL);
   };
 }

@@ -62,6 +62,6 @@ export default function callbackHandlerFactory(
     res.writeHead(302, {
       Location: openidState.returnTo || config.baseURL
     });
-    res.end();
+    res.end(openidState.returnTo || config.baseURL);
   };
 }

@@ -92,6 +92,6 @@ export default function loginHandlerFactory(
     res.writeHead(302, {
       Location: authorizationUrl
     });
-    res.end();
+    res.end(authorizationUrl);
   };
 }
