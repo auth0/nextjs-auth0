@@ -132,7 +132,7 @@ You can now determine if a user is authenticated by checking that the `user` obj
 // pages/index.js
 import { useUser } from '@auth0/nextjs-auth0';
 
-export default () => {
+export default function Index() {
   const { user, error, isLoading } = useUser();
 
   if (isLoading) return <div>Loading...</div>;

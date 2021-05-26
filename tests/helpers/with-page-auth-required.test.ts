@@ -1,3 +1,4 @@
+import { URL } from 'url';
 import { login, setup, teardown } from '../fixtures/setup';
 import { withoutApi } from '../fixtures/default-settings';
 import { get } from '../auth0-session/fixtures/helpers';
@@ -11,7 +12,7 @@ describe('with-page-auth-required ssr', () => {
       res: { statusCode, headers }
     } = await get(baseUrl, '/protected', { fullResponse: true });
     expect(statusCode).toBe(307);
-    expect(headers.location).toBe('/api/auth/login?returnTo=/protected');
+    expect(decodeURIComponent(headers.location)).toBe('/api/auth/login?returnTo=/protected');
   });
 
   test('allow access to a page with a valid session', async () => {
@@ -31,7 +32,7 @@ describe('with-page-auth-required ssr', () => {
       res: { statusCode, headers }
     } = await get(baseUrl, '/protected', { fullResponse: true });
     expect(statusCode).toBe(307);
-    expect(headers.location).toBe('/api/auth/login?returnTo=/foo');
+    expect(decodeURIComponent(headers.location)).toBe('/api/auth/login?returnTo=/foo');
   });
 
   test('accept custom server-side props', async () => {
@@ -56,7 +57,7 @@ describe('with-page-auth-required ssr', () => {
       res: { statusCode, headers }
     } = await get(baseUrl, '/protected', { fullResponse: true });
     expect(statusCode).toBe(307);
-    expect(headers.location).toBe('/api/foo?returnTo=/protected');
+    expect(decodeURIComponent(headers.location)).toBe('/api/foo?returnTo=/protected');
     delete process.env.NEXT_PUBLIC_AUTH0_LOGIN;
   });
 
@@ -67,5 +68,15 @@ describe('with-page-auth-required ssr', () => {
       res: { statusCode }
     } = await get(baseUrl, '/csr-protected', { cookieJar, fullResponse: true });
     expect(statusCode).toBe(200);
+  });
+
+  test('should preserve multiple query params in the returnTo URL', async () => {
+    const baseUrl = await setup(withoutApi, { withPageAuthRequiredOptions: { returnTo: '/foo?bar=baz&qux=quux' } });
+    const {
+      res: { statusCode, headers }
+    } = await get(baseUrl, '/protected', { fullResponse: true });
+    expect(statusCode).toBe(307);
+    const url = new URL(headers.location, baseUrl);
+    expect(url.searchParams.get('returnTo')).toEqual('/foo?bar=baz&qux=quux');
   });
 });
