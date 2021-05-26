@@ -3,10 +3,6 @@ import { renderHook } from '@testing-library/react-hooks';
 import { withConfigProvider } from '../fixtures/frontend';
 import { useConfig } from '../../src/frontend/use-config';
 
-jest.mock('next/router', () => ({
-  useRouter: (): any => ({ asPath: '/' })
-}));
-
 describe('context wrapper', () => {
   test('should provide the default login url', async () => {
     const { result } = renderHook(() => useConfig(), {

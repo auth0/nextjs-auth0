@@ -11,10 +11,6 @@ import { useConfig } from '../../src/frontend';
 import { useUser, UserContext } from '../../src';
 import React from 'react';
 
-jest.mock('next/router', () => ({
-  useRouter: (): any => ({ asPath: '/' })
-}));
-
 describe('context wrapper', () => {
   afterEach(() => delete (global as any).fetch);
 

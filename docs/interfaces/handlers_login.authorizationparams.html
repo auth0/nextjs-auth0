@@ -1,0 +1,324 @@
+<!doctype html>
+<html class="default no-js">
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<title>AuthorizationParams | @auth0/nextjs-auth0</title>
+	<meta name="description" content="Documentation for @auth0/nextjs-auth0">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" href="../assets/css/main.css">
+	<script async src="../assets/js/search.js" id="search-script"></script>
+</head>
+<body>
+<header>
+	<div class="tsd-page-toolbar">
+		<div class="container">
+			<div class="table-wrap">
+				<div class="table-cell" id="tsd-search" data-index="../assets/js/search.json" data-base="..">
+					<div class="field">
+						<label for="tsd-search-field" class="tsd-widget search no-caption">Search</label>
+						<input id="tsd-search-field" type="text" />
+					</div>
+					<ul class="results">
+						<li class="state loading">Preparing search index...</li>
+						<li class="state failure">The search index is not available</li>
+					</ul>
+					<a href="../index.html" class="title">@auth0/nextjs-auth0</a>
+				</div>
+				<div class="table-cell" id="tsd-widgets">
+					<div id="tsd-filter">
+						<a href="#" class="tsd-widget options no-caption" data-toggle="options">Options</a>
+						<div class="tsd-filter-group">
+							<div class="tsd-select" id="tsd-filter-visibility">
+								<span class="tsd-select-label">All</span>
+								<ul class="tsd-select-list">
+									<li data-value="public">Public</li>
+									<li data-value="protected">Public/Protected</li>
+									<li data-value="private" class="selected">All</li>
+								</ul>
+							</div>
+							<input type="checkbox" id="tsd-filter-inherited" checked />
+							<label class="tsd-widget" for="tsd-filter-inherited">Inherited</label>
+						</div>
+					</div>
+					<a href="#" class="tsd-widget menu no-caption" data-toggle="menu">Menu</a>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="tsd-page-title">
+		<div class="container">
+			<ul class="tsd-breadcrumb">
+				<li>
+					<a href="../index.html">@auth0/nextjs-auth0</a>
+				</li>
+				<li>
+					<a href="../modules/handlers_login.html">handlers/login</a>
+				</li>
+				<li>
+					<a href="handlers_login.authorizationparams.html">AuthorizationParams</a>
+				</li>
+			</ul>
+			<h1>Interface AuthorizationParams</h1>
+		</div>
+	</div>
+</header>
+<div class="container container-main">
+	<div class="row">
+		<div class="col-8 col-content">
+			<section class="tsd-panel tsd-comment">
+				<div class="tsd-comment tsd-typography">
+					<div class="lead">
+						<p>Authorization params to pass to the login handler.</p>
+					</div>
+				</div>
+			</section>
+			<section class="tsd-panel tsd-hierarchy">
+				<h3>Hierarchy</h3>
+				<ul class="tsd-hierarchy">
+					<li>
+						<span class="tsd-signature-type">Partial</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">AuthorizationParameters</span><span class="tsd-signature-symbol">&gt;</span>
+						<ul class="tsd-hierarchy">
+							<li>
+								<span class="target">AuthorizationParams</span>
+							</li>
+						</ul>
+					</li>
+				</ul>
+			</section>
+			<section class="tsd-panel-group tsd-index-group">
+				<h2>Index</h2>
+				<section class="tsd-panel tsd-index-panel">
+					<div class="tsd-index-content">
+						<section class="tsd-index-section ">
+							<h3>Properties</h3>
+							<ul class="tsd-index-list">
+								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="handlers_login.authorizationparams.html#invitation" class="tsd-kind-icon">invitation</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="handlers_login.authorizationparams.html#organization" class="tsd-kind-icon">organization</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="handlers_login.authorizationparams.html#response_mode" class="tsd-kind-icon">response_<wbr>mode</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="handlers_login.authorizationparams.html#response_type" class="tsd-kind-icon">response_<wbr>type</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="handlers_login.authorizationparams.html#scope" class="tsd-kind-icon">scope</a></li>
+							</ul>
+						</section>
+					</div>
+				</section>
+			</section>
+			<section class="tsd-panel-group tsd-member-group ">
+				<h2>Properties</h2>
+				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
+					<a name="invitation" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagOptional">Optional</span> invitation</h3>
+					<div class="tsd-signature tsd-kind-icon">invitation<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b3e0e99/src/handlers/login.ts#L70">src/handlers/login.ts:70</a></li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>The invitation id to join an organization.</p>
+						</div>
+						<p>To create a link for your user&#39;s to accept an organization invite, read the <code>invitation</code> and <code>organization</code>
+						query params and pass them to the authorization server to log the user in:</p>
+						<pre><code class="language-js"><span style="color: #008000">// pages/api/invite.js</span>
+<span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">handleLogin</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@auth0/nextjs-auth0&#039;</span><span style="color: #000000">;</span>
+
+<span style="color: #AF00DB">export</span><span style="color: #000000"> </span><span style="color: #AF00DB">default</span><span style="color: #000000"> </span><span style="color: #0000FF">async</span><span style="color: #000000"> </span><span style="color: #0000FF">function</span><span style="color: #000000"> </span><span style="color: #795E26">invite</span><span style="color: #000000">(</span><span style="color: #001080">req</span><span style="color: #000000">, </span><span style="color: #001080">res</span><span style="color: #000000">) {</span>
+<span style="color: #000000">  </span><span style="color: #AF00DB">try</span><span style="color: #000000"> {</span>
+<span style="color: #000000">    </span><span style="color: #0000FF">const</span><span style="color: #000000"> { </span><span style="color: #0070C1">invitation</span><span style="color: #000000">, </span><span style="color: #0070C1">organization</span><span style="color: #000000"> } = </span><span style="color: #001080">req</span><span style="color: #000000">.</span><span style="color: #001080">query</span><span style="color: #000000">;</span>
+<span style="color: #000000">    </span><span style="color: #AF00DB">if</span><span style="color: #000000"> (!</span><span style="color: #001080">invitation</span><span style="color: #000000">) {</span>
+<span style="color: #000000">      </span><span style="color: #001080">res</span><span style="color: #000000">.</span><span style="color: #795E26">status</span><span style="color: #000000">(</span><span style="color: #098658">400</span><span style="color: #000000">).</span><span style="color: #795E26">end</span><span style="color: #000000">(</span><span style="color: #A31515">&#039;Missing &quot;invitation&quot; parameter&#039;</span><span style="color: #000000">);</span>
+<span style="color: #000000">    }</span>
+<span style="color: #000000">    </span><span style="color: #AF00DB">await</span><span style="color: #000000"> </span><span style="color: #795E26">handleLogin</span><span style="color: #000000">(</span><span style="color: #001080">req</span><span style="color: #000000">, </span><span style="color: #001080">res</span><span style="color: #000000">, {</span>
+<span style="color: #000000">      </span><span style="color: #001080">authorizationParams:</span><span style="color: #000000"> {</span>
+<span style="color: #000000">        </span><span style="color: #001080">invitation</span><span style="color: #000000">,</span>
+<span style="color: #000000">        </span><span style="color: #001080">organization</span>
+<span style="color: #000000">      }</span>
+<span style="color: #000000">    });</span>
+<span style="color: #000000">  } </span><span style="color: #AF00DB">catch</span><span style="color: #000000"> (</span><span style="color: #001080">error</span><span style="color: #000000">) {</span>
+<span style="color: #000000">    </span><span style="color: #001080">res</span><span style="color: #000000">.</span><span style="color: #795E26">status</span><span style="color: #000000">(</span><span style="color: #001080">error</span><span style="color: #000000">.</span><span style="color: #001080">status</span><span style="color: #000000"> || </span><span style="color: #098658">500</span><span style="color: #000000">).</span><span style="color: #795E26">end</span><span style="color: #000000">(</span><span style="color: #001080">error</span><span style="color: #000000">.</span><span style="color: #001080">message</span><span style="color: #000000">);</span>
+<span style="color: #000000">  }</span>
+<span style="color: #000000">} ;</span>
+</code></pre>
+						<p>Your invite url can then take the format:
+						<code>https://example.com/api/invite?invitation=invitation_id&amp;organization=org_id</code></p>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
+					<a name="organization" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagOptional">Optional</span> organization</h3>
+					<div class="tsd-signature tsd-kind-icon">organization<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b3e0e99/src/handlers/login.ts#L75">src/handlers/login.ts:75</a></li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>This is useful to specify instead of <a href="config.nextconfig.html#organization">NextConfig.organization</a> when your app has multiple
+							organizations, it should match <a href="handlers_callback.callbackoptions.html#organization">CallbackOptions.organization</a>.</p>
+						</div>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
+					<a name="response_mode" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagOptional">Optional</span> response_<wbr>mode</h3>
+					<div class="tsd-signature tsd-kind-icon">response_<wbr>mode<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">&quot;query&quot;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">&quot;form_post&quot;</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b3e0e99/src/auth0-session/config.ts#L247">src/auth0-session/config.ts:247</a></li>
+						</ul>
+					</aside>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
+					<a name="response_type" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagOptional">Optional</span> response_<wbr>type</h3>
+					<div class="tsd-signature tsd-kind-icon">response_<wbr>type<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">&quot;id_token&quot;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">&quot;code id_token&quot;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">&quot;code&quot;</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b3e0e99/src/auth0-session/config.ts#L248">src/auth0-session/config.ts:248</a></li>
+						</ul>
+					</aside>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
+					<a name="scope" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagOptional">Optional</span> scope</h3>
+					<div class="tsd-signature tsd-kind-icon">scope<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b3e0e99/src/auth0-session/config.ts#L246">src/auth0-session/config.ts:246</a></li>
+						</ul>
+					</aside>
+				</section>
+			</section>
+		</div>
+		<div class="col-4 col-menu menu-sticky-wrap menu-highlight">
+			<nav class="tsd-navigation primary">
+				<ul>
+					<li class=" ">
+						<a href="../index.html">Exports</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/config.html">config</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/frontend.html">frontend</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/frontend_use_user.html">frontend/use-<wbr>user</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/frontend_with_page_auth_required.html">frontend/with-<wbr>page-<wbr>auth-<wbr>required</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/handlers.html">handlers</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/handlers_auth.html">handlers/auth</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/handlers_callback.html">handlers/callback</a>
+					</li>
+					<li class="current tsd-kind-module">
+						<a href="../modules/handlers_login.html">handlers/login</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/handlers_logout.html">handlers/logout</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/handlers_profile.html">handlers/profile</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/helpers.html">helpers</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/helpers_with_api_auth_required.html">helpers/with-<wbr>api-<wbr>auth-<wbr>required</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/helpers_with_page_auth_required.html">helpers/with-<wbr>page-<wbr>auth-<wbr>required</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/instance.html">instance</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/session.html">session</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/session_get_access_token.html">session/get-<wbr>access-<wbr>token</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/session_get_session.html">session/get-<wbr>session</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/session_session.html">session/session</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/utils_errors.html">utils/errors</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/version.html">version</a>
+					</li>
+				</ul>
+			</nav>
+			<nav class="tsd-navigation secondary menu-sticky">
+				<ul class="before-current">
+				</ul>
+				<ul class="current">
+					<li class="current tsd-kind-interface tsd-parent-kind-module">
+						<a href="handlers_login.authorizationparams.html" class="tsd-kind-icon">Authorization<wbr>Params</a>
+						<ul>
+							<li class=" tsd-kind-property tsd-parent-kind-interface">
+								<a href="handlers_login.authorizationparams.html#invitation" class="tsd-kind-icon">invitation</a>
+							</li>
+							<li class=" tsd-kind-property tsd-parent-kind-interface">
+								<a href="handlers_login.authorizationparams.html#organization" class="tsd-kind-icon">organization</a>
+							</li>
+							<li class=" tsd-kind-property tsd-parent-kind-interface">
+								<a href="handlers_login.authorizationparams.html#response_mode" class="tsd-kind-icon">response_<wbr>mode</a>
+							</li>
+							<li class=" tsd-kind-property tsd-parent-kind-interface">
+								<a href="handlers_login.authorizationparams.html#response_type" class="tsd-kind-icon">response_<wbr>type</a>
+							</li>
+							<li class=" tsd-kind-property tsd-parent-kind-interface">
+								<a href="handlers_login.authorizationparams.html#scope" class="tsd-kind-icon">scope</a>
+							</li>
+						</ul>
+					</li>
+				</ul>
+				<ul class="after-current">
+					<li class=" tsd-kind-interface tsd-parent-kind-module">
+						<a href="handlers_login.loginoptions.html" class="tsd-kind-icon">Login<wbr>Options</a>
+					</li>
+					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
+						<a href="../modules/handlers_login.html#getloginstate" class="tsd-kind-icon">Get<wbr>Login<wbr>State</a>
+					</li>
+					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
+						<a href="../modules/handlers_login.html#handlelogin" class="tsd-kind-icon">Handle<wbr>Login</a>
+					</li>
+				</ul>
+			</nav>
+		</div>
+	</div>
+</div>
+<footer>
+	<div class="container">
+		<h2>Legend</h2>
+		<div class="tsd-legend-group">
+			<ul class="tsd-legend">
+				<li class="tsd-kind-function"><span class="tsd-kind-icon">Function</span></li>
+				<li class="tsd-kind-type-alias"><span class="tsd-kind-icon">Type alias</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>
+				<li class="tsd-kind-property tsd-parent-kind-interface"><span class="tsd-kind-icon">Property</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
+			</ul>
+		</div>
+	</div>
+</footer>
+<div class="overlay"></div>
+<script src="../assets/js/main.js"></script>
+</body>
+</html>
