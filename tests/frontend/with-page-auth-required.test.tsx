@@ -34,13 +34,12 @@ describe('with-page-auth-required csr', () => {
     await waitFor(() => expect(screen.queryByText('Private')).not.toBeInTheDocument());
   });
 
-  it('should allow access to a CSR page when authenticated', async () => {
-    const MyPage = (): JSX.Element => <>Private</>;
-    const ProtectedPage = withPageAuthRequired(MyPage);
+  it('should add user to props of CSR page when authenticated', async () => {
+    const ProtectedPage = withPageAuthRequired(({ user }): JSX.Element => <>{user.email}</>);
 
     render(<ProtectedPage />, { wrapper: withUserProvider({ user }) });
     await waitFor(() => expect(window.location.assign).not.toHaveBeenCalled());
-    await waitFor(() => expect(screen.getByText('Private')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('foo@example.com')).toBeInTheDocument());
   });
 
   it('should show an empty element when redirecting', async () => {

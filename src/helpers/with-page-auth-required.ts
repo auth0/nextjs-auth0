@@ -2,7 +2,10 @@ import { GetServerSideProps, GetServerSidePropsContext, GetServerSidePropsResult
 import { Claims, GetSession } from '../session';
 import { assertCtx } from '../utils/assert';
 import React, { ComponentType } from 'react';
-import { WithPageAuthRequiredOptions as WithPageAuthRequiredCSROptions } from '../frontend/with-page-auth-required';
+import {
+  WithPageAuthRequiredOptions as WithPageAuthRequiredCSROptions,
+  WithPageAuthRequiredProps
+} from '../frontend/with-page-auth-required';
 import { withPageAuthRequired as withPageAuthRequiredCSR } from '../frontend';
 
 /**
@@ -81,7 +84,7 @@ export type WithPageAuthRequiredOptions = { getServerSideProps?: GetServerSidePr
  */
 export type WithPageAuthRequired = {
   (opts?: WithPageAuthRequiredOptions): PageRoute;
-  <P extends { [key: string]: any }>(
+  <P extends WithPageAuthRequiredProps>(
     Component: ComponentType<P>,
     options?: WithPageAuthRequiredCSROptions
   ): React.FC<P>;
@@ -92,7 +95,7 @@ export type WithPageAuthRequired = {
  */
 export default function withPageAuthRequiredFactory(loginUrl: string, getSession: GetSession): WithPageAuthRequired {
   return (
-    optsOrComponent: WithPageAuthRequiredOptions | ComponentType = {},
+    optsOrComponent: WithPageAuthRequiredOptions | ComponentType<WithPageAuthRequiredProps> = {},
     csrOpts?: WithPageAuthRequiredCSROptions
   ): any => {
     if (typeof optsOrComponent === 'function') {

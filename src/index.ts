@@ -99,15 +99,21 @@ export const initAuth0: InitAuth0 = (params) => {
 export const getSession: GetSession = (...args) => getInstance().getSession(...args);
 export const getAccessToken: GetAccessToken = (...args) => getInstance().getAccessToken(...args);
 export const withApiAuthRequired: WithApiAuthRequired = (...args) => getInstance().withApiAuthRequired(...args);
-export const withPageAuthRequired: WithPageAuthRequired = (...args: any[]): any =>
-  withPageAuthRequiredFactory(getLoginUrl(), getSession)(...args);
+export const withPageAuthRequired: WithPageAuthRequired = withPageAuthRequiredFactory(getLoginUrl(), getSession);
 export const handleLogin: HandleLogin = (...args) => getInstance().handleLogin(...args);
 export const handleLogout: HandleLogout = (...args) => getInstance().handleLogout(...args);
 export const handleCallback: HandleCallback = (...args) => getInstance().handleCallback(...args);
 export const handleProfile: HandleProfile = (...args) => getInstance().handleProfile(...args);
 export const handleAuth: HandleAuth = (...args) => getInstance().handleAuth(...args);
 
-export { UserProvider, UserProviderProps, UserProfile, UserContext, useUser } from './frontend';
+export {
+  UserProvider,
+  UserProviderProps,
+  UserProfile,
+  UserContext,
+  useUser,
+  WithPageAuthRequiredProps
+} from './frontend';
 
 export {
   ConfigParameters,
