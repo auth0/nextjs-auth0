@@ -1,7 +1,7 @@
 import React, { ComponentType, useEffect } from 'react';
 
 import { useConfig } from './use-config';
-import { useUser } from './use-user';
+import { useUser, UserProfile } from './use-user';
 
 /**
  * @ignore
@@ -52,6 +52,14 @@ export interface WithPageAuthRequiredOptions {
 }
 
 /**
+ * @ignore
+ */
+export interface WithPageAuthRequiredProps {
+  user: UserProfile;
+  [key: string]: any;
+}
+
+/**
  * ```js
  * const MyProtectedPage = withPageAuthRequired(MyPage);
  * ```
@@ -61,11 +69,10 @@ export interface WithPageAuthRequiredOptions {
  *
  * @category Client
  */
-// eslint-disable-next-line @typescript-eslint/ban-types
-export type WithPageAuthRequired = <P extends object>(
+export type WithPageAuthRequired = <P extends WithPageAuthRequiredProps>(
   Component: ComponentType<P>,
   options?: WithPageAuthRequiredOptions
-) => React.FC<P>;
+) => React.FC<Omit<P, 'user'>>;
 
 /**
  * @ignore
@@ -91,7 +98,7 @@ const withPageAuthRequired: WithPageAuthRequired = (Component, options = {}) => 
     }, [user, error, isLoading]);
 
     if (error) return onError(error);
-    if (user) return <Component {...props} />;
+    if (user) return <Component user={user} {...(props as any)} />;
 
     return onRedirecting();
   };
