@@ -209,8 +209,8 @@ function App({ Component, pageProps }) {
 
 Also, any links to login or logout should include the `basePath`:
 
-```js
-<a href="/foo/api/auth/login">Login</a>
+```html
+<a href="/foo/api/auth/login">Login</a><br />
 <a href="/foo/api/auth/logout">Logout</a>
 ```
 
