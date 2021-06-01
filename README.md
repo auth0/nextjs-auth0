@@ -17,6 +17,7 @@ The Auth0 Next.js SDK is a library for implementing user authentication in Next.
   - [API Reference](#api-reference)
   - [v1 Migration Guide](./V1_MIGRATION_GUIDE.md)
   - [Cookies and Security](#cookies-and-security)
+  - [Base Path and Internationalized Routing](#base-path-and-internationalized-routing)
   - [Architecture](./ARCHITECTURE.md)
   - [Comparison with auth0-react](#comparison-with-auth0-react)
   - [Testing](#testing)
@@ -45,7 +46,7 @@ This library supports the following tooling versions:
 
 Create a **Regular Web Application** in the [Auth0 Dashboard](https://manage.auth0.com/#/applications).
 
-> **If you're using an existing application**, verify that you  have configured the following settings in your Regular Web Application:
+> **If you're using an existing application**, verify that you have configured the following settings in your Regular Web Application:
 >
 > - Click on the "Settings" tab of your application's page.
 > - Scroll down and click on the "Show Advanced Settings" link.
@@ -147,7 +148,7 @@ export default function Index() {
   }
 
   return <a href="/api/auth/login">Login</a>;
-};
+}
 ```
 
 For other comprehensive examples, see the [EXAMPLES.md](./EXAMPLES.md) document.
@@ -186,6 +187,57 @@ All cookies will be set to `HttpOnly, SameSite=Lax` and will be set to `Secure` 
 The `HttpOnly` setting will make sure that client-side JavaScript is unable to access the cookie to reduce the attack surface of [XSS attacks](https://auth0.com/blog/developers-guide-to-common-vulnerabilities-and-how-to-prevent-them/#Cross-Site-Scripting--XSS-).
 
 The `SameSite=Lax` setting will help mitigate CSRF attacks. Learn more about SameSite by reading the ["Upcoming Browser Behavior Changes: What Developers Need to Know"](https://auth0.com/blog/browser-behavior-changes-what-developers-need-to-know/) blog post.
+
+### Base Path and Internationalized Routing
+
+With Next.js you can deploy a Next.js application under a sub-path of a domain using [Base Path](https://nextjs.org/docs/api-reference/next.config.js/basepath) and serve internationalized (i18n) routes using [Internationalized Routing](https://nextjs.org/docs/advanced-features/i18n-routing).
+
+If you use these features the urls of your application will change and so the urls to the nextjs-auth0 routes will change. To accommodate this there are various places in the SDK that you can customise the url.
+
+For example if `basePath: '/foo'` you should prepend this to the `loginUrl` and `profileUrl` specified in your `Auth0Provider`
+
+```jsx
+// _app.jsx
+function App({ Component, pageProps }) {
+  return (
+    <UserProvider loginUrl="/foo/api/auth/login" profileUrl="/foo/api/auth/me">
+      <Component {...pageProps} />
+    </UserProvider>
+  );
+}
+```
+
+Also, any links to login or logout should include the `basePath`:
+
+```html
+<a href="/foo/api/auth/login">Login</a><br />
+<a href="/foo/api/auth/logout">Logout</a>
+```
+
+You should configure [baseUrl](https://auth0.github.io/nextjs-auth0/interfaces/config.baseconfig.html#baseurl) (or the `AUTH0_BASE_URL` environment variable) eg
+
+```shell
+# .env.local
+AUTH0_BASE_URL=http://localhost:3000/foo
+```
+
+For any pages that are protected with the Server Side [withPageAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_page_auth_required.html#withpageauthrequired) you should update the `returnTo` parameter depending on the `basePath` and `locale` if necessary.
+
+```js
+// ./pages/my-ssr-page.jsx
+export default MySsrPage = () => <></>;
+
+const getFullReturnTo = (ctx) => {
+  // TODO: implement getFullReturnTo based on the ctx.resolvedUrl, ctx.locale
+  // and your next.config.js's basePath and i18n settings.
+  return '/foo/en-US/my-ssr-page';
+};
+
+export const getServerSideProps = (ctx) => {
+  const returnTo = getFullReturnTo(ctx.req);
+  return withPageAuthRequired({ returnTo })(ctx);
+};
+```
 
 ### Comparison with the Auth0 React SDK
 
