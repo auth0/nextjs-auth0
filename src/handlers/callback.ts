@@ -22,7 +22,7 @@ import { NextConfig } from '../config';
  *   return session;
  * };
  *
- * export handleAuth({
+ * export default handleAuth({
  *   async callback(req, res) {
  *     try {
  *       await handleCallback(req, res, { afterCallback });
@@ -45,7 +45,7 @@ import { NextConfig } from '../config';
  *   return session;
  * };
  *
- * export handleAuth({
+ * export default handleAuth({
  *   async callback(req, res) {
  *     try {
  *       await handleCallback(req, res, { afterCallback });
