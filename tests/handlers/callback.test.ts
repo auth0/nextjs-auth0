@@ -89,6 +89,13 @@ describe('callback handler', () => {
     ).rejects.toThrow('unexpected iss value, expected https://acme.auth0.local/, got: other-issuer');
   });
 
+  it('should escape html in error qp', async () => {
+    const baseUrl = await setup(withoutApi);
+    await expect(get(baseUrl, `/api/auth/callback?error=<script>alert(1)</script>`)).rejects.toThrow(
+      '&lt;script&gt;alert(1)&lt;/script&gt;'
+    );
+  });
+
   test('should create the session without OIDC claims', async () => {
     const baseUrl = await setup(withoutApi);
     const state = encodeState({ returnTo: baseUrl });
