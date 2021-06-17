@@ -239,14 +239,6 @@ describe('callback', () => {
     expect(session.claims).toEqual(expect.objectContaining(expected));
   });
 
-  it('should escape html in error qp', async () => {
-    const baseURL = await setup(defaultConfig);
-
-    await expect(get(baseURL, '/callback?error=<script>alert(1)</script>')).rejects.toThrowError(
-      '&lt;script&gt;alert(1)&lt;/script&gt;'
-    );
-  });
-
   it("should expose all tokens when id_token is valid and response_type is 'code id_token'", async () => {
     const baseURL = await setup({
       ...defaultConfig,
