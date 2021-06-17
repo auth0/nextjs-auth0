@@ -1,7 +1,17 @@
 import { parse } from 'cookie';
-import { parse as parseUrl } from 'url';
+import { parse as parseUrl, URL } from 'url';
 import { withoutApi } from '../fixtures/default-settings';
 import { setup, teardown, login } from '../fixtures/setup';
+import { IncomingMessage } from 'http';
+
+jest.mock('../../src/utils/assert', () => ({
+  assertReqRes(req: IncomingMessage) {
+    if (req.url?.includes('error=')) {
+      const url = new URL(req.url, 'http://example.com');
+      throw new Error(url.searchParams.get('error') as string);
+    }
+  }
+}));
 
 describe('logout handler', () => {
   afterEach(teardown);
@@ -87,5 +97,13 @@ describe('logout handler', () => {
       'Max-Age': '0',
       Path: '/'
     });
+  });
+
+  test('should escape html in errors', async () => {
+    const baseUrl = await setup(withoutApi);
+
+    const res = await fetch(`${baseUrl}/api/auth/logout?error=%3Cscript%3Ealert(%27xss%27)%3C%2Fscript%3E`);
+
+    expect(await res.text()).toEqual('&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;');
   });
 });
