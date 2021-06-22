@@ -2,6 +2,8 @@ import React, { ReactElement, useState, useEffect, useCallback, useContext, crea
 
 import ConfigProvider, { ConfigContext } from './use-config';
 
+import { bool } from '../config';
+
 /**
  * The user claims returned from the {@link useUser} hook.
  *
@@ -61,7 +63,9 @@ export type UserContext = {
  *
  * @category Client
  */
-export type UserProviderProps = React.PropsWithChildren<{ user?: UserProfile; profileUrl?: string } & ConfigContext>;
+export type UserProviderProps = React.PropsWithChildren<
+  { user?: UserProfile; profileUrl?: string; includeCredentials?: boolean } & ConfigContext
+>;
 
 /**
  * @ignore
@@ -134,13 +138,15 @@ export default ({
   children,
   user: initialUser,
   profileUrl = process.env.NEXT_PUBLIC_AUTH0_PROFILE || '/api/auth/me',
-  loginUrl
+  loginUrl,
+  includeCredentials = bool(process.env.NEXT_PUBLIC_AUTH0_INCLUDE_CREDENTIALS, false)
 }: UserProviderProps): ReactElement<UserContext> => {
   const [state, setState] = useState<UserProviderState>({ user: initialUser, isLoading: !initialUser });
 
   const checkSession = useCallback(async (): Promise<void> => {
     try {
-      const response = await fetch(profileUrl);
+      const credentials = includeCredentials ? 'include' : 'same-origin';
+      const response = await fetch(profileUrl, { credentials });
       const user = response.ok ? await response.json() : undefined;
       setState((previous) => ({ ...previous, user, error: undefined }));
     } catch (_e) {
