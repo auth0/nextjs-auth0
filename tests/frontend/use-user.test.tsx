@@ -75,7 +75,7 @@ describe('context wrapper', () => {
     });
 
     await waitForValueToChange(() => result.current.isLoading);
-    expect(fetchSpy).toHaveBeenCalledWith('/api/auth/me', expect.anything());
+    expect(fetchSpy).toHaveBeenCalledWith('/api/auth/me');
   });
 
   test('should accept a custom profile url', async () => {
@@ -86,7 +86,7 @@ describe('context wrapper', () => {
     });
 
     await waitForValueToChange(() => result.current.isLoading);
-    expect(fetchSpy).toHaveBeenCalledWith('/api/custom-url', expect.anything());
+    expect(fetchSpy).toHaveBeenCalledWith('/api/custom-url');
   });
 
   test('should use a custom profile url from an environment variable', async () => {
@@ -98,7 +98,7 @@ describe('context wrapper', () => {
     });
 
     await waitForValueToChange(() => result.current.isLoading);
-    expect(fetchSpy).toHaveBeenCalledWith('/api/custom-url', expect.anything());
+    expect(fetchSpy).toHaveBeenCalledWith('/api/custom-url');
     delete process.env.NEXT_PUBLIC_AUTH0_PROFILE;
   });
 
@@ -158,51 +158,19 @@ describe('context wrapper', () => {
     expect(result.current.user).toEqual({ foo: 'bar' });
   });
 
-  test('should use the default includeCredentials behaviour', async () => {
-    const fetchSpy = jest.fn().mockReturnValue(Promise.resolve());
+  test('should use the override fetch behaviour', async () => {
+    const fetchSpy = jest.fn();
     (global as any).fetch = fetchSpy;
+
+    const customFetcher = jest.fn().mockReturnValue(Promise.resolve());
+
     const { result, waitForValueToChange } = renderHook(() => useUser(), {
-      wrapper: withUserProvider()
+      wrapper: withUserProvider({ fetcher: customFetcher })
     });
 
     await waitForValueToChange(() => result.current.isLoading);
-    expect(fetchSpy).toHaveBeenCalledWith(expect.anything(), { credentials: 'same-origin' });
-  });
 
-  test('should accept a includeCredentials boolean', async () => {
-    const fetchSpy = jest.fn().mockReturnValue(Promise.resolve());
-    (global as any).fetch = fetchSpy;
-    const { result, waitForValueToChange } = renderHook(() => useUser(), {
-      wrapper: withUserProvider({ includeCredentials: true })
-    });
-
-    await waitForValueToChange(() => result.current.isLoading);
-    expect(fetchSpy).toHaveBeenCalledWith(expect.anything(), { credentials: 'include' });
-  });
-
-  test('should use an includeCredentials truthy value from an environment variable', async () => {
-    process.env.NEXT_PUBLIC_AUTH0_INCLUDE_CREDENTIALS = 'true';
-    const fetchSpy = jest.fn().mockReturnValue(Promise.resolve());
-    (global as any).fetch = fetchSpy;
-    const { result, waitForValueToChange } = renderHook(() => useUser(), {
-      wrapper: withUserProvider()
-    });
-
-    await waitForValueToChange(() => result.current.isLoading);
-    expect(fetchSpy).toHaveBeenCalledWith(expect.anything(), { credentials: 'include' });
-    delete process.env.NEXT_PUBLIC_AUTH0_INCLUDE_CREDENTIALS;
-  });
-
-  test('should use includeCredentials falsy value from an environment variable', async () => {
-    process.env.NEXT_PUBLIC_AUTH0_INCLUDE_CREDENTIALS = 'false';
-    const fetchSpy = jest.fn().mockReturnValue(Promise.resolve());
-    (global as any).fetch = fetchSpy;
-    const { result, waitForValueToChange } = renderHook(() => useUser(), {
-      wrapper: withUserProvider()
-    });
-
-    await waitForValueToChange(() => result.current.isLoading);
-    expect(fetchSpy).toHaveBeenCalledWith(expect.anything(), { credentials: 'same-origin' });
-    delete process.env.NEXT_PUBLIC_AUTH0_INCLUDE_CREDENTIALS;
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(customFetcher).toHaveBeenCalledWith('/api/auth/me');
   });
 });
