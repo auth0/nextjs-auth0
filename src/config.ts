@@ -385,7 +385,7 @@ const FALSEY = ['n', 'no', 'false', '0', 'off'];
 /**
  * @ignore
  */
-export const bool = (param?: unknown, defaultValue?: boolean): boolean | undefined => {
+const bool = (param?: any, defaultValue?: boolean): boolean | undefined => {
   if (param === undefined || param === '') return defaultValue;
   if (param && typeof param === 'string') return !FALSEY.includes(param.toLowerCase().trim());
   return !!param;

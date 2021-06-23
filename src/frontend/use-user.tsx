@@ -2,8 +2,6 @@ import React, { ReactElement, useState, useEffect, useCallback, useContext, crea
 
 import ConfigProvider, { ConfigContext } from './use-config';
 
-import { bool } from '../config';
-
 /**
  * The user claims returned from the {@link useUser} hook.
  *
@@ -31,6 +29,11 @@ export type UserContext = {
   isLoading: boolean;
   checkSession: () => Promise<void>;
 };
+
+/**
+ * @ignore
+ */
+type UserFetcher = (url: string) => Promise<UserProfile | undefined>;
 
 /**
  * Configure the {@link UserProvider} component.
@@ -64,7 +67,7 @@ export type UserContext = {
  * @category Client
  */
 export type UserProviderProps = React.PropsWithChildren<
-  { user?: UserProfile; profileUrl?: string; includeCredentials?: boolean } & ConfigContext
+  { user?: UserProfile; profileUrl?: string; fetcher?: UserFetcher } & ConfigContext
 >;
 
 /**
@@ -134,20 +137,26 @@ type UserProviderState = {
   isLoading: boolean;
 };
 
+/**
+ * @ignore
+ */
+const userFetcher: UserFetcher = async (url) => {
+  const response = await fetch(url);
+  return response.ok ? response.json() : undefined;
+};
+
 export default ({
   children,
   user: initialUser,
   profileUrl = process.env.NEXT_PUBLIC_AUTH0_PROFILE || '/api/auth/me',
   loginUrl,
-  includeCredentials = bool(process.env.NEXT_PUBLIC_AUTH0_INCLUDE_CREDENTIALS, false)
+  fetcher = userFetcher
 }: UserProviderProps): ReactElement<UserContext> => {
   const [state, setState] = useState<UserProviderState>({ user: initialUser, isLoading: !initialUser });
 
   const checkSession = useCallback(async (): Promise<void> => {
     try {
-      const credentials = includeCredentials ? 'include' : 'same-origin';
-      const response = await fetch(profileUrl, { credentials });
-      const user = response.ok ? await response.json() : undefined;
+      const user = await fetcher(profileUrl);
       setState((previous) => ({ ...previous, user, error: undefined }));
     } catch (_e) {
       const error = new Error(`The request to ${profileUrl} failed`);

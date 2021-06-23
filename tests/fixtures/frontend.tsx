@@ -22,16 +22,10 @@ export const withUserProvider = ({
   user,
   profileUrl,
   loginUrl,
-  includeCredentials
+  fetcher
 }: UserProviderProps = {}): React.ComponentType => {
   return (props: any): React.ReactElement => (
-    <UserProvider
-      {...props}
-      user={user}
-      profileUrl={profileUrl}
-      loginUrl={loginUrl}
-      includeCredentials={includeCredentials}
-    />
+    <UserProvider {...props} user={user} profileUrl={profileUrl} loginUrl={loginUrl} fetcher={fetcher} />
   );
 };
 
