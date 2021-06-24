@@ -1,4 +1,4 @@
-## [1.4.1](https://github.com/auth0/nextjs-auth0/tree/v1.4.1) (2021-06-24)
+## [1.4.2](https://github.com/auth0/nextjs-auth0/tree/v1.4.2) (2021-06-24)
 
 **Fixed**
 
