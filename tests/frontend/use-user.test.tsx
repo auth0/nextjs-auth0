@@ -162,7 +162,8 @@ describe('context wrapper', () => {
     const fetchSpy = jest.fn();
     (global as any).fetch = fetchSpy;
 
-    const customFetcher = jest.fn().mockReturnValue(Promise.resolve());
+    const returnValue = 'foo';
+    const customFetcher = jest.fn().mockReturnValue(Promise.resolve(returnValue));
 
     const { result, waitForValueToChange } = renderHook(() => useUser(), {
       wrapper: withUserProvider({ fetcher: customFetcher })
@@ -172,5 +173,6 @@ describe('context wrapper', () => {
 
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(customFetcher).toHaveBeenCalledWith('/api/auth/me');
+    expect(result.current.user).toBe(returnValue);
   });
 });
