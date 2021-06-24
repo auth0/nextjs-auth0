@@ -377,7 +377,7 @@ describe('callback', () => {
     const redirectUri = 'http://messi:3000/api/auth/callback/runtime';
     const baseURL = await setup(defaultConfig, { callbackOptions: { redirectUri } });
     const state = encodeState({ foo: 'bar' });
-    const cookieJar = toSignedCookieJar( { state, nonce: '__test_nonce__' }, baseURL);
+    const cookieJar = toSignedCookieJar({ state, nonce: '__test_nonce__' }, baseURL);
     const { res } = await post(baseURL, '/callback', {
       body: {
         state: state,

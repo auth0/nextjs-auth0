@@ -17,6 +17,7 @@ The Auth0 Next.js SDK is a library for implementing user authentication in Next.
   - [API Reference](#api-reference)
   - [v1 Migration Guide](./V1_MIGRATION_GUIDE.md)
   - [Cookies and Security](#cookies-and-security)
+  - [Error Handling and Security](#error-handling-and-security)
   - [Base Path and Internationalized Routing](#base-path-and-internationalized-routing)
   - [Architecture](./ARCHITECTURE.md)
   - [Comparison with auth0-react](#comparison-with-auth0-react)
@@ -187,6 +188,22 @@ All cookies will be set to `HttpOnly, SameSite=Lax` and will be set to `Secure` 
 The `HttpOnly` setting will make sure that client-side JavaScript is unable to access the cookie to reduce the attack surface of [XSS attacks](https://auth0.com/blog/developers-guide-to-common-vulnerabilities-and-how-to-prevent-them/#Cross-Site-Scripting--XSS-).
 
 The `SameSite=Lax` setting will help mitigate CSRF attacks. Learn more about SameSite by reading the ["Upcoming Browser Behavior Changes: What Developers Need to Know"](https://auth0.com/blog/browser-behavior-changes-what-developers-need-to-know/) blog post.
+
+### Error Handling and Security
+
+The default server side error handler for the `/api/auth/*` routes prints the error message to screen, eg
+
+```js
+try {
+  await handler(req, res);
+} catch (error) {
+  res.status(error.status || 400).end(error.message);
+}
+```
+
+Because the error can come from the OpenID Connect `error` query parameter we do some [basic escaping](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html#rule-1-html-encode-before-inserting-untrusted-data-into-html-element-content) which makes sure the default error handler is safe from XSS.
+
+If you write your own error handler, you should **not** render the error message without using a templating engine that will properly escape it for other HTML contexts first.
 
 ### Base Path and Internationalized Routing
 
