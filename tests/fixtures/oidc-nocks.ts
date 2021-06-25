@@ -4,6 +4,16 @@ import { ConfigParameters } from '../../src';
 import { makeIdToken } from '../auth0-session/fixtures/cert';
 
 export function discovery(params: ConfigParameters, discoveryOptions?: any): nock.Scope {
+  const { error, ...metadata } = discoveryOptions || {};
+
+  if (error) {
+    return nock(params.issuerBaseURL as string)
+      .get('/.well-known/openid-configuration')
+      .reply(500, { error })
+      .get('/.well-known/oauth-authorization-server')
+      .reply(500, { error });
+  }
+
   return nock(params.issuerBaseURL as string)
     .get('/.well-known/openid-configuration')
     .reply(200, () => {
@@ -50,7 +60,7 @@ export function discovery(params: ConfigParameters, discoveryOptions?: any): noc
           'picture',
           'sub'
         ],
-        ...(discoveryOptions || {})
+        ...metadata
       };
     });
 }

@@ -1,3 +1,9 @@
+## [1.4.2](https://github.com/auth0/nextjs-auth0/tree/v1.4.2) (2021-06-24)
+
+**Fixed**
+
+- Fix reflected XSS from the callback handler's error query parameter [CVE-2021-32702](https://github.com/auth0/nextjs-auth0/security/advisories/GHSA-954c-jjx6-cxv7) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [1.4.0](https://github.com/auth0/nextjs-auth0/tree/v1.4.0) (2021-06-03)
 
 **Added**
