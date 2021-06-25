@@ -1,4 +1,4 @@
-# @auth0/nextjs-auth0
+# @auth0/nextjs-auth0 (tmp)
 
 The Auth0 Next.js SDK is a library for implementing user authentication in Next.js applications.
 
