@@ -3,6 +3,7 @@ import { AuthorizationParameters, HandleLogin as BaseHandleLogin } from '../auth
 import isSafeRedirect from '../utils/url-helpers';
 import { assertReqRes } from '../utils/assert';
 import { NextConfig } from '../config';
+import { HandlerError } from '../utils/errors';
 
 /**
  * Use this to store additional state for the user before they visit the Identity Provider to login.
@@ -109,23 +110,27 @@ export type HandleLogin = (req: NextApiRequest, res: NextApiResponse, options?: 
  */
 export default function handleLoginFactory(handler: BaseHandleLogin, nextConfig: NextConfig): HandleLogin {
   return async (req, res, options = {}): Promise<void> => {
-    assertReqRes(req, res);
-    if (req.query.returnTo) {
-      const returnTo = Array.isArray(req.query.returnTo) ? req.query.returnTo[0] : req.query.returnTo;
+    try {
+      assertReqRes(req, res);
+      if (req.query.returnTo) {
+        const returnTo = Array.isArray(req.query.returnTo) ? req.query.returnTo[0] : req.query.returnTo;
 
-      if (!isSafeRedirect(returnTo)) {
-        throw new Error('Invalid value provided for returnTo, must be a relative url');
+        if (!isSafeRedirect(returnTo)) {
+          throw new Error('Invalid value provided for returnTo, must be a relative url');
+        }
+
+        options = { ...options, returnTo };
+      }
+      if (nextConfig.organization) {
+        options = {
+          ...options,
+          authorizationParams: { organization: nextConfig.organization, ...options.authorizationParams }
+        };
       }
 
-      options = { ...options, returnTo };
+      return await handler(req, res, options);
+    } catch (e) {
+      throw new HandlerError(e);
     }
-    if (nextConfig.organization) {
-      options = {
-        ...options,
-        authorizationParams: { organization: nextConfig.organization, ...options.authorizationParams }
-      };
-    }
-
-    return handler(req, res, options);
   };
 }

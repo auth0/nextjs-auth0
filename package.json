@@ -1,6 +1,6 @@
 {
   "name": "@auth0/nextjs-auth0",
-  "version": "1.4.0",
+  "version": "1.4.2",
   "description": "Next.js SDK for signing in with Auth0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -20,7 +20,7 @@
     "pretty": "prettier --write \"src/**/*.{ts,tsx}\" \"src/*.ts\"",
     "lint": "eslint --fix --ext .ts ./src",
     "docs": "typedoc --options typedoc.js src",
-    "prepublish": "npm run build",
+    "prepack": "npm run build",
     "prepublishOnly": "npm test && npm run lint",
     "install:basic": "npm i --prefix=examples/basic-example --no-package-lock",
     "install:kitchen-sink": "npm i --prefix=examples/kitchen-sink-example --no-package-lock",

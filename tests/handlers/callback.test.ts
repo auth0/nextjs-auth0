@@ -89,6 +89,13 @@ describe('callback handler', () => {
     ).rejects.toThrow('unexpected iss value, expected https://acme.auth0.local/, got: other-issuer');
   });
 
+  it('should escape html in error qp', async () => {
+    const baseUrl = await setup(withoutApi);
+    await expect(get(baseUrl, `/api/auth/callback?error=%3Cscript%3Ealert(%27xss%27)%3C%2Fscript%3E`)).rejects.toThrow(
+      '&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;'
+    );
+  });
+
   test('should create the session without OIDC claims', async () => {
     const baseUrl = await setup(withoutApi);
     const state = encodeState({ returnTo: baseUrl });
@@ -322,7 +329,9 @@ describe('callback handler', () => {
         },
         cookieJar
       )
-    ).rejects.toThrow('Organization Id (org_id) claim value mismatch in the ID token; expected "foo", found "bar"');
+    ).rejects.toThrow(
+      'Organization Id (org_id) claim value mismatch in the ID token; expected &quot;foo&quot;, found &quot;bar&quot;'
+    );
   });
 
   test('accepts a valid organization', async () => {
