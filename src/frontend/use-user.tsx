@@ -31,6 +31,11 @@ export type UserContext = {
 };
 
 /**
+ * @ignore
+ */
+type UserFetcher = (url: string) => Promise<UserProfile | undefined>;
+
+/**
  * Configure the {@link UserProvider} component.
  *
  * If you have any server-side rendered pages (eg. using `getServerSideProps`), you should get the user from the server
@@ -61,7 +66,9 @@ export type UserContext = {
  *
  * @category Client
  */
-export type UserProviderProps = React.PropsWithChildren<{ user?: UserProfile; profileUrl?: string } & ConfigContext>;
+export type UserProviderProps = React.PropsWithChildren<
+  { user?: UserProfile; profileUrl?: string; fetcher?: UserFetcher } & ConfigContext
+>;
 
 /**
  * @ignore
@@ -130,18 +137,26 @@ type UserProviderState = {
   isLoading: boolean;
 };
 
+/**
+ * @ignore
+ */
+const userFetcher: UserFetcher = async (url) => {
+  const response = await fetch(url);
+  return response.ok ? response.json() : undefined;
+};
+
 export default ({
   children,
   user: initialUser,
   profileUrl = process.env.NEXT_PUBLIC_AUTH0_PROFILE || '/api/auth/me',
-  loginUrl
+  loginUrl,
+  fetcher = userFetcher
 }: UserProviderProps): ReactElement<UserContext> => {
   const [state, setState] = useState<UserProviderState>({ user: initialUser, isLoading: !initialUser });
 
   const checkSession = useCallback(async (): Promise<void> => {
     try {
-      const response = await fetch(profileUrl);
-      const user = response.ok ? await response.json() : undefined;
+      const user = await fetcher(profileUrl);
       setState((previous) => ({ ...previous, user, error: undefined }));
     } catch (_e) {
       const error = new Error(`The request to ${profileUrl} failed`);
