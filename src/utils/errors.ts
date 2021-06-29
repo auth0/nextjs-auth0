@@ -9,7 +9,7 @@ export class AccessTokenError extends Error {
   public code: string;
 
   constructor(code: string, message: string) {
-    super(message);
+    super(message) /* istanbul ignore next */;
 
     // Saving class name in the property of our custom error as a shortcut.
     this.name = this.constructor.name;
@@ -49,7 +49,7 @@ export class HandlerError extends Error {
   public code: string | undefined;
 
   constructor(error: Error | AccessTokenError | HttpError) {
-    super(htmlSafe(error.message));
+    super(htmlSafe(error.message)) /* istanbul ignore next */;
 
     this.name = error.name;
 
