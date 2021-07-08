@@ -151,7 +151,7 @@ export default function Profile({ user }) {
 export const getServerSideProps = withPageAuthRequired();
 ```
 
-See a running example of a [SSR protected page](./examples/kitchen-sink-example/pages/profile-ssr.tsx) in the kitchen-sink example app.
+See a running example of an [SSR protected page](./examples/kitchen-sink-example/pages/profile-ssr.tsx) in the kitchen-sink example app or refer to the full list of configuration options for `withPageAuthRequired` [here](https://auth0.github.io/nextjs-auth0/modules/helpers_with_page_auth_required.html#withpageauthrequiredoptions).
 
 ## Protecting a Client-Side Rendered (CSR) Page
 
