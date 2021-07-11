@@ -4,6 +4,7 @@ import { HandleCallback as BaseHandleCallback } from '../auth0-session';
 import { Session } from '../session';
 import { assertReqRes } from '../utils/assert';
 import { NextConfig } from '../config';
+import { HandlerError } from '../utils/errors';
 
 /**
  * Use this function for validating additional claims on the user's ID Token or adding removing items from
@@ -22,7 +23,7 @@ import { NextConfig } from '../config';
  *   return session;
  * };
  *
- * export handleAuth({
+ * export default handleAuth({
  *   async callback(req, res) {
  *     try {
  *       await handleCallback(req, res, { afterCallback });
@@ -45,7 +46,7 @@ import { NextConfig } from '../config';
  *   return session;
  * };
  *
- * export handleAuth({
+ * export default handleAuth({
  *   async callback(req, res) {
  *     try {
  *       await handleCallback(req, res, { afterCallback });
@@ -122,10 +123,14 @@ const idTokenValidator = (afterCallback?: AfterCallback, organization?: string):
  */
 export default function handleCallbackFactory(handler: BaseHandleCallback, config: NextConfig): HandleCallback {
   return async (req, res, options = {}): Promise<void> => {
-    assertReqRes(req, res);
-    return handler(req, res, {
-      ...options,
-      afterCallback: idTokenValidator(options.afterCallback, options.organization || config.organization)
-    });
+    try {
+      assertReqRes(req, res);
+      return await handler(req, res, {
+        ...options,
+        afterCallback: idTokenValidator(options.afterCallback, options.organization || config.organization)
+      });
+    } catch (e) {
+      throw new HandlerError(e);
+    }
   };
 }

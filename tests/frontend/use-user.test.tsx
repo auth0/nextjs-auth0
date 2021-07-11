@@ -157,4 +157,22 @@ describe('context wrapper', () => {
 
     expect(result.current.user).toEqual({ foo: 'bar' });
   });
+
+  test('should use the override fetch behaviour', async () => {
+    const fetchSpy = jest.fn();
+    (global as any).fetch = fetchSpy;
+
+    const returnValue = 'foo';
+    const customFetcher = jest.fn().mockReturnValue(Promise.resolve(returnValue));
+
+    const { result, waitForValueToChange } = renderHook(() => useUser(), {
+      wrapper: withUserProvider({ fetcher: customFetcher })
+    });
+
+    await waitForValueToChange(() => result.current.isLoading);
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(customFetcher).toHaveBeenCalledWith('/api/auth/me');
+    expect(result.current.user).toBe(returnValue);
+  });
 });

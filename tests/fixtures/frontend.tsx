@@ -18,9 +18,14 @@ export const user: UserProfile = {
   updated_at: null
 };
 
-export const withUserProvider = ({ user, profileUrl, loginUrl }: UserProviderProps = {}): React.ComponentType => {
+export const withUserProvider = ({
+  user,
+  profileUrl,
+  loginUrl,
+  fetcher
+}: UserProviderProps = {}): React.ComponentType => {
   return (props: any): React.ReactElement => (
-    <UserProvider {...props} user={user} profileUrl={profileUrl} loginUrl={loginUrl} />
+    <UserProvider {...props} user={user} profileUrl={profileUrl} loginUrl={loginUrl} fetcher={fetcher} />
   );
 };
 

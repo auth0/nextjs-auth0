@@ -1,3 +1,19 @@
+## [1.4.2](https://github.com/auth0/nextjs-auth0/tree/v1.4.2) (2021-06-24)
+
+**Fixed**
+
+- Fix reflected XSS from the callback handler's error query parameter [CVE-2021-32702](https://github.com/auth0/nextjs-auth0/security/advisories/GHSA-954c-jjx6-cxv7) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
+## [1.4.0](https://github.com/auth0/nextjs-auth0/tree/v1.4.0) (2021-06-03)
+
+**Added**
+
+- `withPageAuthRequired` CSR now adds `user` to wrapped component props [#405](https://github.com/auth0/nextjs-auth0/pull/405) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
+**Fixed**
+
+- env var substitutions now means you can define `AUTH0_BASE_URL` from `VERCEL_URL` in `next.config.js` [#404](https://github.com/auth0/nextjs-auth0/pull/404) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [1.3.1](https://github.com/auth0/nextjs-auth0/tree/v1.3.1) (2021-05-05)
 
 **Fixed**
