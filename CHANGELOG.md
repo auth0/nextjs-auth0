@@ -1,3 +1,9 @@
+## [1.5.0](https://github.com/auth0/nextjs-auth0/tree/v1.5.0) (2021-07-14)
+
+**Added**
+
+- Add IE11 support [#432](https://github.com/auth0/nextjs-auth0/pull/432) ([Widcket](https://github.com/Widcket))
+
 ## [1.4.2](https://github.com/auth0/nextjs-auth0/tree/v1.4.2) (2021-06-24)
 
 **Fixed**
