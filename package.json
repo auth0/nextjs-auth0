@@ -113,7 +113,7 @@
     "jose": "^2.0.5",
     "on-headers": "^1.0.2",
     "openid-client": "^4.2.3",
-    "tslib": "^2.1.0",
+    "tslib": "^2.3.0",
     "url-join": "^4.0.1"
   },
   "peerDependencies": {
