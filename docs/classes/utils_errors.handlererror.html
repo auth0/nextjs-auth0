@@ -3,7 +3,7 @@
 <head>
 	<meta charset="utf-8">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
-	<title>AccessTokenError | @auth0/nextjs-auth0</title>
+	<title>HandlerError | @auth0/nextjs-auth0</title>
 	<meta name="description" content="Documentation for @auth0/nextjs-auth0">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<link rel="stylesheet" href="../assets/css/main.css">
@@ -56,10 +56,10 @@
 					<a href="../modules/utils_errors.html">utils/errors</a>
 				</li>
 				<li>
-					<a href="utils_errors.accesstokenerror.html">AccessTokenError</a>
+					<a href="utils_errors.handlererror.html">HandlerError</a>
 				</li>
 			</ul>
-			<h1>Class AccessTokenError</h1>
+			<h1>Class HandlerError</h1>
 		</div>
 	</div>
 </header>
@@ -69,8 +69,12 @@
 			<section class="tsd-panel tsd-comment">
 				<div class="tsd-comment tsd-typography">
 					<div class="lead">
-						<p>The error thrown by <a href="../modules/session_get_access_token.html#getaccesstoken">GetAccessToken</a></p>
+						<p>The error thrown by API route handlers.</p>
 					</div>
+					<p>Because the error message can come from the OpenID Connect <code>error</code> query parameter we
+					do some basic escaping which makes sure the default error handler is safe from XSS.</p>
+					<p>If you write your own error handler, you should <strong>not</strong> render the error message
+					without using a templating engine that will properly escape it for other HTML contexts first.</p>
 				</div>
 			</section>
 			<section class="tsd-panel tsd-hierarchy">
@@ -80,7 +84,7 @@
 						<span class="tsd-signature-type">Error</span>
 						<ul class="tsd-hierarchy">
 							<li>
-								<span class="target">AccessTokenError</span>
+								<span class="target">HandlerError</span>
 							</li>
 						</ul>
 					</li>
@@ -93,13 +97,14 @@
 						<section class="tsd-index-section ">
 							<h3>Constructors</h3>
 							<ul class="tsd-index-list">
-								<li class="tsd-kind-constructor tsd-parent-kind-class"><a href="utils_errors.accesstokenerror.html#constructor" class="tsd-kind-icon">constructor</a></li>
+								<li class="tsd-kind-constructor tsd-parent-kind-class"><a href="utils_errors.handlererror.html#constructor" class="tsd-kind-icon">constructor</a></li>
 							</ul>
 						</section>
 						<section class="tsd-index-section ">
 							<h3>Properties</h3>
 							<ul class="tsd-index-list">
-								<li class="tsd-kind-property tsd-parent-kind-class"><a href="utils_errors.accesstokenerror.html#code" class="tsd-kind-icon">code</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-class"><a href="utils_errors.handlererror.html#code" class="tsd-kind-icon">code</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-class"><a href="utils_errors.handlererror.html#status" class="tsd-kind-icon">status</a></li>
 							</ul>
 						</section>
 					</div>
@@ -111,25 +116,22 @@
 					<a name="constructor" class="tsd-anchor"></a>
 					<h3>constructor</h3>
 					<ul class="tsd-signatures tsd-kind-constructor tsd-parent-kind-class">
-						<li class="tsd-signature tsd-kind-icon">new <wbr>Access<wbr>Token<wbr>Error<span class="tsd-signature-symbol">(</span>code<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span>, message<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="utils_errors.accesstokenerror.html" class="tsd-signature-type" data-tsd-kind="Class">AccessTokenError</a></li>
+						<li class="tsd-signature tsd-kind-icon">new <wbr>Handler<wbr>Error<span class="tsd-signature-symbol">(</span>error<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Error</span><span class="tsd-signature-symbol"> | </span><a href="utils_errors.accesstokenerror.html" class="tsd-signature-type" data-tsd-kind="Class">AccessTokenError</a><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">HttpError</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="utils_errors.handlererror.html" class="tsd-signature-type" data-tsd-kind="Class">HandlerError</a></li>
 					</ul>
 					<ul class="tsd-descriptions">
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/aabfe1a/src/utils/errors.ts#L9">src/utils/errors.ts:9</a></li>
+									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/aabfe1a/src/utils/errors.ts#L49">src/utils/errors.ts:49</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
 							<ul class="tsd-parameters">
 								<li>
-									<h5>code: <span class="tsd-signature-type">string</span></h5>
-								</li>
-								<li>
-									<h5>message: <span class="tsd-signature-type">string</span></h5>
+									<h5>error: <span class="tsd-signature-type">Error</span><span class="tsd-signature-symbol"> | </span><a href="utils_errors.accesstokenerror.html" class="tsd-signature-type" data-tsd-kind="Class">AccessTokenError</a><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">HttpError</span></h5>
 								</li>
 							</ul>
-							<h4 class="tsd-returns-title">Returns <a href="utils_errors.accesstokenerror.html" class="tsd-signature-type" data-tsd-kind="Class">AccessTokenError</a></h4>
+							<h4 class="tsd-returns-title">Returns <a href="utils_errors.handlererror.html" class="tsd-signature-type" data-tsd-kind="Class">HandlerError</a></h4>
 						</li>
 					</ul>
 				</section>
@@ -139,10 +141,20 @@
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-class">
 					<a name="code" class="tsd-anchor"></a>
 					<h3>code</h3>
-					<div class="tsd-signature tsd-kind-icon">code<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
+					<div class="tsd-signature tsd-kind-icon">code<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/aabfe1a/src/utils/errors.ts#L9">src/utils/errors.ts:9</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/aabfe1a/src/utils/errors.ts#L49">src/utils/errors.ts:49</a></li>
+						</ul>
+					</aside>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-class">
+					<a name="status" class="tsd-anchor"></a>
+					<h3>status</h3>
+					<div class="tsd-signature tsd-kind-icon">status<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">number</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/aabfe1a/src/utils/errors.ts#L48">src/utils/errors.ts:48</a></li>
 						</ul>
 					</aside>
 				</section>
@@ -218,24 +230,27 @@
 			</nav>
 			<nav class="tsd-navigation secondary menu-sticky">
 				<ul class="before-current">
+					<li class=" tsd-kind-class tsd-parent-kind-module">
+						<a href="utils_errors.accesstokenerror.html" class="tsd-kind-icon">Access<wbr>Token<wbr>Error</a>
+					</li>
 				</ul>
 				<ul class="current">
 					<li class="current tsd-kind-class tsd-parent-kind-module">
-						<a href="utils_errors.accesstokenerror.html" class="tsd-kind-icon">Access<wbr>Token<wbr>Error</a>
+						<a href="utils_errors.handlererror.html" class="tsd-kind-icon">Handler<wbr>Error</a>
 						<ul>
 							<li class=" tsd-kind-constructor tsd-parent-kind-class">
-								<a href="utils_errors.accesstokenerror.html#constructor" class="tsd-kind-icon">constructor</a>
+								<a href="utils_errors.handlererror.html#constructor" class="tsd-kind-icon">constructor</a>
 							</li>
 							<li class=" tsd-kind-property tsd-parent-kind-class">
-								<a href="utils_errors.accesstokenerror.html#code" class="tsd-kind-icon">code</a>
+								<a href="utils_errors.handlererror.html#code" class="tsd-kind-icon">code</a>
+							</li>
+							<li class=" tsd-kind-property tsd-parent-kind-class">
+								<a href="utils_errors.handlererror.html#status" class="tsd-kind-icon">status</a>
 							</li>
 						</ul>
 					</li>
 				</ul>
 				<ul class="after-current">
-					<li class=" tsd-kind-class tsd-parent-kind-module">
-						<a href="utils_errors.handlererror.html" class="tsd-kind-icon">Handler<wbr>Error</a>
-					</li>
 				</ul>
 			</nav>
 		</div>
