@@ -92,15 +92,22 @@ Configure the following environment variables when importing your project or in 
 
 ##### Assigning the AUTH0_BASE_URL
 
-You want to assign this to the System Variable `VERCEL_URL`. To do this, make sure "Automatically expose System Environment Variables" is checked in "Settings > Environment Variables" and create an environment variable in your `next.config.js` like so:
+###### Preview deployments
 
-```js
-// next.config.js
-module.exports = {
-  env: {
-    AUTH0_BASE_URL: process.env.VERCEL_URL || process.env.AUTH0_BASE_URL
-  }
-};
+For preview deployments you will either want to assign this to:
+
+- **Automatic Deployment URL:** For example `project-d418mhwf5-team.vercel.app` which is defined by the `VERCEL_URL` environment variable.
+- **Automatic Branch URL:** For example `project-git-update-team.vercel.app` which can be constructed using `${VERCEL_GIT_REPO_SLUG}-git-${VERCEL_GIT_COMMIT_REF}-${VERCEL_GIT_REPO_OWNER}.vercel.app`
+
+To do this, make sure "Automatically expose System Environment Variables" is checked in "Settings > Environment Variables" and assign either the Automatic Deployment URL or the Automatic Branch URL to `AUTH0_BASE_URL` in your `.env.production` file, eg
+
+```shell
+# .env.production
+AUTH0_BASE_URL=$VERCEL_URL
 ```
 
-This will rewrite instances of `process.env.AUTH0_BASE_URL` in the SDK code at build time using the `DefinePlugin`, more info here https://nextjs.org/docs/api-reference/next.config.js/environment-variables
+Unlike other `.env` files, You will need to check in `.env.production` so it should **not** contain any secrets. See how we define `.env.production` in the [kitchen-sink example app](./kitchen-sink-example/.env.production).
+
+###### Production deployments
+
+For production deployments or [custom domains assigned to a git branch](https://vercel.com/docs/custom-domains#assigning-a-domain-to-a-git-branch) you should assign the correct url to the `AUTH0_BASE_URL` environment variable in "Settings > Environment Variables". See the [Vercel docs on Environment Variables](https://vercel.com/docs/environment-variables#preview-environment-variables) for more information. This will override your `.env.production` file.
