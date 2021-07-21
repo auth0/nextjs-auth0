@@ -104,7 +104,7 @@ export default handleAuth();
 
 Executing `handleAuth()` creates the following route handlers under the hood that perform different parts of the authentication flow:
 
-- `/api/auth/login`: Your Next.js application redirects users to your Identity Provider for them to log in.
+- `/api/auth/login`: Your Next.js application redirects users to your Identity Provider for them to log in (you can optionally pass a `returnTo` parameter to return to a custom relative URL after login, eg `/api/auth/login?returnTo=/profile`).
 
 - `/api/auth/callback`: Your Identity Provider redirects users to this route after they successfully log in.
 
