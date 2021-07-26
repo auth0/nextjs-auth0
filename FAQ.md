@@ -31,7 +31,7 @@ For the latter, you can add an `afterCallback` hook to remove the ID Token and/o
 import { handleAuth, handleCallback } from '@auth0/nextjs-auth0';
 
 const afterCallback = (req, res, session, state) => {
-  delete session.idToken; // This gets persisted by the SDK
+  delete session.user.unusedClaim; // This gets persisted by the SDK
   return session;
 };
 
