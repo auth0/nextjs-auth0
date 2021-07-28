@@ -107,7 +107,7 @@
     "base64url": "^3.0.1",
     "cookie": "^0.4.1",
     "debug": "^4.3.2",
-    "futoin-hkdf": "^1.4.1",
+    "futoin-hkdf": "^1.4.2",
     "http-errors": "^1.8.0",
     "joi": "^17.4.0",
     "jose": "^2.0.5",
