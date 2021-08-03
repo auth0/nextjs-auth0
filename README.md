@@ -152,6 +152,8 @@ export default function Index() {
 }
 ```
 
+> There are two additional ways to check for an authenticated user; one for Next.js page components using [withPageAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_page_auth_required.html#withpageauthrequired) and one for Next.js API endpoints using [withAPIAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_page_auth_required.html#withpageauthrequired).
+
 For other comprehensive examples, see the [EXAMPLES.md](./EXAMPLES.md) document.
 
 ## Documentation
