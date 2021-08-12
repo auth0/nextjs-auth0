@@ -22,12 +22,6 @@ jobs:
             - ~/.npm
             - ~/.cache
       - run: npm test
-      - run:
-          name: npm run test:kitchen-sink
-          command: |
-            if [ -z "$CIRCLE_PR_NUMBER" ]; then
-              npm run test:kitchen-sink
-            fi
       - run: 
           name: browserstack
           command: |
