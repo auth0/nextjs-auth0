@@ -15,13 +15,13 @@ jobs:
             if [ -z "$CIRCLE_PR_NUMBER" ]; then
               npm run install:kitchen-sink
             fi
-      - run: npm run build
       - save_cache:
           key: dependencies-{{ .Branch }}-{{ checksum "package-lock.json" }}-{{ checksum "examples/kitchen-sink-example/package.json" }}
           paths:
             - ~/.npm
             - ~/.cache
       - run: npm test
+      - run: npm run build
       - run: 
           name: browserstack
           command: |

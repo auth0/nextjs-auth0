@@ -11,5 +11,8 @@
   },
   "retries": {
     "runMode": 3
+  },
+  "env": {
+    "USE_AUTH0": true
   }
 }
