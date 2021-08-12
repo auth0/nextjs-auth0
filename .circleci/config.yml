@@ -1,12 +1,9 @@
 version: 2.1
-parameters:
-  docker_image:
-    type: string
-    default: circleci/node:lts-browsers
+
 jobs:
   build:
     docker:
-      - image: << pipeline.parameters.docker_image >>
+      - image: circleci/node:lts-browsers
     steps:
       - checkout
       - restore_cache:
@@ -18,12 +15,12 @@ jobs:
             if [ -z "$CIRCLE_PR_NUMBER" ]; then
               npm run install:kitchen-sink
             fi
+      - run: npm run build
       - save_cache:
           key: dependencies-{{ .Branch }}-{{ checksum "package-lock.json" }}-{{ checksum "examples/kitchen-sink-example/package.json" }}
           paths:
             - ~/.npm
             - ~/.cache
-      - run: npm run build
       - run: npm test
       - run:
           name: npm run test:kitchen-sink
@@ -31,40 +28,26 @@ jobs:
             if [ -z "$CIRCLE_PR_NUMBER" ]; then
               npm run test:kitchen-sink
             fi
+      - run: 
+          name: browserstack
+          command: |
+            if [ -z "$CIRCLE_PR_NUMBER" ]; then
+              npx start-server-and-test 'start:kitchen-sink-local' http-get://127.0.0.1:3000 'browserstack-cypress run --build-name $CIRCLE_BRANCH'
+            fi
+          environment:
+            AUTH0_ISSUER_BASE_URL: http://127.0.0.1:3000/oidc/
+            AUTH0_BASE_URL: http://127.0.0.1:3000/
+            AUTH0_CLIENT_ID: testing
+            AUTH0_CLIENT_SECRET: testing
       - store_test_results:
           path: test-results
       - store_artifacts:
           path: cypress/videos
       - store_artifacts:
           path: cypress/screenshots
-  browserstack:
-    docker:
-      - image: << pipeline.parameters.docker_image >>
-    working_directory: ~/repo
-    steps:
-      - checkout
-      - restore_cache:
-          key: dependencies-{{ .Branch }}-{{ checksum "package-lock.json" }}-{{ checksum "examples/kitchen-sink-example/package.json" }}
-      - run: npm ci
-      - run:
-          name: npm run install:kitchen-sink
-          command: |
-            if [ -z "$CIRCLE_PR_NUMBER" ]; then
-              npm run install:kitchen-sink
-            fi
-      - run: npm run build
-      - run: 
-          name: Run Tests
-          command: npx start-server-and-test 'start:kitchen-sink-local' http-get://127.0.0.1:3000 'browserstack-cypress run --build-name $CIRCLE_BRANCH'
-          environment:
-            AUTH0_ISSUER_BASE_URL: http://127.0.0.1:3000/oidc/
-            AUTH0_BASE_URL: http://127.0.0.1:3000/
-            AUTH0_CLIENT_ID: testing
-            AUTH0_CLIENT_SECRET: testing
 workflows:
   Build and Test:
     jobs:
-      - build
-      - browserstack:
+      - build:
           context:
             - browserstack-env
