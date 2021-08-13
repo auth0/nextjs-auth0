@@ -20,8 +20,8 @@ jobs:
           paths:
             - ~/.npm
             - ~/.cache
-      - run: npm test
       - run: npm run build
+      - run: npm test
       - run: 
           name: browserstack
           command: |
