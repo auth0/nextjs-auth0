@@ -2,17 +2,17 @@
     "browsers": [
       {
         "browser": "chrome",
-        "os": "Windows 10",
+        "os": "OS X El Capitan",
         "versions": ["latest"]
       },
       {
         "browser": "firefox",
-        "os": "Windows 10",
+        "os": "OS X El Capitan",
         "versions": ["latest"]
       },
       {
         "browser": "edge",
-        "os": "Windows 10",
+        "os": "OS X El Capitan",
         "versions": ["latest"]
       }
     ],
