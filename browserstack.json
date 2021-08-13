@@ -2,17 +2,12 @@
     "browsers": [
       {
         "browser": "chrome",
-        "os": "OS X Mojave",
-        "versions": ["latest"]
-      },
-      {
-        "browser": "firefox",
-        "os": "OS X Mojave",
+        "os": "Windows 10",
         "versions": ["latest"]
       },
       {
         "browser": "edge",
-        "os": "OS X Mojave",
+        "os": "Windows 10",
         "versions": ["latest"]
       }
     ],
