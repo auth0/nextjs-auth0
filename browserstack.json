@@ -2,17 +2,17 @@
     "browsers": [
       {
         "browser": "chrome",
-        "os": "OS X El Capitan",
+        "os": "OS X Mojave",
         "versions": ["latest"]
       },
       {
         "browser": "firefox",
-        "os": "OS X El Capitan",
+        "os": "OS X Mojave",
         "versions": ["latest"]
       },
       {
         "browser": "edge",
-        "os": "OS X El Capitan",
+        "os": "OS X Mojave",
         "versions": ["latest"]
       }
     ],
