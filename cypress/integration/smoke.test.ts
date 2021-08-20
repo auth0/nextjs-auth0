@@ -24,6 +24,7 @@ const login = useAuth0 ? loginToAuth0 : loginToNodeOidc;
 describe('smoke tests', () => {
   before(() => {
     cy.visit('/');
+    cy.get('[data-testid=login]').should('be.visible');
     cy.get('[data-testid=login]').click();
     login();
   });
