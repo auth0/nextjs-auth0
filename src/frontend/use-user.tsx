@@ -15,6 +15,7 @@ export interface UserProfile {
   picture?: string | null;
   sub?: string | null;
   updated_at?: string | null;
+  org_id?: string;
   [key: string]: unknown; // Any custom claim which could be in the profile
 }
 
