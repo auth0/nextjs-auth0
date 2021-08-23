@@ -338,7 +338,7 @@ If you are using the [New Universal Login Experience](https://auth0.com/docs/uni
 // api/signup.js
 import { handleLogin } from '@auth0/nextjs-auth0';
 
-export default async function login(req, res) {
+export default async function signup(req, res) {
   try {
     await handleLogin(req, res, {
       authorizationParams: {
