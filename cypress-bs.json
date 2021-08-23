@@ -1,5 +1,5 @@
 {
-  "baseUrl": "http://localhost:3000",
+  "baseUrl": "http://127.0.0.1:3000",
   "chromeWebSecurity": false,
   "viewportWidth": 1000,
   "viewportHeight": 1000,
@@ -11,8 +11,5 @@
   },
   "retries": {
     "runMode": 3
-  },
-  "env": {
-    "USE_AUTH0": true
   }
 }
