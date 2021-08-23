@@ -367,3 +367,9 @@ var lock = new Auth0Lock(config.clientID, config.auth0Domain, {
   initialScreen: isSignup ? 'signUp' : 'login'
 });
 ```
+
+Users can then signup using the signup handler.
+
+```html
+<a href="/api/signup">Sign up</a>
+```
