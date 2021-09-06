@@ -23,6 +23,7 @@ jobs:
             - ~/.cache
       - run: npm run build
       - run: npm test
+      - run: npm run lint
       - run:
           name: browserstack
           command: |
