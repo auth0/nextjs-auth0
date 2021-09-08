@@ -14,6 +14,11 @@ export const defaultConfig: Omit<ConfigParameters, 'baseURL'> = {
   issuerBaseURL: 'https://op.example.com',
   routes: {
     callback: '/callback'
+  },
+  session: {
+    cookie: {
+      maxChunkSize: 4096,
+    }
   }
 };
 

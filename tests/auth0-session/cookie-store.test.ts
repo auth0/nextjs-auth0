@@ -101,10 +101,10 @@ describe('CookieStore', () => {
     expect(session.claims).toHaveProperty('big_claim');
   });
 
-  it('should limit total cookie size to 4096 Bytes', async () => {
+  it('should limit total cookie size to 4096 Bytes by default', async () => {
     const path =
       '/some-really-really-really-really-really-really-really-really-really-really-really-really-really-long-path';
-    const baseURL = await setup({ ...defaultConfig, session: { cookie: { path } } });
+    const baseURL = await setup({ ...defaultConfig, session: { cookie: { path, maxChunkSize: 4096 } } });
     const appSession = encrypted({
       big_claim: randomBytes(5000).toString('base64')
     });
@@ -118,6 +118,26 @@ describe('CookieStore', () => {
     expect(cookies['appSession.1']).toHaveLength(4096);
     expect(cookies['appSession.2']).toHaveLength(4096);
     expect(cookies['appSession.3']).toHaveLength(1568);
+  });
+
+  it('should limit total cookie size to config.maxChunkSize', async () => {
+    const maxChunkSize = 2048;
+    const path =
+      '/some-really-really-really-really-really-really-really-really-really-really-really-really-really-long-path';
+    const baseURL = await setup({ ...defaultConfig, session: { cookie: { path, maxChunkSize } } });
+    const appSession = encrypted({
+      big_claim: randomBytes(2500).toString('base64')
+    });
+    expect(appSession.length).toBeGreaterThan(maxChunkSize);
+    const cookieJar = toCookieJar({ appSession }, baseURL);
+    await get(baseURL, '/session', { cookieJar });
+    const cookies: { [key: string]: string } = cookieJar
+      .getCookiesSync(`${baseURL}${path}`)
+      .reduce((obj, value) => Object.assign(obj, { [value.key]: value + '' }), {});
+    expect(cookies['appSession.0']).toHaveLength(maxChunkSize);
+    expect(cookies['appSession.1']).toHaveLength(maxChunkSize);
+    expect(cookies['appSession.2']).toHaveLength(maxChunkSize);
+    expect(cookies['appSession.3']).toHaveLength(1788);
   });
 
   it('should handle unordered chunked cookies', async () => {

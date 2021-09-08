@@ -240,6 +240,11 @@ export interface CookieConfig {
    * Defaults to "Lax" but will be adjusted based on {@link AuthorizationParameters.response_type}.
    */
   sameSite: 'lax' | 'strict' | 'none';
+
+  /**
+   * Max size of the cookie chunks, use to override the default of 4096.
+   */
+  maxChunkSize: number;
 }
 
 export interface AuthorizationParameters extends OidcAuthorizationParameters {

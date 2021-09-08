@@ -9,7 +9,6 @@ import { CookieSerializeOptions, serialize } from 'cookie';
 
 const debug = createDebug('cookie-store');
 const epoch = (): number => (Date.now() / 1000) | 0; // eslint-disable-line no-bitwise
-const MAX_COOKIE_SIZE = 4096;
 const alg = 'dir';
 const enc = 'A256GCM';
 
@@ -46,7 +45,7 @@ export default class CookieStore {
     }
 
     const emptyCookie = serialize(`${sessionName}.0`, '', cookieOptions);
-    this.chunkSize = MAX_COOKIE_SIZE - emptyCookie.length;
+    this.chunkSize = cookieConfig.maxChunkSize - emptyCookie.length;
   }
 
   private encrypt(payload: string, headers: { [key: string]: any }): string {

@@ -54,7 +54,8 @@ const paramsSchema = Joi.object({
           'any.only': 'Cookies set with the `Secure` property wont be attached to http requests'
         })
       }),
-      path: Joi.string().uri({ relativeOnly: true }).optional()
+      path: Joi.string().uri({ relativeOnly: true }).optional(),
+      maxChunkSize: Joi.number().integer().optional()
     })
       .default()
       .unknown(false)

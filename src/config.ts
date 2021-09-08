@@ -260,6 +260,11 @@ export interface CookieConfig {
    * You can also use the AUTH0_COOKIE_SAME_SITE environment variable.
    */
   sameSite: 'lax' | 'strict' | 'none';
+
+  /**
+   * max size of the cookie chunks, use to override the default of 4096.
+   */
+  maxchunksize: number;
 }
 
 /**
@@ -394,7 +399,8 @@ const bool = (param?: any, defaultValue?: boolean): boolean | undefined => {
 /**
  * @ignore
  */
-const num = (param?: string): number | undefined => (param === undefined || param === '' ? undefined : +param);
+const num = (param?: string, defaultValue?: number): number | undefined =>
+  (param === undefined || param === '' ? defaultValue : +param);
 
 /**
  * @ignore
@@ -434,6 +440,7 @@ export const getConfig = (params: ConfigParameters = {}): { baseConfig: BaseConf
   const AUTH0_COOKIE_HTTP_ONLY = process.env.AUTH0_COOKIE_HTTP_ONLY;
   const AUTH0_COOKIE_SECURE = process.env.AUTH0_COOKIE_SECURE;
   const AUTH0_COOKIE_SAME_SITE = process.env.AUTH0_COOKIE_SAME_SITE;
+  const AUTH0_COOKIE_MAX_CHUNK_SIZE = process.env.AUTH0_COOKIE_MAX_CHUNK_SIZE;
 
   const baseURL =
     AUTH0_BASE_URL && !/^https?:\/\//.test(AUTH0_BASE_URL as string) ? `https://${AUTH0_BASE_URL}` : AUTH0_BASE_URL;
@@ -476,6 +483,7 @@ export const getConfig = (params: ConfigParameters = {}): { baseConfig: BaseConf
         httpOnly: bool(AUTH0_COOKIE_HTTP_ONLY),
         secure: bool(AUTH0_COOKIE_SECURE),
         sameSite: AUTH0_COOKIE_SAME_SITE as 'lax' | 'strict' | 'none' | undefined,
+        maxChunkSize: num(AUTH0_COOKIE_MAX_CHUNK_SIZE, 4096),
         ...baseParams.session?.cookie
       }
     },

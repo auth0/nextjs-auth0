@@ -54,7 +54,8 @@ describe('config params', () => {
           transient: false,
           httpOnly: true,
           secure: true,
-          sameSite: 'lax'
+          sameSite: 'lax',
+          maxChunkSize: 4096
         }
       },
       routes: { callback: '/api/auth/callback', postLogoutRedirect: '' },
