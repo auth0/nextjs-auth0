@@ -1,3 +1,5 @@
+# Change Log
+
 ## [1.5.0](https://github.com/auth0/nextjs-auth0/tree/v1.5.0) (2021-07-14)
 
 **Added**
