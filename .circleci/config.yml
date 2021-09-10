@@ -1,5 +1,6 @@
 version: 2.1
-
+orbs:
+  ship: auth0/ship@0.2.0
 jobs:
   build:
     docker:
@@ -22,11 +23,12 @@ jobs:
             - ~/.cache
       - run: npm run build
       - run: npm test
+      - run: npm run lint
       - run:
-          name: npm run test:kitchen-sink
+          name: browserstack
           command: |
             if [ -z "$CIRCLE_PR_NUMBER" ]; then
-              npm run test:kitchen-sink
+              npx start-server-and-test 'start:kitchen-sink-local' http://127.0.0.1:3000 'browserstack-cypress run --build-name $CIRCLE_BRANCH'
             fi
       - store_test_results:
           path: test-results
@@ -34,8 +36,19 @@ jobs:
           path: cypress/videos
       - store_artifacts:
           path: cypress/screenshots
-
 workflows:
   Build and Test:
     jobs:
-      - build
+      - build:
+          context:
+            - browserstack-env
+      - ship/node-publish:
+          requires:
+            - build
+          context:
+            - publish-npm
+            - publish-gh
+          filters:
+            branches:
+              only:
+                - main

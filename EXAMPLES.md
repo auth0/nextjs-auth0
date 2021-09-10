@@ -8,6 +8,7 @@
 - [Protect an API Route](#protect-an-api-route)
 - [Access an External API from an API Route](#access-an-external-api-from-an-api-route)
 - [Create your own instance of the SDK](#create-your-own-instance-of-the-sdk)
+- [Add a signup handler](#add-a-signup-handler)
 
 All examples can be seen running in the [Kitchen Sink example app](./examples/kitchen-sink-example).
 
@@ -325,4 +326,50 @@ export default auth0.handleAuth({
     }
   }
 });
+```
+
+# Add a signup handler
+
+Pass a custom authorize parameter to the login handler in a custom route.
+
+If you are using the [New Universal Login Experience](https://auth0.com/docs/universal-login/new-experience) you can pass the `screen_hint` parameter.
+
+```js
+// api/signup.js
+import { handleLogin } from '@auth0/nextjs-auth0';
+
+export default async function signup(req, res) {
+  try {
+    await handleLogin(req, res, {
+      authorizationParams: {
+        // Note that this can be combined with prompt=login , which indicates if
+        // you want to always show the authentication page or you want to skip
+        // if there’s an existing session.
+        screen_hint: 'signup'
+      }
+    });
+  } catch (error) {
+    res.status(error.status || 400).end(error.message);
+  }
+}
+```
+
+If you are using the [Classic Universal Login Experience](https://auth0.com/docs/universal-login/classic-experience) you can use any custom authorization
+parameter, eg `{ authorizationParams: { action: 'signup' } }` then customize the
+[login template](https://manage.auth0.com/#/login_page) to look for this parameter
+and set the `initialScreen` option of the `Auth0Lock` constructor.
+
+```js
+var isSignup = config.extraParams && config.extraParams.action === 'signup';
+var lock = new Auth0Lock(config.clientID, config.auth0Domain, {
+  // [...] all other Lock options
+  // use the value obtained to decide the first screen
+  initialScreen: isSignup ? 'signUp' : 'login'
+});
+```
+
+Users can then sign up using the signup handler.
+
+```html
+<a href="/api/signup">Sign up</a>
 ```
