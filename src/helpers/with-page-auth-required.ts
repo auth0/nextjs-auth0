@@ -54,7 +54,7 @@ export type PageRoute = (cts: GetServerSidePropsContext) => Promise<GetServerSid
  * export const getServerSideProps = withPageAuthRequired({
  *   returnTo: '/foo',
  *   async getServerSideProps(ctx) {
- *     //access the user session
+ *     // access the user session
  *     const session = getSession(ctx.req, ctx.res); 
  *     return { props: { customProp: 'bar' } };
  *   }
