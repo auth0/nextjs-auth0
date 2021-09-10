@@ -41,7 +41,7 @@ export type PageRoute = (cts: GetServerSidePropsContext) => Promise<GetServerSid
  * If you have a custom returnTo url you should specify it in `returnTo`.
  *
  * You can pass in your own `getServerSideProps` method, the props returned from this will be merged with the
- * user props, eg:
+ * user props. You can also access the user session data by calling `getSession` inside of this method, eg:
  *
  * ```js
  * // pages/protected-page.js
@@ -54,6 +54,8 @@ export type PageRoute = (cts: GetServerSidePropsContext) => Promise<GetServerSid
  * export const getServerSideProps = withPageAuthRequired({
  *   returnTo: '/foo',
  *   async getServerSideProps(ctx) {
+ *     // access the user session
+ *     const session = getSession(ctx.req, ctx.res); 
  *     return { props: { customProp: 'bar' } };
  *   }
  * });
