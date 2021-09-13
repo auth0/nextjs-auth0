@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import * as React from 'react';
 
-function initialState(args) {
+function initialState(args: { error?: any; isLoading?: boolean; response?: any }) {
   return {
     response: null,
     error: null,
@@ -9,10 +9,17 @@ function initialState(args) {
   };
 }
 
-const useApi = (url, options = {}) => {
-  const [state, setState] = useState(() => initialState());
+const useApi = (
+  url: RequestInfo,
+  options = {}
+): {
+  error: unknown;
+  isLoading: boolean;
+  response: any;
+} => {
+  const [state, setState] = React.useState(() => initialState({}));
 
-  useEffect(() => {
+  React.useEffect(() => {
     const fetchData = async () => {
       try {
         const res = await fetch(url, {

@@ -1,4 +1,6 @@
-export default async function accessTokenHandler(req, res): Promise<void> {
+import { NextApiRequest, NextApiResponse } from 'next';
+
+export default async function accessTokenHandler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
   try {
     const json = JSON.stringify(await (global as any).getAccessToken(req, res));
     res.status(200).json(json);
