@@ -1,4 +1,4 @@
-import nock = require('nock');
+import nock from 'nock';
 import { CookieJar } from 'tough-cookie';
 import {
   CallbackOptions,
@@ -27,8 +27,8 @@ export type SetupOptions = {
   profileOptions?: ProfileOptions;
   withPageAuthRequiredOptions?: WithPageAuthRequiredOptions;
   getAccessTokenOptions?: AccessTokenRequest;
-  discoveryOptions?: object;
-  userInfoPayload?: object;
+  discoveryOptions?: Record<string, string>;
+  userInfoPayload?: Record<string, string>;
   userInfoToken?: string;
 };
 

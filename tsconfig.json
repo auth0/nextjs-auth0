@@ -1,6 +1,31 @@
 {
-  "extends": "./tsconfig.build.json",
   "compilerOptions": {
-    "incremental": true
-  }
+    "alwaysStrict": true,
+    "declaration": true,
+    "declarationMap": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "importHelpers": true,
+    "allowSyntheticDefaultImports": true,
+    "allowJs": true,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitAny": true,
+    "noImplicitReturns": true,
+    "noImplicitThis": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "sourceMap": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "es5",
+    "lib": ["es6", "dom"],
+    "downlevelIteration": true,
+    "resolveJsonModule": true,
+    "jsx": "react",
+    "outDir": "./dist",
+    "types": ["jest", "node", "@testing-library/jest-dom"]
+  },
+  "include": ["src", "tests"]
 }
