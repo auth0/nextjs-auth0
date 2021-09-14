@@ -74,7 +74,7 @@ export interface AuthorizationParams extends Partial<AuthorizationParameters> {
    * organizations, it should match {@Link CallbackOptions.organization}.
    */
   organization?: string;
-  
+
   /**
    * Provides a hint to Auth0 as to what flow should be displayed. The default behavior is to show a
    * login page but you can override this by passing 'signup' to show the signup page instead.

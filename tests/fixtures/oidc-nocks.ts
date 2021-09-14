@@ -100,7 +100,7 @@ export function codeExchange(params: ConfigParameters, idToken: string, code = '
 export function refreshTokenExchange(
   params: ConfigParameters,
   refreshToken: string,
-  payload: object,
+  payload: Record<string, unknown>,
   newToken?: string
 ): nock.Scope {
   const idToken = makeIdToken({
@@ -123,7 +123,7 @@ export function refreshTokenExchange(
 export function refreshTokenRotationExchange(
   params: ConfigParameters,
   refreshToken: string,
-  payload: object,
+  payload: Record<string, unknown>,
   newToken?: string,
   newrefreshToken?: string
 ): nock.Scope {
@@ -145,7 +145,7 @@ export function refreshTokenRotationExchange(
     });
 }
 
-export function userInfo(params: ConfigParameters, token: string, payload: object): nock.Scope {
+export function userInfo(params: ConfigParameters, token: string, payload: Record<string, unknown>): nock.Scope {
   return nock(`${params.issuerBaseURL}`, {
     reqheaders: {
       authorization: `Bearer ${token}`

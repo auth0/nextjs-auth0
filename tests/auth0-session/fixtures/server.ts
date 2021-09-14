@@ -104,7 +104,11 @@ const parseJson = (req: IncomingMessage, res: ServerResponse): Promise<IncomingM
 
 const requestListener = (
   handlers: Handlers,
-  { callbackOptions, loginOptions, logoutOptions }: { callbackOptions?: CallbackOptions; loginOptions?: LoginOptions; logoutOptions?: LogoutOptions }
+  {
+    callbackOptions,
+    loginOptions,
+    logoutOptions
+  }: { callbackOptions?: CallbackOptions; loginOptions?: LoginOptions; logoutOptions?: LogoutOptions }
 ) => async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
   const { pathname } = url.parse(req.url as string, true);
   const parsedReq = await parseJson(req, res);
@@ -175,7 +179,9 @@ export const setup = async (
   const port = await new Promise((resolve) => server.listen(0, () => resolve((server.address() as AddressInfo).port)));
   const baseURL = `http${https ? 's' : ''}://localhost:${port}`;
 
-  listener = customListener || requestListener(createHandlers({ ...params, baseURL }), { callbackOptions, loginOptions, logoutOptions });
+  listener =
+    customListener ||
+    requestListener(createHandlers({ ...params, baseURL }), { callbackOptions, loginOptions, logoutOptions });
   return baseURL;
 };
 
