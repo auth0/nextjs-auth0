@@ -24,7 +24,7 @@ describe('with-page-auth-required ssr', () => {
       data
     } = await get(baseUrl, '/protected', { cookieJar, fullResponse: true });
     expect(statusCode).toBe(200);
-    expect(data).toMatch(/<div>Blank Document<\/div>/);
+    expect(data).toMatch(/<div>Protected Page<\/div>/);
   });
 
   test('accept a custom returnTo url', async () => {
