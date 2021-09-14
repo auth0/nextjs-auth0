@@ -16,7 +16,7 @@ describe('with-page-auth-required ssr', () => {
   });
 
   test('allow access to a page with a valid session', async () => {
-    const baseUrl = await setup(withoutApi, { withPageAuthRequiredOptions: { returnTo: '/foo' } });
+    const baseUrl = await setup(withoutApi);
     const cookieJar = await login(baseUrl);
 
     const {
