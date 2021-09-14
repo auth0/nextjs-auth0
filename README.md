@@ -20,7 +20,7 @@ The Auth0 Next.js SDK is a library for implementing user authentication in Next.
   - [Error Handling and Security](#error-handling-and-security)
   - [Base Path and Internationalized Routing](#base-path-and-internationalized-routing)
   - [Architecture](./ARCHITECTURE.md)
-  - [Comparison with auth0-react](#comparison-with-auth0-react)
+  - [Comparison with auth0-react](#comparison-with-the-auth0-react-sdk)
   - [Testing](#testing)
 - [Contributing](#contributing)
 - [Vulnerability Reporting](#vulnerability-reporting)
