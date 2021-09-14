@@ -18,7 +18,7 @@
   "scripts": {
     "clean": "rimraf dist",
     "pretty": "prettier --write \"src/**/*.{ts,tsx}\" \"src/*.ts\"",
-    "lint": "eslint --fix --ext .ts ./src",
+    "lint": "tsc --noEmit && eslint --fix --ext .ts ./src",
     "docs": "typedoc --options typedoc.js src",
     "prepack": "npm run build",
     "install:basic": "npm i --prefix=examples/basic-example --no-package-lock",
@@ -67,12 +67,12 @@
     "@types/cookie": "^0.4.0",
     "@types/debug": "^4.1.5",
     "@types/http-errors": "^1.8.0",
-    "@types/jest": "^26.0.20",
+    "@types/jest": "^27.0.1",
     "@types/jsonwebtoken": "^8.5.0",
     "@types/node": "^14.14.20",
     "@types/on-headers": "^1.0.0",
-    "@types/react": "^17.0.0",
-    "@types/react-dom": "^17.0.0",
+    "@types/react": "^17.0.20",
+    "@types/react-dom": "^17.0.9",
     "@types/tough-cookie": "^4.0.0",
     "@types/url-join": "^4.0.0",
     "@types/webpack": "^4.41.26",
@@ -80,7 +80,7 @@
     "@typescript-eslint/parser": "^4.13.0",
     "body-parser": "^1.19.0",
     "browserstack-cypress-cli": "^1.8.1",
-    "cypress": "^7.2.0",
+    "cypress": "^8.4.0",
     "eslint": "^7.17.0",
     "eslint-config-prettier": "^8.1.0",
     "eslint-import-resolver-typescript": "^2.3.0",
@@ -89,19 +89,19 @@
     "eslint-plugin-prettier": "^3.3.1",
     "eslint-plugin-react": "^7.22.0",
     "eslint-plugin-react-hooks": "^4.2.0",
-    "jest": "^26.6.3",
-    "next": "^11.1.0",
+    "jest": "^27.2.0",
+    "next": "^11.1.2",
     "nock": "^13.0.5",
     "oidc-provider": "^7.6.0",
     "prettier": "^2.2.1",
-    "react": "^17.0.1",
-    "react-dom": "^17.0.1",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
     "react-test-renderer": "^17.0.1",
     "rimraf": "^3.0.2",
     "start-server-and-test": "^1.11.7",
     "timekeeper": "^2.2.0",
     "tough-cookie": "^4.0.0",
-    "ts-jest": "^26.4.4",
+    "ts-jest": "^27.0.5",
     "typedoc": "^0.20.14",
     "typescript": "^4.1.3"
   },
@@ -114,7 +114,7 @@
     "joi": "^17.4.1",
     "jose": "^2.0.5",
     "on-headers": "^1.0.2",
-    "openid-client": "^4.7.4",
+    "openid-client": "^4.7.5",
     "tslib": "^2.3.1",
     "url-join": "^4.0.1"
   },
@@ -123,7 +123,7 @@
   },
   "jest": {
     "testEnvironment": "node",
-    "rootDir": "./",
+    "rootDir": "tests",
     "moduleFileExtensions": [
       "ts",
       "tsx",
@@ -149,9 +149,9 @@
       }
     },
     "preset": "ts-jest",
-    "globalSetup": "./tests/global-setup.ts",
+    "globalSetup": "./global-setup.ts",
     "setupFilesAfterEnv": [
-      "./tests/setup.ts"
+      "./setup.ts"
     ]
   }
 }

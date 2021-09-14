@@ -1,6 +1,6 @@
 import { createServer as createHttpServer, Server } from 'http';
 import next from 'next';
-import path from 'path';
+import * as path from 'path';
 import { parse } from 'url';
 import { AddressInfo } from 'net';
 

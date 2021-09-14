@@ -1,12 +1,12 @@
 import React from 'react';
-import Document from 'next/document';
+import Document, { DocumentContext, DocumentInitialProps } from 'next/document';
 
 class MyDocument extends Document {
-  static getInitialProps(ctx): any {
+  static getInitialProps(ctx: DocumentContext): Promise<DocumentInitialProps> {
     return Document.getInitialProps(ctx);
   }
 
-  render(): any {
+  render(): React.ReactElement {
     return <div>Blank Document</div>;
   }
 }
