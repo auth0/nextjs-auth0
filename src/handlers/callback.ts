@@ -1,6 +1,6 @@
 import { strict as assert } from 'assert';
 import { NextApiResponse, NextApiRequest } from 'next';
-import { HandleCallback as BaseHandleCallback } from '../auth0-session';
+import { AuthorizationParameters, HandleCallback as BaseHandleCallback } from '../auth0-session';
 import { Session } from '../session';
 import { assertReqRes } from '../utils/assert';
 import { NextConfig } from '../config';
@@ -85,6 +85,11 @@ export interface CallbackOptions {
    * organizations, it should match {@Link LoginOptions.authorizationParams}.
    */
   organization?: string;
+
+  /**
+   * This is useful for sending custom query parameters in the body of the code exchange request for use in rules.
+   */
+  authorizationParams?: Partial<AuthorizationParameters>;
 }
 
 /**

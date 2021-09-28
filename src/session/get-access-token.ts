@@ -4,7 +4,7 @@ import { ClientFactory } from '../auth0-session';
 import { AccessTokenError } from '../utils/errors';
 import { intersect, match } from '../utils/array';
 import { Session, SessionCache, fromTokenSet } from '../session';
-import { NextConfig } from '../config';
+import { AuthorizationParameters, NextConfig } from '../config';
 
 export type AfterRefresh = (req: NextApiRequest, res: NextApiResponse, session: Session) => Promise<Session> | Session;
 
@@ -52,6 +52,11 @@ export interface AccessTokenRequest {
    * ```
    */
   afterRefresh?: AfterRefresh;
+
+  /**
+   * This is useful for sending custom query parameters in the body of the refresh grant request for use in rules.
+   */
+  authorizationParams?: Partial<AuthorizationParameters>;
 }
 
 /**
@@ -140,7 +145,9 @@ export default function accessTokenFactory(
       (session.refreshToken && accessTokenRequest && accessTokenRequest.refresh)
     ) {
       const client = await getClient();
-      const tokenSet = await client.refresh(session.refreshToken);
+      const tokenSet = await client.refresh(session.refreshToken, {
+        exchangeBody: accessTokenRequest?.authorizationParams
+      });
 
       // Update the session.
       const newSession = fromTokenSet(tokenSet, config);

@@ -3,6 +3,8 @@ import { withApi } from '../fixtures/default-settings';
 import { get } from '../auth0-session/fixtures/helpers';
 import { Session } from '../../src';
 import { refreshTokenExchange, refreshTokenRotationExchange } from '../fixtures/oidc-nocks';
+import { makeIdToken } from '../auth0-session/fixtures/cert';
+import nock from 'nock';
 
 describe('get access token', () => {
   afterEach(teardown);
@@ -241,5 +243,37 @@ describe('get access token', () => {
     expect(accessToken).toEqual('new-token');
     const { idToken: newIdToken } = await get(baseUrl, '/api/session', { cookieJar });
     expect(newIdToken).toBeUndefined();
+  });
+
+  test('should pass custom auth params in refresh grant request body', async () => {
+    const idToken = makeIdToken({
+      iss: `${withApi.issuerBaseURL}/`,
+      aud: withApi.clientID,
+      email: 'john@test.com',
+      name: 'john doe',
+      sub: '123'
+    });
+
+    const spy = jest.fn();
+    nock(`${withApi.issuerBaseURL}`)
+      .post('/oauth/token', /grant_type=refresh_token/)
+      .reply(200, (_, body) => {
+        spy(body);
+        return {
+          access_token: 'new-token',
+          id_token: idToken,
+          token_type: 'Bearer',
+          expires_in: 750,
+          scope: 'read:foo write:foo'
+        };
+      });
+
+    const baseUrl = await setup(withApi, {
+      getAccessTokenOptions: { refresh: true, authorizationParams: { baz: 'qux' } }
+    });
+    const cookieJar = await login(baseUrl);
+    const { accessToken } = await get(baseUrl, '/api/access-token', { cookieJar });
+    expect(accessToken).toEqual('new-token');
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('baz=qux'));
   });
 });
