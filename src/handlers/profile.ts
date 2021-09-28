@@ -18,8 +18,8 @@ export type ProfileOptions = {
   refetch?: boolean;
 
   /**
-   * Like {@AfterCallback} when a session is created, you can use this function to validate or add/remove claims
-   * after the session is updated. Will only run if {@link ProfileOptions.refetch} is `true`
+   * Like {@AfterCallback} and {@AfterRefresh} when a session is created, you can use this function to validate or
+   * add/remove claims after the session is updated. Will only run if {@link ProfileOptions.refetch} is `true`
    */
   afterRefetch?: AfterRefetch;
 };

@@ -213,4 +213,33 @@ describe('get access token', () => {
       }
     });
   });
+
+  test('should retrieve a new access token and update the session based on afterRefresh', async () => {
+    refreshTokenExchange(
+      withApi,
+      'GEbRxBN...edjnXbL',
+      {
+        email: 'john@test.com',
+        name: 'john doe',
+        sub: '123'
+      },
+      'new-token'
+    );
+    const baseUrl = await setup(withApi, {
+      getAccessTokenOptions: {
+        refresh: true,
+        afterRefresh(_req, _res, session) {
+          delete session.idToken;
+          return session;
+        }
+      }
+    });
+    const cookieJar = await login(baseUrl);
+    const { idToken } = await get(baseUrl, '/api/session', { cookieJar });
+    expect(idToken).not.toBeUndefined();
+    const { accessToken } = await get(baseUrl, '/api/access-token', { cookieJar });
+    expect(accessToken).toEqual('new-token');
+    const { idToken: newIdToken } = await get(baseUrl, '/api/session', { cookieJar });
+    expect(newIdToken).toBeUndefined();
+  });
 });
