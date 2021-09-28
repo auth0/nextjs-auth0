@@ -154,7 +154,7 @@ export default function accessTokenFactory(
         session = await accessTokenRequest.afterRefresh(req as NextApiRequest, res as NextApiResponse, session);
       }
 
-      sessionCache.set(req, res, session as Session);
+      sessionCache.set(req, res, session);
 
       // Return the new access token.
       return {
