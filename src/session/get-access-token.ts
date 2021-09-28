@@ -6,7 +6,7 @@ import { intersect, match } from '../utils/array';
 import { Session, SessionCache, fromTokenSet } from '../session';
 import { NextConfig } from '../config';
 
-export type AfterRefresh = (req: any, res: any, session: Session) => Promise<Session> | Session;
+export type AfterRefresh = (req: NextApiRequest, res: NextApiResponse, session: Session) => Promise<Session> | Session;
 
 /**
  * Custom options to get an Access Token.
@@ -151,7 +151,7 @@ export default function accessTokenFactory(
       });
 
       if (accessTokenRequest?.afterRefresh) {
-        session = await accessTokenRequest.afterRefresh(req as any, res as any, session);
+        session = await accessTokenRequest.afterRefresh(req as NextApiRequest, res as NextApiResponse, session);
       }
 
       sessionCache.set(req, res, session as Session);
