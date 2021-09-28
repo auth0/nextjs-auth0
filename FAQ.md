@@ -21,17 +21,17 @@ The SDK stores the session data in cookies. Since browsers reject cookies larger
 
 If the session cookies are pushing the header size over the limit, **you have two options**:
 
--  Use `-max-http-header-size` to increase Node's header size.
--  Remove unused data from the session cookies.
+- Use `-max-http-header-size` to increase Node's header size.
+- Remove unused data from the session cookies.
 
-For the latter, you can add an `afterCallback` hook to remove the ID Token and/or unused claims from the user profile:
+For the latter, you can add an [afterCallback](https://auth0.github.io/nextjs-auth0/modules/handlers_callback.html#aftercallback) hook to remove the ID Token and/or unused claims from the user profile:
 
 ```js
 // pages/api/auth/[...auth0].js
 import { handleAuth, handleCallback } from '@auth0/nextjs-auth0';
 
 const afterCallback = (req, res, session, state) => {
-  delete session.user.unusedClaim; // This gets persisted by the SDK
+  delete session.idToken;
   return session;
 };
 
@@ -44,6 +44,22 @@ export default handleAuth({
     }
   }
 });
+```
+
+> Note: if you are using refresh tokens you must also remove the item from the Session after it is refreshed using the [afterRefresh](https://auth0.github.io/nextjs-auth0/interfaces/session_get_access_token.accesstokenrequest.html#afterrefresh) hook (see also the [afterRefetch](https://auth0.github.io/nextjs-auth0/modules/handlers_profile.html#profileoptions) hook if you're removing claims from the user object).
+
+```js
+// pages/api/my-handler.js
+import { getAccessToken } from '@auth0/nextjs-auth0';
+
+const afterRefresh = (req, res, session) => {
+  delete session.idToken;
+  return session;
+};
+
+export default async function MyHandler(req, res) {
+  const accessToken = await getAccessToken(req, res, { afterRefresh });
+}
 ```
 
 > Note: support for custom session stores [is in our roadmap](https://github.com/auth0/nextjs-auth0/issues/279).

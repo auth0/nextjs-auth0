@@ -3,8 +3,10 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { ClientFactory } from '../auth0-session';
 import { AccessTokenError } from '../utils/errors';
 import { intersect, match } from '../utils/array';
-import { SessionCache, fromTokenSet } from '../session';
+import { Session, SessionCache, fromTokenSet } from '../session';
 import { NextConfig } from '../config';
+
+export type AfterRefresh = (req: any, res: any, session: Session) => Promise<Session> | Session;
 
 /**
  * Custom options to get an Access Token.
@@ -22,6 +24,34 @@ export interface AccessTokenRequest {
    * the Access Token has expired or not.
    */
   refresh?: boolean;
+
+  /**
+   * When the Access Token Request refreshes the tokens using the Refresh Grant the Session is updated with new tokens.
+   * Use this to modify the session after it is refreshed.
+   * Usually used to keep updates in sync with the {@Link AfterCallback} hook.
+   * See also the {@Link AfterRefetch} hook
+   *
+   * ### Modify the session after refresh
+   *
+   * ```js
+   * // pages/api/my-handler.js
+   * import { getAccessToken } from '@auth0/nextjs-auth0';
+   *
+   * const afterRefresh = (req, res, session) => {
+   *   session.user.customProperty = 'foo';
+   *   delete session.idToken;
+   *   return session;
+   * };
+   *
+   * export default async function MyHandler(req, res) {
+   *   const accessToken = await getAccessToken(req, res, {
+   *     refresh: true,
+   *     afterRefresh,
+   *   });
+   * };
+   * ```
+   */
+  afterRefresh?: AfterRefresh;
 }
 
 /**
@@ -56,7 +86,7 @@ export default function accessTokenFactory(
   sessionCache: SessionCache
 ): GetAccessToken {
   return async (req, res, accessTokenRequest): Promise<GetAccessTokenResult> => {
-    const session = sessionCache.get(req, res);
+    let session = sessionCache.get(req, res);
     if (!session) {
       throw new AccessTokenError('invalid_session', 'The user does not have a valid session.');
     }
@@ -119,6 +149,12 @@ export default function accessTokenFactory(
         refreshToken: newSession.refreshToken || session.refreshToken,
         user: { ...session.user, ...newSession.user }
       });
+
+      if (accessTokenRequest?.afterRefresh) {
+        session = await accessTokenRequest.afterRefresh(req as any, res as any, session);
+      }
+
+      sessionCache.set(req, res, session as Session);
 
       // Return the new access token.
       return {
