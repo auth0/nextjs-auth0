@@ -6,6 +6,7 @@ import { get, post, toSignedCookieJar } from '../auth0-session/fixtures/helpers'
 import { encodeState } from '../../src/auth0-session/hooks/get-login-state';
 import { setup, teardown } from '../fixtures/setup';
 import { Session, AfterCallback } from '../../src';
+import nock from 'nock';
 
 const callback = (baseUrl: string, body: any, cookieJar?: CookieJar): Promise<any> =>
   post(baseUrl, `/api/auth/callback`, {
@@ -360,5 +361,47 @@ describe('callback handler', () => {
     const session = await get(baseUrl, '/api/session', { cookieJar });
 
     expect(session.user.org_id).toEqual('foo');
+  });
+
+  test('should pass custom params to the token exchange', async () => {
+    const baseUrl = await setup(withoutApi, {
+      callbackOptions: {
+        authorizationParams: { foo: 'bar' }
+      }
+    });
+    const state = encodeState({ returnTo: baseUrl });
+    const cookieJar = toSignedCookieJar(
+      {
+        state,
+        nonce: '__test_nonce__'
+      },
+      baseUrl
+    );
+    const spy = jest.fn();
+
+    nock(`${withoutApi.issuerBaseURL}`)
+      .post('/oauth/token', /grant_type=authorization_code/)
+      .reply(200, (_, body) => {
+        spy(body);
+        return {
+          access_token: 'eyJz93a...k4laUWw',
+          expires_in: 750,
+          scope: 'read:foo delete:foo',
+          refresh_token: 'GEbRxBN...edjnXbL',
+          id_token: makeIdToken({ iss: `${withoutApi.issuerBaseURL}/` }),
+          token_type: 'Bearer'
+        };
+      });
+
+    const { res } = await callback(
+      baseUrl,
+      {
+        state,
+        code: 'foobar'
+      },
+      cookieJar
+    );
+    expect(res.statusCode).toBe(302);
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('foo=bar'));
   });
 });

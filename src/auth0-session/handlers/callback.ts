@@ -1,7 +1,7 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import urlJoin from 'url-join';
 import { BadRequest } from 'http-errors';
-import { Config } from '../config';
+import { AuthorizationParameters, Config } from '../config';
 import { ClientFactory } from '../client';
 import TransientStore from '../transient-store';
 import { decodeState } from '../hooks/get-login-state';
@@ -17,6 +17,8 @@ export type CallbackOptions = {
   afterCallback?: AfterCallback;
 
   redirectUri?: string;
+
+  authorizationParams?: Partial<AuthorizationParameters>;
 };
 
 export type HandleCallback = (req: IncomingMessage, res: ServerResponse, options?: CallbackOptions) => Promise<void>;
@@ -40,12 +42,17 @@ export default function callbackHandlerFactory(
       const code_verifier = transientCookieHandler.read('code_verifier', req, res);
       const nonce = transientCookieHandler.read('nonce', req, res);
 
-      tokenSet = await client.callback(redirectUri, callbackParams, {
-        max_age: max_age !== undefined ? +max_age : undefined,
-        code_verifier,
-        nonce,
-        state: expectedState
-      });
+      tokenSet = await client.callback(
+        redirectUri,
+        callbackParams,
+        {
+          max_age: max_age !== undefined ? +max_age : undefined,
+          code_verifier,
+          nonce,
+          state: expectedState
+        },
+        { exchangeBody: options?.authorizationParams }
+      );
     } catch (err) {
       throw new BadRequest(err.message);
     }
