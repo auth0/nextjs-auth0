@@ -74,6 +74,8 @@ export interface GetAccessTokenResult {
 /**
  * Get an Access Token to access an external API.
  *
+ * @throws {@Link AccessTokenError}
+ *
  * @category Server
  */
 export type GetAccessToken = (

@@ -27,6 +27,8 @@ export type ProfileOptions = {
 /**
  * The handler for the `/api/auth/me` route.
  *
+ * @throws {@Link HandlerError}
+ *
  * @category Server
  */
 export type HandleProfile = (req: NextApiRequest, res: NextApiResponse, options?: ProfileOptions) => Promise<void>;
