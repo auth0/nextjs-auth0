@@ -57,6 +57,8 @@ import { HandlerError } from '../utils/errors';
  * });
  * ```
  *
+ * @throws {@Link HandlerError}
+ *
  * @category Server
  */
 export type AfterCallback = (
@@ -94,6 +96,8 @@ export interface CallbackOptions {
 
 /**
  * The handler for the `api/auth/callback` route.
+ *
+ * @throws {@Link HandlerError}
  *
  * @category Server
  */

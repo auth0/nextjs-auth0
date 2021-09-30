@@ -115,6 +115,8 @@ export {
   WithPageAuthRequiredProps
 } from './frontend';
 
+export { AccessTokenError, HandlerError } from './utils/errors';
+
 export {
   ConfigParameters,
   HandleAuth,
