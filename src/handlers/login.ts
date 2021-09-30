@@ -108,6 +108,8 @@ export interface LoginOptions {
 /**
  * The handler for the `api/auth/login` route.
  *
+ * @throws {@Link HandlerError}
+ *
  * @category Server
  */
 export type HandleLogin = (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions) => Promise<void>;

@@ -19,6 +19,8 @@ export interface LogoutOptions {
 /**
  * The handler for the `api/auth/logout` route.
  *
+ * @throws {@Link HandlerError}
+ *
  * @category Server
  */
 export type HandleLogout = (req: NextApiRequest, res: NextApiResponse, options?: LogoutOptions) => Promise<void>;
