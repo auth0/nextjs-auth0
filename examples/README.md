@@ -108,6 +108,6 @@ AUTH0_BASE_URL=$VERCEL_URL
 
 Unlike other `.env` files, You will need to check in `.env.production` so it should **not** contain any secrets. See how we define `.env.production` in the [kitchen-sink example app](./kitchen-sink-example/.env.production).
 
-###### Production deployments
+###### Production deployments (or other environments with fixed urls)
 
 For production deployments or [custom domains assigned to a git branch](https://vercel.com/docs/custom-domains#assigning-a-domain-to-a-git-branch) you should assign the correct url to the `AUTH0_BASE_URL` environment variable in "Settings > Environment Variables". See the [Vercel docs on Environment Variables](https://vercel.com/docs/environment-variables#preview-environment-variables) for more information. This will override your `.env.production` file.

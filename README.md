@@ -22,6 +22,7 @@ The Auth0 Next.js SDK is a library for implementing user authentication in Next.
   - [Architecture](./ARCHITECTURE.md)
   - [Comparison with auth0-react](#comparison-with-the-auth0-react-sdk)
   - [Testing](#testing)
+  - [Deploying](#deploying)
 - [Contributing](#contributing)
 - [Vulnerability Reporting](#vulnerability-reporting)
 - [What is Auth0?](#what-is-auth0)
@@ -277,6 +278,12 @@ You should be aware of the security implications of both models. However, [auth0
 By default, the SDK creates and manages a singleton instance to run for the lifetime of the application. When testing your application, you may need to reset this instance, so its state does not leak between tests.
 
 If you're using Jest, we recommend using `jest.resetModules()` after each test. Alternatively, you can look at [creating your own instance of the SDK](./EXAMPLES.md#create-your-own-instance-of-the-sdk), so it can be recreated between tests.
+
+For end to end tests, have a look at how we use a [mock OIDC Provider](./scripts/oidc-provider.js).
+
+# Deploying
+
+For deploying, have a look at [how we deploy our example app to Vercel](./examples/README.md).
 
 ## Contributing
 
