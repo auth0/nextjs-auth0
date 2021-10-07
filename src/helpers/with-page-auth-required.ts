@@ -25,17 +25,14 @@ import { withPageAuthRequired as withPageAuthRequiredCSR } from '../frontend';
  *
  * @category Server
  */
-export type GetServerSidePropsResultWithSession = GetServerSidePropsResult<{
-  user?: Claims | null;
-  [key: string]: any;
-}>;
+export type GetServerSidePropsResultWithSession<P = any> = GetServerSidePropsResult<P & { user?: Claims | null }>;
 
 /**
  * A page route that has been augmented with {@link WithPageAuthRequired}
  *
  * @category Server
  */
-export type PageRoute = (cts: GetServerSidePropsContext) => Promise<GetServerSidePropsResultWithSession>;
+export type PageRoute<P> = (cts: GetServerSidePropsContext) => Promise<GetServerSidePropsResultWithSession<P>>;
 
 /**
  * If you have a custom returnTo url you should specify it in `returnTo`.
@@ -63,7 +60,10 @@ export type PageRoute = (cts: GetServerSidePropsContext) => Promise<GetServerSid
  *
  * @category Server
  */
-export type WithPageAuthRequiredOptions = { getServerSideProps?: GetServerSideProps; returnTo?: string };
+export type WithPageAuthRequiredOptions<P = any> = {
+  getServerSideProps?: GetServerSideProps<P>;
+  returnTo?: string;
+};
 
 /**
  * Wrap your `getServerSideProps` with this method to make sure the user is authenticated before visiting the page.
@@ -85,7 +85,7 @@ export type WithPageAuthRequiredOptions = { getServerSideProps?: GetServerSidePr
  * @category Server
  */
 export type WithPageAuthRequired = {
-  (opts?: WithPageAuthRequiredOptions): PageRoute;
+  <P>(opts?: WithPageAuthRequiredOptions<P>): PageRoute<P>;
   <P extends WithPageAuthRequiredProps>(
     Component: ComponentType<P>,
     options?: WithPageAuthRequiredCSROptions
