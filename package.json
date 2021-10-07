@@ -123,17 +123,17 @@
   },
   "jest": {
     "testEnvironment": "node",
-    "rootDir": "tests",
+    "rootDir": ".",
     "moduleFileExtensions": [
       "ts",
       "tsx",
       "js"
     ],
     "collectCoverageFrom": [
-      "src/**/*.*",
-      "!src/index.browser.ts",
-      "!src/index.ts",
-      "!src/handlers/auth.ts"
+      "<rootDir>/src/**/*.*",
+      "!<rootDir>/src/index.browser.ts",
+      "!<rootDir>/src/index.ts",
+      "!<rootDir>/src/handlers/auth.ts"
     ],
     "coverageReporters": [
       "lcov",
@@ -149,9 +149,16 @@
       }
     },
     "preset": "ts-jest",
-    "globalSetup": "./global-setup.ts",
+    "globals": {
+      "ts-jest": {
+        "tsconfig": {
+          "target": "es6"
+        }
+      }
+    },
+    "globalSetup": "./tests/global-setup.ts",
     "setupFilesAfterEnv": [
-      "./setup.ts"
+      "./tests/setup.ts"
     ]
   }
 }
