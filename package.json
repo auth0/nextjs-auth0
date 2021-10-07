@@ -114,7 +114,7 @@
     "joi": "^17.4.1",
     "jose": "^2.0.5",
     "on-headers": "^1.0.2",
-    "openid-client": "^4.7.5",
+    "openid-client": "^4.8.0",
     "tslib": "^2.3.1",
     "url-join": "^4.0.1"
   },
