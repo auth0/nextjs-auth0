@@ -133,6 +133,7 @@ You can now determine if a user is authenticated by checking that the `user` obj
 
 ```jsx
 // pages/index.js
+import { Link } from "next/link";
 import { useUser } from '@auth0/nextjs-auth0';
 
 export default function Index() {
@@ -144,12 +145,16 @@ export default function Index() {
   if (user) {
     return (
       <div>
-        Welcome {user.name}! <a href="/api/auth/logout">Logout</a>
+       Welcome {user.name} <Link href="/api/auth/logout"><a>Logout</a></Link>
       </div>
     );
   }
-
-  return <a href="/api/auth/login">Login</a>;
+  
+  return (
+    <Link href="/api/auth/login">
+      <a>Logout</a>
+    </Link>
+  );
 }
 ```
 
