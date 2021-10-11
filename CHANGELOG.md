@@ -1,5 +1,16 @@
 # Change Log
 
+## [v1.6.0](https://github.com/auth0/nextjs-auth0/tree/v1.6.0) (2021-10-11)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v1.5.0...v1.6.0)
+
+**Added**
+- [SDK-2818] Export error classes [\#508](https://github.com/auth0/nextjs-auth0/pull/508) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- [SDK-2529] Add ability to pass custom params to refresh grant and code exchange [\#507](https://github.com/auth0/nextjs-auth0/pull/507) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- [SDK-2813] Add afterRefresh hook [\#506](https://github.com/auth0/nextjs-auth0/pull/506) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
+**Fixed**
+- Fix types in server-side `withPageAuthRequired` [\#512](https://github.com/auth0/nextjs-auth0/pull/512) ([Widcket](https://github.com/Widcket))
+
 ## [1.5.0](https://github.com/auth0/nextjs-auth0/tree/v1.5.0) (2021-07-14)
 
 **Added**
