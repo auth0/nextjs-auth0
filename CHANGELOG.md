@@ -1,5 +1,11 @@
 # Change Log
 
+## [v1.6.1](https://github.com/auth0/nextjs-auth0/tree/v1.6.1) (2021-10-13)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v1.6.0...v1.6.1)
+
+**Fixed**
+- [Snyk] Upgrade openid-client from 4.8.0 to 4.9.0 [\#518](https://github.com/auth0/nextjs-auth0/pull/518) ([snyk-bot](https://github.com/snyk-bot))
+
 ## [v1.6.0](https://github.com/auth0/nextjs-auth0/tree/v1.6.0) (2021-10-11)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v1.5.0...v1.6.0)
 
