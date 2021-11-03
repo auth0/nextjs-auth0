@@ -17,6 +17,7 @@ The Auth0 Next.js SDK is a library for implementing user authentication in Next.
   - [API Reference](#api-reference)
   - [v1 Migration Guide](./V1_MIGRATION_GUIDE.md)
   - [Cookies and Security](#cookies-and-security)
+  - [Caching and Security](#caching-and-security)
   - [Error Handling and Security](#error-handling-and-security)
   - [Base Path and Internationalized Routing](#base-path-and-internationalized-routing)
   - [Architecture](./ARCHITECTURE.md)
@@ -193,6 +194,16 @@ All cookies will be set to `HttpOnly, SameSite=Lax` and will be set to `Secure` 
 The `HttpOnly` setting will make sure that client-side JavaScript is unable to access the cookie to reduce the attack surface of [XSS attacks](https://auth0.com/blog/developers-guide-to-common-vulnerabilities-and-how-to-prevent-them/#Cross-Site-Scripting--XSS-).
 
 The `SameSite=Lax` setting will help mitigate CSRF attacks. Learn more about SameSite by reading the ["Upcoming Browser Behavior Changes: What Developers Need to Know"](https://auth0.com/blog/browser-behavior-changes-what-developers-need-to-know/) blog post.
+
+### Caching and Security
+
+Many hosting providers will offer to cache your content at the edge in order to serve data to your users as fast as possible. For example Vercel will [cache your content on the Vercel Edge Network](https://vercel.com/docs/concepts/edge-network/caching) for all static content and Serverless Functions if you provide the necessary caching headers on your response.
+
+It's generally a bad idea to cache any response that requires authentication, even if the response's content appears safe to cache there may be other data in the response that isn't.
+
+This SDK offers a rolling session by default, which means that any response that reads the session will have a `Set-Cookie` header to update the cookie's expiry. Vercel and potentially other hosting providers include the `Set-Cookie` header in the cached response, so even if you think the response's content can be cached publicly, the responses `Set-Cookie` header cannot.
+
+Check your hosting provider's caching rules, but in general you should **never** cache responses that either require authentication or even touch the session to check authentication (eg when using `withApiAuthRequired`, `withPageAuthRequired` or even just `getSession` or `getAccessToken`).
 
 ### Error Handling and Security
 
