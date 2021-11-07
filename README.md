@@ -110,7 +110,7 @@ Executing `handleAuth()` creates the following route handlers under the hood tha
 
 - `/api/auth/callback`: Your Identity Provider redirects users to this route after they successfully log in.
 
-- `/api/auth/logout`: Your Next.js application logs out the user.
+- `/api/auth/logout`: Your Next.js application logs out the user (you can optionally pass a `returnTo` parameter to return to a custom relative URL after logout, eg `/api/auth/logout?returnTo=/login`).
 
 - `/api/auth/me`: You can fetch user profile information in JSON format.
 
