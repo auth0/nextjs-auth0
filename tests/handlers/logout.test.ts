@@ -99,6 +99,59 @@ describe('logout handler', () => {
     });
   });
 
+  test('should allow the returnTo url to be provided in the querystring', async () => {
+    const logoutOptions = {
+      returnTo: '/bar'
+    };
+    const baseUrl = await setup(withoutApi, { logoutOptions });
+    const cookieJar = await login(baseUrl);
+    const { status, headers } = await fetch(`${baseUrl}/api/auth/logout?returnTo=/foo`, {
+      redirect: 'manual',
+      headers: {
+        cookie: cookieJar.getCookieStringSync(baseUrl)
+      }
+    });
+    expect(status).toBe(302);
+    expect(parseUrl(headers.get('location') as string, true).query).toMatchObject({
+      returnTo: 'http://www.acme.com/foo'
+    });
+  });
+
+  test('should take the first returnTo url provided in the querystring', async () => {
+    const logoutOptions = {
+      returnTo: '/top'
+    };
+    const baseUrl = await setup(withoutApi, { logoutOptions });
+    const cookieJar = await login(baseUrl);
+    const { status, headers } = await fetch(`${baseUrl}/api/auth/logout?returnTo=/foo&returnTo=/bar`, {
+      redirect: 'manual',
+      headers: {
+        cookie: cookieJar.getCookieStringSync(baseUrl)
+      }
+    });
+    expect(status).toBe(302);
+    expect(parseUrl(headers.get('location') as string, true).query).toMatchObject({
+      returnTo: 'http://www.acme.com/foo'
+    });
+  });
+
+  test('should not allow absolute urls to be provided in the querystring', async () => {
+    const logoutOptions = {
+      returnTo: '/default-redirect'
+    };
+    const baseUrl = await setup(withoutApi, { logoutOptions });
+    const cookieJar = await login(baseUrl);
+
+    const res = await fetch(`${baseUrl}/api/auth/logout?returnTo=https://www.google.com`, {
+      redirect: 'manual',
+      headers: {
+        cookie: cookieJar.getCookieStringSync(baseUrl)
+      }
+    });
+    expect(res.status).toBe(500);
+    expect(await res.text()).toEqual('Invalid value provided for returnTo, must be a relative url');
+  });
+
   test('should escape html in errors', async () => {
     const baseUrl = await setup(withoutApi);
 
