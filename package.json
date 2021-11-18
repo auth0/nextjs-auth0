@@ -149,13 +149,6 @@
       }
     },
     "preset": "ts-jest",
-    "globals": {
-      "ts-jest": {
-        "tsconfig": {
-          "target": "es6"
-        }
-      }
-    },
     "globalSetup": "./tests/global-setup.ts",
     "setupFilesAfterEnv": [
       "./tests/setup.ts"

@@ -8,6 +8,7 @@ import { HttpError } from 'http-errors';
 export class AccessTokenError extends Error {
   public code: string;
 
+  /* istanbul ignore next */
   constructor(code: string, message: string) {
     super(message);
 
@@ -19,6 +20,7 @@ export class AccessTokenError extends Error {
 
     // Machine readable code.
     this.code = code;
+    Object.setPrototypeOf(this, AccessTokenError.prototype);
   }
 }
 
@@ -48,6 +50,7 @@ export class HandlerError extends Error {
   public status: number | undefined;
   public code: string | undefined;
 
+  /* istanbul ignore next */
   constructor(error: Error | AccessTokenError | HttpError) {
     super(htmlSafe(error.message));
 
@@ -60,5 +63,6 @@ export class HandlerError extends Error {
     if ('status' in error) {
       this.status = error.status;
     }
+    Object.setPrototypeOf(this, HandlerError.prototype);
   }
 }
