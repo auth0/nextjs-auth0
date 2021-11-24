@@ -11,8 +11,8 @@ describe('url-helpers', () => {
     test('should allow relative urls', () => {
       expect(isSafeRedirect('/foo')).toEqual(true);
       expect(isSafeRedirect('/foo?some=value')).toEqual(true);
-      expect(isSafeRedirect('/foo?urlParam=https://bar'));
-      expect(isSafeRedirect('/foo?urlParam=//bar'));
+      expect(isSafeRedirect('/foo?urlParam=https://bar')).toEqual(true);
+      expect(isSafeRedirect('/foo?urlParam=//bar')).toEqual(true);
     });
 
     test('should prevent open redirects', () => {
