@@ -17,6 +17,8 @@ describe('url-helpers', () => {
 
     test('should prevent open redirects', () => {
       expect(isSafeRedirect('//google.com')).toEqual(false);
+      expect(isSafeRedirect(' //google.com')).toEqual(false);
+      expect(isSafeRedirect('\n//google.com')).toEqual(false);
       expect(isSafeRedirect('///google.com')).toEqual(false);
     });
 
