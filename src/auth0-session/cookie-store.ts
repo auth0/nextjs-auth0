@@ -1,5 +1,6 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { strict as assert, AssertionError } from 'assert';
+import crypto from 'crypto';
 import { JWE, JWK, JWKS, errors } from 'jose';
 import { encryption as deriveKey } from './utils/hkdf';
 import createDebug from './utils/debug';
@@ -13,7 +14,26 @@ const MAX_COOKIE_SIZE = 4096;
 const alg = 'dir';
 const enc = 'A256GCM';
 
+const ORIGINAL_SESSION = Symbol('originalSession');
+type Session = { [key: string]: any };
+type SessionHeader = { iat: number; uat?: number; exp: number };
+
+declare module 'http' {
+  export interface IncomingMessage {
+    [ORIGINAL_SESSION]?: string;
+  }
+}
+
 const notNull = <T>(value: T | null): value is T => value !== null;
+
+const hash = (session: Session, headers: SessionHeader) => {
+  const sessionStr = JSON.stringify(session);
+  const headersStr = JSON.stringify({ uat: undefined, ...headers });
+  return crypto
+    .createHash('sha1')
+    .update(sessionStr + headersStr, 'utf8')
+    .digest('hex');
+};
 
 export default class CookieStore {
   private keystore: JWKS.KeyStore;
@@ -49,7 +69,7 @@ export default class CookieStore {
     this.chunkSize = MAX_COOKIE_SIZE - emptyCookie.length;
   }
 
-  private encrypt(payload: string, headers: { [key: string]: any }): string {
+  private encrypt(payload: string, headers: SessionHeader): string {
     return JWE.encrypt(payload, this.currentKey as JWK.OctKey, {
       alg,
       enc,
@@ -66,8 +86,7 @@ export default class CookieStore {
   }
 
   private calculateExp(iat: number, uat: number): number {
-    const { absoluteDuration } = this.config.session;
-    const { rolling, rollingDuration } = this.config.session;
+    const { absoluteDuration, rolling, rollingDuration } = this.config.session;
 
     if (typeof absoluteDuration !== 'number') {
       return uat + rollingDuration;
@@ -78,9 +97,9 @@ export default class CookieStore {
     return Math.min(uat + rollingDuration, iat + absoluteDuration);
   }
 
-  public read(req: IncomingMessage): [{ [key: string]: any }?, number?] {
+  public read(req: IncomingMessage): [Session?, number?] {
     const cookies = getCookies(req);
-    const { name: sessionName, rollingDuration, absoluteDuration } = this.config.session;
+    const { name: sessionName, rolling, rollingDuration, absoluteDuration } = this.config.session;
 
     let iat;
     let uat;
@@ -119,13 +138,13 @@ export default class CookieStore {
 
       if (existingSessionValue) {
         const { protected: header, cleartext } = this.decrypt(existingSessionValue);
-        ({ iat, uat, exp } = header as { iat: number; uat: number; exp: number });
+        ({ iat, uat, exp } = header as SessionHeader);
 
         // check that the existing session isn't expired based on options when it was established
         assert(exp > epoch(), 'it is expired based on options when it was established');
 
         // check that the existing session isn't expired based on current rollingDuration rules
-        if (rollingDuration) {
+        if (rolling && uat !== undefined) {
           assert(uat + rollingDuration > epoch(), 'it is expired based on current rollingDuration rules');
         }
 
@@ -134,7 +153,9 @@ export default class CookieStore {
           assert(iat + absoluteDuration > epoch(), 'it is expired based on current absoluteDuration rules');
         }
 
-        return [JSON.parse(cleartext.toString()), iat];
+        const session = JSON.parse(cleartext.toString());
+        req[ORIGINAL_SESSION] = hash(session, { iat, uat, exp });
+        return [session, iat];
       }
     } catch (err) {
       /* istanbul ignore else */
@@ -153,12 +174,13 @@ export default class CookieStore {
   public save(
     req: IncomingMessage,
     res: ServerResponse,
-    session: { [key: string]: any } | undefined | null,
+    session: Session | undefined | null,
     createdAt?: number
   ): void {
     const {
       cookie: { transient, ...cookieConfig },
-      name: sessionName
+      name: sessionName,
+      rolling
     } = this.config.session;
     const cookies = getCookies(req);
 
@@ -187,7 +209,13 @@ export default class CookieStore {
     }
 
     debug('found session, creating signed session cookie(s) with name %o(.i)', sessionName);
-    const value = this.encrypt(JSON.stringify(session), { iat, uat, exp });
+    const headers: SessionHeader = { iat, exp };
+    if (rolling) {
+      headers.uat = uat;
+    } else if (hash(session, headers) === req[ORIGINAL_SESSION]) {
+      return;
+    }
+    const value = this.encrypt(JSON.stringify(session), headers);
 
     const chunkCount = Math.ceil(value.length / this.chunkSize);
     if (chunkCount > 1) {
