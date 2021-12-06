@@ -110,7 +110,7 @@
     "cookie": "^0.4.1",
     "debug": "^4.3.2",
     "futoin-hkdf": "^1.4.2",
-    "http-errors": "^1.8.0",
+    "http-errors": "^1.8.1",
     "joi": "^17.4.1",
     "jose": "^2.0.5",
     "on-headers": "^1.0.2",
