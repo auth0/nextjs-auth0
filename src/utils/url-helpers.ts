@@ -8,7 +8,7 @@ export default function isSafeRedirect(url: string): boolean {
   }
 
   // Prevent open redirects using the //foo.com format (double forward slash).
-  if (/\/\//.test(url)) {
+  if (/\/\s*\//.test(url)) {
     return false;
   }
 
