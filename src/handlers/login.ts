@@ -1,8 +1,8 @@
 import { NextApiResponse, NextApiRequest } from 'next';
 import { AuthorizationParameters, HandleLogin as BaseHandleLogin } from '../auth0-session';
-import isSafeRedirect from '../utils/url-helpers';
+import toSafeRedirect from '../utils/url-helpers';
 import { assertReqRes } from '../utils/assert';
-import { NextConfig } from '../config';
+import { BaseConfig, NextConfig } from '../config';
 import { HandlerError } from '../utils/errors';
 
 /**
@@ -117,16 +117,19 @@ export type HandleLogin = (req: NextApiRequest, res: NextApiResponse, options?: 
 /**
  * @ignore
  */
-export default function handleLoginFactory(handler: BaseHandleLogin, nextConfig: NextConfig): HandleLogin {
+export default function handleLoginFactory(
+  handler: BaseHandleLogin,
+  nextConfig: NextConfig,
+  baseConfig: BaseConfig
+): HandleLogin {
   return async (req, res, options = {}): Promise<void> => {
     try {
       assertReqRes(req, res);
       if (req.query.returnTo) {
-        const returnTo = Array.isArray(req.query.returnTo) ? req.query.returnTo[0] : req.query.returnTo;
+        const dangerousReturnTo = Array.isArray(req.query.returnTo) ? req.query.returnTo[0] : req.query.returnTo;
+        const safeBaseUrl = new URL(options.authorizationParams?.redirect_uri || baseConfig.baseURL);
 
-        if (!isSafeRedirect(returnTo)) {
-          throw new Error('Invalid value provided for returnTo, must be a relative url');
-        }
+        const returnTo = toSafeRedirect(dangerousReturnTo, safeBaseUrl);
 
         options = { ...options, returnTo };
       }

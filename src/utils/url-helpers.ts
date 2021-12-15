@@ -1,16 +1,17 @@
 /**
  * Helper which tests if a URL can safely be redirected to. Requires the URL to be relative.
- * @param url
+ * @param dangerousRedirect
+ * @param safeBaseUrl
  */
-export default function isSafeRedirect(url: string): boolean {
-  if (typeof url !== 'string') {
-    throw new TypeError(`Invalid url: ${url}`);
+export default function toSafeRedirect(dangerousRedirect: string, safeBaseUrl: URL): string | undefined {
+  let url: URL;
+  try {
+    url = new URL(dangerousRedirect, safeBaseUrl);
+  } catch (e) {
+    return undefined;
   }
-
-  // Prevent open redirects using the //foo.com format (double forward slash).
-  if (/\/\//.test(url)) {
-    return false;
+  if (url.origin === safeBaseUrl.origin) {
+    return url.toString();
   }
-
-  return !/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(url);
+  return undefined;
 }
