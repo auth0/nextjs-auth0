@@ -1,5 +1,14 @@
 # Change Log
 
+## [v1.6.2](https://github.com/auth0/nextjs-auth0/tree/v1.6.2) (2021-12-16)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v1.6.1...v1.6.2)
+
+**Fixed**
+- Fix issue where error reporting wrong instanceof [\#543](https://github.com/auth0/nextjs-auth0/pull/543) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
+**Security**
+- Enforce configured host on user supplied returnTo [\#557](https://github.com/auth0/nextjs-auth0/pull/557) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [v1.6.1](https://github.com/auth0/nextjs-auth0/tree/v1.6.1) (2021-10-13)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v1.6.0...v1.6.1)
 
