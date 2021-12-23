@@ -5,6 +5,7 @@ import createDebug from '../utils/debug';
 import { Config, LogoutOptions } from '../config';
 import { ClientFactory } from '../client';
 import { SessionCache } from '../session-cache';
+import { htmlSafe } from '../../utils/errors';
 
 const debug = createDebug('logout');
 
@@ -28,7 +29,7 @@ export default function logoutHandlerFactory(
       res.writeHead(302, {
         Location: returnURL
       });
-      res.end();
+      res.end(htmlSafe(returnURL));
       return;
     }
 
@@ -40,7 +41,7 @@ export default function logoutHandlerFactory(
       res.writeHead(302, {
         Location: returnURL
       });
-      res.end();
+      res.end(htmlSafe(returnURL));
       return;
     }
 
@@ -54,6 +55,6 @@ export default function logoutHandlerFactory(
     res.writeHead(302, {
       Location: returnURL
     });
-    res.end();
+    res.end(htmlSafe(returnURL));
   };
 }
