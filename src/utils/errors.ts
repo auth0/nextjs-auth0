@@ -26,7 +26,7 @@ export class AccessTokenError extends Error {
 
 // eslint-disable-next-line max-len
 // Basic escaping for putting untrusted data directly into the HTML body, per: https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html#rule-1-html-encode-before-inserting-untrusted-data-into-html-element-content
-function htmlSafe(input: string): string {
+export function htmlSafe(input: string): string {
   return input
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

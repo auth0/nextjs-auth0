@@ -6,6 +6,7 @@ import { ClientFactory } from '../client';
 import TransientStore from '../transient-store';
 import { decodeState } from '../hooks/get-login-state';
 import { SessionCache } from '../session-cache';
+import { htmlSafe } from '../../utils/errors';
 
 function getRedirectUri(config: Config): string {
   return urlJoin(config.baseURL, config.routes.callback);
@@ -69,6 +70,6 @@ export default function callbackHandlerFactory(
     res.writeHead(302, {
       Location: openidState.returnTo || config.baseURL
     });
-    res.end();
+    res.end(htmlSafe(openidState.returnTo || config.baseURL));
   };
 }

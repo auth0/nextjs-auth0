@@ -6,6 +6,7 @@ import TransientStore, { StoreOptions } from '../transient-store';
 import { encodeState } from '../hooks/get-login-state';
 import { ClientFactory } from '../client';
 import createDebug from '../utils/debug';
+import { htmlSafe } from '../../utils/errors';
 
 const debug = createDebug('handlers');
 
@@ -92,6 +93,6 @@ export default function loginHandlerFactory(
     res.writeHead(302, {
       Location: authorizationUrl
     });
-    res.end();
+    res.end(htmlSafe(authorizationUrl));
   };
 }
