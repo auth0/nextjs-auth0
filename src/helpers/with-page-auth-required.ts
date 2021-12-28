@@ -88,7 +88,7 @@ export type WithPageAuthRequiredOptions<P = any, Q extends ParsedUrlQuery = Pars
  * @category Server
  */
 export type WithPageAuthRequired = {
-  <P, Q extends ParsedUrlQuery>(opts?: WithPageAuthRequiredOptions<P, Q>): PageRoute<P, Q>;
+  <P, Q extends ParsedUrlQuery = ParsedUrlQuery>(opts?: WithPageAuthRequiredOptions<P, Q>): PageRoute<P, Q>;
   <P extends WithPageAuthRequiredProps>(
     Component: ComponentType<P>,
     options?: WithPageAuthRequiredCSROptions
