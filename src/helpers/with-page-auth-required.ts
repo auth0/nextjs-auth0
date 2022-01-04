@@ -7,6 +7,7 @@ import {
   WithPageAuthRequiredProps
 } from '../frontend/with-page-auth-required';
 import { withPageAuthRequired as withPageAuthRequiredCSR } from '../frontend';
+import { ParsedUrlQuery } from 'querystring';
 
 /**
  * If you wrap your `getServerSideProps` with {@link WithPageAuthRequired} your props object will be augmented with
@@ -32,7 +33,9 @@ export type GetServerSidePropsResultWithSession<P = any> = GetServerSidePropsRes
  *
  * @category Server
  */
-export type PageRoute<P> = (cts: GetServerSidePropsContext) => Promise<GetServerSidePropsResultWithSession<P>>;
+export type PageRoute<P, Q extends ParsedUrlQuery> = (
+  cts: GetServerSidePropsContext<Q>
+) => Promise<GetServerSidePropsResultWithSession<P>>;
 
 /**
  * If you have a custom returnTo url you should specify it in `returnTo`.
@@ -60,8 +63,8 @@ export type PageRoute<P> = (cts: GetServerSidePropsContext) => Promise<GetServer
  *
  * @category Server
  */
-export type WithPageAuthRequiredOptions<P = any> = {
-  getServerSideProps?: GetServerSideProps<P>;
+export type WithPageAuthRequiredOptions<P = any, Q extends ParsedUrlQuery = ParsedUrlQuery> = {
+  getServerSideProps?: GetServerSideProps<P, Q>;
   returnTo?: string;
 };
 
@@ -85,7 +88,7 @@ export type WithPageAuthRequiredOptions<P = any> = {
  * @category Server
  */
 export type WithPageAuthRequired = {
-  <P>(opts?: WithPageAuthRequiredOptions<P>): PageRoute<P>;
+  <P, Q extends ParsedUrlQuery = ParsedUrlQuery>(opts?: WithPageAuthRequiredOptions<P, Q>): PageRoute<P, Q>;
   <P extends WithPageAuthRequiredProps>(
     Component: ComponentType<P>,
     options?: WithPageAuthRequiredCSROptions
