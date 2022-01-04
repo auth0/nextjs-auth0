@@ -214,7 +214,7 @@ describe('login handler', () => {
 
     const decodedState = decodeState(state.split('.')[0]);
     expect(decodedState).toEqual({
-      returnTo: '/foo'
+      returnTo: new URL('/foo', withoutApi.baseURL).toString()
     });
   });
 
@@ -229,7 +229,7 @@ describe('login handler', () => {
 
     const decodedState = decodeState(state.split('.')[0]);
     expect(decodedState).toEqual({
-      returnTo: '/foo'
+      returnTo: new URL('/foo', withoutApi.baseURL).toString()
     });
   });
 
@@ -239,9 +239,47 @@ describe('login handler', () => {
     };
     const baseUrl = await setup(withoutApi, { loginOptions });
 
-    await expect(
-      get(baseUrl, '/api/auth/login?returnTo=https://www.google.com', { fullResponse: true })
-    ).rejects.toThrow('Invalid value provided for returnTo, must be a relative url');
+    const cookieJar = new CookieJar();
+    await get(baseUrl, '/api/auth/login?returnTo=https://www.google.com', { cookieJar });
+    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
+
+    const decodedState = decodeState(state.split('.')[0]);
+    expect(decodedState).toEqual({});
+  });
+
+  test('should allow absolute urls in params of returnTo urls', async () => {
+    const loginOptions = {
+      returnTo: '/default-redirect'
+    };
+    const baseUrl = await setup(withoutApi, { loginOptions });
+
+    const cookieJar = new CookieJar();
+    await get(baseUrl, '/api/auth/login?returnTo=/foo?url=https://www.google.com', { cookieJar });
+    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
+
+    const decodedState = decodeState(state.split('.')[0]);
+    expect(decodedState).toEqual({
+      returnTo: new URL('/foo?url=https://www.google.com', withoutApi.baseURL).toString()
+    });
+  });
+
+  test('should redirect relative to the redirect_uri over the base url', async () => {
+    const loginOptions = {
+      returnTo: '/default-redirect',
+      authorizationParams: {
+        redirect_uri: 'https://other-org.acme.com/api/auth/callback'
+      }
+    };
+    const baseUrl = await setup(withoutApi, { loginOptions });
+
+    const cookieJar = new CookieJar();
+    await get(baseUrl, '/api/auth/login?returnTo=/foo', { cookieJar });
+    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
+
+    const decodedState = decodeState(state.split('.')[0]);
+    expect(decodedState).toEqual({
+      returnTo: 'https://other-org.acme.com/foo'
+    });
   });
 
   test('should escape html in errors', async () => {
