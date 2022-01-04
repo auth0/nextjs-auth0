@@ -133,10 +133,10 @@ export default class TransientStore {
    */
   read(key: string, req: IncomingMessage, res: ServerResponse): string | undefined {
     const cookie = getCookie(req, key);
-    const { domain, path } = this.config.session.cookie;
+    const cookieConfig = this.config.session.cookie;
 
     let value = getCookieValue(key, cookie, this.keyStore);
-    clearCookie(res, key, { domain, path });
+    clearCookie(res, key, cookieConfig);
 
     if (this.config.legacySameSiteCookie) {
       const fallbackKey = `_${key}`;
@@ -144,7 +144,7 @@ export default class TransientStore {
         const fallbackCookie = getCookie(req, fallbackKey);
         value = getCookieValue(fallbackKey, fallbackCookie, this.keyStore);
       }
-      clearCookie(res, fallbackKey, { domain, path });
+      clearCookie(res, fallbackKey, cookieConfig);
     }
 
     return value;

@@ -166,10 +166,7 @@ export default class CookieStore {
       debug('clearing all matching session cookies');
       for (const cookieName of Object.keys(cookies)) {
         if (cookieName.match(`^${sessionName}(?:\\.\\d)?$`)) {
-          clearCookie(res, cookieName, {
-            domain: cookieConfig.domain,
-            path: cookieConfig.path
-          });
+          clearCookie(res, cookieName, cookieConfig);
         }
       }
       return;
@@ -198,19 +195,13 @@ export default class CookieStore {
         setCookie(res, chunkCookieName, chunkValue, cookieOptions);
       }
       if (sessionName in cookies) {
-        clearCookie(res, sessionName, {
-          domain: cookieConfig.domain,
-          path: cookieConfig.path
-        });
+        clearCookie(res, sessionName, cookieConfig);
       }
     } else {
       setCookie(res, sessionName, value, cookieOptions);
       for (const cookieName of Object.keys(cookies)) {
         if (cookieName.match(`^${sessionName}\\.\\d$`)) {
-          clearCookie(res, cookieName, {
-            domain: cookieConfig.domain,
-            path: cookieConfig.path
-          });
+          clearCookie(res, cookieName, cookieConfig);
         }
       }
     }
