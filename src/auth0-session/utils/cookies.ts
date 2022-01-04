@@ -22,5 +22,17 @@ export const set = (res: ServerResponse, name: string, value: string, options: C
 };
 
 export const clear = (res: ServerResponse, name: string, options: CookieSerializeOptions = {}): void => {
-  set(res, name, '', { ...options, maxAge: 0 });
+  const { domain, path, secure, sameSite } = options;
+  const clearOptions: CookieSerializeOptions = {
+    domain,
+    path,
+    maxAge: 0
+  };
+  // If SameSite=None is set, the cookie Secure attribute must also be set (or the cookie will be blocked)
+  // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite#none
+  if (sameSite === 'none') {
+    clearOptions.secure = secure;
+  }
+
+  set(res, name, '', clearOptions);
 };
