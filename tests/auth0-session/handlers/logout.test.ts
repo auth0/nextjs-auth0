@@ -174,7 +174,9 @@ describe('logout route', () => {
 
     const { res } = await get(baseURL, '/logout', { cookieJar, fullResponse: true });
     const cookies = fromCookieJar(cookieJar, baseURL);
-    expect(res.headers['set-cookie'].find((setCookie: string) => /^appSession/.test(setCookie))).toMatch(/Secure/);
+    const sessionCookie = res.headers['set-cookie'].find((s: string) => /^appSession/.test(s));
+    expect(sessionCookie).toMatch(/Secure/);
+    expect(sessionCookie).toMatch(/SameSite=None/);
     expect(cookies).toHaveProperty('foo');
     expect(cookies).not.toHaveProperty('appSession');
   });

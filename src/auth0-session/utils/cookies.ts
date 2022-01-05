@@ -32,6 +32,7 @@ export const clear = (res: ServerResponse, name: string, options: CookieSerializ
   // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite#none
   if (sameSite === 'none') {
     clearOptions.secure = secure;
+    clearOptions.sameSite = sameSite;
   }
 
   set(res, name, '', clearOptions);
