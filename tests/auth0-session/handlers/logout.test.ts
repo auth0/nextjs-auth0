@@ -157,4 +157,27 @@ describe('logout route', () => {
     expect(res.statusCode).toEqual(302);
     expect(res.headers.location).toEqual(returnTo);
   });
+
+  it('should clear session cookie when SameSite=None', async () => {
+    const baseURL = await setup(
+      { ...defaultConfig, idpLogout: false, session: { cookie: { sameSite: 'none' } } },
+      { https: true }
+    );
+    const cookieJar = await login(baseURL);
+    cookieJar.setCookieSync('foo=bar', baseURL);
+
+    await get(baseURL, '/session', { cookieJar });
+    expect(fromCookieJar(cookieJar, baseURL)).toMatchObject({
+      appSession: expect.any(String),
+      foo: 'bar'
+    });
+
+    const { res } = await get(baseURL, '/logout', { cookieJar, fullResponse: true });
+    const cookies = fromCookieJar(cookieJar, baseURL);
+    const sessionCookie = res.headers['set-cookie'].find((s: string) => /^appSession/.test(s));
+    expect(sessionCookie).toMatch(/Secure/);
+    expect(sessionCookie).toMatch(/SameSite=None/);
+    expect(cookies).toHaveProperty('foo');
+    expect(cookies).not.toHaveProperty('appSession');
+  });
 });
