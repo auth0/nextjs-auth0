@@ -1,5 +1,16 @@
 # Change Log
 
+## [v1.7.0](https://github.com/auth0/nextjs-auth0/tree/v1.7.0) (2022-01-06)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v1.6.2...v1.7.0)
+
+**Added**
+- Include message body in 302 responses [\#564](https://github.com/auth0/nextjs-auth0/pull/564) ([michielvangendt](https://github.com/michielvangendt))
+
+**Fixed**
+- Honor configured sameSite in transient cookies so you can login to iframe using 'none' [\#571](https://github.com/auth0/nextjs-auth0/pull/571) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Cookies with samesite=none must have the secure attr set [\#570](https://github.com/auth0/nextjs-auth0/pull/570) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Improve types in server-side withPageAuthRequired [\#554](https://github.com/auth0/nextjs-auth0/pull/554) ([misoton665](https://github.com/misoton665))
+
 ## [v1.6.2](https://github.com/auth0/nextjs-auth0/tree/v1.6.2) (2021-12-16)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v1.6.1...v1.6.2)
 
