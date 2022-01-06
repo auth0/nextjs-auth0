@@ -40,7 +40,7 @@ export default function loginHandlerFactory(
     };
 
     const transientOpts: StoreOptions = {
-      sameSite: opts.authorizationParams.response_mode === 'form_post' ? 'none' : 'lax'
+      sameSite: opts.authorizationParams.response_mode === 'form_post' ? 'none' : config.session.cookie.sameSite
     };
 
     const stateValue = await opts.getLoginState(req as any, opts);

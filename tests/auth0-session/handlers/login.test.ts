@@ -1,7 +1,7 @@
 import { parse } from 'url';
 import { CookieJar } from 'tough-cookie';
 import { setup, teardown } from '../fixtures/server';
-import { defaultConfig, fromCookieJar, get } from '../fixtures/helpers';
+import { defaultConfig, fromCookieJar, get, getCookie } from '../fixtures/helpers';
 import { decodeState, encodeState } from '../../../src/auth0-session/hooks/get-login-state';
 import { LoginOptions } from '../../../src/auth0-session';
 import { IncomingMessage } from 'http';
@@ -196,5 +196,49 @@ describe('login', () => {
       getLoginState: () => 'invalid'
     });
     await expect(get(baseURL, '/login')).rejects.toThrow('Custom state value must be an object.');
+  });
+
+  it('transient cookie SameSite should default to lax in code flow', async () => {
+    const baseURL = await setup({
+      ...defaultConfig,
+      clientSecret: '__test_client_secret__',
+      authorizationParams: {
+        response_type: 'code'
+      }
+    });
+    const cookieJar = new CookieJar();
+
+    const { res } = await get(baseURL, '/login', { fullResponse: true, cookieJar });
+    expect(res.statusCode).toEqual(302);
+
+    const cookie = getCookie('state', cookieJar, baseURL);
+    expect(cookie?.sameSite).toEqual('lax');
+    expect(cookie?.secure).toBeFalsy();
+  });
+
+  it('transient cookie SameSite should honor cookie config in code flow', async () => {
+    const baseURL = await setup(
+      {
+        ...defaultConfig,
+        clientSecret: '__test_client_secret__',
+        authorizationParams: {
+          response_type: 'code'
+        },
+        session: {
+          cookie: {
+            sameSite: 'none'
+          }
+        }
+      },
+      { https: true }
+    );
+    const cookieJar = new CookieJar();
+
+    const { res } = await get(baseURL, '/login', { fullResponse: true, cookieJar });
+    expect(res.statusCode).toEqual(302);
+
+    const cookie = getCookie('state', cookieJar, baseURL);
+    expect(cookie?.sameSite).toEqual('none');
+    expect(cookie?.secure).toBeTruthy();
   });
 });
