@@ -89,11 +89,11 @@ export type WithPageAuthRequiredOptions<P = any, Q extends ParsedUrlQuery = Pars
  * @category Server
  */
 export type WithPageAuthRequired = {
-  <P, Q extends ParsedUrlQuery = ParsedUrlQuery>(opts?: WithPageAuthRequiredOptions<P, Q>): PageRoute<P, Q>;
   <P extends WithPageAuthRequiredProps>(
     Component: ComponentType<P & UserProps>,
     options?: WithPageAuthRequiredCSROptions
   ): React.FC<P>;
+  <P, Q extends ParsedUrlQuery = ParsedUrlQuery>(opts?: WithPageAuthRequiredOptions<P, Q>): PageRoute<P, Q>;
 };
 
 /**
@@ -101,9 +101,7 @@ export type WithPageAuthRequired = {
  */
 export default function withPageAuthRequiredFactory(loginUrl: string, getSession: GetSession): WithPageAuthRequired {
   return (
-    optsOrComponent:
-      | WithPageAuthRequiredOptions
-      | ComponentType<WithPageAuthRequiredProps & UserProps> = {},
+    optsOrComponent: WithPageAuthRequiredOptions | ComponentType<WithPageAuthRequiredProps & UserProps> = {},
     csrOpts?: WithPageAuthRequiredCSROptions
   ): any => {
     if (typeof optsOrComponent === 'function') {
