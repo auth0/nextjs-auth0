@@ -99,6 +99,8 @@ For preview deployments you will either want to assign this to:
 - **Automatic Deployment URL:** For example `project-d418mhwf5-team.vercel.app` which is defined by the `VERCEL_URL` environment variable.
 - **Automatic Branch URL:** For example `project-git-update-team.vercel.app` which can be constructed using `${VERCEL_GIT_REPO_SLUG}-git-${VERCEL_GIT_COMMIT_REF}-${VERCEL_GIT_REPO_OWNER}.vercel.app`
 
+See here for more information about Vercel's Automatic Urls: https://vercel.com/docs/concepts/deployments/automatic-urls
+
 To do this, make sure "Automatically expose System Environment Variables" is checked in "Settings > Environment Variables" and assign either the Automatic Deployment URL or the Automatic Branch URL to `AUTH0_BASE_URL` in your `.env.production` file, eg
 
 ```shell
