@@ -55,8 +55,11 @@ export interface WithPageAuthRequiredOptions {
  * @ignore
  */
 export interface WithPageAuthRequiredProps {
-  user: UserProfile;
   [key: string]: any;
+}
+
+export interface UserProps {
+  user: UserProfile;
 }
 
 /**
@@ -70,9 +73,9 @@ export interface WithPageAuthRequiredProps {
  * @category Client
  */
 export type WithPageAuthRequired = <P extends WithPageAuthRequiredProps>(
-  Component: ComponentType<P>,
+  Component: ComponentType<P & UserProps>,
   options?: WithPageAuthRequiredOptions
-) => React.FC<Omit<P, 'user'>>;
+) => React.FC<P>;
 
 /**
  * @ignore
