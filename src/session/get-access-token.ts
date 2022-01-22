@@ -129,23 +129,24 @@ export default function accessTokenFactory(
       }
     }
 
-    // Check if the token has expired.
-    // There is an edge case where we might have some clock skew where our code assumes the token is still valid.
-    // Adding a skew of 1 minute to compensate.
-    if (!session.refreshToken && session.accessTokenExpiresAt * 1000 - 60000 < Date.now()) {
-      throw new AccessTokenError(
-        'access_token_expired',
-        'The access token expired and a refresh token is not available. The user will need to sign in again.'
-      );
-    }
 
     // Check if the token has expired.
     // There is an edge case where we might have some clock skew where our code assumes the token is still valid.
     // Adding a skew of 1 minute to compensate.
     if (
-      (session.refreshToken && session.accessTokenExpiresAt * 1000 - 60000 < Date.now()) ||
-      (session.refreshToken && accessTokenRequest && accessTokenRequest.refresh)
+      (session.accessTokenExpiresAt * 1000 - 60000 < Date.now()) ||
+      (accessTokenRequest && accessTokenRequest.refresh)
     ) {
+      // Check if the token has expired.
+      // There is an edge case where we might have some clock skew where our code assumes the token is still valid.
+      // Adding a skew of 1 minute to compensate.
+      if (!session.refreshToken) {
+        throw new AccessTokenError(
+          'no_refesh_token',
+          'A refresh token is required to refresh the access token, but none is present. The user will need to sign in again.'
+        );
+      }
+
       const client = await getClient();
       const tokenSet = await client.refresh(session.refreshToken, {
         exchangeBody: accessTokenRequest?.authorizationParams
