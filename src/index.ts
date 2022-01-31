@@ -1,3 +1,10 @@
+/**
+ * Load the VERCEL_URL environment variable if AUTH0_BASE_URL is not set.
+ *
+ * @see https://github.com/auth0/nextjs-auth0/issues/383#issuecomment-1026071966
+ */
+process.env.AUTH0_BASE_URL = process.env.AUTH0_BASE_URL || process.env.VERCEL_URL;
+
 import {
   CookieStore,
   TransientStore,
