@@ -4,6 +4,15 @@ beforeEach(() => {
   });
 });
 
+let mockActualReact: any;
+
+jest.doMock('react', () => {
+  if (!mockActualReact) {
+    mockActualReact = jest.requireActual('react');
+  }
+  return mockActualReact;
+});
+
 afterEach(() => {
   jest.clearAllMocks();
   jest.restoreAllMocks();
