@@ -24,6 +24,13 @@ describe('with-page-auth-required csr', () => {
   afterEach(() => delete (global as any).fetch);
   afterAll(() => (window.location = windowLocation));
 
+  it('should hoist static properties', async () => {
+    const MyPage = (): JSX.Element => <>Private</>;
+    MyPage.getLayout = () => <div />;
+    const ProtectedPage = withPageAuthRequired(MyPage);
+    expect((ProtectedPage as any).getLayout).toBe(MyPage.getLayout);
+  });
+
   it('should deny access to a CSR page when not authenticated', async () => {
     (global as any).fetch = fetchUserUnsuccessfulMock;
     const MyPage = (): JSX.Element => <>Private</>;

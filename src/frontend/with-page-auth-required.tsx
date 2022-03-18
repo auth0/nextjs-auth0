@@ -1,4 +1,5 @@
 import React, { ComponentType, useEffect } from 'react';
+import hoistNonReactStatics from 'hoist-non-react-statics';
 
 import { useConfig } from './use-config';
 import { useUser, UserProfile } from './use-user';
@@ -81,7 +82,7 @@ export type WithPageAuthRequired = <P extends WithPageAuthRequiredProps>(
  * @ignore
  */
 const withPageAuthRequired: WithPageAuthRequired = (Component, options = {}) => {
-  return function withPageAuthRequired(props): JSX.Element {
+  function WithPageAuthRequired(props: WithPageAuthRequiredProps): JSX.Element {
     const { returnTo, onRedirecting = defaultOnRedirecting, onError = defaultOnError } = options;
     const { loginUrl } = useConfig();
     const { user, error, isLoading } = useUser();
@@ -104,7 +105,11 @@ const withPageAuthRequired: WithPageAuthRequired = (Component, options = {}) => 
     if (user) return <Component user={user} {...(props as any)} />;
 
     return onRedirecting();
-  };
+  }
+
+  hoistNonReactStatics(WithPageAuthRequired, Component);
+
+  return WithPageAuthRequired;
 };
 
 export default withPageAuthRequired;
