@@ -65,6 +65,8 @@ Take note of the **Client ID**, **Client Secret**, and **Domain** values under t
 
 ### Basic Setup
 
+#### Configure the Application
+
 You need to allow your Next.js application to communicate properly with Auth0. You can do so by creating a `.env.local` file under your root project directory that defines the necessary Auth0 configuration values as follows:
 
 ```bash
@@ -90,6 +92,8 @@ You can see a full list of Auth0 configuration options in the ["Configuration pr
 
 > For more details about loading environmental variables in Next.js, visit the ["Environment Variables"](https://nextjs.org/docs/basic-features/environment-variables) document.
 
+#### Add the Dynamic API Route
+
 Go to your Next.js application and create a [catch-all, dynamic API route handler](https://nextjs.org/docs/api-routes/dynamic-api-routes#optional-catch-all-api-routes) under the `/pages/api` directory:
 
 - Create an `auth` directory under the `/pages/api/` directory.
@@ -114,6 +118,8 @@ Executing `handleAuth()` creates the following route handlers under the hood tha
 
 - `/api/auth/me`: You can fetch user profile information in JSON format.
 
+#### Add the UserProvider to Custom App
+
 Wrap your `pages/_app.js` component with the `UserProvider` component:
 
 ```jsx
@@ -129,6 +135,8 @@ export default function App({ Component, pageProps }) {
   );
 }
 ```
+
+#### Consume Authentication
 
 You can now determine if a user is authenticated by checking that the `user` object returned by the `useUser()` hook is defined. You can also log in or log out your users from the frontend layer of your Next.js application by redirecting them to the appropriate automatically-generated route:
 
