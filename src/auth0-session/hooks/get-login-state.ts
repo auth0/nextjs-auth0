@@ -40,8 +40,12 @@ export function encodeState(stateObject: { [key: string]: any }): string {
  *
  * @param {string} stateValue
  *
- * @return {object}
+ * @return {object|undefined}
  */
-export function decodeState(stateValue: string): { [key: string]: any } {
-  return JSON.parse(base64url.decode(stateValue));
+export function decodeState(stateValue?: string): { [key: string]: any } | undefined {
+  try {
+    return JSON.parse(base64url.decode(stateValue as string));
+  } catch (e) {
+    return undefined;
+  }
 }

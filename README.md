@@ -227,7 +227,7 @@ try {
 
 Because the error can come from the OpenID Connect `error` query parameter we do some [basic escaping](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html#rule-1-html-encode-before-inserting-untrusted-data-into-html-element-content) which makes sure the default error handler is safe from XSS.
 
-If you write your own error handler, you should **not** render the error message without using a templating engine that will properly escape it for other HTML contexts first.
+If you write your own error handler, you should **not** render the error `message`, or `error` and `error_description` properties without using a templating engine that will properly escape it for other HTML contexts first.
 
 ### Base Path and Internationalized Routing
 

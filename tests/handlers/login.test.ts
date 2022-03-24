@@ -46,7 +46,7 @@ describe('login handler', () => {
     expect(state).toBeTruthy();
 
     const decodedState = decodeState(state.split('.')[0]);
-    expect(decodedState.returnTo).toEqual('/custom-url');
+    expect(decodedState?.returnTo).toEqual('/custom-url');
   });
 
   test('should redirect to the identity provider', async () => {
