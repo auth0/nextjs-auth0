@@ -186,9 +186,10 @@ export interface SessionConfig {
   /**
    * Integer value, in seconds, for application session rolling duration.
    * The amount of time for which the user must be idle for then to be logged out.
+   * Should be false when rolling is false.
    * Default is 86400 seconds (1 day).
    */
-  rollingDuration: number;
+  rollingDuration: number | false;
 
   /**
    * Integer value, in seconds, for application absolute rolling duration.

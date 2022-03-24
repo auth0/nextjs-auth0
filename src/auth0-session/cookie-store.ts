@@ -70,12 +70,12 @@ export default class CookieStore {
     const { rolling, rollingDuration } = this.config.session;
 
     if (typeof absoluteDuration !== 'number') {
-      return uat + rollingDuration;
+      return uat + (rollingDuration as number);
     }
     if (!rolling) {
       return iat + absoluteDuration;
     }
-    return Math.min(uat + rollingDuration, iat + absoluteDuration);
+    return Math.min(uat + (rollingDuration as number), iat + absoluteDuration);
   }
 
   public read(req: IncomingMessage): [{ [key: string]: any }?, number?] {
