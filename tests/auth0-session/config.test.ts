@@ -210,6 +210,19 @@ describe('Config', () => {
     ).toThrow('"session.rollingDuration" must be false when "session.rolling" is disabled');
   });
 
+  it('should succeed when rollingDuration is defined as false and rolling is false', function () {
+    expect(() =>
+      getConfig({
+        ...defaultConfig,
+        session: {
+          rolling: false,
+          rollingDuration: false,
+          absoluteDuration: 10
+        }
+      })
+    ).not.toThrow();
+  });
+
   it('should fail when rollingDuration is not defined and rolling is true', function () {
     expect(() =>
       getConfig({
