@@ -124,6 +124,17 @@ describe('config params', () => {
         }
       }
     });
+    expect(
+      getConfigWithEnv({
+        AUTH0_SESSION_ROLLING_DURATION: 'no',
+        AUTH0_SESSION_ROLLING: 'no'
+      }).baseConfig
+    ).toMatchObject({
+      session: {
+        rolling: false,
+        rollingDuration: false
+      }
+    });
   });
 
   test('should populate numbers', () => {
