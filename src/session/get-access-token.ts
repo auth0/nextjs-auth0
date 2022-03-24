@@ -139,6 +139,13 @@ export default function accessTokenFactory(
       );
     }
 
+    if (accessTokenRequest?.refresh && !session.refreshToken) {
+      throw new AccessTokenError(
+        'no_refresh_token',
+        'A refresh token is required to refresh the access token, but none is present.'
+      );
+    }
+
     // Check if the token has expired.
     // There is an edge case where we might have some clock skew where our code assumes the token is still valid.
     // Adding a skew of 1 minute to compensate.
