@@ -196,10 +196,11 @@ export interface SessionConfig {
   /**
    * Integer value, in seconds, for application session rolling duration.
    * The amount of time for which the user must be idle for then to be logged out.
+   * Should be false when rolling is false.
    * Default is 86400 seconds (1 day).
    * You can also use the AUTH0_SESSION_ROLLING_DURATION environment variable.
    */
-  rollingDuration: number;
+  rollingDuration: number | false;
 
   /**
    * Integer value, in seconds, for application absolute rolling duration.
@@ -463,7 +464,10 @@ export const getConfig = (params: ConfigParameters = {}): { baseConfig: BaseConf
     session: {
       name: AUTH0_SESSION_NAME,
       rolling: bool(AUTH0_SESSION_ROLLING),
-      rollingDuration: num(AUTH0_SESSION_ROLLING_DURATION),
+      rollingDuration:
+        AUTH0_SESSION_ROLLING_DURATION && isNaN(Number(AUTH0_SESSION_ROLLING_DURATION))
+          ? (bool(AUTH0_SESSION_ROLLING_DURATION) as false)
+          : num(AUTH0_SESSION_ROLLING_DURATION),
       absoluteDuration:
         AUTH0_SESSION_ABSOLUTE_DURATION && isNaN(Number(AUTH0_SESSION_ABSOLUTE_DURATION))
           ? bool(AUTH0_SESSION_ABSOLUTE_DURATION)
