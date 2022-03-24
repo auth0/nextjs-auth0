@@ -98,6 +98,22 @@ describe('get access token', () => {
     );
   });
 
+  test('should fail if you try to refresh the access token without a refresh token', async () => {
+    const baseUrl = await setup(withApi, {
+      callbackOptions: {
+        afterCallback: (_req, _res, session): Session => {
+          delete session.refreshToken;
+          return session;
+        }
+      },
+      getAccessTokenOptions: { refresh: true }
+    });
+    const cookieJar = await login(baseUrl);
+    await expect(get(baseUrl, '/api/access-token', { cookieJar })).rejects.toThrow(
+      'A refresh token is required to refresh the access token, but none is present.'
+    );
+  });
+
   test('should return an access token', async () => {
     const baseUrl = await setup(withApi);
     const cookieJar = await login(baseUrl);
