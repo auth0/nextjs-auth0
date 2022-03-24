@@ -5,7 +5,7 @@ import '@testing-library/jest-dom/extend-expect';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 
-import { fetchUserUnsuccessfulMock, fetchUserErrorMock, withUserProvider, user } from '../fixtures/frontend';
+import { fetchUserUnsuccessfulMock, fetchUserJSONErrorMock, withUserProvider, user } from '../fixtures/frontend';
 import { withPageAuthRequired } from '../../src/frontend';
 
 const windowLocation = window.location;
@@ -62,7 +62,7 @@ describe('with-page-auth-required csr', () => {
   });
 
   it('should show an empty fallback in case of error', async () => {
-    (global as any).fetch = fetchUserErrorMock;
+    (global as any).fetch = fetchUserJSONErrorMock;
     const MyPage = (): JSX.Element => <>Private</>;
     const ProtectedPage = withPageAuthRequired(MyPage);
 
@@ -71,7 +71,7 @@ describe('with-page-auth-required csr', () => {
   });
 
   it('should show a custom fallback in case of error', async () => {
-    (global as any).fetch = fetchUserErrorMock;
+    (global as any).fetch = fetchUserJSONErrorMock;
     const MyPage = (): JSX.Element => <>Private</>;
     const OnError = (): JSX.Element => <>Error</>;
     const ProtectedPage = withPageAuthRequired(MyPage, { onError: OnError });

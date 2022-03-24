@@ -34,6 +34,17 @@ export type UserContext = {
 /**
  * @ignore
  */
+export class NetworkError extends Error {
+  /* istanbul ignore next */
+  constructor() {
+    super();
+    Object.setPrototypeOf(this, NetworkError.prototype);
+  }
+}
+
+/**
+ * @ignore
+ */
 type UserFetcher = (url: string) => Promise<UserProfile | undefined>;
 
 /**
@@ -142,7 +153,12 @@ type UserProviderState = {
  * @ignore
  */
 const userFetcher: UserFetcher = async (url) => {
-  const response = await fetch(url);
+  let response;
+  try {
+    response = await fetch(url);
+  } catch {
+    throw new NetworkError();
+  }
   return response.ok ? response.json() : undefined;
 };
 
@@ -159,7 +175,8 @@ export default ({
     try {
       const user = await fetcher(profileUrl);
       setState((previous) => ({ ...previous, user, error: undefined }));
-    } catch (_e) {
+    } catch (e) {
+      if (e instanceof NetworkError) return;
       const error = new Error(`The request to ${profileUrl} failed`);
       setState((previous) => ({ ...previous, user: undefined, error }));
     }

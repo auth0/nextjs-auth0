@@ -1,7 +1,7 @@
 import React from 'react';
 
 import { UserProvider, UserProviderProps, UserProfile } from '../../src';
-import { ConfigProvider, ConfigProviderProps } from '../../src/frontend';
+import { ConfigProvider, ConfigProviderProps, NetworkError } from '../../src/frontend';
 
 type FetchUserMock = {
   ok: boolean;
@@ -37,12 +37,21 @@ export const fetchUserMock = (): Promise<FetchUserMock> => {
 };
 
 export const fetchUserUnsuccessfulMock = (): Promise<FetchUserMock> => {
+  return Promise.resolve({ ok: false });
+};
+
+export const fetchUserJSONErrorMock = (): Promise<FetchUserMock> => {
   return Promise.resolve({
-    ok: false
+    ok: true,
+    json: () => {
+      throw new Error();
+    }
   });
 };
 
-export const fetchUserErrorMock = (): Promise<FetchUserMock> => Promise.reject(new Error('Error'));
+export const fetchUserNetworkErrorMock = (): Promise<FetchUserMock> => {
+  return Promise.reject(new NetworkError());
+};
 
 export const withConfigProvider = ({ loginUrl }: ConfigProviderProps = {}): React.ComponentType => {
   return (props: any): React.ReactElement => <ConfigProvider {...props} loginUrl={loginUrl} />;
