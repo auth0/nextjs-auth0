@@ -1,6 +1,6 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import urlJoin from 'url-join';
-import { BadRequest } from 'http-errors';
+import createHttpError from 'http-errors';
 import { AuthorizationParameters, Config } from '../config';
 import { ClientFactory } from '../client';
 import TransientStore from '../transient-store';
@@ -12,7 +12,7 @@ function getRedirectUri(config: Config): string {
   return urlJoin(config.baseURL, config.routes.callback);
 }
 
-export type AfterCallback = (req: any, res: any, session: any, state: Record<string, any>) => Promise<any> | any;
+export type AfterCallback = (req: any, res: any, session: any, state?: Record<string, any>) => Promise<any> | any;
 
 export type CallbackOptions = {
   afterCallback?: AfterCallback;
@@ -21,6 +21,8 @@ export type CallbackOptions = {
 
   authorizationParams?: Partial<AuthorizationParameters>;
 };
+
+type ValidState = { [key: string]: any; returnTo?: string };
 
 export type HandleCallback = (req: IncomingMessage, res: ServerResponse, options?: CallbackOptions) => Promise<void>;
 
@@ -55,10 +57,14 @@ export default function callbackHandlerFactory(
         { exchangeBody: options?.authorizationParams }
       );
     } catch (err) {
-      throw new BadRequest(err.message);
+      throw createHttpError(400, err.message, {
+        error: err.error,
+        error_description: err.error_description,
+        openidState: decodeState(expectedState)
+      });
     }
 
-    const openidState: { returnTo?: string } = decodeState(expectedState as string);
+    const openidState: { returnTo?: string } = decodeState(expectedState as string) as ValidState;
     let session = sessionCache.fromTokenSet(tokenSet);
 
     if (options?.afterCallback) {
