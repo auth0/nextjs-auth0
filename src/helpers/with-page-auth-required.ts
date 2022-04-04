@@ -34,7 +34,7 @@ export type GetServerSidePropsResultWithSession<P = any> = GetServerSidePropsRes
  *
  * @category Server
  */
-export type PageRoute<P, Q extends ParsedUrlQuery> = (
+export type PageRoute<P, Q extends ParsedUrlQuery = ParsedUrlQuery> = (
   cts: GetServerSidePropsContext<Q>
 ) => Promise<GetServerSidePropsResultWithSession<P>>;
 
