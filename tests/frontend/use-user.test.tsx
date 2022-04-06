@@ -63,7 +63,7 @@ describe('context wrapper', () => {
     (global as any).fetch = fetchSpy;
 
     const returnValue = 'foo';
-    const customFetcher = jest.fn().mockReturnValue(Promise.resolve(returnValue));
+    const customFetcher = jest.fn().mockResolvedValue(returnValue);
 
     const { result, waitForValueToChange } = renderHook(() => useUser(), {
       wrapper: withUserProvider({ fetcher: customFetcher })
@@ -170,9 +170,7 @@ describe('hook', () => {
 
   test('should provide an error when a custom fetcher throws an error', async () => {
     const error = new Error();
-    const fetcher = async () => {
-      throw error;
-    };
+    const fetcher = jest.fn().mockRejectedValue(error);
 
     const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUserProvider({ fetcher }) });
 
@@ -224,6 +222,23 @@ describe('check session', () => {
   test('should not unset the user due to an error response while logged in', async () => {
     (global as any).fetch = fetchUserMock;
     const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUserProvider() });
+
+    await waitForValueToChange(() => result.current.isLoading);
+    expect(result.current.user).toEqual(user);
+
+    (global as any).fetch = fetchUserErrorMock;
+
+    await act(async () => await result.current.checkSession());
+    expect(result.current.user).toEqual(user);
+    expect(result.current.error).toBeDefined();
+    expect(result.current.isLoading).toEqual(false);
+  });
+
+  test('should not unset the user due to the custom fetcher throwing an error while logged in', async () => {
+    (global as any).fetch = fetchUserMock;
+    const fetcher = jest.fn().mockResolvedValueOnce(user).mockRejectedValueOnce(new Error());
+
+    const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUserProvider({ fetcher }) });
 
     await waitForValueToChange(() => result.current.isLoading);
     expect(result.current.user).toEqual(user);
