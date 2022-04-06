@@ -2,13 +2,13 @@ import { renderHook, act } from '@testing-library/react-hooks';
 
 import {
   fetchUserMock,
-  fetchUserUnsuccessfulMock,
+  fetchUserErrorMock,
   fetchUserNetworkErrorMock,
+  fetchUserUnauthorizedMock,
   withUserProvider,
-  user,
-  fetchUserJSONErrorMock
+  user
 } from '../fixtures/frontend';
-import { useConfig } from '../../src/frontend';
+import { RequestError, useConfig } from '../../src/frontend';
 import { useUser, UserContext } from '../../src';
 import React from 'react';
 
@@ -123,8 +123,8 @@ describe('hook', () => {
     expect(result.current.isLoading).toEqual(false);
   });
 
-  test('should provide an error when the JSON parsing throws an error', async () => {
-    (global as any).fetch = fetchUserJSONErrorMock;
+  test('should provide no user when the status code is 401', async () => {
+    (global as any).fetch = fetchUserUnauthorizedMock;
     const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUserProvider() });
 
     expect(result.current.user).toBeUndefined();
@@ -134,13 +134,44 @@ describe('hook', () => {
     await waitForValueToChange(() => result.current.isLoading);
 
     expect(result.current.user).toBeUndefined();
-    expect(result.current.error).toEqual(new Error('The request to /api/auth/me failed'));
+    expect(result.current.error).toBeUndefined();
+    expect(result.current.isLoading).toEqual(false);
+  });
+
+  test('should provide an error when the request fails', async () => {
+    (global as any).fetch = fetchUserNetworkErrorMock;
+    const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUserProvider() });
+
+    expect(result.current.user).toBeUndefined();
+    expect(result.current.error).toBeUndefined();
+    expect(result.current.isLoading).toEqual(true);
+
+    await waitForValueToChange(() => result.current.isLoading);
+
+    expect(result.current.user).toBeUndefined();
+    expect(result.current.error).toEqual(new RequestError(500));
+    expect(result.current.isLoading).toEqual(false);
+  });
+
+  test('should provide an error when the status code is not successful', async () => {
+    (global as any).fetch = fetchUserErrorMock;
+    const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUserProvider() });
+
+    expect(result.current.user).toBeUndefined();
+    expect(result.current.error).toBeUndefined();
+    expect(result.current.isLoading).toEqual(true);
+
+    await waitForValueToChange(() => result.current.isLoading);
+
+    expect(result.current.user).toBeUndefined();
+    expect(result.current.error).toEqual(new RequestError(500));
     expect(result.current.isLoading).toEqual(false);
   });
 
   test('should provide an error when a custom fetcher throws an error', async () => {
+    const error = new Error();
     const fetcher = async () => {
-      throw new Error();
+      throw error;
     };
 
     const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUserProvider({ fetcher }) });
@@ -152,22 +183,7 @@ describe('hook', () => {
     await waitForValueToChange(() => result.current.isLoading);
 
     expect(result.current.user).toBeUndefined();
-    expect(result.current.error).toEqual(new Error('The request to /api/auth/me failed'));
-    expect(result.current.isLoading).toEqual(false);
-  });
-
-  test('should not provide an error when the status code is not successful', async () => {
-    (global as any).fetch = fetchUserUnsuccessfulMock;
-    const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUserProvider() });
-
-    expect(result.current.user).toBeUndefined();
-    expect(result.current.error).toBeUndefined();
-    expect(result.current.isLoading).toEqual(true);
-
-    await waitForValueToChange(() => result.current.isLoading);
-
-    expect(result.current.user).toBeUndefined();
-    expect(result.current.error).toBeUndefined();
+    expect(result.current.error).toEqual(error);
     expect(result.current.isLoading).toEqual(false);
   });
 });
@@ -176,7 +192,7 @@ describe('check session', () => {
   afterEach(() => delete (global as any).fetch);
 
   test('should set the user after logging in', async () => {
-    (global as any).fetch = fetchUserUnsuccessfulMock;
+    (global as any).fetch = fetchUserErrorMock;
     const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUserProvider() });
 
     await waitForValueToChange(() => result.current.isLoading);
@@ -190,7 +206,7 @@ describe('check session', () => {
     expect(result.current.isLoading).toEqual(false);
   });
 
-  test('should not unset the user when the check fails due to a network error while logged in', async () => {
+  test('should not unset the user due to a network error while logged in', async () => {
     (global as any).fetch = fetchUserMock;
     const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUserProvider() });
 
@@ -201,7 +217,22 @@ describe('check session', () => {
 
     await act(async () => await result.current.checkSession());
     expect(result.current.user).toEqual(user);
-    expect(result.current.error).toBeUndefined();
+    expect(result.current.error).toBeDefined();
+    expect(result.current.isLoading).toEqual(false);
+  });
+
+  test('should not unset the user due to an error response while logged in', async () => {
+    (global as any).fetch = fetchUserMock;
+    const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUserProvider() });
+
+    await waitForValueToChange(() => result.current.isLoading);
+    expect(result.current.user).toEqual(user);
+
+    (global as any).fetch = fetchUserErrorMock;
+
+    await act(async () => await result.current.checkSession());
+    expect(result.current.user).toEqual(user);
+    expect(result.current.error).toBeDefined();
     expect(result.current.isLoading).toEqual(false);
   });
 
@@ -212,7 +243,7 @@ describe('check session', () => {
     await waitForValueToChange(() => result.current.isLoading);
     expect(result.current.user).toEqual(user);
 
-    (global as any).fetch = fetchUserUnsuccessfulMock;
+    (global as any).fetch = fetchUserUnauthorizedMock;
 
     await act(async () => await result.current.checkSession());
     expect(result.current.user).toBeUndefined();

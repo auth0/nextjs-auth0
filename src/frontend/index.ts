@@ -4,7 +4,7 @@ export {
   UserProviderProps,
   UserProfile,
   UserContext,
-  NetworkError,
+  RequestError,
   useUser
 } from './use-user';
 export {

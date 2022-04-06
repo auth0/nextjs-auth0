@@ -1,11 +1,12 @@
 import React from 'react';
 
 import { UserProvider, UserProviderProps, UserProfile } from '../../src';
-import { ConfigProvider, ConfigProviderProps, NetworkError } from '../../src/frontend';
+import { ConfigProvider, ConfigProviderProps, RequestError } from '../../src/frontend';
 
 type FetchUserMock = {
   ok: boolean;
-  json?: () => Promise<UserProfile>;
+  status: number;
+  json?: () => Promise<UserProfile | undefined>;
 };
 
 export const user: UserProfile = {
@@ -32,25 +33,29 @@ export const withUserProvider = ({
 export const fetchUserMock = (): Promise<FetchUserMock> => {
   return Promise.resolve({
     ok: true,
+    status: 200,
     json: () => Promise.resolve(user)
   });
 };
 
-export const fetchUserUnsuccessfulMock = (): Promise<FetchUserMock> => {
-  return Promise.resolve({ ok: false });
+export const fetchUserUnauthorizedMock = (): Promise<FetchUserMock> => {
+  return Promise.resolve({
+    ok: false,
+    status: 401,
+    json: () => Promise.resolve(undefined)
+  });
 };
 
-export const fetchUserJSONErrorMock = (): Promise<FetchUserMock> => {
+export const fetchUserErrorMock = (): Promise<FetchUserMock> => {
   return Promise.resolve({
-    ok: true,
-    json: () => {
-      throw new Error();
-    }
+    ok: false,
+    status: 500,
+    json: () => Promise.resolve(undefined)
   });
 };
 
 export const fetchUserNetworkErrorMock = (): Promise<FetchUserMock> => {
-  return Promise.reject(new NetworkError());
+  return Promise.reject(new RequestError(0));
 };
 
 export const withConfigProvider = ({ loginUrl }: ConfigProviderProps = {}): React.ComponentType => {
