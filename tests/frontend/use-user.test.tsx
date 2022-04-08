@@ -155,7 +155,9 @@ describe('hook', () => {
   });
 
   test('should provide an error when the status code is not successful', async () => {
-    (global as any).fetch = fetchUserErrorMock;
+    const status = 400;
+    (global as any).fetch = () => Promise.resolve({ ok: false, status });
+
     const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUserProvider() });
 
     expect(result.current.user).toBeUndefined();
@@ -166,6 +168,7 @@ describe('hook', () => {
 
     expect(result.current.user).toBeUndefined();
     expect(result.current.error).toBeInstanceOf(RequestError);
+    expect((result.current.error as RequestError).status).toEqual(status);
     expect(result.current.isLoading).toEqual(false);
   });
 
