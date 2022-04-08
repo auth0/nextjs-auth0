@@ -149,7 +149,8 @@ describe('hook', () => {
     await waitForValueToChange(() => result.current.isLoading);
 
     expect(result.current.user).toBeUndefined();
-    expect(result.current.error).toEqual(new RequestError(500));
+    expect(result.current.error).toBeInstanceOf(RequestError);
+    expect((result.current.error as RequestError).status).toEqual(0);
     expect(result.current.isLoading).toEqual(false);
   });
 
@@ -164,7 +165,7 @@ describe('hook', () => {
     await waitForValueToChange(() => result.current.isLoading);
 
     expect(result.current.user).toBeUndefined();
-    expect(result.current.error).toEqual(new RequestError(500));
+    expect(result.current.error).toBeInstanceOf(RequestError);
     expect(result.current.isLoading).toEqual(false);
   });
 
