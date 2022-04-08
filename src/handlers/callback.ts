@@ -65,7 +65,7 @@ export type AfterCallback = (
   req: NextApiRequest,
   res: NextApiResponse,
   session: Session,
-  state: { [key: string]: any }
+  state?: { [key: string]: any }
 ) => Promise<Session> | Session;
 
 /**
