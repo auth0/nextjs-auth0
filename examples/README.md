@@ -45,7 +45,7 @@ This can be done manually, by going to the Application Settings on your [Auth0 d
 
 ##### Wildcards
 
-By default, Vercel uses the `vercel.app` domain for all of your environments. Using wildcards for a shared domain opens the possibility to redirect back to a malicious website, as long as the Callback URLs matches the wildcard configuration. Because of that, you should only consider using wildcards for the preview deployments when using a [Custom Deployment Suffix](https://vercel.com/docs/platform/frequently-asked-questions#preview-deployment-suffix), which is available as part of Vercel's Pro or Enterprise plan.
+By default, Vercel uses the `vercel.app` domain for all of your environments. Using wildcards for a shared domain opens the possibility to redirect back to a malicious website, as long as the Callback URLs matches the wildcard configuration. Because of that, you should only consider using wildcards for the preview deployments when using a [Preview Deployment Suffix](https://vercel.com/docs/concepts/deployments/automatic-urls#preview-deployment-suffix), which is available as part of Vercel's Pro or Enterprise plan.
 
 | Setting               | Description                                                                                                                  |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
