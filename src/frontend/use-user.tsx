@@ -32,6 +32,28 @@ export type UserContext = {
 };
 
 /**
+ * The error thrown by the user fetcher.
+ *
+ * The `status` property contains the status code of the response. It is `0` when the request fails, e.g. due to being
+ * offline.
+ *
+ * This error is not thrown when the status code of the response is `401`, because that means the user is not
+ * authenticated.
+ *
+ * @category Client
+ */
+export class RequestError extends Error {
+  public status: number;
+
+  /* istanbul ignore next */
+  constructor(status: number) {
+    super();
+    this.status = status;
+    Object.setPrototypeOf(this, RequestError.prototype);
+  }
+}
+
+/**
  * @ignore
  */
 type UserFetcher = (url: string) => Promise<UserProfile | undefined>;
@@ -142,8 +164,18 @@ type UserProviderState = {
  * @ignore
  */
 const userFetcher: UserFetcher = async (url) => {
-  const response = await fetch(url);
-  return response.ok ? response.json() : undefined;
+  let response;
+  try {
+    response = await fetch(url);
+  } catch {
+    throw new RequestError(0); // Network error
+  }
+  if (response.ok) {
+    return response.json();
+  } else if (response.status === 401) {
+    return undefined;
+  }
+  throw new RequestError(response.status);
 };
 
 export default ({
@@ -159,9 +191,8 @@ export default ({
     try {
       const user = await fetcher(profileUrl);
       setState((previous) => ({ ...previous, user, error: undefined }));
-    } catch (_e) {
-      const error = new Error(`The request to ${profileUrl} failed`);
-      setState((previous) => ({ ...previous, user: undefined, error }));
+    } catch (error) {
+      setState((previous) => ({ ...previous, error: error as Error }));
     }
   }, [profileUrl]);
 

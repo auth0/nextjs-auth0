@@ -7,6 +7,7 @@ export {
   UserProviderProps,
   UserProfile,
   UserContext,
+  RequestError,
   useUser,
   withPageAuthRequired,
   WithPageAuthRequired

@@ -5,7 +5,7 @@ import '@testing-library/jest-dom/extend-expect';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 
-import { fetchUserUnsuccessfulMock, fetchUserErrorMock, withUserProvider, user } from '../fixtures/frontend';
+import { fetchUserErrorMock, withUserProvider, user } from '../fixtures/frontend';
 import { withPageAuthRequired } from '../../src/frontend';
 
 const windowLocation = window.location;
@@ -25,7 +25,7 @@ describe('with-page-auth-required csr', () => {
   afterAll(() => (window.location = windowLocation));
 
   it('should deny access to a CSR page when not authenticated', async () => {
-    (global as any).fetch = fetchUserUnsuccessfulMock;
+    (global as any).fetch = fetchUserErrorMock;
     const MyPage = (): JSX.Element => <>Private</>;
     const ProtectedPage = withPageAuthRequired(MyPage);
 
@@ -43,7 +43,7 @@ describe('with-page-auth-required csr', () => {
   });
 
   it('should show an empty element when redirecting', async () => {
-    (global as any).fetch = fetchUserUnsuccessfulMock;
+    (global as any).fetch = fetchUserErrorMock;
     const MyPage = (): JSX.Element => <>Private</>;
     const ProtectedPage = withPageAuthRequired(MyPage);
 
@@ -52,7 +52,7 @@ describe('with-page-auth-required csr', () => {
   });
 
   it('should show a custom element when redirecting', async () => {
-    (global as any).fetch = fetchUserUnsuccessfulMock;
+    (global as any).fetch = fetchUserErrorMock;
     const MyPage = (): JSX.Element => <>Private</>;
     const OnRedirecting = (): JSX.Element => <>Redirecting</>;
     const ProtectedPage = withPageAuthRequired(MyPage, { onRedirecting: OnRedirecting });
@@ -82,7 +82,7 @@ describe('with-page-auth-required csr', () => {
 
   it('should use a custom login URL', async () => {
     process.env.NEXT_PUBLIC_AUTH0_LOGIN = '/api/foo';
-    (global as any).fetch = fetchUserUnsuccessfulMock;
+    (global as any).fetch = fetchUserErrorMock;
     const MyPage = (): JSX.Element => <>Private</>;
     const ProtectedPage = withPageAuthRequired(MyPage);
 
@@ -93,7 +93,7 @@ describe('with-page-auth-required csr', () => {
 
   it('should return to the root path', async () => {
     window.location.toString = jest.fn(() => 'https://example.net');
-    (global as any).fetch = fetchUserUnsuccessfulMock;
+    (global as any).fetch = fetchUserErrorMock;
     const MyPage = (): JSX.Element => <>Private</>;
     const ProtectedPage = withPageAuthRequired(MyPage);
 
@@ -107,7 +107,7 @@ describe('with-page-auth-required csr', () => {
 
   it('should return to the current path', async () => {
     window.location.toString = jest.fn(() => 'https://example.net/foo');
-    (global as any).fetch = fetchUserUnsuccessfulMock;
+    (global as any).fetch = fetchUserErrorMock;
     const MyPage = (): JSX.Element => <>Private</>;
     const ProtectedPage = withPageAuthRequired(MyPage);
 
@@ -120,7 +120,7 @@ describe('with-page-auth-required csr', () => {
   });
 
   it('should accept a custom returnTo URL', async () => {
-    (global as any).fetch = fetchUserUnsuccessfulMock;
+    (global as any).fetch = fetchUserErrorMock;
     const MyPage = (): JSX.Element => <>Private</>;
     const ProtectedPage = withPageAuthRequired(MyPage, { returnTo: '/foo' });
 
@@ -133,7 +133,7 @@ describe('with-page-auth-required csr', () => {
   });
 
   it('should preserve multiple query params in the returnTo URL', async () => {
-    (global as any).fetch = fetchUserUnsuccessfulMock;
+    (global as any).fetch = fetchUserErrorMock;
     const MyPage = (): JSX.Element => <>Private</>;
     const ProtectedPage = withPageAuthRequired(MyPage, { returnTo: '/foo?bar=baz&qux=quux' });
 
