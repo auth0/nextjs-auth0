@@ -111,6 +111,7 @@ export {
   UserProviderProps,
   UserProfile,
   UserContext,
+  RequestError,
   useUser,
   WithPageAuthRequiredProps
 } from './frontend';
