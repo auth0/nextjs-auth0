@@ -81,7 +81,7 @@ export type WithPageAuthRequired = <P extends WithPageAuthRequiredProps>(
  * @ignore
  */
 const withPageAuthRequired: WithPageAuthRequired = (Component, options = {}) => {
-  return function withPageAuthRequired(props): JSX.Element {
+  return function WithPageAuthRequired(props): JSX.Element {
     const { returnTo, onRedirecting = defaultOnRedirecting, onError = defaultOnError } = options;
     const { loginUrl } = useConfig();
     const { user, error, isLoading } = useUser();
