@@ -16,7 +16,7 @@ const requireScope = (scope: string, apiRoute: NextApiHandler) =>
         error_description: `Token does not contain the required '${scope}' scope`
       });
     }
-    return apiRoute(req, res);
+    return apiRoute(req, res) as void;
   });
 
 const apiRoute = async (req: NextApiRequest, res: NextApiResponse) => {
