@@ -3,7 +3,7 @@
 <head>
 	<meta charset="utf-8">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
-	<title>LoginOptions | @auth0/nextjs-auth0</title>
+	<title>RequestError | @auth0/nextjs-auth0</title>
 	<meta name="description" content="Documentation for @auth0/nextjs-auth0">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<link rel="stylesheet" href="../assets/css/main.css">
@@ -53,13 +53,13 @@
 					<a href="../index.html">@auth0/nextjs-auth0</a>
 				</li>
 				<li>
-					<a href="../modules/handlers_login.html">handlers/login</a>
+					<a href="../modules/frontend_use_user.html">frontend/use-user</a>
 				</li>
 				<li>
-					<a href="handlers_login.loginoptions.html">LoginOptions</a>
+					<a href="frontend_use_user.requesterror.html">RequestError</a>
 				</li>
 			</ul>
-			<h1>Interface LoginOptions</h1>
+			<h1>Class RequestError</h1>
 		</div>
 	</div>
 </header>
@@ -69,15 +69,24 @@
 			<section class="tsd-panel tsd-comment">
 				<div class="tsd-comment tsd-typography">
 					<div class="lead">
-						<p>Custom options to pass to login.</p>
+						<p>The error thrown by the user fetcher.</p>
 					</div>
+					<p>The <code>status</code> property contains the status code of the response. It is <code>0</code> when the request fails, e.g. due to being
+					offline.</p>
+					<p>This error is not thrown when the status code of the response is <code>401</code>, because that means the user is not
+					authenticated.</p>
 				</div>
 			</section>
 			<section class="tsd-panel tsd-hierarchy">
 				<h3>Hierarchy</h3>
 				<ul class="tsd-hierarchy">
 					<li>
-						<span class="target">LoginOptions</span>
+						<span class="tsd-signature-type">Error</span>
+						<ul class="tsd-hierarchy">
+							<li>
+								<span class="target">RequestError</span>
+							</li>
+						</ul>
 					</li>
 				</ul>
 			</section>
@@ -86,62 +95,57 @@
 				<section class="tsd-panel tsd-index-panel">
 					<div class="tsd-index-content">
 						<section class="tsd-index-section ">
+							<h3>Constructors</h3>
+							<ul class="tsd-index-list">
+								<li class="tsd-kind-constructor tsd-parent-kind-class"><a href="frontend_use_user.requesterror.html#constructor" class="tsd-kind-icon">constructor</a></li>
+							</ul>
+						</section>
+						<section class="tsd-index-section ">
 							<h3>Properties</h3>
 							<ul class="tsd-index-list">
-								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="handlers_login.loginoptions.html#authorizationparams" class="tsd-kind-icon">authorization<wbr>Params</a></li>
-								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="handlers_login.loginoptions.html#getloginstate" class="tsd-kind-icon">get<wbr>Login<wbr>State</a></li>
-								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="handlers_login.loginoptions.html#returnto" class="tsd-kind-icon">return<wbr>To</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-class"><a href="frontend_use_user.requesterror.html#status" class="tsd-kind-icon">status</a></li>
 							</ul>
 						</section>
 					</div>
 				</section>
 			</section>
 			<section class="tsd-panel-group tsd-member-group ">
+				<h2>Constructors</h2>
+				<section class="tsd-panel tsd-member tsd-kind-constructor tsd-parent-kind-class">
+					<a name="constructor" class="tsd-anchor"></a>
+					<h3>constructor</h3>
+					<ul class="tsd-signatures tsd-kind-constructor tsd-parent-kind-class">
+						<li class="tsd-signature tsd-kind-icon">new <wbr>Request<wbr>Error<span class="tsd-signature-symbol">(</span>status<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="frontend_use_user.requesterror.html" class="tsd-signature-type" data-tsd-kind="Class">RequestError</a></li>
+					</ul>
+					<ul class="tsd-descriptions">
+						<li class="tsd-description">
+							<aside class="tsd-sources">
+								<ul>
+									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/8511943/src/frontend/use-user.tsx#L46">src/frontend/use-user.tsx:46</a></li>
+								</ul>
+							</aside>
+							<h4 class="tsd-parameters-title">Parameters</h4>
+							<ul class="tsd-parameters">
+								<li>
+									<h5>status: <span class="tsd-signature-type">number</span></h5>
+								</li>
+							</ul>
+							<h4 class="tsd-returns-title">Returns <a href="frontend_use_user.requesterror.html" class="tsd-signature-type" data-tsd-kind="Class">RequestError</a></h4>
+						</li>
+					</ul>
+				</section>
+			</section>
+			<section class="tsd-panel-group tsd-member-group ">
 				<h2>Properties</h2>
-				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
-					<a name="authorizationparams" class="tsd-anchor"></a>
-					<h3><span class="tsd-flag ts-flagOptional">Optional</span> authorization<wbr>Params</h3>
-					<div class="tsd-signature tsd-kind-icon">authorization<wbr>Params<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><a href="handlers_login.authorizationparams.html" class="tsd-signature-type" data-tsd-kind="Interface">AuthorizationParams</a></div>
+				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-class">
+					<a name="status" class="tsd-anchor"></a>
+					<h3>status</h3>
+					<div class="tsd-signature tsd-kind-icon">status<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/8511943/src/handlers/login.ts#L95">src/handlers/login.ts:95</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/8511943/src/frontend/use-user.tsx#L46">src/frontend/use-user.tsx:46</a></li>
 						</ul>
 					</aside>
-					<div class="tsd-comment tsd-typography">
-						<div class="lead">
-							<p>Override the default <a href="config.baseconfig.html#authorizationparams">authorizationParams</a></p>
-						</div>
-					</div>
-				</section>
-				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
-					<a name="getloginstate" class="tsd-anchor"></a>
-					<h3><span class="tsd-flag ts-flagOptional">Optional</span> get<wbr>Login<wbr>State</h3>
-					<div class="tsd-signature tsd-kind-icon">get<wbr>Login<wbr>State<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><a href="../modules/handlers_login.html#getloginstate" class="tsd-signature-type" data-tsd-kind="Type alias">GetLoginState</a></div>
-					<aside class="tsd-sources">
-						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/8511943/src/handlers/login.ts#L105">src/handlers/login.ts:105</a></li>
-						</ul>
-					</aside>
-					<div class="tsd-comment tsd-typography">
-						<div class="lead">
-							<p> Generate a unique state value for use during login transactions.</p>
-						</div>
-					</div>
-				</section>
-				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
-					<a name="returnto" class="tsd-anchor"></a>
-					<h3><span class="tsd-flag ts-flagOptional">Optional</span> return<wbr>To</h3>
-					<div class="tsd-signature tsd-kind-icon">return<wbr>To<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span></div>
-					<aside class="tsd-sources">
-						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/8511943/src/handlers/login.ts#L100">src/handlers/login.ts:100</a></li>
-						</ul>
-					</aside>
-					<div class="tsd-comment tsd-typography">
-						<div class="lead">
-							<p> URL to return to after login, overrides the Default is <a href="config.baseconfig.html#baseurl">BaseConfig.baseURL</a></p>
-						</div>
-					</div>
 				</section>
 			</section>
 		</div>
@@ -157,7 +161,7 @@
 					<li class=" tsd-kind-module">
 						<a href="../modules/frontend.html">frontend</a>
 					</li>
-					<li class=" tsd-kind-module">
+					<li class="current tsd-kind-module">
 						<a href="../modules/frontend_use_user.html">frontend/use-<wbr>user</a>
 					</li>
 					<li class=" tsd-kind-module">
@@ -172,7 +176,7 @@
 					<li class=" tsd-kind-module">
 						<a href="../modules/handlers_callback.html">handlers/callback</a>
 					</li>
-					<li class="current tsd-kind-module">
+					<li class=" tsd-kind-module">
 						<a href="../modules/handlers_login.html">handlers/login</a>
 					</li>
 					<li class=" tsd-kind-module">
@@ -215,32 +219,38 @@
 			</nav>
 			<nav class="tsd-navigation secondary menu-sticky">
 				<ul class="before-current">
-					<li class=" tsd-kind-interface tsd-parent-kind-module">
-						<a href="handlers_login.authorizationparams.html" class="tsd-kind-icon">Authorization<wbr>Params</a>
-					</li>
 				</ul>
 				<ul class="current">
-					<li class="current tsd-kind-interface tsd-parent-kind-module">
-						<a href="handlers_login.loginoptions.html" class="tsd-kind-icon">Login<wbr>Options</a>
+					<li class="current tsd-kind-class tsd-parent-kind-module">
+						<a href="frontend_use_user.requesterror.html" class="tsd-kind-icon">Request<wbr>Error</a>
 						<ul>
-							<li class=" tsd-kind-property tsd-parent-kind-interface">
-								<a href="handlers_login.loginoptions.html#authorizationparams" class="tsd-kind-icon">authorization<wbr>Params</a>
+							<li class=" tsd-kind-constructor tsd-parent-kind-class">
+								<a href="frontend_use_user.requesterror.html#constructor" class="tsd-kind-icon">constructor</a>
 							</li>
-							<li class=" tsd-kind-property tsd-parent-kind-interface">
-								<a href="handlers_login.loginoptions.html#getloginstate" class="tsd-kind-icon">get<wbr>Login<wbr>State</a>
-							</li>
-							<li class=" tsd-kind-property tsd-parent-kind-interface">
-								<a href="handlers_login.loginoptions.html#returnto" class="tsd-kind-icon">return<wbr>To</a>
+							<li class=" tsd-kind-property tsd-parent-kind-class">
+								<a href="frontend_use_user.requesterror.html#status" class="tsd-kind-icon">status</a>
 							</li>
 						</ul>
 					</li>
 				</ul>
 				<ul class="after-current">
-					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
-						<a href="../modules/handlers_login.html#getloginstate" class="tsd-kind-icon">Get<wbr>Login<wbr>State</a>
+					<li class=" tsd-kind-interface tsd-parent-kind-module">
+						<a href="../interfaces/frontend_use_user.userprofile.html" class="tsd-kind-icon">User<wbr>Profile</a>
 					</li>
 					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
-						<a href="../modules/handlers_login.html#handlelogin" class="tsd-kind-icon">Handle<wbr>Login</a>
+						<a href="../modules/frontend_use_user.html#useuser" class="tsd-kind-icon">Use<wbr>User</a>
+					</li>
+					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
+						<a href="../modules/frontend_use_user.html#usercontext" class="tsd-kind-icon">User<wbr>Context</a>
+					</li>
+					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
+						<a href="../modules/frontend_use_user.html#userprovider" class="tsd-kind-icon">User<wbr>Provider</a>
+					</li>
+					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
+						<a href="../modules/frontend_use_user.html#userproviderprops" class="tsd-kind-icon">User<wbr>Provider<wbr>Props</a>
+					</li>
+					<li class=" tsd-kind-property tsd-parent-kind-module">
+						<a href="../modules/frontend_use_user.html#default" class="tsd-kind-icon">default</a>
 					</li>
 				</ul>
 			</nav>
@@ -257,11 +267,12 @@
 				<li class="tsd-kind-type-alias tsd-has-type-parameter"><span class="tsd-kind-icon">Type alias with type parameter</span></li>
 			</ul>
 			<ul class="tsd-legend">
-				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>
-				<li class="tsd-kind-property tsd-parent-kind-interface"><span class="tsd-kind-icon">Property</span></li>
+				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
+				<li class="tsd-kind-constructor tsd-parent-kind-class"><span class="tsd-kind-icon">Constructor</span></li>
+				<li class="tsd-kind-property tsd-parent-kind-class"><span class="tsd-kind-icon">Property</span></li>
 			</ul>
 			<ul class="tsd-legend">
-				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
+				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>
 			</ul>
 		</div>
 	</div>
