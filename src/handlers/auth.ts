@@ -107,13 +107,13 @@ export default function handlerFactory({
 
       switch (route) {
         case 'login':
-          return login(req, res);
+          return login(req, res) as void;
         case 'logout':
-          return logout(req, res);
+          return logout(req, res) as void;
         case 'callback':
-          return callback(req, res);
+          return callback(req, res) as void;
         case 'me':
-          return profile(req, res);
+          return profile(req, res) as void;
         default:
           res.status(404).end();
       }
