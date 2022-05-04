@@ -1,5 +1,20 @@
 # Change Log
 
+## [v1.8.0](https://github.com/auth0/nextjs-auth0/tree/v1.8.0) (2022-05-04)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v1.7.0...v1.8.0)
+
+**Added**
+- Add some useful props to the callback error [\#625](https://github.com/auth0/nextjs-auth0/pull/625) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Update to next 12 [\#612](https://github.com/auth0/nextjs-auth0/pull/612) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
+**Fixed**
+- Fix Fast Refresh for WithPageAuthRequired [\#653](https://github.com/auth0/nextjs-auth0/pull/653) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Handle request errors on `useUser` hook [SDK-3227] [\#639](https://github.com/auth0/nextjs-auth0/pull/639) ([Widcket](https://github.com/Widcket))
+- Add default to PageRoute type parameter [\#632](https://github.com/auth0/nextjs-auth0/pull/632) ([grantbdev](https://github.com/grantbdev))
+- throw if you try to refresh with no rt [\#624](https://github.com/auth0/nextjs-auth0/pull/624) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Should be able to set rollingDuration as false (when rolling is false) [\#623](https://github.com/auth0/nextjs-auth0/pull/623) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Fix types in client-side `withPageAuthRequired` [\#574](https://github.com/auth0/nextjs-auth0/pull/574) ([slaypni](https://github.com/slaypni))
+
 ## [v1.7.0](https://github.com/auth0/nextjs-auth0/tree/v1.7.0) (2022-01-06)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v1.6.2...v1.7.0)
 
