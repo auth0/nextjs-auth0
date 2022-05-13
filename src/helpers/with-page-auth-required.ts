@@ -1,5 +1,5 @@
 import { GetServerSideProps, GetServerSidePropsContext, GetServerSidePropsResult } from 'next';
-import { Claims, GetSession } from '../session';
+import { Claims, SessionCache } from '../session';
 import { assertCtx } from '../utils/assert';
 import React, { ComponentType } from 'react';
 import {
@@ -62,11 +62,37 @@ export type PageRoute<P, Q extends ParsedUrlQuery = ParsedUrlQuery> = (
  * });
  * ```
  *
+ * If you're using >=Next 12 and {@link getSession} or {@link getAccessToken} without `getServerSideProps`, because you don't want to
+ * require authentication on your route, you might get a warning/error: "You should not access 'res' after getServerSideProps resolves".
+ * You can work around this by wrapping your `getServerSideProps` in `withPageAuthRequired` using `authRequired: false`, this ensures
+ * that the code that accesses `res` will run within the lifecycle of `getServerSideProps`, avoiding the warning/error eg:
+ *
+ * ```js
+ * // pages/page.js
+ * import { withPageAuthRequired } from '@auth0/nextjs-auth0';
+ *
+ * export default function ProtectedPage({ customProp }) {
+ *   return <div>Protected content</div>;
+ * }
+ *
+ * export const getServerSideProps = withPageAuthRequired({
+ *   authRequired: false,
+ *   async getServerSideProps(ctx) {
+ *     const session = getSession(ctx.req, ctx.res);
+ *     if (session) {
+ *       // user is authenticated
+ *     }
+ *     return { props: { customProp: 'bar' } };
+ *   }
+ * });
+ * ```
+ *
  * @category Server
  */
 export type WithPageAuthRequiredOptions<P = any, Q extends ParsedUrlQuery = ParsedUrlQuery> = {
   getServerSideProps?: GetServerSideProps<P, Q>;
   returnTo?: string;
+  authRequired?: boolean;
 };
 
 /**
@@ -99,7 +125,10 @@ export type WithPageAuthRequired = {
 /**
  * @ignore
  */
-export default function withPageAuthRequiredFactory(loginUrl: string, getSession: GetSession): WithPageAuthRequired {
+export default function withPageAuthRequiredFactory(
+  loginUrl: string,
+  getSessionCache: () => SessionCache
+): WithPageAuthRequired {
   return (
     optsOrComponent: WithPageAuthRequiredOptions | ComponentType<WithPageAuthRequiredProps & UserProps> = {},
     csrOpts?: WithPageAuthRequiredCSROptions
@@ -107,11 +136,13 @@ export default function withPageAuthRequiredFactory(loginUrl: string, getSession
     if (typeof optsOrComponent === 'function') {
       return withPageAuthRequiredCSR(optsOrComponent, csrOpts);
     }
-    const { getServerSideProps, returnTo } = optsOrComponent;
+    const { getServerSideProps, returnTo, authRequired = true } = optsOrComponent;
     return async (ctx: GetServerSidePropsContext): Promise<GetServerSidePropsResultWithSession> => {
       assertCtx(ctx);
-      const session = getSession(ctx.req, ctx.res);
-      if (!session?.user) {
+      const sessionCache = getSessionCache();
+      sessionCache.init(ctx.req, ctx.res, false);
+      const session = sessionCache.get(ctx.req, ctx.res);
+      if (authRequired && !session?.user) {
         // 10 - redirect
         // 9.5.4 - unstable_redirect
         // 9.4 - res.setHeaders
@@ -126,7 +157,11 @@ export default function withPageAuthRequiredFactory(loginUrl: string, getSession
       if (getServerSideProps) {
         ret = await getServerSideProps(ctx);
       }
-      return { ...ret, props: { ...ret.props, user: session.user } };
+      sessionCache.save(ctx.req, ctx.res);
+      if (ret.props instanceof Promise) {
+        return { ...ret, props: ret.props.then((props: any) => ({ ...props, user: session?.user })) };
+      }
+      return { ...ret, props: { ...ret.props, user: session?.user } };
     };
   };
 }

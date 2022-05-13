@@ -2,6 +2,7 @@
 
 1. [Why do I get a `checks.state argument is missing` error when logging in from different tabs?](#1-why-do-i-get-a-checks.state-argument-is-missing-error-if-i-try-to-log-in-from-different-tabs)
 2. [How can I reduce the cookie size?](#2-how-can-i-reduce-the-cookie-size)
+3. [I'm getting the warning/error `You should not access 'res' after getServerSideProps resolves.`](#3-i-m-getting-the-warning-error--you-should-not-access--res--after-getserversideprops-resolves.)
 
 ## 1. Why do I get a `checks.state argument is missing` error if I try to log in from different tabs?
 
@@ -63,3 +64,11 @@ export default async function MyHandler(req, res) {
 ```
 
 > Note: support for custom session stores [is in our roadmap](https://github.com/auth0/nextjs-auth0/issues/279).
+
+## 3. I'm getting the warning/error `You should not access 'res' after getServerSideProps resolves.`
+
+Because this SDK provides a rolling session by default, it writes to the header at the end of every request. This can cause the above warning when you use `getSession` or `getAccessToken` in >=Next.js 12, and an error if your `props` are defined as a `Promise`.
+
+Wrapping your `getServerSideProps` in `withAuthenticationRequired` will fix this because it will constrain the lifecycle of the session to the life of `getServerSideProps`.
+
+If you don't want to require authentication for your route, you can use `withAuthenticationRequired` with the `authRequired: false` option.
