@@ -62,10 +62,11 @@ export type PageRoute<P, Q extends ParsedUrlQuery = ParsedUrlQuery> = (
  * });
  * ```
  *
- * If you're using >=Next 12 and {@link getSession} or {@link getAccessToken} without `getServerSideProps`, because you don't want to
- * require authentication on your route, you might get a warning/error: "You should not access 'res' after getServerSideProps resolves".
- * You can work around this by wrapping your `getServerSideProps` in `withPageAuthRequired` using `authRequired: false`, this ensures
- * that the code that accesses `res` will run within the lifecycle of `getServerSideProps`, avoiding the warning/error eg:
+ * If you're using >=Next 12 and {@link getSession} or {@link getAccessToken} without `getServerSideProps`, because you
+ * don't want to require authentication on your route, you might get a warning/error: "You should not access 'res' after
+ * getServerSideProps resolves". You can work around this by wrapping your `getServerSideProps` in
+ * `withPageAuthRequired` using `authRequired: false`, this ensures that the code that accesses `res` will run within
+ * the lifecycle of `getServerSideProps`, avoiding the warning/error eg:
  *
  * ```js
  * // pages/page.js
