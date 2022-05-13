@@ -10,16 +10,17 @@ type NextApiOrPageResponse = ServerResponse | NextApiResponse;
 
 export default class SessionCache implements ISessionCache {
   private cache: WeakMap<NextApiOrPageRequest, Session | null>;
-  private iat?: number;
+  private iatCache: WeakMap<NextApiOrPageRequest, number | undefined>;
 
   constructor(private config: Config, private cookieStore: CookieStore) {
     this.cache = new WeakMap();
+    this.iatCache = new WeakMap();
   }
 
   init(req: NextApiOrPageRequest, res: NextApiOrPageResponse, autoSave = true): void {
     if (!this.cache.has(req)) {
       const [json, iat] = this.cookieStore.read(req);
-      this.iat = iat;
+      this.iatCache.set(req, iat);
       this.cache.set(req, fromJson(json));
       if (autoSave) {
         onHeaders(res, () => this.save(req, res));
@@ -28,7 +29,7 @@ export default class SessionCache implements ISessionCache {
   }
 
   save(req: NextApiOrPageRequest, res: NextApiOrPageResponse): void {
-    this.cookieStore.save(req, res, this.cache.get(req), this.iat);
+    this.cookieStore.save(req, res, this.cache.get(req), this.iatCache.get(req));
   }
 
   create(req: NextApiOrPageRequest, res: NextApiOrPageResponse, session: Session): void {
