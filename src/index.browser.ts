@@ -42,6 +42,9 @@ const instance: SignInWithAuth0 = {
   },
   withPageAuthRequired() {
     throw new Error(serverSideOnly('withPageAuthRequired'));
+  },
+  getServerSidePropsWrapper() {
+    throw new Error(serverSideOnly('getServerSidePropsWrapper'));
   }
 };
 

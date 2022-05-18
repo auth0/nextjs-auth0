@@ -9,6 +9,7 @@ import {
 } from '../frontend/with-page-auth-required';
 import { withPageAuthRequired as withPageAuthRequiredCSR } from '../frontend';
 import { ParsedUrlQuery } from 'querystring';
+import getServerSidePropsWrapperFactory from './get-server-side-props-wrapper';
 
 /**
  * If you wrap your `getServerSideProps` with {@link WithPageAuthRequired} your props object will be augmented with
@@ -62,38 +63,11 @@ export type PageRoute<P, Q extends ParsedUrlQuery = ParsedUrlQuery> = (
  * });
  * ```
  *
- * If you're using >=Next 12 and {@link getSession} or {@link getAccessToken} without `getServerSideProps`, because you
- * don't want to require authentication on your route, you might get a warning/error: "You should not access 'res' after
- * getServerSideProps resolves". You can work around this by wrapping your `getServerSideProps` in
- * `withPageAuthRequired` using `authRequired: false`, this ensures that the code that accesses `res` will run within
- * the lifecycle of `getServerSideProps`, avoiding the warning/error eg:
- *
- * ```js
- * // pages/page.js
- * import { withPageAuthRequired } from '@auth0/nextjs-auth0';
- *
- * export default function ProtectedPage({ customProp }) {
- *   return <div>Protected content</div>;
- * }
- *
- * export const getServerSideProps = withPageAuthRequired({
- *   authRequired: false,
- *   async getServerSideProps(ctx) {
- *     const session = getSession(ctx.req, ctx.res);
- *     if (session) {
- *       // user is authenticated
- *     }
- *     return { props: { customProp: 'bar' } };
- *   }
- * });
- * ```
- *
  * @category Server
  */
 export type WithPageAuthRequiredOptions<P = any, Q extends ParsedUrlQuery = ParsedUrlQuery> = {
   getServerSideProps?: GetServerSideProps<P, Q>;
   returnTo?: string;
-  authRequired?: boolean;
 };
 
 /**
@@ -137,32 +111,33 @@ export default function withPageAuthRequiredFactory(
     if (typeof optsOrComponent === 'function') {
       return withPageAuthRequiredCSR(optsOrComponent, csrOpts);
     }
-    const { getServerSideProps, returnTo, authRequired = true } = optsOrComponent;
-    return async (ctx: GetServerSidePropsContext): Promise<GetServerSidePropsResultWithSession> => {
-      assertCtx(ctx);
-      const sessionCache = getSessionCache();
-      sessionCache.init(ctx.req, ctx.res, false);
-      const session = sessionCache.get(ctx.req, ctx.res);
-      if (authRequired && !session?.user) {
-        // 10 - redirect
-        // 9.5.4 - unstable_redirect
-        // 9.4 - res.setHeaders
-        return {
-          redirect: {
-            destination: `${loginUrl}?returnTo=${encodeURIComponent(returnTo || ctx.resolvedUrl)}`,
-            permanent: false
-          }
-        };
+    const { getServerSideProps, returnTo } = optsOrComponent;
+    const getServerSidePropsWrapper = getServerSidePropsWrapperFactory(getSessionCache);
+    return getServerSidePropsWrapper(
+      async (ctx: GetServerSidePropsContext): Promise<GetServerSidePropsResultWithSession> => {
+        assertCtx(ctx);
+        const sessionCache = getSessionCache();
+        const session = sessionCache.get(ctx.req, ctx.res);
+        if (!session?.user) {
+          // 10 - redirect
+          // 9.5.4 - unstable_redirect
+          // 9.4 - res.setHeaders
+          return {
+            redirect: {
+              destination: `${loginUrl}?returnTo=${encodeURIComponent(returnTo || ctx.resolvedUrl)}`,
+              permanent: false
+            }
+          };
+        }
+        let ret: any = { props: {} };
+        if (getServerSideProps) {
+          ret = await getServerSideProps(ctx);
+        }
+        if (ret.props instanceof Promise) {
+          return { ...ret, props: ret.props.then((props: any) => ({ ...props, user: session.user })) };
+        }
+        return { ...ret, props: { ...ret.props, user: session.user } };
       }
-      let ret: any = { props: {} };
-      if (getServerSideProps) {
-        ret = await getServerSideProps(ctx);
-      }
-      sessionCache.save(ctx.req, ctx.res);
-      if (ret.props instanceof Promise) {
-        return { ...ret, props: ret.props.then((props: any) => ({ ...props, user: session?.user })) };
-      }
-      return { ...ret, props: { ...ret.props, user: session?.user } };
-    };
+    );
   };
 }

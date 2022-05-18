@@ -69,6 +69,6 @@ export default async function MyHandler(req, res) {
 
 Because this SDK provides a rolling session by default, it writes to the header at the end of every request. This can cause the above warning when you use `getSession` or `getAccessToken` in >=Next.js 12, and an error if your `props` are defined as a `Promise`.
 
-Wrapping your `getServerSideProps` in `withAuthenticationRequired` will fix this because it will constrain the lifecycle of the session to the life of `getServerSideProps`.
+Wrapping your `getServerSideProps` in `getServerSidePropsWrapper` will fix this because it will constrain the lifecycle of the session to the life of `getServerSideProps`.
 
-If you don't want to require authentication for your route, you can use `withAuthenticationRequired` with the `authRequired: false` option.
+> Note: you should not use this if you are already using `withPageAuthenticationRequired` since this should already constrain the lifecycle of the session.
