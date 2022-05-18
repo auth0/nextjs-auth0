@@ -1,5 +1,5 @@
 import { GetSession, GetAccessToken } from './session';
-import { WithApiAuthRequired, WithPageAuthRequired } from './helpers';
+import { GetServerSidePropsWrapper, WithApiAuthRequired, WithPageAuthRequired } from './helpers';
 import { HandleAuth, HandleCallback, HandleLogin, HandleLogout, HandleProfile } from './handlers';
 import { ConfigParameters } from './auth0-session';
 
@@ -52,6 +52,12 @@ export interface SignInWithAuth0 {
    * Helper that adds auth to a Page Route
    */
   withPageAuthRequired: WithPageAuthRequired;
+
+  /**
+   * Wrap `getServerSideProps` to avoid accessing `res` after getServerSideProps resolves,
+   * see {@link GetServerSidePropsWrapper}
+   */
+  getServerSidePropsWrapper: GetServerSidePropsWrapper;
 
   /**
    * Create the main handlers for your api routes

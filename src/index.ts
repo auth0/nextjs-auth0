@@ -44,7 +44,9 @@ import {
   WithPageAuthRequired,
   GetServerSidePropsResultWithSession,
   WithPageAuthRequiredOptions,
-  PageRoute
+  PageRoute,
+  getServerSidePropsWrapperFactory,
+  GetServerSidePropsWrapper
 } from './helpers';
 import { InitAuth0, SignInWithAuth0 } from './instance';
 import version from './version';
@@ -77,6 +79,7 @@ export const _initAuth = (params?: ConfigParameters): SignInWithAuth0 & { sessio
   const getAccessToken = accessTokenFactory(nextConfig, getClient, sessionCache);
   const withApiAuthRequired = withApiAuthRequiredFactory(sessionCache);
   const withPageAuthRequired = withPageAuthRequiredFactory(nextConfig.routes.login, () => sessionCache);
+  const getServerSidePropsWrapper = getServerSidePropsWrapperFactory(() => sessionCache);
   const handleLogin = loginHandler(baseHandleLogin, nextConfig, baseConfig);
   const handleLogout = logoutHandler(baseHandleLogout);
   const handleCallback = callbackHandler(baseHandleCallback, nextConfig);
@@ -89,6 +92,7 @@ export const _initAuth = (params?: ConfigParameters): SignInWithAuth0 & { sessio
     getAccessToken,
     withApiAuthRequired,
     withPageAuthRequired,
+    getServerSidePropsWrapper,
     handleLogin,
     handleLogout,
     handleCallback,
@@ -107,6 +111,7 @@ export const getSession: GetSession = (...args) => getInstance().getSession(...a
 export const getAccessToken: GetAccessToken = (...args) => getInstance().getAccessToken(...args);
 export const withApiAuthRequired: WithApiAuthRequired = (...args) => getInstance().withApiAuthRequired(...args);
 export const withPageAuthRequired: WithPageAuthRequired = withPageAuthRequiredFactory(getLoginUrl(), getSessionCache);
+export const getServerSidePropsWrapper: GetServerSidePropsWrapper = getServerSidePropsWrapperFactory(getSessionCache);
 export const handleLogin: HandleLogin = (...args) => getInstance().handleLogin(...args);
 export const handleLogout: HandleLogout = (...args) => getInstance().handleLogout(...args);
 export const handleCallback: HandleCallback = (...args) => getInstance().handleCallback(...args);
@@ -139,6 +144,7 @@ export {
   PageRoute,
   WithApiAuthRequired,
   WithPageAuthRequired,
+  GetServerSidePropsWrapper,
   SessionCache,
   GetSession,
   GetAccessToken,

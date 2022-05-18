@@ -30,6 +30,7 @@ export type SetupOptions = {
   discoveryOptions?: Record<string, string>;
   userInfoPayload?: Record<string, string>;
   userInfoToken?: string;
+  asyncProps?: boolean;
 };
 
 export const setup = async (
@@ -44,7 +45,8 @@ export const setup = async (
     getAccessTokenOptions,
     discoveryOptions,
     userInfoPayload = {},
-    userInfoToken = 'eyJz93a...k4laUWw'
+    userInfoToken = 'eyJz93a...k4laUWw',
+    asyncProps
   }: SetupOptions = {}
 ): Promise<string> => {
   discovery(config, discoveryOptions);
@@ -60,7 +62,8 @@ export const setup = async (
     getSession,
     getAccessToken,
     withApiAuthRequired,
-    withPageAuthRequired
+    withPageAuthRequired,
+    getServerSidePropsWrapper
   } = await initAuth0(config);
   (global as any).handleAuth = handleAuth.bind(null, {
     async callback(req, res) {
@@ -102,6 +105,8 @@ export const setup = async (
   (global as any).withPageAuthRequiredCSR = withPageAuthRequired;
   (global as any).getAccessToken = (req: NextApiRequest, res: NextApiResponse): Promise<GetAccessTokenResult> =>
     getAccessToken(req, res, getAccessTokenOptions);
+  (global as any).getServerSidePropsWrapper = getServerSidePropsWrapper;
+  (global as any).asyncProps = asyncProps;
   return start();
 };
 
@@ -114,6 +119,8 @@ export const teardown = async (): Promise<void> => {
   delete (global as any).withPageAuthRequired;
   delete (global as any).withPageAuthRequiredCSR;
   delete (global as any).getAccessToken;
+  delete (global as any).getServerSidePropsWrapper;
+  delete (global as any).asyncProps;
 };
 
 export const login = async (baseUrl: string): Promise<CookieJar> => {
