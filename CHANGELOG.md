@@ -1,5 +1,11 @@
 # Change Log
 
+## [v1.9.0](https://github.com/auth0/nextjs-auth0/tree/v1.9.0) (2022-05-20)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v1.8.0...v1.9.0)
+
+**Added**
+- [SDK-3332] Constrain session lifecycle to `withPageAuthrequired` to avoid Next warning [\#664](https://github.com/auth0/nextjs-auth0/pull/664) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [v1.8.0](https://github.com/auth0/nextjs-auth0/tree/v1.8.0) (2022-05-04)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v1.7.0...v1.8.0)
 
