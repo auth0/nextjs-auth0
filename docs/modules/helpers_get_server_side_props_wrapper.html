@@ -3,7 +3,7 @@
 <head>
 	<meta charset="utf-8">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
-	<title>instance | @auth0/nextjs-auth0</title>
+	<title>helpers/get-server-side-props-wrapper | @auth0/nextjs-auth0</title>
 	<meta name="description" content="Documentation for @auth0/nextjs-auth0">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<link rel="stylesheet" href="../assets/css/main.css">
@@ -53,10 +53,10 @@
 					<a href="../index.html">@auth0/nextjs-auth0</a>
 				</li>
 				<li>
-					<a href="instance.html">instance</a>
+					<a href="helpers_get_server_side_props_wrapper.html">helpers/get-server-side-props-wrapper</a>
 				</li>
 			</ul>
-			<h1>Module instance</h1>
+			<h1>Module helpers/get-server-side-props-wrapper</h1>
 		</div>
 	</div>
 </header>
@@ -68,15 +68,9 @@
 				<section class="tsd-panel tsd-index-panel">
 					<div class="tsd-index-content">
 						<section class="tsd-index-section ">
-							<h3>Server Interfaces</h3>
-							<ul class="tsd-index-list">
-								<li class="tsd-kind-interface tsd-parent-kind-module"><a href="../interfaces/instance.signinwithauth0.html" class="tsd-kind-icon">Sign<wbr>InWith<wbr>Auth0</a></li>
-							</ul>
-						</section>
-						<section class="tsd-index-section ">
 							<h3>Server Type aliases</h3>
 							<ul class="tsd-index-list">
-								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="instance.html#initauth0" class="tsd-kind-icon">Init<wbr>Auth0</a></li>
+								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="helpers_get_server_side_props_wrapper.html#getserversidepropswrapper" class="tsd-kind-icon">Get<wbr>Server<wbr>Side<wbr>Props<wbr>Wrapper</a></li>
 							</ul>
 						</section>
 					</div>
@@ -85,36 +79,56 @@
 			<section class="tsd-panel-group tsd-member-group ">
 				<h2>Server Type aliases</h2>
 				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module">
-					<a name="initauth0" class="tsd-anchor"></a>
-					<h3>Init<wbr>Auth0</h3>
-					<div class="tsd-signature tsd-kind-icon">Init<wbr>Auth0<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span>params<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">ConfigParameters</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><a href="../interfaces/instance.signinwithauth0.html" class="tsd-signature-type" data-tsd-kind="Interface">SignInWithAuth0</a></div>
+					<a name="getserversidepropswrapper" class="tsd-anchor"></a>
+					<h3>Get<wbr>Server<wbr>Side<wbr>Props<wbr>Wrapper</h3>
+					<div class="tsd-signature tsd-kind-icon">Get<wbr>Server<wbr>Side<wbr>Props<wbr>Wrapper<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span>getServerSideProps<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">GetServerSideProps</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">GetServerSideProps</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/4589269/src/instance.ts#L75">src/instance.ts:75</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/4589269/src/helpers/get-server-side-props-wrapper.ts#L33">src/helpers/get-server-side-props-wrapper.ts:33</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
-							<p>Initialise your own instance of the SDK.</p>
+							<p>If you&#39;re using &gt;=Next 12 and <a href="../interfaces/instance.signinwithauth0.html#getsession">getSession</a> or <a href="../interfaces/instance.signinwithauth0.html#getaccesstoken">getAccessToken</a> without <code>withPageAuthRequired</code>, because
+								you don&#39;t want to require authentication on your route, you might get a warning/error: &quot;You should not access &#39;res&#39;
+								after getServerSideProps resolves&quot;. You can work around this by wrapping your <code>getServerSideProps</code> in
+								<code>getServerSidePropsWrapper</code>, this ensures that the code that accesses <code>res</code> will run within
+							the lifecycle of <code>getServerSideProps</code>, avoiding the warning/error eg:</p>
 						</div>
-						<p>See {@link Config}</p>
+						<p><strong>NOTE: you do not need to do this if you&#39;re already using <a href="frontend_with_page_auth_required.html#withpageauthrequired">WithPageAuthRequired</a></strong></p>
+						<pre><code class="language-js"><span style="color: #008000">// pages/protected-page.js</span>
+<span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">withPageAuthRequired</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@auth0/nextjs-auth0&#039;</span><span style="color: #000000">;</span>
+
+<span style="color: #AF00DB">export</span><span style="color: #000000"> </span><span style="color: #AF00DB">default</span><span style="color: #000000"> </span><span style="color: #0000FF">function</span><span style="color: #000000"> </span><span style="color: #795E26">ProtectedPage</span><span style="color: #000000">() {</span>
+<span style="color: #000000">  </span><span style="color: #AF00DB">return</span><span style="color: #000000"> </span><span style="color: #800000">&lt;div&gt;</span><span style="color: #000000">Protected content</span><span style="color: #800000">&lt;/div&gt;</span><span style="color: #000000">;</span>
+<span style="color: #000000">}</span>
+
+<span style="color: #AF00DB">export</span><span style="color: #000000"> </span><span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">getServerSideProps</span><span style="color: #000000"> = </span><span style="color: #795E26">getServerSidePropsWrapper</span><span style="color: #000000">(</span><span style="color: #0000FF">async</span><span style="color: #000000"> (</span><span style="color: #001080">ctx</span><span style="color: #000000">) </span><span style="color: #0000FF">=&gt;</span><span style="color: #000000"> {</span>
+<span style="color: #000000">  </span><span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">session</span><span style="color: #000000"> = </span><span style="color: #795E26">getSession</span><span style="color: #000000">(</span><span style="color: #001080">ctx</span><span style="color: #000000">.</span><span style="color: #001080">req</span><span style="color: #000000">, </span><span style="color: #001080">ctx</span><span style="color: #000000">.</span><span style="color: #001080">res</span><span style="color: #000000">);</span>
+<span style="color: #000000">  </span><span style="color: #AF00DB">if</span><span style="color: #000000"> (</span><span style="color: #001080">session</span><span style="color: #000000">) {</span>
+<span style="color: #000000">    </span><span style="color: #008000">// Use is authenticated</span>
+<span style="color: #000000">  } </span><span style="color: #AF00DB">else</span><span style="color: #000000"> {</span>
+<span style="color: #000000">    </span><span style="color: #008000">// User is not authenticated</span>
+<span style="color: #000000">  }</span>
+<span style="color: #000000">});</span>
+</code></pre>
 					</div>
 					<div class="tsd-type-declaration">
 						<h4>Type declaration</h4>
 						<ul class="tsd-parameters">
 							<li class="tsd-parameter-signature">
 								<ul class="tsd-signatures tsd-kind-type-literal tsd-parent-kind-type-alias">
-									<li class="tsd-signature tsd-kind-icon"><span class="tsd-signature-symbol">(</span>params<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">ConfigParameters</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="../interfaces/instance.signinwithauth0.html" class="tsd-signature-type" data-tsd-kind="Interface">SignInWithAuth0</a></li>
+									<li class="tsd-signature tsd-kind-icon"><span class="tsd-signature-symbol">(</span>getServerSideProps<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">GetServerSideProps</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">GetServerSideProps</span></li>
 								</ul>
 								<ul class="tsd-descriptions">
 									<li class="tsd-description">
 										<h4 class="tsd-parameters-title">Parameters</h4>
 										<ul class="tsd-parameters">
 											<li>
-												<h5><span class="tsd-flag ts-flagOptional">Optional</span> params: <span class="tsd-signature-type">ConfigParameters</span></h5>
+												<h5>getServerSideProps: <span class="tsd-signature-type">GetServerSideProps</span></h5>
 											</li>
 										</ul>
-										<h4 class="tsd-returns-title">Returns <a href="../interfaces/instance.signinwithauth0.html" class="tsd-signature-type" data-tsd-kind="Interface">SignInWithAuth0</a></h4>
+										<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">GetServerSideProps</span></h4>
 									</li>
 								</ul>
 							</li>
@@ -162,7 +176,7 @@
 					<li class=" tsd-kind-module">
 						<a href="helpers.html">helpers</a>
 					</li>
-					<li class=" tsd-kind-module">
+					<li class="current tsd-kind-module">
 						<a href="helpers_get_server_side_props_wrapper.html">helpers/get-<wbr>server-<wbr>side-<wbr>props-<wbr>wrapper</a>
 					</li>
 					<li class=" tsd-kind-module">
@@ -171,7 +185,7 @@
 					<li class=" tsd-kind-module">
 						<a href="helpers_with_page_auth_required.html">helpers/with-<wbr>page-<wbr>auth-<wbr>required</a>
 					</li>
-					<li class="current tsd-kind-module">
+					<li class=" tsd-kind-module">
 						<a href="instance.html">instance</a>
 					</li>
 					<li class=" tsd-kind-module">
@@ -196,11 +210,8 @@
 			</nav>
 			<nav class="tsd-navigation secondary menu-sticky">
 				<ul class="before-current">
-					<li class=" tsd-kind-interface tsd-parent-kind-module">
-						<a href="../interfaces/instance.signinwithauth0.html" class="tsd-kind-icon">Sign<wbr>InWith<wbr>Auth0</a>
-					</li>
 					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
-						<a href="instance.html#initauth0" class="tsd-kind-icon">Init<wbr>Auth0</a>
+						<a href="helpers_get_server_side_props_wrapper.html#getserversidepropswrapper" class="tsd-kind-icon">Get<wbr>Server<wbr>Side<wbr>Props<wbr>Wrapper</a>
 					</li>
 				</ul>
 			</nav>
