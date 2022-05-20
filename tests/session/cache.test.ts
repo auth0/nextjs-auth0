@@ -32,7 +32,7 @@ describe('SessionCache', () => {
   test('should create the session entry', () => {
     cache.create(req, res, session);
     expect(cache.get(req, res)).toEqual(session);
-    expect(cookieStore.save).toHaveBeenCalledWith(req, res, session);
+    expect(cookieStore.save).toHaveBeenCalledWith(req, res, session, undefined);
   });
 
   test('should delete the session entry', () => {
