@@ -24,7 +24,7 @@ describe('with-page-auth-required ssr', () => {
       data
     } = await get(baseUrl, '/protected', { cookieJar, fullResponse: true });
     expect(statusCode).toBe(200);
-    expect(data).toMatch(/<div>Protected Page<\/div>/);
+    expect(data).toMatch(/Protected Page.*__test_sub__/);
   });
 
   test('accept a custom returnTo url', async () => {
@@ -79,5 +79,25 @@ describe('with-page-auth-required ssr', () => {
     expect(statusCode).toBe(307);
     const url = new URL(headers.location, baseUrl);
     expect(url.searchParams.get('returnTo')).toEqual('/foo?bar=baz&qux=quux');
+  });
+
+  test('allow access to a page with a valid session and async props', async () => {
+    const baseUrl = await setup(withoutApi, {
+      withPageAuthRequiredOptions: {
+        getServerSideProps() {
+          return Promise.resolve({ props: Promise.resolve({}) });
+        }
+      }
+    });
+    const cookieJar = await login(baseUrl);
+
+    const {
+      res: { statusCode, headers },
+      data
+    } = await get(baseUrl, '/protected', { cookieJar, fullResponse: true });
+    expect(statusCode).toBe(200);
+    expect(data).toMatch(/Protected Page.*__test_sub__/);
+    const [cookie] = headers['set-cookie'];
+    expect(cookie).toMatch(/^appSession=/);
   });
 });

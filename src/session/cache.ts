@@ -10,22 +10,31 @@ type NextApiOrPageResponse = ServerResponse | NextApiResponse;
 
 export default class SessionCache implements ISessionCache {
   private cache: WeakMap<NextApiOrPageRequest, Session | null>;
+  private iatCache: WeakMap<NextApiOrPageRequest, number | undefined>;
 
   constructor(private config: Config, private cookieStore: CookieStore) {
     this.cache = new WeakMap();
+    this.iatCache = new WeakMap();
   }
 
-  init(req: NextApiOrPageRequest, res: NextApiOrPageResponse): void {
+  init(req: NextApiOrPageRequest, res: NextApiOrPageResponse, autoSave = true): void {
     if (!this.cache.has(req)) {
       const [json, iat] = this.cookieStore.read(req);
+      this.iatCache.set(req, iat);
       this.cache.set(req, fromJson(json));
-      onHeaders(res, () => this.cookieStore.save(req, res, this.cache.get(req), iat));
+      if (autoSave) {
+        onHeaders(res, () => this.save(req, res));
+      }
     }
+  }
+
+  save(req: NextApiOrPageRequest, res: NextApiOrPageResponse): void {
+    this.cookieStore.save(req, res, this.cache.get(req), this.iatCache.get(req));
   }
 
   create(req: NextApiOrPageRequest, res: NextApiOrPageResponse, session: Session): void {
     this.cache.set(req, session);
-    onHeaders(res, () => this.cookieStore.save(req, res, this.cache.get(req)));
+    onHeaders(res, () => this.save(req, res));
   }
 
   delete(req: NextApiOrPageRequest, res: NextApiOrPageResponse): void {

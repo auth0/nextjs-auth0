@@ -1,5 +1,5 @@
 import { GetServerSideProps, GetServerSidePropsContext, GetServerSidePropsResult } from 'next';
-import { Claims, GetSession } from '../session';
+import { Claims, SessionCache } from '../session';
 import { assertCtx } from '../utils/assert';
 import React, { ComponentType } from 'react';
 import {
@@ -9,6 +9,7 @@ import {
 } from '../frontend/with-page-auth-required';
 import { withPageAuthRequired as withPageAuthRequiredCSR } from '../frontend';
 import { ParsedUrlQuery } from 'querystring';
+import getServerSidePropsWrapperFactory from './get-server-side-props-wrapper';
 
 /**
  * If you wrap your `getServerSideProps` with {@link WithPageAuthRequired} your props object will be augmented with
@@ -99,7 +100,10 @@ export type WithPageAuthRequired = {
 /**
  * @ignore
  */
-export default function withPageAuthRequiredFactory(loginUrl: string, getSession: GetSession): WithPageAuthRequired {
+export default function withPageAuthRequiredFactory(
+  loginUrl: string,
+  getSessionCache: () => SessionCache
+): WithPageAuthRequired {
   return (
     optsOrComponent: WithPageAuthRequiredOptions | ComponentType<WithPageAuthRequiredProps & UserProps> = {},
     csrOpts?: WithPageAuthRequiredCSROptions
@@ -108,25 +112,32 @@ export default function withPageAuthRequiredFactory(loginUrl: string, getSession
       return withPageAuthRequiredCSR(optsOrComponent, csrOpts);
     }
     const { getServerSideProps, returnTo } = optsOrComponent;
-    return async (ctx: GetServerSidePropsContext): Promise<GetServerSidePropsResultWithSession> => {
-      assertCtx(ctx);
-      const session = getSession(ctx.req, ctx.res);
-      if (!session?.user) {
-        // 10 - redirect
-        // 9.5.4 - unstable_redirect
-        // 9.4 - res.setHeaders
-        return {
-          redirect: {
-            destination: `${loginUrl}?returnTo=${encodeURIComponent(returnTo || ctx.resolvedUrl)}`,
-            permanent: false
-          }
-        };
+    const getServerSidePropsWrapper = getServerSidePropsWrapperFactory(getSessionCache);
+    return getServerSidePropsWrapper(
+      async (ctx: GetServerSidePropsContext): Promise<GetServerSidePropsResultWithSession> => {
+        assertCtx(ctx);
+        const sessionCache = getSessionCache();
+        const session = sessionCache.get(ctx.req, ctx.res);
+        if (!session?.user) {
+          // 10 - redirect
+          // 9.5.4 - unstable_redirect
+          // 9.4 - res.setHeaders
+          return {
+            redirect: {
+              destination: `${loginUrl}?returnTo=${encodeURIComponent(returnTo || ctx.resolvedUrl)}`,
+              permanent: false
+            }
+          };
+        }
+        let ret: any = { props: {} };
+        if (getServerSideProps) {
+          ret = await getServerSideProps(ctx);
+        }
+        if (ret.props instanceof Promise) {
+          return { ...ret, props: ret.props.then((props: any) => ({ ...props, user: session.user })) };
+        }
+        return { ...ret, props: { ...ret.props, user: session.user } };
       }
-      let ret: any = { props: {} };
-      if (getServerSideProps) {
-        ret = await getServerSideProps(ctx);
-      }
-      return { ...ret, props: { ...ret.props, user: session.user } };
-    };
+    );
   };
 }
