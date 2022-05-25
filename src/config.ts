@@ -331,6 +331,7 @@ export interface NextConfig extends Pick<BaseConfig, 'identityClaimFilter'> {
  * - `AUTH0_IDP_LOGOUT`: See {@link idpLogout}
  * - `AUTH0_ID_TOKEN_SIGNING_ALG`: See {@link idTokenSigningAlg}
  * - `AUTH0_LEGACY_SAME_SITE_COOKIE`: See {@link legacySameSiteCookie}
+ * - `AUTH0_IDENTITY_CLAIM_FILTER`: See {@link BaseConfig.identityClaimFilter}
  * - `NEXT_PUBLIC_AUTH0_LOGIN`: See {@link NextConfig.routes}
  * - `AUTH0_CALLBACK`: See {@link BaseConfig.routes}
  * - `AUTH0_POST_LOGOUT_REDIRECT`: See {@link BaseConfig.routes}
@@ -400,6 +401,12 @@ const num = (param?: string): number | undefined => (param === undefined || para
 /**
  * @ignore
  */
+const array = (param?: string): string[] | undefined =>
+  param === undefined || param === '' ? undefined : param.replace(/\s/g, '').split(',');
+
+/**
+ * @ignore
+ */
 export const getLoginUrl = (): string => {
   return process.env.NEXT_PUBLIC_AUTH0_LOGIN || '/api/auth/login';
 };
@@ -420,6 +427,7 @@ export const getConfig = (params: ConfigParameters = {}): { baseConfig: BaseConf
   const AUTH0_IDP_LOGOUT = process.env.AUTH0_IDP_LOGOUT;
   const AUTH0_ID_TOKEN_SIGNING_ALG = process.env.AUTH0_ID_TOKEN_SIGNING_ALG;
   const AUTH0_LEGACY_SAME_SITE_COOKIE = process.env.AUTH0_LEGACY_SAME_SITE_COOKIE;
+  const AUTH0_IDENTITY_CLAIM_FILTER = process.env.AUTH0_IDENTITY_CLAIM_FILTER;
   const AUTH0_CALLBACK = process.env.AUTH0_CALLBACK;
   const AUTH0_POST_LOGOUT_REDIRECT = process.env.AUTH0_POST_LOGOUT_REDIRECT;
   const AUTH0_AUDIENCE = process.env.AUTH0_AUDIENCE;
@@ -454,6 +462,7 @@ export const getConfig = (params: ConfigParameters = {}): { baseConfig: BaseConf
     auth0Logout: bool(AUTH0_IDP_LOGOUT, true),
     idTokenSigningAlg: AUTH0_ID_TOKEN_SIGNING_ALG,
     legacySameSiteCookie: bool(AUTH0_LEGACY_SAME_SITE_COOKIE),
+    identityClaimFilter: array(AUTH0_IDENTITY_CLAIM_FILTER),
     ...baseParams,
     authorizationParams: {
       response_type: 'code',
