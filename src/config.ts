@@ -119,6 +119,7 @@ export interface BaseConfig {
   /**
    * Array value of claims to remove from the ID token before storing the cookie session.
    * Default is `['aud', 'iss', 'iat', 'exp', 'nbf', 'nonce', 'azp', 'auth_time', 's_hash', 'at_hash', 'c_hash' ]`
+   * You can also use the AUTH0_IDENTITY_CLAIM_FILTER environment variable.
    */
   identityClaimFilter: string[];
 
@@ -331,7 +332,7 @@ export interface NextConfig extends Pick<BaseConfig, 'identityClaimFilter'> {
  * - `AUTH0_IDP_LOGOUT`: See {@link idpLogout}
  * - `AUTH0_ID_TOKEN_SIGNING_ALG`: See {@link idTokenSigningAlg}
  * - `AUTH0_LEGACY_SAME_SITE_COOKIE`: See {@link legacySameSiteCookie}
- * - `AUTH0_IDENTITY_CLAIM_FILTER`: See {@link BaseConfig.identityClaimFilter}
+ * - `AUTH0_IDENTITY_CLAIM_FILTER`: See {@link identityClaimFilter}
  * - `NEXT_PUBLIC_AUTH0_LOGIN`: See {@link NextConfig.routes}
  * - `AUTH0_CALLBACK`: See {@link BaseConfig.routes}
  * - `AUTH0_POST_LOGOUT_REDIRECT`: See {@link BaseConfig.routes}
