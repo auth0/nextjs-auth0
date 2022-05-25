@@ -159,7 +159,7 @@ describe('config params', () => {
   test('should populate arrays', () => {
     expect(
       getConfigWithEnv({
-        AUTH0_IDENTITY_CLAIM_FILTER: 'claim1,claim2,claim3',
+        AUTH0_IDENTITY_CLAIM_FILTER: 'claim1,claim2,claim3'
       }).baseConfig
     ).toMatchObject({
       identityClaimFilter: ['claim1', 'claim2', 'claim3']
