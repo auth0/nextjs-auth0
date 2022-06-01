@@ -7,6 +7,7 @@ import { encodeState } from '../hooks/get-login-state';
 import { ClientFactory } from '../client';
 import createDebug from '../utils/debug';
 import { htmlSafe } from '../../utils/errors';
+import { URLSearchParams } from 'url';
 
 const debug = createDebug('handlers');
 
@@ -32,10 +33,19 @@ export default function loginHandlerFactory(
       ...options
     };
 
+    // Ensure that the organization invitation query parameter carries on to the authorization URL
+    const parsedUrl = new URLSearchParams(req.url);
+    const organizationInvitationParams = {
+      invitation: opts.authorizationParams?.invitation || parsedUrl.get('invitation'),
+      organization: opts.authorizationParams?.organization || parsedUrl.get('organization'),
+      organization_name: opts.authorizationParams?.organization_name || parsedUrl.get('organization_name')
+    };
+
     // Ensure a redirect_uri, merge in configuration options, then passed-in options.
     opts.authorizationParams = {
       redirect_uri: getRedirectUri(config),
       ...config.authorizationParams,
+      ...organizationInvitationParams,
       ...(opts.authorizationParams || {})
     };
 
