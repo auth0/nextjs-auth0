@@ -64,7 +64,7 @@
     "@testing-library/react-hooks": "^5.0.3",
     "@types/body-parser": "^1.19.0",
     "@types/clone": "^2.1.0",
-    "@types/cookie": "^0.4.0",
+    "@types/cookie": "^0.5.1",
     "@types/debug": "^4.1.5",
     "@types/http-errors": "^1.8.0",
     "@types/jest": "^27.0.1",
