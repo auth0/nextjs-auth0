@@ -1,4 +1,5 @@
 import { GetServerSideProps } from 'next';
+import { ParsedUrlQuery } from 'querystring';
 import SessionCache from '../session/cache';
 
 /**
@@ -30,7 +31,9 @@ import SessionCache from '../session/cache';
  *
  * @category Server
  */
-export type GetServerSidePropsWrapper = (getServerSideProps: GetServerSideProps) => GetServerSideProps;
+export type GetServerSidePropsWrapper<P = any, Q extends ParsedUrlQuery = ParsedUrlQuery> = (
+  getServerSideProps: GetServerSideProps<P, Q>
+) => GetServerSideProps<P, Q>;
 
 /**
  * @ignore
