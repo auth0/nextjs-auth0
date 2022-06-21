@@ -1,5 +1,11 @@
 # Change Log
 
+## [v1.9.1](https://github.com/auth0/nextjs-auth0/tree/v1.9.1) (2022-06-16)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v1.9.0...v1.9.1)
+
+**Fixed**
+- Add Props and Query to GetServerSidePropsWrapper type [\#731](https://github.com/auth0/nextjs-auth0/pull/731) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [v1.9.0](https://github.com/auth0/nextjs-auth0/tree/v1.9.0) (2022-05-20)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v1.8.0...v1.9.0)
 
