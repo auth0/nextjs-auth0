@@ -39,7 +39,7 @@ body:
     id: reproduction
     attributes:
       label: Reproduction
-      description: Detail the steps taken to reproduce this error, and whether this issue can be reproduced consistently or if it is intermittent.
+      description: Detail the steps taken to reproduce this error and, ideally, share a repo of a minimal reproducible example. State whether this issue can be reproduced consistently or if it is intermittent.
       placeholder: |
         1. Step 1...
         2. Step 2...
