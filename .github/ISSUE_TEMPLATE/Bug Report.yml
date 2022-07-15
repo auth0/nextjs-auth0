@@ -1,0 +1,69 @@
+name: 🐞 Report a bug
+description: Have you found a bug or issue? Create a bug report for this library
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Please do not report security vulnerabilities here**. The [Responsible Disclosure Program](https://auth0.com/responsible-disclosure-policy) details the procedure for disclosing security issues.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: The issue can be reproduced in the [sample app](https://github.com/auth0-samples/auth0-nextjs-samples/tree/main/Sample-01) (or N/A).
+          required: true
+        - label: I have looked into the [README](https://github.com/auth0/nextjs-auth0#readme) and have not found a suitable solution or answer.
+          required: true
+        - label: I have looked into the [examples](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md) and have not found a suitable solution or answer.
+          required: true
+        - label: I have looked into the [API documentation](https://auth0.github.io/nextjs-auth0/) and have not found a suitable solution or answer.
+          required: true
+        - label: I have searched the [issues](https://github.com/auth0/nextjs-auth0/issues) and have not found a suitable solution or answer.
+          required: true
+        - label: I have searched the [Auth0 Community](https://community.auth0.com/c/sdks/5) forums and have not found a suitable solution or answer.
+          required: true
+        - label: I agree to the terms within the [Auth0 Code of Conduct](https://github.com/auth0/open-source-template/blob/master/CODE-OF-CONDUCT.md).
+          required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Provide a clear and concise description of the issue, including what you expected to happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Detail the steps taken to reproduce this error and, ideally, share a repo of a minimal reproducible example. State whether this issue can be reproduced consistently or if it is intermittent.
+      placeholder: |
+        1. Step 1...
+        2. Step 2...
+        3. ...
+    validations:
+      required: true
+
+  - type: input
+    id: environment-version
+    attributes:
+      label: SDK version
+    validations:
+      required: true
+
+  - type: input
+    id: environment-nextjs-version
+    attributes:
+      label: Next.js version
+    validations:
+      required: true
+
+  - type: input
+    id: environment-nodejs-version
+    attributes:
+      label: Node.js version
+    validations:
+      required: true

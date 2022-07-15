@@ -1,5 +1,14 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Auth0 Community
+  - name: 🤔 Help & Questions
     url: https://community.auth0.com/c/sdks/5
-    about: Discuss this SDK in the Auth0 Community forums
+    about: Ask general support or usage questions in the Auth0 Community forums
+  - name: 📑 FAQ
+    url: https://github.com/auth0/nextjs-auth0/blob/main/FAQ.md
+    about: Check some commonly asked questions
+  - name: 🚀 Examples
+    url: https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md
+    about: Check the examples to get up to speed with the SDK
+  - name: 📖 API Documentation
+    url: https://auth0.github.io/nextjs-auth0/
+    about: Check the public API documentation for in-depth overview of all the available features

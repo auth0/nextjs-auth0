@@ -1,38 +1,40 @@
-By submitting a PR to this repository, you agree to the terms within the [Auth0 Code of Conduct](https://github.com/auth0/open-source-template/blob/master/CODE-OF-CONDUCT.md). Please see the [contributing guidelines](https://github.com/auth0/open-source-template/blob/master/CONTRIBUTING.md) for how to create and submit a high-quality PR for this repo.
+<!--
+❗ For general support or usage questions, use the Auth0 Community forums or raise a support ticket.
 
-### Description
+By submitting a pull request to this repository, you agree to the terms within the Auth0 Code of Conduct: https://github.com/auth0/open-source-template/blob/master/CODE-OF-CONDUCT.md.
+-->
 
-> Describe the purpose of this PR along with any background information and the impacts of the proposed change. For the benefit of the community, please do not assume prior context.
->
-> Provide details that support your chosen implementation, including: breaking changes, alternatives considered, changes to the API, etc.
->
-> If the UI is being changed, please provide screenshots.
+- [ ] All new/changed/fixed functionality is covered by tests (or N/A)
+- [ ] I have added documentation for all new/changed functionality (or N/A)
 
+<!--
+❗ All the above items are required. Pull requests with an incomplete or missing checklist will be closed.
+-->
 
-### References
+### 📋 Changes
 
-> Include any links supporting this change such as a:
->
-> - GitHub Issue/PR number addressed or fixed
-> - Auth0 Community post
-> - StackOverflow post
-> - Support forum thread
-> - Related pull requests/issues from other repos
->
-> If there are no references, simply delete this section.
+<!--
+Describe both what is changing and why this is important. Include:
 
-### Testing
+- Types and methods added, deleted, deprecated, or changed
+- A summary of usage if this is a new feature or a change to a public API
+-->
 
-> Describe how this can be tested by reviewers. Be specific about anything not tested and reasons why. If this library has unit and/or integration testing, tests should be added for new functionality and existing tests should complete without errors.
->
-> Please include any manual steps for testing end-to-end or functionality not covered by unit/integration tests.
->
-> Also include details of the environment this PR was developed in (language/platform/browser version).
+### 📎 References
 
-- [ ] This change adds test coverage for new/changed/fixed functionality
+<!--
+Add relevant links supporting this change, such as:
 
-### Checklist
+- GitHub issue/PR number addressed or fixed
+- Auth0 Community post
+- StackOverflow answer
+- Related pull requests/issues from other repositories
 
-- [ ] I have added documentation for new/changed functionality in this PR or in auth0.com/docs
-- [ ] All active GitHub checks for tests, formatting, and security are passing
-- [ ] The correct base branch is being used, if not `main`
+If there are no references, simply delete this section.
+-->
+
+### 🎯 Testing
+
+<!--
+Describe how this can be tested by reviewers. Be specific about anything not tested and why. Include any manual steps for testing end-to-end, or for testing functionality not covered by unit tests.
+-->
