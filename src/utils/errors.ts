@@ -1,25 +1,48 @@
 import { HttpError } from 'http-errors';
 
+type AuthErrorOptions = {
+  code: string;
+  message: string;
+  name: string;
+  cause?: Error;
+  status?: number;
+};
+
+export abstract class AuthError extends Error {
+  public readonly code: string;
+  public readonly name: string;
+  public readonly cause?: Error;
+  public readonly status?: number;
+
+  constructor(options: AuthErrorOptions) {
+    super(appendCause(options.message, options.cause));
+    this.code = options.code;
+    this.name = options.name;
+    this.cause = options.cause;
+    this.status = options.status;
+  }
+}
+
+export enum AccessTokenErrorCode {
+  NO_SESSION = 'ERR_NO_SESSION',
+  NO_ACCESS_TOKEN = 'ERR_NO_ACCESS_TOKEN',
+  NO_REFRESH_TOKEN = 'ERR_NO_REFRESH_TOKEN',
+  EXPIRED_ACCESS_TOKEN = 'ERR_EXPIRED_ACCESS_TOKEN',
+  INSUFFICIENT_SCOPE = 'ERR_INSUFFICIENT_SCOPE'
+}
+
 /**
  * The error thrown by {@link GetAccessToken}
  *
  * @category Server
  */
-export class AccessTokenError extends Error {
-  public code: string;
-
+export class AccessTokenError extends AuthError {
   /* istanbul ignore next */
-  constructor(code: string, message: string) {
-    super(message);
-
-    // Saving class name in the property of our custom error as a shortcut.
-    this.name = this.constructor.name;
+  constructor(code: AccessTokenErrorCode, message: string) {
+    super({ code: code, message: message, name: 'AccessTokenError' });
 
     // Capturing stack trace, excluding constructor call from it.
     Error.captureStackTrace(this, this.constructor);
-
-    // Machine readable code.
-    this.code = code;
     Object.setPrototypeOf(this, AccessTokenError.prototype);
   }
 }
@@ -35,6 +58,12 @@ export function htmlSafe(input: string): string {
     .replace(/'/g, '&#39;');
 }
 
+export function appendCause(errorMessage: string, cause?: Error): string {
+  if (!cause) return errorMessage;
+  const separator = errorMessage.endsWith('.') ? '' : '.';
+  return `${errorMessage}${separator} CAUSE: ${htmlSafe(cause.message)}`;
+}
+
 /**
  * The error thrown by API route handlers.
  *
@@ -46,23 +75,24 @@ export function htmlSafe(input: string): string {
  *
  * @category Server
  */
-export class HandlerError extends Error {
-  public status: number | undefined;
-  public code: string | undefined;
+export class HandlerError extends AuthError {
+  public static readonly code: string = 'ERR_HANDLER_FAILURE';
 
   /* istanbul ignore next */
-  constructor(error: Error | AccessTokenError | HttpError) {
-    super(htmlSafe(error.message));
-
-    this.name = error.name;
-
-    if ('code' in error) {
-      this.code = error.code;
-    }
+  constructor(error: Error | AuthError | HttpError) {
+    let status: number | undefined;
 
     if ('status' in error) {
-      this.status = error.status;
+      status = error.status;
     }
+
+    super({
+      code: HandlerError.code,
+      message: 'API route handler failed.',
+      name: 'HandlerError',
+      cause: error,
+      status
+    });
     Object.setPrototypeOf(this, HandlerError.prototype);
   }
 }
