@@ -3,7 +3,7 @@ import { AuthorizationParameters, HandleLogin as BaseHandleLogin } from '../auth
 import toSafeRedirect from '../utils/url-helpers';
 import { assertReqRes } from '../utils/assert';
 import { BaseConfig, NextConfig } from '../config';
-import { HandlerError } from '../utils/errors';
+import { HandlerErrorCause, LoginHandlerError } from '../utils/errors';
 
 /**
  * Use this to store additional state for the user before they visit the Identity Provider to login.
@@ -142,7 +142,7 @@ export default function handleLoginFactory(
 
       return await handler(req, res, options);
     } catch (e) {
-      throw new HandlerError(e);
+      throw new LoginHandlerError(e as HandlerErrorCause);
     }
   };
 }

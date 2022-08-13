@@ -24,9 +24,9 @@ export abstract class AuthError extends Error {
 }
 
 export enum AccessTokenErrorCode {
-  NO_SESSION = 'ERR_NO_SESSION',
-  NO_ACCESS_TOKEN = 'ERR_NO_ACCESS_TOKEN',
-  NO_REFRESH_TOKEN = 'ERR_NO_REFRESH_TOKEN',
+  MISSING_SESSION = 'ERR_MISSING_SESSION',
+  MISSING_ACCESS_TOKEN = 'ERR_MISSING_ACCESS_TOKEN',
+  MISSING_REFRESH_TOKEN = 'ERR_MISSING_REFRESH_TOKEN',
   EXPIRED_ACCESS_TOKEN = 'ERR_EXPIRED_ACCESS_TOKEN',
   INSUFFICIENT_SCOPE = 'ERR_INSUFFICIENT_SCOPE'
 }
@@ -64,6 +64,15 @@ export function appendCause(errorMessage: string, cause?: Error): string {
   return `${errorMessage}${separator} CAUSE: ${htmlSafe(cause.message)}`;
 }
 
+export type HandlerErrorCause = Error | AuthError | HttpError;
+
+type HandlerErrorOptions = {
+  code: string;
+  message: string;
+  name: string;
+  cause: HandlerErrorCause;
+};
+
 /**
  * The error thrown by API route handlers.
  *
@@ -76,23 +85,74 @@ export function appendCause(errorMessage: string, cause?: Error): string {
  * @category Server
  */
 export class HandlerError extends AuthError {
-  public static readonly code: string = 'ERR_HANDLER_FAILURE';
-
   /* istanbul ignore next */
-  constructor(error: Error | AuthError | HttpError) {
+  constructor(options: HandlerErrorOptions) {
     let status: number | undefined;
 
-    if ('status' in error) {
-      status = error.status;
+    if ('status' in options.cause) {
+      status = options.cause.status;
     }
 
+    super({ ...options, status });
+  }
+}
+
+export class CallbackHandlerError extends HandlerError {
+  public static readonly code: string = 'ERR_CALLBACK_HANDLER_FAILURE';
+
+  /* istanbul ignore next */
+  constructor(error: HandlerErrorCause) {
     super({
-      code: HandlerError.code,
-      message: 'API route handler failed.',
-      name: 'HandlerError',
-      cause: error,
-      status
+      code: CallbackHandlerError.code,
+      message: 'Callback handler failed.',
+      name: 'CallbackHandlerError',
+      cause: error
     });
-    Object.setPrototypeOf(this, HandlerError.prototype);
+    Object.setPrototypeOf(this, CallbackHandlerError.prototype);
+  }
+}
+
+export class LoginHandlerError extends HandlerError {
+  public static readonly code: string = 'ERR_LOGIN_HANDLER_FAILURE';
+
+  /* istanbul ignore next */
+  constructor(error: HandlerErrorCause) {
+    super({
+      code: LoginHandlerError.code,
+      message: 'Login handler failed.',
+      name: 'LoginHandlerError',
+      cause: error
+    });
+    Object.setPrototypeOf(this, LoginHandlerError.prototype);
+  }
+}
+
+export class LogoutHandlerError extends HandlerError {
+  public static readonly code: string = 'ERR_LOGOUT_HANDLER_FAILURE';
+
+  /* istanbul ignore next */
+  constructor(error: HandlerErrorCause) {
+    super({
+      code: LogoutHandlerError.code,
+      message: 'Logout handler failed.',
+      name: 'LogoutHandlerError',
+      cause: error
+    });
+    Object.setPrototypeOf(this, LogoutHandlerError.prototype);
+  }
+}
+
+export class ProfileHandlerError extends HandlerError {
+  public static readonly code: string = 'ERR_PROFILE_HANDLER_FAILURE';
+
+  /* istanbul ignore next */
+  constructor(error: HandlerErrorCause) {
+    super({
+      code: ProfileHandlerError.code,
+      message: 'Profile handler failed.',
+      name: 'ProfileHandlerError',
+      cause: error
+    });
+    Object.setPrototypeOf(this, ProfileHandlerError.prototype);
   }
 }

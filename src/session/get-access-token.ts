@@ -95,11 +95,14 @@ export default function accessTokenFactory(
   return async (req, res, accessTokenRequest): Promise<GetAccessTokenResult> => {
     let session = sessionCache.get(req, res);
     if (!session) {
-      throw new AccessTokenError(AccessTokenErrorCode.NO_SESSION, 'The user does not have a valid session.');
+      throw new AccessTokenError(AccessTokenErrorCode.MISSING_SESSION, 'The user does not have a valid session.');
     }
 
     if (!session.accessToken && !session.refreshToken) {
-      throw new AccessTokenError(AccessTokenErrorCode.NO_ACCESS_TOKEN, 'The user does not have a valid access token.');
+      throw new AccessTokenError(
+        AccessTokenErrorCode.MISSING_ACCESS_TOKEN,
+        'The user does not have a valid access token.'
+      );
     }
 
     if (!session.accessTokenExpiresAt) {
@@ -141,7 +144,7 @@ export default function accessTokenFactory(
 
     if (accessTokenRequest?.refresh && !session.refreshToken) {
       throw new AccessTokenError(
-        AccessTokenErrorCode.NO_REFRESH_TOKEN,
+        AccessTokenErrorCode.MISSING_REFRESH_TOKEN,
         'A refresh token is required to refresh the access token, but none is present.'
       );
     }
@@ -181,7 +184,10 @@ export default function accessTokenFactory(
 
     // We don't have an access token.
     if (!session.accessToken) {
-      throw new AccessTokenError(AccessTokenErrorCode.NO_ACCESS_TOKEN, 'The user does not have a valid access token.');
+      throw new AccessTokenError(
+        AccessTokenErrorCode.MISSING_ACCESS_TOKEN,
+        'The user does not have a valid access token.'
+      );
     }
 
     // The access token is not expired and has sufficient scopes;
