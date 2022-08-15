@@ -162,7 +162,6 @@ export default function accessTokenFactory(
       });
 
       // Update the session.
-      // WARNING: THIS THROWS
       const newSession = fromTokenSet(tokenSet, config);
       Object.assign(session, {
         ...newSession,
