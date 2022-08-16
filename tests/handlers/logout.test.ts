@@ -104,8 +104,6 @@ describe('logout handler', () => {
 
     const res = await fetch(`${baseUrl}/api/auth/logout?error=%3Cscript%3Ealert(%27xss%27)%3C%2Fscript%3E`);
 
-    expect(await res.text()).toEqual(
-      'API route handler failed. CAUSE: &lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;'
-    );
+    expect(await res.text()).toEqual('Logout handler failed. CAUSE: &lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;');
   });
 });
