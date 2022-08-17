@@ -11,6 +11,9 @@ export function htmlSafe(input: string): string {
     .replace(/'/g, '&#39;');
 }
 
+/**
+ * @ignore
+ */
 export function appendCause(errorMessage: string, cause?: Error): string {
   if (!cause) return errorMessage;
   const separator = errorMessage.endsWith('.') ? '' : '.';
@@ -25,10 +28,43 @@ type AuthErrorOptions = {
   status?: number;
 };
 
+/**
+ * The base class for all SDK errors.
+ *
+ * Because part of the error message can come from the OpenID Connect `error` query parameter we
+ * do some basic escaping which makes sure the default error handler is safe from XSS.
+ *
+ * If you write your own error handler, you should **not** render the error message
+ * without using a templating engine that will properly escape it for other HTML contexts first.
+ *
+ * Note that the error message of the {@link AuthError.cause | underlying error} is **not** escaped
+ * in any way, so do **not** render it without escaping it first!
+ *
+ * @category Server
+ */
 export abstract class AuthError extends Error {
+  /**
+   * A machine-readable error code that remains stable within a major version of the SDK. You
+   * should rely on this error code to handle errors. In contrast, the error message is not part of
+   * the API and can change anytime. Do **not** parse or otherwise rely on the error message to
+   * handle errors.
+   */
   public readonly code: string;
+
+  /**
+   * The error class name.
+   */
   public readonly name: string;
+
+  /**
+   * The underlying error, if any. The error message of this underlying error is **not** escaped in
+   * any way, so do **not** render it without escaping it first!
+   */
   public readonly cause?: Error;
+
+  /**
+   * The HTTP status code, if any.
+   */
   public readonly status?: number;
 
   /* istanbul ignore next */
@@ -41,6 +77,11 @@ export abstract class AuthError extends Error {
   }
 }
 
+/**
+ * Error codes for {@link AccessTokenError}.
+ *
+ * @category Server
+ */
 export enum AccessTokenErrorCode {
   MISSING_SESSION = 'ERR_MISSING_SESSION',
   MISSING_ACCESS_TOKEN = 'ERR_MISSING_ACCESS_TOKEN',
@@ -50,7 +91,14 @@ export enum AccessTokenErrorCode {
 }
 
 /**
- * The error thrown by {@link GetAccessToken}
+ * The error thrown by {@link GetAccessToken}.
+ *
+ * @see the {@link AuthError.code | code property} contains a machine-readable error code that
+ * remains stable within a major version of the SDK. You should rely on this error code to handle
+ * errors. In contrast, the error message is not part of the API and can change anytime. Do **not**
+ * parse or otherwise rely on the error message to handle errors.
+ *
+ * @see {@link AccessTokenErrorCode} for the list of all possible error codes.
  *
  * @category Server
  */
@@ -65,6 +113,9 @@ export class AccessTokenError extends AuthError {
   }
 }
 
+/**
+ * @ignore
+ */
 export type HandlerErrorCause = Error | AuthError | HttpError;
 
 type HandlerErrorOptions = {
@@ -75,13 +126,20 @@ type HandlerErrorOptions = {
 };
 
 /**
- * The error thrown by API route handlers.
+ * The base class for errors thrown by API route handlers. It extends {@link AuthError}.
  *
- * Because the error message can come from the OpenID Connect `error` query parameter we
+ * Because part of the error message can come from the OpenID Connect `error` query parameter we
  * do some basic escaping which makes sure the default error handler is safe from XSS.
  *
  * If you write your own error handler, you should **not** render the error message
  * without using a templating engine that will properly escape it for other HTML contexts first.
+ *
+ * @see the {@link AuthError.cause | cause property} contains the underlying error.
+ * The error message of this underlying error is **not** escaped in any way, so do **not** render
+ * it without escaping it first!
+ *
+ * @see the {@link AuthError.status | status property} contains the HTTP status code of the error,
+ * if any.
  *
  * @category Server
  */
@@ -94,6 +152,24 @@ export class HandlerError extends AuthError {
   }
 }
 
+/**
+ * The error thrown by the callback API route handler. It extends {@link HandlerError}.
+ *
+ * Because part of the error message can come from the OpenID Connect `error` query parameter we
+ * do some basic escaping which makes sure the default error handler is safe from XSS.
+ *
+ * If you write your own error handler, you should **not** render the error message
+ * without using a templating engine that will properly escape it for other HTML contexts first.
+ *
+ * @see the {@link AuthError.cause | cause property} contains the underlying error.
+ * The error message of this underlying error is **not** escaped in any way, so do **not** render
+ * it without escaping it first!
+ *
+ * @see the {@link AuthError.status | status property} contains the HTTP status code of the error,
+ * if any.
+ *
+ * @category Server
+ */
 export class CallbackHandlerError extends HandlerError {
   public static readonly code: string = 'ERR_CALLBACK_HANDLER_FAILURE';
 
@@ -109,6 +185,12 @@ export class CallbackHandlerError extends HandlerError {
   }
 }
 
+/**
+ * The error thrown by the login API route handler. It extends {@link HandlerError}.
+ *
+ * @see the {@link AuthError.cause | cause property} contains the underlying error.
+ * @category Server
+ */
 export class LoginHandlerError extends HandlerError {
   public static readonly code: string = 'ERR_LOGIN_HANDLER_FAILURE';
 
@@ -124,6 +206,12 @@ export class LoginHandlerError extends HandlerError {
   }
 }
 
+/**
+ * The error thrown by the logout API route handler. It extends {@link HandlerError}.
+ *
+ * @see the {@link AuthError.cause | cause property} contains the underlying error.
+ * @category Server
+ */
 export class LogoutHandlerError extends HandlerError {
   public static readonly code: string = 'ERR_LOGOUT_HANDLER_FAILURE';
 
@@ -139,6 +227,12 @@ export class LogoutHandlerError extends HandlerError {
   }
 }
 
+/**
+ * The error thrown by the profile API route handler. It extends {@link HandlerError}.
+ *
+ * @see the {@link AuthError.cause | cause property} contains the underlying error.
+ * @category Server
+ */
 export class ProfileHandlerError extends HandlerError {
   public static readonly code: string = 'ERR_PROFILE_HANDLER_FAILURE';
 
