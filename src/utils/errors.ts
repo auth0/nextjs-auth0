@@ -99,7 +99,6 @@ export enum AccessTokenErrorCode {
  * parse or otherwise rely on the error message to handle errors.
  *
  * @see {@link AccessTokenErrorCode} for the list of all possible error codes.
- *
  * @category Server
  */
 export class AccessTokenError extends AuthError {
