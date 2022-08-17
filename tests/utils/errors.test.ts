@@ -50,9 +50,9 @@ describe('AccessTokenError', () => {
 
   test('should set all properties', () => {
     const message = 'foo';
-    const error = new AccessTokenError(AccessTokenErrorCode.MISSING_SESSION, message);
+    const error = new AccessTokenError(AccessTokenErrorCode.MISSING_ACCESS_TOKEN, message);
 
-    expect(error.code).toEqual(AccessTokenErrorCode.MISSING_SESSION);
+    expect(error.code).toEqual(AccessTokenErrorCode.MISSING_ACCESS_TOKEN);
     expect(error.message).toEqual(message);
     expect(error.name).toEqual('AccessTokenError');
     expect(error.cause).toBeUndefined();
