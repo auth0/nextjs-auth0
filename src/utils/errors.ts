@@ -1,5 +1,22 @@
 import { HttpError } from 'http-errors';
 
+// eslint-disable-next-line max-len
+// Basic escaping for putting untrusted data directly into the HTML body, per: https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html#rule-1-html-encode-before-inserting-untrusted-data-into-html-element-content
+export function htmlSafe(input: string): string {
+  return input
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+export function appendCause(errorMessage: string, cause?: Error): string {
+  if (!cause) return errorMessage;
+  const separator = errorMessage.endsWith('.') ? '' : '.';
+  return `${errorMessage}${separator} CAUSE: ${htmlSafe(cause.message)}`;
+}
+
 type AuthErrorOptions = {
   code: string;
   message: string;
@@ -14,6 +31,7 @@ export abstract class AuthError extends Error {
   public readonly cause?: Error;
   public readonly status?: number;
 
+  /* istanbul ignore next */
   constructor(options: AuthErrorOptions) {
     super(appendCause(options.message, options.cause));
     this.code = options.code;
@@ -47,23 +65,6 @@ export class AccessTokenError extends AuthError {
   }
 }
 
-// eslint-disable-next-line max-len
-// Basic escaping for putting untrusted data directly into the HTML body, per: https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html#rule-1-html-encode-before-inserting-untrusted-data-into-html-element-content
-export function htmlSafe(input: string): string {
-  return input
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-export function appendCause(errorMessage: string, cause?: Error): string {
-  if (!cause) return errorMessage;
-  const separator = errorMessage.endsWith('.') ? '' : '.';
-  return `${errorMessage}${separator} CAUSE: ${htmlSafe(cause.message)}`;
-}
-
 export type HandlerErrorCause = Error | AuthError | HttpError;
 
 type HandlerErrorOptions = {
@@ -88,11 +89,7 @@ export class HandlerError extends AuthError {
   /* istanbul ignore next */
   constructor(options: HandlerErrorOptions) {
     let status: number | undefined;
-
-    if ('status' in options.cause) {
-      status = options.cause.status;
-    }
-
+    if ('status' in options.cause) status = options.cause.status;
     super({ ...options, status });
   }
 }
@@ -101,12 +98,12 @@ export class CallbackHandlerError extends HandlerError {
   public static readonly code: string = 'ERR_CALLBACK_HANDLER_FAILURE';
 
   /* istanbul ignore next */
-  constructor(error: HandlerErrorCause) {
+  constructor(cause: HandlerErrorCause) {
     super({
       code: CallbackHandlerError.code,
       message: 'Callback handler failed.',
       name: 'CallbackHandlerError',
-      cause: error
+      cause
     });
     Object.setPrototypeOf(this, CallbackHandlerError.prototype);
   }
@@ -116,12 +113,12 @@ export class LoginHandlerError extends HandlerError {
   public static readonly code: string = 'ERR_LOGIN_HANDLER_FAILURE';
 
   /* istanbul ignore next */
-  constructor(error: HandlerErrorCause) {
+  constructor(cause: HandlerErrorCause) {
     super({
       code: LoginHandlerError.code,
       message: 'Login handler failed.',
       name: 'LoginHandlerError',
-      cause: error
+      cause
     });
     Object.setPrototypeOf(this, LoginHandlerError.prototype);
   }
@@ -131,12 +128,12 @@ export class LogoutHandlerError extends HandlerError {
   public static readonly code: string = 'ERR_LOGOUT_HANDLER_FAILURE';
 
   /* istanbul ignore next */
-  constructor(error: HandlerErrorCause) {
+  constructor(cause: HandlerErrorCause) {
     super({
       code: LogoutHandlerError.code,
       message: 'Logout handler failed.',
       name: 'LogoutHandlerError',
-      cause: error
+      cause
     });
     Object.setPrototypeOf(this, LogoutHandlerError.prototype);
   }
@@ -146,12 +143,12 @@ export class ProfileHandlerError extends HandlerError {
   public static readonly code: string = 'ERR_PROFILE_HANDLER_FAILURE';
 
   /* istanbul ignore next */
-  constructor(error: HandlerErrorCause) {
+  constructor(cause: HandlerErrorCause) {
     super({
       code: ProfileHandlerError.code,
       message: 'Profile handler failed.',
       name: 'ProfileHandlerError',
-      cause: error
+      cause
     });
     Object.setPrototypeOf(this, ProfileHandlerError.prototype);
   }

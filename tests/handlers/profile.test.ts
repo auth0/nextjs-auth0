@@ -154,9 +154,8 @@ describe('profile handler', () => {
     await expect(get(baseUrl, '/api/auth/me', { cookieJar })).rejects.toThrowError('some validation error');
   });
 
-  test('should escape html in errors', async () => {
+  test('should escape html in error message', async () => {
     const baseUrl = await setup(withoutApi);
-
     const res = await fetch(`${baseUrl}/api/auth/me?error=%3Cscript%3Ealert(%27xss%27)%3C%2Fscript%3E`);
 
     expect(await res.text()).toEqual(
