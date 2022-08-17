@@ -99,11 +99,10 @@ describe('logout handler', () => {
     });
   });
 
-  test('should escape html in errors', async () => {
+  test('should escape html in error message', async () => {
     const baseUrl = await setup(withoutApi);
-
     const res = await fetch(`${baseUrl}/api/auth/logout?error=%3Cscript%3Ealert(%27xss%27)%3C%2Fscript%3E`);
 
-    expect(await res.text()).toEqual('&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;');
+    expect(await res.text()).toEqual('Logout handler failed. CAUSE: &lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;');
   });
 });

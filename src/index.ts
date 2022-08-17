@@ -128,7 +128,16 @@ export {
   WithPageAuthRequiredProps
 } from './frontend';
 
-export { AccessTokenError, HandlerError } from './utils/errors';
+export {
+  AuthError,
+  AccessTokenErrorCode,
+  AccessTokenError,
+  HandlerError,
+  CallbackHandlerError,
+  LoginHandlerError,
+  LogoutHandlerError,
+  ProfileHandlerError
+} from './utils/errors';
 
 export {
   ConfigParameters,
