@@ -1,7 +1,7 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { NextApiRequest, NextApiResponse } from 'next';
 import { ClientFactory } from '../auth0-session';
-import { AccessTokenError } from '../utils/errors';
+import { AccessTokenError, AccessTokenErrorCode } from '../utils/errors';
 import { intersect, match } from '../utils/array';
 import { Session, SessionCache, fromTokenSet } from '../session';
 import { AuthorizationParameters, NextConfig } from '../config';
@@ -95,16 +95,19 @@ export default function accessTokenFactory(
   return async (req, res, accessTokenRequest): Promise<GetAccessTokenResult> => {
     let session = sessionCache.get(req, res);
     if (!session) {
-      throw new AccessTokenError('invalid_session', 'The user does not have a valid session.');
+      throw new AccessTokenError(AccessTokenErrorCode.MISSING_SESSION, 'The user does not have a valid session.');
     }
 
     if (!session.accessToken && !session.refreshToken) {
-      throw new AccessTokenError('invalid_session', 'The user does not have a valid access token.');
+      throw new AccessTokenError(
+        AccessTokenErrorCode.MISSING_ACCESS_TOKEN,
+        'The user does not have a valid access token.'
+      );
     }
 
     if (!session.accessTokenExpiresAt) {
       throw new AccessTokenError(
-        'access_token_expired',
+        AccessTokenErrorCode.EXPIRED_ACCESS_TOKEN,
         'Expiration information for the access token is not available. The user will need to sign in again.'
       );
     }
@@ -113,7 +116,7 @@ export default function accessTokenFactory(
       const persistedScopes = session.accessTokenScope;
       if (!persistedScopes || persistedScopes.length === 0) {
         throw new AccessTokenError(
-          'insufficient_scope',
+          AccessTokenErrorCode.INSUFFICIENT_SCOPE,
           'An access token with the requested scopes could not be provided. The user will need to sign in again.'
         );
       }
@@ -121,7 +124,7 @@ export default function accessTokenFactory(
       const matchingScopes = intersect(accessTokenRequest.scopes, persistedScopes.split(' '));
       if (!match(accessTokenRequest.scopes, [...matchingScopes])) {
         throw new AccessTokenError(
-          'insufficient_scope',
+          AccessTokenErrorCode.INSUFFICIENT_SCOPE,
           `Could not retrieve an access token with scopes "${accessTokenRequest.scopes.join(
             ' '
           )}". The user will need to sign in again.`
@@ -134,14 +137,14 @@ export default function accessTokenFactory(
     // Adding a skew of 1 minute to compensate.
     if (!session.refreshToken && session.accessTokenExpiresAt * 1000 - 60000 < Date.now()) {
       throw new AccessTokenError(
-        'access_token_expired',
+        AccessTokenErrorCode.EXPIRED_ACCESS_TOKEN,
         'The access token expired and a refresh token is not available. The user will need to sign in again.'
       );
     }
 
     if (accessTokenRequest?.refresh && !session.refreshToken) {
       throw new AccessTokenError(
-        'no_refresh_token',
+        AccessTokenErrorCode.MISSING_REFRESH_TOKEN,
         'A refresh token is required to refresh the access token, but none is present.'
       );
     }
@@ -180,7 +183,10 @@ export default function accessTokenFactory(
 
     // We don't have an access token.
     if (!session.accessToken) {
-      throw new AccessTokenError('invalid_session', 'The user does not have a valid access token.');
+      throw new AccessTokenError(
+        AccessTokenErrorCode.MISSING_ACCESS_TOKEN,
+        'The user does not have a valid access token.'
+      );
     }
 
     // The access token is not expired and has sufficient scopes;

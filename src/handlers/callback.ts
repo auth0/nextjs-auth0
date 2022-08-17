@@ -4,7 +4,7 @@ import { AuthorizationParameters, HandleCallback as BaseHandleCallback } from '.
 import { Session } from '../session';
 import { assertReqRes } from '../utils/assert';
 import { NextConfig } from '../config';
-import { HandlerError } from '../utils/errors';
+import { CallbackHandlerError, HandlerErrorCause } from '../utils/errors';
 
 /**
  * Use this function for validating additional claims on the user's ID Token or adding removing items from
@@ -139,7 +139,7 @@ export default function handleCallbackFactory(handler: BaseHandleCallback, confi
         afterCallback: idTokenValidator(options.afterCallback, options.organization || config.organization)
       });
     } catch (e) {
-      throw new HandlerError(e);
+      throw new CallbackHandlerError(e as HandlerErrorCause);
     }
   };
 }
