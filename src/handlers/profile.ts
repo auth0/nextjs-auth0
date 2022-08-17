@@ -1,8 +1,9 @@
 import { NextApiResponse, NextApiRequest } from 'next';
 import { ClientFactory } from '../auth0-session';
-import { SessionCache, Session, fromJson, GetAccessToken } from '../session';
+import { Session, fromJson, GetAccessToken } from '../session';
 import { assertReqRes } from '../utils/assert';
 import { HandlerError } from '../utils/errors';
+import { NodeSessionCache } from '../session/cache';
 
 export type AfterRefetch = (req: NextApiRequest, res: NextApiResponse, session: Session) => Promise<Session> | Session;
 
@@ -39,13 +40,13 @@ export type HandleProfile = (req: NextApiRequest, res: NextApiResponse, options?
 export default function profileHandler(
   getClient: ClientFactory,
   getAccessToken: GetAccessToken,
-  sessionCache: SessionCache
+  sessionCache: NodeSessionCache
 ): HandleProfile {
   return async (req, res, options): Promise<void> => {
     try {
       assertReqRes(req, res);
 
-      if (!sessionCache.isAuthenticated(req, res)) {
+      if (!sessionCache.isAuthenticated(req)) {
         res.status(401).json({
           error: 'not_authenticated',
           description: 'The user does not have an active session or is not authenticated'
@@ -53,7 +54,7 @@ export default function profileHandler(
         return;
       }
 
-      const session = sessionCache.get(req, res) as Session;
+      const session = sessionCache.get(req) as Session;
       res.setHeader('Cache-Control', 'no-store');
 
       if (options?.refetch) {
@@ -77,7 +78,7 @@ export default function profileHandler(
           newSession = await options.afterRefetch(req, res, newSession);
         }
 
-        sessionCache.set(req, res, newSession);
+        sessionCache.set(req, newSession);
 
         res.json(newSession.user);
         return;

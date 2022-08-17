@@ -1,6 +1,6 @@
 import { GetServerSideProps } from 'next';
 import { ParsedUrlQuery } from 'querystring';
-import SessionCache from '../session/cache';
+import { NodeSessionCache } from '../session/cache';
 
 /**
  * If you're using >=Next 12 and {@link getSession} or {@link getAccessToken} without `withPageAuthRequired`, because
@@ -38,14 +38,14 @@ export type GetServerSidePropsWrapper<P = any, Q extends ParsedUrlQuery = Parsed
 /**
  * @ignore
  */
-export default function getServerSidePropsWrapperFactory(getSessionCache: () => SessionCache) {
+export default function getServerSidePropsWrapperFactory(getSessionCache: () => NodeSessionCache) {
   return function getServerSidePropsWrapper(getServerSideProps: GetServerSideProps): GetServerSideProps {
-    return function wrappedGetServerSideProps(...args) {
+    return async function wrappedGetServerSideProps(...args) {
       const sessionCache = getSessionCache();
       const [ctx] = args;
-      sessionCache.init(ctx.req, ctx.res, false);
+      await sessionCache.init(ctx.req);
       const ret = getServerSideProps(...args);
-      sessionCache.save(ctx.req, ctx.res);
+      await sessionCache.save(ctx.req, ctx.res);
       return ret;
     };
   };

@@ -1,10 +1,10 @@
-import { IncomingMessage, ServerResponse } from 'http';
+import { IncomingMessage } from 'http';
 import { TokenSet } from 'openid-client';
 
-export interface SessionCache {
-  create(req: IncomingMessage, res: ServerResponse, session: { [key: string]: any }): void;
-  delete(req: IncomingMessage, res: ServerResponse): void;
-  isAuthenticated(req: IncomingMessage, res: ServerResponse): boolean;
-  getIdToken(req: IncomingMessage, res: ServerResponse): string | undefined;
-  fromTokenSet(tokenSet: TokenSet): { [key: string]: any };
+export interface SessionCache<Session = { [key: string]: any }, Request = IncomingMessage> {
+  create(req: Request, session: Session): void;
+  delete(req: Request): void;
+  isAuthenticated(req: Request): boolean;
+  getIdToken(req: Request): string | undefined;
+  fromTokenSet(tokenSet: TokenSet): Session;
 }

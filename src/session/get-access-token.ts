@@ -3,10 +3,14 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { ClientFactory } from '../auth0-session';
 import { AccessTokenError } from '../utils/errors';
 import { intersect, match } from '../utils/array';
-import { Session, SessionCache, fromTokenSet } from '../session';
+import { Session, NodeSessionCache as SessionCache, fromTokenSet } from '../session';
 import { AuthorizationParameters, NextConfig } from '../config';
 
-export type AfterRefresh = (req: NextApiRequest, res: NextApiResponse, session: Session) => Promise<Session> | Session;
+export type AfterRefresh = (
+  req: IncomingMessage | NextApiRequest,
+  res: ServerResponse | NextApiResponse,
+  session: Session
+) => Promise<Session> | Session;
 
 /**
  * Custom options to get an Access Token.
@@ -93,7 +97,7 @@ export default function accessTokenFactory(
   sessionCache: SessionCache
 ): GetAccessToken {
   return async (req, res, accessTokenRequest): Promise<GetAccessTokenResult> => {
-    let session = sessionCache.get(req, res);
+    let session = sessionCache.get(req);
     if (!session) {
       throw new AccessTokenError('invalid_session', 'The user does not have a valid session.');
     }
@@ -167,10 +171,10 @@ export default function accessTokenFactory(
       });
 
       if (accessTokenRequest?.afterRefresh) {
-        session = await accessTokenRequest.afterRefresh(req as NextApiRequest, res as NextApiResponse, session);
+        session = await accessTokenRequest.afterRefresh(req, res, session);
       }
 
-      sessionCache.set(req, res, session);
+      sessionCache.set(req, session);
 
       // Return the new access token.
       return {

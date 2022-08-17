@@ -1,5 +1,5 @@
 import { GetServerSideProps, GetServerSidePropsContext, GetServerSidePropsResult } from 'next';
-import { Claims, SessionCache } from '../session';
+import { Claims } from '../session';
 import { assertCtx } from '../utils/assert';
 import React, { ComponentType } from 'react';
 import {
@@ -10,6 +10,7 @@ import {
 import { withPageAuthRequired as withPageAuthRequiredCSR } from '../frontend';
 import { ParsedUrlQuery } from 'querystring';
 import getServerSidePropsWrapperFactory from './get-server-side-props-wrapper';
+import { NodeSessionCache } from '../session/cache';
 
 /**
  * If you wrap your `getServerSideProps` with {@link WithPageAuthRequired} your props object will be augmented with
@@ -102,7 +103,7 @@ export type WithPageAuthRequired = {
  */
 export default function withPageAuthRequiredFactory(
   loginUrl: string,
-  getSessionCache: () => SessionCache
+  getSessionCache: () => NodeSessionCache
 ): WithPageAuthRequired {
   return (
     optsOrComponent: WithPageAuthRequiredOptions | ComponentType<WithPageAuthRequiredProps & UserProps> = {},
@@ -117,7 +118,7 @@ export default function withPageAuthRequiredFactory(
       async (ctx: GetServerSidePropsContext): Promise<GetServerSidePropsResultWithSession> => {
         assertCtx(ctx);
         const sessionCache = getSessionCache();
-        const session = sessionCache.get(ctx.req, ctx.res);
+        const session = sessionCache.get(ctx.req);
         if (!session?.user) {
           // 10 - redirect
           // 9.5.4 - unstable_redirect

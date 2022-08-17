@@ -1,4 +1,4 @@
-export { default as CookieStore } from './cookie-store';
+export { default as CookieStore } from './stores/node-cookie-store';
 export { default as TransientStore } from './transient-store';
 export { Config, SessionConfig, CookieConfig, LoginOptions, LogoutOptions, AuthorizationParameters } from './config';
 export { get as getConfig, ConfigParameters, DeepPartial } from './get-config';

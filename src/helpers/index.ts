@@ -7,6 +7,11 @@ export {
   PageRoute
 } from './with-page-auth-required';
 export {
+  default as withMiddlewareAuthRequiredFactory,
+  WithMiddlewareAuthRequired
+} from './with-middleware-auth-required';
+
+export {
   default as getServerSidePropsWrapperFactory,
   GetServerSidePropsWrapper
 } from './get-server-side-props-wrapper';

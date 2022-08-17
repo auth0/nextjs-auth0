@@ -27,10 +27,9 @@ import {
   AfterRefetch
 } from './handlers';
 import {
-  sessionFactory,
   accessTokenFactory,
   SessionCache,
-  GetSession,
+  NodeGetSession as GetSession,
   GetAccessToken,
   Session,
   AccessTokenRequest,
@@ -51,10 +50,11 @@ import {
 import { InitAuth0, SignInWithAuth0 } from './instance';
 import version from './version';
 import { getConfig, getLoginUrl, ConfigParameters } from './config';
+import { NodeSessionCache } from './session/cache';
 
-let instance: SignInWithAuth0 & { sessionCache: SessionCache };
+let instance: SignInWithAuth0 & { sessionCache: NodeSessionCache };
 
-function getInstance(): SignInWithAuth0 & { sessionCache: SessionCache } {
+function getInstance(): SignInWithAuth0 & { sessionCache: NodeSessionCache } {
   if (instance) {
     return instance;
   }
@@ -62,7 +62,7 @@ function getInstance(): SignInWithAuth0 & { sessionCache: SessionCache } {
   return instance;
 }
 
-export const _initAuth = (params?: ConfigParameters): SignInWithAuth0 & { sessionCache: SessionCache } => {
+export const _initAuth = (params?: ConfigParameters): SignInWithAuth0 & { sessionCache: NodeSessionCache } => {
   const { baseConfig, nextConfig } = getConfig(params);
 
   // Init base layer (with base config)
@@ -75,7 +75,7 @@ export const _initAuth = (params?: ConfigParameters): SignInWithAuth0 & { sessio
   const baseHandleCallback = baseCallbackHandler(baseConfig, getClient, sessionCache, transientStore);
 
   // Init Next layer (with next config)
-  const getSession = sessionFactory(sessionCache);
+  const getSession: GetSession = (req) => sessionCache.get(req);
   const getAccessToken = accessTokenFactory(nextConfig, getClient, sessionCache);
   const withApiAuthRequired = withApiAuthRequiredFactory(sessionCache);
   const withPageAuthRequired = withPageAuthRequiredFactory(nextConfig.routes.login, () => sessionCache);

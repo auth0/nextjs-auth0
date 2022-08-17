@@ -1,5 +1,5 @@
 import { InitAuth0, SignInWithAuth0 } from './instance';
-import { GetAccessToken, GetSession } from './session';
+import { GetAccessToken, NodeGetSession as GetSession } from './session';
 import { WithApiAuthRequired } from './helpers';
 import { HandleAuth, HandleCallback, HandleLogin, HandleLogout, HandleProfile } from './handlers';
 export {

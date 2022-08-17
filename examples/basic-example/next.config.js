@@ -1,4 +1,4 @@
 module.exports = {
-  poweredByHeader: false,
-  target: 'serverless'
+  // poweredByHeader: false,
+  // target: 'serverless'
 };

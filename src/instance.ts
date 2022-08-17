@@ -1,4 +1,4 @@
-import { GetSession, GetAccessToken } from './session';
+import { NodeGetSession as GetSession, GetAccessToken } from './session';
 import { GetServerSidePropsWrapper, WithApiAuthRequired, WithPageAuthRequired } from './helpers';
 import { HandleAuth, HandleCallback, HandleLogin, HandleLogout, HandleProfile } from './handlers';
 import { ConfigParameters } from './auth0-session';
@@ -8,7 +8,7 @@ import { ConfigParameters } from './auth0-session';
  *
  * This is created for you when you use the named exports, or you can create your own using {@link InitAuth0}
  *
- * See {@link Config} fro more info.
+ * See {@link Config} for more info.
  *
  * @category Server
  */
