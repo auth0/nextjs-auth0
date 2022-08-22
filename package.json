@@ -80,6 +80,7 @@
     "@typescript-eslint/parser": "^4.13.0",
     "body-parser": "^1.19.0",
     "browserstack-cypress-cli": "^1.8.1",
+    "bundlewatch": "^0.3.3",
     "cypress": "^8.4.0",
     "eslint": "^7.17.0",
     "eslint-config-prettier": "^8.1.0",
@@ -115,7 +116,6 @@
     "jose": "^2.0.5",
     "on-headers": "^1.0.2",
     "openid-client": "^4.9.1",
-    "tslib": "^2.4.0",
     "url-join": "^4.0.1"
   },
   "peerDependencies": {
