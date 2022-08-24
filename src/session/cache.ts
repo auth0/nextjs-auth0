@@ -1,7 +1,6 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { NextApiRequest, NextApiResponse } from 'next';
 import { TokenSet } from 'openid-client';
-import onHeaders from 'on-headers';
 import { Config, SessionCache as ISessionCache, CookieStore } from '../auth0-session';
 import Session, { fromJson, fromTokenSet } from './session';
 
@@ -22,8 +21,8 @@ export default class SessionCache implements ISessionCache {
       const [json, iat] = this.cookieStore.read(req);
       this.iatCache.set(req, iat);
       this.cache.set(req, fromJson(json));
-      if (autoSave) {
-        onHeaders(res, () => this.save(req, res));
+      if (this.config.session.rolling && autoSave) {
+        this.save(req, res);
       }
     }
   }
@@ -34,12 +33,13 @@ export default class SessionCache implements ISessionCache {
 
   create(req: NextApiOrPageRequest, res: NextApiOrPageResponse, session: Session): void {
     this.cache.set(req, session);
-    onHeaders(res, () => this.save(req, res));
+    this.save(req, res);
   }
 
   delete(req: NextApiOrPageRequest, res: NextApiOrPageResponse): void {
-    this.init(req, res);
+    this.init(req, res, false);
     this.cache.set(req, null);
+    this.save(req, res);
   }
 
   isAuthenticated(req: NextApiOrPageRequest, res: NextApiOrPageResponse): boolean {
@@ -55,8 +55,9 @@ export default class SessionCache implements ISessionCache {
   }
 
   set(req: NextApiOrPageRequest, res: NextApiOrPageResponse, session: Session | null): void {
-    this.init(req, res);
+    this.init(req, res, false);
     this.cache.set(req, session);
+    this.save(req, res);
   }
 
   get(req: NextApiOrPageRequest, res: NextApiOrPageResponse): Session | null | undefined {

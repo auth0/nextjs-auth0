@@ -60,10 +60,10 @@ export const setup = async (
     handleLogout,
     handleProfile,
     getSession,
+    updateUser,
     getAccessToken,
     withApiAuthRequired,
-    withPageAuthRequired,
-    getServerSidePropsWrapper
+    withPageAuthRequired
   } = await initAuth0(config);
   (global as any).handleAuth = handleAuth.bind(null, {
     async callback(req, res) {
@@ -100,12 +100,12 @@ export const setup = async (
   });
 
   (global as any).getSession = getSession;
+  (global as any).updateUser = updateUser;
   (global as any).withApiAuthRequired = withApiAuthRequired;
   (global as any).withPageAuthRequired = (): any => withPageAuthRequired(withPageAuthRequiredOptions);
   (global as any).withPageAuthRequiredCSR = withPageAuthRequired;
   (global as any).getAccessToken = (req: NextApiRequest, res: NextApiResponse): Promise<GetAccessTokenResult> =>
     getAccessToken(req, res, getAccessTokenOptions);
-  (global as any).getServerSidePropsWrapper = getServerSidePropsWrapper;
   (global as any).asyncProps = asyncProps;
   return start();
 };
@@ -114,12 +114,12 @@ export const teardown = async (): Promise<void> => {
   nock.cleanAll();
   await stop();
   delete (global as any).getSession;
+  delete (global as any).updateUser;
   delete (global as any).handleAuth;
   delete (global as any).withApiAuthRequired;
   delete (global as any).withPageAuthRequired;
   delete (global as any).withPageAuthRequiredCSR;
   delete (global as any).getAccessToken;
-  delete (global as any).getServerSidePropsWrapper;
   delete (global as any).asyncProps;
 };
 

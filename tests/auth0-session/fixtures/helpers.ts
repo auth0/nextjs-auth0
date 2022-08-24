@@ -112,5 +112,5 @@ export const post = async (
     cookieJar,
     body,
     fullResponse
-  }: { body: { [key: string]: string }; cookieJar?: CookieJar; fullResponse?: boolean; https?: boolean }
+  }: { body: { [key: string]: any }; cookieJar?: CookieJar; fullResponse?: boolean; https?: boolean }
 ): Promise<any | Response> => request(`${baseURL}${path}`, 'POST', { body, cookieJar, fullResponse });

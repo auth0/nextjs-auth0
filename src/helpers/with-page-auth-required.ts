@@ -9,7 +9,6 @@ import {
 } from '../frontend/with-page-auth-required';
 import { withPageAuthRequired as withPageAuthRequiredCSR } from '../frontend';
 import { ParsedUrlQuery } from 'querystring';
-import getServerSidePropsWrapperFactory from './get-server-side-props-wrapper';
 
 /**
  * If you wrap your `getServerSideProps` with {@link WithPageAuthRequired} your props object will be augmented with
@@ -112,32 +111,26 @@ export default function withPageAuthRequiredFactory(
       return withPageAuthRequiredCSR(optsOrComponent, csrOpts);
     }
     const { getServerSideProps, returnTo } = optsOrComponent;
-    const getServerSidePropsWrapper = getServerSidePropsWrapperFactory(getSessionCache);
-    return getServerSidePropsWrapper(
-      async (ctx: GetServerSidePropsContext): Promise<GetServerSidePropsResultWithSession> => {
-        assertCtx(ctx);
-        const sessionCache = getSessionCache();
-        const session = sessionCache.get(ctx.req, ctx.res);
-        if (!session?.user) {
-          // 10 - redirect
-          // 9.5.4 - unstable_redirect
-          // 9.4 - res.setHeaders
-          return {
-            redirect: {
-              destination: `${loginUrl}?returnTo=${encodeURIComponent(returnTo || ctx.resolvedUrl)}`,
-              permanent: false
-            }
-          };
-        }
-        let ret: any = { props: {} };
-        if (getServerSideProps) {
-          ret = await getServerSideProps(ctx);
-        }
-        if (ret.props instanceof Promise) {
-          return { ...ret, props: ret.props.then((props: any) => ({ ...props, user: session.user })) };
-        }
-        return { ...ret, props: { ...ret.props, user: session.user } };
+    return async (ctx: GetServerSidePropsContext): Promise<GetServerSidePropsResultWithSession> => {
+      assertCtx(ctx);
+      const sessionCache = getSessionCache();
+      const session = sessionCache.get(ctx.req, ctx.res);
+      if (!session?.user) {
+        return {
+          redirect: {
+            destination: `${loginUrl}?returnTo=${encodeURIComponent(returnTo || ctx.resolvedUrl)}`,
+            permanent: false
+          }
+        };
       }
-    );
+      let ret: any = { props: {} };
+      if (getServerSideProps) {
+        ret = await getServerSideProps(ctx);
+      }
+      if (ret.props instanceof Promise) {
+        return { ...ret, props: ret.props.then((props: any) => ({ ...props, user: session.user })) };
+      }
+      return { ...ret, props: { ...ret.props, user: session.user } };
+    };
   };
 }

@@ -93,6 +93,7 @@
     "next": "^12.1.6",
     "nock": "^13.0.5",
     "oidc-provider": "^7.6.0",
+    "on-headers": "^1.0.2",
     "prettier": "^2.2.1",
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
@@ -113,7 +114,6 @@
     "http-errors": "^1.8.1",
     "joi": "^17.6.0",
     "jose": "^2.0.5",
-    "on-headers": "^1.0.2",
     "openid-client": "^4.9.1",
     "tslib": "^2.4.0",
     "url-join": "^4.0.1"
