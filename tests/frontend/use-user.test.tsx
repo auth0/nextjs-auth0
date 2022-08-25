@@ -123,7 +123,7 @@ describe('hook', () => {
     expect(result.current.isLoading).toEqual(false);
   });
 
-  test('should provide no user when the status code is 401', async () => {
+  test('should provide no user when the status code is 204', async () => {
     (global as any).fetch = fetchUserUnauthorizedMock;
     const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUserProvider() });
 
