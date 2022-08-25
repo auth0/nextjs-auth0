@@ -19,6 +19,9 @@ const instance: SignInWithAuth0 = {
   getSession() {
     throw new Error(serverSideOnly('getSession'));
   },
+  updateUser() {
+    throw new Error(serverSideOnly('updateUser'));
+  },
   getAccessToken() {
     throw new Error(serverSideOnly('getAccessToken'));
   },
@@ -42,9 +45,6 @@ const instance: SignInWithAuth0 = {
   },
   withPageAuthRequired() {
     throw new Error(serverSideOnly('withPageAuthRequired'));
-  },
-  getServerSidePropsWrapper() {
-    throw new Error(serverSideOnly('getServerSidePropsWrapper'));
   }
 };
 
