@@ -2,7 +2,7 @@ import { IncomingMessage, ServerResponse } from 'http';
 import { generators } from 'openid-client';
 import { JWKS, JWS, JWK } from 'jose';
 import { signing as deriveKey } from './utils/hkdf';
-import { get as getCookie, clear as clearCookie, set as setCookie } from './utils/cookies';
+import Cookies from './utils/cookies';
 import { Config } from './config';
 
 export interface StoreOptions {
@@ -102,11 +102,12 @@ export default class TransientStore {
       domain,
       path
     };
+    const cookieSetter = new Cookies();
 
     {
       const cookieValue = generateCookieValue(key, value, this.currentKey as JWK.Key);
       // Set the cookie with the SameSite attribute and, if needed, the Secure flag.
-      setCookie(res, key, cookieValue, {
+      cookieSetter.set(key, cookieValue, {
         ...basicAttr,
         sameSite,
         secure: isSameSiteNone ? true : basicAttr.secure
@@ -116,9 +117,10 @@ export default class TransientStore {
     if (isSameSiteNone && this.config.legacySameSiteCookie) {
       const cookieValue = generateCookieValue(`_${key}`, value, this.currentKey as JWK.Key);
       // Set the fallback cookie with no SameSite or Secure attributes.
-      setCookie(res, `_${key}`, cookieValue, basicAttr);
+      cookieSetter.set(`_${key}`, cookieValue, basicAttr);
     }
 
+    cookieSetter.commit(res);
     return value;
   }
 
@@ -132,21 +134,24 @@ export default class TransientStore {
    * @return {String|undefined} Cookie value or undefined if cookie was not found.
    */
   read(key: string, req: IncomingMessage, res: ServerResponse): string | undefined {
-    const cookie = getCookie(req, key);
+    const cookies = Cookies.getAll(req);
+    const cookie = cookies[key];
     const cookieConfig = this.config.session.cookie;
+    const cookieSetter = new Cookies();
 
     let value = getCookieValue(key, cookie, this.keyStore);
-    clearCookie(res, key, cookieConfig);
+    cookieSetter.clear(key, cookieConfig);
 
     if (this.config.legacySameSiteCookie) {
       const fallbackKey = `_${key}`;
       if (!value) {
-        const fallbackCookie = getCookie(req, fallbackKey);
+        const fallbackCookie = cookies[fallbackKey];
         value = getCookieValue(fallbackKey, fallbackCookie, this.keyStore);
       }
-      clearCookie(res, fallbackKey, cookieConfig);
+      cookieSetter.clear(fallbackKey, cookieConfig);
     }
 
+    cookieSetter.commit(res);
     return value;
   }
 

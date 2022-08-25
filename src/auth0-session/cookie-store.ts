@@ -3,7 +3,7 @@ import { strict as assert, AssertionError } from 'assert';
 import { JWE, JWK, JWKS, errors } from 'jose';
 import { encryption as deriveKey } from './utils/hkdf';
 import createDebug from './utils/debug';
-import { getAll as getCookies, clear as clearCookie, set as setCookie } from './utils/cookies';
+import Cookies from './utils/cookies';
 import { Config } from './config';
 import { CookieSerializeOptions, serialize } from 'cookie';
 
@@ -79,7 +79,7 @@ export default class CookieStore {
   }
 
   public read(req: IncomingMessage): [{ [key: string]: any }?, number?] {
-    const cookies = getCookies(req);
+    const cookies = Cookies.getAll(req);
     const { name: sessionName, rollingDuration, absoluteDuration } = this.config.session;
 
     let iat;
@@ -160,13 +160,15 @@ export default class CookieStore {
       cookie: { transient, ...cookieConfig },
       name: sessionName
     } = this.config.session;
-    const cookies = getCookies(req);
+    const cookies = Cookies.getAll(req);
+    const cookieSetter = new Cookies();
 
     if (!session) {
       debug('clearing all matching session cookies');
       for (const cookieName of Object.keys(cookies)) {
         if (cookieName.match(`^${sessionName}(?:\\.\\d)?$`)) {
-          clearCookie(res, cookieName, cookieConfig);
+          cookieSetter.clear(cookieName, cookieConfig);
+          cookieSetter.commit(res, this.config.session.name);
         }
       }
       return;
@@ -192,18 +194,19 @@ export default class CookieStore {
       for (let i = 0; i < chunkCount; i++) {
         const chunkValue = value.slice(i * this.chunkSize, (i + 1) * this.chunkSize);
         const chunkCookieName = `${sessionName}.${i}`;
-        setCookie(res, chunkCookieName, chunkValue, cookieOptions);
+        cookieSetter.set(chunkCookieName, chunkValue, cookieOptions);
       }
       if (sessionName in cookies) {
-        clearCookie(res, sessionName, cookieConfig);
+        cookieSetter.clear(sessionName, cookieConfig);
       }
     } else {
-      setCookie(res, sessionName, value, cookieOptions);
+      cookieSetter.set(sessionName, value, cookieOptions);
       for (const cookieName of Object.keys(cookies)) {
         if (cookieName.match(`^${sessionName}\\.\\d$`)) {
-          clearCookie(res, cookieName, cookieConfig);
+          cookieSetter.clear(cookieName, cookieConfig);
         }
       }
     }
+    cookieSetter.commit(res, this.config.session.name);
   }
 }
