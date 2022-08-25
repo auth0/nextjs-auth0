@@ -37,7 +37,7 @@ export type UserContext = {
  * The `status` property contains the status code of the response. It is `0` when the request fails, e.g. due to being
  * offline.
  *
- * This error is not thrown when the status code of the response is `401`, because that means the user is not
+ * This error is not thrown when the status code of the response is `204`, because that means the user is not
  * authenticated.
  *
  * @category Client
@@ -170,11 +170,8 @@ const userFetcher: UserFetcher = async (url) => {
   } catch {
     throw new RequestError(0); // Network error
   }
-  if (response.ok) {
-    return response.json();
-  } else if (response.status === 401) {
-    return undefined;
-  }
+  if (response.status == 204) return undefined;
+  if (response.ok) return response.json();
   throw new RequestError(response.status);
 };
 

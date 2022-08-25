@@ -40,8 +40,8 @@ export const fetchUserMock = (): Promise<FetchUserMock> => {
 
 export const fetchUserUnauthorizedMock = (): Promise<FetchUserMock> => {
   return Promise.resolve({
-    ok: false,
-    status: 401,
+    ok: true,
+    status: 204,
     json: () => Promise.resolve(undefined)
   });
 };

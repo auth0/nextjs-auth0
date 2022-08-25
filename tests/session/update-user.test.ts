@@ -27,8 +27,8 @@ describe('update-user', () => {
 
   test('should ignore updates if user is not logged in', async () => {
     const baseUrl = await setup(withoutApi);
-    await expect(get(baseUrl, '/api/auth/me')).rejects.toThrow('Unauthorized');
+    await expect(get(baseUrl, '/api/auth/me')).resolves.toBe('');
     await post(baseUrl, '/api/update-user', { body: { user: { sub: 'foo' } } });
-    await expect(get(baseUrl, '/api/auth/me')).rejects.toThrow('Unauthorized');
+    await expect(get(baseUrl, '/api/auth/me')).resolves.toBe('');
   });
 });
