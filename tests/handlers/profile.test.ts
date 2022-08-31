@@ -23,7 +23,7 @@ describe('profile handler', () => {
   test('should throw an error when not logged in', async () => {
     const baseUrl = await setup(withoutApi);
 
-    await expect(get(baseUrl, '/api/auth/me')).rejects.toThrow('Unauthorized');
+    await expect(get(baseUrl, '/api/auth/me')).resolves.toBe('');
   });
 
   test('should return the profile when logged in', async () => {

@@ -5,6 +5,7 @@ Guide to migrating from `1.x` to `2.x`
 - [`getSession` now returns a `Promise`](#getsession-now-returns-a-promise)
 - [`updateUser` has been added](#updateuser-has-been-added)
 - [`getServerSidePropsWrapper` has been removed](#getserversidepropswrapper-has-been-removed)
+- [Profile API route no longer returns a 401](#profile-api-route-no-longer-returns-a-401)
 
 ## `getSession` now returns a `Promise`
 
@@ -99,3 +100,7 @@ export const getServerSideProps = async (ctx) => {
   }
 };
 ```
+
+## Profile API route no longer returns a 401
+
+Previously the profile API route, by default at `/api/auth/me`, would return a 401 error when the user was not authenticated. While it was technically the right status code for the situation, it showed up in the browser console as an error. This API route will now return a 204 instead. Since 204 is a successful status code, it will not produce a console error.
