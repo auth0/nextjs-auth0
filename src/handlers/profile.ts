@@ -45,7 +45,7 @@ export default function profileHandler(
     try {
       assertReqRes(req, res);
 
-      if (!sessionCache.isAuthenticated(req, res)) {
+      if (!(await sessionCache.isAuthenticated(req, res))) {
         res.status(401).json({
           error: 'not_authenticated',
           description: 'The user does not have an active session or is not authenticated'
@@ -53,7 +53,7 @@ export default function profileHandler(
         return;
       }
 
-      const session = sessionCache.get(req, res) as Session;
+      const session = (await sessionCache.get(req, res)) as Session;
       res.setHeader('Cache-Control', 'no-store');
 
       if (options?.refetch) {
@@ -77,7 +77,7 @@ export default function profileHandler(
           newSession = await options.afterRefetch(req, res, newSession);
         }
 
-        sessionCache.set(req, res, newSession);
+        await sessionCache.set(req, res, newSession);
 
         res.json(newSession.user);
         return;

@@ -8,11 +8,11 @@ import { encodeState } from '../../../src/auth0-session/hooks/get-login-state';
 const login = async (baseURL: string): Promise<CookieJar> => {
   const nonce = '__test_nonce__';
   const state = encodeState({ returnTo: 'https://example.org' });
-  const cookieJar = toSignedCookieJar({ state, nonce }, baseURL);
+  const cookieJar = await toSignedCookieJar({ state, nonce }, baseURL);
   await post(baseURL, '/callback', {
     body: {
       state,
-      id_token: makeIdToken({ nonce })
+      id_token: await makeIdToken({ nonce })
     },
     cookieJar
   });
@@ -87,11 +87,11 @@ describe('logout route', () => {
     });
     const nonce = '__test_nonce__';
     const state = encodeState({ returnTo: 'https://example.org' });
-    const cookieJar = toSignedCookieJar({ state, nonce }, baseURL);
+    const cookieJar = await toSignedCookieJar({ state, nonce }, baseURL);
     await post(baseURL, '/callback', {
       body: {
         state,
-        id_token: makeIdToken({ nonce, iss: 'https://test.eu.auth0.com/' })
+        id_token: await makeIdToken({ nonce, iss: 'https://test.eu.auth0.com/' })
       },
       cookieJar
     });

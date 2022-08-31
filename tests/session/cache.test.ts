@@ -31,54 +31,54 @@ describe('SessionCache', () => {
     expect(cache).toBeInstanceOf(SessionCache);
   });
 
-  test('should create the session entry', () => {
-    cache.create(req, res, session);
-    expect(cache.get(req, res)).toEqual(session);
+  test('should create the session entry', async () => {
+    await cache.create(req, res, session);
+    expect(await cache.get(req, res)).toEqual(session);
     expect(cookieStore.save).toHaveBeenCalledWith(req, res, session, undefined);
   });
 
-  test('should delete the session entry', () => {
-    cache.create(req, res, session);
-    expect(cache.get(req, res)).toEqual(session);
-    cache.delete(req, res);
-    expect(cache.get(req, res)).toBeNull();
+  test('should delete the session entry', async () => {
+    await cache.create(req, res, session);
+    expect(await cache.get(req, res)).toEqual(session);
+    await cache.delete(req, res);
+    expect(await cache.get(req, res)).toBeNull();
   });
 
-  test('should set authenticated for authenticated user', () => {
-    cache.create(req, res, session);
-    expect(cache.isAuthenticated(req, res)).toEqual(true);
+  test('should set authenticated for authenticated user', async () => {
+    await cache.create(req, res, session);
+    expect(await cache.isAuthenticated(req, res)).toEqual(true);
   });
 
-  test('should set unauthenticated for anonymous user', () => {
-    expect(cache.isAuthenticated(req, res)).toEqual(false);
+  test('should set unauthenticated for anonymous user', async () => {
+    expect(await cache.isAuthenticated(req, res)).toEqual(false);
   });
 
-  test('should get an id token for authenticated user', () => {
-    cache.create(req, res, session);
-    expect(cache.getIdToken(req, res)).toEqual('__test_id_token__');
+  test('should get an id token for authenticated user', async () => {
+    await cache.create(req, res, session);
+    expect(await cache.getIdToken(req, res)).toEqual('__test_id_token__');
   });
 
-  test('should get no id token for anonymous user', () => {
-    expect(cache.getIdToken(req, res)).toBeUndefined();
+  test('should get no id token for anonymous user', async () => {
+    expect(await cache.getIdToken(req, res)).toBeUndefined();
   });
 
-  test('should save the session on read and update with a rolling session', () => {
-    cookieStore.read = jest.fn().mockReturnValue([{ user: { sub: '__test_user__' } }, 500]);
-    expect(cache.isAuthenticated(req, res)).toEqual(true);
-    expect(cache.get(req, res)?.user).toEqual({ sub: '__test_user__' });
-    cache.set(req, res, new Session({ sub: '__new_user__' }));
-    expect(cache.get(req, res)?.user).toEqual({ sub: '__new_user__' });
+  test('should save the session on read and update with a rolling session', async () => {
+    cookieStore.read = jest.fn().mockResolvedValue([{ user: { sub: '__test_user__' } }, 500]);
+    expect(await cache.isAuthenticated(req, res)).toEqual(true);
+    expect((await cache.get(req, res))?.user).toEqual({ sub: '__test_user__' });
+    await cache.set(req, res, new Session({ sub: '__new_user__' }));
+    expect((await cache.get(req, res))?.user).toEqual({ sub: '__new_user__' });
     expect(cookieStore.read).toHaveBeenCalledTimes(1);
     expect(cookieStore.save).toHaveBeenCalledTimes(2);
   });
 
-  test('should save the session only on update without a rolling session', () => {
+  test('should save the session only on update without a rolling session', async () => {
     setup({ ...withoutApi, session: { rolling: false } });
-    cookieStore.read = jest.fn().mockReturnValue([{ user: { sub: '__test_user__' } }, 500]);
-    expect(cache.isAuthenticated(req, res)).toEqual(true);
-    expect(cache.get(req, res)?.user).toEqual({ sub: '__test_user__' });
+    cookieStore.read = jest.fn().mockResolvedValue([{ user: { sub: '__test_user__' } }, 500]);
+    expect(await cache.isAuthenticated(req, res)).toEqual(true);
+    expect((await cache.get(req, res))?.user).toEqual({ sub: '__test_user__' });
     cache.set(req, res, new Session({ sub: '__new_user__' }));
-    expect(cache.get(req, res)?.user).toEqual({ sub: '__new_user__' });
+    expect((await cache.get(req, res))?.user).toEqual({ sub: '__new_user__' });
     expect(cookieStore.read).toHaveBeenCalledTimes(1);
     expect(cookieStore.save).toHaveBeenCalledTimes(1);
   });
