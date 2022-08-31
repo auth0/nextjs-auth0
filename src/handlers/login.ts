@@ -41,12 +41,44 @@ export interface AuthorizationParams extends Partial<AuthorizationParameters> {
    * The name of an OAuth2/social connection. Use it to directly show that identity provider's
    * login page, skipping the Universal Login page itself.
    * By default no connection is specified, so the Universal Login page will be displayed.
+   *
+   * ```js
+   * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
+   *
+   * export default handleAuth({
+   *   login: async (req, res) => {
+   *     try {
+   *       await handleLogin(req, res, {
+   *         authorizationParams: { connection: 'github' }
+   *       });
+   *     } catch (error) {
+   *       console.error(error);
+   *     }
+   *   }
+   * });
    */
   connection?: string;
 
   /**
-   * Provider scopes for OAuth2/social connections, such as GitHub and Google. For example,
-   * `public_repo read:user`.
+   * Provider scopes for OAuth2/social connections, such as GitHub and Google.
+   *
+   * ```js
+   * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
+   *
+   * export default handleAuth({
+   *   login: async (req, res) => {
+   *     try {
+   *       await handleLogin(req, res, {
+   *         authorizationParams: {
+   *           connection: 'github',
+   *           connection_scope: 'public_repo read:user'
+   *         }
+   *       });
+   *     } catch (error) {
+   *       console.error(error);
+   *     }
+   *   }
+   * });
    */
   connection_scope?: string;
 
