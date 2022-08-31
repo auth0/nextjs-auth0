@@ -38,7 +38,7 @@ export type GetLoginState = (req: NextApiRequest, options: LoginOptions) => { [k
  */
 export interface AuthorizationParams extends Partial<AuthorizationParameters> {
   /**
-   * The name of an OAuth2/social connection, like GitHub or Google. Use it to directly show that
+   * The name of an OAuth2/social connection. Use it to directly show that
    * identity provider's login page, skipping the Universal Login page itself.
    * By default no connection is specified, so the Universal Login page will be displayed.
    *
