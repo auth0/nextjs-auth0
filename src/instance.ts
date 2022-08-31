@@ -24,7 +24,7 @@ export interface SignInWithAuth0 {
   updateUser: UpdateUser;
 
   /**
-   * access token getter.
+   * Access token getter.
    */
   getAccessToken: GetAccessToken;
 
