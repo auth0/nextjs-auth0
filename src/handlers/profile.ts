@@ -46,10 +46,7 @@ export default function profileHandler(
       assertReqRes(req, res);
 
       if (!(await sessionCache.isAuthenticated(req, res))) {
-        res.status(401).json({
-          error: 'not_authenticated',
-          description: 'The user does not have an active session or is not authenticated'
-        });
+        res.status(204).end();
         return;
       }
 
