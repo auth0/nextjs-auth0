@@ -16,52 +16,52 @@ export default class SessionCache implements ISessionCache {
     this.iatCache = new WeakMap();
   }
 
-  init(req: NextApiOrPageRequest, res: NextApiOrPageResponse, autoSave = true): void {
+  async init(req: NextApiOrPageRequest, res: NextApiOrPageResponse, autoSave = true): Promise<void> {
     if (!this.cache.has(req)) {
-      const [json, iat] = this.cookieStore.read(req);
+      const [json, iat] = await this.cookieStore.read(req);
       this.iatCache.set(req, iat);
       this.cache.set(req, fromJson(json));
       if (this.config.session.rolling && autoSave) {
-        this.save(req, res);
+        await this.save(req, res);
       }
     }
   }
 
-  save(req: NextApiOrPageRequest, res: NextApiOrPageResponse): void {
-    this.cookieStore.save(req, res, this.cache.get(req), this.iatCache.get(req));
+  async save(req: NextApiOrPageRequest, res: NextApiOrPageResponse): Promise<void> {
+    await this.cookieStore.save(req, res, this.cache.get(req), this.iatCache.get(req));
   }
 
-  create(req: NextApiOrPageRequest, res: NextApiOrPageResponse, session: Session): void {
+  async create(req: NextApiOrPageRequest, res: NextApiOrPageResponse, session: Session): Promise<void> {
     this.cache.set(req, session);
-    this.save(req, res);
+    await this.save(req, res);
   }
 
-  delete(req: NextApiOrPageRequest, res: NextApiOrPageResponse): void {
-    this.init(req, res, false);
+  async delete(req: NextApiOrPageRequest, res: NextApiOrPageResponse): Promise<void> {
+    await this.init(req, res, false);
     this.cache.set(req, null);
-    this.save(req, res);
+    await this.save(req, res);
   }
 
-  isAuthenticated(req: NextApiOrPageRequest, res: NextApiOrPageResponse): boolean {
-    this.init(req, res);
+  async isAuthenticated(req: NextApiOrPageRequest, res: NextApiOrPageResponse): Promise<boolean> {
+    await this.init(req, res);
     const session = this.cache.get(req);
     return !!session?.user;
   }
 
-  getIdToken(req: NextApiOrPageRequest, res: NextApiOrPageResponse): string | undefined {
-    this.init(req, res);
+  async getIdToken(req: NextApiOrPageRequest, res: NextApiOrPageResponse): Promise<string | undefined> {
+    await this.init(req, res);
     const session = this.cache.get(req);
     return session?.idToken;
   }
 
-  set(req: NextApiOrPageRequest, res: NextApiOrPageResponse, session: Session | null): void {
-    this.init(req, res, false);
+  async set(req: NextApiOrPageRequest, res: NextApiOrPageResponse, session: Session | null): Promise<void> {
+    await this.init(req, res, false);
     this.cache.set(req, session);
-    this.save(req, res);
+    await this.save(req, res);
   }
 
-  get(req: NextApiOrPageRequest, res: NextApiOrPageResponse): Session | null | undefined {
-    this.init(req, res);
+  async get(req: NextApiOrPageRequest, res: NextApiOrPageResponse): Promise<Session | null | undefined> {
+    await this.init(req, res);
     return this.cache.get(req);
   }
 

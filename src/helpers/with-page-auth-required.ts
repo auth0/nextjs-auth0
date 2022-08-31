@@ -114,7 +114,7 @@ export default function withPageAuthRequiredFactory(
     return async (ctx: GetServerSidePropsContext): Promise<GetServerSidePropsResultWithSession> => {
       assertCtx(ctx);
       const sessionCache = getSessionCache();
-      const session = sessionCache.get(ctx.req, ctx.res);
+      const session = await sessionCache.get(ctx.req, ctx.res);
       if (!session?.user) {
         return {
           redirect: {

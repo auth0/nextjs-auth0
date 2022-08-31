@@ -51,7 +51,7 @@ export const setup = async (
 ): Promise<string> => {
   discovery(config, discoveryOptions);
   jwksEndpoint(config, jwks);
-  codeExchange(config, makeIdToken({ iss: 'https://acme.auth0.local/', ...idTokenClaims }));
+  codeExchange(config, await makeIdToken({ iss: 'https://acme.auth0.local/', ...idTokenClaims }));
   userInfo(config, userInfoToken, userInfoPayload);
   const {
     handleAuth,
@@ -126,7 +126,7 @@ export const teardown = async (): Promise<void> => {
 export const login = async (baseUrl: string): Promise<CookieJar> => {
   const nonce = '__test_nonce__';
   const state = encodeState({ returnTo: '/' });
-  const cookieJar = toSignedCookieJar({ state, nonce }, baseUrl);
+  const cookieJar = await toSignedCookieJar({ state, nonce }, baseUrl);
   await post(baseUrl, '/api/auth/callback', {
     fullResponse: true,
     body: {

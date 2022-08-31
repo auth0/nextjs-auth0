@@ -1,6 +1,7 @@
 import nock from 'nock';
 import { CookieJar } from 'tough-cookie';
-import { JWT } from 'jose';
+import * as jose from 'jose';
+import { signing as deriveKey } from '../../../src/auth0-session/utils/hkdf';
 import { encodeState } from '../../../src/auth0-session/hooks/get-login-state';
 import { SessionResponse, setup, teardown } from '../fixtures/server';
 import { makeIdToken } from '../fixtures/cert';
@@ -14,7 +15,7 @@ describe('callback', () => {
   it('should error when the body is empty', async () => {
     const baseURL = await setup(defaultConfig);
 
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         nonce: '__test_nonce__',
         state: '__test_state__'
@@ -44,7 +45,7 @@ describe('callback', () => {
   it("should error when state doesn't match", async () => {
     const baseURL = await setup(defaultConfig);
 
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         nonce: '__valid_nonce__',
         state: '__valid_state__'
@@ -66,7 +67,7 @@ describe('callback', () => {
   it("should error when id_token can't be parsed", async () => {
     const baseURL = await setup(defaultConfig);
 
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         nonce: '__valid_nonce__',
         state: '__valid_state__'
@@ -88,7 +89,7 @@ describe('callback', () => {
   it('should error when id_token has invalid alg', async () => {
     const baseURL = await setup(defaultConfig);
 
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         nonce: '__valid_nonce__',
         state: '__valid_state__'
@@ -100,9 +101,9 @@ describe('callback', () => {
       post(baseURL, '/callback', {
         body: {
           state: '__valid_state__',
-          id_token: JWT.sign({ sub: '__test_sub__' }, 'secret', {
-            algorithm: 'HS256'
-          })
+          id_token: await new jose.SignJWT({ sub: '__test_sub__' })
+            .setProtectedHeader({ alg: 'HS256' })
+            .sign(await deriveKey('secret'))
         },
         cookieJar
       })
@@ -112,7 +113,7 @@ describe('callback', () => {
   it('should error when id_token is missing issuer', async () => {
     const baseURL = await setup(defaultConfig);
 
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         nonce: '__valid_nonce__',
         state: '__valid_state__'
@@ -124,7 +125,7 @@ describe('callback', () => {
       post(baseURL, '/callback', {
         body: {
           state: '__valid_state__',
-          id_token: makeIdToken({ iss: undefined })
+          id_token: await makeIdToken({ iss: undefined })
         },
         cookieJar
       })
@@ -134,7 +135,7 @@ describe('callback', () => {
   it('should error when nonce is missing from cookies', async () => {
     const baseURL = await setup(defaultConfig);
 
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         state: '__valid_state__'
       },
@@ -145,7 +146,7 @@ describe('callback', () => {
       post(baseURL, '/callback', {
         body: {
           state: '__valid_state__',
-          id_token: makeIdToken({ nonce: '__test_nonce__' })
+          id_token: await makeIdToken({ nonce: '__test_nonce__' })
         },
         cookieJar
       })
@@ -155,7 +156,7 @@ describe('callback', () => {
   it('should error when legacy samesite fallback is off', async () => {
     const baseURL = await setup({ ...defaultConfig, legacySameSiteCookie: false });
 
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         _state: '__valid_state__'
       },
@@ -166,7 +167,7 @@ describe('callback', () => {
       post(baseURL, '/callback', {
         body: {
           state: '__valid_state__',
-          id_token: makeIdToken()
+          id_token: await makeIdToken()
         },
         cookieJar
       })
@@ -185,7 +186,7 @@ describe('callback', () => {
       auth_time: 10
     };
 
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         state: expectedDefaultState,
         nonce: '__test_nonce__',
@@ -198,7 +199,7 @@ describe('callback', () => {
       post(baseURL, '/callback', {
         body: {
           state: expectedDefaultState,
-          id_token: makeIdToken(expected)
+          id_token: await makeIdToken(expected)
         },
         cookieJar
       })
@@ -216,7 +217,7 @@ describe('callback', () => {
       nonce: '__test_nonce__'
     };
 
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         state: expectedDefaultState,
         nonce: '__test_nonce__'
@@ -227,7 +228,7 @@ describe('callback', () => {
     const { res } = await post(baseURL, '/callback', {
       body: {
         state: expectedDefaultState,
-        id_token: makeIdToken(expected)
+        id_token: await makeIdToken(expected)
       },
       cookieJar,
       fullResponse: true
@@ -250,7 +251,7 @@ describe('callback', () => {
       }
     });
 
-    const idToken = makeIdToken({
+    const idToken = await makeIdToken({
       c_hash: '77QmUPtjPfzWtF2AnpK9RQ'
     });
 
@@ -264,7 +265,7 @@ describe('callback', () => {
         expires_in: 86400
       }));
 
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         state: expectedDefaultState,
         nonce: '__test_nonce__'
@@ -294,7 +295,7 @@ describe('callback', () => {
   });
 
   it('should use basic auth on token endpoint when using code flow', async () => {
-    const idToken = makeIdToken({
+    const idToken = await makeIdToken({
       c_hash: '77QmUPtjPfzWtF2AnpK9RQ'
     });
 
@@ -324,7 +325,7 @@ describe('callback', () => {
         };
       });
 
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         state: expectedDefaultState,
         nonce: '__test_nonce__'
@@ -352,7 +353,7 @@ describe('callback', () => {
     const baseURL = await setup(defaultConfig);
 
     const state = encodeState({ foo: 'bar' });
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         state: state,
         nonce: '__test_nonce__'
@@ -363,7 +364,7 @@ describe('callback', () => {
     const { res } = await post(baseURL, '/callback', {
       body: {
         state: state,
-        id_token: makeIdToken()
+        id_token: await makeIdToken()
       },
       cookieJar,
       fullResponse: true
@@ -377,11 +378,11 @@ describe('callback', () => {
     const redirectUri = 'http://messi:3000/api/auth/callback/runtime';
     const baseURL = await setup(defaultConfig, { callbackOptions: { redirectUri } });
     const state = encodeState({ foo: 'bar' });
-    const cookieJar = toSignedCookieJar({ state, nonce: '__test_nonce__' }, baseURL);
+    const cookieJar = await toSignedCookieJar({ state, nonce: '__test_nonce__' }, baseURL);
     const { res } = await post(baseURL, '/callback', {
       body: {
         state: state,
-        id_token: makeIdToken()
+        id_token: await makeIdToken()
       },
       cookieJar,
       fullResponse: true
