@@ -38,8 +38,8 @@ export type GetLoginState = (req: NextApiRequest, options: LoginOptions) => { [k
  */
 export interface AuthorizationParams extends Partial<AuthorizationParameters> {
   /**
-   * The name of an OAuth2/social connection. Use it to directly show that identity provider's
-   * login page, skipping the Universal Login page itself.
+   * The name of an OAuth2/social connection, like GitHub or Google. Use it to directly show that
+   * identity provider's login page, skipping the Universal Login page itself.
    * By default no connection is specified, so the Universal Login page will be displayed.
    *
    * ```js
@@ -49,6 +49,7 @@ export interface AuthorizationParams extends Partial<AuthorizationParameters> {
    *   login: async (req, res) => {
    *     try {
    *       await handleLogin(req, res, {
+   *         // Get the connection name from the Auth0 Dashboard
    *         authorizationParams: { connection: 'github' }
    *       });
    *     } catch (error) {
@@ -60,7 +61,7 @@ export interface AuthorizationParams extends Partial<AuthorizationParameters> {
   connection?: string;
 
   /**
-   * Provider scopes for OAuth2/social connections, such as GitHub and Google.
+   * Provider scopes for OAuth2/social connections, such as GitHub or Google.
    *
    * ```js
    * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
