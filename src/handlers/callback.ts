@@ -7,10 +7,10 @@ import { NextConfig } from '../config';
 import { CallbackHandlerError, HandlerErrorCause } from '../utils/errors';
 
 /**
- * Use this function for validating additional claims on the user's ID Token or adding removing items from
- * the session after login, eg
+ * Use this function for validating additional claims on the user's ID token or adding removing items from
+ * the session after login.
  *
- * ### Validate additional claims
+ * @example Validate additional claims
  *
  * ```js
  * // pages/api/auth/[...auth0].js
@@ -34,7 +34,7 @@ import { CallbackHandlerError, HandlerErrorCause } from '../utils/errors';
  * });
  * ```
  *
- * ### Modify the session after login
+ * @example Modify the session after login
  *
  * ```js
  * // pages/api/auth/[...auth0].js
@@ -57,7 +57,7 @@ import { CallbackHandlerError, HandlerErrorCause } from '../utils/errors';
  * });
  * ```
  *
- * @throws {@Link HandlerError}
+ * @throws {@link HandlerError}
  *
  * @category Server
  */
@@ -71,20 +71,22 @@ export type AfterCallback = (
 /**
  * Options to customize the callback handler.
  *
+ * @see {@link HandleCallback}
+ *
  * @category Server
  */
 export interface CallbackOptions {
   afterCallback?: AfterCallback;
 
   /**
-   * This is useful to specify in addition to {@Link BaseConfig.baseURL} when your app runs on multiple domains,
-   * it should match {@Link LoginOptions.authorizationParams.redirect_uri}.
+   * This is useful to specify in addition to {@link BaseConfig.baseURL} when your app runs on multiple domains,
+   * it should match {@link LoginOptions.authorizationParams.redirect_uri}.
    */
   redirectUri?: string;
 
   /**
-   * This is useful to specify instead of {@Link NextConfig.organization} when your app has multiple
-   * organizations, it should match {@Link LoginOptions.authorizationParams}.
+   * This is useful to specify instead of {@link NextConfig.organization} when your app has multiple
+   * organizations, it should match {@link LoginOptions.authorizationParams}.
    */
   organization?: string;
 
@@ -95,9 +97,9 @@ export interface CallbackOptions {
 }
 
 /**
- * The handler for the `api/auth/callback` route.
+ * The handler for the `/api/auth/callback` API route.
  *
- * @throws {@Link HandlerError}
+ * @throws {@link HandlerError}
  *
  * @category Server
  */

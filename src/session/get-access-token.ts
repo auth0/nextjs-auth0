@@ -9,29 +9,33 @@ import { AuthorizationParameters, NextConfig } from '../config';
 export type AfterRefresh = (req: NextApiRequest, res: NextApiResponse, session: Session) => Promise<Session> | Session;
 
 /**
- * Custom options to get an Access Token.
+ * Custom options to get an access token.
  *
  * @category Server
  */
 export interface AccessTokenRequest {
   /**
-   * A list of desired scopes for your Access Token.
+   * A list of desired scopes for your access token.
    */
   scopes?: string[];
 
   /**
-   * If set to `true`, a new Access Token will be requested with the Refresh Token grant, regardless of whether
-   * the Access Token has expired or not.
+   * If set to `true`, a new access token will be requested with the refresh token grant, regardless of whether
+   * the access token has expired or not.
+   *
+   * **IMPORTANT** You need to request the `offline_access` scope on login to get a refresh token
+   * from Auth0.
    */
   refresh?: boolean;
 
   /**
-   * When the Access Token Request refreshes the tokens using the Refresh Grant the Session is updated with new tokens.
+   * When the access token request refreshes the tokens using the refresh grant the session is updated with new tokens.
    * Use this to modify the session after it is refreshed.
-   * Usually used to keep updates in sync with the {@Link AfterCallback} hook.
-   * See also the {@Link AfterRefetch} hook
+   * Usually used to keep updates in sync with the {@link AfterCallback} hook.
    *
-   * ### Modify the session after refresh
+   * @see also the {@link AfterRefetch} hook.
+   *
+   * @example Modify the session after refresh
    *
    * ```js
    * // pages/api/my-handler.js
@@ -60,7 +64,7 @@ export interface AccessTokenRequest {
 }
 
 /**
- * Response from requesting an Access Token.
+ * Response from requesting an access token.
  *
  * @category Server
  */
@@ -72,9 +76,9 @@ export interface GetAccessTokenResult {
 }
 
 /**
- * Get an Access Token to access an external API.
+ * Get an access token to access an external API.
  *
- * @throws {@Link AccessTokenError}
+ * @throws {@link AccessTokenError}
  *
  * @category Server
  */
@@ -189,7 +193,7 @@ export default function accessTokenFactory(
       );
     }
 
-    // The access token is not expired and has sufficient scopes;
+    // The access token is not expired and has sufficient scopes.
     return {
       accessToken: session.accessToken
     };
