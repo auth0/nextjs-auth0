@@ -1,6 +1,6 @@
 beforeEach(() => {
   jest.spyOn(console, 'warn').mockImplementation(() => {
-    // noop
+    // no-op
   });
 });
 

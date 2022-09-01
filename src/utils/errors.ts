@@ -1,7 +1,7 @@
 import { HttpError } from 'http-errors';
 
 // eslint-disable-next-line max-len
-// Basic escaping for putting untrusted data directly into the HTML body, per: https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html#rule-1-html-encode-before-inserting-untrusted-data-into-html-element-content
+// Basic escaping for putting untrusted data directly into the HTML body, per: https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html#rule-1-html-encode-before-inserting-untrusted-data-into-html-element-content.
 export function htmlSafe(input: string): string {
   return input
     .replace(/&/g, '&amp;')
@@ -34,7 +34,7 @@ type AuthErrorOptions = {
  * Because part of the error message can come from the OpenID Connect `error` query parameter we
  * do some basic escaping which makes sure the default error handler is safe from XSS.
  *
- * If you write your own error handler, you should **not** render the error message
+ * **IMPORTANT** If you write your own error handler, you should **not** render the error message
  * without using a templating engine that will properly escape it for other HTML contexts first.
  *
  * Note that the error message of the {@link AuthError.cause | underlying error} is **not** escaped
@@ -57,7 +57,9 @@ export abstract class AuthError extends Error {
   public readonly name: string;
 
   /**
-   * The underlying error, if any. The error message of this underlying error is **not** escaped in
+   * The underlying error, if any.
+   *
+   * **IMPORTANT** The error message of this underlying error is **not** escaped in
    * any way, so do **not** render it without escaping it first!
    */
   public readonly cause?: Error;
@@ -130,11 +132,11 @@ type HandlerErrorOptions = {
  * Because part of the error message can come from the OpenID Connect `error` query parameter we
  * do some basic escaping which makes sure the default error handler is safe from XSS.
  *
- * If you write your own error handler, you should **not** render the error message
+ * **IMPORTANT** If you write your own error handler, you should **not** render the error message
  * without using a templating engine that will properly escape it for other HTML contexts first.
  *
  * @see the {@link AuthError.cause | cause property} contains the underlying error.
- * The error message of this underlying error is **not** escaped in any way, so do **not** render
+ * **IMPORTANT** The error message of this underlying error is **not** escaped in any way, so do **not** render
  * it without escaping it first!
  *
  * @see the {@link AuthError.status | status property} contains the HTTP status code of the error,
@@ -157,11 +159,11 @@ export class HandlerError extends AuthError {
  * Because part of the error message can come from the OpenID Connect `error` query parameter we
  * do some basic escaping which makes sure the default error handler is safe from XSS.
  *
- * If you write your own error handler, you should **not** render the error message
+ * **IMPORTANT** If you write your own error handler, you should **not** render the error message
  * without using a templating engine that will properly escape it for other HTML contexts first.
  *
  * @see the {@link AuthError.cause | cause property} contains the underlying error.
- * The error message of this underlying error is **not** escaped in any way, so do **not** render
+ * **IMPORTANT** The error message of this underlying error is **not** escaped in any way, so do **not** render
  * it without escaping it first!
  *
  * @see the {@link AuthError.status | status property} contains the HTTP status code of the error,

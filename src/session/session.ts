@@ -12,18 +12,18 @@ export interface Claims {
 }
 
 /**
- * The user's session
+ * The user's session.
  *
  * @category Server
  */
 export default class Session {
   /**
-   * Any of the claims from the id_token.
+   * Any of the claims from the `id_token`.
    */
   user: Claims;
 
   /**
-   * The id token.
+   * The ID token.
    */
   idToken?: string | undefined;
 
@@ -43,7 +43,10 @@ export default class Session {
   accessTokenExpiresAt?: number;
 
   /**
-   * The refresh token.
+   * The refresh token, which is used to request a new access token.
+   *
+   * **IMPORTANT** You need to request the `offline_access` scope on login to get a refresh token
+   * from Auth0.
    */
   refreshToken?: string | undefined;
 
@@ -58,7 +61,7 @@ export default class Session {
  * @ignore
  */
 export function fromTokenSet(tokenSet: TokenSet, config: Config | NextConfig): Session {
-  // Get the claims without any OIDC specific claim.
+  // Get the claims without any OIDC-specific claim.
   const claims = tokenSet.claims();
   config.identityClaimFilter.forEach((claim) => {
     delete claims[claim];
