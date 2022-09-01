@@ -79,7 +79,7 @@ type UserFetcher = (url: string) => Promise<UserProfile | undefined>;
  *
  * export default function App({ Component, pageProps }) {
  *   // If you've used `withPageAuthRequired`, `pageProps.user` can prefill the hook
- *   // if you haven't used withPageAuthRequired, pageProps.user is undefined so the hook
+ *   // if you haven't used `withPageAuthRequired`, `pageProps.user` is undefined so the hook
  *   // fetches the user from the API route
  *   const { user } = pageProps;
  *
