@@ -35,6 +35,6 @@ export const _initAuth = (params?: ConfigParameters): Instance => {
 
 export const getSession: GetSession = (...args) => getInstance().getSession(...args);
 export const withMiddlewareAuthRequired: WithMiddlewareAuthRequired = (
-  middleware: NextMiddleware,
+  middleware?: NextMiddleware,
   params?: ConfigParameters
 ) => getInstance(params).withMiddlewareAuthRequired(middleware);

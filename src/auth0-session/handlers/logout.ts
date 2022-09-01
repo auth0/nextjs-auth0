@@ -20,6 +20,9 @@ export default function logoutHandlerFactory(
     let returnURL = options.returnTo || config.routes.postLogoutRedirect;
     debug('logout() with return url: %s', returnURL);
 
+    // @ts-ignore
+    await sessionCache.init(req);
+
     if (url.parse(returnURL).host === null) {
       returnURL = urlJoin(config.baseURL, returnURL);
     }
@@ -35,6 +38,8 @@ export default function logoutHandlerFactory(
 
     const idToken = sessionCache.getIdToken(req);
     sessionCache.delete(req);
+    // @ts-ignore
+    await sessionCache.save(req, res);
 
     if (!config.idpLogout) {
       debug('performing a local only logout, redirecting to %s', returnURL);

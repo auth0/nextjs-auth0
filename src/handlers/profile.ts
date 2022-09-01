@@ -46,6 +46,8 @@ export default function profileHandler(
     try {
       assertReqRes(req, res);
 
+      await sessionCache.init(req);
+
       if (!sessionCache.isAuthenticated(req)) {
         res.status(401).json({
           error: 'not_authenticated',
