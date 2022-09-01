@@ -51,6 +51,32 @@ describe('with-page-auth-required ssr', () => {
     expect(spy).toHaveBeenCalledWith(expect.objectContaining({ req: expect.anything(), res: expect.anything() }));
   });
 
+  test('allow to override the user prop', async () => {
+    const baseUrl = await setup(withoutApi, {
+      withPageAuthRequiredOptions: {
+        async getServerSideProps() {
+          return { props: { user: { sub: 'foo' } } };
+        }
+      }
+    });
+    const cookieJar = await login(baseUrl);
+    const { data } = await get(baseUrl, '/protected', { cookieJar, fullResponse: true });
+    expect(data).toMatch(/Protected Page.*foo/);
+  });
+
+  test('allow to override the user prop when using aync props', async () => {
+    const baseUrl = await setup(withoutApi, {
+      withPageAuthRequiredOptions: {
+        async getServerSideProps() {
+          return { props: Promise.resolve({ user: { sub: 'foo' } }) };
+        }
+      }
+    });
+    const cookieJar = await login(baseUrl);
+    const { data } = await get(baseUrl, '/protected', { cookieJar, fullResponse: true });
+    expect(data).toMatch(/Protected Page.*foo/);
+  });
+
   test('use a custom login url', async () => {
     process.env.NEXT_PUBLIC_AUTH0_LOGIN = '/api/foo';
     const baseUrl = await setup(withoutApi);
