@@ -347,10 +347,10 @@ describe('CookieStore', () => {
   });
 
   it('should not logout v1 users', async () => {
-    // Cookie generated with v1 cookie store tests with v long exp
+    // Cookie generated with v1 cookie store tests with v long absolute exp
     const V1_COOKIE =
       'eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIiwidWF0IjoxNjYxODU5MTU3LCJpYXQiOjE2NjE4NTkxNTcsImV4cCI6MTY2MjQ2Mzk1N30..OCJcC6r7EGwTznTi.fgWVT4r9Rt8XMxooHCJcNiF5KGv7H7pg9WVygDCKfDb8qlPQQjANlKmweAoSnOTMdVweM3qZ9fvHrttlIk-kPmi3I5puMydfqihqMKRsIo9vbx24OdtUW-ZtzSqfc_nfMtX7qiu4u39FncNL2DeByTZSUUyDLf8S8V-FMakhjhPnOkweF3ztDnWaEK6w8Y_WsBJgFjFdbu8ZgKupcfKCwfxRR9xgUD9rWZ4AIuLhDId-jelRku9CqoCgL17DPbO2ytj1xs45LHL2sQGEaFLQFPZJ6bfNKdPtXQX73_nL3lqj20PqnvmzNW6DDYW0T3-kQz_VCEnBd74dtmGFwoMVbJ64Agvj55Gn_5aKFxBbdP5vb1mdKVTD7HdMfNnAPMPPyXsyvGHHaOPjnnkU8W_sNCaARS37FLWNxP59vNSvpSlN_oWCxsekHmkXVfhihaasO692eL319CPXfVa0Y3pQxUny6TunWv-HwtiV4GyrNG0ACL5gjVNS6qpcSuzOKn8NY8Y0FMnf_ISw8mz3Zel0WI_AJqU3IsGWdTHkF97ss5ckCyV0Ij9ezycbispxQ269rReUPE6Se_m5TqY7Py64MXS8ZgdG_KPrAGRP4I1KP0nLKU8NdaloI2I1HiiiDIC5hMhnmXtAvweXgOumWSACBu6PvcdGFdA-ptYaaT3vKC2-XxeVc7ynxabEeogcaXN1H_4wZ2Tjk5eLVTRTRnl0p09HBULoMr2KZAkDRjP3P-m5_Cne-1v9xGx23zzpxi3FfAH2jDBBSwEfy-GXxr65-hmIng7dOko4ul8AqWmP1f2sSYrBB-R3EZjVV0V6ssxC5I1q6Q-Xw99QsunlOYsTfikmBOvfXqNvFF1YkzsgYms6-NSSMmZmMy1huhfqfLvKuGKttqAtDlVByGQU2zF8VArYNEFc2TidtkewyzbrgWK0ygntJ17QeLMYNadNgz7eTSRwe7x-Vho_tB3XFoYPYpyA2JwIS4pb1KEdQQDevSp-_sjMbWpHnD1hruvqbCC7Zo795_N1OXt-kBbXddVsoXqzKmKJEZIPGvcJMLgeI5rLrw.c1K7B6p_vbSH9ZZrF8Uqvg';
-    const baseURL = await setup(defaultConfig);
+    const baseURL = await setup({ ...defaultConfig, session: { rolling: false } });
     const appSession = V1_COOKIE;
     const cookieJar = toCookieJar({ appSession }, baseURL);
     const session = await get(baseURL, '/session', { cookieJar });

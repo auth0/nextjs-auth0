@@ -5,7 +5,6 @@ import { CookieSerializeOptions, serialize } from 'cookie';
 import { encryption as deriveKey } from './utils/hkdf';
 import createDebug from './utils/debug';
 import Cookies from './utils/cookies';
-import pAny from './utils/p-any';
 import { Config } from './config';
 
 const debug = createDebug('cookie-store');
@@ -52,9 +51,17 @@ export default class CookieStore {
     return await new jose.EncryptJWT({ ...payload }).setProtectedHeader({ alg, enc, uat, iat, exp }).encrypt(key);
   }
 
-  private async decrypt(jwe: string): Promise<jose.CompactDecryptResult> {
+  private async decrypt(jwe: string): Promise<jose.JWTDecryptResult> {
     const keys = await this.getKeys();
-    return pAny(keys.map((key) => jose.compactDecrypt(jwe, key))) as Promise<jose.CompactDecryptResult>;
+    let err;
+    for (let key of keys) {
+      try {
+        return await jose.jwtDecrypt(jwe, key);
+      } catch (e) {
+        err = e;
+      }
+    }
+    throw err;
   }
 
   private calculateExp(iat: number, uat: number): number {
@@ -110,7 +117,7 @@ export default class CookieStore {
       }
 
       if (existingSessionValue) {
-        const { protectedHeader: header, plaintext } = await this.decrypt(existingSessionValue);
+        const { protectedHeader: header, payload } = await this.decrypt(existingSessionValue);
         ({ iat, uat, exp } = header as unknown as Header);
 
         // check that the existing session isn't expired based on options when it was established
@@ -126,13 +133,13 @@ export default class CookieStore {
           assert(iat + absoluteDuration > epoch(), 'it is expired based on current absoluteDuration rules');
         }
 
-        return [JSON.parse(new TextDecoder().decode(plaintext)), iat];
+        return [payload, iat];
       }
     } catch (err) {
       /* istanbul ignore else */
       if (err instanceof AssertionError) {
         debug('existing session was rejected because', err.message);
-      } else if (Array.isArray(err) && err[0] instanceof jose.errors.JOSEError) {
+      } else if (err instanceof jose.errors.JOSEError) {
         debug('existing session was rejected because it could not be decrypted', err);
       } else {
         debug('unexpected error handling session', err);

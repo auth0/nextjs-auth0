@@ -1,7 +1,6 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { generators } from 'openid-client';
 import * as jose from 'jose';
-import pAny from './utils/p-any';
 import { signing as deriveKey } from './utils/hkdf';
 import Cookies from './utils/cookies';
 import { Config } from './config';
@@ -16,26 +15,23 @@ const getCookieValue = async (k: string, v: string, keys: Uint8Array[]): Promise
     return undefined;
   }
   const [value, signature] = v.split('.');
-  try {
-    const flattenedJWS = {
-      protected: jose.base64url.encode(JSON.stringify({ alg: 'HS256', b64: false, crit: ['b64'] })),
-      payload: `${k}=${value}`,
-      signature
-    };
-    await pAny(
-      keys.map((key) =>
-        jose.flattenedVerify(flattenedJWS, key, {
-          algorithms: ['HS256'],
-          crit: {
-            b64: false
-          }
-        })
-      )
-    );
-    return value;
-  } catch (err) {
-    return;
+  const flattenedJWS = {
+    protected: jose.base64url.encode(JSON.stringify({ alg: 'HS256', b64: false, crit: ['b64'] })),
+    payload: `${k}=${value}`,
+    signature
+  };
+  for (let key of keys) {
+    try {
+      await jose.flattenedVerify(flattenedJWS, key, {
+        algorithms: ['HS256'],
+        crit: {
+          b64: false
+        }
+      });
+      return value;
+    } catch (e) {}
   }
+  return;
 };
 
 export const generateCookieValue = async (cookie: string, value: string, key: Uint8Array): Promise<string> => {
