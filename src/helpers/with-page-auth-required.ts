@@ -128,9 +128,9 @@ export default function withPageAuthRequiredFactory(
         ret = await getServerSideProps(ctx);
       }
       if (ret.props instanceof Promise) {
-        return { ...ret, props: ret.props.then((props: any) => ({ ...props, user: session.user })) };
+        return { ...ret, props: ret.props.then((props: any) => ({ user: session.user, ...props })) };
       }
-      return { ...ret, props: { ...ret.props, user: session.user } };
+      return { ...ret, props: { user: session.user, ...ret.props } };
     };
   };
 }
