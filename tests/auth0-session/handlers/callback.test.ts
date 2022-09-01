@@ -173,7 +173,7 @@ describe('callback', () => {
     ).rejects.toThrowError('checks.state argument is missing');
   });
 
-  it('should error for expired ID Token', async () => {
+  it('should error for expired ID token', async () => {
     const baseURL = await setup({ ...defaultConfig, legacySameSiteCookie: false });
 
     const expected = {

@@ -32,13 +32,13 @@ export type UserContext = {
 };
 
 /**
- * The error thrown by the user fetcher.
+ * The error thrown by the default {@link UserFetcher}.
  *
- * The `status` property contains the status code of the response. It is `0` when the request fails, e.g. due to being
- * offline.
+ * The `status` property contains the status code of the response. It is `0` when the request
+ * fails, for example due to being offline.
  *
- * This error is not thrown when the status code of the response is `204`, because that means the user is not
- * authenticated.
+ * This error is not thrown when the status code of the response is `204`, because that means the
+ * user is not authenticated.
  *
  * @category Client
  */
@@ -54,16 +54,23 @@ export class RequestError extends Error {
 }
 
 /**
- * @ignore
+ * Fetches the user from the profile API route to fill the {@link useUser} hook with the
+ * {@link UserProfile} object.
+ *
+ * If needed, you can pass a custom fetcher to the {@link UserProvider} component via the
+ * {@link UserProviderProps.fetcher} prop.
+ *
+ * @throws {@link RequestError}
  */
 type UserFetcher = (url: string) => Promise<UserProfile | undefined>;
 
 /**
  * Configure the {@link UserProvider} component.
  *
- * If you have any server-side rendered pages (eg. using `getServerSideProps`), you should get the user from the server
- * side session and pass it to the `<UserProvider>` component via `pageProps` - this will refill the {@link useUser}
- * hook with the {@link UserProfile} object. eg
+ * If you have any server-side rendered pages (using `getServerSideProps`), you should get the
+ * user from the server-side session and pass it to the `<UserProvider>` component via the `user`
+ * prop. This will prefill the {@link useUser} hook with the {@link UserProfile} object.
+ * For example:
  *
  * ```js
  * // pages/_app.js
@@ -71,8 +78,8 @@ type UserFetcher = (url: string) => Promise<UserProfile | undefined>;
  * import { UserProvider } from '@auth0/nextjs-auth0';
  *
  * export default function App({ Component, pageProps }) {
- *   // If you've used `withPageAuthRequired`, pageProps.user can pre-populate the hook
- *   // if you haven't used `withPageAuthRequired`, pageProps.user is undefined so the hook
+ *   // If you've used `withPageAuthRequired`, `pageProps.user` can prefill the hook
+ *   // if you haven't used `withPageAuthRequired`, `pageProps.user` is undefined so the hook
  *   // fetches the user from the API route
  *   const { user } = pageProps;
  *
@@ -84,8 +91,12 @@ type UserFetcher = (url: string) => Promise<UserProfile | undefined>;
  * }
  * ```
  *
- * If you have used a custom url for your {@link HandleProfile} API Route handler (the default is `/api/auth/me`) then
- * you should specify it here in the `profileUrl` option.
+ * In client-side rendered pages, the {@link useUser} hook uses a {@link UserFetcher} to fetch the
+ * user from the profile API route. If needed, you can specify a custom fetcher here in the
+ * `fetcher` option.
+ *
+ * **IMPORTANT** If you have used a custom url for your {@link HandleProfile} API route handler
+ * (the default is `/api/auth/me`) then you need to specify it here in the `profileUrl` option.
  *
  * @category Client
  */
@@ -117,8 +128,13 @@ export const UserContext = createContext<UserContext>({
 });
 
 /**
- * The `useUser` hook, which will get you the {@link UserProfile} object from the server-side session by requesting it
- * from the {@link HandleProfile} API Route handler.
+ * @ignore
+ */
+export type UseUser = () => UserContext;
+
+/**
+ * The `useUser` hook, which will get you the {@link UserProfile} object from the server-side session by fetching it
+ * from the {@link HandleProfile} API route.
  *
  * ```js
  * // pages/profile.js
@@ -137,15 +153,10 @@ export const UserContext = createContext<UserContext>({
  *
  * @category Client
  */
-export type UseUser = () => UserContext;
-
-/**
- * @ignore
- */
 export const useUser: UseUser = () => useContext<UserContext>(UserContext);
 
 /**
- * To use the {@link useUser} hook. You must wrap your application in a `<UserProvider>` component.
+ * To use the {@link useUser} hook, you must wrap your application in a `<UserProvider>` component.
  *
  * @category Client
  */

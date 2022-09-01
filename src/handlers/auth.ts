@@ -6,7 +6,7 @@ import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next';
 
 /**
  * If you want to add some custom behavior to the default auth handlers, you can pass in custom handlers for
- * `login`, `logout`, `callback` and `profile` eg
+ * `login`, `logout`, `callback`, and `profile`. For example:
  *
  * ```js
  * // pages/api/auth/[...auth0].js
@@ -41,7 +41,9 @@ export interface Handlers {
 /**
  * The main way to use the server SDK.
  *
- * Simply set the environment variables per {@link Config} then create the file `pages/api/auth/[...auth0].js`, eg
+ * Simply set the environment variables per {@link ConfigParameters} then create the file
+ * `pages/api/auth/[...auth0].js`.
+ * For example:
  *
  * ```js
  * // pages/api/auth/[...auth0].js
@@ -52,8 +54,8 @@ export interface Handlers {
  *
  * This will create 4 handlers for the following urls:
  *
- * - `/api/auth/login`: log the user in to your app by redirecting them to your Identity Provider.
- * - `/api/auth/callback`: The page that your Identity Provider will redirect the user back to on login.
+ * - `/api/auth/login`: log the user in to your app by redirecting them to your identity provider.
+ * - `/api/auth/callback`: The page that your identity provider will redirect the user back to on login.
  * - `/api/auth/logout`: log the user out of your app.
  * - `/api/auth/me`: View the user profile JSON (used by the {@link UseUser} hook)
  *
