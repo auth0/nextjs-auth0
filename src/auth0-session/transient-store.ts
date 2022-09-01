@@ -23,10 +23,7 @@ const getCookieValue = async (k: string, v: string, keys: Uint8Array[]): Promise
   for (let key of keys) {
     try {
       await jose.flattenedVerify(flattenedJWS, key, {
-        algorithms: ['HS256'],
-        crit: {
-          b64: false
-        }
+        algorithms: ['HS256']
       });
       return value;
     } catch (e) {}
