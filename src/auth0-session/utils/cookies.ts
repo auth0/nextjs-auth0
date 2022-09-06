@@ -1,7 +1,14 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { CookieSerializeOptions, parse, serialize } from 'cookie';
 
-export default class Cookies {
+export interface ICookies {
+  set(name: string, value: string, options?: CookieSerializeOptions): void;
+  clear(name: string, options?: CookieSerializeOptions): void;
+  commit(res: unknown, filterCookiePrefix?: string): void;
+  getAll(req: unknown): Record<string, string>;
+}
+
+export default class Cookies implements ICookies {
   private cookies: string[];
 
   constructor() {
@@ -40,7 +47,7 @@ export default class Cookies {
     res.setHeader('Set-Cookie', [...previousCookies, ...this.cookies]);
   }
 
-  static getAll(req: IncomingMessage) {
+  getAll(req: IncomingMessage) {
     return parse(req.headers.cookie || '');
   }
 }
