@@ -1,15 +1,8 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { CookieSerializeOptions, parse, serialize } from 'cookie';
 
-export interface ICookies {
-  set(name: string, value: string, options?: CookieSerializeOptions): void;
-  clear(name: string, options?: CookieSerializeOptions): void;
-  commit(res: unknown, filterCookiePrefix?: string): void;
-  getAll(req: unknown): Record<string, string>;
-}
-
-export default class Cookies implements ICookies {
-  private cookies: string[];
+export abstract class Cookies {
+  protected cookies: string[];
 
   constructor() {
     this.cookies = [];
@@ -35,16 +28,31 @@ export default class Cookies implements ICookies {
     this.set(name, '', clearOptions);
   }
 
-  commit(res: ServerResponse, filterCookiePrefix?: string) {
-    let previousCookies = res.getHeader('Set-Cookie') || [];
-    if (!Array.isArray(previousCookies)) {
-      previousCookies = [previousCookies as string];
-    }
+  commit(res: unknown, filterCookiePrefix?: string): void {
+    let previousCookies = this.getSetCookieHeader(res);
     if (filterCookiePrefix) {
       const re = new RegExp(`^${filterCookiePrefix}(\\.\\d+)?=`);
       previousCookies = previousCookies.filter((cookie: string) => !re.test(cookie));
     }
-    res.setHeader('Set-Cookie', [...previousCookies, ...this.cookies]);
+    this.setSetCookieHeader(res, [...previousCookies, ...this.cookies]);
+  }
+
+  protected abstract getSetCookieHeader(res: unknown): string[];
+  protected abstract setSetCookieHeader(res: unknown, cookies: string[]): void;
+  abstract getAll(req: unknown): Record<string, string>;
+}
+
+export default class NodeCookies extends Cookies {
+  protected getSetCookieHeader(res: ServerResponse): string[] {
+    let cookies = res.getHeader('Set-Cookie') || [];
+    if (!Array.isArray(cookies)) {
+      cookies = [cookies as string];
+    }
+    return cookies;
+  }
+
+  protected setSetCookieHeader(res: ServerResponse, cookies: string[]) {
+    res.setHeader('Set-Cookie', cookies);
   }
 
   getAll(req: IncomingMessage) {

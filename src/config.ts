@@ -1,5 +1,5 @@
 import { IncomingMessage } from 'http';
-import { AuthorizationParameters as OidcAuthorizationParameters } from 'openid-client';
+import type { AuthorizationParameters as OidcAuthorizationParameters } from 'openid-client';
 import { LoginOptions, DeepPartial, getConfig as getBaseConfig } from './auth0-session';
 
 /**
@@ -298,6 +298,7 @@ export interface NextConfig extends Pick<BaseConfig, 'identityClaimFilter'> {
    */
   organization?: string;
   routes: {
+    callback: string;
     login: string;
   };
 }

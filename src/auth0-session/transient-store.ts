@@ -2,7 +2,7 @@ import { IncomingMessage, ServerResponse } from 'http';
 import { generators } from 'openid-client';
 import * as jose from 'jose';
 import { signing as deriveKey } from './utils/hkdf';
-import Cookies from './utils/cookies';
+import NodeCookies from './utils/cookies';
 import { Config } from './config';
 
 export interface StoreOptions {
@@ -79,7 +79,7 @@ export default class TransientStore {
       path
     };
     const [signingKey] = await this.getKeys();
-    const cookieSetter = new Cookies();
+    const cookieSetter = new NodeCookies();
 
     {
       const cookieValue = await generateCookieValue(key, value, signingKey);
@@ -111,10 +111,10 @@ export default class TransientStore {
    * @return {String|undefined} Cookie value or undefined if cookie was not found.
    */
   async read(key: string, req: IncomingMessage, res: ServerResponse): Promise<string | undefined> {
-    const cookies = new Cookies().getAll(req);
+    const cookies = new NodeCookies().getAll(req);
     const cookie = cookies[key];
     const cookieConfig = this.config.session.cookie;
-    const cookieSetter = new Cookies();
+    const cookieSetter = new NodeCookies();
 
     const verifyingKeys = await this.getKeys();
     let value = await getCookieValue(key, cookie, verifyingKeys);

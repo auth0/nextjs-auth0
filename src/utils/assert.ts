@@ -1,6 +1,6 @@
-import { GetServerSidePropsContext, NextApiRequest, NextApiResponse } from 'next';
+import { GetServerSidePropsContext } from 'next';
 
-export const assertReqRes = (req: NextApiRequest, res: NextApiResponse): void => {
+export const assertReqRes = (req: unknown, res: unknown): void => {
   if (!req) {
     throw new Error('Request is not available');
   }
@@ -10,10 +10,5 @@ export const assertReqRes = (req: NextApiRequest, res: NextApiResponse): void =>
 };
 
 export const assertCtx = ({ req, res }: GetServerSidePropsContext<any>): void => {
-  if (!req) {
-    throw new Error('Request is not available');
-  }
-  if (!res) {
-    throw new Error('Response is not available');
-  }
+  assertReqRes(req, res);
 };

@@ -4,7 +4,7 @@ import * as jose from 'jose';
 import { CookieSerializeOptions, serialize } from 'cookie';
 import { encryption as deriveKey } from './utils/hkdf';
 import createDebug from './utils/debug';
-import { ICookies } from './utils/cookies';
+import { Cookies } from './utils/cookies';
 import { Config } from './config';
 
 const debug = createDebug('cookie-store');
@@ -21,7 +21,7 @@ export default class CookieStore<Req = IncomingMessage, Res = ServerResponse> {
 
   private chunkSize: number;
 
-  constructor(private config: Config, private Cookies: new () => ICookies) {
+  constructor(private config: Config, private Cookies: new () => Cookies) {
     const {
       cookie: { transient, ...cookieConfig },
       name: sessionName

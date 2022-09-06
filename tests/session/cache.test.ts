@@ -1,7 +1,7 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { Socket } from 'net';
 import { mocked } from 'ts-jest/utils';
-import { Cookies, CookieStore, getConfig } from '../../src/auth0-session';
+import { NodeCookies as Cookies, CookieStore, getConfig } from '../../src/auth0-session';
 import { ConfigParameters, Session, SessionCache } from '../../src';
 import { withoutApi } from '../fixtures/default-settings';
 

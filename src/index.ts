@@ -1,5 +1,5 @@
 import {
-  Cookies,
+  NodeCookies as Cookies,
   CookieStore,
   TransientStore,
   clientFactory,
