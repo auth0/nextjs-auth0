@@ -4,64 +4,71 @@ import { TokenSet } from 'openid-client';
 import { Config, SessionCache as ISessionCache, CookieStore } from '../auth0-session';
 import Session, { fromJson, fromTokenSet } from './session';
 
-type NextApiOrPageRequest = IncomingMessage | NextApiRequest;
-type NextApiOrPageResponse = ServerResponse | NextApiResponse;
+export default class SessionCache<
+  Req extends object = IncomingMessage | NextApiRequest,
+  Res extends object = ServerResponse | NextApiResponse
+> implements ISessionCache
+{
+  private cache: WeakMap<Req, Session | null>;
+  private iatCache: WeakMap<Req, number | undefined>;
 
-export default class SessionCache implements ISessionCache {
-  private cache: WeakMap<NextApiOrPageRequest, Session | null>;
-  private iatCache: WeakMap<NextApiOrPageRequest, number | undefined>;
-
-  constructor(private config: Config, private cookieStore: CookieStore) {
+  constructor(private config: Config, private cookieStore: CookieStore<Req, Res>) {
     this.cache = new WeakMap();
     this.iatCache = new WeakMap();
   }
 
-  async init(req: NextApiOrPageRequest, res: NextApiOrPageResponse, autoSave = true): Promise<void> {
+  private async init(req: Req, res: Res, autoSave?: true): Promise<void>;
+  private async init(req: Req, res: null, autoSave?: false): Promise<void>;
+  private async init(req: Req, res: Res | null, autoSave = true): Promise<void> {
     if (!this.cache.has(req)) {
       const [json, iat] = await this.cookieStore.read(req);
       this.iatCache.set(req, iat);
       this.cache.set(req, fromJson(json));
       if (this.config.session.rolling && autoSave) {
-        await this.save(req, res);
+        await this.save(req, res as Res);
       }
     }
   }
 
-  async save(req: NextApiOrPageRequest, res: NextApiOrPageResponse): Promise<void> {
+  async save(req: Req, res: Res): Promise<void> {
     await this.cookieStore.save(req, res, this.cache.get(req), this.iatCache.get(req));
   }
 
-  async create(req: NextApiOrPageRequest, res: NextApiOrPageResponse, session: Session): Promise<void> {
+  async create(req: Req, res: Res, session: Session): Promise<void> {
     this.cache.set(req, session);
     await this.save(req, res);
   }
 
-  async delete(req: NextApiOrPageRequest, res: NextApiOrPageResponse): Promise<void> {
-    await this.init(req, res, false);
+  async delete(req: Req, res: Res): Promise<void> {
+    await this.init(req, null, false);
     this.cache.set(req, null);
     await this.save(req, res);
   }
 
-  async isAuthenticated(req: NextApiOrPageRequest, res: NextApiOrPageResponse): Promise<boolean> {
+  async isAuthenticated(req: Req, res: Res): Promise<boolean> {
     await this.init(req, res);
     const session = this.cache.get(req);
     return !!session?.user;
   }
 
-  async getIdToken(req: NextApiOrPageRequest, res: NextApiOrPageResponse): Promise<string | undefined> {
+  async getIdToken(req: Req, res: Res): Promise<string | undefined> {
     await this.init(req, res);
     const session = this.cache.get(req);
     return session?.idToken;
   }
 
-  async set(req: NextApiOrPageRequest, res: NextApiOrPageResponse, session: Session | null): Promise<void> {
-    await this.init(req, res, false);
+  async set(req: Req, res: Res, session: Session | null): Promise<void> {
+    await this.init(req, null, false);
     this.cache.set(req, session);
     await this.save(req, res);
   }
 
-  async get(req: NextApiOrPageRequest, res: NextApiOrPageResponse): Promise<Session | null | undefined> {
-    await this.init(req, res);
+  async get(req: Req, res: Res | null): Promise<Session | null | undefined> {
+    if (res) {
+      await this.init(req, res, true);
+    } else {
+      await this.init(req, null, false);
+    }
     return this.cache.get(req);
   }
 

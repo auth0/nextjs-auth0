@@ -6,7 +6,7 @@ import nock from 'nock';
 import { TokenSet, TokenSetParameters } from 'openid-client';
 import bodyParser from 'body-parser';
 import {
-  Cookies,
+  NodeCookies as Cookies,
   loginHandler,
   getConfig,
   ConfigParameters,
