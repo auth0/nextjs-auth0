@@ -59,7 +59,7 @@ export default class TransientStore {
    * @param {IncomingMessage} _req Server Request object.
    * @param {ServerResponse} res Server Response object.
    * @param {Object} opts Options object.
-   * @param {String} opts.sameSite SameSite attribute of "None," "Lax," or "Strict". Default is "None."
+   * @param {String} opts.sameSite SameSite attribute of `None`, `Lax`, or `Strict`. Defaults to `None`.
    * @param {String} opts.value Cookie value. Omit this key to store a generated value.
    *
    * @return {String} Cookie value that was set.
@@ -134,7 +134,8 @@ export default class TransientStore {
   }
 
   /**
-   * Generates a nonce value.
+   * Generates a `nonce` value.
+   *
    * @return {String}
    */
   generateNonce(): string {
@@ -142,7 +143,8 @@ export default class TransientStore {
   }
 
   /**
-   * Generates a code_verifier value.
+   * Generates a `code_verifier` value.
+   *
    * @return {String}
    */
   generateCodeVerifier(): string {
@@ -150,8 +152,9 @@ export default class TransientStore {
   }
 
   /**
-   * Calculates a code_challenge value for a given codeVerifier
-   * @param {String} codeVerifier Code Verifier to calculate the code_challenge value from.
+   * Calculates a `code_challenge` value for a given `codeVerifier`.
+   *
+   * @param {String} codeVerifier Code verifier to calculate the `code_challenge` value from.
    * @return {String}
    */
   calculateCodeChallenge(codeVerifier: string): string {

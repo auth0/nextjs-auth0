@@ -6,15 +6,15 @@ import { ConfigParameters } from './auth0-session';
 /**
  * The SDK server instance.
  *
- * This is created for you when you use the named exports, or you can create your own using {@link InitAuth0}
+ * This is created for you when you use the named exports, or you can create your own using {@link InitAuth0}.
  *
- * See {@link Config} fro more info.
+ * See {@link ConfigParameters} for more info.
  *
  * @category Server
  */
 export interface SignInWithAuth0 {
   /**
-   * Session getter
+   * Session getter.
    */
   getSession: GetSession;
 
@@ -24,7 +24,7 @@ export interface SignInWithAuth0 {
   updateUser: UpdateUser;
 
   /**
-   * Access Token getter
+   * Access token getter.
    */
   getAccessToken: GetAccessToken;
 
@@ -49,17 +49,17 @@ export interface SignInWithAuth0 {
   handleProfile: HandleProfile;
 
   /**
-   * Helper that adds auth to an API Route
+   * Helper that adds auth to an API route.
    */
   withApiAuthRequired: WithApiAuthRequired;
 
   /**
-   * Helper that adds auth to a Page Route
+   * Helper that adds auth to a Page route.
    */
   withPageAuthRequired: WithPageAuthRequired;
 
   /**
-   * Create the main handlers for your api routes
+   * Create the main handlers for your api routes.
    */
   handleAuth: HandleAuth;
 }
@@ -67,7 +67,7 @@ export interface SignInWithAuth0 {
 /**
  * Initialise your own instance of the SDK.
  *
- * See {@link Config}
+ * See {@link ConfigParameters}.
  *
  * @category Server
  */

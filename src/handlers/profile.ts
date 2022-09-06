@@ -7,27 +7,31 @@ import { ProfileHandlerError, HandlerErrorCause } from '../utils/errors';
 export type AfterRefetch = (req: NextApiRequest, res: NextApiResponse, session: Session) => Promise<Session> | Session;
 
 /**
- * Custom options for {@link HandleProfile}
+ * Options to customize the profile handler.
+ *
+ * @see {@link HandleProfile}
  *
  * @category Server
  */
 export type ProfileOptions = {
   /**
-   * If set to `true` this will refetch the user profile information from `/userinfo` and save it to the session.
+   * If set to `true` this will refetch the user profile information from `/userinfo` and save it
+   * to the session.
    */
   refetch?: boolean;
 
   /**
-   * Like {@AfterCallback} and {@AfterRefresh} when a session is created, you can use this function to validate or
-   * add/remove claims after the session is updated. Will only run if {@link ProfileOptions.refetch} is `true`
+   * Like {@link AfterCallback}  and {@link AfterRefresh} when a session is created, you can use
+   * this function to validate or add/remove claims after the session is updated. Will only run if
+   * {@link ProfileOptions.refetch} is `true`.
    */
   afterRefetch?: AfterRefetch;
 };
 
 /**
- * The handler for the `/api/auth/me` route.
+ * The handler for the `/api/auth/me` API route.
  *
- * @throws {@Link HandlerError}
+ * @throws {@link HandlerError}
  *
  * @category Server
  */

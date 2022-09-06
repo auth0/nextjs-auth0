@@ -14,7 +14,7 @@ const defaultOnRedirecting = (): JSX.Element => <></>;
 const defaultOnError = (): JSX.Element => <></>;
 
 /**
- * Options for the withPageAuthRequired Higher Order Component
+ * Options to customize the withPageAuthRequired higher order component.
  *
  * @category Client
  */
@@ -67,7 +67,7 @@ export interface UserProps {
  * const MyProtectedPage = withPageAuthRequired(MyPage);
  * ```
  *
- * When you wrap your pages in this Higher Order Component and an anonymous user visits your page
+ * When you wrap your pages in this higher order component and an anonymous user visits your page,
  * they will be redirected to the login page and then returned to the page they were redirected from (after login).
  *
  * @category Client

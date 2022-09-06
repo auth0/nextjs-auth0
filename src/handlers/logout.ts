@@ -4,22 +4,24 @@ import { assertReqRes } from '../utils/assert';
 import { HandlerErrorCause, LogoutHandlerError } from '../utils/errors';
 
 /**
- * Custom options to pass to logout.
+ * Options to customize the logout handler.
+ *
+ * @see {@link HandleLogout}
  *
  * @category Server
  */
 export interface LogoutOptions {
   /**
-   *  URL to returnTo after logout, overrides the
-   *  Default in {@link BaseConfig.routes.postLogoutRedirect routes.postLogoutRedirect}
+   * URL to return to after logout. Overrides the default
+   * in {@link BaseConfig.routes.postLogoutRedirect routes.postLogoutRedirect}.
    */
   returnTo?: string;
 }
 
 /**
- * The handler for the `api/auth/logout` route.
+ * The handler for the `/api/auth/logout` API route.
  *
- * @throws {@Link HandlerError}
+ * @throws {@link HandlerError}
  *
  * @category Server
  */

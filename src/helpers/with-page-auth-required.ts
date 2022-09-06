@@ -12,7 +12,7 @@ import { ParsedUrlQuery } from 'querystring';
 
 /**
  * If you wrap your `getServerSideProps` with {@link WithPageAuthRequired} your props object will be augmented with
- * the user property, which will be the user's {@link Claims}
+ * the user property, which will be the user's {@link Claims}.
  *
  * ```js
  * // pages/profile.js
@@ -30,7 +30,7 @@ import { ParsedUrlQuery } from 'querystring';
 export type GetServerSidePropsResultWithSession<P = any> = GetServerSidePropsResult<P & { user?: Claims | null }>;
 
 /**
- * A page route that has been augmented with {@link WithPageAuthRequired}
+ * A page route that has been augmented with {@link WithPageAuthRequired}.
  *
  * @category Server
  */
@@ -41,8 +41,9 @@ export type PageRoute<P, Q extends ParsedUrlQuery = ParsedUrlQuery> = (
 /**
  * If you have a custom returnTo url you should specify it in `returnTo`.
  *
- * You can pass in your own `getServerSideProps` method, the props returned from this will be merged with the
- * user props. You can also access the user session data by calling `getSession` inside of this method, eg:
+ * You can pass in your own `getServerSideProps` method, the props returned from this will be
+ * merged with the user props. You can also access the user session data by calling `getSession`
+ * inside of this method. For example:
  *
  * ```js
  * // pages/protected-page.js
@@ -70,7 +71,8 @@ export type WithPageAuthRequiredOptions<P = any, Q extends ParsedUrlQuery = Pars
 };
 
 /**
- * Wrap your `getServerSideProps` with this method to make sure the user is authenticated before visiting the page.
+ * Wrap your `getServerSideProps` with this method to make sure the user is authenticated before
+ * visiting the page.
  *
  * ```js
  * // pages/protected-page.js
@@ -83,8 +85,8 @@ export type WithPageAuthRequiredOptions<P = any, Q extends ParsedUrlQuery = Pars
  * export const getServerSideProps = withPageAuthRequired();
  * ```
  *
- * If the user visits `/protected-page` without a valid session, it will redirect the user to the login page.
- * Then they will be returned to `/protected-page` after login.
+ * If the user visits `/protected-page` without a valid session, it will redirect the user to the
+ * login page. Then they will be returned to `/protected-page` after login.
  *
  * @category Server
  */

@@ -6,7 +6,7 @@ import { BaseConfig, NextConfig } from '../config';
 import { HandlerErrorCause, LoginHandlerError } from '../utils/errors';
 
 /**
- * Use this to store additional state for the user before they visit the Identity Provider to login.
+ * Use this to store additional state for the user before they visit the identity provider to log in.
  *
  * ```js
  * // pages/api/auth/[...auth0].js
@@ -37,6 +37,52 @@ export type GetLoginState = (req: NextApiRequest, options: LoginOptions) => { [k
  * @category Server
  */
 export interface AuthorizationParams extends Partial<AuthorizationParameters> {
+  /**
+   * The name of an OAuth2/social connection. Use it to directly show that
+   * identity provider's login page, skipping the Universal Login page itself.
+   * By default no connection is specified, so the Universal Login page will be displayed.
+   *
+   * ```js
+   * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
+   *
+   * export default handleAuth({
+   *   login: async (req, res) => {
+   *     try {
+   *       await handleLogin(req, res, {
+   *         // Get the connection name from the Auth0 Dashboard
+   *         authorizationParams: { connection: 'github' }
+   *       });
+   *     } catch (error) {
+   *       console.error(error);
+   *     }
+   *   }
+   * });
+   */
+  connection?: string;
+
+  /**
+   * Provider scopes for OAuth2/social connections, such as GitHub or Google.
+   *
+   * ```js
+   * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
+   *
+   * export default handleAuth({
+   *   login: async (req, res) => {
+   *     try {
+   *       await handleLogin(req, res, {
+   *         authorizationParams: {
+   *           connection: 'github',
+   *           connection_scope: 'public_repo read:user'
+   *         }
+   *       });
+   *     } catch (error) {
+   *       console.error(error);
+   *     }
+   *   }
+   * });
+   */
+  connection_scope?: string;
+
   /**
    * The invitation id to join an organization.
    *
@@ -69,33 +115,37 @@ export interface AuthorizationParams extends Partial<AuthorizationParameters> {
    * `https://example.com/api/invite?invitation=invitation_id&organization=org_id`
    */
   invitation?: string;
+
   /**
-   * This is useful to specify instead of {@Link NextConfig.organization} when your app has multiple
-   * organizations, it should match {@Link CallbackOptions.organization}.
+   * This is useful to specify instead of {@link NextConfig.organization} when your app has multiple
+   * organizations. It should match {@link CallbackOptions.organization}.
    */
   organization?: string;
 
   /**
    * Provides a hint to Auth0 as to what flow should be displayed. The default behavior is to show a
    * login page but you can override this by passing 'signup' to show the signup page instead.
+   *
    * This only affects the New Universal Login Experience.
    */
   screen_hint?: string;
 }
 
 /**
- * Custom options to pass to login.
+ * Options to customize the login handler.
+ *
+ * @see {@link HandleLogin}
  *
  * @category Server
  */
 export interface LoginOptions {
   /**
-   * Override the default {@link BaseConfig.authorizationParams authorizationParams}
+   * Override the default {@link BaseConfig.authorizationParams authorizationParams}.
    */
   authorizationParams?: AuthorizationParams;
 
   /**
-   *  URL to return to after login, overrides the Default is {@link BaseConfig.baseURL}
+   *  URL to return to after login. Overrides the default in {@link BaseConfig.baseURL}.
    */
   returnTo?: string;
 
@@ -106,9 +156,9 @@ export interface LoginOptions {
 }
 
 /**
- * The handler for the `api/auth/login` route.
+ * The handler for the `/api/auth/login` API route.
  *
- * @throws {@Link HandlerError}
+ * @throws {@link HandlerError}
  *
  * @category Server
  */
