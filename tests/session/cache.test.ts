@@ -1,7 +1,7 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { Socket } from 'net';
 import { mocked } from 'ts-jest/utils';
-import { CookieStore, getConfig } from '../../src/auth0-session';
+import { Cookies, CookieStore, getConfig } from '../../src/auth0-session';
 import { ConfigParameters, Session, SessionCache } from '../../src';
 import { withoutApi } from '../fixtures/default-settings';
 
@@ -14,7 +14,7 @@ describe('SessionCache', () => {
 
   const setup = (conf: ConfigParameters) => {
     const config = getConfig(conf);
-    cookieStore = mocked(new CookieStore(config));
+    cookieStore = mocked(new CookieStore(config, Cookies));
     cookieStore.save = jest.fn();
     session = new Session({ sub: '__test_user__' });
     session.idToken = '__test_id_token__';

@@ -4,7 +4,7 @@ import * as jose from 'jose';
 import { CookieSerializeOptions, serialize } from 'cookie';
 import { encryption as deriveKey } from './utils/hkdf';
 import createDebug from './utils/debug';
-import Cookies from './utils/cookies';
+import { ICookies } from './utils/cookies';
 import { Config } from './config';
 
 const debug = createDebug('cookie-store');
@@ -16,12 +16,12 @@ const enc = 'A256GCM';
 type Header = { iat: number; uat: number; exp: number };
 const notNull = <T>(value: T | null): value is T => value !== null;
 
-export default class CookieStore {
+export default class CookieStore<Req = IncomingMessage, Res = ServerResponse> {
   private keys?: Uint8Array[];
 
   private chunkSize: number;
 
-  constructor(public config: Config) {
+  constructor(private config: Config, private Cookies: new () => ICookies) {
     const {
       cookie: { transient, ...cookieConfig },
       name: sessionName
@@ -77,8 +77,8 @@ export default class CookieStore {
     return Math.min(uat + (rollingDuration as number), iat + absoluteDuration);
   }
 
-  public async read(req: any): Promise<[{ [key: string]: any }?, number?]> {
-    const cookies = Cookies.getAll(req);
+  public async read(req: Req): Promise<[{ [key: string]: any }?, number?]> {
+    const cookies = new this.Cookies().getAll(req);
     const { name: sessionName, rollingDuration, absoluteDuration } = this.config.session;
 
     let iat: number;
@@ -150,8 +150,8 @@ export default class CookieStore {
   }
 
   public async save(
-    req: IncomingMessage,
-    res: ServerResponse,
+    req: Req,
+    res: Res,
     session: { [key: string]: any } | undefined | null,
     createdAt?: number
   ): Promise<void> {
@@ -159,8 +159,8 @@ export default class CookieStore {
       cookie: { transient, ...cookieConfig },
       name: sessionName
     } = this.config.session;
-    const cookies = Cookies.getAll(req);
-    const cookieSetter = new Cookies();
+    const cookieSetter = new this.Cookies();
+    const cookies = cookieSetter.getAll(req);
 
     if (!session) {
       debug('clearing all matching session cookies');

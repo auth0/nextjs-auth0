@@ -25,14 +25,14 @@ describe('cookie', () => {
   it('should get all cookies', async () => {
     const [req, , teardown] = await setup();
     req.headers.cookie = 'foo=bar; bar=baz;';
-    expect(Cookies.getAll(req)).toMatchObject({ foo: 'bar', bar: 'baz' });
+    expect(new Cookies().getAll(req)).toMatchObject({ foo: 'bar', bar: 'baz' });
     await teardown();
   });
 
   it('should get a cookie by name', async () => {
     const [req, , teardown] = await setup();
     req.headers.cookie = 'foo=bar; bar=baz;';
-    expect(Cookies.getAll(req)['foo']).toEqual('bar');
+    expect(new Cookies().getAll(req)['foo']).toEqual('bar');
     await teardown();
   });
 
