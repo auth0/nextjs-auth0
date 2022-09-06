@@ -29,8 +29,8 @@ export const getLoginState: GetLoginState = (_req, options) => {
  * @return {string}
  */
 export function encodeState(stateObject: { [key: string]: any }): string {
-  // this filters out nonce, code_verifier, and max_age from the state object so that the values are
-  // only stored in its dedicated transient cookie
+  // This filters out nonce, code_verifier, and max_age from the state object so that the values are
+  // only stored in its dedicated transient cookie.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { nonce, code_verifier, max_age, ...filteredState } = stateObject;
   return jose.base64url.encode(JSON.stringify(filteredState));

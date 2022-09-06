@@ -3,9 +3,9 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { Claims, SessionCache } from '../session';
 
 /**
- * Update the session's user object. The provided user object will replace `session.user`
+ * Update the session's user object. The provided user object will replace `session.user`.
  *
- * If no user is provided, or the user is not authenticated, this is a noop.
+ * If no user is provided, or the user is not authenticated, this is a no-op.
  *
  * ```js
  * // pages/api/update-user.js

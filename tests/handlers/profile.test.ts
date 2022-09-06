@@ -50,7 +50,7 @@ describe('profile handler', () => {
     expect(res.headers['cache-control']).toEqual('no-store');
   });
 
-  test('should throw if re-fetching with no Access Token', async () => {
+  test('should throw if re-fetching with no access token', async () => {
     const afterCallback: AfterCallback = (_req, _res, session: Session): Session => {
       delete session.accessToken;
       return session;

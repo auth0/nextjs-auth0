@@ -88,7 +88,7 @@ describe('with-page-auth-required ssr', () => {
     delete process.env.NEXT_PUBLIC_AUTH0_LOGIN;
   });
 
-  test('is a noop when invoked as a client-side protection from the server', async () => {
+  test('is a no-op when invoked as a client-side protection from the server', async () => {
     const baseUrl = await setup(withoutApi);
     const cookieJar = await login(baseUrl);
     const {

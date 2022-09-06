@@ -8,7 +8,7 @@ const digest = 'sha256';
 /**
  *
  * Derives appropriate sized keys from the end-user provided secret random string/passphrase using
- * HKDF (HMAC-based Extract-and-Expand Key Derivation Function) defined in RFC 8569
+ * HKDF (HMAC-based Extract-and-Expand Key Derivation Function) defined in RFC 8569.
  *
  * @see https://tools.ietf.org/html/rfc5869
  *
