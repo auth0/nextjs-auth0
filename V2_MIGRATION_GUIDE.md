@@ -5,6 +5,7 @@ Guide to migrating from `1.x` to `2.x`
 - [`updateUser` has been added](#updateuser-has-been-added)
 - [`getServerSidePropsWrapper` has been removed](#getserversidepropswrapper-has-been-removed)
 - [Profile API route no longer returns a 401](#profile-api-route-no-longer-returns-a-401)
+- [The ID token is no longer stored by default](#the-id-token-is-no-longer-stored-by-default)
 
 ## `updateUser` has been added
 
@@ -77,3 +78,11 @@ export const getServerSideProps = async (ctx) => {
 ## Profile API route no longer returns a 401
 
 Previously the profile API route, by default at `/api/auth/me`, would return a 401 error when the user was not authenticated. While it was technically the right status code for the situation, it showed up in the browser console as an error. This API route will now return a 204 instead. Since 204 is a successful status code, it will not produce a console error.
+
+## The ID token is no longer stored by default
+
+Previously the ID token would be stored in the session cookie, making the cookie unnecessarily large. Removing it required adding an `afterCallback` hook to the callback API route, and an `afterRefresh` hook to `getAccessToken()` –when using refresh tokens.
+
+Now the SDK will not store it by default. If you had been using hooks to strip it away, you can safely remove those.
+
+You can choose to store it by setting either the `session.storeIDToken` config property or the `AUTH0_SESSION_STORE_ID_TOKEN` environment variable to `true`.
