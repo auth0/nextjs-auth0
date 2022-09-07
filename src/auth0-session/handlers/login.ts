@@ -58,15 +58,15 @@ export default function loginHandlerFactory(
 
     const authParams = {
       ...opts.authorizationParams,
-      nonce: transientHandler.save('nonce', req, res, transientOpts),
-      state: transientHandler.save('state', req, res, {
+      nonce: await transientHandler.save('nonce', req, res, transientOpts),
+      state: await transientHandler.save('state', req, res, {
         ...transientOpts,
         value: encodeState(stateValue)
       }),
       ...(usePKCE
         ? {
             code_challenge: transientHandler.calculateCodeChallenge(
-              transientHandler.save('code_verifier', req, res, transientOpts)
+              await transientHandler.save('code_verifier', req, res, transientOpts)
             ),
             code_challenge_method: 'S256'
           }
@@ -81,7 +81,7 @@ export default function loginHandlerFactory(
     assert(/\bopenid\b/.test(authParams.scope as string), 'scope should contain "openid"');
 
     if (authParams.max_age) {
-      transientHandler.save('max_age', req, res, {
+      await transientHandler.save('max_age', req, res, {
         ...transientOpts,
         value: authParams.max_age.toString()
       });

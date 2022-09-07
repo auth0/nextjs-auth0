@@ -8,9 +8,9 @@ describe('session', () => {
     expect(new Session({ foo: 'bar' }).user).toEqual({ foo: 'bar' });
   });
 
-  test('should construct a session from a tokenSet', () => {
+  test('should construct a session from a tokenSet', async () => {
     expect(
-      fromTokenSet(new TokenSet({ id_token: makeIdToken({ foo: 'bar', bax: 'qux' }) }), {
+      fromTokenSet(new TokenSet({ id_token: await makeIdToken({ foo: 'bar', bax: 'qux' }) }), {
         identityClaimFilter: ['baz'],
         routes: { login: '', callback: '', postLogoutRedirect: '' }
       }).user

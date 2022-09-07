@@ -122,7 +122,7 @@ describe('get access token', () => {
   });
 
   test('should retrieve a new access token if the old one is expired and update the profile', async () => {
-    refreshTokenExchange(
+    await refreshTokenExchange(
       withApi,
       'GEbRxBN...edjnXbL',
       {
@@ -148,7 +148,7 @@ describe('get access token', () => {
   });
 
   test('should retrieve a new access token if force refresh is set', async () => {
-    refreshTokenExchange(
+    await refreshTokenExchange(
       withApi,
       'GEbRxBN...edjnXbL',
       {
@@ -167,7 +167,7 @@ describe('get access token', () => {
   });
 
   test('should retrieve a new access token and rotate the refresh token', async () => {
-    refreshTokenRotationExchange(
+    await refreshTokenRotationExchange(
       withApi,
       'GEbRxBN...edjnXbL',
       {
@@ -194,7 +194,7 @@ describe('get access token', () => {
   });
 
   test('should not overwrite custom session properties when applying a new access token', async () => {
-    refreshTokenExchange(
+    await refreshTokenExchange(
       withApi,
       'GEbRxBN...edjnXbL',
       {
@@ -233,7 +233,7 @@ describe('get access token', () => {
   });
 
   test('should retrieve a new access token and update the session based on afterRefresh', async () => {
-    refreshTokenExchange(
+    await refreshTokenExchange(
       withApi,
       'GEbRxBN...edjnXbL',
       {
@@ -262,7 +262,7 @@ describe('get access token', () => {
   });
 
   test('should pass custom auth params in refresh grant request body', async () => {
-    const idToken = makeIdToken({
+    const idToken = await makeIdToken({
       iss: `${withApi.issuerBaseURL}/`,
       aud: withApi.clientID,
       email: 'john@test.com',
