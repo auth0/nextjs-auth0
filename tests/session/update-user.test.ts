@@ -1,6 +1,7 @@
 import { login, setup, teardown } from '../fixtures/setup';
 import { withoutApi } from '../fixtures/default-settings';
 import { get, post } from '../auth0-session/fixtures/helpers';
+import { CookieJar } from 'tough-cookie';
 
 describe('update-user', () => {
   afterEach(teardown);
@@ -27,8 +28,9 @@ describe('update-user', () => {
 
   test('should ignore updates if user is not logged in', async () => {
     const baseUrl = await setup(withoutApi);
-    await expect(get(baseUrl, '/api/auth/me')).resolves.toBe('');
-    await post(baseUrl, '/api/update-user', { body: { user: { sub: 'foo' } } });
-    await expect(get(baseUrl, '/api/auth/me')).resolves.toBe('');
+    const cookieJar = new CookieJar();
+    await expect(get(baseUrl, '/api/auth/me', { cookieJar })).resolves.toBe('');
+    await post(baseUrl, '/api/update-user', { body: { user: { sub: 'foo' } }, cookieJar });
+    await expect(get(baseUrl, '/api/auth/me', { cookieJar })).resolves.toBe('');
   });
 });

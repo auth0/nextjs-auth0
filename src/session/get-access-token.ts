@@ -97,7 +97,7 @@ export default function accessTokenFactory(
   sessionCache: SessionCache
 ): GetAccessToken {
   return async (req, res, accessTokenRequest): Promise<GetAccessTokenResult> => {
-    let session = sessionCache.get(req, res);
+    let session = await sessionCache.get(req, res);
     if (!session) {
       throw new AccessTokenError(AccessTokenErrorCode.MISSING_SESSION, 'The user does not have a valid session.');
     }
@@ -177,7 +177,7 @@ export default function accessTokenFactory(
         session = await accessTokenRequest.afterRefresh(req as NextApiRequest, res as NextApiResponse, session);
       }
 
-      sessionCache.set(req, res, session);
+      await sessionCache.set(req, res, session);
 
       // Return the new access token.
       return {

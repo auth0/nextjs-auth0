@@ -26,18 +26,18 @@ export type UpdateUser = (
   req: IncomingMessage | NextApiRequest,
   res: ServerResponse | NextApiResponse,
   user: Claims
-) => void;
+) => Promise<void>;
 
 /**
  * @ignore
  */
 export default function updateUserFactory(sessionCache: SessionCache): UpdateUser {
-  return (req, res, user): void => {
-    sessionCache.init(req, res, false);
-    const session = sessionCache.get(req, res);
+  return async (req, res, user) => {
+    await sessionCache.init(req, res, false);
+    const session = await sessionCache.get(req, res);
     if (!session || !user) {
       return;
     }
-    sessionCache.set(req, res, { ...session, user });
+    await sessionCache.set(req, res, { ...session, user });
   };
 }

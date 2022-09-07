@@ -34,7 +34,6 @@ describe('login', () => {
     });
 
     expect(fromCookieJar(cookieJar, baseURL)).toMatchObject({
-      appSession: expect.any(String),
       _state: parsed.query.state,
       _nonce: parsed.query.nonce
     });
@@ -72,7 +71,6 @@ describe('login', () => {
     });
 
     expect(fromCookieJar(cookieJar, baseURL)).toMatchObject({
-      appSession: expect.any(String),
       code_verifier: expect.any(String),
       state: parsed.query.state,
       nonce: parsed.query.nonce
@@ -111,7 +109,6 @@ describe('login', () => {
     });
 
     expect(fromCookieJar(cookieJar, baseURL)).toMatchObject({
-      appSession: expect.any(String),
       _code_verifier: expect.any(String),
       _state: parsed.query.state,
       _nonce: parsed.query.nonce

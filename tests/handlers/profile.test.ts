@@ -92,7 +92,7 @@ describe('profile handler', () => {
     nock(`${withoutApi.issuerBaseURL}`)
       .post('/oauth/token', `grant_type=refresh_token&refresh_token=GEbRxBN...edjnXbL`)
       .reply(200, {
-        id_token: makeIdToken({ iss: 'https://acme.auth0.local/' }),
+        id_token: await makeIdToken({ iss: 'https://acme.auth0.local/' }),
         token_type: 'Bearer',
         expires_in: 750,
         scope: 'read:foo write:foo'
@@ -115,7 +115,7 @@ describe('profile handler', () => {
       },
       userInfoToken: 'new-access-token'
     });
-    refreshTokenRotationExchange(withApi, 'GEbRxBN...edjnXbL', {}, 'new-access-token', 'new-refresh-token');
+    await refreshTokenRotationExchange(withApi, 'GEbRxBN...edjnXbL', {}, 'new-access-token', 'new-refresh-token');
     const cookieJar = await login(baseUrl);
     const profile = await get(baseUrl, '/api/auth/me', { cookieJar });
     expect(profile).toMatchObject({ foo: 'bar' });
