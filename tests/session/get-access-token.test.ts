@@ -233,32 +233,25 @@ describe('get access token', () => {
   });
 
   test('should retrieve a new access token and update the session based on afterRefresh', async () => {
-    await refreshTokenExchange(
-      withApi,
-      'GEbRxBN...edjnXbL',
-      {
-        email: 'john@test.com',
-        name: 'john doe',
-        sub: '123'
-      },
-      'new-token'
-    );
+    await refreshTokenExchange(withApi, 'GEbRxBN...edjnXbL', {}, 'new-token');
     const baseUrl = await setup(withApi, {
       getAccessTokenOptions: {
         refresh: true,
         afterRefresh(_req, _res, session) {
-          delete session.idToken;
+          delete session.accessTokenScope;
           return session;
         }
       }
     });
     const cookieJar = await login(baseUrl);
-    const { idToken } = await get(baseUrl, '/api/session', { cookieJar });
-    expect(idToken).not.toBeUndefined();
+    const { accessTokenScope } = await get(baseUrl, '/api/session', { cookieJar });
+    expect(accessTokenScope).not.toBeUndefined();
     const { accessToken } = await get(baseUrl, '/api/access-token', { cookieJar });
     expect(accessToken).toEqual('new-token');
-    const { idToken: newIdToken } = await get(baseUrl, '/api/session', { cookieJar });
-    expect(newIdToken).toBeUndefined();
+    const { accessTokenScope: newAccessTokenScope } = await get(baseUrl, '/api/session', {
+      cookieJar
+    });
+    expect(newAccessTokenScope).toBeUndefined();
   });
 
   test('should pass custom auth params in refresh grant request body', async () => {

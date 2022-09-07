@@ -92,7 +92,7 @@ export interface BaseConfig {
   httpTimeout: number;
 
   /**
-   * To opt-out of sending the library and node version to your authorization server
+   * Boolean value to opt-out of sending the library and node version to your authorization server
    * via the `Auth0-Client` header. Defaults to `true`.
    * You can also use the `AUTH0_ENABLE_TELEMETRY` environment variable.
    */
@@ -212,6 +212,13 @@ export interface SessionConfig {
    * You can also use the `AUTH0_SESSION_ABSOLUTE_DURATION` environment variable.
    */
   absoluteDuration: boolean | number;
+
+  /**
+   * Boolean value to store the ID token in the session. Storing it can make the session cookie too
+   * large.
+   * Defaults to `false`.
+   */
+  storeIDToken: boolean;
 
   cookie: CookieConfig;
 }
@@ -445,6 +452,7 @@ export const getConfig = (params: ConfigParameters = {}): { baseConfig: BaseConf
   const AUTH0_SESSION_ROLLING = process.env.AUTH0_SESSION_ROLLING;
   const AUTH0_SESSION_ROLLING_DURATION = process.env.AUTH0_SESSION_ROLLING_DURATION;
   const AUTH0_SESSION_ABSOLUTE_DURATION = process.env.AUTH0_SESSION_ABSOLUTE_DURATION;
+  const AUTH0_SESSION_STORE_ID_TOKEN = process.env.AUTH0_SESSION_STORE_ID_TOKEN;
   const AUTH0_COOKIE_DOMAIN = process.env.AUTH0_COOKIE_DOMAIN;
   const AUTH0_COOKIE_PATH = process.env.AUTH0_COOKIE_PATH;
   const AUTH0_COOKIE_TRANSIENT = process.env.AUTH0_COOKIE_TRANSIENT;
@@ -489,6 +497,7 @@ export const getConfig = (params: ConfigParameters = {}): { baseConfig: BaseConf
         AUTH0_SESSION_ABSOLUTE_DURATION && isNaN(Number(AUTH0_SESSION_ABSOLUTE_DURATION))
           ? bool(AUTH0_SESSION_ABSOLUTE_DURATION)
           : num(AUTH0_SESSION_ABSOLUTE_DURATION),
+      storeIDToken: bool(AUTH0_SESSION_STORE_ID_TOKEN),
       ...baseParams.session,
       cookie: {
         domain: AUTH0_COOKIE_DOMAIN,
