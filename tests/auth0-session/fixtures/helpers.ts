@@ -1,5 +1,4 @@
 import { Cookie, CookieJar } from 'tough-cookie';
-import { JWK } from 'jose';
 import { signing as deriveKey } from '../../../src/auth0-session/utils/hkdf';
 import { generateCookieValue } from '../../../src/auth0-session/transient-store';
 import { IncomingMessage, request as nodeHttpRequest } from 'http';
@@ -17,11 +16,11 @@ export const defaultConfig: Omit<ConfigParameters, 'baseURL'> = {
   }
 };
 
-export const toSignedCookieJar = (cookies: { [key: string]: string }, url: string): CookieJar => {
+export const toSignedCookieJar = async (cookies: { [key: string]: string }, url: string): Promise<CookieJar> => {
   const cookieJar = new CookieJar();
-  const jwk = JWK.asKey(deriveKey(secret));
+  const signingKey = await deriveKey(secret);
   for (const [key, value] of Object.entries(cookies)) {
-    cookieJar.setCookieSync(`${key}=${generateCookieValue(key, value, jwk)}`, url);
+    cookieJar.setCookieSync(`${key}=${await generateCookieValue(key, value, signingKey)}`, url);
   }
   return cookieJar;
 };

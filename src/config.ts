@@ -9,7 +9,8 @@ export interface BaseConfig {
   /**
    * The secret(s) used to derive an encryption key for the user identity in a session cookie and
    * to sign the transient cookies used by the login callback.
-   * Use a single string key or array of keys for an encrypted session cookie.
+   * Provide a single string secret, but if you want to rotate the secret you can provide an array putting
+   * the new secret first.
    * You can also use the `AUTH0_SECRET` environment variable.
    */
   secret: string | Array<string>;
