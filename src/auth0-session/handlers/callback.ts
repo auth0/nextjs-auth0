@@ -40,10 +40,10 @@ export default function callbackHandlerFactory(
     let tokenSet;
     try {
       const callbackParams = client.callbackParams(req);
-      expectedState = transientCookieHandler.read('state', req, res);
-      const max_age = transientCookieHandler.read('max_age', req, res);
-      const code_verifier = transientCookieHandler.read('code_verifier', req, res);
-      const nonce = transientCookieHandler.read('nonce', req, res);
+      expectedState = await transientCookieHandler.read('state', req, res);
+      const max_age = await transientCookieHandler.read('max_age', req, res);
+      const code_verifier = await transientCookieHandler.read('code_verifier', req, res);
+      const nonce = await transientCookieHandler.read('nonce', req, res);
 
       tokenSet = await client.callback(
         redirectUri,
@@ -65,13 +65,13 @@ export default function callbackHandlerFactory(
     }
 
     const openidState: { returnTo?: string } = decodeState(expectedState as string) as ValidState;
-    let session = sessionCache.fromTokenSet(tokenSet);
+    let session = await sessionCache.fromTokenSet(tokenSet);
 
     if (options?.afterCallback) {
       session = await options.afterCallback(req as any, res as any, session, openidState);
     }
 
-    sessionCache.create(req, res, session);
+    await sessionCache.create(req, res, session);
 
     res.writeHead(302, {
       Location: openidState.returnTo || config.baseURL

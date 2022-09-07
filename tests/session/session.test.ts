@@ -9,9 +9,9 @@ describe('session', () => {
   });
 
   describe('from tokenSet', () => {
-    test('should construct a session from a tokenSet', () => {
+    test('should construct a session from a tokenSet', async () => {
       expect(
-        fromTokenSet(new TokenSet({ id_token: makeIdToken({ foo: 'bar', bax: 'qux' }) }), {
+        fromTokenSet(new TokenSet({ id_token: await makeIdToken({ foo: 'bar', bax: 'qux' }) }), {
           identityClaimFilter: ['baz'],
           routes: { login: '', callback: '', postLogoutRedirect: '' }
         }).user
@@ -28,18 +28,18 @@ describe('session', () => {
       });
     });
 
-    test('should not store the ID Token by default', () => {
+    test('should not store the ID Token by default', async () => {
       expect(
-        fromTokenSet(new TokenSet({ id_token: makeIdToken({ foo: 'bar' }) }), {
+        fromTokenSet(new TokenSet({ id_token: await makeIdToken({ foo: 'bar' }) }), {
           identityClaimFilter: ['baz'],
           routes: { login: '', callback: '', postLogoutRedirect: '' }
         }).idToken
       ).toBeUndefined();
     });
 
-    test('should store the ID Token', () => {
+    test('should store the ID Token', async () => {
       expect(
-        fromTokenSet(new TokenSet({ id_token: makeIdToken({ foo: 'bar' }) }), {
+        fromTokenSet(new TokenSet({ id_token: await makeIdToken({ foo: 'bar' }) }), {
           session: {
             storeIDToken: true,
             name: '',

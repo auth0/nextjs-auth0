@@ -1,6 +1,7 @@
 import { parse } from 'cookie';
 import { parse as parseUrl, URL } from 'url';
 import { withoutApi } from '../fixtures/default-settings';
+import { get } from '../auth0-session/fixtures/helpers';
 import { setup, teardown, login } from '../fixtures/setup';
 import { IncomingMessage } from 'http';
 
@@ -20,15 +21,15 @@ describe('logout handler', () => {
     const baseUrl = await setup(withoutApi);
     const cookieJar = await login(baseUrl);
 
-    const { status, headers } = await fetch(`${baseUrl}/api/auth/logout`, {
-      redirect: 'manual',
-      headers: {
-        cookie: cookieJar.getCookieStringSync(baseUrl)
-      }
+    const {
+      res: { statusCode, headers }
+    } = await get(baseUrl, '/api/auth/logout', {
+      cookieJar,
+      fullResponse: true
     });
 
-    expect(status).toBe(302);
-    expect(parseUrl(headers.get('location') as string, true)).toMatchObject({
+    expect(statusCode).toBe(302);
+    expect(parseUrl(headers['location'], true)).toMatchObject({
       protocol: 'https:',
       host: 'acme.auth0.local',
       query: {
@@ -46,15 +47,15 @@ describe('logout handler', () => {
     });
     const cookieJar = await login(baseUrl);
 
-    const { status, headers } = await fetch(`${baseUrl}/api/auth/logout`, {
-      redirect: 'manual',
-      headers: {
-        cookie: cookieJar.getCookieStringSync(baseUrl)
-      }
+    const {
+      res: { statusCode, headers }
+    } = await get(baseUrl, '/api/auth/logout', {
+      cookieJar,
+      fullResponse: true
     });
 
-    expect(status).toBe(302);
-    expect(parseUrl(headers.get('location') as string, true).query).toMatchObject({
+    expect(statusCode).toBe(302);
+    expect(parseUrl(headers['location'], true).query).toMatchObject({
       returnTo: 'https://www.foo.bar'
     });
   });
@@ -65,15 +66,15 @@ describe('logout handler', () => {
     });
     const cookieJar = await login(baseUrl);
 
-    const { status, headers } = await fetch(`${baseUrl}/api/auth/logout`, {
-      redirect: 'manual',
-      headers: {
-        cookie: cookieJar.getCookieStringSync(baseUrl)
-      }
+    const {
+      res: { statusCode, headers }
+    } = await get(baseUrl, '/api/auth/logout', {
+      cookieJar,
+      fullResponse: true
     });
 
-    expect(status).toBe(302);
-    expect(parseUrl(headers.get('location') as string)).toMatchObject({
+    expect(statusCode).toBe(302);
+    expect(parseUrl(headers['location'])).toMatchObject({
       host: 'my-end-session-endpoint',
       pathname: '/logout'
     });
@@ -85,14 +86,14 @@ describe('logout handler', () => {
     });
     const cookieJar = await login(baseUrl);
 
-    const res = await fetch(`${baseUrl}/api/auth/logout`, {
-      redirect: 'manual',
-      headers: {
-        cookie: cookieJar.getCookieStringSync(baseUrl)
-      }
+    const {
+      res: { headers }
+    } = await get(baseUrl, '/api/auth/logout', {
+      cookieJar,
+      fullResponse: true
     });
 
-    expect(parse(res.headers.get('set-cookie') as string)).toMatchObject({
+    expect(parse(headers['set-cookie'][0])).toMatchObject({
       appSession: '',
       'Max-Age': '0',
       Path: '/'

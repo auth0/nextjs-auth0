@@ -2,10 +2,37 @@
 
 Guide to migrating from `1.x` to `2.x`
 
+- [`getSession` now returns a `Promise`](#getsession-now-returns-a-promise)
 - [`updateUser` has been added](#updateuser-has-been-added)
 - [`getServerSidePropsWrapper` has been removed](#getserversidepropswrapper-has-been-removed)
 - [Profile API route no longer returns a 401](#profile-api-route-no-longer-returns-a-401)
 - [The ID token is no longer stored by default](#the-id-token-is-no-longer-stored-by-default)
+
+## `getSession` now returns a `Promise`
+
+### Before
+
+```js
+// /pages/api/my-api
+import { getSession } from '@auth0/nextjs-auth0';
+
+function myApiRoute(req, res) {
+  const session = getSession(req, res);
+  // ...
+}
+```
+
+### After
+
+```js
+// /pages/api/my-api
+import { getSession } from '@auth0/nextjs-auth0';
+
+async function myApiRoute(req, res) {
+  const session = await getSession(req, res);
+  // ...
+}
+```
 
 ## `updateUser` has been added
 
@@ -30,17 +57,17 @@ function myApiRoute(req, res) {
 
 We've introduced a new `updateUser` method which must be explicitly invoked in order to update the session's user.
 
-This will immediately serialise the session and write it to the cookie.
+This will immediately serialise the session, write it to the cookie and return a `Promise`.
 
 ```js
 // /pages/api/update-user
 import { getSession, updateUser } from '@auth0/nextjs-auth0';
 
-function myApiRoute(req, res) {
-  const { user } = getSession(req, res);
+async function myApiRoute(req, res) {
+  const { user } = await getSession(req, res);
   // The session is updated, serialized and the cookie is updated
   // everytime you call `updateUser`.
-  updateUser(req, res, { ...user, foo: 'bar' });
+  await updateUser(req, res, { ...user, foo: 'bar' });
   res.json({ success: true });
 }
 ```
@@ -52,7 +79,7 @@ Because the process of modifying the session is now explicit, you no longer have
 ### Before
 
 ```js
-export const getServerSideProps = getServerSidePropsWrapper(async (ctx) => {
+export const getServerSideProps = getServerSidePropsWrapper((ctx) => {
   const session = getSession(ctx.req, ctx.res);
   if (session) {
     // User is authenticated
@@ -66,7 +93,7 @@ export const getServerSideProps = getServerSidePropsWrapper(async (ctx) => {
 
 ```js
 export const getServerSideProps = async (ctx) => {
-  const session = getSession(ctx.req, ctx.res);
+  const session = await getSession(ctx.req, ctx.res);
   if (session) {
     // User is authenticated
   } else {

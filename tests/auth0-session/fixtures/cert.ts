@@ -1,13 +1,19 @@
-import { JWK, JWKS, JWT } from 'jose';
+import * as jose from 'jose';
 import { IdTokenClaims } from 'openid-client';
 
-const k = JWK.asKey({
+const publicKey = {
   e: 'AQAB',
   n:
     'wQrThQ9HKf8ksCQEzqOu0ofF8DtLJgexeFSQBNnMQetACzt4TbHPpjhTWUIlD8bFCkyx88d2_QV3TewMtfS649Pn5hV6adeYW2TxweAA8HVJxskc' +
     'qTSa_ktojQ-cD43HIStsbqJhHoFv0UY6z5pwJrVPT-yt38ciKo9Oc9IhEl6TSw-zAnuNW0zPOhKjuiIqpAk1lT3e6cYv83ahx82vpx3ZnV83dT9u' +
     'RbIbcgIpK4W64YnYb5uDH7hGI8-4GnalZDfdApTu-9Y8lg_1v5ul-eQDsLCkUCPkqBaNiCG3gfZUAKp9rrFRE_cJTv_MJn-y_XSTMWILvTY7vdSM' +
     'RMo4kQ',
+  kty: 'RSA',
+  use: 'sig',
+  alg: 'RS256'
+};
+
+const privateKey = {
   d:
     'EMHY1K8b1VhxndyykiGBVoM0uoLbJiT60eA9VD53za0XNSJncg8iYGJ5UcE9KF5v0lIQDIJfIN2tmpUIEW96HbbSZZWtt6xgbGaZ2eOREU6NJfVl' +
     'SIbpgXOYUs5tFKiRBZ8YXY448gX4Z-k5x7W3UJTimqSH_2nw3FLuU32FI2vtf4ToUKEcoUdrIqoAwZ1et19E7Q_NCG2y1nez0LpD8PKgfeX1OVHd' +
@@ -28,17 +34,12 @@ const k = JWK.asKey({
   qi:
     '8hAW25CmPjLAXpzkMpXpXsvJKdgql0Zjt-OeSVwzQN5dLYmu-Q98Xl5n8H-Nfr8aOmPfHBQ8M9FOMpxbgg8gbqixpkrxcTIGjpuH8RFYXj_0TYSB' +
     'kCSOoc7tAP7YjOUOGJMqFHDYZVD-gmsCuRwWx3jKFxRrWLS5b8kWzkON0bM',
-  kty: 'RSA',
-  use: 'sig',
-  alg: 'RS256'
-});
+  ...publicKey
+};
 
-export const jwks = new JWKS.KeyStore([k]).toJWKS(false);
+export const jwks = { keys: [publicKey] };
 
-export const key = k.toPEM(true);
-export const kid = k.kid;
-
-export const makeIdToken = (payload?: Partial<IdTokenClaims>): string => {
+export const makeIdToken = async (payload?: Partial<IdTokenClaims>): Promise<string> => {
   payload = Object.assign(
     {
       nickname: '__test_nickname__',
@@ -52,8 +53,7 @@ export const makeIdToken = (payload?: Partial<IdTokenClaims>): string => {
     payload
   );
 
-  return JWT.sign(payload, k.toPEM(true), {
-    algorithm: 'RS256',
-    header: { kid: k.kid }
-  });
+  return new jose.SignJWT(payload as IdTokenClaims)
+    .setProtectedHeader({ alg: 'RS256' })
+    .sign(await jose.importJWK(privateKey));
 };

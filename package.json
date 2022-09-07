@@ -107,13 +107,12 @@
     "typescript": "^4.1.3"
   },
   "dependencies": {
-    "base64url": "^3.0.1",
+    "@panva/hkdf": "^1.0.2",
     "cookie": "^0.5.0",
     "debug": "^4.3.4",
-    "futoin-hkdf": "^1.5.0",
     "http-errors": "^1.8.1",
     "joi": "^17.6.0",
-    "jose": "^2.0.5",
+    "jose": "^4.9.2",
     "openid-client": "^4.9.1",
     "tslib": "^2.4.0",
     "url-join": "^4.0.1"
