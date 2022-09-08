@@ -20,21 +20,31 @@ export default function withMiddlewareAuthRequiredFactory(
       const { pathname, origin } = req.nextUrl;
       const ignorePaths = [login, callback, '/_next', '/favicon.ico'];
       if (ignorePaths.some((p) => pathname.startsWith(p))) {
-        console.log('ignoring', pathname);
         return;
       }
 
       const sessionCache = getSessionCache();
 
-      const session = await sessionCache.get(req, null);
+      const authRes = NextResponse.next();
+      const session = await sessionCache.get(req, authRes);
       if (!session?.user) {
-        console.log('redirecting to', login, 'from', pathname);
-        return NextResponse.redirect(new URL(login, origin));
+        return NextResponse.redirect(
+          new URL(`${login}?returnTo=${encodeURIComponent(req.nextUrl.toString())}`, origin)
+        );
       }
-      console.log('Running mw for', pathname);
-      const res = await ((middleware && middleware(...args)) || NextResponse.next());
-      await sessionCache.save(req, res as NextResponse);
-      return res;
+      const res = await (middleware && middleware(...args));
+
+      if (res) {
+        const headers = new Headers(res.headers);
+        const cookies = headers.get('set-cookie')?.split(', ') || [];
+        const authCookies = authRes.headers.get('set-cookie')?.split(', ') || [];
+        if (cookies.length || authCookies.length) {
+          headers.set('set-cookie', [...authCookies, ...cookies].join(', '));
+        }
+        return NextResponse.next({ ...res, headers });
+      } else {
+        return authRes;
+      }
     };
   };
 }

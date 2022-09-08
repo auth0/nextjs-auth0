@@ -1,5 +1,5 @@
 import { NextMiddleware, NextRequest, NextResponse } from 'next/server';
-import { CookieStore } from './auth0-session';
+import { default as CookieStore } from './auth0-session/cookie-store';
 import MiddlewareCookies from './utils/middleware-cookies';
 import { SessionCache, Session } from './session/';
 import {

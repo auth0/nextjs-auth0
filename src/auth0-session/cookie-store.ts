@@ -1,5 +1,4 @@
 import { IncomingMessage, ServerResponse } from 'http';
-import { strict as assert, AssertionError } from 'assert';
 import * as jose from 'jose';
 import { CookieSerializeOptions, serialize } from 'cookie';
 import { encryption as deriveKey } from './utils/hkdf';
@@ -121,29 +120,24 @@ export default class CookieStore<Req = IncomingMessage, Res = ServerResponse> {
         ({ iat, uat, exp } = header as unknown as Header);
 
         // check that the existing session isn't expired based on options when it was established
-        assert(exp > epoch(), 'it is expired based on options when it was established');
+        if (exp <= epoch()) {
+          throw new Error('it is expired based on options when it was established');
+        }
 
         // check that the existing session isn't expired based on current rollingDuration rules
-        if (rollingDuration) {
-          assert(uat + rollingDuration > epoch(), 'it is expired based on current rollingDuration rules');
+        if (rollingDuration && uat + rollingDuration <= epoch()) {
+          throw new Error('it is expired based on current rollingDuration rules');
         }
 
         // check that the existing session isn't expired based on current absoluteDuration rules
-        if (typeof absoluteDuration === 'number') {
-          assert(iat + absoluteDuration > epoch(), 'it is expired based on current absoluteDuration rules');
+        if (typeof absoluteDuration === 'number' && iat + absoluteDuration <= epoch()) {
+          throw new Error('it is expired based on current absoluteDuration rules');
         }
 
         return [payload, iat];
       }
     } catch (err) {
-      /* istanbul ignore else */
-      if (err instanceof AssertionError) {
-        debug('existing session was rejected because', err.message);
-      } else if (err instanceof jose.errors.JOSEError) {
-        debug('existing session was rejected because it could not be decrypted', err);
-      } else {
-        debug('unexpected error handling session', err);
-      }
+      debug('error handling session %O', err);
     }
 
     return [];
