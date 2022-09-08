@@ -35,7 +35,7 @@ export type UpdateUser = (
 export default function updateUserFactory(sessionCache: SessionCache): UpdateUser {
   return async (req, res, user) => {
     assertReqRes(req, res);
-    const session = await sessionCache.get(req, null);
+    const session = await sessionCache.get(req, res);
     if (!session || !user) {
       return;
     }

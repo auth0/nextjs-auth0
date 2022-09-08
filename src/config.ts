@@ -1,6 +1,7 @@
 import { IncomingMessage } from 'http';
 import type { AuthorizationParameters as OidcAuthorizationParameters } from 'openid-client';
-import { LoginOptions, DeepPartial, getConfig as getBaseConfig } from './auth0-session';
+import type { LoginOptions } from './auth0-session/config';
+import { DeepPartial, get as getBaseConfig } from './auth0-session/get-config';
 
 /**
  * @category server

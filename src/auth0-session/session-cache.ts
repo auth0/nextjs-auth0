@@ -1,4 +1,4 @@
-import { TokenSet } from 'openid-client';
+import type { TokenSet } from 'openid-client';
 
 export interface SessionCache {
   create(req: unknown, res: unknown, session: { [key: string]: any }): Promise<void>;

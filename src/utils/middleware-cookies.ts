@@ -1,4 +1,4 @@
-import { Cookies } from '../auth0-session';
+import { Cookies } from '../auth0-session/utils/cookies';
 import { NextRequest, NextResponse } from 'next/server';
 
 export default class MiddlewareCookies extends Cookies {

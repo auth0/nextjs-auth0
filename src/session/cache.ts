@@ -1,6 +1,6 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { NextApiRequest, NextApiResponse } from 'next';
-import { TokenSet } from 'openid-client';
+import type { TokenSet } from 'openid-client';
 import { Config, SessionCache as ISessionCache, CookieStore } from '../auth0-session';
 import Session, { fromJson, fromTokenSet } from './session';
 
@@ -17,15 +17,13 @@ export default class SessionCache<
     this.iatCache = new WeakMap();
   }
 
-  private async init(req: Req, res: Res, autoSave?: true): Promise<void>;
-  private async init(req: Req, res: null, autoSave?: false): Promise<void>;
-  private async init(req: Req, res: Res | null, autoSave = true): Promise<void> {
+  private async init(req: Req, res: Res, autoSave = true): Promise<void> {
     if (!this.cache.has(req)) {
       const [json, iat] = await this.cookieStore.read(req);
       this.iatCache.set(req, iat);
       this.cache.set(req, fromJson(json));
       if (this.config.session.rolling && autoSave) {
-        await this.save(req, res as Res);
+        await this.save(req, res);
       }
     }
   }
@@ -40,7 +38,7 @@ export default class SessionCache<
   }
 
   async delete(req: Req, res: Res): Promise<void> {
-    await this.init(req, null, false);
+    await this.init(req, res, false);
     this.cache.set(req, null);
     await this.save(req, res);
   }
@@ -58,17 +56,13 @@ export default class SessionCache<
   }
 
   async set(req: Req, res: Res, session: Session | null): Promise<void> {
-    await this.init(req, null, false);
+    await this.init(req, res, false);
     this.cache.set(req, session);
     await this.save(req, res);
   }
 
-  async get(req: Req, res: Res | null): Promise<Session | null | undefined> {
-    if (res) {
-      await this.init(req, res, true);
-    } else {
-      await this.init(req, null, false);
-    }
+  async get(req: Req, res: Res): Promise<Session | null | undefined> {
+    await this.init(req, res);
     return this.cache.get(req);
   }
 
