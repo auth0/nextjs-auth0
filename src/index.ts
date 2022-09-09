@@ -103,7 +103,7 @@ export const _initAuth = (params?: ConfigParameters): SignInWithAuth0 & { sessio
 };
 
 export const initAuth0: InitAuth0 = (params) => {
-  const { sessionCache, ...publicApi } = _initAuth(params);
+  const { sessionCache, ...publicApi } = _initAuth(params); // eslint-disable-line @typescript-eslint/no-unused-vars
   return publicApi;
 };
 

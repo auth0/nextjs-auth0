@@ -5,8 +5,8 @@ import { Config, SessionCache as ISessionCache, CookieStore } from '../auth0-ses
 import Session, { fromJson, fromTokenSet } from './session';
 
 export default class SessionCache<
-  Req extends object = IncomingMessage | NextApiRequest,
-  Res extends object = ServerResponse | NextApiResponse
+  Req extends object = IncomingMessage | NextApiRequest, // eslint-disable-line @typescript-eslint/ban-types
+  Res extends object = ServerResponse | NextApiResponse // eslint-disable-line @typescript-eslint/ban-types
 > implements ISessionCache
 {
   private cache: WeakMap<Req, Session | null>;

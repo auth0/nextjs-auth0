@@ -58,7 +58,7 @@ export default class CookieStore<Req = IncomingMessage, Res = ServerResponse> {
   private async decrypt(jwe: string): Promise<jose.JWTDecryptResult> {
     const keys = await this.getKeys();
     let err;
-    for (let key of keys) {
+    for (const key of keys) {
       try {
         return await jose.jwtDecrypt(jwe, key);
       } catch (e) {
