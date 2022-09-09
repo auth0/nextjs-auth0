@@ -29,6 +29,7 @@ const paramsSchema = Joi.object({
       .optional()
       .default(7 * 24 * 60 * 60), // 7 days,
     name: Joi.string().token().optional().default('appSession'),
+    storeIDToken: Joi.boolean().optional().default(false),
     cookie: Joi.object({
       domain: Joi.string().optional(),
       transient: Joi.boolean().optional().default(false),

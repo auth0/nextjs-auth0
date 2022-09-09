@@ -98,7 +98,7 @@ export interface Config {
   httpTimeout: number;
 
   /**
-   * To opt-out of sending the library and Node.js version to your authorization server
+   * Boolean value to opt-out of sending the library and Node.js version to your authorization server
    * via the `Auth0-Client` header. Defaults to `true`.
    */
   enableTelemetry: boolean;
@@ -198,6 +198,13 @@ export interface SessionConfig {
    * Defaults to `604800` seconds (7 days).
    */
   absoluteDuration: boolean | number;
+
+  /**
+   * Boolean value to store the ID token in the session. Storing it can make the session cookie too
+   * large.
+   * Defaults to `false`.
+   */
+  storeIDToken: boolean;
 
   cookie: CookieConfig;
 }
