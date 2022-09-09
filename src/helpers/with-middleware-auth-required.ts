@@ -2,7 +2,45 @@ import { NextMiddleware, NextRequest, NextResponse } from 'next/server';
 import { SessionCache } from '../session';
 
 /**
- * Middleware
+ * Protect your pages with Next.js Middleware. eg
+ *
+ * To protect all your routes:
+ *
+ * ```js
+ * // middleware.js
+ * import { withMiddlewareAuthRequired } from '@auth0/nextjs-auth0/middleware';
+ *
+ * export default withMiddlewareAuthRequired();
+ * ```
+ *
+ * To protect specific routes:
+ *
+ * ```js
+ * // middleware.js
+ * import { withMiddlewareAuthRequired } from '@auth0/nextjs-auth0/middleware';
+ *
+ * export default withMiddlewareAuthRequired();
+ *
+ * export const config = {
+ *   matcher: '/about/:path*',
+ * }
+ * ```
+ * For more info see: https://nextjs.org/docs/advanced-features/middleware#matching-paths
+ *
+ * To run custom middleware for authenticated users:
+ *
+ * ```js
+ * // middleware.js
+ * import { withMiddlewareAuthRequired, getSession } from '@auth0/nextjs-auth0/middleware';
+ *
+ * export default withMiddlewareAuthRequired(async function middleware(req) {
+ *   const res = NextResponse.next();
+ *   const user = await getSession(req, res);
+ *   res.cookies.set('hl', user.language);
+ *   return res;
+ * });
+ * ```
+ *
  * @category Server
  */
 export type WithMiddlewareAuthRequired = (middleware?: NextMiddleware) => NextMiddleware;
