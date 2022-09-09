@@ -10,7 +10,8 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "middleware.js"
   ],
   "engines": {
     "node": "^10.13.0 || >=12.0.0"
