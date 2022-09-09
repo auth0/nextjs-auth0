@@ -229,7 +229,7 @@ describe('Config', () => {
         ...defaultConfig,
         session: {
           rolling: true,
-          rollingDuration: (false as unknown) as undefined // testing invalid configuration
+          rollingDuration: false as unknown as undefined // testing invalid configuration
         }
       })
     ).toThrow('"session.rollingDuration" must be provided an integer value when "session.rolling" is true');
@@ -251,9 +251,9 @@ describe('Config', () => {
     expect(() =>
       getConfig({
         ...defaultConfig,
-        secret: ({ key: '__test_session_secret__' } as unknown) as string // testing invalid configuration
+        secret: { key: '__test_session_secret__' } as unknown as string // testing invalid configuration
       })
-    ).toThrow('"secret" must be one of [string, binary, array]');
+    ).toThrow('"secret" must be one of [string, array]');
   });
 
   it('should fail when app session cookie httpOnly is not a boolean', function () {
@@ -262,7 +262,7 @@ describe('Config', () => {
         ...defaultConfig,
         session: {
           cookie: {
-            httpOnly: ('__invalid_httponly__' as unknown) as boolean // testing invalid configuration
+            httpOnly: '__invalid_httponly__' as unknown as boolean // testing invalid configuration
           }
         }
       })
@@ -276,7 +276,7 @@ describe('Config', () => {
         secret: '__test_session_secret__',
         session: {
           cookie: {
-            secure: ('__invalid_secure__' as unknown) as boolean // testing invalid configuration
+            secure: '__invalid_secure__' as unknown as boolean // testing invalid configuration
           }
         }
       })
@@ -290,7 +290,7 @@ describe('Config', () => {
         secret: '__test_session_secret__',
         session: {
           cookie: {
-            sameSite: ('__invalid_samesite__' as unknown) as any // testing invalid configuration
+            sameSite: '__invalid_samesite__' as unknown as any // testing invalid configuration
           }
         }
       })
@@ -304,7 +304,7 @@ describe('Config', () => {
         secret: '__test_session_secret__',
         session: {
           cookie: {
-            domain: (false as unknown) as string // testing invalid configuration
+            domain: false as unknown as string // testing invalid configuration
           }
         }
       })
@@ -313,13 +313,13 @@ describe('Config', () => {
 
   it("shouldn't allow a secret of less than 8 chars", () => {
     expect(() => getConfig({ ...defaultConfig, secret: 'short' })).toThrowError(
-      new TypeError('"secret" does not match any of the allowed types')
+      new TypeError('"secret" length must be at least 8 characters long')
     );
     expect(() => getConfig({ ...defaultConfig, secret: ['short', 'too'] })).toThrowError(
-      new TypeError('"secret[0]" does not match any of the allowed types')
+      new TypeError('"secret[0]" length must be at least 8 characters long')
     );
     expect(() => getConfig({ ...defaultConfig, secret: Buffer.from('short').toString() })).toThrowError(
-      new TypeError('"secret" does not match any of the allowed types')
+      new TypeError('"secret" length must be at least 8 characters long')
     );
   });
 
@@ -399,7 +399,7 @@ describe('Config', () => {
   });
 
   it('should not allow empty scope', () => {
-    expect(() => validateAuthorizationParams({ scope: (null as unknown) as undefined })).toThrowError(
+    expect(() => validateAuthorizationParams({ scope: null as unknown as undefined })).toThrowError(
       new TypeError('"authorizationParams.scope" must be a string')
     );
     expect(() => validateAuthorizationParams({ scope: '' })).toThrowError(
@@ -420,10 +420,10 @@ describe('Config', () => {
   });
 
   it('should not allow empty response_type', () => {
-    expect(() => validateAuthorizationParams({ response_type: (null as unknown) as undefined })).toThrowError(
+    expect(() => validateAuthorizationParams({ response_type: null as unknown as undefined })).toThrowError(
       new TypeError('"authorizationParams.response_type" must be one of [id_token, code id_token, code]')
     );
-    expect(() => validateAuthorizationParams({ response_type: ('' as unknown) as undefined })).toThrowError(
+    expect(() => validateAuthorizationParams({ response_type: '' as unknown as undefined })).toThrowError(
       new TypeError('"authorizationParams.response_type" must be one of [id_token, code id_token, code]')
     );
   });
@@ -452,16 +452,16 @@ describe('Config', () => {
   });
 
   it('should not allow empty response_mode', () => {
-    expect(() => validateAuthorizationParams({ response_mode: (null as unknown) as undefined })).toThrowError(
+    expect(() => validateAuthorizationParams({ response_mode: null as unknown as undefined })).toThrowError(
       new TypeError('"authorizationParams.response_mode" must be [form_post]')
     );
-    expect(() => validateAuthorizationParams({ response_mode: ('' as unknown) as undefined })).toThrowError(
+    expect(() => validateAuthorizationParams({ response_mode: '' as unknown as undefined })).toThrowError(
       new TypeError('"authorizationParams.response_mode" must be [form_post]')
     );
     expect(() =>
       validateAuthorizationParams({
         response_type: 'code',
-        response_mode: ('' as unknown) as undefined
+        response_mode: '' as unknown as undefined
       })
     ).toThrowError(new TypeError('"authorizationParams.response_mode" must be one of [query, form_post]'));
   });
