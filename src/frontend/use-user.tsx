@@ -45,8 +45,8 @@ export type UserContext = {
 export class RequestError extends Error {
   public status: number;
 
-  /* istanbul ignore next */
   constructor(status: number) {
+    /* c8 ignore next */
     super();
     this.status = status;
     Object.setPrototypeOf(this, RequestError.prototype);

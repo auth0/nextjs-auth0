@@ -18,11 +18,11 @@ function getInstance(params?: ConfigParameters): Instance {
   if (instance) {
     return instance;
   }
-  instance = _initAuth(params);
+  instance = initAuth(params);
   return instance;
 }
 
-export const _initAuth = (params?: ConfigParameters): Instance => {
+export const initAuth = (params?: ConfigParameters): Instance => {
   const { baseConfig, nextConfig } = getConfig(params);
 
   // Init base layer (with base config)
@@ -40,7 +40,5 @@ export const _initAuth = (params?: ConfigParameters): Instance => {
 };
 
 export const getSession: GetSession = (...args) => getInstance().getSession(...args);
-export const withMiddlewareAuthRequired: WithMiddlewareAuthRequired = (
-  middleware?: NextMiddleware,
-  params?: ConfigParameters
-) => getInstance(params).withMiddlewareAuthRequired(middleware);
+export const withMiddlewareAuthRequired: WithMiddlewareAuthRequired = (middleware?: NextMiddleware) =>
+  getInstance().withMiddlewareAuthRequired(middleware);

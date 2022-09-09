@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export default class MiddlewareCookies extends Cookies {
   protected getSetCookieHeader(res: NextResponse): string[] {
     const value = res.headers.get('set-cookie');
-    return value !== undefined && value !== null ? value.split(', ') : [];
+    return value?.split(', ') || [];
   }
 
   protected setSetCookieHeader(res: NextResponse, cookies: string[]) {

@@ -14,6 +14,11 @@ const enc = 'A256GCM';
 
 type Header = { iat: number; uat: number; exp: number };
 const notNull = <T>(value: T | null): value is T => value !== null;
+const assert = (bool: boolean, msg: string) => {
+  if (!bool) {
+    throw new Error(msg);
+  }
+};
 
 export default class CookieStore<Req = IncomingMessage, Res = ServerResponse> {
   private keys?: Uint8Array[];
@@ -120,18 +125,16 @@ export default class CookieStore<Req = IncomingMessage, Res = ServerResponse> {
         ({ iat, uat, exp } = header as unknown as Header);
 
         // check that the existing session isn't expired based on options when it was established
-        if (exp <= epoch()) {
-          throw new Error('it is expired based on options when it was established');
-        }
+        assert(exp > epoch(), 'it is expired based on options when it was established');
 
         // check that the existing session isn't expired based on current rollingDuration rules
-        if (rollingDuration && uat + rollingDuration <= epoch()) {
-          throw new Error('it is expired based on current rollingDuration rules');
+        if (rollingDuration) {
+          assert(uat + rollingDuration > epoch(), 'it is expired based on current rollingDuration rules');
         }
 
         // check that the existing session isn't expired based on current absoluteDuration rules
-        if (typeof absoluteDuration === 'number' && iat + absoluteDuration <= epoch()) {
-          throw new Error('it is expired based on current absoluteDuration rules');
+        if (typeof absoluteDuration === 'number') {
+          assert(iat + absoluteDuration > epoch(), 'it is expired based on current absoluteDuration rules');
         }
 
         return [payload, iat];
