@@ -48,6 +48,7 @@ describe('config params', () => {
         rolling: true,
         rollingDuration: 86400,
         absoluteDuration: 604800,
+        storeIDToken: false,
         cookie: {
           domain: undefined,
           path: '/',
@@ -107,7 +108,8 @@ describe('config params', () => {
         AUTH0_COOKIE_HTTP_ONLY: 'on',
         AUTH0_COOKIE_SAME_SITE: 'lax',
         AUTH0_COOKIE_SECURE: 'ok',
-        AUTH0_SESSION_ABSOLUTE_DURATION: 'no'
+        AUTH0_SESSION_ABSOLUTE_DURATION: 'no',
+        AUTH0_SESSION_STORE_ID_TOKEN: '1'
       }).baseConfig
     ).toMatchObject({
       auth0Logout: false,
@@ -116,6 +118,7 @@ describe('config params', () => {
       legacySameSiteCookie: false,
       session: {
         absoluteDuration: false,
+        storeIDToken: true,
         cookie: {
           httpOnly: true,
           sameSite: 'lax',
@@ -182,6 +185,7 @@ describe('config params', () => {
         },
         session: {
           absoluteDuration: 100,
+          storeIDToken: true,
           cookie: {
             transient: false
           },
@@ -201,6 +205,7 @@ describe('config params', () => {
       },
       session: {
         absoluteDuration: 100,
+        storeIDToken: true,
         cookie: {
           transient: false
         },

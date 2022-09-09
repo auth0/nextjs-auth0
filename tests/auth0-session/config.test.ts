@@ -109,6 +109,7 @@ describe('Config', () => {
     expect(config.session).toMatchObject({
       rollingDuration: 86400,
       name: 'appSession',
+      storeIDToken: false,
       cookie: {
         sameSite: 'lax',
         httpOnly: true,
@@ -124,6 +125,7 @@ describe('Config', () => {
       session: {
         name: '__test_custom_session_name__',
         rollingDuration: 1234567890,
+        storeIDToken: true,
         cookie: {
           domain: '__test_custom_domain__',
           transient: true,
@@ -140,6 +142,7 @@ describe('Config', () => {
         rollingDuration: 1234567890,
         absoluteDuration: 604800,
         rolling: true,
+        storeIDToken: true,
         cookie: {
           domain: '__test_custom_domain__',
           transient: true,
@@ -245,6 +248,17 @@ describe('Config', () => {
         }
       })
     ).toThrowError('"session.absoluteDuration" must be provided an integer value when "session.rolling" is false');
+  });
+
+  it('should fail when app session storeIDToken is not a boolean', function () {
+    expect(() =>
+      getConfig({
+        ...defaultConfig,
+        session: {
+          storeIDToken: '__invalid_store_id_token__' as unknown as boolean // testing invalid configuration
+        }
+      })
+    ).toThrowError('"session.storeIDToken" must be a boolean');
   });
 
   it('should fail when app session secret is invalid', function () {

@@ -176,7 +176,6 @@ describe('callback handler', () => {
       accessToken: 'eyJz93a...k4laUWw',
       accessTokenExpiresAt: 750,
       accessTokenScope: 'read:foo delete:foo',
-      idToken: await makeIdToken({ iss: 'https://acme.auth0.local/' }),
       token_type: 'Bearer',
       refreshToken: 'GEbRxBN...edjnXbL',
       user: {
@@ -187,7 +186,7 @@ describe('callback handler', () => {
     timekeeper.reset();
   });
 
-  test('remove tokens with afterCallback hook', async () => {
+  test('remove properties from session with afterCallback hook', async () => {
     timekeeper.freeze(0);
     const afterCallback: AfterCallback = (_req, _res, session: Session): Session => {
       delete session.accessToken;
@@ -217,7 +216,6 @@ describe('callback handler', () => {
     expect(session).toStrictEqual({
       accessTokenExpiresAt: 750,
       accessTokenScope: 'read:foo delete:foo',
-      idToken: await makeIdToken({ iss: 'https://acme.auth0.local/' }),
       token_type: 'Bearer',
       user: {
         nickname: '__test_nickname__',
