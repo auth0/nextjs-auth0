@@ -8,11 +8,11 @@ export abstract class Cookies {
     this.cookies = [];
   }
 
-  set(name: string, value: string, options: CookieSerializeOptions = {}) {
+  set(name: string, value: string, options: CookieSerializeOptions = {}): void {
     this.cookies.push(serialize(name, value, options));
   }
 
-  clear(name: string, options: CookieSerializeOptions = {}) {
+  clear(name: string, options: CookieSerializeOptions = {}): void {
     const { domain, path, secure, sameSite } = options;
     const clearOptions: CookieSerializeOptions = {
       domain,
@@ -51,11 +51,11 @@ export default class NodeCookies extends Cookies {
     return cookies;
   }
 
-  protected setSetCookieHeader(res: ServerResponse, cookies: string[]) {
+  protected setSetCookieHeader(res: ServerResponse, cookies: string[]): void {
     res.setHeader('Set-Cookie', cookies);
   }
 
-  getAll(req: IncomingMessage) {
+  getAll(req: IncomingMessage): Record<string, string> {
     return parse(req.headers.cookie || '');
   }
 }

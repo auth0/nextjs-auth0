@@ -7,7 +7,7 @@ export default class MiddlewareCookies extends Cookies {
     return value?.split(', ') || [];
   }
 
-  protected setSetCookieHeader(res: NextResponse, cookies: string[]) {
+  protected setSetCookieHeader(res: NextResponse, cookies: string[]): void {
     res.headers.set('set-cookie', cookies.join(', '));
   }
 
