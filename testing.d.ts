@@ -24,7 +24,7 @@ export type GenerateSessionCookieConfig = {
  * Generates an encrypted session cookie that can be used to mock the Auth0
  * authentication flow in e2e tests.
  *
- * **IMPORTANT**: this utility can only run in Node.js, **not in the browser**.
+ * **IMPORTANT**: this utility can only run on Node.js, **not on the browser**.
  * For example, if you're using [Cypress](https://www.cypress.io/), you can
  * wrap it in a [task](https://docs.cypress.io/api/commands/task) and then
  * invoke the task from a test or a custom command.
