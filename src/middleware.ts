@@ -8,9 +8,13 @@ import {
 } from './helpers/with-middleware-auth-required';
 import { getConfig, ConfigParameters } from './config';
 
-type Instance = { withMiddlewareAuthRequired: WithMiddlewareAuthRequired; getSession: GetSession };
+export type Instance = { withMiddlewareAuthRequired: WithMiddlewareAuthRequired; getSession: GetSession };
 
-type GetSession = (req: NextRequest, res: NextResponse) => Promise<Session | null | undefined>;
+export type GetSession = (req: NextRequest, res: NextResponse) => Promise<Session | null | undefined>;
+
+export type InitAuth0 = (params?: ConfigParameters) => Instance;
+
+export { WithMiddlewareAuthRequired };
 
 let instance: Instance;
 
@@ -22,7 +26,7 @@ function getInstance(params?: ConfigParameters): Instance {
   return instance;
 }
 
-export const initAuth = (params?: ConfigParameters): Instance => {
+export const initAuth: InitAuth0 = (params?) => {
   const { baseConfig, nextConfig } = getConfig(params);
 
   // Init base layer (with base config)
