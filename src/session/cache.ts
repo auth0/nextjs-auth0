@@ -7,7 +7,7 @@ import Session, { fromJson, fromTokenSet } from './session';
 export default class SessionCache<
   Req extends object = IncomingMessage | NextApiRequest, // eslint-disable-line @typescript-eslint/ban-types
   Res extends object = ServerResponse | NextApiResponse // eslint-disable-line @typescript-eslint/ban-types
-> implements ISessionCache
+> implements ISessionCache<Req, Res, Session>
 {
   private cache: WeakMap<Req, Session | null>;
   private iatCache: WeakMap<Req, number | undefined>;

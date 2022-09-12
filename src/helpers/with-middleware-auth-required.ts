@@ -2,7 +2,7 @@ import { NextMiddleware, NextRequest, NextResponse } from 'next/server';
 import { SessionCache } from '../session';
 
 /**
- * Protect your pages with Next.js Middleware. eg
+ * Protect your pages with Next.js Middleware. For example:
  *
  * To protect all your routes:
  *
@@ -23,7 +23,7 @@ import { SessionCache } from '../session';
  *
  * export const config = {
  *   matcher: '/about/:path*',
- * }
+ * };
  * ```
  * For more info see: https://nextjs.org/docs/advanced-features/middleware#matching-paths
  *
