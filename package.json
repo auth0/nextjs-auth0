@@ -11,7 +11,9 @@
   "files": [
     "dist",
     "src",
-    "middleware.js"
+    "middleware.js",
+    "testing.js",
+    "testing.d.ts"
   ],
   "engines": {
     "node": "^10.13.0 || >=12.0.0"

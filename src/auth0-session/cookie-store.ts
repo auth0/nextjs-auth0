@@ -50,7 +50,7 @@ export default class CookieStore<Req = IncomingMessage, Res = ServerResponse> {
     return this.keys;
   }
 
-  private async encrypt(payload: jose.JWTPayload, { iat, uat, exp }: Header): Promise<string> {
+  public async encrypt(payload: jose.JWTPayload, { iat, uat, exp }: Header): Promise<string> {
     const [key] = await this.getKeys();
     return await new jose.EncryptJWT({ ...payload }).setProtectedHeader({ alg, enc, uat, iat, exp }).encrypt(key);
   }
