@@ -47,6 +47,12 @@ describe('smoke tests', () => {
     cy.get('[data-testid=profile]').contains(EMAIL);
   });
 
+  it('should protect a page with middleware', () => {
+    cy.visit('/profile-mw');
+    cy.url().should('eq', `${Cypress.config().baseUrl}/profile-mw`);
+    cy.get('[data-testid=profile]').contains(EMAIL);
+  });
+
   it('should logout and return to the index page', () => {
     cy.get('[data-testid=logout]').click();
     if (!useAuth0) {

@@ -1,3 +1,4 @@
+export { default as NodeCookies, Cookies } from './utils/cookies';
 export { default as CookieStore } from './cookie-store';
 export { default as TransientStore } from './transient-store';
 export { Config, SessionConfig, CookieConfig, LoginOptions, LogoutOptions, AuthorizationParameters } from './config';

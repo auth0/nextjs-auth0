@@ -6,6 +6,7 @@
 - [Protecting a Server-Side Rendered (SSR) Page](#protecting-a-server-side-rendered-ssr-page)
 - [Protecting a Client-Side Rendered (CSR) Page](#protecting-a-client-side-rendered-csr-page)
 - [Protect an API Route](#protect-an-api-route)
+- [Protecting pages with Middleware](#protecting-pages-with-middleware)
 - [Access an External API from an API Route](#access-an-external-api-from-an-api-route)
 - [Create your own instance of the SDK](#create-your-own-instance-of-the-sdk)
 - [Add a signup handler](#add-a-signup-handler)
@@ -205,6 +206,48 @@ export default withPageAuthRequired(function Products() {
 
 See a running example in the kitchen-sink example app, the [protected API route](./examples/kitchen-sink-example/pages/api/shows.ts) and
 the [frontend code to access the protected API](./examples/kitchen-sink-example/pages/shows.tsx).
+
+## Protecting pages with Middleware
+
+Protect your pages with Next.js Middleware.
+
+To protect all your routes:
+
+```js
+// middleware.js
+import { withMiddlewareAuthRequired } from '@auth0/nextjs-auth0/middleware';
+
+export default withMiddlewareAuthRequired();
+```
+
+To protect specific routes:
+
+```js
+// middleware.js
+import { withMiddlewareAuthRequired } from '@auth0/nextjs-auth0/middleware';
+
+export default withMiddlewareAuthRequired();
+
+export const config = {
+  matcher: '/about/:path*'
+};
+```
+
+For more info see: https://nextjs.org/docs/advanced-features/middleware#matching-paths
+
+To run custom middleware for authenticated users:
+
+```js
+// middleware.js
+import { withMiddlewareAuthRequired, getSession } from '@auth0/nextjs-auth0/middleware';
+
+export default withMiddlewareAuthRequired(async function middleware(req) {
+  const res = NextResponse.next();
+  const user = await getSession(req, res);
+  res.cookies.set('hl', user.language);
+  return res;
+});
+```
 
 ## Access an External API from an API Route
 

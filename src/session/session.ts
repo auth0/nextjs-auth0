@@ -1,4 +1,4 @@
-import { TokenSet } from 'openid-client';
+import type { TokenSet } from 'openid-client';
 import { Config } from '../auth0-session';
 import { NextConfig } from '../config';
 

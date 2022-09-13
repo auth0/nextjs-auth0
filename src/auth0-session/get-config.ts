@@ -5,11 +5,7 @@ import { Config } from './config';
 const isHttps = /^https:/i;
 
 const paramsSchema = Joi.object({
-  secret: Joi.alternatives([
-    Joi.string().min(8),
-    Joi.binary().min(8),
-    Joi.array().items(Joi.string().min(8), Joi.binary().min(8))
-  ]).required(),
+  secret: Joi.alternatives([Joi.string().min(8), Joi.array().items(Joi.string().min(8))]).required(),
   session: Joi.object({
     rolling: Joi.boolean().optional().default(true),
     rollingDuration: Joi.when(Joi.ref('rolling'), {

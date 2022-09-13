@@ -69,8 +69,8 @@ export abstract class AuthError extends Error {
    */
   public readonly status?: number;
 
-  /* istanbul ignore next */
   constructor(options: AuthErrorOptions) {
+    /* c8 ignore next */
     super(appendCause(options.message, options.cause));
     this.code = options.code;
     this.name = options.name;
@@ -104,8 +104,8 @@ export enum AccessTokenErrorCode {
  * @category Server
  */
 export class AccessTokenError extends AuthError {
-  /* istanbul ignore next */
   constructor(code: AccessTokenErrorCode, message: string) {
+    /* c8 ignore next */
     super({ code: code, message: message, name: 'AccessTokenError' });
 
     // Capturing stack trace, excluding constructor call from it.
@@ -145,10 +145,10 @@ type HandlerErrorOptions = {
  * @category Server
  */
 export class HandlerError extends AuthError {
-  /* istanbul ignore next */
   constructor(options: HandlerErrorOptions) {
     let status: number | undefined;
     if ('status' in options.cause) status = options.cause.status;
+    /* c8 ignore next */
     super({ ...options, status });
   }
 }
@@ -174,14 +174,13 @@ export class HandlerError extends AuthError {
 export class CallbackHandlerError extends HandlerError {
   public static readonly code: string = 'ERR_CALLBACK_HANDLER_FAILURE';
 
-  /* istanbul ignore next */
   constructor(cause: HandlerErrorCause) {
     super({
       code: CallbackHandlerError.code,
       message: 'Callback handler failed.',
       name: 'CallbackHandlerError',
       cause
-    });
+    }); /* c8 ignore next */
     Object.setPrototypeOf(this, CallbackHandlerError.prototype);
   }
 }
@@ -195,14 +194,13 @@ export class CallbackHandlerError extends HandlerError {
 export class LoginHandlerError extends HandlerError {
   public static readonly code: string = 'ERR_LOGIN_HANDLER_FAILURE';
 
-  /* istanbul ignore next */
   constructor(cause: HandlerErrorCause) {
     super({
       code: LoginHandlerError.code,
       message: 'Login handler failed.',
       name: 'LoginHandlerError',
       cause
-    });
+    }); /* c8 ignore next */
     Object.setPrototypeOf(this, LoginHandlerError.prototype);
   }
 }
@@ -216,14 +214,13 @@ export class LoginHandlerError extends HandlerError {
 export class LogoutHandlerError extends HandlerError {
   public static readonly code: string = 'ERR_LOGOUT_HANDLER_FAILURE';
 
-  /* istanbul ignore next */
   constructor(cause: HandlerErrorCause) {
     super({
       code: LogoutHandlerError.code,
       message: 'Logout handler failed.',
       name: 'LogoutHandlerError',
       cause
-    });
+    }); /* c8 ignore next */
     Object.setPrototypeOf(this, LogoutHandlerError.prototype);
   }
 }
@@ -237,14 +234,13 @@ export class LogoutHandlerError extends HandlerError {
 export class ProfileHandlerError extends HandlerError {
   public static readonly code: string = 'ERR_PROFILE_HANDLER_FAILURE';
 
-  /* istanbul ignore next */
   constructor(cause: HandlerErrorCause) {
     super({
       code: ProfileHandlerError.code,
       message: 'Profile handler failed.',
       name: 'ProfileHandlerError',
       cause
-    });
+    }); /* c8 ignore next */
     Object.setPrototypeOf(this, ProfileHandlerError.prototype);
   }
 }

@@ -1,4 +1,5 @@
 import {
+  NodeCookies as Cookies,
   CookieStore,
   TransientStore,
   clientFactory,
@@ -68,7 +69,7 @@ export const _initAuth = (params?: ConfigParameters): SignInWithAuth0 & { sessio
   // Init base layer (with base config)
   const getClient = clientFactory(baseConfig, { name: 'nextjs-auth0', version });
   const transientStore = new TransientStore(baseConfig);
-  const cookieStore = new CookieStore(baseConfig);
+  const cookieStore = new CookieStore(baseConfig, Cookies);
   const sessionCache = new SessionCache(baseConfig, cookieStore);
   const baseHandleLogin = baseLoginHandler(baseConfig, getClient, transientStore);
   const baseHandleLogout = baseLogoutHandler(baseConfig, getClient, sessionCache);
@@ -102,7 +103,7 @@ export const _initAuth = (params?: ConfigParameters): SignInWithAuth0 & { sessio
 };
 
 export const initAuth0: InitAuth0 = (params) => {
-  const { sessionCache, ...publicApi } = _initAuth(params);
+  const { sessionCache, ...publicApi } = _initAuth(params); // eslint-disable-line @typescript-eslint/no-unused-vars
   return publicApi;
 };
 

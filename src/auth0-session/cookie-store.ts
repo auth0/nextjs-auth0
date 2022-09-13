@@ -1,10 +1,9 @@
 import { IncomingMessage, ServerResponse } from 'http';
-import { strict as assert, AssertionError } from 'assert';
 import * as jose from 'jose';
 import { CookieSerializeOptions, serialize } from 'cookie';
 import { encryption as deriveKey } from './utils/hkdf';
 import createDebug from './utils/debug';
-import Cookies from './utils/cookies';
+import { Cookies } from './utils/cookies';
 import { Config } from './config';
 
 const debug = createDebug('cookie-store');
@@ -15,13 +14,18 @@ const enc = 'A256GCM';
 
 type Header = { iat: number; uat: number; exp: number };
 const notNull = <T>(value: T | null): value is T => value !== null;
+const assert = (bool: boolean, msg: string) => {
+  if (!bool) {
+    throw new Error(msg);
+  }
+};
 
-export default class CookieStore {
+export default class CookieStore<Req = IncomingMessage, Res = ServerResponse> {
   private keys?: Uint8Array[];
 
   private chunkSize: number;
 
-  constructor(public config: Config) {
+  constructor(private config: Config, private Cookies: new () => Cookies) {
     const {
       cookie: { transient, ...cookieConfig },
       name: sessionName
@@ -54,7 +58,7 @@ export default class CookieStore {
   private async decrypt(jwe: string): Promise<jose.JWTDecryptResult> {
     const keys = await this.getKeys();
     let err;
-    for (let key of keys) {
+    for (const key of keys) {
       try {
         return await jose.jwtDecrypt(jwe, key);
       } catch (e) {
@@ -77,8 +81,8 @@ export default class CookieStore {
     return Math.min(uat + (rollingDuration as number), iat + absoluteDuration);
   }
 
-  public async read(req: any): Promise<[{ [key: string]: any }?, number?]> {
-    const cookies = Cookies.getAll(req);
+  public async read(req: Req): Promise<[{ [key: string]: any }?, number?]> {
+    const cookies = new this.Cookies().getAll(req);
     const { name: sessionName, rollingDuration, absoluteDuration } = this.config.session;
 
     let iat: number;
@@ -136,22 +140,15 @@ export default class CookieStore {
         return [payload, iat];
       }
     } catch (err) {
-      /* istanbul ignore else */
-      if (err instanceof AssertionError) {
-        debug('existing session was rejected because', err.message);
-      } else if (err instanceof jose.errors.JOSEError) {
-        debug('existing session was rejected because it could not be decrypted', err);
-      } else {
-        debug('unexpected error handling session', err);
-      }
+      debug('error handling session %O', err);
     }
 
     return [];
   }
 
   public async save(
-    req: IncomingMessage,
-    res: ServerResponse,
+    req: Req,
+    res: Res,
     session: { [key: string]: any } | undefined | null,
     createdAt?: number
   ): Promise<void> {
@@ -159,8 +156,8 @@ export default class CookieStore {
       cookie: { transient, ...cookieConfig },
       name: sessionName
     } = this.config.session;
-    const cookies = Cookies.getAll(req);
-    const cookieSetter = new Cookies();
+    const cookieSetter = new this.Cookies();
+    const cookies = cookieSetter.getAll(req);
 
     if (!session) {
       debug('clearing all matching session cookies');
