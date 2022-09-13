@@ -130,12 +130,14 @@ describe('with-middleware-auth-required', () => {
     const res = await setup({ user: { name: 'dave' } });
     expect(res.status).toEqual(200);
     expect(res.headers.get('set-cookie')).toMatch(/^appSession=/);
+    expect(res.headers.get('cache-control')).toEqual('no-cache no-store');
   });
 
   test('should not set a session cookie if session is not rolling', async () => {
     const res = await setup({ user: { name: 'dave' }, config: { ...withoutApi, session: { rolling: false } } });
     expect(res.status).toEqual(200);
     expect(res.headers.get('set-cookie')).toBeNull();
+    expect(res.headers.get('cache-control')).toBeNull();
   });
 
   test('should set a session cookie and a custom cookie', async () => {

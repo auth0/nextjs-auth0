@@ -39,7 +39,17 @@ describe('profile handler', () => {
     const cookieJar = await login(baseUrl);
 
     const { res } = await get(baseUrl, '/api/auth/me', { cookieJar, fullResponse: true });
-    expect(res.headers['cache-control']).toEqual('no-store');
+    expect(res.headers['cache-control']).toEqual('no-cache no-store');
+    expect(res.headers['set-cookie']).toHaveLength(1);
+  });
+
+  test('should not allow caching the profile response even when no cookie is set', async () => {
+    const baseUrl = await setup({ ...withoutApi, session: { rolling: false } });
+    const cookieJar = await login(baseUrl);
+
+    const { res } = await get(baseUrl, '/api/auth/me', { cookieJar, fullResponse: true });
+    expect(res.headers['cache-control']).toEqual('no-cache no-store');
+    expect(res.headers['set-cookie']).toBeUndefined();
   });
 
   test('should not allow caching the profile response when refetch is true', async () => {
@@ -47,7 +57,7 @@ describe('profile handler', () => {
     const cookieJar = await login(baseUrl);
 
     const { res } = await get(baseUrl, '/api/auth/me', { cookieJar, fullResponse: true });
-    expect(res.headers['cache-control']).toEqual('no-store');
+    expect(res.headers['cache-control']).toEqual('no-cache no-store');
   });
 
   test('should throw if re-fetching with no access token', async () => {

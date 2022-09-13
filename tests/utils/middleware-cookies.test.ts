@@ -27,6 +27,15 @@ describe('cookie', () => {
     expect(res.headers.get('set-cookie')).toEqual('foo=bar');
   });
 
+  it('should set caching headers when setting a cookie', async () => {
+    const [, res] = setup();
+    const setter = new MiddlewareCookies();
+    setter.set('foo', 'bar');
+    setter.commit(res);
+    expect(res.headers.get('set-cookie')).toEqual('foo=bar');
+    expect(res.headers.get('cache-control')).toEqual('no-cache no-store');
+  });
+
   it('should set a cookie with opts', async () => {
     const [, res] = setup();
     const setter = new MiddlewareCookies();

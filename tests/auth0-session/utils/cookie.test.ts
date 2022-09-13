@@ -45,6 +45,16 @@ describe('cookie', () => {
     await teardown();
   });
 
+  it('should set caching headers when setting a cookie', async () => {
+    const [, res, teardown] = await setup();
+    const setter = new NodeCookies();
+    setter.set('foo', 'bar');
+    setter.commit(res);
+    expect(res.getHeader('Set-Cookie')).toEqual(['foo=bar']);
+    expect(res.getHeader('Cache-Control')).toEqual('no-cache no-store');
+    await teardown();
+  });
+
   it('should set a cookie with opts', async () => {
     const [, res, teardown] = await setup();
     const setter = new NodeCookies();

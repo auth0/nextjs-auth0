@@ -9,6 +9,7 @@ export default class MiddlewareCookies extends Cookies {
 
   protected setSetCookieHeader(res: NextResponse, cookies: string[]): void {
     res.headers.set('set-cookie', cookies.join(', '));
+    res.headers.set('cache-control', 'no-cache no-store');
   }
 
   getAll(req: NextRequest): Record<string, string> {

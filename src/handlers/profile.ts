@@ -55,7 +55,7 @@ export default function profileHandler(
       }
 
       const session = (await sessionCache.get(req, res)) as Session;
-      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader('Cache-Control', 'no-cache no-store');
 
       if (options?.refetch) {
         const { accessToken } = await getAccessToken(req, res);

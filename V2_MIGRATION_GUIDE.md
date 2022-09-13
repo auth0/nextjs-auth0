@@ -7,6 +7,7 @@ Guide to migrating from `1.x` to `2.x`
 - [`getServerSidePropsWrapper` has been removed](#getserversidepropswrapper-has-been-removed)
 - [Profile API route no longer returns a 401](#profile-api-route-no-longer-returns-a-401)
 - [The ID token is no longer stored by default](#the-id-token-is-no-longer-stored-by-default)
+- [All responses that set the session cookie have no-cache cacheing headers](#all-responses-that-set-the-session-cookie-have-no-cache-cacheing-headers)
 
 ## `getSession` now returns a `Promise`
 
@@ -113,3 +114,7 @@ Previously the ID token would be stored in the session cookie, making the cookie
 Now the SDK will not store it by default. If you had been using hooks to strip it away, you can safely remove those.
 
 You can choose to store it by setting either the `session.storeIDToken` config property or the `AUTH0_SESSION_STORE_ID_TOKEN` environment variable to `true`.
+
+## All responses that set the session cookie have no-cache cacheing headers
+
+To reduce the chance of accidental caching of the `Set-Cookie` header when it includes the session cookie, any request that sets the session cookie will now have `no-cache no-store` headers. See https://vercel.com/docs/concepts/edge-network/caching#cacheable-responses for more info.

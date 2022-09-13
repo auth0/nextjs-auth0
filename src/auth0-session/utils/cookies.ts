@@ -53,6 +53,7 @@ export default class NodeCookies extends Cookies {
 
   protected setSetCookieHeader(res: ServerResponse, cookies: string[]): void {
     res.setHeader('Set-Cookie', cookies);
+    res.setHeader('Cache-Control', 'no-cache no-store');
   }
 
   getAll(req: IncomingMessage): Record<string, string> {
