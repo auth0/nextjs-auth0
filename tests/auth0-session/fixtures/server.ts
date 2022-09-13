@@ -6,6 +6,7 @@ import nock from 'nock';
 import { TokenSet, TokenSetParameters } from 'openid-client';
 import bodyParser from 'body-parser';
 import {
+  NodeCookies as Cookies,
   loginHandler,
   getConfig,
   ConfigParameters,
@@ -59,7 +60,7 @@ const createHandlers = (params: ConfigParameters): Handlers => {
   const config = getConfig(params);
   const getClient = clientFactory(config, { name: 'nextjs-auth0', version });
   const transientStore = new TransientStore(config);
-  const cookieStore = new CookieStore(config);
+  const cookieStore = new CookieStore(config, Cookies);
   const sessionCache = new TestSessionCache(cookieStore);
 
   return {

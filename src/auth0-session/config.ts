@@ -1,5 +1,5 @@
-import { IncomingMessage } from 'http';
-import { AuthorizationParameters as OidcAuthorizationParameters } from 'openid-client';
+import type { IncomingMessage } from 'http';
+import type { AuthorizationParameters as OidcAuthorizationParameters } from 'openid-client';
 
 /**
  * Configuration properties.

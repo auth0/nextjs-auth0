@@ -267,7 +267,7 @@ describe('Config', () => {
         ...defaultConfig,
         secret: { key: '__test_session_secret__' } as unknown as string // testing invalid configuration
       })
-    ).toThrow('"secret" must be one of [string, binary, array]');
+    ).toThrow('"secret" must be one of [string, array]');
   });
 
   it('should fail when app session cookie httpOnly is not a boolean', function () {
@@ -327,13 +327,13 @@ describe('Config', () => {
 
   it("shouldn't allow a secret of less than 8 chars", () => {
     expect(() => getConfig({ ...defaultConfig, secret: 'short' })).toThrowError(
-      new TypeError('"secret" does not match any of the allowed types')
+      new TypeError('"secret" length must be at least 8 characters long')
     );
     expect(() => getConfig({ ...defaultConfig, secret: ['short', 'too'] })).toThrowError(
-      new TypeError('"secret[0]" does not match any of the allowed types')
+      new TypeError('"secret[0]" length must be at least 8 characters long')
     );
     expect(() => getConfig({ ...defaultConfig, secret: Buffer.from('short').toString() })).toThrowError(
-      new TypeError('"secret" does not match any of the allowed types')
+      new TypeError('"secret" length must be at least 8 characters long')
     );
   });
 

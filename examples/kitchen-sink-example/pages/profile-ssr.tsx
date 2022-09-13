@@ -9,11 +9,8 @@ export default function Profile({ user }: ProfileProps): React.ReactElement {
   return (
     <Layout>
       <h1>Profile</h1>
-
-      <div>
-        <h4>Profile (server rendered)</h4>
-        <pre data-testid="profile">{JSON.stringify(user, null, 2)}</pre>
-      </div>
+      <h4>Profile (server rendered)</h4>
+      <pre data-testid="profile">{JSON.stringify(user, null, 2)}</pre>
     </Layout>
   );
 }

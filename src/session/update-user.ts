@@ -1,6 +1,7 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { NextApiRequest, NextApiResponse } from 'next';
 import { Claims, SessionCache } from '../session';
+import { assertReqRes } from '../utils/assert';
 
 /**
  * Update the session's user object. The provided user object will replace `session.user`.
@@ -33,7 +34,7 @@ export type UpdateUser = (
  */
 export default function updateUserFactory(sessionCache: SessionCache): UpdateUser {
   return async (req, res, user) => {
-    await sessionCache.init(req, res, false);
+    assertReqRes(req, res);
     const session = await sessionCache.get(req, res);
     if (!session || !user) {
       return;
