@@ -12,6 +12,7 @@
     "dist",
     "src",
     "middleware.js",
+    "middleware.d.ts",
     "testing.js",
     "testing.d.ts"
   ],
