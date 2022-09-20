@@ -5,4 +5,4 @@ export default function protectedPage({ user }: { user?: { sub: string } }): Rea
   return <div>Protected Page {user ? user.sub : ''}</div>;
 }
 
-export const getServerSideProps = (ctx: NextPageContext): any => global.withPageAuthRequired()(ctx);
+export const getServerSideProps = (ctx: NextPageContext): any => global.withPageAuthRequired?.()(ctx);
