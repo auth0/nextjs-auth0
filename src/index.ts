@@ -25,7 +25,8 @@ import {
   ProfileOptions,
   CallbackOptions,
   AfterCallback,
-  AfterRefetch
+  AfterRefetch,
+  OnError
 } from './handlers';
 import {
   sessionFactory,
@@ -174,6 +175,7 @@ export {
   LoginOptions,
   LogoutOptions,
   GetLoginState,
-  InitAuth0
+  InitAuth0,
+  OnError
 };
 /* c8 ignore stop */

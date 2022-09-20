@@ -3,6 +3,7 @@ import { HandleLogout } from './logout';
 import { HandleCallback } from './callback';
 import { HandleProfile } from './profile';
 import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next';
+import { HandlerError } from '../utils/errors';
 
 /**
  * If you want to add some custom behavior to the default auth handlers, you can pass in custom handlers for
@@ -36,6 +37,7 @@ export interface Handlers {
   logout: HandleLogout;
   callback: HandleCallback;
   profile: HandleProfile;
+  onError: OnError;
 }
 
 /**
@@ -63,19 +65,15 @@ export interface Handlers {
  */
 export type HandleAuth = (userHandlers?: Partial<Handlers>) => NextApiHandler;
 
+export type OnError = (req: NextApiRequest, res: NextApiResponse, error: HandlerError) => Promise<void> | void;
+
 /**
  * @ignore
  */
-const wrapErrorHandling =
-  (fn: NextApiHandler): NextApiHandler =>
-  async (req: NextApiRequest, res: NextApiResponse): Promise<void> => {
-    try {
-      await fn(req, res);
-    } catch (error) {
-      console.error(error);
-      res.status(error.status || 500).end(error.message);
-    }
-  };
+const defaultOnError: OnError = (_req, res, error) => {
+  console.error(error);
+  res.status(error.status || 500).end();
+};
 
 /**
  * @ignore
@@ -91,32 +89,40 @@ export default function handlerFactory({
   handleCallback: HandleCallback;
   handleProfile: HandleProfile;
 }): HandleAuth {
-  return (userHandlers: Partial<Handlers> = {}): NextApiHandler => {
+  return ({ onError, ...handlers }: Partial<Handlers> = {}): NextApiHandler<void> => {
     const { login, logout, callback, profile } = {
-      login: wrapErrorHandling(handleLogin),
-      logout: wrapErrorHandling(handleLogout),
-      callback: wrapErrorHandling(handleCallback),
-      profile: wrapErrorHandling(handleProfile),
-      ...userHandlers
+      login: handleLogin,
+      logout: handleLogout,
+      callback: handleCallback,
+      profile: handleProfile,
+      ...handlers
     };
     return async (req, res): Promise<void> => {
       let {
         query: { auth0: route }
       } = req;
 
-      route = Array.isArray(route) ? route[0] : route;
+      route = Array.isArray(route) ? route[0] : /* c8 ignore next */ route;
 
-      switch (route) {
-        case 'login':
-          return login(req, res) as void;
-        case 'logout':
-          return logout(req, res) as void;
-        case 'callback':
-          return callback(req, res) as void;
-        case 'me':
-          return profile(req, res) as void;
-        default:
-          res.status(404).end();
+      try {
+        switch (route) {
+          case 'login':
+            return await login(req, res);
+          case 'logout':
+            return await logout(req, res);
+          case 'callback':
+            return await callback(req, res);
+          case 'me':
+            return await profile(req, res);
+          default:
+            res.status(404).end();
+        }
+      } catch (error) {
+        await (onError || defaultOnError)(req, res, error);
+        if (!res.finished) {
+          // 200 is the default, so we assume it has not been set in the custom error handler if it equals 200
+          res.status(res.statusCode === 200 ? 500 : res.statusCode).end();
+        }
       }
     };
   };
