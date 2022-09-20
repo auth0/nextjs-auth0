@@ -7,6 +7,7 @@ import {
   default as withMiddlewareAuthRequiredFactory
 } from './helpers/with-middleware-auth-required';
 import { getConfig, ConfigParameters } from './config';
+import { setIsUsingNamedExports, setIsUsingOwnInstance } from './utils/instance-check';
 
 export type Instance = { withMiddlewareAuthRequired: WithMiddlewareAuthRequired; getSession: GetSession };
 
@@ -19,14 +20,20 @@ export { WithMiddlewareAuthRequired };
 let instance: Instance;
 
 function getInstance(params?: ConfigParameters): Instance {
+  setIsUsingNamedExports();
   if (instance) {
     return instance;
   }
-  instance = initAuth(params);
+  instance = _initAuth0(params);
   return instance;
 }
 
-export const initAuth: InitAuth0 = (params?) => {
+export const initAuth0: InitAuth0 = (params?) => {
+  setIsUsingOwnInstance();
+  return _initAuth0(params);
+};
+
+const _initAuth0: InitAuth0 = (params?) => {
   const { baseConfig, nextConfig } = getConfig(params);
 
   // Init base layer (with base config)
