@@ -136,7 +136,6 @@
     "collectCoverageFrom": [
       "<rootDir>/src/**/*.*",
       "!<rootDir>/src/index.browser.ts",
-      "!<rootDir>/src/index.ts",
       "!<rootDir>/src/middleware.ts",
       "!<rootDir>/src/instance.ts",
       "!<rootDir>/src/auth0-session/config.ts",
