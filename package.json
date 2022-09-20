@@ -138,7 +138,6 @@
       "!<rootDir>/src/index.browser.ts",
       "!<rootDir>/src/middleware.ts",
       "!<rootDir>/src/instance.ts",
-      "!<rootDir>/src/handlers/auth.ts",
       "!<rootDir>/src/auth0-session/config.ts",
       "!<rootDir>/src/auth0-session/index.ts",
       "!<rootDir>/src/auth0-session/session-cache.ts"

@@ -1,1 +1,1 @@
-export default (global as any).handleAuth();
+export default (...args: any) => global.handleAuth?.()(...args);
