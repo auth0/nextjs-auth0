@@ -7,6 +7,7 @@ Guide to migrating from `1.x` to `2.x`
 - [`getServerSidePropsWrapper` has been removed](#getserversidepropswrapper-has-been-removed)
 - [Profile API route no longer returns a 401](#profile-api-route-no-longer-returns-a-401)
 - [The ID token is no longer stored by default](#the-id-token-is-no-longer-stored-by-default)
+- [Override default error handler](#override-default-error-handler)
 
 ## `getSession` now returns a `Promise`
 
@@ -113,3 +114,45 @@ Previously the ID token would be stored in the session cookie, making the cookie
 Now the SDK will not store it by default. If you had been using hooks to strip it away, you can safely remove those.
 
 You can choose to store it by setting either the `session.storeIDToken` config property or the `AUTH0_SESSION_STORE_ID_TOKEN` environment variable to `true`.
+
+## Override default error handler
+
+You can now set the default error handler for the auth routes in a single place.
+
+```js
+export default handleAuth({
+  async login(req, res) {
+    try {
+      await handleLogin(req, res);
+    } catch (error) {
+      errorLogger(error);
+      res.status(error.status || 500).end();
+    }
+  },
+  async callback(req, res) {
+    try {
+      await handleLogin(req, res);
+    } catch (error) {
+      errorLogger(error);
+      res.status(error.status || 500).end();
+    }
+  }
+  // ...
+});
+```
+
+### After
+
+```js
+export default handleAuth({
+  onError(req, res, error) {
+    errorLogger(error);
+    // You can finish the response yourself if you want to customise
+    // the status code or redirect the user
+    // res.writeHead(302, {
+    //     Location: '/cusotm-error-page'
+    // });
+    // res.end();
+  }
+});
+```

@@ -5,17 +5,6 @@ import { get } from '../auth0-session/fixtures/helpers';
 import { setup, teardown, login } from '../fixtures/setup';
 import { Session, AfterCallback } from '../../src';
 import { makeIdToken } from '../auth0-session/fixtures/cert';
-import { IncomingMessage } from 'http';
-import { URL } from 'url';
-
-jest.mock('../../src/utils/assert', () => ({
-  assertReqRes(req: IncomingMessage) {
-    if (req.url?.includes('error=')) {
-      const url = new URL(req.url, 'http://example.com');
-      throw new Error(url.searchParams.get('error') as string);
-    }
-  }
-}));
 
 describe('profile handler', () => {
   afterEach(teardown);
@@ -152,14 +141,5 @@ describe('profile handler', () => {
     const cookieJar = await login(baseUrl);
 
     await expect(get(baseUrl, '/api/auth/me', { cookieJar })).rejects.toThrowError('some validation error');
-  });
-
-  test('should escape html in error message', async () => {
-    const baseUrl = await setup(withoutApi);
-    const res = await fetch(`${baseUrl}/api/auth/me?error=%3Cscript%3Ealert(%27xss%27)%3C%2Fscript%3E`);
-
-    expect(await res.text()).toEqual(
-      'Profile handler failed. CAUSE: &lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;'
-    );
   });
 });

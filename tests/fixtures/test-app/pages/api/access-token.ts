@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 
 export default async function accessTokenHandler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
   try {
-    const json = await (global as any).getAccessToken(req, res);
+    const json = await global.getAccessToken(req, res);
     res.status(200).json(json);
   } catch (error) {
     res.statusMessage = error.message;
