@@ -3,7 +3,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { NextFetchEvent } from 'next/dist/server/web/spec-extension/fetch-event';
-import { initAuth } from '../../src/middleware';
+import { initAuth0 } from '../../src/middleware';
 import { withoutApi } from '../fixtures/default-settings';
 import { IdTokenClaims } from 'openid-client';
 import { encryption as deriveKey } from '../../src/auth0-session/utils/hkdf';
@@ -35,7 +35,7 @@ const encrypted = async (claims: Partial<IdTokenClaims> = { sub: '__test_sub__' 
 };
 
 const setup = async ({ url = 'http://example.com', config = withoutApi, user, middleware }: any = {}) => {
-  const mw = initAuth(config).withMiddlewareAuthRequired(middleware);
+  const mw = initAuth0(config).withMiddlewareAuthRequired(middleware);
   const request = new NextRequest(new URL(url));
   if (user) {
     request.cookies.set('appSession', await encrypted({ sub: 'foo' }));
