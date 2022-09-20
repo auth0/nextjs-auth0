@@ -52,16 +52,26 @@ import {
 import { InitAuth0, SignInWithAuth0 } from './instance';
 import version from './version';
 import { getConfig, getLoginUrl, ConfigParameters } from './config';
+import { setIsUsingNamedExports, setIsUsingOwnInstance } from './utils/instance-check';
 
 let instance: SignInWithAuth0 & { sessionCache: SessionCache };
 
+// For using managed instance with named exports.
 function getInstance(): SignInWithAuth0 & { sessionCache: SessionCache } {
+  setIsUsingNamedExports();
   if (instance) {
     return instance;
   }
   instance = _initAuth();
   return instance;
 }
+
+// For creating own instance.
+export const initAuth0: InitAuth0 = (params) => {
+  setIsUsingOwnInstance();
+  const { sessionCache, ...publicApi } = _initAuth(params); // eslint-disable-line @typescript-eslint/no-unused-vars
+  return publicApi;
+};
 
 export const _initAuth = (params?: ConfigParameters): SignInWithAuth0 & { sessionCache: SessionCache } => {
   const { baseConfig, nextConfig } = getConfig(params);
@@ -102,11 +112,7 @@ export const _initAuth = (params?: ConfigParameters): SignInWithAuth0 & { sessio
   };
 };
 
-export const initAuth0: InitAuth0 = (params) => {
-  const { sessionCache, ...publicApi } = _initAuth(params); // eslint-disable-line @typescript-eslint/no-unused-vars
-  return publicApi;
-};
-
+/* c8 ignore start */
 const getSessionCache = () => getInstance().sessionCache;
 export const getSession: GetSession = (...args) => getInstance().getSession(...args);
 export const updateUser: UpdateUser = (...args) => getInstance().updateUser(...args);
@@ -156,6 +162,7 @@ export {
   WithPageAuthRequired,
   SessionCache,
   GetSession,
+  UpdateUser,
   GetAccessToken,
   Session,
   Claims,
@@ -166,5 +173,7 @@ export {
   AfterRefetch,
   LoginOptions,
   LogoutOptions,
-  GetLoginState
+  GetLoginState,
+  InitAuth0
 };
+/* c8 ignore stop */
