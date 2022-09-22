@@ -3,7 +3,18 @@ import { ArgumentsOf } from 'ts-jest';
 import { withoutApi } from '../fixtures/default-settings';
 import { setup, teardown } from '../fixtures/setup';
 import { get, post } from '../auth0-session/fixtures/helpers';
-import { CallbackOptions, initAuth0, LoginOptions, LogoutOptions, OnError, ProfileOptions } from '../../src';
+import {
+  CallbackOptions,
+  HandleCallback,
+  HandleLogin,
+  HandleLogout,
+  HandleProfile,
+  initAuth0,
+  LoginOptions,
+  LogoutOptions,
+  OnError,
+  ProfileOptions
+} from '../../src';
 import * as loginHandler from '../../src/handlers/login';
 import * as logoutHandler from '../../src/handlers/logout';
 import * as callbackHandler from '../../src/handlers/callback';
@@ -75,6 +86,46 @@ describe('custom error handler', () => {
       get(baseUrl, '/api/auth/callback?error=foo&error_description=bar', { fullResponse: true })
     ).rejects.toThrow("I'm a Teapot");
     expect(onError).toHaveBeenCalledWith(expect.any(IncomingMessage), expect.any(ServerResponse), handlerError());
+  });
+});
+
+describe('custom handlers', () => {
+  afterEach(teardown);
+
+  test('accept custom login handler', async () => {
+    const spyHandler: HandleLogin = jest.fn(async (_req, res) => {
+      res.end();
+    });
+    const baseUrl = await setup(withoutApi, { loginHandler: spyHandler });
+    await get(baseUrl, '/api/auth/login');
+    expect(spyHandler).toHaveBeenCalledWith(expect.any(IncomingMessage), expect.any(ServerResponse));
+  });
+
+  test('accept custom logout handler', async () => {
+    const spyHandler: HandleLogout = jest.fn(async (_req, res) => {
+      res.end();
+    });
+    const baseUrl = await setup(withoutApi, { logoutHandler: spyHandler });
+    await get(baseUrl, '/api/auth/logout');
+    expect(spyHandler).toHaveBeenCalledWith(expect.any(IncomingMessage), expect.any(ServerResponse));
+  });
+
+  test('accept custom callback handler', async () => {
+    const spyHandler: HandleCallback = jest.fn(async (_req, res) => {
+      res.end();
+    });
+    const baseUrl = await setup(withoutApi, { callbackHandler: spyHandler });
+    await post(baseUrl, '/api/auth/callback', { body: {} });
+    expect(spyHandler).toHaveBeenCalledWith(expect.any(IncomingMessage), expect.any(ServerResponse));
+  });
+
+  test('accept custom profile handler', async () => {
+    const spyHandler: HandleProfile = jest.fn(async (_req, res) => {
+      res.end();
+    });
+    const baseUrl = await setup(withoutApi, { profileHandler: spyHandler });
+    await post(baseUrl, '/api/auth/me', { body: {} });
+    expect(spyHandler).toHaveBeenCalledWith(expect.any(IncomingMessage), expect.any(ServerResponse));
   });
 });
 
