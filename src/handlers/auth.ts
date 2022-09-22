@@ -1,6 +1,6 @@
 import { HandleLogin, LoginOptions } from './login';
 import { HandleLogout, LogoutOptions } from './logout';
-import { CallbackOptions, HandleCallback } from './callback';
+import { HandleCallback, CallbackOptions } from './callback';
 import { HandleProfile, ProfileOptions } from './profile';
 import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next';
 import { HandlerError } from '../utils/errors';
