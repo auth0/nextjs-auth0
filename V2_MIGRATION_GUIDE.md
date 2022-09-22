@@ -196,4 +196,4 @@ export default handleAuth({
 });
 ```
 
- You can still override any built-in handler if needed. Pass either a custom handler function to override it, or just an options object to configure it.
+You can still override any built-in handler if needed. Pass either a custom handler function to override it, or just an options object to configure it.
