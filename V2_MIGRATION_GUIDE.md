@@ -8,6 +8,7 @@ Guide to migrating from `1.x` to `2.x`
 - [Profile API route no longer returns a 401](#profile-api-route-no-longer-returns-a-401)
 - [The ID token is no longer stored by default](#the-id-token-is-no-longer-stored-by-default)
 - [Override default error handler](#override-default-error-handler)
+- [Configure built-in handlers without overriding them](#configure-built-in-handlers-without-overriding-them)
 
 ## `getSession` now returns a `Promise`
 
@@ -119,6 +120,8 @@ You can choose to store it by setting either the `session.storeIDToken` config p
 
 You can now set the default error handler for the auth routes in a single place.
 
+### Before
+
 ```js
 export default handleAuth({
   async login(req, res) {
@@ -156,3 +159,41 @@ export default handleAuth({
   }
 });
 ```
+
+## Configure built-in handlers without overriding them
+
+Previously it was not possible to dynamically configure the built-in handlers. For example, to pass a `connection` parameter to the login handler, you had to override it.
+
+### Before
+
+```js
+export default handleAuth({
+  async login(req, res) {
+    try {
+      await handleLogin(req, res, {
+        authorizationParams: {
+          connection: 'github'
+        },
+      });
+    } catch (error) {
+      // ...
+    }
+  }
+});
+```
+
+### After
+
+Now you can simply pass an options object to configure the built-in handler instead.
+
+```js
+export default handleAuth({
+  login: {
+    authorizationParams: {
+      connection: 'github'
+    }
+  }
+});
+```
+
+ You can still override any built-in handler if needed. Pass either a custom handler function to override it, or just an options object to configure it.
