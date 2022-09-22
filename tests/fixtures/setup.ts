@@ -62,30 +62,20 @@ export const setup = async (
   jwksEndpoint(config, jwks);
   codeExchange(config, await makeIdToken({ iss: 'https://acme.auth0.local/', ...idTokenClaims }));
   userInfo(config, userInfoToken, userInfoPayload);
-  const {
-    handleAuth,
-    handleCallback,
-    handleLogin,
-    handleLogout,
-    handleProfile,
-    getSession,
-    updateUser,
-    getAccessToken,
-    withApiAuthRequired,
-    withPageAuthRequired
-  } = await initAuth0(config);
+  const { handleAuth, getSession, updateUser, getAccessToken, withApiAuthRequired, withPageAuthRequired } =
+    await initAuth0(config);
   const handlers: Partial<Handlers> = { onError };
   if (callbackOptions) {
-    handlers.callback = (req, res) => handleCallback(req, res, callbackOptions);
+    handlers.callback = callbackOptions;
   }
   if (loginOptions) {
-    handlers.login = (req, res) => handleLogin(req, res, loginOptions);
+    handlers.login = loginOptions;
   }
   if (logoutOptions) {
-    handlers.logout = (req, res) => handleLogout(req, res, logoutOptions);
+    handlers.logout = logoutOptions;
   }
   if (profileOptions) {
-    handlers.profile = (req, res) => handleProfile(req, res, profileOptions);
+    handlers.profile = profileOptions;
   }
   global.handleAuth = handleAuth.bind(null, handlers);
   global.getSession = getSession;

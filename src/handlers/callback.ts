@@ -28,7 +28,7 @@ import { CallbackHandlerError, HandlerErrorCause } from '../utils/errors';
  *     try {
  *       await handleCallback(req, res, { afterCallback });
  *     } catch (error) {
- *       res.status(error.status || 500).end(error.message);
+ *       res.status(error.status || 500).end();
  *     }
  *   }
  * });
@@ -51,7 +51,7 @@ import { CallbackHandlerError, HandlerErrorCause } from '../utils/errors';
  *     try {
  *       await handleCallback(req, res, { afterCallback });
  *     } catch (error) {
- *       res.status(error.status || 500).end(error.message);
+ *       res.status(error.status || 500).end();
  *     }
  *   }
  * });
@@ -91,7 +91,8 @@ export interface CallbackOptions {
   organization?: string;
 
   /**
-   * This is useful for sending custom query parameters in the body of the code exchange request for use in rules.
+   * This is useful for sending custom query parameters in the body of the code exchange request
+   * for use in Actions/Rules.
    */
   authorizationParams?: Partial<AuthorizationParameters>;
 }

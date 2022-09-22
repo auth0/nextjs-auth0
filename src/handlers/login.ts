@@ -21,7 +21,7 @@ import { HandlerErrorCause, LoginHandlerError } from '../utils/errors';
  *     try {
  *       await handleLogin(req, res, { getLoginState });
  *     } catch (error) {
- *       res.status(error.status || 500).end(error.message);
+ *       res.status(error.status || 500).end();
  *     }
  *   }
  * });
@@ -57,6 +57,7 @@ export interface AuthorizationParams extends Partial<AuthorizationParameters> {
    *     }
    *   }
    * });
+   * ```
    */
   connection?: string;
 
@@ -80,6 +81,7 @@ export interface AuthorizationParams extends Partial<AuthorizationParameters> {
    *     }
    *   }
    * });
+   * ```
    */
   connection_scope?: string;
 
@@ -106,13 +108,13 @@ export interface AuthorizationParams extends Partial<AuthorizationParameters> {
    *       }
    *     });
    *   } catch (error) {
-   *     res.status(error.status || 500).end(error.message);
+   *     res.status(error.status || 500).end();
    *   }
    * } ;
    * ```
    *
    * Your invite url can then take the format:
-   * `https://example.com/api/invite?invitation=invitation_id&organization=org_id`
+   * `https://example.com/api/invite?invitation=invitation_id&organization=org_id`.
    */
   invitation?: string;
 

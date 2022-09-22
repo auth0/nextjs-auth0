@@ -1,7 +1,7 @@
-import { HandleLogin } from './login';
-import { HandleLogout } from './logout';
-import { HandleCallback } from './callback';
-import { HandleProfile } from './profile';
+import { HandleLogin, LoginOptions } from './login';
+import { HandleLogout, LogoutOptions } from './logout';
+import { CallbackOptions, HandleCallback } from './callback';
+import { HandleProfile, ProfileOptions } from './profile';
 import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next';
 import { HandlerError } from '../utils/errors';
 
@@ -24,7 +24,7 @@ import { HandlerError } from '../utils/errors';
  *     } catch (error) {
  *       // Add you own custom error logging.
  *       errorReporter(error);
- *       res.status(error.status || 500).end(error.message);
+ *       res.status(error.status || 500).end();
  *     }
  *   }
  * });
@@ -33,10 +33,10 @@ import { HandlerError } from '../utils/errors';
  * @category Server
  */
 export interface Handlers {
-  login: HandleLogin;
-  logout: HandleLogout;
-  callback: HandleCallback;
-  profile: HandleProfile;
+  login: HandleLogin | LoginOptions;
+  logout: HandleLogout | LogoutOptions;
+  callback: HandleCallback | CallbackOptions;
+  profile: HandleProfile | ProfileOptions;
   onError: OnError;
 }
 
@@ -107,18 +107,22 @@ export default function handlerFactory({
       try {
         switch (route) {
           case 'login':
-            return await login(req, res);
+            if (typeof login === 'function') return await login(req, res);
+            return await handleLogin(req, res, login);
           case 'logout':
-            return await logout(req, res);
+            if (typeof logout === 'function') return await logout(req, res);
+            return await handleLogout(req, res, logout);
           case 'callback':
-            return await callback(req, res);
+            if (typeof callback === 'function') return await callback(req, res);
+            return await handleCallback(req, res, callback);
           case 'me':
-            return await profile(req, res);
+            if (typeof profile === 'function') return await profile(req, res);
+            return await handleProfile(req, res, profile);
           default:
             res.status(404).end();
         }
       } catch (error) {
-        await (onError || defaultOnError)(req, res, error);
+        await (onError || defaultOnError)(req, res, error as HandlerError);
         if (!res.finished) {
           // 200 is the default, so we assume it has not been set in the custom error handler if it equals 200
           res.status(res.statusCode === 200 ? 500 : res.statusCode).end();
