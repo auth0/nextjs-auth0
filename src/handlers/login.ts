@@ -4,6 +4,7 @@ import toSafeRedirect from '../utils/url-helpers';
 import { assertReqRes } from '../utils/assert';
 import { BaseConfig, NextConfig } from '../config';
 import { HandlerErrorCause, LoginHandlerError } from '../utils/errors';
+import { IncomingMessage } from 'http';
 
 /**
  * Use this to store additional state for the user before they visit the identity provider to log in.
@@ -157,6 +158,8 @@ export interface LoginOptions {
   getLoginState?: GetLoginState;
 }
 
+type _HandleLogin = (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions) => Promise<void>;
+
 /**
  * The handler for the `/api/auth/login` API route.
  *
@@ -164,7 +167,10 @@ export interface LoginOptions {
  *
  * @category Server
  */
-export type HandleLogin = (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions) => Promise<void>;
+export type HandleLogin = {
+  (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions): Promise<void>;
+  (options?: LoginOptions): _HandleLogin;
+};
 
 /**
  * @ignore
@@ -174,7 +180,7 @@ export default function handleLoginFactory(
   nextConfig: NextConfig,
   baseConfig: BaseConfig
 ): HandleLogin {
-  return async (req, res, options = {}): Promise<void> => {
+  const login: _HandleLogin = async (req, res, options = {}): Promise<void> => {
     try {
       assertReqRes(req, res);
       if (req.query.returnTo) {
@@ -196,5 +202,11 @@ export default function handleLoginFactory(
     } catch (e) {
       throw new LoginHandlerError(e as HandlerErrorCause);
     }
+  };
+  return (reqOrOptions?: NextApiRequest | LoginOptions, res?: NextApiResponse, options?: LoginOptions): any => {
+    if (reqOrOptions instanceof IncomingMessage) {
+      return login(reqOrOptions, res as NextApiResponse, options);
+    }
+    return (req: NextApiRequest, res: NextApiResponse) => login(req, res, reqOrOptions);
   };
 }
