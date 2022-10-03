@@ -148,6 +148,13 @@ export {
 } from './utils/errors';
 
 export {
+  MissingStateCookieError,
+  MissingStateParamError,
+  IdentityProviderError,
+  ApplicationError
+} from './auth0-session';
+
+export {
   ConfigParameters,
   HandleAuth,
   HandleLogin,
