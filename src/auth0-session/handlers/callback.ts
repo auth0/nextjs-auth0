@@ -7,6 +7,13 @@ import TransientStore from '../transient-store';
 import { decodeState } from '../hooks/get-login-state';
 import { SessionCache } from '../session-cache';
 import { htmlSafe } from '../../utils/errors';
+import {
+  ApplicationError,
+  IdentityProviderError,
+  MissingStateCookieError,
+  MissingStateParamError
+} from '../utils/errors';
+import type { errors } from 'openid-client';
 
 function getRedirectUri(config: Config): string {
   return urlJoin(config.baseURL, config.routes.callback);
@@ -38,13 +45,24 @@ export default function callbackHandlerFactory(
 
     let expectedState;
     let tokenSet;
-    try {
-      const callbackParams = client.callbackParams(req);
-      expectedState = await transientCookieHandler.read('state', req, res);
-      const max_age = await transientCookieHandler.read('max_age', req, res);
-      const code_verifier = await transientCookieHandler.read('code_verifier', req, res);
-      const nonce = await transientCookieHandler.read('nonce', req, res);
 
+    const callbackParams = client.callbackParams(req);
+
+    if (!callbackParams.state) {
+      throw createHttpError(404, new MissingStateParamError());
+    }
+
+    expectedState = await transientCookieHandler.read('state', req, res);
+
+    if (!expectedState) {
+      throw createHttpError(400, new MissingStateCookieError());
+    }
+
+    const max_age = await transientCookieHandler.read('max_age', req, res);
+    const code_verifier = await transientCookieHandler.read('code_verifier', req, res);
+    const nonce = await transientCookieHandler.read('nonce', req, res);
+
+    try {
       tokenSet = await client.callback(
         redirectUri,
         callbackParams,
@@ -57,11 +75,13 @@ export default function callbackHandlerFactory(
         { exchangeBody: options?.authorizationParams }
       );
     } catch (err) {
-      throw createHttpError(400, err.message, {
-        error: err.error,
-        error_description: err.error_description,
-        openidState: decodeState(expectedState)
-      });
+      if (err instanceof errors.OPError) {
+        err = new IdentityProviderError(err);
+      }
+      if (err instanceof errors.RPError) {
+        err = new ApplicationError(err);
+      }
+      throw createHttpError(400, err, { openIdState: decodeState(expectedState) });
     }
 
     const openidState: { returnTo?: string } = decodeState(expectedState as string) as ValidState;

@@ -34,7 +34,7 @@ type AuthErrorOptions = {
  * Because part of the error message can come from the OpenID Connect `error` query parameter we
  * do some basic escaping which makes sure the default error handler is safe from XSS.
  *
- * **IMPORTANT** If you write your own error handler, you should **not** render the error message
+ * **IMPORTANT** If you write your own error handler, you should **not** render the error
  * without using a templating engine that will properly escape it for other HTML contexts first.
  *
  * Note that the error message of the {@link AuthError.cause | underlying error} is **not** escaped
@@ -59,8 +59,7 @@ export abstract class AuthError extends Error {
   /**
    * The underlying error, if any.
    *
-   * **IMPORTANT** The error message of this underlying error is **not** escaped in
-   * any way, so do **not** render it without escaping it first!
+   * **IMPORTANT** This underlying error is **not** escaped in any way, so do **not** render it without escaping it first!
    */
   public readonly cause?: Error;
 
@@ -136,7 +135,7 @@ type HandlerErrorOptions = {
  * without using a templating engine that will properly escape it for other HTML contexts first.
  *
  * @see the {@link AuthError.cause | cause property} contains the underlying error.
- * **IMPORTANT** The error message of this underlying error is **not** escaped in any way, so do **not** render
+ * **IMPORTANT** This underlying error is **not** escaped in any way, so do **not** render
  * it without escaping it first!
  *
  * @see the {@link AuthError.status | status property} contains the HTTP status code of the error,
@@ -163,7 +162,7 @@ export class HandlerError extends AuthError {
  * without using a templating engine that will properly escape it for other HTML contexts first.
  *
  * @see the {@link AuthError.cause | cause property} contains the underlying error.
- * **IMPORTANT** The error message of this underlying error is **not** escaped in any way, so do **not** render
+ * **IMPORTANT** this underlying error is **not** escaped in any way, so do **not** render
  * it without escaping it first!
  *
  * @see the {@link AuthError.status | status property} contains the HTTP status code of the error,
