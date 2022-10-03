@@ -23,8 +23,8 @@ describe('callback', () => {
       baseURL
     );
 
-    await expect(post(baseURL, '/callback', { body: {}, cookieJar })).rejects.toThrowError(
-      'state missing from the response'
+    await expect(post(baseURL, '/callback', { body: {}, cookieJar })).rejects.toThrow(
+      'This endpoint must be called as part of the login flow (with a state parameter from the initial authorization request).'
     );
   });
 
@@ -39,7 +39,9 @@ describe('callback', () => {
         },
         cookieJar: new CookieJar()
       })
-    ).rejects.toThrowError('checks.state argument is missing');
+    ).rejects.toThrowError(
+      'The cookie dropped by the login request cannot be found, check the url of the login request, the url of this callback request and your cookie config.'
+    );
   });
 
   it("should error when state doesn't match", async () => {
@@ -171,7 +173,9 @@ describe('callback', () => {
         },
         cookieJar
       })
-    ).rejects.toThrowError('checks.state argument is missing');
+    ).rejects.toThrowError(
+      'The cookie dropped by the login request cannot be found, check the url of the login request, the url of this callback request and your cookie config.'
+    );
   });
 
   it('should error for expired ID token', async () => {
