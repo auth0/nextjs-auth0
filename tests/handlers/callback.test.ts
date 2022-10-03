@@ -5,8 +5,8 @@ import { withApi, withoutApi } from '../fixtures/default-settings';
 import { makeIdToken } from '../auth0-session/fixtures/cert';
 import { defaultConfig, get, post, toSignedCookieJar } from '../auth0-session/fixtures/helpers';
 import { encodeState } from '../../src/auth0-session/hooks/get-login-state';
-import { setup, teardown } from '../fixtures/setup';
-import { Session, AfterCallback } from '../../src';
+import { defaultOnError, setup, teardown } from '../fixtures/setup';
+import { Session, AfterCallback, MissingStateCookieError } from '../../src';
 import nock from 'nock';
 import { signing as deriveKey } from '../../src/auth0-session/utils/hkdf';
 
@@ -29,7 +29,13 @@ describe('callback handler', () => {
   afterEach(teardown);
 
   test('should require a state', async () => {
-    const baseUrl = await setup(withoutApi);
+    expect.assertions(2);
+    const baseUrl = await setup(withoutApi, {
+      onError(req, res, err) {
+        expect(err.cause).toBeInstanceOf(MissingStateCookieError);
+        defaultOnError(req, res, err);
+      }
+    });
     await expect(
       callback(baseUrl, {
         state: '__test_state__'

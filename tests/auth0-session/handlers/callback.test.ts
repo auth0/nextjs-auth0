@@ -23,7 +23,7 @@ describe('callback', () => {
       baseURL
     );
 
-    await expect(post(baseURL, '/callback', { body: {}, cookieJar })).rejects.toThrowError(
+    await expect(post(baseURL, '/callback', { body: {}, cookieJar })).rejects.toThrow(
       'This endpoint must be called as part of the login flow (with a state parameter from the initial authorization request).'
     );
   });

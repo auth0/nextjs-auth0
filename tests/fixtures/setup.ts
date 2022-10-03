@@ -36,7 +36,7 @@ export type SetupOptions = {
   asyncProps?: boolean;
 };
 
-const defaultOnError: OnError = (_req, res, error) => {
+export const defaultOnError: OnError = (_req, res, error) => {
   res.statusMessage = error.message;
   res.status(error.status || 500).end(error.message);
 };
