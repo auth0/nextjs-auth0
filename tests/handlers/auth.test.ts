@@ -5,10 +5,10 @@ import { setup, teardown } from '../fixtures/setup';
 import { get } from '../auth0-session/fixtures/helpers';
 import { initAuth0, OnError } from '../../src';
 
-const handlerError = (status = 400, error = 'foo', error_description = 'bar') =>
+const handlerError = () =>
   expect.objectContaining({
-    status,
-    cause: expect.objectContaining({ error, error_description })
+    status: 400,
+    code: 'ERR_CALLBACK_HANDLER_FAILURE'
   });
 
 describe('auth handler', () => {
@@ -17,7 +17,7 @@ describe('auth handler', () => {
   test('accept custom error handler', async () => {
     const onError = jest.fn<void, ArgumentsOf<OnError>>((_req, res) => res.end());
     const baseUrl = await setup(withoutApi, { onError });
-    await get(baseUrl, '/api/auth/callback?error=foo&error_description=bar');
+    await get(baseUrl, '/api/auth/callback?error=foo&error_description=bar&state=foo');
     expect(onError).toHaveBeenCalledWith(expect.any(IncomingMessage), expect.any(ServerResponse), handlerError());
   });
 
@@ -26,8 +26,10 @@ describe('auth handler', () => {
     global.handleAuth = (await initAuth0(withoutApi)).handleAuth;
     delete global.onError;
     jest.spyOn(console, 'error').mockImplementation(() => {});
-    await expect(get(baseUrl, '/api/auth/callback?error=foo&error_description=bar')).rejects.toThrow('Bad Request');
-    expect(console.error).toHaveBeenCalledWith(new Error('Callback handler failed. CAUSE: foo (bar)'));
+    await expect(get(baseUrl, '/api/auth/callback?error=foo&error_description=bar&state=foo')).rejects.toThrow(
+      'Bad Request'
+    );
+    expect(console.error).toHaveBeenCalledWith(handlerError());
   });
 
   test('finish response if custom error does not', async () => {
@@ -35,7 +37,7 @@ describe('auth handler', () => {
     const baseUrl = await setup(withoutApi);
     global.handleAuth = (await initAuth0(withoutApi)).handleAuth.bind(null, { onError });
     await expect(
-      get(baseUrl, '/api/auth/callback?error=foo&error_description=bar', { fullResponse: true })
+      get(baseUrl, '/api/auth/callback?error=foo&error_description=bar&state=foo', { fullResponse: true })
     ).rejects.toThrow('Internal Server Error');
     expect(onError).toHaveBeenCalledWith(expect.any(IncomingMessage), expect.any(ServerResponse), handlerError());
   });
@@ -45,7 +47,7 @@ describe('auth handler', () => {
     const baseUrl = await setup(withoutApi);
     global.handleAuth = (await initAuth0(withoutApi)).handleAuth.bind(null, { onError });
     await expect(
-      get(baseUrl, '/api/auth/callback?error=foo&error_description=bar', { fullResponse: true })
+      get(baseUrl, '/api/auth/callback?error=foo&error_description=bar&state=foo', { fullResponse: true })
     ).rejects.toThrow("I'm a Teapot");
     expect(onError).toHaveBeenCalledWith(expect.any(IncomingMessage), expect.any(ServerResponse), handlerError());
   });
@@ -57,7 +59,7 @@ describe('auth handler', () => {
     jest.spyOn(console, 'error').mockImplementation((error) => {
       delete error.status;
     });
-    await expect(get(baseUrl, '/api/auth/callback?error=foo&error_description=bar')).rejects.toThrow(
+    await expect(get(baseUrl, '/api/auth/callback?error=foo&error_description=bar&state=foo')).rejects.toThrow(
       'Internal Server Error'
     );
   });

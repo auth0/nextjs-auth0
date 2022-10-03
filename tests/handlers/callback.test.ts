@@ -1,12 +1,14 @@
 import { CookieJar } from 'tough-cookie';
+import * as jose from 'jose';
 import timekeeper = require('timekeeper');
 import { withApi, withoutApi } from '../fixtures/default-settings';
 import { makeIdToken } from '../auth0-session/fixtures/cert';
-import { get, post, toSignedCookieJar } from '../auth0-session/fixtures/helpers';
+import { defaultConfig, get, post, toSignedCookieJar } from '../auth0-session/fixtures/helpers';
 import { encodeState } from '../../src/auth0-session/hooks/get-login-state';
 import { setup, teardown } from '../fixtures/setup';
 import { Session, AfterCallback } from '../../src';
 import nock from 'nock';
+import { signing as deriveKey } from '../../src/auth0-session/utils/hkdf';
 
 const callback = (baseUrl: string, body: any, cookieJar?: CookieJar): Promise<any> =>
   post(baseUrl, `/api/auth/callback`, {
@@ -14,6 +16,14 @@ const callback = (baseUrl: string, body: any, cookieJar?: CookieJar): Promise<an
     cookieJar,
     fullResponse: true
   });
+
+const generateSignature = async (cookie: string, value: string): Promise<string> => {
+  const key = await deriveKey(defaultConfig.secret as string);
+  const { signature } = await new jose.FlattenedSign(new TextEncoder().encode(`${cookie}=${value}`))
+    .setProtectedHeader({ alg: 'HS256', b64: false, crit: ['b64'] })
+    .sign(key);
+  return signature;
+};
 
 describe('callback handler', () => {
   afterEach(teardown);
@@ -24,7 +34,9 @@ describe('callback handler', () => {
       callback(baseUrl, {
         state: '__test_state__'
       })
-    ).rejects.toThrow('checks.state argument is missing');
+    ).rejects.toThrow(
+      'Callback handler failed. CAUSE: The cookie dropped by the login request cannot be found, check the url of the login request, the url of this callback request and your cookie config.'
+    );
   });
 
   test('should validate the state', async () => {
@@ -92,9 +104,15 @@ describe('callback handler', () => {
 
   it('should escape html in error qp', async () => {
     const baseUrl = await setup(withoutApi);
-    await expect(get(baseUrl, `/api/auth/callback?error=%3Cscript%3Ealert(%27xss%27)%3C%2Fscript%3E`)).rejects.toThrow(
-      '&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;'
+    const cookieJar = await toSignedCookieJar(
+      {
+        state: `foo.${await generateSignature('state', 'foo')}`
+      },
+      baseUrl
     );
+    await expect(
+      get(baseUrl, `/api/auth/callback?error=%3Cscript%3Ealert(%27xss%27)%3C%2Fscript%3E&state=foo`, { cookieJar })
+    ).rejects.toThrow('&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;');
   });
 
   test('should create the session without OIDC claims', async () => {
