@@ -34,8 +34,8 @@ export class ApplicationError extends Error {
 
 export class IdentityProviderError extends Error {
   /**
-   * The 'error_description' parameter from the AS response
-   * (Warning: this can contain user input and is not escaped in any way).
+   * The 'error_description' parameter from the AS response.
+   * **WARNING** This can contain user input and is not escaped in any way.
    */
   errorDescription?: string;
   /**
@@ -44,7 +44,7 @@ export class IdentityProviderError extends Error {
   error?: string;
 
   /**
-   * Warning: the message can contain user input and is not escaped in any way.
+   * **WARNING** The message can contain user input and is not escaped in any way.
    */
   constructor(rpError: errors.OPError) {
     /* c8 ignore next */
