@@ -8,6 +8,7 @@ export class MissingStateParamError extends Error {
   constructor() {
     /* c8 ignore next */
     super(MissingStateParamError.message);
+    Object.setPrototypeOf(this, MissingStateParamError.prototype);
   }
 }
 
@@ -19,6 +20,7 @@ export class MissingStateCookieError extends Error {
   constructor() {
     /* c8 ignore next */
     super(MissingStateCookieError.message);
+    Object.setPrototypeOf(this, MissingStateCookieError.prototype);
   }
 }
 
@@ -26,6 +28,7 @@ export class ApplicationError extends Error {
   constructor(rpError: errors.RPError) {
     /* c8 ignore next */
     super(rpError.message);
+    Object.setPrototypeOf(this, ApplicationError.prototype);
   }
 }
 
@@ -48,5 +51,6 @@ export class IdentityProviderError extends Error {
     super(rpError.message);
     this.error = rpError.error;
     this.errorDescription = rpError.error_description;
+    Object.setPrototypeOf(this, IdentityProviderError.prototype);
   }
 }
