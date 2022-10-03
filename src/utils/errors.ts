@@ -59,7 +59,8 @@ export abstract class AuthError extends Error {
   /**
    * The underlying error, if any.
    *
-   * **IMPORTANT** This underlying error is **not** escaped in any way, so do **not** render it without escaping it first!
+   * **IMPORTANT** This underlying error is **not** escaped in any way,
+   * so do **not** render it without escaping it first!
    */
   public readonly cause?: Error;
 
