@@ -1,6 +1,7 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import urlJoin from 'url-join';
 import createHttpError from 'http-errors';
+import { errors } from 'openid-client';
 import { AuthorizationParameters, Config } from '../config';
 import { ClientFactory } from '../client';
 import TransientStore from '../transient-store';
@@ -13,7 +14,6 @@ import {
   MissingStateCookieError,
   MissingStateParamError
 } from '../utils/errors';
-import type { errors } from 'openid-client';
 
 function getRedirectUri(config: Config): string {
   return urlJoin(config.baseURL, config.routes.callback);
