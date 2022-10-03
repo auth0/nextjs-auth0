@@ -3,7 +3,7 @@ import type { errors } from 'openid-client';
 export class MissingStateParamError extends Error {
   static message =
     'This endpoint must be called as part of the login flow (with a state parameter from the initial' +
-    'authorization request).';
+    ' authorization request).';
 
   constructor() {
     /* c8 ignore next */
@@ -14,7 +14,7 @@ export class MissingStateParamError extends Error {
 export class MissingStateCookieError extends Error {
   static message =
     'The cookie dropped by the login request cannot be found, check the url of the login request, the url of' +
-    'this callback request and your cookie config.';
+    ' this callback request and your cookie config.';
 
   constructor() {
     /* c8 ignore next */
