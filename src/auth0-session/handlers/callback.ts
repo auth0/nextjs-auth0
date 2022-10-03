@@ -43,7 +43,6 @@ export default function callbackHandlerFactory(
     const client = await getClient();
     const redirectUri = options?.redirectUri || getRedirectUri(config);
 
-    let expectedState;
     let tokenSet;
 
     const callbackParams = client.callbackParams(req);
@@ -52,7 +51,7 @@ export default function callbackHandlerFactory(
       throw createHttpError(404, new MissingStateParamError());
     }
 
-    expectedState = await transientCookieHandler.read('state', req, res);
+    const expectedState = await transientCookieHandler.read('state', req, res);
 
     if (!expectedState) {
       throw createHttpError(400, new MissingStateCookieError());
