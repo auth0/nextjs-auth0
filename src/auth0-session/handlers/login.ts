@@ -7,6 +7,7 @@ import { encodeState } from '../hooks/get-login-state';
 import { ClientFactory } from '../client';
 import createDebug from '../utils/debug';
 import { htmlSafe } from '../../utils/errors';
+import { getStateMismatchHint } from '../utils/state-mismatch-hint';
 
 const debug = createDebug('handlers');
 
@@ -38,6 +39,16 @@ export default function loginHandlerFactory(
       ...config.authorizationParams,
       ...(opts.authorizationParams || {})
     };
+
+    const hint = getStateMismatchHint(
+      req,
+      opts.authorizationParams.redirect_uri as string,
+      config.issuerBaseURL,
+      config.session.cookie
+    );
+    if (hint) {
+      debug(hint.getMessage());
+    }
 
     const transientOpts: StoreOptions = {
       sameSite: opts.authorizationParams.response_mode === 'form_post' ? 'none' : config.session.cookie.sameSite
