@@ -2,12 +2,12 @@ import { IncomingMessage, ServerResponse } from 'http';
 import * as jose from 'jose';
 import { CookieJar } from 'tough-cookie';
 import { getConfig, TransientStore } from '../../src/auth0-session/';
-import { signing as deriveKey } from '../../src/auth0-session/utils/hkdf';
+import { signing } from '../../src/auth0-session/utils/hkdf';
 import { defaultConfig, fromCookieJar, get, getCookie, toSignedCookieJar } from './fixtures/helpers';
 import { setup as createServer, teardown } from './fixtures/server';
 
 const generateSignature = async (cookie: string, value: string): Promise<string> => {
-  const key = await deriveKey(defaultConfig.secret as string);
+  const key = await signing(defaultConfig.secret as string);
   const { signature } = await new jose.FlattenedSign(new TextEncoder().encode(`${cookie}=${value}`))
     .setProtectedHeader({ alg: 'HS256', b64: false, crit: ['b64'] })
     .sign(key);

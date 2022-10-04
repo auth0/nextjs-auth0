@@ -29,7 +29,7 @@ import version from '../../../src/version';
 export type SessionResponse = TokenSetParameters & { claims: Claims };
 
 class TestSessionCache implements SessionCache {
-  constructor(private cookieStore: CookieStore) {}
+  constructor(private cookieStore: CookieStore<IncomingMessage, ServerResponse>) {}
   async create(req: IncomingMessage, res: ServerResponse, tokenSet: TokenSet): Promise<void> {
     await this.cookieStore.save(req, res, tokenSet);
   }
