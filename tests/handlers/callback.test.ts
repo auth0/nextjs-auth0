@@ -8,7 +8,7 @@ import { encodeState } from '../../src/auth0-session/utils/encoding';
 import { defaultOnError, setup, teardown } from '../fixtures/setup';
 import { Session, AfterCallback, MissingStateCookieError } from '../../src';
 import nock from 'nock';
-import { signing as deriveKey } from '../../src/auth0-session/utils/hkdf';
+import { signing } from '../../src/auth0-session/utils/hkdf';
 
 const callback = (baseUrl: string, body: any, cookieJar?: CookieJar): Promise<any> =>
   post(baseUrl, `/api/auth/callback`, {
@@ -18,7 +18,7 @@ const callback = (baseUrl: string, body: any, cookieJar?: CookieJar): Promise<an
   });
 
 const generateSignature = async (cookie: string, value: string): Promise<string> => {
-  const key = await deriveKey(defaultConfig.secret as string);
+  const key = await signing(defaultConfig.secret as string);
   const { signature } = await new jose.FlattenedSign(new TextEncoder().encode(`${cookie}=${value}`))
     .setProtectedHeader({ alg: 'HS256', b64: false, crit: ['b64'] })
     .sign(key);

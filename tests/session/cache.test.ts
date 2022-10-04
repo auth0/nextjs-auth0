@@ -10,7 +10,7 @@ describe('SessionCache', () => {
   let req: IncomingMessage;
   let res: ServerResponse;
   let session: Session;
-  let cookieStore: CookieStore;
+  let cookieStore: CookieStore<IncomingMessage, ServerResponse>;
 
   const setup = (conf: ConfigParameters) => {
     const config = getConfig(conf);

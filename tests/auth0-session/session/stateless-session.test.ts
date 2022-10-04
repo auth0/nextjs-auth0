@@ -1,16 +1,16 @@
 import { randomBytes } from 'crypto';
 import * as jose from 'jose';
 import { IdTokenClaims } from 'openid-client';
-import { setup, teardown } from './fixtures/server';
-import { defaultConfig, fromCookieJar, get, toCookieJar } from './fixtures/helpers';
-import { encryption as deriveKey } from '../../src/auth0-session/utils/hkdf';
-import { makeIdToken } from './fixtures/cert';
+import { setup, teardown } from '../fixtures/server';
+import { defaultConfig, fromCookieJar, get, toCookieJar } from '../fixtures/helpers';
+import { encryption } from '../../../src/auth0-session/utils/hkdf';
+import { makeIdToken } from '../fixtures/cert';
 
 const hr = 60 * 60 * 1000;
 const day = 24 * hr;
 
 const encrypted = async (claims: Partial<IdTokenClaims> = { sub: '__test_sub__' }): Promise<string> => {
-  const key = await deriveKey(defaultConfig.secret as string);
+  const key = await encryption(defaultConfig.secret as string);
   const epochNow = (Date.now() / 1000) | 0;
   const weekInSeconds = 7 * 24 * 60 * 60;
   const payload = {
@@ -31,7 +31,7 @@ const encrypted = async (claims: Partial<IdTokenClaims> = { sub: '__test_sub__' 
     .encrypt(key);
 };
 
-describe('CookieStore', () => {
+describe('StatelessSession', () => {
   afterEach(teardown);
 
   it('should not create a session when there are no cookies', async () => {
