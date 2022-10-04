@@ -1,3 +1,4 @@
+import { IncomingMessage } from 'http';
 import { NextApiResponse, NextApiRequest } from 'next';
 import { AuthorizationParameters, HandleLogin as BaseHandleLogin } from '../auth0-session';
 import toSafeRedirect from '../utils/url-helpers';
@@ -158,13 +159,31 @@ export interface LoginOptions {
 }
 
 /**
+ * TODO: Complete
+ */
+export type LoginOptionsProvider = (req: NextApiRequest) => LoginOptions;
+
+/**
  * The handler for the `/api/auth/login` API route.
  *
  * @throws {@link HandlerError}
  *
  * @category Server
  */
-export type HandleLogin = (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions) => Promise<void>;
+export type LoginHandler = (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions) => Promise<void>;
+
+/**
+ * TODO: Complete
+ */
+export type HandleLogin = {
+  (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions): Promise<void>;
+  (provider: LoginOptionsProvider): (
+    req: NextApiRequest,
+    res: NextApiResponse,
+    options?: LoginOptions
+  ) => Promise<void>;
+  (options: LoginOptions): (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions) => Promise<void>;
+};
 
 /**
  * @ignore
@@ -174,13 +193,12 @@ export default function handleLoginFactory(
   nextConfig: NextConfig,
   baseConfig: BaseConfig
 ): HandleLogin {
-  return async (req, res, options = {}): Promise<void> => {
+  const login: LoginHandler = async (req: NextApiRequest, res: NextApiResponse, options = {}): Promise<void> => {
     try {
       assertReqRes(req, res);
       if (req.query.returnTo) {
         const dangerousReturnTo = Array.isArray(req.query.returnTo) ? req.query.returnTo[0] : req.query.returnTo;
         const safeBaseUrl = new URL(options.authorizationParams?.redirect_uri || baseConfig.baseURL);
-
         const returnTo = toSafeRedirect(dangerousReturnTo, safeBaseUrl);
 
         options = { ...options, returnTo };
@@ -191,10 +209,22 @@ export default function handleLoginFactory(
           authorizationParams: { organization: nextConfig.organization, ...options.authorizationParams }
         };
       }
-
       return await handler(req, res, options);
     } catch (e) {
       throw new LoginHandlerError(e as HandlerErrorCause);
     }
+  };
+  return (
+    reqOrOptions: NextApiRequest | LoginOptionsProvider | LoginOptions,
+    res?: NextApiResponse,
+    options?: LoginOptions
+  ): any => {
+    if (reqOrOptions instanceof IncomingMessage && res) {
+      return login(reqOrOptions, res, options);
+    }
+    if (typeof reqOrOptions === 'function') {
+      return (req: NextApiRequest, res: NextApiResponse) => login(req, res, reqOrOptions(req));
+    }
+    return (req: NextApiRequest, res: NextApiResponse) => login(req, res, reqOrOptions as LoginOptions);
   };
 }
