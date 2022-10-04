@@ -168,12 +168,8 @@ export type LoginOptionsProvider = (req: NextApiRequest) => LoginOptions;
  */
 export type HandleLogin = {
   (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions): Promise<void>;
-  (provider: LoginOptionsProvider): (
-    req: NextApiRequest,
-    res: NextApiResponse,
-    options?: LoginOptions
-  ) => Promise<void>;
-  (options: LoginOptions): (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions) => Promise<void>;
+  (provider: LoginOptionsProvider): LoginHandler;
+  (options: LoginOptions): LoginHandler;
 };
 
 /**

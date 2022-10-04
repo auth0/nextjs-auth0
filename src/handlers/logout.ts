@@ -29,12 +29,8 @@ export type LogoutOptionsProvider = (req: NextApiRequest) => LogoutOptions;
  */
 export type HandleLogout = {
   (req: NextApiRequest, res: NextApiResponse, options?: LogoutOptions): Promise<void>;
-  (provider: LogoutOptionsProvider): (
-    req: NextApiRequest,
-    res: NextApiResponse,
-    options?: LogoutOptions
-  ) => Promise<void>;
-  (options: LogoutOptions): (req: NextApiRequest, res: NextApiResponse, options?: LogoutOptions) => Promise<void>;
+  (provider: LogoutOptionsProvider): LogoutHandler;
+  (options: LogoutOptions): LogoutHandler;
 };
 
 /**
