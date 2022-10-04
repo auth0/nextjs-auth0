@@ -1,8 +1,8 @@
 import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next';
-import { HandleLogin } from './login';
-import { HandleLogout } from './logout';
-import { HandleCallback } from './callback';
-import { HandleProfile } from './profile';
+import { HandleLogin, LoginHandler } from './login';
+import { HandleLogout, LogoutHandler } from './logout';
+import { CallbackHandler, HandleCallback } from './callback';
+import { HandleProfile, ProfileHandler } from './profile';
 import { HandlerError } from '../utils/errors';
 
 /**
@@ -33,10 +33,10 @@ import { HandlerError } from '../utils/errors';
  * @category Server
  */
 export interface Handlers {
-  login: HandleLogin;
-  logout: HandleLogout;
-  callback: HandleCallback;
-  profile: HandleProfile;
+  login: LoginHandler;
+  logout: LogoutHandler;
+  callback: CallbackHandler;
+  profile: ProfileHandler;
   onError: OnError;
 }
 
