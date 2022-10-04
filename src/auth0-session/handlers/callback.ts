@@ -19,7 +19,12 @@ function getRedirectUri(config: Config): string {
   return urlJoin(config.baseURL, config.routes.callback);
 }
 
-export type AfterCallback = (req: any, res: any, session: any, state?: Record<string, any>) => Promise<any> | any;
+export type AfterCallback = (
+  req: any,
+  res: any,
+  session: any,
+  state?: Record<string, any>
+) => Promise<any> | any | undefined;
 
 export type CallbackOptions = {
   afterCallback?: AfterCallback;
@@ -87,14 +92,18 @@ export default function callbackHandlerFactory(
     let session = await sessionCache.fromTokenSet(tokenSet);
 
     if (options?.afterCallback) {
-      session = await options.afterCallback(req as any, res as any, session, openidState);
+      session = await options.afterCallback(req, res, session, openidState);
     }
 
-    await sessionCache.create(req, res, session);
+    if (session) {
+      await sessionCache.create(req, res, session);
+    }
 
-    res.writeHead(302, {
-      Location: openidState.returnTo || config.baseURL
-    });
-    res.end(htmlSafe(openidState.returnTo || config.baseURL));
+    if (!res.writableEnded) {
+      res.writeHead(302, {
+        Location: res.getHeader('Location') || openidState.returnTo || config.baseURL
+      });
+      res.end(htmlSafe(openidState.returnTo || config.baseURL));
+    }
   };
 }

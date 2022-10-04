@@ -59,6 +59,9 @@ const request = (
         rejectUnauthorized: false
       },
       (res) => {
+        if (cookieJar) {
+          (res.headers['set-cookie'] || []).forEach((cookie: string) => cookieJar.setCookieSync(cookie, url));
+        }
         if (res.statusCode && (res.statusCode < 200 || res.statusCode >= 400)) {
           return reject(new Error(res.statusMessage));
         }
@@ -80,9 +83,6 @@ const request = (
             resolve(data);
           }
         });
-        if (cookieJar) {
-          (res.headers['set-cookie'] || []).forEach((cookie: string) => cookieJar.setCookieSync(cookie, url));
-        }
       }
     );
     req.setHeader('content-type', 'application/json');
