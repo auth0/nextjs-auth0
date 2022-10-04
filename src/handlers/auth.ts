@@ -119,7 +119,7 @@ export default function handlerFactory({
         }
       } catch (error) {
         await (onError || defaultOnError)(req, res, error);
-        if (!res.finished) {
+        if (!res.writableEnded) {
           // 200 is the default, so we assume it has not been set in the custom error handler if it equals 200
           res.status(res.statusCode === 200 ? 500 : res.statusCode).end();
         }
