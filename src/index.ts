@@ -121,12 +121,13 @@ export const getAccessToken: GetAccessToken = (...args) => getInstance().getAcce
 export const withApiAuthRequired: WithApiAuthRequired = (...args) => getInstance().withApiAuthRequired(...args);
 export const withPageAuthRequired: WithPageAuthRequired = withPageAuthRequiredFactory(getLoginUrl(), getSessionCache);
 export const handleLogin: HandleLogin = ((...args: Parameters<HandleLogin>) =>
-  instance.handleLogin(...args)) as HandleLogin;
+  getInstance().handleLogin(...args)) as HandleLogin;
 export const handleLogout: HandleLogout = ((...args: Parameters<HandleLogout>) =>
-  instance.handleLogout(...args)) as HandleLogout;
+  getInstance().handleLogout(...args)) as HandleLogout;
 export const handleCallback: HandleCallback = ((...args: Parameters<HandleCallback>) =>
-  instance.handleCallback(...args)) as HandleCallback;
-export const handleProfile: HandleProfile = (...args) => getInstance().handleProfile(...args);
+  getInstance().handleCallback(...args)) as HandleCallback;
+export const handleProfile: HandleProfile = ((...args: Parameters<HandleProfile>) =>
+  getInstance().handleProfile(...args)) as HandleProfile;
 export const handleAuth: HandleAuth = (...args) => getInstance().handleAuth(...args);
 
 export {
