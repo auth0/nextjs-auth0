@@ -164,15 +164,6 @@ export interface LoginOptions {
 export type LoginOptionsProvider = (req: NextApiRequest) => LoginOptions;
 
 /**
- * The handler for the `/api/auth/login` API route.
- *
- * @throws {@link HandlerError}
- *
- * @category Server
- */
-export type LoginHandler = (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions) => Promise<void>;
-
-/**
  * TODO: Complete
  */
 export type HandleLogin = {
@@ -184,6 +175,15 @@ export type HandleLogin = {
   ) => Promise<void>;
   (options: LoginOptions): (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions) => Promise<void>;
 };
+
+/**
+ * The handler for the `/api/auth/login` API route.
+ *
+ * @throws {@link HandlerError}
+ *
+ * @category Server
+ */
+export type LoginHandler = (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions) => Promise<void>;
 
 /**
  * @ignore
