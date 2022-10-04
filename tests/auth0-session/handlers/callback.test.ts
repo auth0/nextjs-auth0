@@ -6,6 +6,7 @@ import { encodeState } from '../../../src/auth0-session/hooks/get-login-state';
 import { SessionResponse, setup, teardown } from '../fixtures/server';
 import { makeIdToken } from '../fixtures/cert';
 import { toSignedCookieJar, get, post, defaultConfig } from '../fixtures/helpers';
+import { ServerResponse } from 'http';
 
 const expectedDefaultState = encodeState({ returnTo: 'https://example.org' });
 
@@ -394,5 +395,69 @@ describe('callback', () => {
 
     expect(res.statusCode).toEqual(302);
     expect(res.headers.location).toEqual(baseURL);
+  });
+
+  it('should not overwrite location header if set in after callback', async () => {
+    const baseURL = await setup(defaultConfig, {
+      callbackOptions: {
+        afterCallback(_req, res: ServerResponse, session) {
+          res.setHeader('Location', '/foo');
+          return session;
+        }
+      }
+    });
+
+    const state = encodeState({ foo: 'bar' });
+    const cookieJar = await toSignedCookieJar(
+      {
+        state: state,
+        nonce: '__test_nonce__'
+      },
+      baseURL
+    );
+
+    const { res } = await post(baseURL, '/callback', {
+      body: {
+        state: state,
+        id_token: await makeIdToken()
+      },
+      cookieJar,
+      fullResponse: true
+    });
+
+    expect(res.statusCode).toEqual(302);
+    expect(res.headers.location).toEqual('/foo');
+    expect(cookieJar.getCookieStringSync(baseURL)).toMatch(/^appSession=.*/);
+  });
+
+  it('should terminate the request in after callback and not set session if none returned', async () => {
+    const baseURL = await setup(defaultConfig, {
+      callbackOptions: {
+        afterCallback(_req, res: ServerResponse) {
+          res.writeHead(401).end();
+        }
+      }
+    });
+
+    const state = encodeState({ foo: 'bar' });
+    const cookieJar = await toSignedCookieJar(
+      {
+        state: state,
+        nonce: '__test_nonce__'
+      },
+      baseURL
+    );
+
+    await expect(
+      post(baseURL, '/callback', {
+        body: {
+          state: state,
+          id_token: await makeIdToken()
+        },
+        cookieJar,
+        fullResponse: true
+      })
+    ).rejects.toThrow('Unauthorized');
+    expect(cookieJar.getCookieStringSync(baseURL)).toBeFalsy();
   });
 });
