@@ -124,7 +124,8 @@ export const handleLogin: HandleLogin = ((...args: Parameters<HandleLogin>) =>
   instance.handleLogin(...args)) as HandleLogin;
 export const handleLogout: HandleLogout = ((...args: Parameters<HandleLogout>) =>
   instance.handleLogout(...args)) as HandleLogout;
-export const handleCallback: HandleCallback = (...args) => getInstance().handleCallback(...args);
+export const handleCallback: HandleCallback = ((...args: Parameters<HandleCallback>) =>
+  instance.handleCallback(...args)) as HandleCallback;
 export const handleProfile: HandleProfile = (...args) => getInstance().handleProfile(...args);
 export const handleAuth: HandleAuth = (...args) => getInstance().handleAuth(...args);
 

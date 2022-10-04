@@ -1,3 +1,4 @@
+import { IncomingMessage } from 'http';
 import { strict as assert } from 'assert';
 import { NextApiResponse, NextApiRequest } from 'next';
 import { AuthorizationParameters, HandleCallback as BaseHandleCallback } from '../auth0-session';
@@ -98,13 +99,27 @@ export interface CallbackOptions {
 }
 
 /**
+ * TODO: Complete
+ */
+export type CallbackOptionsProvider = (req: NextApiRequest) => CallbackOptions;
+
+/**
+ * TODO: Complete
+ */
+export type HandleCallback = {
+  (req: NextApiRequest, res: NextApiResponse, options?: CallbackOptions): Promise<void>;
+  (provider: CallbackOptionsProvider): CallbackHandler;
+  (options: CallbackOptions): CallbackHandler;
+};
+
+/**
  * The handler for the `/api/auth/callback` API route.
  *
  * @throws {@link HandlerError}
  *
  * @category Server
  */
-export type HandleCallback = (req: NextApiRequest, res: NextApiResponse, options?: CallbackOptions) => Promise<void>;
+export type CallbackHandler = (req: NextApiRequest, res: NextApiResponse, options?: CallbackOptions) => Promise<void>;
 
 /**
  * @ignore
@@ -131,7 +146,7 @@ const idTokenValidator =
  * @ignore
  */
 export default function handleCallbackFactory(handler: BaseHandleCallback, config: NextConfig): HandleCallback {
-  return async (req, res, options = {}): Promise<void> => {
+  const callback: CallbackHandler = async (req: NextApiRequest, res: NextApiResponse, options = {}): Promise<void> => {
     try {
       assertReqRes(req, res);
       return await handler(req, res, {
@@ -141,5 +156,18 @@ export default function handleCallbackFactory(handler: BaseHandleCallback, confi
     } catch (e) {
       throw new CallbackHandlerError(e as HandlerErrorCause);
     }
+  };
+  return (
+    reqOrOptions: NextApiRequest | CallbackOptionsProvider | CallbackOptions,
+    res?: NextApiResponse,
+    options?: CallbackOptions
+  ): any => {
+    if (reqOrOptions instanceof IncomingMessage && res) {
+      return callback(reqOrOptions, res, options);
+    }
+    if (typeof reqOrOptions === 'function') {
+      return (req: NextApiRequest, res: NextApiResponse) => callback(req, res, reqOrOptions(req));
+    }
+    return (req: NextApiRequest, res: NextApiResponse) => callback(req, res, reqOrOptions as CallbackOptions);
   };
 }

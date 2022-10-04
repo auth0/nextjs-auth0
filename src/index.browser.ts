@@ -56,6 +56,7 @@ export const handleLogin: HandleLogin = ((...args: Parameters<HandleLogin>) =>
   instance.handleLogin(...args)) as HandleLogin;
 export const handleLogout: HandleLogout = ((...args: Parameters<HandleLogout>) =>
   instance.handleLogout(...args)) as HandleLogout;
-export const handleCallback: HandleCallback = (...args) => instance.handleCallback(...args);
+export const handleCallback: HandleCallback = ((...args: Parameters<HandleCallback>) =>
+  instance.handleCallback(...args)) as HandleCallback;
 export const handleProfile: HandleProfile = (...args) => instance.handleProfile(...args);
 export const handleAuth: HandleAuth = (...args) => instance.handleAuth(...args);
