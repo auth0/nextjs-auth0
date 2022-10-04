@@ -1,8 +1,8 @@
-import { HandleLogin, LoginOptions } from './login';
-import { HandleLogout, LogoutOptions } from './logout';
-import { HandleCallback, CallbackOptions } from './callback';
-import { HandleProfile, ProfileOptions } from './profile';
 import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next';
+import { HandleLogin } from './login';
+import { HandleLogout } from './logout';
+import { HandleCallback } from './callback';
+import { HandleProfile } from './profile';
 import { HandlerError } from '../utils/errors';
 
 /**
@@ -33,10 +33,10 @@ import { HandlerError } from '../utils/errors';
  * @category Server
  */
 export interface Handlers {
-  login: HandleLogin | LoginOptions;
-  logout: HandleLogout | LogoutOptions;
-  callback: HandleCallback | CallbackOptions;
-  profile: HandleProfile | ProfileOptions;
+  login: HandleLogin;
+  logout: HandleLogout;
+  callback: HandleCallback;
+  profile: HandleProfile;
   onError: OnError;
 }
 
@@ -107,17 +107,13 @@ export default function handlerFactory({
       try {
         switch (route) {
           case 'login':
-            if (typeof login === 'function') return await login(req, res);
-            return await handleLogin(req, res, login);
+            return await login(req, res);
           case 'logout':
-            if (typeof logout === 'function') return await logout(req, res);
-            return await handleLogout(req, res, logout);
+            return await logout(req, res);
           case 'callback':
-            if (typeof callback === 'function') return await callback(req, res);
-            return await handleCallback(req, res, callback);
+            return await callback(req, res);
           case 'me':
-            if (typeof profile === 'function') return await profile(req, res);
-            return await handleProfile(req, res, profile);
+            return await profile(req, res);
           default:
             res.status(404).end();
         }
