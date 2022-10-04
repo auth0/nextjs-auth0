@@ -1,3 +1,4 @@
+import { IncomingMessage } from 'http';
 import { NextApiResponse, NextApiRequest } from 'next';
 import { ClientFactory } from '../auth0-session';
 import { SessionCache, Session, fromJson, GetAccessToken } from '../session';
@@ -29,13 +30,27 @@ export type ProfileOptions = {
 };
 
 /**
+ * TODO: Complete
+ */
+export type ProfileOptionsProvider = (req: NextApiRequest) => ProfileOptions;
+
+/**
+ * TODO: Complete
+ */
+export type HandleProfile = {
+  (req: NextApiRequest, res: NextApiResponse, options?: ProfileOptions): Promise<void>;
+  (provider: ProfileOptionsProvider): ProfileHandler;
+  (options: ProfileOptions): ProfileHandler;
+};
+
+/**
  * The handler for the `/api/auth/me` API route.
  *
  * @throws {@link HandlerError}
  *
  * @category Server
  */
-export type HandleProfile = (req: NextApiRequest, res: NextApiResponse, options?: ProfileOptions) => Promise<void>;
+export type ProfileHandler = (req: NextApiRequest, res: NextApiResponse, options?: ProfileOptions) => Promise<void>;
 
 /**
  * @ignore
@@ -45,7 +60,7 @@ export default function profileHandler(
   getAccessToken: GetAccessToken,
   sessionCache: SessionCache
 ): HandleProfile {
-  return async (req, res, options): Promise<void> => {
+  const profile: ProfileHandler = async (req: NextApiRequest, res: NextApiResponse, options = {}): Promise<void> => {
     try {
       assertReqRes(req, res);
 
@@ -88,5 +103,18 @@ export default function profileHandler(
     } catch (e) {
       throw new ProfileHandlerError(e as HandlerErrorCause);
     }
+  };
+  return (
+    reqOrOptions: NextApiRequest | ProfileOptionsProvider | ProfileOptions,
+    res?: NextApiResponse,
+    options?: ProfileOptions
+  ): any => {
+    if (reqOrOptions instanceof IncomingMessage && res) {
+      return profile(reqOrOptions, res, options);
+    }
+    if (typeof reqOrOptions === 'function') {
+      return (req: NextApiRequest, res: NextApiResponse) => profile(req, res, reqOrOptions(req));
+    }
+    return (req: NextApiRequest, res: NextApiResponse) => profile(req, res, reqOrOptions as ProfileOptions);
   };
 }
