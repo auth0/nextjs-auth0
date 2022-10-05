@@ -38,6 +38,7 @@ export interface Handlers {
   callback: CallbackHandler;
   profile: ProfileHandler;
   onError: OnError;
+  [key: string]: any;
 }
 
 /**
@@ -90,7 +91,7 @@ export default function handlerFactory({
   handleProfile: HandleProfile;
 }): HandleAuth {
   return ({ onError, ...handlers }: Partial<Handlers> = {}): NextApiHandler<void> => {
-    const { login, logout, callback, profile } = {
+    const { login, logout, callback, profile, ...customHandlers }: Omit<Handlers, 'onError'> = {
       login: handleLogin,
       logout: handleLogout,
       callback: handleCallback,
@@ -115,6 +116,9 @@ export default function handlerFactory({
           case 'me':
             return await profile(req, res);
           default:
+            if (route && customHandlers[route]) {
+              return await customHandlers[route](req, res);
+            }
             res.status(404).end();
         }
       } catch (error) {
