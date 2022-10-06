@@ -72,7 +72,7 @@ export default function profileHandler(
       const session = (await sessionCache.get(req, res)) as Session;
       res.setHeader('Cache-Control', 'no-store');
 
-      if (options?.refetch) {
+      if (options.refetch) {
         const { accessToken } = await getAccessToken(req, res);
         if (!accessToken) {
           throw new Error('No access token available to refetch the profile');
