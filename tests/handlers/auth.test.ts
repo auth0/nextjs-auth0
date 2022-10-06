@@ -143,14 +143,14 @@ describe('custom options', () => {
       res.end();
     });
     jest.spyOn(baseLoginHandler, 'default').mockImplementation(() => loginHandler);
-    const loginOptions: LoginOptions = { authorizationParams: { scope: 'openid' } };
+    const options: LoginOptions = { authorizationParams: { scope: 'openid' } };
     const baseUrl = await setup(withoutApi);
     const { handleLogin, handleAuth } = initAuth0(withoutApi);
     global.handleAuth = handleAuth.bind(null, {
-      login: handleLogin(loginOptions)
+      login: handleLogin(options)
     });
     await get(baseUrl, '/api/auth/login');
-    expect(loginHandler).toHaveBeenCalledWith(expect.any(IncomingMessage), expect.any(ServerResponse), loginOptions);
+    expect(loginHandler).toHaveBeenCalledWith(expect.any(IncomingMessage), expect.any(ServerResponse), options);
   });
 
   test('accept custom logout options', async () => {
@@ -158,14 +158,14 @@ describe('custom options', () => {
       res.end();
     });
     jest.spyOn(baseLogoutHandler, 'default').mockImplementation(() => logoutHandler);
-    const logoutOptions: LogoutOptions = { returnTo: '/foo' };
+    const options: LogoutOptions = { returnTo: '/foo' };
     const baseUrl = await setup(withoutApi);
     const { handleLogout, handleAuth } = initAuth0(withoutApi);
     global.handleAuth = handleAuth.bind(null, {
-      logout: handleLogout(logoutOptions)
+      logout: handleLogout(options)
     });
     await get(baseUrl, '/api/auth/logout');
-    expect(logoutHandler).toHaveBeenCalledWith(expect.any(IncomingMessage), expect.any(ServerResponse), logoutOptions);
+    expect(logoutHandler).toHaveBeenCalledWith(expect.any(IncomingMessage), expect.any(ServerResponse), options);
   });
 
   test('accept custom callback options', async () => {
@@ -173,27 +173,27 @@ describe('custom options', () => {
       res.end();
     });
     jest.spyOn(baseCallbackHandler, 'default').mockImplementation(() => callbackHandler);
-    const callbackOptions: CallbackOptions = { redirectUri: '/foo' };
+    const options: CallbackOptions = { redirectUri: '/foo' };
     const baseUrl = await setup(withoutApi);
     const { handleCallback, handleAuth } = initAuth0(withoutApi);
     global.handleAuth = handleAuth.bind(null, {
-      callback: handleCallback(callbackOptions)
+      callback: handleCallback(options)
     });
     await get(baseUrl, '/api/auth/callback');
     expect(callbackHandler).toHaveBeenCalledWith(
       expect.any(IncomingMessage),
       expect.any(ServerResponse),
-      expect.objectContaining(callbackOptions)
+      expect.objectContaining(options)
     );
   });
 
   test('accept custom profile options', async () => {
     const afterRefetch = jest.fn(async (_req: IncomingMessage, _res: ServerResponse, session: Session) => session);
-    const profileOptions: ProfileOptions = { refetch: true, afterRefetch };
+    const options: ProfileOptions = { refetch: true, afterRefetch };
     const baseUrl = await setup(withoutApi);
     const { handleProfile, handleAuth } = initAuth0(withoutApi);
     global.handleAuth = handleAuth.bind(null, {
-      profile: handleProfile(profileOptions)
+      profile: handleProfile(options)
     });
     const cookieJar = await login(baseUrl);
     await get(baseUrl, '/api/auth/me', { cookieJar });
@@ -209,17 +209,17 @@ describe('custom options providers', () => {
       res.end();
     });
     jest.spyOn(baseLoginHandler, 'default').mockImplementation(() => loginHandler);
-    const loginOptions = { authorizationParams: { scope: 'openid' } };
-    const loginOptionsProvider = jest.fn(() => loginOptions);
+    const options = { authorizationParams: { scope: 'openid' } };
+    const optionsProvider = jest.fn(() => options);
     const baseUrl = await setup(withoutApi);
     const { handleLogin, handleAuth } = initAuth0(withoutApi);
 
     global.handleAuth = handleAuth.bind(null, {
-      login: handleLogin(loginOptionsProvider)
+      login: handleLogin(optionsProvider)
     });
     await get(baseUrl, '/api/auth/login');
-    expect(loginOptionsProvider).toHaveBeenCalled();
-    expect(loginHandler).toHaveBeenCalledWith(expect.any(IncomingMessage), expect.any(ServerResponse), loginOptions);
+    expect(optionsProvider).toHaveBeenCalled();
+    expect(loginHandler).toHaveBeenCalledWith(expect.any(IncomingMessage), expect.any(ServerResponse), options);
   });
 
   test('accept custom logout options provider', async () => {
@@ -227,16 +227,16 @@ describe('custom options providers', () => {
       res.end();
     });
     jest.spyOn(baseLogoutHandler, 'default').mockImplementation(() => logoutHandler);
-    const logoutOptions: LogoutOptions = { returnTo: '/foo' };
-    const logoutOptionsProvider = jest.fn(() => logoutOptions);
+    const options: LogoutOptions = { returnTo: '/foo' };
+    const optionsProvider = jest.fn(() => options);
     const baseUrl = await setup(withoutApi);
     const { handleLogout, handleAuth } = initAuth0(withoutApi);
     global.handleAuth = handleAuth.bind(null, {
-      logout: handleLogout(logoutOptionsProvider)
+      logout: handleLogout(optionsProvider)
     });
     await get(baseUrl, '/api/auth/logout');
-    expect(logoutOptionsProvider).toHaveBeenCalled();
-    expect(logoutHandler).toHaveBeenCalledWith(expect.any(IncomingMessage), expect.any(ServerResponse), logoutOptions);
+    expect(optionsProvider).toHaveBeenCalled();
+    expect(logoutHandler).toHaveBeenCalledWith(expect.any(IncomingMessage), expect.any(ServerResponse), options);
   });
 
   test('accept custom callback options provider', async () => {
@@ -244,34 +244,34 @@ describe('custom options providers', () => {
       res.end();
     });
     jest.spyOn(baseCallbackHandler, 'default').mockImplementation(() => callbackHandler);
-    const callbackOptions: CallbackOptions = { redirectUri: '/foo' };
-    const callbackOptionsProvider = jest.fn(() => callbackOptions);
+    const options: CallbackOptions = { redirectUri: '/foo' };
+    const optionsProvider = jest.fn(() => options);
     const baseUrl = await setup(withoutApi);
     const { handleCallback, handleAuth } = initAuth0(withoutApi);
     global.handleAuth = handleAuth.bind(null, {
-      callback: handleCallback(callbackOptionsProvider)
+      callback: handleCallback(optionsProvider)
     });
     await get(baseUrl, '/api/auth/callback');
-    expect(callbackOptionsProvider).toHaveBeenCalled();
+    expect(optionsProvider).toHaveBeenCalled();
     expect(callbackHandler).toHaveBeenCalledWith(
       expect.any(IncomingMessage),
       expect.any(ServerResponse),
-      expect.objectContaining(callbackOptions)
+      expect.objectContaining(options)
     );
   });
 
   test('accept custom profile options provider', async () => {
     const afterRefetch = jest.fn(async (_req: IncomingMessage, _res: ServerResponse, session: Session) => session);
-    const profileOptions: ProfileOptions = { refetch: true, afterRefetch };
-    const profileOptionsProvider = jest.fn(() => profileOptions);
+    const options: ProfileOptions = { refetch: true, afterRefetch };
+    const optionsProvider = jest.fn(() => options);
     const baseUrl = await setup(withoutApi);
     const { handleProfile, handleAuth } = initAuth0(withoutApi);
     global.handleAuth = handleAuth.bind(null, {
-      profile: handleProfile(profileOptionsProvider)
+      profile: handleProfile(optionsProvider)
     });
     const cookieJar = await login(baseUrl);
     await get(baseUrl, '/api/auth/me', { cookieJar });
-    expect(profileOptionsProvider).toHaveBeenCalled();
+    expect(optionsProvider).toHaveBeenCalled();
     expect(afterRefetch).toHaveBeenCalled();
   });
 });
