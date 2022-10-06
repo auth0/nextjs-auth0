@@ -1,3 +1,4 @@
+import { IncomingMessage } from 'http';
 import { NextApiResponse, NextApiRequest } from 'next';
 import { AuthorizationParameters, HandleLogin as BaseHandleLogin } from '../auth0-session';
 import toSafeRedirect from '../utils/url-helpers';
@@ -21,7 +22,7 @@ import { HandlerErrorCause, LoginHandlerError } from '../utils/errors';
  *     try {
  *       await handleLogin(req, res, { getLoginState });
  *     } catch (error) {
- *       res.status(error.status || 500).end(error.message);
+ *       res.status(error.status || 500).end();
  *     }
  *   }
  * });
@@ -57,6 +58,7 @@ export interface AuthorizationParams extends Partial<AuthorizationParameters> {
    *     }
    *   }
    * });
+   * ```
    */
   connection?: string;
 
@@ -80,6 +82,7 @@ export interface AuthorizationParams extends Partial<AuthorizationParameters> {
    *     }
    *   }
    * });
+   * ```
    */
   connection_scope?: string;
 
@@ -106,13 +109,13 @@ export interface AuthorizationParams extends Partial<AuthorizationParameters> {
    *       }
    *     });
    *   } catch (error) {
-   *     res.status(error.status || 500).end(error.message);
+   *     res.status(error.status || 500).end();
    *   }
    * } ;
    * ```
    *
    * Your invite url can then take the format:
-   * `https://example.com/api/invite?invitation=invitation_id&organization=org_id`
+   * `https://example.com/api/invite?invitation=invitation_id&organization=org_id`.
    */
   invitation?: string;
 
@@ -156,13 +159,81 @@ export interface LoginOptions {
 }
 
 /**
+ * Options provider for the default login handler.
+ * Use this to generate options that depend on values from the request.
+ *
+ * @category Server
+ */
+export type LoginOptionsProvider = (req: NextApiRequest) => LoginOptions;
+
+/**
+ * Use this to customize the default login handler without overriding it.
+ * You can still override the handler if needed.
+ *
+ * @example Pass an options object
+ *
+ * ```js
+ * // pages/api/auth/[...auth0].js
+ * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
+ *
+ * export default handleAuth({
+ *   login: handleLogin({
+ *     authorizationParams: { connection: 'github' }
+ *   })
+ * });
+ * ```
+ *
+ * @example Pass a function that receives the request and returns an options object
+ *
+ * ```js
+ * // pages/api/auth/[...auth0].js
+ * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
+ *
+ * export default handleAuth({
+ *   login: handleLogin((req) => {
+ *     return {
+ *       authorizationParams: { connection: 'github' }
+ *     };
+ *   })
+ * });
+ * ```
+ *
+ * This is useful for generating options that depend on values from the request.
+ *
+ * @example Override the login handler
+ *
+ * ```js
+ * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
+ *
+ * export default handleAuth({
+ *   login: async (req, res) => {
+ *     try {
+ *       await handleLogin(req, res, {
+ *         authorizationParams: { connection: 'github' }
+ *       });
+ *     } catch (error) {
+ *       console.error(error);
+ *     }
+ *   }
+ * });
+ * ```
+ *
+ * @category Server
+ */
+export type HandleLogin = {
+  (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions): Promise<void>;
+  (provider: LoginOptionsProvider): LoginHandler;
+  (options: LoginOptions): LoginHandler;
+};
+
+/**
  * The handler for the `/api/auth/login` API route.
  *
  * @throws {@link HandlerError}
  *
  * @category Server
  */
-export type HandleLogin = (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions) => Promise<void>;
+export type LoginHandler = (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions) => Promise<void>;
 
 /**
  * @ignore
@@ -172,13 +243,12 @@ export default function handleLoginFactory(
   nextConfig: NextConfig,
   baseConfig: BaseConfig
 ): HandleLogin {
-  return async (req, res, options = {}): Promise<void> => {
+  const login: LoginHandler = async (req: NextApiRequest, res: NextApiResponse, options = {}): Promise<void> => {
     try {
       assertReqRes(req, res);
       if (req.query.returnTo) {
         const dangerousReturnTo = Array.isArray(req.query.returnTo) ? req.query.returnTo[0] : req.query.returnTo;
         const safeBaseUrl = new URL(options.authorizationParams?.redirect_uri || baseConfig.baseURL);
-
         const returnTo = toSafeRedirect(dangerousReturnTo, safeBaseUrl);
 
         options = { ...options, returnTo };
@@ -189,10 +259,22 @@ export default function handleLoginFactory(
           authorizationParams: { organization: nextConfig.organization, ...options.authorizationParams }
         };
       }
-
       return await handler(req, res, options);
     } catch (e) {
       throw new LoginHandlerError(e as HandlerErrorCause);
     }
+  };
+  return (
+    reqOrOptions: NextApiRequest | LoginOptionsProvider | LoginOptions,
+    res?: NextApiResponse,
+    options?: LoginOptions
+  ): any => {
+    if (reqOrOptions instanceof IncomingMessage && res) {
+      return login(reqOrOptions, res, options);
+    }
+    if (typeof reqOrOptions === 'function') {
+      return (req: NextApiRequest, res: NextApiResponse) => login(req, res, reqOrOptions(req));
+    }
+    return (req: NextApiRequest, res: NextApiResponse) => login(req, res, reqOrOptions as LoginOptions);
   };
 }

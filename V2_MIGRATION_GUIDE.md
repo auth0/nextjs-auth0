@@ -8,7 +8,8 @@ Guide to migrating from `1.x` to `2.x`
 - [Profile API route no longer returns a 401](#profile-api-route-no-longer-returns-a-401)
 - [The ID token is no longer stored by default](#the-id-token-is-no-longer-stored-by-default)
 - [Override default error handler](#override-default-error-handler)
-- [afterCallback can write to the response](#afterCallback-can-write-to-the-response)
+- [afterCallback can write to the response](#aftercallback-can-write-to-the-response)
+- [Configure default handlers](#configure-default-handlers)
 
 ## `getSession` now returns a `Promise`
 
@@ -120,6 +121,8 @@ You can choose to store it by setting either the `session.storeIDToken` config p
 
 You can now set the default error handler for the auth routes in a single place.
 
+### Before
+
 ```js
 export default handleAuth({
   async login(req, res) {
@@ -160,7 +163,7 @@ export default handleAuth({
 
 ## `afterCallback` can write to the response
 
-You can now write your own redirect header or terminate the request in `afterCallback`
+You can now write your own redirect header or terminate the request in `afterCallback`.
 
 ### Before
 
@@ -171,14 +174,14 @@ const afterCallback = (req, res, session, state) => {
   } else {
     res.status(401).end('User is not admin');
   }
-}; // 💥Fail with ERR_HTTP_HEADERS_SENT
+}; // 💥 Fails with ERR_HTTP_HEADERS_SENT
 
 const afterCallback = (req, res, session, state) => {
   if (!session.user.isAdmin) {
     res.setHeader('Location', '/admin');
   }
   return session;
-}; // 💥Fail with ERR_HTTP_HEADERS_SENT
+}; // 💥 Fails with ERR_HTTP_HEADERS_SENT
 ```
 
 ### After
@@ -199,3 +202,60 @@ const afterCallback = (req, res, session, state) => {
   return session;
 }; // Redirects to `/admin` if user is admin
 ```
+
+## Configure default handlers
+
+Previously it was not possible to configure the default handlers. For example, to pass a `connection` parameter to the login handler, you had to override it.
+
+### Before
+
+```js
+export default handleAuth({
+  login: async (req, res) => {
+    try {
+      await handleLogin(req, res, {
+        authorizationParams: { connection: 'github' },
+      });
+    } catch (error) {
+      // ...
+    }
+  }
+});
+```
+
+### After
+
+Now you can configure a default handler by passing an options object to it.
+
+```js
+export default handleAuth({
+  login: handleLogin({
+    authorizationParams: { connection: 'github' }
+  })
+});
+```
+
+You can also pass a function that receives the request and returns an options object.
+
+```js
+export default handleAuth({
+  login: handleLogin((req) => {
+    return {
+      authorizationParams: { connection: 'github' }
+    };
+  })
+});
+```
+
+You can even create new handlers by configuring the default ones.
+
+```js
+export default handleAuth({
+  // Creates /api/auth/signup
+  signup: handleLogin({
+    authorizationParams: { screen_hint: 'signup' }
+  })
+});
+```
+
+It is still possible to override the default handlers if needed.

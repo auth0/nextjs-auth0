@@ -1,8 +1,8 @@
+import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next';
 import { HandleLogin } from './login';
 import { HandleLogout } from './logout';
 import { HandleCallback } from './callback';
 import { HandleProfile } from './profile';
-import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next';
 import { HandlerError } from '../utils/errors';
 
 /**
@@ -24,28 +24,55 @@ import { HandlerError } from '../utils/errors';
  *     } catch (error) {
  *       // Add you own custom error logging.
  *       errorReporter(error);
- *       res.status(error.status || 500).end(error.message);
+ *       res.status(error.status || 500).end();
  *     }
  *   }
  * });
  * ```
  *
+ * Alternatively, you can customize the default handlers without overriding them. For example:
+ *
+ * ```js
+ * // pages/api/auth/[...auth0].js
+ * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
+ *
+ * export default handleAuth({
+ *   login: handleLogin({
+ *     authorizationParams: { customParam: 'foo' } // Pass in custom params
+ *   })
+ * });
+ * ```
+ *
+ * You can also create new handlers by customizing the default ones. For example:
+ *
+ * ```js
+ * // pages/api/auth/[...auth0].js
+ * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
+ *
+ * export default handleAuth({
+ *   signup: handleLogin({
+ *     authorizationParams: { screen_hint: 'signup' }
+ *   })
+ * });
+ * ```
+ *
  * @category Server
  */
-export interface Handlers {
-  login: HandleLogin;
-  logout: HandleLogout;
-  callback: HandleCallback;
-  profile: HandleProfile;
-  onError: OnError;
-}
+export type Handlers = ApiHandlers | ErrorHandlers;
+
+type ApiHandlers = {
+  [key: string]: NextApiHandler;
+};
+
+type ErrorHandlers = {
+  onError?: OnError;
+};
 
 /**
  * The main way to use the server SDK.
  *
  * Simply set the environment variables per {@link ConfigParameters} then create the file
- * `pages/api/auth/[...auth0].js`.
- * For example:
+ * `pages/api/auth/[...auth0].js`. For example:
  *
  * ```js
  * // pages/api/auth/[...auth0].js
@@ -63,7 +90,7 @@ export interface Handlers {
  *
  * @category Server
  */
-export type HandleAuth = (userHandlers?: Partial<Handlers>) => NextApiHandler;
+export type HandleAuth = (userHandlers?: Handlers) => NextApiHandler;
 
 export type OnError = (req: NextApiRequest, res: NextApiResponse, error: HandlerError) => Promise<void> | void;
 
@@ -89,12 +116,12 @@ export default function handlerFactory({
   handleCallback: HandleCallback;
   handleProfile: HandleProfile;
 }): HandleAuth {
-  return ({ onError, ...handlers }: Partial<Handlers> = {}): NextApiHandler<void> => {
-    const { login, logout, callback, profile } = {
+  return ({ onError, ...handlers }: Handlers = {}): NextApiHandler<void> => {
+    const customHandlers: ApiHandlers = {
       login: handleLogin,
       logout: handleLogout,
       callback: handleCallback,
-      profile: handleProfile,
+      me: (handlers as ApiHandlers).profile || handleProfile,
       ...handlers
     };
     return async (req, res): Promise<void> => {
@@ -105,20 +132,14 @@ export default function handlerFactory({
       route = Array.isArray(route) ? route[0] : /* c8 ignore next */ route;
 
       try {
-        switch (route) {
-          case 'login':
-            return await login(req, res);
-          case 'logout':
-            return await logout(req, res);
-          case 'callback':
-            return await callback(req, res);
-          case 'me':
-            return await profile(req, res);
-          default:
-            res.status(404).end();
+        const handler = route && customHandlers[route];
+        if (handler) {
+          await handler(req, res);
+        } else {
+          res.status(404).end();
         }
       } catch (error) {
-        await (onError || defaultOnError)(req, res, error);
+        await (onError || defaultOnError)(req, res, error as HandlerError);
         if (!res.writableEnded) {
           // 200 is the default, so we assume it has not been set in the custom error handler if it equals 200
           res.status(res.statusCode === 200 ? 500 : res.statusCode).end();

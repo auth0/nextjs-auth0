@@ -1,5 +1,5 @@
 import { IncomingMessage, ServerResponse } from 'http';
-import { NextApiRequest, NextApiResponse } from 'next';
+import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next';
 import nock from 'nock';
 import { CookieJar } from 'tough-cookie';
 import {
@@ -20,12 +20,17 @@ import { jwks, makeIdToken } from '../auth0-session/fixtures/cert';
 import { start, stop } from './server';
 import { encodeState } from '../../src/auth0-session/hooks/get-login-state';
 import { post, toSignedCookieJar } from '../auth0-session/fixtures/helpers';
+import { HandleLogin, HandleLogout, HandleCallback, HandleProfile } from '../../src';
 
 export type SetupOptions = {
   idTokenClaims?: Claims;
+  callbackHandler?: HandleCallback;
   callbackOptions?: CallbackOptions;
+  loginHandler?: HandleLogin;
   loginOptions?: LoginOptions;
+  logoutHandler?: HandleLogout;
   logoutOptions?: LogoutOptions;
+  profileHandler?: HandleProfile;
   profileOptions?: ProfileOptions;
   withPageAuthRequiredOptions?: WithPageAuthRequiredOptions;
   getAccessTokenOptions?: AccessTokenRequest;
@@ -45,9 +50,13 @@ export const setup = async (
   config: ConfigParameters,
   {
     idTokenClaims,
+    callbackHandler,
     callbackOptions,
+    logoutHandler,
     logoutOptions,
+    loginHandler,
     loginOptions,
+    profileHandler,
     profileOptions,
     withPageAuthRequiredOptions,
     onError = defaultOnError,
@@ -73,20 +82,12 @@ export const setup = async (
     getAccessToken,
     withApiAuthRequired,
     withPageAuthRequired
-  } = await initAuth0(config);
-  const handlers: Partial<Handlers> = { onError };
-  if (callbackOptions) {
-    handlers.callback = (req, res) => handleCallback(req, res, callbackOptions);
-  }
-  if (loginOptions) {
-    handlers.login = (req, res) => handleLogin(req, res, loginOptions);
-  }
-  if (logoutOptions) {
-    handlers.logout = (req, res) => handleLogout(req, res, logoutOptions);
-  }
-  if (profileOptions) {
-    handlers.profile = (req, res) => handleProfile(req, res, profileOptions);
-  }
+  } = initAuth0(config);
+  const callback: NextApiHandler = (...args) => (callbackHandler || handleCallback)(...args, callbackOptions);
+  const login: NextApiHandler = (...args) => (loginHandler || handleLogin)(...args, loginOptions);
+  const logout: NextApiHandler = (...args) => (logoutHandler || handleLogout)(...args, logoutOptions);
+  const profile: NextApiHandler = (...args) => (profileHandler || handleProfile)(...args, profileOptions);
+  const handlers: Handlers = { onError, callback, login, logout, profile };
   global.handleAuth = handleAuth.bind(null, handlers);
   global.getSession = getSession;
   global.updateUser = updateUser;
