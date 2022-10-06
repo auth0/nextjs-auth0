@@ -9,7 +9,7 @@ Guide to migrating from `1.x` to `2.x`
 - [The ID token is no longer stored by default](#the-id-token-is-no-longer-stored-by-default)
 - [Override default error handler](#override-default-error-handler)
 - [afterCallback can write to the response](#aftercallback-can-write-to-the-response)
-- [Configure built-in handlers without overriding them](#configure-built-in-handlers-without-overriding-them)
+- [Configure default handlers](#configure-default-handlers)
 
 ## `getSession` now returns a `Promise`
 
@@ -203,20 +203,18 @@ const afterCallback = (req, res, session, state) => {
 }; // Redirects to `/admin` if user is admin
 ```
 
-## Configure built-in handlers without overriding them
+## Configure default handlers
 
-Previously it was not possible to dynamically configure the built-in handlers. For example, to pass a `connection` parameter to the login handler, you had to override it.
+Previously it was not possible to configure the default handlers. For example, to pass a `connection` parameter to the login handler, you had to override it.
 
 ### Before
 
 ```js
 export default handleAuth({
-  async login(req, res) {
+  login: async (req, res) => {
     try {
       await handleLogin(req, res, {
-        authorizationParams: {
-          connection: 'github'
-        },
+        authorizationParams: { connection: 'github' },
       });
     } catch (error) {
       // ...
@@ -227,16 +225,37 @@ export default handleAuth({
 
 ### After
 
-Now you can simply pass an options object to configure the built-in handler instead.
+Now you can configure a default handler by passing an options object to it.
 
 ```js
 export default handleAuth({
-  login: {
-    authorizationParams: {
-      connection: 'github'
-    }
-  }
+  login: handleLogin({
+    authorizationParams: { connection: 'github' }
+  })
 });
 ```
 
-You can still override any built-in handler if needed. Pass either a custom handler function to override it, or just an options object to configure it.
+You can also pass a function that receives the request and returns an options object.
+
+```js
+export default handleAuth({
+  login: handleLogin((req) => {
+    return {
+      authorizationParams: { connection: 'github' }
+    };
+  })
+});
+```
+
+You can even create new handlers by configuring the default ones.
+
+```js
+export default handleAuth({
+  // Creates /api/auth/signup
+  signup: handleLogin({
+    authorizationParams: { screen_hint: 'signup' }
+  })
+});
+```
+
+It is still possible to override the default handlers if needed.
