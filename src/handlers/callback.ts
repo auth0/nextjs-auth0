@@ -99,12 +99,62 @@ export interface CallbackOptions {
 }
 
 /**
- * TODO: Complete
+ * Options provider for the built-in callback handler.
+ * Use this to generate options that depend on values from the request.
+ *
+ * @category Server
  */
 export type CallbackOptionsProvider = (req: NextApiRequest) => CallbackOptions;
 
 /**
- * TODO: Complete
+ * Use this to customize the built-in callback handler without overriding it.
+ * You can still override the handler if needed.
+ *
+ * @example Pass an options object
+ *
+ * ```js
+ * // pages/api/auth/[...auth0].js
+ * import { handleAuth, handleCallback } from '@auth0/nextjs-auth0';
+ *
+ * export default handleAuth({
+ *   callback: handleCallback({ redirectUri: 'https://example.com' })
+ * });
+ * ```
+ *
+ * @example Pass a function that receives the request and returns an options object
+ *
+ * ```js
+ * // pages/api/auth/[...auth0].js
+ * import { handleAuth, handleCallback } from '@auth0/nextjs-auth0';
+ *
+ * export default handleAuth({
+ *   callback: handleCallback((req) => {
+ *     return { redirectUri: 'https://example.com' };
+ *   })
+ * });
+ * ```
+ *
+ * This is useful for generating options that depend on values from the request.
+ *
+ * @example Override the callback handler
+ *
+ * ```js
+ * import { handleAuth, handleCallback } from '@auth0/nextjs-auth0';
+ *
+ * export default handleAuth({
+ *   callback: async (req, res) => {
+ *     try {
+ *       await handleCallback(req, res, {
+ *         redirectUri: 'https://example.com'
+ *       });
+ *     } catch (error) {
+ *       console.error(error);
+ *     }
+ *   }
+ * });
+ * ```
+ *
+ * @category Server
  */
 export type HandleCallback = {
   (req: NextApiRequest, res: NextApiResponse, options?: CallbackOptions): Promise<void>;

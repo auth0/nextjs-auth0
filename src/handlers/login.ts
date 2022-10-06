@@ -159,12 +159,66 @@ export interface LoginOptions {
 }
 
 /**
- * TODO: Complete
+ * Options provider for the built-in login handler.
+ * Use this to generate options that depend on values from the request.
+ *
+ * @category Server
  */
 export type LoginOptionsProvider = (req: NextApiRequest) => LoginOptions;
 
 /**
- * TODO: Complete
+ * Use this to customize the built-in login handler without overriding it.
+ * You can still override the handler if needed.
+ *
+ * @example Pass an options object
+ *
+ * ```js
+ * // pages/api/auth/[...auth0].js
+ * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
+ *
+ * export default handleAuth({
+ *   login: handleLogin({
+ *     authorizationParams: { connection: 'github' }
+ *   })
+ * });
+ * ```
+ *
+ * @example Pass a function that receives the request and returns an options object
+ *
+ * ```js
+ * // pages/api/auth/[...auth0].js
+ * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
+ *
+ * export default handleAuth({
+ *   login: handleLogin((req) => {
+ *     return {
+ *       authorizationParams: { connection: 'github' }
+ *     };
+ *   })
+ * });
+ * ```
+ *
+ * This is useful for generating options that depend on values from the request.
+ *
+ * @example Override the login handler
+ *
+ * ```js
+ * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
+ *
+ * export default handleAuth({
+ *   login: async (req, res) => {
+ *     try {
+ *       await handleLogin(req, res, {
+ *         authorizationParams: { connection: 'github' }
+ *       });
+ *     } catch (error) {
+ *       console.error(error);
+ *     }
+ *   }
+ * });
+ * ```
+ *
+ * @category Server
  */
 export type HandleLogin = {
   (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions): Promise<void>;

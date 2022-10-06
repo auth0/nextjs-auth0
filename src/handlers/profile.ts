@@ -30,12 +30,60 @@ export type ProfileOptions = {
 };
 
 /**
- * TODO: Complete
+ * Options provider for the built-in profile handler.
+ * Use this to generate options that depend on values from the request.
+ *
+ * @category Server
  */
 export type ProfileOptionsProvider = (req: NextApiRequest) => ProfileOptions;
 
 /**
- * TODO: Complete
+ * Use this to customize the built-in profile handler without overriding it.
+ * You can still override the handler if needed.
+ *
+ * @example Pass an options object
+ *
+ * ```js
+ * // pages/api/auth/[...auth0].js
+ * import { handleAuth, handleProfile } from '@auth0/nextjs-auth0';
+ *
+ * export default handleAuth({
+ *   profile: handleProfile({ refetch: true })
+ * });
+ * ```
+ *
+ * @example Pass a function that receives the request and returns an options object
+ *
+ * ```js
+ * // pages/api/auth/[...auth0].js
+ * import { handleAuth, handleProfile } from '@auth0/nextjs-auth0';
+ *
+ * export default handleAuth({
+ *   profile: handleProfile((req) => {
+ *     return { refetch: true };
+ *   })
+ * });
+ * ```
+ *
+ * This is useful for generating options that depend on values from the request.
+ *
+ * @example Override the profile handler
+ *
+ * ```js
+ * import { handleAuth, handleProfile } from '@auth0/nextjs-auth0';
+ *
+ * export default handleAuth({
+ *   profile: async (req, res) => {
+ *     try {
+ *       await handleProfile(req, res, { refetch: true });
+ *     } catch (error) {
+ *       console.error(error);
+ *     }
+ *   }
+ * });
+ * ```
+ *
+ * @category Server
  */
 export type HandleProfile = {
   (req: NextApiRequest, res: NextApiResponse, options?: ProfileOptions): Promise<void>;
