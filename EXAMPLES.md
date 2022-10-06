@@ -91,21 +91,27 @@ import { myCustomLogger, myCustomErrorReporter } from '../utils';
 
 export default handleAuth({
   async login(req, res) {
-    try {
-      // Add your own custom logger
-      myCustomLogger('Logging in');
-      // Pass custom parameters to login
-      await handleLogin(req, res, {
-        authorizationParams: {
-          custom_param: 'custom'
-        },
-        returnTo: '/custom-page'
-      });
-    } catch (error) {
-      // Add your own custom error handling
-      myCustomErrorReporter(error);
-      res.status(error.status || 400).end(error.message);
+    // Add your own custom logger
+    myCustomLogger('Logging in');
+    // Pass custom parameters to login
+    await handleLogin(req, res, {
+      authorizationParams: {
+        custom_param: 'custom'
+      },
+      returnTo: '/custom-page'
+    });
+  },
+  invite: loginHandler({
+    authorizationParams: (req) => {
+      invitation: req.query.invitation;
     }
+  }),
+  'login-with-google': loginHandler({ authorizationParams: { connection: 'google' } }),
+  'refresh-profile': profileHandler({ refetch: true }),
+  onError(req, res, error) {
+    // Add your own custom error handling
+    myCustomErrorReporter(error);
+    res.status(error.status || 400).end();
   }
 });
 ```
@@ -258,19 +264,13 @@ Get an Access Token by providing your API's audience and scopes. You can pass th
 import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
 
 export default handleAuth({
-  async login(req, res) {
-    try {
-      await handleLogin(req, res, {
-        authorizationParams: {
-          audience: 'https://api.example.com/products', // or AUTH0_AUDIENCE
-          // Add the `offline_access` scope to also get a Refresh Token
-          scope: 'openid profile email read:products' // or AUTH0_SCOPE
-        }
-      });
-    } catch (error) {
-      res.status(error.status || 400).end(error.message);
+  login: handleLogin({
+    authorizationParams: {
+      audience: 'https://api.example.com/products', // or AUTH0_AUDIENCE
+      // Add the `offline_access` scope to also get a Refresh Token
+      scope: 'openid profile email read:products' // or AUTH0_SCOPE
     }
-  }
+  })
 });
 ```
 
@@ -378,41 +378,16 @@ Pass a custom authorize parameter to the login handler in a custom route.
 If you are using the [New Universal Login Experience](https://auth0.com/docs/universal-login/new-experience) you can pass the `screen_hint` parameter.
 
 ```js
-// api/signup.js
-import { handleLogin } from '@auth0/nextjs-auth0';
+// pages/api/auth/[...auth0].js
+import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
 
-export default async function signup(req, res) {
-  try {
-    await handleLogin(req, res, {
-      authorizationParams: {
-        // Note that this can be combined with prompt=login , which indicates if
-        // you want to always show the authentication page or you want to skip
-        // if there’s an existing session.
-        screen_hint: 'signup'
-      }
-    });
-  } catch (error) {
-    res.status(error.status || 400).end(error.message);
-  }
-}
-```
-
-If you are using the [Classic Universal Login Experience](https://auth0.com/docs/universal-login/classic-experience) you can use any custom authorization
-parameter, eg `{ authorizationParams: { action: 'signup' } }` then customize the
-[login template](https://manage.auth0.com/#/login_page) to look for this parameter
-and set the `initialScreen` option of the `Auth0Lock` constructor.
-
-```js
-var isSignup = config.extraParams && config.extraParams.action === 'signup';
-var lock = new Auth0Lock(config.clientID, config.auth0Domain, {
-  // [...] all other Lock options
-  // use the value obtained to decide the first screen
-  initialScreen: isSignup ? 'signUp' : 'login'
+export default handleAuth({
+  signup: handleLogin({ authorizationParams: { screen_hint: 'signup' } })
 });
 ```
 
 Users can then sign up using the signup handler.
 
 ```html
-<a href="/api/signup">Sign up</a>
+<a href="/api/auth/signup">Sign up</a>
 ```
