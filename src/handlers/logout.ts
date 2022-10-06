@@ -20,7 +20,7 @@ export interface LogoutOptions {
 }
 
 /**
- * Options provider for the built-in logout handler.
+ * Options provider for the default logout handler.
  * Use this to generate options that depend on values from the request.
  *
  * @category Server
@@ -28,7 +28,7 @@ export interface LogoutOptions {
 export type LogoutOptionsProvider = (req: NextApiRequest) => LogoutOptions;
 
 /**
- * Use this to customize the built-in logout handler without overriding it.
+ * Use this to customize the default logout handler without overriding it.
  * You can still override the handler if needed.
  *
  * @example Pass an options object

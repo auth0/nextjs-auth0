@@ -30,7 +30,7 @@ export type ProfileOptions = {
 };
 
 /**
- * Options provider for the built-in profile handler.
+ * Options provider for the default profile handler.
  * Use this to generate options that depend on values from the request.
  *
  * @category Server
@@ -38,7 +38,7 @@ export type ProfileOptions = {
 export type ProfileOptionsProvider = (req: NextApiRequest) => ProfileOptions;
 
 /**
- * Use this to customize the built-in profile handler without overriding it.
+ * Use this to customize the default profile handler without overriding it.
  * You can still override the handler if needed.
  *
  * @example Pass an options object

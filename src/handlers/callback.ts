@@ -99,7 +99,7 @@ export interface CallbackOptions {
 }
 
 /**
- * Options provider for the built-in callback handler.
+ * Options provider for the default callback handler.
  * Use this to generate options that depend on values from the request.
  *
  * @category Server
@@ -107,7 +107,7 @@ export interface CallbackOptions {
 export type CallbackOptionsProvider = (req: NextApiRequest) => CallbackOptions;
 
 /**
- * Use this to customize the built-in callback handler without overriding it.
+ * Use this to customize the default callback handler without overriding it.
  * You can still override the handler if needed.
  *
  * @example Pass an options object
