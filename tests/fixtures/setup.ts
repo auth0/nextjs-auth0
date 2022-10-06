@@ -13,27 +13,27 @@ import {
   AccessTokenRequest,
   Claims,
   OnError,
-  Handlers,
-  HandleCallback,
-  HandleLogin,
-  HandleLogout,
-  HandleProfile
+  Handlers
 } from '../../src';
 import { codeExchange, discovery, jwksEndpoint, userInfo } from './oidc-nocks';
 import { jwks, makeIdToken } from '../auth0-session/fixtures/cert';
 import { start, stop } from './server';
 import { encodeState } from '../../src/auth0-session/hooks/get-login-state';
 import { post, toSignedCookieJar } from '../auth0-session/fixtures/helpers';
+import { HandleLogin } from '../../src/handlers/login';
+import { HandleLogout } from '../../src/handlers/logout';
+import { HandleCallback } from '../../src/handlers/callback';
+import { HandleProfile } from '../../src/handlers/profile';
 
 export type SetupOptions = {
   idTokenClaims?: Claims;
-  loginHandler?: HandleLogin;
-  logoutHandler?: HandleLogout;
   callbackHandler?: HandleCallback;
-  profileHandler?: HandleProfile;
   callbackOptions?: CallbackOptions;
+  loginHandler?: HandleLogin;
   loginOptions?: LoginOptions;
+  logoutHandler?: HandleLogout;
   logoutOptions?: LogoutOptions;
+  profileHandler?: HandleProfile;
   profileOptions?: ProfileOptions;
   withPageAuthRequiredOptions?: WithPageAuthRequiredOptions;
   getAccessTokenOptions?: AccessTokenRequest;
@@ -53,13 +53,13 @@ export const setup = async (
   config: ConfigParameters,
   {
     idTokenClaims,
-    loginHandler,
-    logoutHandler,
     callbackHandler,
-    profileHandler,
     callbackOptions,
+    logoutHandler,
     logoutOptions,
+    loginHandler,
     loginOptions,
+    profileHandler,
     profileOptions,
     withPageAuthRequiredOptions,
     onError = defaultOnError,
@@ -74,13 +74,35 @@ export const setup = async (
   jwksEndpoint(config, jwks);
   codeExchange(config, await makeIdToken({ iss: 'https://acme.auth0.local/', ...idTokenClaims }));
   userInfo(config, userInfoToken, userInfoPayload);
-  const { handleAuth, getSession, updateUser, getAccessToken, withApiAuthRequired, withPageAuthRequired } =
-    await initAuth0(config);
-  const handlers: Partial<Handlers> = { onError };
-  handlers.callback = callbackHandler ?? callbackOptions;
-  handlers.login = loginHandler ?? loginOptions;
-  handlers.logout = logoutHandler ?? logoutOptions;
-  handlers.profile = profileHandler ?? profileOptions;
+  const {
+    handleAuth,
+    handleCallback,
+    handleLogin,
+    handleLogout,
+    handleProfile,
+    getSession,
+    updateUser,
+    getAccessToken,
+    withApiAuthRequired,
+    withPageAuthRequired
+  } = initAuth0(config);
+  const callback = callbackHandler || handleCallback;
+  const login = loginHandler || handleLogin;
+  const logout = logoutHandler || handleLogout;
+  const profile = profileHandler || handleProfile;
+  const handlers: Partial<Handlers> = { onError, callback, login, logout, profile };
+  if (callbackOptions) {
+    handlers.callback = (req, res) => callback(req, res, callbackOptions);
+  }
+  if (loginOptions) {
+    handlers.login = (req, res) => login(req, res, loginOptions);
+  }
+  if (logoutOptions) {
+    handlers.logout = (req, res) => logout(req, res, logoutOptions);
+  }
+  if (profileOptions) {
+    handlers.profile = (req, res) => profile(req, res, profileOptions);
+  }
   global.handleAuth = handleAuth.bind(null, handlers);
   global.getSession = getSession;
   global.updateUser = updateUser;
