@@ -1,8 +1,8 @@
 import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next';
-import { HandleLogin, LoginHandler } from './login';
-import { HandleLogout, LogoutHandler } from './logout';
-import { CallbackHandler, HandleCallback } from './callback';
-import { HandleProfile, ProfileHandler } from './profile';
+import { HandleLogin } from './login';
+import { HandleLogout } from './logout';
+import { HandleCallback } from './callback';
+import { HandleProfile } from './profile';
 import { HandlerError } from '../utils/errors';
 
 /**
@@ -58,14 +58,15 @@ import { HandlerError } from '../utils/errors';
  *
  * @category Server
  */
-export interface Handlers {
-  login: LoginHandler;
-  logout: LogoutHandler;
-  callback: CallbackHandler;
-  profile: ProfileHandler;
-  onError: OnError;
-  [key: string]: any;
-}
+export type Handlers = ApiHandlers | ErrorHandlers;
+
+type ApiHandlers = {
+  [key: string]: NextApiHandler;
+};
+
+type ErrorHandlers = {
+  onError?: OnError;
+};
 
 /**
  * The main way to use the server SDK.
@@ -89,7 +90,7 @@ export interface Handlers {
  *
  * @category Server
  */
-export type HandleAuth = (userHandlers?: Partial<Handlers>) => NextApiHandler;
+export type HandleAuth = (userHandlers?: Handlers) => NextApiHandler;
 
 export type OnError = (req: NextApiRequest, res: NextApiResponse, error: HandlerError) => Promise<void> | void;
 
@@ -115,12 +116,12 @@ export default function handlerFactory({
   handleCallback: HandleCallback;
   handleProfile: HandleProfile;
 }): HandleAuth {
-  return ({ onError, ...handlers }: Partial<Handlers> = {}): NextApiHandler<void> => {
-    const { login, logout, callback, profile, ...customHandlers }: Omit<Handlers, 'onError'> = {
+  return ({ onError, ...handlers }: Handlers = {}): NextApiHandler<void> => {
+    const customHandlers: ApiHandlers = {
       login: handleLogin,
       logout: handleLogout,
       callback: handleCallback,
-      profile: handleProfile,
+      me: (handlers as ApiHandlers).profile || handleProfile,
       ...handlers
     };
     return async (req, res): Promise<void> => {
@@ -131,20 +132,11 @@ export default function handlerFactory({
       route = Array.isArray(route) ? route[0] : /* c8 ignore next */ route;
 
       try {
-        switch (route) {
-          case 'login':
-            return await login(req, res);
-          case 'logout':
-            return await logout(req, res);
-          case 'callback':
-            return await callback(req, res);
-          case 'me':
-            return await profile(req, res);
-          default:
-            if (route && customHandlers[route]) {
-              return await customHandlers[route](req, res);
-            }
-            res.status(404).end();
+        const handler = route && customHandlers[route];
+        if (handler) {
+          await handler(req, res);
+        } else {
+          res.status(404).end();
         }
       } catch (error) {
         await (onError || defaultOnError)(req, res, error as HandlerError);
