@@ -20,12 +20,62 @@ export interface LogoutOptions {
 }
 
 /**
- * TODO: Complete
+ * Options provider for the built-in logout handler.
+ * Use this to generate options that depend on values from the request.
+ *
+ * @category Server
  */
 export type LogoutOptionsProvider = (req: NextApiRequest) => LogoutOptions;
 
 /**
- * TODO: Complete
+ * Use this to customize the built-in logout handler without overriding it.
+ * You can still override the handler if needed.
+ *
+ * @example Pass an options object
+ *
+ * ```js
+ * // pages/api/auth/[...auth0].js
+ * import { handleAuth, handleLogout } from '@auth0/nextjs-auth0';
+ *
+ * export default handleAuth({
+ *   logout: handleLogout({ returnTo: 'https://example.com' })
+ * });
+ * ```
+ *
+ * @example Pass a function that receives the request and returns an options object
+ *
+ * ```js
+ * // pages/api/auth/[...auth0].js
+ * import { handleAuth, handleLogout } from '@auth0/nextjs-auth0';
+ *
+ * export default handleAuth({
+ *   logout: handleLogout((req) => {
+ *     return { returnTo: 'https://example.com' };
+ *   })
+ * });
+ * ```
+ *
+ * This is useful for generating options that depend on values from the request.
+ *
+ * @example Override the logout handler
+ *
+ * ```js
+ * import { handleAuth, handleLogout } from '@auth0/nextjs-auth0';
+ *
+ * export default handleAuth({
+ *   logout: async (req, res) => {
+ *     try {
+ *       await handleLogout(req, res, {
+ *         returnTo: 'https://example.com'
+ *       });
+ *     } catch (error) {
+ *       console.error(error);
+ *     }
+ *   }
+ * });
+ * ```
+ *
+ * @category Server
  */
 export type HandleLogout = {
   (req: NextApiRequest, res: NextApiResponse, options?: LogoutOptions): Promise<void>;
