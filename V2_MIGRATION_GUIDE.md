@@ -8,6 +8,7 @@ Guide to migrating from `1.x` to `2.x`
 - [Profile API route no longer returns a 401](#profile-api-route-no-longer-returns-a-401)
 - [The ID token is no longer stored by default](#the-id-token-is-no-longer-stored-by-default)
 - [Override default error handler](#override-default-error-handler)
+- [afterCallback can write to the response](#aftercallback-can-write-to-the-response)
 - [Configure built-in handlers without overriding them](#configure-built-in-handlers-without-overriding-them)
 
 ## `getSession` now returns a `Promise`
@@ -158,6 +159,48 @@ export default handleAuth({
     // res.end();
   }
 });
+```
+
+## `afterCallback` can write to the response
+
+You can now write your own redirect header or terminate the request in `afterCallback`.
+
+### Before
+
+```js
+const afterCallback = (req, res, session, state) => {
+  if (session.user.isAdmin) {
+    return session;
+  } else {
+    res.status(401).end('User is not admin');
+  }
+}; // 💥 Fails with ERR_HTTP_HEADERS_SENT
+
+const afterCallback = (req, res, session, state) => {
+  if (!session.user.isAdmin) {
+    res.setHeader('Location', '/admin');
+  }
+  return session;
+}; // 💥 Fails with ERR_HTTP_HEADERS_SENT
+```
+
+### After
+
+```js
+const afterCallback = (req, res, session, state) => {
+  if (session.user.isAdmin) {
+    return session;
+  } else {
+    res.status(401).end('User is not admin');
+  }
+}; // Terminates the request with 401 if user is not admin
+
+const afterCallback = (req, res, session, state) => {
+  if (!session.user.isAdmin) {
+    res.setHeader('Location', '/admin');
+  }
+  return session;
+}; // Redirects to `/admin` if user is admin
 ```
 
 ## Configure built-in handlers without overriding them

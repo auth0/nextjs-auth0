@@ -18,10 +18,11 @@ import { CallbackHandlerError, HandlerErrorCause } from '../utils/errors';
  * import { handleAuth, handleCallback } from '@auth0/nextjs-auth0';
  *
  * const afterCallback = (req, res, session, state) => {
- *   if (!session.user.isAdmin) {
- *     throw new UnauthorizedError('User is not admin');
+ *   if (session.user.isAdmin) {
+ *     return session;
+ *   } else {
+ *     res.status(401).end('User is not admin');
  *   }
- *   return session;
  * };
  *
  * export default handleAuth({
@@ -58,6 +59,30 @@ import { CallbackHandlerError, HandlerErrorCause } from '../utils/errors';
  * });
  * ```
  *
+ * @example Redirect successful login based on claim
+ *
+ * ```js
+ * // pages/api/auth/[...auth0].js
+ * import { handleAuth, handleCallback } from '@auth0/nextjs-auth0';
+ *
+ * const afterCallback = (req, res, session, state) => {
+ *   if (!session.user.isAdmin) {
+ *     res.setHeader('Location', '/admin');
+ *   }
+ *   return session;
+ * };
+ *
+ * export default handleAuth({
+ *   async callback(req, res) {
+ *     try {
+ *       await handleCallback(req, res, { afterCallback });
+ *     } catch (error) {
+ *       res.status(error.status || 500).end(error.message);
+ *     }
+ *   }
+ * });
+ * ```
+ *
  * @throws {@link HandlerError}
  *
  * @category Server
@@ -67,7 +92,7 @@ export type AfterCallback = (
   res: NextApiResponse,
   session: Session,
   state?: { [key: string]: any }
-) => Promise<Session> | Session;
+) => Promise<Session> | Session | undefined;
 
 /**
  * Options to customize the callback handler.
