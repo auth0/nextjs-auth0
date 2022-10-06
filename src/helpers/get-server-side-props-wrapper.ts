@@ -40,11 +40,11 @@ export type GetServerSidePropsWrapper<P = any, Q extends ParsedUrlQuery = Parsed
  */
 export default function getServerSidePropsWrapperFactory(getSessionCache: () => SessionCache) {
   return function getServerSidePropsWrapper(getServerSideProps: GetServerSideProps): GetServerSideProps {
-    return function wrappedGetServerSideProps(...args) {
+    return async function wrappedGetServerSideProps(...args) {
       const sessionCache = getSessionCache();
       const [ctx] = args;
       sessionCache.init(ctx.req, ctx.res, false);
-      const ret = getServerSideProps(...args);
+      const ret = await getServerSideProps(...args);
       sessionCache.save(ctx.req, ctx.res);
       return ret;
     };
