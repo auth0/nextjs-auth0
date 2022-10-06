@@ -1,3 +1,4 @@
+import { IncomingMessage } from 'http';
 import { strict as assert } from 'assert';
 import { NextApiResponse, NextApiRequest } from 'next';
 import { AuthorizationParameters, HandleCallback as BaseHandleCallback } from '../auth0-session';
@@ -29,7 +30,7 @@ import { CallbackHandlerError, HandlerErrorCause } from '../utils/errors';
  *     try {
  *       await handleCallback(req, res, { afterCallback });
  *     } catch (error) {
- *       res.status(error.status || 500).end(error.message);
+ *       res.status(error.status || 500).end();
  *     }
  *   }
  * });
@@ -52,7 +53,7 @@ import { CallbackHandlerError, HandlerErrorCause } from '../utils/errors';
  *     try {
  *       await handleCallback(req, res, { afterCallback });
  *     } catch (error) {
- *       res.status(error.status || 500).end(error.message);
+ *       res.status(error.status || 500).end();
  *     }
  *   }
  * });
@@ -116,10 +117,75 @@ export interface CallbackOptions {
   organization?: string;
 
   /**
-   * This is useful for sending custom query parameters in the body of the code exchange request for use in rules.
+   * This is useful for sending custom query parameters in the body of the code exchange request
+   * for use in Actions/Rules.
    */
   authorizationParams?: Partial<AuthorizationParameters>;
 }
+
+/**
+ * Options provider for the default callback handler.
+ * Use this to generate options that depend on values from the request.
+ *
+ * @category Server
+ */
+export type CallbackOptionsProvider = (req: NextApiRequest) => CallbackOptions;
+
+/**
+ * Use this to customize the default callback handler without overriding it.
+ * You can still override the handler if needed.
+ *
+ * @example Pass an options object
+ *
+ * ```js
+ * // pages/api/auth/[...auth0].js
+ * import { handleAuth, handleCallback } from '@auth0/nextjs-auth0';
+ *
+ * export default handleAuth({
+ *   callback: handleCallback({ redirectUri: 'https://example.com' })
+ * });
+ * ```
+ *
+ * @example Pass a function that receives the request and returns an options object
+ *
+ * ```js
+ * // pages/api/auth/[...auth0].js
+ * import { handleAuth, handleCallback } from '@auth0/nextjs-auth0';
+ *
+ * export default handleAuth({
+ *   callback: handleCallback((req) => {
+ *     return { redirectUri: 'https://example.com' };
+ *   })
+ * });
+ * ```
+ *
+ * This is useful for generating options that depend on values from the request.
+ *
+ * @example Override the callback handler
+ *
+ * ```js
+ * import { handleAuth, handleCallback } from '@auth0/nextjs-auth0';
+ *
+ * export default handleAuth({
+ *   callback: async (req, res) => {
+ *     try {
+ *       await handleCallback(req, res, {
+ *         redirectUri: 'https://example.com'
+ *       });
+ *     } catch (error) {
+ *       console.error(error);
+ *     }
+ *   }
+ * });
+ * ```
+ *
+ * @category Server
+ */
+export type HandleCallback = {
+  (req: NextApiRequest, res: NextApiResponse, options?: CallbackOptions): Promise<void>;
+  (provider: CallbackOptionsProvider): CallbackHandler;
+  (options: CallbackOptions): CallbackHandler;
+};
 
 /**
  * The handler for the `/api/auth/callback` API route.
@@ -128,7 +194,7 @@ export interface CallbackOptions {
  *
  * @category Server
  */
-export type HandleCallback = (req: NextApiRequest, res: NextApiResponse, options?: CallbackOptions) => Promise<void>;
+export type CallbackHandler = (req: NextApiRequest, res: NextApiResponse, options?: CallbackOptions) => Promise<void>;
 
 /**
  * @ignore
@@ -155,7 +221,7 @@ const idTokenValidator =
  * @ignore
  */
 export default function handleCallbackFactory(handler: BaseHandleCallback, config: NextConfig): HandleCallback {
-  return async (req, res, options = {}): Promise<void> => {
+  const callback: CallbackHandler = async (req: NextApiRequest, res: NextApiResponse, options = {}): Promise<void> => {
     try {
       assertReqRes(req, res);
       return await handler(req, res, {
@@ -165,5 +231,18 @@ export default function handleCallbackFactory(handler: BaseHandleCallback, confi
     } catch (e) {
       throw new CallbackHandlerError(e as HandlerErrorCause);
     }
+  };
+  return (
+    reqOrOptions: NextApiRequest | CallbackOptionsProvider | CallbackOptions,
+    res?: NextApiResponse,
+    options?: CallbackOptions
+  ): any => {
+    if (reqOrOptions instanceof IncomingMessage && res) {
+      return callback(reqOrOptions, res, options);
+    }
+    if (typeof reqOrOptions === 'function') {
+      return (req: NextApiRequest, res: NextApiResponse) => callback(req, res, reqOrOptions(req));
+    }
+    return (req: NextApiRequest, res: NextApiResponse) => callback(req, res, reqOrOptions as CallbackOptions);
   };
 }

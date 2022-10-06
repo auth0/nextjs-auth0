@@ -1,6 +1,6 @@
 import { CookieJar } from 'tough-cookie';
 import * as jose from 'jose';
-import timekeeper = require('timekeeper');
+import timekeeper from 'timekeeper';
 import { withApi, withoutApi } from '../fixtures/default-settings';
 import { makeIdToken } from '../auth0-session/fixtures/cert';
 import { defaultConfig, get, post, toSignedCookieJar } from '../auth0-session/fixtures/helpers';
@@ -41,7 +41,8 @@ describe('callback handler', () => {
         state: '__test_state__'
       })
     ).rejects.toThrow(
-      'Callback handler failed. CAUSE: The cookie dropped by the login request cannot be found, check the url of the login request, the url of this callback request and your cookie config.'
+      'Callback handler failed. CAUSE: The cookie dropped by the login request cannot be found, check the url of the ' +
+        'login request, the url of this callback request and your cookie config.'
     );
   });
 

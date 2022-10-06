@@ -52,8 +52,12 @@ export const initAuth0: InitAuth0 = () => instance;
 export const getSession: GetSession = (...args) => instance.getSession(...args);
 export const getAccessToken: GetAccessToken = (...args) => instance.getAccessToken(...args);
 export const withApiAuthRequired: WithApiAuthRequired = (...args) => instance.withApiAuthRequired(...args);
-export const handleLogin: HandleLogin = (...args) => instance.handleLogin(...args);
-export const handleLogout: HandleLogout = (...args) => instance.handleLogout(...args);
-export const handleCallback: HandleCallback = (...args) => instance.handleCallback(...args);
-export const handleProfile: HandleProfile = (...args) => instance.handleProfile(...args);
+export const handleLogin: HandleLogin = ((...args: Parameters<HandleLogin>) =>
+  instance.handleLogin(...args)) as HandleLogin;
+export const handleLogout: HandleLogout = ((...args: Parameters<HandleLogout>) =>
+  instance.handleLogout(...args)) as HandleLogout;
+export const handleCallback: HandleCallback = ((...args: Parameters<HandleCallback>) =>
+  instance.handleCallback(...args)) as HandleCallback;
+export const handleProfile: HandleProfile = ((...args: Parameters<HandleProfile>) =>
+  instance.handleProfile(...args)) as HandleProfile;
 export const handleAuth: HandleAuth = (...args) => instance.handleAuth(...args);

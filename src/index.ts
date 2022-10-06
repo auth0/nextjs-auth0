@@ -120,10 +120,14 @@ export const updateUser: UpdateUser = (...args) => getInstance().updateUser(...a
 export const getAccessToken: GetAccessToken = (...args) => getInstance().getAccessToken(...args);
 export const withApiAuthRequired: WithApiAuthRequired = (...args) => getInstance().withApiAuthRequired(...args);
 export const withPageAuthRequired: WithPageAuthRequired = withPageAuthRequiredFactory(getLoginUrl(), getSessionCache);
-export const handleLogin: HandleLogin = (...args) => getInstance().handleLogin(...args);
-export const handleLogout: HandleLogout = (...args) => getInstance().handleLogout(...args);
-export const handleCallback: HandleCallback = (...args) => getInstance().handleCallback(...args);
-export const handleProfile: HandleProfile = (...args) => getInstance().handleProfile(...args);
+export const handleLogin: HandleLogin = ((...args: Parameters<HandleLogin>) =>
+  getInstance().handleLogin(...args)) as HandleLogin;
+export const handleLogout: HandleLogout = ((...args: Parameters<HandleLogout>) =>
+  getInstance().handleLogout(...args)) as HandleLogout;
+export const handleCallback: HandleCallback = ((...args: Parameters<HandleCallback>) =>
+  getInstance().handleCallback(...args)) as HandleCallback;
+export const handleProfile: HandleProfile = ((...args: Parameters<HandleProfile>) =>
+  getInstance().handleProfile(...args)) as HandleProfile;
 export const handleAuth: HandleAuth = (...args) => getInstance().handleAuth(...args);
 
 export {
