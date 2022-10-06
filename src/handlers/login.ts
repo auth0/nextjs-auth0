@@ -159,7 +159,7 @@ export interface LoginOptions {
 }
 
 /**
- * Options provider for the built-in login handler.
+ * Options provider for the default login handler.
  * Use this to generate options that depend on values from the request.
  *
  * @category Server
@@ -167,7 +167,7 @@ export interface LoginOptions {
 export type LoginOptionsProvider = (req: NextApiRequest) => LoginOptions;
 
 /**
- * Use this to customize the built-in login handler without overriding it.
+ * Use this to customize the default login handler without overriding it.
  * You can still override the handler if needed.
  *
  * @example Pass an options object
