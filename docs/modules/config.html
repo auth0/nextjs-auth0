@@ -97,7 +97,7 @@
 					<div class="tsd-signature tsd-kind-icon">Config<wbr>Parameters<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">DeepPartial</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/config.baseconfig.html" class="tsd-signature-type" data-tsd-kind="Interface">BaseConfig</a><span class="tsd-signature-symbol"> &amp; </span><a href="../interfaces/config.nextconfig.html" class="tsd-signature-type" data-tsd-kind="Interface">NextConfig</a><span class="tsd-signature-symbol">&gt;</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/config.ts#L381">src/config.ts:381</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/cc75175/src/config.ts#L383">src/config.ts:383</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -176,7 +176,9 @@
 <span style="color: #AF00DB">return</span><span style="color: #000000"> </span><span style="color: #001080">auth0</span><span style="color: #000000">.</span><span style="color: #795E26">handleAuth</span><span style="color: #000000">();</span>
 </code></pre>
 						<p><strong>Note</strong> If you use <a href="instance.html#initauth0">InitAuth0</a>, you should <em>not</em> use the other named exports as they will use a different
-						instance of the SDK.</p>
+							instance of the SDK. Also note - this is for the server side part of the SDK - you will always use named exports for
+							the front end components: <a href="frontend_use_user.html#userprovider">UserProvider</a>, <a href="frontend_use_user.html#useuser">UseUser</a> and the
+						front end version of <a href="frontend_with_page_auth_required.html#withpageauthrequired">WithPageAuthRequired</a></p>
 					</div>
 				</section>
 			</section>
