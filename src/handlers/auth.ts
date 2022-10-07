@@ -92,6 +92,27 @@ type ErrorHandlers = {
  */
 export type HandleAuth = (userHandlers?: Handlers) => NextApiHandler;
 
+/**
+ * Error handler for the default auth routes.
+ *
+ * Use this to define an error handler for all the default routes in a single place. For example:
+ *
+ * ```js
+ * export default handleAuth({
+ *   onError(req, res, error) {
+ *     errorLogger(error);
+ *     // You can finish the response yourself if you want to customize
+ *     // the status code or redirect the user
+ *     // res.writeHead(302, {
+ *     //     Location: '/custom-error-page'
+ *     // });
+ *     // res.end();
+ *   }
+ * });
+ * ```
+ *
+ * @category Server
+ */
 export type OnError = (req: NextApiRequest, res: NextApiResponse, error: HandlerError) => Promise<void> | void;
 
 /**
