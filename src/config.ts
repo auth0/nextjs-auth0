@@ -375,7 +375,8 @@ export interface NextConfig extends Pick<BaseConfig, 'identityClaimFilter'> {
  *
  * **Note** If you use {@link InitAuth0}, you should *not* use the other named exports as they will use a different
  * instance of the SDK. Also note - this is for the server side part of the SDK - you will always use named exports for
- * the front end components: {@Link UserProvider}, {@Link UseUser} and the front end version of {@Link WithPageAuthRequired}
+ * the front end components: {@Link UserProvider}, {@Link UseUser} and the
+ * front end version of {@Link WithPageAuthRequired}
  *
  * @category Server
  */
