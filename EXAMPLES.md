@@ -25,7 +25,7 @@ AUTH0_CLIENT_ID='CLIENT_ID'
 AUTH0_CLIENT_SECRET='CLIENT_SECRET'
 ```
 
-Create a [Dynamic API Route handler](https://nextjs.org/docs/api-routes/dynamic-api-routes) at `/pages/api/auth/[...auth0].js`.
+Create a [dynamic API route handler](https://nextjs.org/docs/api-routes/dynamic-api-routes) at `/pages/api/auth/[...auth0].js`.
 
 ```js
 import { handleAuth } from '@auth0/nextjs-auth0';
@@ -257,7 +257,7 @@ export default withMiddlewareAuthRequired(async function middleware(req) {
 
 ## Access an External API from an API Route
 
-Get an Access Token by providing your API's audience and scopes. You can pass them directly to the `handlelogin` method, or use environment variables instead.
+Get an access token by providing your API's audience and scopes. You can pass them directly to the `handlelogin` method, or use environment variables instead.
 
 ```js
 // pages/api/auth/[...auth0].js
@@ -274,7 +274,7 @@ export default handleAuth({
 });
 ```
 
-Use the Session to protect your API Route and the Access Token to protect your external API.
+Use the session to protect your API route and the access token to protect your external API.
 The API route serves as a proxy between your front end and the external API.
 
 ```js
@@ -282,7 +282,7 @@ The API route serves as a proxy between your front end and the external API.
 import { getAccessToken, withApiAuthRequired } from '@auth0/nextjs-auth0';
 
 export default withApiAuthRequired(async function products(req, res) {
-  // If your Access Token is expired and you have a Refresh Token
+  // If your access token is expired and you have a refresh token
   // `getAccessToken` will fetch you a new one using the `refresh_token` grant
   const { accessToken } = await getAccessToken(req, res, {
     scopes: ['read:products']
@@ -301,11 +301,11 @@ See a running example of the [API route acting as a proxy to an External API](./
 
 ## Create your own instance of the SDK
 
-When you use the named exports, the SDK creates an instance of the SDK for you and configures it with the provided environmental variables, eg:
+When you use the named exports, the SDK creates an instance of the SDK for you and configures it with the provided environment variables.
 
 ```js
 // These named exports create and manage their own instance of the SDK configured with
-// the provided AUTH0_* environment variables
+// the provided `AUTH0_*` environment variables
 import {
   handleAuth,
   handleLogin,
@@ -324,7 +324,7 @@ However, there are various reasons why you might want to create and manage an in
 - You may want to create your own instance for testing
 - You may not want to use environment variables for the configuration of secrets (eg using CredStash or AWS's Key Management Service)
 
-In this case you can use the [initAuth0](https://auth0.github.io/nextjs-auth0/modules/instance.html) method to create an instance, eg:
+In this case you can use the [initAuth0](https://auth0.github.io/nextjs-auth0/modules/instance.html) method to create an instance.
 
 ```js
 // utils/auth0.js
@@ -339,7 +339,7 @@ export default initAuth0({
 });
 ```
 
-Now rather than using the named exports, you can use the instance methods directly, eg:
+Now rather than using the named exports, you can use the instance methods directly.
 
 ```js
 // pages/api/auth/[...auth0].js
@@ -350,7 +350,7 @@ export default auth0.handleAuth();
 ```
 
 > Note: You should not use the instance methods in combination with the named exports,
-> otherwise you will be creating multiple instances of the SDK, eg:
+> otherwise you will be creating multiple instances of the SDK. For example:
 
 ```js
 // DON'T Mix instance methods and named exports
@@ -361,7 +361,7 @@ export default auth0.handleAuth({
   // <= instance method
   async login(req, res) {
     try {
-      // `auth0.handleAuth` and `handleLogin` will be using separate instances.
+      // `auth0.handleAuth` and `handleLogin` will be using separate instances
       // You should use `auth0.handleLogin` instead
       await handleLogin(req, res); // <= named export
     } catch (error) {

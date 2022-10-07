@@ -90,7 +90,7 @@ node -e "console.log(crypto.randomBytes(32).toString('hex'))"
 
 You can see a full list of Auth0 configuration options in the ["Configuration properties"](https://auth0.github.io/nextjs-auth0/modules/config.html#configuration-properties) section of the "Module config" document.
 
-> For more details about loading environmental variables in Next.js, visit the ["Environment Variables"](https://nextjs.org/docs/basic-features/environment-variables) document.
+> For more details about loading environment variables in Next.js, visit the ["Environment Variables"](https://nextjs.org/docs/basic-features/environment-variables) document.
 
 #### Add the Dynamic API Route
 
@@ -110,9 +110,9 @@ export default handleAuth();
 
 Executing `handleAuth()` creates the following route handlers under the hood that perform different parts of the authentication flow:
 
-- `/api/auth/login`: Your Next.js application redirects users to your Identity Provider for them to log in (you can optionally pass a `returnTo` parameter to return to a custom relative URL after login, eg `/api/auth/login?returnTo=/profile`).
+- `/api/auth/login`: Your Next.js application redirects users to your identity provider for them to log in (you can optionally pass a `returnTo` parameter to return to a custom relative URL after login, for example `/api/auth/login?returnTo=/profile`).
 
-- `/api/auth/callback`: Your Identity Provider redirects users to this route after they successfully log in.
+- `/api/auth/callback`: Your identity provider redirects users to this route after they successfully log in.
 
 - `/api/auth/logout`: Your Next.js application logs out the user.
 
@@ -217,7 +217,7 @@ Check your hosting provider's caching rules, but in general you should **never**
 
 ### Error Handling and Security
 
-The default server side error handler for the `/api/auth/*` routes prints the error message to screen, eg
+The default server side error handler for the `/api/auth/*` routes prints the error message to screen, like this:
 
 ```js
 try {
@@ -237,7 +237,7 @@ With Next.js you can deploy a Next.js application under a sub-path of a domain u
 
 If you use these features the urls of your application will change and so the urls to the nextjs-auth0 routes will change. To accommodate this there are various places in the SDK that you can customise the url.
 
-For example if `basePath: '/foo'` you should prepend this to the `loginUrl` and `profileUrl` specified in your `Auth0Provider`
+For example, if `basePath: '/foo'` you should prepend this to the `loginUrl` and `profileUrl` specified in your `Auth0Provider`:
 
 ```jsx
 // _app.jsx
@@ -257,7 +257,7 @@ Also, any links to login or logout should include the `basePath`:
 <a href="/foo/api/auth/logout">Logout</a>
 ```
 
-You should configure [baseUrl](https://auth0.github.io/nextjs-auth0/interfaces/config.baseconfig.html#baseurl) (or the `AUTH0_BASE_URL` environment variable) eg
+You should configure the [baseUrl](https://auth0.github.io/nextjs-auth0/interfaces/config.baseconfig.html#baseurl) (or the `AUTH0_BASE_URL` environment variable). For example:
 
 ```shell
 # .env.local
@@ -286,13 +286,13 @@ export const getServerSideProps = (ctx) => {
 
 We also provide an Auth0 React SDK, [auth0-react](https://github.com/auth0/auth0-react), which may be suitable for your Next.js application.
 
-The SPA security model used by `auth0-react` is different from the Web Application security model used by this SDK. In short, this SDK protects pages and API routes with a cookie session (see ["Cookies and Security"](#cookies-and-security)). A SPA library like `auth0-react` will store the user's ID Token and Access Token directly in the browser and use them to access external APIs directly.
+The SPA security model used by `auth0-react` is different from the Web Application security model used by this SDK. In short, this SDK protects pages and API routes with a cookie session (see ["Cookies and Security"](#cookies-and-security)). A SPA library like `auth0-react` will store the user's ID token and access token directly in the browser and use them to access external APIs directly.
 
 You should be aware of the security implications of both models. However, [auth0-react](https://github.com/auth0/auth0-react) may be more suitable for your needs if you meet any of the following scenarios:
 
 - You are using [Static HTML Export](https://nextjs.org/docs/advanced-features/static-html-export) with Next.js.
 - You do not need to access user data during server-side rendering.
-- You want to get the access token and call external API's directly from the frontend layer rather than using Next.js API Routes as a proxy to call external APIs
+- You want to get the access token and call external API's directly from the frontend layer rather than using Next.js API routes as a proxy to call external APIs.
 
 ### Testing
 
@@ -343,12 +343,12 @@ Please do not report security vulnerabilities on the public GitHub issue tracker
 
 Auth0 helps you to easily:
 
-- Implement authentication with multiple identity providers, including social (e.g., Google, Facebook, Microsoft, LinkedIn, GitHub, Twitter, etc.), or enterprise (e.g., Windows Azure AD, Google Apps, Active Directory, ADFS, SAML, etc.)
+- Implement authentication with multiple identity providers, including social identity providers such as Google, Facebook, Microsoft, LinkedIn, GitHub, Twitter (amongst others), or enterprise identity systems like Windows Azure AD, Google Apps, Active Directory, ADFS, or any SAML identity provider
 - Log in users with username/password databases, passwordless, or multi-factor authentication
 - Link multiple user accounts together
 - Generate signed JSON Web Tokens to authorize your API calls and flow the user identity securely
-- Access demographics and analytics detailing how, when, and where users are logging in
-- Enrich user profiles from other data sources using customizable JavaScript rules
+- Access analytics detailing how, when, and where users are logging in
+- Enrich user profiles from other data sources using customizable JavaScript Actions
 
 [Why Auth0?](https://auth0.com/why-auth0) Because you should save time, be happy, and focus on what really matters: building your product.
 
