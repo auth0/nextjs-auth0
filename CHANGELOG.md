@@ -1,5 +1,11 @@
 # Change Log
 
+## [v1.9.2](https://github.com/auth0/nextjs-auth0/tree/v1.9.2) (2022-10-07)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v1.9.1...v1.9.2)
+
+**Added**
+- Fix updates to session not reflected in async `getServerSideProps` [\#843](https://github.com/auth0/nextjs-auth0/pull/843) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [v1.9.1](https://github.com/auth0/nextjs-auth0/tree/v1.9.1) (2022-06-16)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v1.9.0...v1.9.1)
 

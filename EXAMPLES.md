@@ -299,6 +299,12 @@ export default withApiAuthRequired(async function products(req, res) {
 
 See a running example of the [API route acting as a proxy to an External API](./examples/kitchen-sink-example/pages/api/shows.ts) in the kitchen-sink example app.
 
+### Getting a Refresh Token
+
+- Include the `offline_access` scope your configuration (or `AUTH0_SCOPE`)
+- Check "Allow Offline Access" in your [API Settings](https://auth0.com/docs/get-started/apis/api-settings#access-settings)
+- Make sure the "Refresh Token" grant is enabled in your [Application Settings](https://auth0.com/docs/get-started/applications/application-settings#grant-types) (this is the default)
+
 ## Create your own instance of the SDK
 
 When you use the named exports, the SDK creates an instance of the SDK for you and configures it with the provided environment variables.
