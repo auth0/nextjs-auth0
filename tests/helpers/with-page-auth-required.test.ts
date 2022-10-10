@@ -126,4 +126,25 @@ describe('with-page-auth-required ssr', () => {
     const [cookie] = headers['set-cookie'];
     expect(cookie).toMatch(/^appSession=/);
   });
+
+  test('save session when getServerSideProps completes async', async () => {
+    const baseUrl = await setup(withoutApi, {
+      withPageAuthRequiredOptions: {
+        async getServerSideProps(ctx) {
+          await Promise.resolve();
+          const session = (global as any).getSession(ctx.req, ctx.res);
+          await (global as any).updateUser(ctx.req, ctx.res, { ...session.user, test: 'Hello World!' });
+          return { props: {} };
+        }
+      }
+    });
+    const cookieJar = await login(baseUrl);
+
+    const {
+      res: { statusCode }
+    } = await get(baseUrl, '/protected', { cookieJar, fullResponse: true });
+    expect(statusCode).toBe(200);
+    const session = await get(baseUrl, '/api/session', { cookieJar });
+    expect(session.user.test).toBe('Hello World!');
+  });
 });
