@@ -185,7 +185,7 @@ For other comprehensive examples, see the [EXAMPLES.md](./EXAMPLES.md) document.
 - [withPageAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_page_auth_required.html#withpageauthrequired)
 - [withMiddlewareAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_middleware_auth_required.html)
 - [getSession](https://auth0.github.io/nextjs-auth0/modules/session_get_session.html)
-- [updateUser](https://auth0.github.io/nextjs-auth0/modules/session_update_user.html)
+- [updateSession](https://auth0.github.io/nextjs-auth0/modules/session_update_session.html)
 - [getAccessToken](https://auth0.github.io/nextjs-auth0/modules/session_get_access_token.html)
 - [initAuth0](https://auth0.github.io/nextjs-auth0/modules/instance.html)
 

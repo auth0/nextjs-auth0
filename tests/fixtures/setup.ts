@@ -78,7 +78,7 @@ export const setup = async (
     handleLogout,
     handleProfile,
     getSession,
-    updateUser,
+    updateSession,
     getAccessToken,
     withApiAuthRequired,
     withPageAuthRequired
@@ -90,7 +90,7 @@ export const setup = async (
   const handlers: Handlers = { onError, callback, login, logout, profile };
   global.handleAuth = handleAuth.bind(null, handlers);
   global.getSession = getSession;
-  global.updateUser = updateUser;
+  global.updateSession = updateSession;
   global.withApiAuthRequired = withApiAuthRequired;
   global.withPageAuthRequired = (): any => withPageAuthRequired(withPageAuthRequiredOptions);
   global.withPageAuthRequiredCSR = withPageAuthRequired;
@@ -105,7 +105,7 @@ export const teardown = async (): Promise<void> => {
   nock.cleanAll();
   await stop();
   delete global.getSession;
-  delete global.updateUser;
+  delete global.updateSession;
   delete global.handleAuth;
   delete global.withApiAuthRequired;
   delete global.withPageAuthRequired;
