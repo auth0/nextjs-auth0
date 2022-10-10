@@ -48,6 +48,7 @@ export default function logoutHandlerFactory(
 
     const client = await getClient();
     returnURL = client.endSessionUrl({
+      ...options?.logoutParams,
       post_logout_redirect_uri: returnURL,
       id_token_hint: idToken
     });
