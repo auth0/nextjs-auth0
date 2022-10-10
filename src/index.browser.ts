@@ -19,8 +19,8 @@ const instance: SignInWithAuth0 = {
   getSession() {
     throw new Error(serverSideOnly('getSession'));
   },
-  updateUser() {
-    throw new Error(serverSideOnly('updateUser'));
+  updateSession() {
+    throw new Error(serverSideOnly('updateSession'));
   },
   getAccessToken() {
     throw new Error(serverSideOnly('getAccessToken'));
