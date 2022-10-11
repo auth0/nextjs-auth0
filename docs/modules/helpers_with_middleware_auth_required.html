@@ -3,7 +3,7 @@
 <head>
 	<meta charset="utf-8">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
-	<title>helpers/with-api-auth-required | @auth0/nextjs-auth0</title>
+	<title>helpers/with-middleware-auth-required | @auth0/nextjs-auth0</title>
 	<meta name="description" content="Documentation for @auth0/nextjs-auth0">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<link rel="stylesheet" href="../assets/css/main.css">
@@ -53,10 +53,10 @@
 					<a href="../index.html">@auth0/nextjs-auth0</a>
 				</li>
 				<li>
-					<a href="helpers_with_api_auth_required.html">helpers/with-api-auth-required</a>
+					<a href="helpers_with_middleware_auth_required.html">helpers/with-middleware-auth-required</a>
 				</li>
 			</ul>
-			<h1>Module helpers/with-api-auth-required</h1>
+			<h1>Module helpers/with-middleware-auth-required</h1>
 		</div>
 	</div>
 </header>
@@ -70,7 +70,7 @@
 						<section class="tsd-index-section ">
 							<h3>Server Type aliases</h3>
 							<ul class="tsd-index-list">
-								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="helpers_with_api_auth_required.html#withapiauthrequired" class="tsd-kind-icon">With<wbr>Api<wbr>Auth<wbr>Required</a></li>
+								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="helpers_with_middleware_auth_required.html#withmiddlewareauthrequired" class="tsd-kind-icon">With<wbr>Middleware<wbr>Auth<wbr>Required</a></li>
 							</ul>
 						</section>
 					</div>
@@ -79,45 +79,63 @@
 			<section class="tsd-panel-group tsd-member-group ">
 				<h2>Server Type aliases</h2>
 				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module">
-					<a name="withapiauthrequired" class="tsd-anchor"></a>
-					<h3>With<wbr>Api<wbr>Auth<wbr>Required</h3>
-					<div class="tsd-signature tsd-kind-icon">With<wbr>Api<wbr>Auth<wbr>Required<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span>apiRoute<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiHandler</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">NextApiHandler</span></div>
+					<a name="withmiddlewareauthrequired" class="tsd-anchor"></a>
+					<h3>With<wbr>Middleware<wbr>Auth<wbr>Required</h3>
+					<div class="tsd-signature tsd-kind-icon">With<wbr>Middleware<wbr>Auth<wbr>Required<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span>middleware<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">NextMiddleware</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">NextMiddleware</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/50cb3bd/src/helpers/with-api-auth-required.ts#L23">src/helpers/with-api-auth-required.ts:23</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/50cb3bd/src/helpers/with-middleware-auth-required.ts#L46">src/helpers/with-middleware-auth-required.ts:46</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
-							<p>Wrap an API route to check that the user has a valid session. If they&#39;re not logged in the
-							handler will return a 401 Unauthorized.</p>
+							<p>Protect your pages with Next.js Middleware. For example:</p>
 						</div>
-						<pre><code class="language-js"><span style="color: #008000">// pages/api/protected-route.js</span>
-<span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">withApiAuthRequired</span><span style="color: #000000">, </span><span style="color: #001080">getSession</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@auth0/nextjs-auth0&#039;</span><span style="color: #000000">;</span>
+						<p>To protect all your routes:</p>
+						<pre><code class="language-js"><span style="color: #008000">// middleware.js</span>
+<span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">withMiddlewareAuthRequired</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@auth0/nextjs-auth0/middleware&#039;</span><span style="color: #000000">;</span>
 
-<span style="color: #AF00DB">export</span><span style="color: #000000"> </span><span style="color: #AF00DB">default</span><span style="color: #000000"> </span><span style="color: #795E26">withApiAuthRequired</span><span style="color: #000000">(</span><span style="color: #0000FF">function</span><span style="color: #000000"> </span><span style="color: #795E26">ProtectedRoute</span><span style="color: #000000">(</span><span style="color: #001080">req</span><span style="color: #000000">, </span><span style="color: #001080">res</span><span style="color: #000000">) {</span>
-<span style="color: #000000">  </span><span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">session</span><span style="color: #000000"> = </span><span style="color: #795E26">getSession</span><span style="color: #000000">(</span><span style="color: #001080">req</span><span style="color: #000000">, </span><span style="color: #001080">res</span><span style="color: #000000">);</span>
-<span style="color: #000000">  ...</span>
+<span style="color: #AF00DB">export</span><span style="color: #000000"> </span><span style="color: #AF00DB">default</span><span style="color: #000000"> </span><span style="color: #795E26">withMiddlewareAuthRequired</span><span style="color: #000000">();</span>
+</code></pre>
+						<p>To protect specific routes:</p>
+						<pre><code class="language-js"><span style="color: #008000">// middleware.js</span>
+<span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">withMiddlewareAuthRequired</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@auth0/nextjs-auth0/middleware&#039;</span><span style="color: #000000">;</span>
+
+<span style="color: #AF00DB">export</span><span style="color: #000000"> </span><span style="color: #AF00DB">default</span><span style="color: #000000"> </span><span style="color: #795E26">withMiddlewareAuthRequired</span><span style="color: #000000">();</span>
+
+<span style="color: #AF00DB">export</span><span style="color: #000000"> </span><span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">config</span><span style="color: #000000"> = {</span>
+<span style="color: #000000">  </span><span style="color: #001080">matcher:</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;/about/:path*&#039;</span><span style="color: #000000">,</span>
+<span style="color: #000000">};</span>
+</code></pre>
+						<p>For more info see: <a href="https://nextjs.org/docs/advanced-features/middleware#matching-paths">https://nextjs.org/docs/advanced-features/middleware#matching-paths</a></p>
+						<p>To run custom middleware for authenticated users:</p>
+						<pre><code class="language-js"><span style="color: #008000">// middleware.js</span>
+<span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">withMiddlewareAuthRequired</span><span style="color: #000000">, </span><span style="color: #001080">getSession</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@auth0/nextjs-auth0/middleware&#039;</span><span style="color: #000000">;</span>
+
+<span style="color: #AF00DB">export</span><span style="color: #000000"> </span><span style="color: #AF00DB">default</span><span style="color: #000000"> </span><span style="color: #795E26">withMiddlewareAuthRequired</span><span style="color: #000000">(</span><span style="color: #0000FF">async</span><span style="color: #000000"> </span><span style="color: #0000FF">function</span><span style="color: #000000"> </span><span style="color: #795E26">middleware</span><span style="color: #000000">(</span><span style="color: #001080">req</span><span style="color: #000000">) {</span>
+<span style="color: #000000">  </span><span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">res</span><span style="color: #000000"> = </span><span style="color: #001080">NextResponse</span><span style="color: #000000">.</span><span style="color: #795E26">next</span><span style="color: #000000">();</span>
+<span style="color: #000000">  </span><span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">user</span><span style="color: #000000"> = </span><span style="color: #AF00DB">await</span><span style="color: #000000"> </span><span style="color: #795E26">getSession</span><span style="color: #000000">(</span><span style="color: #001080">req</span><span style="color: #000000">, </span><span style="color: #001080">res</span><span style="color: #000000">);</span>
+<span style="color: #000000">  </span><span style="color: #001080">res</span><span style="color: #000000">.</span><span style="color: #001080">cookies</span><span style="color: #000000">.</span><span style="color: #795E26">set</span><span style="color: #000000">(</span><span style="color: #A31515">&#039;hl&#039;</span><span style="color: #000000">, </span><span style="color: #001080">user</span><span style="color: #000000">.</span><span style="color: #001080">language</span><span style="color: #000000">);</span>
+<span style="color: #000000">  </span><span style="color: #AF00DB">return</span><span style="color: #000000"> </span><span style="color: #001080">res</span><span style="color: #000000">;</span>
 <span style="color: #000000">});</span>
 </code></pre>
-						<p>If you visit <code>/api/protected-route</code> without a valid session cookie, you will get a 401 response.</p>
 					</div>
 					<div class="tsd-type-declaration">
 						<h4>Type declaration</h4>
 						<ul class="tsd-parameters">
 							<li class="tsd-parameter-signature">
 								<ul class="tsd-signatures tsd-kind-type-literal tsd-parent-kind-type-alias">
-									<li class="tsd-signature tsd-kind-icon"><span class="tsd-signature-symbol">(</span>apiRoute<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiHandler</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiHandler</span></li>
+									<li class="tsd-signature tsd-kind-icon"><span class="tsd-signature-symbol">(</span>middleware<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">NextMiddleware</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextMiddleware</span></li>
 								</ul>
 								<ul class="tsd-descriptions">
 									<li class="tsd-description">
 										<h4 class="tsd-parameters-title">Parameters</h4>
 										<ul class="tsd-parameters">
 											<li>
-												<h5>apiRoute: <span class="tsd-signature-type">NextApiHandler</span></h5>
+												<h5><span class="tsd-flag ts-flagOptional">Optional</span> middleware: <span class="tsd-signature-type">NextMiddleware</span></h5>
 											</li>
 										</ul>
-										<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">NextApiHandler</span></h4>
+										<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">NextMiddleware</span></h4>
 									</li>
 								</ul>
 							</li>
@@ -168,10 +186,10 @@
 					<li class=" tsd-kind-module">
 						<a href="helpers_testing.html">helpers/testing</a>
 					</li>
-					<li class="current tsd-kind-module">
+					<li class=" tsd-kind-module">
 						<a href="helpers_with_api_auth_required.html">helpers/with-<wbr>api-<wbr>auth-<wbr>required</a>
 					</li>
-					<li class=" tsd-kind-module">
+					<li class="current tsd-kind-module">
 						<a href="helpers_with_middleware_auth_required.html">helpers/with-<wbr>middleware-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
@@ -209,7 +227,7 @@
 			<nav class="tsd-navigation secondary menu-sticky">
 				<ul class="before-current">
 					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
-						<a href="helpers_with_api_auth_required.html#withapiauthrequired" class="tsd-kind-icon">With<wbr>Api<wbr>Auth<wbr>Required</a>
+						<a href="helpers_with_middleware_auth_required.html#withmiddlewareauthrequired" class="tsd-kind-icon">With<wbr>Middleware<wbr>Auth<wbr>Required</a>
 					</li>
 				</ul>
 			</nav>
