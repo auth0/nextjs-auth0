@@ -93,6 +93,8 @@
 						<section class="tsd-index-section ">
 							<h3>Properties</h3>
 							<ul class="tsd-index-list">
+								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="handlers_login.authorizationparams.html#connection" class="tsd-kind-icon">connection</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="handlers_login.authorizationparams.html#connection_scope" class="tsd-kind-icon">connection_<wbr>scope</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="handlers_login.authorizationparams.html#invitation" class="tsd-kind-icon">invitation</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="handlers_login.authorizationparams.html#organization" class="tsd-kind-icon">organization</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-interface tsd-is-inherited"><a href="handlers_login.authorizationparams.html#response_mode" class="tsd-kind-icon">response_<wbr>mode</a></li>
@@ -107,12 +109,76 @@
 			<section class="tsd-panel-group tsd-member-group ">
 				<h2>Properties</h2>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
+					<a name="connection" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagOptional">Optional</span> connection</h3>
+					<div class="tsd-signature tsd-kind-icon">connection<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/50cb3bd/src/handlers/login.ts#L63">src/handlers/login.ts:63</a></li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>The name of an OAuth2/social connection. Use it to directly show that
+								identity provider&#39;s login page, skipping the Universal Login page itself.
+							By default no connection is specified, so the Universal Login page will be displayed.</p>
+						</div>
+						<pre><code class="language-js"><span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">handleAuth</span><span style="color: #000000">, </span><span style="color: #001080">handleLogin</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@auth0/nextjs-auth0&#039;</span><span style="color: #000000">;</span>
+
+<span style="color: #AF00DB">export</span><span style="color: #000000"> </span><span style="color: #AF00DB">default</span><span style="color: #000000"> </span><span style="color: #795E26">handleAuth</span><span style="color: #000000">({</span>
+<span style="color: #000000">  </span><span style="color: #795E26">login</span><span style="color: #001080">:</span><span style="color: #000000"> </span><span style="color: #0000FF">async</span><span style="color: #000000"> (</span><span style="color: #001080">req</span><span style="color: #000000">, </span><span style="color: #001080">res</span><span style="color: #000000">) </span><span style="color: #0000FF">=&gt;</span><span style="color: #000000"> {</span>
+<span style="color: #000000">    </span><span style="color: #AF00DB">try</span><span style="color: #000000"> {</span>
+<span style="color: #000000">      </span><span style="color: #AF00DB">await</span><span style="color: #000000"> </span><span style="color: #795E26">handleLogin</span><span style="color: #000000">(</span><span style="color: #001080">req</span><span style="color: #000000">, </span><span style="color: #001080">res</span><span style="color: #000000">, {</span>
+<span style="color: #000000">        </span><span style="color: #008000">// Get the connection name from the Auth0 Dashboard</span>
+<span style="color: #000000">        </span><span style="color: #001080">authorizationParams:</span><span style="color: #000000"> { </span><span style="color: #001080">connection:</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;github&#039;</span><span style="color: #000000"> }</span>
+<span style="color: #000000">      });</span>
+<span style="color: #000000">    } </span><span style="color: #AF00DB">catch</span><span style="color: #000000"> (</span><span style="color: #001080">error</span><span style="color: #000000">) {</span>
+<span style="color: #000000">      </span><span style="color: #001080">console</span><span style="color: #000000">.</span><span style="color: #795E26">error</span><span style="color: #000000">(</span><span style="color: #001080">error</span><span style="color: #000000">);</span>
+<span style="color: #000000">    }</span>
+<span style="color: #000000">  }</span>
+<span style="color: #000000">});</span>
+</code></pre>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
+					<a name="connection_scope" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagOptional">Optional</span> connection_<wbr>scope</h3>
+					<div class="tsd-signature tsd-kind-icon">connection_<wbr>scope<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/50cb3bd/src/handlers/login.ts#L87">src/handlers/login.ts:87</a></li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>Provider scopes for OAuth2/social connections, such as GitHub or Google.</p>
+						</div>
+						<pre><code class="language-js"><span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">handleAuth</span><span style="color: #000000">, </span><span style="color: #001080">handleLogin</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@auth0/nextjs-auth0&#039;</span><span style="color: #000000">;</span>
+
+<span style="color: #AF00DB">export</span><span style="color: #000000"> </span><span style="color: #AF00DB">default</span><span style="color: #000000"> </span><span style="color: #795E26">handleAuth</span><span style="color: #000000">({</span>
+<span style="color: #000000">  </span><span style="color: #795E26">login</span><span style="color: #001080">:</span><span style="color: #000000"> </span><span style="color: #0000FF">async</span><span style="color: #000000"> (</span><span style="color: #001080">req</span><span style="color: #000000">, </span><span style="color: #001080">res</span><span style="color: #000000">) </span><span style="color: #0000FF">=&gt;</span><span style="color: #000000"> {</span>
+<span style="color: #000000">    </span><span style="color: #AF00DB">try</span><span style="color: #000000"> {</span>
+<span style="color: #000000">      </span><span style="color: #AF00DB">await</span><span style="color: #000000"> </span><span style="color: #795E26">handleLogin</span><span style="color: #000000">(</span><span style="color: #001080">req</span><span style="color: #000000">, </span><span style="color: #001080">res</span><span style="color: #000000">, {</span>
+<span style="color: #000000">        </span><span style="color: #001080">authorizationParams:</span><span style="color: #000000"> {</span>
+<span style="color: #000000">          </span><span style="color: #001080">connection:</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;github&#039;</span><span style="color: #000000">,</span>
+<span style="color: #000000">          </span><span style="color: #001080">connection_scope:</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;public_repo read:user&#039;</span>
+<span style="color: #000000">        }</span>
+<span style="color: #000000">      });</span>
+<span style="color: #000000">    } </span><span style="color: #AF00DB">catch</span><span style="color: #000000"> (</span><span style="color: #001080">error</span><span style="color: #000000">) {</span>
+<span style="color: #000000">      </span><span style="color: #001080">console</span><span style="color: #000000">.</span><span style="color: #795E26">error</span><span style="color: #000000">(</span><span style="color: #001080">error</span><span style="color: #000000">);</span>
+<span style="color: #000000">    }</span>
+<span style="color: #000000">  }</span>
+<span style="color: #000000">});</span>
+</code></pre>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
 					<a name="invitation" class="tsd-anchor"></a>
 					<h3><span class="tsd-flag ts-flagOptional">Optional</span> invitation</h3>
 					<div class="tsd-signature tsd-kind-icon">invitation<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/cc75175/src/handlers/login.ts#L71">src/handlers/login.ts:71</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/50cb3bd/src/handlers/login.ts#L120">src/handlers/login.ts:120</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -137,12 +203,12 @@
 <span style="color: #000000">      }</span>
 <span style="color: #000000">    });</span>
 <span style="color: #000000">  } </span><span style="color: #AF00DB">catch</span><span style="color: #000000"> (</span><span style="color: #001080">error</span><span style="color: #000000">) {</span>
-<span style="color: #000000">    </span><span style="color: #001080">res</span><span style="color: #000000">.</span><span style="color: #795E26">status</span><span style="color: #000000">(</span><span style="color: #001080">error</span><span style="color: #000000">.</span><span style="color: #001080">status</span><span style="color: #000000"> || </span><span style="color: #098658">500</span><span style="color: #000000">).</span><span style="color: #795E26">end</span><span style="color: #000000">(</span><span style="color: #001080">error</span><span style="color: #000000">.</span><span style="color: #001080">message</span><span style="color: #000000">);</span>
+<span style="color: #000000">    </span><span style="color: #001080">res</span><span style="color: #000000">.</span><span style="color: #795E26">status</span><span style="color: #000000">(</span><span style="color: #001080">error</span><span style="color: #000000">.</span><span style="color: #001080">status</span><span style="color: #000000"> || </span><span style="color: #098658">500</span><span style="color: #000000">).</span><span style="color: #795E26">end</span><span style="color: #000000">();</span>
 <span style="color: #000000">  }</span>
 <span style="color: #000000">} ;</span>
 </code></pre>
 						<p>Your invite url can then take the format:
-						<code>https://example.com/api/invite?invitation=invitation_id&amp;organization=org_id</code></p>
+						<code>https://example.com/api/invite?invitation=invitation_id&amp;organization=org_id</code>.</p>
 					</div>
 				</section>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
@@ -151,13 +217,13 @@
 					<div class="tsd-signature tsd-kind-icon">organization<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/cc75175/src/handlers/login.ts#L76">src/handlers/login.ts:76</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/50cb3bd/src/handlers/login.ts#L126">src/handlers/login.ts:126</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
 							<p>This is useful to specify instead of <a href="config.nextconfig.html#organization">NextConfig.organization</a> when your app has multiple
-							organizations, it should match <a href="handlers_callback.callbackoptions.html#organization">CallbackOptions.organization</a>.</p>
+							organizations. It should match <a href="handlers_callback.callbackoptions.html#organization">CallbackOptions.organization</a>.</p>
 						</div>
 					</div>
 				</section>
@@ -168,7 +234,7 @@
 					<aside class="tsd-sources">
 						<p>Inherited from Partial.response_mode</p>
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/cc75175/src/auth0-session/config.ts#L248">src/auth0-session/config.ts:248</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/50cb3bd/src/auth0-session/config.ts#L255">src/auth0-session/config.ts:255</a></li>
 						</ul>
 					</aside>
 				</section>
@@ -179,7 +245,7 @@
 					<aside class="tsd-sources">
 						<p>Inherited from Partial.response_type</p>
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/cc75175/src/auth0-session/config.ts#L249">src/auth0-session/config.ts:249</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/50cb3bd/src/auth0-session/config.ts#L256">src/auth0-session/config.ts:256</a></li>
 						</ul>
 					</aside>
 				</section>
@@ -190,7 +256,7 @@
 					<aside class="tsd-sources">
 						<p>Inherited from Partial.scope</p>
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/cc75175/src/auth0-session/config.ts#L247">src/auth0-session/config.ts:247</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/50cb3bd/src/auth0-session/config.ts#L254">src/auth0-session/config.ts:254</a></li>
 						</ul>
 					</aside>
 				</section>
@@ -200,15 +266,15 @@
 					<div class="tsd-signature tsd-kind-icon">screen_<wbr>hint<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/cc75175/src/handlers/login.ts#L83">src/handlers/login.ts:83</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/50cb3bd/src/handlers/login.ts#L134">src/handlers/login.ts:134</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
 							<p>Provides a hint to Auth0 as to what flow should be displayed. The default behavior is to show a
-								login page but you can override this by passing &#39;signup&#39; to show the signup page instead.
-							This only affects the New Universal Login Experience.</p>
+							login page but you can override this by passing &#39;signup&#39; to show the signup page instead.</p>
 						</div>
+						<p>This only affects the New Universal Login Experience.</p>
 					</div>
 				</section>
 			</section>
@@ -253,16 +319,22 @@
 						<a href="../modules/helpers.html">helpers</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="../modules/helpers_get_server_side_props_wrapper.html">helpers/get-<wbr>server-<wbr>side-<wbr>props-<wbr>wrapper</a>
+						<a href="../modules/helpers_testing.html">helpers/testing</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/helpers_with_api_auth_required.html">helpers/with-<wbr>api-<wbr>auth-<wbr>required</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/helpers_with_middleware_auth_required.html">helpers/with-<wbr>middleware-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/helpers_with_page_auth_required.html">helpers/with-<wbr>page-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/instance.html">instance</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/middleware.html">middleware</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/session.html">session</a>
@@ -275,6 +347,9 @@
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/session_session.html">session/session</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/session_update_session.html">session/update-<wbr>session</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/utils_errors.html">utils/errors</a>
@@ -291,6 +366,12 @@
 					<li class="current tsd-kind-interface tsd-parent-kind-module">
 						<a href="handlers_login.authorizationparams.html" class="tsd-kind-icon">Authorization<wbr>Params</a>
 						<ul>
+							<li class=" tsd-kind-property tsd-parent-kind-interface">
+								<a href="handlers_login.authorizationparams.html#connection" class="tsd-kind-icon">connection</a>
+							</li>
+							<li class=" tsd-kind-property tsd-parent-kind-interface">
+								<a href="handlers_login.authorizationparams.html#connection_scope" class="tsd-kind-icon">connection_<wbr>scope</a>
+							</li>
 							<li class=" tsd-kind-property tsd-parent-kind-interface">
 								<a href="handlers_login.authorizationparams.html#invitation" class="tsd-kind-icon">invitation</a>
 							</li>
@@ -322,6 +403,12 @@
 					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
 						<a href="../modules/handlers_login.html#handlelogin" class="tsd-kind-icon">Handle<wbr>Login</a>
 					</li>
+					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
+						<a href="../modules/handlers_login.html#loginhandler" class="tsd-kind-icon">Login<wbr>Handler</a>
+					</li>
+					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
+						<a href="../modules/handlers_login.html#loginoptionsprovider" class="tsd-kind-icon">Login<wbr>Options<wbr>Provider</a>
+					</li>
 				</ul>
 			</nav>
 		</div>
@@ -342,6 +429,10 @@
 			</ul>
 			<ul class="tsd-legend">
 				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
+				<li class="tsd-kind-class tsd-has-type-parameter"><span class="tsd-kind-icon">Class with type parameter</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-enum"><span class="tsd-kind-icon">Enumeration</span></li>
 			</ul>
 		</div>
 	</div>
