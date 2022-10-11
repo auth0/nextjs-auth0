@@ -3,7 +3,7 @@
 Guide to migrating from `1.x` to `2.x`
 
 - [`getSession` now returns a `Promise`](#getsession-now-returns-a-promise)
-- [`updateUser` has been added](#updateuser-has-been-added)
+- [`updateSession` has been added](#updatesession-has-been-added)
 - [`getServerSidePropsWrapper` has been removed](#getserversidepropswrapper-has-been-removed)
 - [Profile API route no longer returns a 401](#profile-api-route-no-longer-returns-a-401)
 - [The ID token is no longer stored by default](#the-id-token-is-no-longer-stored-by-default)
@@ -37,7 +37,7 @@ async function myApiRoute(req, res) {
 }
 ```
 
-## `updateUser` has been added
+## `updateSession` has been added
 
 ### Before
 
@@ -48,8 +48,8 @@ Previously your application could make modifications to the session during the l
 import { getSession } from '@auth0/nextjs-auth0';
 
 function myApiRoute(req, res) {
-  const { user } = getSession(req, res);
-  user.foo = 'bar';
+  const session = getSession(req, res);
+  session.foo = 'bar';
   res.json({ success: true });
 }
 // The updated session is serialized and the cookie is updated
@@ -58,19 +58,19 @@ function myApiRoute(req, res) {
 
 ### After
 
-We've introduced a new `updateUser` method which must be explicitly invoked in order to update the session's user.
+We've introduced a new `updateSession` method which must be explicitly invoked in order to update the session.
 
 This will immediately serialise the session, write it to the cookie and return a `Promise`.
 
 ```js
 // /pages/api/update-user
-import { getSession, updateUser } from '@auth0/nextjs-auth0';
+import { getSession, updateSession } from '@auth0/nextjs-auth0';
 
 async function myApiRoute(req, res) {
-  const { user } = await getSession(req, res);
+  const session = await getSession(req, res);
   // The session is updated, serialized and the cookie is updated
-  // everytime you call `updateUser`.
-  await updateUser(req, res, { ...user, foo: 'bar' });
+  // everytime you call `updateSession`.
+  await updateSession(req, res, { ...session, user: { ...session.user, foo: 'bar' } });
   res.json({ success: true });
 }
 ```
@@ -214,7 +214,7 @@ export default handleAuth({
   login: async (req, res) => {
     try {
       await handleLogin(req, res, {
-        authorizationParams: { connection: 'github' },
+        authorizationParams: { connection: 'github' }
       });
     } catch (error) {
       // ...
