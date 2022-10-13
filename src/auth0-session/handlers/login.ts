@@ -3,7 +3,7 @@ import urlJoin from 'url-join';
 import { strict as assert } from 'assert';
 import { Config, LoginOptions } from '../config';
 import TransientStore, { StoreOptions } from '../transient-store';
-import { encodeState } from '../hooks/get-login-state';
+import { encodeState } from '../utils/encoding';
 import { ClientFactory } from '../client';
 import createDebug from '../utils/debug';
 import { htmlSafe } from '../../utils/errors';
