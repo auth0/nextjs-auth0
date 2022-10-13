@@ -1,6 +1,6 @@
 import { parse as urlParse } from 'url';
 import { withoutApi, withApi } from '../fixtures/default-settings';
-import { decodeState } from '../../src/auth0-session/hooks/get-login-state';
+import { decodeState } from '../../src/auth0-session/utils/encoding';
 import { setup, teardown } from '../fixtures/setup';
 import { get, getCookie } from '../auth0-session/fixtures/helpers';
 import { Cookie, CookieJar } from 'tough-cookie';

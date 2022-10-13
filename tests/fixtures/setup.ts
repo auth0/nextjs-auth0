@@ -18,7 +18,7 @@ import {
 import { codeExchange, discovery, jwksEndpoint, userInfo } from './oidc-nocks';
 import { jwks, makeIdToken } from '../auth0-session/fixtures/cert';
 import { start, stop } from './server';
-import { encodeState } from '../../src/auth0-session/hooks/get-login-state';
+import { encodeState } from '../../src/auth0-session/utils/encoding';
 import { post, toSignedCookieJar } from '../auth0-session/fixtures/helpers';
 import { HandleLogin, HandleLogout, HandleCallback, HandleProfile } from '../../src';
 
