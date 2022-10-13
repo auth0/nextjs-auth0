@@ -5,7 +5,7 @@ import { errors } from 'openid-client';
 import { AuthorizationParameters, Config } from '../config';
 import { ClientFactory } from '../client';
 import TransientStore from '../transient-store';
-import { decodeState } from '../hooks/get-login-state';
+import { decodeState } from '../utils/encoding';
 import { SessionCache } from '../session-cache';
 import { htmlSafe } from '../../utils/errors';
 import {

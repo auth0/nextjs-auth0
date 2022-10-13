@@ -2,7 +2,7 @@ import { parse } from 'url';
 import { CookieJar } from 'tough-cookie';
 import { setup, teardown } from '../fixtures/server';
 import { defaultConfig, fromCookieJar, get, getCookie } from '../fixtures/helpers';
-import { decodeState, encodeState } from '../../../src/auth0-session/hooks/get-login-state';
+import { decodeState, encodeState } from '../../../src/auth0-session/utils/encoding';
 import { LoginOptions } from '../../../src/auth0-session';
 import { IncomingMessage } from 'http';
 
