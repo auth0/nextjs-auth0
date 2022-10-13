@@ -2,7 +2,7 @@ import nock from 'nock';
 import { CookieJar } from 'tough-cookie';
 import * as jose from 'jose';
 import { signing as deriveKey } from '../../../src/auth0-session/utils/hkdf';
-import { encodeState } from '../../../src/auth0-session/hooks/get-login-state';
+import { encodeState } from '../../../src/auth0-session/utils/encoding';
 import { SessionResponse, setup, teardown } from '../fixtures/server';
 import { makeIdToken } from '../fixtures/cert';
 import { toSignedCookieJar, get, post, defaultConfig } from '../fixtures/helpers';
