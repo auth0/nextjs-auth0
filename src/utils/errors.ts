@@ -1,23 +1,12 @@
 import { HttpError } from 'http-errors';
 
-// eslint-disable-next-line max-len
-// Basic escaping for putting untrusted data directly into the HTML body, per: https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html#rule-1-html-encode-before-inserting-untrusted-data-into-html-element-content.
-export function htmlSafe(input: string): string {
-  return input
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 /**
  * @ignore
  */
 export function appendCause(errorMessage: string, cause?: Error): string {
   if (!cause) return errorMessage;
   const separator = errorMessage.endsWith('.') ? '' : '.';
-  return `${errorMessage}${separator} CAUSE: ${htmlSafe(cause.message)}`;
+  return `${errorMessage}${separator} CAUSE: ${cause.message}`;
 }
 
 type AuthErrorOptions = {
