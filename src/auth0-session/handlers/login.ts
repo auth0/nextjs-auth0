@@ -50,10 +50,18 @@ export default function loginHandlerFactory(
     stateValue.nonce = transientHandler.generateNonce();
     stateValue.returnTo = stateValue.returnTo || opts.returnTo;
 
-    const usePKCE = (opts.authorizationParams.response_type as string).includes('code');
+    const responseType = opts.authorizationParams.response_type as string;
+    const usePKCE = responseType.includes('code');
     if (usePKCE) {
       debug('response_type includes code, the authorization request will use PKCE');
       stateValue.code_verifier = transientHandler.generateCodeVerifier();
+    }
+
+    if (responseType !== config.authorizationParams.response_type) {
+      await transientHandler.save('response_type', req, res, {
+        ...transientOpts,
+        value: responseType
+      });
     }
 
     const authParams = {
