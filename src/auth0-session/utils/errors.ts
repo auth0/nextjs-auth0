@@ -35,22 +35,40 @@ export class ApplicationError extends Error {
 export class IdentityProviderError extends Error {
   /**
    * The 'error_description' parameter from the AS response.
-   * **WARNING** This can contain user input and is not escaped in any way.
+   * **WARNING** This can contain user input and is only escaped using basic escaping for putting untrusted data
+   * directly into the HTML body
    */
   errorDescription?: string;
   /**
-   * The 'error' parameter from the AS response  (Warning: this can contain user input and is not escaped in any way).
+   * The 'error' parameter from the AS response
+   * **WARNING** This can contain user input and is only escaped using basic escaping for putting untrusted data
+   * directly into the HTML body
    */
   error?: string;
 
   /**
-   * **WARNING** The message can contain user input and is not escaped in any way.
+   * **WARNING** The message contain user input and is only escaped using basic escaping for putting untrusted data
+   * directly into the HTML body
    */
   constructor(rpError: errors.OPError) {
     /* c8 ignore next */
-    super(rpError.message);
-    this.error = rpError.error;
-    this.errorDescription = rpError.error_description;
+    super(htmlSafe(rpError.message));
+    this.error = htmlSafe(rpError.error);
+    this.errorDescription = htmlSafe(rpError.error_description);
     Object.setPrototypeOf(this, IdentityProviderError.prototype);
   }
+}
+
+// eslint-disable-next-line max-len
+// Basic escaping for putting untrusted data directly into the HTML body, per: https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html#rule-1-html-encode-before-inserting-untrusted-data-into-html-element-content.
+export function htmlSafe(input?: string): string | undefined {
+  return (
+    input &&
+    input
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+  );
 }

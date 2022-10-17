@@ -7,9 +7,9 @@ import { ClientFactory } from '../client';
 import TransientStore from '../transient-store';
 import { decodeState } from '../utils/encoding';
 import { SessionCache } from '../session-cache';
-import { htmlSafe } from '../../utils/errors';
 import {
   ApplicationError,
+  htmlSafe,
   IdentityProviderError,
   MissingStateCookieError,
   MissingStateParamError

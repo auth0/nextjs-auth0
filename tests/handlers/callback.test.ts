@@ -352,9 +352,7 @@ describe('callback handler', () => {
         },
         cookieJar
       )
-    ).rejects.toThrow(
-      'Organization Id (org_id) claim value mismatch in the ID token; expected &quot;foo&quot;, found &quot;bar&quot;'
-    );
+    ).rejects.toThrow('Organization Id (org_id) claim value mismatch in the ID token; expected "foo", found "bar"');
   });
 
   test('accepts a valid organization', async () => {
