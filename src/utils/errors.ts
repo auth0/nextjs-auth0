@@ -48,8 +48,11 @@ export abstract class AuthError extends Error {
   /**
    * The underlying error, if any.
    *
-   * **IMPORTANT** This underlying error is **not** escaped in any way,
-   * so do **not** render it without escaping it first!
+   * **IMPORTANT** When this error is from the Identity Provider ({@Link IdentityProviderError}) it can contain user
+   * input and is only escaped using basic escaping for putting untrusted data directly into the HTML body.
+   *
+   * You should **not** render this error without using a templating engine that will properly escape it for other
+   * HTML contexts first.
    */
   public readonly cause?: Error;
 
@@ -125,8 +128,10 @@ type HandlerErrorOptions = {
  * without using a templating engine that will properly escape it for other HTML contexts first.
  *
  * @see the {@link AuthError.cause | cause property} contains the underlying error.
- * **IMPORTANT** This underlying error is **not** escaped in any way, so do **not** render
- * it without escaping it first!
+ * **IMPORTANT** When this error is from the Identity Provider ({@Link IdentityProviderError}) it can contain user
+ * input and is only escaped using basic escaping for putting untrusted data directly into the HTML body.
+ * You should **not** render this error without using a templating engine that will properly escape it for other
+ * HTML contexts first.
  *
  * @see the {@link AuthError.status | status property} contains the HTTP status code of the error,
  * if any.
@@ -152,8 +157,10 @@ export class HandlerError extends AuthError {
  * without using a templating engine that will properly escape it for other HTML contexts first.
  *
  * @see the {@link AuthError.cause | cause property} contains the underlying error.
- * **IMPORTANT** this underlying error is **not** escaped in any way, so do **not** render
- * it without escaping it first!
+ * **IMPORTANT** When this error is from the Identity Provider ({@Link IdentityProviderError}) it can contain user
+ * input and is only escaped using basic escaping for putting untrusted data directly into the HTML body.
+ * You should **not** render this error without using a templating engine that will properly escape it for other
+ * HTML contexts first.
  *
  * @see the {@link AuthError.status | status property} contains the HTTP status code of the error,
  * if any.
