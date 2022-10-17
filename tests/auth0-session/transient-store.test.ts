@@ -67,20 +67,6 @@ describe('TransientStore', () => {
     expect(cookie?.secure).toEqual(true);
   });
 
-  it('should override the secure setting when specified', async () => {
-    const baseURL = await setup(defaultConfig, (req: IncomingMessage, res: ServerResponse) =>
-      transientStore.save('test_key', req, res, { sameSite: 'lax', value: 'foo' })
-    );
-    const transientStore = new TransientStore(
-      getConfig({ ...defaultConfig, baseURL, session: { cookie: { secure: false } } })
-    );
-    const cookieJar = new CookieJar();
-    const { value } = await get(baseURL, '/', { cookieJar });
-    const cookie = getCookie('test_key', cookieJar, baseURL);
-    expect(value).toEqual('foo');
-    expect(cookie?.secure).toEqual(false);
-  });
-
   it('should set cookie to not secure when baseURL protocol is http and SameSite=Lax', async () => {
     const baseURL = await setup(
       defaultConfig,
