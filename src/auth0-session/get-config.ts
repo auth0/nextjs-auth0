@@ -37,16 +37,9 @@ const paramsSchema = Joi.object({
       sameSite: Joi.string().valid('lax', 'strict', 'none').optional().default('lax'),
       secure: Joi.when(Joi.ref('/baseURL'), {
         is: Joi.string().pattern(isHttps),
-        then: Joi.boolean()
-          .default(true)
-          .custom((value, { warn }) => {
-            if (!value) warn('insecure.cookie');
-            return value;
-          })
-          .messages({
-            'insecure.cookie':
-              "Setting your cookie to insecure when over https is not recommended, I hope you know what you're doing."
-          }),
+        then: Joi.boolean().valid(true).default(true).messages({
+          'any.only': 'Cookies must be secure when base url is https.'
+        }),
         otherwise: Joi.boolean().valid(false).default(false).messages({
           'any.only': 'Cookies set with the `Secure` property wont be attached to http requests'
         })
