@@ -65,6 +65,8 @@ export default function callbackHandlerFactory(
     const max_age = await transientCookieHandler.read('max_age', req, res);
     const code_verifier = await transientCookieHandler.read('code_verifier', req, res);
     const nonce = await transientCookieHandler.read('nonce', req, res);
+    const response_type =
+      (await transientCookieHandler.read('response_type', req, res)) || config.authorizationParams.response_type;
 
     try {
       tokenSet = await client.callback(
@@ -74,7 +76,8 @@ export default function callbackHandlerFactory(
           max_age: max_age !== undefined ? +max_age : undefined,
           code_verifier,
           nonce,
-          state: expectedState
+          state: expectedState,
+          response_type
         },
         { exchangeBody: options?.authorizationParams }
       );
