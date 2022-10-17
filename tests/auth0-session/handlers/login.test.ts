@@ -161,6 +161,23 @@ describe('login', () => {
     );
   });
 
+  it('should store response_type if different from config', async function () {
+    const cookieJar = new CookieJar();
+    const baseURL = await setup(
+      {
+        ...defaultConfig,
+        clientSecret: '__test_client_secret__',
+        authorizationParams: { response_type: 'code id_token' }
+      },
+      {
+        loginOptions: { authorizationParams: { response_type: 'code' } }
+      }
+    );
+
+    await get(baseURL, '/login', { cookieJar });
+    expect(fromCookieJar(cookieJar, baseURL)._response_type).toEqual('code');
+  });
+
   it('should use a custom state builder', async () => {
     const baseURL = await setup({
       ...defaultConfig,
