@@ -245,6 +245,30 @@ describe('callback', () => {
     expect(session.claims).toEqual(expect.objectContaining(expected));
   });
 
+  it("should fail when the Authorization Response params don't match the response_type", async () => {
+    const baseURL = await setup({ ...defaultConfig, authorizationParams: { response_type: 'id_token' } });
+
+    const cookieJar = await toSignedCookieJar(
+      {
+        state: expectedDefaultState,
+        nonce: '__test_nonce__',
+        response_type: 'code id_token'
+      },
+      baseURL
+    );
+
+    await expect(
+      post(baseURL, '/callback', {
+        body: {
+          state: expectedDefaultState,
+          id_token: await makeIdToken()
+        },
+        cookieJar,
+        fullResponse: true
+      })
+    ).rejects.toThrowError('code missing from response');
+  });
+
   it("should expose all tokens when id_token is valid and response_type is 'code id_token'", async () => {
     const baseURL = await setup({
       ...defaultConfig,
