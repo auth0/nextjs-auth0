@@ -2,6 +2,7 @@ import { Issuer, custom, HttpOptions, Client, EndSessionParameters } from 'openi
 import url, { UrlObject } from 'url';
 import urlJoin from 'url-join';
 import createDebug from './utils/debug';
+import { DiscoveryError } from './utils/errors';
 import { Config } from './config';
 
 const debug = createDebug('client');
@@ -17,17 +18,6 @@ export type Telemetry = {
 
 function sortSpaceDelimitedString(str: string): string {
   return str.split(' ').sort().join(' ');
-}
-
-// Issuer.discover throws an `AggregateError` in some cases, this error includes the stack trace in the
-// message which causes the stack to be exposed when reporting the error in production. We're using the non standard
-// `_errors` property to identify the polyfilled `AggregateError`.
-// See https://github.com/sindresorhus/aggregate-error/issues/4#issuecomment-488356468
-function normalizeAggregateError(e: Error | (Error & { _errors: Error[] })): Error {
-  if ('_errors' in e) {
-    return e._errors[0];
-  }
-  return e;
 }
 
 export default function get(config: Config, { name, version }: Telemetry): ClientFactory {
@@ -69,7 +59,7 @@ export default function get(config: Config, { name, version }: Telemetry): Clien
     try {
       issuer = await Issuer.discover(config.issuerBaseURL);
     } catch (e) {
-      throw normalizeAggregateError(e);
+      throw new DiscoveryError(e, config.issuerBaseURL);
     }
     applyHttpOptionsCustom(issuer);
 
