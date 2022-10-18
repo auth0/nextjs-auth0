@@ -41,8 +41,7 @@ describe('callback handler', () => {
         state: '__test_state__'
       })
     ).rejects.toThrow(
-      'Callback handler failed. CAUSE: The cookie dropped by the login request cannot be found, check the url of the ' +
-        'login request, the url of this callback request and your cookie config.'
+      'Callback handler failed. CAUSE: Missing state cookie from login request (check login URL, callback URL and cookie config).'
     );
   });
 
