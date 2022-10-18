@@ -7,9 +7,10 @@ import { ClientFactory } from '../client';
 import TransientStore from '../transient-store';
 import { decodeState } from '../utils/encoding';
 import { SessionCache } from '../session-cache';
-import { htmlSafe } from '../../utils/errors';
 import {
   ApplicationError,
+  EscapedError,
+  htmlSafe,
   IdentityProviderError,
   MissingStateCookieError,
   MissingStateParamError
@@ -84,9 +85,11 @@ export default function callbackHandlerFactory(
     } catch (err) {
       if (err instanceof errors.OPError) {
         err = new IdentityProviderError(err);
-      }
-      if (err instanceof errors.RPError) {
+      } else if (err instanceof errors.RPError) {
         err = new ApplicationError(err);
+        /* c8 ignore next 3 */
+      } else {
+        err = new EscapedError(err.message);
       }
       throw createHttpError(400, err, { openIdState: decodeState(expectedState) });
     }
