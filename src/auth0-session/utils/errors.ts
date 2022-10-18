@@ -1,9 +1,19 @@
 import type { errors } from 'openid-client';
 
+export class EscapedError extends Error {
+  /**
+   * **WARNING** The message can contain user input and is only escaped using basic escaping for putting untrusted data
+   * directly into the HTML body
+   */
+  constructor(message: string) {
+    /* c8 ignore next */
+    super(htmlSafe(message));
+    Object.setPrototypeOf(this, EscapedError.prototype);
+  }
+}
+
 export class MissingStateParamError extends Error {
-  static message =
-    'This endpoint must be called as part of the login flow (with a state parameter from the initial' +
-    ' authorization request).';
+  static message = 'Missing state parameter in Authorization Response.';
 
   constructor() {
     /* c8 ignore next */
@@ -13,9 +23,7 @@ export class MissingStateParamError extends Error {
 }
 
 export class MissingStateCookieError extends Error {
-  static message =
-    'The cookie dropped by the login request cannot be found, check the url of the login request, the url of' +
-    ' this callback request and your cookie config.';
+  static message = 'Missing state cookie from login request (check login URL, callback URL and cookie config).';
 
   constructor() {
     /* c8 ignore next */
@@ -24,7 +32,11 @@ export class MissingStateCookieError extends Error {
   }
 }
 
-export class ApplicationError extends Error {
+export class ApplicationError extends EscapedError {
+  /**
+   * **WARNING** The message can contain user input and is only escaped using basic escaping for putting untrusted data
+   * directly into the HTML body
+   */
   constructor(rpError: errors.RPError) {
     /* c8 ignore next */
     super(rpError.message);
@@ -32,7 +44,7 @@ export class ApplicationError extends Error {
   }
 }
 
-export class IdentityProviderError extends Error {
+export class IdentityProviderError extends EscapedError {
   /**
    * The 'error_description' parameter from the AS response.
    * **WARNING** This can contain user input and is only escaped using basic escaping for putting untrusted data
@@ -47,16 +59,36 @@ export class IdentityProviderError extends Error {
   error?: string;
 
   /**
-   * **WARNING** The message contain user input and is only escaped using basic escaping for putting untrusted data
+   * **WARNING** The message can contain user input and is only escaped using basic escaping for putting untrusted data
    * directly into the HTML body
    */
   constructor(rpError: errors.OPError) {
     /* c8 ignore next */
-    super(htmlSafe(rpError.message));
+    super(rpError.message);
     this.error = htmlSafe(rpError.error);
     this.errorDescription = htmlSafe(rpError.error_description);
     Object.setPrototypeOf(this, IdentityProviderError.prototype);
   }
+}
+
+export class DiscoveryError extends EscapedError {
+  constructor(error: Error | (Error & { _errors: Error[] }), issuerBaseUrl: string) {
+    const e = normalizeAggregateError(error);
+    /* c8 ignore next */
+    super(`Discovery requests failing for ${issuerBaseUrl}, ${e.message}`);
+    Object.setPrototypeOf(this, DiscoveryError.prototype);
+  }
+}
+
+// Issuer.discover throws an `AggregateError` in some cases, this error includes the stack trace in the
+// message which causes the stack to be exposed when reporting the error in production. We're using the non standard
+// `_errors` property to identify the polyfilled `AggregateError`.
+// See https://github.com/sindresorhus/aggregate-error/issues/4#issuecomment-488356468
+function normalizeAggregateError(e: Error | (Error & { _errors: Error[] })): Error {
+  if ('_errors' in e) {
+    return e._errors[0];
+  }
+  return e;
 }
 
 // eslint-disable-next-line max-len

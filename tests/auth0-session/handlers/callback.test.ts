@@ -25,7 +25,7 @@ describe('callback', () => {
     );
 
     await expect(post(baseURL, '/callback', { body: {}, cookieJar })).rejects.toThrow(
-      'This endpoint must be called as part of the login flow (with a state parameter from the initial authorization request).'
+      'Missing state parameter in Authorization Response.'
     );
   });
 
@@ -41,7 +41,7 @@ describe('callback', () => {
         cookieJar: new CookieJar()
       })
     ).rejects.toThrowError(
-      'The cookie dropped by the login request cannot be found, check the url of the login request, the url of this callback request and your cookie config.'
+      'Missing state cookie from login request (check login URL, callback URL and cookie config).'
     );
   });
 
@@ -175,7 +175,7 @@ describe('callback', () => {
         cookieJar
       })
     ).rejects.toThrowError(
-      'The cookie dropped by the login request cannot be found, check the url of the login request, the url of this callback request and your cookie config.'
+      'Missing state cookie from login request (check login URL, callback URL and cookie config).'
     );
   });
 
@@ -483,5 +483,83 @@ describe('callback', () => {
       })
     ).rejects.toThrow('Unauthorized');
     expect(cookieJar.getCookieStringSync(baseURL)).toBeFalsy();
+  });
+
+  it('should escape Identity Provider error', async () => {
+    const baseURL = await setup(defaultConfig);
+
+    const cookieJar = await toSignedCookieJar(
+      {
+        state: expectedDefaultState,
+        nonce: '__test_nonce__',
+        response_type: 'code id_token'
+      },
+      baseURL
+    );
+
+    await expect(
+      post(baseURL, '/callback', {
+        body: {
+          state: expectedDefaultState,
+          error: '<script>alert(1)</script>',
+          error_description: '<script>alert(2)</script>'
+        },
+        cookieJar,
+        fullResponse: true
+      })
+    ).rejects.toThrowError('&lt;script&gt;alert(1)&lt;/script&gt; (&lt;script&gt;alert(2)&lt;/script&gt;)');
+  });
+
+  it('should escape application error', async () => {
+    const baseURL = await setup(defaultConfig);
+
+    const cookieJar = await toSignedCookieJar(
+      {
+        state: expectedDefaultState,
+        nonce: '__test_nonce__',
+        response_type: 'code id_token'
+      },
+      baseURL
+    );
+
+    await expect(
+      post(baseURL, '/callback', {
+        body: {
+          state: '<script>alert(1)</script>',
+          id_token: await makeIdToken()
+        },
+        cookieJar,
+        fullResponse: true
+      })
+    ).rejects.toThrowError(
+      `state mismatch, expected ${expectedDefaultState}, got: &lt;script&gt;alert(1)&lt;/script&gt;`
+    );
+  });
+
+  it('should handle discovery error', async () => {
+    const baseURL = await setup({ ...defaultConfig, issuerBaseURL: 'https://op2.example.com' });
+    nock('https://op2.example.com').get('/.well-known/openid-configuration').reply(500);
+
+    const cookieJar = await toSignedCookieJar(
+      {
+        state: expectedDefaultState,
+        nonce: '__test_nonce__',
+        response_type: 'code id_token'
+      },
+      baseURL
+    );
+
+    await expect(
+      post(baseURL, '/callback', {
+        body: {
+          state: expectedDefaultState,
+          id_token: await makeIdToken()
+        },
+        cookieJar,
+        fullResponse: true
+      })
+    ).rejects.toThrowError(
+      'Discovery requests failing for https://op2.example.com, expected 200 OK, got: 500 Internal Server Error'
+    );
   });
 });
