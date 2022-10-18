@@ -223,18 +223,6 @@ describe('CookieStore', () => {
     });
   });
 
-  it('should set custom secure option on https', async () => {
-    const baseURL = await setup({ ...defaultConfig, session: { cookie: { secure: false } } }, { https: true });
-    const appSession = await encrypted();
-    const cookieJar = toCookieJar({ appSession }, baseURL);
-    await get(baseURL, '/session', { cookieJar });
-    const [cookie] = cookieJar.getCookiesSync(baseURL);
-    expect(cookie).toMatchObject({
-      sameSite: 'lax',
-      secure: false
-    });
-  });
-
   it('should set custom sameSite option on https', async () => {
     const baseURL = await setup({ ...defaultConfig, session: { cookie: { sameSite: 'none' } } }, { https: true });
     const appSession = await encrypted();

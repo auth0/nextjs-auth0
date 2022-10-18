@@ -2,7 +2,7 @@ import { parse } from 'url';
 import { CookieJar } from 'tough-cookie';
 import { setup, teardown } from '../fixtures/server';
 import { defaultConfig, fromCookieJar, get, getCookie } from '../fixtures/helpers';
-import { decodeState, encodeState } from '../../../src/auth0-session/hooks/get-login-state';
+import { decodeState, encodeState } from '../../../src/auth0-session/utils/encoding';
 import { LoginOptions } from '../../../src/auth0-session';
 import { IncomingMessage } from 'http';
 
@@ -159,6 +159,23 @@ describe('login', () => {
     await expect(get(baseURL, '/login')).rejects.toThrow(
       'response_type should be one of id_token, code id_token, code'
     );
+  });
+
+  it('should store response_type if different from config', async function () {
+    const cookieJar = new CookieJar();
+    const baseURL = await setup(
+      {
+        ...defaultConfig,
+        clientSecret: '__test_client_secret__',
+        authorizationParams: { response_type: 'code id_token' }
+      },
+      {
+        loginOptions: { authorizationParams: { response_type: 'code' } }
+      }
+    );
+
+    await get(baseURL, '/login', { cookieJar });
+    expect(fromCookieJar(cookieJar, baseURL)._response_type).toEqual('code');
   });
 
   it('should use a custom state builder', async () => {
