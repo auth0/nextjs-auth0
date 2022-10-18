@@ -1,6 +1,6 @@
 import { parse as urlParse } from 'url';
 import { withoutApi, withApi } from '../fixtures/default-settings';
-import { decodeState } from '../../src/auth0-session/hooks/get-login-state';
+import { decodeState } from '../../src/auth0-session/utils/encoding';
 import { setup, teardown } from '../fixtures/setup';
 import { get, getCookie } from '../auth0-session/fixtures/helpers';
 import { Cookie, CookieJar } from 'tough-cookie';
@@ -280,14 +280,6 @@ describe('login handler', () => {
     expect(decodedState).toEqual({
       returnTo: 'https://other-org.acme.com/foo'
     });
-  });
-
-  test('should escape html in error message', async () => {
-    const baseUrl = await setup(withoutApi, { discoveryOptions: { error: '<script>alert("xss")</script>' } });
-
-    await expect(get(baseUrl, '/api/auth/login', { fullResponse: true })).rejects.toThrow(
-      '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;'
-    );
   });
 
   test('should allow the returnTo to be be overwritten by getState() when provided in the querystring', async () => {

@@ -3,7 +3,7 @@ import { CookieJar } from 'tough-cookie';
 import { SessionResponse, setup, teardown } from '../fixtures/server';
 import { toSignedCookieJar, defaultConfig, get, post, fromCookieJar } from '../fixtures/helpers';
 import { makeIdToken } from '../fixtures/cert';
-import { encodeState } from '../../../src/auth0-session/hooks/get-login-state';
+import { encodeState } from '../../../src/auth0-session/utils/encoding';
 
 const login = async (baseURL: string): Promise<CookieJar> => {
   const nonce = '__test_nonce__';

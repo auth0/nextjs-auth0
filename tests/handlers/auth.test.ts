@@ -38,6 +38,12 @@ describe('auth handler', () => {
     global.handleAuth = initAuth0(withoutApi).handleAuth;
     await expect(get(baseUrl, '/api/auth/foo')).rejects.toThrow('Not Found');
   });
+
+  test('return 404 for unknown routes including builtin props', async () => {
+    const baseUrl = await setup(withoutApi);
+    global.handleAuth = initAuth0(withoutApi).handleAuth;
+    await expect(get(baseUrl, '/api/auth/__proto__')).rejects.toThrow('Not Found');
+  });
 });
 
 describe('custom error handler', () => {
