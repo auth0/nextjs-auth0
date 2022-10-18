@@ -255,6 +255,26 @@ export default withMiddlewareAuthRequired(async function middleware(req) {
 });
 ```
 
+For using middleware with your own instance of the SDK:
+
+```js
+// middleware.js
+import {
+  withMiddlewareAuthRequired,
+  getSession,
+  initAuth0 // note the mw specific `initAuth0`
+} from '@auth0/nextjs-auth0/middleware';
+
+const auth0 = initAuth0({ ... });
+
+export default auth0.withMiddlewareAuthRequired(async function middleware(req) {
+  const res = NextResponse.next();
+  const user = await auth0.getSession(req, res);
+  res.cookies.set('hl', user.language);
+  return res;
+});
+```
+
 ## Access an External API from an API Route
 
 Get an access token by providing your API's audience and scopes. You can pass them directly to the `handlelogin` method, or use environment variables instead.
