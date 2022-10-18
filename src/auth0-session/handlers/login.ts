@@ -6,7 +6,7 @@ import TransientStore, { StoreOptions } from '../transient-store';
 import { encodeState } from '../utils/encoding';
 import { ClientFactory } from '../client';
 import createDebug from '../utils/debug';
-import { htmlSafe } from '../../utils/errors';
+import { htmlSafe } from '../utils/errors';
 
 const debug = createDebug('handlers');
 

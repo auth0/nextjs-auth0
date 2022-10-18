@@ -217,19 +217,9 @@ Check your hosting provider's caching rules, but in general you should **never**
 
 ### Error Handling and Security
 
-The default server side error handler for the `/api/auth/*` routes prints the error message to screen, like this:
+Errors that come from Auth0 in the `redirect_uri` callback may contain reflected user input via the OpenID Connect `error` and `error_description` query parameter. Because of this, we do some [basic escaping](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html#rule-1-html-encode-before-inserting-untrusted-data-into-html-element-content) on the `message`, `error` and `error_description` properties of the `IdentityProviderError`.
 
-```js
-try {
-  await handler(req, res);
-} catch (error) {
-  res.status(error.status || 400).end(error.message);
-}
-```
-
-Because the error can come from the OpenID Connect `error` query parameter we do some [basic escaping](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html#rule-1-html-encode-before-inserting-untrusted-data-into-html-element-content) which makes sure the default error handler is safe from XSS.
-
-If you write your own error handler, you should **not** render the error `message`, or `error` and `error_description` properties without using a templating engine that will properly escape it for other HTML contexts first.
+But, if you write your own error handler, you should **not** render the error `message`, or `error` and `error_description` properties without using a templating engine that will properly escape them for other HTML contexts first.
 
 ### Base Path and Internationalized Routing
 

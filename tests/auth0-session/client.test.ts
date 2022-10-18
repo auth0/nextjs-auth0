@@ -1,10 +1,11 @@
 import nock from 'nock';
-import { Client, Issuer } from 'openid-client';
+import { Client } from 'openid-client';
 import { getConfig, clientFactory, ConfigParameters } from '../../src/auth0-session';
 import { jwks } from './fixtures/cert';
 import pkg from '../../package.json';
 import wellKnown from './fixtures/well-known.json';
 import version from '../../src/version';
+import { DiscoveryError } from '../../src/auth0-session/utils/errors';
 
 const defaultConfig = {
   secret: '__test_session_secret__',
@@ -140,11 +141,6 @@ describe('clientFactory', function () {
     nock.cleanAll();
     nock('https://op.example.com').get('/.well-known/oauth-authorization-server').reply(500);
     nock('https://op.example.com').get('/.well-known/openid-configuration').reply(500);
-    await expect(getClient()).rejects.toThrowError(new Error('expected 200 OK, got: 500 Internal Server Error'));
-  });
-
-  it('should not normalize individual errors from discovery', async () => {
-    jest.spyOn(Issuer, 'discover').mockRejectedValue(new Error('foo'));
-    await expect(getClient()).rejects.toThrowError(new Error('foo'));
+    await expect(getClient()).rejects.toThrowError(DiscoveryError);
   });
 });
