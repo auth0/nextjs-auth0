@@ -18,13 +18,6 @@ describe('appendCause', () => {
     expect(appendCause(message, cause)).toEqual(`${message}. CAUSE: ${cause.message}`);
   });
 
-  test('should escape the cause error message', () => {
-    const message = 'foo';
-    const cause = new Error('&<>"\'');
-
-    expect(appendCause(message, cause)).toEqual(`${message}. CAUSE: &amp;&lt;&gt;&quot;&#39;`);
-  });
-
   test('should not add a period if there is one already', () => {
     const message = 'foo.';
     const cause = new Error('bar');

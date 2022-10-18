@@ -282,14 +282,6 @@ describe('login handler', () => {
     });
   });
 
-  test('should escape html in error message', async () => {
-    const baseUrl = await setup(withoutApi, { discoveryOptions: { error: '<script>alert("xss")</script>' } });
-
-    await expect(get(baseUrl, '/api/auth/login', { fullResponse: true })).rejects.toThrow(
-      '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;'
-    );
-  });
-
   test('should allow the returnTo to be be overwritten by getState() when provided in the querystring', async () => {
     const loginOptions = {
       returnTo: '/profile',
