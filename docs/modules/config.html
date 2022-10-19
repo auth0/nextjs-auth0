@@ -97,7 +97,7 @@
 					<div class="tsd-signature tsd-kind-icon">Config<wbr>Parameters<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">DeepPartial</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/config.baseconfig.html" class="tsd-signature-type" data-tsd-kind="Interface">BaseConfig</a><span class="tsd-signature-symbol"> &amp; </span><a href="../interfaces/config.nextconfig.html" class="tsd-signature-type" data-tsd-kind="Interface">NextConfig</a><span class="tsd-signature-symbol">&gt;</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/cc75175/src/config.ts#L383">src/config.ts:383</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/50cb3bd/src/config.ts#L399">src/config.ts:399</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -107,56 +107,56 @@
 							</a>
 						</div>
 						<p>The Server part of the SDK can be configured in 2 ways.</p>
-						<a href="#1-environmental-variables" id="1-environmental-variables" style="color: inherit; text-decoration: none;">
-							<h3>1. Environmental Variables</h3>
+						<a href="#1-environment-variables" id="1-environment-variables" style="color: inherit; text-decoration: none;">
+							<h3>1. Environment Variables</h3>
 						</a>
 						<p>The simplest way to use the SDK is to use the named exports (<a href="handlers_auth.html#handleauth">HandleAuth</a>, <a href="handlers_login.html#handlelogin">HandleLogin</a>,
-							<a href="handlers_logout.html#handlelogout">HandleLogout</a>, <a href="handlers_callback.html#handlecallback">HandleCallback</a>, <a href="handlers_profile.html#handleprofile">HandleProfile</a>, <a href="session_get_session.html#getsession">GetSession</a>, <a href="session_get_access_token.html#getaccesstoken">GetAccessToken</a>,
-						<a href="helpers_with_api_auth_required.html#withapiauthrequired">WithApiAuthRequired</a> and <a href="frontend_with_page_auth_required.html#withpageauthrequired">WithPageAuthRequired</a>), eg:</p>
+							<a href="handlers_logout.html#handlelogout">HandleLogout</a>, <a href="handlers_callback.html#handlecallback">HandleCallback</a>, <a href="handlers_profile.html#handleprofile">HandleProfile</a>, <a href="middleware.html#getsession">GetSession</a>, <a href="session_get_access_token.html#getaccesstoken">GetAccessToken</a>,
+						<a href="helpers_with_api_auth_required.html#withapiauthrequired">WithApiAuthRequired</a>, and <a href="frontend_with_page_auth_required.html#withpageauthrequired">WithPageAuthRequired</a>).</p>
 						<pre><code class="language-js"><span style="color: #008000">// pages/api/auth/[...auth0].js</span>
 <span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">handleAuth</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@auth0/nextjs-auth0&#039;</span><span style="color: #000000">;</span>
 
 <span style="color: #AF00DB">return</span><span style="color: #000000"> </span><span style="color: #795E26">handleAuth</span><span style="color: #000000">();</span>
 </code></pre>
 						<p>When you use these named exports, an instance of the SDK is created for you which you can configure using
-						environmental variables:</p>
+						environment variables:</p>
 						<a href="#required" id="required" style="color: inherit; text-decoration: none;">
 							<h3>Required</h3>
 						</a>
 						<ul>
-							<li><code>AUTH0_SECRET</code>: See <a href="../interfaces/config.baseconfig.html#secret">secret</a></li>
-							<li><code>AUTH0_ISSUER_BASE_URL</code>: See <a href="../interfaces/config.baseconfig.html#issuerbaseurl">issuerBaseURL</a></li>
-							<li><code>AUTH0_BASE_URL</code>: See <a href="../interfaces/config.baseconfig.html#baseurl">baseURL</a></li>
-							<li><code>AUTH0_CLIENT_ID</code>: See <a href="../interfaces/config.baseconfig.html#clientid">clientID</a></li>
-							<li><code>AUTH0_CLIENT_SECRET</code>: See <a href="../interfaces/config.baseconfig.html#clientsecret">clientSecret</a></li>
+							<li><code>AUTH0_SECRET</code>: See <a href="../interfaces/config.baseconfig.html#secret">secret</a>.</li>
+							<li><code>AUTH0_ISSUER_BASE_URL</code>: See <a href="../interfaces/config.baseconfig.html#issuerbaseurl">issuerBaseURL</a>.</li>
+							<li><code>AUTH0_BASE_URL</code>: See <a href="../interfaces/config.baseconfig.html#baseurl">baseURL</a>.</li>
+							<li><code>AUTH0_CLIENT_ID</code>: See <a href="../interfaces/config.baseconfig.html#clientid">clientID</a>.</li>
+							<li><code>AUTH0_CLIENT_SECRET</code>: See <a href="../interfaces/config.baseconfig.html#clientsecret">clientSecret</a>.</li>
 						</ul>
 						<a href="#optional" id="optional" style="color: inherit; text-decoration: none;">
 							<h3>Optional</h3>
 						</a>
 						<ul>
-							<li><code>AUTH0_CLOCK_TOLERANCE</code>: See <a href="../interfaces/config.baseconfig.html#clocktolerance">clockTolerance</a></li>
-							<li><code>AUTH0_HTTP_TIMEOUT</code>: See <a href="../interfaces/config.baseconfig.html#httptimeout">httpTimeout</a></li>
-							<li><code>AUTH0_ENABLE_TELEMETRY</code>: See <a href="../interfaces/config.baseconfig.html#enabletelemetry">enableTelemetry</a></li>
-							<li><code>AUTH0_IDP_LOGOUT</code>: See <a href="../interfaces/config.baseconfig.html#idplogout">idpLogout</a></li>
-							<li><code>AUTH0_ID_TOKEN_SIGNING_ALG</code>: See <a href="../interfaces/config.baseconfig.html#idtokensigningalg">idTokenSigningAlg</a></li>
-							<li><code>AUTH0_LEGACY_SAME_SITE_COOKIE</code>: See <a href="../interfaces/config.baseconfig.html#legacysamesitecookie">legacySameSiteCookie</a></li>
-							<li><code>AUTH0_IDENTITY_CLAIM_FILTER</code>: See <a href="../interfaces/config.baseconfig.html#identityclaimfilter">identityClaimFilter</a></li>
-							<li><code>NEXT_PUBLIC_AUTH0_LOGIN</code>: See <a href="../interfaces/config.nextconfig.html#routes">NextConfig.routes</a></li>
-							<li><code>AUTH0_CALLBACK</code>: See <a href="../interfaces/config.baseconfig.html#routes">BaseConfig.routes</a></li>
-							<li><code>AUTH0_POST_LOGOUT_REDIRECT</code>: See <a href="../interfaces/config.baseconfig.html#routes">BaseConfig.routes</a></li>
-							<li><code>AUTH0_AUDIENCE</code>: See <a href="../interfaces/config.baseconfig.html#authorizationparams">BaseConfig.authorizationParams</a></li>
-							<li><code>AUTH0_SCOPE</code>: See <a href="../interfaces/config.baseconfig.html#authorizationparams">BaseConfig.authorizationParams</a></li>
-							<li><code>AUTH0_ORGANIZATION</code>: See <a href="../interfaces/config.nextconfig.html#organization">NextConfig.organization</a></li>
-							<li><code>AUTH0_SESSION_NAME</code>: See <a href="../interfaces/config.sessionconfig.html#name">SessionConfig.name</a></li>
-							<li><code>AUTH0_SESSION_ROLLING</code>: See <a href="../interfaces/config.sessionconfig.html#rolling">SessionConfig.rolling</a></li>
-							<li><code>AUTH0_SESSION_ROLLING_DURATION</code>: See <a href="../interfaces/config.sessionconfig.html#rollingduration">SessionConfig.rollingDuration</a></li>
-							<li><code>AUTH0_SESSION_ABSOLUTE_DURATION</code>: See <a href="../interfaces/config.sessionconfig.html#absoluteduration">SessionConfig.absoluteDuration</a></li>
-							<li><code>AUTH0_COOKIE_DOMAIN</code>: See <a href="../interfaces/config.cookieconfig.html#domain">CookieConfig.domain</a></li>
-							<li><code>AUTH0_COOKIE_PATH</code>: See <a href="../interfaces/config.cookieconfig.html#path">CookieConfig.path</a></li>
-							<li><code>AUTH0_COOKIE_TRANSIENT</code>: See <a href="../interfaces/config.cookieconfig.html#transient">CookieConfig.transient</a></li>
-							<li><code>AUTH0_COOKIE_HTTP_ONLY</code>: See <a href="../interfaces/config.cookieconfig.html#httponly">CookieConfig.httpOnly</a></li>
-							<li><code>AUTH0_COOKIE_SECURE</code>: See <a href="../interfaces/config.cookieconfig.html#secure">CookieConfig.secure</a></li>
-							<li><code>AUTH0_COOKIE_SAME_SITE</code>: See <a href="../interfaces/config.cookieconfig.html#samesite">CookieConfig.sameSite</a></li>
+							<li><code>AUTH0_CLOCK_TOLERANCE</code>: See <a href="../interfaces/config.baseconfig.html#clocktolerance">clockTolerance</a>.</li>
+							<li><code>AUTH0_HTTP_TIMEOUT</code>: See <a href="../interfaces/config.baseconfig.html#httptimeout">httpTimeout</a>.</li>
+							<li><code>AUTH0_ENABLE_TELEMETRY</code>: See <a href="../interfaces/config.baseconfig.html#enabletelemetry">enableTelemetry</a>.</li>
+							<li><code>AUTH0_IDP_LOGOUT</code>: See <a href="../interfaces/config.baseconfig.html#idplogout">idpLogout</a>.</li>
+							<li><code>AUTH0_ID_TOKEN_SIGNING_ALG</code>: See <a href="../interfaces/config.baseconfig.html#idtokensigningalg">idTokenSigningAlg</a>.</li>
+							<li><code>AUTH0_LEGACY_SAME_SITE_COOKIE</code>: See <a href="../interfaces/config.baseconfig.html#legacysamesitecookie">legacySameSiteCookie</a>.</li>
+							<li><code>AUTH0_IDENTITY_CLAIM_FILTER</code>: See <a href="../interfaces/config.baseconfig.html#identityclaimfilter">identityClaimFilter</a>.</li>
+							<li><code>NEXT_PUBLIC_AUTH0_LOGIN</code>: See <a href="../interfaces/config.nextconfig.html#routes">NextConfig.routes</a>.</li>
+							<li><code>AUTH0_CALLBACK</code>: See <a href="../interfaces/config.baseconfig.html#routes">BaseConfig.routes</a>.</li>
+							<li><code>AUTH0_POST_LOGOUT_REDIRECT</code>: See <a href="../interfaces/config.baseconfig.html#routes">BaseConfig.routes</a>.</li>
+							<li><code>AUTH0_AUDIENCE</code>: See <a href="../interfaces/config.baseconfig.html#authorizationparams">BaseConfig.authorizationParams</a>.</li>
+							<li><code>AUTH0_SCOPE</code>: See <a href="../interfaces/config.baseconfig.html#authorizationparams">BaseConfig.authorizationParams</a>.</li>
+							<li><code>AUTH0_ORGANIZATION</code>: See <a href="../interfaces/config.nextconfig.html#organization">NextConfig.organization</a>.</li>
+							<li><code>AUTH0_SESSION_NAME</code>: See <a href="../interfaces/config.sessionconfig.html#name">SessionConfig.name</a>.</li>
+							<li><code>AUTH0_SESSION_ROLLING</code>: See <a href="../interfaces/config.sessionconfig.html#rolling">SessionConfig.rolling</a>.</li>
+							<li><code>AUTH0_SESSION_ROLLING_DURATION</code>: See <a href="../interfaces/config.sessionconfig.html#rollingduration">SessionConfig.rollingDuration</a>.</li>
+							<li><code>AUTH0_SESSION_ABSOLUTE_DURATION</code>: See <a href="../interfaces/config.sessionconfig.html#absoluteduration">SessionConfig.absoluteDuration</a>.</li>
+							<li><code>AUTH0_COOKIE_DOMAIN</code>: See <a href="../interfaces/config.cookieconfig.html#domain">CookieConfig.domain</a>.</li>
+							<li><code>AUTH0_COOKIE_PATH</code>: See <a href="../interfaces/config.cookieconfig.html#path">CookieConfig.path</a>.</li>
+							<li><code>AUTH0_COOKIE_TRANSIENT</code>: See <a href="../interfaces/config.cookieconfig.html#transient">CookieConfig.transient</a>.</li>
+							<li><code>AUTH0_COOKIE_HTTP_ONLY</code>: See <a href="../interfaces/config.cookieconfig.html#httponly">CookieConfig.httpOnly</a>.</li>
+							<li><code>AUTH0_COOKIE_SECURE</code>: See <a href="../interfaces/config.cookieconfig.html#secure">CookieConfig.secure</a>.</li>
+							<li><code>AUTH0_COOKIE_SAME_SITE</code>: See <a href="../interfaces/config.cookieconfig.html#samesite">CookieConfig.sameSite</a>.</li>
 						</ul>
 						<a href="#2-create-your-own-instance-using-initauth0" id="2-create-your-own-instance-using-initauth0" style="color: inherit; text-decoration: none;">
 							<h3>2. Create your own instance using <a href="instance.html#initauth0">InitAuth0</a></h3>
@@ -175,9 +175,9 @@
 
 <span style="color: #AF00DB">return</span><span style="color: #000000"> </span><span style="color: #001080">auth0</span><span style="color: #000000">.</span><span style="color: #795E26">handleAuth</span><span style="color: #000000">();</span>
 </code></pre>
-						<p><strong>Note</strong> If you use <a href="instance.html#initauth0">InitAuth0</a>, you should <em>not</em> use the other named exports as they will use a different
+						<p><strong>IMPORTANT</strong> If you use <a href="instance.html#initauth0">InitAuth0</a>, you should <em>not</em> use the other named exports as they will use a different
 							instance of the SDK. Also note - this is for the server side part of the SDK - you will always use named exports for
-							the front end components: <a href="frontend_use_user.html#userprovider">UserProvider</a>, <a href="frontend_use_user.html#useuser">UseUser</a> and the
+							the front end components: <a href="frontend_use_user.html#userprovider">UserProvider</a>, {@Link UseUser} and the
 						front end version of <a href="frontend_with_page_auth_required.html#withpageauthrequired">WithPageAuthRequired</a></p>
 					</div>
 				</section>
@@ -223,16 +223,22 @@
 						<a href="helpers.html">helpers</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="helpers_get_server_side_props_wrapper.html">helpers/get-<wbr>server-<wbr>side-<wbr>props-<wbr>wrapper</a>
+						<a href="helpers_testing.html">helpers/testing</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="helpers_with_api_auth_required.html">helpers/with-<wbr>api-<wbr>auth-<wbr>required</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="helpers_with_middleware_auth_required.html">helpers/with-<wbr>middleware-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="helpers_with_page_auth_required.html">helpers/with-<wbr>page-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="instance.html">instance</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="middleware.html">middleware</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="session.html">session</a>
@@ -245,6 +251,9 @@
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="session_session.html">session/session</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="session_update_session.html">session/update-<wbr>session</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="utils_errors.html">utils/errors</a>
@@ -289,10 +298,14 @@
 				<li class="tsd-kind-type-alias tsd-has-type-parameter"><span class="tsd-kind-icon">Type alias with type parameter</span></li>
 			</ul>
 			<ul class="tsd-legend">
-				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>
+				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
+				<li class="tsd-kind-class tsd-has-type-parameter"><span class="tsd-kind-icon">Class with type parameter</span></li>
 			</ul>
 			<ul class="tsd-legend">
-				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
+				<li class="tsd-kind-enum"><span class="tsd-kind-icon">Enumeration</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>
 			</ul>
 		</div>
 	</div>

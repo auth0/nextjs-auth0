@@ -69,7 +69,7 @@
 			<section class="tsd-panel tsd-comment">
 				<div class="tsd-comment tsd-typography">
 					<div class="lead">
-						<p>The user&#39;s session</p>
+						<p>The user&#39;s session.</p>
 					</div>
 				</div>
 			</section>
@@ -86,7 +86,7 @@
 				<div class="tsd-signature tsd-kind-icon"><span class="tsd-signature-symbol">[</span>key: <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">]: </span><span class="tsd-signature-type">any</span></div>
 				<div class="tsd-comment tsd-typography">
 					<div class="lead">
-						<p>The user&#39;s session</p>
+						<p>The user&#39;s session.</p>
 					</div>
 				</div>
 			</section>
@@ -126,7 +126,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/cc75175/src/session/session.ts#L50">src/session/session.ts:50</a></li>
+									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/50cb3bd/src/session/session.ts#L53">src/session/session.ts:53</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -148,7 +148,7 @@
 					<div class="tsd-signature tsd-kind-icon">access<wbr>Token<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/cc75175/src/session/session.ts#L33">src/session/session.ts:33</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/50cb3bd/src/session/session.ts#L33">src/session/session.ts:33</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -163,7 +163,7 @@
 					<div class="tsd-signature tsd-kind-icon">access<wbr>Token<wbr>Expires<wbr>At<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/cc75175/src/session/session.ts#L43">src/session/session.ts:43</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/50cb3bd/src/session/session.ts#L43">src/session/session.ts:43</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -178,7 +178,7 @@
 					<div class="tsd-signature tsd-kind-icon">access<wbr>Token<wbr>Scope<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/cc75175/src/session/session.ts#L38">src/session/session.ts:38</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/50cb3bd/src/session/session.ts#L38">src/session/session.ts:38</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -193,12 +193,12 @@
 					<div class="tsd-signature tsd-kind-icon">id<wbr>Token<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/cc75175/src/session/session.ts#L28">src/session/session.ts:28</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/50cb3bd/src/session/session.ts#L28">src/session/session.ts:28</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
-							<p>The id token.</p>
+							<p>The ID token.</p>
 						</div>
 					</div>
 				</section>
@@ -208,13 +208,15 @@
 					<div class="tsd-signature tsd-kind-icon">refresh<wbr>Token<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/cc75175/src/session/session.ts#L48">src/session/session.ts:48</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/50cb3bd/src/session/session.ts#L51">src/session/session.ts:51</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
-							<p>The refresh token.</p>
+							<p>The refresh token, which is used to request a new access token.</p>
 						</div>
+						<p><strong>IMPORTANT</strong> You need to request the <code>offline_access</code> scope on login to get a refresh token
+						from Auth0.</p>
 					</div>
 				</section>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-class">
@@ -223,12 +225,12 @@
 					<div class="tsd-signature tsd-kind-icon">user<span class="tsd-signature-symbol">:</span> <a href="../interfaces/session_session.claims.html" class="tsd-signature-type" data-tsd-kind="Interface">Claims</a></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/cc75175/src/session/session.ts#L23">src/session/session.ts:23</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/50cb3bd/src/session/session.ts#L23">src/session/session.ts:23</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
-							<p>Any of the claims from the id_token.</p>
+							<p>Any of the claims from the <code>id_token</code>.</p>
 						</div>
 					</div>
 				</section>
@@ -274,16 +276,22 @@
 						<a href="../modules/helpers.html">helpers</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="../modules/helpers_get_server_side_props_wrapper.html">helpers/get-<wbr>server-<wbr>side-<wbr>props-<wbr>wrapper</a>
+						<a href="../modules/helpers_testing.html">helpers/testing</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/helpers_with_api_auth_required.html">helpers/with-<wbr>api-<wbr>auth-<wbr>required</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/helpers_with_middleware_auth_required.html">helpers/with-<wbr>middleware-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/helpers_with_page_auth_required.html">helpers/with-<wbr>page-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/instance.html">instance</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/middleware.html">middleware</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/session.html">session</a>
@@ -296,6 +304,9 @@
 					</li>
 					<li class="current tsd-kind-module">
 						<a href="../modules/session_session.html">session/session</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/session_update_session.html">session/update-<wbr>session</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/utils_errors.html">utils/errors</a>
@@ -350,14 +361,18 @@
 		<h2>Legend</h2>
 		<div class="tsd-legend-group">
 			<ul class="tsd-legend">
+				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
+				<li class="tsd-kind-class tsd-has-type-parameter"><span class="tsd-kind-icon">Class with type parameter</span></li>
+				<li class="tsd-kind-constructor tsd-parent-kind-class"><span class="tsd-kind-icon">Constructor</span></li>
+				<li class="tsd-kind-property tsd-parent-kind-class"><span class="tsd-kind-icon">Property</span></li>
+			</ul>
+			<ul class="tsd-legend">
 				<li class="tsd-kind-function"><span class="tsd-kind-icon">Function</span></li>
 				<li class="tsd-kind-type-alias"><span class="tsd-kind-icon">Type alias</span></li>
 				<li class="tsd-kind-type-alias tsd-has-type-parameter"><span class="tsd-kind-icon">Type alias with type parameter</span></li>
 			</ul>
 			<ul class="tsd-legend">
-				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
-				<li class="tsd-kind-constructor tsd-parent-kind-class"><span class="tsd-kind-icon">Constructor</span></li>
-				<li class="tsd-kind-property tsd-parent-kind-class"><span class="tsd-kind-icon">Property</span></li>
+				<li class="tsd-kind-enum"><span class="tsd-kind-icon">Enumeration</span></li>
 			</ul>
 			<ul class="tsd-legend">
 				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>

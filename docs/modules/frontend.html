@@ -76,6 +76,7 @@
 								<li class="tsd-kind-reference tsd-parent-kind-module"><a href="frontend.html#userproviderprops" class="tsd-kind-icon">User<wbr>Provider<wbr>Props</a></li>
 								<li class="tsd-kind-reference tsd-parent-kind-module"><a href="frontend.html#withpageauthrequired" class="tsd-kind-icon">With<wbr>Page<wbr>Auth<wbr>Required</a></li>
 								<li class="tsd-kind-reference tsd-parent-kind-module"><a href="frontend.html#withpageauthrequiredoptions" class="tsd-kind-icon">With<wbr>Page<wbr>Auth<wbr>Required<wbr>Options</a></li>
+								<li class="tsd-kind-reference tsd-parent-kind-module"><a href="frontend.html#useuser" class="tsd-kind-icon">use<wbr>User</a></li>
 							</ul>
 						</section>
 						<section class="tsd-index-section ">
@@ -131,6 +132,11 @@
 					<h3>With<wbr>Page<wbr>Auth<wbr>Required<wbr>Options</h3>
 					Re-exports <a href="../interfaces/frontend_with_page_auth_required.withpageauthrequiredoptions.html">WithPageAuthRequiredOptions</a>
 				</section>
+				<section class="tsd-panel tsd-member tsd-kind-reference tsd-parent-kind-module">
+					<a name="useuser" class="tsd-anchor"></a>
+					<h3>use<wbr>User</h3>
+					Re-exports <a href="frontend_use_user.html#useuser">useUser</a>
+				</section>
 			</section>
 			<section class="tsd-panel-group tsd-member-group ">
 				<h2>Type aliases</h2>
@@ -140,7 +146,7 @@
 					<div class="tsd-signature tsd-kind-icon">Config<wbr>Provider<wbr>Props<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">React.PropsWithChildren</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">ConfigContext</span><span class="tsd-signature-symbol">&gt;</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/cc75175/src/frontend/use-config.tsx#L9">src/frontend/use-config.tsx:9</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/50cb3bd/src/frontend/use-config.tsx#L9">src/frontend/use-config.tsx:9</a></li>
 						</ul>
 					</aside>
 				</section>
@@ -188,7 +194,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/cc75175/src/frontend/use-config.tsx#L11">src/frontend/use-config.tsx:11</a></li>
+									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/50cb3bd/src/frontend/use-config.tsx#L11">src/frontend/use-config.tsx:11</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">ConfigContext</span></h4>
@@ -237,16 +243,22 @@
 						<a href="helpers.html">helpers</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="helpers_get_server_side_props_wrapper.html">helpers/get-<wbr>server-<wbr>side-<wbr>props-<wbr>wrapper</a>
+						<a href="helpers_testing.html">helpers/testing</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="helpers_with_api_auth_required.html">helpers/with-<wbr>api-<wbr>auth-<wbr>required</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="helpers_with_middleware_auth_required.html">helpers/with-<wbr>middleware-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="helpers_with_page_auth_required.html">helpers/with-<wbr>page-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="instance.html">instance</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="middleware.html">middleware</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="session.html">session</a>
@@ -259,6 +271,9 @@
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="session_session.html">session/session</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="session_update_session.html">session/update-<wbr>session</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="utils_errors.html">utils/errors</a>
@@ -288,6 +303,9 @@
 					<li class=" tsd-kind-reference tsd-parent-kind-module">
 						<a href="frontend.html#withpageauthrequiredoptions" class="tsd-kind-icon">With<wbr>Page<wbr>Auth<wbr>Required<wbr>Options</a>
 					</li>
+					<li class=" tsd-kind-reference tsd-parent-kind-module">
+						<a href="frontend.html#useuser" class="tsd-kind-icon">use<wbr>User</a>
+					</li>
 					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
 						<a href="frontend.html#configproviderprops" class="tsd-kind-icon">Config<wbr>Provider<wbr>Props</a>
 					</li>
@@ -312,10 +330,14 @@
 				<li class="tsd-kind-type-alias tsd-has-type-parameter"><span class="tsd-kind-icon">Type alias with type parameter</span></li>
 			</ul>
 			<ul class="tsd-legend">
-				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>
+				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
+				<li class="tsd-kind-class tsd-has-type-parameter"><span class="tsd-kind-icon">Class with type parameter</span></li>
 			</ul>
 			<ul class="tsd-legend">
-				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
+				<li class="tsd-kind-enum"><span class="tsd-kind-icon">Enumeration</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>
 			</ul>
 		</div>
 	</div>

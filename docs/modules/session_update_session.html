@@ -3,7 +3,7 @@
 <head>
 	<meta charset="utf-8">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
-	<title>frontend/with-page-auth-required | @auth0/nextjs-auth0</title>
+	<title>session/update-session | @auth0/nextjs-auth0</title>
 	<meta name="description" content="Documentation for @auth0/nextjs-auth0">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<link rel="stylesheet" href="../assets/css/main.css">
@@ -53,10 +53,10 @@
 					<a href="../index.html">@auth0/nextjs-auth0</a>
 				</li>
 				<li>
-					<a href="frontend_with_page_auth_required.html">frontend/with-page-auth-required</a>
+					<a href="session_update_session.html">session/update-session</a>
 				</li>
 			</ul>
-			<h1>Module frontend/with-page-auth-required</h1>
+			<h1>Module session/update-session</h1>
 		</div>
 	</div>
 </header>
@@ -68,68 +68,65 @@
 				<section class="tsd-panel tsd-index-panel">
 					<div class="tsd-index-content">
 						<section class="tsd-index-section ">
-							<h3>Client Interfaces</h3>
+							<h3>Server Type aliases</h3>
 							<ul class="tsd-index-list">
-								<li class="tsd-kind-interface tsd-parent-kind-module"><a href="../interfaces/frontend_with_page_auth_required.withpageauthrequiredoptions.html" class="tsd-kind-icon">With<wbr>Page<wbr>Auth<wbr>Required<wbr>Options</a></li>
-							</ul>
-							<h3>Other Interfaces</h3>
-							<ul class="tsd-index-list">
-								<li class="tsd-kind-interface tsd-parent-kind-module"><a href="../interfaces/frontend_with_page_auth_required.userprops.html" class="tsd-kind-icon">User<wbr>Props</a></li>
-							</ul>
-						</section>
-						<section class="tsd-index-section ">
-							<h3>Client Type aliases</h3>
-							<ul class="tsd-index-list">
-								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="frontend_with_page_auth_required.html#withpageauthrequired" class="tsd-kind-icon">With<wbr>Page<wbr>Auth<wbr>Required</a></li>
+								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="session_update_session.html#updatesession" class="tsd-kind-icon">Update<wbr>Session</a></li>
 							</ul>
 						</section>
 					</div>
 				</section>
 			</section>
 			<section class="tsd-panel-group tsd-member-group ">
-				<h2>Client Type aliases</h2>
+				<h2>Server Type aliases</h2>
 				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module">
-					<a name="withpageauthrequired" class="tsd-anchor"></a>
-					<h3>With<wbr>Page<wbr>Auth<wbr>Required</h3>
-					<div class="tsd-signature tsd-kind-icon">With<wbr>Page<wbr>Auth<wbr>Required<span class="tsd-signature-symbol">:</span> &lt;P&gt;<span class="tsd-signature-symbol">(</span>Component<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">ComponentType</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">P</span><span class="tsd-signature-symbol"> &amp; </span><a href="../interfaces/frontend_with_page_auth_required.userprops.html" class="tsd-signature-type" data-tsd-kind="Interface">UserProps</a><span class="tsd-signature-symbol">&gt;</span>, options<span class="tsd-signature-symbol">?: </span><a href="../interfaces/frontend_with_page_auth_required.withpageauthrequiredoptions.html" class="tsd-signature-type" data-tsd-kind="Interface">WithPageAuthRequiredOptions</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">React.FC</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">P</span><span class="tsd-signature-symbol">&gt;</span></div>
+					<a name="updatesession" class="tsd-anchor"></a>
+					<h3>Update<wbr>Session</h3>
+					<div class="tsd-signature tsd-kind-icon">Update<wbr>Session<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">IncomingMessage</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">NextApiRequest</span>, res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">ServerResponse</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">NextApiResponse</span>, user<span class="tsd-signature-symbol">: </span><a href="../classes/session_session.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/50cb3bd/src/frontend/with-page-auth-required.tsx#L75">src/frontend/with-page-auth-required.tsx:75</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/50cb3bd/src/session/update-session.ts#L27">src/session/update-session.ts:27</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
-							<pre><code class="language-js"><span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">MyProtectedPage</span><span style="color: #000000"> = </span><span style="color: #795E26">withPageAuthRequired</span><span style="color: #000000">(</span><span style="color: #001080">MyPage</span><span style="color: #000000">);</span>
-</code></pre>
+							<p>Update the session object. The provided <code>session</code> object will replace the existing session.</p>
 						</div>
-						<p>When you wrap your pages in this higher order component and an anonymous user visits your page,
-						they will be redirected to the login page and then returned to the page they were redirected from (after login).</p>
+						<p><strong>Note</strong> you can&#39;t use this method to login or logout - you should use the login and logout handlers for this.
+						If no session is provided, it doesn&#39;t contain a user or the user is not authenticated; this is a no-op.</p>
+						<pre><code class="language-js"><span style="color: #008000">// pages/api/update-user.js</span>
+<span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">getSession</span><span style="color: #000000">, </span><span style="color: #001080">updateSession</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@auth0/nextjs-auth0&#039;</span><span style="color: #000000">;</span>
+
+<span style="color: #AF00DB">export</span><span style="color: #000000"> </span><span style="color: #AF00DB">default</span><span style="color: #000000"> </span><span style="color: #0000FF">async</span><span style="color: #000000"> </span><span style="color: #0000FF">function</span><span style="color: #000000"> </span><span style="color: #795E26">updateSession</span><span style="color: #000000">(</span><span style="color: #001080">req</span><span style="color: #000000">, </span><span style="color: #001080">res</span><span style="color: #000000">) {</span>
+<span style="color: #000000">  </span><span style="color: #AF00DB">if</span><span style="color: #000000"> (</span><span style="color: #001080">req</span><span style="color: #000000">.</span><span style="color: #001080">method</span><span style="color: #000000"> === </span><span style="color: #A31515">&#039;PUT&#039;</span><span style="color: #000000">) {</span>
+<span style="color: #000000">    </span><span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">session</span><span style="color: #000000"> = </span><span style="color: #795E26">getSession</span><span style="color: #000000">(</span><span style="color: #001080">req</span><span style="color: #000000">, </span><span style="color: #001080">res</span><span style="color: #000000">);</span>
+<span style="color: #000000">    </span><span style="color: #795E26">updateSession</span><span style="color: #000000">(</span><span style="color: #001080">req</span><span style="color: #000000">, </span><span style="color: #001080">res</span><span style="color: #000000">, { ...</span><span style="color: #001080">session</span><span style="color: #000000">, </span><span style="color: #001080">user:</span><span style="color: #000000"> { ...</span><span style="color: #001080">user</span><span style="color: #000000">, </span><span style="color: #001080">foo:</span><span style="color: #000000"> </span><span style="color: #001080">req</span><span style="color: #000000">.</span><span style="color: #001080">query</span><span style="color: #000000">.</span><span style="color: #001080">foo</span><span style="color: #000000"> } });</span>
+<span style="color: #000000">    </span><span style="color: #001080">res</span><span style="color: #000000">.</span><span style="color: #795E26">json</span><span style="color: #000000">({ </span><span style="color: #001080">success:</span><span style="color: #000000"> </span><span style="color: #0000FF">true</span><span style="color: #000000"> });</span>
+<span style="color: #000000">  }</span>
+<span style="color: #000000">};</span>
+</code></pre>
 					</div>
 					<div class="tsd-type-declaration">
 						<h4>Type declaration</h4>
 						<ul class="tsd-parameters">
 							<li class="tsd-parameter-signature">
-								<ul class="tsd-signatures tsd-kind-type-literal tsd-parent-kind-type-alias tsd-has-type-parameter">
-									<li class="tsd-signature tsd-kind-icon">&lt;P&gt;<span class="tsd-signature-symbol">(</span>Component<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">ComponentType</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">P</span><span class="tsd-signature-symbol"> &amp; </span><a href="../interfaces/frontend_with_page_auth_required.userprops.html" class="tsd-signature-type" data-tsd-kind="Interface">UserProps</a><span class="tsd-signature-symbol">&gt;</span>, options<span class="tsd-signature-symbol">?: </span><a href="../interfaces/frontend_with_page_auth_required.withpageauthrequiredoptions.html" class="tsd-signature-type" data-tsd-kind="Interface">WithPageAuthRequiredOptions</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">React.FC</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">P</span><span class="tsd-signature-symbol">&gt;</span></li>
+								<ul class="tsd-signatures tsd-kind-type-literal tsd-parent-kind-type-alias">
+									<li class="tsd-signature tsd-kind-icon"><span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">IncomingMessage</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">NextApiRequest</span>, res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">ServerResponse</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">NextApiResponse</span>, user<span class="tsd-signature-symbol">: </span><a href="../classes/session_session.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></li>
 								</ul>
 								<ul class="tsd-descriptions">
 									<li class="tsd-description">
-										<h4 class="tsd-type-parameters-title">Type parameters</h4>
-										<ul class="tsd-type-parameters">
-											<li>
-												<h4>P<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">WithPageAuthRequiredProps</span></h4>
-											</li>
-										</ul>
 										<h4 class="tsd-parameters-title">Parameters</h4>
 										<ul class="tsd-parameters">
 											<li>
-												<h5>Component: <span class="tsd-signature-type">ComponentType</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">P</span><span class="tsd-signature-symbol"> &amp; </span><a href="../interfaces/frontend_with_page_auth_required.userprops.html" class="tsd-signature-type" data-tsd-kind="Interface">UserProps</a><span class="tsd-signature-symbol">&gt;</span></h5>
+												<h5>req: <span class="tsd-signature-type">IncomingMessage</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">NextApiRequest</span></h5>
 											</li>
 											<li>
-												<h5><span class="tsd-flag ts-flagOptional">Optional</span> options: <a href="../interfaces/frontend_with_page_auth_required.withpageauthrequiredoptions.html" class="tsd-signature-type" data-tsd-kind="Interface">WithPageAuthRequiredOptions</a></h5>
+												<h5>res: <span class="tsd-signature-type">ServerResponse</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">NextApiResponse</span></h5>
+											</li>
+											<li>
+												<h5>user: <a href="../classes/session_session.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a></h5>
 											</li>
 										</ul>
-										<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">React.FC</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">P</span><span class="tsd-signature-symbol">&gt;</span></h4>
+										<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4>
 									</li>
 								</ul>
 							</li>
@@ -153,7 +150,7 @@
 					<li class=" tsd-kind-module">
 						<a href="frontend_use_user.html">frontend/use-<wbr>user</a>
 					</li>
-					<li class="current tsd-kind-module">
+					<li class=" tsd-kind-module">
 						<a href="frontend_with_page_auth_required.html">frontend/with-<wbr>page-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
@@ -207,7 +204,7 @@
 					<li class=" tsd-kind-module">
 						<a href="session_session.html">session/session</a>
 					</li>
-					<li class=" tsd-kind-module">
+					<li class="current tsd-kind-module">
 						<a href="session_update_session.html">session/update-<wbr>session</a>
 					</li>
 					<li class=" tsd-kind-module">
@@ -220,14 +217,8 @@
 			</nav>
 			<nav class="tsd-navigation secondary menu-sticky">
 				<ul class="before-current">
-					<li class=" tsd-kind-interface tsd-parent-kind-module">
-						<a href="../interfaces/frontend_with_page_auth_required.userprops.html" class="tsd-kind-icon">User<wbr>Props</a>
-					</li>
-					<li class=" tsd-kind-interface tsd-parent-kind-module">
-						<a href="../interfaces/frontend_with_page_auth_required.withpageauthrequiredoptions.html" class="tsd-kind-icon">With<wbr>Page<wbr>Auth<wbr>Required<wbr>Options</a>
-					</li>
 					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
-						<a href="frontend_with_page_auth_required.html#withpageauthrequired" class="tsd-kind-icon">With<wbr>Page<wbr>Auth<wbr>Required</a>
+						<a href="session_update_session.html#updatesession" class="tsd-kind-icon">Update<wbr>Session</a>
 					</li>
 				</ul>
 			</nav>
