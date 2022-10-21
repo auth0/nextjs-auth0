@@ -1,5 +1,11 @@
 # Change Log
 
+## [v2.0.0-beta.1](https://github.com/auth0/nextjs-auth0/tree/v2.0.0-beta.1) (2022-10-21)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.0.0-beta.0...v2.0.0-beta.1)
+
+**Fixed**
+- status getter is not enumerable so needs to be added to NextResponse [\#875](https://github.com/auth0/nextjs-auth0/pull/875) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [v2.0.0-beta.0](https://github.com/auth0/nextjs-auth0/tree/v2.0.0-beta.0) (2022-10-11)
 
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v1.9.1...v2.0.0-beta.0)
