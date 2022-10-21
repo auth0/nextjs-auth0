@@ -1,9 +1,11 @@
 import { parse } from 'url';
+import nock from 'nock';
 import { CookieJar } from 'tough-cookie';
 import { SessionResponse, setup, teardown } from '../fixtures/server';
 import { toSignedCookieJar, defaultConfig, get, post, fromCookieJar } from '../fixtures/helpers';
 import { makeIdToken } from '../fixtures/cert';
 import { encodeState } from '../../../src/auth0-session/utils/encoding';
+import wellKnown from '../fixtures/well-known.json';
 
 const login = async (baseURL: string): Promise<CookieJar> => {
   const nonce = '__test_nonce__';
@@ -179,5 +181,94 @@ describe('logout route', () => {
     expect(sessionCookie).toMatch(/SameSite=None/);
     expect(cookies).toHaveProperty('foo');
     expect(cookies).not.toHaveProperty('appSession');
+  });
+
+  it('should pass logout params to idp', async () => {
+    const baseURL = await setup(
+      { ...defaultConfig, idpLogout: true },
+      { logoutOptions: { logoutParams: { foo: 'bar' } } }
+    );
+    const cookieJar = await login(baseURL);
+
+    const session: SessionResponse = await get(baseURL, '/session', { cookieJar });
+    expect(session.id_token).toBeTruthy();
+
+    const { res } = await get(baseURL, '/logout', { cookieJar, fullResponse: true });
+
+    await expect(get(baseURL, '/session', { cookieJar })).rejects.toThrowError('Unauthorized');
+
+    expect(res.statusCode).toEqual(302);
+    const redirect = parse(res.headers.location, true);
+    expect(redirect).toMatchObject({
+      hostname: 'op.example.com',
+      pathname: '/session/end',
+      protocol: 'https:',
+      query: {
+        post_logout_redirect_uri: baseURL,
+        id_token_hint: session.id_token,
+        foo: 'bar'
+      }
+    });
+  });
+
+  it('should pass logout params to auth0', async () => {
+    const baseURL = await setup(
+      { ...defaultConfig, issuerBaseURL: 'https://op.auth0.com', idpLogout: true, auth0Logout: true },
+      { logoutOptions: { logoutParams: { foo: 'bar' } } }
+    );
+    const { end_session_endpoint, ...a0WellKnown } = wellKnown;
+    nock('https://op.auth0.com').get('/.well-known/openid-configuration').reply(200, a0WellKnown);
+    const cookieJar = await login(baseURL);
+
+    const session: SessionResponse = await get(baseURL, '/session', { cookieJar });
+    expect(session.id_token).toBeTruthy();
+
+    const { res } = await get(baseURL, '/logout', { cookieJar, fullResponse: true });
+
+    await expect(get(baseURL, '/session', { cookieJar })).rejects.toThrowError('Unauthorized');
+
+    expect(res.statusCode).toEqual(302);
+    const redirect = parse(res.headers.location, true);
+    expect(redirect).toMatchObject({
+      hostname: 'op.example.com',
+      pathname: '/v2/logout',
+      protocol: 'https:',
+      query: {
+        client_id: defaultConfig.clientID,
+        foo: 'bar'
+      }
+    });
+  });
+
+  it('should ignore null logout params', async () => {
+    const baseURL = await setup(
+      { ...defaultConfig, issuerBaseURL: 'https://op.auth0.com', idpLogout: true, auth0Logout: true },
+      { logoutOptions: { logoutParams: { foo: 'bar', baz: null, qux: undefined, federated: '' } } }
+    );
+    const { end_session_endpoint, ...a0WellKnown } = wellKnown;
+    nock('https://op.auth0.com').get('/.well-known/openid-configuration').reply(200, a0WellKnown);
+    const cookieJar = await login(baseURL);
+
+    const session: SessionResponse = await get(baseURL, '/session', { cookieJar });
+    expect(session.id_token).toBeTruthy();
+
+    const { res } = await get(baseURL, '/logout', { cookieJar, fullResponse: true });
+
+    await expect(get(baseURL, '/session', { cookieJar })).rejects.toThrowError('Unauthorized');
+
+    expect(res.statusCode).toEqual(302);
+    const redirect = parse(res.headers.location, true);
+    expect(redirect).toMatchObject({
+      hostname: 'op.example.com',
+      pathname: '/v2/logout',
+      protocol: 'https:',
+      query: {
+        client_id: defaultConfig.clientID,
+        foo: 'bar',
+        federated: ''
+      }
+    });
+    expect(redirect.query).not.toHaveProperty('baz');
+    expect(redirect.query).not.toHaveProperty('qux');
   });
 });
