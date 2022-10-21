@@ -30,6 +30,30 @@ describe('logout handler', () => {
     });
   });
 
+  test('should pass logout params to the identity provider', async () => {
+    const baseUrl = await setup(withoutApi, { logoutOptions: { logoutParams: { foo: 'bar' } } });
+    const cookieJar = await login(baseUrl);
+
+    const {
+      res: { statusCode, headers }
+    } = await get(baseUrl, '/api/auth/logout', {
+      cookieJar,
+      fullResponse: true
+    });
+
+    expect(statusCode).toBe(302);
+    expect(parseUrl(headers['location'], true)).toMatchObject({
+      protocol: 'https:',
+      host: 'acme.auth0.local',
+      query: {
+        returnTo: 'http://www.acme.com',
+        client_id: '__test_client_id__',
+        foo: 'bar'
+      },
+      pathname: '/v2/logout'
+    });
+  });
+
   test('should return to the custom path', async () => {
     const customReturnTo = 'https://www.foo.bar';
     const baseUrl = await setup(withoutApi, {
