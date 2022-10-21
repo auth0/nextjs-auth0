@@ -120,6 +120,17 @@ export async function refreshTokenExchange(
     });
 }
 
+export async function failedRefreshTokenExchange(
+  params: ConfigParameters,
+  refreshToken: string,
+  payload: Record<string, unknown>,
+  status = 401
+): Promise<nock.Scope> {
+  return nock(`${params.issuerBaseURL}`)
+    .post('/oauth/token', `grant_type=refresh_token&refresh_token=${refreshToken}`)
+    .reply(status, payload);
+}
+
 export async function refreshTokenRotationExchange(
   params: ConfigParameters,
   refreshToken: string,
