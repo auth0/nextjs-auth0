@@ -93,6 +93,7 @@
 								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="config.sessionconfig.html#name" class="tsd-kind-icon">name</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="config.sessionconfig.html#rolling" class="tsd-kind-icon">rolling</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="config.sessionconfig.html#rollingduration" class="tsd-kind-icon">rolling<wbr>Duration</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="config.sessionconfig.html#storeidtoken" class="tsd-kind-icon">storeIDToken</a></li>
 							</ul>
 						</section>
 					</div>
@@ -106,7 +107,7 @@
 					<div class="tsd-signature tsd-kind-icon">absolute<wbr>Duration<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">boolean</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/config.ts#L213">src/config.ts:213</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/config.ts#L215">src/config.ts:215</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -114,8 +115,8 @@
 							<p>Integer value, in seconds, for application absolute rolling duration.
 								The amount of time after the user has logged in that they will be logged out.
 								Set this to <code>false</code> if you don&#39;t want an absolute duration on your session.
-								Default is 604800 seconds (7 days).
-							You can also use the AUTH0_SESSION_ABSOLUTE_DURATION environment variable.</p>
+								Defaults to <code>604800</code> seconds (7 days).
+							You can also use the <code>AUTH0_SESSION_ABSOLUTE_DURATION</code> environment variable.</p>
 						</div>
 					</div>
 				</section>
@@ -125,7 +126,7 @@
 					<div class="tsd-signature tsd-kind-icon">cookie<span class="tsd-signature-symbol">:</span> <a href="config.cookieconfig.html" class="tsd-signature-type" data-tsd-kind="Interface">CookieConfig</a></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/config.ts#L215">src/config.ts:215</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/config.ts#L224">src/config.ts:224</a></li>
 						</ul>
 					</aside>
 				</section>
@@ -135,15 +136,15 @@
 					<div class="tsd-signature tsd-kind-icon">name<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/config.ts#L185">src/config.ts:185</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/config.ts#L187">src/config.ts:187</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
 							<p>String value for the cookie name used for the internal session.
 								This value must only include letters, numbers, and underscores.
-								Default is <code>appSession</code>.
-							You can also use the AUTH0_SESSION_NAME environment variable.</p>
+								Defaults to <code>appSession</code>.
+							You can also use the <code>AUTH0_SESSION_NAME</code> environment variable.</p>
 						</div>
 					</div>
 				</section>
@@ -153,17 +154,17 @@
 					<div class="tsd-signature tsd-kind-icon">rolling<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/config.ts#L195">src/config.ts:195</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/config.ts#L197">src/config.ts:197</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
-							<p>If you want your session duration to be rolling, eg reset everytime the
-								user is active on your site, set this to a <code>true</code>. If you want the session
-								duration to be absolute, where the user is logged out a fixed time after login,
-								regardless of activity, set this to <code>false</code>
-								Default is <code>true</code>.
-							You can also use the AUTH0_SESSION_ROLLING environment variable.</p>
+							<p>If you want your session duration to be rolling, resetting everytime the
+								user is active on your site, set this to <code>true</code>. If you want the session
+								duration to be absolute, where the user gets logged out a fixed time after login
+								regardless of activity, set this to <code>false</code>.
+								Defaults to <code>true</code>.
+							You can also use the <code>AUTH0_SESSION_ROLLING</code> environment variable.</p>
 						</div>
 					</div>
 				</section>
@@ -173,16 +174,33 @@
 					<div class="tsd-signature tsd-kind-icon">rolling<wbr>Duration<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">false</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/config.ts#L204">src/config.ts:204</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/config.ts#L206">src/config.ts:206</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
 							<p>Integer value, in seconds, for application session rolling duration.
 								The amount of time for which the user must be idle for then to be logged out.
-								Should be false when rolling is false.
-								Default is 86400 seconds (1 day).
+								Should be <code>false</code> when rolling is <code>false</code>.
+								Defaults to <code>86400</code> seconds (1 day).
 							You can also use the AUTH0_SESSION_ROLLING_DURATION environment variable.</p>
+						</div>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
+					<a name="storeidtoken" class="tsd-anchor"></a>
+					<h3>storeIDToken</h3>
+					<div class="tsd-signature tsd-kind-icon">storeIDToken<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/config.ts#L222">src/config.ts:222</a></li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>Boolean value to store the ID token in the session. Storing it can make the session cookie too
+								large.
+							Defaults to <code>false</code>.</p>
 						</div>
 					</div>
 				</section>
@@ -228,16 +246,22 @@
 						<a href="../modules/helpers.html">helpers</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="../modules/helpers_get_server_side_props_wrapper.html">helpers/get-<wbr>server-<wbr>side-<wbr>props-<wbr>wrapper</a>
+						<a href="../modules/helpers_testing.html">helpers/testing</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/helpers_with_api_auth_required.html">helpers/with-<wbr>api-<wbr>auth-<wbr>required</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/helpers_with_middleware_auth_required.html">helpers/with-<wbr>middleware-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/helpers_with_page_auth_required.html">helpers/with-<wbr>page-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/instance.html">instance</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/middleware.html">middleware</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/session.html">session</a>
@@ -250,6 +274,9 @@
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/session_session.html">session/session</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/session_update_session.html">session/update-<wbr>session</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/utils_errors.html">utils/errors</a>
@@ -293,6 +320,9 @@
 							<li class=" tsd-kind-property tsd-parent-kind-interface">
 								<a href="config.sessionconfig.html#rollingduration" class="tsd-kind-icon">rolling<wbr>Duration</a>
 							</li>
+							<li class=" tsd-kind-property tsd-parent-kind-interface">
+								<a href="config.sessionconfig.html#storeidtoken" class="tsd-kind-icon">storeIDToken</a>
+							</li>
 						</ul>
 					</li>
 				</ul>
@@ -320,6 +350,10 @@
 			</ul>
 			<ul class="tsd-legend">
 				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
+				<li class="tsd-kind-class tsd-has-type-parameter"><span class="tsd-kind-icon">Class with type parameter</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-enum"><span class="tsd-kind-icon">Enumeration</span></li>
 			</ul>
 		</div>
 	</div>

@@ -2,7 +2,7 @@ declare global {
   namespace NodeJS {
     interface Global {
       getSession?: Function;
-      updateUser?: Function;
+      updateSession?: Function;
       handleAuth?: Function;
       withApiAuthRequired?: Function;
       withPageAuthRequired?: Function;

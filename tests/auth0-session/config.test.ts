@@ -294,7 +294,7 @@ describe('Config', () => {
           }
         }
       })
-    ).toThrowError('"session.cookie.secure" must be a boolean');
+    ).toThrowError('Cookies must be secure when base url is https.');
   });
 
   it('should fail when app session cookie sameSite is invalid', function () {

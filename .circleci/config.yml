@@ -1,6 +1,6 @@
 version: 2.1
 orbs:
-  ship: auth0/ship@0.2.0
+  ship: auth0/ship@0.7.4
 jobs:
   build:
     docker:
@@ -43,6 +43,7 @@ workflows:
           context:
             - browserstack-env
       - ship/node-publish:
+          publish-command: npm publish --tag beta
           requires:
             - build
           context:
@@ -51,4 +52,4 @@ workflows:
           filters:
             branches:
               only:
-                - main
+                - vNext

@@ -4,7 +4,7 @@ import timekeeper from 'timekeeper';
 import { withApi, withoutApi } from '../fixtures/default-settings';
 import { makeIdToken } from '../auth0-session/fixtures/cert';
 import { defaultConfig, get, post, toSignedCookieJar } from '../auth0-session/fixtures/helpers';
-import { encodeState } from '../../src/auth0-session/hooks/get-login-state';
+import { encodeState } from '../../src/auth0-session/utils/encoding';
 import { defaultOnError, setup, teardown } from '../fixtures/setup';
 import { Session, AfterCallback, MissingStateCookieError } from '../../src';
 import nock from 'nock';
@@ -41,8 +41,7 @@ describe('callback handler', () => {
         state: '__test_state__'
       })
     ).rejects.toThrow(
-      'Callback handler failed. CAUSE: The cookie dropped by the login request cannot be found, check the url of the ' +
-        'login request, the url of this callback request and your cookie config.'
+      'Callback handler failed. CAUSE: Missing state cookie from login request (check login URL, callback URL and cookie config).'
     );
   });
 
@@ -352,9 +351,7 @@ describe('callback handler', () => {
         },
         cookieJar
       )
-    ).rejects.toThrow(
-      'Organization Id (org_id) claim value mismatch in the ID token; expected &quot;foo&quot;, found &quot;bar&quot;'
-    );
+    ).rejects.toThrow('Organization Id (org_id) claim value mismatch in the ID token; expected "foo", found "bar"');
   });
 
   test('accepts a valid organization', async () => {

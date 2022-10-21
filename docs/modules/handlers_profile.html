@@ -75,7 +75,9 @@
 							<h3>Server Type aliases</h3>
 							<ul class="tsd-index-list">
 								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="handlers_profile.html#handleprofile" class="tsd-kind-icon">Handle<wbr>Profile</a></li>
+								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="handlers_profile.html#profilehandler" class="tsd-kind-icon">Profile<wbr>Handler</a></li>
 								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="handlers_profile.html#profileoptions" class="tsd-kind-icon">Profile<wbr>Options</a></li>
+								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="handlers_profile.html#profileoptionsprovider" class="tsd-kind-icon">Profile<wbr>Options<wbr>Provider</a></li>
 							</ul>
 						</section>
 					</div>
@@ -89,7 +91,7 @@
 					<div class="tsd-signature tsd-kind-icon">After<wbr>Refetch<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiRequest</span>, res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiResponse</span>, session<span class="tsd-signature-symbol">: </span><a href="../classes/session_session.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="../classes/session_session.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol"> | </span><a href="../classes/session_session.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/handlers/profile.ts#L7">src/handlers/profile.ts:7</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/handlers/profile.ts#L8">src/handlers/profile.ts:8</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-type-declaration">
@@ -126,15 +128,118 @@
 				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module">
 					<a name="handleprofile" class="tsd-anchor"></a>
 					<h3>Handle<wbr>Profile</h3>
-					<div class="tsd-signature tsd-kind-icon">Handle<wbr>Profile<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiRequest</span>, res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiResponse</span>, options<span class="tsd-signature-symbol">?: </span><a href="handlers_profile.html#profileoptions" class="tsd-signature-type" data-tsd-kind="Type alias">ProfileOptions</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></div>
+					<div class="tsd-signature tsd-kind-icon">Handle<wbr>Profile<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">{ </span><span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiRequest</span>, res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiResponse</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span>, options<span class="tsd-signature-symbol">?: </span><a href="handlers_profile.html#profileoptions" class="tsd-signature-type" data-tsd-kind="Type alias">ProfileOptions</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">; </span><span class="tsd-signature-symbol">(</span>provider<span class="tsd-signature-symbol">: </span><a href="handlers_profile.html#profileoptionsprovider" class="tsd-signature-type" data-tsd-kind="Type alias">ProfileOptionsProvider</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="handlers_profile.html#profilehandler" class="tsd-signature-type" data-tsd-kind="Type alias">ProfileHandler</a><span class="tsd-signature-symbol">; </span><span class="tsd-signature-symbol">(</span>options<span class="tsd-signature-symbol">: </span><a href="handlers_profile.html#profileoptions" class="tsd-signature-type" data-tsd-kind="Type alias">ProfileOptions</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="handlers_profile.html#profilehandler" class="tsd-signature-type" data-tsd-kind="Type alias">ProfileHandler</a><span class="tsd-signature-symbol"> }</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/handlers/profile.ts#L34">src/handlers/profile.ts:34</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/handlers/profile.ts#L88">src/handlers/profile.ts:88</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
-							<p>The handler for the <code>/api/auth/me</code> route.</p>
+							<p>Use this to customize the default profile handler without overriding it.
+							You can still override the handler if needed.</p>
+						</div>
+						<dl class="tsd-comment-tags">
+							<dt>example</dt>
+							<dd><p>Pass an options object</p>
+								<pre><code class="language-js"><span style="color: #008000">// pages/api/auth/[...auth0].js</span>
+<span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">handleAuth</span><span style="color: #000000">, </span><span style="color: #001080">handleProfile</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@auth0/nextjs-auth0&#039;</span><span style="color: #000000">;</span>
+
+<span style="color: #AF00DB">export</span><span style="color: #000000"> </span><span style="color: #AF00DB">default</span><span style="color: #000000"> </span><span style="color: #795E26">handleAuth</span><span style="color: #000000">({</span>
+<span style="color: #000000">  </span><span style="color: #001080">profile:</span><span style="color: #000000"> </span><span style="color: #795E26">handleProfile</span><span style="color: #000000">({ </span><span style="color: #001080">refetch:</span><span style="color: #000000"> </span><span style="color: #0000FF">true</span><span style="color: #000000"> })</span>
+<span style="color: #000000">});</span>
+</code></pre>
+							</dd>
+							<dt>example</dt>
+							<dd><p>Pass a function that receives the request and returns an options object</p>
+								<pre><code class="language-js"><span style="color: #008000">// pages/api/auth/[...auth0].js</span>
+<span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">handleAuth</span><span style="color: #000000">, </span><span style="color: #001080">handleProfile</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@auth0/nextjs-auth0&#039;</span><span style="color: #000000">;</span>
+
+<span style="color: #AF00DB">export</span><span style="color: #000000"> </span><span style="color: #AF00DB">default</span><span style="color: #000000"> </span><span style="color: #795E26">handleAuth</span><span style="color: #000000">({</span>
+<span style="color: #000000">  </span><span style="color: #001080">profile:</span><span style="color: #000000"> </span><span style="color: #795E26">handleProfile</span><span style="color: #000000">((</span><span style="color: #001080">req</span><span style="color: #000000">) </span><span style="color: #0000FF">=&gt;</span><span style="color: #000000"> {</span>
+<span style="color: #000000">    </span><span style="color: #AF00DB">return</span><span style="color: #000000"> { </span><span style="color: #001080">refetch:</span><span style="color: #000000"> </span><span style="color: #0000FF">true</span><span style="color: #000000"> };</span>
+<span style="color: #000000">  })</span>
+<span style="color: #000000">});</span>
+</code></pre>
+								<p>This is useful for generating options that depend on values from the request.</p>
+							</dd>
+							<dt>example</dt>
+							<dd><p>Override the profile handler</p>
+								<pre><code class="language-js"><span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">handleAuth</span><span style="color: #000000">, </span><span style="color: #001080">handleProfile</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@auth0/nextjs-auth0&#039;</span><span style="color: #000000">;</span>
+
+<span style="color: #AF00DB">export</span><span style="color: #000000"> </span><span style="color: #AF00DB">default</span><span style="color: #000000"> </span><span style="color: #795E26">handleAuth</span><span style="color: #000000">({</span>
+<span style="color: #000000">  </span><span style="color: #795E26">profile</span><span style="color: #001080">:</span><span style="color: #000000"> </span><span style="color: #0000FF">async</span><span style="color: #000000"> (</span><span style="color: #001080">req</span><span style="color: #000000">, </span><span style="color: #001080">res</span><span style="color: #000000">) </span><span style="color: #0000FF">=&gt;</span><span style="color: #000000"> {</span>
+<span style="color: #000000">    </span><span style="color: #AF00DB">try</span><span style="color: #000000"> {</span>
+<span style="color: #000000">      </span><span style="color: #AF00DB">await</span><span style="color: #000000"> </span><span style="color: #795E26">handleProfile</span><span style="color: #000000">(</span><span style="color: #001080">req</span><span style="color: #000000">, </span><span style="color: #001080">res</span><span style="color: #000000">, { </span><span style="color: #001080">refetch:</span><span style="color: #000000"> </span><span style="color: #0000FF">true</span><span style="color: #000000"> });</span>
+<span style="color: #000000">    } </span><span style="color: #AF00DB">catch</span><span style="color: #000000"> (</span><span style="color: #001080">error</span><span style="color: #000000">) {</span>
+<span style="color: #000000">      </span><span style="color: #001080">console</span><span style="color: #000000">.</span><span style="color: #795E26">error</span><span style="color: #000000">(</span><span style="color: #001080">error</span><span style="color: #000000">);</span>
+<span style="color: #000000">    }</span>
+<span style="color: #000000">  }</span>
+<span style="color: #000000">});</span>
+</code></pre>
+							</dd>
+						</dl>
+					</div>
+					<div class="tsd-type-declaration">
+						<h4>Type declaration</h4>
+						<ul class="tsd-parameters">
+							<li class="tsd-parameter-signature">
+								<ul class="tsd-signatures tsd-kind-type-literal tsd-parent-kind-type-alias">
+									<li class="tsd-signature tsd-kind-icon"><span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiRequest</span>, res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiResponse</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span>, options<span class="tsd-signature-symbol">?: </span><a href="handlers_profile.html#profileoptions" class="tsd-signature-type" data-tsd-kind="Type alias">ProfileOptions</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></li>
+									<li class="tsd-signature tsd-kind-icon"><span class="tsd-signature-symbol">(</span>provider<span class="tsd-signature-symbol">: </span><a href="handlers_profile.html#profileoptionsprovider" class="tsd-signature-type" data-tsd-kind="Type alias">ProfileOptionsProvider</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="handlers_profile.html#profilehandler" class="tsd-signature-type" data-tsd-kind="Type alias">ProfileHandler</a></li>
+									<li class="tsd-signature tsd-kind-icon"><span class="tsd-signature-symbol">(</span>options<span class="tsd-signature-symbol">: </span><a href="handlers_profile.html#profileoptions" class="tsd-signature-type" data-tsd-kind="Type alias">ProfileOptions</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="handlers_profile.html#profilehandler" class="tsd-signature-type" data-tsd-kind="Type alias">ProfileHandler</a></li>
+								</ul>
+								<ul class="tsd-descriptions">
+									<li class="tsd-description">
+										<h4 class="tsd-parameters-title">Parameters</h4>
+										<ul class="tsd-parameters">
+											<li>
+												<h5>req: <span class="tsd-signature-type">NextApiRequest</span></h5>
+											</li>
+											<li>
+												<h5>res: <span class="tsd-signature-type">NextApiResponse</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span></h5>
+											</li>
+											<li>
+												<h5><span class="tsd-flag ts-flagOptional">Optional</span> options: <a href="handlers_profile.html#profileoptions" class="tsd-signature-type" data-tsd-kind="Type alias">ProfileOptions</a></h5>
+											</li>
+										</ul>
+										<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4>
+									</li>
+									<li class="tsd-description">
+										<h4 class="tsd-parameters-title">Parameters</h4>
+										<ul class="tsd-parameters">
+											<li>
+												<h5>provider: <a href="handlers_profile.html#profileoptionsprovider" class="tsd-signature-type" data-tsd-kind="Type alias">ProfileOptionsProvider</a></h5>
+											</li>
+										</ul>
+										<h4 class="tsd-returns-title">Returns <a href="handlers_profile.html#profilehandler" class="tsd-signature-type" data-tsd-kind="Type alias">ProfileHandler</a></h4>
+									</li>
+									<li class="tsd-description">
+										<h4 class="tsd-parameters-title">Parameters</h4>
+										<ul class="tsd-parameters">
+											<li>
+												<h5>options: <a href="handlers_profile.html#profileoptions" class="tsd-signature-type" data-tsd-kind="Type alias">ProfileOptions</a></h5>
+											</li>
+										</ul>
+										<h4 class="tsd-returns-title">Returns <a href="handlers_profile.html#profilehandler" class="tsd-signature-type" data-tsd-kind="Type alias">ProfileHandler</a></h4>
+									</li>
+								</ul>
+							</li>
+						</ul>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module">
+					<a name="profilehandler" class="tsd-anchor"></a>
+					<h3>Profile<wbr>Handler</h3>
+					<div class="tsd-signature tsd-kind-icon">Profile<wbr>Handler<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiRequest</span>, res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiResponse</span>, options<span class="tsd-signature-symbol">?: </span><a href="handlers_profile.html#profileoptions" class="tsd-signature-type" data-tsd-kind="Type alias">ProfileOptions</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/handlers/profile.ts#L101">src/handlers/profile.ts:101</a></li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>The handler for the <code>/api/auth/me</code> API route.</p>
 						</div>
 						<dl class="tsd-comment-tags">
 							<dt>throws</dt>
@@ -176,13 +281,18 @@
 					<div class="tsd-signature tsd-kind-icon">Profile<wbr>Options<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">{ </span>afterRefetch<span class="tsd-signature-symbol">?: </span><a href="handlers_profile.html#afterrefetch" class="tsd-signature-type" data-tsd-kind="Type alias">AfterRefetch</a><span class="tsd-signature-symbol">; </span>refetch<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol"> }</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/handlers/profile.ts#L14">src/handlers/profile.ts:14</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/handlers/profile.ts#L17">src/handlers/profile.ts:17</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
-							<p>Custom options for <a href="handlers_profile.html#handleprofile">HandleProfile</a></p>
+							<p>Options to customize the profile handler.</p>
 						</div>
+						<dl class="tsd-comment-tags">
+							<dt>see</dt>
+							<dd><p><a href="handlers_profile.html#handleprofile">HandleProfile</a></p>
+							</dd>
+						</dl>
 					</div>
 					<div class="tsd-type-declaration">
 						<h4>Type declaration</h4>
@@ -191,8 +301,9 @@
 								<h5><span class="tsd-flag ts-flagOptional">Optional</span> after<wbr>Refetch<span class="tsd-signature-symbol">?: </span><a href="handlers_profile.html#afterrefetch" class="tsd-signature-type" data-tsd-kind="Type alias">AfterRefetch</a></h5>
 								<div class="tsd-comment tsd-typography">
 									<div class="lead">
-										<p>Like {@AfterCallback} and {@AfterRefresh} when a session is created, you can use this function to validate or
-										add/remove claims after the session is updated. Will only run if {@link ProfileOptions.refetch} is <code>true</code></p>
+										<p>Like <a href="handlers_callback.html#aftercallback">AfterCallback</a>  and <a href="session_get_access_token.html#afterrefresh">AfterRefresh</a> when a session is created, you can use
+											this function to validate or add/remove claims after the session is updated. Will only run if
+										{@link ProfileOptions.refetch} is <code>true</code>.</p>
 									</div>
 								</div>
 							</li>
@@ -200,9 +311,47 @@
 								<h5><span class="tsd-flag ts-flagOptional">Optional</span> refetch<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">boolean</span></h5>
 								<div class="tsd-comment tsd-typography">
 									<div class="lead">
-										<p>If set to <code>true</code> this will refetch the user profile information from <code>/userinfo</code> and save it to the session.</p>
+										<p>If set to <code>true</code> this will refetch the user profile information from <code>/userinfo</code> and save it
+										to the session.</p>
 									</div>
 								</div>
+							</li>
+						</ul>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module">
+					<a name="profileoptionsprovider" class="tsd-anchor"></a>
+					<h3>Profile<wbr>Options<wbr>Provider</h3>
+					<div class="tsd-signature tsd-kind-icon">Profile<wbr>Options<wbr>Provider<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiRequest</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><a href="handlers_profile.html#profileoptions" class="tsd-signature-type" data-tsd-kind="Type alias">ProfileOptions</a></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/handlers/profile.ts#L38">src/handlers/profile.ts:38</a></li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>Options provider for the default profile handler.
+							Use this to generate options that depend on values from the request.</p>
+						</div>
+					</div>
+					<div class="tsd-type-declaration">
+						<h4>Type declaration</h4>
+						<ul class="tsd-parameters">
+							<li class="tsd-parameter-signature">
+								<ul class="tsd-signatures tsd-kind-type-literal tsd-parent-kind-type-alias">
+									<li class="tsd-signature tsd-kind-icon"><span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiRequest</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="handlers_profile.html#profileoptions" class="tsd-signature-type" data-tsd-kind="Type alias">ProfileOptions</a></li>
+								</ul>
+								<ul class="tsd-descriptions">
+									<li class="tsd-description">
+										<h4 class="tsd-parameters-title">Parameters</h4>
+										<ul class="tsd-parameters">
+											<li>
+												<h5>req: <span class="tsd-signature-type">NextApiRequest</span></h5>
+											</li>
+										</ul>
+										<h4 class="tsd-returns-title">Returns <a href="handlers_profile.html#profileoptions" class="tsd-signature-type" data-tsd-kind="Type alias">ProfileOptions</a></h4>
+									</li>
+								</ul>
 							</li>
 						</ul>
 					</div>
@@ -249,16 +398,22 @@
 						<a href="helpers.html">helpers</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="helpers_get_server_side_props_wrapper.html">helpers/get-<wbr>server-<wbr>side-<wbr>props-<wbr>wrapper</a>
+						<a href="helpers_testing.html">helpers/testing</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="helpers_with_api_auth_required.html">helpers/with-<wbr>api-<wbr>auth-<wbr>required</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="helpers_with_middleware_auth_required.html">helpers/with-<wbr>middleware-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="helpers_with_page_auth_required.html">helpers/with-<wbr>page-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="instance.html">instance</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="middleware.html">middleware</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="session.html">session</a>
@@ -271,6 +426,9 @@
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="session_session.html">session/session</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="session_update_session.html">session/update-<wbr>session</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="utils_errors.html">utils/errors</a>
@@ -289,7 +447,13 @@
 						<a href="handlers_profile.html#handleprofile" class="tsd-kind-icon">Handle<wbr>Profile</a>
 					</li>
 					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
+						<a href="handlers_profile.html#profilehandler" class="tsd-kind-icon">Profile<wbr>Handler</a>
+					</li>
+					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
 						<a href="handlers_profile.html#profileoptions" class="tsd-kind-icon">Profile<wbr>Options</a>
+					</li>
+					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
+						<a href="handlers_profile.html#profileoptionsprovider" class="tsd-kind-icon">Profile<wbr>Options<wbr>Provider</a>
 					</li>
 				</ul>
 			</nav>
@@ -306,10 +470,14 @@
 				<li class="tsd-kind-type-alias tsd-has-type-parameter"><span class="tsd-kind-icon">Type alias with type parameter</span></li>
 			</ul>
 			<ul class="tsd-legend">
-				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>
+				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
+				<li class="tsd-kind-class tsd-has-type-parameter"><span class="tsd-kind-icon">Class with type parameter</span></li>
 			</ul>
 			<ul class="tsd-legend">
-				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
+				<li class="tsd-kind-enum"><span class="tsd-kind-icon">Enumeration</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>
 			</ul>
 		</div>
 	</div>

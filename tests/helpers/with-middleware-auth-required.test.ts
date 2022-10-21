@@ -126,6 +126,28 @@ describe('with-middleware-auth-required', () => {
     expect(middleware).toHaveBeenCalled();
   });
 
+  test('should honor redirects in custom middleware for authenticated users', async () => {
+    const middleware = jest.fn().mockImplementation(() => {
+      return NextResponse.redirect('https://example.com/redirect');
+    });
+    const res = await setup({ middleware, user: { name: 'dave' } });
+    expect(middleware).toHaveBeenCalled();
+    expect(res.status).toEqual(307);
+    expect(res.headers.get('location')).toEqual('https://example.com/redirect');
+    expect(res.headers.get('set-cookie')).toMatch(/^appSession=/);
+  });
+
+  test('should honor rewrites in custom middleware for authenticated users', async () => {
+    const middleware = jest.fn().mockImplementation(() => {
+      return NextResponse.rewrite('https://example.com/rewrite');
+    });
+    const res = await setup({ middleware, user: { name: 'dave' } });
+    expect(middleware).toHaveBeenCalled();
+    expect(res.status).toEqual(200);
+    expect(res.headers.get('x-middleware-rewrite')).toEqual('https://example.com/rewrite');
+    expect(res.headers.get('set-cookie')).toMatch(/^appSession=/);
+  });
+
   test('should set a session cookie if session is rolling', async () => {
     const res = await setup({ user: { name: 'dave' } });
     expect(res.status).toEqual(200);

@@ -95,7 +95,7 @@
 					<div class="tsd-signature tsd-kind-icon">After<wbr>Refresh<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiRequest</span>, res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiResponse</span>, session<span class="tsd-signature-symbol">: </span><a href="../classes/session_session.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="../classes/session_session.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol"> | </span><a href="../classes/session_session.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/session/get-access-token.ts#L9">src/session/get-access-token.ts:9</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/session/get-access-token.ts#L9">src/session/get-access-token.ts:9</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-type-declaration">
@@ -135,12 +135,12 @@
 					<div class="tsd-signature tsd-kind-icon">Get<wbr>Access<wbr>Token<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">IncomingMessage</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">NextApiRequest</span>, res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">ServerResponse</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">NextApiResponse</span>, accessTokenRequest<span class="tsd-signature-symbol">?: </span><a href="../interfaces/session_get_access_token.accesstokenrequest.html" class="tsd-signature-type" data-tsd-kind="Interface">AccessTokenRequest</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/session_get_access_token.getaccesstokenresult.html" class="tsd-signature-type" data-tsd-kind="Interface">GetAccessTokenResult</a><span class="tsd-signature-symbol">&gt;</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/session/get-access-token.ts#L81">src/session/get-access-token.ts:81</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/session/get-access-token.ts#L85">src/session/get-access-token.ts:85</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
-							<p>Get an Access Token to access an external API.</p>
+							<p>Get an access token to access an external API.</p>
 						</div>
 						<dl class="tsd-comment-tags">
 							<dt>throws</dt>
@@ -218,16 +218,22 @@
 						<a href="helpers.html">helpers</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="helpers_get_server_side_props_wrapper.html">helpers/get-<wbr>server-<wbr>side-<wbr>props-<wbr>wrapper</a>
+						<a href="helpers_testing.html">helpers/testing</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="helpers_with_api_auth_required.html">helpers/with-<wbr>api-<wbr>auth-<wbr>required</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="helpers_with_middleware_auth_required.html">helpers/with-<wbr>middleware-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="helpers_with_page_auth_required.html">helpers/with-<wbr>page-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="instance.html">instance</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="middleware.html">middleware</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="session.html">session</a>
@@ -240,6 +246,9 @@
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="session_session.html">session/session</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="session_update_session.html">session/update-<wbr>session</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="utils_errors.html">utils/errors</a>
@@ -278,10 +287,14 @@
 				<li class="tsd-kind-type-alias tsd-has-type-parameter"><span class="tsd-kind-icon">Type alias with type parameter</span></li>
 			</ul>
 			<ul class="tsd-legend">
-				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>
+				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
+				<li class="tsd-kind-class tsd-has-type-parameter"><span class="tsd-kind-icon">Class with type parameter</span></li>
 			</ul>
 			<ul class="tsd-legend">
-				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
+				<li class="tsd-kind-enum"><span class="tsd-kind-icon">Enumeration</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>
 			</ul>
 		</div>
 	</div>

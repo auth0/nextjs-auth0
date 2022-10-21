@@ -94,7 +94,7 @@
 					<div class="tsd-signature tsd-kind-icon">With<wbr>Page<wbr>Auth<wbr>Required<span class="tsd-signature-symbol">:</span> &lt;P&gt;<span class="tsd-signature-symbol">(</span>Component<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">ComponentType</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">P</span><span class="tsd-signature-symbol"> &amp; </span><a href="../interfaces/frontend_with_page_auth_required.userprops.html" class="tsd-signature-type" data-tsd-kind="Interface">UserProps</a><span class="tsd-signature-symbol">&gt;</span>, options<span class="tsd-signature-symbol">?: </span><a href="../interfaces/frontend_with_page_auth_required.withpageauthrequiredoptions.html" class="tsd-signature-type" data-tsd-kind="Interface">WithPageAuthRequiredOptions</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">React.FC</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">P</span><span class="tsd-signature-symbol">&gt;</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/frontend/with-page-auth-required.tsx#L75">src/frontend/with-page-auth-required.tsx:75</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/frontend/with-page-auth-required.tsx#L75">src/frontend/with-page-auth-required.tsx:75</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -102,7 +102,7 @@
 							<pre><code class="language-js"><span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">MyProtectedPage</span><span style="color: #000000"> = </span><span style="color: #795E26">withPageAuthRequired</span><span style="color: #000000">(</span><span style="color: #001080">MyPage</span><span style="color: #000000">);</span>
 </code></pre>
 						</div>
-						<p>When you wrap your pages in this Higher Order Component and an anonymous user visits your page
+						<p>When you wrap your pages in this higher order component and an anonymous user visits your page,
 						they will be redirected to the login page and then returned to the page they were redirected from (after login).</p>
 					</div>
 					<div class="tsd-type-declaration">
@@ -178,16 +178,22 @@
 						<a href="helpers.html">helpers</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="helpers_get_server_side_props_wrapper.html">helpers/get-<wbr>server-<wbr>side-<wbr>props-<wbr>wrapper</a>
+						<a href="helpers_testing.html">helpers/testing</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="helpers_with_api_auth_required.html">helpers/with-<wbr>api-<wbr>auth-<wbr>required</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="helpers_with_middleware_auth_required.html">helpers/with-<wbr>middleware-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="helpers_with_page_auth_required.html">helpers/with-<wbr>page-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="instance.html">instance</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="middleware.html">middleware</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="session.html">session</a>
@@ -200,6 +206,9 @@
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="session_session.html">session/session</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="session_update_session.html">session/update-<wbr>session</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="utils_errors.html">utils/errors</a>
@@ -235,10 +244,14 @@
 				<li class="tsd-kind-type-alias tsd-has-type-parameter"><span class="tsd-kind-icon">Type alias with type parameter</span></li>
 			</ul>
 			<ul class="tsd-legend">
-				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>
+				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
+				<li class="tsd-kind-class tsd-has-type-parameter"><span class="tsd-kind-icon">Class with type parameter</span></li>
 			</ul>
 			<ul class="tsd-legend">
-				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
+				<li class="tsd-kind-enum"><span class="tsd-kind-icon">Enumeration</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>
 			</ul>
 		</div>
 	</div>

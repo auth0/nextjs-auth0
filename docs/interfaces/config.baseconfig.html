@@ -111,7 +111,7 @@
 					<div class="tsd-signature tsd-kind-icon">auth0<wbr>Logout<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/config.ts#L26">src/config.ts:26</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/config.ts#L28">src/config.ts:28</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -127,7 +127,7 @@
 					<div class="tsd-signature tsd-kind-icon">authorization<wbr>Params<span class="tsd-signature-symbol">:</span> <a href="config.authorizationparameters.html" class="tsd-signature-type" data-tsd-kind="Interface">AuthorizationParameters</a></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/config.ts#L56">src/config.ts:56</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/config.ts#L58">src/config.ts:58</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -148,8 +148,8 @@
 <span style="color: #000000">  scope: </span><span style="color: #A31515">&#039;openid profile email&#039;</span><span style="color: #000000">,</span>
 
 <span style="color: #000000">  </span><span style="color: #008000">// Additional parameters</span>
-<span style="color: #000000">  acr_value: </span><span style="color: #A31515">&quot;tenant:test-tenant&quot;</span><span style="color: #000000">,</span>
-<span style="color: #000000">  custom_param: </span><span style="color: #A31515">&quot;custom-value&quot;</span>
+<span style="color: #000000">  acr_value: </span><span style="color: #A31515">&#039;tenant:test-tenant&#039;</span><span style="color: #000000">,</span>
+<span style="color: #000000">  custom_param: </span><span style="color: #A31515">&#039;custom-value&#039;</span>
 <span style="color: #000000">};</span>
 </code></pre>
 					</div>
@@ -160,15 +160,15 @@
 					<div class="tsd-signature tsd-kind-icon">baseURL<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/config.ts#L64">src/config.ts:64</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/config.ts#L66">src/config.ts:66</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
-							<p>The root URL for the application router, eg <a href="https://localhost">https://localhost</a>
-								You can also use the AUTH0_BASE_URL environment variable.
-								If you provide a domain, we will prefix it with <code>https://</code> - This can be useful when assigning it to
-							<code>VERCEL_URL</code> for Vercel deploys</p>
+							<p>The root URL for the application router, for example <code>https://localhost</code>.
+								You can also use the <code>AUTH0_BASE_URL</code> environment variable.
+								If you provide a domain, we will prefix it with <code>https://</code>. This can be useful when assigning it to
+							<code>VERCEL_URL</code> for Vercel deploys.</p>
 						</div>
 					</div>
 				</section>
@@ -178,30 +178,30 @@
 					<div class="tsd-signature tsd-kind-icon">clientID<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/config.ts#L70">src/config.ts:70</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/config.ts#L72">src/config.ts:72</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
 							<p>The Client ID for your application.
-							You can also use the AUTH0_CLIENT_ID environment variable.</p>
+							You can also use the <code>AUTH0_CLIENT_ID</code> environment variable.</p>
 						</div>
 					</div>
 				</section>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
 					<a name="clientsecret" class="tsd-anchor"></a>
 					<h3><span class="tsd-flag ts-flagOptional">Optional</span> client<wbr>Secret</h3>
-					<div class="tsd-signature tsd-kind-icon">client<wbr>Secret<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span></div>
+					<div class="tsd-signature tsd-kind-icon">client<wbr>Secret<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/config.ts#L77">src/config.ts:77</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/config.ts#L79">src/config.ts:79</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
 							<p>The Client Secret for your application.
 								Required when requesting access tokens.
-							You can also use the AUTH0_CLIENT_SECRET environment variable.</p>
+							You can also use the <code>AUTH0_CLIENT_SECRET</code> environment variable.</p>
 						</div>
 					</div>
 				</section>
@@ -211,14 +211,12 @@
 					<div class="tsd-signature tsd-kind-icon">clock<wbr>Tolerance<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/config.ts#L84">src/config.ts:84</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/config.ts#L86">src/config.ts:86</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
-							<p>Integer value for the system clock&#39;s tolerance (leeway) in seconds for ID token verification.`
-								Default is 60
-							You can also use the AUTH0_CLOCK_TOLERANCE environment variable.</p>
+							<p>Integer value for the system clock&#39;s tolerance (leeway) in seconds for ID token verification.<code>Defaults to</code>60<code>seconds. You can also use the</code>AUTH0_CLOCK_TOLERANCE` environment variable.</p>
 						</div>
 					</div>
 				</section>
@@ -228,14 +226,14 @@
 					<div class="tsd-signature tsd-kind-icon">enable<wbr>Telemetry<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/config.ts#L98">src/config.ts:98</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/config.ts#L100">src/config.ts:100</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
-							<p>To opt-out of sending the library and node version to your authorization server
-								via the <code>Auth0-Client</code> header. Default is `true
-							You can also use the AUTH0_ENABLE_TELEMETRY environment variable.</p>
+							<p>Boolean value to opt-out of sending the library and node version to your authorization server
+								via the <code>Auth0-Client</code> header. Defaults to <code>true</code>.
+							You can also use the <code>AUTH0_ENABLE_TELEMETRY</code> environment variable.</p>
 						</div>
 					</div>
 				</section>
@@ -245,14 +243,14 @@
 					<div class="tsd-signature tsd-kind-icon">get<wbr>Login<wbr>State<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">IncomingMessage</span>, options<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">LoginOptions</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Record</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/config.ts#L117">src/config.ts:117</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/config.ts#L119">src/config.ts:119</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
 							<p>Function that returns an object with URL-safe state values for login.
 								Used for passing custom state parameters to your authorization server.
-							Can also be passed in to <a href="../modules/handlers_login.html#handlelogin">HandleLogin</a></p>
+							Can also be passed in to <a href="../modules/handlers_login.html#handlelogin">HandleLogin</a>.</p>
 						</div>
 						<pre><code class="language-js"><span style="color: #000000">{</span>
 <span style="color: #000000">  ...</span>
@@ -297,14 +295,14 @@
 					<div class="tsd-signature tsd-kind-icon">http<wbr>Timeout<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/config.ts#L91">src/config.ts:91</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/config.ts#L93">src/config.ts:93</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
-							<p>Integer value for the http timeout in ms for authentication requests.
-								Default is 5000
-							You can also use the AUTH0_HTTP_TIMEOUT environment variable.</p>
+							<p>Integer value for the HTTP timeout in milliseconds for authentication requests.
+								Defaults to <code>5000</code> ms.
+							You can also use the <code>AUTH0_HTTP_TIMEOUT</code> environment variable.</p>
 						</div>
 					</div>
 				</section>
@@ -314,13 +312,13 @@
 					<div class="tsd-signature tsd-kind-icon">id<wbr>Token<wbr>Signing<wbr>Alg<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/config.ts#L136">src/config.ts:136</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/config.ts#L138">src/config.ts:138</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
-							<p>String value for the expected ID token algorithm. Default is &#39;RS256&#39;
-							You can also use the AUTH0_ID_TOKEN_SIGNING_ALG environment variable.</p>
+							<p>String value for the expected ID token algorithm. Defaults to &#39;RS256&#39;.
+							You can also use the <code>AUTH0_ID_TOKEN_SIGNING_ALG</code> environment variable.</p>
 						</div>
 					</div>
 				</section>
@@ -330,14 +328,14 @@
 					<div class="tsd-signature tsd-kind-icon">identity<wbr>Claim<wbr>Filter<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/config.ts#L124">src/config.ts:124</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/config.ts#L126">src/config.ts:126</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
 							<p>Array value of claims to remove from the ID token before storing the cookie session.
-								Default is <code>[&#39;aud&#39;, &#39;iss&#39;, &#39;iat&#39;, &#39;exp&#39;, &#39;nbf&#39;, &#39;nonce&#39;, &#39;azp&#39;, &#39;auth_time&#39;, &#39;s_hash&#39;, &#39;at_hash&#39;, &#39;c_hash&#39; ]</code>
-							You can also use the AUTH0_IDENTITY_CLAIM_FILTER environment variable.</p>
+								Defaults to <code>[&#39;aud&#39;, &#39;iss&#39;, &#39;iat&#39;, &#39;exp&#39;, &#39;nbf&#39;, &#39;nonce&#39;, &#39;azp&#39;, &#39;auth_time&#39;, &#39;s_hash&#39;, &#39;at_hash&#39;, &#39;c_hash&#39;]</code>.
+							You can also use the <code>AUTH0_IDENTITY_CLAIM_FILTER</code> environment variable.</p>
 						</div>
 					</div>
 				</section>
@@ -347,13 +345,13 @@
 					<div class="tsd-signature tsd-kind-icon">idp<wbr>Logout<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/config.ts#L130">src/config.ts:130</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/config.ts#L132">src/config.ts:132</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
-							<p>Boolean value to log the user out from the identity provider on application logout. Default is <code>true</code>
-							You can also use the AUTH0_IDP_LOGOUT environment variable.</p>
+							<p>Boolean value to log the user out from the identity provider on application logout. Defaults to <code>true</code>.
+							You can also use the <code>AUTH0_IDP_LOGOUT</code> environment variable.</p>
 						</div>
 					</div>
 				</section>
@@ -363,14 +361,14 @@
 					<div class="tsd-signature tsd-kind-icon">issuer<wbr>BaseURL<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/config.ts#L143">src/config.ts:143</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/config.ts#L145">src/config.ts:145</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
-							<p>REQUIRED. The root URL for the token issuer with no trailing slash.
-								This is <code>https://</code> plus your Auth0 domain
-							You can also use the AUTH0_ISSUER_BASE_URL environment variable.</p>
+							<p><strong>REQUIRED</strong> The root URL for the token issuer with no trailing slash.
+								This is <code>https://</code> plus your Auth0 domain.
+							You can also use the <code>AUTH0_ISSUER_BASE_URL</code> environment variable.</p>
 						</div>
 					</div>
 				</section>
@@ -380,14 +378,14 @@
 					<div class="tsd-signature tsd-kind-icon">legacy<wbr>Same<wbr>Site<wbr>Cookie<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/config.ts#L150">src/config.ts:150</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/config.ts#L152">src/config.ts:152</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
 							<p>Set a fallback cookie with no <code>SameSite</code> attribute when <code>response_mode</code> is <code>form_post</code>.
 								The default <code>response_mode</code> for this SDK is <code>query</code> so this defaults to <code>false</code>
-							You can also use the AUTH0_LEGACY_SAME_SITE_COOKIE environment variable.</p>
+							You can also use the <code>AUTH0_LEGACY_SAME_SITE_COOKIE</code> environment variable.</p>
 						</div>
 					</div>
 				</section>
@@ -397,7 +395,7 @@
 					<div class="tsd-signature tsd-kind-icon">routes<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">{ </span>callback<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">; </span>postLogoutRedirect<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> }</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/config.ts#L155">src/config.ts:155</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/config.ts#L157">src/config.ts:157</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -413,8 +411,8 @@
 								<div class="tsd-comment tsd-typography">
 									<div class="lead">
 										<p>Relative path to the application callback to process the response from the authorization server.
-											Defaults to <code>/api/auth/callback</code>
-										You can also use the AUTH0_CALLBACK environment variable.</p>
+											Defaults to <code>/api/auth/callback</code>.
+										You can also use the <code>AUTH0_CALLBACK</code> environment variable.</p>
 									</div>
 								</div>
 							</li>
@@ -425,7 +423,7 @@
 										<p>Either a relative path to the application or a valid URI to an external domain.
 											This value must be registered on the authorization server.
 											The user will be redirected to this after a logout has been performed.
-										You can also use the AUTH0_POST_LOGOUT_REDIRECT environment variable.</p>
+										You can also use the <code>AUTH0_POST_LOGOUT_REDIRECT</code> environment variable.</p>
 									</div>
 								</div>
 							</li>
@@ -438,15 +436,16 @@
 					<div class="tsd-signature tsd-kind-icon">secret<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/config.ts#L15">src/config.ts:15</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/config.ts#L17">src/config.ts:17</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
 							<p>The secret(s) used to derive an encryption key for the user identity in a session cookie and
 								to sign the transient cookies used by the login callback.
-								Use a single string key or array of keys for an encrypted session cookie.
-							You can also use the AUTH0_SECRET environment variable.</p>
+								Provide a single string secret, but if you want to rotate the secret you can provide an array putting
+								the new secret first.
+							You can also use the <code>AUTH0_SECRET</code> environment variable.</p>
 						</div>
 					</div>
 				</section>
@@ -456,7 +455,7 @@
 					<div class="tsd-signature tsd-kind-icon">session<span class="tsd-signature-symbol">:</span> <a href="config.sessionconfig.html" class="tsd-signature-type" data-tsd-kind="Interface">SessionConfig</a></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/config.ts#L20">src/config.ts:20</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/config.ts#L22">src/config.ts:22</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -507,16 +506,22 @@
 						<a href="../modules/helpers.html">helpers</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="../modules/helpers_get_server_side_props_wrapper.html">helpers/get-<wbr>server-<wbr>side-<wbr>props-<wbr>wrapper</a>
+						<a href="../modules/helpers_testing.html">helpers/testing</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/helpers_with_api_auth_required.html">helpers/with-<wbr>api-<wbr>auth-<wbr>required</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/helpers_with_middleware_auth_required.html">helpers/with-<wbr>middleware-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/helpers_with_page_auth_required.html">helpers/with-<wbr>page-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/instance.html">instance</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/middleware.html">middleware</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/session.html">session</a>
@@ -529,6 +534,9 @@
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/session_session.html">session/session</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/session_update_session.html">session/update-<wbr>session</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/utils_errors.html">utils/errors</a>
@@ -635,6 +643,10 @@
 			</ul>
 			<ul class="tsd-legend">
 				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
+				<li class="tsd-kind-class tsd-has-type-parameter"><span class="tsd-kind-icon">Class with type parameter</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-enum"><span class="tsd-kind-icon">Enumeration</span></li>
 			</ul>
 		</div>
 	</div>
