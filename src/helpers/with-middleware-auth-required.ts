@@ -79,7 +79,7 @@ export default function withMiddlewareAuthRequiredFactory(
         if (cookies.length || authCookies.length) {
           headers.set('set-cookie', [...authCookies, ...cookies].join(', '));
         }
-        return NextResponse.next({ ...res, headers });
+        return NextResponse.next({ ...res, status: res.status, headers });
       } else {
         return authRes;
       }
