@@ -4,6 +4,7 @@ import urlJoin from 'url-join';
 import createDebug from './utils/debug';
 import { DiscoveryError } from './utils/errors';
 import { Config } from './config';
+import { ParsedUrlQueryInput } from 'querystring';
 
 const debug = createDebug('client');
 
@@ -107,11 +108,18 @@ export default function get(config: Config, { name, version }: Telemetry): Clien
       if (config.auth0Logout || (url.parse(issuer.metadata.issuer).hostname as string).match('\\.auth0\\.com$')) {
         Object.defineProperty(client, 'endSessionUrl', {
           value(params: EndSessionParameters) {
-            const parsedUrl = url.parse(urlJoin(issuer.metadata.issuer, '/v2/logout'));
-            (parsedUrl as UrlObject).query = {
-              returnTo: params.post_logout_redirect_uri,
+            const { id_token_hint, post_logout_redirect_uri, ...extraParams } = params;
+            const parsedUrl: UrlObject = url.parse(urlJoin(issuer.metadata.issuer, '/v2/logout'));
+            parsedUrl.query = {
+              ...extraParams,
+              returnTo: post_logout_redirect_uri,
               client_id: config.clientID
             };
+            Object.entries(parsedUrl.query).forEach(([key, value]) => {
+              if (value === null || value === undefined) {
+                delete (parsedUrl.query as ParsedUrlQueryInput)[key];
+              }
+            });
             return url.format(parsedUrl);
           }
         });

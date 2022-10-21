@@ -17,6 +17,11 @@ export interface LogoutOptions {
    * in {@link BaseConfig.routes.postLogoutRedirect routes.postLogoutRedirect}.
    */
   returnTo?: string;
+
+  /**
+   * Additional custom parameters to pass to the logout endpoint.
+   */
+  logoutParams?: { [key: string]: any };
 }
 
 /**
