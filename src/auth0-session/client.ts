@@ -4,6 +4,7 @@ import urlJoin from 'url-join';
 import createDebug from './utils/debug';
 import { DiscoveryError } from './utils/errors';
 import { Config } from './config';
+import { ParsedUrlQueryInput } from 'querystring';
 
 const debug = createDebug('client');
 
@@ -114,6 +115,11 @@ export default function get(config: Config, { name, version }: Telemetry): Clien
               returnTo: post_logout_redirect_uri,
               client_id: config.clientID
             };
+            Object.entries(parsedUrl.query).forEach(([key, value]) => {
+              if (value === null || value === undefined) {
+                delete (parsedUrl.query as ParsedUrlQueryInput)[key];
+              }
+            });
             return url.format(parsedUrl);
           }
         });
