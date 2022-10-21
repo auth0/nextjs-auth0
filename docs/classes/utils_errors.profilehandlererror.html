@@ -127,7 +127,7 @@
 							<aside class="tsd-sources">
 								<p>Overrides <a href="utils_errors.handlererror.html">HandlerError</a>.<a href="utils_errors.handlererror.html#constructor">constructor</a></p>
 								<ul>
-									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/50cb3bd/src/utils/errors.ts#L235">src/utils/errors.ts:235</a></li>
+									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/utils/errors.ts#L231">src/utils/errors.ts:231</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -150,15 +150,17 @@
 					<aside class="tsd-sources">
 						<p>Inherited from <a href="utils_errors.handlererror.html">HandlerError</a>.<a href="utils_errors.handlererror.html#cause">cause</a></p>
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/50cb3bd/src/utils/errors.ts#L65">src/utils/errors.ts:65</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/utils/errors.ts#L57">src/utils/errors.ts:57</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
 							<p>The underlying error, if any.</p>
 						</div>
-						<p><strong>IMPORTANT</strong> This underlying error is <strong>not</strong> escaped in any way,
-						so do <strong>not</strong> render it without escaping it first!</p>
+						<p><strong>IMPORTANT</strong> When this error is from the Identity Provider ({@Link IdentityProviderError}) it can contain user
+						input and is only escaped using basic escaping for putting untrusted data directly into the HTML body.</p>
+						<p>You should <strong>not</strong> render this error without using a templating engine that will properly escape it for other
+						HTML contexts first.</p>
 					</div>
 				</section>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-class tsd-is-inherited">
@@ -168,7 +170,7 @@
 					<aside class="tsd-sources">
 						<p>Inherited from <a href="utils_errors.handlererror.html">HandlerError</a>.<a href="utils_errors.handlererror.html#code">code</a></p>
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/50cb3bd/src/utils/errors.ts#L52">src/utils/errors.ts:52</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/utils/errors.ts#L41">src/utils/errors.ts:41</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -187,7 +189,7 @@
 					<aside class="tsd-sources">
 						<p>Inherited from <a href="utils_errors.handlererror.html">HandlerError</a>.<a href="utils_errors.handlererror.html#name">name</a></p>
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/50cb3bd/src/utils/errors.ts#L57">src/utils/errors.ts:57</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/utils/errors.ts#L46">src/utils/errors.ts:46</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -203,7 +205,7 @@
 					<aside class="tsd-sources">
 						<p>Inherited from <a href="utils_errors.handlererror.html">HandlerError</a>.<a href="utils_errors.handlererror.html#status">status</a></p>
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/50cb3bd/src/utils/errors.ts#L70">src/utils/errors.ts:70</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/utils/errors.ts#L62">src/utils/errors.ts:62</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -218,7 +220,7 @@
 					<div class="tsd-signature tsd-kind-icon">code<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> = &#x27;ERR_PROFILE_HANDLER_FAILURE&#x27;</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/50cb3bd/src/utils/errors.ts#L235">src/utils/errors.ts:235</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/utils/errors.ts#L231">src/utils/errors.ts:231</a></li>
 						</ul>
 					</aside>
 				</section>
@@ -354,9 +356,6 @@
 					</li>
 				</ul>
 				<ul class="after-current">
-					<li class=" tsd-kind-function tsd-parent-kind-module">
-						<a href="../modules/utils_errors.html#htmlsafe" class="tsd-kind-icon">html<wbr>Safe</a>
-					</li>
 				</ul>
 			</nav>
 		</div>
