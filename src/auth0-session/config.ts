@@ -287,4 +287,15 @@ export interface LogoutOptions {
    * default in {@link Config.routes.postLogoutRedirect routes.postLogoutRedirect}.
    */
   returnTo?: string;
+
+  /**
+   * Additional custom parameters to pass to the logout endpoint.
+   *
+   * @example pass the federated logout param per https://auth0.com/docs/authenticate/login/logout/log-users-out-of-idps
+   *
+   * ```js
+   * handleLogout(req, res, { logoutParams: { federated: '' } });
+   * ```
+   */
+  logoutParams?: { [key: string]: any };
 }
