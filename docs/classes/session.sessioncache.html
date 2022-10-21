@@ -59,13 +59,24 @@
 					<a href="session.sessioncache.html">SessionCache</a>
 				</li>
 			</ul>
-			<h1>Class SessionCache</h1>
+			<h1>Class SessionCache&lt;Req, Res&gt;</h1>
 		</div>
 	</div>
 </header>
 <div class="container container-main">
 	<div class="row">
 		<div class="col-8 col-content">
+			<section class="tsd-panel tsd-type-parameters">
+				<h3>Type parameters</h3>
+				<ul class="tsd-type-parameters">
+					<li>
+						<h4>Req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">object</span> = <span class="tsd-signature-type">IncomingMessage</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">NextApiRequest</span></h4>
+					</li>
+					<li>
+						<h4>Res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">object</span> = <span class="tsd-signature-type">ServerResponse</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">NextApiResponse</span></h4>
+					</li>
+				</ul>
+			</section>
 			<section class="tsd-panel tsd-hierarchy">
 				<h3>Hierarchy</h3>
 				<ul class="tsd-hierarchy">
@@ -77,7 +88,7 @@
 			<section class="tsd-panel">
 				<h3>Implements</h3>
 				<ul class="tsd-hierarchy">
-					<li><span class="tsd-signature-type">ISessionCache</span></li>
+					<li><span class="tsd-signature-type">ISessionCache</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">Req</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">Res</span><span class="tsd-signature-symbol">, </span><a href="session_session.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">&gt;</span></li>
 				</ul>
 			</section>
 			<section class="tsd-panel-group tsd-index-group">
@@ -87,7 +98,7 @@
 						<section class="tsd-index-section ">
 							<h3>Constructors</h3>
 							<ul class="tsd-index-list">
-								<li class="tsd-kind-constructor tsd-parent-kind-class"><a href="session.sessioncache.html#constructor" class="tsd-kind-icon">constructor</a></li>
+								<li class="tsd-kind-constructor tsd-parent-kind-class tsd-has-type-parameter"><a href="session.sessioncache.html#constructor" class="tsd-kind-icon">constructor</a></li>
 							</ul>
 						</section>
 						<section class="tsd-index-section ">
@@ -98,7 +109,6 @@
 								<li class="tsd-kind-method tsd-parent-kind-class"><a href="session.sessioncache.html#fromtokenset" class="tsd-kind-icon">from<wbr>Token<wbr>Set</a></li>
 								<li class="tsd-kind-method tsd-parent-kind-class"><a href="session.sessioncache.html#get" class="tsd-kind-icon">get</a></li>
 								<li class="tsd-kind-method tsd-parent-kind-class"><a href="session.sessioncache.html#getidtoken" class="tsd-kind-icon">get<wbr>IdToken</a></li>
-								<li class="tsd-kind-method tsd-parent-kind-class"><a href="session.sessioncache.html#init" class="tsd-kind-icon">init</a></li>
 								<li class="tsd-kind-method tsd-parent-kind-class"><a href="session.sessioncache.html#isauthenticated" class="tsd-kind-icon">is<wbr>Authenticated</a></li>
 								<li class="tsd-kind-method tsd-parent-kind-class"><a href="session.sessioncache.html#save" class="tsd-kind-icon">save</a></li>
 								<li class="tsd-kind-method tsd-parent-kind-class"><a href="session.sessioncache.html#set" class="tsd-kind-icon">set</a></li>
@@ -109,29 +119,38 @@
 			</section>
 			<section class="tsd-panel-group tsd-member-group ">
 				<h2>Constructors</h2>
-				<section class="tsd-panel tsd-member tsd-kind-constructor tsd-parent-kind-class">
+				<section class="tsd-panel tsd-member tsd-kind-constructor tsd-parent-kind-class tsd-has-type-parameter">
 					<a name="constructor" class="tsd-anchor"></a>
 					<h3>constructor</h3>
-					<ul class="tsd-signatures tsd-kind-constructor tsd-parent-kind-class">
-						<li class="tsd-signature tsd-kind-icon">new <wbr>Session<wbr>Cache<span class="tsd-signature-symbol">(</span>config<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Config</span>, cookieStore<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">default</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="session.sessioncache.html" class="tsd-signature-type" data-tsd-kind="Class">SessionCache</a></li>
+					<ul class="tsd-signatures tsd-kind-constructor tsd-parent-kind-class tsd-has-type-parameter">
+						<li class="tsd-signature tsd-kind-icon">new <wbr>Session<wbr>Cache&lt;Req, Res&gt;<span class="tsd-signature-symbol">(</span>config<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Config</span>, cookieStore<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">default</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">Req</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">Res</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="session.sessioncache.html" class="tsd-signature-type" data-tsd-kind="Class">SessionCache</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">Req</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">Res</span><span class="tsd-signature-symbol">&gt;</span></li>
 					</ul>
 					<ul class="tsd-descriptions">
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/session/cache.ts#L13">src/session/cache.ts:13</a></li>
+									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/session/cache.ts#L13">src/session/cache.ts:13</a></li>
 								</ul>
 							</aside>
+							<h4 class="tsd-type-parameters-title">Type parameters</h4>
+							<ul class="tsd-type-parameters">
+								<li>
+									<h4>Req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">object</span> = <span class="tsd-signature-type">IncomingMessage</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">NextApiRequest</span></h4>
+								</li>
+								<li>
+									<h4>Res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">object</span> = <span class="tsd-signature-type">ServerResponse</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">NextApiResponse</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span></h4>
+								</li>
+							</ul>
 							<h4 class="tsd-parameters-title">Parameters</h4>
 							<ul class="tsd-parameters">
 								<li>
 									<h5>config: <span class="tsd-signature-type">Config</span></h5>
 								</li>
 								<li>
-									<h5>cookieStore: <span class="tsd-signature-type">default</span></h5>
+									<h5>cookieStore: <span class="tsd-signature-type">default</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">Req</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">Res</span><span class="tsd-signature-symbol">&gt;</span></h5>
 								</li>
 							</ul>
-							<h4 class="tsd-returns-title">Returns <a href="session.sessioncache.html" class="tsd-signature-type" data-tsd-kind="Class">SessionCache</a></h4>
+							<h4 class="tsd-returns-title">Returns <a href="session.sessioncache.html" class="tsd-signature-type" data-tsd-kind="Class">SessionCache</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">Req</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">Res</span><span class="tsd-signature-symbol">&gt;</span></h4>
 						</li>
 					</ul>
 				</section>
@@ -142,28 +161,29 @@
 					<a name="create" class="tsd-anchor"></a>
 					<h3>create</h3>
 					<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
-						<li class="tsd-signature tsd-kind-icon">create<span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiOrPageRequest</span>, res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiOrPageResponse</span>, session<span class="tsd-signature-symbol">: </span><a href="session_session.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">void</span></li>
+						<li class="tsd-signature tsd-kind-icon">create<span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Req</span>, res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Res</span>, session<span class="tsd-signature-symbol">: </span><a href="session_session.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></li>
 					</ul>
 					<ul class="tsd-descriptions">
 						<li class="tsd-description">
 							<aside class="tsd-sources">
+								<p>Implementation of ISessionCache.create</p>
 								<ul>
-									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/session/cache.ts#L35">src/session/cache.ts:35</a></li>
+									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/session/cache.ts#L35">src/session/cache.ts:35</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
 							<ul class="tsd-parameters">
 								<li>
-									<h5>req: <span class="tsd-signature-type">NextApiOrPageRequest</span></h5>
+									<h5>req: <span class="tsd-signature-type">Req</span></h5>
 								</li>
 								<li>
-									<h5>res: <span class="tsd-signature-type">NextApiOrPageResponse</span></h5>
+									<h5>res: <span class="tsd-signature-type">Res</span></h5>
 								</li>
 								<li>
 									<h5>session: <a href="session_session.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a></h5>
 								</li>
 							</ul>
-							<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4>
+							<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4>
 						</li>
 					</ul>
 				</section>
@@ -171,25 +191,26 @@
 					<a name="delete" class="tsd-anchor"></a>
 					<h3>delete</h3>
 					<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
-						<li class="tsd-signature tsd-kind-icon">delete<span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiOrPageRequest</span>, res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiOrPageResponse</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">void</span></li>
+						<li class="tsd-signature tsd-kind-icon">delete<span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Req</span>, res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Res</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></li>
 					</ul>
 					<ul class="tsd-descriptions">
 						<li class="tsd-description">
 							<aside class="tsd-sources">
+								<p>Implementation of ISessionCache.delete</p>
 								<ul>
-									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/session/cache.ts#L40">src/session/cache.ts:40</a></li>
+									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/session/cache.ts#L40">src/session/cache.ts:40</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
 							<ul class="tsd-parameters">
 								<li>
-									<h5>req: <span class="tsd-signature-type">NextApiOrPageRequest</span></h5>
+									<h5>req: <span class="tsd-signature-type">Req</span></h5>
 								</li>
 								<li>
-									<h5>res: <span class="tsd-signature-type">NextApiOrPageResponse</span></h5>
+									<h5>res: <span class="tsd-signature-type">Res</span></h5>
 								</li>
 							</ul>
-							<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4>
+							<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4>
 						</li>
 					</ul>
 				</section>
@@ -202,8 +223,9 @@
 					<ul class="tsd-descriptions">
 						<li class="tsd-description">
 							<aside class="tsd-sources">
+								<p>Implementation of ISessionCache.fromTokenSet</p>
 								<ul>
-									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/session/cache.ts#L67">src/session/cache.ts:67</a></li>
+									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/session/cache.ts#L69">src/session/cache.ts:69</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -220,25 +242,25 @@
 					<a name="get" class="tsd-anchor"></a>
 					<h3>get</h3>
 					<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
-						<li class="tsd-signature tsd-kind-icon">get<span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiOrPageRequest</span>, res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiOrPageResponse</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">null</span><span class="tsd-signature-symbol"> | </span><a href="session_session.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a></li>
+						<li class="tsd-signature tsd-kind-icon">get<span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Req</span>, res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Res</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">null</span><span class="tsd-signature-symbol"> | </span><a href="session_session.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">&gt;</span></li>
 					</ul>
 					<ul class="tsd-descriptions">
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/session/cache.ts#L62">src/session/cache.ts:62</a></li>
+									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/session/cache.ts#L64">src/session/cache.ts:64</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
 							<ul class="tsd-parameters">
 								<li>
-									<h5>req: <span class="tsd-signature-type">NextApiOrPageRequest</span></h5>
+									<h5>req: <span class="tsd-signature-type">Req</span></h5>
 								</li>
 								<li>
-									<h5>res: <span class="tsd-signature-type">NextApiOrPageResponse</span></h5>
+									<h5>res: <span class="tsd-signature-type">Res</span></h5>
 								</li>
 							</ul>
-							<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">null</span><span class="tsd-signature-symbol"> | </span><a href="session_session.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a></h4>
+							<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">null</span><span class="tsd-signature-symbol"> | </span><a href="session_session.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">&gt;</span></h4>
 						</li>
 					</ul>
 				</section>
@@ -246,54 +268,26 @@
 					<a name="getidtoken" class="tsd-anchor"></a>
 					<h3>get<wbr>IdToken</h3>
 					<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
-						<li class="tsd-signature tsd-kind-icon">get<wbr>IdToken<span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiOrPageRequest</span>, res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiOrPageResponse</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span></li>
+						<li class="tsd-signature tsd-kind-icon">get<wbr>IdToken<span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Req</span>, res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Res</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">&gt;</span></li>
 					</ul>
 					<ul class="tsd-descriptions">
 						<li class="tsd-description">
 							<aside class="tsd-sources">
+								<p>Implementation of ISessionCache.getIdToken</p>
 								<ul>
-									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/session/cache.ts#L51">src/session/cache.ts:51</a></li>
+									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/session/cache.ts#L52">src/session/cache.ts:52</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
 							<ul class="tsd-parameters">
 								<li>
-									<h5>req: <span class="tsd-signature-type">NextApiOrPageRequest</span></h5>
+									<h5>req: <span class="tsd-signature-type">Req</span></h5>
 								</li>
 								<li>
-									<h5>res: <span class="tsd-signature-type">NextApiOrPageResponse</span></h5>
+									<h5>res: <span class="tsd-signature-type">Res</span></h5>
 								</li>
 							</ul>
-							<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span></h4>
-						</li>
-					</ul>
-				</section>
-				<section class="tsd-panel tsd-member tsd-kind-method tsd-parent-kind-class">
-					<a name="init" class="tsd-anchor"></a>
-					<h3>init</h3>
-					<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
-						<li class="tsd-signature tsd-kind-icon">init<span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiOrPageRequest</span>, res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiOrPageResponse</span>, autoSave<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">void</span></li>
-					</ul>
-					<ul class="tsd-descriptions">
-						<li class="tsd-description">
-							<aside class="tsd-sources">
-								<ul>
-									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/session/cache.ts#L20">src/session/cache.ts:20</a></li>
-								</ul>
-							</aside>
-							<h4 class="tsd-parameters-title">Parameters</h4>
-							<ul class="tsd-parameters">
-								<li>
-									<h5>req: <span class="tsd-signature-type">NextApiOrPageRequest</span></h5>
-								</li>
-								<li>
-									<h5>res: <span class="tsd-signature-type">NextApiOrPageResponse</span></h5>
-								</li>
-								<li>
-									<h5>autoSave: <span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol"> = true</span></h5>
-								</li>
-							</ul>
-							<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4>
+							<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">&gt;</span></h4>
 						</li>
 					</ul>
 				</section>
@@ -301,25 +295,26 @@
 					<a name="isauthenticated" class="tsd-anchor"></a>
 					<h3>is<wbr>Authenticated</h3>
 					<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
-						<li class="tsd-signature tsd-kind-icon">is<wbr>Authenticated<span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiOrPageRequest</span>, res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiOrPageResponse</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">boolean</span></li>
+						<li class="tsd-signature tsd-kind-icon">is<wbr>Authenticated<span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Req</span>, res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Res</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">&gt;</span></li>
 					</ul>
 					<ul class="tsd-descriptions">
 						<li class="tsd-description">
 							<aside class="tsd-sources">
+								<p>Implementation of ISessionCache.isAuthenticated</p>
 								<ul>
-									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/session/cache.ts#L45">src/session/cache.ts:45</a></li>
+									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/session/cache.ts#L46">src/session/cache.ts:46</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
 							<ul class="tsd-parameters">
 								<li>
-									<h5>req: <span class="tsd-signature-type">NextApiOrPageRequest</span></h5>
+									<h5>req: <span class="tsd-signature-type">Req</span></h5>
 								</li>
 								<li>
-									<h5>res: <span class="tsd-signature-type">NextApiOrPageResponse</span></h5>
+									<h5>res: <span class="tsd-signature-type">Res</span></h5>
 								</li>
 							</ul>
-							<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">boolean</span></h4>
+							<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">&gt;</span></h4>
 						</li>
 					</ul>
 				</section>
@@ -327,25 +322,25 @@
 					<a name="save" class="tsd-anchor"></a>
 					<h3>save</h3>
 					<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
-						<li class="tsd-signature tsd-kind-icon">save<span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiOrPageRequest</span>, res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiOrPageResponse</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">void</span></li>
+						<li class="tsd-signature tsd-kind-icon">save<span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Req</span>, res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Res</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></li>
 					</ul>
 					<ul class="tsd-descriptions">
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/session/cache.ts#L31">src/session/cache.ts:31</a></li>
+									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/session/cache.ts#L31">src/session/cache.ts:31</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
 							<ul class="tsd-parameters">
 								<li>
-									<h5>req: <span class="tsd-signature-type">NextApiOrPageRequest</span></h5>
+									<h5>req: <span class="tsd-signature-type">Req</span></h5>
 								</li>
 								<li>
-									<h5>res: <span class="tsd-signature-type">NextApiOrPageResponse</span></h5>
+									<h5>res: <span class="tsd-signature-type">Res</span></h5>
 								</li>
 							</ul>
-							<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4>
+							<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4>
 						</li>
 					</ul>
 				</section>
@@ -353,28 +348,28 @@
 					<a name="set" class="tsd-anchor"></a>
 					<h3>set</h3>
 					<ul class="tsd-signatures tsd-kind-method tsd-parent-kind-class">
-						<li class="tsd-signature tsd-kind-icon">set<span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiOrPageRequest</span>, res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiOrPageResponse</span>, session<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">null</span><span class="tsd-signature-symbol"> | </span><a href="session_session.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">void</span></li>
+						<li class="tsd-signature tsd-kind-icon">set<span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Req</span>, res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Res</span>, session<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">null</span><span class="tsd-signature-symbol"> | </span><a href="session_session.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></li>
 					</ul>
 					<ul class="tsd-descriptions">
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/session/cache.ts#L57">src/session/cache.ts:57</a></li>
+									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/session/cache.ts#L58">src/session/cache.ts:58</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
 							<ul class="tsd-parameters">
 								<li>
-									<h5>req: <span class="tsd-signature-type">NextApiOrPageRequest</span></h5>
+									<h5>req: <span class="tsd-signature-type">Req</span></h5>
 								</li>
 								<li>
-									<h5>res: <span class="tsd-signature-type">NextApiOrPageResponse</span></h5>
+									<h5>res: <span class="tsd-signature-type">Res</span></h5>
 								</li>
 								<li>
 									<h5>session: <span class="tsd-signature-type">null</span><span class="tsd-signature-symbol"> | </span><a href="session_session.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a></h5>
 								</li>
 							</ul>
-							<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4>
+							<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4>
 						</li>
 					</ul>
 				</section>
@@ -420,16 +415,22 @@
 						<a href="../modules/helpers.html">helpers</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="../modules/helpers_get_server_side_props_wrapper.html">helpers/get-<wbr>server-<wbr>side-<wbr>props-<wbr>wrapper</a>
+						<a href="../modules/helpers_testing.html">helpers/testing</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/helpers_with_api_auth_required.html">helpers/with-<wbr>api-<wbr>auth-<wbr>required</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/helpers_with_middleware_auth_required.html">helpers/with-<wbr>middleware-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/helpers_with_page_auth_required.html">helpers/with-<wbr>page-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/instance.html">instance</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/middleware.html">middleware</a>
 					</li>
 					<li class="current tsd-kind-module">
 						<a href="../modules/session.html">session</a>
@@ -442,6 +443,9 @@
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/session_session.html">session/session</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/session_update_session.html">session/update-<wbr>session</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/utils_errors.html">utils/errors</a>
@@ -471,12 +475,15 @@
 					<li class=" tsd-kind-reference tsd-parent-kind-module">
 						<a href="../modules/session.html#session-1" class="tsd-kind-icon">Session</a>
 					</li>
+					<li class=" tsd-kind-reference tsd-parent-kind-module">
+						<a href="../modules/session.html#updatesession" class="tsd-kind-icon">Update<wbr>Session</a>
+					</li>
 				</ul>
 				<ul class="current">
-					<li class="current tsd-kind-class tsd-parent-kind-module">
+					<li class="current tsd-kind-class tsd-parent-kind-module tsd-has-type-parameter">
 						<a href="session.sessioncache.html" class="tsd-kind-icon">Session<wbr>Cache</a>
 						<ul>
-							<li class=" tsd-kind-constructor tsd-parent-kind-class">
+							<li class=" tsd-kind-constructor tsd-parent-kind-class tsd-has-type-parameter">
 								<a href="session.sessioncache.html#constructor" class="tsd-kind-icon">constructor</a>
 							</li>
 							<li class=" tsd-kind-method tsd-parent-kind-class">
@@ -493,9 +500,6 @@
 							</li>
 							<li class=" tsd-kind-method tsd-parent-kind-class">
 								<a href="session.sessioncache.html#getidtoken" class="tsd-kind-icon">get<wbr>IdToken</a>
-							</li>
-							<li class=" tsd-kind-method tsd-parent-kind-class">
-								<a href="session.sessioncache.html#init" class="tsd-kind-icon">init</a>
 							</li>
 							<li class=" tsd-kind-method tsd-parent-kind-class">
 								<a href="session.sessioncache.html#isauthenticated" class="tsd-kind-icon">is<wbr>Authenticated</a>
@@ -526,8 +530,11 @@
 			</ul>
 			<ul class="tsd-legend">
 				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
-				<li class="tsd-kind-constructor tsd-parent-kind-class"><span class="tsd-kind-icon">Constructor</span></li>
+				<li class="tsd-kind-class tsd-has-type-parameter"><span class="tsd-kind-icon">Class with type parameter</span></li>
 				<li class="tsd-kind-method tsd-parent-kind-class"><span class="tsd-kind-icon">Method</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-enum"><span class="tsd-kind-icon">Enumeration</span></li>
 			</ul>
 			<ul class="tsd-legend">
 				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>

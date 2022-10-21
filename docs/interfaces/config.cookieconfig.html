@@ -104,16 +104,16 @@
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
 					<a name="domain" class="tsd-anchor"></a>
 					<h3><span class="tsd-flag ts-flagOptional">Optional</span> domain</h3>
-					<div class="tsd-signature tsd-kind-icon">domain<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span></div>
+					<div class="tsd-signature tsd-kind-icon">domain<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/config.ts#L228">src/config.ts:228</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/config.ts#L237">src/config.ts:237</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
 							<p>Domain name for the cookie.
-							You can also use the AUTH0_COOKIE_DOMAIN environment variable.</p>
+							You can also use the <code>AUTH0_COOKIE_DOMAIN</code> environment variable.</p>
 						</div>
 					</div>
 				</section>
@@ -123,32 +123,32 @@
 					<div class="tsd-signature tsd-kind-icon">http<wbr>Only<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/config.ts#L250">src/config.ts:250</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/config.ts#L259">src/config.ts:259</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
 							<p>Flags the cookie to be accessible only by the web server.
 								Defaults to <code>true</code>.
-							You can also use the AUTH0_COOKIE_HTTP_ONLY environment variable.</p>
+							You can also use the <code>AUTH0_COOKIE_HTTP_ONLY</code> environment variable.</p>
 						</div>
 					</div>
 				</section>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
 					<a name="path" class="tsd-anchor"></a>
 					<h3><span class="tsd-flag ts-flagOptional">Optional</span> path</h3>
-					<div class="tsd-signature tsd-kind-icon">path<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span></div>
+					<div class="tsd-signature tsd-kind-icon">path<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/config.ts#L236">src/config.ts:236</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/config.ts#L245">src/config.ts:245</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
 							<p>Path for the cookie.
-								This defaults to <code>/</code>
+								Defaults to <code>/</code>.
 								You should change this to be more restrictive if you application shares a domain with other apps.
-							You can also use the AUTH0_COOKIE_PATH environment variable.</p>
+							You can also use the <code>AUTH0_COOKIE_PATH</code> environment variable.</p>
 						</div>
 					</div>
 				</section>
@@ -158,31 +158,31 @@
 					<div class="tsd-signature tsd-kind-icon">same<wbr>Site<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">&quot;lax&quot;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">&quot;strict&quot;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">&quot;none&quot;</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/config.ts#L264">src/config.ts:264</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/config.ts#L273">src/config.ts:273</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
-							<p>Value of the SameSite Set-Cookie attribute.
-								Defaults to &quot;lax&quot; but will be adjusted based on <a href="config.authorizationparameters.html#response_type">AuthorizationParameters.response_type</a>.
-							You can also use the AUTH0_COOKIE_SAME_SITE environment variable.</p>
+							<p>Value of the SameSite <code>Set-Cookie</code> attribute.
+								Defaults to <code>lax</code> but will be adjusted based on <a href="config.authorizationparameters.html#response_type">AuthorizationParameters.response_type</a>.
+							You can also use the <code>AUTH0_COOKIE_SAME_SITE</code> environment variable.</p>
 						</div>
 					</div>
 				</section>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
 					<a name="secure" class="tsd-anchor"></a>
 					<h3><span class="tsd-flag ts-flagOptional">Optional</span> secure</h3>
-					<div class="tsd-signature tsd-kind-icon">secure<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">boolean</span></div>
+					<div class="tsd-signature tsd-kind-icon">secure<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/config.ts#L257">src/config.ts:257</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/config.ts#L266">src/config.ts:266</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
 							<p>Marks the cookie to be used over secure channels only.
 								Defaults to the protocol of <a href="config.baseconfig.html#baseurl">BaseConfig.baseURL</a>.
-							You can also use the AUTH0_COOKIE_SECURE environment variable.</p>
+							You can also use the <code>AUTH0_COOKIE_SECURE</code> environment variable.</p>
 						</div>
 					</div>
 				</section>
@@ -192,14 +192,14 @@
 					<div class="tsd-signature tsd-kind-icon">transient<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/config.ts#L243">src/config.ts:243</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/config.ts#L252">src/config.ts:252</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
-							<p>Set to true to use a transient cookie (cookie without an explicit expiration).
-								Default is <code>false</code>
-							You can also use the AUTH0_COOKIE_TRANSIENT environment variable.</p>
+							<p>Set to <code>true</code> to use a transient cookie (cookie without an explicit expiration).
+								Defaults to <code>false</code>.
+							You can also use the <code>AUTH0_COOKIE_TRANSIENT</code> environment variable.</p>
 						</div>
 					</div>
 				</section>
@@ -245,16 +245,22 @@
 						<a href="../modules/helpers.html">helpers</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="../modules/helpers_get_server_side_props_wrapper.html">helpers/get-<wbr>server-<wbr>side-<wbr>props-<wbr>wrapper</a>
+						<a href="../modules/helpers_testing.html">helpers/testing</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/helpers_with_api_auth_required.html">helpers/with-<wbr>api-<wbr>auth-<wbr>required</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/helpers_with_middleware_auth_required.html">helpers/with-<wbr>middleware-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/helpers_with_page_auth_required.html">helpers/with-<wbr>page-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/instance.html">instance</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/middleware.html">middleware</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/session.html">session</a>
@@ -267,6 +273,9 @@
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/session_session.html">session/session</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/session_update_session.html">session/update-<wbr>session</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/utils_errors.html">utils/errors</a>
@@ -340,6 +349,10 @@
 			</ul>
 			<ul class="tsd-legend">
 				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
+				<li class="tsd-kind-class tsd-has-type-parameter"><span class="tsd-kind-icon">Class with type parameter</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-enum"><span class="tsd-kind-icon">Enumeration</span></li>
 			</ul>
 		</div>
 	</div>

@@ -153,7 +153,7 @@ export default function handlerFactory({
       route = Array.isArray(route) ? route[0] : /* c8 ignore next */ route;
 
       try {
-        const handler = route && customHandlers[route];
+        const handler = route && customHandlers.hasOwnProperty(route) && customHandlers[route];
         if (handler) {
           await handler(req, res);
         } else {

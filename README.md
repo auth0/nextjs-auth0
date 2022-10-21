@@ -1,6 +1,8 @@
-# @auth0/nextjs-auth0
+# @auth0/nextjs-auth0 (Beta)
 
 The Auth0 Next.js SDK is a library for implementing user authentication in Next.js applications.
+
+> :warning: Please be aware that v2 is currently in [**Beta**](https://auth0.com/docs/troubleshoot/product-lifecycle/product-release-stages). Whilst we encourage you to test the update within your applications, we do no recommend using this version in production yet. Please follow the [migration guide](./V2_MIGRATION_GUIDE.md) when updating your application.
 
 [![CircleCI](https://img.shields.io/circleci/build/github/auth0/nextjs-auth0/main?style=flat-square)](https://circleci.com/gh/auth0/nextjs-auth0/tree/main)
 [![NPM version](https://img.shields.io/npm/v/@auth0/nextjs-auth0.svg?style=flat-square)](https://npmjs.org/package/@auth0/nextjs-auth0)
@@ -34,7 +36,7 @@ The Auth0 Next.js SDK is a library for implementing user authentication in Next.
 Using [npm](https://npmjs.org):
 
 ```sh
-npm install @auth0/nextjs-auth0
+npm install @auth0/nextjs-auth0 --tag beta
 ```
 
 This library supports the following tooling versions:
@@ -185,7 +187,7 @@ For other comprehensive examples, see the [EXAMPLES.md](./EXAMPLES.md) document.
 - [withPageAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_page_auth_required.html#withpageauthrequired)
 - [withMiddlewareAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_middleware_auth_required.html)
 - [getSession](https://auth0.github.io/nextjs-auth0/modules/session_get_session.html)
-- [updateUser](https://auth0.github.io/nextjs-auth0/modules/session_update_user.html)
+- [updateSession](https://auth0.github.io/nextjs-auth0/modules/session_update_session.html)
 - [getAccessToken](https://auth0.github.io/nextjs-auth0/modules/session_get_access_token.html)
 - [initAuth0](https://auth0.github.io/nextjs-auth0/modules/instance.html)
 
@@ -217,19 +219,9 @@ Check your hosting provider's caching rules, but in general you should **never**
 
 ### Error Handling and Security
 
-The default server side error handler for the `/api/auth/*` routes prints the error message to screen, like this:
+Errors that come from Auth0 in the `redirect_uri` callback may contain reflected user input via the OpenID Connect `error` and `error_description` query parameter. Because of this, we do some [basic escaping](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html#rule-1-html-encode-before-inserting-untrusted-data-into-html-element-content) on the `message`, `error` and `error_description` properties of the `IdentityProviderError`.
 
-```js
-try {
-  await handler(req, res);
-} catch (error) {
-  res.status(error.status || 400).end(error.message);
-}
-```
-
-Because the error can come from the OpenID Connect `error` query parameter we do some [basic escaping](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html#rule-1-html-encode-before-inserting-untrusted-data-into-html-element-content) which makes sure the default error handler is safe from XSS.
-
-If you write your own error handler, you should **not** render the error `message`, or `error` and `error_description` properties without using a templating engine that will properly escape it for other HTML contexts first.
+But, if you write your own error handler, you should **not** render the error `message`, or `error` and `error_description` properties without using a templating engine that will properly escape them for other HTML contexts first.
 
 ### Base Path and Internationalized Routing
 

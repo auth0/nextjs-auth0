@@ -5,7 +5,7 @@ import createDebug from '../utils/debug';
 import { Config, LogoutOptions } from '../config';
 import { ClientFactory } from '../client';
 import { SessionCache } from '../session-cache';
-import { htmlSafe } from '../../utils/errors';
+import { htmlSafe } from '../utils/errors';
 
 const debug = createDebug('logout');
 

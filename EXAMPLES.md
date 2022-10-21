@@ -255,6 +255,26 @@ export default withMiddlewareAuthRequired(async function middleware(req) {
 });
 ```
 
+For using middleware with your own instance of the SDK:
+
+```js
+// middleware.js
+import {
+  withMiddlewareAuthRequired,
+  getSession,
+  initAuth0 // note the mw specific `initAuth0`
+} from '@auth0/nextjs-auth0/middleware';
+
+const auth0 = initAuth0({ ... });
+
+export default auth0.withMiddlewareAuthRequired(async function middleware(req) {
+  const res = NextResponse.next();
+  const user = await auth0.getSession(req, res);
+  res.cookies.set('hl', user.language);
+  return res;
+});
+```
+
 ## Access an External API from an API Route
 
 Get an access token by providing your API's audience and scopes. You can pass them directly to the `handlelogin` method, or use environment variables instead.
@@ -298,6 +318,12 @@ export default withApiAuthRequired(async function products(req, res) {
 ```
 
 See a running example of the [API route acting as a proxy to an External API](./examples/kitchen-sink-example/pages/api/shows.ts) in the kitchen-sink example app.
+
+### Getting a Refresh Token
+
+- Include the `offline_access` scope your configuration (or `AUTH0_SCOPE`)
+- Check "Allow Offline Access" in your [API Settings](https://auth0.com/docs/get-started/apis/api-settings#access-settings)
+- Make sure the "Refresh Token" grant is enabled in your [Application Settings](https://auth0.com/docs/get-started/applications/application-settings#grant-types) (this is the default)
 
 ## Create your own instance of the SDK
 

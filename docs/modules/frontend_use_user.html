@@ -82,7 +82,6 @@
 						<section class="tsd-index-section ">
 							<h3>Client Type aliases</h3>
 							<ul class="tsd-index-list">
-								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="frontend_use_user.html#useuser" class="tsd-kind-icon">Use<wbr>User</a></li>
 								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="frontend_use_user.html#usercontext" class="tsd-kind-icon">User<wbr>Context</a></li>
 								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="frontend_use_user.html#userprovider" class="tsd-kind-icon">User<wbr>Provider</a></li>
 								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="frontend_use_user.html#userproviderprops" class="tsd-kind-icon">User<wbr>Provider<wbr>Props</a></li>
@@ -94,67 +93,29 @@
 								<li class="tsd-kind-property tsd-parent-kind-module"><a href="frontend_use_user.html#default" class="tsd-kind-icon">default</a></li>
 							</ul>
 						</section>
+						<section class="tsd-index-section ">
+							<h3>Client Functions</h3>
+							<ul class="tsd-index-list">
+								<li class="tsd-kind-function tsd-parent-kind-module"><a href="frontend_use_user.html#useuser" class="tsd-kind-icon">use<wbr>User</a></li>
+							</ul>
+						</section>
 					</div>
 				</section>
 			</section>
 			<section class="tsd-panel-group tsd-member-group ">
 				<h2>Client Type aliases</h2>
 				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module">
-					<a name="useuser" class="tsd-anchor"></a>
-					<h3>Use<wbr>User</h3>
-					<div class="tsd-signature tsd-kind-icon">Use<wbr>User<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">UserContext</span></div>
-					<aside class="tsd-sources">
-						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/frontend/use-user.tsx#L140">src/frontend/use-user.tsx:140</a></li>
-						</ul>
-					</aside>
-					<div class="tsd-comment tsd-typography">
-						<div class="lead">
-							<p>The <code>useUser</code> hook, which will get you the <a href="../interfaces/frontend_use_user.userprofile.html">UserProfile</a> object from the server-side session by requesting it
-							from the <a href="handlers_profile.html#handleprofile">HandleProfile</a> API Route handler.</p>
-						</div>
-						<pre><code class="language-js"><span style="color: #008000">// pages/profile.js</span>
-<span style="color: #AF00DB">import</span><span style="color: #000000"> </span><span style="color: #001080">Link</span><span style="color: #000000"> </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;next/link&#039;</span><span style="color: #000000">;</span>
-<span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">useUser</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@auth0/nextjs-auth0&#039;</span><span style="color: #000000">;</span>
-
-<span style="color: #AF00DB">export</span><span style="color: #000000"> </span><span style="color: #AF00DB">default</span><span style="color: #000000"> </span><span style="color: #0000FF">function</span><span style="color: #000000"> </span><span style="color: #795E26">Profile</span><span style="color: #000000">() {</span>
-<span style="color: #000000">  </span><span style="color: #0000FF">const</span><span style="color: #000000"> { </span><span style="color: #0070C1">user</span><span style="color: #000000">, </span><span style="color: #0070C1">error</span><span style="color: #000000">, </span><span style="color: #0070C1">isLoading</span><span style="color: #000000"> } = </span><span style="color: #795E26">useUser</span><span style="color: #000000">();</span>
-
-<span style="color: #000000">  </span><span style="color: #AF00DB">if</span><span style="color: #000000"> (</span><span style="color: #001080">isLoading</span><span style="color: #000000">) </span><span style="color: #AF00DB">return</span><span style="color: #000000"> </span><span style="color: #800000">&lt;div&gt;</span><span style="color: #000000">Loading...</span><span style="color: #800000">&lt;/div&gt;</span><span style="color: #000000">;</span>
-<span style="color: #000000">  </span><span style="color: #AF00DB">if</span><span style="color: #000000"> (</span><span style="color: #001080">error</span><span style="color: #000000">) </span><span style="color: #AF00DB">return</span><span style="color: #000000"> </span><span style="color: #800000">&lt;div&gt;</span><span style="color: #0000FF">{</span><span style="color: #001080">error</span><span style="color: #000000FF">.</span><span style="color: #001080">message</span><span style="color: #0000FF">}</span><span style="color: #800000">&lt;/div&gt;</span><span style="color: #000000">;</span>
-<span style="color: #000000">  </span><span style="color: #AF00DB">if</span><span style="color: #000000"> (!</span><span style="color: #001080">user</span><span style="color: #000000">) </span><span style="color: #AF00DB">return</span><span style="color: #000000"> </span><span style="color: #800000">&lt;</span><span style="color: #267F99">Link</span><span style="color: #000000"> </span><span style="color: #FF0000">href</span><span style="color: #000000">=</span><span style="color: #A31515">&quot;/api/auth/login&quot;</span><span style="color: #800000">&gt;&lt;a&gt;</span><span style="color: #000000">Login</span><span style="color: #800000">&lt;/a&gt;&lt;/</span><span style="color: #267F99">Link</span><span style="color: #800000">&gt;</span><span style="color: #000000">;</span>
-<span style="color: #000000">  </span><span style="color: #AF00DB">return</span><span style="color: #000000"> </span><span style="color: #800000">&lt;div&gt;</span><span style="color: #000000">Hello </span><span style="color: #0000FF">{</span><span style="color: #001080">user</span><span style="color: #000000FF">.</span><span style="color: #001080">name</span><span style="color: #0000FF">}</span><span style="color: #000000">, </span><span style="color: #800000">&lt;</span><span style="color: #267F99">Link</span><span style="color: #000000"> </span><span style="color: #FF0000">href</span><span style="color: #000000">=</span><span style="color: #A31515">&quot;/api/auth/logout&quot;</span><span style="color: #800000">&gt;&lt;a&gt;</span><span style="color: #000000">Logout</span><span style="color: #800000">&lt;/a&gt;&lt;/</span><span style="color: #267F99">Link</span><span style="color: #800000">&gt;&lt;/div&gt;</span><span style="color: #000000">;</span>
-<span style="color: #000000">}</span>
-</code></pre>
-					</div>
-					<div class="tsd-type-declaration">
-						<h4>Type declaration</h4>
-						<ul class="tsd-parameters">
-							<li class="tsd-parameter-signature">
-								<ul class="tsd-signatures tsd-kind-type-literal tsd-parent-kind-type-alias">
-									<li class="tsd-signature tsd-kind-icon"><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">UserContext</span></li>
-								</ul>
-								<ul class="tsd-descriptions">
-									<li class="tsd-description">
-										<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">UserContext</span></h4>
-									</li>
-								</ul>
-							</li>
-						</ul>
-					</div>
-				</section>
-				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module">
 					<a name="usercontext" class="tsd-anchor"></a>
 					<h3>User<wbr>Context</h3>
 					<div class="tsd-signature tsd-kind-icon">User<wbr>Context<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">{ </span>checkSession<span class="tsd-signature-symbol">: </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">; </span>error<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">Error</span><span class="tsd-signature-symbol">; </span>isLoading<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">; </span>user<span class="tsd-signature-symbol">?: </span><a href="../interfaces/frontend_use_user.userprofile.html" class="tsd-signature-type" data-tsd-kind="Interface">UserProfile</a><span class="tsd-signature-symbol"> }</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/frontend/use-user.tsx#L27">src/frontend/use-user.tsx:27</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/frontend/use-user.tsx#L27">src/frontend/use-user.tsx:27</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
-							<p>The user context returned from the {@link useUser} hook.</p>
+							<p>The user context returned from the <a href="frontend_use_user.html#useuser">useUser</a> hook.</p>
 						</div>
 					</div>
 					<div class="tsd-type-declaration">
@@ -193,12 +154,12 @@
 					<div class="tsd-signature tsd-kind-icon">User<wbr>Provider<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><a href="frontend_use_user.html#userproviderprops" class="tsd-signature-type" data-tsd-kind="Type alias">UserProviderProps</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">UserContext</span><span class="tsd-signature-symbol">&gt;</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/frontend/use-user.tsx#L152">src/frontend/use-user.tsx:152</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/frontend/use-user.tsx#L163">src/frontend/use-user.tsx:163</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
-							<p>To use the {@link useUser} hook. You must wrap your application in a <code>&lt;UserProvider&gt;</code> component.</p>
+							<p>To use the <a href="frontend_use_user.html#useuser">useUser</a> hook, you must wrap your application in a <code>&lt;UserProvider&gt;</code> component.</p>
 						</div>
 					</div>
 					<div class="tsd-type-declaration">
@@ -229,23 +190,24 @@
 					<div class="tsd-signature tsd-kind-icon">User<wbr>Provider<wbr>Props<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">React.PropsWithChildren</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-symbol">{ </span>fetcher<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">UserFetcher</span><span class="tsd-signature-symbol">; </span>profileUrl<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">; </span>user<span class="tsd-signature-symbol">?: </span><a href="../interfaces/frontend_use_user.userprofile.html" class="tsd-signature-type" data-tsd-kind="Interface">UserProfile</a><span class="tsd-signature-symbol"> }</span><span class="tsd-signature-symbol"> &amp; </span><span class="tsd-signature-type">ConfigContext</span><span class="tsd-signature-symbol">&gt;</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/b002ce0/src/frontend/use-user.tsx#L92">src/frontend/use-user.tsx:92</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/frontend/use-user.tsx#L103">src/frontend/use-user.tsx:103</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
 							<p>Configure the <a href="frontend_use_user.html#userprovider">UserProvider</a> component.</p>
 						</div>
-						<p>If you have any server-side rendered pages (eg. using <code>getServerSideProps</code>), you should get the user from the server
-							side session and pass it to the <code>&lt;UserProvider&gt;</code> component via <code>pageProps</code> - this will refill the {@link useUser}
-						hook with the <a href="../interfaces/frontend_use_user.userprofile.html">UserProfile</a> object. eg</p>
+						<p>If you have any server-side rendered pages (using <code>getServerSideProps</code>), you should get the
+							user from the server-side session and pass it to the <code>&lt;UserProvider&gt;</code> component via the <code>user</code>
+							prop. This will prefill the <a href="frontend_use_user.html#useuser">useUser</a> hook with the <a href="../interfaces/frontend_use_user.userprofile.html">UserProfile</a> object.
+						For example:</p>
 						<pre><code class="language-js"><span style="color: #008000">// pages/_app.js</span>
 <span style="color: #AF00DB">import</span><span style="color: #000000"> </span><span style="color: #001080">React</span><span style="color: #000000"> </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;react&#039;</span><span style="color: #000000">;</span>
 <span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">UserProvider</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@auth0/nextjs-auth0&#039;</span><span style="color: #000000">;</span>
 
 <span style="color: #AF00DB">export</span><span style="color: #000000"> </span><span style="color: #AF00DB">default</span><span style="color: #000000"> </span><span style="color: #0000FF">function</span><span style="color: #000000"> </span><span style="color: #795E26">App</span><span style="color: #000000">({ </span><span style="color: #001080">Component</span><span style="color: #000000">, </span><span style="color: #001080">pageProps</span><span style="color: #000000"> }) {</span>
-<span style="color: #000000">  </span><span style="color: #008000">// If you&#039;ve used `withPageAuthRequired`, pageProps.user can pre-populate the hook</span>
-<span style="color: #000000">  </span><span style="color: #008000">// if you haven&#039;t used `withPageAuthRequired`, pageProps.user is undefined so the hook</span>
+<span style="color: #000000">  </span><span style="color: #008000">// If you&#039;ve used `withPageAuthRequired`, `pageProps.user` can prefill the hook</span>
+<span style="color: #000000">  </span><span style="color: #008000">// if you haven&#039;t used `withPageAuthRequired`, `pageProps.user` is undefined so the hook</span>
 <span style="color: #000000">  </span><span style="color: #008000">// fetches the user from the API route</span>
 <span style="color: #000000">  </span><span style="color: #0000FF">const</span><span style="color: #000000"> { </span><span style="color: #0070C1">user</span><span style="color: #000000"> } = </span><span style="color: #001080">pageProps</span><span style="color: #000000">;</span>
 
@@ -256,8 +218,11 @@
 <span style="color: #000000">  );</span>
 <span style="color: #000000">}</span>
 </code></pre>
-						<p>If you have used a custom url for your <a href="handlers_profile.html#handleprofile">HandleProfile</a> API Route handler (the default is <code>/api/auth/me</code>) then
-						you should specify it here in the <code>profileUrl</code> option.</p>
+						<p>In client-side rendered pages, the <a href="frontend_use_user.html#useuser">useUser</a> hook uses a {@link UserFetcher} to fetch the
+							user from the profile API route. If needed, you can specify a custom fetcher here in the
+						<code>fetcher</code> option.</p>
+						<p><strong>IMPORTANT</strong> If you have used a custom url for your <a href="handlers_profile.html#handleprofile">HandleProfile</a> API route handler
+						(the default is <code>/api/auth/me</code>) then you need to specify it here in the <code>profileUrl</code> option.</p>
 					</div>
 				</section>
 			</section>
@@ -266,7 +231,7 @@
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-module">
 					<a name="default" class="tsd-anchor"></a>
 					<h3>default</h3>
-					<div class="tsd-signature tsd-kind-icon">default<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span>__namedParameters<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">PropsWithChildren</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-symbol">{ </span>fetcher<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">UserFetcher</span><span class="tsd-signature-symbol">; </span>profileUrl<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">; </span>user<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><a href="../interfaces/frontend_use_user.userprofile.html" class="tsd-signature-type" data-tsd-kind="Interface">UserProfile</a><span class="tsd-signature-symbol"> }</span><span class="tsd-signature-symbol"> &amp; </span><span class="tsd-signature-type">ConfigContext</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">UserContext</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">null</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Component</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">&gt;</span></div>
+					<div class="tsd-signature tsd-kind-icon">default<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span>__namedParameters<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">PropsWithChildren</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-symbol">{ </span>fetcher<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">UserFetcher</span><span class="tsd-signature-symbol">; </span>profileUrl<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">; </span>user<span class="tsd-signature-symbol">?: </span><a href="../interfaces/frontend_use_user.userprofile.html" class="tsd-signature-type" data-tsd-kind="Interface">UserProfile</a><span class="tsd-signature-symbol"> }</span><span class="tsd-signature-symbol"> &amp; </span><span class="tsd-signature-type">ConfigContext</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">UserContext</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">null</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">new </span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Component</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">&gt;</span></div>
 					<aside class="tsd-sources">
 					</aside>
 					<div class="tsd-type-declaration">
@@ -274,22 +239,61 @@
 						<ul class="tsd-parameters">
 							<li class="tsd-parameter-signature">
 								<ul class="tsd-signatures tsd-kind-type-literal tsd-parent-kind-module">
-									<li class="tsd-signature tsd-kind-icon"><span class="tsd-signature-symbol">(</span>__namedParameters<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">PropsWithChildren</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-symbol">{ </span>fetcher<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">UserFetcher</span><span class="tsd-signature-symbol">; </span>profileUrl<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">; </span>user<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><a href="../interfaces/frontend_use_user.userprofile.html" class="tsd-signature-type" data-tsd-kind="Interface">UserProfile</a><span class="tsd-signature-symbol"> }</span><span class="tsd-signature-symbol"> &amp; </span><span class="tsd-signature-type">ConfigContext</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">UserContext</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">null</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Component</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">&gt;</span></li>
+									<li class="tsd-signature tsd-kind-icon"><span class="tsd-signature-symbol">(</span>__namedParameters<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">PropsWithChildren</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-symbol">{ </span>fetcher<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">UserFetcher</span><span class="tsd-signature-symbol">; </span>profileUrl<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">; </span>user<span class="tsd-signature-symbol">?: </span><a href="../interfaces/frontend_use_user.userprofile.html" class="tsd-signature-type" data-tsd-kind="Interface">UserProfile</a><span class="tsd-signature-symbol"> }</span><span class="tsd-signature-symbol"> &amp; </span><span class="tsd-signature-type">ConfigContext</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">UserContext</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">null</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">new </span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Component</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">&gt;</span></li>
 								</ul>
 								<ul class="tsd-descriptions">
 									<li class="tsd-description">
 										<h4 class="tsd-parameters-title">Parameters</h4>
 										<ul class="tsd-parameters">
 											<li>
-												<h5>__namedParameters: <span class="tsd-signature-type">PropsWithChildren</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-symbol">{ </span>fetcher<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">UserFetcher</span><span class="tsd-signature-symbol">; </span>profileUrl<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">; </span>user<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><a href="../interfaces/frontend_use_user.userprofile.html" class="tsd-signature-type" data-tsd-kind="Interface">UserProfile</a><span class="tsd-signature-symbol"> }</span><span class="tsd-signature-symbol"> &amp; </span><span class="tsd-signature-type">ConfigContext</span><span class="tsd-signature-symbol">&gt;</span></h5>
+												<h5>__namedParameters: <span class="tsd-signature-type">PropsWithChildren</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-symbol">{ </span>fetcher<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">UserFetcher</span><span class="tsd-signature-symbol">; </span>profileUrl<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">; </span>user<span class="tsd-signature-symbol">?: </span><a href="../interfaces/frontend_use_user.userprofile.html" class="tsd-signature-type" data-tsd-kind="Interface">UserProfile</a><span class="tsd-signature-symbol"> }</span><span class="tsd-signature-symbol"> &amp; </span><span class="tsd-signature-type">ConfigContext</span><span class="tsd-signature-symbol">&gt;</span></h5>
 											</li>
 										</ul>
-										<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">UserContext</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">null</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Component</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">&gt;</span></h4>
+										<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">UserContext</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">null</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">ReactElement</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">new </span><span class="tsd-signature-symbol">(</span>props<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Component</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">&gt;</span></h4>
 									</li>
 								</ul>
 							</li>
 						</ul>
 					</div>
+				</section>
+			</section>
+			<section class="tsd-panel-group tsd-member-group ">
+				<h2>Client Functions</h2>
+				<section class="tsd-panel tsd-member tsd-kind-function tsd-parent-kind-module">
+					<a name="useuser" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagConst">Const</span> use<wbr>User</h3>
+					<ul class="tsd-signatures tsd-kind-function tsd-parent-kind-module">
+						<li class="tsd-signature tsd-kind-icon">use<wbr>User<span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">UserContext</span></li>
+					</ul>
+					<ul class="tsd-descriptions">
+						<li class="tsd-description">
+							<aside class="tsd-sources">
+								<ul>
+									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/29e36b7/src/frontend/use-user.tsx#L156">src/frontend/use-user.tsx:156</a></li>
+								</ul>
+							</aside>
+							<div class="tsd-comment tsd-typography">
+								<div class="lead">
+									<p>The <code>useUser</code> hook, which will get you the <a href="../interfaces/frontend_use_user.userprofile.html">UserProfile</a> object from the server-side session by fetching it
+									from the <a href="handlers_profile.html#handleprofile">HandleProfile</a> API route.</p>
+								</div>
+								<pre><code class="language-js"><span style="color: #008000">// pages/profile.js</span>
+<span style="color: #AF00DB">import</span><span style="color: #000000"> </span><span style="color: #001080">Link</span><span style="color: #000000"> </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;next/link&#039;</span><span style="color: #000000">;</span>
+<span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">useUser</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@auth0/nextjs-auth0&#039;</span><span style="color: #000000">;</span>
+
+<span style="color: #AF00DB">export</span><span style="color: #000000"> </span><span style="color: #AF00DB">default</span><span style="color: #000000"> </span><span style="color: #0000FF">function</span><span style="color: #000000"> </span><span style="color: #795E26">Profile</span><span style="color: #000000">() {</span>
+<span style="color: #000000">  </span><span style="color: #0000FF">const</span><span style="color: #000000"> { </span><span style="color: #0070C1">user</span><span style="color: #000000">, </span><span style="color: #0070C1">error</span><span style="color: #000000">, </span><span style="color: #0070C1">isLoading</span><span style="color: #000000"> } = </span><span style="color: #795E26">useUser</span><span style="color: #000000">();</span>
+
+<span style="color: #000000">  </span><span style="color: #AF00DB">if</span><span style="color: #000000"> (</span><span style="color: #001080">isLoading</span><span style="color: #000000">) </span><span style="color: #AF00DB">return</span><span style="color: #000000"> </span><span style="color: #800000">&lt;div&gt;</span><span style="color: #000000">Loading...</span><span style="color: #800000">&lt;/div&gt;</span><span style="color: #000000">;</span>
+<span style="color: #000000">  </span><span style="color: #AF00DB">if</span><span style="color: #000000"> (</span><span style="color: #001080">error</span><span style="color: #000000">) </span><span style="color: #AF00DB">return</span><span style="color: #000000"> </span><span style="color: #800000">&lt;div&gt;</span><span style="color: #0000FF">{</span><span style="color: #001080">error</span><span style="color: #000000FF">.</span><span style="color: #001080">message</span><span style="color: #0000FF">}</span><span style="color: #800000">&lt;/div&gt;</span><span style="color: #000000">;</span>
+<span style="color: #000000">  </span><span style="color: #AF00DB">if</span><span style="color: #000000"> (!</span><span style="color: #001080">user</span><span style="color: #000000">) </span><span style="color: #AF00DB">return</span><span style="color: #000000"> </span><span style="color: #800000">&lt;</span><span style="color: #267F99">Link</span><span style="color: #000000"> </span><span style="color: #FF0000">href</span><span style="color: #000000">=</span><span style="color: #A31515">&quot;/api/auth/login&quot;</span><span style="color: #800000">&gt;&lt;a&gt;</span><span style="color: #000000">Login</span><span style="color: #800000">&lt;/a&gt;&lt;/</span><span style="color: #267F99">Link</span><span style="color: #800000">&gt;</span><span style="color: #000000">;</span>
+<span style="color: #000000">  </span><span style="color: #AF00DB">return</span><span style="color: #000000"> </span><span style="color: #800000">&lt;div&gt;</span><span style="color: #000000">Hello </span><span style="color: #0000FF">{</span><span style="color: #001080">user</span><span style="color: #000000FF">.</span><span style="color: #001080">name</span><span style="color: #0000FF">}</span><span style="color: #000000">, </span><span style="color: #800000">&lt;</span><span style="color: #267F99">Link</span><span style="color: #000000"> </span><span style="color: #FF0000">href</span><span style="color: #000000">=</span><span style="color: #A31515">&quot;/api/auth/logout&quot;</span><span style="color: #800000">&gt;&lt;a&gt;</span><span style="color: #000000">Logout</span><span style="color: #800000">&lt;/a&gt;&lt;/</span><span style="color: #267F99">Link</span><span style="color: #800000">&gt;&lt;/div&gt;</span><span style="color: #000000">;</span>
+<span style="color: #000000">}</span>
+</code></pre>
+							</div>
+							<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">UserContext</span></h4>
+						</li>
+					</ul>
 				</section>
 			</section>
 		</div>
@@ -333,16 +337,22 @@
 						<a href="helpers.html">helpers</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="helpers_get_server_side_props_wrapper.html">helpers/get-<wbr>server-<wbr>side-<wbr>props-<wbr>wrapper</a>
+						<a href="helpers_testing.html">helpers/testing</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="helpers_with_api_auth_required.html">helpers/with-<wbr>api-<wbr>auth-<wbr>required</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="helpers_with_middleware_auth_required.html">helpers/with-<wbr>middleware-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="helpers_with_page_auth_required.html">helpers/with-<wbr>page-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="instance.html">instance</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="middleware.html">middleware</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="session.html">session</a>
@@ -355,6 +365,9 @@
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="session_session.html">session/session</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="session_update_session.html">session/update-<wbr>session</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="utils_errors.html">utils/errors</a>
@@ -373,9 +386,6 @@
 						<a href="../interfaces/frontend_use_user.userprofile.html" class="tsd-kind-icon">User<wbr>Profile</a>
 					</li>
 					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
-						<a href="frontend_use_user.html#useuser" class="tsd-kind-icon">Use<wbr>User</a>
-					</li>
-					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
 						<a href="frontend_use_user.html#usercontext" class="tsd-kind-icon">User<wbr>Context</a>
 					</li>
 					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
@@ -386,6 +396,9 @@
 					</li>
 					<li class=" tsd-kind-property tsd-parent-kind-module">
 						<a href="frontend_use_user.html#default" class="tsd-kind-icon">default</a>
+					</li>
+					<li class=" tsd-kind-function tsd-parent-kind-module">
+						<a href="frontend_use_user.html#useuser" class="tsd-kind-icon">use<wbr>User</a>
 					</li>
 				</ul>
 			</nav>
@@ -402,10 +415,14 @@
 				<li class="tsd-kind-type-alias tsd-has-type-parameter"><span class="tsd-kind-icon">Type alias with type parameter</span></li>
 			</ul>
 			<ul class="tsd-legend">
-				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>
+				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
+				<li class="tsd-kind-class tsd-has-type-parameter"><span class="tsd-kind-icon">Class with type parameter</span></li>
 			</ul>
 			<ul class="tsd-legend">
-				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
+				<li class="tsd-kind-enum"><span class="tsd-kind-icon">Enumeration</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>
 			</ul>
 		</div>
 	</div>

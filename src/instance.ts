@@ -1,4 +1,4 @@
-import { GetSession, GetAccessToken, UpdateUser } from './session';
+import { GetSession, GetAccessToken, UpdateSession } from './session';
 import { WithApiAuthRequired, WithPageAuthRequired } from './helpers';
 import { HandleAuth, HandleCallback, HandleLogin, HandleLogout, HandleProfile } from './handlers';
 import { ConfigParameters } from './auth0-session';
@@ -21,7 +21,7 @@ export interface SignInWithAuth0 {
   /**
    * Append properties to the user.
    */
-  updateUser: UpdateUser;
+  updateSession: UpdateSession;
 
   /**
    * Access token getter.

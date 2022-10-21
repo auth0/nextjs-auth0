@@ -38,8 +38,8 @@ import {
   AccessTokenRequest,
   GetAccessTokenResult,
   Claims,
-  updateUserFactory,
-  UpdateUser
+  updateSessionFactory,
+  UpdateSession
 } from './session/';
 import {
   withPageAuthRequiredFactory,
@@ -88,7 +88,7 @@ export const _initAuth = (params?: ConfigParameters): SignInWithAuth0 & { sessio
 
   // Init Next layer (with next config)
   const getSession = sessionFactory(sessionCache);
-  const updateUser = updateUserFactory(sessionCache);
+  const updateSession = updateSessionFactory(sessionCache);
   const getAccessToken = accessTokenFactory(nextConfig, getClient, sessionCache);
   const withApiAuthRequired = withApiAuthRequiredFactory(sessionCache);
   const withPageAuthRequired = withPageAuthRequiredFactory(nextConfig.routes.login, () => sessionCache);
@@ -101,7 +101,7 @@ export const _initAuth = (params?: ConfigParameters): SignInWithAuth0 & { sessio
   return {
     sessionCache,
     getSession,
-    updateUser,
+    updateSession,
     getAccessToken,
     withApiAuthRequired,
     withPageAuthRequired,
@@ -116,7 +116,7 @@ export const _initAuth = (params?: ConfigParameters): SignInWithAuth0 & { sessio
 /* c8 ignore start */
 const getSessionCache = () => getInstance().sessionCache;
 export const getSession: GetSession = (...args) => getInstance().getSession(...args);
-export const updateUser: UpdateUser = (...args) => getInstance().updateUser(...args);
+export const updateSession: UpdateSession = (...args) => getInstance().updateSession(...args);
 export const getAccessToken: GetAccessToken = (...args) => getInstance().getAccessToken(...args);
 export const withApiAuthRequired: WithApiAuthRequired = (...args) => getInstance().withApiAuthRequired(...args);
 export const withPageAuthRequired: WithPageAuthRequired = withPageAuthRequiredFactory(getLoginUrl(), getSessionCache);
@@ -174,7 +174,7 @@ export {
   WithPageAuthRequired,
   SessionCache,
   GetSession,
-  UpdateUser,
+  UpdateSession,
   GetAccessToken,
   Session,
   Claims,

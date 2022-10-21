@@ -18,7 +18,7 @@ import {
 import { codeExchange, discovery, jwksEndpoint, userInfo } from './oidc-nocks';
 import { jwks, makeIdToken } from '../auth0-session/fixtures/cert';
 import { start, stop } from './server';
-import { encodeState } from '../../src/auth0-session/hooks/get-login-state';
+import { encodeState } from '../../src/auth0-session/utils/encoding';
 import { post, toSignedCookieJar } from '../auth0-session/fixtures/helpers';
 import { HandleLogin, HandleLogout, HandleCallback, HandleProfile } from '../../src';
 
@@ -78,7 +78,7 @@ export const setup = async (
     handleLogout,
     handleProfile,
     getSession,
-    updateUser,
+    updateSession,
     getAccessToken,
     withApiAuthRequired,
     withPageAuthRequired
@@ -90,7 +90,7 @@ export const setup = async (
   const handlers: Handlers = { onError, callback, login, logout, profile };
   global.handleAuth = handleAuth.bind(null, handlers);
   global.getSession = getSession;
-  global.updateUser = updateUser;
+  global.updateSession = updateSession;
   global.withApiAuthRequired = withApiAuthRequired;
   global.withPageAuthRequired = (): any => withPageAuthRequired(withPageAuthRequiredOptions);
   global.withPageAuthRequiredCSR = withPageAuthRequired;
@@ -105,7 +105,7 @@ export const teardown = async (): Promise<void> => {
   nock.cleanAll();
   await stop();
   delete global.getSession;
-  delete global.updateUser;
+  delete global.updateSession;
   delete global.handleAuth;
   delete global.withApiAuthRequired;
   delete global.withPageAuthRequired;
