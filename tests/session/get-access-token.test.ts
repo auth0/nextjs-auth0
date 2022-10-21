@@ -2,7 +2,7 @@ import { login, setup, teardown } from '../fixtures/setup';
 import { withApi } from '../fixtures/default-settings';
 import { get } from '../auth0-session/fixtures/helpers';
 import { Session } from '../../src';
-import { refreshTokenExchange, refreshTokenRotationExchange } from '../fixtures/oidc-nocks';
+import { failedRefreshTokenExchange, refreshTokenExchange, refreshTokenRotationExchange } from '../fixtures/oidc-nocks';
 import { makeIdToken } from '../auth0-session/fixtures/cert';
 import nock from 'nock';
 
@@ -164,6 +164,43 @@ describe('get access token', () => {
     expect(accessToken).toEqual('new-token');
     const { refreshToken } = await get(baseUrl, '/api/session', { cookieJar });
     expect(refreshToken).toEqual('GEbRxBN...edjnXbL');
+  });
+
+  test('should fail when refresh grant fails', async () => {
+    await failedRefreshTokenExchange(withApi, 'GEbRxBN...edjnXbL', {}, 500);
+    const baseUrl = await setup(withApi, { getAccessTokenOptions: { refresh: true } });
+    const cookieJar = await login(baseUrl);
+    await expect(get(baseUrl, '/api/access-token', { cookieJar })).rejects.toThrow(
+      'The request to refresh the access token failed. CAUSE: expected 200 OK, got: 500 Internal Server Error'
+    );
+  });
+
+  test('should fail when refresh grant fails with oauth error', async () => {
+    await failedRefreshTokenExchange(
+      withApi,
+      'GEbRxBN...edjnXbL',
+      { error: 'invalid_grant', error_description: 'Unknown or invalid refresh token.' },
+      401
+    );
+    const baseUrl = await setup(withApi, { getAccessTokenOptions: { refresh: true } });
+    const cookieJar = await login(baseUrl);
+    await expect(get(baseUrl, '/api/access-token', { cookieJar })).rejects.toThrow(
+      'The request to refresh the access token failed. CAUSE: invalid_grant (Unknown or invalid refresh token.)'
+    );
+  });
+
+  test('should escape oauth error', async () => {
+    await failedRefreshTokenExchange(
+      withApi,
+      'GEbRxBN...edjnXbL',
+      { error: '<script>alert(1)</script>', error_description: '<script>alert(2)</script>' },
+      401
+    );
+    const baseUrl = await setup(withApi, { getAccessTokenOptions: { refresh: true } });
+    const cookieJar = await login(baseUrl);
+    await expect(get(baseUrl, '/api/access-token', { cookieJar })).rejects.toThrow(
+      'The request to refresh the access token failed. CAUSE: &lt;script&gt;alert(1)&lt;/script&gt; (&lt;script&gt;alert(2)&lt;/script&gt;)'
+    );
   });
 
   test('should retrieve a new access token and rotate the refresh token', async () => {

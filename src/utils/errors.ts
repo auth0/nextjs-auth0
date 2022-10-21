@@ -81,7 +81,8 @@ export enum AccessTokenErrorCode {
   MISSING_ACCESS_TOKEN = 'ERR_MISSING_ACCESS_TOKEN',
   MISSING_REFRESH_TOKEN = 'ERR_MISSING_REFRESH_TOKEN',
   EXPIRED_ACCESS_TOKEN = 'ERR_EXPIRED_ACCESS_TOKEN',
-  INSUFFICIENT_SCOPE = 'ERR_INSUFFICIENT_SCOPE'
+  INSUFFICIENT_SCOPE = 'ERR_INSUFFICIENT_SCOPE',
+  FAILED_REFRESH_GRANT = 'ERR_FAILED_REFRESH_GRANT'
 }
 
 /**
@@ -96,9 +97,9 @@ export enum AccessTokenErrorCode {
  * @category Server
  */
 export class AccessTokenError extends AuthError {
-  constructor(code: AccessTokenErrorCode, message: string) {
+  constructor(code: AccessTokenErrorCode, message: string, cause?: Error) {
     /* c8 ignore next */
-    super({ code: code, message: message, name: 'AccessTokenError' });
+    super({ code: code, message: message, name: 'AccessTokenError', cause });
 
     // Capturing stack trace, excluding constructor call from it.
     Error.captureStackTrace(this, this.constructor);
