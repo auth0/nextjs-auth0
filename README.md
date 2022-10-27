@@ -13,12 +13,12 @@ The Auth0 Next.js SDK is a library for implementing user authentication in Next.
 ## Documentation
 
 - [QuickStart](https://auth0.com/docs/quickstart/webapp/nextjs)- our guide for adding Auth0 to your Next.js app.
-- [FAQs](https://github.com/auth0/open-source-template/blob/master/FAQ.md) - Frequently asked questions about nextjs-auth0.
-- [Examples](https://github.com/auth0/open-source-template/blob/master/EXAMPLES.md) - lots of examples for your different use cases.
-- [Security](https://github.com/auth0/open-source-template/blob/master/SECURITY.md) - Some important security notices that you should check.
-- [Architecture](https://github.com/auth0/open-source-template/blob/master/ARCHITECTURE.md) - Architectural overview of the SDK.
-- [Testing](https://github.com/auth0/open-source-template/blob/master/TESTING.md) - Some help with testing your nextjs-auth0 application.
-- [Deploying](https://github.com/auth0/open-source-template/blob/master/examples/README.md) - How we deploy our example app to Vercel.
+- [FAQs](https://github.com/auth0/nextjs-auth0/blob/main/FAQ.md) - Frequently asked questions about nextjs-auth0.
+- [Examples](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md) - lots of examples for your different use cases.
+- [Security](https://github.com/auth0/nextjs-auth0/blob/main/SECURITY.md) - Some important security notices that you should check.
+- [Architecture](https://github.com/auth0/nextjs-auth0/blob/main/ARCHITECTURE.md) - Architectural overview of the SDK.
+- [Testing](https://github.com/auth0/nextjs-auth0/blob/main/TESTING.md) - Some help with testing your nextjs-auth0 application.
+- [Deploying](https://github.com/auth0/nextjs-auth0/blob/main/examples/README.md) - How we deploy our example app to Vercel.
 - [Docs Site](https://auth0.com/docs) - explore our docs site and learn more about Auth0.
 
 ## Getting Started
@@ -157,7 +157,7 @@ export default function Index() {
 
 There are two additional ways to check for an authenticated user; one for Next.js pages using [withPageAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_page_auth_required.html#withpageauthrequired) and one for Next.js API routes using [withAPIAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_api_auth_required.html#withapiauthrequired).
 
-For other comprehensive examples, see the [EXAMPLES.md](https://github.com/auth0/open-source-template/blob/master/EXAMPLES.md) document.
+For other comprehensive examples, see the [EXAMPLES.md](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md) document.
 
 ## API Reference
 
