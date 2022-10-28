@@ -2,6 +2,7 @@
 
 Guide to migrating from `1.x` to `2.x`
 
+- [Node 10 is no longer supported](#node-10-is-no-longer-supported)
 - [`getSession` now returns a `Promise`](#getsession-now-returns-a-promise)
 - [`updateSession` has been added](#updatesession-has-been-added)
 - [`getServerSidePropsWrapper` has been removed](#getserversidepropswrapper-has-been-removed)
@@ -10,6 +11,10 @@ Guide to migrating from `1.x` to `2.x`
 - [Override default error handler](#override-default-error-handler)
 - [afterCallback can write to the response](#aftercallback-can-write-to-the-response)
 - [Configure default handlers](#configure-default-handlers)
+
+## Node 10 is no longer supported
+
+Node 12 LTS and newer LTS releases are supported.
 
 ## `getSession` now returns a `Promise`
 
