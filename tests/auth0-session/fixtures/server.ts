@@ -12,13 +12,15 @@ import {
   ConfigParameters,
   clientFactory,
   TransientStore,
-  CookieStore,
+  StatelessSession,
   SessionCache,
   logoutHandler,
   callbackHandler,
   LoginOptions,
   LogoutOptions,
-  CallbackOptions
+  CallbackOptions,
+  StatefulSession,
+  AbstractSession
 } from '../../../src/auth0-session';
 import wellKnown from './well-known.json';
 import { jwks } from './cert';
@@ -29,7 +31,7 @@ import version from '../../../src/version';
 export type SessionResponse = TokenSetParameters & { claims: Claims };
 
 class TestSessionCache implements SessionCache {
-  constructor(private cookieStore: CookieStore<IncomingMessage, ServerResponse>) {}
+  constructor(private cookieStore: AbstractSession<IncomingMessage, ServerResponse, any>) {}
   async create(req: IncomingMessage, res: ServerResponse, tokenSet: TokenSet): Promise<void> {
     await this.cookieStore.save(req, res, tokenSet);
   }
@@ -60,7 +62,9 @@ const createHandlers = (params: ConfigParameters): Handlers => {
   const config = getConfig(params);
   const getClient = clientFactory(config, { name: 'nextjs-auth0', version });
   const transientStore = new TransientStore(config);
-  const cookieStore = new CookieStore(config, Cookies);
+  const cookieStore = params.session?.store
+    ? new StatefulSession<IncomingMessage, ServerResponse, any>(config, Cookies)
+    : new StatelessSession<IncomingMessage, ServerResponse, any>(config, Cookies);
   const sessionCache = new TestSessionCache(cookieStore);
 
   return {

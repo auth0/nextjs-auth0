@@ -10,6 +10,7 @@
 - [Access an External API from an API Route](#access-an-external-api-from-an-api-route)
 - [Create your own instance of the SDK](#create-your-own-instance-of-the-sdk)
 - [Add a signup handler](#add-a-signup-handler)
+- [Use a custom session store](#use-a-custom-session-store)
 
 All examples can be seen running in the [Kitchen Sink example app](./examples/kitchen-sink-example).
 
@@ -416,4 +417,56 @@ Users can then sign up using the signup handler.
 
 ```html
 <a href="/api/auth/signup">Sign up</a>
+```
+
+## Use a custom session store
+
+You need to create your owm instance of the SDK in code, so you can pass an instance of your session store to the SDK's configuration.
+
+```typescript
+// lib/auth0.ts
+import { SessionStore, initAuth0 } from '@auth0/nextjs-auth0';
+
+class Store implements SessionStore {
+  private store: SomeSuitableKeyValueStoreLikeRedis;
+  constructor() {
+    // If you set the expiry accross the whole store use the session config,
+    // e.g. `min(config.session.rollingDuration, config.session.absoluteDuration)`
+    // the default is 24hrs
+    this.store = new SomeSuitableKeyValueStoreLikeRedis();
+  }
+  async get(id) {
+    const val = await this.store.get(id);
+    return val;
+  }
+  async set(id, val) {
+    // If you set the expiry per item, use `val.header.exp` (in secs)
+    await this.store.set(id, val);
+  }
+  async delete(id) {
+    await this.store.delete(id);
+  }
+}
+
+let auth0;
+
+export default () => {
+  if (!auth0) {
+    auth0 = initAuth0({
+      session: {
+        store: new Store()
+      }
+    });
+  }
+  return auth0;
+};
+```
+
+Then use your instance wherever you use the server methods of the SDK.
+
+```ts
+// /pages/api/auth/[auth0].js
+import getAuth0 from '../../../lib/auth0';
+
+export default getAuth0().handleAuth();
 ```
