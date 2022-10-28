@@ -1,4 +1,4 @@
-import { Issuer, custom, HttpOptions, Client, EndSessionParameters } from 'openid-client';
+import { Issuer, custom, Client, EndSessionParameters } from 'openid-client';
 import url, { UrlObject } from 'url';
 import urlJoin from 'url-join';
 import createDebug from './utils/debug';
@@ -29,10 +29,8 @@ export default function get(config: Config, { name, version }: Telemetry): Clien
       return client;
     }
 
-    const defaultHttpOptions = (options: HttpOptions): HttpOptions => ({
-      ...options,
+    custom.setHttpOptionsDefaults({
       headers: {
-        ...options.headers,
         'User-Agent': `${name}/${version}`,
         ...(config.enableTelemetry
           ? {
@@ -50,19 +48,13 @@ export default function get(config: Config, { name, version }: Telemetry): Clien
       },
       timeout: config.httpTimeout
     });
-    const applyHttpOptionsCustom = (entity: Issuer<Client> | typeof Issuer | Client): void => {
-      // eslint-disable-next-line no-param-reassign
-      entity[custom.http_options] = defaultHttpOptions;
-    };
 
-    applyHttpOptionsCustom(Issuer);
     let issuer: Issuer<Client>;
     try {
       issuer = await Issuer.discover(config.issuerBaseURL);
     } catch (e) {
       throw new DiscoveryError(e, config.issuerBaseURL);
     }
-    applyHttpOptionsCustom(issuer);
 
     const issuerTokenAlgs = Array.isArray(issuer.id_token_signing_alg_values_supported)
       ? issuer.id_token_signing_alg_values_supported
@@ -101,7 +93,6 @@ export default function get(config: Config, { name, version }: Telemetry): Clien
       client_secret: config.clientSecret,
       id_token_signed_response_alg: config.idTokenSigningAlg
     });
-    applyHttpOptionsCustom(client);
     client[custom.clock_tolerance] = config.clockTolerance;
 
     if (config.idpLogout && !issuer.end_session_endpoint) {
