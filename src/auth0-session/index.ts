@@ -5,7 +5,9 @@ export {
   IdentityProviderError,
   ApplicationError
 } from './utils/errors';
-export { StatelessSession as CookieStore } from './session/stateless-session';
+export { StatelessSession } from './session/stateless-session';
+export { AbstractSession } from './session/abstract-session';
+export { StatefulSession, SessionStore } from './session/stateful-session';
 export { default as TransientStore } from './transient-store';
 export { Config, SessionConfig, CookieConfig, LoginOptions, LogoutOptions, AuthorizationParameters } from './config';
 export { get as getConfig, ConfigParameters, DeepPartial } from './get-config';

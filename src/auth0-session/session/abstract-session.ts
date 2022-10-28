@@ -47,7 +47,8 @@ export abstract class AbstractSession<Req, Res, Session> {
     uat: number,
     iat: number,
     exp: number,
-    cookieOptions: CookieSerializeOptions
+    cookieOptions: CookieSerializeOptions,
+    isNewSession: boolean
   ): Promise<void>;
 
   abstract deleteSession(req: Req, res: Res, cookieOptions: CookieSerializeOptions): Promise<void>;
@@ -94,6 +95,7 @@ export abstract class AbstractSession<Req, Res, Session> {
       return;
     }
 
+    const isNewSession = typeof createdAt === 'undefined';
     const uat = epoch();
     const iat = typeof createdAt === 'number' ? createdAt : uat;
     const exp = this.calculateExp(iat, uat);
@@ -105,7 +107,7 @@ export abstract class AbstractSession<Req, Res, Session> {
       cookieOptions.expires = new Date(exp * 1000);
     }
 
-    await this.setSession(req, res, session, uat, iat, exp, cookieOptions);
+    await this.setSession(req, res, session, uat, iat, exp, cookieOptions, isNewSession);
   }
 
   private calculateExp(iat: number, uat: number): number {

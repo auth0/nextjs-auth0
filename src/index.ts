@@ -1,6 +1,9 @@
+import crypto from 'crypto';
 import {
   NodeCookies as Cookies,
-  CookieStore,
+  StatelessSession,
+  StatefulSession,
+  SessionStore as GenericSessionStore,
   TransientStore,
   clientFactory,
   loginHandler as baseLoginHandler,
@@ -54,8 +57,12 @@ import { InitAuth0, SignInWithAuth0 } from './instance';
 import version from './version';
 import { getConfig, getLoginUrl, ConfigParameters } from './config';
 import { setIsUsingNamedExports, setIsUsingOwnInstance } from './utils/instance-check';
+import { IncomingMessage, ServerResponse } from 'http';
+import { NextApiRequest, NextApiResponse } from 'next';
 
 let instance: SignInWithAuth0 & { sessionCache: SessionCache };
+
+const genid = () => crypto.randomBytes(16).toString('hex');
 
 // For using managed instance with named exports.
 function getInstance(): SignInWithAuth0 & { sessionCache: SessionCache } {
@@ -75,13 +82,22 @@ export const initAuth0: InitAuth0 = (params) => {
 };
 
 export const _initAuth = (params?: ConfigParameters): SignInWithAuth0 & { sessionCache: SessionCache } => {
-  const { baseConfig, nextConfig } = getConfig(params);
+  const { baseConfig, nextConfig } = getConfig({ ...params, session: { genid, ...params?.session } });
 
   // Init base layer (with base config)
   const getClient = clientFactory(baseConfig, { name: 'nextjs-auth0', version });
   const transientStore = new TransientStore(baseConfig);
-  const cookieStore = new CookieStore(baseConfig, Cookies);
-  const sessionCache = new SessionCache(baseConfig, cookieStore);
+
+  const sessionStore = baseConfig.session.store
+    ? new StatefulSession<IncomingMessage | NextApiRequest, ServerResponse | NextApiResponse, Session>(
+        baseConfig,
+        Cookies
+      )
+    : new StatelessSession<IncomingMessage | NextApiRequest, ServerResponse | NextApiResponse, Session>(
+        baseConfig,
+        Cookies
+      );
+  const sessionCache = new SessionCache(baseConfig, sessionStore);
   const baseHandleLogin = baseLoginHandler(baseConfig, getClient, transientStore);
   const baseHandleLogout = baseLogoutHandler(baseConfig, getClient, sessionCache);
   const baseHandleCallback = baseCallbackHandler(baseConfig, getClient, sessionCache, transientStore);
@@ -189,4 +205,6 @@ export {
   InitAuth0,
   OnError
 };
+
+export type SessionStore = GenericSessionStore<Session>;
 /* c8 ignore stop */
