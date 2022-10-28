@@ -41,7 +41,7 @@ npm install @auth0/nextjs-auth0 --tag beta
 
 This library supports the following tooling versions:
 
-- Node.js: `^10.13.0 || >=12.0.0`
+- Node.js: 12 LTS and newer LTS releases are supported.
 
 - Next.js: `>=10`
 
