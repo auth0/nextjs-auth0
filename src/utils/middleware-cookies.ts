@@ -12,9 +12,6 @@ export default class MiddlewareCookies extends Cookies {
   }
 
   getAll(req: NextRequest): Record<string, string> {
-    return Array.from(req.cookies.keys()).reduce((memo: { [key: string]: string }, key) => {
-      memo[key] = req.cookies.get(key) as string;
-      return memo;
-    }, {});
+    return req.cookies.getAll().reduce((memo, { name, value }) => ({ ...memo, [name]: value }), {});
   }
 }
