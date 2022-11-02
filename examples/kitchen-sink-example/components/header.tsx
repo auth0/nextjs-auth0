@@ -10,24 +10,24 @@ const Header = (): React.ReactElement => {
       <nav>
         <ul>
           <li>
-            <Link href="/">
+            <Link href="/" legacyBehavior>
               <a>Home</a>
             </Link>
           </li>
           <li>
-            <Link href="/about">
+            <Link href="/about" legacyBehavior>
               <a>About</a>
             </Link>
           </li>
           <li>
-            <Link href="/shows">
+            <Link href="/shows" legacyBehavior>
               <a>TV Shows</a>
             </Link>
           </li>
           {user ? (
             <>
               <li>
-                <Link href="/profile">
+                <Link href="/profile" legacyBehavior>
                   <a>Profile</a>
                 </Link>
               </li>{' '}
