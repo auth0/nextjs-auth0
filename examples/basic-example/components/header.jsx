@@ -10,12 +10,12 @@ const Header = () => {
       <nav>
         <ul>
           <li>
-            <Link href="/">
+            <Link href="/" legacyBehavior>
               <a>Home</a>
             </Link>
           </li>
           <li>
-            <Link href="/protected-page">
+            <Link href="/protected-page" legacyBehavior>
               <a>Protected Page</a>
             </Link>
           </li>
