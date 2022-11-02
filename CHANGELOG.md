@@ -1,5 +1,11 @@
 # Change Log
 
+## [v9.9.9-beta.99](https://github.com/auth0/nextjs-auth0/tree/v9.9.9-beta.99) (2022-11-02)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.0.0-beta.1...v9.9.9-beta.99)
+
+**Added**
+- Fix for new req.cookie interface [\#894](https://github.com/auth0/nextjs-auth0/pull/894) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [v2.0.0-beta.1](https://github.com/auth0/nextjs-auth0/tree/v2.0.0-beta.1) (2022-10-21)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.0.0-beta.0...v2.0.0-beta.1)
 
