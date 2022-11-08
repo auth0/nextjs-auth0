@@ -1,5 +1,11 @@
 # Change Log
 
+## [v2.0.0-beta.3](https://github.com/auth0/nextjs-auth0/tree/v2.0.0-beta.3) (2022-11-08)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.0.0-beta.2...v2.0.0-beta.3)
+
+**Fixed**
+- Fix edge cookie support for Next < 13.0.1 [\#900](https://github.com/auth0/nextjs-auth0/pull/900) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [v2.0.0-beta.2](https://github.com/auth0/nextjs-auth0/tree/v2.0.0-beta.2) (2022-11-02)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.0.0-beta.1...v2.0.0-beta.2)
 
