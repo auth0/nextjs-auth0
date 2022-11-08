@@ -14,6 +14,16 @@ describe('cookie', () => {
     expect(new MiddlewareCookies().getAll(req)).toMatchObject({ foo: 'bar', bar: 'baz' });
   });
 
+  it('should get all cookies in Next < 13.0.1', async () => {
+    const req = {
+      cookies: new Map([
+        ['foo', 'bar'],
+        ['bar', 'baz']
+      ])
+    } as unknown as NextRequest;
+    expect(new MiddlewareCookies().getAll(req)).toMatchObject({ foo: 'bar', bar: 'baz' });
+  });
+
   it('should get a cookie by name', async () => {
     const [req] = setup({ headers: { cookie: 'foo=bar; bar=baz;' } });
     expect(new MiddlewareCookies().getAll(req)['foo']).toEqual('bar');
