@@ -33,7 +33,7 @@ npm install @auth0/nextjs-auth0
 
 This library supports the following tooling versions:
 
-- Node.js: `^10.13.0 || >=12.0.0`
+- Node.js: `^14.15.0 || ^16.13.0 || >=18.12.0`
 - Next.js: `>=10`
 
 ### Auth0 Configuration
