@@ -308,6 +308,7 @@ export interface NextConfig extends Pick<BaseConfig, 'identityClaimFilter'> {
   routes: {
     callback: string;
     login: string;
+    unauthorized: string;
   };
 }
 
@@ -522,7 +523,8 @@ export const getConfig = (params: ConfigParameters = {}): { baseConfig: BaseConf
   const nextConfig = {
     routes: {
       ...baseConfig.routes,
-      login: baseParams.routes?.login || getLoginUrl()
+      login: baseParams.routes?.login || getLoginUrl(),
+      unauthorized: baseParams.routes?.unauthorized || '/api/auth/401'
     },
     identityClaimFilter: baseConfig.identityClaimFilter,
     organization: organization || AUTH0_ORGANIZATION
