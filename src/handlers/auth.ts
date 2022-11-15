@@ -81,12 +81,13 @@ type ErrorHandlers = {
  * export default handleAuth();
  * ```
  *
- * This will create 4 handlers for the following urls:
+ * This will create 5 handlers for the following urls:
  *
  * - `/api/auth/login`: log the user in to your app by redirecting them to your identity provider.
  * - `/api/auth/callback`: The page that your identity provider will redirect the user back to on login.
  * - `/api/auth/logout`: log the user out of your app.
- * - `/api/auth/me`: View the user profile JSON (used by the {@link UseUser} hook)
+ * - `/api/auth/me`: View the user profile JSON (used by the {@link UseUser} hook).
+ * - `/api/auth/unauthorized`: Returns a 401 for use by {@link WithMiddlewareAuthRequired} when protecting API routes.
  *
  * @category Server
  */
@@ -124,6 +125,19 @@ const defaultOnError: OnError = (_req, res, error) => {
 };
 
 /**
+ * This is a handler for use by {@link WithMiddlewareAuthRequired} when protecting an API route.
+ * Middleware can't return a response body, so an unauthorized request for an API route
+ * needs to rewrite to this handler.
+ * @ignore
+ */
+const unauthorized: NextApiHandler = (_req, res) => {
+  res.status(401).json({
+    error: 'not_authenticated',
+    description: 'The user does not have an active session or is not authenticated'
+  });
+};
+
+/**
  * @ignore
  */
 export default function handlerFactory({
@@ -143,6 +157,7 @@ export default function handlerFactory({
       logout: handleLogout,
       callback: handleCallback,
       me: (handlers as ApiHandlers).profile || handleProfile,
+      401: unauthorized,
       ...handlers
     };
     return async (req, res): Promise<void> => {
