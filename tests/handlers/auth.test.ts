@@ -44,6 +44,12 @@ describe('auth handler', () => {
     global.handleAuth = initAuth0(withoutApi).handleAuth;
     await expect(get(baseUrl, '/api/auth/__proto__')).rejects.toThrow('Not Found');
   });
+
+  test('return unauthorized for /401 route', async () => {
+    const baseUrl = await setup(withoutApi);
+    global.handleAuth = initAuth0(withoutApi).handleAuth;
+    await expect(get(baseUrl, '/api/auth/401')).rejects.toThrow('Unauthorized');
+  });
 });
 
 describe('custom error handler', () => {
