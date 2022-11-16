@@ -55,6 +55,21 @@ describe('with-middleware-auth-required', () => {
     expect(redirect.searchParams.get('returnTo')).toEqual('http://example.com/');
   });
 
+  test('require auth on anonymous requests to api routes', async () => {
+    const res = await setup({ url: 'http://example.com/api/foo' });
+    expect(res.status).toEqual(401);
+    expect(res.headers.get('x-middleware-rewrite')).toEqual('http://example.com/api/auth/401');
+  });
+
+  test('require auth on anonymous requests to api routes with custom 401', async () => {
+    const res = await setup({
+      url: 'http://example.com/api/foo',
+      config: { ...withoutApi, routes: { unauthorized: '/api/foo-401' } }
+    });
+    expect(res.status).toEqual(401);
+    expect(res.headers.get('x-middleware-rewrite')).toEqual('http://example.com/api/foo-401');
+  });
+
   test('return to previous url', async () => {
     const res = await setup({ url: 'http://example.com/foo/bar?baz=hello' });
     const redirect = new URL(res.headers.get('location') as string);

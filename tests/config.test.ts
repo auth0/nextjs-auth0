@@ -92,7 +92,8 @@ describe('config params', () => {
       routes: {
         login: '/api/auth/login',
         callback: '/api/auth/callback',
-        postLogoutRedirect: ''
+        postLogoutRedirect: '',
+        unauthorized: '/api/auth/401'
       },
       organization: undefined
     });
