@@ -97,7 +97,7 @@
 					<div class="tsd-signature tsd-kind-icon">Config<wbr>Parameters<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">DeepPartial</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/config.baseconfig.html" class="tsd-signature-type" data-tsd-kind="Interface">BaseConfig</a><span class="tsd-signature-symbol"> &amp; </span><a href="../interfaces/config.nextconfig.html" class="tsd-signature-type" data-tsd-kind="Interface">NextConfig</a><span class="tsd-signature-symbol">&gt;</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/0562273/src/config.ts#L399">src/config.ts:399</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/76c386f/src/config.ts#L400">src/config.ts:400</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -111,8 +111,8 @@
 							<h3>1. Environment Variables</h3>
 						</a>
 						<p>The simplest way to use the SDK is to use the named exports (<a href="handlers_auth.html#handleauth">HandleAuth</a>, <a href="handlers_login.html#handlelogin">HandleLogin</a>,
-							<a href="handlers_logout.html#handlelogout">HandleLogout</a>, <a href="handlers_callback.html#handlecallback">HandleCallback</a>, <a href="handlers_profile.html#handleprofile">HandleProfile</a>, <a href="middleware.html#getsession">GetSession</a>, <a href="session_get_access_token.html#getaccesstoken">GetAccessToken</a>,
-						<a href="helpers_with_api_auth_required.html#withapiauthrequired">WithApiAuthRequired</a>, and <a href="frontend_with_page_auth_required.html#withpageauthrequired">WithPageAuthRequired</a>).</p>
+							<a href="handlers_logout.html#handlelogout">HandleLogout</a>, <a href="handlers_callback.html#handlecallback">HandleCallback</a>, <a href="handlers_profile.html#handleprofile">HandleProfile</a>, <a href="edge.html#getsession-1">GetSession</a>, <a href="session_get_access_token.html#getaccesstoken">GetAccessToken</a>,
+						<a href="helpers_with_api_auth_required.html#withapiauthrequired">WithApiAuthRequired</a>, and <a href="client_with_page_auth_required.html#withpageauthrequired">WithPageAuthRequired</a>).</p>
 						<pre><code class="language-js"><span style="color: #008000">// pages/api/auth/[...auth0].js</span>
 <span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">handleAuth</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@auth0/nextjs-auth0&#039;</span><span style="color: #000000">;</span>
 
@@ -159,7 +159,7 @@
 							<li><code>AUTH0_COOKIE_SAME_SITE</code>: See <a href="../interfaces/config.cookieconfig.html#samesite">CookieConfig.sameSite</a>.</li>
 						</ul>
 						<a href="#2-create-your-own-instance-using-initauth0" id="2-create-your-own-instance-using-initauth0" style="color: inherit; text-decoration: none;">
-							<h3>2. Create your own instance using <a href="instance.html#initauth0">InitAuth0</a></h3>
+							<h3>2. Create your own instance using <a href="edge.html#initauth0">InitAuth0</a></h3>
 						</a>
 						<p>If you don&#39;t want to configure the SDK with environment variables or you want more fine grained control over the
 						instance, you can create an instance yourself and use the handlers and helpers from that.</p>
@@ -175,10 +175,10 @@
 
 <span style="color: #AF00DB">return</span><span style="color: #000000"> </span><span style="color: #001080">auth0</span><span style="color: #000000">.</span><span style="color: #795E26">handleAuth</span><span style="color: #000000">();</span>
 </code></pre>
-						<p><strong>IMPORTANT</strong> If you use <a href="instance.html#initauth0">InitAuth0</a>, you should <em>not</em> use the other named exports as they will use a different
+						<p><strong>IMPORTANT</strong> If you use <a href="edge.html#initauth0">InitAuth0</a>, you should <em>not</em> use the other named exports as they will use a different
 							instance of the SDK. Also note - this is for the server side part of the SDK - you will always use named exports for
-							the front end components: <a href="frontend_use_user.html#userprovider">UserProvider</a>, {@Link UseUser} and the
-						front end version of <a href="frontend_with_page_auth_required.html#withpageauthrequired">WithPageAuthRequired</a></p>
+							the front end components: <a href="client_use_user.html#userprovider">UserProvider</a>, {@Link UseUser} and the
+						front end version of <a href="client_with_page_auth_required.html#withpageauthrequired">WithPageAuthRequired</a></p>
 					</div>
 				</section>
 			</section>
@@ -189,17 +189,20 @@
 					<li class=" ">
 						<a href="../index.html">Exports</a>
 					</li>
+					<li class=" tsd-kind-module">
+						<a href="client.html">client</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="client_use_user.html">client/use-<wbr>user</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="client_with_page_auth_required.html">client/with-<wbr>page-<wbr>auth-<wbr>required</a>
+					</li>
 					<li class="current tsd-kind-module">
 						<a href="config.html">config</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="frontend.html">frontend</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="frontend_use_user.html">frontend/use-<wbr>user</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="frontend_with_page_auth_required.html">frontend/with-<wbr>page-<wbr>auth-<wbr>required</a>
+						<a href="edge.html">edge</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="handlers.html">handlers</a>
@@ -235,10 +238,7 @@
 						<a href="helpers_with_page_auth_required.html">helpers/with-<wbr>page-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="instance.html">instance</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="middleware.html">middleware</a>
+						<a href="index.html">index</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="session.html">session</a>
@@ -294,6 +294,7 @@
 		<div class="tsd-legend-group">
 			<ul class="tsd-legend">
 				<li class="tsd-kind-function"><span class="tsd-kind-icon">Function</span></li>
+				<li class="tsd-kind-function tsd-has-type-parameter"><span class="tsd-kind-icon">Function with type parameter</span></li>
 				<li class="tsd-kind-type-alias"><span class="tsd-kind-icon">Type alias</span></li>
 				<li class="tsd-kind-type-alias tsd-has-type-parameter"><span class="tsd-kind-icon">Type alias with type parameter</span></li>
 			</ul>
