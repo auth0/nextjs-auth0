@@ -1,5 +1,14 @@
 # Change Log
 
+## [v2.0.0-beta.4](https://github.com/auth0/nextjs-auth0/tree/v2.0.0-beta.4) (2022-11-18)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.0.0-beta.3...v2.0.0-beta.4)
+
+**⚠️ BREAKING CHANGES**
+- Rearrange exports for RSC and add experimental RSC route to example [\#913](https://github.com/auth0/nextjs-auth0/pull/913) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
+**Fixed**
+- WithMiddlewareAuthRequired should return 401 for /api routes [\#909](https://github.com/auth0/nextjs-auth0/pull/909) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [v2.0.0-beta.3](https://github.com/auth0/nextjs-auth0/tree/v2.0.0-beta.3) (2022-11-08)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.0.0-beta.2...v2.0.0-beta.3)
 
