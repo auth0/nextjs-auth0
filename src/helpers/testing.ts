@@ -2,7 +2,7 @@ import { Config as BaseConfig, CookieConfig, CookieStore, NodeCookies as Cookies
 import { Session } from '../session';
 
 /**
- * Configuration parameters used by ({@link generateSessionCookie}.
+ * Configuration parameters used by {@link generateSessionCookie}.
  */
 export type GenerateSessionCookieConfig = {
   /**
