@@ -117,7 +117,7 @@ export interface Config {
    *     };
    *   }
    * }));
-   * ``
+   * ```
    */
   getLoginState: (req: IncomingMessage, options: LoginOptions) => Record<string, any>;
 
