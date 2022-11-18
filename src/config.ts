@@ -112,7 +112,7 @@ export interface BaseConfig {
    *     };
    *   }
    * }
-   * ``
+   * ```
    */
   getLoginState: (req: IncomingMessage, options: LoginOptions) => Record<string, any>;
 
