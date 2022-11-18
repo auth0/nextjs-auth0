@@ -1,5 +1,4 @@
 'use client';
-import { default as ConfigProvider, ConfigProviderProps, useConfig } from './use-config';
 import {
   default as UserProvider,
   UserProviderProps,
@@ -14,6 +13,5 @@ import {
   WithPageAuthRequiredProps,
   WithPageAuthRequiredOptions
 } from './with-page-auth-required';
-export { ConfigProvider, ConfigProviderProps, useConfig };
 export { UserProvider, UserProviderProps, UserProfile, UserContext, RequestError, useUser };
 export { withPageAuthRequired, WithPageAuthRequired, WithPageAuthRequiredProps, WithPageAuthRequiredOptions };

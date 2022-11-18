@@ -1,13 +1,7 @@
 import React from 'react';
 
-import {
-  ConfigProvider,
-  ConfigProviderProps,
-  RequestError,
-  UserProvider,
-  UserProviderProps,
-  UserProfile
-} from '../../src/client';
+import { RequestError, UserProvider, UserProviderProps, UserProfile } from '../../src/client';
+import { default as ConfigProvider, ConfigProviderProps } from '../../src/client/use-config';
 
 type FetchUserMock = {
   ok: boolean;
