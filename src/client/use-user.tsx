@@ -1,3 +1,4 @@
+'use client';
 import React, { ReactElement, useState, useEffect, useCallback, useContext, createContext } from 'react';
 
 import ConfigProvider, { ConfigContext } from './use-config';
@@ -75,7 +76,7 @@ type UserFetcher = (url: string) => Promise<UserProfile | undefined>;
  * ```js
  * // pages/_app.js
  * import React from 'react';
- * import { UserProvider } from '@auth0/nextjs-auth0';
+ * import { UserProvider } from '@auth0/nextjs-auth0/client';
  *
  * export default function App({ Component, pageProps }) {
  *   // If you've used `withPageAuthRequired`, `pageProps.user` can prefill the hook
@@ -139,7 +140,7 @@ export type UseUser = () => UserContext;
  * ```js
  * // pages/profile.js
  * import Link from 'next/link';
- * import { useUser } from '@auth0/nextjs-auth0';
+ * import { useUser } from '@auth0/nextjs-auth0/client';
  *
  * export default function Profile() {
  *   const { user, error, isLoading } = useUser();

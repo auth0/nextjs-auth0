@@ -127,7 +127,7 @@ Wrap your `pages/_app.js` component with the `UserProvider` component:
 ```jsx
 // pages/_app.js
 import React from 'react';
-import { UserProvider } from '@auth0/nextjs-auth0';
+import { UserProvider } from '@auth0/nextjs-auth0/client';
 
 export default function App({ Component, pageProps }) {
   return (
@@ -144,7 +144,7 @@ You can now determine if a user is authenticated by checking that the `user` obj
 
 ```jsx
 // pages/index.js
-import { useUser } from '@auth0/nextjs-auth0';
+import { useUser } from '@auth0/nextjs-auth0/client';
 
 export default function Index() {
   const { user, error, isLoading } = useUser();
@@ -174,10 +174,12 @@ For other comprehensive examples, see the [EXAMPLES.md](./EXAMPLES.md) document.
 
 ### API Reference
 
-- [Configuration Options](https://auth0.github.io/nextjs-auth0/modules/config.html)
+#### Server (for Node.js)
 
-**Server-side methods**:
+`import * from @auth0/nextjs-auth0`
 
+- [Configuration Options and Environment variables](https://auth0.github.io/nextjs-auth0/modules/config.html)
+- [initAuth0](https://auth0.github.io/nextjs-auth0/modules/index.html#initauth0)
 - [handleAuth](https://auth0.github.io/nextjs-auth0/modules/handlers_auth.html)
 - [handleLogin](https://auth0.github.io/nextjs-auth0/modules/handlers_login.html#handlelogin)
 - [handleCallback](https://auth0.github.io/nextjs-auth0/modules/handlers_callback.html)
@@ -185,19 +187,34 @@ For other comprehensive examples, see the [EXAMPLES.md](./EXAMPLES.md) document.
 - [handleProfile](https://auth0.github.io/nextjs-auth0/modules/handlers_profile.html)
 - [withApiAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_api_auth_required.html)
 - [withPageAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_page_auth_required.html#withpageauthrequired)
-- [withMiddlewareAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_middleware_auth_required.html)
 - [getSession](https://auth0.github.io/nextjs-auth0/modules/session_get_session.html)
 - [updateSession](https://auth0.github.io/nextjs-auth0/modules/session_update_session.html)
 - [getAccessToken](https://auth0.github.io/nextjs-auth0/modules/session_get_access_token.html)
-- [initAuth0](https://auth0.github.io/nextjs-auth0/modules/instance.html)
 
-**Client-side methods/components**:
+#### Edge (for Middleware and the Edge runtime)
 
-- [UserProvider](https://auth0.github.io/nextjs-auth0/modules/frontend_use_user.html#userprovider)
-- [useUser](https://auth0.github.io/nextjs-auth0/modules/frontend_use_user.html)
-- [withPageAuthRequired](https://auth0.github.io/nextjs-auth0/modules/frontend_with_page_auth_required.html)
+`import * from @auth0/nextjs-auth0/edge`
 
-Visit the auto-generated [API Docs](https://auth0.github.io/nextjs-auth0/) for more details.
+- [Configuration Options and Environment variables](https://auth0.github.io/nextjs-auth0/modules/config.html)
+- [initAuth0](https://auth0.github.io/nextjs-auth0/modules/edge.html#initauth0-1)
+- [withMiddlewareAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_middleware_auth_required.html)
+- [getSession](https://auth0.github.io/nextjs-auth0/modules/edge.html#getsession-1)
+
+#### Client (for the Browser)
+
+`import * from @auth0/nextjs-auth0/client`
+
+- [UserProvider](https://auth0.github.io/nextjs-auth0/modules/client_use_user.html#userprovider)
+- [useUser](https://auth0.github.io/nextjs-auth0/modules/client_use_user.html)
+- [withPageAuthRequired](https://auth0.github.io/nextjs-auth0/modules/client_with_page_auth_required.html)
+
+#### Testing helpers
+
+`import * from @auth0/nextjs-auth0/testing`
+
+- [generateSessionCookie](https://auth0.github.io/nextjs-auth0/modules/helpers_testing.html#generatesessioncookie)
+
+Visit the auto-generated [API Docs](https://auth0.github.io/nextjs-auth0/) for more details
 
 ### Cookies and Security
 

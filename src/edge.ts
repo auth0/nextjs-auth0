@@ -10,17 +10,17 @@ import {
 import { getConfig, ConfigParameters } from './config';
 import { setIsUsingNamedExports, setIsUsingOwnInstance } from './utils/instance-check';
 
-export type Instance = { withMiddlewareAuthRequired: WithMiddlewareAuthRequired; getSession: GetSession };
+export type Auth0Edge = { withMiddlewareAuthRequired: WithMiddlewareAuthRequired; getSession: GetSession };
 
 export type GetSession = (req: NextRequest, res: NextResponse) => Promise<Session | null | undefined>;
 
-export type InitAuth0 = (params?: ConfigParameters) => Instance;
+export type InitAuth0 = (params?: ConfigParameters) => Auth0Edge;
 
 export { WithMiddlewareAuthRequired };
 
-let instance: Instance;
+let instance: Auth0Edge;
 
-function getInstance(params?: ConfigParameters): Instance {
+function getInstance(params?: ConfigParameters): Auth0Edge {
   setIsUsingNamedExports();
   if (instance) {
     return instance;
