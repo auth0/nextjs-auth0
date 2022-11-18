@@ -1,7 +1,7 @@
 body {
     margin: 0;
     color: #333;
-    font-family: -apple-system, 'Segoe UI';
+    font-family: -apple-system, 'Segoe UI', sans-serif;
 }
 .container {
     max-width: 42rem;
