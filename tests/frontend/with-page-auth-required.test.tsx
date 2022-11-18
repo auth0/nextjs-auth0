@@ -6,7 +6,7 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 
 import { fetchUserErrorMock, withUserProvider, user } from '../fixtures/frontend';
-import { withPageAuthRequired } from '../../src/frontend';
+import { withPageAuthRequired } from '../../src/client';
 
 const windowLocation = window.location;
 

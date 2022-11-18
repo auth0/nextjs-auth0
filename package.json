@@ -2,17 +2,25 @@
   "name": "@auth0/nextjs-auth0",
   "version": "2.0.0-beta.3",
   "description": "Next.js SDK for signing in with Auth0",
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": "./dist/client/index.js",
+    "./edge": "./dist/edge.js",
+    "./testing": "./dist/helpers/testing.js"
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "browser": "dist/index.browser.js",
+  "browser": "dist/client/index.js",
   "directories": {
     "test": "tests"
   },
   "files": [
     "dist",
     "src",
-    "middleware.js",
-    "middleware.d.ts",
+    "client.js",
+    "client.d.ts",
+    "edge.js",
+    "edge.d.ts",
     "testing.js",
     "testing.d.ts"
   ],
@@ -88,14 +96,14 @@
     "cypress": "^8.4.0",
     "eslint": "^7.17.0",
     "eslint-config-prettier": "^8.1.0",
-    "eslint-import-resolver-typescript": "^2.3.0",
+    "eslint-import-resolver-typescript": "^3.5.2",
     "eslint-plugin-import": "^2.22.1",
     "eslint-plugin-jsx-a11y": "^6.4.1",
     "eslint-plugin-prettier": "^3.3.1",
     "eslint-plugin-react": "^7.22.0",
     "eslint-plugin-react-hooks": "^4.2.0",
     "jest": "^27.2.0",
-    "next": "^13.0.1",
+    "next": "^13.0.3",
     "nock": "^13.0.5",
     "oidc-provider": "^7.6.0",
     "on-headers": "^1.0.2",
@@ -135,9 +143,7 @@
     ],
     "collectCoverageFrom": [
       "<rootDir>/src/**/*.*",
-      "!<rootDir>/src/index.browser.ts",
-      "!<rootDir>/src/middleware.ts",
-      "!<rootDir>/src/instance.ts",
+      "!<rootDir>/src/edge.ts",
       "!<rootDir>/src/auth0-session/config.ts",
       "!<rootDir>/src/auth0-session/index.ts",
       "!<rootDir>/src/auth0-session/session-cache.ts"

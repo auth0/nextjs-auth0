@@ -1,3 +1,6 @@
 module.exports = {
-  poweredByHeader: false
+  poweredByHeader: false,
+  experimental: {
+    appDir: true
+  }
 };

@@ -1,3 +1,4 @@
+'use client';
 import React, { ReactElement, useContext, createContext } from 'react';
 
 export type ConfigContext = {

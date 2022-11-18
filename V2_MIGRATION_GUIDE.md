@@ -4,6 +4,7 @@ Guide to migrating from `1.x` to `2.x`
 
 - [Node 10 is no longer supported](#node-10-is-no-longer-supported)
 - [`getSession` now returns a `Promise`](#getsession-now-returns-a-promise)
+- [Client methods and components are now exported under /client](#client-methods-and-components-are-now-exported-under-client)
 - [`updateSession` has been added](#updatesession-has-been-added)
 - [`getServerSidePropsWrapper` has been removed](#getserversidepropswrapper-has-been-removed)
 - [Profile API route no longer returns a 401](#profile-api-route-no-longer-returns-a-401)
@@ -41,6 +42,92 @@ async function myApiRoute(req, res) {
   // ...
 }
 ```
+
+## Client methods and components are now exported under /client
+
+All methods and components for the browser should now be accessed under `/client`.
+
+### Before
+
+```js
+// pages/_app.js
+import React from 'react';
+import { UserProvider } from '@auth0/nextjs-auth0';
+
+export default function App({ Component, pageProps }) {
+  return (
+    <UserProvider>
+      <Component {...pageProps} />
+    </UserProvider>
+  );
+}
+```
+
+```js
+// pages/index.js
+import { useUser } from '@auth0/nextjs-auth0';
+
+export default function Index() {
+  const { user, error, isLoading } = useUser();
+
+  if (isLoading) return <div>Loading...</div>;
+  if (error) return <div>{error.message}</div>;
+
+  if (user) {
+    return (
+      <div>
+        Welcome {user.name}! <a href="/api/auth/logout">Logout</a>
+      </div>
+    );
+  }
+
+  return <a href="/api/auth/login">Login</a>;
+}
+```
+
+### After
+
+```js
+// pages/_app.js
+import React from 'react';
+import { UserProvider } from '@auth0/nextjs-auth0/client';
+
+export default function App({ Component, pageProps }) {
+  return (
+    <UserProvider>
+      <Component {...pageProps} />
+    </UserProvider>
+  );
+}
+```
+
+```js
+// pages/index.js
+import { useUser, withPageAuthRequired as withPageAuthRequiredCSR } from '@auth0/nextjs-auth0/client';
+// The SSR version of withPageAuthRequired is still in the root export
+import { withPageAuthRequired as withPageAuthRequiredSSR } from '@auth0/nextjs-auth0';
+
+export default withPageAuthRequiredCSR(function Index() {
+  const { user, error, isLoading } = useUser();
+
+  if (isLoading) return <div>Loading...</div>;
+  if (error) return <div>{error.message}</div>;
+
+  if (user) {
+    return (
+      <div>
+        Welcome {user.name}! <a href="/api/auth/logout">Logout</a>
+      </div>
+    );
+  }
+
+  return <a href="/api/auth/login">Login</a>;
+});
+
+export const getServerSideProps = withPageAuthRequiredSSR();
+```
+
+### Before
 
 ## `updateSession` has been added
 

@@ -40,7 +40,7 @@ Wrap your `pages/_app.jsx` component in the `UserProvider` component.
 ```jsx
 // pages/_app.jsx
 import React from 'react';
-import { UserProvider } from '@auth0/nextjs-auth0';
+import { UserProvider } from '@auth0/nextjs-auth0/client';
 
 export default function App({ Component, pageProps }) {
   // You can optionally pass the `user` prop from pages that require server-side
@@ -59,7 +59,7 @@ Check the user's authentication state and log them in or out from the front end 
 
 ```jsx
 // pages/index.jsx
-import { useUser } from '@auth0/nextjs-auth0';
+import { useUser } from '@auth0/nextjs-auth0/client';
 
 export default () => {
   const { user, error, isLoading } = useUser();
@@ -167,7 +167,7 @@ Requests to `/pages/profile` without a valid session cookie will be redirected t
 
 ```jsx
 // pages/profile.js
-import { withPageAuthRequired } from '@auth0/nextjs-auth0';
+import { withPageAuthRequired } from '@auth0/nextjs-auth0/client';
 
 export default withPageAuthRequired(function Profile({ user }) {
   return <div>Hello {user.name}</div>;
@@ -195,7 +195,7 @@ Then you can access your API from the frontend with a valid session cookie.
 ```jsx
 // pages/products
 import useSWR from 'swr';
-import { withPageAuthRequired } from '@auth0/nextjs-auth0';
+import { withPageAuthRequired } from '@auth0/nextjs-auth0/client';
 
 const fetcher = async (uri) => {
   const response = await fetch(uri);
@@ -221,7 +221,7 @@ To protect all your routes:
 
 ```js
 // middleware.js
-import { withMiddlewareAuthRequired } from '@auth0/nextjs-auth0/middleware';
+import { withMiddlewareAuthRequired } from '@auth0/nextjs-auth0/edge';
 
 export default withMiddlewareAuthRequired();
 ```
@@ -230,7 +230,7 @@ To protect specific routes:
 
 ```js
 // middleware.js
-import { withMiddlewareAuthRequired } from '@auth0/nextjs-auth0/middleware';
+import { withMiddlewareAuthRequired } from '@auth0/nextjs-auth0/edge';
 
 export default withMiddlewareAuthRequired();
 
@@ -245,7 +245,7 @@ To run custom middleware for authenticated users:
 
 ```js
 // middleware.js
-import { withMiddlewareAuthRequired, getSession } from '@auth0/nextjs-auth0/middleware';
+import { withMiddlewareAuthRequired, getSession } from '@auth0/nextjs-auth0/edge';
 
 export default withMiddlewareAuthRequired(async function middleware(req) {
   const res = NextResponse.next();
@@ -262,8 +262,8 @@ For using middleware with your own instance of the SDK:
 import {
   withMiddlewareAuthRequired,
   getSession,
-  initAuth0 // note the mw specific `initAuth0`
-} from '@auth0/nextjs-auth0/middleware';
+  initAuth0 // note the edge runtime specific `initAuth0`
+} from '@auth0/nextjs-auth0/edge';
 
 const auth0 = initAuth0({ ... });
 

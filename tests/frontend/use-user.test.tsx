@@ -8,8 +8,8 @@ import {
   withUserProvider,
   user
 } from '../fixtures/frontend';
-import { RequestError, useConfig } from '../../src/frontend';
-import { useUser, UserContext } from '../../src';
+import { useUser, UserContext, RequestError } from '../../src/client';
+import { useConfig } from '../../src/client/use-config';
 import React from 'react';
 
 describe('context wrapper', () => {
