@@ -45,7 +45,7 @@ async function myApiRoute(req, res) {
 
 ## Client methods and components are now exported under /client
 
-All methods and components for the browser should now be accessed under `/client`
+All methods and components for the browser should now be accessed under `/client`.
 
 ### Before
 

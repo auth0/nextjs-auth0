@@ -21,7 +21,6 @@ export function getSession() {
 
 export default async function ExperimentalRscPage() {
   const session = await getSession();
-  // const session = {};
   return (
     <div>
       <h1>Profile</h1>
