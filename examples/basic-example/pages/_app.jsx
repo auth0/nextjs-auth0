@@ -1,5 +1,5 @@
 import React from 'react';
-import { UserProvider } from '@auth0/nextjs-auth0';
+import { UserProvider } from '@auth0/nextjs-auth0/client';
 
 export default function App({ Component, pageProps }) {
   // If you've used `withAuth`, pageProps.user can pre-populate the hook

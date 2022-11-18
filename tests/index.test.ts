@@ -57,7 +57,7 @@ describe('index', () => {
     );
   });
 
-  test('should share insance when using named exports', async () => {
+  test('should share instance when using named exports', async () => {
     updateEnv(withoutApi);
     const req = new IncomingMessage(new Socket());
     const res = new ServerResponse(req);

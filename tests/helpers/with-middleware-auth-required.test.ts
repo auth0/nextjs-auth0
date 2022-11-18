@@ -3,7 +3,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { NextFetchEvent } from 'next/dist/server/web/spec-extension/fetch-event';
-import { initAuth0 } from '../../src/middleware';
+import { initAuth0 } from '../../src/edge';
 import { withoutApi } from '../fixtures/default-settings';
 import { IdTokenClaims } from 'openid-client';
 import { encryption as deriveKey } from '../../src/auth0-session/utils/hkdf';
