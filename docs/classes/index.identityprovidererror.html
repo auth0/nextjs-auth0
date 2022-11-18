@@ -3,7 +3,7 @@
 <head>
 	<meta charset="utf-8">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
-	<title>RequestError | @auth0/nextjs-auth0</title>
+	<title>IdentityProviderError | @auth0/nextjs-auth0</title>
 	<meta name="description" content="Documentation for @auth0/nextjs-auth0">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<link rel="stylesheet" href="../assets/css/main.css">
@@ -53,38 +53,27 @@
 					<a href="../index.html">@auth0/nextjs-auth0</a>
 				</li>
 				<li>
-					<a href="../modules/frontend_use_user.html">frontend/use-user</a>
+					<a href="../modules/index.html">index</a>
 				</li>
 				<li>
-					<a href="frontend_use_user.requesterror.html">RequestError</a>
+					<a href="index.identityprovidererror.html">IdentityProviderError</a>
 				</li>
 			</ul>
-			<h1>Class RequestError</h1>
+			<h1>Class IdentityProviderError</h1>
 		</div>
 	</div>
 </header>
 <div class="container container-main">
 	<div class="row">
 		<div class="col-8 col-content">
-			<section class="tsd-panel tsd-comment">
-				<div class="tsd-comment tsd-typography">
-					<div class="lead">
-						<p>The error thrown by the default {@link UserFetcher}.</p>
-					</div>
-					<p>The <code>status</code> property contains the status code of the response. It is <code>0</code> when the request
-					fails, for example due to being offline.</p>
-					<p>This error is not thrown when the status code of the response is <code>204</code>, because that means the
-					user is not authenticated.</p>
-				</div>
-			</section>
 			<section class="tsd-panel tsd-hierarchy">
 				<h3>Hierarchy</h3>
 				<ul class="tsd-hierarchy">
 					<li>
-						<span class="tsd-signature-type">Error</span>
+						<span class="tsd-signature-type">EscapedError</span>
 						<ul class="tsd-hierarchy">
 							<li>
-								<span class="target">RequestError</span>
+								<span class="target">IdentityProviderError</span>
 							</li>
 						</ul>
 					</li>
@@ -97,13 +86,14 @@
 						<section class="tsd-index-section ">
 							<h3>Constructors</h3>
 							<ul class="tsd-index-list">
-								<li class="tsd-kind-constructor tsd-parent-kind-class tsd-is-overwrite"><a href="frontend_use_user.requesterror.html#constructor" class="tsd-kind-icon">constructor</a></li>
+								<li class="tsd-kind-constructor tsd-parent-kind-class tsd-is-overwrite"><a href="index.identityprovidererror.html#constructor" class="tsd-kind-icon">constructor</a></li>
 							</ul>
 						</section>
 						<section class="tsd-index-section ">
 							<h3>Properties</h3>
 							<ul class="tsd-index-list">
-								<li class="tsd-kind-property tsd-parent-kind-class"><a href="frontend_use_user.requesterror.html#status" class="tsd-kind-icon">status</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-class"><a href="index.identityprovidererror.html#error" class="tsd-kind-icon">error</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-class"><a href="index.identityprovidererror.html#errordescription" class="tsd-kind-icon">error<wbr>Description</a></li>
 							</ul>
 						</section>
 					</div>
@@ -115,23 +105,29 @@
 					<a name="constructor" class="tsd-anchor"></a>
 					<h3>constructor</h3>
 					<ul class="tsd-signatures tsd-kind-constructor tsd-parent-kind-class tsd-is-overwrite">
-						<li class="tsd-signature tsd-kind-icon">new <wbr>Request<wbr>Error<span class="tsd-signature-symbol">(</span>status<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="frontend_use_user.requesterror.html" class="tsd-signature-type" data-tsd-kind="Class">RequestError</a></li>
+						<li class="tsd-signature tsd-kind-icon">new <wbr>Identity<wbr>Provider<wbr>Error<span class="tsd-signature-symbol">(</span>rpError<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">OPError</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="index.identityprovidererror.html" class="tsd-signature-type" data-tsd-kind="Class">IdentityProviderError</a></li>
 					</ul>
 					<ul class="tsd-descriptions">
 						<li class="tsd-description">
 							<aside class="tsd-sources">
-								<p>Overrides Error.constructor</p>
+								<p>Overrides EscapedError.constructor</p>
 								<ul>
-									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/0562273/src/frontend/use-user.tsx#L46">src/frontend/use-user.tsx:46</a></li>
+									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/76c386f/src/auth0-session/utils/errors.ts#L59">src/auth0-session/utils/errors.ts:59</a></li>
 								</ul>
 							</aside>
+							<div class="tsd-comment tsd-typography">
+								<div class="lead">
+									<p><strong>WARNING</strong> The message can contain user input and is only escaped using basic escaping for putting untrusted data
+									directly into the HTML body</p>
+								</div>
+							</div>
 							<h4 class="tsd-parameters-title">Parameters</h4>
 							<ul class="tsd-parameters">
 								<li>
-									<h5>status: <span class="tsd-signature-type">number</span></h5>
+									<h5>rpError: <span class="tsd-signature-type">OPError</span></h5>
 								</li>
 							</ul>
-							<h4 class="tsd-returns-title">Returns <a href="frontend_use_user.requesterror.html" class="tsd-signature-type" data-tsd-kind="Class">RequestError</a></h4>
+							<h4 class="tsd-returns-title">Returns <a href="index.identityprovidererror.html" class="tsd-signature-type" data-tsd-kind="Class">IdentityProviderError</a></h4>
 						</li>
 					</ul>
 				</section>
@@ -139,14 +135,38 @@
 			<section class="tsd-panel-group tsd-member-group ">
 				<h2>Properties</h2>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-class">
-					<a name="status" class="tsd-anchor"></a>
-					<h3>status</h3>
-					<div class="tsd-signature tsd-kind-icon">status<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span></div>
+					<a name="error" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagOptional">Optional</span> error</h3>
+					<div class="tsd-signature tsd-kind-icon">error<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/0562273/src/frontend/use-user.tsx#L46">src/frontend/use-user.tsx:46</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/76c386f/src/auth0-session/utils/errors.ts#L59">src/auth0-session/utils/errors.ts:59</a></li>
 						</ul>
 					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>The &#39;error&#39; parameter from the AS response
+								<strong>WARNING</strong> This can contain user input and is only escaped using basic escaping for putting untrusted data
+							directly into the HTML body</p>
+						</div>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-class">
+					<a name="errordescription" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagOptional">Optional</span> error<wbr>Description</h3>
+					<div class="tsd-signature tsd-kind-icon">error<wbr>Description<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/76c386f/src/auth0-session/utils/errors.ts#L53">src/auth0-session/utils/errors.ts:53</a></li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>The &#39;error_description&#39; parameter from the AS response.
+								<strong>WARNING</strong> This can contain user input and is only escaped using basic escaping for putting untrusted data
+							directly into the HTML body</p>
+						</div>
+					</div>
 				</section>
 			</section>
 		</div>
@@ -157,16 +177,19 @@
 						<a href="../index.html">Exports</a>
 					</li>
 					<li class=" tsd-kind-module">
+						<a href="../modules/client.html">client</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/client_use_user.html">client/use-<wbr>user</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/client_with_page_auth_required.html">client/with-<wbr>page-<wbr>auth-<wbr>required</a>
+					</li>
+					<li class=" tsd-kind-module">
 						<a href="../modules/config.html">config</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="../modules/frontend.html">frontend</a>
-					</li>
-					<li class="current tsd-kind-module">
-						<a href="../modules/frontend_use_user.html">frontend/use-<wbr>user</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="../modules/frontend_with_page_auth_required.html">frontend/with-<wbr>page-<wbr>auth-<wbr>required</a>
+						<a href="../modules/edge.html">edge</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/handlers.html">handlers</a>
@@ -201,11 +224,8 @@
 					<li class=" tsd-kind-module">
 						<a href="../modules/helpers_with_page_auth_required.html">helpers/with-<wbr>page-<wbr>auth-<wbr>required</a>
 					</li>
-					<li class=" tsd-kind-module">
-						<a href="../modules/instance.html">instance</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="../modules/middleware.html">middleware</a>
+					<li class="current tsd-kind-module">
+						<a href="../modules/index.html">index</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/session.html">session</a>
@@ -235,36 +255,21 @@
 				</ul>
 				<ul class="current">
 					<li class="current tsd-kind-class tsd-parent-kind-module">
-						<a href="frontend_use_user.requesterror.html" class="tsd-kind-icon">Request<wbr>Error</a>
+						<a href="index.identityprovidererror.html" class="tsd-kind-icon">Identity<wbr>Provider<wbr>Error</a>
 						<ul>
 							<li class=" tsd-kind-constructor tsd-parent-kind-class tsd-is-overwrite">
-								<a href="frontend_use_user.requesterror.html#constructor" class="tsd-kind-icon">constructor</a>
+								<a href="index.identityprovidererror.html#constructor" class="tsd-kind-icon">constructor</a>
 							</li>
 							<li class=" tsd-kind-property tsd-parent-kind-class">
-								<a href="frontend_use_user.requesterror.html#status" class="tsd-kind-icon">status</a>
+								<a href="index.identityprovidererror.html#error" class="tsd-kind-icon">error</a>
+							</li>
+							<li class=" tsd-kind-property tsd-parent-kind-class">
+								<a href="index.identityprovidererror.html#errordescription" class="tsd-kind-icon">error<wbr>Description</a>
 							</li>
 						</ul>
 					</li>
 				</ul>
 				<ul class="after-current">
-					<li class=" tsd-kind-interface tsd-parent-kind-module">
-						<a href="../interfaces/frontend_use_user.userprofile.html" class="tsd-kind-icon">User<wbr>Profile</a>
-					</li>
-					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
-						<a href="../modules/frontend_use_user.html#usercontext" class="tsd-kind-icon">User<wbr>Context</a>
-					</li>
-					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
-						<a href="../modules/frontend_use_user.html#userprovider" class="tsd-kind-icon">User<wbr>Provider</a>
-					</li>
-					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
-						<a href="../modules/frontend_use_user.html#userproviderprops" class="tsd-kind-icon">User<wbr>Provider<wbr>Props</a>
-					</li>
-					<li class=" tsd-kind-property tsd-parent-kind-module">
-						<a href="../modules/frontend_use_user.html#default" class="tsd-kind-icon">default</a>
-					</li>
-					<li class=" tsd-kind-function tsd-parent-kind-module">
-						<a href="../modules/frontend_use_user.html#useuser" class="tsd-kind-icon">use<wbr>User</a>
-					</li>
 				</ul>
 			</nav>
 		</div>
@@ -275,15 +280,16 @@
 		<h2>Legend</h2>
 		<div class="tsd-legend-group">
 			<ul class="tsd-legend">
+				<li class="tsd-kind-function"><span class="tsd-kind-icon">Function</span></li>
+				<li class="tsd-kind-function tsd-has-type-parameter"><span class="tsd-kind-icon">Function with type parameter</span></li>
+				<li class="tsd-kind-type-alias"><span class="tsd-kind-icon">Type alias</span></li>
+				<li class="tsd-kind-type-alias tsd-has-type-parameter"><span class="tsd-kind-icon">Type alias with type parameter</span></li>
+			</ul>
+			<ul class="tsd-legend">
 				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
 				<li class="tsd-kind-class tsd-has-type-parameter"><span class="tsd-kind-icon">Class with type parameter</span></li>
 				<li class="tsd-kind-constructor tsd-parent-kind-class"><span class="tsd-kind-icon">Constructor</span></li>
 				<li class="tsd-kind-property tsd-parent-kind-class"><span class="tsd-kind-icon">Property</span></li>
-			</ul>
-			<ul class="tsd-legend">
-				<li class="tsd-kind-function"><span class="tsd-kind-icon">Function</span></li>
-				<li class="tsd-kind-type-alias"><span class="tsd-kind-icon">Type alias</span></li>
-				<li class="tsd-kind-type-alias tsd-has-type-parameter"><span class="tsd-kind-icon">Type alias with type parameter</span></li>
 			</ul>
 			<ul class="tsd-legend">
 				<li class="tsd-kind-enum"><span class="tsd-kind-icon">Enumeration</span></li>
