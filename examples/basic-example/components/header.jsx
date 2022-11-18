@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { useUser } from '@auth0/nextjs-auth0';
+import { useUser } from '@auth0/nextjs-auth0/client';
 
 const Header = () => {
   const { user } = useUser();

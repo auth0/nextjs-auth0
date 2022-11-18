@@ -7,7 +7,7 @@ import {
   UserProvider,
   UserProviderProps,
   UserProfile
-} from '../../src/frontend';
+} from '../../src/client';
 
 type FetchUserMock = {
   ok: boolean;

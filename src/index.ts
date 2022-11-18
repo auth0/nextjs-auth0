@@ -50,15 +50,84 @@ import {
   WithPageAuthRequiredOptions,
   PageRoute
 } from './helpers';
-import { InitAuth0, SignInWithAuth0 } from './instance';
 import version from './version';
 import { getConfig, getLoginUrl, ConfigParameters } from './config';
 import { setIsUsingNamedExports, setIsUsingOwnInstance } from './utils/instance-check';
 
-let instance: SignInWithAuth0 & { sessionCache: SessionCache };
+/**
+ * The SDK server instance.
+ *
+ * This is created for you when you use the named exports, or you can create your own using {@link InitAuth0}.
+ *
+ * See {@link ConfigParameters} for more info.
+ *
+ * @category Server
+ */
+export interface Auth0Server {
+  /**
+   * Session getter.
+   */
+  getSession: GetSession;
+
+  /**
+   * Append properties to the user.
+   */
+  updateSession: UpdateSession;
+
+  /**
+   * Access token getter.
+   */
+  getAccessToken: GetAccessToken;
+
+  /**
+   * Login handler which will redirect the user to Auth0.
+   */
+  handleLogin: HandleLogin;
+
+  /**
+   * Callback handler which will complete the transaction and create a local session.
+   */
+  handleCallback: HandleCallback;
+
+  /**
+   * Logout handler which will clear the local session and the Auth0 session.
+   */
+  handleLogout: HandleLogout;
+
+  /**
+   * Profile handler which return profile information about the user.
+   */
+  handleProfile: HandleProfile;
+
+  /**
+   * Helper that adds auth to an API route.
+   */
+  withApiAuthRequired: WithApiAuthRequired;
+
+  /**
+   * Helper that adds auth to a Page route.
+   */
+  withPageAuthRequired: WithPageAuthRequired;
+
+  /**
+   * Create the main handlers for your api routes.
+   */
+  handleAuth: HandleAuth;
+}
+
+/**
+ * Initialise your own instance of the SDK.
+ *
+ * See {@link ConfigParameters}.
+ *
+ * @category Server
+ */
+export type InitAuth0 = (params?: ConfigParameters) => Auth0Server;
+
+let instance: Auth0Server & { sessionCache: SessionCache };
 
 // For using managed instance with named exports.
-function getInstance(): SignInWithAuth0 & { sessionCache: SessionCache } {
+function getInstance(): Auth0Server & { sessionCache: SessionCache } {
   setIsUsingNamedExports();
   if (instance) {
     return instance;
@@ -74,7 +143,7 @@ export const initAuth0: InitAuth0 = (params) => {
   return publicApi;
 };
 
-export const _initAuth = (params?: ConfigParameters): SignInWithAuth0 & { sessionCache: SessionCache } => {
+export const _initAuth = (params?: ConfigParameters): Auth0Server & { sessionCache: SessionCache } => {
   const { baseConfig, nextConfig } = getConfig(params);
 
   // Init base layer (with base config)
@@ -131,16 +200,6 @@ export const handleProfile: HandleProfile = ((...args: Parameters<HandleProfile>
 export const handleAuth: HandleAuth = (...args) => getInstance().handleAuth(...args);
 
 export {
-  UserProvider,
-  UserProviderProps,
-  UserProfile,
-  UserContext,
-  RequestError,
-  useUser,
-  WithPageAuthRequiredProps
-} from './frontend';
-
-export {
   AuthError,
   AccessTokenErrorCode,
   AccessTokenError,
@@ -186,7 +245,6 @@ export {
   LoginOptions,
   LogoutOptions,
   GetLoginState,
-  InitAuth0,
   OnError
 };
 /* c8 ignore stop */
