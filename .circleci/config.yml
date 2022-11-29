@@ -1,6 +1,6 @@
 version: 2.1
 orbs:
-  ship: auth0/ship@0.2.0
+  ship: auth0/ship@0.7.7
 jobs:
   build:
     docker:
@@ -28,7 +28,7 @@ jobs:
           name: browserstack
           command: |
             if [ -z "$CIRCLE_PR_NUMBER" ]; then
-              npx start-server-and-test 'start:kitchen-sink-local' http://127.0.0.1:3000 'browserstack-cypress run --build-name $CIRCLE_BRANCH'
+              npx start-server-and-test 'start:kitchen-sink-local' http://localhost:3000 'browserstack-cypress run --build-name $CIRCLE_BRANCH --no-wrap'
             fi
       - store_test_results:
           path: test-results
