@@ -26,7 +26,8 @@
         "typescript": "^4.1.3"
       },
       "package_config_options": {},
-      "headless": true
+      "headless": true,
+      "no-wrap": true
     },
     "connection_settings": {
       "local": true,
