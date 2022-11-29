@@ -79,7 +79,7 @@
     "@typescript-eslint/eslint-plugin": "^4.13.0",
     "@typescript-eslint/parser": "^4.13.0",
     "body-parser": "^1.19.0",
-    "browserstack-cypress-cli": "^1.8.1",
+    "browserstack-cypress-cli": "^1.19.1",
     "cypress": "^8.4.0",
     "eslint": "^7.17.0",
     "eslint-config-prettier": "^8.1.0",
