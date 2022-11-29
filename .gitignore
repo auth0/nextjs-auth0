@@ -26,6 +26,10 @@ cypress/screenshots
 cypress/videos
 cypress.env.json
 
+# Browserstack
+browserstack-cypress-report.*
+build_results.txt
+
 # Grunt intermediate storage (http://gruntjs.com/creating-plugins#storing-task-files)
 .grunt
 
