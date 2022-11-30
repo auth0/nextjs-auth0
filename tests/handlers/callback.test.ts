@@ -202,6 +202,7 @@ describe('callback handler', () => {
       accessTokenScope: 'read:foo delete:foo',
       token_type: 'Bearer',
       refreshToken: 'GEbRxBN...edjnXbL',
+      idToken: await makeIdToken({ iss: 'https://acme.auth0.local/' }),
       user: {
         nickname: '__test_nickname__',
         sub: '__test_sub__'
@@ -240,6 +241,7 @@ describe('callback handler', () => {
     expect(session).toStrictEqual({
       accessTokenExpiresAt: 750,
       accessTokenScope: 'read:foo delete:foo',
+      idToken: await makeIdToken({ iss: 'https://acme.auth0.local/' }),
       token_type: 'Bearer',
       user: {
         nickname: '__test_nickname__',
