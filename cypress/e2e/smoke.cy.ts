@@ -22,14 +22,11 @@ const loginToNodeOidc = () => {
 const login = useAuth0 ? loginToAuth0 : loginToNodeOidc;
 
 describe('smoke tests', () => {
-  before(() => {
+  it('should do basic login and show user', () => {
     cy.visit('/');
     cy.window().its('__DEV_PAGES_MANIFEST'); // wait for pages to load so FF doesn't fail
     cy.get('[data-testid=login]').click();
     login();
-  });
-
-  it('should do basic login and show user', () => {
     cy.url().should('eq', `${Cypress.config().baseUrl}/`);
     cy.get('[data-testid=profile]').contains(EMAIL);
     cy.get('[data-testid=logout]').should('exist');
@@ -37,12 +34,15 @@ describe('smoke tests', () => {
 
   it('should protect a client-side rendered page', () => {
     cy.visit('/profile');
+    login();
     cy.url().should('eq', `${Cypress.config().baseUrl}/profile`);
     cy.get('[data-testid=profile]').contains(EMAIL);
   });
 
   it('should protect a server-side rendered page', () => {
     cy.visit('/profile-ssr');
+    login();
+
     cy.url().should('eq', `${Cypress.config().baseUrl}/profile-ssr`);
     cy.get('[data-testid=profile]').contains(EMAIL);
   });
@@ -54,6 +54,10 @@ describe('smoke tests', () => {
   });
 
   it('should logout and return to the index page', () => {
+    cy.visit('/profile');
+    login();
+    cy.url().should('eq', `${Cypress.config().baseUrl}/profile`);
+    cy.window().its('__DEV_PAGES_MANIFEST'); // wait for pages to load so FF doesn't fail
     cy.get('[data-testid=logout]').click();
     if (!useAuth0) {
       cy.get('[name=logout]').click();

@@ -1,37 +1,31 @@
-# @auth0/nextjs-auth0 (Beta)
+![nextjs-auth0](https://cdn.auth0.com/website/sdks/banners/nextjs-auth0-banner.png)
 
 The Auth0 Next.js SDK is a library for implementing user authentication in Next.js applications.
 
 > :warning: Please be aware that v2 is currently in [**Beta**](https://auth0.com/docs/troubleshoot/product-lifecycle/product-release-stages). Whilst we encourage you to test the update within your applications, we do no recommend using this version in production yet. Please follow the [migration guide](./V2_MIGRATION_GUIDE.md) when updating your application.
 
-[![CircleCI](https://img.shields.io/circleci/build/github/auth0/nextjs-auth0/main?style=flat-square)](https://circleci.com/gh/auth0/nextjs-auth0/tree/main)
-[![NPM version](https://img.shields.io/npm/v/@auth0/nextjs-auth0.svg?style=flat-square)](https://npmjs.org/package/@auth0/nextjs-auth0)
+![Release](https://img.shields.io/npm/v/@auth0/nextjs-auth0/beta)
+[![Coverage](https://img.shields.io/badge/dynamic/json?color=brightgreen&label=coverage&query=jest.coverageThreshold.global.lines&suffix=%25&url=https%3A%2F%2Fraw.githubusercontent.com%2Fauth0%2Fnextjs-auth0%2Fmain%2Fpackage.json)](https://github.com/auth0/nextjs-auth0/blob/main/package.json#L147)
+![Downloads](https://img.shields.io/npm/dw/@auth0/nextjs-auth0)
 [![License](https://img.shields.io/:license-mit-blue.svg?style=flat)](https://opensource.org/licenses/MIT)
+![CircleCI](https://img.shields.io/circleci/build/github/auth0/nextjs-auth0)
 
-## Table of Contents
+📚 [Documentation](#documentation) - 🚀 [Getting Started](#getting-started)- 💻 [API Reference](#api-reference) - 💬 [Feedback](#feedback)
 
-- [Installation](#installation)
-- [Getting Started](#getting-started)
-  - [Auth0 Configuration](#auth0-configuration)
-  - [Basic Setup](#basic-setup)
-- [Documentation](#documentation)
-  - [QuickStart](https://auth0.com/docs/quickstart/webapp/nextjs)
-  - [API Reference](#api-reference)
-  - [v1 Migration Guide](./V1_MIGRATION_GUIDE.md)
-  - [Cookies and Security](#cookies-and-security)
-  - [Caching and Security](#caching-and-security)
-  - [Error Handling and Security](#error-handling-and-security)
-  - [Base Path and Internationalized Routing](#base-path-and-internationalized-routing)
-  - [Architecture](./ARCHITECTURE.md)
-  - [Comparison with auth0-react](#comparison-with-the-auth0-react-sdk)
-  - [Testing](#testing)
-  - [Deploying](#deploying)
-- [Contributing](#contributing)
-- [Vulnerability Reporting](#vulnerability-reporting)
-- [What is Auth0?](#what-is-auth0)
-- [License](#license)
+## Documentation
 
-## Installation
+- [QuickStart](https://auth0.com/docs/quickstart/webapp/nextjs)- our guide for adding Auth0 to your Next.js app.
+- [FAQs](https://github.com/auth0/nextjs-auth0/blob/main/FAQ.md) - Frequently asked questions about nextjs-auth0.
+- [Examples](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md) - lots of examples for your different use cases.
+- [Security](https://github.com/auth0/nextjs-auth0/blob/main/SECURITY.md) - Some important security notices that you should check.
+- [Architecture](https://github.com/auth0/nextjs-auth0/blob/main/ARCHITECTURE.md) - Architectural overview of the SDK.
+- [Testing](https://github.com/auth0/nextjs-auth0/blob/main/TESTING.md) - Some help with testing your nextjs-auth0 application.
+- [Deploying](https://github.com/auth0/nextjs-auth0/blob/main/examples/README.md) - How we deploy our example app to Vercel.
+- [Docs Site](https://auth0.com/docs) - explore our docs site and learn more about Auth0.
+
+## Getting Started
+
+### Installation
 
 Using [npm](https://npmjs.org):
 
@@ -42,10 +36,7 @@ npm install @auth0/nextjs-auth0 --tag beta
 This library supports the following tooling versions:
 
 - Node.js: 12 LTS and newer LTS releases are supported.
-
 - Next.js: `>=10`
-
-## Getting Started
 
 ### Auth0 Configuration
 
@@ -113,11 +104,8 @@ export default handleAuth();
 Executing `handleAuth()` creates the following route handlers under the hood that perform different parts of the authentication flow:
 
 - `/api/auth/login`: Your Next.js application redirects users to your identity provider for them to log in (you can optionally pass a `returnTo` parameter to return to a custom relative URL after login, for example `/api/auth/login?returnTo=/profile`).
-
 - `/api/auth/callback`: Your identity provider redirects users to this route after they successfully log in.
-
 - `/api/auth/logout`: Your Next.js application logs out the user.
-
 - `/api/auth/me`: You can fetch user profile information in JSON format.
 
 #### Add the UserProvider to Custom App
@@ -168,13 +156,11 @@ export default function Index() {
 
 There are two additional ways to check for an authenticated user; one for Next.js pages using [withPageAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_page_auth_required.html#withpageauthrequired) and one for Next.js API routes using [withAPIAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_api_auth_required.html#withapiauthrequired).
 
-For other comprehensive examples, see the [EXAMPLES.md](./EXAMPLES.md) document.
+For other comprehensive examples, see the [EXAMPLES.md](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md) document.
 
-## Documentation
+## API Reference
 
-### API Reference
-
-#### Server (for Node.js)
+### Server (for Node.js)
 
 `import * from @auth0/nextjs-auth0`
 
@@ -191,7 +177,7 @@ For other comprehensive examples, see the [EXAMPLES.md](./EXAMPLES.md) document.
 - [updateSession](https://auth0.github.io/nextjs-auth0/modules/session_update_session.html)
 - [getAccessToken](https://auth0.github.io/nextjs-auth0/modules/session_get_access_token.html)
 
-#### Edge (for Middleware and the Edge runtime)
+### Edge (for Middleware and the Edge runtime)
 
 `import * from @auth0/nextjs-auth0/edge`
 
@@ -200,7 +186,7 @@ For other comprehensive examples, see the [EXAMPLES.md](./EXAMPLES.md) document.
 - [withMiddlewareAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_middleware_auth_required.html)
 - [getSession](https://auth0.github.io/nextjs-auth0/modules/edge.html#getsession-1)
 
-#### Client (for the Browser)
+### Client (for the Browser)
 
 `import * from @auth0/nextjs-auth0/client`
 
@@ -208,7 +194,7 @@ For other comprehensive examples, see the [EXAMPLES.md](./EXAMPLES.md) document.
 - [useUser](https://auth0.github.io/nextjs-auth0/modules/client_use_user.html)
 - [withPageAuthRequired](https://auth0.github.io/nextjs-auth0/modules/client_with_page_auth_required.html)
 
-#### Testing helpers
+### Testing helpers
 
 `import * from @auth0/nextjs-auth0/testing`
 
@@ -319,30 +305,9 @@ For deploying, have a look at [how we deploy our example app to Vercel](./exampl
 
 We appreciate feedback and contribution to this repo! Before you get started, please read the following:
 
-- [Auth0's general contribution guidelines](./CONTRIBUTING.md)
-- [Auth0's code of conduct guidelines](./CODE-OF-CONDUCT.md)
-
-Start by installing the dependencies of this project:
-
-```sh
-npm install
-```
-
-In order to build a release, you can run the following commands, and the output will be stored in the `dist` folder:
-
-```sh
-npm run clean
-npm run lint
-npm run build
-```
-
-Additionally, you can also run tests:
-
-```sh
-npm run build:test # Build the Next.js test app
-npm run test
-npm run test:watch
-```
+- [Auth0's general contribution guidelines](https://github.com/auth0/open-source-template/blob/master/GENERAL-CONTRIBUTING.md)
+- [Auth0's code of conduct guidelines](https://github.com/auth0/express-openid-connect/blob/master/CODE-OF-CONDUCT.md)
+- [This repo's contribution guide](https://github.com/auth0/express-openid-connect/blob/master/CONTRIBUTING.md)
 
 ## Vulnerability Reporting
 
@@ -350,17 +315,16 @@ Please do not report security vulnerabilities on the public GitHub issue tracker
 
 ## What is Auth0?
 
-Auth0 helps you to easily:
-
-- Implement authentication with multiple identity providers, including social identity providers such as Google, Facebook, Microsoft, LinkedIn, GitHub, Twitter (amongst others), or enterprise identity systems like Windows Azure AD, Google Apps, Active Directory, ADFS, or any SAML identity provider
-- Log in users with username/password databases, passwordless, or multi-factor authentication
-- Link multiple user accounts together
-- Generate signed JSON Web Tokens to authorize your API calls and flow the user identity securely
-- Access analytics detailing how, when, and where users are logging in
-- Enrich user profiles from other data sources using customizable JavaScript Actions
-
-[Why Auth0?](https://auth0.com/why-auth0) Because you should save time, be happy, and focus on what really matters: building your product.
-
-## License
-
-This project is licensed under the MIT license. See the [LICENSE](LICENSE) file for more info.
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://cdn.auth0.com/website/sdks/logos/auth0_dark_mode.png" width="150">
+    <source media="(prefers-color-scheme: light)" srcset="https://cdn.auth0.com/website/sdks/logos/auth0_light_mode.png" width="150">
+    <img alt="Auth0 Logo" src="https://cdn.auth0.com/website/sdks/logos/auth0_light_mode.png" width="150">
+  </picture>
+</p>
+<p align="center">
+  Auth0 is an easy to implement, adaptable authentication and authorization platform. To learn more checkout <a href="https://auth0.com/why-auth0">Why Auth0?</a>
+</p>
+<p align="center">
+  This project is licensed under the MIT license. See the <a href="https://github.com/auth0/express-openid-connect/blob/master/LICENSE"> LICENSE</a> file for more info.
+</p>
