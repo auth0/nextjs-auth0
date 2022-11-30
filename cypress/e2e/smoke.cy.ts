@@ -49,6 +49,7 @@ describe('smoke tests', () => {
 
   it('should protect a page with middleware', () => {
     cy.visit('/profile-mw');
+    login();
     cy.url().should('eq', `${Cypress.config().baseUrl}/profile-mw`);
     cy.get('[data-testid=profile]').contains(EMAIL);
   });
