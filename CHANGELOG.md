@@ -10,11 +10,10 @@
 - Rearrange exports for RSC and add experimental RSC route to example [\#913](https://github.com/auth0/nextjs-auth0/pull/913) ([adamjmcgrath](https://github.com/adamjmcgrath))
 - Improved callback errors [\#835](https://github.com/auth0/nextjs-auth0/pull/835) ([adamjmcgrath](https://github.com/adamjmcgrath))
 - Prevent mixing named exports and own instances [\#825](https://github.com/auth0/nextjs-auth0/pull/825) ([adamjmcgrath](https://github.com/adamjmcgrath))
-- Do not store the ID token by default [\#809](https://github.com/auth0/nextjs-auth0/pull/809) ([Widcket](https://github.com/Widcket))
 - Allow to override the user prop in server-side rendered pages [\#800](https://github.com/auth0/nextjs-auth0/pull/800) ([Widcket](https://github.com/Widcket))
 - Return 204 from /api/auth/me when logged out [\#791](https://github.com/auth0/nextjs-auth0/pull/791) ([Widcket](https://github.com/Widcket))
 
-**Added**
+  **Added**
 
 - Next.js Middlware support [\#815](https://github.com/auth0/nextjs-auth0/pull/815) ([adamjmcgrath](https://github.com/adamjmcgrath))
 - Add testing utility for generating session cookies [\#816](https://github.com/auth0/nextjs-auth0/pull/816) ([Widcket](https://github.com/Widcket))
@@ -23,6 +22,7 @@
 - Add support for configuring the default handlers [\#840](https://github.com/auth0/nextjs-auth0/pull/840) ([Widcket](https://github.com/Widcket))
 - Add logout options [\#877](https://github.com/auth0/nextjs-auth0/pull/877) ([adamjmcgrath](https://github.com/adamjmcgrath))
 - At error cause to AT error when it's from a failed grant [\#878](https://github.com/auth0/nextjs-auth0/pull/878) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Add option to not store ID Token in session [\#809](https://github.com/auth0/nextjs-auth0/pull/809) ([Widcket](https://github.com/Widcket))
 - Default error handler [\#823](https://github.com/auth0/nextjs-auth0/pull/823) ([adamjmcgrath](https://github.com/adamjmcgrath))
 - Allow response customization in afterCallback [\#838](https://github.com/auth0/nextjs-auth0/pull/838) ([adamjmcgrath](https://github.com/adamjmcgrath))
 - Improve API docs [\#796](https://github.com/auth0/nextjs-auth0/pull/796) ([Widcket](https://github.com/Widcket))

@@ -30,20 +30,20 @@ describe('session', () => {
       });
     });
 
-    test('should not store the ID Token by default', async () => {
+    test('should store the ID Token by default', async () => {
       expect(
         fromTokenSet(new TokenSet({ id_token: await makeIdToken({ foo: 'bar' }) }), {
           identityClaimFilter: ['baz'],
           routes
         }).idToken
-      ).toBeUndefined();
+      ).toBeDefined();
     });
 
-    test('should store the ID Token', async () => {
+    test('should not store the ID Token', async () => {
       expect(
         fromTokenSet(new TokenSet({ id_token: await makeIdToken({ foo: 'bar' }) }), {
           session: {
-            storeIDToken: true,
+            storeIDToken: false,
             name: '',
             rolling: false,
             rollingDuration: 0,
@@ -53,7 +53,7 @@ describe('session', () => {
           identityClaimFilter: ['baz'],
           routes
         }).idToken
-      ).not.toBeUndefined();
+      ).toBeUndefined();
     });
   });
 
