@@ -1,19 +1,31 @@
 {
   "name": "@auth0/nextjs-auth0",
-  "version": "1.9.2",
+  "version": "2.0.0",
   "description": "Next.js SDK for signing in with Auth0",
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": "./dist/client/index.js",
+    "./edge": "./dist/edge.js",
+    "./testing": "./dist/helpers/testing.js"
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "browser": "dist/index.browser.js",
+  "browser": "dist/client/index.js",
   "directories": {
     "test": "tests"
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "client.js",
+    "client.d.ts",
+    "edge.js",
+    "edge.d.ts",
+    "testing.js",
+    "testing.d.ts"
   ],
   "engines": {
-    "node": "^10.13.0 || >=12.0.0"
+    "node": ">=12.19.0"
   },
   "scripts": {
     "clean": "rimraf dist",
@@ -33,7 +45,7 @@
     "start:basic": "npm run dev --prefix=examples/basic-example",
     "start:kitchen-sink": "npm run dev --prefix=examples/kitchen-sink-example",
     "start:kitchen-sink-local": "npm run dev:local --prefix=examples/kitchen-sink-example",
-    "test": "jest tests --coverage --maxWorkers=10",
+    "test": "jest tests --coverage --maxWorkers=4",
     "test:watch": "jest --coverage --watch",
     "test:kitchen-sink": "start-server-and-test start:kitchen-sink http-get://localhost:3000 cypress:run",
     "test:kitchen-sink:watch": "start-server-and-test start:kitchen-sink 3000 cypress:open",
@@ -61,8 +73,9 @@
   },
   "homepage": "https://github.com/auth0/nextjs-auth0#readme",
   "devDependencies": {
+    "@edge-runtime/jest-environment": "^1.1.0-beta.31",
     "@testing-library/jest-dom": "^5.11.9",
-    "@testing-library/react": "^11.2.3",
+    "@testing-library/react": "^13.4.0",
     "@testing-library/react-hooks": "^5.0.3",
     "@types/body-parser": "^1.19.0",
     "@types/clone": "^2.1.0",
@@ -73,7 +86,7 @@
     "@types/jsonwebtoken": "^8.5.0",
     "@types/node": "^14.14.20",
     "@types/on-headers": "^1.0.0",
-    "@types/react": "^17.0.20",
+    "@types/react": "^18.0.24",
     "@types/react-dom": "^17.0.9",
     "@types/tough-cookie": "^4.0.0",
     "@types/url-join": "^4.0.0",
@@ -85,20 +98,21 @@
     "cypress": "^11.2.0",
     "eslint": "^7.17.0",
     "eslint-config-prettier": "^8.1.0",
-    "eslint-import-resolver-typescript": "^2.3.0",
+    "eslint-import-resolver-typescript": "^3.5.2",
     "eslint-plugin-import": "^2.22.1",
     "eslint-plugin-jsx-a11y": "^6.4.1",
     "eslint-plugin-prettier": "^3.3.1",
     "eslint-plugin-react": "^7.22.0",
     "eslint-plugin-react-hooks": "^4.2.0",
     "jest": "^27.2.0",
-    "next": "^12.1.6",
+    "next": "^13.0.3",
     "nock": "^13.0.5",
     "oidc-provider": "^7.6.0",
+    "on-headers": "^1.0.2",
     "prettier": "^2.2.1",
-    "react": "^17.0.2",
-    "react-dom": "^17.0.2",
-    "react-test-renderer": "^17.0.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-test-renderer": "^18.2.0",
     "rimraf": "^3.0.2",
     "start-server-and-test": "^1.11.7",
     "timekeeper": "^2.2.0",
@@ -108,15 +122,13 @@
     "typescript": "^4.1.3"
   },
   "dependencies": {
-    "base64url": "^3.0.1",
+    "@panva/hkdf": "^1.0.2",
     "cookie": "^0.5.0",
     "debug": "^4.3.4",
-    "futoin-hkdf": "^1.5.0",
     "http-errors": "^1.8.1",
     "joi": "^17.6.0",
-    "jose": "^2.0.5",
-    "on-headers": "^1.0.2",
-    "openid-client": "^4.9.1",
+    "jose": "^4.9.2",
+    "openid-client": "^5.2.1",
     "tslib": "^2.4.0",
     "url-join": "^4.0.1"
   },
@@ -133,9 +145,10 @@
     ],
     "collectCoverageFrom": [
       "<rootDir>/src/**/*.*",
-      "!<rootDir>/src/index.browser.ts",
-      "!<rootDir>/src/index.ts",
-      "!<rootDir>/src/handlers/auth.ts"
+      "!<rootDir>/src/edge.ts",
+      "!<rootDir>/src/auth0-session/config.ts",
+      "!<rootDir>/src/auth0-session/index.ts",
+      "!<rootDir>/src/auth0-session/session-cache.ts"
     ],
     "coverageReporters": [
       "lcov",
@@ -150,6 +163,7 @@
         "statements": 100
       }
     },
+    "coverageProvider": "v8",
     "preset": "ts-jest",
     "globalSetup": "./tests/global-setup.ts",
     "setupFilesAfterEnv": [

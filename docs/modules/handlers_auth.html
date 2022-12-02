@@ -68,15 +68,11 @@
 				<section class="tsd-panel tsd-index-panel">
 					<div class="tsd-index-content">
 						<section class="tsd-index-section ">
-							<h3>Server Interfaces</h3>
-							<ul class="tsd-index-list">
-								<li class="tsd-kind-interface tsd-parent-kind-module"><a href="../interfaces/handlers_auth.handlers.html" class="tsd-kind-icon">Handlers</a></li>
-							</ul>
-						</section>
-						<section class="tsd-index-section ">
 							<h3>Server Type aliases</h3>
 							<ul class="tsd-index-list">
 								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="handlers_auth.html#handleauth" class="tsd-kind-icon">Handle<wbr>Auth</a></li>
+								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="handlers_auth.html#handlers" class="tsd-kind-icon">Handlers</a></li>
+								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="handlers_auth.html#onerror" class="tsd-kind-icon">On<wbr>Error</a></li>
 							</ul>
 						</section>
 					</div>
@@ -87,28 +83,30 @@
 				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module">
 					<a name="handleauth" class="tsd-anchor"></a>
 					<h3>Handle<wbr>Auth</h3>
-					<div class="tsd-signature tsd-kind-icon">Handle<wbr>Auth<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span>userHandlers<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">Partial</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/handlers_auth.handlers.html" class="tsd-signature-type" data-tsd-kind="Interface">Handlers</a><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">NextApiHandler</span></div>
+					<div class="tsd-signature tsd-kind-icon">Handle<wbr>Auth<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span>userHandlers<span class="tsd-signature-symbol">?: </span><a href="handlers_auth.html#handlers" class="tsd-signature-type" data-tsd-kind="Type alias">Handlers</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">NextApiHandler</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/cc75175/src/handlers/auth.ts#L62">src/handlers/auth.ts:62</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/af21d7c/src/handlers/auth.ts#L94">src/handlers/auth.ts:94</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
 							<p>The main way to use the server SDK.</p>
 						</div>
-						<p>Simply set the environment variables per {@link Config} then create the file <code>pages/api/auth/[...auth0].js</code>, eg</p>
+						<p>Simply set the environment variables per <a href="config.html#configparameters">ConfigParameters</a> then create the file
+						<code>pages/api/auth/[...auth0].js</code>. For example:</p>
 						<pre><code class="language-js"><span style="color: #008000">// pages/api/auth/[...auth0].js</span>
 <span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">handleAuth</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@auth0/nextjs-auth0&#039;</span><span style="color: #000000">;</span>
 
 <span style="color: #AF00DB">export</span><span style="color: #000000"> </span><span style="color: #AF00DB">default</span><span style="color: #000000"> </span><span style="color: #795E26">handleAuth</span><span style="color: #000000">();</span>
 </code></pre>
-						<p>This will create 4 handlers for the following urls:</p>
+						<p>This will create 5 handlers for the following urls:</p>
 						<ul>
-							<li><code>/api/auth/login</code>: log the user in to your app by redirecting them to your Identity Provider.</li>
-							<li><code>/api/auth/callback</code>: The page that your Identity Provider will redirect the user back to on login.</li>
+							<li><code>/api/auth/login</code>: log the user in to your app by redirecting them to your identity provider.</li>
+							<li><code>/api/auth/callback</code>: The page that your identity provider will redirect the user back to on login.</li>
 							<li><code>/api/auth/logout</code>: log the user out of your app.</li>
-							<li><code>/api/auth/me</code>: View the user profile JSON (used by the <a href="frontend_use_user.html#useuser">UseUser</a> hook)</li>
+							<li><code>/api/auth/me</code>: View the user profile JSON (used by the {@link UseUser} hook).</li>
+							<li><code>/api/auth/unauthorized</code>: Returns a 401 for use by <a href="helpers_with_middleware_auth_required.html#withmiddlewareauthrequired">WithMiddlewareAuthRequired</a> when protecting API routes.</li>
 						</ul>
 					</div>
 					<div class="tsd-type-declaration">
@@ -116,17 +114,127 @@
 						<ul class="tsd-parameters">
 							<li class="tsd-parameter-signature">
 								<ul class="tsd-signatures tsd-kind-type-literal tsd-parent-kind-type-alias">
-									<li class="tsd-signature tsd-kind-icon"><span class="tsd-signature-symbol">(</span>userHandlers<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">Partial</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/handlers_auth.handlers.html" class="tsd-signature-type" data-tsd-kind="Interface">Handlers</a><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiHandler</span></li>
+									<li class="tsd-signature tsd-kind-icon"><span class="tsd-signature-symbol">(</span>userHandlers<span class="tsd-signature-symbol">?: </span><a href="handlers_auth.html#handlers" class="tsd-signature-type" data-tsd-kind="Type alias">Handlers</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiHandler</span></li>
 								</ul>
 								<ul class="tsd-descriptions">
 									<li class="tsd-description">
 										<h4 class="tsd-parameters-title">Parameters</h4>
 										<ul class="tsd-parameters">
 											<li>
-												<h5><span class="tsd-flag ts-flagOptional">Optional</span> userHandlers: <span class="tsd-signature-type">Partial</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/handlers_auth.handlers.html" class="tsd-signature-type" data-tsd-kind="Interface">Handlers</a><span class="tsd-signature-symbol">&gt;</span></h5>
+												<h5><span class="tsd-flag ts-flagOptional">Optional</span> userHandlers: <a href="handlers_auth.html#handlers" class="tsd-signature-type" data-tsd-kind="Type alias">Handlers</a></h5>
 											</li>
 										</ul>
 										<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">NextApiHandler</span></h4>
+									</li>
+								</ul>
+							</li>
+						</ul>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module">
+					<a name="handlers" class="tsd-anchor"></a>
+					<h3>Handlers</h3>
+					<div class="tsd-signature tsd-kind-icon">Handlers<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">ApiHandlers</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">ErrorHandlers</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/af21d7c/src/handlers/auth.ts#L61">src/handlers/auth.ts:61</a></li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>If you want to add some custom behavior to the default auth handlers, you can pass in custom handlers for
+							<code>login</code>, <code>logout</code>, <code>callback</code>, and <code>profile</code>. For example:</p>
+						</div>
+						<pre><code class="language-js"><span style="color: #008000">// pages/api/auth/[...auth0].js</span>
+<span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">handleAuth</span><span style="color: #000000">, </span><span style="color: #001080">handleLogin</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@auth0/nextjs-auth0&#039;</span><span style="color: #000000">;</span>
+<span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">errorReporter</span><span style="color: #000000">, </span><span style="color: #001080">logger</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;../../../utils&#039;</span><span style="color: #000000">;</span>
+
+<span style="color: #AF00DB">export</span><span style="color: #000000"> </span><span style="color: #AF00DB">default</span><span style="color: #000000"> </span><span style="color: #795E26">handleAuth</span><span style="color: #000000">({</span>
+<span style="color: #000000">  </span><span style="color: #0000FF">async</span><span style="color: #000000"> </span><span style="color: #795E26">login</span><span style="color: #000000">(</span><span style="color: #001080">req</span><span style="color: #000000">, </span><span style="color: #001080">res</span><span style="color: #000000">) {</span>
+<span style="color: #000000">    </span><span style="color: #AF00DB">try</span><span style="color: #000000"> {</span>
+<span style="color: #000000">       </span><span style="color: #008000">// Pass in custom params to your handler</span>
+<span style="color: #000000">      </span><span style="color: #AF00DB">await</span><span style="color: #000000"> </span><span style="color: #795E26">handleLogin</span><span style="color: #000000">(</span><span style="color: #001080">req</span><span style="color: #000000">, </span><span style="color: #001080">res</span><span style="color: #000000">, { </span><span style="color: #001080">authorizationParams:</span><span style="color: #000000"> { </span><span style="color: #001080">customParam:</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;foo&#039;</span><span style="color: #000000"> } });</span>
+<span style="color: #000000">      </span><span style="color: #008000">// Add your own custom logging.</span>
+<span style="color: #000000">      </span><span style="color: #795E26">logger</span><span style="color: #000000">(</span><span style="color: #A31515">&#039;Redirecting to login&#039;</span><span style="color: #000000">);</span>
+<span style="color: #000000">    } </span><span style="color: #AF00DB">catch</span><span style="color: #000000"> (</span><span style="color: #001080">error</span><span style="color: #000000">) {</span>
+<span style="color: #000000">      </span><span style="color: #008000">// Add you own custom error logging.</span>
+<span style="color: #000000">      </span><span style="color: #795E26">errorReporter</span><span style="color: #000000">(</span><span style="color: #001080">error</span><span style="color: #000000">);</span>
+<span style="color: #000000">      </span><span style="color: #001080">res</span><span style="color: #000000">.</span><span style="color: #795E26">status</span><span style="color: #000000">(</span><span style="color: #001080">error</span><span style="color: #000000">.</span><span style="color: #001080">status</span><span style="color: #000000"> || </span><span style="color: #098658">500</span><span style="color: #000000">).</span><span style="color: #795E26">end</span><span style="color: #000000">();</span>
+<span style="color: #000000">    }</span>
+<span style="color: #000000">  }</span>
+<span style="color: #000000">});</span>
+</code></pre>
+						<p>Alternatively, you can customize the default handlers without overriding them. For example:</p>
+						<pre><code class="language-js"><span style="color: #008000">// pages/api/auth/[...auth0].js</span>
+<span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">handleAuth</span><span style="color: #000000">, </span><span style="color: #001080">handleLogin</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@auth0/nextjs-auth0&#039;</span><span style="color: #000000">;</span>
+
+<span style="color: #AF00DB">export</span><span style="color: #000000"> </span><span style="color: #AF00DB">default</span><span style="color: #000000"> </span><span style="color: #795E26">handleAuth</span><span style="color: #000000">({</span>
+<span style="color: #000000">  </span><span style="color: #001080">login:</span><span style="color: #000000"> </span><span style="color: #795E26">handleLogin</span><span style="color: #000000">({</span>
+<span style="color: #000000">    </span><span style="color: #001080">authorizationParams:</span><span style="color: #000000"> { </span><span style="color: #001080">customParam:</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;foo&#039;</span><span style="color: #000000"> } </span><span style="color: #008000">// Pass in custom params</span>
+<span style="color: #000000">  })</span>
+<span style="color: #000000">});</span>
+</code></pre>
+						<p>You can also create new handlers by customizing the default ones. For example:</p>
+						<pre><code class="language-js"><span style="color: #008000">// pages/api/auth/[...auth0].js</span>
+<span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">handleAuth</span><span style="color: #000000">, </span><span style="color: #001080">handleLogin</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@auth0/nextjs-auth0&#039;</span><span style="color: #000000">;</span>
+
+<span style="color: #AF00DB">export</span><span style="color: #000000"> </span><span style="color: #AF00DB">default</span><span style="color: #000000"> </span><span style="color: #795E26">handleAuth</span><span style="color: #000000">({</span>
+<span style="color: #000000">  </span><span style="color: #001080">signup:</span><span style="color: #000000"> </span><span style="color: #795E26">handleLogin</span><span style="color: #000000">({</span>
+<span style="color: #000000">    </span><span style="color: #001080">authorizationParams:</span><span style="color: #000000"> { </span><span style="color: #001080">screen_hint:</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;signup&#039;</span><span style="color: #000000"> }</span>
+<span style="color: #000000">  })</span>
+<span style="color: #000000">});</span>
+</code></pre>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module">
+					<a name="onerror" class="tsd-anchor"></a>
+					<h3>On<wbr>Error</h3>
+					<div class="tsd-signature tsd-kind-icon">On<wbr>Error<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiRequest</span>, res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiResponse</span>, error<span class="tsd-signature-symbol">: </span><a href="../classes/utils_errors.handlererror.html" class="tsd-signature-type" data-tsd-kind="Class">HandlerError</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">void</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/af21d7c/src/handlers/auth.ts#L117">src/handlers/auth.ts:117</a></li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>Error handler for the default auth routes.</p>
+						</div>
+						<p>Use this to define an error handler for all the default routes in a single place. For example:</p>
+						<pre><code class="language-js"><span style="color: #AF00DB">export</span><span style="color: #000000"> </span><span style="color: #AF00DB">default</span><span style="color: #000000"> </span><span style="color: #795E26">handleAuth</span><span style="color: #000000">({</span>
+<span style="color: #000000">  </span><span style="color: #795E26">onError</span><span style="color: #000000">(</span><span style="color: #001080">req</span><span style="color: #000000">, </span><span style="color: #001080">res</span><span style="color: #000000">, </span><span style="color: #001080">error</span><span style="color: #000000">) {</span>
+<span style="color: #000000">    </span><span style="color: #795E26">errorLogger</span><span style="color: #000000">(</span><span style="color: #001080">error</span><span style="color: #000000">);</span>
+<span style="color: #000000">    </span><span style="color: #008000">// You can finish the response yourself if you want to customize</span>
+<span style="color: #000000">    </span><span style="color: #008000">// the status code or redirect the user</span>
+<span style="color: #000000">    </span><span style="color: #008000">// res.writeHead(302, {</span>
+<span style="color: #000000">    </span><span style="color: #008000">//     Location: &#039;/custom-error-page&#039;</span>
+<span style="color: #000000">    </span><span style="color: #008000">// });</span>
+<span style="color: #000000">    </span><span style="color: #008000">// res.end();</span>
+<span style="color: #000000">  }</span>
+<span style="color: #000000">});</span>
+</code></pre>
+					</div>
+					<div class="tsd-type-declaration">
+						<h4>Type declaration</h4>
+						<ul class="tsd-parameters">
+							<li class="tsd-parameter-signature">
+								<ul class="tsd-signatures tsd-kind-type-literal tsd-parent-kind-type-alias">
+									<li class="tsd-signature tsd-kind-icon"><span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiRequest</span>, res<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">NextApiResponse</span>, error<span class="tsd-signature-symbol">: </span><a href="../classes/utils_errors.handlererror.html" class="tsd-signature-type" data-tsd-kind="Class">HandlerError</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">void</span></li>
+								</ul>
+								<ul class="tsd-descriptions">
+									<li class="tsd-description">
+										<h4 class="tsd-parameters-title">Parameters</h4>
+										<ul class="tsd-parameters">
+											<li>
+												<h5>req: <span class="tsd-signature-type">NextApiRequest</span></h5>
+											</li>
+											<li>
+												<h5>res: <span class="tsd-signature-type">NextApiResponse</span></h5>
+											</li>
+											<li>
+												<h5>error: <a href="../classes/utils_errors.handlererror.html" class="tsd-signature-type" data-tsd-kind="Class">HandlerError</a></h5>
+											</li>
+										</ul>
+										<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">void</span></h4>
 									</li>
 								</ul>
 							</li>
@@ -142,16 +250,19 @@
 						<a href="../index.html">Exports</a>
 					</li>
 					<li class=" tsd-kind-module">
+						<a href="client.html">client</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="client_use_user.html">client/use-<wbr>user</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="client_with_page_auth_required.html">client/with-<wbr>page-<wbr>auth-<wbr>required</a>
+					</li>
+					<li class=" tsd-kind-module">
 						<a href="config.html">config</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="frontend.html">frontend</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="frontend_use_user.html">frontend/use-<wbr>user</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="frontend_with_page_auth_required.html">frontend/with-<wbr>page-<wbr>auth-<wbr>required</a>
+						<a href="edge.html">edge</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="handlers.html">handlers</a>
@@ -175,16 +286,19 @@
 						<a href="helpers.html">helpers</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="helpers_get_server_side_props_wrapper.html">helpers/get-<wbr>server-<wbr>side-<wbr>props-<wbr>wrapper</a>
+						<a href="helpers_testing.html">helpers/testing</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="helpers_with_api_auth_required.html">helpers/with-<wbr>api-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
+						<a href="helpers_with_middleware_auth_required.html">helpers/with-<wbr>middleware-<wbr>auth-<wbr>required</a>
+					</li>
+					<li class=" tsd-kind-module">
 						<a href="helpers_with_page_auth_required.html">helpers/with-<wbr>page-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="instance.html">instance</a>
+						<a href="index.html">index</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="session.html">session</a>
@@ -199,6 +313,9 @@
 						<a href="session_session.html">session/session</a>
 					</li>
 					<li class=" tsd-kind-module">
+						<a href="session_update_session.html">session/update-<wbr>session</a>
+					</li>
+					<li class=" tsd-kind-module">
 						<a href="utils_errors.html">utils/errors</a>
 					</li>
 					<li class=" tsd-kind-module">
@@ -208,11 +325,14 @@
 			</nav>
 			<nav class="tsd-navigation secondary menu-sticky">
 				<ul class="before-current">
-					<li class=" tsd-kind-interface tsd-parent-kind-module">
-						<a href="../interfaces/handlers_auth.handlers.html" class="tsd-kind-icon">Handlers</a>
-					</li>
 					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
 						<a href="handlers_auth.html#handleauth" class="tsd-kind-icon">Handle<wbr>Auth</a>
+					</li>
+					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
+						<a href="handlers_auth.html#handlers" class="tsd-kind-icon">Handlers</a>
+					</li>
+					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
+						<a href="handlers_auth.html#onerror" class="tsd-kind-icon">On<wbr>Error</a>
 					</li>
 				</ul>
 			</nav>
@@ -225,14 +345,19 @@
 		<div class="tsd-legend-group">
 			<ul class="tsd-legend">
 				<li class="tsd-kind-function"><span class="tsd-kind-icon">Function</span></li>
+				<li class="tsd-kind-function tsd-has-type-parameter"><span class="tsd-kind-icon">Function with type parameter</span></li>
 				<li class="tsd-kind-type-alias"><span class="tsd-kind-icon">Type alias</span></li>
 				<li class="tsd-kind-type-alias tsd-has-type-parameter"><span class="tsd-kind-icon">Type alias with type parameter</span></li>
 			</ul>
 			<ul class="tsd-legend">
-				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>
+				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
+				<li class="tsd-kind-class tsd-has-type-parameter"><span class="tsd-kind-icon">Class with type parameter</span></li>
 			</ul>
 			<ul class="tsd-legend">
-				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
+				<li class="tsd-kind-enum"><span class="tsd-kind-icon">Enumeration</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>
 			</ul>
 		</div>
 	</div>

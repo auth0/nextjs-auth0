@@ -1,10 +1,12 @@
 import nock from 'nock';
 import { CookieJar } from 'tough-cookie';
-import { JWT } from 'jose';
-import { encodeState } from '../../../src/auth0-session/hooks/get-login-state';
+import * as jose from 'jose';
+import { signing as deriveKey } from '../../../src/auth0-session/utils/hkdf';
+import { encodeState } from '../../../src/auth0-session/utils/encoding';
 import { SessionResponse, setup, teardown } from '../fixtures/server';
 import { makeIdToken } from '../fixtures/cert';
 import { toSignedCookieJar, get, post, defaultConfig } from '../fixtures/helpers';
+import { ServerResponse } from 'http';
 
 const expectedDefaultState = encodeState({ returnTo: 'https://example.org' });
 
@@ -14,7 +16,7 @@ describe('callback', () => {
   it('should error when the body is empty', async () => {
     const baseURL = await setup(defaultConfig);
 
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         nonce: '__test_nonce__',
         state: '__test_state__'
@@ -22,8 +24,8 @@ describe('callback', () => {
       baseURL
     );
 
-    await expect(post(baseURL, '/callback', { body: {}, cookieJar })).rejects.toThrowError(
-      'state missing from the response'
+    await expect(post(baseURL, '/callback', { body: {}, cookieJar })).rejects.toThrow(
+      'Missing state parameter in Authorization Response.'
     );
   });
 
@@ -38,13 +40,15 @@ describe('callback', () => {
         },
         cookieJar: new CookieJar()
       })
-    ).rejects.toThrowError('checks.state argument is missing');
+    ).rejects.toThrowError(
+      'Missing state cookie from login request (check login URL, callback URL and cookie config).'
+    );
   });
 
   it("should error when state doesn't match", async () => {
     const baseURL = await setup(defaultConfig);
 
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         nonce: '__valid_nonce__',
         state: '__valid_state__'
@@ -66,7 +70,7 @@ describe('callback', () => {
   it("should error when id_token can't be parsed", async () => {
     const baseURL = await setup(defaultConfig);
 
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         nonce: '__valid_nonce__',
         state: '__valid_state__'
@@ -82,13 +86,13 @@ describe('callback', () => {
         },
         cookieJar
       })
-    ).rejects.toThrowError('failed to decode JWT (JWTMalformed: JWTs must have three components)');
+    ).rejects.toThrowError('failed to decode JWT (Error: JWTs must have three components)');
   });
 
   it('should error when id_token has invalid alg', async () => {
     const baseURL = await setup(defaultConfig);
 
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         nonce: '__valid_nonce__',
         state: '__valid_state__'
@@ -100,9 +104,9 @@ describe('callback', () => {
       post(baseURL, '/callback', {
         body: {
           state: '__valid_state__',
-          id_token: JWT.sign({ sub: '__test_sub__' }, 'secret', {
-            algorithm: 'HS256'
-          })
+          id_token: await new jose.SignJWT({ sub: '__test_sub__' })
+            .setProtectedHeader({ alg: 'HS256' })
+            .sign(await deriveKey('secret'))
         },
         cookieJar
       })
@@ -112,7 +116,7 @@ describe('callback', () => {
   it('should error when id_token is missing issuer', async () => {
     const baseURL = await setup(defaultConfig);
 
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         nonce: '__valid_nonce__',
         state: '__valid_state__'
@@ -124,7 +128,7 @@ describe('callback', () => {
       post(baseURL, '/callback', {
         body: {
           state: '__valid_state__',
-          id_token: makeIdToken({ iss: undefined })
+          id_token: await makeIdToken({ iss: undefined })
         },
         cookieJar
       })
@@ -134,7 +138,7 @@ describe('callback', () => {
   it('should error when nonce is missing from cookies', async () => {
     const baseURL = await setup(defaultConfig);
 
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         state: '__valid_state__'
       },
@@ -145,7 +149,7 @@ describe('callback', () => {
       post(baseURL, '/callback', {
         body: {
           state: '__valid_state__',
-          id_token: makeIdToken({ nonce: '__test_nonce__' })
+          id_token: await makeIdToken({ nonce: '__test_nonce__' })
         },
         cookieJar
       })
@@ -155,7 +159,7 @@ describe('callback', () => {
   it('should error when legacy samesite fallback is off', async () => {
     const baseURL = await setup({ ...defaultConfig, legacySameSiteCookie: false });
 
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         _state: '__valid_state__'
       },
@@ -166,14 +170,16 @@ describe('callback', () => {
       post(baseURL, '/callback', {
         body: {
           state: '__valid_state__',
-          id_token: makeIdToken()
+          id_token: await makeIdToken()
         },
         cookieJar
       })
-    ).rejects.toThrowError('checks.state argument is missing');
+    ).rejects.toThrowError(
+      'Missing state cookie from login request (check login URL, callback URL and cookie config).'
+    );
   });
 
-  it('should error for expired ID Token', async () => {
+  it('should error for expired ID token', async () => {
     const baseURL = await setup({ ...defaultConfig, legacySameSiteCookie: false });
 
     const expected = {
@@ -185,7 +191,7 @@ describe('callback', () => {
       auth_time: 10
     };
 
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         state: expectedDefaultState,
         nonce: '__test_nonce__',
@@ -198,7 +204,7 @@ describe('callback', () => {
       post(baseURL, '/callback', {
         body: {
           state: expectedDefaultState,
-          id_token: makeIdToken(expected)
+          id_token: await makeIdToken(expected)
         },
         cookieJar
       })
@@ -216,7 +222,7 @@ describe('callback', () => {
       nonce: '__test_nonce__'
     };
 
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         state: expectedDefaultState,
         nonce: '__test_nonce__'
@@ -227,7 +233,7 @@ describe('callback', () => {
     const { res } = await post(baseURL, '/callback', {
       body: {
         state: expectedDefaultState,
-        id_token: makeIdToken(expected)
+        id_token: await makeIdToken(expected)
       },
       cookieJar,
       fullResponse: true
@@ -237,6 +243,30 @@ describe('callback', () => {
 
     expect(res.headers.location).toEqual('https://example.org');
     expect(session.claims).toEqual(expect.objectContaining(expected));
+  });
+
+  it("should fail when the Authorization Response params don't match the response_type", async () => {
+    const baseURL = await setup({ ...defaultConfig, authorizationParams: { response_type: 'id_token' } });
+
+    const cookieJar = await toSignedCookieJar(
+      {
+        state: expectedDefaultState,
+        nonce: '__test_nonce__',
+        response_type: 'code id_token'
+      },
+      baseURL
+    );
+
+    await expect(
+      post(baseURL, '/callback', {
+        body: {
+          state: expectedDefaultState,
+          id_token: await makeIdToken()
+        },
+        cookieJar,
+        fullResponse: true
+      })
+    ).rejects.toThrowError('code missing from response');
   });
 
   it("should expose all tokens when id_token is valid and response_type is 'code id_token'", async () => {
@@ -250,7 +280,7 @@ describe('callback', () => {
       }
     });
 
-    const idToken = makeIdToken({
+    const idToken = await makeIdToken({
       c_hash: '77QmUPtjPfzWtF2AnpK9RQ'
     });
 
@@ -264,7 +294,7 @@ describe('callback', () => {
         expires_in: 86400
       }));
 
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         state: expectedDefaultState,
         nonce: '__test_nonce__'
@@ -294,7 +324,7 @@ describe('callback', () => {
   });
 
   it('should use basic auth on token endpoint when using code flow', async () => {
-    const idToken = makeIdToken({
+    const idToken = await makeIdToken({
       c_hash: '77QmUPtjPfzWtF2AnpK9RQ'
     });
 
@@ -324,7 +354,7 @@ describe('callback', () => {
         };
       });
 
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         state: expectedDefaultState,
         nonce: '__test_nonce__'
@@ -352,7 +382,7 @@ describe('callback', () => {
     const baseURL = await setup(defaultConfig);
 
     const state = encodeState({ foo: 'bar' });
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         state: state,
         nonce: '__test_nonce__'
@@ -363,7 +393,7 @@ describe('callback', () => {
     const { res } = await post(baseURL, '/callback', {
       body: {
         state: state,
-        id_token: makeIdToken()
+        id_token: await makeIdToken()
       },
       cookieJar,
       fullResponse: true
@@ -377,11 +407,11 @@ describe('callback', () => {
     const redirectUri = 'http://messi:3000/api/auth/callback/runtime';
     const baseURL = await setup(defaultConfig, { callbackOptions: { redirectUri } });
     const state = encodeState({ foo: 'bar' });
-    const cookieJar = toSignedCookieJar({ state, nonce: '__test_nonce__' }, baseURL);
+    const cookieJar = await toSignedCookieJar({ state, nonce: '__test_nonce__' }, baseURL);
     const { res } = await post(baseURL, '/callback', {
       body: {
         state: state,
-        id_token: makeIdToken()
+        id_token: await makeIdToken()
       },
       cookieJar,
       fullResponse: true
@@ -389,5 +419,147 @@ describe('callback', () => {
 
     expect(res.statusCode).toEqual(302);
     expect(res.headers.location).toEqual(baseURL);
+  });
+
+  it('should not overwrite location header if set in after callback', async () => {
+    const baseURL = await setup(defaultConfig, {
+      callbackOptions: {
+        afterCallback(_req, res: ServerResponse, session) {
+          res.setHeader('Location', '/foo');
+          return session;
+        }
+      }
+    });
+
+    const state = encodeState({ foo: 'bar' });
+    const cookieJar = await toSignedCookieJar(
+      {
+        state: state,
+        nonce: '__test_nonce__'
+      },
+      baseURL
+    );
+
+    const { res } = await post(baseURL, '/callback', {
+      body: {
+        state: state,
+        id_token: await makeIdToken()
+      },
+      cookieJar,
+      fullResponse: true
+    });
+
+    expect(res.statusCode).toEqual(302);
+    expect(res.headers.location).toEqual('/foo');
+    expect(cookieJar.getCookieStringSync(baseURL)).toMatch(/^appSession=.*/);
+  });
+
+  it('should terminate the request in after callback and not set session if none returned', async () => {
+    const baseURL = await setup(defaultConfig, {
+      callbackOptions: {
+        afterCallback(_req, res: ServerResponse) {
+          res.writeHead(401).end();
+        }
+      }
+    });
+
+    const state = encodeState({ foo: 'bar' });
+    const cookieJar = await toSignedCookieJar(
+      {
+        state: state,
+        nonce: '__test_nonce__'
+      },
+      baseURL
+    );
+
+    await expect(
+      post(baseURL, '/callback', {
+        body: {
+          state: state,
+          id_token: await makeIdToken()
+        },
+        cookieJar,
+        fullResponse: true
+      })
+    ).rejects.toThrow('Unauthorized');
+    expect(cookieJar.getCookieStringSync(baseURL)).toBeFalsy();
+  });
+
+  it('should escape Identity Provider error', async () => {
+    const baseURL = await setup(defaultConfig);
+
+    const cookieJar = await toSignedCookieJar(
+      {
+        state: expectedDefaultState,
+        nonce: '__test_nonce__',
+        response_type: 'code id_token'
+      },
+      baseURL
+    );
+
+    await expect(
+      post(baseURL, '/callback', {
+        body: {
+          state: expectedDefaultState,
+          error: '<script>alert(1)</script>',
+          error_description: '<script>alert(2)</script>'
+        },
+        cookieJar,
+        fullResponse: true
+      })
+    ).rejects.toThrowError('&lt;script&gt;alert(1)&lt;/script&gt; (&lt;script&gt;alert(2)&lt;/script&gt;)');
+  });
+
+  it('should escape application error', async () => {
+    const baseURL = await setup(defaultConfig);
+
+    const cookieJar = await toSignedCookieJar(
+      {
+        state: expectedDefaultState,
+        nonce: '__test_nonce__',
+        response_type: 'code id_token'
+      },
+      baseURL
+    );
+
+    await expect(
+      post(baseURL, '/callback', {
+        body: {
+          state: '<script>alert(1)</script>',
+          id_token: await makeIdToken()
+        },
+        cookieJar,
+        fullResponse: true
+      })
+    ).rejects.toThrowError(
+      `state mismatch, expected ${expectedDefaultState}, got: &lt;script&gt;alert(1)&lt;/script&gt;`
+    );
+  });
+
+  it('should handle discovery error', async () => {
+    const baseURL = await setup({ ...defaultConfig, issuerBaseURL: 'https://op2.example.com' });
+    nock('https://op2.example.com').get('/.well-known/openid-configuration').reply(500);
+
+    const cookieJar = await toSignedCookieJar(
+      {
+        state: expectedDefaultState,
+        nonce: '__test_nonce__',
+        response_type: 'code id_token'
+      },
+      baseURL
+    );
+
+    await expect(
+      post(baseURL, '/callback', {
+        body: {
+          state: expectedDefaultState,
+          id_token: await makeIdToken()
+        },
+        cookieJar,
+        fullResponse: true
+      })
+    ).rejects.toThrowError(
+      'Discovery requests failing for https://op2.example.com, expected 200 OK, got: 500 Internal Server Error'
+    );
   });
 });

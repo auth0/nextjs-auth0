@@ -10,7 +10,7 @@ With default config - [Code Flow with PKCE](https://auth0.com/docs/flows/authori
 
 ![external-api](./external-api.png)
 
-## auth0-react (Access Token auth)
+## auth0-react (Access Token Auth)
 ### Protecting a Client Side Rendered (CSR) Page
 
 ![react](./react.png)

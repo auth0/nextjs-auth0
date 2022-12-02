@@ -69,15 +69,26 @@
 			<section class="tsd-panel tsd-comment">
 				<div class="tsd-comment tsd-typography">
 					<div class="lead">
-						<p>The error thrown by <a href="../modules/session_get_access_token.html#getaccesstoken">GetAccessToken</a></p>
+						<p>The error thrown by <a href="../modules/session_get_access_token.html#getaccesstoken">GetAccessToken</a>.</p>
 					</div>
+					<dl class="tsd-comment-tags">
+						<dt>see</dt>
+						<dd><p>the <a href="utils_errors.autherror.html#code">code property</a> contains a machine-readable error code that
+								remains stable within a major version of the SDK. You should rely on this error code to handle
+								errors. In contrast, the error message is not part of the API and can change anytime. Do <strong>not</strong>
+							parse or otherwise rely on the error message to handle errors.</p>
+						</dd>
+						<dt>see</dt>
+						<dd><p><a href="../enums/utils_errors.accesstokenerrorcode.html">AccessTokenErrorCode</a> for the list of all possible error codes.</p>
+						</dd>
+					</dl>
 				</div>
 			</section>
 			<section class="tsd-panel tsd-hierarchy">
 				<h3>Hierarchy</h3>
 				<ul class="tsd-hierarchy">
 					<li>
-						<span class="tsd-signature-type">Error</span>
+						<a href="utils_errors.autherror.html" class="tsd-signature-type" data-tsd-kind="Class">AuthError</a>
 						<ul class="tsd-hierarchy">
 							<li>
 								<span class="target">AccessTokenError</span>
@@ -96,10 +107,13 @@
 								<li class="tsd-kind-constructor tsd-parent-kind-class tsd-is-overwrite"><a href="utils_errors.accesstokenerror.html#constructor" class="tsd-kind-icon">constructor</a></li>
 							</ul>
 						</section>
-						<section class="tsd-index-section ">
+						<section class="tsd-index-section tsd-is-inherited">
 							<h3>Properties</h3>
 							<ul class="tsd-index-list">
-								<li class="tsd-kind-property tsd-parent-kind-class"><a href="utils_errors.accesstokenerror.html#code" class="tsd-kind-icon">code</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-class tsd-is-inherited"><a href="utils_errors.accesstokenerror.html#cause" class="tsd-kind-icon">cause</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-class tsd-is-inherited"><a href="utils_errors.accesstokenerror.html#code" class="tsd-kind-icon">code</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-class tsd-is-inherited"><a href="utils_errors.accesstokenerror.html#name" class="tsd-kind-icon">name</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-class tsd-is-inherited"><a href="utils_errors.accesstokenerror.html#status" class="tsd-kind-icon">status</a></li>
 							</ul>
 						</section>
 					</div>
@@ -111,23 +125,26 @@
 					<a name="constructor" class="tsd-anchor"></a>
 					<h3>constructor</h3>
 					<ul class="tsd-signatures tsd-kind-constructor tsd-parent-kind-class tsd-is-overwrite">
-						<li class="tsd-signature tsd-kind-icon">new <wbr>Access<wbr>Token<wbr>Error<span class="tsd-signature-symbol">(</span>code<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span>, message<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="utils_errors.accesstokenerror.html" class="tsd-signature-type" data-tsd-kind="Class">AccessTokenError</a></li>
+						<li class="tsd-signature tsd-kind-icon">new <wbr>Access<wbr>Token<wbr>Error<span class="tsd-signature-symbol">(</span>code<span class="tsd-signature-symbol">: </span><a href="../enums/utils_errors.accesstokenerrorcode.html" class="tsd-signature-type" data-tsd-kind="Enumeration">AccessTokenErrorCode</a>, message<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span>, cause<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">Error</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="utils_errors.accesstokenerror.html" class="tsd-signature-type" data-tsd-kind="Class">AccessTokenError</a></li>
 					</ul>
 					<ul class="tsd-descriptions">
 						<li class="tsd-description">
 							<aside class="tsd-sources">
-								<p>Overrides Error.constructor</p>
+								<p>Overrides <a href="utils_errors.autherror.html">AuthError</a>.<a href="utils_errors.autherror.html#constructor">constructor</a></p>
 								<ul>
-									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/cc75175/src/utils/errors.ts#L9">src/utils/errors.ts:9</a></li>
+									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/af21d7c/src/utils/errors.ts#L99">src/utils/errors.ts:99</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
 							<ul class="tsd-parameters">
 								<li>
-									<h5>code: <span class="tsd-signature-type">string</span></h5>
+									<h5>code: <a href="../enums/utils_errors.accesstokenerrorcode.html" class="tsd-signature-type" data-tsd-kind="Enumeration">AccessTokenErrorCode</a></h5>
 								</li>
 								<li>
 									<h5>message: <span class="tsd-signature-type">string</span></h5>
+								</li>
+								<li>
+									<h5><span class="tsd-flag ts-flagOptional">Optional</span> cause: <span class="tsd-signature-type">Error</span></h5>
 								</li>
 							</ul>
 							<h4 class="tsd-returns-title">Returns <a href="utils_errors.accesstokenerror.html" class="tsd-signature-type" data-tsd-kind="Class">AccessTokenError</a></h4>
@@ -135,17 +152,78 @@
 					</ul>
 				</section>
 			</section>
-			<section class="tsd-panel-group tsd-member-group ">
+			<section class="tsd-panel-group tsd-member-group tsd-is-inherited">
 				<h2>Properties</h2>
-				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-class">
-					<a name="code" class="tsd-anchor"></a>
-					<h3>code</h3>
-					<div class="tsd-signature tsd-kind-icon">code<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
+				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-class tsd-is-inherited">
+					<a name="cause" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagOptional">Optional</span> <span class="tsd-flag ts-flagReadonly">Readonly</span> cause</h3>
+					<div class="tsd-signature tsd-kind-icon">cause<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">Error</span></div>
 					<aside class="tsd-sources">
+						<p>Inherited from <a href="utils_errors.autherror.html">AuthError</a>.<a href="utils_errors.autherror.html#cause">cause</a></p>
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/cc75175/src/utils/errors.ts#L9">src/utils/errors.ts:9</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/af21d7c/src/utils/errors.ts#L57">src/utils/errors.ts:57</a></li>
 						</ul>
 					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>The underlying error, if any.</p>
+						</div>
+						<p><strong>IMPORTANT</strong> When this error is from the Identity Provider (<a href="index.identityprovidererror.html">IdentityProviderError</a>) it can contain user
+						input and is only escaped using basic escaping for putting untrusted data directly into the HTML body.</p>
+						<p>You should <strong>not</strong> render this error without using a templating engine that will properly escape it for other
+						HTML contexts first.</p>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-class tsd-is-inherited">
+					<a name="code" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagReadonly">Readonly</span> code</h3>
+					<div class="tsd-signature tsd-kind-icon">code<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
+					<aside class="tsd-sources">
+						<p>Inherited from <a href="utils_errors.autherror.html">AuthError</a>.<a href="utils_errors.autherror.html#code">code</a></p>
+						<ul>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/af21d7c/src/utils/errors.ts#L41">src/utils/errors.ts:41</a></li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>A machine-readable error code that remains stable within a major version of the SDK. You
+								should rely on this error code to handle errors. In contrast, the error message is not part of
+								the API and can change anytime. Do <strong>not</strong> parse or otherwise rely on the error message to
+							handle errors.</p>
+						</div>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-class tsd-is-inherited">
+					<a name="name" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagReadonly">Readonly</span> name</h3>
+					<div class="tsd-signature tsd-kind-icon">name<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
+					<aside class="tsd-sources">
+						<p>Inherited from <a href="utils_errors.autherror.html">AuthError</a>.<a href="utils_errors.autherror.html#name">name</a></p>
+						<ul>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/af21d7c/src/utils/errors.ts#L46">src/utils/errors.ts:46</a></li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>The error class name.</p>
+						</div>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-class tsd-is-inherited">
+					<a name="status" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagOptional">Optional</span> <span class="tsd-flag ts-flagReadonly">Readonly</span> status</h3>
+					<div class="tsd-signature tsd-kind-icon">status<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span></div>
+					<aside class="tsd-sources">
+						<p>Inherited from <a href="utils_errors.autherror.html">AuthError</a>.<a href="utils_errors.autherror.html#status">status</a></p>
+						<ul>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/af21d7c/src/utils/errors.ts#L62">src/utils/errors.ts:62</a></li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>The HTTP status code, if any.</p>
+						</div>
+					</div>
 				</section>
 			</section>
 		</div>
@@ -156,16 +234,19 @@
 						<a href="../index.html">Exports</a>
 					</li>
 					<li class=" tsd-kind-module">
+						<a href="../modules/client.html">client</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/client_use_user.html">client/use-<wbr>user</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/client_with_page_auth_required.html">client/with-<wbr>page-<wbr>auth-<wbr>required</a>
+					</li>
+					<li class=" tsd-kind-module">
 						<a href="../modules/config.html">config</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="../modules/frontend.html">frontend</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="../modules/frontend_use_user.html">frontend/use-<wbr>user</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="../modules/frontend_with_page_auth_required.html">frontend/with-<wbr>page-<wbr>auth-<wbr>required</a>
+						<a href="../modules/edge.html">edge</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/handlers.html">handlers</a>
@@ -189,16 +270,19 @@
 						<a href="../modules/helpers.html">helpers</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="../modules/helpers_get_server_side_props_wrapper.html">helpers/get-<wbr>server-<wbr>side-<wbr>props-<wbr>wrapper</a>
+						<a href="../modules/helpers_testing.html">helpers/testing</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/helpers_with_api_auth_required.html">helpers/with-<wbr>api-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
+						<a href="../modules/helpers_with_middleware_auth_required.html">helpers/with-<wbr>middleware-<wbr>auth-<wbr>required</a>
+					</li>
+					<li class=" tsd-kind-module">
 						<a href="../modules/helpers_with_page_auth_required.html">helpers/with-<wbr>page-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="../modules/instance.html">instance</a>
+						<a href="../modules/index.html">index</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/session.html">session</a>
@@ -212,6 +296,9 @@
 					<li class=" tsd-kind-module">
 						<a href="../modules/session_session.html">session/session</a>
 					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/session_update_session.html">session/update-<wbr>session</a>
+					</li>
 					<li class="current tsd-kind-module">
 						<a href="../modules/utils_errors.html">utils/errors</a>
 					</li>
@@ -222,6 +309,9 @@
 			</nav>
 			<nav class="tsd-navigation secondary menu-sticky">
 				<ul class="before-current">
+					<li class=" tsd-kind-enum tsd-parent-kind-module">
+						<a href="../enums/utils_errors.accesstokenerrorcode.html" class="tsd-kind-icon">Access<wbr>Token<wbr>Error<wbr>Code</a>
+					</li>
 				</ul>
 				<ul class="current">
 					<li class="current tsd-kind-class tsd-parent-kind-module">
@@ -230,18 +320,39 @@
 							<li class=" tsd-kind-constructor tsd-parent-kind-class tsd-is-overwrite">
 								<a href="utils_errors.accesstokenerror.html#constructor" class="tsd-kind-icon">constructor</a>
 							</li>
-							<li class=" tsd-kind-property tsd-parent-kind-class">
+							<li class=" tsd-kind-property tsd-parent-kind-class tsd-is-inherited">
+								<a href="utils_errors.accesstokenerror.html#cause" class="tsd-kind-icon">cause</a>
+							</li>
+							<li class=" tsd-kind-property tsd-parent-kind-class tsd-is-inherited">
 								<a href="utils_errors.accesstokenerror.html#code" class="tsd-kind-icon">code</a>
+							</li>
+							<li class=" tsd-kind-property tsd-parent-kind-class tsd-is-inherited">
+								<a href="utils_errors.accesstokenerror.html#name" class="tsd-kind-icon">name</a>
+							</li>
+							<li class=" tsd-kind-property tsd-parent-kind-class tsd-is-inherited">
+								<a href="utils_errors.accesstokenerror.html#status" class="tsd-kind-icon">status</a>
 							</li>
 						</ul>
 					</li>
 				</ul>
 				<ul class="after-current">
 					<li class=" tsd-kind-class tsd-parent-kind-module">
+						<a href="utils_errors.autherror.html" class="tsd-kind-icon">Auth<wbr>Error</a>
+					</li>
+					<li class=" tsd-kind-class tsd-parent-kind-module">
+						<a href="utils_errors.callbackhandlererror.html" class="tsd-kind-icon">Callback<wbr>Handler<wbr>Error</a>
+					</li>
+					<li class=" tsd-kind-class tsd-parent-kind-module">
 						<a href="utils_errors.handlererror.html" class="tsd-kind-icon">Handler<wbr>Error</a>
 					</li>
-					<li class=" tsd-kind-function tsd-parent-kind-module">
-						<a href="../modules/utils_errors.html#htmlsafe" class="tsd-kind-icon">html<wbr>Safe</a>
+					<li class=" tsd-kind-class tsd-parent-kind-module">
+						<a href="utils_errors.loginhandlererror.html" class="tsd-kind-icon">Login<wbr>Handler<wbr>Error</a>
+					</li>
+					<li class=" tsd-kind-class tsd-parent-kind-module">
+						<a href="utils_errors.logouthandlererror.html" class="tsd-kind-icon">Logout<wbr>Handler<wbr>Error</a>
+					</li>
+					<li class=" tsd-kind-class tsd-parent-kind-module">
+						<a href="utils_errors.profilehandlererror.html" class="tsd-kind-icon">Profile<wbr>Handler<wbr>Error</a>
 					</li>
 				</ul>
 			</nav>
@@ -254,16 +365,23 @@
 		<div class="tsd-legend-group">
 			<ul class="tsd-legend">
 				<li class="tsd-kind-function"><span class="tsd-kind-icon">Function</span></li>
+				<li class="tsd-kind-function tsd-has-type-parameter"><span class="tsd-kind-icon">Function with type parameter</span></li>
 				<li class="tsd-kind-type-alias"><span class="tsd-kind-icon">Type alias</span></li>
 				<li class="tsd-kind-type-alias tsd-has-type-parameter"><span class="tsd-kind-icon">Type alias with type parameter</span></li>
 			</ul>
 			<ul class="tsd-legend">
 				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
+				<li class="tsd-kind-class tsd-has-type-parameter"><span class="tsd-kind-icon">Class with type parameter</span></li>
 				<li class="tsd-kind-constructor tsd-parent-kind-class"><span class="tsd-kind-icon">Constructor</span></li>
-				<li class="tsd-kind-property tsd-parent-kind-class"><span class="tsd-kind-icon">Property</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-enum"><span class="tsd-kind-icon">Enumeration</span></li>
 			</ul>
 			<ul class="tsd-legend">
 				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-property tsd-parent-kind-class tsd-is-inherited"><span class="tsd-kind-icon">Inherited property</span></li>
 			</ul>
 		</div>
 	</div>

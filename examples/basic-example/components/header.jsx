@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { useUser } from '@auth0/nextjs-auth0';
+import { useUser } from '@auth0/nextjs-auth0/client';
 
 const Header = () => {
   const { user } = useUser();
@@ -10,12 +10,12 @@ const Header = () => {
       <nav>
         <ul>
           <li>
-            <Link href="/">
+            <Link href="/" legacyBehavior>
               <a>Home</a>
             </Link>
           </li>
           <li>
-            <Link href="/protected-page">
+            <Link href="/protected-page" legacyBehavior>
               <a>Protected Page</a>
             </Link>
           </li>

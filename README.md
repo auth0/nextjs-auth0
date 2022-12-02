@@ -2,6 +2,8 @@
 
 The Auth0 Next.js SDK is a library for implementing user authentication in Next.js applications.
 
+> :warning: Please be aware that v2 is currently in [**Beta**](https://auth0.com/docs/troubleshoot/product-lifecycle/product-release-stages). Whilst we encourage you to test the update within your applications, we do no recommend using this version in production yet. Please follow the [migration guide](./V2_MIGRATION_GUIDE.md) when updating your application.
+
 ![Release](https://img.shields.io/npm/v/@auth0/nextjs-auth0)
 [![Coverage](https://img.shields.io/badge/dynamic/json?color=brightgreen&label=coverage&query=jest.coverageThreshold.global.lines&suffix=%25&url=https%3A%2F%2Fraw.githubusercontent.com%2Fauth0%2Fnextjs-auth0%2Fmain%2Fpackage.json)](https://github.com/auth0/nextjs-auth0/blob/main/package.json#L147)
 ![Downloads](https://img.shields.io/npm/dw/@auth0/nextjs-auth0)
@@ -33,7 +35,7 @@ npm install @auth0/nextjs-auth0
 
 This library supports the following tooling versions:
 
-- Node.js: `^10.13.0 || >=12.0.0`
+- Node.js: 12 LTS and newer LTS releases are supported.
 - Next.js: `>=10`
 
 ### Auth0 Configuration
@@ -81,7 +83,7 @@ node -e "console.log(crypto.randomBytes(32).toString('hex'))"
 
 You can see a full list of Auth0 configuration options in the ["Configuration properties"](https://auth0.github.io/nextjs-auth0/modules/config.html#configuration-properties) section of the "Module config" document.
 
-> For more details about loading environmental variables in Next.js, visit the ["Environment Variables"](https://nextjs.org/docs/basic-features/environment-variables) document.
+> For more details about loading environment variables in Next.js, visit the ["Environment Variables"](https://nextjs.org/docs/basic-features/environment-variables) document.
 
 #### Add the Dynamic API Route
 
@@ -101,12 +103,9 @@ export default handleAuth();
 
 Executing `handleAuth()` creates the following route handlers under the hood that perform different parts of the authentication flow:
 
-- `/api/auth/login`: Your Next.js application redirects users to your Identity Provider for them to log in (you can optionally pass a `returnTo` parameter to return to a custom relative URL after login, eg `/api/auth/login?returnTo=/profile`).
-
-- `/api/auth/callback`: Your Identity Provider redirects users to this route after they successfully log in.
-
+- `/api/auth/login`: Your Next.js application redirects users to your identity provider for them to log in (you can optionally pass a `returnTo` parameter to return to a custom relative URL after login, for example `/api/auth/login?returnTo=/profile`).
+- `/api/auth/callback`: Your identity provider redirects users to this route after they successfully log in.
 - `/api/auth/logout`: Your Next.js application logs out the user.
-
 - `/api/auth/me`: You can fetch user profile information in JSON format.
 
 #### Add the UserProvider to Custom App
@@ -116,7 +115,7 @@ Wrap your `pages/_app.js` component with the `UserProvider` component:
 ```jsx
 // pages/_app.js
 import React from 'react';
-import { UserProvider } from '@auth0/nextjs-auth0';
+import { UserProvider } from '@auth0/nextjs-auth0/client';
 
 export default function App({ Component, pageProps }) {
   return (
@@ -133,7 +132,7 @@ You can now determine if a user is authenticated by checking that the `user` obj
 
 ```jsx
 // pages/index.js
-import { useUser } from '@auth0/nextjs-auth0';
+import { useUser } from '@auth0/nextjs-auth0/client';
 
 export default function Index() {
   const { user, error, isLoading } = useUser();
@@ -161,10 +160,12 @@ For other comprehensive examples, see the [EXAMPLES.md](https://github.com/auth0
 
 ## API Reference
 
-- [Configuration Options](https://auth0.github.io/nextjs-auth0/modules/config.html)
+### Server (for Node.js)
 
-**Server-side methods**:
+`import * from @auth0/nextjs-auth0`
 
+- [Configuration Options and Environment variables](https://auth0.github.io/nextjs-auth0/modules/config.html)
+- [initAuth0](https://auth0.github.io/nextjs-auth0/modules/index.html#initauth0)
 - [handleAuth](https://auth0.github.io/nextjs-auth0/modules/handlers_auth.html)
 - [handleLogin](https://auth0.github.io/nextjs-auth0/modules/handlers_login.html#handlelogin)
 - [handleCallback](https://auth0.github.io/nextjs-auth0/modules/handlers_callback.html)
@@ -172,18 +173,133 @@ For other comprehensive examples, see the [EXAMPLES.md](https://github.com/auth0
 - [handleProfile](https://auth0.github.io/nextjs-auth0/modules/handlers_profile.html)
 - [withApiAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_api_auth_required.html)
 - [withPageAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_page_auth_required.html#withpageauthrequired)
-- [getServerSidePropsWrapper](https://auth0.github.io/nextjs-auth0/modules/helpers_get_server_side_props_wrapper.html)
 - [getSession](https://auth0.github.io/nextjs-auth0/modules/session_get_session.html)
+- [updateSession](https://auth0.github.io/nextjs-auth0/modules/session_update_session.html)
 - [getAccessToken](https://auth0.github.io/nextjs-auth0/modules/session_get_access_token.html)
-- [initAuth0](https://auth0.github.io/nextjs-auth0/modules/instance.html)
 
-**Client-side methods/components**:
+### Edge (for Middleware and the Edge runtime)
 
-- [UserProvider](https://auth0.github.io/nextjs-auth0/modules/frontend_use_user.html#userprovider)
-- [useUser](https://auth0.github.io/nextjs-auth0/modules/frontend_use_user.html)
-- [withPageAuthRequired](https://auth0.github.io/nextjs-auth0/modules/frontend_with_page_auth_required.html)
+`import * from @auth0/nextjs-auth0/edge`
 
-Visit the auto-generated [API Docs](https://auth0.github.io/nextjs-auth0/) for more details.
+- [Configuration Options and Environment variables](https://auth0.github.io/nextjs-auth0/modules/config.html)
+- [initAuth0](https://auth0.github.io/nextjs-auth0/modules/edge.html#initauth0-1)
+- [withMiddlewareAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_middleware_auth_required.html)
+- [getSession](https://auth0.github.io/nextjs-auth0/modules/edge.html#getsession-1)
+
+### Client (for the Browser)
+
+`import * from @auth0/nextjs-auth0/client`
+
+- [UserProvider](https://auth0.github.io/nextjs-auth0/modules/client_use_user.html#userprovider)
+- [useUser](https://auth0.github.io/nextjs-auth0/modules/client_use_user.html)
+- [withPageAuthRequired](https://auth0.github.io/nextjs-auth0/modules/client_with_page_auth_required.html)
+
+### Testing helpers
+
+`import * from @auth0/nextjs-auth0/testing`
+
+- [generateSessionCookie](https://auth0.github.io/nextjs-auth0/modules/helpers_testing.html#generatesessioncookie)
+
+Visit the auto-generated [API Docs](https://auth0.github.io/nextjs-auth0/) for more details
+
+### Cookies and Security
+
+All cookies will be set to `HttpOnly, SameSite=Lax` and will be set to `Secure` if the application's `AUTH0_BASE_URL` is `https`.
+
+The `HttpOnly` setting will make sure that client-side JavaScript is unable to access the cookie to reduce the attack surface of [XSS attacks](https://auth0.com/blog/developers-guide-to-common-vulnerabilities-and-how-to-prevent-them/#Cross-Site-Scripting--XSS-).
+
+The `SameSite=Lax` setting will help mitigate CSRF attacks. Learn more about SameSite by reading the ["Upcoming Browser Behavior Changes: What Developers Need to Know"](https://auth0.com/blog/browser-behavior-changes-what-developers-need-to-know/) blog post.
+
+### Caching and Security
+
+Many hosting providers will offer to cache your content at the edge in order to serve data to your users as fast as possible. For example Vercel will [cache your content on the Vercel Edge Network](https://vercel.com/docs/concepts/edge-network/caching) for all static content and Serverless Functions if you provide the necessary caching headers on your response.
+
+It's generally a bad idea to cache any response that requires authentication, even if the response's content appears safe to cache there may be other data in the response that isn't.
+
+This SDK offers a rolling session by default, which means that any response that reads the session will have a `Set-Cookie` header to update the cookie's expiry. Vercel and potentially other hosting providers include the `Set-Cookie` header in the cached response, so even if you think the response's content can be cached publicly, the responses `Set-Cookie` header cannot.
+
+Check your hosting provider's caching rules, but in general you should **never** cache responses that either require authentication or even touch the session to check authentication (eg when using `withApiAuthRequired`, `withPageAuthRequired` or even just `getSession` or `getAccessToken`).
+
+### Error Handling and Security
+
+Errors that come from Auth0 in the `redirect_uri` callback may contain reflected user input via the OpenID Connect `error` and `error_description` query parameter. Because of this, we do some [basic escaping](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html#rule-1-html-encode-before-inserting-untrusted-data-into-html-element-content) on the `message`, `error` and `error_description` properties of the `IdentityProviderError`.
+
+But, if you write your own error handler, you should **not** render the error `message`, or `error` and `error_description` properties without using a templating engine that will properly escape them for other HTML contexts first.
+
+### Base Path and Internationalized Routing
+
+With Next.js you can deploy a Next.js application under a sub-path of a domain using [Base Path](https://nextjs.org/docs/api-reference/next.config.js/basepath) and serve internationalized (i18n) routes using [Internationalized Routing](https://nextjs.org/docs/advanced-features/i18n-routing).
+
+If you use these features the urls of your application will change and so the urls to the nextjs-auth0 routes will change. To accommodate this there are various places in the SDK that you can customise the url.
+
+For example, if `basePath: '/foo'` you should prepend this to the `loginUrl` and `profileUrl` specified in your `Auth0Provider`:
+
+```jsx
+// _app.jsx
+function App({ Component, pageProps }) {
+  return (
+    <UserProvider loginUrl="/foo/api/auth/login" profileUrl="/foo/api/auth/me">
+      <Component {...pageProps} />
+    </UserProvider>
+  );
+}
+```
+
+Also, any links to login or logout should include the `basePath`:
+
+```html
+<a href="/foo/api/auth/login">Login</a><br />
+<a href="/foo/api/auth/logout">Logout</a>
+```
+
+You should configure the [baseUrl](https://auth0.github.io/nextjs-auth0/interfaces/config.baseconfig.html#baseurl) (or the `AUTH0_BASE_URL` environment variable). For example:
+
+```shell
+# .env.local
+AUTH0_BASE_URL=http://localhost:3000/foo
+```
+
+For any pages that are protected with the Server Side [withPageAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_page_auth_required.html#withpageauthrequired) you should update the `returnTo` parameter depending on the `basePath` and `locale` if necessary.
+
+```js
+// ./pages/my-ssr-page.jsx
+export default MySsrPage = () => <></>;
+
+const getFullReturnTo = (ctx) => {
+  // TODO: implement getFullReturnTo based on the ctx.resolvedUrl, ctx.locale
+  // and your next.config.js's basePath and i18n settings.
+  return '/foo/en-US/my-ssr-page';
+};
+
+export const getServerSideProps = (ctx) => {
+  const returnTo = getFullReturnTo(ctx.req);
+  return withPageAuthRequired({ returnTo })(ctx);
+};
+```
+
+### Comparison with the Auth0 React SDK
+
+We also provide an Auth0 React SDK, [auth0-react](https://github.com/auth0/auth0-react), which may be suitable for your Next.js application.
+
+The SPA security model used by `auth0-react` is different from the Web Application security model used by this SDK. In short, this SDK protects pages and API routes with a cookie session (see ["Cookies and Security"](#cookies-and-security)). A SPA library like `auth0-react` will store the user's ID token and access token directly in the browser and use them to access external APIs directly.
+
+You should be aware of the security implications of both models. However, [auth0-react](https://github.com/auth0/auth0-react) may be more suitable for your needs if you meet any of the following scenarios:
+
+- You are using [Static HTML Export](https://nextjs.org/docs/advanced-features/static-html-export) with Next.js.
+- You do not need to access user data during server-side rendering.
+- You want to get the access token and call external API's directly from the frontend layer rather than using Next.js API routes as a proxy to call external APIs.
+
+### Testing
+
+By default, the SDK creates and manages a singleton instance to run for the lifetime of the application. When testing your application, you may need to reset this instance, so its state does not leak between tests.
+
+If you're using Jest, we recommend using `jest.resetModules()` after each test. Alternatively, you can look at [creating your own instance of the SDK](./EXAMPLES.md#create-your-own-instance-of-the-sdk), so it can be recreated between tests.
+
+For end to end tests, have a look at how we use a [mock OIDC Provider](./scripts/oidc-provider.js).
+
+# Deploying
+
+For deploying, have a look at [how we deploy our example app to Vercel](./examples/README.md).
 
 ## Contributing
 

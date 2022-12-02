@@ -4,9 +4,9 @@ import { createServer as createHttpsServer, Server as HttpsServer } from 'https'
 import url from 'url';
 import nock from 'nock';
 import { TokenSet, TokenSetParameters } from 'openid-client';
-import onHeaders from 'on-headers';
 import bodyParser from 'body-parser';
 import {
+  NodeCookies as Cookies,
   loginHandler,
   getConfig,
   ConfigParameters,
@@ -29,21 +29,20 @@ import version from '../../../src/version';
 export type SessionResponse = TokenSetParameters & { claims: Claims };
 
 class TestSessionCache implements SessionCache {
-  public cache: WeakMap<IncomingMessage, TokenSet>;
-  constructor() {
-    this.cache = new WeakMap<IncomingMessage, TokenSet>();
+  constructor(private cookieStore: CookieStore) {}
+  async create(req: IncomingMessage, res: ServerResponse, tokenSet: TokenSet): Promise<void> {
+    await this.cookieStore.save(req, res, tokenSet);
   }
-  create(req: IncomingMessage, _res: ServerResponse, tokenSet: TokenSet): void {
-    this.cache.set(req, tokenSet);
+  async delete(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    await this.cookieStore.save(req, res, null);
   }
-  delete(req: IncomingMessage): void {
-    this.cache.delete(req);
+  async isAuthenticated(req: IncomingMessage): Promise<boolean> {
+    const [session] = await this.cookieStore.read(req);
+    return !!session?.id_token;
   }
-  isAuthenticated(req: IncomingMessage): boolean {
-    return !!this.cache.get(req)?.id_token;
-  }
-  getIdToken(req: IncomingMessage): string | undefined {
-    return this.cache.get(req)?.id_token;
+  async getIdToken(req: IncomingMessage): Promise<string | undefined> {
+    const [session] = await this.cookieStore.read(req);
+    return session?.id_token;
   }
   fromTokenSet(tokenSet: TokenSet): { [p: string]: any } {
     return tokenSet;
@@ -61,32 +60,25 @@ const createHandlers = (params: ConfigParameters): Handlers => {
   const config = getConfig(params);
   const getClient = clientFactory(config, { name: 'nextjs-auth0', version });
   const transientStore = new TransientStore(config);
-  const cookieStore = new CookieStore(config);
-  const sessionCache = new TestSessionCache();
-
-  const applyCookies = (fn: Function) => (req: IncomingMessage, res: ServerResponse, ...args: []): any => {
-    if (!sessionCache.cache.has(req)) {
-      const [json, iat] = cookieStore.read(req);
-      sessionCache.cache.set(req, new TokenSet(json));
-      onHeaders(res, () => cookieStore.save(req, res, sessionCache.cache.get(req), iat));
-    }
-    return fn(req, res, ...args);
-  };
+  const cookieStore = new CookieStore(config, Cookies);
+  const sessionCache = new TestSessionCache(cookieStore);
 
   return {
-    handleLogin: applyCookies(loginHandler(config, getClient, transientStore)),
-    handleLogout: applyCookies(logoutHandler(config, getClient, sessionCache)),
-    handleCallback: applyCookies(callbackHandler(config, getClient, sessionCache, transientStore)),
-    handleSession: applyCookies((req: IncomingMessage, res: ServerResponse) => {
-      if (!sessionCache.isAuthenticated(req)) {
+    handleLogin: loginHandler(config, getClient, transientStore),
+    handleLogout: logoutHandler(config, getClient, sessionCache),
+    handleCallback: callbackHandler(config, getClient, sessionCache, transientStore),
+    handleSession: async (req: IncomingMessage, res: ServerResponse) => {
+      const [json, iat] = await cookieStore.read(req);
+      if (!json?.id_token) {
         res.writeHead(401);
         res.end();
         return;
       }
-      const session = sessionCache.cache.get(req);
+      const session = new TokenSet(json);
+      await cookieStore.save(req, res, session, iat);
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify({ ...session, claims: session?.claims() } as SessionResponse));
-    })
+    }
   };
 };
 
@@ -102,36 +94,38 @@ const parseJson = (req: IncomingMessage, res: ServerResponse): Promise<IncomingM
     });
   });
 
-const requestListener = (
-  handlers: Handlers,
-  {
-    callbackOptions,
-    loginOptions,
-    logoutOptions
-  }: { callbackOptions?: CallbackOptions; loginOptions?: LoginOptions; logoutOptions?: LogoutOptions }
-) => async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
-  const { pathname } = url.parse(req.url as string, true);
-  const parsedReq = await parseJson(req, res);
+const requestListener =
+  (
+    handlers: Handlers,
+    {
+      callbackOptions,
+      loginOptions,
+      logoutOptions
+    }: { callbackOptions?: CallbackOptions; loginOptions?: LoginOptions; logoutOptions?: LogoutOptions }
+  ) =>
+  async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+    const { pathname } = url.parse(req.url as string, true);
+    const parsedReq = await parseJson(req, res);
 
-  try {
-    switch (pathname) {
-      case '/login':
-        return await handlers.handleLogin(parsedReq, res, loginOptions);
-      case '/logout':
-        return await handlers.handleLogout(parsedReq, res, logoutOptions);
-      case '/callback':
-        return await handlers.handleCallback(parsedReq, res, callbackOptions);
-      case '/session':
-        return await handlers.handleSession(parsedReq, res);
-      default:
-        res.writeHead(404);
-        res.end();
+    try {
+      switch (pathname) {
+        case '/login':
+          return await handlers.handleLogin(parsedReq, res, loginOptions);
+        case '/logout':
+          return await handlers.handleLogout(parsedReq, res, logoutOptions);
+        case '/callback':
+          return await handlers.handleCallback(parsedReq, res, callbackOptions);
+        case '/session':
+          return await handlers.handleSession(parsedReq, res);
+        default:
+          res.writeHead(404);
+          res.end();
+      }
+    } catch (e) {
+      res.writeHead(e.statusCode || 500, e.message);
+      res.end();
     }
-  } catch (e) {
-    res.writeHead(e.statusCode || 500, e.message);
-    res.end();
-  }
-};
+  };
 
 let server: HttpServer | HttpsServer;
 

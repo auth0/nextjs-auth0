@@ -111,7 +111,7 @@
 					<aside class="tsd-sources">
 						<p>Overrides OidcAuthorizationParameters.response_mode</p>
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/cc75175/src/config.ts#L276">src/config.ts:276</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/af21d7c/src/config.ts#L291">src/config.ts:291</a></li>
 						</ul>
 					</aside>
 				</section>
@@ -122,7 +122,7 @@
 					<aside class="tsd-sources">
 						<p>Overrides OidcAuthorizationParameters.response_type</p>
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/cc75175/src/config.ts#L277">src/config.ts:277</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/af21d7c/src/config.ts#L292">src/config.ts:292</a></li>
 						</ul>
 					</aside>
 				</section>
@@ -133,9 +133,16 @@
 					<aside class="tsd-sources">
 						<p>Overrides OidcAuthorizationParameters.scope</p>
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/cc75175/src/config.ts#L275">src/config.ts:275</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/af21d7c/src/config.ts#L289">src/config.ts:289</a></li>
 						</ul>
 					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>A space-separated list of scopes that will be requested during authentication. For example,
+								<code>openid profile email offline_access</code>.
+							Defaults to <code>openid profile email</code>.</p>
+						</div>
+					</div>
 				</section>
 			</section>
 		</div>
@@ -145,17 +152,20 @@
 					<li class=" ">
 						<a href="../index.html">Exports</a>
 					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/client.html">client</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/client_use_user.html">client/use-<wbr>user</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/client_with_page_auth_required.html">client/with-<wbr>page-<wbr>auth-<wbr>required</a>
+					</li>
 					<li class="current tsd-kind-module">
 						<a href="../modules/config.html">config</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="../modules/frontend.html">frontend</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="../modules/frontend_use_user.html">frontend/use-<wbr>user</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="../modules/frontend_with_page_auth_required.html">frontend/with-<wbr>page-<wbr>auth-<wbr>required</a>
+						<a href="../modules/edge.html">edge</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/handlers.html">handlers</a>
@@ -179,16 +189,19 @@
 						<a href="../modules/helpers.html">helpers</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="../modules/helpers_get_server_side_props_wrapper.html">helpers/get-<wbr>server-<wbr>side-<wbr>props-<wbr>wrapper</a>
+						<a href="../modules/helpers_testing.html">helpers/testing</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/helpers_with_api_auth_required.html">helpers/with-<wbr>api-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
+						<a href="../modules/helpers_with_middleware_auth_required.html">helpers/with-<wbr>middleware-<wbr>auth-<wbr>required</a>
+					</li>
+					<li class=" tsd-kind-module">
 						<a href="../modules/helpers_with_page_auth_required.html">helpers/with-<wbr>page-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="../modules/instance.html">instance</a>
+						<a href="../modules/index.html">index</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/session.html">session</a>
@@ -201,6 +214,9 @@
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/session_session.html">session/session</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/session_update_session.html">session/update-<wbr>session</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/utils_errors.html">utils/errors</a>
@@ -256,6 +272,7 @@
 		<div class="tsd-legend-group">
 			<ul class="tsd-legend">
 				<li class="tsd-kind-function"><span class="tsd-kind-icon">Function</span></li>
+				<li class="tsd-kind-function tsd-has-type-parameter"><span class="tsd-kind-icon">Function with type parameter</span></li>
 				<li class="tsd-kind-type-alias"><span class="tsd-kind-icon">Type alias</span></li>
 				<li class="tsd-kind-type-alias tsd-has-type-parameter"><span class="tsd-kind-icon">Type alias with type parameter</span></li>
 			</ul>
@@ -265,6 +282,10 @@
 			</ul>
 			<ul class="tsd-legend">
 				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
+				<li class="tsd-kind-class tsd-has-type-parameter"><span class="tsd-kind-icon">Class with type parameter</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-enum"><span class="tsd-kind-icon">Enumeration</span></li>
 			</ul>
 		</div>
 	</div>

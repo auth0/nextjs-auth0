@@ -1,4 +1,5 @@
 import {
+  NodeCookies as Cookies,
   CookieStore,
   TransientStore,
   clientFactory,
@@ -24,7 +25,8 @@ import {
   ProfileOptions,
   CallbackOptions,
   AfterCallback,
-  AfterRefetch
+  AfterRefetch,
+  OnError
 } from './handlers';
 import {
   sessionFactory,
@@ -35,7 +37,9 @@ import {
   Session,
   AccessTokenRequest,
   GetAccessTokenResult,
-  Claims
+  Claims,
+  updateSessionFactory,
+  UpdateSession
 } from './session/';
 import {
   withPageAuthRequiredFactory,
@@ -44,17 +48,87 @@ import {
   WithPageAuthRequired,
   GetServerSidePropsResultWithSession,
   WithPageAuthRequiredOptions,
-  PageRoute,
-  getServerSidePropsWrapperFactory,
-  GetServerSidePropsWrapper
+  PageRoute
 } from './helpers';
-import { InitAuth0, SignInWithAuth0 } from './instance';
 import version from './version';
 import { getConfig, getLoginUrl, ConfigParameters } from './config';
+import { setIsUsingNamedExports, setIsUsingOwnInstance } from './utils/instance-check';
 
-let instance: SignInWithAuth0 & { sessionCache: SessionCache };
+/**
+ * The SDK server instance.
+ *
+ * This is created for you when you use the named exports, or you can create your own using {@link InitAuth0}.
+ *
+ * See {@link ConfigParameters} for more info.
+ *
+ * @category Server
+ */
+export interface Auth0Server {
+  /**
+   * Session getter.
+   */
+  getSession: GetSession;
 
-function getInstance(): SignInWithAuth0 & { sessionCache: SessionCache } {
+  /**
+   * Append properties to the user.
+   */
+  updateSession: UpdateSession;
+
+  /**
+   * Access token getter.
+   */
+  getAccessToken: GetAccessToken;
+
+  /**
+   * Login handler which will redirect the user to Auth0.
+   */
+  handleLogin: HandleLogin;
+
+  /**
+   * Callback handler which will complete the transaction and create a local session.
+   */
+  handleCallback: HandleCallback;
+
+  /**
+   * Logout handler which will clear the local session and the Auth0 session.
+   */
+  handleLogout: HandleLogout;
+
+  /**
+   * Profile handler which return profile information about the user.
+   */
+  handleProfile: HandleProfile;
+
+  /**
+   * Helper that adds auth to an API route.
+   */
+  withApiAuthRequired: WithApiAuthRequired;
+
+  /**
+   * Helper that adds auth to a Page route.
+   */
+  withPageAuthRequired: WithPageAuthRequired;
+
+  /**
+   * Create the main handlers for your api routes.
+   */
+  handleAuth: HandleAuth;
+}
+
+/**
+ * Initialise your own instance of the SDK.
+ *
+ * See {@link ConfigParameters}.
+ *
+ * @category Server
+ */
+export type InitAuth0 = (params?: ConfigParameters) => Auth0Server;
+
+let instance: Auth0Server & { sessionCache: SessionCache };
+
+// For using managed instance with named exports.
+function getInstance(): Auth0Server & { sessionCache: SessionCache } {
+  setIsUsingNamedExports();
   if (instance) {
     return instance;
   }
@@ -62,13 +136,20 @@ function getInstance(): SignInWithAuth0 & { sessionCache: SessionCache } {
   return instance;
 }
 
-export const _initAuth = (params?: ConfigParameters): SignInWithAuth0 & { sessionCache: SessionCache } => {
+// For creating own instance.
+export const initAuth0: InitAuth0 = (params) => {
+  setIsUsingOwnInstance();
+  const { sessionCache, ...publicApi } = _initAuth(params); // eslint-disable-line @typescript-eslint/no-unused-vars
+  return publicApi;
+};
+
+export const _initAuth = (params?: ConfigParameters): Auth0Server & { sessionCache: SessionCache } => {
   const { baseConfig, nextConfig } = getConfig(params);
 
   // Init base layer (with base config)
   const getClient = clientFactory(baseConfig, { name: 'nextjs-auth0', version });
   const transientStore = new TransientStore(baseConfig);
-  const cookieStore = new CookieStore(baseConfig);
+  const cookieStore = new CookieStore(baseConfig, Cookies);
   const sessionCache = new SessionCache(baseConfig, cookieStore);
   const baseHandleLogin = baseLoginHandler(baseConfig, getClient, transientStore);
   const baseHandleLogout = baseLogoutHandler(baseConfig, getClient, sessionCache);
@@ -76,10 +157,10 @@ export const _initAuth = (params?: ConfigParameters): SignInWithAuth0 & { sessio
 
   // Init Next layer (with next config)
   const getSession = sessionFactory(sessionCache);
+  const updateSession = updateSessionFactory(sessionCache);
   const getAccessToken = accessTokenFactory(nextConfig, getClient, sessionCache);
   const withApiAuthRequired = withApiAuthRequiredFactory(sessionCache);
   const withPageAuthRequired = withPageAuthRequiredFactory(nextConfig.routes.login, () => sessionCache);
-  const getServerSidePropsWrapper = getServerSidePropsWrapperFactory(() => sessionCache);
   const handleLogin = loginHandler(baseHandleLogin, nextConfig, baseConfig);
   const handleLogout = logoutHandler(baseHandleLogout);
   const handleCallback = callbackHandler(baseHandleCallback, nextConfig);
@@ -89,10 +170,10 @@ export const _initAuth = (params?: ConfigParameters): SignInWithAuth0 & { sessio
   return {
     sessionCache,
     getSession,
+    updateSession,
     getAccessToken,
     withApiAuthRequired,
     withPageAuthRequired,
-    getServerSidePropsWrapper,
     handleLogin,
     handleLogout,
     handleCallback,
@@ -101,34 +182,40 @@ export const _initAuth = (params?: ConfigParameters): SignInWithAuth0 & { sessio
   };
 };
 
-export const initAuth0: InitAuth0 = (params) => {
-  const { sessionCache, ...publicApi } = _initAuth(params);
-  return publicApi;
-};
-
+/* c8 ignore start */
 const getSessionCache = () => getInstance().sessionCache;
 export const getSession: GetSession = (...args) => getInstance().getSession(...args);
+export const updateSession: UpdateSession = (...args) => getInstance().updateSession(...args);
 export const getAccessToken: GetAccessToken = (...args) => getInstance().getAccessToken(...args);
 export const withApiAuthRequired: WithApiAuthRequired = (...args) => getInstance().withApiAuthRequired(...args);
 export const withPageAuthRequired: WithPageAuthRequired = withPageAuthRequiredFactory(getLoginUrl(), getSessionCache);
-export const getServerSidePropsWrapper: GetServerSidePropsWrapper = getServerSidePropsWrapperFactory(getSessionCache);
-export const handleLogin: HandleLogin = (...args) => getInstance().handleLogin(...args);
-export const handleLogout: HandleLogout = (...args) => getInstance().handleLogout(...args);
-export const handleCallback: HandleCallback = (...args) => getInstance().handleCallback(...args);
-export const handleProfile: HandleProfile = (...args) => getInstance().handleProfile(...args);
+export const handleLogin: HandleLogin = ((...args: Parameters<HandleLogin>) =>
+  getInstance().handleLogin(...args)) as HandleLogin;
+export const handleLogout: HandleLogout = ((...args: Parameters<HandleLogout>) =>
+  getInstance().handleLogout(...args)) as HandleLogout;
+export const handleCallback: HandleCallback = ((...args: Parameters<HandleCallback>) =>
+  getInstance().handleCallback(...args)) as HandleCallback;
+export const handleProfile: HandleProfile = ((...args: Parameters<HandleProfile>) =>
+  getInstance().handleProfile(...args)) as HandleProfile;
 export const handleAuth: HandleAuth = (...args) => getInstance().handleAuth(...args);
 
 export {
-  UserProvider,
-  UserProviderProps,
-  UserProfile,
-  UserContext,
-  RequestError,
-  useUser,
-  WithPageAuthRequiredProps
-} from './frontend';
+  AuthError,
+  AccessTokenErrorCode,
+  AccessTokenError,
+  HandlerError,
+  CallbackHandlerError,
+  LoginHandlerError,
+  LogoutHandlerError,
+  ProfileHandlerError
+} from './utils/errors';
 
-export { AccessTokenError, HandlerError } from './utils/errors';
+export {
+  MissingStateCookieError,
+  MissingStateParamError,
+  IdentityProviderError,
+  ApplicationError
+} from './auth0-session';
 
 export {
   ConfigParameters,
@@ -144,9 +231,9 @@ export {
   PageRoute,
   WithApiAuthRequired,
   WithPageAuthRequired,
-  GetServerSidePropsWrapper,
   SessionCache,
   GetSession,
+  UpdateSession,
   GetAccessToken,
   Session,
   Claims,
@@ -157,5 +244,7 @@ export {
   AfterRefetch,
   LoginOptions,
   LogoutOptions,
-  GetLoginState
+  GetLoginState,
+  OnError
 };
+/* c8 ignore stop */

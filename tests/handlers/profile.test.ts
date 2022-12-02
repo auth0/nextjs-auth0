@@ -5,17 +5,6 @@ import { get } from '../auth0-session/fixtures/helpers';
 import { setup, teardown, login } from '../fixtures/setup';
 import { Session, AfterCallback } from '../../src';
 import { makeIdToken } from '../auth0-session/fixtures/cert';
-import { IncomingMessage } from 'http';
-import { URL } from 'url';
-
-jest.mock('../../src/utils/assert', () => ({
-  assertReqRes(req: IncomingMessage) {
-    if (req.url?.includes('error=')) {
-      const url = new URL(req.url, 'http://example.com');
-      throw new Error(url.searchParams.get('error') as string);
-    }
-  }
-}));
 
 describe('profile handler', () => {
   afterEach(teardown);
@@ -23,7 +12,7 @@ describe('profile handler', () => {
   test('should throw an error when not logged in', async () => {
     const baseUrl = await setup(withoutApi);
 
-    await expect(get(baseUrl, '/api/auth/me')).rejects.toThrow('Unauthorized');
+    await expect(get(baseUrl, '/api/auth/me')).resolves.toBe('');
   });
 
   test('should return the profile when logged in', async () => {
@@ -50,7 +39,7 @@ describe('profile handler', () => {
     expect(res.headers['cache-control']).toEqual('no-store');
   });
 
-  test('should throw if re-fetching with no Access Token', async () => {
+  test('should throw if re-fetching with no access token', async () => {
     const afterCallback: AfterCallback = (_req, _res, session: Session): Session => {
       delete session.accessToken;
       return session;
@@ -92,7 +81,7 @@ describe('profile handler', () => {
     nock(`${withoutApi.issuerBaseURL}`)
       .post('/oauth/token', `grant_type=refresh_token&refresh_token=GEbRxBN...edjnXbL`)
       .reply(200, {
-        id_token: makeIdToken({ iss: 'https://acme.auth0.local/' }),
+        id_token: await makeIdToken({ iss: 'https://acme.auth0.local/' }),
         token_type: 'Bearer',
         expires_in: 750,
         scope: 'read:foo write:foo'
@@ -115,7 +104,7 @@ describe('profile handler', () => {
       },
       userInfoToken: 'new-access-token'
     });
-    refreshTokenRotationExchange(withApi, 'GEbRxBN...edjnXbL', {}, 'new-access-token', 'new-refresh-token');
+    await refreshTokenRotationExchange(withApi, 'GEbRxBN...edjnXbL', {}, 'new-access-token', 'new-refresh-token');
     const cookieJar = await login(baseUrl);
     const profile = await get(baseUrl, '/api/auth/me', { cookieJar });
     expect(profile).toMatchObject({ foo: 'bar' });
@@ -152,13 +141,5 @@ describe('profile handler', () => {
     const cookieJar = await login(baseUrl);
 
     await expect(get(baseUrl, '/api/auth/me', { cookieJar })).rejects.toThrowError('some validation error');
-  });
-
-  test('should escape html in errors', async () => {
-    const baseUrl = await setup(withoutApi);
-
-    const res = await fetch(`${baseUrl}/api/auth/me?error=%3Cscript%3Ealert(%27xss%27)%3C%2Fscript%3E`);
-
-    expect(await res.text()).toEqual('&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;');
   });
 });

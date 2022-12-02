@@ -1,5 +1,4 @@
 import { Cookie, CookieJar } from 'tough-cookie';
-import { JWK } from 'jose';
 import { signing as deriveKey } from '../../../src/auth0-session/utils/hkdf';
 import { generateCookieValue } from '../../../src/auth0-session/transient-store';
 import { IncomingMessage, request as nodeHttpRequest } from 'http';
@@ -17,11 +16,11 @@ export const defaultConfig: Omit<ConfigParameters, 'baseURL'> = {
   }
 };
 
-export const toSignedCookieJar = (cookies: { [key: string]: string }, url: string): CookieJar => {
+export const toSignedCookieJar = async (cookies: { [key: string]: string }, url: string): Promise<CookieJar> => {
   const cookieJar = new CookieJar();
-  const jwk = JWK.asKey(deriveKey(secret));
+  const signingKey = await deriveKey(secret);
   for (const [key, value] of Object.entries(cookies)) {
-    cookieJar.setCookieSync(`${key}=${generateCookieValue(key, value, jwk)}`, url);
+    cookieJar.setCookieSync(`${key}=${await generateCookieValue(key, value, signingKey)}`, url);
   }
   return cookieJar;
 };
@@ -60,6 +59,9 @@ const request = (
         rejectUnauthorized: false
       },
       (res) => {
+        if (cookieJar) {
+          (res.headers['set-cookie'] || []).forEach((cookie: string) => cookieJar.setCookieSync(cookie, url));
+        }
         if (res.statusCode && (res.statusCode < 200 || res.statusCode >= 400)) {
           return reject(new Error(res.statusMessage));
         }
@@ -81,9 +83,6 @@ const request = (
             resolve(data);
           }
         });
-        if (cookieJar) {
-          (res.headers['set-cookie'] || []).forEach((cookie: string) => cookieJar.setCookieSync(cookie, url));
-        }
       }
     );
     req.setHeader('content-type', 'application/json');
@@ -112,5 +111,5 @@ export const post = async (
     cookieJar,
     body,
     fullResponse
-  }: { body: { [key: string]: string }; cookieJar?: CookieJar; fullResponse?: boolean; https?: boolean }
+  }: { body: { [key: string]: any }; cookieJar?: CookieJar; fullResponse?: boolean; https?: boolean }
 ): Promise<any | Response> => request(`${baseURL}${path}`, 'POST', { body, cookieJar, fullResponse });

@@ -51,6 +51,32 @@ describe('with-page-auth-required ssr', () => {
     expect(spy).toHaveBeenCalledWith(expect.objectContaining({ req: expect.anything(), res: expect.anything() }));
   });
 
+  test('allow to override the user prop', async () => {
+    const baseUrl = await setup(withoutApi, {
+      withPageAuthRequiredOptions: {
+        async getServerSideProps() {
+          return { props: { user: { sub: 'foo' } } };
+        }
+      }
+    });
+    const cookieJar = await login(baseUrl);
+    const { data } = await get(baseUrl, '/protected', { cookieJar, fullResponse: true });
+    expect(data).toMatch(/Protected Page.*foo/);
+  });
+
+  test('allow to override the user prop when using aync props', async () => {
+    const baseUrl = await setup(withoutApi, {
+      withPageAuthRequiredOptions: {
+        async getServerSideProps() {
+          return { props: Promise.resolve({ user: { sub: 'foo' } }) };
+        }
+      }
+    });
+    const cookieJar = await login(baseUrl);
+    const { data } = await get(baseUrl, '/protected', { cookieJar, fullResponse: true });
+    expect(data).toMatch(/Protected Page.*foo/);
+  });
+
   test('use a custom login url', async () => {
     process.env.NEXT_PUBLIC_AUTH0_LOGIN = '/api/foo';
     const baseUrl = await setup(withoutApi);
@@ -62,7 +88,7 @@ describe('with-page-auth-required ssr', () => {
     delete process.env.NEXT_PUBLIC_AUTH0_LOGIN;
   });
 
-  test('is a noop when invoked as a client-side protection from the server', async () => {
+  test('is a no-op when invoked as a client-side protection from the server', async () => {
     const baseUrl = await setup(withoutApi);
     const cookieJar = await login(baseUrl);
     const {
@@ -106,8 +132,8 @@ describe('with-page-auth-required ssr', () => {
       withPageAuthRequiredOptions: {
         async getServerSideProps(ctx) {
           await Promise.resolve();
-          const session = (global as any).getSession(ctx.req, ctx.res);
-          session.test = 'Hello World!';
+          const session = await (global as any).getSession(ctx.req, ctx.res);
+          await (global as any).updateSession(ctx.req, ctx.res, { ...session, test: 'Hello World!' });
           return { props: {} };
         }
       }
