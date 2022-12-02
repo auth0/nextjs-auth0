@@ -1,4 +1,4 @@
-import { TokenSet } from 'openid-client';
+import type { TokenSet } from 'openid-client';
 import { Config } from '../auth0-session';
 import { NextConfig } from '../config';
 
@@ -12,18 +12,18 @@ export interface Claims {
 }
 
 /**
- * The user's session
+ * The user's session.
  *
  * @category Server
  */
 export default class Session {
   /**
-   * Any of the claims from the id_token.
+   * Any of the claims from the `id_token`.
    */
   user: Claims;
 
   /**
-   * The id token.
+   * The ID token.
    */
   idToken?: string | undefined;
 
@@ -43,7 +43,10 @@ export default class Session {
   accessTokenExpiresAt?: number;
 
   /**
-   * The refresh token.
+   * The refresh token, which is used to request a new access token.
+   *
+   * **IMPORTANT** You need to request the `offline_access` scope on login to get a refresh token
+   * from Auth0.
    */
   refreshToken?: string | undefined;
 
@@ -58,22 +61,23 @@ export default class Session {
  * @ignore
  */
 export function fromTokenSet(tokenSet: TokenSet, config: Config | NextConfig): Session {
-  // Get the claims without any OIDC specific claim.
+  // Get the claims without any OIDC-specific claim.
   const claims = tokenSet.claims();
   config.identityClaimFilter.forEach((claim) => {
     delete claims[claim];
   });
 
   const { id_token, access_token, scope, expires_at, refresh_token, ...remainder } = tokenSet;
+  const storeIDToken = 'session' in config ? config.session.storeIDToken : true;
 
   return Object.assign(
     new Session({ ...claims }),
     {
-      idToken: id_token,
       accessToken: access_token,
       accessTokenScope: scope,
       accessTokenExpiresAt: expires_at,
-      refreshToken: refresh_token
+      refreshToken: refresh_token,
+      ...(storeIDToken && { idToken: id_token })
     },
     remainder
   );

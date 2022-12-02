@@ -7,3 +7,4 @@ export {
   GetAccessTokenResult
 } from './get-access-token';
 export { default as SessionCache } from './cache';
+export { default as updateSessionFactory, UpdateSession } from './update-session';

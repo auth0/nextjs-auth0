@@ -2,7 +2,7 @@ import { login, setup, teardown } from '../fixtures/setup';
 import { withApi } from '../fixtures/default-settings';
 import { get } from '../auth0-session/fixtures/helpers';
 import { Session } from '../../src';
-import { refreshTokenExchange, refreshTokenRotationExchange } from '../fixtures/oidc-nocks';
+import { failedRefreshTokenExchange, refreshTokenExchange, refreshTokenRotationExchange } from '../fixtures/oidc-nocks';
 import { makeIdToken } from '../auth0-session/fixtures/cert';
 import nock from 'nock';
 
@@ -122,7 +122,7 @@ describe('get access token', () => {
   });
 
   test('should retrieve a new access token if the old one is expired and update the profile', async () => {
-    refreshTokenExchange(
+    await refreshTokenExchange(
       withApi,
       'GEbRxBN...edjnXbL',
       {
@@ -148,7 +148,7 @@ describe('get access token', () => {
   });
 
   test('should retrieve a new access token if force refresh is set', async () => {
-    refreshTokenExchange(
+    await refreshTokenExchange(
       withApi,
       'GEbRxBN...edjnXbL',
       {
@@ -166,8 +166,45 @@ describe('get access token', () => {
     expect(refreshToken).toEqual('GEbRxBN...edjnXbL');
   });
 
+  test('should fail when refresh grant fails', async () => {
+    await failedRefreshTokenExchange(withApi, 'GEbRxBN...edjnXbL', {}, 500);
+    const baseUrl = await setup(withApi, { getAccessTokenOptions: { refresh: true } });
+    const cookieJar = await login(baseUrl);
+    await expect(get(baseUrl, '/api/access-token', { cookieJar })).rejects.toThrow(
+      'The request to refresh the access token failed. CAUSE: expected 200 OK, got: 500 Internal Server Error'
+    );
+  });
+
+  test('should fail when refresh grant fails with oauth error', async () => {
+    await failedRefreshTokenExchange(
+      withApi,
+      'GEbRxBN...edjnXbL',
+      { error: 'invalid_grant', error_description: 'Unknown or invalid refresh token.' },
+      401
+    );
+    const baseUrl = await setup(withApi, { getAccessTokenOptions: { refresh: true } });
+    const cookieJar = await login(baseUrl);
+    await expect(get(baseUrl, '/api/access-token', { cookieJar })).rejects.toThrow(
+      'The request to refresh the access token failed. CAUSE: invalid_grant (Unknown or invalid refresh token.)'
+    );
+  });
+
+  test('should escape oauth error', async () => {
+    await failedRefreshTokenExchange(
+      withApi,
+      'GEbRxBN...edjnXbL',
+      { error: '<script>alert(1)</script>', error_description: '<script>alert(2)</script>' },
+      401
+    );
+    const baseUrl = await setup(withApi, { getAccessTokenOptions: { refresh: true } });
+    const cookieJar = await login(baseUrl);
+    await expect(get(baseUrl, '/api/access-token', { cookieJar })).rejects.toThrow(
+      'The request to refresh the access token failed. CAUSE: &lt;script&gt;alert(1)&lt;/script&gt; (&lt;script&gt;alert(2)&lt;/script&gt;)'
+    );
+  });
+
   test('should retrieve a new access token and rotate the refresh token', async () => {
-    refreshTokenRotationExchange(
+    await refreshTokenRotationExchange(
       withApi,
       'GEbRxBN...edjnXbL',
       {
@@ -194,7 +231,7 @@ describe('get access token', () => {
   });
 
   test('should not overwrite custom session properties when applying a new access token', async () => {
-    refreshTokenExchange(
+    await refreshTokenExchange(
       withApi,
       'GEbRxBN...edjnXbL',
       {
@@ -233,36 +270,29 @@ describe('get access token', () => {
   });
 
   test('should retrieve a new access token and update the session based on afterRefresh', async () => {
-    refreshTokenExchange(
-      withApi,
-      'GEbRxBN...edjnXbL',
-      {
-        email: 'john@test.com',
-        name: 'john doe',
-        sub: '123'
-      },
-      'new-token'
-    );
+    await refreshTokenExchange(withApi, 'GEbRxBN...edjnXbL', {}, 'new-token');
     const baseUrl = await setup(withApi, {
       getAccessTokenOptions: {
         refresh: true,
         afterRefresh(_req, _res, session) {
-          delete session.idToken;
+          delete session.accessTokenScope;
           return session;
         }
       }
     });
     const cookieJar = await login(baseUrl);
-    const { idToken } = await get(baseUrl, '/api/session', { cookieJar });
-    expect(idToken).not.toBeUndefined();
+    const { accessTokenScope } = await get(baseUrl, '/api/session', { cookieJar });
+    expect(accessTokenScope).not.toBeUndefined();
     const { accessToken } = await get(baseUrl, '/api/access-token', { cookieJar });
     expect(accessToken).toEqual('new-token');
-    const { idToken: newIdToken } = await get(baseUrl, '/api/session', { cookieJar });
-    expect(newIdToken).toBeUndefined();
+    const { accessTokenScope: newAccessTokenScope } = await get(baseUrl, '/api/session', {
+      cookieJar
+    });
+    expect(newAccessTokenScope).toBeUndefined();
   });
 
   test('should pass custom auth params in refresh grant request body', async () => {
-    const idToken = makeIdToken({
+    const idToken = await makeIdToken({
       iss: `${withApi.issuerBaseURL}/`,
       aud: withApi.clientID,
       email: 'john@test.com',

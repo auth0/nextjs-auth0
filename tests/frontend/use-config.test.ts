@@ -1,7 +1,7 @@
 import { renderHook } from '@testing-library/react-hooks';
 
 import { withConfigProvider } from '../fixtures/frontend';
-import { useConfig } from '../../src/frontend/use-config';
+import { useConfig } from '../../src/client/use-config';
 
 describe('context wrapper', () => {
   test('should provide the default login url', async () => {

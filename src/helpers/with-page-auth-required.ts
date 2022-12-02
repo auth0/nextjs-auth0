@@ -1,19 +1,11 @@
 import { GetServerSideProps, GetServerSidePropsContext, GetServerSidePropsResult } from 'next';
 import { Claims, SessionCache } from '../session';
 import { assertCtx } from '../utils/assert';
-import React, { ComponentType } from 'react';
-import {
-  UserProps,
-  WithPageAuthRequiredOptions as WithPageAuthRequiredCSROptions,
-  WithPageAuthRequiredProps
-} from '../frontend/with-page-auth-required';
-import { withPageAuthRequired as withPageAuthRequiredCSR } from '../frontend';
 import { ParsedUrlQuery } from 'querystring';
-import getServerSidePropsWrapperFactory from './get-server-side-props-wrapper';
 
 /**
  * If you wrap your `getServerSideProps` with {@link WithPageAuthRequired} your props object will be augmented with
- * the user property, which will be the user's {@link Claims}
+ * the user property, which will be the user's {@link Claims}.
  *
  * ```js
  * // pages/profile.js
@@ -31,7 +23,7 @@ import getServerSidePropsWrapperFactory from './get-server-side-props-wrapper';
 export type GetServerSidePropsResultWithSession<P = any> = GetServerSidePropsResult<P & { user?: Claims | null }>;
 
 /**
- * A page route that has been augmented with {@link WithPageAuthRequired}
+ * A page route that has been augmented with {@link WithPageAuthRequired}.
  *
  * @category Server
  */
@@ -42,8 +34,9 @@ export type PageRoute<P, Q extends ParsedUrlQuery = ParsedUrlQuery> = (
 /**
  * If you have a custom returnTo url you should specify it in `returnTo`.
  *
- * You can pass in your own `getServerSideProps` method, the props returned from this will be merged with the
- * user props. You can also access the user session data by calling `getSession` inside of this method, eg:
+ * You can pass in your own `getServerSideProps` method, the props returned from this will be
+ * merged with the user props. You can also access the user session data by calling `getSession`
+ * inside of this method. For example:
  *
  * ```js
  * // pages/protected-page.js
@@ -71,7 +64,8 @@ export type WithPageAuthRequiredOptions<P = any, Q extends ParsedUrlQuery = Pars
 };
 
 /**
- * Wrap your `getServerSideProps` with this method to make sure the user is authenticated before visiting the page.
+ * Wrap your `getServerSideProps` with this method to make sure the user is authenticated before
+ * visiting the page.
  *
  * ```js
  * // pages/protected-page.js
@@ -84,18 +78,14 @@ export type WithPageAuthRequiredOptions<P = any, Q extends ParsedUrlQuery = Pars
  * export const getServerSideProps = withPageAuthRequired();
  * ```
  *
- * If the user visits `/protected-page` without a valid session, it will redirect the user to the login page.
- * Then they will be returned to `/protected-page` after login.
+ * If the user visits `/protected-page` without a valid session, it will redirect the user to the
+ * login page. Then they will be returned to `/protected-page` after login.
  *
  * @category Server
  */
-export type WithPageAuthRequired = {
-  <P extends WithPageAuthRequiredProps>(
-    Component: ComponentType<P & UserProps>,
-    options?: WithPageAuthRequiredCSROptions
-  ): React.FC<P>;
-  <P, Q extends ParsedUrlQuery = ParsedUrlQuery>(opts?: WithPageAuthRequiredOptions<P, Q>): PageRoute<P, Q>;
-};
+export type WithPageAuthRequired = <P, Q extends ParsedUrlQuery = ParsedUrlQuery>(
+  opts?: WithPageAuthRequiredOptions<P, Q>
+) => PageRoute<P, Q>;
 
 /**
  * @ignore
@@ -104,40 +94,26 @@ export default function withPageAuthRequiredFactory(
   loginUrl: string,
   getSessionCache: () => SessionCache
 ): WithPageAuthRequired {
-  return (
-    optsOrComponent: WithPageAuthRequiredOptions | ComponentType<WithPageAuthRequiredProps & UserProps> = {},
-    csrOpts?: WithPageAuthRequiredCSROptions
-  ): any => {
-    if (typeof optsOrComponent === 'function') {
-      return withPageAuthRequiredCSR(optsOrComponent, csrOpts);
-    }
-    const { getServerSideProps, returnTo } = optsOrComponent;
-    const getServerSidePropsWrapper = getServerSidePropsWrapperFactory(getSessionCache);
-    return getServerSidePropsWrapper(
-      async (ctx: GetServerSidePropsContext): Promise<GetServerSidePropsResultWithSession> => {
-        assertCtx(ctx);
-        const sessionCache = getSessionCache();
-        const session = sessionCache.get(ctx.req, ctx.res);
-        if (!session?.user) {
-          // 10 - redirect
-          // 9.5.4 - unstable_redirect
-          // 9.4 - res.setHeaders
-          return {
-            redirect: {
-              destination: `${loginUrl}?returnTo=${encodeURIComponent(returnTo || ctx.resolvedUrl)}`,
-              permanent: false
-            }
-          };
-        }
-        let ret: any = { props: {} };
-        if (getServerSideProps) {
-          ret = await getServerSideProps(ctx);
-        }
-        if (ret.props instanceof Promise) {
-          return { ...ret, props: ret.props.then((props: any) => ({ ...props, user: session.user })) };
-        }
-        return { ...ret, props: { ...ret.props, user: session.user } };
+  return ({ getServerSideProps, returnTo } = {}) =>
+    async (ctx) => {
+      assertCtx(ctx);
+      const sessionCache = getSessionCache();
+      const session = await sessionCache.get(ctx.req, ctx.res);
+      if (!session?.user) {
+        return {
+          redirect: {
+            destination: `${loginUrl}?returnTo=${encodeURIComponent(returnTo || ctx.resolvedUrl)}`,
+            permanent: false
+          }
+        };
       }
-    );
-  };
+      let ret: any = { props: {} };
+      if (getServerSideProps) {
+        ret = await getServerSideProps(ctx);
+      }
+      if (ret.props instanceof Promise) {
+        return { ...ret, props: ret.props.then((props: any) => ({ user: session.user, ...props })) };
+      }
+      return { ...ret, props: { user: session.user, ...ret.props } };
+    };
 }

@@ -87,13 +87,13 @@
 					<div class="tsd-signature tsd-kind-icon">Get<wbr>Server<wbr>Side<wbr>Props<wbr>Result<wbr>With<wbr>Session&lt;P&gt;<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">GetServerSidePropsResult</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">P</span><span class="tsd-signature-symbol"> &amp; </span><span class="tsd-signature-symbol">{ </span>user<span class="tsd-signature-symbol">?: </span><a href="../interfaces/session_session.claims.html" class="tsd-signature-type" data-tsd-kind="Interface">Claims</a><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">null</span><span class="tsd-signature-symbol"> }</span><span class="tsd-signature-symbol">&gt;</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/cc75175/src/helpers/with-page-auth-required.ts#L31">src/helpers/with-page-auth-required.ts:31</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/af21d7c/src/helpers/with-page-auth-required.ts#L23">src/helpers/with-page-auth-required.ts:23</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
 							<p>If you wrap your <code>getServerSideProps</code> with <a href="helpers_with_page_auth_required.html#withpageauthrequired">WithPageAuthRequired</a> your props object will be augmented with
-							the user property, which will be the user&#39;s <a href="../interfaces/session_session.claims.html">Claims</a></p>
+							the user property, which will be the user&#39;s <a href="../interfaces/session_session.claims.html">Claims</a>.</p>
 						</div>
 						<pre><code class="language-js"><span style="color: #008000">// pages/profile.js</span>
 <span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">withPageAuthRequired</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@auth0/nextjs-auth0&#039;</span><span style="color: #000000">;</span>
@@ -118,12 +118,12 @@
 					<div class="tsd-signature tsd-kind-icon">Page<wbr>Route&lt;P, Q&gt;<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span>cts<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">GetServerSidePropsContext</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">Q</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="helpers_with_page_auth_required.html#getserversidepropsresultwithsession" class="tsd-signature-type" data-tsd-kind="Type alias">GetServerSidePropsResultWithSession</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">P</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">&gt;</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/cc75175/src/helpers/with-page-auth-required.ts#L38">src/helpers/with-page-auth-required.ts:38</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/af21d7c/src/helpers/with-page-auth-required.ts#L30">src/helpers/with-page-auth-required.ts:30</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
-							<p>A page route that has been augmented with <a href="helpers_with_page_auth_required.html#withpageauthrequired">WithPageAuthRequired</a></p>
+							<p>A page route that has been augmented with <a href="helpers_with_page_auth_required.html#withpageauthrequired">WithPageAuthRequired</a>.</p>
 						</div>
 					</div>
 					<h4 class="tsd-type-parameters-title">Type parameters</h4>
@@ -160,15 +160,16 @@
 				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module">
 					<a name="withpageauthrequired" class="tsd-anchor"></a>
 					<h3>With<wbr>Page<wbr>Auth<wbr>Required</h3>
-					<div class="tsd-signature tsd-kind-icon">With<wbr>Page<wbr>Auth<wbr>Required<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">{ </span>&lt;P&gt;<span class="tsd-signature-symbol">(</span>Component<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">ComponentType</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">P</span><span class="tsd-signature-symbol"> &amp; </span><a href="../interfaces/frontend_with_page_auth_required.userprops.html" class="tsd-signature-type" data-tsd-kind="Interface">UserProps</a><span class="tsd-signature-symbol">&gt;</span>, options<span class="tsd-signature-symbol">?: </span><a href="../interfaces/frontend_with_page_auth_required.withpageauthrequiredoptions.html" class="tsd-signature-type" data-tsd-kind="Interface">WithPageAuthRequiredOptions</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">FC</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">P</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">; </span>&lt;P, Q&gt;<span class="tsd-signature-symbol">(</span>opts<span class="tsd-signature-symbol">?: </span><a href="helpers_with_page_auth_required.html#withpageauthrequiredoptions" class="tsd-signature-type" data-tsd-kind="Type alias">WithPageAuthRequiredOptions</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">P</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">Q</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="helpers_with_page_auth_required.html#pageroute" class="tsd-signature-type" data-tsd-kind="Type alias">PageRoute</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">P</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">Q</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol"> }</span></div>
+					<div class="tsd-signature tsd-kind-icon">With<wbr>Page<wbr>Auth<wbr>Required<span class="tsd-signature-symbol">:</span> &lt;P, Q&gt;<span class="tsd-signature-symbol">(</span>opts<span class="tsd-signature-symbol">?: </span><a href="helpers_with_page_auth_required.html#withpageauthrequiredoptions" class="tsd-signature-type" data-tsd-kind="Type alias">WithPageAuthRequiredOptions</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">P</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">Q</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><a href="helpers_with_page_auth_required.html#pageroute" class="tsd-signature-type" data-tsd-kind="Type alias">PageRoute</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">P</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">Q</span><span class="tsd-signature-symbol">&gt;</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/cc75175/src/helpers/with-page-auth-required.ts#L92">src/helpers/with-page-auth-required.ts:92</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/af21d7c/src/helpers/with-page-auth-required.ts#L86">src/helpers/with-page-auth-required.ts:86</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
-							<p>Wrap your <code>getServerSideProps</code> with this method to make sure the user is authenticated before visiting the page.</p>
+							<p>Wrap your <code>getServerSideProps</code> with this method to make sure the user is authenticated before
+							visiting the page.</p>
 						</div>
 						<pre><code class="language-js"><span style="color: #008000">// pages/protected-page.js</span>
 <span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">withPageAuthRequired</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@auth0/nextjs-auth0&#039;</span><span style="color: #000000">;</span>
@@ -179,15 +180,14 @@
 
 <span style="color: #AF00DB">export</span><span style="color: #000000"> </span><span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">getServerSideProps</span><span style="color: #000000"> = </span><span style="color: #795E26">withPageAuthRequired</span><span style="color: #000000">();</span>
 </code></pre>
-						<p>If the user visits <code>/protected-page</code> without a valid session, it will redirect the user to the login page.
-						Then they will be returned to <code>/protected-page</code> after login.</p>
+						<p>If the user visits <code>/protected-page</code> without a valid session, it will redirect the user to the
+						login page. Then they will be returned to <code>/protected-page</code> after login.</p>
 					</div>
 					<div class="tsd-type-declaration">
 						<h4>Type declaration</h4>
 						<ul class="tsd-parameters">
 							<li class="tsd-parameter-signature">
 								<ul class="tsd-signatures tsd-kind-type-literal tsd-parent-kind-type-alias tsd-has-type-parameter">
-									<li class="tsd-signature tsd-kind-icon">&lt;P&gt;<span class="tsd-signature-symbol">(</span>Component<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">ComponentType</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">P</span><span class="tsd-signature-symbol"> &amp; </span><a href="../interfaces/frontend_with_page_auth_required.userprops.html" class="tsd-signature-type" data-tsd-kind="Interface">UserProps</a><span class="tsd-signature-symbol">&gt;</span>, options<span class="tsd-signature-symbol">?: </span><a href="../interfaces/frontend_with_page_auth_required.withpageauthrequiredoptions.html" class="tsd-signature-type" data-tsd-kind="Interface">WithPageAuthRequiredOptions</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">FC</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">P</span><span class="tsd-signature-symbol">&gt;</span></li>
 									<li class="tsd-signature tsd-kind-icon">&lt;P, Q&gt;<span class="tsd-signature-symbol">(</span>opts<span class="tsd-signature-symbol">?: </span><a href="helpers_with_page_auth_required.html#withpageauthrequiredoptions" class="tsd-signature-type" data-tsd-kind="Type alias">WithPageAuthRequiredOptions</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">P</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">Q</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="helpers_with_page_auth_required.html#pageroute" class="tsd-signature-type" data-tsd-kind="Type alias">PageRoute</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">P</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">Q</span><span class="tsd-signature-symbol">&gt;</span></li>
 								</ul>
 								<ul class="tsd-descriptions">
@@ -195,28 +195,10 @@
 										<h4 class="tsd-type-parameters-title">Type parameters</h4>
 										<ul class="tsd-type-parameters">
 											<li>
-												<h4>P<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">WithPageAuthRequiredProps</span></h4>
-											</li>
-										</ul>
-										<h4 class="tsd-parameters-title">Parameters</h4>
-										<ul class="tsd-parameters">
-											<li>
-												<h5>Component: <span class="tsd-signature-type">ComponentType</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">P</span><span class="tsd-signature-symbol"> &amp; </span><a href="../interfaces/frontend_with_page_auth_required.userprops.html" class="tsd-signature-type" data-tsd-kind="Interface">UserProps</a><span class="tsd-signature-symbol">&gt;</span></h5>
-											</li>
-											<li>
-												<h5><span class="tsd-flag ts-flagOptional">Optional</span> options: <a href="../interfaces/frontend_with_page_auth_required.withpageauthrequiredoptions.html" class="tsd-signature-type" data-tsd-kind="Interface">WithPageAuthRequiredOptions</a></h5>
-											</li>
-										</ul>
-										<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">FC</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">P</span><span class="tsd-signature-symbol">&gt;</span></h4>
-									</li>
-									<li class="tsd-description">
-										<h4 class="tsd-type-parameters-title">Type parameters</h4>
-										<ul class="tsd-type-parameters">
-											<li>
 												<h4>P</h4>
 											</li>
 											<li>
-												<h4>Q<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">ParsedUrlQuery</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">Q</span><span class="tsd-signature-symbol">&gt;</span> = <span class="tsd-signature-type">ParsedUrlQuery</span></h4>
+												<h4>Q<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">ParsedUrlQuery</span> = <span class="tsd-signature-type">ParsedUrlQuery</span></h4>
 											</li>
 										</ul>
 										<h4 class="tsd-parameters-title">Parameters</h4>
@@ -238,15 +220,16 @@
 					<div class="tsd-signature tsd-kind-icon">With<wbr>Page<wbr>Auth<wbr>Required<wbr>Options&lt;P, Q&gt;<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">{ </span>getServerSideProps<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">GetServerSideProps</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">P</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">Q</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">; </span>returnTo<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> }</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/cc75175/src/helpers/with-page-auth-required.ts#L68">src/helpers/with-page-auth-required.ts:68</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/af21d7c/src/helpers/with-page-auth-required.ts#L61">src/helpers/with-page-auth-required.ts:61</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
 							<p>If you have a custom returnTo url you should specify it in <code>returnTo</code>.</p>
 						</div>
-						<p>You can pass in your own <code>getServerSideProps</code> method, the props returned from this will be merged with the
-						user props. You can also access the user session data by calling <code>getSession</code> inside of this method, eg:</p>
+						<p>You can pass in your own <code>getServerSideProps</code> method, the props returned from this will be
+							merged with the user props. You can also access the user session data by calling <code>getSession</code>
+						inside of this method. For example:</p>
 						<pre><code class="language-js"><span style="color: #008000">// pages/protected-page.js</span>
 <span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">withPageAuthRequired</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@auth0/nextjs-auth0&#039;</span><span style="color: #000000">;</span>
 
@@ -294,16 +277,19 @@
 						<a href="../index.html">Exports</a>
 					</li>
 					<li class=" tsd-kind-module">
+						<a href="client.html">client</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="client_use_user.html">client/use-<wbr>user</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="client_with_page_auth_required.html">client/with-<wbr>page-<wbr>auth-<wbr>required</a>
+					</li>
+					<li class=" tsd-kind-module">
 						<a href="config.html">config</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="frontend.html">frontend</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="frontend_use_user.html">frontend/use-<wbr>user</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="frontend_with_page_auth_required.html">frontend/with-<wbr>page-<wbr>auth-<wbr>required</a>
+						<a href="edge.html">edge</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="handlers.html">handlers</a>
@@ -327,16 +313,19 @@
 						<a href="helpers.html">helpers</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="helpers_get_server_side_props_wrapper.html">helpers/get-<wbr>server-<wbr>side-<wbr>props-<wbr>wrapper</a>
+						<a href="helpers_testing.html">helpers/testing</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="helpers_with_api_auth_required.html">helpers/with-<wbr>api-<wbr>auth-<wbr>required</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="helpers_with_middleware_auth_required.html">helpers/with-<wbr>middleware-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class="current tsd-kind-module">
 						<a href="helpers_with_page_auth_required.html">helpers/with-<wbr>page-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="instance.html">instance</a>
+						<a href="index.html">index</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="session.html">session</a>
@@ -349,6 +338,9 @@
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="session_session.html">session/session</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="session_update_session.html">session/update-<wbr>session</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="utils_errors.html">utils/errors</a>
@@ -383,14 +375,19 @@
 		<div class="tsd-legend-group">
 			<ul class="tsd-legend">
 				<li class="tsd-kind-function"><span class="tsd-kind-icon">Function</span></li>
+				<li class="tsd-kind-function tsd-has-type-parameter"><span class="tsd-kind-icon">Function with type parameter</span></li>
 				<li class="tsd-kind-type-alias"><span class="tsd-kind-icon">Type alias</span></li>
 				<li class="tsd-kind-type-alias tsd-has-type-parameter"><span class="tsd-kind-icon">Type alias with type parameter</span></li>
 			</ul>
 			<ul class="tsd-legend">
-				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>
+				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
+				<li class="tsd-kind-class tsd-has-type-parameter"><span class="tsd-kind-icon">Class with type parameter</span></li>
 			</ul>
 			<ul class="tsd-legend">
-				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
+				<li class="tsd-kind-enum"><span class="tsd-kind-icon">Enumeration</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>
 			</ul>
 		</div>
 	</div>

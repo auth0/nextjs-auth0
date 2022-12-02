@@ -1,24 +1,24 @@
 import { IncomingMessage, ServerResponse } from 'http';
-import { JWK, JWS } from 'jose';
+import * as jose from 'jose';
 import { CookieJar } from 'tough-cookie';
-import { getConfig, TransientStore } from '../../src/auth0-session';
+import { getConfig, TransientStore } from '../../src/auth0-session/';
 import { signing as deriveKey } from '../../src/auth0-session/utils/hkdf';
 import { defaultConfig, fromCookieJar, get, getCookie, toSignedCookieJar } from './fixtures/helpers';
 import { setup as createServer, teardown } from './fixtures/server';
 
-const generateSignature = (cookie: string, value: string): string => {
-  const key = JWK.asKey(deriveKey(defaultConfig.secret as string));
-  return JWS.sign.flattened(Buffer.from(`${cookie}=${value}`), key, {
-    alg: 'HS256',
-    b64: false,
-    crit: ['b64']
-  }).signature;
+const generateSignature = async (cookie: string, value: string): Promise<string> => {
+  const key = await deriveKey(defaultConfig.secret as string);
+  const { signature } = await new jose.FlattenedSign(new TextEncoder().encode(`${cookie}=${value}`))
+    .setProtectedHeader({ alg: 'HS256', b64: false, crit: ['b64'] })
+    .sign(key);
+  return signature;
 };
 
 const setup = async (params = defaultConfig, cb: Function, https = true): Promise<string> =>
   createServer(params, {
-    customListener: (req, res) => {
-      res.end(JSON.stringify({ value: cb(req, res) }));
+    customListener: async (req, res) => {
+      const value = await cb(req, res);
+      res.end(JSON.stringify({ value }));
     },
     https
   });
@@ -27,8 +27,10 @@ describe('TransientStore', () => {
   afterEach(teardown);
 
   it('should use the passed-in key to set the cookies', async () => {
-    const baseURL = await setup(defaultConfig, (req: IncomingMessage, res: ServerResponse) =>
-      transientStore.save('test_key', req, res, { value: 'foo' })
+    const baseURL = await setup(
+      defaultConfig,
+      async (req: IncomingMessage, res: ServerResponse) =>
+        await transientStore.save('test_key', req, res, { value: 'foo' })
     );
     const transientStore = new TransientStore(getConfig({ ...defaultConfig, baseURL }));
     const cookieJar = new CookieJar();
@@ -40,11 +42,11 @@ describe('TransientStore', () => {
   });
 
   it('should accept list of secrets', async () => {
-    const baseURL = await setup(
-      { ...defaultConfig, secret: ['__old_secret__', defaultConfig.secret as string] },
-      (req: IncomingMessage, res: ServerResponse) => transientStore.save('test_key', req, res, { value: 'foo' })
+    const config = { ...defaultConfig, secret: ['__old_secret__', defaultConfig.secret as string] };
+    const baseURL = await setup(config, (req: IncomingMessage, res: ServerResponse) =>
+      transientStore.save('test_key', req, res, { value: 'foo' })
     );
-    const transientStore = new TransientStore(getConfig({ ...defaultConfig, baseURL }));
+    const transientStore = new TransientStore(getConfig({ ...config, baseURL }));
     const cookieJar = new CookieJar();
     const { value } = await get(baseURL, '/', { cookieJar });
     const cookies = fromCookieJar(cookieJar, baseURL);
@@ -63,20 +65,6 @@ describe('TransientStore', () => {
     const cookie = getCookie('test_key', cookieJar, baseURL);
     expect(value).toEqual('foo');
     expect(cookie?.secure).toEqual(true);
-  });
-
-  it('should override the secure setting when specified', async () => {
-    const baseURL = await setup(defaultConfig, (req: IncomingMessage, res: ServerResponse) =>
-      transientStore.save('test_key', req, res, { sameSite: 'lax', value: 'foo' })
-    );
-    const transientStore = new TransientStore(
-      getConfig({ ...defaultConfig, baseURL, session: { cookie: { secure: false } } })
-    );
-    const cookieJar = new CookieJar();
-    const { value } = await get(baseURL, '/', { cookieJar });
-    const cookie = getCookie('test_key', cookieJar, baseURL);
-    expect(value).toEqual('foo');
-    expect(cookie?.secure).toEqual(false);
   });
 
   it('should set cookie to not secure when baseURL protocol is http and SameSite=Lax', async () => {
@@ -157,10 +145,10 @@ describe('TransientStore', () => {
       transientStore.read('test_key', req, res)
     );
     const transientStore = new TransientStore(getConfig({ ...defaultConfig, baseURL }));
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
-        test_key: `foo.${generateSignature('test_key', 'foo')}`,
-        _test_key: `foo.${generateSignature('_test_key', 'foo')}`
+        test_key: `foo.${await generateSignature('test_key', 'foo')}`,
+        _test_key: `foo.${await generateSignature('_test_key', 'foo')}`
       },
       baseURL
     );
@@ -177,9 +165,9 @@ describe('TransientStore', () => {
       transientStore.read('test_key', req, res)
     );
     const transientStore = new TransientStore(getConfig({ ...defaultConfig, baseURL }));
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
-        _test_key: `foo.${generateSignature('_test_key', 'foo')}`
+        _test_key: `foo.${await generateSignature('_test_key', 'foo')}`
       },
       baseURL
     );
@@ -196,9 +184,9 @@ describe('TransientStore', () => {
       (req: IncomingMessage, res: ServerResponse) => transientStore.read('test_key', req, res)
     );
     const transientStore = new TransientStore(getConfig({ ...defaultConfig, baseURL, legacySameSiteCookie: false }));
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
-        _test_key: `foo.${generateSignature('_test_key', 'foo')}`
+        _test_key: `foo.${await generateSignature('_test_key', 'foo')}`
       },
       baseURL
     );
@@ -213,7 +201,7 @@ describe('TransientStore', () => {
       transientStore.read('test_key', req, res)
     );
     const transientStore = new TransientStore(getConfig({ ...defaultConfig, baseURL }));
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         test_key: 'foo.bar',
         _test_key: 'foo.bar'

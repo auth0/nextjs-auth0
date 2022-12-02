@@ -1,7 +1,8 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { NextApiRequest, NextApiResponse } from 'next';
-import { ClientFactory } from '../auth0-session';
-import { AccessTokenError } from '../utils/errors';
+import type { errors } from 'openid-client';
+import { ClientFactory, IdentityProviderError } from '../auth0-session';
+import { AccessTokenError, AccessTokenErrorCode } from '../utils/errors';
 import { intersect, match } from '../utils/array';
 import { Session, SessionCache, fromTokenSet } from '../session';
 import { AuthorizationParameters, NextConfig } from '../config';
@@ -9,29 +10,33 @@ import { AuthorizationParameters, NextConfig } from '../config';
 export type AfterRefresh = (req: NextApiRequest, res: NextApiResponse, session: Session) => Promise<Session> | Session;
 
 /**
- * Custom options to get an Access Token.
+ * Custom options to get an access token.
  *
  * @category Server
  */
 export interface AccessTokenRequest {
   /**
-   * A list of desired scopes for your Access Token.
+   * A list of desired scopes for your access token.
    */
   scopes?: string[];
 
   /**
-   * If set to `true`, a new Access Token will be requested with the Refresh Token grant, regardless of whether
-   * the Access Token has expired or not.
+   * If set to `true`, a new access token will be requested with the refresh token grant, regardless of whether
+   * the access token has expired or not.
+   *
+   * **IMPORTANT** You need to request the `offline_access` scope on login to get a refresh token
+   * from Auth0.
    */
   refresh?: boolean;
 
   /**
-   * When the Access Token Request refreshes the tokens using the Refresh Grant the Session is updated with new tokens.
+   * When the access token request refreshes the tokens using the refresh grant the session is updated with new tokens.
    * Use this to modify the session after it is refreshed.
-   * Usually used to keep updates in sync with the {@Link AfterCallback} hook.
-   * See also the {@Link AfterRefetch} hook
+   * Usually used to keep updates in sync with the {@link AfterCallback} hook.
    *
-   * ### Modify the session after refresh
+   * @see also the {@link AfterRefetch} hook.
+   *
+   * @example Modify the session after refresh
    *
    * ```js
    * // pages/api/my-handler.js
@@ -60,7 +65,7 @@ export interface AccessTokenRequest {
 }
 
 /**
- * Response from requesting an Access Token.
+ * Response from requesting an access token.
  *
  * @category Server
  */
@@ -72,9 +77,9 @@ export interface GetAccessTokenResult {
 }
 
 /**
- * Get an Access Token to access an external API.
+ * Get an access token to access an external API.
  *
- * @throws {@Link AccessTokenError}
+ * @throws {@link AccessTokenError}
  *
  * @category Server
  */
@@ -93,18 +98,21 @@ export default function accessTokenFactory(
   sessionCache: SessionCache
 ): GetAccessToken {
   return async (req, res, accessTokenRequest): Promise<GetAccessTokenResult> => {
-    let session = sessionCache.get(req, res);
+    let session = await sessionCache.get(req, res);
     if (!session) {
-      throw new AccessTokenError('invalid_session', 'The user does not have a valid session.');
+      throw new AccessTokenError(AccessTokenErrorCode.MISSING_SESSION, 'The user does not have a valid session.');
     }
 
     if (!session.accessToken && !session.refreshToken) {
-      throw new AccessTokenError('invalid_session', 'The user does not have a valid access token.');
+      throw new AccessTokenError(
+        AccessTokenErrorCode.MISSING_ACCESS_TOKEN,
+        'The user does not have a valid access token.'
+      );
     }
 
     if (!session.accessTokenExpiresAt) {
       throw new AccessTokenError(
-        'access_token_expired',
+        AccessTokenErrorCode.EXPIRED_ACCESS_TOKEN,
         'Expiration information for the access token is not available. The user will need to sign in again.'
       );
     }
@@ -113,7 +121,7 @@ export default function accessTokenFactory(
       const persistedScopes = session.accessTokenScope;
       if (!persistedScopes || persistedScopes.length === 0) {
         throw new AccessTokenError(
-          'insufficient_scope',
+          AccessTokenErrorCode.INSUFFICIENT_SCOPE,
           'An access token with the requested scopes could not be provided. The user will need to sign in again.'
         );
       }
@@ -121,7 +129,7 @@ export default function accessTokenFactory(
       const matchingScopes = intersect(accessTokenRequest.scopes, persistedScopes.split(' '));
       if (!match(accessTokenRequest.scopes, [...matchingScopes])) {
         throw new AccessTokenError(
-          'insufficient_scope',
+          AccessTokenErrorCode.INSUFFICIENT_SCOPE,
           `Could not retrieve an access token with scopes "${accessTokenRequest.scopes.join(
             ' '
           )}". The user will need to sign in again.`
@@ -134,14 +142,14 @@ export default function accessTokenFactory(
     // Adding a skew of 1 minute to compensate.
     if (!session.refreshToken && session.accessTokenExpiresAt * 1000 - 60000 < Date.now()) {
       throw new AccessTokenError(
-        'access_token_expired',
+        AccessTokenErrorCode.EXPIRED_ACCESS_TOKEN,
         'The access token expired and a refresh token is not available. The user will need to sign in again.'
       );
     }
 
     if (accessTokenRequest?.refresh && !session.refreshToken) {
       throw new AccessTokenError(
-        'no_refresh_token',
+        AccessTokenErrorCode.MISSING_REFRESH_TOKEN,
         'A refresh token is required to refresh the access token, but none is present.'
       );
     }
@@ -154,9 +162,18 @@ export default function accessTokenFactory(
       (session.refreshToken && accessTokenRequest && accessTokenRequest.refresh)
     ) {
       const client = await getClient();
-      const tokenSet = await client.refresh(session.refreshToken, {
-        exchangeBody: accessTokenRequest?.authorizationParams
-      });
+      let tokenSet;
+      try {
+        tokenSet = await client.refresh(session.refreshToken, {
+          exchangeBody: accessTokenRequest?.authorizationParams
+        });
+      } catch (e) {
+        throw new AccessTokenError(
+          AccessTokenErrorCode.FAILED_REFRESH_GRANT,
+          'The request to refresh the access token failed.',
+          new IdentityProviderError(e as errors.OPError)
+        );
+      }
 
       // Update the session.
       const newSession = fromTokenSet(tokenSet, config);
@@ -170,7 +187,7 @@ export default function accessTokenFactory(
         session = await accessTokenRequest.afterRefresh(req as NextApiRequest, res as NextApiResponse, session);
       }
 
-      sessionCache.set(req, res, session);
+      await sessionCache.set(req, res, session);
 
       // Return the new access token.
       return {
@@ -180,10 +197,13 @@ export default function accessTokenFactory(
 
     // We don't have an access token.
     if (!session.accessToken) {
-      throw new AccessTokenError('invalid_session', 'The user does not have a valid access token.');
+      throw new AccessTokenError(
+        AccessTokenErrorCode.MISSING_ACCESS_TOKEN,
+        'The user does not have a valid access token.'
+      );
     }
 
-    // The access token is not expired and has sufficient scopes;
+    // The access token is not expired and has sufficient scopes.
     return {
       accessToken: session.accessToken
     };

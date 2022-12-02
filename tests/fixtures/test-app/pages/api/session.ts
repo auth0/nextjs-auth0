@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 
-export default function sessionHandler(req: NextApiRequest, res: NextApiResponse): void {
-  const json = (global as any).getSession(req, res);
+export default async function sessionHandler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
+  const json = await global.getSession?.(req, res);
   res.status(200).json(json);
 }

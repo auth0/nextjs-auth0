@@ -1,8 +1,10 @@
-import { Issuer, custom, HttpOptions, Client, EndSessionParameters } from 'openid-client';
+import { Issuer, custom, Client, EndSessionParameters } from 'openid-client';
 import url, { UrlObject } from 'url';
 import urlJoin from 'url-join';
 import createDebug from './utils/debug';
+import { DiscoveryError } from './utils/errors';
 import { Config } from './config';
+import { ParsedUrlQueryInput } from 'querystring';
 
 const debug = createDebug('client');
 
@@ -19,17 +21,6 @@ function sortSpaceDelimitedString(str: string): string {
   return str.split(' ').sort().join(' ');
 }
 
-// Issuer.discover throws an `AggregateError` in some cases, this error includes the stack trace in the
-// message which causes the stack to be exposed when reporting the error in production. Am using the non standard
-// `_errors` property to identify the polyfilled `AggregateError`
-// See https://github.com/sindresorhus/aggregate-error/issues/4#issuecomment-488356468
-function normalizeAggregateError(e: Error | (Error & { _errors: Error[] })): Error {
-  if ('_errors' in e) {
-    return e._errors[0];
-  }
-  return e;
-}
-
 export default function get(config: Config, { name, version }: Telemetry): ClientFactory {
   let client: Client | null = null;
 
@@ -38,10 +29,8 @@ export default function get(config: Config, { name, version }: Telemetry): Clien
       return client;
     }
 
-    const defaultHttpOptions = (options: HttpOptions): HttpOptions => ({
-      ...options,
+    custom.setHttpOptionsDefaults({
       headers: {
-        ...options.headers,
         'User-Agent': `${name}/${version}`,
         ...(config.enableTelemetry
           ? {
@@ -59,19 +48,13 @@ export default function get(config: Config, { name, version }: Telemetry): Clien
       },
       timeout: config.httpTimeout
     });
-    const applyHttpOptionsCustom = (entity: Issuer<Client> | typeof Issuer | Client): void => {
-      // eslint-disable-next-line no-param-reassign
-      entity[custom.http_options] = defaultHttpOptions;
-    };
 
-    applyHttpOptionsCustom(Issuer);
     let issuer: Issuer<Client>;
     try {
       issuer = await Issuer.discover(config.issuerBaseURL);
     } catch (e) {
-      throw normalizeAggregateError(e);
+      throw new DiscoveryError(e, config.issuerBaseURL);
     }
-    applyHttpOptionsCustom(issuer);
 
     const issuerTokenAlgs = Array.isArray(issuer.id_token_signing_alg_values_supported)
       ? issuer.id_token_signing_alg_values_supported
@@ -110,18 +93,24 @@ export default function get(config: Config, { name, version }: Telemetry): Clien
       client_secret: config.clientSecret,
       id_token_signed_response_alg: config.idTokenSigningAlg
     });
-    applyHttpOptionsCustom(client);
     client[custom.clock_tolerance] = config.clockTolerance;
 
     if (config.idpLogout && !issuer.end_session_endpoint) {
       if (config.auth0Logout || (url.parse(issuer.metadata.issuer).hostname as string).match('\\.auth0\\.com$')) {
         Object.defineProperty(client, 'endSessionUrl', {
           value(params: EndSessionParameters) {
-            const parsedUrl = url.parse(urlJoin(issuer.metadata.issuer, '/v2/logout'));
-            (parsedUrl as UrlObject).query = {
-              returnTo: params.post_logout_redirect_uri,
+            const { id_token_hint, post_logout_redirect_uri, ...extraParams } = params;
+            const parsedUrl: UrlObject = url.parse(urlJoin(issuer.metadata.issuer, '/v2/logout'));
+            parsedUrl.query = {
+              ...extraParams,
+              returnTo: post_logout_redirect_uri,
               client_id: config.clientID
             };
+            Object.entries(parsedUrl.query).forEach(([key, value]) => {
+              if (value === null || value === undefined) {
+                delete (parsedUrl.query as ParsedUrlQueryInput)[key];
+              }
+            });
             return url.format(parsedUrl);
           }
         });

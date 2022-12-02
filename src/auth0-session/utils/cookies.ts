@@ -1,39 +1,61 @@
-import { IncomingMessage, ServerResponse } from 'http';
+import type { IncomingMessage, ServerResponse } from 'http';
 import { CookieSerializeOptions, parse, serialize } from 'cookie';
 
-export const getAll = (req: IncomingMessage): { [key: string]: string } => {
-  return parse(req.headers.cookie || '');
-};
+export abstract class Cookies {
+  protected cookies: string[];
 
-export const get = (req: IncomingMessage, name: string): string => {
-  const cookies = getAll(req);
-  return cookies[name];
-};
-
-export const set = (res: ServerResponse, name: string, value: string, options: CookieSerializeOptions = {}): void => {
-  const strCookie = serialize(name, value, options);
-
-  let previousCookies = res.getHeader('Set-Cookie') || [];
-  if (!Array.isArray(previousCookies)) {
-    previousCookies = [previousCookies as string];
+  constructor() {
+    this.cookies = [];
   }
 
-  res.setHeader('Set-Cookie', [...previousCookies, strCookie]);
-};
-
-export const clear = (res: ServerResponse, name: string, options: CookieSerializeOptions = {}): void => {
-  const { domain, path, secure, sameSite } = options;
-  const clearOptions: CookieSerializeOptions = {
-    domain,
-    path,
-    maxAge: 0
-  };
-  // If SameSite=None is set, the cookie Secure attribute must also be set (or the cookie will be blocked)
-  // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite#none
-  if (sameSite === 'none') {
-    clearOptions.secure = secure;
-    clearOptions.sameSite = sameSite;
+  set(name: string, value: string, options: CookieSerializeOptions = {}): void {
+    this.cookies.push(serialize(name, value, options));
   }
 
-  set(res, name, '', clearOptions);
-};
+  clear(name: string, options: CookieSerializeOptions = {}): void {
+    const { domain, path, secure, sameSite } = options;
+    const clearOptions: CookieSerializeOptions = {
+      domain,
+      path,
+      maxAge: 0
+    };
+    // If SameSite=None is set, the cookie Secure attribute must also be set (or the cookie will be blocked)
+    // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite#none
+    if (sameSite === 'none') {
+      clearOptions.secure = secure;
+      clearOptions.sameSite = sameSite;
+    }
+    this.set(name, '', clearOptions);
+  }
+
+  commit(res: unknown, filterCookiePrefix?: string): void {
+    let previousCookies = this.getSetCookieHeader(res);
+    if (filterCookiePrefix) {
+      const re = new RegExp(`^${filterCookiePrefix}(\\.\\d+)?=`);
+      previousCookies = previousCookies.filter((cookie: string) => !re.test(cookie));
+    }
+    this.setSetCookieHeader(res, [...previousCookies, ...this.cookies]);
+  }
+
+  protected abstract getSetCookieHeader(res: unknown): string[];
+  protected abstract setSetCookieHeader(res: unknown, cookies: string[]): void;
+  abstract getAll(req: unknown): Record<string, string>;
+}
+
+export default class NodeCookies extends Cookies {
+  protected getSetCookieHeader(res: ServerResponse): string[] {
+    let cookies = res.getHeader('Set-Cookie') || [];
+    if (!Array.isArray(cookies)) {
+      cookies = [cookies as string];
+    }
+    return cookies;
+  }
+
+  protected setSetCookieHeader(res: ServerResponse, cookies: string[]): void {
+    res.setHeader('Set-Cookie', cookies);
+  }
+
+  getAll(req: IncomingMessage): Record<string, string> {
+    return parse(req.headers.cookie || '');
+  }
+}

@@ -1,8 +1,8 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { generators } from 'openid-client';
-import { JWKS, JWS, JWK } from 'jose';
+import * as jose from 'jose';
 import { signing as deriveKey } from './utils/hkdf';
-import { get as getCookie, clear as clearCookie, set as setCookie } from './utils/cookies';
+import NodeCookies from './utils/cookies';
 import { Config } from './config';
 
 export interface StoreOptions {
@@ -10,70 +10,46 @@ export interface StoreOptions {
   value?: string;
 }
 
-const header = { alg: 'HS256', b64: false, crit: ['b64'] };
-const getPayload = (cookie: string, value: string): Buffer => Buffer.from(`${cookie}=${value}`);
-const flattenedJWSFromCookie = (cookie: string, value: string, signature: string): JWS.FlattenedJWS => ({
-  protected: Buffer.from(JSON.stringify(header))
-    .toString('base64')
-    .replace(/=/g, '')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_'),
-  payload: getPayload(cookie, value),
-  signature
-});
-const generateSignature = (cookie: string, value: string, key: JWK.Key): string => {
-  const payload = getPayload(cookie, value);
-  return JWS.sign.flattened(payload, key, header).signature;
-};
-const verifySignature = (cookie: string, value: string, signature: string, keystore: JWKS.KeyStore): boolean => {
-  try {
-    return !!JWS.verify(flattenedJWSFromCookie(cookie, value, signature), keystore, {
-      algorithms: ['HS256'],
-      crit: ['b64']
-    });
-  } catch (err) {
-    return false;
-  }
-};
-const getCookieValue = (cookie: string, value: string, keystore: JWKS.KeyStore): string | undefined => {
-  if (!value) {
+const getCookieValue = async (k: string, v: string, keys: Uint8Array[]): Promise<string | undefined> => {
+  if (!v) {
     return undefined;
   }
-  let signature;
-  [value, signature] = value.split('.');
-  if (verifySignature(cookie, value, signature, keystore)) {
-    return value;
+  const [value, signature] = v.split('.');
+  const flattenedJWS = {
+    protected: jose.base64url.encode(JSON.stringify({ alg: 'HS256', b64: false, crit: ['b64'] })),
+    payload: `${k}=${value}`,
+    signature
+  };
+  for (const key of keys) {
+    try {
+      await jose.flattenedVerify(flattenedJWS, key, {
+        algorithms: ['HS256']
+      });
+      return value;
+    } catch (e) {}
   }
-
-  return undefined;
+  return;
 };
 
-export const generateCookieValue = (cookie: string, value: string, key: JWK.Key): string => {
-  const signature = generateSignature(cookie, value, key);
+export const generateCookieValue = async (cookie: string, value: string, key: Uint8Array): Promise<string> => {
+  const { signature } = await new jose.FlattenedSign(new TextEncoder().encode(`${cookie}=${value}`))
+    .setProtectedHeader({ alg: 'HS256', b64: false, crit: ['b64'] })
+    .sign(key);
   return `${value}.${signature}`;
 };
 
 export default class TransientStore {
-  private currentKey: JWK.Key | undefined;
+  private keys?: Uint8Array[];
 
-  private keyStore: JWKS.KeyStore;
+  constructor(private config: Config) {}
 
-  constructor(private config: Config) {
-    let current;
-
-    const secret = config.secret;
-    const secrets = Array.isArray(secret) ? secret : [secret];
-    const keystore = new JWKS.KeyStore();
-    secrets.forEach((secretString, i) => {
-      const key = JWK.asKey(deriveKey(secretString));
-      if (i === 0) {
-        current = key;
-      }
-      keystore.add(key);
-    });
-
-    this.currentKey = current;
-    this.keyStore = keystore;
+  private async getKeys(): Promise<Uint8Array[]> {
+    if (!this.keys) {
+      const secret = this.config.secret;
+      const secrets = Array.isArray(secret) ? secret : [secret];
+      this.keys = await Promise.all(secrets.map(deriveKey));
+    }
+    return this.keys;
   }
 
   /**
@@ -83,17 +59,17 @@ export default class TransientStore {
    * @param {IncomingMessage} _req Server Request object.
    * @param {ServerResponse} res Server Response object.
    * @param {Object} opts Options object.
-   * @param {String} opts.sameSite SameSite attribute of "None," "Lax," or "Strict". Default is "None."
+   * @param {String} opts.sameSite SameSite attribute of `None`, `Lax`, or `Strict`. Defaults to `None`.
    * @param {String} opts.value Cookie value. Omit this key to store a generated value.
    *
    * @return {String} Cookie value that was set.
    */
-  save(
+  async save(
     key: string,
     _req: IncomingMessage,
     res: ServerResponse,
     { sameSite = 'none', value = this.generateNonce() }: StoreOptions
-  ): string {
+  ): Promise<string> {
     const isSameSiteNone = sameSite === 'none';
     const { domain, path, secure } = this.config.session.cookie;
     const basicAttr = {
@@ -102,11 +78,13 @@ export default class TransientStore {
       domain,
       path
     };
+    const [signingKey] = await this.getKeys();
+    const cookieSetter = new NodeCookies();
 
     {
-      const cookieValue = generateCookieValue(key, value, this.currentKey as JWK.Key);
+      const cookieValue = await generateCookieValue(key, value, signingKey);
       // Set the cookie with the SameSite attribute and, if needed, the Secure flag.
-      setCookie(res, key, cookieValue, {
+      cookieSetter.set(key, cookieValue, {
         ...basicAttr,
         sameSite,
         secure: isSameSiteNone ? true : basicAttr.secure
@@ -114,11 +92,12 @@ export default class TransientStore {
     }
 
     if (isSameSiteNone && this.config.legacySameSiteCookie) {
-      const cookieValue = generateCookieValue(`_${key}`, value, this.currentKey as JWK.Key);
+      const cookieValue = await generateCookieValue(`_${key}`, value, signingKey);
       // Set the fallback cookie with no SameSite or Secure attributes.
-      setCookie(res, `_${key}`, cookieValue, basicAttr);
+      cookieSetter.set(`_${key}`, cookieValue, basicAttr);
     }
 
+    cookieSetter.commit(res);
     return value;
   }
 
@@ -131,27 +110,32 @@ export default class TransientStore {
    *
    * @return {String|undefined} Cookie value or undefined if cookie was not found.
    */
-  read(key: string, req: IncomingMessage, res: ServerResponse): string | undefined {
-    const cookie = getCookie(req, key);
+  async read(key: string, req: IncomingMessage, res: ServerResponse): Promise<string | undefined> {
+    const cookies = new NodeCookies().getAll(req);
+    const cookie = cookies[key];
     const cookieConfig = this.config.session.cookie;
+    const cookieSetter = new NodeCookies();
 
-    let value = getCookieValue(key, cookie, this.keyStore);
-    clearCookie(res, key, cookieConfig);
+    const verifyingKeys = await this.getKeys();
+    let value = await getCookieValue(key, cookie, verifyingKeys);
+    cookieSetter.clear(key, cookieConfig);
 
     if (this.config.legacySameSiteCookie) {
       const fallbackKey = `_${key}`;
       if (!value) {
-        const fallbackCookie = getCookie(req, fallbackKey);
-        value = getCookieValue(fallbackKey, fallbackCookie, this.keyStore);
+        const fallbackCookie = cookies[fallbackKey];
+        value = await getCookieValue(fallbackKey, fallbackCookie, verifyingKeys);
       }
-      clearCookie(res, fallbackKey, cookieConfig);
+      cookieSetter.clear(fallbackKey, cookieConfig);
     }
 
+    cookieSetter.commit(res);
     return value;
   }
 
   /**
-   * Generates a nonce value.
+   * Generates a `nonce` value.
+   *
    * @return {String}
    */
   generateNonce(): string {
@@ -159,7 +143,8 @@ export default class TransientStore {
   }
 
   /**
-   * Generates a code_verifier value.
+   * Generates a `code_verifier` value.
+   *
    * @return {String}
    */
   generateCodeVerifier(): string {
@@ -167,8 +152,9 @@ export default class TransientStore {
   }
 
   /**
-   * Calculates a code_challenge value for a given codeVerifier
-   * @param {String} codeVerifier Code Verifier to calculate the code_challenge value from.
+   * Calculates a `code_challenge` value for a given `codeVerifier`.
+   *
+   * @param {String} codeVerifier Code verifier to calculate the `code_challenge` value from.
    * @return {String}
    */
   calculateCodeChallenge(codeVerifier: string): string {

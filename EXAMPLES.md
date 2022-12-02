@@ -6,6 +6,7 @@
 - [Protecting a Server-Side Rendered (SSR) Page](#protecting-a-server-side-rendered-ssr-page)
 - [Protecting a Client-Side Rendered (CSR) Page](#protecting-a-client-side-rendered-csr-page)
 - [Protect an API Route](#protect-an-api-route)
+- [Protecting pages with Middleware](#protecting-pages-with-middleware)
 - [Access an External API from an API Route](#access-an-external-api-from-an-api-route)
 - [Create your own instance of the SDK](#create-your-own-instance-of-the-sdk)
 - [Add a signup handler](#add-a-signup-handler)
@@ -25,7 +26,7 @@ AUTH0_CLIENT_ID='CLIENT_ID'
 AUTH0_CLIENT_SECRET='CLIENT_SECRET'
 ```
 
-Create a [Dynamic API Route handler](https://nextjs.org/docs/api-routes/dynamic-api-routes) at `/pages/api/auth/[...auth0].js`.
+Create a [dynamic API route handler](https://nextjs.org/docs/api-routes/dynamic-api-routes) at `/pages/api/auth/[...auth0].js`.
 
 ```js
 import { handleAuth } from '@auth0/nextjs-auth0';
@@ -40,7 +41,7 @@ Wrap your `pages/_app.jsx` component in the `UserProvider` component.
 ```jsx
 // pages/_app.jsx
 import React from 'react';
-import { UserProvider } from '@auth0/nextjs-auth0';
+import { UserProvider } from '@auth0/nextjs-auth0/client';
 
 export default function App({ Component, pageProps }) {
   // You can optionally pass the `user` prop from pages that require server-side
@@ -59,7 +60,7 @@ Check the user's authentication state and log them in or out from the front end 
 
 ```jsx
 // pages/index.jsx
-import { useUser } from '@auth0/nextjs-auth0';
+import { useUser } from '@auth0/nextjs-auth0/client';
 
 export default () => {
   const { user, error, isLoading } = useUser();
@@ -91,21 +92,27 @@ import { myCustomLogger, myCustomErrorReporter } from '../utils';
 
 export default handleAuth({
   async login(req, res) {
-    try {
-      // Add your own custom logger
-      myCustomLogger('Logging in');
-      // Pass custom parameters to login
-      await handleLogin(req, res, {
-        authorizationParams: {
-          custom_param: 'custom'
-        },
-        returnTo: '/custom-page'
-      });
-    } catch (error) {
-      // Add your own custom error handling
-      myCustomErrorReporter(error);
-      res.status(error.status || 400).end(error.message);
+    // Add your own custom logger
+    myCustomLogger('Logging in');
+    // Pass custom parameters to login
+    await handleLogin(req, res, {
+      authorizationParams: {
+        custom_param: 'custom'
+      },
+      returnTo: '/custom-page'
+    });
+  },
+  invite: loginHandler({
+    authorizationParams: (req) => {
+      invitation: req.query.invitation;
     }
+  }),
+  'login-with-google': loginHandler({ authorizationParams: { connection: 'google' } }),
+  'refresh-profile': profileHandler({ refetch: true }),
+  onError(req, res, error) {
+    // Add your own custom error handling
+    myCustomErrorReporter(error);
+    res.status(error.status || 400).end();
   }
 });
 ```
@@ -161,7 +168,7 @@ Requests to `/pages/profile` without a valid session cookie will be redirected t
 
 ```jsx
 // pages/profile.js
-import { withPageAuthRequired } from '@auth0/nextjs-auth0';
+import { withPageAuthRequired } from '@auth0/nextjs-auth0/client';
 
 export default withPageAuthRequired(function Profile({ user }) {
   return <div>Hello {user.name}</div>;
@@ -189,7 +196,7 @@ Then you can access your API from the frontend with a valid session cookie.
 ```jsx
 // pages/products
 import useSWR from 'swr';
-import { withPageAuthRequired } from '@auth0/nextjs-auth0';
+import { withPageAuthRequired } from '@auth0/nextjs-auth0/client';
 
 const fetcher = async (uri) => {
   const response = await fetch(uri);
@@ -207,32 +214,88 @@ export default withPageAuthRequired(function Products() {
 See a running example in the kitchen-sink example app, the [protected API route](./examples/kitchen-sink-example/pages/api/shows.ts) and
 the [frontend code to access the protected API](./examples/kitchen-sink-example/pages/shows.tsx).
 
+## Protecting pages with Middleware
+
+Protect your pages with Next.js Middleware.
+
+To protect all your routes:
+
+```js
+// middleware.js
+import { withMiddlewareAuthRequired } from '@auth0/nextjs-auth0/edge';
+
+export default withMiddlewareAuthRequired();
+```
+
+To protect specific routes:
+
+```js
+// middleware.js
+import { withMiddlewareAuthRequired } from '@auth0/nextjs-auth0/edge';
+
+export default withMiddlewareAuthRequired();
+
+export const config = {
+  matcher: '/about/:path*'
+};
+```
+
+For more info see: https://nextjs.org/docs/advanced-features/middleware#matching-paths
+
+To run custom middleware for authenticated users:
+
+```js
+// middleware.js
+import { withMiddlewareAuthRequired, getSession } from '@auth0/nextjs-auth0/edge';
+
+export default withMiddlewareAuthRequired(async function middleware(req) {
+  const res = NextResponse.next();
+  const user = await getSession(req, res);
+  res.cookies.set('hl', user.language);
+  return res;
+});
+```
+
+For using middleware with your own instance of the SDK:
+
+```js
+// middleware.js
+import {
+  withMiddlewareAuthRequired,
+  getSession,
+  initAuth0 // note the edge runtime specific `initAuth0`
+} from '@auth0/nextjs-auth0/edge';
+
+const auth0 = initAuth0({ ... });
+
+export default auth0.withMiddlewareAuthRequired(async function middleware(req) {
+  const res = NextResponse.next();
+  const user = await auth0.getSession(req, res);
+  res.cookies.set('hl', user.language);
+  return res;
+});
+```
+
 ## Access an External API from an API Route
 
-Get an Access Token by providing your API's audience and scopes. You can pass them directly to the `handlelogin` method, or use environment variables instead.
+Get an access token by providing your API's audience and scopes. You can pass them directly to the `handlelogin` method, or use environment variables instead.
 
 ```js
 // pages/api/auth/[...auth0].js
 import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
 
 export default handleAuth({
-  async login(req, res) {
-    try {
-      await handleLogin(req, res, {
-        authorizationParams: {
-          audience: 'https://api.example.com/products', // or AUTH0_AUDIENCE
-          // Add the `offline_access` scope to also get a Refresh Token
-          scope: 'openid profile email read:products' // or AUTH0_SCOPE
-        }
-      });
-    } catch (error) {
-      res.status(error.status || 400).end(error.message);
+  login: handleLogin({
+    authorizationParams: {
+      audience: 'https://api.example.com/products', // or AUTH0_AUDIENCE
+      // Add the `offline_access` scope to also get a Refresh Token
+      scope: 'openid profile email read:products' // or AUTH0_SCOPE
     }
-  }
+  })
 });
 ```
 
-Use the Session to protect your API Route and the Access Token to protect your external API.
+Use the session to protect your API route and the access token to protect your external API.
 The API route serves as a proxy between your front end and the external API.
 
 ```js
@@ -240,7 +303,7 @@ The API route serves as a proxy between your front end and the external API.
 import { getAccessToken, withApiAuthRequired } from '@auth0/nextjs-auth0';
 
 export default withApiAuthRequired(async function products(req, res) {
-  // If your Access Token is expired and you have a Refresh Token
+  // If your access token is expired and you have a refresh token
   // `getAccessToken` will fetch you a new one using the `refresh_token` grant
   const { accessToken } = await getAccessToken(req, res, {
     scopes: ['read:products']
@@ -265,11 +328,11 @@ See a running example of the [API route acting as a proxy to an External API](./
 
 ## Create your own instance of the SDK
 
-When you use the named exports, the SDK creates an instance of the SDK for you and configures it with the provided environmental variables, eg:
+When you use the named exports, the SDK creates an instance of the SDK for you and configures it with the provided environment variables.
 
 ```js
 // These named exports create and manage their own instance of the SDK configured with
-// the provided AUTH0_* environment variables
+// the provided `AUTH0_*` environment variables
 import {
   handleAuth,
   handleLogin,
@@ -288,7 +351,7 @@ However, there are various reasons why you might want to create and manage an in
 - You may want to create your own instance for testing
 - You may not want to use environment variables for the configuration of secrets (eg using CredStash or AWS's Key Management Service)
 
-In this case you can use the [initAuth0](https://auth0.github.io/nextjs-auth0/modules/instance.html) method to create an instance, eg:
+In this case you can use the [initAuth0](https://auth0.github.io/nextjs-auth0/modules/instance.html) method to create an instance.
 
 ```js
 // utils/auth0.js
@@ -303,7 +366,7 @@ export default initAuth0({
 });
 ```
 
-Now rather than using the named exports, you can use the instance methods directly, eg:
+Now rather than using the named exports, you can use the instance methods directly.
 
 ```js
 // pages/api/auth/[...auth0].js
@@ -314,7 +377,7 @@ export default auth0.handleAuth();
 ```
 
 > Note: You should not use the instance methods in combination with the named exports,
-> otherwise you will be creating multiple instances of the SDK, eg:
+> otherwise you will be creating multiple instances of the SDK. For example:
 
 ```js
 // DON'T Mix instance methods and named exports
@@ -325,7 +388,7 @@ export default auth0.handleAuth({
   // <= instance method
   async login(req, res) {
     try {
-      // `auth0.handleAuth` and `handleLogin` will be using separate instances.
+      // `auth0.handleAuth` and `handleLogin` will be using separate instances
       // You should use `auth0.handleLogin` instead
       await handleLogin(req, res); // <= named export
     } catch (error) {
@@ -342,43 +405,18 @@ Pass a custom authorize parameter to the login handler in a custom route.
 If you are using the [New Universal Login Experience](https://auth0.com/docs/universal-login/new-experience) you can pass the `screen_hint` parameter.
 
 ```js
-// api/signup.js
-import { handleLogin } from '@auth0/nextjs-auth0';
+// pages/api/auth/[...auth0].js
+import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
 
-export default async function signup(req, res) {
-  try {
-    await handleLogin(req, res, {
-      authorizationParams: {
-        // Note that this can be combined with prompt=login , which indicates if
-        // you want to always show the authentication page or you want to skip
-        // if there’s an existing session.
-        screen_hint: 'signup'
-      }
-    });
-  } catch (error) {
-    res.status(error.status || 400).end(error.message);
-  }
-}
-```
-
-If you are using the [Classic Universal Login Experience](https://auth0.com/docs/universal-login/classic-experience) you can use any custom authorization
-parameter, eg `{ authorizationParams: { action: 'signup' } }` then customize the
-[login template](https://manage.auth0.com/#/login_page) to look for this parameter
-and set the `initialScreen` option of the `Auth0Lock` constructor.
-
-```js
-var isSignup = config.extraParams && config.extraParams.action === 'signup';
-var lock = new Auth0Lock(config.clientID, config.auth0Domain, {
-  // [...] all other Lock options
-  // use the value obtained to decide the first screen
-  initialScreen: isSignup ? 'signUp' : 'login'
+export default handleAuth({
+  signup: handleLogin({ authorizationParams: { screen_hint: 'signup' } })
 });
 ```
 
 Users can then sign up using the signup handler.
 
 ```html
-<a href="/api/signup">Sign up</a>
+<a href="/api/auth/signup">Sign up</a>
 ```
 
 ## Use with Base Path and Internationalized Routing

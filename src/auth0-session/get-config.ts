@@ -5,11 +5,7 @@ import { Config } from './config';
 const isHttps = /^https:/i;
 
 const paramsSchema = Joi.object({
-  secret: Joi.alternatives([
-    Joi.string().min(8),
-    Joi.binary().min(8),
-    Joi.array().items(Joi.string().min(8), Joi.binary().min(8))
-  ]).required(),
+  secret: Joi.alternatives([Joi.string().min(8), Joi.array().items(Joi.string().min(8))]).required(),
   session: Joi.object({
     rolling: Joi.boolean().optional().default(true),
     rollingDuration: Joi.when(Joi.ref('rolling'), {
@@ -33,6 +29,7 @@ const paramsSchema = Joi.object({
       .optional()
       .default(7 * 24 * 60 * 60), // 7 days,
     name: Joi.string().token().optional().default('appSession'),
+    storeIDToken: Joi.boolean().optional().default(true),
     cookie: Joi.object({
       domain: Joi.string().optional(),
       transient: Joi.boolean().optional().default(false),
@@ -40,16 +37,9 @@ const paramsSchema = Joi.object({
       sameSite: Joi.string().valid('lax', 'strict', 'none').optional().default('lax'),
       secure: Joi.when(Joi.ref('/baseURL'), {
         is: Joi.string().pattern(isHttps),
-        then: Joi.boolean()
-          .default(true)
-          .custom((value, { warn }) => {
-            if (!value) warn('insecure.cookie');
-            return value;
-          })
-          .messages({
-            'insecure.cookie':
-              "Setting your cookie to insecure when over https is not recommended, I hope you know what you're doing."
-          }),
+        then: Joi.boolean().valid(true).default(true).messages({
+          'any.only': 'Cookies must be secure when base url is https.'
+        }),
         otherwise: Joi.boolean().valid(false).default(false).messages({
           'any.only': 'Cookies set with the `Secure` property wont be attached to http requests'
         })

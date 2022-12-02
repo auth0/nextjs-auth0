@@ -1,5 +1,5 @@
-import { IncomingMessage } from 'http';
-import { AuthorizationParameters as OidcAuthorizationParameters } from 'openid-client';
+import type { IncomingMessage } from 'http';
+import type { AuthorizationParameters as OidcAuthorizationParameters } from 'openid-client';
 
 /**
  * Configuration properties.
@@ -23,15 +23,15 @@ export interface Config {
   auth0Logout: boolean;
 
   /**
-   *  URL parameters used when redirecting users to the authorization server to log in.
+   * URL parameters used when redirecting users to the authorization server to log in.
    *
-   *  If this property is not provided by your application, its default values will be:
+   * If this property is not provided by your application, its default values will be:
    *
    * ```js
    * {
    *   response_type: 'id_token',
-   *   response_mode: 'form_post,
-   *   scope: openid profile email'
+   *   response_mode: 'form_post',
+   *   scope: 'openid profile email'
    * }
    * ```
    *
@@ -46,7 +46,7 @@ export interface Config {
    *   authorizationParams: {
    *     response_type: 'code',
    *     scope: 'openid profile email read:reports',
-   *     audience: 'https://your-api-identifier'
+   *     audience: 'https://your-auth0-api-identifier'
    *   }
    * }));
    * ```
@@ -56,13 +56,13 @@ export interface Config {
    * ```js
    * app.use(auth({
    *   authorizationParams: {
-   *     // Note: you need to provide required parameters if this object is set.
-   *     response_type: "id_token",
-   *     response_mode: "form_post",
-   *     scope: "openid profile email",
+   *     // Note: you need to provide required parameters if this object is set
+   *     response_type: 'id_token',
+   *     response_mode: 'form_post',
+   *     scope: 'openid profile email',
    *     // Additional parameters
-   *     acr_value: "tenant:test-tenant",
-   *     custom_param: "custom-value"
+   *     acr_value: 'tenant:test-tenant',
+   *     custom_param: 'custom-value'
    *   }
    * }));
    * ```
@@ -70,7 +70,7 @@ export interface Config {
   authorizationParams: AuthorizationParameters;
 
   /**
-   * The root URL for the application router, eg https://localhost
+   * The root URL for the application router, for example `https://localhost`.
    */
   baseURL: string;
 
@@ -87,19 +87,19 @@ export interface Config {
 
   /**
    * Integer value for the system clock's tolerance (leeway) in seconds for ID token verification.`
-   * Default is 60
+   * Defaults to `60` seconds.
    */
   clockTolerance: number;
 
   /**
-   * Integer value for the http timeout in ms for authentication requests.
-   * Default is 5000
+   * Integer value for the HTTP timeout in milliseconds for authentication requests.
+   * Defaults to `5000` ms.
    */
   httpTimeout: number;
 
   /**
-   * To opt-out of sending the library and node version to your authorization server
-   * via the `Auth0-Client` header. Default is `true
+   * Boolean value to opt-out of sending the library and Node.js version to your authorization server
+   * via the `Auth0-Client` header. Defaults to `true`.
    */
   enableTelemetry: boolean;
 
@@ -123,28 +123,28 @@ export interface Config {
 
   /**
    * Array value of claims to remove from the ID token before storing the cookie session.
-   * Default is `['aud', 'iss', 'iat', 'exp', 'nbf', 'nonce', 'azp', 'auth_time', 's_hash', 'at_hash', 'c_hash' ]`
+   * Defaults to `['aud', 'iss', 'iat', 'exp', 'nbf', 'nonce', 'azp', 'auth_time', 's_hash', 'at_hash', 'c_hash']`.
    */
   identityClaimFilter: string[];
 
   /**
-   * Boolean value to log the user out from the identity provider on application logout. Default is `false`
+   * Boolean value to log the user out from the identity provider on application logout. Defaults to `false`.
    */
   idpLogout: boolean;
 
   /**
-   * String value for the expected ID token algorithm. Default is 'RS256'
+   * String value for the expected ID token algorithm. Defaults to 'RS256'.
    */
   idTokenSigningAlg: string;
 
   /**
-   * REQUIRED. The root URL for the token issuer with no trailing slash.
+   * **REQUIRED** The root URL for the token issuer with no trailing slash.
    */
   issuerBaseURL: string;
 
   /**
-   * Set a fallback cookie with no SameSite attribute when response_mode is form_post.
-   * Default is true
+   * Set a fallback cookie with no SameSite attribute when `response_mode` is `form_post`.
+   * Defaults to `true`.
    */
   legacySameSiteCookie: boolean;
 
@@ -170,24 +170,24 @@ export interface SessionConfig {
   /**
    * String value for the cookie name used for the internal session.
    * This value must only include letters, numbers, and underscores.
-   * Default is `appSession`.
+   * Defaults to `appSession`.
    */
   name: string;
 
   /**
-   * If you want your session duration to be rolling, eg reset everytime the
-   * user is active on your site, set this to a `true`. If you want the session
-   * duration to be absolute, where the user is logged out a fixed time after login,
-   * regardless of activity, set this to `false`
-   * Default is `true`.
+   * If you want your session duration to be rolling, resetting everytime the
+   * user is active on your site, set this to `true`. If you want the session
+   * duration to be absolute, where the user gets logged out a fixed time after login
+   * regardless of activity, set this to `false`.
+   * Defaults to `true`.
    */
   rolling: boolean;
 
   /**
    * Integer value, in seconds, for application session rolling duration.
    * The amount of time for which the user must be idle for then to be logged out.
-   * Should be false when rolling is false.
-   * Default is 86400 seconds (1 day).
+   * Should be `false` when rolling is `false`.
+   * Defaults to `86400` seconds (1 day).
    */
   rollingDuration: number | false;
 
@@ -195,9 +195,16 @@ export interface SessionConfig {
    * Integer value, in seconds, for application absolute rolling duration.
    * The amount of time after the user has logged in that they will be logged out.
    * Set this to `false` if you don't want an absolute duration on your session.
-   * Default is 604800 seconds (7 days).
+   * Defaults to `604800` seconds (7 days).
    */
   absoluteDuration: boolean | number;
+
+  /**
+   * Boolean value to store the ID token in the session. Storing it can make the session cookie too
+   * large.
+   * Defaults to `true`.
+   */
+  storeIDToken: boolean;
 
   cookie: CookieConfig;
 }
@@ -205,40 +212,40 @@ export interface SessionConfig {
 export interface CookieConfig {
   /**
    * Domain name for the cookie.
-   * Passed to the [Response cookie](https://expressjs.com/en/api.html#res.cookie) as `domain`
+   * Passed to the [response cookie](https://expressjs.com/en/api.html#res.cookie) as `domain`.
    */
   domain?: string;
 
   /**
    * Path for the cookie.
-   * Passed to the [Response cookie](https://expressjs.com/en/api.html#res.cookie) as `path`
+   * Passed to the [response cookie](https://expressjs.com/en/api.html#res.cookie) as `path`.
    */
   path?: string;
 
   /**
-   * Set to true to use a transient cookie (cookie without an explicit expiration).
-   * Default is `false`
+   * Set to `true` to use a transient cookie (cookie without an explicit expiration).
+   * Defaults to `false`.
    */
   transient: boolean;
 
   /**
    * Flags the cookie to be accessible only by the web server.
-   * Passed to the [Response cookie](https://expressjs.com/en/api.html#res.cookie) as `httponly`.
+   * Passed to the [response cookie](https://expressjs.com/en/api.html#res.cookie) as `httponly`.
    * Defaults to `true`.
    */
   httpOnly: boolean;
 
   /**
    * Marks the cookie to be used over secure channels only.
-   * Passed to the [Response cookie](https://expressjs.com/en/api.html#res.cookie) as `secure`.
+   * Passed to the [response cookie](https://expressjs.com/en/api.html#res.cookie) as `secure`.
    * Defaults to the protocol of {@link Config.baseURL}.
    */
   secure?: boolean;
 
   /**
-   * Value of the SameSite Set-Cookie attribute.
-   * Passed to the [Response cookie](https://expressjs.com/en/api.html#res.cookie) as `samesite`.
-   * Defaults to "Lax" but will be adjusted based on {@link AuthorizationParameters.response_type}.
+   * Value of the SameSite `Set-Cookie` attribute.
+   * Passed to the [response cookie](https://expressjs.com/en/api.html#res.cookie) as `samesite`.
+   * Defaults to `Lax` but will be adjusted based on {@link AuthorizationParameters.response_type}.
    */
   sameSite: 'lax' | 'strict' | 'none';
 }
@@ -252,32 +259,43 @@ export interface AuthorizationParameters extends OidcAuthorizationParameters {
 export type GetLoginState = (req: any, options: LoginOptions) => { [key: string]: any };
 
 /**
- * Custom options to pass to login.
+ * Custom options to pass to the login handler.
  */
 export interface LoginOptions {
   /**
-   * Override the default {@link Config.authorizationParams authorizationParams}
+   * Override the default {@link Config.authorizationParams authorizationParams}.
    */
   authorizationParams?: Partial<AuthorizationParameters>;
 
   /**
-   *  URL to return to after login, overrides the Default is {@link Config.baseURL}
+   * URL to return to after login. Overrides the default in {@link Config.baseURL}.
    */
   returnTo?: string;
 
   /**
-   *  Generate a unique state value for use during login transactions.
+   * Generate a unique state value for use during login transactions.
    */
   getLoginState?: GetLoginState;
 }
 
 /**
- * Custom options to pass to logout.
+ * Custom options to pass to the logout handler.
  */
 export interface LogoutOptions {
   /**
-   *  URL to returnTo after logout, overrides the
-   *  Default in {@link Config.routes.postLogoutRedirect routes.postLogoutRedirect}
+   * URL to return to after logout. Overrides the
+   * default in {@link Config.routes.postLogoutRedirect routes.postLogoutRedirect}.
    */
   returnTo?: string;
+
+  /**
+   * Additional custom parameters to pass to the logout endpoint.
+   *
+   * @example pass the federated logout param per https://auth0.com/docs/authenticate/login/logout/log-users-out-of-idps
+   *
+   * ```js
+   * handleLogout(req, res, { logoutParams: { federated: '' } });
+   * ```
+   */
+  logoutParams?: { [key: string]: any };
 }

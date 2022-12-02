@@ -1,12 +1,13 @@
+import { IncomingMessage } from 'http';
 import { NextApiResponse, NextApiRequest } from 'next';
 import { AuthorizationParameters, HandleLogin as BaseHandleLogin } from '../auth0-session';
 import toSafeRedirect from '../utils/url-helpers';
 import { assertReqRes } from '../utils/assert';
 import { BaseConfig, NextConfig } from '../config';
-import { HandlerError } from '../utils/errors';
+import { HandlerErrorCause, LoginHandlerError } from '../utils/errors';
 
 /**
- * Use this to store additional state for the user before they visit the Identity Provider to login.
+ * Use this to store additional state for the user before they visit the identity provider to log in.
  *
  * ```js
  * // pages/api/auth/[...auth0].js
@@ -21,7 +22,7 @@ import { HandlerError } from '../utils/errors';
  *     try {
  *       await handleLogin(req, res, { getLoginState });
  *     } catch (error) {
- *       res.status(error.status || 500).end(error.message);
+ *       res.status(error.status || 500).end();
  *     }
  *   }
  * });
@@ -37,6 +38,54 @@ export type GetLoginState = (req: NextApiRequest, options: LoginOptions) => { [k
  * @category Server
  */
 export interface AuthorizationParams extends Partial<AuthorizationParameters> {
+  /**
+   * The name of an OAuth2/social connection. Use it to directly show that
+   * identity provider's login page, skipping the Universal Login page itself.
+   * By default no connection is specified, so the Universal Login page will be displayed.
+   *
+   * ```js
+   * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
+   *
+   * export default handleAuth({
+   *   login: async (req, res) => {
+   *     try {
+   *       await handleLogin(req, res, {
+   *         // Get the connection name from the Auth0 Dashboard
+   *         authorizationParams: { connection: 'github' }
+   *       });
+   *     } catch (error) {
+   *       console.error(error);
+   *     }
+   *   }
+   * });
+   * ```
+   */
+  connection?: string;
+
+  /**
+   * Provider scopes for OAuth2/social connections, such as GitHub or Google.
+   *
+   * ```js
+   * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
+   *
+   * export default handleAuth({
+   *   login: async (req, res) => {
+   *     try {
+   *       await handleLogin(req, res, {
+   *         authorizationParams: {
+   *           connection: 'github',
+   *           connection_scope: 'public_repo read:user'
+   *         }
+   *       });
+   *     } catch (error) {
+   *       console.error(error);
+   *     }
+   *   }
+   * });
+   * ```
+   */
+  connection_scope?: string;
+
   /**
    * The invitation id to join an organization.
    *
@@ -60,42 +109,46 @@ export interface AuthorizationParams extends Partial<AuthorizationParameters> {
    *       }
    *     });
    *   } catch (error) {
-   *     res.status(error.status || 500).end(error.message);
+   *     res.status(error.status || 500).end();
    *   }
    * } ;
    * ```
    *
    * Your invite url can then take the format:
-   * `https://example.com/api/invite?invitation=invitation_id&organization=org_id`
+   * `https://example.com/api/invite?invitation=invitation_id&organization=org_id`.
    */
   invitation?: string;
+
   /**
-   * This is useful to specify instead of {@Link NextConfig.organization} when your app has multiple
-   * organizations, it should match {@Link CallbackOptions.organization}.
+   * This is useful to specify instead of {@link NextConfig.organization} when your app has multiple
+   * organizations. It should match {@link CallbackOptions.organization}.
    */
   organization?: string;
 
   /**
    * Provides a hint to Auth0 as to what flow should be displayed. The default behavior is to show a
    * login page but you can override this by passing 'signup' to show the signup page instead.
+   *
    * This only affects the New Universal Login Experience.
    */
   screen_hint?: string;
 }
 
 /**
- * Custom options to pass to login.
+ * Options to customize the login handler.
+ *
+ * @see {@link HandleLogin}
  *
  * @category Server
  */
 export interface LoginOptions {
   /**
-   * Override the default {@link BaseConfig.authorizationParams authorizationParams}
+   * Override the default {@link BaseConfig.authorizationParams authorizationParams}.
    */
   authorizationParams?: AuthorizationParams;
 
   /**
-   *  URL to return to after login, overrides the Default is {@link BaseConfig.baseURL}
+   *  URL to return to after login. Overrides the default in {@link BaseConfig.baseURL}.
    */
   returnTo?: string;
 
@@ -106,13 +159,81 @@ export interface LoginOptions {
 }
 
 /**
- * The handler for the `api/auth/login` route.
- *
- * @throws {@Link HandlerError}
+ * Options provider for the default login handler.
+ * Use this to generate options that depend on values from the request.
  *
  * @category Server
  */
-export type HandleLogin = (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions) => Promise<void>;
+export type LoginOptionsProvider = (req: NextApiRequest) => LoginOptions;
+
+/**
+ * Use this to customize the default login handler without overriding it.
+ * You can still override the handler if needed.
+ *
+ * @example Pass an options object
+ *
+ * ```js
+ * // pages/api/auth/[...auth0].js
+ * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
+ *
+ * export default handleAuth({
+ *   login: handleLogin({
+ *     authorizationParams: { connection: 'github' }
+ *   })
+ * });
+ * ```
+ *
+ * @example Pass a function that receives the request and returns an options object
+ *
+ * ```js
+ * // pages/api/auth/[...auth0].js
+ * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
+ *
+ * export default handleAuth({
+ *   login: handleLogin((req) => {
+ *     return {
+ *       authorizationParams: { connection: 'github' }
+ *     };
+ *   })
+ * });
+ * ```
+ *
+ * This is useful for generating options that depend on values from the request.
+ *
+ * @example Override the login handler
+ *
+ * ```js
+ * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
+ *
+ * export default handleAuth({
+ *   login: async (req, res) => {
+ *     try {
+ *       await handleLogin(req, res, {
+ *         authorizationParams: { connection: 'github' }
+ *       });
+ *     } catch (error) {
+ *       console.error(error);
+ *     }
+ *   }
+ * });
+ * ```
+ *
+ * @category Server
+ */
+export type HandleLogin = {
+  (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions): Promise<void>;
+  (provider: LoginOptionsProvider): LoginHandler;
+  (options: LoginOptions): LoginHandler;
+};
+
+/**
+ * The handler for the `/api/auth/login` API route.
+ *
+ * @throws {@link HandlerError}
+ *
+ * @category Server
+ */
+export type LoginHandler = (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions) => Promise<void>;
 
 /**
  * @ignore
@@ -122,13 +243,12 @@ export default function handleLoginFactory(
   nextConfig: NextConfig,
   baseConfig: BaseConfig
 ): HandleLogin {
-  return async (req, res, options = {}): Promise<void> => {
+  const login: LoginHandler = async (req: NextApiRequest, res: NextApiResponse, options = {}): Promise<void> => {
     try {
       assertReqRes(req, res);
       if (req.query.returnTo) {
         const dangerousReturnTo = Array.isArray(req.query.returnTo) ? req.query.returnTo[0] : req.query.returnTo;
         const safeBaseUrl = new URL(options.authorizationParams?.redirect_uri || baseConfig.baseURL);
-
         const returnTo = toSafeRedirect(dangerousReturnTo, safeBaseUrl);
 
         options = { ...options, returnTo };
@@ -139,10 +259,22 @@ export default function handleLoginFactory(
           authorizationParams: { organization: nextConfig.organization, ...options.authorizationParams }
         };
       }
-
       return await handler(req, res, options);
     } catch (e) {
-      throw new HandlerError(e);
+      throw new LoginHandlerError(e as HandlerErrorCause);
     }
+  };
+  return (
+    reqOrOptions: NextApiRequest | LoginOptionsProvider | LoginOptions,
+    res?: NextApiResponse,
+    options?: LoginOptions
+  ): any => {
+    if (reqOrOptions instanceof IncomingMessage && res) {
+      return login(reqOrOptions, res, options);
+    }
+    if (typeof reqOrOptions === 'function') {
+      return (req: NextApiRequest, res: NextApiResponse) => login(req, res, reqOrOptions(req));
+    }
+    return (req: NextApiRequest, res: NextApiResponse) => login(req, res, reqOrOptions as LoginOptions);
   };
 }
