@@ -1,11 +1,10 @@
 import { IncomingMessage, ServerResponse } from 'http';
-import { strict as assert, AssertionError } from 'assert';
-import { JWE, JWK, JWKS, errors } from 'jose';
+import * as jose from 'jose';
+import { CookieSerializeOptions, serialize } from 'cookie';
 import { encryption as deriveKey } from './utils/hkdf';
 import createDebug from './utils/debug';
-import { getAll as getCookies, clear as clearCookie, set as setCookie } from './utils/cookies';
+import { Cookies } from './utils/cookies';
 import { Config } from './config';
-import { CookieSerializeOptions, serialize } from 'cookie';
 
 const debug = createDebug('cookie-store');
 const epoch = (): number => (Date.now() / 1000) | 0; // eslint-disable-line no-bitwise
@@ -13,27 +12,20 @@ const MAX_COOKIE_SIZE = 4096;
 const alg = 'dir';
 const enc = 'A256GCM';
 
+type Header = { iat: number; uat: number; exp: number };
 const notNull = <T>(value: T | null): value is T => value !== null;
+const assert = (bool: boolean, msg: string) => {
+  if (!bool) {
+    throw new Error(msg);
+  }
+};
 
-export default class CookieStore {
-  private keystore: JWKS.KeyStore;
-
-  private currentKey: JWK.OctKey | undefined;
+export default class CookieStore<Req = IncomingMessage, Res = ServerResponse> {
+  private keys?: Uint8Array[];
 
   private chunkSize: number;
 
-  constructor(public config: Config) {
-    const secrets = Array.isArray(config.secret) ? config.secret : [config.secret];
-    this.keystore = new JWKS.KeyStore();
-
-    secrets.forEach((secretString: string, i: number) => {
-      const key = JWK.asKey(deriveKey(secretString));
-      if (i === 0) {
-        this.currentKey = key as JWK.OctKey;
-      }
-      this.keystore.add(key);
-    });
-
+  constructor(private config: Config, private Cookies: new () => Cookies) {
     const {
       cookie: { transient, ...cookieConfig },
       name: sessionName
@@ -49,20 +41,31 @@ export default class CookieStore {
     this.chunkSize = MAX_COOKIE_SIZE - emptyCookie.length;
   }
 
-  private encrypt(payload: string, headers: { [key: string]: any }): string {
-    return JWE.encrypt(payload, this.currentKey as JWK.OctKey, {
-      alg,
-      enc,
-      ...headers
-    });
+  private async getKeys(): Promise<Uint8Array[]> {
+    if (!this.keys) {
+      const secret = this.config.secret;
+      const secrets = Array.isArray(secret) ? secret : [secret];
+      this.keys = await Promise.all(secrets.map(deriveKey));
+    }
+    return this.keys;
   }
 
-  private decrypt(jwe: string): JWE.completeDecrypt {
-    return JWE.decrypt(jwe, this.keystore, {
-      complete: true,
-      contentEncryptionAlgorithms: [enc],
-      keyManagementAlgorithms: [alg]
-    });
+  public async encrypt(payload: jose.JWTPayload, { iat, uat, exp }: Header): Promise<string> {
+    const [key] = await this.getKeys();
+    return await new jose.EncryptJWT({ ...payload }).setProtectedHeader({ alg, enc, uat, iat, exp }).encrypt(key);
+  }
+
+  private async decrypt(jwe: string): Promise<jose.JWTDecryptResult> {
+    const keys = await this.getKeys();
+    let err;
+    for (const key of keys) {
+      try {
+        return await jose.jwtDecrypt(jwe, key);
+      } catch (e) {
+        err = e;
+      }
+    }
+    throw err;
   }
 
   private calculateExp(iat: number, uat: number): number {
@@ -78,13 +81,13 @@ export default class CookieStore {
     return Math.min(uat + (rollingDuration as number), iat + absoluteDuration);
   }
 
-  public read(req: IncomingMessage): [{ [key: string]: any }?, number?] {
-    const cookies = getCookies(req);
+  public async read(req: Req): Promise<[{ [key: string]: any }?, number?]> {
+    const cookies = new this.Cookies().getAll(req);
     const { name: sessionName, rollingDuration, absoluteDuration } = this.config.session;
 
-    let iat;
-    let uat;
-    let exp;
+    let iat: number;
+    let uat: number;
+    let exp: number;
     let existingSessionValue;
 
     try {
@@ -118,8 +121,8 @@ export default class CookieStore {
       }
 
       if (existingSessionValue) {
-        const { protected: header, cleartext } = this.decrypt(existingSessionValue);
-        ({ iat, uat, exp } = header as { iat: number; uat: number; exp: number });
+        const { protectedHeader: header, payload } = await this.decrypt(existingSessionValue);
+        ({ iat, uat, exp } = header as unknown as Header);
 
         // check that the existing session isn't expired based on options when it was established
         assert(exp > epoch(), 'it is expired based on options when it was established');
@@ -134,39 +137,34 @@ export default class CookieStore {
           assert(iat + absoluteDuration > epoch(), 'it is expired based on current absoluteDuration rules');
         }
 
-        return [JSON.parse(cleartext.toString()), iat];
+        return [payload, iat];
       }
     } catch (err) {
-      /* istanbul ignore else */
-      if (err instanceof AssertionError) {
-        debug('existing session was rejected because', err.message);
-      } else if (err instanceof errors.JOSEError) {
-        debug('existing session was rejected because it could not be decrypted', err);
-      } else {
-        debug('unexpected error handling session', err);
-      }
+      debug('error handling session %O', err);
     }
 
     return [];
   }
 
-  public save(
-    req: IncomingMessage,
-    res: ServerResponse,
+  public async save(
+    req: Req,
+    res: Res,
     session: { [key: string]: any } | undefined | null,
     createdAt?: number
-  ): void {
+  ): Promise<void> {
     const {
       cookie: { transient, ...cookieConfig },
       name: sessionName
     } = this.config.session;
-    const cookies = getCookies(req);
+    const cookieSetter = new this.Cookies();
+    const cookies = cookieSetter.getAll(req);
 
     if (!session) {
       debug('clearing all matching session cookies');
       for (const cookieName of Object.keys(cookies)) {
         if (cookieName.match(`^${sessionName}(?:\\.\\d)?$`)) {
-          clearCookie(res, cookieName, cookieConfig);
+          cookieSetter.clear(cookieName, cookieConfig);
+          cookieSetter.commit(res, this.config.session.name);
         }
       }
       return;
@@ -184,7 +182,7 @@ export default class CookieStore {
     }
 
     debug('found session, creating signed session cookie(s) with name %o(.i)', sessionName);
-    const value = this.encrypt(JSON.stringify(session), { iat, uat, exp });
+    const value = await this.encrypt(session, { iat, uat, exp });
 
     const chunkCount = Math.ceil(value.length / this.chunkSize);
     if (chunkCount > 1) {
@@ -192,18 +190,19 @@ export default class CookieStore {
       for (let i = 0; i < chunkCount; i++) {
         const chunkValue = value.slice(i * this.chunkSize, (i + 1) * this.chunkSize);
         const chunkCookieName = `${sessionName}.${i}`;
-        setCookie(res, chunkCookieName, chunkValue, cookieOptions);
+        cookieSetter.set(chunkCookieName, chunkValue, cookieOptions);
       }
       if (sessionName in cookies) {
-        clearCookie(res, sessionName, cookieConfig);
+        cookieSetter.clear(sessionName, cookieConfig);
       }
     } else {
-      setCookie(res, sessionName, value, cookieOptions);
+      cookieSetter.set(sessionName, value, cookieOptions);
       for (const cookieName of Object.keys(cookies)) {
         if (cookieName.match(`^${sessionName}\\.\\d$`)) {
-          clearCookie(res, cookieName, cookieConfig);
+          cookieSetter.clear(cookieName, cookieConfig);
         }
       }
     }
+    cookieSetter.commit(res, this.config.session.name);
   }
 }

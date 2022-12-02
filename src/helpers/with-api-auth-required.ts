@@ -3,8 +3,8 @@ import { SessionCache } from '../session';
 import { assertReqRes } from '../utils/assert';
 
 /**
- * Wrap an API Route to check that the user has a valid session. If they're not logged in the handler will return a
- * 401 Unauthorized.
+ * Wrap an API route to check that the user has a valid session. If they're not logged in the
+ * handler will return a 401 Unauthorized.
  *
  * ```js
  * // pages/api/protected-route.js
@@ -26,18 +26,19 @@ export type WithApiAuthRequired = (apiRoute: NextApiHandler) => NextApiHandler;
  * @ignore
  */
 export default function withApiAuthFactory(sessionCache: SessionCache): WithApiAuthRequired {
-  return (apiRoute) => async (req: NextApiRequest, res: NextApiResponse): Promise<void> => {
-    assertReqRes(req, res);
+  return (apiRoute) =>
+    async (req: NextApiRequest, res: NextApiResponse): Promise<void> => {
+      assertReqRes(req, res);
 
-    const session = sessionCache.get(req, res);
-    if (!session || !session.user) {
-      res.status(401).json({
-        error: 'not_authenticated',
-        description: 'The user does not have an active session or is not authenticated'
-      });
-      return;
-    }
+      const session = await sessionCache.get(req, res);
+      if (!session || !session.user) {
+        res.status(401).json({
+          error: 'not_authenticated',
+          description: 'The user does not have an active session or is not authenticated'
+        });
+        return;
+      }
 
-    await apiRoute(req, res);
-  };
+      await apiRoute(req, res);
+    };
 }

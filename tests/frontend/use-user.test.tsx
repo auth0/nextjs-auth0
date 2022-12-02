@@ -8,8 +8,8 @@ import {
   withUserProvider,
   user
 } from '../fixtures/frontend';
-import { RequestError, useConfig } from '../../src/frontend';
-import { useUser, UserContext } from '../../src';
+import { useUser, UserContext, RequestError } from '../../src/client';
+import { useConfig } from '../../src/client/use-config';
 import React from 'react';
 
 describe('context wrapper', () => {
@@ -123,7 +123,7 @@ describe('hook', () => {
     expect(result.current.isLoading).toEqual(false);
   });
 
-  test('should provide no user when the status code is 401', async () => {
+  test('should provide no user when the status code is 204', async () => {
     (global as any).fetch = fetchUserUnauthorizedMock;
     const { result, waitForValueToChange } = renderHook(() => useUser(), { wrapper: withUserProvider() });
 

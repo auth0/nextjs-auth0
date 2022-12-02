@@ -1,31 +1,135 @@
 # Change Log
 
+## [v2.0.0](https://github.com/auth0/nextjs-auth0/tree/v2.0.0) (2022-12-01)
+
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v1.9.2...v2.0.0)
+
+**⚠️ BREAKING CHANGES**
+
+- Refactor session lifecycle [\#787](https://github.com/auth0/nextjs-auth0/pull/787) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Rearrange exports for RSC and add experimental RSC route to example [\#913](https://github.com/auth0/nextjs-auth0/pull/913) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Improved callback errors [\#835](https://github.com/auth0/nextjs-auth0/pull/835) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Prevent mixing named exports and own instances [\#825](https://github.com/auth0/nextjs-auth0/pull/825) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Allow to override the user prop in server-side rendered pages [\#800](https://github.com/auth0/nextjs-auth0/pull/800) ([Widcket](https://github.com/Widcket))
+- Return 204 from /api/auth/me when logged out [\#791](https://github.com/auth0/nextjs-auth0/pull/791) ([Widcket](https://github.com/Widcket))
+
+  **Added**
+
+- Next.js Middlware support [\#815](https://github.com/auth0/nextjs-auth0/pull/815) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Add testing utility for generating session cookies [\#816](https://github.com/auth0/nextjs-auth0/pull/816) ([Widcket](https://github.com/Widcket))
+- Add updateUser [\#855](https://github.com/auth0/nextjs-auth0/pull/855) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Add support for configuring the built-in handlers [\#826](https://github.com/auth0/nextjs-auth0/pull/826) ([Widcket](https://github.com/Widcket))
+- Add support for configuring the default handlers [\#840](https://github.com/auth0/nextjs-auth0/pull/840) ([Widcket](https://github.com/Widcket))
+- Add logout options [\#877](https://github.com/auth0/nextjs-auth0/pull/877) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- At error cause to AT error when it's from a failed grant [\#878](https://github.com/auth0/nextjs-auth0/pull/878) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Add option to not store ID Token in session [\#809](https://github.com/auth0/nextjs-auth0/pull/809) ([Widcket](https://github.com/Widcket))
+- Default error handler [\#823](https://github.com/auth0/nextjs-auth0/pull/823) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Allow response customization in afterCallback [\#838](https://github.com/auth0/nextjs-auth0/pull/838) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Improve API docs [\#796](https://github.com/auth0/nextjs-auth0/pull/796) ([Widcket](https://github.com/Widcket))
+- Improve errors [\#782](https://github.com/auth0/nextjs-auth0/pull/782) ([Widcket](https://github.com/Widcket))
+
+See [V2 Migration Guide](./V2_MIGRATION_GUIDE.md) for full details.
+
+## [v2.0.0-beta.4](https://github.com/auth0/nextjs-auth0/tree/v2.0.0-beta.4) (2022-11-18)
+
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.0.0-beta.3...v2.0.0-beta.4)
+
+**⚠️ BREAKING CHANGES**
+
+- Rearrange exports for RSC and add experimental RSC route to example [\#913](https://github.com/auth0/nextjs-auth0/pull/913) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
+**Fixed**
+
+- WithMiddlewareAuthRequired should return 401 for /api routes [\#909](https://github.com/auth0/nextjs-auth0/pull/909) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
+## [v2.0.0-beta.3](https://github.com/auth0/nextjs-auth0/tree/v2.0.0-beta.3) (2022-11-08)
+
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.0.0-beta.2...v2.0.0-beta.3)
+
+**Fixed**
+
+- Fix edge cookie support for Next < 13.0.1 [\#900](https://github.com/auth0/nextjs-auth0/pull/900) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
+## [v2.0.0-beta.2](https://github.com/auth0/nextjs-auth0/tree/v2.0.0-beta.2) (2022-11-02)
+
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.0.0-beta.1...v2.0.0-beta.2)
+
+**Added**
+
+- At error cause to AT error when it's from a failed grant [\#878](https://github.com/auth0/nextjs-auth0/pull/878) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Add logout options [\#877](https://github.com/auth0/nextjs-auth0/pull/877) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
+**Fixed**
+
+- Fix for new req.cookie interface [\#894](https://github.com/auth0/nextjs-auth0/pull/894) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
+## [v2.0.0-beta.1](https://github.com/auth0/nextjs-auth0/tree/v2.0.0-beta.1) (2022-10-21)
+
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.0.0-beta.0...v2.0.0-beta.1)
+
+**Fixed**
+
+- status getter is not enumerable so needs to be added to NextResponse [\#875](https://github.com/auth0/nextjs-auth0/pull/875) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
+## [v2.0.0-beta.0](https://github.com/auth0/nextjs-auth0/tree/v2.0.0-beta.0) (2022-10-11)
+
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v1.9.1...v2.0.0-beta.0)
+
+- Change updateUser to updateSession [\#855](https://github.com/auth0/nextjs-auth0/pull/855) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Add support for configuring the default handlers [\#840](https://github.com/auth0/nextjs-auth0/pull/840) ([Widcket](https://github.com/Widcket))
+- Allow response customization in afterCallback [\#838](https://github.com/auth0/nextjs-auth0/pull/838) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Improved callback errors [\#835](https://github.com/auth0/nextjs-auth0/pull/835) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Add support for configuring the built-in handlers [\#826](https://github.com/auth0/nextjs-auth0/pull/826) ([Widcket](https://github.com/Widcket))
+- Prevent mixing named exports and own instances [\#825](https://github.com/auth0/nextjs-auth0/pull/825) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Default error handler [\#823](https://github.com/auth0/nextjs-auth0/pull/823) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Fix intermittent build issues [\#818](https://github.com/auth0/nextjs-auth0/pull/818) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Add testing utility for generating session cookies [\#816](https://github.com/auth0/nextjs-auth0/pull/816) ([Widcket](https://github.com/Widcket))
+- Next.js Middlware support [\#815](https://github.com/auth0/nextjs-auth0/pull/815) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Fix v1 cookie tests [\#810](https://github.com/auth0/nextjs-auth0/pull/810) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Do not store the ID token by default [\#809](https://github.com/auth0/nextjs-auth0/pull/809) ([Widcket](https://github.com/Widcket))
+- Allow to override the user prop in server-side rendered pages [\#800](https://github.com/auth0/nextjs-auth0/pull/800) ([Widcket](https://github.com/Widcket))
+- Improve API docs [\#796](https://github.com/auth0/nextjs-auth0/pull/796) ([Widcket](https://github.com/Widcket))
+- Return 204 from /api/auth/me when logged out [\#791](https://github.com/auth0/nextjs-auth0/pull/791) ([Widcket](https://github.com/Widcket))
+- Refactor session lifecycle [\#787](https://github.com/auth0/nextjs-auth0/pull/787) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Improve errors [\#782](https://github.com/auth0/nextjs-auth0/pull/782) ([Widcket](https://github.com/Widcket))
+
+See [V2 Migration Guide](./V2_MIGRATION_GUIDE.md) for full details.
+
 ## [v1.9.2](https://github.com/auth0/nextjs-auth0/tree/v1.9.2) (2022-10-07)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v1.9.1...v1.9.2)
 
 **Added**
+
 - Fix updates to session not reflected in async `getServerSideProps` [\#843](https://github.com/auth0/nextjs-auth0/pull/843) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
 ## [v1.9.1](https://github.com/auth0/nextjs-auth0/tree/v1.9.1) (2022-06-16)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v1.9.0...v1.9.1)
 
 **Fixed**
+
 - Add Props and Query to GetServerSidePropsWrapper type [\#731](https://github.com/auth0/nextjs-auth0/pull/731) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
 ## [v1.9.0](https://github.com/auth0/nextjs-auth0/tree/v1.9.0) (2022-05-20)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v1.8.0...v1.9.0)
 
 **Added**
+
 - [SDK-3332] Constrain session lifecycle to `withPageAuthrequired` to avoid Next warning [\#664](https://github.com/auth0/nextjs-auth0/pull/664) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
 ## [v1.8.0](https://github.com/auth0/nextjs-auth0/tree/v1.8.0) (2022-05-04)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v1.7.0...v1.8.0)
 
 **Added**
+
 - Add some useful props to the callback error [\#625](https://github.com/auth0/nextjs-auth0/pull/625) ([adamjmcgrath](https://github.com/adamjmcgrath))
 - Update to next 12 [\#612](https://github.com/auth0/nextjs-auth0/pull/612) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
 **Fixed**
+
 - Fix Fast Refresh for WithPageAuthRequired [\#653](https://github.com/auth0/nextjs-auth0/pull/653) ([adamjmcgrath](https://github.com/adamjmcgrath))
 - Handle request errors on `useUser` hook [SDK-3227] [\#639](https://github.com/auth0/nextjs-auth0/pull/639) ([Widcket](https://github.com/Widcket))
 - Add default to PageRoute type parameter [\#632](https://github.com/auth0/nextjs-auth0/pull/632) ([grantbdev](https://github.com/grantbdev))
@@ -34,40 +138,51 @@
 - Fix types in client-side `withPageAuthRequired` [\#574](https://github.com/auth0/nextjs-auth0/pull/574) ([slaypni](https://github.com/slaypni))
 
 ## [v1.7.0](https://github.com/auth0/nextjs-auth0/tree/v1.7.0) (2022-01-06)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v1.6.2...v1.7.0)
 
 **Added**
+
 - Include message body in 302 responses [\#564](https://github.com/auth0/nextjs-auth0/pull/564) ([michielvangendt](https://github.com/michielvangendt))
 
 **Fixed**
+
 - Honor configured sameSite in transient cookies so you can login to iframe using 'none' [\#571](https://github.com/auth0/nextjs-auth0/pull/571) ([adamjmcgrath](https://github.com/adamjmcgrath))
 - Cookies with samesite=none must have the secure attr set [\#570](https://github.com/auth0/nextjs-auth0/pull/570) ([adamjmcgrath](https://github.com/adamjmcgrath))
 - Improve types in server-side withPageAuthRequired [\#554](https://github.com/auth0/nextjs-auth0/pull/554) ([misoton665](https://github.com/misoton665))
 
 ## [v1.6.2](https://github.com/auth0/nextjs-auth0/tree/v1.6.2) (2021-12-16)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v1.6.1...v1.6.2)
 
 **Fixed**
+
 - Fix issue where error reporting wrong instanceof [\#543](https://github.com/auth0/nextjs-auth0/pull/543) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
 **Security**
+
 - Enforce configured host on user supplied returnTo [\#557](https://github.com/auth0/nextjs-auth0/pull/557) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
 ## [v1.6.1](https://github.com/auth0/nextjs-auth0/tree/v1.6.1) (2021-10-13)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v1.6.0...v1.6.1)
 
 **Fixed**
+
 - [Snyk] Upgrade openid-client from 4.8.0 to 4.9.0 [\#518](https://github.com/auth0/nextjs-auth0/pull/518) ([snyk-bot](https://github.com/snyk-bot))
 
 ## [v1.6.0](https://github.com/auth0/nextjs-auth0/tree/v1.6.0) (2021-10-11)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v1.5.0...v1.6.0)
 
 **Added**
+
 - [SDK-2818] Export error classes [\#508](https://github.com/auth0/nextjs-auth0/pull/508) ([adamjmcgrath](https://github.com/adamjmcgrath))
 - [SDK-2529] Add ability to pass custom params to refresh grant and code exchange [\#507](https://github.com/auth0/nextjs-auth0/pull/507) ([adamjmcgrath](https://github.com/adamjmcgrath))
 - [SDK-2813] Add afterRefresh hook [\#506](https://github.com/auth0/nextjs-auth0/pull/506) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
 **Fixed**
+
 - Fix types in server-side `withPageAuthRequired` [\#512](https://github.com/auth0/nextjs-auth0/pull/512) ([Widcket](https://github.com/Widcket))
 
 ## [1.5.0](https://github.com/auth0/nextjs-auth0/tree/v1.5.0) (2021-07-14)

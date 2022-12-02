@@ -1,12 +1,14 @@
 import { CookieJar } from 'tough-cookie';
-import timekeeper = require('timekeeper');
+import * as jose from 'jose';
+import timekeeper from 'timekeeper';
 import { withApi, withoutApi } from '../fixtures/default-settings';
 import { makeIdToken } from '../auth0-session/fixtures/cert';
-import { get, post, toSignedCookieJar } from '../auth0-session/fixtures/helpers';
-import { encodeState } from '../../src/auth0-session/hooks/get-login-state';
-import { setup, teardown } from '../fixtures/setup';
-import { Session, AfterCallback } from '../../src';
+import { defaultConfig, get, post, toSignedCookieJar } from '../auth0-session/fixtures/helpers';
+import { encodeState } from '../../src/auth0-session/utils/encoding';
+import { defaultOnError, setup, teardown } from '../fixtures/setup';
+import { Session, AfterCallback, MissingStateCookieError } from '../../src';
 import nock from 'nock';
+import { signing as deriveKey } from '../../src/auth0-session/utils/hkdf';
 
 const callback = (baseUrl: string, body: any, cookieJar?: CookieJar): Promise<any> =>
   post(baseUrl, `/api/auth/callback`, {
@@ -15,21 +17,37 @@ const callback = (baseUrl: string, body: any, cookieJar?: CookieJar): Promise<an
     fullResponse: true
   });
 
+const generateSignature = async (cookie: string, value: string): Promise<string> => {
+  const key = await deriveKey(defaultConfig.secret as string);
+  const { signature } = await new jose.FlattenedSign(new TextEncoder().encode(`${cookie}=${value}`))
+    .setProtectedHeader({ alg: 'HS256', b64: false, crit: ['b64'] })
+    .sign(key);
+  return signature;
+};
+
 describe('callback handler', () => {
   afterEach(teardown);
 
   test('should require a state', async () => {
-    const baseUrl = await setup(withoutApi);
+    expect.assertions(2);
+    const baseUrl = await setup(withoutApi, {
+      onError(req, res, err) {
+        expect(err.cause).toBeInstanceOf(MissingStateCookieError);
+        defaultOnError(req, res, err);
+      }
+    });
     await expect(
       callback(baseUrl, {
         state: '__test_state__'
       })
-    ).rejects.toThrow('checks.state argument is missing');
+    ).rejects.toThrow(
+      'Callback handler failed. CAUSE: Missing state cookie from login request (check login URL, callback URL and cookie config).'
+    );
   });
 
   test('should validate the state', async () => {
     const baseUrl = await setup(withoutApi);
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         state: '__other_state__'
       },
@@ -49,7 +67,7 @@ describe('callback handler', () => {
   test('should validate the audience', async () => {
     const baseUrl = await setup(withoutApi, { idTokenClaims: { aud: 'bar' } });
     const state = encodeState({ returnTo: baseUrl });
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         state,
         nonce: '__test_nonce__'
@@ -71,7 +89,7 @@ describe('callback handler', () => {
   test('should validate the issuer', async () => {
     const baseUrl = await setup(withoutApi, { idTokenClaims: { aud: 'bar', iss: 'other-issuer' } });
     const state = encodeState({ returnTo: baseUrl });
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         state,
         nonce: '__test_nonce__'
@@ -92,15 +110,21 @@ describe('callback handler', () => {
 
   it('should escape html in error qp', async () => {
     const baseUrl = await setup(withoutApi);
-    await expect(get(baseUrl, `/api/auth/callback?error=%3Cscript%3Ealert(%27xss%27)%3C%2Fscript%3E`)).rejects.toThrow(
-      '&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;'
+    const cookieJar = await toSignedCookieJar(
+      {
+        state: `foo.${await generateSignature('state', 'foo')}`
+      },
+      baseUrl
     );
+    await expect(
+      get(baseUrl, `/api/auth/callback?error=%3Cscript%3Ealert(%27xss%27)%3C%2Fscript%3E&state=foo`, { cookieJar })
+    ).rejects.toThrow('&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;');
   });
 
   test('should create the session without OIDC claims', async () => {
     const baseUrl = await setup(withoutApi);
     const state = encodeState({ returnTo: baseUrl });
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         state,
         nonce: '__test_nonce__'
@@ -117,7 +141,6 @@ describe('callback handler', () => {
     );
     expect(res.statusCode).toBe(302);
     const body = await get(baseUrl, `/api/session`, { cookieJar });
-
     expect(body.user).toStrictEqual({
       nickname: '__test_nickname__',
       sub: '__test_sub__'
@@ -128,7 +151,7 @@ describe('callback handler', () => {
     timekeeper.freeze(0);
     const baseUrl = await setup(withoutApi);
     const state = encodeState({ returnTo: baseUrl });
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         state,
         nonce: '__test_nonce__'
@@ -155,7 +178,7 @@ describe('callback handler', () => {
     timekeeper.freeze(0);
     const baseUrl = await setup(withApi);
     const state = encodeState({ returnTo: baseUrl });
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         state,
         nonce: '__test_nonce__'
@@ -177,9 +200,9 @@ describe('callback handler', () => {
       accessToken: 'eyJz93a...k4laUWw',
       accessTokenExpiresAt: 750,
       accessTokenScope: 'read:foo delete:foo',
-      idToken: makeIdToken({ iss: 'https://acme.auth0.local/' }),
       token_type: 'Bearer',
       refreshToken: 'GEbRxBN...edjnXbL',
+      idToken: await makeIdToken({ iss: 'https://acme.auth0.local/' }),
       user: {
         nickname: '__test_nickname__',
         sub: '__test_sub__'
@@ -188,7 +211,7 @@ describe('callback handler', () => {
     timekeeper.reset();
   });
 
-  test('remove tokens with afterCallback hook', async () => {
+  test('remove properties from session with afterCallback hook', async () => {
     timekeeper.freeze(0);
     const afterCallback: AfterCallback = (_req, _res, session: Session): Session => {
       delete session.accessToken;
@@ -197,7 +220,7 @@ describe('callback handler', () => {
     };
     const baseUrl = await setup(withApi, { callbackOptions: { afterCallback } });
     const state = encodeState({ returnTo: baseUrl });
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         state,
         nonce: '__test_nonce__'
@@ -218,7 +241,7 @@ describe('callback handler', () => {
     expect(session).toStrictEqual({
       accessTokenExpiresAt: 750,
       accessTokenScope: 'read:foo delete:foo',
-      idToken: makeIdToken({ iss: 'https://acme.auth0.local/' }),
+      idToken: await makeIdToken({ iss: 'https://acme.auth0.local/' }),
       token_type: 'Bearer',
       user: {
         nickname: '__test_nickname__',
@@ -236,7 +259,7 @@ describe('callback handler', () => {
     };
     const baseUrl = await setup(withApi, { callbackOptions: { afterCallback } });
     const state = encodeState({ returnTo: baseUrl });
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         state,
         nonce: '__test_nonce__'
@@ -270,7 +293,7 @@ describe('callback handler', () => {
     };
     const baseUrl = await setup(withApi, { callbackOptions: { afterCallback } });
     const state = encodeState({ returnTo: baseUrl });
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         state,
         nonce: '__test_nonce__'
@@ -292,7 +315,7 @@ describe('callback handler', () => {
   test('throws for missing org_id claim', async () => {
     const baseUrl = await setup({ ...withApi, organization: 'foo' });
     const state = encodeState({ returnTo: baseUrl });
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         state,
         nonce: '__test_nonce__'
@@ -314,7 +337,7 @@ describe('callback handler', () => {
   test('throws for org_id claim mismatch', async () => {
     const baseUrl = await setup({ ...withApi, organization: 'foo' }, { idTokenClaims: { org_id: 'bar' } });
     const state = encodeState({ returnTo: baseUrl });
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         state,
         nonce: '__test_nonce__'
@@ -330,9 +353,7 @@ describe('callback handler', () => {
         },
         cookieJar
       )
-    ).rejects.toThrow(
-      'Organization Id (org_id) claim value mismatch in the ID token; expected &quot;foo&quot;, found &quot;bar&quot;'
-    );
+    ).rejects.toThrow('Organization Id (org_id) claim value mismatch in the ID token; expected "foo", found "bar"');
   });
 
   test('accepts a valid organization', async () => {
@@ -341,7 +362,7 @@ describe('callback handler', () => {
       callbackOptions: { organization: 'foo' }
     });
     const state = encodeState({ returnTo: baseUrl });
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         state,
         nonce: '__test_nonce__'
@@ -370,7 +391,7 @@ describe('callback handler', () => {
       }
     });
     const state = encodeState({ returnTo: baseUrl });
-    const cookieJar = toSignedCookieJar(
+    const cookieJar = await toSignedCookieJar(
       {
         state,
         nonce: '__test_nonce__'
@@ -381,14 +402,14 @@ describe('callback handler', () => {
 
     nock(`${withoutApi.issuerBaseURL}`)
       .post('/oauth/token', /grant_type=authorization_code/)
-      .reply(200, (_, body) => {
+      .reply(200, async (_, body) => {
         spy(body);
         return {
           access_token: 'eyJz93a...k4laUWw',
           expires_in: 750,
           scope: 'read:foo delete:foo',
           refresh_token: 'GEbRxBN...edjnXbL',
-          id_token: makeIdToken({ iss: `${withoutApi.issuerBaseURL}/` }),
+          id_token: await makeIdToken({ iss: `${withoutApi.issuerBaseURL}/` }),
           token_type: 'Bearer'
         };
       });

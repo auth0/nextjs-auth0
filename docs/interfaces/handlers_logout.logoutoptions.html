@@ -69,8 +69,13 @@
 			<section class="tsd-panel tsd-comment">
 				<div class="tsd-comment tsd-typography">
 					<div class="lead">
-						<p>Custom options to pass to logout.</p>
+						<p>Options to customize the logout handler.</p>
 					</div>
+					<dl class="tsd-comment-tags">
+						<dt>see</dt>
+						<dd><p><a href="../modules/handlers_logout.html#handlelogout">HandleLogout</a></p>
+						</dd>
+					</dl>
 				</div>
 			</section>
 			<section class="tsd-panel tsd-hierarchy">
@@ -88,6 +93,7 @@
 						<section class="tsd-index-section ">
 							<h3>Properties</h3>
 							<ul class="tsd-index-list">
+								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="handlers_logout.logoutoptions.html#logoutparams" class="tsd-kind-icon">logout<wbr>Params</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="handlers_logout.logoutoptions.html#returnto" class="tsd-kind-icon">return<wbr>To</a></li>
 							</ul>
 						</section>
@@ -97,18 +103,41 @@
 			<section class="tsd-panel-group tsd-member-group ">
 				<h2>Properties</h2>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
+					<a name="logoutparams" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagOptional">Optional</span> logout<wbr>Params</h3>
+					<div class="tsd-signature tsd-kind-icon">logout<wbr>Params<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">{}</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/af21d7c/src/handlers/logout.ts#L24">src/handlers/logout.ts:24</a></li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>Additional custom parameters to pass to the logout endpoint.</p>
+						</div>
+					</div>
+					<div class="tsd-type-declaration">
+						<h4>Type declaration</h4>
+						<ul class="tsd-parameters">
+							<li class="tsd-parameter-index-signature">
+								<h5><span class="tsd-signature-symbol">[</span>key: <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">]: </span><span class="tsd-signature-type">any</span></h5>
+							</li>
+						</ul>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
 					<a name="returnto" class="tsd-anchor"></a>
 					<h3><span class="tsd-flag ts-flagOptional">Optional</span> return<wbr>To</h3>
 					<div class="tsd-signature tsd-kind-icon">return<wbr>To<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/cc75175/src/handlers/logout.ts#L16">src/handlers/logout.ts:16</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/af21d7c/src/handlers/logout.ts#L19">src/handlers/logout.ts:19</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
 						<div class="lead">
-							<p> URL to returnTo after logout, overrides the
-							Default in {@link BaseConfig.routes.postLogoutRedirect routes.postLogoutRedirect}</p>
+							<p>URL to return to after logout. Overrides the default
+							in {@link BaseConfig.routes.postLogoutRedirect routes.postLogoutRedirect}.</p>
 						</div>
 					</div>
 				</section>
@@ -121,16 +150,19 @@
 						<a href="../index.html">Exports</a>
 					</li>
 					<li class=" tsd-kind-module">
+						<a href="../modules/client.html">client</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/client_use_user.html">client/use-<wbr>user</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/client_with_page_auth_required.html">client/with-<wbr>page-<wbr>auth-<wbr>required</a>
+					</li>
+					<li class=" tsd-kind-module">
 						<a href="../modules/config.html">config</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="../modules/frontend.html">frontend</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="../modules/frontend_use_user.html">frontend/use-<wbr>user</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="../modules/frontend_with_page_auth_required.html">frontend/with-<wbr>page-<wbr>auth-<wbr>required</a>
+						<a href="../modules/edge.html">edge</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/handlers.html">handlers</a>
@@ -154,16 +186,19 @@
 						<a href="../modules/helpers.html">helpers</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="../modules/helpers_get_server_side_props_wrapper.html">helpers/get-<wbr>server-<wbr>side-<wbr>props-<wbr>wrapper</a>
+						<a href="../modules/helpers_testing.html">helpers/testing</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/helpers_with_api_auth_required.html">helpers/with-<wbr>api-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
+						<a href="../modules/helpers_with_middleware_auth_required.html">helpers/with-<wbr>middleware-<wbr>auth-<wbr>required</a>
+					</li>
+					<li class=" tsd-kind-module">
 						<a href="../modules/helpers_with_page_auth_required.html">helpers/with-<wbr>page-<wbr>auth-<wbr>required</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="../modules/instance.html">instance</a>
+						<a href="../modules/index.html">index</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/session.html">session</a>
@@ -176,6 +211,9 @@
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/session_session.html">session/session</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="../modules/session_update_session.html">session/update-<wbr>session</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="../modules/utils_errors.html">utils/errors</a>
@@ -193,6 +231,9 @@
 						<a href="handlers_logout.logoutoptions.html" class="tsd-kind-icon">Logout<wbr>Options</a>
 						<ul>
 							<li class=" tsd-kind-property tsd-parent-kind-interface">
+								<a href="handlers_logout.logoutoptions.html#logoutparams" class="tsd-kind-icon">logout<wbr>Params</a>
+							</li>
+							<li class=" tsd-kind-property tsd-parent-kind-interface">
 								<a href="handlers_logout.logoutoptions.html#returnto" class="tsd-kind-icon">return<wbr>To</a>
 							</li>
 						</ul>
@@ -201,6 +242,12 @@
 				<ul class="after-current">
 					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
 						<a href="../modules/handlers_logout.html#handlelogout" class="tsd-kind-icon">Handle<wbr>Logout</a>
+					</li>
+					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
+						<a href="../modules/handlers_logout.html#logouthandler" class="tsd-kind-icon">Logout<wbr>Handler</a>
+					</li>
+					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
+						<a href="../modules/handlers_logout.html#logoutoptionsprovider" class="tsd-kind-icon">Logout<wbr>Options<wbr>Provider</a>
 					</li>
 				</ul>
 			</nav>
@@ -213,6 +260,7 @@
 		<div class="tsd-legend-group">
 			<ul class="tsd-legend">
 				<li class="tsd-kind-function"><span class="tsd-kind-icon">Function</span></li>
+				<li class="tsd-kind-function tsd-has-type-parameter"><span class="tsd-kind-icon">Function with type parameter</span></li>
 				<li class="tsd-kind-type-alias"><span class="tsd-kind-icon">Type alias</span></li>
 				<li class="tsd-kind-type-alias tsd-has-type-parameter"><span class="tsd-kind-icon">Type alias with type parameter</span></li>
 			</ul>
@@ -222,6 +270,10 @@
 			</ul>
 			<ul class="tsd-legend">
 				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
+				<li class="tsd-kind-class tsd-has-type-parameter"><span class="tsd-kind-icon">Class with type parameter</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-enum"><span class="tsd-kind-icon">Enumeration</span></li>
 			</ul>
 		</div>
 	</div>

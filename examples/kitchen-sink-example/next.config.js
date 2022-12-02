@@ -1,4 +1,6 @@
 module.exports = {
   poweredByHeader: false,
-  target: 'serverless'
+  experimental: {
+    appDir: true
+  }
 };

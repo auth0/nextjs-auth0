@@ -1,7 +1,7 @@
 import React from 'react';
 
-import { UserProvider, UserProviderProps, UserProfile } from '../../src';
-import { ConfigProvider, ConfigProviderProps, RequestError } from '../../src/frontend';
+import { RequestError, UserProvider, UserProviderProps, UserProfile } from '../../src/client';
+import { default as ConfigProvider, ConfigProviderProps } from '../../src/client/use-config';
 
 type FetchUserMock = {
   ok: boolean;
@@ -40,8 +40,8 @@ export const fetchUserMock = (): Promise<FetchUserMock> => {
 
 export const fetchUserUnauthorizedMock = (): Promise<FetchUserMock> => {
   return Promise.resolve({
-    ok: false,
-    status: 401,
+    ok: true,
+    status: 204,
     json: () => Promise.resolve(undefined)
   });
 };

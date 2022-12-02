@@ -97,13 +97,13 @@ export function codeExchange(params: ConfigParameters, idToken: string, code = '
     });
 }
 
-export function refreshTokenExchange(
+export async function refreshTokenExchange(
   params: ConfigParameters,
   refreshToken: string,
   payload: Record<string, unknown>,
   newToken?: string
-): nock.Scope {
-  const idToken = makeIdToken({
+): Promise<nock.Scope> {
+  const idToken = await makeIdToken({
     iss: `${params.issuerBaseURL}/`,
     aud: params.clientID,
     ...payload
@@ -120,14 +120,25 @@ export function refreshTokenExchange(
     });
 }
 
-export function refreshTokenRotationExchange(
+export async function failedRefreshTokenExchange(
+  params: ConfigParameters,
+  refreshToken: string,
+  payload: Record<string, unknown>,
+  status = 401
+): Promise<nock.Scope> {
+  return nock(`${params.issuerBaseURL}`)
+    .post('/oauth/token', `grant_type=refresh_token&refresh_token=${refreshToken}`)
+    .reply(status, payload);
+}
+
+export async function refreshTokenRotationExchange(
   params: ConfigParameters,
   refreshToken: string,
   payload: Record<string, unknown>,
   newToken?: string,
   newrefreshToken?: string
-): nock.Scope {
-  const idToken = makeIdToken({
+): Promise<nock.Scope> {
+  const idToken = await makeIdToken({
     iss: `${params.issuerBaseURL}/`,
     aud: params.clientID,
     ...payload

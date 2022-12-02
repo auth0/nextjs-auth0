@@ -1,38 +1,51 @@
+'use client';
 import React from 'react';
 import Link from 'next/link';
-import { useUser } from '@auth0/nextjs-auth0';
+import { useUser } from '@auth0/nextjs-auth0/client';
 
 const Header = (): React.ReactElement => {
   const { user } = useUser();
 
   return (
-    <header>
+    <div id="header">
       <nav>
         <ul>
           <li>
-            <Link href="/">
+            <Link href="/" legacyBehavior>
               <a>Home</a>
             </Link>
           </li>
           <li>
-            <Link href="/about">
+            <Link href="/about" legacyBehavior>
               <a>About</a>
             </Link>
           </li>
           <li>
-            <Link href="/shows">
+            <Link href="/shows" legacyBehavior>
               <a>TV Shows</a>
             </Link>
           </li>
           {user ? (
             <>
               <li>
-                <Link href="/profile">
+                <Link href="/profile" legacyBehavior>
                   <a>Profile</a>
                 </Link>
               </li>{' '}
               <li>
-                <a href="/profile-ssr">Profile (SSR)</a>
+                <Link href="/profile-ssr" legacyBehavior>
+                  <a>Profile (SSR)</a>
+                </Link>
+              </li>{' '}
+              <li>
+                <Link href="/profile-mw" legacyBehavior>
+                  <a>Profile (MW)</a>
+                </Link>
+              </li>{' '}
+              <li>
+                <Link href="/profile-experimental-rsc" legacyBehavior>
+                  <a>Profile (Experimental RSC)</a>
+                </Link>
               </li>{' '}
               <li>
                 <a href="/api/auth/logout" data-testid="logout">
@@ -41,19 +54,17 @@ const Header = (): React.ReactElement => {
               </li>
             </>
           ) : (
-            <>
-              <li>
-                <a href="/api/auth/login" data-testid="login">
-                  Login
-                </a>
-              </li>
-            </>
+            <li>
+              <a href="/api/auth/login" data-testid="login">
+                Login
+              </a>
+            </li>
           )}
         </ul>
       </nav>
 
       <style jsx>{`
-        header {
+        #header {
           padding: 0.2rem;
           color: #fff;
           background-color: #333;
@@ -86,7 +97,7 @@ const Header = (): React.ReactElement => {
           background: none;
         }
       `}</style>
-    </header>
+    </div>
   );
 };
 

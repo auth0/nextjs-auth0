@@ -1,6 +1,6 @@
 import nock from 'nock';
-import { Client, Issuer } from 'openid-client';
-import { getConfig, clientFactory, ConfigParameters } from '../../src/auth0-session';
+import { Client } from 'openid-client';
+import { getConfig, ConfigParameters } from '../../src/auth0-session';
 import { jwks } from './fixtures/cert';
 import pkg from '../../package.json';
 import wellKnown from './fixtures/well-known.json';
@@ -17,8 +17,13 @@ const defaultConfig = {
   }
 };
 
-const getClient = (params: ConfigParameters = {}): Promise<Client> =>
-  clientFactory(getConfig({ ...defaultConfig, ...params }), { name: 'nextjs-auth0', version })();
+const getClient = async (params: ConfigParameters = {}): Promise<Client> => {
+  const { default: clientFactory } = await import('../../src/auth0-session/client');
+  return clientFactory(getConfig({ ...defaultConfig, ...params }), {
+    name: 'nextjs-auth0',
+    version
+  })();
+};
 
 describe('clientFactory', function () {
   beforeEach(() => {
@@ -78,7 +83,7 @@ describe('clientFactory', function () {
         Authorization: 'Bearer foo'
       }
     });
-    const headerProps = Object.getOwnPropertyNames(JSON.parse(response.body.toString()));
+    const headerProps = Object.getOwnPropertyNames(JSON.parse((response.body as Buffer).toString()));
 
     expect(headerProps).toContain('authorization');
   });
@@ -136,15 +141,12 @@ describe('clientFactory', function () {
     ).resolves.not.toThrow();
   });
 
-  it('should not disclose stack trace in AggregateError message when discovery fails', async () => {
+  it('should throw DiscoveryError when discovery fails', async () => {
     nock.cleanAll();
     nock('https://op.example.com').get('/.well-known/oauth-authorization-server').reply(500);
     nock('https://op.example.com').get('/.well-known/openid-configuration').reply(500);
-    await expect(getClient()).rejects.toThrowError(new Error('expected 200 OK, got: 500 Internal Server Error'));
-  });
-
-  it('should not normalize individual errors from discovery', async () => {
-    jest.spyOn(Issuer, 'discover').mockRejectedValue(new Error('foo'));
-    await expect(getClient()).rejects.toThrowError(new Error('foo'));
+    await expect(getClient()).rejects.toThrow(
+      'Discovery requests failing for https://op.example.com, expected 200 OK, got: 500 Internal Server Error'
+    );
   });
 });
