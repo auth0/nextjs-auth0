@@ -3,7 +3,7 @@ import { useUser } from '@auth0/nextjs-auth0/client';
 
 import Layout from '../components/layout';
 
-function Profile() {
+export default function Profile() {
   const { user, isLoading } = useUser();
   if (isLoading) {
     return <p>Loading...</p>;
@@ -16,5 +16,3 @@ function Profile() {
     </Layout>
   );
 }
-Profile.whyDidYouRender = true;
-export default Profile;

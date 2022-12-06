@@ -3,7 +3,7 @@ import { useUser } from '@auth0/nextjs-auth0/client';
 
 import Layout from '../components/layout';
 
-function Home(): React.ReactElement {
+export default function Home(): React.ReactElement {
   const { user, error, isLoading } = useUser();
 
   return (
@@ -39,6 +39,3 @@ function Home(): React.ReactElement {
     </Layout>
   );
 }
-Home.whyDidYouRender = true;
-
-export default Home;
