@@ -270,3 +270,21 @@ describe('check session', () => {
     expect(result.current.isLoading).toEqual(false);
   });
 });
+
+describe('re-renders', () => {
+  afterEach(() => delete (global as any).fetch);
+
+  test('should not update context value after rerender with no state change', async () => {
+    (global as any).fetch = fetchUserErrorMock;
+    const { waitForNextUpdate, result, rerender } = renderHook(() => useUser(), {
+      wrapper: withUserProvider()
+    });
+
+    await waitForNextUpdate();
+    const memoized = result.current;
+
+    rerender();
+
+    expect(result.current).toBe(memoized);
+  });
+});
