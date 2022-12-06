@@ -214,7 +214,7 @@ export default ({
   }, [state.user]);
 
   const { user, error, isLoading } = state;
-  const value = useMemo(() => ({ user, error, isLoading, checkSession }), [user, error, isLoading]);
+  const value = useMemo(() => ({ user, error, isLoading, checkSession }), [user, error, isLoading, checkSession]);
 
   return (
     <ConfigProvider loginUrl={loginUrl}>
