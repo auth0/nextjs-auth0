@@ -1,5 +1,5 @@
 'use client';
-import React, { ReactElement, useState, useEffect, useCallback, useContext, createContext } from 'react';
+import React, { ReactElement, useState, useEffect, useCallback, useContext, createContext, useMemo } from 'react';
 
 import ConfigProvider, { ConfigContext } from './use-config';
 
@@ -214,10 +214,11 @@ export default ({
   }, [state.user]);
 
   const { user, error, isLoading } = state;
+  const value = useMemo(() => ({ user, error, isLoading, checkSession }), [user, error, isLoading, checkSession]);
 
   return (
     <ConfigProvider loginUrl={loginUrl}>
-      <UserContext.Provider value={{ user, error, isLoading, checkSession }}>{children}</UserContext.Provider>
+      <UserContext.Provider value={value}>{children}</UserContext.Provider>
     </ConfigProvider>
   );
 };
