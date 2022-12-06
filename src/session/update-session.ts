@@ -15,8 +15,8 @@ import { assertReqRes } from '../utils/assert';
  *
  * export default async function updateSession(req, res) {
  *   if (req.method === 'PUT') {
- *     const session = getSession(req, res);
- *     updateSession(req, res, { ...session, user: { ...user, foo: req.query.foo } });
+ *     const session = await getSession(req, res);
+ *     updateSession(req, res, { ...session, user: { ...session.user, foo: req.query.foo } });
  *     res.json({ success: true });
  *   }
  * };
