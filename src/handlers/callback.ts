@@ -92,7 +92,7 @@ export type AfterCallback = (
   res: NextApiResponse,
   session: Session,
   state?: { [key: string]: any }
-) => Promise<Session> | Session | undefined;
+) => Promise<Session | undefined> | Session | undefined;
 
 /**
  * Options to customize the callback handler.
