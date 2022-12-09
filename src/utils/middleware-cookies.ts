@@ -12,8 +12,14 @@ export default class MiddlewareCookies extends Cookies {
   }
 
   getAll(req: NextRequest): Record<string, string> {
-    return Array.from(req.cookies.keys()).reduce((memo: { [key: string]: string }, key) => {
-      memo[key] = req.cookies.get(key) as string;
+    const { cookies } = req;
+    if (typeof cookies.getAll === 'function') {
+      return req.cookies.getAll().reduce((memo, { name, value }) => ({ ...memo, [name]: value }), {});
+    }
+    // Edge cookies before Next 13.0.1 have no `getAll` and extend `Map`.
+    const legacyCookies = cookies as unknown as Map<string, string>;
+    return Array.from(legacyCookies.keys()).reduce((memo: { [key: string]: string }, key) => {
+      memo[key] = legacyCookies.get(key) as string;
       return memo;
     }, {});
   }

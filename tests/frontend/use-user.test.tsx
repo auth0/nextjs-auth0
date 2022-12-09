@@ -8,8 +8,8 @@ import {
   withUserProvider,
   user
 } from '../fixtures/frontend';
-import { RequestError, useConfig } from '../../src/frontend';
-import { useUser, UserContext } from '../../src';
+import { useUser, UserContext, RequestError } from '../../src/client';
+import { useConfig } from '../../src/client/use-config';
 import React from 'react';
 
 describe('context wrapper', () => {
@@ -268,5 +268,23 @@ describe('check session', () => {
     expect(result.current.user).toBeUndefined();
     expect(result.current.error).toBeUndefined();
     expect(result.current.isLoading).toEqual(false);
+  });
+});
+
+describe('re-renders', () => {
+  afterEach(() => delete (global as any).fetch);
+
+  test('should not update context value after rerender with no state change', async () => {
+    (global as any).fetch = fetchUserErrorMock;
+    const { waitForNextUpdate, result, rerender } = renderHook(() => useUser(), {
+      wrapper: withUserProvider()
+    });
+
+    await waitForNextUpdate();
+    const memoized = result.current;
+
+    rerender();
+
+    expect(result.current).toBe(memoized);
   });
 });

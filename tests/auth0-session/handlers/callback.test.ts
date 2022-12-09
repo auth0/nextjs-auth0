@@ -86,7 +86,7 @@ describe('callback', () => {
         },
         cookieJar
       })
-    ).rejects.toThrowError('failed to decode JWT (JWTMalformed: JWTs must have three components)');
+    ).rejects.toThrowError('failed to decode JWT (Error: JWTs must have three components)');
   });
 
   it('should error when id_token has invalid alg', async () => {

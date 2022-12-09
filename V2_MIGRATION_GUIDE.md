@@ -2,14 +2,19 @@
 
 Guide to migrating from `1.x` to `2.x`
 
+- [Node 10 is no longer supported](#node-10-is-no-longer-supported)
 - [`getSession` now returns a `Promise`](#getsession-now-returns-a-promise)
+- [Client methods and components are now exported under /client](#client-methods-and-components-are-now-exported-under-client)
 - [`updateSession` has been added](#updatesession-has-been-added)
 - [`getServerSidePropsWrapper` has been removed](#getserversidepropswrapper-has-been-removed)
 - [Profile API route no longer returns a 401](#profile-api-route-no-longer-returns-a-401)
-- [The ID token is no longer stored by default](#the-id-token-is-no-longer-stored-by-default)
 - [Override default error handler](#override-default-error-handler)
 - [afterCallback can write to the response](#aftercallback-can-write-to-the-response)
 - [Configure default handlers](#configure-default-handlers)
+
+## Node 10 is no longer supported
+
+Node 12 LTS and newer LTS releases are supported.
 
 ## `getSession` now returns a `Promise`
 
@@ -36,6 +41,92 @@ async function myApiRoute(req, res) {
   // ...
 }
 ```
+
+## Client methods and components are now exported under /client
+
+All methods and components for the browser should now be accessed under `/client`.
+
+### Before
+
+```js
+// pages/_app.js
+import React from 'react';
+import { UserProvider } from '@auth0/nextjs-auth0';
+
+export default function App({ Component, pageProps }) {
+  return (
+    <UserProvider>
+      <Component {...pageProps} />
+    </UserProvider>
+  );
+}
+```
+
+```js
+// pages/index.js
+import { useUser } from '@auth0/nextjs-auth0';
+
+export default function Index() {
+  const { user, error, isLoading } = useUser();
+
+  if (isLoading) return <div>Loading...</div>;
+  if (error) return <div>{error.message}</div>;
+
+  if (user) {
+    return (
+      <div>
+        Welcome {user.name}! <a href="/api/auth/logout">Logout</a>
+      </div>
+    );
+  }
+
+  return <a href="/api/auth/login">Login</a>;
+}
+```
+
+### After
+
+```js
+// pages/_app.js
+import React from 'react';
+import { UserProvider } from '@auth0/nextjs-auth0/client';
+
+export default function App({ Component, pageProps }) {
+  return (
+    <UserProvider>
+      <Component {...pageProps} />
+    </UserProvider>
+  );
+}
+```
+
+```js
+// pages/index.js
+import { useUser, withPageAuthRequired as withPageAuthRequiredCSR } from '@auth0/nextjs-auth0/client';
+// The SSR version of withPageAuthRequired is still in the root export
+import { withPageAuthRequired as withPageAuthRequiredSSR } from '@auth0/nextjs-auth0';
+
+export default withPageAuthRequiredCSR(function Index() {
+  const { user, error, isLoading } = useUser();
+
+  if (isLoading) return <div>Loading...</div>;
+  if (error) return <div>{error.message}</div>;
+
+  if (user) {
+    return (
+      <div>
+        Welcome {user.name}! <a href="/api/auth/logout">Logout</a>
+      </div>
+    );
+  }
+
+  return <a href="/api/auth/login">Login</a>;
+});
+
+export const getServerSideProps = withPageAuthRequiredSSR();
+```
+
+### Before
 
 ## `updateSession` has been added
 
@@ -108,14 +199,6 @@ export const getServerSideProps = async (ctx) => {
 ## Profile API route no longer returns a 401
 
 Previously the profile API route, by default at `/api/auth/me`, would return a 401 error when the user was not authenticated. While it was technically the right status code for the situation, it showed up in the browser console as an error. This API route will now return a 204 instead. Since 204 is a successful status code, it will not produce a console error.
-
-## The ID token is no longer stored by default
-
-Previously the ID token would be stored in the session cookie, making the cookie unnecessarily large. Removing it required adding an `afterCallback` hook to the callback API route, and an `afterRefresh` hook to `getAccessToken()` –when using refresh tokens.
-
-Now the SDK will not store it by default. If you had been using hooks to strip it away, you can safely remove those.
-
-You can choose to store it by setting either the `session.storeIDToken` config property or the `AUTH0_SESSION_STORE_ID_TOKEN` environment variable to `true`.
 
 ## Override default error handler
 

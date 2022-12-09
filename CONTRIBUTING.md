@@ -21,3 +21,21 @@ Please read [Auth0's contribution guidelines](https://github.com/auth0/open-sour
 - `npm run start:kitchen-sink`: Run the kitchen sink example
 - `npm run test:kitchen-sink`: Run the E2E tests (you will need to populate the `CYPRESS_USER_EMAIL` and `CYPRESS_USER_PASSWORD` env vars)
 - `npm run test:kitchen-sink:watch`: Run the E2E tests and watch for changes
+
+## Running examples against a mock openid provider
+
+Your env vars in `/examples/kitchen-sink-example/.env.local` should look like
+
+```bash
+AUTH0_SECRET=#ANY LONG RANDOM VALUE
+AUTH0_ISSUER_BASE_URL=http://localhost:3000/oidc
+AUTH0_BASE_URL=http://localhost:3000
+AUTH0_CLIENT_ID=testing
+AUTH0_CLIENT_SECRET=testing
+```
+
+Then run one of the commands:
+
+- `start:kitchen-sink-local`: "npm run dev:local --prefix=examples/kitchen-sink-example",
+- `test:kitchen-sink-local`: Run the E2E tests against a mock openid provider
+- `test:kitchen-sink-local:watch`: Run the E2E tests against a mock openid provider and watch for changes
