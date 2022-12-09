@@ -109,7 +109,7 @@ describe('Config', () => {
     expect(config.session).toMatchObject({
       rollingDuration: 86400,
       name: 'appSession',
-      storeIDToken: false,
+      storeIDToken: true,
       cookie: {
         sameSite: 'lax',
         httpOnly: true,
@@ -125,7 +125,7 @@ describe('Config', () => {
       session: {
         name: '__test_custom_session_name__',
         rollingDuration: 1234567890,
-        storeIDToken: true,
+        storeIDToken: false,
         cookie: {
           domain: '__test_custom_domain__',
           transient: true,
@@ -142,7 +142,7 @@ describe('Config', () => {
         rollingDuration: 1234567890,
         absoluteDuration: 604800,
         rolling: true,
-        storeIDToken: true,
+        storeIDToken: false,
         cookie: {
           domain: '__test_custom_domain__',
           transient: true,

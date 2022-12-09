@@ -116,7 +116,7 @@ export interface BaseConfig {
    *     };
    *   }
    * }
-   * ``
+   * ```
    */
   getLoginState: (req: IncomingMessage, options: LoginOptions) => Record<string, any>;
 
@@ -233,7 +233,7 @@ export interface SessionConfig {
   /**
    * Boolean value to store the ID token in the session. Storing it can make the session cookie too
    * large.
-   * Defaults to `false`.
+   * Defaults to `true`.
    */
   storeIDToken: boolean;
 
@@ -324,6 +324,7 @@ export interface NextConfig extends Pick<BaseConfig, 'identityClaimFilter'> {
   routes: {
     callback: string;
     login: string;
+    unauthorized: string;
   };
 }
 
@@ -538,7 +539,8 @@ export const getConfig = (params: ConfigParameters = {}): { baseConfig: BaseConf
   const nextConfig = {
     routes: {
       ...baseConfig.routes,
-      login: baseParams.routes?.login || getLoginUrl()
+      login: baseParams.routes?.login || getLoginUrl(),
+      unauthorized: baseParams.routes?.unauthorized || '/api/auth/401'
     },
     identityClaimFilter: baseConfig.identityClaimFilter,
     organization: organization || AUTH0_ORGANIZATION

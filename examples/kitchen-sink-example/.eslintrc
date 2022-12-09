@@ -5,8 +5,7 @@
     "eslint:recommended",
     "plugin:@typescript-eslint/eslint-recommended",
     "plugin:@typescript-eslint/recommended",
-    "plugin:import/recommended",
-    "plugin:react/recommended",
+    "plugin:@next/next/recommended",
     "plugin:prettier/recommended"
   ],
   "settings": {

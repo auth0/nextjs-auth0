@@ -48,7 +48,7 @@ describe('config params', () => {
         rolling: true,
         rollingDuration: 86400,
         absoluteDuration: 604800,
-        storeIDToken: false,
+        storeIDToken: true,
         cookie: {
           domain: undefined,
           path: '/',
@@ -92,7 +92,8 @@ describe('config params', () => {
       routes: {
         login: '/api/auth/login',
         callback: '/api/auth/callback',
-        postLogoutRedirect: ''
+        postLogoutRedirect: '',
+        unauthorized: '/api/auth/401'
       },
       organization: undefined
     });
@@ -109,7 +110,7 @@ describe('config params', () => {
         AUTH0_COOKIE_SAME_SITE: 'lax',
         AUTH0_COOKIE_SECURE: 'ok',
         AUTH0_SESSION_ABSOLUTE_DURATION: 'no',
-        AUTH0_SESSION_STORE_ID_TOKEN: '1'
+        AUTH0_SESSION_STORE_ID_TOKEN: '0'
       }).baseConfig
     ).toMatchObject({
       auth0Logout: false,
@@ -118,7 +119,7 @@ describe('config params', () => {
       legacySameSiteCookie: false,
       session: {
         absoluteDuration: false,
-        storeIDToken: true,
+        storeIDToken: false,
         cookie: {
           httpOnly: true,
           sameSite: 'lax',
@@ -185,7 +186,7 @@ describe('config params', () => {
         },
         session: {
           absoluteDuration: 100,
-          storeIDToken: true,
+          storeIDToken: false,
           cookie: {
             transient: false
           },
@@ -205,7 +206,7 @@ describe('config params', () => {
       },
       session: {
         absoluteDuration: 100,
-        storeIDToken: true,
+        storeIDToken: false,
         cookie: {
           transient: false
         },

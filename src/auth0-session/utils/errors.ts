@@ -73,22 +73,10 @@ export class IdentityProviderError extends EscapedError {
 
 export class DiscoveryError extends EscapedError {
   constructor(error: Error | (Error & { _errors: Error[] }), issuerBaseUrl: string) {
-    const e = normalizeAggregateError(error);
     /* c8 ignore next */
-    super(`Discovery requests failing for ${issuerBaseUrl}, ${e.message}`);
+    super(`Discovery requests failing for ${issuerBaseUrl}, ${error.message}`);
     Object.setPrototypeOf(this, DiscoveryError.prototype);
   }
-}
-
-// Issuer.discover throws an `AggregateError` in some cases, this error includes the stack trace in the
-// message which causes the stack to be exposed when reporting the error in production. We're using the non standard
-// `_errors` property to identify the polyfilled `AggregateError`.
-// See https://github.com/sindresorhus/aggregate-error/issues/4#issuecomment-488356468
-function normalizeAggregateError(e: Error | (Error & { _errors: Error[] })): Error {
-  if ('_errors' in e) {
-    return e._errors[0];
-  }
-  return e;
 }
 
 // eslint-disable-next-line max-len

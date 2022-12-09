@@ -3,6 +3,8 @@ import { fromJson, fromTokenSet } from '../../src/session';
 import { makeIdToken } from '../auth0-session/fixtures/cert';
 import { Session } from '../../src';
 
+const routes = { login: '', callback: '', postLogoutRedirect: '', unauthorized: '' };
+
 describe('session', () => {
   test('should construct a session with a user', async () => {
     expect(new Session({ foo: 'bar' }).user).toEqual({ foo: 'bar' });
@@ -13,7 +15,7 @@ describe('session', () => {
       expect(
         fromTokenSet(new TokenSet({ id_token: await makeIdToken({ foo: 'bar', bax: 'qux' }) }), {
           identityClaimFilter: ['baz'],
-          routes: { login: '', callback: '', postLogoutRedirect: '' }
+          routes
         }).user
       ).toEqual({
         aud: '__test_client_id__',
@@ -28,20 +30,20 @@ describe('session', () => {
       });
     });
 
-    test('should not store the ID Token by default', async () => {
+    test('should store the ID Token by default', async () => {
       expect(
         fromTokenSet(new TokenSet({ id_token: await makeIdToken({ foo: 'bar' }) }), {
           identityClaimFilter: ['baz'],
-          routes: { login: '', callback: '', postLogoutRedirect: '' }
+          routes
         }).idToken
-      ).toBeUndefined();
+      ).toBeDefined();
     });
 
-    test('should store the ID Token', async () => {
+    test('should not store the ID Token', async () => {
       expect(
         fromTokenSet(new TokenSet({ id_token: await makeIdToken({ foo: 'bar' }) }), {
           session: {
-            storeIDToken: true,
+            storeIDToken: false,
             name: '',
             rolling: false,
             rollingDuration: 0,
@@ -49,9 +51,9 @@ describe('session', () => {
             cookie: { transient: false, httpOnly: false, sameSite: 'lax' }
           },
           identityClaimFilter: ['baz'],
-          routes: { login: '', callback: '', postLogoutRedirect: '' }
+          routes
         }).idToken
-      ).not.toBeUndefined();
+      ).toBeUndefined();
     });
   });
 

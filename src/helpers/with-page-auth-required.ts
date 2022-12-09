@@ -1,13 +1,6 @@
 import { GetServerSideProps, GetServerSidePropsContext, GetServerSidePropsResult } from 'next';
 import { Claims, SessionCache } from '../session';
 import { assertCtx } from '../utils/assert';
-import React, { ComponentType } from 'react';
-import {
-  UserProps,
-  WithPageAuthRequiredOptions as WithPageAuthRequiredCSROptions,
-  WithPageAuthRequiredProps
-} from '../frontend/with-page-auth-required';
-import { withPageAuthRequired as withPageAuthRequiredCSR } from '../frontend';
 import { ParsedUrlQuery } from 'querystring';
 
 /**
@@ -90,13 +83,9 @@ export type WithPageAuthRequiredOptions<P = any, Q extends ParsedUrlQuery = Pars
  *
  * @category Server
  */
-export type WithPageAuthRequired = {
-  <P extends WithPageAuthRequiredProps>(
-    Component: ComponentType<P & UserProps>,
-    options?: WithPageAuthRequiredCSROptions
-  ): React.FC<P>;
-  <P, Q extends ParsedUrlQuery = ParsedUrlQuery>(opts?: WithPageAuthRequiredOptions<P, Q>): PageRoute<P, Q>;
-};
+export type WithPageAuthRequired = <P, Q extends ParsedUrlQuery = ParsedUrlQuery>(
+  opts?: WithPageAuthRequiredOptions<P, Q>
+) => PageRoute<P, Q>;
 
 /**
  * @ignore
@@ -105,15 +94,8 @@ export default function withPageAuthRequiredFactory(
   loginUrl: string,
   getSessionCache: () => SessionCache
 ): WithPageAuthRequired {
-  return (
-    optsOrComponent: WithPageAuthRequiredOptions | ComponentType<WithPageAuthRequiredProps & UserProps> = {},
-    csrOpts?: WithPageAuthRequiredCSROptions
-  ): any => {
-    if (typeof optsOrComponent === 'function') {
-      return withPageAuthRequiredCSR(optsOrComponent, csrOpts);
-    }
-    const { getServerSideProps, returnTo } = optsOrComponent;
-    return async (ctx: GetServerSidePropsContext): Promise<GetServerSidePropsResultWithSession> => {
+  return ({ getServerSideProps, returnTo } = {}) =>
+    async (ctx) => {
       assertCtx(ctx);
       const sessionCache = getSessionCache();
       const session = await sessionCache.get(ctx.req, ctx.res);
@@ -134,5 +116,4 @@ export default function withPageAuthRequiredFactory(
       }
       return { ...ret, props: { user: session.user, ...ret.props } };
     };
-  };
 }

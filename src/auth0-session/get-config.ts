@@ -31,7 +31,7 @@ const paramsSchema = Joi.object({
     name: Joi.string().token().optional().default('appSession'),
     store: Joi.object().optional(),
     genid: Joi.function().maxArity(1).when(Joi.ref('store'), { then: Joi.required() }),
-    storeIDToken: Joi.boolean().optional().default(false),
+    storeIDToken: Joi.boolean().optional().default(true),
     cookie: Joi.object({
       domain: Joi.string().optional(),
       transient: Joi.boolean().optional().default(false),

@@ -3,7 +3,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { NextFetchEvent } from 'next/dist/server/web/spec-extension/fetch-event';
-import { initAuth0 } from '../../src/middleware';
+import { initAuth0 } from '../../src/edge';
 import { withoutApi } from '../fixtures/default-settings';
 import { IdTokenClaims } from 'openid-client';
 import { encryption } from '../../src/auth0-session/utils/hkdf';
@@ -53,6 +53,21 @@ describe('with-middleware-auth-required', () => {
       pathname: '/api/auth/login'
     });
     expect(redirect.searchParams.get('returnTo')).toEqual('http://example.com/');
+  });
+
+  test('require auth on anonymous requests to api routes', async () => {
+    const res = await setup({ url: 'http://example.com/api/foo' });
+    expect(res.status).toEqual(401);
+    expect(res.headers.get('x-middleware-rewrite')).toEqual('http://example.com/api/auth/401');
+  });
+
+  test('require auth on anonymous requests to api routes with custom 401', async () => {
+    const res = await setup({
+      url: 'http://example.com/api/foo',
+      config: { ...withoutApi, routes: { unauthorized: '/api/foo-401' } }
+    });
+    expect(res.status).toEqual(401);
+    expect(res.headers.get('x-middleware-rewrite')).toEqual('http://example.com/api/foo-401');
   });
 
   test('return to previous url', async () => {

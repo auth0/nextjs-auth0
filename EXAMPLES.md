@@ -10,6 +10,7 @@
 - [Access an External API from an API Route](#access-an-external-api-from-an-api-route)
 - [Create your own instance of the SDK](#create-your-own-instance-of-the-sdk)
 - [Add a signup handler](#add-a-signup-handler)
+- [Use with Base Path and Internationalized Routing](#use-with-base-path-and-internationalized-routing)
 - [Use a custom session store](#use-a-custom-session-store)
 
 All examples can be seen running in the [Kitchen Sink example app](./examples/kitchen-sink-example).
@@ -41,7 +42,7 @@ Wrap your `pages/_app.jsx` component in the `UserProvider` component.
 ```jsx
 // pages/_app.jsx
 import React from 'react';
-import { UserProvider } from '@auth0/nextjs-auth0';
+import { UserProvider } from '@auth0/nextjs-auth0/client';
 
 export default function App({ Component, pageProps }) {
   // You can optionally pass the `user` prop from pages that require server-side
@@ -60,7 +61,7 @@ Check the user's authentication state and log them in or out from the front end 
 
 ```jsx
 // pages/index.jsx
-import { useUser } from '@auth0/nextjs-auth0';
+import { useUser } from '@auth0/nextjs-auth0/client';
 
 export default () => {
   const { user, error, isLoading } = useUser();
@@ -168,7 +169,7 @@ Requests to `/pages/profile` without a valid session cookie will be redirected t
 
 ```jsx
 // pages/profile.js
-import { withPageAuthRequired } from '@auth0/nextjs-auth0';
+import { withPageAuthRequired } from '@auth0/nextjs-auth0/client';
 
 export default withPageAuthRequired(function Profile({ user }) {
   return <div>Hello {user.name}</div>;
@@ -186,7 +187,7 @@ Requests to `/pages/api/protected` without a valid session cookie will fail with
 import { withApiAuthRequired, getSession } from '@auth0/nextjs-auth0';
 
 export default withApiAuthRequired(async function myApiRoute(req, res) {
-  const { user } = getSession(req, res);
+  const { user } = await getSession(req, res);
   res.json({ protected: 'My Secret', id: user.sub });
 });
 ```
@@ -196,7 +197,7 @@ Then you can access your API from the frontend with a valid session cookie.
 ```jsx
 // pages/products
 import useSWR from 'swr';
-import { withPageAuthRequired } from '@auth0/nextjs-auth0';
+import { withPageAuthRequired } from '@auth0/nextjs-auth0/client';
 
 const fetcher = async (uri) => {
   const response = await fetch(uri);
@@ -222,7 +223,7 @@ To protect all your routes:
 
 ```js
 // middleware.js
-import { withMiddlewareAuthRequired } from '@auth0/nextjs-auth0/middleware';
+import { withMiddlewareAuthRequired } from '@auth0/nextjs-auth0/edge';
 
 export default withMiddlewareAuthRequired();
 ```
@@ -231,7 +232,7 @@ To protect specific routes:
 
 ```js
 // middleware.js
-import { withMiddlewareAuthRequired } from '@auth0/nextjs-auth0/middleware';
+import { withMiddlewareAuthRequired } from '@auth0/nextjs-auth0/edge';
 
 export default withMiddlewareAuthRequired();
 
@@ -246,7 +247,7 @@ To run custom middleware for authenticated users:
 
 ```js
 // middleware.js
-import { withMiddlewareAuthRequired, getSession } from '@auth0/nextjs-auth0/middleware';
+import { withMiddlewareAuthRequired, getSession } from '@auth0/nextjs-auth0/edge';
 
 export default withMiddlewareAuthRequired(async function middleware(req) {
   const res = NextResponse.next();
@@ -263,8 +264,8 @@ For using middleware with your own instance of the SDK:
 import {
   withMiddlewareAuthRequired,
   getSession,
-  initAuth0 // note the mw specific `initAuth0`
-} from '@auth0/nextjs-auth0/middleware';
+  initAuth0 // note the edge runtime specific `initAuth0`
+} from '@auth0/nextjs-auth0/edge';
 
 const auth0 = initAuth0({ ... });
 
@@ -417,6 +418,57 @@ Users can then sign up using the signup handler.
 
 ```html
 <a href="/api/auth/signup">Sign up</a>
+```
+
+## Use with Base Path and Internationalized Routing
+
+With Next.js you can deploy a Next.js application under a sub-path of a domain using [Base Path](https://nextjs.org/docs/api-reference/next.config.js/basepath) and serve internationalized (i18n) routes using [Internationalized Routing](https://nextjs.org/docs/advanced-features/i18n-routing).
+
+If you use these features the urls of your application will change and so the urls to the nextjs-auth0 routes will change. To accommodate this there are various places in the SDK that you can customise the url.
+
+For example if `basePath: '/foo'` you should prepend this to the `loginUrl` and `profileUrl` specified in your `Auth0Provider`
+
+```jsx
+// _app.jsx
+function App({ Component, pageProps }) {
+  return (
+    <UserProvider loginUrl="/foo/api/auth/login" profileUrl="/foo/api/auth/me">
+      <Component {...pageProps} />
+    </UserProvider>
+  );
+}
+```
+
+Also, any links to login or logout should include the `basePath`:
+
+```html
+<a href="/foo/api/auth/login">Login</a><br />
+<a href="/foo/api/auth/logout">Logout</a>
+```
+
+You should configure [baseUrl](https://auth0.github.io/nextjs-auth0/interfaces/config.baseconfig.html#baseurl) (or the `AUTH0_BASE_URL` environment variable) eg
+
+```shell
+# .env.local
+AUTH0_BASE_URL=http://localhost:3000/foo
+```
+
+For any pages that are protected with the Server Side [withPageAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_page_auth_required.html#withpageauthrequired) you should update the `returnTo` parameter depending on the `basePath` and `locale` if necessary.
+
+```js
+// ./pages/my-ssr-page.jsx
+export default MySsrPage = () => <></>;
+
+const getFullReturnTo = (ctx) => {
+  // TODO: implement getFullReturnTo based on the ctx.resolvedUrl, ctx.locale
+  // and your next.config.js's basePath and i18n settings.
+  return '/foo/en-US/my-ssr-page';
+};
+
+export const getServerSideProps = (ctx) => {
+  const returnTo = getFullReturnTo(ctx.req);
+  return withPageAuthRequired({ returnTo })(ctx);
+};
 ```
 
 ## Use a custom session store

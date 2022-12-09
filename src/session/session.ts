@@ -68,7 +68,7 @@ export function fromTokenSet(tokenSet: TokenSet, config: Config | NextConfig): S
   });
 
   const { id_token, access_token, scope, expires_at, refresh_token, ...remainder } = tokenSet;
-  const storeIDToken = 'session' in config ? config.session.storeIDToken : false;
+  const storeIDToken = 'session' in config ? config.session.storeIDToken : true;
 
   return Object.assign(
     new Session({ ...claims }),
