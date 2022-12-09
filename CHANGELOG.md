@@ -1,5 +1,12 @@
 # Change Log
 
+## [v2.0.1](https://github.com/auth0/nextjs-auth0/tree/v2.0.1) (2022-12-09)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.0.0...v2.0.1)
+
+**Fixed**
+- afterCallback return type fix [\#954](https://github.com/auth0/nextjs-auth0/pull/954) ([alexmalev](https://github.com/alexmalev))
+- fix/rerenders: useMemo to avoid unnecessary rerenders [\#945](https://github.com/auth0/nextjs-auth0/pull/945) ([stavros-liaskos](https://github.com/stavros-liaskos))
+
 ## [v2.0.0](https://github.com/auth0/nextjs-auth0/tree/v2.0.0) (2022-12-01)
 
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v1.9.2...v2.0.0)
