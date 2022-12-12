@@ -6,7 +6,7 @@ export {
   ApplicationError
 } from './utils/errors';
 export { StatelessSession } from './session/stateless-session';
-export { AbstractSession } from './session/abstract-session';
+export { AbstractSession, SessionPayload } from './session/abstract-session';
 export { StatefulSession, SessionStore } from './session/stateful-session';
 export { default as TransientStore } from './transient-store';
 export { Config, SessionConfig, CookieConfig, LoginOptions, LogoutOptions, AuthorizationParameters } from './config';

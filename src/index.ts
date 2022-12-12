@@ -4,6 +4,7 @@ import {
   StatelessSession,
   StatefulSession,
   SessionStore as GenericSessionStore,
+  SessionPayload,
   TransientStore,
   clientFactory,
   loginHandler as baseLoginHandler,
@@ -265,4 +266,5 @@ export {
 };
 
 export type SessionStore = GenericSessionStore<Session>;
+export type SessionStorePayload = SessionPayload<Session>;
 /* c8 ignore stop */

@@ -103,7 +103,7 @@ export class StatefulSession<
     const cookieSetter = new this.Cookies();
     const cookies = cookieSetter.getAll(req);
     const keys = await this.getKeys();
-    const sessionId = (await getCookieValue(sessionName, cookies[sessionName], keys)) as string;
+    const sessionId = await getCookieValue(sessionName, cookies[sessionName], keys);
 
     if (sessionId) {
       debug('deleting session %o', sessionId);
