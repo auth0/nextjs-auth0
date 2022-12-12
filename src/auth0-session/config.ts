@@ -182,11 +182,9 @@ export interface SessionConfig {
   store?: SessionStore<any>;
 
   /**
-   * A Function for generating a session id when using a custom session store, this is
-   * required when you set {@Link SessionConfig.store}.
+   * A Function for generating a session id when using a custom session store.
    *
-   * **IMPORTANT** You must use a suitable value from your platform to prevent collisions.
-   * e.g. for Node: `require('crypto').randomBytes(16).toString('hex')`
+   * **IMPORTANT** You must use a suitably unique value to prevent collisions.
    */
   genid?: <Req = any>(req: Req) => string | Promise<string>;
 
