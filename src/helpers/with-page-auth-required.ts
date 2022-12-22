@@ -51,7 +51,11 @@ export type PageRoute<P, Q extends ParsedUrlQuery = ParsedUrlQuery> = (
  *   async getServerSideProps(ctx) {
  *     // access the user session if needed
  *     // const session = await getSession(ctx.req, ctx.res);
- *     return { props: { customProp: 'bar' } };
+ *     return { 
+ *       props: { 
+ *         // customProp: 'bar',
+ *       }
+ *     };
  *   }
  * });
  * ```
