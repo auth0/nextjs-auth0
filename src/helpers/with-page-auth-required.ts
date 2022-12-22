@@ -49,7 +49,7 @@ export type PageRoute<P, Q extends ParsedUrlQuery = ParsedUrlQuery> = (
  * export const getServerSideProps = withPageAuthRequired({
  *   // returnTo: '/unauthorized',
  *   async getServerSideProps(ctx) {
- *     // const session = await getSession(ctx);
+ *     // const session = await getSession(ctx.req, ctx.res);
  *     return { props: { customProp: 'bar' } };
  *   }
  * });
