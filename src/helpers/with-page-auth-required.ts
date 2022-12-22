@@ -40,17 +40,16 @@ export type PageRoute<P, Q extends ParsedUrlQuery = ParsedUrlQuery> = (
  *
  * ```js
  * // pages/protected-page.js
- * import { withPageAuthRequired } from '@auth0/nextjs-auth0';
+ * import { getSession, withPageAuthRequired } from '@auth0/nextjs-auth0';
  *
  * export default function ProtectedPage({ user, customProp }) {
  *   return <div>Protected content</div>;
  * }
  *
  * export const getServerSideProps = withPageAuthRequired({
- *   returnTo: '/foo',
+ *   // returnTo: '/unauthorized',
  *   async getServerSideProps(ctx) {
- *     // access the user session
- *     const session = getSession(ctx.req, ctx.res);
+ *     // const session = await getSession(ctx);
  *     return { props: { customProp: 'bar' } };
  *   }
  * });
