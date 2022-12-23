@@ -56,7 +56,7 @@ export default function withMiddlewareAuthRequiredFactory(
     return async function wrappedMiddleware(...args) {
       const [req] = args;
       const { pathname, origin } = req.nextUrl;
-      const ignorePaths = [login, callback, unauthorized, '/_next', '/favicon.ico'];
+      const ignorePaths = [login, callback, unauthorized, '/favicon.ico'];
       if (ignorePaths.some((p) => pathname.startsWith(p))) {
         return;
       }
