@@ -34,8 +34,8 @@ const encrypted = async (claims: Partial<IdTokenClaims> = { sub: '__test_sub__' 
     .encrypt(key);
 };
 
-const setup = async ({ url = 'http://example.com', config = withoutApi, user, middleware }: any = {}) => {
-  const mw = initAuth0(config).withMiddlewareAuthRequired(middleware);
+const setup = async ({ url = 'http://example.com', config = withoutApi, user, middleware, shouldBypassReq }: any = {}) => {
+  const mw = initAuth0(config).withMiddlewareAuthRequired(middleware, shouldBypassReq);
   const request = new NextRequest(new URL(url));
   if (user) {
     request.cookies.set('appSession', await encrypted({ sub: 'foo' }));
@@ -83,6 +83,36 @@ describe('with-middleware-auth-required', () => {
   test('should ignore static urls', async () => {
     const res = await setup({ url: 'http://example.com/_next/style.css' });
     expect(res).toBeUndefined();
+  });
+
+  test('should customize bypass rules', async () => {
+    {
+      const res = await setup({
+        url: 'http://example.com/_next/style.css',
+        shouldBypassReq: (_req: NextRequest) => {
+          return false
+        }
+      });
+      const redirect = new URL(res.headers.get('location') as string);
+      expect(redirect).toMatchObject({
+        hostname: 'example.com',
+        pathname: '/api/auth/login'
+      });
+    }
+    {
+      expect(await setup({
+        url: 'http://example.com/_next/style.css',
+        shouldBypassReq: (_req: NextRequest) => {
+          return true
+        }
+      })).toBeUndefined();
+      expect(await setup({
+        url: 'http://example.com/foo/bar',
+        shouldBypassReq: (_req: NextRequest) => {
+          return true
+        }
+      })).toBeUndefined();
+    }
   });
 
   test('should ignore default sdk urls', async () => {
