@@ -43,7 +43,7 @@ import { SessionCache } from '../session';
  *
  * @category Server
  */
-export type WithMiddlewareAuthRequired = (middleware?: NextMiddleware) => NextMiddleware;
+export type WithMiddlewareAuthRequired = (middleware?: NextMiddleware, ignorePaths?: string[]) => NextMiddleware;
 
 /**
  * @ignore
@@ -52,12 +52,14 @@ export default function withMiddlewareAuthRequiredFactory(
   { login, callback, unauthorized }: { login: string; callback: string; unauthorized: string },
   getSessionCache: () => SessionCache<NextRequest, NextResponse>
 ): WithMiddlewareAuthRequired {
-  return function withMiddlewareAuthRequired(middleware?): NextMiddleware {
+  return function withMiddlewareAuthRequired(middleware?, ignorePaths?): NextMiddleware {
     return async function wrappedMiddleware(...args) {
       const [req] = args;
       const { pathname, origin } = req.nextUrl;
-      const ignorePaths = [login, callback, unauthorized, '/_next', '/favicon.ico'];
-      if (ignorePaths.some((p) => pathname.startsWith(p))) {
+      const reservePaths = [login, callback, unauthorized];
+      const resolveIgnorePaths = ignorePaths ? ignorePaths : ['/_next', '/favicon.ico'];
+      resolveIgnorePaths.concat(reservePaths);
+      if (resolveIgnorePaths.some((p) => pathname.startsWith(p))) {
         return;
       }
 
