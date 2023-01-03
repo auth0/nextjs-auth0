@@ -26,7 +26,7 @@ AUTH0_CLIENT_ID='CLIENT_ID'
 AUTH0_CLIENT_SECRET='CLIENT_SECRET'
 ```
 
-Create a [dynamic API route handler](https://nextjs.org/docs/api-routes/dynamic-api-routes) at `/pages/api/auth/[...auth0].js`.
+Create a [dynamic API route handler](https://nextjs.org/docs/api-routes/dynamic-api-routes) at `/pages/api/auth/[auth0].js`.
 
 ```js
 import { handleAuth } from '@auth0/nextjs-auth0';
