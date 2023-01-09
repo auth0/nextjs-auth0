@@ -479,12 +479,12 @@ You need to create your own instance of the SDK in code, so you can pass an inst
 import { SessionStore, SessionStorePayload, initAuth0 } from '@auth0/nextjs-auth0';
 
 class Store implements SessionStore {
-  private store: SomeSuitableKeyValueStoreLikeRedis<SessionStorePayload>;
+  private store: KeyValueStoreLikeRedis<SessionStorePayload>;
   constructor() {
     // If you set the expiry accross the whole store use the session config,
     // e.g. `min(config.session.rollingDuration, config.session.absoluteDuration)`
     // the default is 24hrs
-    this.store = new SomeSuitableKeyValueStoreLikeRedis();
+    this.store = new KeyValueStoreLikeRedis();
   }
   async get(id) {
     const val = await this.store.get(id);
