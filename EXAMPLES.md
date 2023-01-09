@@ -335,8 +335,6 @@ For using middleware with your own instance of the SDK:
 ```js
 // middleware.js
 import {
-  withMiddlewareAuthRequired,
-  getSession,
   initAuth0 // note the edge runtime specific `initAuth0`
 } from '@auth0/nextjs-auth0/edge';
 
