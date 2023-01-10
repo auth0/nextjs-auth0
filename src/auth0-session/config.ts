@@ -182,7 +182,7 @@ export interface SessionConfig {
   store?: SessionStore<any>;
 
   /**
-   * A Function for generating a session id when using a custom session store.
+   * A function for generating a session id when using a custom session store.
    *
    * **IMPORTANT** You must use a suitably unique value to prevent collisions.
    */

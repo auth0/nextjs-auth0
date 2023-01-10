@@ -105,7 +105,7 @@ import {
 However, there are various reasons why you might want to create and manage an instance of the SDK yourself:
 
 - You may want to create your own instance for testing
-- You may not want to use environment variables for the configuration of secrets (eg using CredStash or AWS's Key Management Service)
+- You may not want to use environment variables for the configuration of secrets (for example, to use CredStash or AWS's Key Management Service)
 - You may be using a [custom session store](#use-a-custom-session-store) and need to provide the configuration as code.
 
 In this case you can use the [initAuth0](https://auth0.github.io/nextjs-auth0/modules/instance.html) method to create an instance.
@@ -141,8 +141,7 @@ export default auth0.handleAuth();
 import auth0 from '../../../utils/auth0';
 import { handleLogin } from '@auth0/nextjs-auth0';
 
-export default auth0.handleAuth({
-  // <= instance method
+export default auth0.handleAuth({ // <= instance method
   async login(req, res) {
     try {
       // `auth0.handleAuth` and `handleLogin` will be using separate instances
@@ -482,8 +481,8 @@ class Store implements SessionStore {
   private store: KeyValueStoreLikeRedis<SessionStorePayload>;
   constructor() {
     // If you set the expiry accross the whole store use the session config,
-    // e.g. `min(config.session.rollingDuration, config.session.absoluteDuration)`
-    // the default is 24hrs
+    // for example `min(config.session.rollingDuration, config.session.absoluteDuration)`
+    // the default is 24 hrs
     this.store = new KeyValueStoreLikeRedis();
   }
   async get(id) {
@@ -493,6 +492,7 @@ class Store implements SessionStore {
   async set(id, val) {
     // To set the expiry per item, use `val.header.exp` (in secs)
     const expiryMs = val.header.exp * 1000;
+    // Example for Redis: redis.set(id, val, { pxat: expiryMs });
     await this.store.set(id, val);
   }
   async delete(id) {
