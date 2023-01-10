@@ -70,7 +70,7 @@ export class StatefulSession<
     cookieOptions: CookieSerializeOptions,
     isNewSession: boolean
   ): Promise<void> {
-    const { name: sessionName, genid } = this.config.session;
+    const { name: sessionName, genId } = this.config.session;
     const cookieSetter = new this.Cookies();
     const cookies = cookieSetter.getAll(req);
     const keys = await this.getKeys();
@@ -85,7 +85,7 @@ export class StatefulSession<
     }
 
     if (!sessionId) {
-      sessionId = await genid!(req);
+      sessionId = await genId!(req);
       debug('generated new session id %o', sessionId);
       const cookieValue = await generateCookieValue(sessionName, sessionId, keys[0]);
       cookieSetter.set(sessionName, cookieValue, cookieOptions);

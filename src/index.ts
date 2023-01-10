@@ -132,7 +132,7 @@ export type InitAuth0 = (params?: ConfigParameters) => Auth0Server;
 
 let instance: Auth0Server & { sessionCache: SessionCache };
 
-const genid = () => crypto.randomBytes(16).toString('hex');
+const genId = () => crypto.randomBytes(16).toString('hex');
 
 // For using managed instance with named exports.
 function getInstance(): Auth0Server & { sessionCache: SessionCache } {
@@ -152,7 +152,7 @@ export const initAuth0: InitAuth0 = (params) => {
 };
 
 export const _initAuth = (params?: ConfigParameters): Auth0Server & { sessionCache: SessionCache } => {
-  const { baseConfig, nextConfig } = getConfig({ ...params, session: { genid, ...params?.session } });
+  const { baseConfig, nextConfig } = getConfig({ ...params, session: { genId, ...params?.session } });
 
   // Init base layer (with base config)
   const getClient = clientFactory(baseConfig, { name: 'nextjs-auth0', version });
