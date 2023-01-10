@@ -8,15 +8,15 @@ const debug = createDebug('session');
 export interface SessionPayload<Session> {
   header: {
     /**
-     * timestamp (in secs) when the session was created.
+     * Timestamp (in secs) when the session was created.
      */
     iat: number;
     /**
-     * timestamp (in secs) when the session was last touched.
+     * Timestamp (in secs) when the session was last touched.
      */
     uat: number;
     /**
-     * timestamp (in secs) when the session expires.
+     * Timestamp (in secs) when the session expires.
      */
     exp: number;
   };
