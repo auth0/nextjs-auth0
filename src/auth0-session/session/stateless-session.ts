@@ -20,7 +20,6 @@ export class StatelessSession<
   Session extends { [key: string]: any } = { [key: string]: any }
 > extends AbstractSession<Req, Res, Session> {
   private keys?: Uint8Array[];
-
   private chunkSize: number;
 
   constructor(protected config: Config, protected Cookies: new () => Cookies) {
