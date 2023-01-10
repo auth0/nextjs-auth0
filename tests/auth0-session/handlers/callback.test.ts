@@ -1,7 +1,7 @@
 import nock from 'nock';
 import { CookieJar } from 'tough-cookie';
 import * as jose from 'jose';
-import { signing as deriveKey } from '../../../src/auth0-session/utils/hkdf';
+import { signing } from '../../../src/auth0-session/utils/hkdf';
 import { encodeState } from '../../../src/auth0-session/utils/encoding';
 import { SessionResponse, setup, teardown } from '../fixtures/server';
 import { makeIdToken } from '../fixtures/cert';
@@ -106,7 +106,7 @@ describe('callback', () => {
           state: '__valid_state__',
           id_token: await new jose.SignJWT({ sub: '__test_sub__' })
             .setProtectedHeader({ alg: 'HS256' })
-            .sign(await deriveKey('secret'))
+            .sign(await signing('secret'))
         },
         cookieJar
       })

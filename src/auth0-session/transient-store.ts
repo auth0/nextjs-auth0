@@ -1,7 +1,7 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { generators } from 'openid-client';
-import * as jose from 'jose';
-import { signing as deriveKey } from './utils/hkdf';
+import { generateCookieValue, getCookieValue } from './utils/signed-cookies';
+import { signing } from './utils/hkdf';
 import NodeCookies from './utils/cookies';
 import { Config } from './config';
 
@@ -9,34 +9,6 @@ export interface StoreOptions {
   sameSite?: boolean | 'lax' | 'strict' | 'none';
   value?: string;
 }
-
-const getCookieValue = async (k: string, v: string, keys: Uint8Array[]): Promise<string | undefined> => {
-  if (!v) {
-    return undefined;
-  }
-  const [value, signature] = v.split('.');
-  const flattenedJWS = {
-    protected: jose.base64url.encode(JSON.stringify({ alg: 'HS256', b64: false, crit: ['b64'] })),
-    payload: `${k}=${value}`,
-    signature
-  };
-  for (const key of keys) {
-    try {
-      await jose.flattenedVerify(flattenedJWS, key, {
-        algorithms: ['HS256']
-      });
-      return value;
-    } catch (e) {}
-  }
-  return;
-};
-
-export const generateCookieValue = async (cookie: string, value: string, key: Uint8Array): Promise<string> => {
-  const { signature } = await new jose.FlattenedSign(new TextEncoder().encode(`${cookie}=${value}`))
-    .setProtectedHeader({ alg: 'HS256', b64: false, crit: ['b64'] })
-    .sign(key);
-  return `${value}.${signature}`;
-};
 
 export default class TransientStore {
   private keys?: Uint8Array[];
@@ -47,7 +19,7 @@ export default class TransientStore {
     if (!this.keys) {
       const secret = this.config.secret;
       const secrets = Array.isArray(secret) ? secret : [secret];
-      this.keys = await Promise.all(secrets.map(deriveKey));
+      this.keys = await Promise.all(secrets.map(signing));
     }
     return this.keys;
   }

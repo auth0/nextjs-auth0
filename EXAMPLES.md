@@ -1,6 +1,7 @@
 # Examples
 
 - [Basic Setup](#basic-setup)
+- [Create your own instance of the SDK](#create-your-own-instance-of-the-sdk)
 - [Customize handlers behavior](#customize-handlers-behavior)
 - [Use custom auth urls](#use-custom-auth-urls)
 - [Protecting a Server-Side Rendered (SSR) Page](#protecting-a-server-side-rendered-ssr-page)
@@ -8,9 +9,9 @@
 - [Protect an API Route](#protect-an-api-route)
 - [Protecting pages with Middleware](#protecting-pages-with-middleware)
 - [Access an External API from an API Route](#access-an-external-api-from-an-api-route)
-- [Create your own instance of the SDK](#create-your-own-instance-of-the-sdk)
 - [Add a signup handler](#add-a-signup-handler)
 - [Use with Base Path and Internationalized Routing](#use-with-base-path-and-internationalized-routing)
+- [Use a custom session store](#use-a-custom-session-store)
 
 All examples can be seen running in the [Kitchen Sink example app](./examples/kitchen-sink-example).
 
@@ -80,6 +81,78 @@ export default () => {
 ```
 
 Have a look at the `basic-example` app [./examples/basic-example](./examples/basic-example).
+
+## Create your own instance of the SDK
+
+When you use the named exports, the SDK creates an instance of the SDK for you and configures it with the provided environment variables.
+
+```js
+// These named exports create and manage their own instance of the SDK configured with
+// the provided `AUTH0_*` environment variables
+import {
+  handleAuth,
+  handleLogin,
+  handleCallback,
+  handleLogout,
+  handleProfile,
+  withApiAuthRequired,
+  withPageAuthRequired,
+  getSession,
+  getAccessToken
+} from '@auth0/nextjs-auth0';
+```
+
+However, there are various reasons why you might want to create and manage an instance of the SDK yourself:
+
+- You may want to create your own instance for testing
+- You may not want to use environment variables for the configuration of secrets (for example, to use CredStash or AWS's Key Management Service)
+- You may be using a [custom session store](#use-a-custom-session-store) and need to provide the configuration as code.
+
+In this case you can use the [initAuth0](https://auth0.github.io/nextjs-auth0/modules/instance.html) method to create an instance.
+
+```js
+// utils/auth0.js
+import { initAuth0 } from '@auth0/nextjs-auth0';
+
+export default initAuth0({
+  secret: 'LONG_RANDOM_VALUE',
+  issuerBaseURL: 'https://your-tenant.auth0.com',
+  baseURL: 'http://localhost:3000',
+  clientID: 'CLIENT_ID',
+  clientSecret: 'CLIENT_SECRET'
+});
+```
+
+Now rather than using the named exports, you can use the instance methods directly.
+
+```js
+// pages/api/auth/[...auth0].js
+import auth0 from '../../../utils/auth0';
+
+// Use the instance method
+export default auth0.handleAuth();
+```
+
+> Note: You should not use the instance methods in combination with the named exports,
+> otherwise you will be creating multiple instances of the SDK. For example:
+
+```js
+// DON'T Mix instance methods and named exports
+import auth0 from '../../../utils/auth0';
+import { handleLogin } from '@auth0/nextjs-auth0';
+
+export default auth0.handleAuth({ // <= instance method
+  async login(req, res) {
+    try {
+      // `auth0.handleAuth` and `handleLogin` will be using separate instances
+      // You should use `auth0.handleLogin` instead
+      await handleLogin(req, res); // <= named export
+    } catch (error) {
+      res.status(error.status || 400).end(error.message);
+    }
+  }
+});
+```
 
 ## Customize handlers behavior
 
@@ -324,78 +397,6 @@ See a running example of the [API route acting as a proxy to an External API](./
 - Check "Allow Offline Access" in your [API Settings](https://auth0.com/docs/get-started/apis/api-settings#access-settings)
 - Make sure the "Refresh Token" grant is enabled in your [Application Settings](https://auth0.com/docs/get-started/applications/application-settings#grant-types) (this is the default)
 
-## Create your own instance of the SDK
-
-When you use the named exports, the SDK creates an instance of the SDK for you and configures it with the provided environment variables.
-
-```js
-// These named exports create and manage their own instance of the SDK configured with
-// the provided `AUTH0_*` environment variables
-import {
-  handleAuth,
-  handleLogin,
-  handleCallback,
-  handleLogout,
-  handleProfile,
-  withApiAuthRequired,
-  withPageAuthRequired,
-  getSession,
-  getAccessToken
-} from '@auth0/nextjs-auth0';
-```
-
-However, there are various reasons why you might want to create and manage an instance of the SDK yourself:
-
-- You may want to create your own instance for testing
-- You may not want to use environment variables for the configuration of secrets (eg using CredStash or AWS's Key Management Service)
-
-In this case you can use the [initAuth0](https://auth0.github.io/nextjs-auth0/modules/instance.html) method to create an instance.
-
-```js
-// utils/auth0.js
-import { initAuth0 } from '@auth0/nextjs-auth0';
-
-export default initAuth0({
-  secret: 'LONG_RANDOM_VALUE',
-  issuerBaseURL: 'https://your-tenant.auth0.com',
-  baseURL: 'http://localhost:3000',
-  clientID: 'CLIENT_ID',
-  clientSecret: 'CLIENT_SECRET'
-});
-```
-
-Now rather than using the named exports, you can use the instance methods directly.
-
-```js
-// pages/api/auth/[...auth0].js
-import auth0 from '../../../utils/auth0';
-
-// Use the instance method
-export default auth0.handleAuth();
-```
-
-> Note: You should not use the instance methods in combination with the named exports,
-> otherwise you will be creating multiple instances of the SDK. For example:
-
-```js
-// DON'T Mix instance methods and named exports
-import auth0 from '../../../utils/auth0';
-import { handleLogin } from '@auth0/nextjs-auth0';
-
-export default auth0.handleAuth({
-  // <= instance method
-  async login(req, res) {
-    try {
-      // `auth0.handleAuth` and `handleLogin` will be using separate instances
-      // You should use `auth0.handleLogin` instead
-      await handleLogin(req, res); // <= named export
-    } catch (error) {
-      res.status(error.status || 400).end(error.message);
-    }
-  }
-});
-```
-
 # Add a signup handler
 
 Pass a custom authorize parameter to the login handler in a custom route.
@@ -466,4 +467,58 @@ export const getServerSideProps = (ctx) => {
   const returnTo = getFullReturnTo(ctx.req);
   return withPageAuthRequired({ returnTo })(ctx);
 };
+```
+
+## Use a custom session store
+
+You need to create your own instance of the SDK in code, so you can pass an instance of your session store to the SDK's configuration.
+
+```typescript
+// lib/auth0.ts
+import { SessionStore, SessionStorePayload, initAuth0 } from '@auth0/nextjs-auth0';
+
+class Store implements SessionStore {
+  private store: KeyValueStoreLikeRedis<SessionStorePayload>;
+  constructor() {
+    // If you set the expiry accross the whole store use the session config,
+    // for example `min(config.session.rollingDuration, config.session.absoluteDuration)`
+    // the default is 24 hrs
+    this.store = new KeyValueStoreLikeRedis();
+  }
+  async get(id) {
+    const val = await this.store.get(id);
+    return val;
+  }
+  async set(id, val) {
+    // To set the expiry per item, use `val.header.exp` (in secs)
+    const expiryMs = val.header.exp * 1000;
+    // Example for Redis: redis.set(id, val, { pxat: expiryMs });
+    await this.store.set(id, val);
+  }
+  async delete(id) {
+    await this.store.delete(id);
+  }
+}
+
+let auth0;
+
+export default () => {
+  if (!auth0) {
+    auth0 = initAuth0({
+      session: {
+        store: new Store()
+      }
+    });
+  }
+  return auth0;
+};
+```
+
+Then use your instance wherever you use the server methods of the SDK.
+
+```ts
+// /pages/api/auth/[auth0].js
+import getAuth0 from '../../../lib/auth0';
+
+export default getAuth0().handleAuth();
 ```

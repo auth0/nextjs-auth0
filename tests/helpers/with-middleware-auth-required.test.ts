@@ -6,13 +6,13 @@ import { NextFetchEvent } from 'next/dist/server/web/spec-extension/fetch-event'
 import { initAuth0 } from '../../src/edge';
 import { withoutApi } from '../fixtures/default-settings';
 import { IdTokenClaims } from 'openid-client';
-import { encryption as deriveKey } from '../../src/auth0-session/utils/hkdf';
+import { encryption } from '../../src/auth0-session/utils/hkdf';
 import { defaultConfig } from '../auth0-session/fixtures/helpers';
 import { makeIdToken } from '../auth0-session/fixtures/cert';
 import * as jose from 'jose';
 
 const encrypted = async (claims: Partial<IdTokenClaims> = { sub: '__test_sub__' }): Promise<string> => {
-  const key = await deriveKey(defaultConfig.secret as string);
+  const key = await encryption(defaultConfig.secret as string);
   const epochNow = (Date.now() / 1000) | 0;
   const weekInSeconds = 7 * 24 * 60 * 60;
   const payload = {

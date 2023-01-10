@@ -1,5 +1,6 @@
 import type { IncomingMessage } from 'http';
 import type { AuthorizationParameters as OidcAuthorizationParameters } from 'openid-client';
+import { SessionStore } from './session/stateful-session';
 
 /**
  * Configuration properties.
@@ -173,6 +174,19 @@ export interface SessionConfig {
    * Defaults to `appSession`.
    */
   name: string;
+
+  /**
+   * By default, the session is stateless and stored in an encrypted cookie. But if you want a stateful session
+   * you can provide a store with `get`, `set` and `destroy` methods to store the session on the server side.
+   */
+  store?: SessionStore<any>;
+
+  /**
+   * A function for generating a session id when using a custom session store.
+   *
+   * **IMPORTANT** You must use a suitably unique value to prevent collisions.
+   */
+  genId?: <Req = any>(req: Req) => string | Promise<string>;
 
   /**
    * If you want your session duration to be rolling, resetting everytime the
