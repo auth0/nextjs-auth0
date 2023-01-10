@@ -61,7 +61,7 @@ describe('StatefulSession', () => {
   beforeEach(async () => {
     store = new Store();
     count = 0;
-    config = { ...defaultConfig, session: { store, genid: () => count } };
+    config = { ...defaultConfig, session: { store, genId: () => count } };
   });
 
   afterEach(teardown);
@@ -129,7 +129,7 @@ describe('StatefulSession', () => {
   });
 
   it('uses custom session id generator when provided', async () => {
-    const baseURL = await setup({ ...config, session: { ...config.session, genid: () => 'foobar' } });
+    const baseURL = await setup({ ...config, session: { ...config.session, genId: () => 'foobar' } });
     expect(Object.values(store.store)).toHaveLength(0);
     const cookieJar = await login(baseURL);
     const sessions = Object.values(store.store);

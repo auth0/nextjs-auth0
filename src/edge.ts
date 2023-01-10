@@ -21,7 +21,7 @@ export { WithMiddlewareAuthRequired };
 
 let instance: Auth0Edge;
 
-const genid = () => {
+const genId = () => {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
   return Array.from(bytes)
@@ -44,7 +44,7 @@ export const initAuth0: InitAuth0 = (params?) => {
 };
 
 const _initAuth0: InitAuth0 = (params?) => {
-  const { baseConfig, nextConfig } = getConfig({ ...params, session: { genid, ...params?.session } });
+  const { baseConfig, nextConfig } = getConfig({ ...params, session: { genId, ...params?.session } });
 
   // Init base layer (with base config)
   const sessionStore = baseConfig.session.store

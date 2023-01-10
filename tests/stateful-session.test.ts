@@ -90,7 +90,7 @@ describe('next stateful session', () => {
   });
 
   it('uses custom session id generator when provided', async () => {
-    const baseUrl = await setup({ ...config, session: { ...config.session, genid: () => 'foo' } });
+    const baseUrl = await setup({ ...config, session: { ...config.session, genId: () => 'foo' } });
     const cookieJar = await login(baseUrl);
 
     const profile = await get(baseUrl, '/api/auth/me', { cookieJar });
