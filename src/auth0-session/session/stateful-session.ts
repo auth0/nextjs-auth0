@@ -10,12 +10,12 @@ const debug = createDebug('stateful-session');
 
 export interface SessionStore<Session> {
   /**
-   * Gets the session from the store given a session ID and passes it to `callback`.
+   * Gets the session from the store given a session ID.
    */
   get(sid: string): Promise<SessionPayload<Session> | null | undefined>;
 
   /**
-   * Upsert a session in the store given a session ID and `SessionData`
+   * Upsert a session in the store given a session ID and `SessionData`.
    */
   set(sid: string, session: SessionPayload<Session>): Promise<void>;
 
