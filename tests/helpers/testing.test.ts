@@ -1,7 +1,7 @@
-import CookieStore from '../../src/auth0-session/cookie-store';
+import { StatelessSession as CookieStore } from '../../src/auth0-session/session/stateless-session';
 import { generateSessionCookie } from '../../src/helpers/testing';
 
-jest.mock('../../src/auth0-session/cookie-store');
+jest.mock('../../src/auth0-session/session/stateless-session');
 
 const encryptMock = jest.spyOn(CookieStore.prototype, 'encrypt');
 const weekInSeconds = 7 * 24 * 60 * 60;

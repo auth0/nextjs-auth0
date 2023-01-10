@@ -1,7 +1,7 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { Socket } from 'net';
 import { mocked } from 'ts-jest/utils';
-import { NodeCookies as Cookies, CookieStore, getConfig } from '../../src/auth0-session';
+import { NodeCookies as Cookies, StatelessSession, getConfig } from '../../src/auth0-session';
 import { ConfigParameters, Session, SessionCache } from '../../src';
 import { withoutApi } from '../fixtures/default-settings';
 
@@ -10,15 +10,15 @@ describe('SessionCache', () => {
   let req: IncomingMessage;
   let res: ServerResponse;
   let session: Session;
-  let cookieStore: CookieStore;
+  let sessionStore: StatelessSession<IncomingMessage, ServerResponse, Session>;
 
   const setup = (conf: ConfigParameters) => {
     const config = getConfig(conf);
-    cookieStore = mocked(new CookieStore(config, Cookies));
-    cookieStore.save = jest.fn();
+    sessionStore = mocked(new StatelessSession(config, Cookies));
+    sessionStore.save = jest.fn();
     session = new Session({ sub: '__test_user__' });
     session.idToken = '__test_id_token__';
-    cache = new SessionCache(config, cookieStore);
+    cache = new SessionCache(config, sessionStore);
     req = mocked(new IncomingMessage(new Socket()));
     res = mocked(new ServerResponse(req));
   };
@@ -34,7 +34,7 @@ describe('SessionCache', () => {
   test('should create the session entry', async () => {
     await cache.create(req, res, session);
     expect(await cache.get(req, res)).toEqual(session);
-    expect(cookieStore.save).toHaveBeenCalledWith(req, res, session, undefined);
+    expect(sessionStore.save).toHaveBeenCalledWith(req, res, session, undefined);
   });
 
   test('should delete the session entry', async () => {
@@ -63,23 +63,23 @@ describe('SessionCache', () => {
   });
 
   test('should save the session on read and update with a rolling session', async () => {
-    cookieStore.read = jest.fn().mockResolvedValue([{ user: { sub: '__test_user__' } }, 500]);
+    sessionStore.read = jest.fn().mockResolvedValue([{ user: { sub: '__test_user__' } }, 500]);
     expect(await cache.isAuthenticated(req, res)).toEqual(true);
     expect((await cache.get(req, res))?.user).toEqual({ sub: '__test_user__' });
     await cache.set(req, res, new Session({ sub: '__new_user__' }));
     expect((await cache.get(req, res))?.user).toEqual({ sub: '__new_user__' });
-    expect(cookieStore.read).toHaveBeenCalledTimes(1);
-    expect(cookieStore.save).toHaveBeenCalledTimes(2);
+    expect(sessionStore.read).toHaveBeenCalledTimes(1);
+    expect(sessionStore.save).toHaveBeenCalledTimes(2);
   });
 
   test('should save the session only on update without a rolling session', async () => {
     setup({ ...withoutApi, session: { rolling: false } });
-    cookieStore.read = jest.fn().mockResolvedValue([{ user: { sub: '__test_user__' } }, 500]);
+    sessionStore.read = jest.fn().mockResolvedValue([{ user: { sub: '__test_user__' } }, 500]);
     expect(await cache.isAuthenticated(req, res)).toEqual(true);
     expect((await cache.get(req, res))?.user).toEqual({ sub: '__test_user__' });
     cache.set(req, res, new Session({ sub: '__new_user__' }));
     expect((await cache.get(req, res))?.user).toEqual({ sub: '__new_user__' });
-    expect(cookieStore.read).toHaveBeenCalledTimes(1);
-    expect(cookieStore.save).toHaveBeenCalledTimes(1);
+    expect(sessionStore.read).toHaveBeenCalledTimes(1);
+    expect(sessionStore.save).toHaveBeenCalledTimes(1);
   });
 });

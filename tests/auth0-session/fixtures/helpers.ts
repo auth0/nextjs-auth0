@@ -1,6 +1,6 @@
 import { Cookie, CookieJar } from 'tough-cookie';
-import { signing as deriveKey } from '../../../src/auth0-session/utils/hkdf';
-import { generateCookieValue } from '../../../src/auth0-session/transient-store';
+import { signing } from '../../../src/auth0-session/utils/hkdf';
+import { generateCookieValue } from '../../../src/auth0-session/utils/signed-cookies';
 import { IncomingMessage, request as nodeHttpRequest } from 'http';
 import { request as nodeHttpsRequest } from 'https';
 import { ConfigParameters } from '../../../src/auth0-session';
@@ -18,7 +18,7 @@ export const defaultConfig: Omit<ConfigParameters, 'baseURL'> = {
 
 export const toSignedCookieJar = async (cookies: { [key: string]: string }, url: string): Promise<CookieJar> => {
   const cookieJar = new CookieJar();
-  const signingKey = await deriveKey(secret);
+  const signingKey = await signing(secret);
   for (const [key, value] of Object.entries(cookies)) {
     cookieJar.setCookieSync(`${key}=${await generateCookieValue(key, value, signingKey)}`, url);
   }
