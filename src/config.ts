@@ -198,7 +198,7 @@ export interface SessionConfig {
    * A Function for generating a session id when using a custom session store.
    *
    * **IMPORTANT** If you override this, you must use a suitable value from your platform to
-   * prevent collisions. e.g. for Node: `require('crypto').randomBytes(16).toString('hex')`
+   * prevent collisions. For example, for Node: `require('crypto').randomBytes(16).toString('hex')`.
    */
   genId?: <Req = any>(req: Req) => string | Promise<string>;
 
