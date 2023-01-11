@@ -90,9 +90,11 @@
 							<ul class="tsd-index-list">
 								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="config.sessionconfig.html#absoluteduration" class="tsd-kind-icon">absolute<wbr>Duration</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="config.sessionconfig.html#cookie" class="tsd-kind-icon">cookie</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="config.sessionconfig.html#genid" class="tsd-kind-icon">gen<wbr>Id</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="config.sessionconfig.html#name" class="tsd-kind-icon">name</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="config.sessionconfig.html#rolling" class="tsd-kind-icon">rolling</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="config.sessionconfig.html#rollingduration" class="tsd-kind-icon">rolling<wbr>Duration</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="config.sessionconfig.html#store" class="tsd-kind-icon">store</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-interface"><a href="config.sessionconfig.html#storeidtoken" class="tsd-kind-icon">storeIDToken</a></li>
 							</ul>
 						</section>
@@ -107,7 +109,7 @@
 					<div class="tsd-signature tsd-kind-icon">absolute<wbr>Duration<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">boolean</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/58847ff/src/config.ts#L215">src/config.ts:215</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/39e9d2e/src/config.ts#L231">src/config.ts:231</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -126,9 +128,53 @@
 					<div class="tsd-signature tsd-kind-icon">cookie<span class="tsd-signature-symbol">:</span> <a href="config.cookieconfig.html" class="tsd-signature-type" data-tsd-kind="Interface">CookieConfig</a></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/58847ff/src/config.ts#L224">src/config.ts:224</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/39e9d2e/src/config.ts#L240">src/config.ts:240</a></li>
 						</ul>
 					</aside>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
+					<a name="genid" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagOptional">Optional</span> gen<wbr>Id</h3>
+					<div class="tsd-signature tsd-kind-icon">gen<wbr>Id<span class="tsd-signature-symbol">:</span> &lt;Req&gt;<span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Req</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">&gt;</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/39e9d2e/src/config.ts#L203">src/config.ts:203</a></li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>A Function for generating a session id when using a custom session store.</p>
+						</div>
+						<p><strong>IMPORTANT</strong> If you override this, you must use a suitable value from your platform to
+						prevent collisions. For example, for Node: <code>require(&#39;crypto&#39;).randomBytes(16).toString(&#39;hex&#39;)</code>.</p>
+					</div>
+					<div class="tsd-type-declaration">
+						<h4>Type declaration</h4>
+						<ul class="tsd-parameters">
+							<li class="tsd-parameter-signature">
+								<ul class="tsd-signatures tsd-kind-type-literal tsd-parent-kind-interface tsd-has-type-parameter">
+									<li class="tsd-signature tsd-kind-icon">&lt;Req&gt;<span class="tsd-signature-symbol">(</span>req<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Req</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">&gt;</span></li>
+								</ul>
+								<ul class="tsd-descriptions">
+									<li class="tsd-description">
+										<h4 class="tsd-type-parameters-title">Type parameters</h4>
+										<ul class="tsd-type-parameters">
+											<li>
+												<h4>Req = <span class="tsd-signature-type">any</span></h4>
+											</li>
+										</ul>
+										<h4 class="tsd-parameters-title">Parameters</h4>
+										<ul class="tsd-parameters">
+											<li>
+												<h5>req: <span class="tsd-signature-type">Req</span></h5>
+											</li>
+										</ul>
+										<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">&gt;</span></h4>
+									</li>
+								</ul>
+							</li>
+						</ul>
+					</div>
 				</section>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
 					<a name="name" class="tsd-anchor"></a>
@@ -136,7 +182,7 @@
 					<div class="tsd-signature tsd-kind-icon">name<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/58847ff/src/config.ts#L187">src/config.ts:187</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/39e9d2e/src/config.ts#L189">src/config.ts:189</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -154,7 +200,7 @@
 					<div class="tsd-signature tsd-kind-icon">rolling<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/58847ff/src/config.ts#L197">src/config.ts:197</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/39e9d2e/src/config.ts#L213">src/config.ts:213</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -174,7 +220,7 @@
 					<div class="tsd-signature tsd-kind-icon">rolling<wbr>Duration<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">false</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/58847ff/src/config.ts#L206">src/config.ts:206</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/39e9d2e/src/config.ts#L222">src/config.ts:222</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -188,12 +234,28 @@
 					</div>
 				</section>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
+					<a name="store" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagOptional">Optional</span> store</h3>
+					<div class="tsd-signature tsd-kind-icon">store<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">SessionStore</span><span class="tsd-signature-symbol">&lt;</span><a href="../classes/session_session.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">&gt;</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/39e9d2e/src/config.ts#L195">src/config.ts:195</a></li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>By default, the session is stateless and stored in an encrypted cookie. But if you want a stateful session
+							you can provide a store with <code>get</code>, <code>set</code> and <code>destroy</code> methods to store the session on the server.</p>
+						</div>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-interface">
 					<a name="storeidtoken" class="tsd-anchor"></a>
 					<h3>storeIDToken</h3>
 					<div class="tsd-signature tsd-kind-icon">storeIDToken<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/58847ff/src/config.ts#L222">src/config.ts:222</a></li>
+							<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/39e9d2e/src/config.ts#L238">src/config.ts:238</a></li>
 						</ul>
 					</aside>
 					<div class="tsd-comment tsd-typography">
@@ -312,6 +374,9 @@
 								<a href="config.sessionconfig.html#cookie" class="tsd-kind-icon">cookie</a>
 							</li>
 							<li class=" tsd-kind-property tsd-parent-kind-interface">
+								<a href="config.sessionconfig.html#genid" class="tsd-kind-icon">gen<wbr>Id</a>
+							</li>
+							<li class=" tsd-kind-property tsd-parent-kind-interface">
 								<a href="config.sessionconfig.html#name" class="tsd-kind-icon">name</a>
 							</li>
 							<li class=" tsd-kind-property tsd-parent-kind-interface">
@@ -319,6 +384,9 @@
 							</li>
 							<li class=" tsd-kind-property tsd-parent-kind-interface">
 								<a href="config.sessionconfig.html#rollingduration" class="tsd-kind-icon">rolling<wbr>Duration</a>
+							</li>
+							<li class=" tsd-kind-property tsd-parent-kind-interface">
+								<a href="config.sessionconfig.html#store" class="tsd-kind-icon">store</a>
 							</li>
 							<li class=" tsd-kind-property tsd-parent-kind-interface">
 								<a href="config.sessionconfig.html#storeidtoken" class="tsd-kind-icon">storeIDToken</a>
