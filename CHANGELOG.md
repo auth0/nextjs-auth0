@@ -1,5 +1,11 @@
 # Change Log
 
+## [v2.1.0](https://github.com/auth0/nextjs-auth0/tree/v2.1.0) (2023-01-11)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.0.1...v2.1.0)
+
+**Added**
+- SDK-3807 Add custom session stores [\#993](https://github.com/auth0/nextjs-auth0/pull/993) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [v2.0.1](https://github.com/auth0/nextjs-auth0/tree/v2.0.1) (2022-12-09)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.0.0...v2.0.1)
 
