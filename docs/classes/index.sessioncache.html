@@ -123,13 +123,13 @@
 					<a name="constructor" class="tsd-anchor"></a>
 					<h3>constructor</h3>
 					<ul class="tsd-signatures tsd-kind-constructor tsd-parent-kind-class tsd-has-type-parameter">
-						<li class="tsd-signature tsd-kind-icon">new <wbr>Session<wbr>Cache&lt;Req, Res&gt;<span class="tsd-signature-symbol">(</span>config<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Config</span>, cookieStore<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">default</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">Req</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">Res</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="index.sessioncache.html" class="tsd-signature-type" data-tsd-kind="Class">SessionCache</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">Req</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">Res</span><span class="tsd-signature-symbol">&gt;</span></li>
+						<li class="tsd-signature tsd-kind-icon">new <wbr>Session<wbr>Cache&lt;Req, Res&gt;<span class="tsd-signature-symbol">(</span>config<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Config</span>, sessionStore<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">AbstractSession</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">Req</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">Res</span><span class="tsd-signature-symbol">, </span><a href="session_session.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="index.sessioncache.html" class="tsd-signature-type" data-tsd-kind="Class">SessionCache</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">Req</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">Res</span><span class="tsd-signature-symbol">&gt;</span></li>
 					</ul>
 					<ul class="tsd-descriptions">
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/58847ff/src/session/cache.ts#L13">src/session/cache.ts:13</a></li>
+									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/39e9d2e/src/session/cache.ts#L13">src/session/cache.ts:13</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-type-parameters-title">Type parameters</h4>
@@ -147,7 +147,7 @@
 									<h5>config: <span class="tsd-signature-type">Config</span></h5>
 								</li>
 								<li>
-									<h5>cookieStore: <span class="tsd-signature-type">default</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">Req</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">Res</span><span class="tsd-signature-symbol">&gt;</span></h5>
+									<h5>sessionStore: <span class="tsd-signature-type">AbstractSession</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">Req</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">Res</span><span class="tsd-signature-symbol">, </span><a href="session_session.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">&gt;</span></h5>
 								</li>
 							</ul>
 							<h4 class="tsd-returns-title">Returns <a href="index.sessioncache.html" class="tsd-signature-type" data-tsd-kind="Class">SessionCache</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">Req</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">Res</span><span class="tsd-signature-symbol">&gt;</span></h4>
@@ -168,7 +168,7 @@
 							<aside class="tsd-sources">
 								<p>Implementation of ISessionCache.create</p>
 								<ul>
-									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/58847ff/src/session/cache.ts#L35">src/session/cache.ts:35</a></li>
+									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/39e9d2e/src/session/cache.ts#L35">src/session/cache.ts:35</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -198,7 +198,7 @@
 							<aside class="tsd-sources">
 								<p>Implementation of ISessionCache.delete</p>
 								<ul>
-									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/58847ff/src/session/cache.ts#L40">src/session/cache.ts:40</a></li>
+									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/39e9d2e/src/session/cache.ts#L40">src/session/cache.ts:40</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -225,7 +225,7 @@
 							<aside class="tsd-sources">
 								<p>Implementation of ISessionCache.fromTokenSet</p>
 								<ul>
-									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/58847ff/src/session/cache.ts#L69">src/session/cache.ts:69</a></li>
+									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/39e9d2e/src/session/cache.ts#L69">src/session/cache.ts:69</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -248,7 +248,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/58847ff/src/session/cache.ts#L64">src/session/cache.ts:64</a></li>
+									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/39e9d2e/src/session/cache.ts#L64">src/session/cache.ts:64</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -275,7 +275,7 @@
 							<aside class="tsd-sources">
 								<p>Implementation of ISessionCache.getIdToken</p>
 								<ul>
-									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/58847ff/src/session/cache.ts#L52">src/session/cache.ts:52</a></li>
+									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/39e9d2e/src/session/cache.ts#L52">src/session/cache.ts:52</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -302,7 +302,7 @@
 							<aside class="tsd-sources">
 								<p>Implementation of ISessionCache.isAuthenticated</p>
 								<ul>
-									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/58847ff/src/session/cache.ts#L46">src/session/cache.ts:46</a></li>
+									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/39e9d2e/src/session/cache.ts#L46">src/session/cache.ts:46</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -328,7 +328,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/58847ff/src/session/cache.ts#L31">src/session/cache.ts:31</a></li>
+									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/39e9d2e/src/session/cache.ts#L31">src/session/cache.ts:31</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -354,7 +354,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/58847ff/src/session/cache.ts#L58">src/session/cache.ts:58</a></li>
+									<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/39e9d2e/src/session/cache.ts#L58">src/session/cache.ts:58</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
