@@ -20,7 +20,7 @@ import { ParsedUrlQuery } from 'querystring';
  *
  * @category Server
  */
-export type GetServerSidePropsResultWithSession<P = any> = GetServerSidePropsResult<P & { user?: Claims | null }>;
+export type GetServerSidePropsResultWithSession<P = any> = GetServerSidePropsResult<P & { user: Claims }>;
 
 /**
  * A page route that has been augmented with {@link WithPageAuthRequired}.
@@ -51,8 +51,8 @@ export type PageRoute<P, Q extends ParsedUrlQuery = ParsedUrlQuery> = (
  *   async getServerSideProps(ctx) {
  *     // access the user session if needed
  *     // const session = await getSession(ctx.req, ctx.res);
- *     return { 
- *       props: { 
+ *     return {
+ *       props: {
  *         // customProp: 'bar',
  *       }
  *     };
