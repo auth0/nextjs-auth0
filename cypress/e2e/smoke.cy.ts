@@ -24,7 +24,6 @@ const login = useAuth0 ? loginToAuth0 : loginToNodeOidc;
 describe('smoke tests', () => {
   it('should do basic login and show user', () => {
     cy.visit('/');
-    cy.window().its('__DEV_PAGES_MANIFEST'); // wait for pages to load so FF doesn't fail
     cy.get('[data-testid=login]').click();
     login();
     cy.url().should('eq', `${Cypress.config().baseUrl}/`);
@@ -58,7 +57,6 @@ describe('smoke tests', () => {
     cy.visit('/profile');
     login();
     cy.url().should('eq', `${Cypress.config().baseUrl}/profile`);
-    cy.window().its('__DEV_PAGES_MANIFEST'); // wait for pages to load so FF doesn't fail
     cy.get('[data-testid=logout]').click();
     if (!useAuth0) {
       cy.get('[name=logout]').click();
