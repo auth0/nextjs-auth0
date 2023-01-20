@@ -165,14 +165,19 @@ export const setup = async (
   let listener: any = null;
   const listen = (req: IncomingMessage, res: ServerResponse): Promise<void> | null => listener(req, res);
 
-  server = (https ? createHttpsServer : createHttpServer)(
-    {
-      cert,
-      key,
-      rejectUnauthorized: false
-    },
-    listen
-  );
+  let server: HttpServer;
+  if (https) {
+    server = createHttpsServer(
+      {
+        cert,
+        key,
+        rejectUnauthorized: false
+      },
+      listen
+    );
+  } else {
+    server = createHttpServer(listen);
+  }
 
   const port = await new Promise((resolve) => server.listen(0, () => resolve((server.address() as AddressInfo).port)));
   const baseURL = `http${https ? 's' : ''}://localhost:${port}`;
