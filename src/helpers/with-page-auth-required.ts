@@ -62,7 +62,10 @@ export type PageRoute<P, Q extends ParsedUrlQuery = ParsedUrlQuery> = (
  *
  * @category Server
  */
-export type WithPageAuthRequiredOptions<P = any, Q extends ParsedUrlQuery = ParsedUrlQuery> = {
+export type WithPageAuthRequiredOptions<
+  P extends { [key: string]: any } = { [key: string]: any },
+  Q extends ParsedUrlQuery = ParsedUrlQuery
+> = {
   getServerSideProps?: GetServerSideProps<P, Q>;
   returnTo?: string;
 };
@@ -87,7 +90,10 @@ export type WithPageAuthRequiredOptions<P = any, Q extends ParsedUrlQuery = Pars
  *
  * @category Server
  */
-export type WithPageAuthRequired = <P, Q extends ParsedUrlQuery = ParsedUrlQuery>(
+export type WithPageAuthRequired = <
+  P extends { [key: string]: any } = { [key: string]: any },
+  Q extends ParsedUrlQuery = ParsedUrlQuery
+>(
   opts?: WithPageAuthRequiredOptions<P, Q>
 ) => PageRoute<P, Q>;
 

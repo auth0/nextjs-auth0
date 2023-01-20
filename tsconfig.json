@@ -20,6 +20,7 @@
     "skipLibCheck": true,
     "strict": true,
     "target": "es5",
+    "useUnknownInCatchVariables": false,
     "lib": ["es6", "dom"],
     "downlevelIteration": true,
     "resolveJsonModule": true,

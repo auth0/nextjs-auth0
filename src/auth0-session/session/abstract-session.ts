@@ -53,7 +53,7 @@ export abstract class AbstractSession<Req, Res, Session> {
 
   abstract deleteSession(req: Req, res: Res, cookieOptions: CookieSerializeOptions): Promise<void>;
 
-  public async read(req: Req): Promise<[{ [key: string]: any }?, number?]> {
+  public async read(req: Req): Promise<[Session?, number?]> {
     const { rollingDuration, absoluteDuration } = this.config.session;
 
     try {
