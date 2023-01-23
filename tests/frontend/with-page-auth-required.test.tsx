@@ -159,4 +159,22 @@ describe('with-page-auth-required csr', () => {
     expect(url.searchParams.get('screenHint')).toEqual('signup');
     expect(url.searchParams.get('loginHint')).toEqual('test@test.com');
   });
+
+  it('prefers loginHint and screenHint options to url params', async () => {
+    (global as any).fetch = fetchUserErrorMock;
+    const MyPage = (): JSX.Element => <>Private</>;
+    const ProtectedPage = withPageAuthRequired(MyPage, {
+      screenHint: 'signup',
+      loginHint: 'test@test.com'
+    });
+    window.location.search = 'screenHint=login&loginHint=other@test.com';
+
+    render(<ProtectedPage />, { wrapper: withUserProvider() });
+    await waitFor(() => {
+      expect(window.location.assign).toHaveBeenCalled();
+    });
+    const url = new URL((window.location.assign as jest.Mock).mock.calls[0][0], 'https://example.com');
+    expect(url.searchParams.get('screenHint')).toEqual('signup');
+    expect(url.searchParams.get('loginHint')).toEqual('test@test.com');
+  });
 });
