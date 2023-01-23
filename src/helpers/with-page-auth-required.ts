@@ -1,7 +1,7 @@
 import { GetServerSideProps, GetServerSidePropsContext, GetServerSidePropsResult } from 'next';
 import { Claims, SessionCache } from '../session';
 import { assertCtx } from '../utils/assert';
-import { ParsedUrlQuery } from 'querystring';
+import { ParsedUrlQuery, stringify } from 'querystring';
 
 /**
  * If you wrap your `getServerSideProps` with {@link WithPageAuthRequired} your props object will be augmented with
@@ -48,6 +48,8 @@ export type PageRoute<P, Q extends ParsedUrlQuery = ParsedUrlQuery> = (
  *
  * export const getServerSideProps = withPageAuthRequired({
  *   // returnTo: '/unauthorized',
+ *   // loginHint: 'test@test.com',
+ *   // screenHint: 'signup',
  *   async getServerSideProps(ctx) {
  *     // access the user session if needed
  *     // const session = await getSession(ctx.req, ctx.res);
@@ -68,6 +70,8 @@ export type WithPageAuthRequiredOptions<
 > = {
   getServerSideProps?: GetServerSideProps<P, Q>;
   returnTo?: string;
+  loginHint?: string;
+  screenHint?: string;
 };
 
 /**
@@ -104,15 +108,20 @@ export default function withPageAuthRequiredFactory(
   loginUrl: string,
   getSessionCache: () => SessionCache
 ): WithPageAuthRequired {
-  return ({ getServerSideProps, returnTo } = {}) =>
+  return ({ getServerSideProps, returnTo, loginHint, screenHint } = {}) =>
     async (ctx) => {
       assertCtx(ctx);
       const sessionCache = getSessionCache();
       const session = await sessionCache.get(ctx.req, ctx.res);
       if (!session?.user) {
+        const q = {
+          returnTo: returnTo || ctx.resolvedUrl,
+          ...(loginHint ? { loginHint } : ctx.query?.loginHint ? { loginHint: ctx.query?.loginHint } : {}),
+          ...(screenHint ? { screenHint } : ctx.query?.screenHint ? { screenHint: ctx.query?.screenHint } : {})
+        };
         return {
           redirect: {
-            destination: `${loginUrl}?returnTo=${encodeURIComponent(returnTo || ctx.resolvedUrl)}`,
+            destination: `${loginUrl}?${stringify(q)}`,
             permanent: false
           }
         };

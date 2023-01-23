@@ -3,6 +3,7 @@ import React, { ComponentType, useEffect } from 'react';
 
 import { useConfig } from './use-config';
 import { useUser, UserProfile } from './use-user';
+import querystring, { stringify } from 'querystring';
 
 /**
  * @ignore
@@ -30,6 +31,29 @@ export interface WithPageAuthRequiredOptions {
    * Add a path to return the user to after login.
    */
   returnTo?: string;
+  /**
+   * ```js
+   * withPageAuthRequired(Profile, {
+   *   screenHint: 'signup'
+   * });
+   * ```
+   *
+   * Provides a hint to Auth0 as to what flow should be displayed. The default behavior is to show a
+   * login page but you can override this by passing 'signup' to show the signup page instead.
+   * This only affects the New Universal Login Experience.
+   */
+  screenHint?: string;
+  /**
+   * ```js
+   * withPageAuthRequired(Profile, {
+   *   loginHint: 'test@test.com'
+   * });
+   * ```
+   *
+   * You can specify the login_hint when redirecting to Auth0, and it will be used to populate
+   * the username/email field for the login or signup page.
+   */
+  loginHint?: string;
   /**
    * ```js
    * withPageAuthRequired(Profile, {
@@ -98,7 +122,17 @@ const withPageAuthRequired: WithPageAuthRequired = (Component, options = {}) => 
         returnToPath = returnTo;
       }
 
-      window.location.assign(`${loginUrl}?returnTo=${encodeURIComponent(returnToPath)}`);
+      const params = querystring.parse(location.search);
+      const loginHint = options.loginHint || params.loginHint;
+      const screenHint = options.screenHint || params.screenHint;
+
+      const query = {
+        returnTo: returnToPath,
+        ...(loginHint ? { loginHint } : {}),
+        ...(screenHint ? { screenHint } : {})
+      };
+
+      window.location.assign(`${loginUrl}?${stringify(query)}`);
     }, [user, error, isLoading]);
 
     if (error) return onError(error);

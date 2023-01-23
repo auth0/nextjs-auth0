@@ -80,6 +80,17 @@ describe('with-middleware-auth-required', () => {
     expect(redirect.searchParams.get('returnTo')).toEqual('http://example.com/foo/bar?baz=hello');
   });
 
+  test('forward loginHint and screenHint querystring parameters', async () => {
+    const res = await setup({ url: 'http://example.com/foo/bar?baz=hello&loginHint=test@test.com&screenHint=signup' });
+    const redirect = new URL(res.headers.get('location') as string);
+    expect(redirect).toMatchObject({
+      hostname: 'example.com',
+      pathname: '/api/auth/login'
+    });
+    expect(redirect.searchParams.get('loginHint')).toEqual('test@test.com');
+    expect(redirect.searchParams.get('screenHint')).toEqual('signup');
+  });
+
   test('should ignore static urls', async () => {
     const res = await setup({ url: 'http://example.com/_next/style.css' });
     expect(res).toBeUndefined();

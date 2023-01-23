@@ -1,5 +1,6 @@
 import { NextMiddleware, NextRequest, NextResponse } from 'next/server';
 import { SessionCache } from '../session';
+import querystring, { stringify } from 'querystring';
 
 /**
  * Protect your pages with Next.js Middleware. For example:
@@ -69,9 +70,13 @@ export default function withMiddlewareAuthRequiredFactory(
         if (pathname.startsWith('/api')) {
           return NextResponse.rewrite(new URL(unauthorized, origin), { status: 401 });
         }
-        return NextResponse.redirect(
-          new URL(`${login}?returnTo=${encodeURIComponent(req.nextUrl.toString())}`, origin)
-        );
+        const { loginHint, screenHint } = querystring.parse(req.nextUrl.search);
+        const q = {
+          returnTo: req.nextUrl.toString(),
+          ...(loginHint ? { loginHint } : {}),
+          ...(screenHint ? { screenHint } : {})
+        };
+        return NextResponse.redirect(new URL(`${login}?${stringify(q)}`, origin));
       }
       const res = await (middleware && middleware(...args));
 

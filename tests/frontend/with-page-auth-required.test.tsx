@@ -144,4 +144,19 @@ describe('with-page-auth-required csr', () => {
     const url = new URL((window.location.assign as jest.Mock).mock.calls[0][0], 'https://example.com');
     expect(url.searchParams.get('returnTo')).toEqual('/foo?bar=baz&qux=quux');
   });
+
+  it('should forward loginHint and screenHint querystring parameters', async () => {
+    (global as any).fetch = fetchUserErrorMock;
+    const MyPage = (): JSX.Element => <>Private</>;
+    const ProtectedPage = withPageAuthRequired(MyPage);
+    window.location.search = 'screenHint=signup&loginHint=test@test.com';
+
+    render(<ProtectedPage />, { wrapper: withUserProvider() });
+    await waitFor(() => {
+      expect(window.location.assign).toHaveBeenCalled();
+    });
+    const url = new URL((window.location.assign as jest.Mock).mock.calls[0][0], 'https://example.com');
+    expect(url.searchParams.get('screenHint')).toEqual('signup');
+    expect(url.searchParams.get('loginHint')).toEqual('test@test.com');
+  });
 });

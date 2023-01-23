@@ -107,6 +107,17 @@ describe('with-page-auth-required ssr', () => {
     expect(url.searchParams.get('returnTo')).toEqual('/foo?bar=baz&qux=quux');
   });
 
+  test('should forward loginHint and screenHint querystring parameters', async () => {
+    const baseUrl = await setup(withoutApi, { withPageAuthRequiredOptions: { returnTo: '/foo?bar=baz&qux=quux' } });
+    const {
+      res: { statusCode, headers }
+    } = await get(baseUrl, '/protected?screenHint=signup&loginHint=test@test.com', { fullResponse: true });
+    expect(statusCode).toBe(307);
+    const url = new URL(headers.location, baseUrl);
+    expect(url.searchParams.get('screenHint')).toEqual('signup');
+    expect(url.searchParams.get('loginHint')).toEqual('test@test.com');
+  });
+
   test('allow access to a page with a valid session and async props', async () => {
     const baseUrl = await setup(withoutApi, {
       withPageAuthRequiredOptions: {
