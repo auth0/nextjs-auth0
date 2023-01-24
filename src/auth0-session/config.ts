@@ -1,5 +1,5 @@
 import type { IncomingMessage } from 'http';
-import type { AuthorizationParameters as OidcAuthorizationParameters } from 'openid-client';
+import type { AuthorizationParameters as OidcAuthorizationParameters, ClientAuthMethod } from 'openid-client';
 import { SessionStore } from './session/stateful-session';
 
 /**
@@ -162,6 +162,28 @@ export interface Config {
      */
     callback: string;
   };
+
+  /**
+   * The clients authentication method. Default is `none` when using response_type='id_token`,`private_key_jwt` when
+   * using a `clientAssertionSigningKey`, otherwise `client_secret_basic`.
+   */
+  clientAuthMethod?: ClientAuthMethod;
+
+  /**
+   * Private key for use with `private_key_jwt` clients.
+   * This should be a string that is the contents of a PEM file.
+   * you can also use the `AUTH0_CLIENT_ASSERTION_SIGNING_KEY` environment variable.
+   */
+  clientAssertionSigningKey?: string;
+
+  /**
+   * The algorithm used to sign the client assertion JWT.
+   * Uses one of `token_endpoint_auth_signing_alg_values_supported` if not specified.
+   * If the Authorization Server discovery document does not list `token_endpoint_auth_signing_alg_values_supported`
+   * this property will be required.
+   * You can also use the `AUTH0_CLIENT_ASSERTION_SIGNING_ALG` environment variable.
+   */
+  clientAssertionSigningAlg?: string;
 }
 
 /**

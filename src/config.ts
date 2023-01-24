@@ -172,6 +172,22 @@ export interface BaseConfig {
      */
     callback: string;
   };
+
+  /**
+   * Private key for use with `private_key_jwt` clients.
+   * This should be a string that is the contents of a PEM file.
+   * You can also use the `AUTH0_CLIENT_ASSERTION_SIGNING_KEY` environment variable.
+   */
+  clientAssertionSigningKey?: string;
+
+  /**
+   * The algorithm to sign the client assertion JWT.
+   * Uses one of `token_endpoint_auth_signing_alg_values_supported` if not specified.
+   * If the Authorization Server discovery document does not list `token_endpoint_auth_signing_alg_values_supported`
+   * this property will be required.
+   *  You can also use the `AUTH0_CLIENT_ASSERTION_SIGNING_ALG` environment variable.
+   */
+  clientAssertionSigningAlg?: string;
 }
 
 /**
@@ -382,6 +398,8 @@ export interface NextConfig extends Pick<BaseConfig, 'identityClaimFilter'> {
  * - `AUTH0_COOKIE_HTTP_ONLY`: See {@link CookieConfig.httpOnly}.
  * - `AUTH0_COOKIE_SECURE`: See {@link CookieConfig.secure}.
  * - `AUTH0_COOKIE_SAME_SITE`: See {@link CookieConfig.sameSite}.
+ * - `AUTH0_CLIENT_ASSERTION_SIGNING_KEY`: See {@link BaseConfig.clientAssertionSigningKey}
+ * - `AUTH0_CLIENT_ASSERTION_SIGNING_ALG`: See {@link BaseConfig.clientAssertionSigningAlg}
  *
  * ### 2. Create your own instance using {@link InitAuth0}
  *
@@ -480,6 +498,8 @@ export const getConfig = (params: ConfigParameters = {}): { baseConfig: BaseConf
   const AUTH0_COOKIE_HTTP_ONLY = process.env.AUTH0_COOKIE_HTTP_ONLY;
   const AUTH0_COOKIE_SECURE = process.env.AUTH0_COOKIE_SECURE;
   const AUTH0_COOKIE_SAME_SITE = process.env.AUTH0_COOKIE_SAME_SITE;
+  const AUTH0_CLIENT_ASSERTION_SIGNING_KEY = process.env.AUTH0_CLIENT_ASSERTION_SIGNING_KEY;
+  const AUTH0_CLIENT_ASSERTION_SIGNING_ALG = process.env.AUTH0_CLIENT_ASSERTION_SIGNING_ALG;
 
   const baseURL =
     AUTH0_BASE_URL && !/^https?:\/\//.test(AUTH0_BASE_URL as string) ? `https://${AUTH0_BASE_URL}` : AUTH0_BASE_URL;
@@ -533,7 +553,9 @@ export const getConfig = (params: ConfigParameters = {}): { baseConfig: BaseConf
     routes: {
       callback: baseParams.routes?.callback || AUTH0_CALLBACK || '/api/auth/callback',
       postLogoutRedirect: baseParams.routes?.postLogoutRedirect || AUTH0_POST_LOGOUT_REDIRECT
-    }
+    },
+    clientAssertionSigningKey: AUTH0_CLIENT_ASSERTION_SIGNING_KEY,
+    clientAssertionSigningAlg: AUTH0_CLIENT_ASSERTION_SIGNING_ALG
   });
 
   const nextConfig = {

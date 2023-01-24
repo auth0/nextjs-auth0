@@ -1,10 +1,12 @@
-import { Issuer, custom, Client, EndSessionParameters } from 'openid-client';
+import { Issuer, custom, Client, EndSessionParameters, ClientAuthMethod } from 'openid-client';
 import url, { UrlObject } from 'url';
 import urlJoin from 'url-join';
 import createDebug from './utils/debug';
 import { DiscoveryError } from './utils/errors';
 import { Config } from './config';
 import { ParsedUrlQueryInput } from 'querystring';
+import { exportJWK } from 'jose';
+import { createPrivateKey } from 'crypto';
 
 const debug = createDebug('client');
 
@@ -88,11 +90,23 @@ export default function get(config: Config, { name, version }: Telemetry): Clien
       );
     }
 
-    client = new issuer.Client({
-      client_id: config.clientID,
-      client_secret: config.clientSecret,
-      id_token_signed_response_alg: config.idTokenSigningAlg
-    });
+    let jwks;
+    if (config.clientAssertionSigningKey) {
+      const privateKey = createPrivateKey({ key: config.clientAssertionSigningKey });
+      const jwk = await exportJWK(privateKey);
+      jwks = { keys: [jwk] };
+    }
+
+    client = new issuer.Client(
+      {
+        client_id: config.clientID,
+        client_secret: config.clientSecret,
+        id_token_signed_response_alg: config.idTokenSigningAlg,
+        token_endpoint_auth_method: config.clientAuthMethod as ClientAuthMethod,
+        token_endpoint_auth_signing_alg: config.clientAssertionSigningAlg
+      },
+      jwks
+    );
     client[custom.clock_tolerance] = config.clockTolerance;
 
     if (config.idpLogout && !issuer.end_session_endpoint) {

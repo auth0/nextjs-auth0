@@ -5,8 +5,13 @@ import { signing } from '../../../src/auth0-session/utils/hkdf';
 import { encodeState } from '../../../src/auth0-session/utils/encoding';
 import { SessionResponse, setup, teardown } from '../fixtures/server';
 import { makeIdToken } from '../fixtures/cert';
-import { toSignedCookieJar, get, post, defaultConfig } from '../fixtures/helpers';
+import { toSignedCookieJar, get, post, defaultConfig, decodeJWT } from '../fixtures/helpers';
 import { ServerResponse } from 'http';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import * as qs from 'querystring';
+
+const privateKey = readFileSync(join(__dirname, '..', 'fixtures', 'private-key.pem'), 'utf-8');
 
 const expectedDefaultState = encodeState({ returnTo: 'https://example.org' });
 
@@ -376,6 +381,113 @@ describe('callback', () => {
     expect(body).toEqual(
       `grant_type=authorization_code&code=${code}&redirect_uri=${encodeURIComponent(baseURL)}%2Fcallback`
     );
+  });
+
+  it('should use private key jwt on token endpoint', async () => {
+    const idToken = await makeIdToken({
+      c_hash: '77QmUPtjPfzWtF2AnpK9RQ'
+    });
+
+    const baseURL = await setup({
+      ...defaultConfig,
+      authorizationParams: {
+        response_type: 'code'
+      },
+      clientAssertionSigningKey: privateKey
+    });
+
+    let body: qs.ParsedUrlQuery = {};
+    nock('https://op.example.com')
+      .post('/oauth/token')
+      .reply(200, function (_uri, requestBody) {
+        body = qs.parse(requestBody as string);
+        return {
+          access_token: '__test_access_token__',
+          refresh_token: '__test_refresh_token__',
+          id_token: idToken,
+          token_type: 'Bearer',
+          expires_in: 86400
+        };
+      });
+
+    const cookieJar = await toSignedCookieJar(
+      {
+        state: expectedDefaultState,
+        nonce: '__test_nonce__'
+      },
+      baseURL
+    );
+
+    await post(baseURL, '/callback', {
+      body: {
+        state: expectedDefaultState,
+        id_token: idToken,
+        code: 'jHkWEdUXMU1BwAsC4vtUsZwnNvTIxEl0z9K3vx5KF0Y'
+      },
+      cookieJar,
+      fullResponse: true
+    });
+
+    expect(body.client_assertion).not.toBeUndefined();
+    expect(body.client_assertion_type).toEqual('urn:ietf:params:oauth:client-assertion-type:jwt-bearer');
+
+    const { header } = decodeJWT(body.client_assertion as string);
+
+    expect(header.alg).toEqual('RS256');
+  });
+
+  it('should use client secret jwt on token endpoint', async () => {
+    const idToken = await makeIdToken({
+      c_hash: '77QmUPtjPfzWtF2AnpK9RQ'
+    });
+
+    const baseURL = await setup({
+      ...defaultConfig,
+      authorizationParams: {
+        response_type: 'code'
+      },
+      clientSecret: 'foo',
+      clientAuthMethod: 'client_secret_jwt'
+    });
+
+    let body: qs.ParsedUrlQuery = {};
+    nock('https://op.example.com')
+      .post('/oauth/token')
+      .reply(200, function (_uri, requestBody) {
+        body = qs.parse(requestBody as string);
+        return {
+          access_token: '__test_access_token__',
+          refresh_token: '__test_refresh_token__',
+          id_token: idToken,
+          token_type: 'Bearer',
+          expires_in: 86400
+        };
+      });
+
+    const cookieJar = await toSignedCookieJar(
+      {
+        state: expectedDefaultState,
+        nonce: '__test_nonce__'
+      },
+      baseURL
+    );
+
+    await post(baseURL, '/callback', {
+      body: {
+        state: expectedDefaultState,
+        id_token: idToken,
+        code: 'jHkWEdUXMU1BwAsC4vtUsZwnNvTIxEl0z9K3vx5KF0Y'
+      },
+      cookieJar,
+      fullResponse: true
+    });
+
+    expect(body.client_assertion).not.toBeUndefined();
+    expect(body.client_assertion_type).toEqual('urn:ietf:params:oauth:client-assertion-type:jwt-bearer');
+
+    const { header } = decodeJWT(body.client_assertion as string);
+
+    expect(header.alg).toEqual('HS256');
   });
 
   it('should redirect to default base url', async () => {
