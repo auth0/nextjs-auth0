@@ -52,7 +52,7 @@ describe('with-middleware-auth-required', () => {
       hostname: 'example.com',
       pathname: '/api/auth/login'
     });
-    expect(redirect.searchParams.get('returnTo')).toEqual('http://example.com/');
+    expect(redirect.searchParams.get('returnTo')).toEqual('/');
   });
 
   test('require auth on anonymous requests to api routes', async () => {
@@ -77,7 +77,7 @@ describe('with-middleware-auth-required', () => {
       hostname: 'example.com',
       pathname: '/api/auth/login'
     });
-    expect(redirect.searchParams.get('returnTo')).toEqual('http://example.com/foo/bar?baz=hello');
+    expect(redirect.searchParams.get('returnTo')).toEqual('/foo/bar?baz=hello');
   });
 
   test('should ignore static urls', async () => {
