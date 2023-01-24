@@ -29,6 +29,8 @@ describe('config params', () => {
       secret: '__long_super_secret_secret__',
       issuerBaseURL: 'https://example.auth0.com',
       baseURL: 'https://example.com',
+      clientAssertionSigningAlg: undefined,
+      clientAssertionSigningKey: undefined,
       clientID: '__test_client_id__',
       clientSecret: '__test_client_secret__',
       clockTolerance: 60,
