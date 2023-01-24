@@ -88,13 +88,13 @@ const paramsSchema = Joi.object({
   clientID: Joi.string().required(),
   clientSecret: Joi.string()
     .when(
-      Joi.ref('authorizationParams.response_type', {
-        adjust: (value) => value && value.includes('code')
+      Joi.ref('clientAuthMethod', {
+        adjust: (value) => value && value.includes('client_secret')
       }),
       {
         is: true,
         then: Joi.string().required().messages({
-          'any.required': '"clientSecret" is required for a response_type that includes code'
+          'any.required': '"clientSecret" is required for the clientAuthMethod {{clientAuthMethod}}'
         })
       }
     )
@@ -131,11 +131,41 @@ const paramsSchema = Joi.object({
     .default()
     .unknown(false),
   clientAuthMethod: Joi.string()
-    .valid('client_secret_basic', 'client_secret_post', 'none')
+    .valid('client_secret_basic', 'client_secret_post', 'client_secret_jwt', 'private_key_jwt', 'none')
     .optional()
     .default((parent) => {
-      return parent.authorizationParams.response_type === 'id_token' ? 'none' : 'client_secret_basic';
+      if (parent.authorizationParams.response_type === 'id_token') {
+        return 'none';
+      }
+
+      if (parent.clientAssertionSigningKey) {
+        return 'private_key_jwt';
+      }
+
+      return 'client_secret_basic';
     })
+    .when(
+      Joi.ref('authorizationParams.response_type', {
+        adjust: (value) => value && value.includes('code')
+      }),
+      {
+        is: true,
+        then: Joi.string().invalid('none').messages({
+          'any.only': 'Public code flow clients are not supported.'
+        })
+      }
+    ),
+  clientAssertionSigningKey: Joi.any()
+    .optional()
+    .when(Joi.ref('clientAuthMethod'), {
+      is: 'private_key_jwt',
+      then: Joi.any().required().messages({
+        'any.required': '"clientAssertionSigningKey" is required for a "clientAuthMethod" of "private_key_jwt"'
+      })
+    }),
+  clientAssertionSigningAlg: Joi.string()
+    .optional()
+    .valid('RS256', 'RS384', 'RS512', 'PS256', 'PS384', 'PS512', 'ES256', 'ES256K', 'ES384', 'ES512', 'EdDSA')
 });
 
 export type DeepPartial<T> = {
@@ -145,7 +175,7 @@ export type DeepPartial<T> = {
 export type ConfigParameters = DeepPartial<Config>;
 
 export const get = (params: ConfigParameters = {}): Config => {
-  const { value, error, warning } = paramsSchema.validate(params);
+  const { value, error, warning } = paramsSchema.validate(params, { allowUnknown: true });
   if (error) {
     throw new TypeError(error.details[0].message);
   }
