@@ -345,7 +345,7 @@ describe('Config', () => {
           response_type: 'code'
         }
       })
-    ).toThrowError(new TypeError('"clientSecret" is required for a response_type that includes code'));
+    ).toThrowError(new TypeError('"clientSecret" is required for the clientAuthMethod client_secret_basic'));
   });
 
   it("shouldn't allow hybrid flow without clientSecret", () => {
@@ -356,7 +356,45 @@ describe('Config', () => {
           response_type: 'code id_token'
         }
       })
-    ).toThrowError(new TypeError('"clientSecret" is required for a response_type that includes code'));
+    ).toThrowError(new TypeError('"clientSecret" is required for the clientAuthMethod client_secret_basic'));
+  });
+
+  it(`shouldn't allow code flow without client authn when clientAuthMethod is "none"`, () => {
+    expect(() =>
+      getConfig({
+        ...defaultConfig,
+        authorizationParams: {
+          response_type: 'code'
+        },
+        clientAuthMethod: 'none'
+      })
+    ).toThrowError(new TypeError('Public code flow clients are not supported.'));
+  });
+
+  it('should require "clientAssertionSigningKey" when clientAuthMethod is "private_key_jwt"', () => {
+    expect(() =>
+      getConfig({
+        ...defaultConfig,
+        authorizationParams: {
+          response_type: 'code'
+        },
+        clientAuthMethod: 'private_key_jwt'
+      })
+    ).toThrowError(
+      new TypeError('"clientAssertionSigningKey" is required for a "clientAuthMethod" of "private_key_jwt"')
+    );
+  });
+
+  it('should default to "private_key_jwt" when "clientAssertionSigningKey" is present', () => {
+    expect(
+      getConfig({
+        ...defaultConfig,
+        authorizationParams: {
+          response_type: 'code'
+        },
+        clientAssertionSigningKey: 'foo'
+      }).clientAuthMethod
+    ).toBe('private_key_jwt');
   });
 
   it('should not allow "none" for idTokenSigningAlg', () => {

@@ -4,6 +4,7 @@ import { generateCookieValue } from '../../../src/auth0-session/utils/signed-coo
 import { IncomingMessage, request as nodeHttpRequest } from 'http';
 import { request as nodeHttpsRequest } from 'https';
 import { ConfigParameters } from '../../../src/auth0-session';
+import { base64url } from 'jose';
 
 const secret = '__test_session_secret__';
 const clientId = '__test_client_id__';
@@ -113,3 +114,14 @@ export const post = async (
     fullResponse
   }: { body: { [key: string]: any }; cookieJar?: CookieJar; fullResponse?: boolean; https?: boolean }
 ): Promise<any | Response> => request(`${baseURL}${path}`, 'POST', { body, cookieJar, fullResponse });
+
+export const decodeJWT = (
+  token: string
+): { header: Record<string, any>; payload: Record<string, any>; signature: string } => {
+  const { 0: header, 1: payload, 2: signature } = token.split('.');
+  return {
+    header: JSON.parse(base64url.decode(header).toString()),
+    payload: JSON.parse(base64url.decode(payload).toString()),
+    signature
+  };
+};
