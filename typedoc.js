@@ -7,6 +7,7 @@ module.exports = {
     './src/client/use-config.tsx',
     './src/utils/!(errors.ts)'
   ],
+  entryPointStrategy: 'expand',
   excludeExternals: true,
   excludePrivate: true,
   hideGenerator: true,
