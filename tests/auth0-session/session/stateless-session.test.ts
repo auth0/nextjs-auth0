@@ -1,3 +1,7 @@
+/**
+ * @jest-environment node
+ */
+
 import { randomBytes } from 'crypto';
 import * as jose from 'jose';
 import { IdTokenClaims } from 'openid-client';
