@@ -1,1 +1,1 @@
-export type * from './dist/helpers/testing';
+export * from './dist/helpers/testing';
