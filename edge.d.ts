@@ -1,1 +1,1 @@
-export type * from './dist/edge';
+export * from './dist/edge';
