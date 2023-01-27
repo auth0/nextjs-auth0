@@ -1,1 +1,1 @@
-export type * from './dist/client';
+export * from './dist/client';
