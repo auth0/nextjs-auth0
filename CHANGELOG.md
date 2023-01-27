@@ -1,5 +1,11 @@
 # Change Log
 
+## [v2.2.1](https://github.com/auth0/nextjs-auth0/tree/v2.2.1) (2023-01-27)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.2.0...v2.2.1)
+
+**Fixed**
+- Remove type from export in d.ts files [\#1037](https://github.com/auth0/nextjs-auth0/pull/1037) ([ewanharris](https://github.com/ewanharris))
+
 ## [v2.2.0](https://github.com/auth0/nextjs-auth0/tree/v2.2.0) (2023-01-24)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.1.0...v2.2.0)
 
