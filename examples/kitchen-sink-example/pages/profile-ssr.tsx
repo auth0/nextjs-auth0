@@ -1,19 +1,13 @@
-import React from 'react';
 import { withPageAuthRequired } from '@auth0/nextjs-auth0';
-import { UserProfile } from '@auth0/nextjs-auth0/client';
+import { InferGetServerSidePropsType } from 'next';
 
-import Layout from '../components/layout';
+export const getServerSideProps = withPageAuthRequired({
+  getServerSideProps: async ({ query, req, res }) => {
+    if ((query.foo = 'bar')) {
+      return { notFound: true };
+    }
+    return { props: { hello: 'world' } };
+  }
+});
 
-type ProfileProps = { user: UserProfile };
-
-export default function Profile({ user }: ProfileProps): React.ReactElement {
-  return (
-    <Layout>
-      <h1>Profile</h1>
-      <h4>Profile (server rendered)</h4>
-      <pre data-testid="profile">{JSON.stringify(user, null, 2)}</pre>
-    </Layout>
-  );
-}
-
-export const getServerSideProps = withPageAuthRequired();
+export type Props = InferGetServerSidePropsType<typeof getServerSideProps>;
