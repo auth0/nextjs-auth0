@@ -1,14 +1,7 @@
 {
   "parser": "@typescript-eslint/parser",
-  "extends": [
-    "plugin:prettier/recommended",
-    "plugin:react/recommended",
-    "plugin:@typescript-eslint/recommended"
-  ],
-  "plugins": [
-    "prettier",
-    "@typescript-eslint"
-  ],
+  "extends": ["plugin:prettier/recommended", "plugin:react/recommended", "plugin:@typescript-eslint/recommended"],
+  "plugins": ["prettier", "@typescript-eslint"],
   "env": {
     "node": true,
     "browser": true,
@@ -33,10 +26,18 @@
   },
   "ignorePatterns": ["examples/**/*"],
   "rules": {
-    "prettier/prettier": "error",
-    "no-console": [1, {
-      "allow": ["error", "info", "warn"]
-    }],
+    "prettier/prettier": [
+      "error",
+      {
+        "endOfLine": "auto"
+      }
+    ],
+    "no-console": [
+      1,
+      {
+        "allow": ["error", "info", "warn"]
+      }
+    ],
     "max-len": ["error", 120],
     "comma-dangle": ["error", "never"],
     "no-trailing-spaces": "error",
