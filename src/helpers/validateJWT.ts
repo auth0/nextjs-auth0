@@ -14,11 +14,13 @@ type JWKFile = {
   keys: jwkToBuffer.JWK[];
 };
 
+export type ValidateJWT = (req: NextApiRequest) => Promise<string | undefined>;
+
 /**
  * A simple function that validates a JWT agains the users JWKs.
  * It will return the JWT if its valid, otherwise it will return undefined
  */
-const validateJWT: (req: NextApiRequest) => Promise<string | undefined> = async (req: NextApiRequest) => {
+const validateJWT: ValidateJWT = async (req: NextApiRequest) => {
   const token = extractToken(req); // first extract the token
   if (!token) {
     return undefined;

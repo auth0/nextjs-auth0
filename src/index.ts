@@ -216,6 +216,8 @@ export const handleProfile: HandleProfile = ((...args: Parameters<HandleProfile>
   getInstance().handleProfile(...args)) as HandleProfile;
 export const handleAuth: HandleAuth = (...args) => getInstance().handleAuth(...args);
 
+export { validateJWT, ValidateJWT } from './helpers';
+
 export {
   AuthError,
   AccessTokenErrorCode,
