@@ -1,15 +1,6 @@
-import type { TokenSet } from 'openid-client';
+import type { IdTokenClaims, TokenSet } from 'openid-client';
 import { Config } from '../auth0-session';
 import { NextConfig } from '../config';
-
-/**
- * Key-value store for the user's claims.
- *
- * @category Server
- */
-export interface Claims {
-  [key: string]: any;
-}
 
 /**
  * The user's session.
@@ -20,7 +11,7 @@ export default class Session {
   /**
    * Any of the claims from the `id_token`.
    */
-  user: Claims;
+  user: IdTokenClaims;
 
   /**
    * The ID token.
@@ -52,7 +43,7 @@ export default class Session {
 
   [key: string]: any;
 
-  constructor(user: Claims) {
+  constructor(user: IdTokenClaims) {
     this.user = user;
   }
 }
