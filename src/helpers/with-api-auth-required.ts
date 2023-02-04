@@ -11,6 +11,10 @@ const extractToken = (req: NextApiRequest) => {
   return null;
 };
 
+type JWKFile = {
+  keys: jwkToBuffer.JWK[];
+};
+
 /**
  * Wrap an API route to check that the user has a valid session. If they're not logged in the
  * handler will return a 401 Unauthorized.
@@ -40,28 +44,28 @@ export default function withApiAuthFactory(sessionCache: SessionCache): WithApiA
       assertReqRes(req, res);
       const session = await sessionCache.get(req, res);
       if (!session || !session.user) {
-        const jwks: { keys: jwkToBuffer.JWK[] } = await (
-          await fetch(`${process.env.AUTH0_ISSUER_BASE_URL}/.well-known/jwks.json`)
-        ).json();
+        const token = extractToken(req);
+        if (!token) {
+          res.status(401).json({
+            error: 'not_authenticated',
+            description: 'The user does not have a valid token'
+          });
+          return;
+        }
+
+        const jwks = (await (await fetch(`${process.env.AUTH0_ISSUER_BASE_URL}/.well-known/jwks.json`)).json()) as
+          | JWKFile
+          | undefined;
 
         if (!jwks || jwks.keys?.[0] == undefined) {
           res.status(401).json({
             error: 'not_authenticated',
-            description: 'Invalid JWK Keys'
+            description: 'Invalid JWKS'
           });
           return;
         }
 
         const pem = jwkToBuffer(jwks.keys[0]);
-
-        const token = extractToken(req);
-        if (!token) {
-          res.status(401).json({
-            error: 'not_authenticated',
-            description: 'The user does not have an active session or is not authenticated'
-          });
-          return;
-        }
 
         try {
           jwt.verify(token, pem, {
