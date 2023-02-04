@@ -44,7 +44,7 @@ export default function withApiAuthFactory(sessionCache: SessionCache): WithApiA
           await fetch(`${process.env.AUTH0_ISSUER_BASE_URL}/.well-known/jwks.json`)
         ).json();
 
-        if (jwks && jwks.keys?.[0] == undefined) {
+        if (!jwks || jwks.keys?.[0] == undefined) {
           res.status(401).json({
             error: 'not_authenticated',
             description: 'Invalid JWK Keys'
