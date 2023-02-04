@@ -1,19 +1,7 @@
 import { NextApiResponse, NextApiRequest, NextApiHandler } from 'next';
-import jwt from 'jsonwebtoken';
-import jwkToBuffer from 'jwk-to-pem';
 import { SessionCache } from '../session';
 import { assertReqRes } from '../utils/assert';
-
-const extractToken = (req: NextApiRequest) => {
-  if (req.headers.authorization && req.headers.authorization.split(' ')[0] === 'Bearer') {
-    return req.headers.authorization.split(' ')[1];
-  }
-  return null;
-};
-
-type JWKFile = {
-  keys: jwkToBuffer.JWK[];
-};
+import validateJWT from './validateJWT';
 
 /**
  * Wrap an API route to check that the user has a valid session. If they're not logged in the
@@ -44,35 +32,12 @@ export default function withApiAuthFactory(sessionCache: SessionCache): WithApiA
       assertReqRes(req, res);
       const session = await sessionCache.get(req, res);
       if (!session || !session.user) {
-        const token = extractToken(req);
-        if (!token) {
+        const jwt = validateJWT(req);
+        if (!jwt) {
           res.status(401).json({
             error: 'not_authenticated',
             description: 'The user does not have a valid token'
           });
-          return;
-        }
-
-        const jwks = (await (await fetch(`${process.env.AUTH0_ISSUER_BASE_URL}/.well-known/jwks.json`)).json()) as
-          | JWKFile
-          | undefined;
-
-        if (!jwks || jwks.keys?.[0] == undefined) {
-          res.status(401).json({
-            error: 'not_authenticated',
-            description: 'Invalid JWKS'
-          });
-          return;
-        }
-
-        const pem = jwkToBuffer(jwks.keys[0]);
-
-        try {
-          jwt.verify(token, pem, {
-            algorithms: ['RS256']
-          });
-        } catch (err) {
-          res.status(401).json(err);
           return;
         }
       }
