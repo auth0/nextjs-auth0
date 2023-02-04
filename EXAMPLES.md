@@ -141,7 +141,8 @@ export default auth0.handleAuth();
 import auth0 from '../../../utils/auth0';
 import { handleLogin } from '@auth0/nextjs-auth0';
 
-export default auth0.handleAuth({ // <= instance method
+export default auth0.handleAuth({
+  // <= instance method
   async login(req, res) {
     try {
       // `auth0.handleAuth` and `handleLogin` will be using separate instances
@@ -252,7 +253,7 @@ See a running example of a [CSR protected page](./examples/kitchen-sink-example/
 
 ## Protect an API Route
 
-Requests to `/pages/api/protected` without a valid session cookie will fail with `401`.
+Requests to `/pages/api/protected` without a valid session cookie or JWT will fail with `401`. You can optionally pass an Access Token to the authorisation header to allow API calls from outside of the nextjs app.
 
 ```js
 // pages/api/protected.js
