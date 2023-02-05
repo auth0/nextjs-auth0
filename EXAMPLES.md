@@ -7,6 +7,7 @@
 - [Protecting a Server-Side Rendered (SSR) Page](#protecting-a-server-side-rendered-ssr-page)
 - [Protecting a Client-Side Rendered (CSR) Page](#protecting-a-client-side-rendered-csr-page)
 - [Protect an API Route](#protect-an-api-route)
+- [Handling a JWT](#handling-a-jwt)
 - [Protecting pages with Middleware](#protecting-pages-with-middleware)
 - [Access an External API from an API Route](#access-an-external-api-from-an-api-route)
 - [Add a signup handler](#add-a-signup-handler)
@@ -287,6 +288,41 @@ export default withPageAuthRequired(function Products() {
 
 See a running example in the kitchen-sink example app, the [protected API route](./examples/kitchen-sink-example/pages/api/shows.ts) and
 the [frontend code to access the protected API](./examples/kitchen-sink-example/pages/shows.tsx).
+
+## Handling a JWT
+
+If you wish to handle JWT validation yourself outside of `withApiAuthRequired` you can use `validateJWT(req)`. This function will return
+the JWT as a string if it is valid, otherwise it return undefined. This is useful for cases such as TRPC, where you want to handle auth within the TRPC context itself.
+
+```tsx
+export const createTRPCContext = async (opts: CreateNextContextOptions) => {
+  const session = await getSession(opts.req, opts.res);
+
+  let jwt: string | undefined = undefined;
+  if (!session || !session.user) {
+    jwt = await validateJWT(opts.req);
+  }
+
+  return createInnerTRPCContext({
+    session,
+    jwt
+  });
+};
+
+const enforceUserIsAuthed = t.middleware(({ ctx, next }) => {
+  if (!ctx.jwt && !ctx.session?.user) {
+    throw new TRPCError({ code: 'UNAUTHORIZED' });
+  }
+  return next({
+    ctx: {
+      session: { ...ctx.session },
+      jwt: ctx.jwt
+    }
+  });
+});
+
+export const protectedProcedure = t.procedure.use(enforceUserIsAuthed);
+```
 
 ## Protecting pages with Middleware
 
