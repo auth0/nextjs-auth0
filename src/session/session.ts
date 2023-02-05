@@ -7,9 +7,7 @@ import { NextConfig } from '../config';
  *
  * @category Server
  */
-export interface Claims extends IdTokenClaims {
-  [key: string]: unknown;
-}
+export type Claims = IdTokenClaims | { [key: string]: unknown };
 
 /**
  * The user's session.
