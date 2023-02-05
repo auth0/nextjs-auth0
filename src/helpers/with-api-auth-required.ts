@@ -32,7 +32,7 @@ export default function withApiAuthFactory(sessionCache: SessionCache): WithApiA
       assertReqRes(req, res);
       const session = await sessionCache.get(req, res);
       if (!session || !session.user) {
-        const jwt = validateJWT(req);
+        const jwt = await validateJWT(req);
         if (!jwt) {
           res.status(401).json({
             error: 'not_authenticated',
