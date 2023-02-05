@@ -3,6 +3,15 @@ import { Config } from '../auth0-session';
 import { NextConfig } from '../config';
 
 /**
+ * Key-value store for the user's claims.
+ *
+ * @category Server
+ */
+export interface Claims extends IdTokenClaims {
+  [key: string]: unknown;
+}
+
+/**
  * The user's session.
  *
  * @category Server
@@ -11,7 +20,7 @@ export default class Session {
   /**
    * Any of the claims from the `id_token`.
    */
-  user: IdTokenClaims;
+  user: Claims;
 
   /**
    * The ID token.
@@ -43,7 +52,7 @@ export default class Session {
 
   [key: string]: any;
 
-  constructor(user: IdTokenClaims) {
+  constructor(user: Claims) {
     this.user = user;
   }
 }
