@@ -1,4 +1,4 @@
-import type { TokenSet } from 'openid-client';
+import type { IdTokenClaims, TokenSet } from 'openid-client';
 import { Config } from '../auth0-session';
 import { NextConfig } from '../config';
 
@@ -7,9 +7,7 @@ import { NextConfig } from '../config';
  *
  * @category Server
  */
-export interface Claims {
-  [key: string]: any;
-}
+export type Claims = IdTokenClaims | { [key: string]: unknown };
 
 /**
  * The user's session.
