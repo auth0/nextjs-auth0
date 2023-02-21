@@ -178,7 +178,9 @@ type UserProviderState = {
 const userFetcher: UserFetcher = async (url) => {
   let response;
   try {
-    response = await fetch(url);
+    response = await fetch(url, {
+      cache: 'no-store'
+    });
   } catch {
     throw new RequestError(0); // Network error
   }
