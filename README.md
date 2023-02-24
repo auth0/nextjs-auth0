@@ -106,7 +106,7 @@ Executing `handleAuth()` creates the following route handlers under the hood tha
 - `/api/auth/logout`: Your Next.js application logs out the user.
 - `/api/auth/me`: You can fetch user profile information in JSON format.
 
-**WARNING:** This authentication pathway is not presently supported when deploying to Cloudflare Pages using the edge-runtime as there is a dependency on the node runtime. See issue [#1079](https://github.com/auth0/nextjs-auth0/issues/1079)
+**WARNING:** This authentication pathway is not presently supported when deploying to Cloudflare Pages
 
 #### Add the UserProvider to Custom App
 
