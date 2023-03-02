@@ -97,7 +97,10 @@ describe('config params', () => {
         postLogoutRedirect: '',
         unauthorized: '/api/auth/401'
       },
-      organization: undefined
+      organization: undefined,
+      session: {
+        storeIDToken: true
+      }
     });
   });
 
