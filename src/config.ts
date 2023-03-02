@@ -342,6 +342,7 @@ export interface NextConfig extends Pick<BaseConfig, 'identityClaimFilter'> {
     login: string;
     unauthorized: string;
   };
+  session: Pick<SessionConfig, 'storeIDToken'>;
 }
 
 /**
@@ -565,7 +566,8 @@ export const getConfig = (params: ConfigParameters = {}): { baseConfig: BaseConf
       unauthorized: baseParams.routes?.unauthorized || '/api/auth/401'
     },
     identityClaimFilter: baseConfig.identityClaimFilter,
-    organization: organization || AUTH0_ORGANIZATION
+    organization: organization || AUTH0_ORGANIZATION,
+    session: { storeIDToken: baseConfig.session.storeIDToken }
   };
 
   return { baseConfig, nextConfig };
