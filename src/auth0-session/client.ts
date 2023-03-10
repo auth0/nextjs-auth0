@@ -113,8 +113,12 @@ export default function get(config: Config, { name, version }: Telemetry): Clien
     applyHttpOptionsCustom(client);
     client[custom.clock_tolerance] = config.clockTolerance;
 
-    if (config.idpLogout && !issuer.end_session_endpoint) {
-      if (config.auth0Logout || (url.parse(issuer.metadata.issuer).hostname as string).match('\\.auth0\\.com$')) {
+    if (config.idpLogout) {
+      if (
+        config.auth0Logout ||
+        ((url.parse(issuer.metadata.issuer).hostname as string).match('\\.auth0\\.com$') &&
+          config.auth0Logout !== false)
+      ) {
         Object.defineProperty(client, 'endSessionUrl', {
           value(params: EndSessionParameters) {
             const parsedUrl = url.parse(urlJoin(issuer.metadata.issuer, '/v2/logout'));
@@ -125,7 +129,7 @@ export default function get(config: Config, { name, version }: Telemetry): Clien
             return url.format(parsedUrl);
           }
         });
-      } else {
+      } else if (!issuer.end_session_endpoint) {
         debug('the issuer does not support RP-Initiated Logout');
       }
     }
