@@ -53,7 +53,7 @@ const paramsSchema = Joi.object({
   })
     .default()
     .unknown(false),
-  auth0Logout: Joi.boolean().optional().default(false),
+  auth0Logout: Joi.boolean().optional(),
   authorizationParams: Joi.object({
     response_type: Joi.string().optional().valid('id_token', 'code id_token', 'code').default('id_token'),
     scope: Joi.string()

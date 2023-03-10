@@ -64,12 +64,10 @@ describe('Config', () => {
     });
   });
 
-  it('auth0Logout and idpLogout should default to false', () => {
+  it('auth0Logout should default to undefined and idpLogout should default to false', () => {
     const config = getConfig(defaultConfig);
-    expect(config).toMatchObject({
-      auth0Logout: false,
-      idpLogout: false
-    });
+    expect(config.idpLogout).toBe(false);
+    expect(config.auth0Logout).toBeUndefined();
   });
 
   it('should not set auth0Logout to true when idpLogout is true', () => {
@@ -77,10 +75,8 @@ describe('Config', () => {
       ...defaultConfig,
       idpLogout: true
     });
-    expect(config).toMatchObject({
-      auth0Logout: false,
-      idpLogout: true
-    });
+    expect(config.idpLogout).toBe(true);
+    expect(config.auth0Logout).toBeUndefined();
   });
 
   it('should set default route paths', () => {
