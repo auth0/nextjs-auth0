@@ -16,7 +16,7 @@ jest.mock('../../src/utils/assert', () => ({
 describe('logout handler', () => {
   afterEach(teardown);
 
-  test('should redirect to the auth0', async () => {
+  test('should redirect to auth0', async () => {
     const baseUrl = await setup(withoutApi);
     const cookieJar = await login(baseUrl);
 
