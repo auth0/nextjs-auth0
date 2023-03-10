@@ -136,7 +136,7 @@ describe('clientFactory', function () {
     expect(client.endSessionUrl({})).toEqual('https://foo.auth0.com/v2/logout?client_id=__test_client_id__');
   });
 
-  it('should not use discovered logout endpoint if domain is auth0.com but configured with auth0logout false', async function () {
+  it('should use discovered logout endpoint if domain is auth0.com but configured with auth0logout false', async function () {
     nock('https://foo.auth0.com')
       .get('/.well-known/openid-configuration')
       .reply(200, {
