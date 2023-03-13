@@ -27,7 +27,7 @@ export interface BaseConfig {
    * Boolean value to enable Auth0's proprietary logout feature.
    * Since this SDK is for Auth0, it's set to `true`by default.
    */
-  auth0Logout: boolean;
+  auth0Logout?: boolean;
 
   /**
    *  URL parameters used when redirecting users to the authorization server to log in.

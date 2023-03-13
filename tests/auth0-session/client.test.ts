@@ -105,6 +105,66 @@ describe('clientFactory', function () {
     expect(client.id_token_signed_response_alg).toEqual('RS256');
   });
 
+  it('should use discovered logout endpoint by default', async function () {
+    const client = await getClient({ ...defaultConfig, idpLogout: true });
+    expect(client.endSessionUrl({})).toEqual('https://op.example.com/session/end?client_id=__test_client_id__');
+  });
+
+  it('should use auth0 logout endpoint if configured', async function () {
+    const client = await getClient({ ...defaultConfig, idpLogout: true, auth0Logout: true });
+    expect(client.endSessionUrl({})).toEqual('https://op.example.com/v2/logout?client_id=__test_client_id__');
+  });
+
+  it('should use auth0 logout endpoint if domain is auth0.com', async function () {
+    nock('https://foo.auth0.com')
+      .get('/.well-known/openid-configuration')
+      .reply(200, { ...wellKnown, issuer: 'https://foo.auth0.com/' });
+    const client = await getClient({ ...defaultConfig, idpLogout: true, issuerBaseURL: 'https://foo.auth0.com' });
+    expect(client.endSessionUrl({})).toEqual('https://foo.auth0.com/v2/logout?client_id=__test_client_id__');
+  });
+
+  it('should use auth0 logout endpoint if domain is auth0.com and configured', async function () {
+    nock('https://foo.auth0.com')
+      .get('/.well-known/openid-configuration')
+      .reply(200, { ...wellKnown, issuer: 'https://foo.auth0.com/' });
+    const client = await getClient({
+      ...defaultConfig,
+      issuerBaseURL: 'https://foo.auth0.com',
+      idpLogout: true,
+      auth0Logout: true
+    });
+    expect(client.endSessionUrl({})).toEqual('https://foo.auth0.com/v2/logout?client_id=__test_client_id__');
+  });
+
+  it('should use discovered logout endpoint if domain is auth0.com but configured with auth0logout false', async function () {
+    nock('https://foo.auth0.com')
+      .get('/.well-known/openid-configuration')
+      .reply(200, {
+        ...wellKnown,
+        issuer: 'https://foo.auth0.com/',
+        end_session_endpoint: 'https://foo.auth0.com/oidc/logout'
+      });
+    const client = await getClient({
+      ...defaultConfig,
+      issuerBaseURL: 'https://foo.auth0.com',
+      idpLogout: true,
+      auth0Logout: false
+    });
+    expect(client.endSessionUrl({})).toEqual('https://foo.auth0.com/oidc/logout?client_id=__test_client_id__');
+  });
+
+  it('should create client with no end_session_endpoint', async function () {
+    nock('https://op2.example.com')
+      .get('/.well-known/openid-configuration')
+      .reply(200, {
+        ...wellKnown,
+        issuer: 'https://op2.example.com',
+        end_session_endpoint: undefined
+      });
+    const client = await getClient({ ...defaultConfig, issuerBaseURL: 'https://op2.example.com' });
+    expect(() => client.endSessionUrl({})).toThrowError();
+  });
+
   it('should create custom logout for auth0', async function () {
     nock('https://test.eu.auth0.com')
       .get('/.well-known/openid-configuration')
