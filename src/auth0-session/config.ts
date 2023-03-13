@@ -21,7 +21,7 @@ export interface Config {
   /**
    * Boolean value to enable Auth0's logout feature.
    */
-  auth0Logout: boolean;
+  auth0Logout?: boolean;
 
   /**
    * URL parameters used when redirecting users to the authorization server to log in.
