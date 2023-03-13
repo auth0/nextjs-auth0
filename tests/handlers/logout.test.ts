@@ -16,7 +16,7 @@ jest.mock('../../src/utils/assert', () => ({
 describe('logout handler', () => {
   afterEach(teardown);
 
-  test('should redirect to the identity provider', async () => {
+  test('should redirect to auth0', async () => {
     const baseUrl = await setup(withoutApi);
     const cookieJar = await login(baseUrl);
 
@@ -59,10 +59,13 @@ describe('logout handler', () => {
     });
   });
 
-  test('should use end_session_endpoint if available', async () => {
-    const baseUrl = await setup(withoutApi, {
-      discoveryOptions: { end_session_endpoint: 'https://my-end-session-endpoint/logout' }
-    });
+  test('should use end_session_endpoint when configured', async () => {
+    const baseUrl = await setup(
+      { ...withoutApi, auth0Logout: false },
+      {
+        discoveryOptions: { end_session_endpoint: 'https://my-end-session-endpoint/logout' }
+      }
+    );
     const cookieJar = await login(baseUrl);
 
     const { status, headers } = await fetch(`${baseUrl}/api/auth/logout`, {
@@ -76,6 +79,25 @@ describe('logout handler', () => {
     expect(parseUrl(headers.get('location') as string)).toMatchObject({
       host: 'my-end-session-endpoint',
       pathname: '/logout'
+    });
+  });
+
+  test('should use auth0 logout by default even when end_session_endpoint is discovered', async () => {
+    const baseUrl = await setup(withoutApi, {
+      discoveryOptions: { end_session_endpoint: 'https://my-end-session-endpoint/logout' }
+    });
+    const cookieJar = await login(baseUrl);
+    const { status, headers } = await fetch(`${baseUrl}/api/auth/logout`, {
+      redirect: 'manual',
+      headers: {
+        cookie: cookieJar.getCookieStringSync(baseUrl)
+      }
+    });
+
+    expect(status).toBe(302);
+    expect(parseUrl(headers.get('location') as string)).toMatchObject({
+      host: 'acme.auth0.local',
+      pathname: '/v2/logout'
     });
   });
 
