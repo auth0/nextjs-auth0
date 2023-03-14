@@ -4,7 +4,8 @@ orbs:
 jobs:
   build:
     docker:
-      - image: circleci/node:lts-browsers
+      - image: cimg/node:lts-browsers
+    resource_class: xlarge
     steps:
       - checkout
       - restore_cache:

@@ -165,7 +165,6 @@ export const setup = async (
   let listener: any = null;
   const listen = (req: IncomingMessage, res: ServerResponse): Promise<void> | null => listener(req, res);
 
-  let server: HttpServer;
   if (https) {
     server = createHttpsServer(
       {
