@@ -291,6 +291,27 @@ describe('get access token', () => {
     expect(newAccessTokenScope).toBeUndefined();
   });
 
+  test('should retrieve a new access token and update the session based on the storeIDToken config', async () => {
+    await refreshTokenExchange(withApi, 'GEbRxBN...edjnXbL', {}, 'new-token');
+    const baseUrl = await setup(
+      { ...withApi, session: { storeIDToken: false } },
+      {
+        getAccessTokenOptions: {
+          refresh: true
+        }
+      }
+    );
+    const cookieJar = await login(baseUrl);
+    const session = await get(baseUrl, '/api/session', { cookieJar });
+    expect(session.idToken).toBeUndefined();
+    const { accessToken } = await get(baseUrl, '/api/access-token', { cookieJar });
+    expect(accessToken).toEqual('new-token');
+    const newSession = await get(baseUrl, '/api/session', {
+      cookieJar
+    });
+    expect(newSession.idToken).toBeUndefined();
+  });
+
   test('should pass custom auth params in refresh grant request body', async () => {
     const idToken = await makeIdToken({
       iss: `${withApi.issuerBaseURL}/`,

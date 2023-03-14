@@ -7,7 +7,7 @@ import { setup, teardown, login } from '../fixtures/setup';
 describe('logout handler', () => {
   afterEach(teardown);
 
-  test('should redirect to the identity provider', async () => {
+  test('should redirect to auth0', async () => {
     const baseUrl = await setup(withoutApi);
     const cookieJar = await login(baseUrl);
 
@@ -30,7 +30,7 @@ describe('logout handler', () => {
     });
   });
 
-  test('should pass logout params to the identity provider', async () => {
+  test('should pass logout params to auth0', async () => {
     const baseUrl = await setup(withoutApi, { logoutOptions: { logoutParams: { foo: 'bar' } } });
     const cookieJar = await login(baseUrl);
 
@@ -74,7 +74,30 @@ describe('logout handler', () => {
     });
   });
 
-  test('should use end_session_endpoint if available', async () => {
+  test('should use end_session_endpoint when configured', async () => {
+    const baseUrl = await setup(
+      { ...withoutApi, auth0Logout: false },
+      {
+        discoveryOptions: { end_session_endpoint: 'https://my-end-session-endpoint/logout' }
+      }
+    );
+    const cookieJar = await login(baseUrl);
+
+    const {
+      res: { statusCode, headers }
+    } = await get(baseUrl, '/api/auth/logout', {
+      cookieJar,
+      fullResponse: true
+    });
+
+    expect(statusCode).toBe(302);
+    expect(parseUrl(headers['location'])).toMatchObject({
+      host: 'my-end-session-endpoint',
+      pathname: '/logout'
+    });
+  });
+
+  test('should use auth0 logout by default even when end_session_endpoint is discovered', async () => {
     const baseUrl = await setup(withoutApi, {
       discoveryOptions: { end_session_endpoint: 'https://my-end-session-endpoint/logout' }
     });
@@ -89,8 +112,8 @@ describe('logout handler', () => {
 
     expect(statusCode).toBe(302);
     expect(parseUrl(headers['location'])).toMatchObject({
-      host: 'my-end-session-endpoint',
-      pathname: '/logout'
+      host: 'acme.auth0.local',
+      pathname: '/v2/logout'
     });
   });
 

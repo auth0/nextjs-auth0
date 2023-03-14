@@ -27,7 +27,7 @@ export interface BaseConfig {
    * Boolean value to enable Auth0's proprietary logout feature.
    * Since this SDK is for Auth0, it's set to `true`by default.
    */
-  auth0Logout: boolean;
+  auth0Logout?: boolean;
 
   /**
    *  URL parameters used when redirecting users to the authorization server to log in.
@@ -342,6 +342,7 @@ export interface NextConfig extends Pick<BaseConfig, 'identityClaimFilter'> {
     login: string;
     unauthorized: string;
   };
+  session: Pick<SessionConfig, 'storeIDToken'>;
 }
 
 /**
@@ -565,7 +566,8 @@ export const getConfig = (params: ConfigParameters = {}): { baseConfig: BaseConf
       unauthorized: baseParams.routes?.unauthorized || '/api/auth/401'
     },
     identityClaimFilter: baseConfig.identityClaimFilter,
-    organization: organization || AUTH0_ORGANIZATION
+    organization: organization || AUTH0_ORGANIZATION,
+    session: { storeIDToken: baseConfig.session.storeIDToken }
   };
 
   return { baseConfig, nextConfig };

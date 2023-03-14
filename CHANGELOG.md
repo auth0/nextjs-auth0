@@ -1,5 +1,17 @@
 # Change Log
 
+## [v2.2.3](https://github.com/auth0/nextjs-auth0/tree/v2.2.3) (2023-03-13)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.2.2...v2.2.3)
+
+**Fixed**
+- [SDK-3887] Always honor auth0Logout config [\#1104](https://github.com/auth0/nextjs-auth0/pull/1104) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
+## [v2.2.2](https://github.com/auth0/nextjs-auth0/tree/v2.2.2) (2023-03-02)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.2.1...v2.2.2)
+
+**Fixed**
+- Fix issue where storeIDToken config not used by getAccessToken [\#1091](https://github.com/auth0/nextjs-auth0/pull/1091) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [v2.2.1](https://github.com/auth0/nextjs-auth0/tree/v2.2.1) (2023-01-27)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.2.0...v2.2.1)
 

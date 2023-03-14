@@ -1,6 +1,6 @@
 {
   "name": "@auth0/nextjs-auth0",
-  "version": "2.2.1",
+  "version": "2.2.3",
   "description": "Next.js SDK for signing in with Auth0",
   "exports": {
     ".": "./dist/index.js",
