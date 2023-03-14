@@ -15,7 +15,8 @@ describe('session', () => {
       expect(
         fromTokenSet(new TokenSet({ id_token: await makeIdToken({ foo: 'bar', bax: 'qux' }) }), {
           identityClaimFilter: ['baz'],
-          routes
+          routes,
+          session: { storeIDToken: true }
         }).user
       ).toEqual({
         aud: '__test_client_id__',
@@ -34,7 +35,8 @@ describe('session', () => {
       expect(
         fromTokenSet(new TokenSet({ id_token: await makeIdToken({ foo: 'bar' }) }), {
           identityClaimFilter: ['baz'],
-          routes
+          routes,
+          session: { storeIDToken: true }
         }).idToken
       ).toBeDefined();
     });
