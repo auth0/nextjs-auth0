@@ -25,7 +25,9 @@ export interface BaseConfig {
 
   /**
    * Boolean value to enable Auth0's proprietary logout feature.
-   * Since this SDK is for Auth0, it's set to `true`by default.
+   * Since this SDK is for Auth0, it's set to `true` by default.
+   * Set it to `false` if you don't want to use https://auth0.com/docs/api/authentication#logout.
+   * You can also use the `AUTH0_LOGOUT` environment variable.
    */
   auth0Logout?: boolean;
 
@@ -480,6 +482,7 @@ export const getConfig = (params: ConfigParameters = {}): { baseConfig: BaseConf
   const AUTH0_HTTP_TIMEOUT = process.env.AUTH0_HTTP_TIMEOUT;
   const AUTH0_ENABLE_TELEMETRY = process.env.AUTH0_ENABLE_TELEMETRY;
   const AUTH0_IDP_LOGOUT = process.env.AUTH0_IDP_LOGOUT;
+  const AUTH0_LOGOUT = process.env.AUTH0_LOGOUT;
   const AUTH0_ID_TOKEN_SIGNING_ALG = process.env.AUTH0_ID_TOKEN_SIGNING_ALG;
   const AUTH0_LEGACY_SAME_SITE_COOKIE = process.env.AUTH0_LEGACY_SAME_SITE_COOKIE;
   const AUTH0_IDENTITY_CLAIM_FILTER = process.env.AUTH0_IDENTITY_CLAIM_FILTER;
@@ -517,7 +520,7 @@ export const getConfig = (params: ConfigParameters = {}): { baseConfig: BaseConf
     httpTimeout: num(AUTH0_HTTP_TIMEOUT),
     enableTelemetry: bool(AUTH0_ENABLE_TELEMETRY),
     idpLogout: bool(AUTH0_IDP_LOGOUT, true),
-    auth0Logout: bool(AUTH0_IDP_LOGOUT, true),
+    auth0Logout: bool(AUTH0_LOGOUT, true),
     idTokenSigningAlg: AUTH0_ID_TOKEN_SIGNING_ALG,
     legacySameSiteCookie: bool(AUTH0_LEGACY_SAME_SITE_COOKIE),
     identityClaimFilter: array(AUTH0_IDENTITY_CLAIM_FILTER),
