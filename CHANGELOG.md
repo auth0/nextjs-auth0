@@ -1,5 +1,11 @@
 # Change Log
 
+## [v2.3.0](https://github.com/auth0/nextjs-auth0/tree/v2.3.0) (2023-03-16)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.2.3...v2.3.0)
+
+**Added**
+- Add AUTH0_LOGOUT env var [\#1113](https://github.com/auth0/nextjs-auth0/pull/1113) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [v2.2.3](https://github.com/auth0/nextjs-auth0/tree/v2.2.3) (2023-03-13)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.2.2...v2.2.3)
 
