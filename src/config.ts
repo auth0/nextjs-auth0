@@ -26,7 +26,7 @@ export interface BaseConfig {
   /**
    * Boolean value to enable Auth0's proprietary logout feature.
    * Since this SDK is for Auth0, it's set to `true` by default.
-   * Set it to `false` if you don't want to use https://auth0.com/docs/api/authentication#logout
+   * Set it to `false` if you don't want to use https://auth0.com/docs/api/authentication#logout.
    * You can also use the `AUTH0_LOGOUT` environment variable.
    */
   auth0Logout?: boolean;
