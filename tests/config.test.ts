@@ -110,6 +110,7 @@ describe('config params', () => {
         AUTH0_ENABLE_TELEMETRY: 'off',
         AUTH0_LEGACY_SAME_SITE_COOKIE: '0',
         AUTH0_IDP_LOGOUT: 'no',
+        AUTH0_LOGOUT: 'false',
         AUTH0_COOKIE_TRANSIENT: true,
         AUTH0_COOKIE_HTTP_ONLY: 'on',
         AUTH0_COOKIE_SAME_SITE: 'lax',
