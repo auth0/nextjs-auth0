@@ -76,6 +76,17 @@ describe('StatefulSession', () => {
     await store.set('foo', await getPayload());
     const baseURL = await setup(config);
     const cookieJar = await toSignedCookieJar({ appSession: 'foo' }, baseURL);
+    const [cookie] = await cookieJar.getCookies(baseURL);
+    const expires = cookie.expires;
+    await get(baseURL, '/session', { cookieJar });
+    const [updatedCookie] = await cookieJar.getCookies(baseURL);
+    expect(updatedCookie.expires > expires);
+  });
+
+  it('should update the cookie expiry when setting an existing session', async () => {
+    await store.set('foo', await getPayload());
+    const baseURL = await setup(config);
+    const cookieJar = await toSignedCookieJar({ appSession: 'foo' }, baseURL);
     const session = await get(baseURL, '/session', { cookieJar });
     expect(session).toMatchObject({
       id_token: expect.any(String),

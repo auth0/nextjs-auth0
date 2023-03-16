@@ -87,11 +87,11 @@ export class StatefulSession<
     if (!sessionId) {
       sessionId = await genId!(req);
       debug('generated new session id %o', sessionId);
-      const cookieValue = await generateCookieValue(sessionName, sessionId, keys[0]);
-      cookieSetter.set(sessionName, cookieValue, cookieOptions);
-      cookieSetter.commit(res);
     }
     debug('set session %o', sessionId);
+    const cookieValue = await generateCookieValue(sessionName, sessionId, keys[0]);
+    cookieSetter.set(sessionName, cookieValue, cookieOptions);
+    cookieSetter.commit(res);
     await this.store.set(sessionId, {
       header: { iat, uat, exp },
       data: session
