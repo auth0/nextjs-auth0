@@ -22,7 +22,7 @@ export default class SessionCache<
       const [json, iat] = await this.sessionStore.read(req);
       this.iatCache.set(req, iat);
       this.cache.set(req, fromJson(json));
-      if (this.config.session.rolling && autoSave) {
+      if (this.config.session.rolling && this.config.session.autoSave && autoSave) {
         await this.save(req, res);
       }
     }
