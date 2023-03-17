@@ -32,4 +32,14 @@ describe('touch-session', () => {
     const [updatedAuthCookie] = await cookieJar.getCookies(baseUrl);
     expect(updatedAuthCookie).not.toEqual(authCookie);
   });
+
+  test('should not throw when there is no session', async () => {
+    const baseUrl = await setup({
+      ...withoutApi,
+      session: {
+        autoSave: false
+      }
+    });
+    await expect(get(baseUrl, '/api/touch-session')).resolves.not.toThrow();
+  });
 });
