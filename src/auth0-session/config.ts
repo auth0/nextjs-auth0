@@ -236,6 +236,13 @@ export interface SessionConfig {
   absoluteDuration: boolean | number;
 
   /**
+   * Boolean value to enable automatic session saving when using rolling sessions.
+   * If this is `false`, you must call `touchSession(req, res)` to update the session.
+   * Defaults to `true`.
+   */
+  autoSave?: boolean;
+
+  /**
    * Boolean value to store the ID token in the session. Storing it can make the session cookie too
    * large.
    * Defaults to `true`.
