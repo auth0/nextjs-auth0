@@ -1,5 +1,11 @@
 # Change Log
 
+## [v2.3.1](https://github.com/auth0/nextjs-auth0/tree/v2.3.1) (2023-03-17)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.3.0...v2.3.1)
+
+**Fixed**
+- Update stateful session cookie expiry on set [\#1115](https://github.com/auth0/nextjs-auth0/pull/1115) ([aovens-quantifi](https://github.com/aovens-quantifi))
+
 ## [v2.3.0](https://github.com/auth0/nextjs-auth0/tree/v2.3.0) (2023-03-16)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.2.3...v2.3.0)
 
