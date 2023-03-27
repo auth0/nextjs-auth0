@@ -28,6 +28,7 @@ const paramsSchema = Joi.object({
     })
       .optional()
       .default(7 * 24 * 60 * 60), // 7 days,
+    autoSave: Joi.boolean().optional().default(true),
     name: Joi.string().token().optional().default('appSession'),
     store: Joi.object().optional(),
     genId: Joi.function().maxArity(1).when(Joi.ref('store'), { then: Joi.required() }),
