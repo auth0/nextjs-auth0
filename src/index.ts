@@ -42,6 +42,8 @@ import {
   AccessTokenRequest,
   GetAccessTokenResult,
   Claims,
+  touchSessionFactory,
+  TouchSession,
   updateSessionFactory,
   UpdateSession
 } from './session/';
@@ -74,6 +76,11 @@ export interface Auth0Server {
    * Session getter.
    */
   getSession: GetSession;
+
+  /**
+   * Update the expiry of a rolling session when autoSave is disabled.
+   */
+  touchSession: TouchSession;
 
   /**
    * Append properties to the user.
@@ -174,6 +181,7 @@ export const _initAuth = (params?: ConfigParameters): Auth0Server & { sessionCac
 
   // Init Next layer (with next config)
   const getSession = sessionFactory(sessionCache);
+  const touchSession = touchSessionFactory(sessionCache);
   const updateSession = updateSessionFactory(sessionCache);
   const getAccessToken = accessTokenFactory(nextConfig, getClient, sessionCache);
   const withApiAuthRequired = withApiAuthRequiredFactory(sessionCache);
@@ -187,6 +195,7 @@ export const _initAuth = (params?: ConfigParameters): Auth0Server & { sessionCac
   return {
     sessionCache,
     getSession,
+    touchSession,
     updateSession,
     getAccessToken,
     withApiAuthRequired,
@@ -250,6 +259,7 @@ export {
   WithPageAuthRequired,
   SessionCache,
   GetSession,
+  TouchSession,
   UpdateSession,
   GetAccessToken,
   Session,
