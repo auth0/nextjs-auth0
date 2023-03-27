@@ -50,6 +50,7 @@ describe('config params', () => {
         rolling: true,
         rollingDuration: 86400,
         absoluteDuration: 604800,
+        autoSave: true,
         storeIDToken: true,
         cookie: {
           domain: undefined,

@@ -249,6 +249,14 @@ export interface SessionConfig {
   absoluteDuration: boolean | number;
 
   /**
+   * Boolean value to enable automatic session saving when using rolling sessions.
+   * If this is `false`, you must call `touchSession(req, res)` to update the session.
+   * Defaults to `true`.
+   * You can also use the `AUTH0_SESSION_AUTO_SAVE` environment variable.
+   */
+  autoSave?: boolean;
+
+  /**
    * Boolean value to store the ID token in the session. Storing it can make the session cookie too
    * large.
    * Defaults to `true`.
@@ -395,6 +403,7 @@ export interface NextConfig extends Pick<BaseConfig, 'identityClaimFilter'> {
  * - `AUTH0_SESSION_ROLLING`: See {@link SessionConfig.rolling}.
  * - `AUTH0_SESSION_ROLLING_DURATION`: See {@link SessionConfig.rollingDuration}.
  * - `AUTH0_SESSION_ABSOLUTE_DURATION`: See {@link SessionConfig.absoluteDuration}.
+ * - `AUTH0_SESSION_AUTO_SAVE`: See {@link SessionConfig.autoSave}.
  * - `AUTH0_COOKIE_DOMAIN`: See {@link CookieConfig.domain}.
  * - `AUTH0_COOKIE_PATH`: See {@link CookieConfig.path}.
  * - `AUTH0_COOKIE_TRANSIENT`: See {@link CookieConfig.transient}.
@@ -495,6 +504,7 @@ export const getConfig = (params: ConfigParameters = {}): { baseConfig: BaseConf
   const AUTH0_SESSION_ROLLING = process.env.AUTH0_SESSION_ROLLING;
   const AUTH0_SESSION_ROLLING_DURATION = process.env.AUTH0_SESSION_ROLLING_DURATION;
   const AUTH0_SESSION_ABSOLUTE_DURATION = process.env.AUTH0_SESSION_ABSOLUTE_DURATION;
+  const AUTH0_SESSION_AUTO_SAVE = process.env.AUTH0_SESSION_AUTO_SAVE;
   const AUTH0_SESSION_STORE_ID_TOKEN = process.env.AUTH0_SESSION_STORE_ID_TOKEN;
   const AUTH0_COOKIE_DOMAIN = process.env.AUTH0_COOKIE_DOMAIN;
   const AUTH0_COOKIE_PATH = process.env.AUTH0_COOKIE_PATH;
@@ -542,6 +552,7 @@ export const getConfig = (params: ConfigParameters = {}): { baseConfig: BaseConf
         AUTH0_SESSION_ABSOLUTE_DURATION && isNaN(Number(AUTH0_SESSION_ABSOLUTE_DURATION))
           ? bool(AUTH0_SESSION_ABSOLUTE_DURATION)
           : num(AUTH0_SESSION_ABSOLUTE_DURATION),
+      autoSave: bool(AUTH0_SESSION_AUTO_SAVE, true),
       storeIDToken: bool(AUTH0_SESSION_STORE_ID_TOKEN),
       ...baseParams.session,
       cookie: {
