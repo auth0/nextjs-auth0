@@ -1,5 +1,11 @@
 # Change Log
 
+## [v2.4.0](https://github.com/auth0/nextjs-auth0/tree/v2.4.0) (2023-03-27)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.3.1...v2.4.0)
+
+**Added**
+- Add `autoSave`/`touchSession` for rolling session expiry management [\#1116](https://github.com/auth0/nextjs-auth0/pull/1116) ([aovens-quantifi](https://github.com/aovens-quantifi))
+
 ## [v2.3.1](https://github.com/auth0/nextjs-auth0/tree/v2.3.1) (2023-03-17)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.3.0...v2.3.1)
 
