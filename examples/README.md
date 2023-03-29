@@ -97,23 +97,18 @@ Configure the following environment variables when importing your project or in 
 For preview deployments you will either want to assign this to:
 
 - **Automatic Deployment URL:** For example `project-d418mhwf5-team.vercel.app` which is defined by the `VERCEL_URL` environment variable.
-- **Automatic Branch URL:** For example `project-git-update-team.vercel.app` which can be constructed using `${process.env.VERCEL_GIT_REPO_SLUG}-git-${process.env.VERCEL_GIT_COMMIT_REF}-${process.env.VERCEL_GIT_REPO_OWNER}.vercel.app`
+- **Automatic Branch URL:** For example `project-git-update-team.vercel.app` which can be constructed using `$process.env.VERCEL_GIT_REPO_SLUG-git-$process.env.VERCEL_GIT_COMMIT_REF-$process.env.VERCEL_GIT_REPO_OWNER.vercel.app`
 
 See here for more information about Vercel's Automatic Urls: https://vercel.com/docs/concepts/deployments/automatic-urls
 
-To do this, make sure **Automatically expose System Environment Variables** is checked in **Settings > Environment Variables** and assign either the Automatic Deployment URL or the Automatic Branch URL to `AUTH0_BASE_URL` in your `next.config.js` file. For example:
+To do this, make sure **Automatically expose System Environment Variables** is checked in **Settings > Environment Variables** and assign either the Automatic Deployment URL or the Automatic Branch URL to `AUTH0_BASE_URL` in your `Preview` environment:
 
-```js
-// next.config.js
-module.exports = {
-  env: {
-    AUTH0_BASE_URL: `${process.env.VERCEL_GIT_REPO_SLUG}-git-${process.env.VERCEL_GIT_COMMIT_REF}-${process.env.VERCEL_GIT_REPO_OWNER}.vercel.app`
-  }
-};
-```
-
-See how we define `next.config.js` in the [kitchen-sink example app](./kitchen-sink-example/next.config.js).
+![Preview](preview.png)
 
 ###### Production deployments (or other environments with fixed urls)
 
-For production deployments or [custom domains assigned to a git branch](https://vercel.com/docs/custom-domains#assigning-a-domain-to-a-git-branch) you should assign the correct url to the `AUTH0_BASE_URL` environment variable in "Settings > Environment Variables". See the [Vercel docs on Environment Variables](https://vercel.com/docs/environment-variables#preview-environment-variables) for more information. This will override your `.env.production` file.
+For production deployments you should assign the correct url to the `AUTH0_BASE_URL` environment variable in your `Production` environment:
+
+![Production](production.png)
+
+See the [Vercel docs on Environment Variables](https://vercel.com/docs/environment-variables#preview-environment-variables) for more information.
