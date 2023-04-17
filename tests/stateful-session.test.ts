@@ -98,4 +98,15 @@ describe('next stateful session', () => {
     expect(Object.keys(store)).toHaveLength(1);
     expect(cookieJar.getCookieStringSync(baseUrl)).toMatch(/^appSession=foo\..+/);
   });
+
+  it('should provide current user session to custom session id generator', async () => {
+    const genId = jest.fn().mockImplementation((_req, session) => session.user.nickname);
+    const baseURL = await setup({ ...config, session: { ...config.session, genId } });
+    const cookieJar = await login(baseURL);
+    const genIdParams = genId.mock.calls.at(0);
+    expect(genIdParams.length).toEqual(2);
+    expect('idToken' in genIdParams.at(1)).toBeTruthy();
+    expect('user' in genIdParams.at(1)).toBeTruthy();
+    expect(cookieJar.getCookieStringSync(baseURL)).toMatch(/^appSession=__test_nickname__\..+/);
+  });
 });
