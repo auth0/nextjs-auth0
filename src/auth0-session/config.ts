@@ -208,7 +208,10 @@ export interface SessionConfig {
    *
    * **IMPORTANT** You must use a suitably unique value to prevent collisions.
    */
-  genId?: <Req = any>(req: Req) => string | Promise<string>;
+  genId?: <Req = any, SessionType extends { [key: string]: any } = { [key: string]: any }>(
+    req: Req,
+    session: SessionType
+  ) => string | Promise<string>;
 
   /**
    * If you want your session duration to be rolling, resetting everytime the

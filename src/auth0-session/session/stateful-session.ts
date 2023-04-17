@@ -85,7 +85,7 @@ export class StatefulSession<
     }
 
     if (!sessionId) {
-      sessionId = await genId!(req);
+      sessionId = await genId!(req, session);
       debug('generated new session id %o', sessionId);
     }
     debug('set session %o', sessionId);

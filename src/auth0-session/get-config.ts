@@ -31,7 +31,7 @@ const paramsSchema = Joi.object({
     autoSave: Joi.boolean().optional().default(true),
     name: Joi.string().token().optional().default('appSession'),
     store: Joi.object().optional(),
-    genId: Joi.function().maxArity(1).when(Joi.ref('store'), { then: Joi.required() }),
+    genId: Joi.function().maxArity(2).when(Joi.ref('store'), { then: Joi.required() }),
     storeIDToken: Joi.boolean().optional().default(true),
     cookie: Joi.object({
       domain: Joi.string().optional(),
