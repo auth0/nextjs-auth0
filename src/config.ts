@@ -218,7 +218,10 @@ export interface SessionConfig {
    * **IMPORTANT** If you override this, you must use a suitable value from your platform to
    * prevent collisions. For example, for Node: `require('crypto').randomBytes(16).toString('hex')`.
    */
-  genId?: <Req = any>(req: Req) => string | Promise<string>;
+  genId?: <Req = any, SessionType extends { [key: string]: any } = { [key: string]: any }>(
+    req: Req,
+    session: SessionType
+  ) => string | Promise<string>;
 
   /**
    * If you want your session duration to be rolling, resetting everytime the
