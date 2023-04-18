@@ -1,5 +1,11 @@
 # Change Log
 
+## [v2.5.0](https://github.com/auth0/nextjs-auth0/tree/v2.5.0) (2023-04-18)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.4.0...v2.5.0)
+
+**Added**
+- feat: add optional session param to genId function [\#1158](https://github.com/auth0/nextjs-auth0/pull/1158) ([PSoltes](https://github.com/PSoltes))
+
 ## [v2.4.0](https://github.com/auth0/nextjs-auth0/tree/v2.4.0) (2023-03-27)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.3.1...v2.4.0)
 
