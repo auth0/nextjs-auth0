@@ -56,7 +56,7 @@ body:
   - type: input
     id: environment-version
     attributes:
-      label: SDK version
+      label: nextjs-auth0 version
     validations:
       required: true
 
