@@ -12,17 +12,15 @@ body:
     attributes:
       label: Checklist
       options:
-        - label: The issue can be reproduced in the [sample app](https://github.com/auth0-samples/auth0-nextjs-samples/tree/main/Sample-01) (or N/A).
+        - label: The issue can be reproduced in the [nextjs-auth0 sample app](https://github.com/auth0-samples/auth0-nextjs-samples/tree/main/Sample-01) (or N/A).
           required: true
-        - label: I have looked into the [README](https://github.com/auth0/nextjs-auth0#readme) and have not found a suitable solution or answer.
-          required: true
-        - label: I have looked into the [examples](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md) and have not found a suitable solution or answer.
+        - label: I have looked into the [Readme](https://github.com/auth0/nextjs-auth0#readme), [Examples](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md), and [FAQ](https://github.com/auth0/nextjs-auth0/blob/main/FAQ.md) and have not found a suitable solution or answer.
           required: true
         - label: I have looked into the [API documentation](https://auth0.github.io/nextjs-auth0/) and have not found a suitable solution or answer.
           required: true
         - label: I have searched the [issues](https://github.com/auth0/nextjs-auth0/issues) and have not found a suitable solution or answer.
           required: true
-        - label: I have searched the [Auth0 Community](https://community.auth0.com/c/sdks/5) forums and have not found a suitable solution or answer.
+        - label: I have searched the [Auth0 Community](https://community.auth0.com) forums and have not found a suitable solution or answer.
           required: true
         - label: I agree to the terms within the [Auth0 Code of Conduct](https://github.com/auth0/open-source-template/blob/master/CODE-OF-CONDUCT.md).
           required: true
@@ -47,10 +45,18 @@ body:
     validations:
       required: true
 
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Other libraries that might be involved, or any other relevant information you think would be useful.
+    validations:
+      required: false
+
   - type: input
     id: environment-version
     attributes:
-      label: SDK version
+      label: nextjs-auth0 version
     validations:
       required: true
 

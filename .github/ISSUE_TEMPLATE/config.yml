@@ -1,7 +1,7 @@
 blank_issues_enabled: false
 contact_links:
   - name: 🤔 Help & Questions
-    url: https://community.auth0.com/c/sdks/5
+    url: https://community.auth0.com
     about: Ask general support or usage questions in the Auth0 Community forums
   - name: 📑 FAQ
     url: https://github.com/auth0/nextjs-auth0/blob/main/FAQ.md
