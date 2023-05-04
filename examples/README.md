@@ -40,7 +40,7 @@ This can be done manually, by going to the Application Settings on your [Auth0 d
 
 | Setting               | Description                                                                                                |
 | --------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Allowed Callback URLs | Should be set to `https://{YOUR_VERCEL_URL_PREFIX}.vercel.app/api/auth/callback` when deploying to vercel. |
+| Allowed Callback URLs | Should be set to `https://{YOUR_VERCEL_URL_PREFIX}.vercel.app/api/auth/callback/auth0` when deploying to vercel. |
 | Allowed Logout URLs   | Should be set to `https://{YOUR_VERCEL_URL_PREFIX}.vercel.app/` when deploying to vercel.                  |
 
 ##### Wildcards
