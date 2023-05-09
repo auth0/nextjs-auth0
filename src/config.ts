@@ -66,6 +66,8 @@ export interface BaseConfig {
    * You can also use the `AUTH0_BASE_URL` environment variable.
    * If you provide a domain, we will prefix it with `https://`. This can be useful when assigning it to
    * `VERCEL_URL` for Vercel deploys.
+   *
+   * `NEXT_PUBLIC_AUTH0_BASE_URL` will also be checked if `AUTH0_BASE_URL` is not defined.
    */
   baseURL: string;
 
@@ -487,7 +489,7 @@ export const getConfig = (params: ConfigParameters = {}): { baseConfig: BaseConf
   // Don't use destructuring here so that the `DefinePlugin` can replace any env vars specified in `next.config.js`
   const AUTH0_SECRET = process.env.AUTH0_SECRET;
   const AUTH0_ISSUER_BASE_URL = process.env.AUTH0_ISSUER_BASE_URL;
-  const AUTH0_BASE_URL = process.env.AUTH0_BASE_URL;
+  const AUTH0_BASE_URL = process.env.AUTH0_BASE_URL || process.env.NEXT_PUBLIC_AUTH0_BASE_URL;
   const AUTH0_CLIENT_ID = process.env.AUTH0_CLIENT_ID;
   const AUTH0_CLIENT_SECRET = process.env.AUTH0_CLIENT_SECRET;
   const AUTH0_CLOCK_TOLERANCE = process.env.AUTH0_CLOCK_TOLERANCE;

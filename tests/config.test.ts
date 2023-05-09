@@ -1,16 +1,20 @@
 import { BaseConfig, NextConfig, getConfig } from '../src/config';
 
-const getConfigWithEnv = (env: any = {}, opts?: any): { baseConfig: BaseConfig; nextConfig: NextConfig } => {
+const getConfigWithEnv = (
+  env: any = {},
+  opts?: any,
+  defaultEnv = {
+    AUTH0_SECRET: '__long_super_secret_secret__',
+    AUTH0_ISSUER_BASE_URL: 'https://example.auth0.com',
+    AUTH0_BASE_URL: 'https://example.com',
+    AUTH0_CLIENT_ID: '__test_client_id__',
+    AUTH0_CLIENT_SECRET: '__test_client_secret__'
+  }
+): { baseConfig: BaseConfig; nextConfig: NextConfig } => {
   const bkp = process.env;
   process.env = {
     ...process.env,
-    ...{
-      AUTH0_SECRET: '__long_super_secret_secret__',
-      AUTH0_ISSUER_BASE_URL: 'https://example.auth0.com',
-      AUTH0_BASE_URL: 'https://example.com',
-      AUTH0_CLIENT_ID: '__test_client_id__',
-      AUTH0_CLIENT_SECRET: '__test_client_secret__'
-    },
+    ...defaultEnv,
     ...env
   };
   try {
@@ -229,6 +233,37 @@ describe('config params', () => {
     expect(
       getConfigWithEnv({
         AUTH0_BASE_URL: 'foo.auth0.com'
+      }).baseConfig
+    ).toMatchObject({
+      baseURL: 'https://foo.auth0.com'
+    });
+  });
+
+  test('should fallback to NEXT_PUBLIC_ prefixed base URL', () => {
+    expect(
+      getConfigWithEnv(
+        {
+          NEXT_PUBLIC_AUTH0_BASE_URL: 'public-foo.auth0.com'
+        },
+        undefined,
+        {
+          AUTH0_SECRET: '__long_super_secret_secret__',
+          AUTH0_ISSUER_BASE_URL: 'https://example.auth0.com',
+          AUTH0_BASE_URL: '',
+          AUTH0_CLIENT_ID: '__test_client_id__',
+          AUTH0_CLIENT_SECRET: '__test_client_secret__'
+        }
+      ).baseConfig
+    ).toMatchObject({
+      baseURL: 'https://public-foo.auth0.com'
+    });
+  });
+
+  test('should prefer AUTH0_BASE_URL without the prefix', () => {
+    expect(
+      getConfigWithEnv({
+        AUTH0_BASE_URL: 'foo.auth0.com',
+        NEXT_PUBLIC_AUTH0_BASE_URL: 'bar.auth0.com'
       }).baseConfig
     ).toMatchObject({
       baseURL: 'https://foo.auth0.com'
