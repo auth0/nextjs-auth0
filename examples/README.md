@@ -96,17 +96,21 @@ Configure the following environment variables when importing your project or in 
 
 For preview deployments you will either want to assign this to:
 
-- **Automatic Deployment URL:** For example `project-d418mhwf5-team.vercel.app` which is defined by the `VERCEL_URL` environment variable.
-- **Automatic Branch URL:** For example `project-git-update-team.vercel.app` which can be constructed using `${VERCEL_GIT_REPO_SLUG}-git-${VERCEL_GIT_COMMIT_REF}-${VERCEL_GIT_REPO_OWNER}.vercel.app`
+- **Automatic Deployment URL:** For example `project-d418mhwf5-team.vercel.app` which is the `VERCEL_URL` environment variable.
+- **Automatic Branch URL:** For example `project-git-update-team.vercel.app` which is the `VERCEL_BRANCH_URL` environment variable.
 
 See here for more information about Vercel's Automatic Urls: https://vercel.com/docs/concepts/deployments/automatic-urls
 
-To do this, make sure **Automatically expose System Environment Variables** is checked in **Settings > Environment Variables** and assign either the Automatic Deployment URL or the Automatic Branch URL to `AUTH0_BASE_URL` in your `.env.production` file. For example:
+To do this, make sure **Automatically expose System Environment Variables** is checked in **Settings > Environment Variables** and assign either the Automatic Deployment URL (`VERCEL_URL`) or the Automatic Branch URL (`VERCEL_BRANCH_URL`) to `NEXT_PUBLIC_AUTH0_BASE_URL` in your `.env.production` file. For example:
 
 ```shell
 # .env.production
-AUTH0_BASE_URL=$VERCEL_URL
+NEXT_PUBLIC_AUTH0_BASE_URL=$VERCEL_URL
 ```
+
+> <strong>Note:</strong> The `NEXT_PUBLIC_` prefix is used so you can specify the base URL in your middleware. You must be on version `2.6.0` or later of this SDK to use `NEXT_PUBLIC_AUTH0_BASE_URL`.
+
+> <strong>Note:</strong> Long URLs (> 63 characters) will get truncated by Vercel. See: https://vercel.com/docs/concepts/deployments/generated-urls#truncation
 
 Unlike other `.env` files, You will need to check in `.env.production` so it should **not** contain any secrets. See how we define `.env.production` in the [kitchen-sink example app](./kitchen-sink-example/.env.production).
 
