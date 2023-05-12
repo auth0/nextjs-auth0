@@ -27,7 +27,7 @@
 <div class="tsd-comment tsd-typography"><p>Wrap an API route to check that the user has a valid session. If they&#39;re not logged in the
 handler will return a 401 Unauthorized.</p>
 <pre><code class="language-js"><span class="hl-0">// pages/api/protected-route.js</span><br/><span class="hl-1">import</span><span class="hl-2"> { </span><span class="hl-3">withApiAuthRequired</span><span class="hl-2">, </span><span class="hl-3">getSession</span><span class="hl-2"> } </span><span class="hl-1">from</span><span class="hl-2"> </span><span class="hl-4">&#39;@auth0/nextjs-auth0&#39;</span><span class="hl-2">;</span><br/><br/><span class="hl-1">export</span><span class="hl-2"> </span><span class="hl-1">default</span><span class="hl-2"> </span><span class="hl-6">withApiAuthRequired</span><span class="hl-2">(</span><span class="hl-5">function</span><span class="hl-2"> </span><span class="hl-6">ProtectedRoute</span><span class="hl-2">(</span><span class="hl-3">req</span><span class="hl-2">, </span><span class="hl-3">res</span><span class="hl-2">) {</span><br/><span class="hl-2">  </span><span class="hl-5">const</span><span class="hl-2"> </span><span class="hl-7">session</span><span class="hl-2"> = </span><span class="hl-6">getSession</span><span class="hl-2">(</span><span class="hl-3">req</span><span class="hl-2">, </span><span class="hl-3">res</span><span class="hl-2">);</span><br/><span class="hl-2">  ...</span><br/><span class="hl-2">});</span>
-</code></pre>
+</code><button>Copy</button></pre>
 <p>If you visit <code>/api/protected-route</code> without a valid session cookie, you will get a 401 response.</p>
 </div>
 <div class="tsd-parameters">
@@ -37,7 +37,7 @@ handler will return a 401 Unauthorized.</p>
 <h5><span class="tsd-kind-parameter">apiRoute</span>: <span class="tsd-signature-type ">NextApiHandler</span></h5></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type ">NextApiHandler</span></h4></li></ul></li></ul></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/8112efe/src/helpers/with-api-auth-required.ts#L23">helpers/with-api-auth-required.ts:23</a></li></ul></aside></div>
+<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5989b32/src/helpers/with-api-auth-required.ts#L23">helpers/with-api-auth-required.ts:23</a></li></ul></aside></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">

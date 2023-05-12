@@ -20,15 +20,15 @@
 <div class="tsd-comment tsd-typography"><p>If you wrap your <code>getServerSideProps</code> with <a href="helpers_with_page_auth_required.WithPageAuthRequired.html" class="tsd-kind-type-alias">WithPageAuthRequired</a> your props object will be augmented with
 the user property, which will be the user&#39;s <a href="../interfaces/session_session.Claims.html" class="tsd-kind-interface">Claims</a>.</p>
 <pre><code class="language-js"><span class="hl-0">// pages/profile.js</span><br/><span class="hl-1">import</span><span class="hl-2"> { </span><span class="hl-3">withPageAuthRequired</span><span class="hl-2"> } </span><span class="hl-1">from</span><span class="hl-2"> </span><span class="hl-4">&#39;@auth0/nextjs-auth0&#39;</span><span class="hl-2">;</span><br/><br/><span class="hl-1">export</span><span class="hl-2"> </span><span class="hl-1">default</span><span class="hl-2"> </span><span class="hl-5">function</span><span class="hl-2"> </span><span class="hl-6">Profile</span><span class="hl-2">({ </span><span class="hl-3">user</span><span class="hl-2"> }) {</span><br/><span class="hl-2">  </span><span class="hl-1">return</span><span class="hl-2"> </span><span class="hl-8">&lt;</span><span class="hl-11">div</span><span class="hl-8">&gt;</span><span class="hl-2">Hello </span><span class="hl-5">{</span><span class="hl-3">user</span><span class="hl-12">.</span><span class="hl-3">name</span><span class="hl-5">}</span><span class="hl-8">&lt;/</span><span class="hl-11">div</span><span class="hl-8">&gt;</span><span class="hl-2">;</span><br/><span class="hl-2">}</span><br/><br/><span class="hl-1">export</span><span class="hl-2"> </span><span class="hl-5">const</span><span class="hl-2"> </span><span class="hl-7">getServerSideProps</span><span class="hl-2"> = </span><span class="hl-6">withPageAuthRequired</span><span class="hl-2">();</span>
-</code></pre>
+</code><button>Copy</button></pre>
 </div>
-<section class="tsd-panel tsd-type-parameters">
+<section class="tsd-panel">
 <h4>Type Parameters</h4>
-<ul class="tsd-type-parameters">
+<ul class="tsd-type-parameter-list">
 <li>
 <h4><span class="tsd-kind-type-parameter">P</span> = <span class="tsd-signature-type">any</span></h4></li></ul></section><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/8112efe/src/helpers/with-page-auth-required.ts#L23">helpers/with-page-auth-required.ts:23</a></li></ul></aside></div>
+<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5989b32/src/helpers/with-page-auth-required.ts#L23">helpers/with-page-auth-required.ts:23</a></li></ul></aside></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
