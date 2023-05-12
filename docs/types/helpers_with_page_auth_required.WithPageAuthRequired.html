@@ -27,13 +27,13 @@
 <div class="tsd-comment tsd-typography"><p>Wrap your <code>getServerSideProps</code> with this method to make sure the user is authenticated before
 visiting the page.</p>
 <pre><code class="language-js"><span class="hl-0">// pages/protected-page.js</span><br/><span class="hl-1">import</span><span class="hl-2"> { </span><span class="hl-3">withPageAuthRequired</span><span class="hl-2"> } </span><span class="hl-1">from</span><span class="hl-2"> </span><span class="hl-4">&#39;@auth0/nextjs-auth0&#39;</span><span class="hl-2">;</span><br/><br/><span class="hl-1">export</span><span class="hl-2"> </span><span class="hl-1">default</span><span class="hl-2"> </span><span class="hl-5">function</span><span class="hl-2"> </span><span class="hl-6">ProtectedPage</span><span class="hl-2">() {</span><br/><span class="hl-2">  </span><span class="hl-1">return</span><span class="hl-2"> </span><span class="hl-8">&lt;</span><span class="hl-11">div</span><span class="hl-8">&gt;</span><span class="hl-2">Protected content</span><span class="hl-8">&lt;/</span><span class="hl-11">div</span><span class="hl-8">&gt;</span><span class="hl-2">;</span><br/><span class="hl-2">}</span><br/><br/><span class="hl-1">export</span><span class="hl-2"> </span><span class="hl-5">const</span><span class="hl-2"> </span><span class="hl-7">getServerSideProps</span><span class="hl-2"> = </span><span class="hl-6">withPageAuthRequired</span><span class="hl-2">();</span>
-</code></pre>
+</code><button>Copy</button></pre>
 <p>If the user visits <code>/protected-page</code> without a valid session, it will redirect the user to the
 login page. Then they will be returned to <code>/protected-page</code> after login.</p>
 </div>
-<section class="tsd-panel tsd-type-parameters">
+<section class="tsd-panel">
 <h4>Type Parameters</h4>
-<ul class="tsd-type-parameters">
+<ul class="tsd-type-parameter-list">
 <li>
 <h4><span class="tsd-kind-type-parameter">P</span><span class="tsd-signature-symbol"> extends </span><span class="tsd-signature-symbol">{ </span><br/><span>    </span>[<span class="tsd-kind-index-signature">key</span>: <span class="tsd-signature-type">string</span>]<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">; </span><br/><span class="tsd-signature-symbol">}</span> = <span class="tsd-signature-symbol">{ </span><br/><span>    </span>[<span class="tsd-kind-index-signature">key</span>: <span class="tsd-signature-type">string</span>]<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">; </span><br/><span class="tsd-signature-symbol">}</span></h4></li>
 <li>
@@ -45,7 +45,7 @@ login page. Then they will be returned to <code>/protected-page</code> after log
 <h5><code class="tsd-tag ts-flagOptional">Optional</code> <span class="tsd-kind-parameter">opts</span>: <a href="helpers_with_page_auth_required.WithPageAuthRequiredOptions.html" class="tsd-signature-type tsd-kind-type-alias">WithPageAuthRequiredOptions</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">P</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type tsd-kind-type-parameter">Q</span><span class="tsd-signature-symbol">&gt;</span></h5></li></ul></div>
 <h4 class="tsd-returns-title">Returns <a href="helpers_with_page_auth_required.PageRoute.html" class="tsd-signature-type tsd-kind-type-alias">PageRoute</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">P</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type tsd-kind-type-parameter">Q</span><span class="tsd-signature-symbol">&gt;</span></h4></li></ul></li></ul></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/8112efe/src/helpers/with-page-auth-required.ts#L93">helpers/with-page-auth-required.ts:93</a></li></ul></aside></div>
+<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5989b32/src/helpers/with-page-auth-required.ts#L93">helpers/with-page-auth-required.ts:93</a></li></ul></aside></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
