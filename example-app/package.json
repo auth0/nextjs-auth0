@@ -1,0 +1,24 @@
+{
+  "name": "example-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@auth0/nextjs-auth0": "file:../",
+    "@serverless-jwt/next": "^0.2.1",
+    "@types/node": "file:../node_modules/@types/node",
+    "@types/react": "file:../node_modules/@types/react",
+    "@types/react-dom": "file:../node_modules/@types/react-dom",
+    "eslint": "8.40.0",
+    "eslint-config-next": "13.4.1",
+    "next": "file:../node_modules/next",
+    "react": "file:../node_modules/react",
+    "react-dom": "file:../node_modules/react-dom",
+    "typescript": "5.0.4"
+  }
+}

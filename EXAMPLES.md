@@ -13,7 +13,7 @@
 - [Use with Base Path and Internationalized Routing](#use-with-base-path-and-internationalized-routing)
 - [Use a custom session store](#use-a-custom-session-store)
 
-All examples can be seen running in the [Kitchen Sink example app](./examples/kitchen-sink-example).
+See also the the [example app](./example-app).
 
 ## Basic Setup
 
@@ -141,7 +141,8 @@ export default auth0.handleAuth();
 import auth0 from '../../../utils/auth0';
 import { handleLogin } from '@auth0/nextjs-auth0';
 
-export default auth0.handleAuth({ // <= instance method
+export default auth0.handleAuth({
+  // <= instance method
   async login(req, res) {
     try {
       // `auth0.handleAuth` and `handleLogin` will be using separate instances
@@ -233,7 +234,7 @@ export default function Profile({ user }) {
 export const getServerSideProps = withPageAuthRequired();
 ```
 
-See a running example of an [SSR protected page](./examples/kitchen-sink-example/pages/profile-ssr.tsx) in the kitchen-sink example app or refer to the full list of configuration options for `withPageAuthRequired` [here](https://auth0.github.io/nextjs-auth0/modules/helpers_with_page_auth_required.html#withpageauthrequiredoptions).
+See a running example of an [SSR protected page](./example-app/pages/profile-ssr.tsx) in the example app or refer to the full list of configuration options for `withPageAuthRequired` [here](https://auth0.github.io/nextjs-auth0/modules/helpers_with_page_auth_required.html#withpageauthrequiredoptions).
 
 ## Protecting a Client-Side Rendered (CSR) Page
 
@@ -248,7 +249,7 @@ export default withPageAuthRequired(function Profile({ user }) {
 });
 ```
 
-See a running example of a [CSR protected page](./examples/kitchen-sink-example/pages/profile.tsx) in the kitchen-sink example app.
+See a running example of a [CSR protected page](./example-app/pages/profile.tsx) in the example app.
 
 ## Protect an API Route
 
@@ -284,8 +285,8 @@ export default withPageAuthRequired(function Products() {
 });
 ```
 
-See a running example in the kitchen-sink example app, the [protected API route](./examples/kitchen-sink-example/pages/api/shows.ts) and
-the [frontend code to access the protected API](./examples/kitchen-sink-example/pages/shows.tsx).
+See a running example in the example app, the [protected API route](./example-app/pages/api/shows.ts) and
+the [frontend code to access the protected API](./example-app/pages/shows.tsx).
 
 ## Protecting pages with Middleware
 
@@ -389,7 +390,7 @@ export default withApiAuthRequired(async function products(req, res) {
 });
 ```
 
-See a running example of the [API route acting as a proxy to an External API](./examples/kitchen-sink-example/pages/api/shows.ts) in the kitchen-sink example app.
+See a running example of the [API route acting as a proxy to an External API](./example-app/pages/api/shows.ts) in the example app.
 
 ### Getting a Refresh Token
 
