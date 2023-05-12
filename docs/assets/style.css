@@ -51,13 +51,13 @@
     --dark-color-text-aside: #dddddd;
     --dark-color-link: #00aff4;
 
-    --dark-color-ts-project: #e14dff;
+    --dark-color-ts-project: #e358ff;
     --dark-color-ts-module: var(--dark-color-ts-project);
     --dark-color-ts-namespace: var(--dark-color-ts-project);
     --dark-color-ts-enum: #f4d93e;
     --dark-color-ts-enum-member: var(--dark-color-ts-enum);
     --dark-color-ts-variable: #798dff;
-    --dark-color-ts-function: #9772ff;
+    --dark-color-ts-function: #a280ff;
     --dark-color-ts-class: #8ac4ff;
     --dark-color-ts-interface: #6cff87;
     --dark-color-ts-constructor: var(--dark-color-ts-class);
@@ -262,6 +262,16 @@ h6 {
     line-height: 1.2;
 }
 
+h1 > a,
+h2 > a,
+h3 > a,
+h4 > a,
+h5 > a,
+h6 > a {
+    text-decoration: none;
+    color: var(--color-text);
+}
+
 h1 {
     font-size: 1.875rem;
     margin: 0.67rem 0;
@@ -294,12 +304,6 @@ h6 {
 
 .uppercase {
     text-transform: uppercase;
-}
-
-pre {
-    white-space: pre;
-    white-space: pre-wrap;
-    word-wrap: break-word;
 }
 
 dl,
@@ -426,12 +430,28 @@ pre {
 }
 
 pre {
+    position: relative;
+    white-space: pre;
+    white-space: pre-wrap;
+    word-wrap: break-word;
     padding: 10px;
-    border: 0.1em solid var(--color-accent);
+    border: 1px solid var(--color-accent);
 }
 pre code {
     padding: 0;
     font-size: 100%;
+}
+pre > button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    opacity: 0;
+    transition: opacity 0.1s;
+    box-sizing: border-box;
+}
+pre:hover > button,
+pre > button.visible {
+    opacity: 1;
 }
 
 blockquote {
@@ -676,7 +696,12 @@ input[type="checkbox"]:checked ~ svg .tsd-checkbox-checkmark {
 .tsd-navigation.settings {
     margin: 1rem 0;
 }
+.tsd-navigation > a,
+.tsd-navigation .tsd-accordion-summary {
+    width: calc(100% - 0.5rem);
+}
 .tsd-navigation a,
+.tsd-navigation summary > span,
 .tsd-page-navigation a {
     display: inline-flex;
     align-items: center;
@@ -684,14 +709,6 @@ input[type="checkbox"]:checked ~ svg .tsd-checkbox-checkmark {
     color: var(--color-text);
     text-decoration: none;
     box-sizing: border-box;
-}
-.tsd-navigation a {
-    /* why 3rem? No idea, but it seems to work. */
-    width: calc(100% - 3rem);
-}
-.tsd-page-navigation a {
-    /* why is this different? */
-    width: 100%;
 }
 .tsd-navigation a.current,
 .tsd-page-navigation a.current {
@@ -703,7 +720,8 @@ input[type="checkbox"]:checked ~ svg .tsd-checkbox-checkmark {
 }
 .tsd-navigation ul,
 .tsd-page-navigation ul {
-    margin: 0;
+    margin-top: 0;
+    margin-bottom: 0;
     padding: 0;
     list-style: none;
 }
@@ -712,18 +730,24 @@ input[type="checkbox"]:checked ~ svg .tsd-checkbox-checkmark {
     padding: 0;
     max-width: 100%;
 }
-.tsd-nested-navigation > li > a {
+.tsd-nested-navigation {
     margin-left: 3rem;
 }
 .tsd-nested-navigation > li > details {
-    margin-left: 1.5rem;
+    margin-left: -1.5rem;
 }
-.tsd-small-nested-navigation > li > a {
+.tsd-small-nested-navigation {
     margin-left: 1.5rem;
 }
 .tsd-small-nested-navigation > li > details {
-    margin-left: 0;
+    margin-left: -1.5rem;
 }
+
+.tsd-nested-navigation > li > a,
+.tsd-nested-navigation > li > span {
+    width: calc(100% - 1.75rem - 0.5rem);
+}
+
 .tsd-page-navigation ul {
     padding-left: 1.75rem;
 }
@@ -745,6 +769,13 @@ a.tsd-index-link {
     align-items: center;
     color: var(--color-text);
 }
+.tsd-accordion-summary {
+    list-style-type: none; /* hide marker on non-safari */
+    outline: none; /* broken on safari, so just hide it */
+}
+.tsd-accordion-summary::-webkit-details-marker {
+    display: none; /* hide marker on safari */
+}
 .tsd-accordion-summary,
 .tsd-accordion-summary a {
     user-select: none;
@@ -752,9 +783,10 @@ a.tsd-index-link {
     -webkit-user-select: none;
     -ms-user-select: none;
 
-    display: flex;
-    align-items: center;
     cursor: pointer;
+}
+.tsd-accordion-summary a {
+    width: calc(100% - 1.5rem);
 }
 .tsd-accordion-summary > * {
     margin-top: 0;
@@ -762,11 +794,8 @@ a.tsd-index-link {
     padding-top: 0;
     padding-bottom: 0;
 }
-.tsd-accordion-summary::-webkit-details-marker {
-    display: none;
-}
-.tsd-index-accordion .tsd-accordion-summary svg {
-    margin-right: 0.25rem;
+.tsd-index-accordion .tsd-accordion-summary > svg {
+    margin-left: 0.25rem;
 }
 .tsd-index-content > :not(:first-child) {
     margin-top: 0.75rem;
