@@ -22,11 +22,11 @@
 merged with the user props. You can also access the user session data by calling <code>getSession</code>
 inside of this method. For example:</p>
 <pre><code class="language-js"><span class="hl-0">// pages/protected-page.js</span><br/><span class="hl-1">import</span><span class="hl-2"> { </span><span class="hl-3">getSession</span><span class="hl-2">, </span><span class="hl-3">withPageAuthRequired</span><span class="hl-2"> } </span><span class="hl-1">from</span><span class="hl-2"> </span><span class="hl-4">&#39;@auth0/nextjs-auth0&#39;</span><span class="hl-2">;</span><br/><br/><span class="hl-1">export</span><span class="hl-2"> </span><span class="hl-1">default</span><span class="hl-2"> </span><span class="hl-5">function</span><span class="hl-2"> </span><span class="hl-6">ProtectedPage</span><span class="hl-2">({ </span><span class="hl-3">user</span><span class="hl-2">, </span><span class="hl-3">customProp</span><span class="hl-2"> }) {</span><br/><span class="hl-2">  </span><span class="hl-1">return</span><span class="hl-2"> </span><span class="hl-8">&lt;</span><span class="hl-11">div</span><span class="hl-8">&gt;</span><span class="hl-2">Protected content</span><span class="hl-8">&lt;/</span><span class="hl-11">div</span><span class="hl-8">&gt;</span><span class="hl-2">;</span><br/><span class="hl-2">}</span><br/><br/><span class="hl-1">export</span><span class="hl-2"> </span><span class="hl-5">const</span><span class="hl-2"> </span><span class="hl-7">getServerSideProps</span><span class="hl-2"> = </span><span class="hl-6">withPageAuthRequired</span><span class="hl-2">({</span><br/><span class="hl-2">  </span><span class="hl-0">// returnTo: &#39;/unauthorized&#39;,</span><br/><span class="hl-2">  </span><span class="hl-5">async</span><span class="hl-2"> </span><span class="hl-6">getServerSideProps</span><span class="hl-2">(</span><span class="hl-3">ctx</span><span class="hl-2">) {</span><br/><span class="hl-2">    </span><span class="hl-0">// access the user session if needed</span><br/><span class="hl-2">    </span><span class="hl-0">// const session = await getSession(ctx.req, ctx.res);</span><br/><span class="hl-2">    </span><span class="hl-1">return</span><span class="hl-2"> {</span><br/><span class="hl-2">      </span><span class="hl-3">props:</span><span class="hl-2"> {</span><br/><span class="hl-2">        </span><span class="hl-0">// customProp: &#39;bar&#39;,</span><br/><span class="hl-2">      }</span><br/><span class="hl-2">    };</span><br/><span class="hl-2">  }</span><br/><span class="hl-2">});</span>
-</code></pre>
+</code><button>Copy</button></pre>
 </div>
-<section class="tsd-panel tsd-type-parameters">
+<section class="tsd-panel">
 <h4>Type Parameters</h4>
-<ul class="tsd-type-parameters">
+<ul class="tsd-type-parameter-list">
 <li>
 <h4><span class="tsd-kind-type-parameter">P</span><span class="tsd-signature-symbol"> extends </span><span class="tsd-signature-symbol">{ </span><br/><span>    </span>[<span class="tsd-kind-index-signature">key</span>: <span class="tsd-signature-type">string</span>]<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">; </span><br/><span class="tsd-signature-symbol">}</span> = <span class="tsd-signature-symbol">{ </span><br/><span>    </span>[<span class="tsd-kind-index-signature">key</span>: <span class="tsd-signature-type">string</span>]<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">; </span><br/><span class="tsd-signature-symbol">}</span></h4></li>
 <li>
@@ -39,7 +39,7 @@ inside of this method. For example:</p>
 <li class="tsd-parameter">
 <h5><code class="tsd-tag ts-flagOptional">Optional</code> <span class="tsd-kind-property">return<wbr/>To</span><span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">string</span></h5></li></ul></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/8112efe/src/helpers/with-page-auth-required.ts#L65">helpers/with-page-auth-required.ts:65</a></li></ul></aside></div>
+<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5989b32/src/helpers/with-page-auth-required.ts#L65">helpers/with-page-auth-required.ts:65</a></li></ul></aside></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
