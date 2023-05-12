@@ -1,5 +1,11 @@
 # Change Log
 
+## [v2.6.0](https://github.com/auth0/nextjs-auth0/tree/v2.6.0) (2023-05-12)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.5.0...v2.6.0)
+
+**Added**
+- Add prefixed url env for preview deploys on middleware [\#1198](https://github.com/auth0/nextjs-auth0/pull/1198) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [v2.5.0](https://github.com/auth0/nextjs-auth0/tree/v2.5.0) (2023-04-18)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.4.0...v2.5.0)
 

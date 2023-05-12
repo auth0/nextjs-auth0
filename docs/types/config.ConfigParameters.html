@@ -17,22 +17,22 @@
 <li><a href="config.ConfigParameters.html">ConfigParameters</a></li></ul>
 <h1>Type alias ConfigParameters</h1></div>
 <div class="tsd-signature"><span class="tsd-kind-type-alias">Config<wbr/>Parameters</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type ">DeepPartial</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/config.BaseConfig.html" class="tsd-signature-type tsd-kind-interface">BaseConfig</a><span class="tsd-signature-symbol"> &amp; </span><a href="../interfaces/config.NextConfig.html" class="tsd-signature-type tsd-kind-interface">NextConfig</a><span class="tsd-signature-symbol">&gt;</span></div>
-<div class="tsd-comment tsd-typography"><a id="md:configuration-properties" class="tsd-anchor"></a><h2><a href="#$configuration-properties" style="color:inherit;text-decoration:none">Configuration properties.</a></h2><p>The Server part of the SDK can be configured in 2 ways.</p>
-<a id="md:1-environment-variables" class="tsd-anchor"></a><h3><a href="#$1-environment-variables" style="color:inherit;text-decoration:none">1. Environment Variables</a></h3><p>The simplest way to use the SDK is to use the named exports (HandleAuth, HandleLogin,
+<div class="tsd-comment tsd-typography"><a id="md:configuration-properties" class="tsd-anchor"></a><h2><a href="#md:configuration-properties">Configuration properties.</a></h2><p>The Server part of the SDK can be configured in 2 ways.</p>
+<a id="md:1-environment-variables" class="tsd-anchor"></a><h3><a href="#md:1-environment-variables">1. Environment Variables</a></h3><p>The simplest way to use the SDK is to use the named exports (HandleAuth, HandleLogin,
 HandleLogout, HandleCallback, HandleProfile, GetSession, GetAccessToken,
 WithApiAuthRequired, and WithPageAuthRequired).</p>
 <pre><code class="language-js"><span class="hl-0">// pages/api/auth/[...auth0].js</span><br/><span class="hl-1">import</span><span class="hl-2"> { </span><span class="hl-3">handleAuth</span><span class="hl-2"> } </span><span class="hl-1">from</span><span class="hl-2"> </span><span class="hl-4">&#39;@auth0/nextjs-auth0&#39;</span><span class="hl-2">;</span><br/><br/><span class="hl-1">return</span><span class="hl-2"> </span><span class="hl-6">handleAuth</span><span class="hl-2">();</span>
-</code></pre>
+</code><button>Copy</button></pre>
 <p>When you use these named exports, an instance of the SDK is created for you which you can configure using
 environment variables:</p>
-<a id="md:required" class="tsd-anchor"></a><h3><a href="#$required" style="color:inherit;text-decoration:none">Required</a></h3><ul>
+<a id="md:required" class="tsd-anchor"></a><h3><a href="#md:required">Required</a></h3><ul>
 <li><code>AUTH0_SECRET</code>: See secret.</li>
 <li><code>AUTH0_ISSUER_BASE_URL</code>: See issuerBaseURL.</li>
 <li><code>AUTH0_BASE_URL</code>: See baseURL.</li>
 <li><code>AUTH0_CLIENT_ID</code>: See clientID.</li>
 <li><code>AUTH0_CLIENT_SECRET</code>: See clientSecret.</li>
 </ul>
-<a id="md:optional" class="tsd-anchor"></a><h3><a href="#$optional" style="color:inherit;text-decoration:none">Optional</a></h3><ul>
+<a id="md:optional" class="tsd-anchor"></a><h3><a href="#md:optional">Optional</a></h3><ul>
 <li><code>AUTH0_CLOCK_TOLERANCE</code>: See clockTolerance.</li>
 <li><code>AUTH0_HTTP_TIMEOUT</code>: See httpTimeout.</li>
 <li><code>AUTH0_ENABLE_TELEMETRY</code>: See enableTelemetry.</li>
@@ -60,21 +60,21 @@ environment variables:</p>
 <li><code>AUTH0_CLIENT_ASSERTION_SIGNING_KEY</code>: See <a href="../interfaces/config.BaseConfig.html#clientAssertionSigningKey" class="tsd-kind-property">clientAssertionSigningKey</a></li>
 <li><code>AUTH0_CLIENT_ASSERTION_SIGNING_ALG</code>: See <a href="../interfaces/config.BaseConfig.html#clientAssertionSigningAlg" class="tsd-kind-property">clientAssertionSigningAlg</a></li>
 </ul>
-<a id="md:2-create-your-own-instance-using-initauth0" class="tsd-anchor"></a><h3><a href="#$2-create-your-own-instance-using-initauth0" style="color:inherit;text-decoration:none">2. Create your own instance using InitAuth0</a></h3><p>If you don&#39;t want to configure the SDK with environment variables or you want more fine grained control over the
+<a id="md:2-create-your-own-instance-using-initauth0" class="tsd-anchor"></a><h3><a href="#md:2-create-your-own-instance-using-initauth0">2. Create your own instance using InitAuth0</a></h3><p>If you don&#39;t want to configure the SDK with environment variables or you want more fine grained control over the
 instance, you can create an instance yourself and use the handlers and helpers from that.</p>
 <p>First, export your configured instance from another module:</p>
 <pre><code class="language-js"><span class="hl-0">// utils/auth0.js</span><br/><span class="hl-1">import</span><span class="hl-2"> { </span><span class="hl-3">initAuth0</span><span class="hl-2"> } </span><span class="hl-1">from</span><span class="hl-2"> </span><span class="hl-4">&#39;@auth0/nextjs-auth0&#39;</span><span class="hl-2">;</span><br/><br/><span class="hl-1">export</span><span class="hl-2"> </span><span class="hl-1">default</span><span class="hl-2"> </span><span class="hl-6">initAuth0</span><span class="hl-2">({ ...</span><span class="hl-3">ConfigParameters</span><span class="hl-2">... });</span>
-</code></pre>
+</code><button>Copy</button></pre>
 <p>Then import it into your route handler:</p>
 <pre><code class="language-js"><span class="hl-0">// pages/api/auth/[...auth0].js</span><br/><span class="hl-1">import</span><span class="hl-2"> </span><span class="hl-3">auth0</span><span class="hl-2"> </span><span class="hl-1">from</span><span class="hl-2"> </span><span class="hl-4">&#39;../../../../utils/auth0&#39;</span><span class="hl-2">;</span><br/><br/><span class="hl-1">return</span><span class="hl-2"> </span><span class="hl-3">auth0</span><span class="hl-2">.</span><span class="hl-6">handleAuth</span><span class="hl-2">();</span>
-</code></pre>
+</code><button>Copy</button></pre>
 <p><strong>IMPORTANT</strong> If you use InitAuth0, you should <em>not</em> use the other named exports as they will use a different
 instance of the SDK. Also note - this is for the server side part of the SDK - you will always use named exports for
 the front end components: {@Link UserProvider}, {@Link UseUser} and the
 front end version of {@Link WithPageAuthRequired}</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/8112efe/src/config.ts#L449">config.ts:449</a></li></ul></aside></div>
+<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5989b32/src/config.ts#L451">config.ts:451</a></li></ul></aside></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
