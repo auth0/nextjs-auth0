@@ -10,7 +10,7 @@ import { HandlerErrorCause, LoginHandlerError } from '../utils/errors';
  * Use this to store additional state for the user before they visit the identity provider to log in.
  *
  * ```js
- * // pages/api/auth/[...auth0].js
+ * // pages/api/auth/[auth0].js
  * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
  *
  * const getLoginState = (req, loginOptions) => {
@@ -173,7 +173,7 @@ export type LoginOptionsProvider = (req: NextApiRequest) => LoginOptions;
  * @example Pass an options object
  *
  * ```js
- * // pages/api/auth/[...auth0].js
+ * // pages/api/auth/[auth0].js
  * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
  *
  * export default handleAuth({
@@ -186,7 +186,7 @@ export type LoginOptionsProvider = (req: NextApiRequest) => LoginOptions;
  * @example Pass a function that receives the request and returns an options object
  *
  * ```js
- * // pages/api/auth/[...auth0].js
+ * // pages/api/auth/[auth0].js
  * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
  *
  * export default handleAuth({

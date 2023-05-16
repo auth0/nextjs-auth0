@@ -10,7 +10,7 @@ import { HandlerError } from '../utils/errors';
  * `login`, `logout`, `callback`, and `profile`. For example:
  *
  * ```js
- * // pages/api/auth/[...auth0].js
+ * // pages/api/auth/[auth0].js
  * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
  * import { errorReporter, logger } from '../../../utils';
  *
@@ -33,7 +33,7 @@ import { HandlerError } from '../utils/errors';
  * Alternatively, you can customize the default handlers without overriding them. For example:
  *
  * ```js
- * // pages/api/auth/[...auth0].js
+ * // pages/api/auth/[auth0].js
  * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
  *
  * export default handleAuth({
@@ -46,7 +46,7 @@ import { HandlerError } from '../utils/errors';
  * You can also create new handlers by customizing the default ones. For example:
  *
  * ```js
- * // pages/api/auth/[...auth0].js
+ * // pages/api/auth/[auth0].js
  * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
  *
  * export default handleAuth({
@@ -72,10 +72,10 @@ type ErrorHandlers = {
  * The main way to use the server SDK.
  *
  * Simply set the environment variables per {@link ConfigParameters} then create the file
- * `pages/api/auth/[...auth0].js`. For example:
+ * `pages/api/auth/[auth0].js`. For example:
  *
  * ```js
- * // pages/api/auth/[...auth0].js
+ * // pages/api/auth/[auth0].js
  * import { handleAuth } from '@auth0/nextjs-auth0';
  *
  * export default handleAuth();
