@@ -165,7 +165,14 @@ export default function handlerFactory({
         query: { auth0: route }
       } = req;
 
-      route = Array.isArray(route) ? route[0] : /* c8 ignore next */ route;
+      if (Array.isArray(route)) {
+        let otherRoutes;
+        [route, ...otherRoutes] = route;
+        if (otherRoutes.length) {
+          res.status(404).end();
+          return;
+        }
+      }
 
       try {
         const handler = route && customHandlers.hasOwnProperty(route) && customHandlers[route];
