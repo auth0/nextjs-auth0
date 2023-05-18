@@ -73,3 +73,6 @@ dist/
 
 # Mac OSX files
 .DS_Store
+
+# IDE
+.idea
