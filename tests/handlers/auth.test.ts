@@ -51,7 +51,7 @@ describe('auth handler', () => {
     await expect(get(baseUrl, '/api/auth/401')).rejects.toThrow('Unauthorized');
   });
 
-  test.only('return 404 when routes have extra parts', async () => {
+  test('return 404 when routes have extra parts', async () => {
     const baseUrl = await setup(withoutApi);
     global.handleAuth = initAuth0(withoutApi).handleAuth;
     await expect(get(baseUrl, '/api/auth/me.css')).rejects.toThrow('Not Found');
