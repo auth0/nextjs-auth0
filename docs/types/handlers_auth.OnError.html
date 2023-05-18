@@ -27,7 +27,7 @@
 <div class="tsd-comment tsd-typography"><p>Error handler for the default auth routes.</p>
 <p>Use this to define an error handler for all the default routes in a single place. For example:</p>
 <pre><code class="language-js"><span class="hl-1">export</span><span class="hl-2"> </span><span class="hl-1">default</span><span class="hl-2"> </span><span class="hl-6">handleAuth</span><span class="hl-2">({</span><br/><span class="hl-2">  </span><span class="hl-6">onError</span><span class="hl-2">(</span><span class="hl-3">req</span><span class="hl-2">, </span><span class="hl-3">res</span><span class="hl-2">, </span><span class="hl-3">error</span><span class="hl-2">) {</span><br/><span class="hl-2">    </span><span class="hl-6">errorLogger</span><span class="hl-2">(</span><span class="hl-3">error</span><span class="hl-2">);</span><br/><span class="hl-2">    </span><span class="hl-0">// You can finish the response yourself if you want to customize</span><br/><span class="hl-2">    </span><span class="hl-0">// the status code or redirect the user</span><br/><span class="hl-2">    </span><span class="hl-0">// res.writeHead(302, {</span><br/><span class="hl-2">    </span><span class="hl-0">//     Location: &#39;/custom-error-page&#39;</span><br/><span class="hl-2">    </span><span class="hl-0">// });</span><br/><span class="hl-2">    </span><span class="hl-0">// res.end();</span><br/><span class="hl-2">  }</span><br/><span class="hl-2">});</span>
-</code></pre>
+</code><button>Copy</button></pre>
 </div>
 <div class="tsd-parameters">
 <h4 class="tsd-parameters-title">Parameters</h4>
@@ -40,7 +40,7 @@
 <h5><span class="tsd-kind-parameter">error</span>: <a href="../classes/utils_errors.HandlerError.html" class="tsd-signature-type tsd-kind-class">HandlerError</a></h5></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type ">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">void</span></h4></li></ul></li></ul></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/8112efe/src/handlers/auth.ts#L117">handlers/auth.ts:117</a></li></ul></aside></div>
+<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/5989b32/src/handlers/auth.ts#L117">handlers/auth.ts:117</a></li></ul></aside></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
