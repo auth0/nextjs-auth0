@@ -1,15 +1,8 @@
 export default abstract class AbstractRequest<Req = any> {
-  public url: string;
-  public method: string;
-  public body: Record<string, string>;
-  protected constructor(protected req: Req) {
-    this.url = this.getUrl();
-    this.method = this.getMethod();
-    this.body = this.getBody();
-  }
+  protected constructor(public req: Req) {}
 
   public abstract getUrl(): string;
   public abstract getMethod(): string;
-  public abstract getBody(): Record<string, string>;
+  public abstract getBody(): Promise<Record<string, string> | string> | Record<string, string> | string;
   public abstract getCookies(): Record<string, string>;
 }

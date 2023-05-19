@@ -1,7 +1,6 @@
 import { NextMiddleware, NextRequest, NextResponse } from 'next/server';
 import { StatelessSession } from './auth0-session/session/stateless-session';
 import { StatefulSession } from './auth0-session/session/stateful-session';
-import MiddlewareCookies from './utils/middleware-cookies';
 import Session from './session/session';
 import SessionCache from './session/cache';
 import {
@@ -48,8 +47,8 @@ const _initAuth0: InitAuth0 = (params?) => {
 
   // Init base layer (with base config)
   const sessionStore = baseConfig.session.store
-    ? new StatefulSession<NextRequest, NextResponse, Session>(baseConfig, MiddlewareCookies)
-    : new StatelessSession<NextRequest, NextResponse, Session>(baseConfig, MiddlewareCookies);
+    ? new StatefulSession<Session>(baseConfig)
+    : new StatelessSession<Session>(baseConfig);
   const sessionCache = new SessionCache(baseConfig, sessionStore);
 
   // Init Next layer (with next config)

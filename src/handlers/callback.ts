@@ -1,11 +1,16 @@
 import { IncomingMessage } from 'http';
 import { strict as assert } from 'assert';
 import { NextApiResponse, NextApiRequest } from 'next';
-import { AuthorizationParameters, HandleCallback as BaseHandleCallback } from '../auth0-session';
+import {
+  AuthorizationParameters,
+  HandleCallback as BaseHandleCallback,
+  AfterCallback as BaseAfterCallback
+} from '../auth0-session';
 import { Session } from '../session';
 import { assertReqRes } from '../utils/assert';
 import { NextConfig } from '../config';
 import { CallbackHandlerError, HandlerErrorCause } from '../utils/errors';
+import { Auth0NextApiRequest, Auth0NextApiResponse } from '../http';
 
 /**
  * Use this function for validating additional claims on the user's ID token or adding removing items from
@@ -199,32 +204,29 @@ export type CallbackHandler = (req: NextApiRequest, res: NextApiResponse, option
 /**
  * @ignore
  */
-const idTokenValidator =
-  (afterCallback?: AfterCallback, organization?: string): AfterCallback =>
-  (req, res, session, state) => {
-    if (organization) {
-      assert(session.user.org_id, 'Organization Id (org_id) claim must be a string present in the ID token');
-      assert.equal(
-        session.user.org_id,
-        organization,
-        `Organization Id (org_id) claim value mismatch in the ID token; ` +
-          `expected "${organization}", found "${session.user.org_id}"`
-      );
-    }
-    if (afterCallback) {
-      return afterCallback(req, res, session, state);
-    }
-    return session;
-  };
-
-/**
- * @ignore
- */
 export default function handleCallbackFactory(handler: BaseHandleCallback, config: NextConfig): HandleCallback {
   const callback: CallbackHandler = async (req: NextApiRequest, res: NextApiResponse, options = {}): Promise<void> => {
+    const idTokenValidator =
+      (afterCallback?: AfterCallback, organization?: string): BaseAfterCallback =>
+      (session, state) => {
+        if (organization) {
+          assert(session.user.org_id, 'Organization Id (org_id) claim must be a string present in the ID token');
+          assert.equal(
+            session.user.org_id,
+            organization,
+            `Organization Id (org_id) claim value mismatch in the ID token; ` +
+              `expected "${organization}", found "${session.user.org_id}"`
+          );
+        }
+        if (afterCallback) {
+          return afterCallback(req, res, session, state);
+        }
+        return session;
+      };
+
     try {
       assertReqRes(req, res);
-      return await handler(req, res, {
+      return await handler(new Auth0NextApiRequest(req), new Auth0NextApiResponse(res), {
         ...options,
         afterCallback: idTokenValidator(options.afterCallback, options.organization || config.organization)
       });

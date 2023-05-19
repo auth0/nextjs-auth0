@@ -13,7 +13,7 @@ export type HandleLogout = (req: AbstractRequest, res: AbstractResponse, options
 export default function logoutHandlerFactory(
   config: Config,
   getClient: ClientFactory,
-  sessionCache: SessionCache
+  sessionCache: SessionCache<any, any>
 ): HandleLogout {
   return async (req, res, options = {}) => {
     let returnURL = options.returnTo || config.routes.postLogoutRedirect;
@@ -23,15 +23,15 @@ export default function logoutHandlerFactory(
       returnURL = urlJoin(config.baseURL, returnURL);
     }
 
-    const isAuthenticated = await sessionCache.isAuthenticated(req, res);
+    const isAuthenticated = await sessionCache.isAuthenticated(req.req, res.res);
     if (!isAuthenticated) {
       debug('end-user already logged out, redirecting to %s', returnURL);
       res.redirect(returnURL);
       return;
     }
 
-    const idToken = await sessionCache.getIdToken(req, res);
-    await sessionCache.delete(req, res);
+    const idToken = await sessionCache.getIdToken(req.req, res.res);
+    await sessionCache.delete(req.req, res.res);
 
     if (!config.idpLogout) {
       debug('performing a local only logout, redirecting to %s', returnURL);

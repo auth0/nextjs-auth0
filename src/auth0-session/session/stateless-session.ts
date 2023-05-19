@@ -137,7 +137,8 @@ export class StatelessSession<
       existingCookies.delete(sessionName);
     }
 
-    // When you're going from n + 1 chunks to n you need to delete the hanging cookies.
+    // When the number of chunks changes due to the cookie size changing,
+    // you need to delete any obsolete cookies.
     existingCookies.forEach((cookie) => res.clearCookie(cookie, cookieOptions));
   }
 

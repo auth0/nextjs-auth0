@@ -1,7 +1,7 @@
 import { CookieSerializeOptions, serialize } from 'cookie';
 
 export default abstract class AbstractResponse<Res = any> {
-  protected constructor(protected res: Res) {}
+  protected constructor(public res: Res) {}
 
   public setCookie(name: string, value: string, options: CookieSerializeOptions = {}): void {
     let previousCookies = this.getSetCookieHeader();

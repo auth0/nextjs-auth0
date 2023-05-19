@@ -7,7 +7,11 @@ import { intersect, match } from '../utils/array';
 import { Session, SessionCache, fromTokenSet } from '../session';
 import { AuthorizationParameters, NextConfig } from '../config';
 
-export type AfterRefresh = (req: NextApiRequest, res: NextApiResponse, session: Session) => Promise<Session> | Session;
+export type AfterRefresh = (
+  req: NextApiRequest | IncomingMessage,
+  res: NextApiRequest | ServerResponse,
+  session: Session
+) => Promise<Session> | Session;
 
 /**
  * Custom options to get an access token.
@@ -184,7 +188,7 @@ export default function accessTokenFactory(
       });
 
       if (accessTokenRequest?.afterRefresh) {
-        session = await accessTokenRequest.afterRefresh(req as NextApiRequest, res as NextApiResponse, session);
+        session = await accessTokenRequest.afterRefresh(req, res, session);
       }
 
       await sessionCache.set(req, res, session);

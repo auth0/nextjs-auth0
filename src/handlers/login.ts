@@ -1,10 +1,15 @@
 import { IncomingMessage } from 'http';
 import { NextApiResponse, NextApiRequest } from 'next';
-import { AuthorizationParameters, HandleLogin as BaseHandleLogin } from '../auth0-session';
+import {
+  AuthorizationParameters,
+  HandleLogin as BaseHandleLogin,
+  LoginOptions as BaseLoginOptions
+} from '../auth0-session';
 import toSafeRedirect from '../utils/url-helpers';
 import { assertReqRes } from '../utils/assert';
 import { BaseConfig, NextConfig } from '../config';
 import { HandlerErrorCause, LoginHandlerError } from '../utils/errors';
+import { Auth0NextApiRequest, Auth0NextApiResponse } from '../http';
 
 /**
  * Use this to store additional state for the user before they visit the identity provider to log in.
@@ -259,7 +264,15 @@ export default function handleLoginFactory(
           authorizationParams: { organization: nextConfig.organization, ...options.authorizationParams }
         };
       }
-      return await handler(req, res, options);
+
+      if (options.getLoginState) {
+        const fn = options.getLoginState;
+        (options as BaseLoginOptions).getLoginState = (opts) => {
+          return fn(req, opts as LoginOptions);
+        };
+      }
+
+      return await handler(new Auth0NextApiRequest(req), new Auth0NextApiResponse(res), options as BaseLoginOptions);
     } catch (e) {
       throw new LoginHandlerError(e as HandlerErrorCause);
     }

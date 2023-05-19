@@ -3,7 +3,7 @@ import { parse } from 'cookie';
 import AbstractRequest from './abstract-request';
 
 export default class NodeRequest extends AbstractRequest<IncomingMessage> {
-  public constructor(protected req: IncomingMessage) {
+  public constructor(public req: IncomingMessage) {
     super(req);
   }
 
