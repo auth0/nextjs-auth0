@@ -113,7 +113,7 @@ export interface BaseConfig {
    * ```js
    * {
    *   ...
-   *   getLoginState(req, options) {
+   *   getLoginState(options) {
    *     return {
    *       returnTo: options.returnTo || req.originalUrl,
    *       customState: 'foo'
@@ -122,7 +122,7 @@ export interface BaseConfig {
    * }
    * ```
    */
-  getLoginState: (req: IncomingMessage, options: LoginOptions) => Record<string, any>;
+  getLoginState: (options: LoginOptions) => Record<string, any>;
 
   /**
    * Array value of claims to remove from the ID token before storing the cookie session.
@@ -358,6 +358,25 @@ export interface NextConfig extends Pick<BaseConfig, 'identityClaimFilter'> {
     unauthorized: string;
   };
   session: Pick<SessionConfig, 'storeIDToken'>;
+
+  /**
+   * Function that returns an object with URL-safe state values for login.
+   * Used for passing custom state parameters to your authorization server.
+   * Can also be passed in to {@link HandleLogin}.
+   *
+   * ```js
+   * {
+   *   ...
+   *   getLoginState(req, options) {
+   *     return {
+   *       returnTo: options.returnTo || req.originalUrl,
+   *       customState: 'foo'
+   *     };
+   *   }
+   * }
+   * ```
+   */
+  getLoginState: (req: IncomingMessage, options: LoginOptions) => Record<string, any>;
 }
 
 /**
@@ -578,7 +597,7 @@ export const getConfig = (params: ConfigParameters = {}): { baseConfig: BaseConf
     clientAssertionSigningAlg: AUTH0_CLIENT_ASSERTION_SIGNING_ALG
   });
 
-  const nextConfig = {
+  const nextConfig: NextConfig = {
     routes: {
       ...baseConfig.routes,
       login: baseParams.routes?.login || getLoginUrl(),
@@ -586,7 +605,10 @@ export const getConfig = (params: ConfigParameters = {}): { baseConfig: BaseConf
     },
     identityClaimFilter: baseConfig.identityClaimFilter,
     organization: organization || AUTH0_ORGANIZATION,
-    session: { storeIDToken: baseConfig.session.storeIDToken }
+    session: { storeIDToken: baseConfig.session.storeIDToken },
+    getLoginState(_req, options) {
+      return { returnTo: options.returnTo };
+    }
   };
 
   return { baseConfig, nextConfig };

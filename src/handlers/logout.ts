@@ -3,6 +3,7 @@ import { NextApiResponse, NextApiRequest } from 'next';
 import { HandleLogout as BaseHandleLogout } from '../auth0-session';
 import { assertReqRes } from '../utils/assert';
 import { HandlerErrorCause, LogoutHandlerError } from '../utils/errors';
+import { Auth0NextApiRequest, Auth0NextApiResponse } from '../http';
 
 /**
  * Options to customize the logout handler.
@@ -104,7 +105,7 @@ export default function handleLogoutFactory(handler: BaseHandleLogout): HandleLo
   const logout: LogoutHandler = async (req: NextApiRequest, res: NextApiResponse, options = {}): Promise<void> => {
     try {
       assertReqRes(req, res);
-      return await handler(req, res, options);
+      return await handler(new Auth0NextApiRequest(req), new Auth0NextApiResponse(res), options);
     } catch (e) {
       throw new LogoutHandlerError(e as HandlerErrorCause);
     }

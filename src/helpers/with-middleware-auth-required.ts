@@ -1,4 +1,4 @@
-import { NextMiddleware, NextRequest, NextResponse } from 'next/server';
+import { NextMiddleware, NextResponse } from 'next/server';
 import { SessionCache } from '../session';
 
 /**
@@ -50,7 +50,7 @@ export type WithMiddlewareAuthRequired = (middleware?: NextMiddleware) => NextMi
  */
 export default function withMiddlewareAuthRequiredFactory(
   { login, callback, unauthorized }: { login: string; callback: string; unauthorized: string },
-  getSessionCache: () => SessionCache<NextRequest, NextResponse>
+  getSessionCache: () => SessionCache
 ): WithMiddlewareAuthRequired {
   return function withMiddlewareAuthRequired(middleware?): NextMiddleware {
     return async function wrappedMiddleware(...args) {
@@ -80,6 +80,7 @@ export default function withMiddlewareAuthRequiredFactory(
         const cookies = headers.get('set-cookie')?.split(', ') || [];
         const authCookies = authRes.headers.get('set-cookie')?.split(', ') || [];
         if (cookies.length || authCookies.length) {
+          // TODO: Should Auth0NextResponse keep existing headers?
           headers.set('set-cookie', [...authCookies, ...cookies].join(', '));
         }
         return NextResponse.next({ ...res, status: res.status, headers });

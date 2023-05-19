@@ -1,6 +1,5 @@
 import crypto from 'crypto';
 import {
-  NodeCookies as Cookies,
   StatelessSession,
   StatefulSession,
   SessionStore as GenericSessionStore,
@@ -59,8 +58,6 @@ import {
 import version from './version';
 import { getConfig, getLoginUrl, ConfigParameters } from './config';
 import { setIsUsingNamedExports, setIsUsingOwnInstance } from './utils/instance-check';
-import { IncomingMessage, ServerResponse } from 'http';
-import { NextApiRequest, NextApiResponse } from 'next';
 
 /**
  * The SDK server instance.
@@ -166,14 +163,8 @@ export const _initAuth = (params?: ConfigParameters): Auth0Server & { sessionCac
   const transientStore = new TransientStore(baseConfig);
 
   const sessionStore = baseConfig.session.store
-    ? new StatefulSession<IncomingMessage | NextApiRequest, ServerResponse | NextApiResponse, Session>(
-        baseConfig,
-        Cookies
-      )
-    : new StatelessSession<IncomingMessage | NextApiRequest, ServerResponse | NextApiResponse, Session>(
-        baseConfig,
-        Cookies
-      );
+    ? new StatefulSession<Session>(baseConfig)
+    : new StatelessSession<Session>(baseConfig);
   const sessionCache = new SessionCache(baseConfig, sessionStore);
   const baseHandleLogin = baseLoginHandler(baseConfig, getClient, transientStore);
   const baseHandleLogout = baseLogoutHandler(baseConfig, getClient, sessionCache);

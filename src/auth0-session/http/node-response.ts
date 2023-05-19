@@ -2,8 +2,8 @@ import { ServerResponse } from 'http';
 import AbstractResponse from './abstract-response';
 import { htmlSafe } from '../utils/errors';
 
-export default class NodeResponse extends AbstractResponse<ServerResponse> {
-  public constructor(protected res: ServerResponse) {
+export default class NodeResponse<T extends ServerResponse = ServerResponse> extends AbstractResponse<ServerResponse> {
+  public constructor(public res: T) {
     super(res);
   }
 

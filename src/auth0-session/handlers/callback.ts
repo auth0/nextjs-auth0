@@ -37,7 +37,7 @@ export type HandleCallback = (req: AbstractRequest, res: AbstractResponse, optio
 export default function callbackHandlerFactory(
   config: Config,
   getClient: ClientFactory,
-  sessionCache: SessionCache,
+  sessionCache: SessionCache<any, any>,
   transientCookieHandler: TransientStore
 ): HandleCallback {
   return async (req, res, options) => {
@@ -46,7 +46,11 @@ export default function callbackHandlerFactory(
 
     let tokenSet;
 
-    const callbackParams = client.callbackParams(req as unknown as IncomingMessage);
+    const callbackParams = client.callbackParams({
+      method: req.getMethod(),
+      url: req.getUrl(),
+      body: await req.getBody()
+    } as unknown as IncomingMessage);
 
     if (!callbackParams.state) {
       throw createHttpError(404, new MissingStateParamError());
@@ -90,14 +94,14 @@ export default function callbackHandlerFactory(
     }
 
     const openidState: { returnTo?: string } = decodeState(expectedState as string) as ValidState;
-    let session = await sessionCache.fromTokenSet(tokenSet);
+    let session = sessionCache.fromTokenSet(tokenSet);
 
     if (options?.afterCallback) {
       session = await options.afterCallback(session, openidState);
     }
 
     if (session) {
-      await sessionCache.create(req, res, session);
+      await sessionCache.create(req.req, res.res, session);
     }
 
     res.redirect(openidState.returnTo || config.baseURL);
