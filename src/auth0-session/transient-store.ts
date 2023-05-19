@@ -1,9 +1,8 @@
-import { IncomingMessage, ServerResponse } from 'http';
 import { generators } from 'openid-client';
 import { generateCookieValue, getCookieValue } from './utils/signed-cookies';
 import { signing } from './utils/hkdf';
-import NodeCookies from './utils/cookies';
 import { Config } from './config';
+import { AbstractRequest, AbstractResponse } from './http';
 
 export interface StoreOptions {
   sameSite?: boolean | 'lax' | 'strict' | 'none';
@@ -38,8 +37,8 @@ export default class TransientStore {
    */
   async save(
     key: string,
-    _req: IncomingMessage,
-    res: ServerResponse,
+    _req: AbstractRequest,
+    res: AbstractResponse,
     { sameSite = 'none', value = this.generateNonce() }: StoreOptions
   ): Promise<string> {
     const isSameSiteNone = sameSite === 'none';
@@ -51,12 +50,11 @@ export default class TransientStore {
       path
     };
     const [signingKey] = await this.getKeys();
-    const cookieSetter = new NodeCookies();
 
     {
       const cookieValue = await generateCookieValue(key, value, signingKey);
       // Set the cookie with the SameSite attribute and, if needed, the Secure flag.
-      cookieSetter.set(key, cookieValue, {
+      res.setCookie(key, cookieValue, {
         ...basicAttr,
         sameSite,
         secure: isSameSiteNone ? true : basicAttr.secure
@@ -66,10 +64,9 @@ export default class TransientStore {
     if (isSameSiteNone && this.config.legacySameSiteCookie) {
       const cookieValue = await generateCookieValue(`_${key}`, value, signingKey);
       // Set the fallback cookie with no SameSite or Secure attributes.
-      cookieSetter.set(`_${key}`, cookieValue, basicAttr);
+      res.setCookie(`_${key}`, cookieValue, basicAttr);
     }
 
-    cookieSetter.commit(res);
     return value;
   }
 
@@ -82,15 +79,14 @@ export default class TransientStore {
    *
    * @return {String|undefined} Cookie value or undefined if cookie was not found.
    */
-  async read(key: string, req: IncomingMessage, res: ServerResponse): Promise<string | undefined> {
-    const cookies = new NodeCookies().getAll(req);
+  async read(key: string, req: AbstractRequest, res: AbstractResponse): Promise<string | undefined> {
+    const cookies = req.getCookies();
     const cookie = cookies[key];
     const cookieConfig = this.config.session.cookie;
-    const cookieSetter = new NodeCookies();
 
     const verifyingKeys = await this.getKeys();
     let value = await getCookieValue(key, cookie, verifyingKeys);
-    cookieSetter.clear(key, cookieConfig);
+    res.clearCookie(key, cookieConfig);
 
     if (this.config.legacySameSiteCookie) {
       const fallbackKey = `_${key}`;
@@ -98,10 +94,9 @@ export default class TransientStore {
         const fallbackCookie = cookies[fallbackKey];
         value = await getCookieValue(fallbackKey, fallbackCookie, verifyingKeys);
       }
-      cookieSetter.clear(fallbackKey, cookieConfig);
+      res.clearCookie(fallbackKey, cookieConfig);
     }
 
-    cookieSetter.commit(res);
     return value;
   }
 

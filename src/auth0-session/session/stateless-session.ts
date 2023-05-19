@@ -2,9 +2,9 @@ import * as jose from 'jose';
 import { CookieSerializeOptions, serialize } from 'cookie';
 import createDebug from '../utils/debug';
 import { Config } from '../config';
-import { Cookies } from '../utils/cookies';
 import { encryption } from '../utils/hkdf';
 import { AbstractSession, Header, SessionPayload } from './abstract-session';
+import { AbstractRequest, AbstractResponse } from '../http';
 
 const debug = createDebug('stateless-session');
 
@@ -15,15 +15,13 @@ const enc = 'A256GCM';
 const notNull = <T>(value: T | null): value is T => value !== null;
 
 export class StatelessSession<
-  Req,
-  Res,
   Session extends { [key: string]: any } = { [key: string]: any }
-> extends AbstractSession<Req, Res, Session> {
+> extends AbstractSession<Session> {
   private keys?: Uint8Array[];
   private chunkSize: number;
 
-  constructor(protected config: Config, protected Cookies: new () => Cookies) {
-    super(config, Cookies);
+  constructor(protected config: Config) {
+    super(config);
     const {
       cookie: { transient, ...cookieConfig },
       name: sessionName
@@ -66,12 +64,12 @@ export class StatelessSession<
     throw err;
   }
 
-  async getSession(req: Req): Promise<SessionPayload<Session> | undefined | null> {
+  async getSession(req: AbstractRequest): Promise<SessionPayload<Session> | undefined | null> {
     const { name: sessionName } = this.config.session;
-    const cookies = new this.Cookies().getAll(req);
+    const cookies = req.getCookies();
     let existingSessionValue: string | undefined;
     if (sessionName in cookies) {
-      // get JWE from unchunked session cookie
+      // get JWE from un-chunked session cookie
       debug('reading session from %s cookie', sessionName);
       existingSessionValue = cookies[sessionName];
     } else if (`${sessionName}.0` in cookies) {
@@ -106,8 +104,8 @@ export class StatelessSession<
   }
 
   async setSession(
-    req: Req,
-    res: Res,
+    req: AbstractRequest,
+    res: AbstractResponse,
     session: Session,
     uat: number,
     iat: number,
@@ -115,43 +113,45 @@ export class StatelessSession<
     cookieOptions: CookieSerializeOptions
   ): Promise<void> {
     const { name: sessionName } = this.config.session;
-    const cookieSetter = new this.Cookies();
-    const cookies = cookieSetter.getAll(req);
+    const cookies = req.getCookies();
 
     debug('found session, creating signed session cookie(s) with name %o(.i)', sessionName);
     const value = await this.encrypt(session, { iat, uat, exp });
 
     const chunkCount = Math.ceil(value.length / this.chunkSize);
+
+    const existingCookies = new Set(
+      Object.keys(cookies).filter((cookie) => cookie.match(`^${sessionName}(?:\\.\\d)?$`))
+    );
+
     if (chunkCount > 1) {
       debug('cookie size greater than %d, chunking', this.chunkSize);
       for (let i = 0; i < chunkCount; i++) {
         const chunkValue = value.slice(i * this.chunkSize, (i + 1) * this.chunkSize);
         const chunkCookieName = `${sessionName}.${i}`;
-        cookieSetter.set(chunkCookieName, chunkValue, cookieOptions);
-      }
-      if (sessionName in cookies) {
-        cookieSetter.clear(sessionName, cookieOptions);
+        res.setCookie(chunkCookieName, chunkValue, cookieOptions);
+        existingCookies.delete(chunkCookieName);
       }
     } else {
-      cookieSetter.set(sessionName, value, cookieOptions);
-      for (const cookieName of Object.keys(cookies)) {
-        if (cookieName.match(`^${sessionName}\\.\\d$`)) {
-          cookieSetter.clear(cookieName, cookieOptions);
-        }
-      }
+      res.setCookie(sessionName, value, cookieOptions);
+      existingCookies.delete(sessionName);
     }
-    cookieSetter.commit(res, this.config.session.name);
+
+    // When you're going from n + 1 chunks to n you need to delete the hanging cookies.
+    existingCookies.forEach((cookie) => res.clearCookie(cookie, cookieOptions));
   }
 
-  async deleteSession(req: Req, res: Res, cookieOptions: CookieSerializeOptions): Promise<void> {
+  async deleteSession(
+    req: AbstractRequest,
+    res: AbstractResponse,
+    cookieOptions: CookieSerializeOptions
+  ): Promise<void> {
     const { name: sessionName } = this.config.session;
-    const cookieSetter = new this.Cookies();
-    const cookies = cookieSetter.getAll(req);
+    const cookies = req.getCookies();
 
     for (const cookieName of Object.keys(cookies)) {
       if (cookieName.match(`^${sessionName}(?:\\.\\d)?$`)) {
-        cookieSetter.clear(cookieName, cookieOptions);
-        cookieSetter.commit(res, this.config.session.name);
+        res.clearCookie(cookieName, cookieOptions);
       }
     }
   }

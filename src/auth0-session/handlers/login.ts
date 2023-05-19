@@ -1,4 +1,3 @@
-import { IncomingMessage, ServerResponse } from 'http';
 import urlJoin from 'url-join';
 import { strict as assert } from 'assert';
 import { Config, LoginOptions } from '../config';
@@ -6,7 +5,7 @@ import TransientStore, { StoreOptions } from '../transient-store';
 import { encodeState } from '../utils/encoding';
 import { ClientFactory } from '../client';
 import createDebug from '../utils/debug';
-import { htmlSafe } from '../utils/errors';
+import { AbstractRequest, AbstractResponse } from '../http';
 
 const debug = createDebug('handlers');
 
@@ -14,7 +13,7 @@ function getRedirectUri(config: Config): string {
   return urlJoin(config.baseURL, config.routes.callback);
 }
 
-export type HandleLogin = (req: IncomingMessage, res: ServerResponse, options?: LoginOptions) => Promise<void>;
+export type HandleLogin = (req: AbstractRequest, res: AbstractResponse, options?: LoginOptions) => Promise<void>;
 
 export default function loginHandlerFactory(
   config: Config,
@@ -43,7 +42,7 @@ export default function loginHandlerFactory(
       sameSite: opts.authorizationParams.response_mode === 'form_post' ? 'none' : config.session.cookie.sameSite
     };
 
-    const stateValue = await opts.getLoginState(req as any, opts);
+    const stateValue = await opts.getLoginState(opts);
     if (typeof stateValue !== 'object') {
       throw new Error('Custom state value must be an object.');
     }
@@ -98,9 +97,6 @@ export default function loginHandlerFactory(
     const authorizationUrl = client.authorizationUrl(authParams);
     debug('redirecting to %s', authorizationUrl);
 
-    res.writeHead(302, {
-      Location: authorizationUrl
-    });
-    res.end(htmlSafe(authorizationUrl));
+    res.redirect(authorizationUrl);
   };
 }

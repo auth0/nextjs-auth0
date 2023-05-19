@@ -13,7 +13,7 @@ const debug = createDebug('get-login-state');
  *
  * @return {object}
  */
-export const getLoginState: GetLoginState = (_req, options) => {
+export const getLoginState: GetLoginState = (options) => {
   const state = { returnTo: options.returnTo };
   debug('adding default state %O', state);
   return state;

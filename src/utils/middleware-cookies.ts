@@ -1,7 +1,7 @@
-import { Cookies } from '../auth0-session/utils/cookies';
+import { AbstractCookies } from '../auth0-session/http/abstract-cookies';
 import { NextRequest, NextResponse } from 'next/server';
 
-export default class MiddlewareCookies extends Cookies {
+export default class MiddlewareCookies extends AbstractCookies {
   protected getSetCookieHeader(res: NextResponse): string[] {
     const value = res.headers.get('set-cookie');
     return value?.split(', ') || [];

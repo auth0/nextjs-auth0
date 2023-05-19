@@ -4,7 +4,6 @@ import { setup, teardown } from '../fixtures/server';
 import { defaultConfig, fromCookieJar, get, getCookie } from '../fixtures/helpers';
 import { decodeState, encodeState } from '../../../src/auth0-session/utils/encoding';
 import { LoginOptions } from '../../../src/auth0-session';
-import { IncomingMessage } from 'http';
 
 describe('login', () => {
   afterEach(teardown);
@@ -181,7 +180,7 @@ describe('login', () => {
   it('should use a custom state builder', async () => {
     const baseURL = await setup({
       ...defaultConfig,
-      getLoginState: (_req: IncomingMessage, opts: LoginOptions) => {
+      getLoginState: (opts: LoginOptions) => {
         return {
           returnTo: opts.returnTo + '/custom-page',
           customProp: '__test_custom_prop__'

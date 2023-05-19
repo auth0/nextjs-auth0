@@ -1,15 +1,14 @@
-import { IncomingMessage, ServerResponse } from 'http';
 import url from 'url';
 import urlJoin from 'url-join';
 import createDebug from '../utils/debug';
 import { Config, LogoutOptions } from '../config';
 import { ClientFactory } from '../client';
 import { SessionCache } from '../session-cache';
-import { htmlSafe } from '../utils/errors';
+import { AbstractRequest, AbstractResponse } from '../http';
 
 const debug = createDebug('logout');
 
-export type HandleLogout = (req: IncomingMessage, res: ServerResponse, options?: LogoutOptions) => Promise<void>;
+export type HandleLogout = (req: AbstractRequest, res: AbstractResponse, options?: LogoutOptions) => Promise<void>;
 
 export default function logoutHandlerFactory(
   config: Config,
@@ -27,10 +26,7 @@ export default function logoutHandlerFactory(
     const isAuthenticated = await sessionCache.isAuthenticated(req, res);
     if (!isAuthenticated) {
       debug('end-user already logged out, redirecting to %s', returnURL);
-      res.writeHead(302, {
-        Location: returnURL
-      });
-      res.end(htmlSafe(returnURL));
+      res.redirect(returnURL);
       return;
     }
 
@@ -39,10 +35,7 @@ export default function logoutHandlerFactory(
 
     if (!config.idpLogout) {
       debug('performing a local only logout, redirecting to %s', returnURL);
-      res.writeHead(302, {
-        Location: returnURL
-      });
-      res.end(htmlSafe(returnURL));
+      res.redirect(returnURL);
       return;
     }
 
@@ -54,9 +47,6 @@ export default function logoutHandlerFactory(
     });
 
     debug('logging out of identity provider, redirecting to %s', returnURL);
-    res.writeHead(302, {
-      Location: returnURL
-    });
-    res.end(htmlSafe(returnURL));
+    res.redirect(returnURL);
   };
 }

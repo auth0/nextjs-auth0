@@ -1,4 +1,3 @@
-import { IncomingMessage, ServerResponse } from 'http';
 import urlJoin from 'url-join';
 import createHttpError from 'http-errors';
 import { errors } from 'openid-client';
@@ -10,22 +9,18 @@ import { SessionCache } from '../session-cache';
 import {
   ApplicationError,
   EscapedError,
-  htmlSafe,
   IdentityProviderError,
   MissingStateCookieError,
   MissingStateParamError
 } from '../utils/errors';
+import { AbstractRequest, AbstractResponse } from '../http';
+import { IncomingMessage } from 'http';
 
 function getRedirectUri(config: Config): string {
   return urlJoin(config.baseURL, config.routes.callback);
 }
 
-export type AfterCallback = (
-  req: any,
-  res: any,
-  session: any,
-  state?: Record<string, any>
-) => Promise<any> | any | undefined;
+export type AfterCallback = (session: any, state?: Record<string, any>) => Promise<any> | any | undefined;
 
 export type CallbackOptions = {
   afterCallback?: AfterCallback;
@@ -37,7 +32,7 @@ export type CallbackOptions = {
 
 type ValidState = { [key: string]: any; returnTo?: string };
 
-export type HandleCallback = (req: IncomingMessage, res: ServerResponse, options?: CallbackOptions) => Promise<void>;
+export type HandleCallback = (req: AbstractRequest, res: AbstractResponse, options?: CallbackOptions) => Promise<void>;
 
 export default function callbackHandlerFactory(
   config: Config,
@@ -51,7 +46,7 @@ export default function callbackHandlerFactory(
 
     let tokenSet;
 
-    const callbackParams = client.callbackParams(req);
+    const callbackParams = client.callbackParams(req as unknown as IncomingMessage);
 
     if (!callbackParams.state) {
       throw createHttpError(404, new MissingStateParamError());
@@ -98,18 +93,13 @@ export default function callbackHandlerFactory(
     let session = await sessionCache.fromTokenSet(tokenSet);
 
     if (options?.afterCallback) {
-      session = await options.afterCallback(req, res, session, openidState);
+      session = await options.afterCallback(session, openidState);
     }
 
     if (session) {
       await sessionCache.create(req, res, session);
     }
 
-    if (!res.writableEnded) {
-      res.writeHead(302, {
-        Location: res.getHeader('Location') || openidState.returnTo || config.baseURL
-      });
-      res.end(htmlSafe(openidState.returnTo || config.baseURL));
-    }
+    res.redirect(openidState.returnTo || config.baseURL);
   };
 }
