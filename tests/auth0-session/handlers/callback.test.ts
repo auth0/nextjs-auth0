@@ -6,7 +6,7 @@ import { encodeState } from '../../../src/auth0-session/utils/encoding';
 import { SessionResponse, setup, teardown } from '../fixtures/server';
 import { makeIdToken } from '../fixtures/cert';
 import { toSignedCookieJar, get, post, defaultConfig, decodeJWT } from '../fixtures/helpers';
-import { ServerResponse } from 'http';
+import { IncomingMessage, ServerResponse } from 'http';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import * as qs from 'querystring';
@@ -536,7 +536,7 @@ describe('callback', () => {
   it('should not overwrite location header if set in after callback', async () => {
     const baseURL = await setup(defaultConfig, {
       callbackOptions: {
-        afterCallback(_req, res: ServerResponse, session) {
+        afterCallback(_req: IncomingMessage, res: ServerResponse, session: any) {
           res.setHeader('Location', '/foo');
           return session;
         }

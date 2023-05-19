@@ -1,10 +1,10 @@
 import { CookieSerializeOptions } from 'cookie';
 import createDebug from '../utils/debug';
 import { Config } from '../config';
-import { Cookies } from '../utils/cookies';
 import { AbstractSession, SessionPayload } from './abstract-session';
 import { generateCookieValue, getCookieValue } from '../utils/signed-cookies';
 import { signing } from '../utils/hkdf';
+import { AbstractRequest, AbstractResponse } from '../http';
 
 const debug = createDebug('stateful-session');
 
@@ -26,15 +26,13 @@ export interface SessionStore<Session> {
 }
 
 export class StatefulSession<
-  Req,
-  Res,
   Session extends { [key: string]: any } = { [key: string]: any }
-> extends AbstractSession<Req, Res, Session> {
+> extends AbstractSession<Session> {
   private keys?: Uint8Array[];
   private store: SessionStore<Session>;
 
-  constructor(protected config: Config, protected Cookies: new () => Cookies) {
-    super(config, Cookies);
+  constructor(protected config: Config) {
+    super(config);
     this.store = config.session.store as SessionStore<Session>;
   }
 
@@ -47,9 +45,9 @@ export class StatefulSession<
     return this.keys;
   }
 
-  async getSession(req: Req): Promise<SessionPayload<Session> | undefined | null> {
+  async getSession(req: AbstractRequest): Promise<SessionPayload<Session> | undefined | null> {
     const { name: sessionName } = this.config.session;
-    const cookies = new this.Cookies().getAll(req);
+    const cookies = req.getCookies();
     const keys = await this.getKeys();
     const sessionId = await getCookieValue(sessionName, cookies[sessionName], keys);
 
@@ -61,8 +59,8 @@ export class StatefulSession<
   }
 
   async setSession(
-    req: Req,
-    res: Res,
+    req: AbstractRequest,
+    res: AbstractResponse,
     session: Session,
     uat: number,
     iat: number,
@@ -71,8 +69,7 @@ export class StatefulSession<
     isNewSession: boolean
   ): Promise<void> {
     const { name: sessionName, genId } = this.config.session;
-    const cookieSetter = new this.Cookies();
-    const cookies = cookieSetter.getAll(req);
+    const cookies = req.getCookies();
     const keys = await this.getKeys();
     let sessionId = await getCookieValue(sessionName, cookies[sessionName], keys);
 
@@ -90,25 +87,26 @@ export class StatefulSession<
     }
     debug('set session %o', sessionId);
     const cookieValue = await generateCookieValue(sessionName, sessionId, keys[0]);
-    cookieSetter.set(sessionName, cookieValue, cookieOptions);
-    cookieSetter.commit(res);
+    res.setCookie(sessionName, cookieValue, cookieOptions);
     await this.store.set(sessionId, {
       header: { iat, uat, exp },
       data: session
     });
   }
 
-  async deleteSession(req: Req, res: Res, cookieOptions: CookieSerializeOptions): Promise<void> {
+  async deleteSession(
+    req: AbstractRequest,
+    res: AbstractResponse,
+    cookieOptions: CookieSerializeOptions
+  ): Promise<void> {
     const { name: sessionName } = this.config.session;
-    const cookieSetter = new this.Cookies();
-    const cookies = cookieSetter.getAll(req);
+    const cookies = req.getCookies();
     const keys = await this.getKeys();
     const sessionId = await getCookieValue(sessionName, cookies[sessionName], keys);
 
     if (sessionId) {
       debug('deleting session %o', sessionId);
-      cookieSetter.clear(sessionName, cookieOptions);
-      cookieSetter.commit(res);
+      res.clearCookie(sessionName, cookieOptions);
       await this.store.delete(sessionId);
     }
   }

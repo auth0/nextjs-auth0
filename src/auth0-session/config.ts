@@ -1,4 +1,3 @@
-import type { IncomingMessage } from 'http';
 import type { AuthorizationParameters as OidcAuthorizationParameters, ClientAuthMethod } from 'openid-client';
 import { SessionStore } from './session/stateful-session';
 
@@ -111,7 +110,7 @@ export interface Config {
    * ```js
    * app.use(auth({
    *   ...
-   *   getLoginState(req, options) {
+   *   getLoginState(options) {
    *     return {
    *       returnTo: options.returnTo || req.originalUrl,
    *       customState: 'foo'
@@ -120,7 +119,7 @@ export interface Config {
    * }));
    * ```
    */
-  getLoginState: (req: IncomingMessage, options: LoginOptions) => Record<string, any>;
+  getLoginState: (options: LoginOptions) => Record<string, any>;
 
   /**
    * Array value of claims to remove from the ID token before storing the cookie session.
@@ -302,7 +301,7 @@ export interface AuthorizationParameters extends OidcAuthorizationParameters {
   response_type: 'id_token' | 'code id_token' | 'code';
 }
 
-export type GetLoginState = (req: any, options: LoginOptions) => { [key: string]: any };
+export type GetLoginState = (options: LoginOptions) => { [key: string]: any };
 
 /**
  * Custom options to pass to the login handler.

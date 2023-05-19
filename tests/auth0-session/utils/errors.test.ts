@@ -1,4 +1,4 @@
-import { IdentityProviderError } from '../../../src';
+import { IdentityProviderError } from '../../../src/auth0-session';
 
 describe('IdentityProviderError', () => {
   test('should escape error fields', () => {

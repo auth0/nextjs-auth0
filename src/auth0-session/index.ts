@@ -1,4 +1,3 @@
-export { default as NodeCookies, Cookies } from './utils/cookies';
 export {
   MissingStateParamError,
   MissingStateCookieError,
