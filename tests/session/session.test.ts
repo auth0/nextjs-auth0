@@ -5,6 +5,8 @@ import { Session } from '../../src';
 
 const routes = { login: '', callback: '', postLogoutRedirect: '', unauthorized: '' };
 
+const getLoginState = () => Promise.resolve({});
+
 describe('session', () => {
   test('should construct a session with a user', async () => {
     expect(new Session({ foo: 'bar' }).user).toEqual({ foo: 'bar' });
@@ -16,6 +18,7 @@ describe('session', () => {
         fromTokenSet(new TokenSet({ id_token: await makeIdToken({ foo: 'bar', bax: 'qux' }) }), {
           identityClaimFilter: ['baz'],
           routes,
+          getLoginState,
           session: { storeIDToken: true }
         }).user
       ).toEqual({
@@ -36,6 +39,7 @@ describe('session', () => {
         fromTokenSet(new TokenSet({ id_token: await makeIdToken({ foo: 'bar' }) }), {
           identityClaimFilter: ['baz'],
           routes,
+          getLoginState,
           session: { storeIDToken: true }
         }).idToken
       ).toBeDefined();
@@ -52,6 +56,7 @@ describe('session', () => {
             absoluteDuration: 0,
             cookie: { transient: false, httpOnly: false, sameSite: 'lax' }
           },
+          getLoginState,
           identityClaimFilter: ['baz'],
           routes
         }).idToken

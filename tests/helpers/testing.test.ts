@@ -9,10 +9,7 @@ const weekInSeconds = 7 * 24 * 60 * 60;
 describe('generate-session-cookie', () => {
   test('use the provided secret', async () => {
     await generateSessionCookie({}, { secret: '__test_secret__' });
-    expect(CookieStore).toHaveBeenCalledWith(
-      expect.objectContaining({ secret: '__test_secret__' }),
-      expect.any(Function)
-    );
+    expect(CookieStore).toHaveBeenCalledWith(expect.objectContaining({ secret: '__test_secret__' }));
   });
 
   test('use the default session configuration values', async () => {
@@ -20,8 +17,7 @@ describe('generate-session-cookie', () => {
     expect(CookieStore).toHaveBeenCalledWith(
       expect.objectContaining({
         session: { absoluteDuration: weekInSeconds, cookie: {} }
-      }),
-      expect.any(Function)
+      })
     );
   });
 
@@ -52,8 +48,7 @@ describe('generate-session-cookie', () => {
             sameSite: 'none'
           }
         }
-      }),
-      expect.any(Function)
+      })
     );
   });
 

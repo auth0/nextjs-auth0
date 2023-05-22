@@ -7,7 +7,7 @@ export default class NodeResponse<T extends ServerResponse = ServerResponse> ext
     super(res);
   }
 
-  protected getSetCookieHeader(): string[] {
+  public getSetCookieHeader(): string[] {
     let cookies = this.res.getHeader('Set-Cookie') || [];
     if (!Array.isArray(cookies)) {
       cookies = [cookies as string];
@@ -15,7 +15,7 @@ export default class NodeResponse<T extends ServerResponse = ServerResponse> ext
     return cookies;
   }
 
-  protected setSetCookieHeader(cookies: string[]): void {
+  public setSetCookieHeader(cookies: string[]): void {
     this.res.setHeader('Set-Cookie', cookies);
   }
 

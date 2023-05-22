@@ -39,20 +39,20 @@ interface NodeCallbackOptions extends Omit<CallbackOptions, 'afterCallback'> {
   ) => Promise<any> | any | undefined;
 }
 
-class TestSessionCache implements SessionCache {
+class TestSessionCache implements SessionCache<IncomingMessage, ServerResponse> {
   constructor(private cookieStore: AbstractSession<any>) {}
-  async create(req: NodeRequest, res: NodeResponse, tokenSet: TokenSet): Promise<void> {
-    await this.cookieStore.save(req, res, tokenSet);
+  async create(req: IncomingMessage, res: ServerResponse, tokenSet: TokenSet): Promise<void> {
+    await this.cookieStore.save(new NodeRequest(req), new NodeResponse(res), tokenSet);
   }
-  async delete(req: NodeRequest, res: NodeResponse): Promise<void> {
-    await this.cookieStore.save(req, res, null);
+  async delete(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    await this.cookieStore.save(new NodeRequest(req), new NodeResponse(res), null);
   }
-  async isAuthenticated(req: NodeRequest): Promise<boolean> {
-    const [session] = await this.cookieStore.read(req);
+  async isAuthenticated(req: IncomingMessage): Promise<boolean> {
+    const [session] = await this.cookieStore.read(new NodeRequest(req));
     return !!session?.id_token;
   }
-  async getIdToken(req: NodeRequest): Promise<string | undefined> {
-    const [session] = await this.cookieStore.read(req);
+  async getIdToken(req: IncomingMessage): Promise<string | undefined> {
+    const [session] = await this.cookieStore.read(new NodeRequest(req));
     return session?.id_token;
   }
   fromTokenSet(tokenSet: TokenSet): { [p: string]: any } {
