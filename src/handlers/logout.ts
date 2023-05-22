@@ -39,7 +39,7 @@ export type LogoutOptionsProvider = (req: NextApiRequest) => LogoutOptions;
  * @example Pass an options object
  *
  * ```js
- * // pages/api/auth/[...auth0].js
+ * // pages/api/auth/[auth0].js
  * import { handleAuth, handleLogout } from '@auth0/nextjs-auth0';
  *
  * export default handleAuth({
@@ -50,7 +50,7 @@ export type LogoutOptionsProvider = (req: NextApiRequest) => LogoutOptions;
  * @example Pass a function that receives the request and returns an options object
  *
  * ```js
- * // pages/api/auth/[...auth0].js
+ * // pages/api/auth/[auth0].js
  * import { handleAuth, handleLogout } from '@auth0/nextjs-auth0';
  *
  * export default handleAuth({
