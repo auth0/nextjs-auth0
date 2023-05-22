@@ -25,7 +25,7 @@ export default abstract class AbstractResponse<Res = any> {
     this.setCookie(name, '', clearOptions);
   }
 
-  protected abstract getSetCookieHeader(): string[];
-  protected abstract setSetCookieHeader(cookies: string[]): void;
+  abstract getSetCookieHeader(): string[];
+  abstract setSetCookieHeader(cookies: string[]): void;
   public abstract redirect(location: string, status?: number): void;
 }
