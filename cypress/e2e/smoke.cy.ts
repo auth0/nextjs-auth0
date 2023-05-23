@@ -21,47 +21,46 @@ const loginToNodeOidc = () => {
 
 const login = useAuth0 ? loginToAuth0 : loginToNodeOidc;
 
-describe('smoke tests', () => {
+describe('smoke tests page-router', () => {
   it('should do basic login and show user', () => {
-    cy.visit('/');
+    cy.visit('/page-router');
     cy.get('[data-testid=login]').click();
     login();
-    cy.url().should('eq', `${Cypress.config().baseUrl}/`);
-    cy.get('[data-testid=profile]').contains(EMAIL);
+    cy.url().should('eq', `${Cypress.config().baseUrl}/page-router`);
     cy.get('[data-testid=logout]').should('exist');
   });
 
   it('should protect a client-side rendered page', () => {
-    cy.visit('/profile');
+    cy.visit('/page-router/profile-csr');
     login();
-    cy.url().should('eq', `${Cypress.config().baseUrl}/profile`);
+    cy.url().should('eq', `${Cypress.config().baseUrl}/page-router/profile-csr`);
     cy.get('[data-testid=profile]').contains(EMAIL);
   });
 
   it('should protect a server-side rendered page', () => {
-    cy.visit('/profile-ssr');
+    cy.visit('/page-router/profile-ssr');
     login();
 
-    cy.url().should('eq', `${Cypress.config().baseUrl}/profile-ssr`);
+    cy.url().should('eq', `${Cypress.config().baseUrl}/page-router/profile-ssr`);
     cy.get('[data-testid=profile]').contains(EMAIL);
   });
 
   it('should protect a page with middleware', () => {
-    cy.visit('/profile-mw');
+    cy.visit('/page-router/profile-middleware');
     login();
-    cy.url().should('eq', `${Cypress.config().baseUrl}/profile-mw`);
+    cy.url().should('eq', `${Cypress.config().baseUrl}/page-router/profile-middleware`);
     cy.get('[data-testid=profile]').contains(EMAIL);
   });
 
   it('should logout and return to the index page', () => {
-    cy.visit('/profile');
+    cy.visit('/page-router/profile-csr');
     login();
-    cy.url().should('eq', `${Cypress.config().baseUrl}/profile`);
+    cy.url().should('eq', `${Cypress.config().baseUrl}/page-router/profile-csr`);
     cy.get('[data-testid=logout]').click();
     if (!useAuth0) {
       cy.get('[name=logout]').click();
     }
-    cy.url().should('eq', `${Cypress.config().baseUrl}/`);
+    cy.url().should('eq', `${Cypress.config().baseUrl}/page-router`);
     cy.get('[data-testid=login]').should('exist');
   });
 });

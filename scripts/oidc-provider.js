@@ -21,8 +21,8 @@ const config = {
     {
       client_id: 'testing',
       client_secret: 'testing',
-      redirect_uris: ['http://localhost:3000/api/auth/callback'],
-      post_logout_redirect_uris: ['http://localhost:3000'],
+      redirect_uris: ['http://localhost:3000/api/auth/callback', 'http://localhost:3000/api/page-router-auth/callback'],
+      post_logout_redirect_uris: ['http://localhost:3000', 'http://localhost:3000/page-router'],
       token_endpoint_auth_method: 'client_secret_post',
       grant_types: ['authorization_code', 'refresh_token']
     }

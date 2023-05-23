@@ -57,7 +57,7 @@ const Header = (): React.ReactElement => {
               </li>
             ) : (
               <li>
-                <a href="/api/page-router-auth/login" data-testid="login">
+                <a href="/api/page-router-auth/login?returnTo=/page-router" data-testid="login">
                   Login
                 </a>
               </li>
@@ -100,6 +100,10 @@ const Header = (): React.ReactElement => {
         .header.profile-middleware a[href$='profile-middleware'],
         a.active {
           color: #888;
+        }
+        .header.page-router a[data-testid='login'],
+        .header.page-router a[data-testid='logout'] {
+          color: #fff;
         }
         button {
           font-size: 1rem;
