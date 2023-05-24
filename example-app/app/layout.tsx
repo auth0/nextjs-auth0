@@ -10,7 +10,7 @@ export const metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <UserProvider profileUrl="/api/page-router-auth/me">
+      <UserProvider>
         <body>
           <header>
             <Nav />

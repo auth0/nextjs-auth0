@@ -10,23 +10,23 @@ import { Auth0NextApiRequest, Auth0NextApiResponse, Auth0NextRequest, Auth0NextR
 type Req = IncomingMessage | NextRequest | NextApiRequest;
 type Res = ServerResponse | NextResponse | NextApiResponse;
 const getAuth0Req = (req: Req) => {
-  if (req instanceof Request) {
+  if (typeof Request !== undefined && req instanceof Request) {
     return new Auth0NextRequest(req);
   }
   if ('previewData' in req) {
     return new Auth0NextApiRequest(req);
   }
-  return new NodeRequest(req);
+  return new NodeRequest(req as IncomingMessage);
 };
 
 const getAuth0Res = (res: Res) => {
-  if (res instanceof Response) {
+  if (typeof Response !== undefined && res instanceof Response) {
     return new Auth0NextResponse(res);
   }
   if ('setPreviewData' in res) {
     return new Auth0NextApiResponse(res);
   }
-  return new NodeResponse(res);
+  return new NodeResponse(res as ServerResponse);
 };
 
 export default class SessionCache implements ISessionCache<Req, Res, Session> {

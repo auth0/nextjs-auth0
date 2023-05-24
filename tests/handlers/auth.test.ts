@@ -4,10 +4,10 @@ import { withoutApi } from '../fixtures/default-settings';
 import { login, setup, teardown } from '../fixtures/setup';
 import { get } from '../auth0-session/fixtures/helpers';
 import { initAuth0, OnError, Session } from '../../src';
-import { LoginHandler, LoginOptions } from '../../src/handlers/login';
-import { LogoutHandler, LogoutOptions } from '../../src/handlers/logout';
-import { CallbackHandler, CallbackOptions } from '../../src/handlers/callback';
-import { ProfileHandler, ProfileOptions } from '../../src/handlers/profile';
+import { LoginOptions } from '../../src/handlers/login';
+import { LogoutOptions } from '../../src/handlers/logout';
+import { CallbackOptions } from '../../src/handlers/callback';
+import { ProfileOptions } from '../../src/handlers/profile';
 import * as baseLoginHandler from '../../src/auth0-session/handlers/login';
 import * as baseLogoutHandler from '../../src/auth0-session/handlers/logout';
 import * as baseCallbackHandler from '../../src/auth0-session/handlers/callback';
@@ -99,7 +99,7 @@ describe('custom handlers', () => {
   afterEach(teardown);
 
   test('accept custom login handler', async () => {
-    const login = jest.fn<Promise<void>, ArgumentsOf<LoginHandler>>(async (_req, res) => {
+    const login = jest.fn(async (_req, res) => {
       res.end();
     });
     const baseUrl = await setup(withoutApi);
@@ -109,7 +109,7 @@ describe('custom handlers', () => {
   });
 
   test('accept custom logout handler', async () => {
-    const logout = jest.fn<Promise<void>, ArgumentsOf<LogoutHandler>>(async (_req, res) => {
+    const logout = jest.fn(async (_req, res) => {
       res.end();
     });
     const baseUrl = await setup(withoutApi);
@@ -119,7 +119,7 @@ describe('custom handlers', () => {
   });
 
   test('accept custom callback handler', async () => {
-    const callback = jest.fn<Promise<void>, ArgumentsOf<CallbackHandler>>(async (_req, res) => {
+    const callback = jest.fn(async (_req, res) => {
       res.end();
     });
     const baseUrl = await setup(withoutApi);
@@ -129,7 +129,7 @@ describe('custom handlers', () => {
   });
 
   test('accept custom profile handler', async () => {
-    const profile = jest.fn<Promise<void>, ArgumentsOf<ProfileHandler>>(async (_req, res) => {
+    const profile = jest.fn(async (_req, res) => {
       res.end();
     });
     const baseUrl = await setup(withoutApi);
@@ -139,7 +139,7 @@ describe('custom handlers', () => {
   });
 
   test('accept custom arbitrary handler', async () => {
-    const signup = jest.fn<Promise<void>, ArgumentsOf<LoginHandler>>(async (_req, res) => {
+    const signup = jest.fn(async (_req, res) => {
       res.end();
     });
     const baseUrl = await setup(withoutApi);

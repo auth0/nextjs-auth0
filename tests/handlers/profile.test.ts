@@ -3,7 +3,7 @@ import { withApi, withoutApi } from '../fixtures/default-settings';
 import { refreshTokenRotationExchange, userInfo } from '../fixtures/oidc-nocks';
 import { get } from '../auth0-session/fixtures/helpers';
 import { setup, teardown, login } from '../fixtures/setup';
-import { Session, AfterCallback } from '../../src';
+import { Session, AfterCallbackPageRoute } from '../../src';
 import { makeIdToken } from '../auth0-session/fixtures/cert';
 
 describe('profile handler', () => {
@@ -40,7 +40,7 @@ describe('profile handler', () => {
   });
 
   test('should throw if re-fetching with no access token', async () => {
-    const afterCallback: AfterCallback = (_req, _res, session: Session): Session => {
+    const afterCallback: AfterCallbackPageRoute = (_req, _res, session: Session): Session => {
       delete session.accessToken;
       return session;
     };
@@ -65,7 +65,7 @@ describe('profile handler', () => {
   });
 
   test("should refetch the user and fail if it can't get an access token", async () => {
-    const afterCallback: AfterCallback = (_req, _res, session: Session): Session => {
+    const afterCallback: AfterCallbackPageRoute = (_req, _res, session: Session): Session => {
       session.accessTokenExpiresAt = -60;
       return session;
     };
@@ -92,7 +92,7 @@ describe('profile handler', () => {
   });
 
   test('should refetch the user and preserve new tokens', async () => {
-    const afterCallback: AfterCallback = (_req, _res, session: Session): Session => {
+    const afterCallback: AfterCallbackPageRoute = (_req, _res, session: Session): Session => {
       session.accessTokenExpiresAt = -60;
       return session;
     };
