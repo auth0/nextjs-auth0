@@ -1,13 +1,9 @@
-import { CookieSerializeOptions, serialize } from 'cookie';
+import { CookieSerializeOptions } from 'cookie';
 
 export default abstract class AbstractResponse<Res = any> {
   protected constructor(public res: Res) {}
 
-  public setCookie(name: string, value: string, options: CookieSerializeOptions = {}): void {
-    let previousCookies = this.getSetCookieHeader();
-
-    this.setSetCookieHeader([...previousCookies, serialize(name, value, options)]);
-  }
+  public abstract setCookie(name: string, value: string, options?: CookieSerializeOptions): void;
 
   public clearCookie(name: string, options: CookieSerializeOptions = {}): void {
     const { domain, path, secure, sameSite } = options;
@@ -25,7 +21,5 @@ export default abstract class AbstractResponse<Res = any> {
     this.setCookie(name, '', clearOptions);
   }
 
-  abstract getSetCookieHeader(): string[];
-  abstract setSetCookieHeader(cookies: string[]): void;
   public abstract redirect(location: string, status?: number): void;
 }

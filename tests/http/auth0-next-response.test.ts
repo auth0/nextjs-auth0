@@ -14,7 +14,7 @@ describe('cookie', () => {
     const auth0Res = new Auth0NextResponse(res);
     auth0Res.setCookie('foo', 'bar');
 
-    expect(auth0Res.res.headers.get('set-cookie')).toEqual('foo=bar');
+    expect(auth0Res.res.headers.get('set-cookie')).toEqual('foo=bar; Path=/');
   });
 
   it('should set a cookie with opts', async () => {
@@ -22,16 +22,16 @@ describe('cookie', () => {
     const auth0Res = new Auth0NextResponse(res);
     auth0Res.setCookie('foo', 'bar', { httpOnly: true, sameSite: 'strict' });
 
-    expect(auth0Res.res.headers.get('set-cookie')).toEqual('foo=bar; HttpOnly; SameSite=Strict');
+    expect(auth0Res.res.headers.get('set-cookie')).toEqual('foo=bar; Path=/; HttpOnly; SameSite=strict');
   });
 
   it('should not overwrite existing set cookie', async () => {
     const [, res] = setup();
-    res.headers.set('set-cookie', 'foo=bar');
+    res.cookies.set('foo', 'bar');
     const auth0Res = new Auth0NextResponse(res);
     auth0Res.setCookie('baz', 'qux');
 
-    expect(auth0Res.res.headers.get('set-cookie')).toEqual(['foo=bar', 'baz=qux'].join(', '));
+    expect(auth0Res.res.headers.get('set-cookie')).toEqual(['foo=bar; Path=/', 'baz=qux; Path=/'].join(', '));
   });
 
   it('should clear cookies', async () => {
@@ -39,6 +39,6 @@ describe('cookie', () => {
     const auth0Res = new Auth0NextResponse(res);
     auth0Res.clearCookie('foo');
 
-    expect(auth0Res.res.headers.get('set-cookie')).toEqual('foo=; Max-Age=0');
+    expect(auth0Res.res.headers.get('set-cookie')).toMatch(/foo=;.*Expires=.*1970/);
   });
 });

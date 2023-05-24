@@ -1,4 +1,5 @@
 import { ServerResponse } from 'http';
+import { CookieSerializeOptions, serialize } from 'cookie';
 import AbstractResponse from './abstract-response';
 import { htmlSafe } from '../utils/errors';
 
@@ -7,16 +8,16 @@ export default class NodeResponse<T extends ServerResponse = ServerResponse> ext
     super(res);
   }
 
-  public getSetCookieHeader(): string[] {
+  public setCookie(name: string, value: string, options?: CookieSerializeOptions) {
     let cookies = this.res.getHeader('Set-Cookie') || [];
     if (!Array.isArray(cookies)) {
       cookies = [cookies as string];
     }
-    return cookies;
-  }
 
-  public setSetCookieHeader(cookies: string[]): void {
-    this.res.setHeader('Set-Cookie', cookies);
+    this.res.setHeader('Set-Cookie', [
+      ...cookies.filter((cookie) => !cookie.startsWith(`${name}=`)),
+      serialize(name, value, options)
+    ]);
   }
 
   public redirect(location: string, status = 302): void {

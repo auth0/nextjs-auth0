@@ -114,7 +114,6 @@ export class StatelessSession<
   ): Promise<void> {
     const { name: sessionName } = this.config.session;
     const cookies = req.getCookies();
-    this.resetSetCookieHeader(res);
 
     debug('found session, creating signed session cookie(s) with name %o(.i)', sessionName);
     const value = await this.encrypt(session, { iat, uat, exp });
@@ -150,20 +149,11 @@ export class StatelessSession<
   ): Promise<void> {
     const { name: sessionName } = this.config.session;
     const cookies = req.getCookies();
-    this.resetSetCookieHeader(res);
 
     for (const cookieName of Object.keys(cookies)) {
       if (cookieName.match(`^${sessionName}(?:\\.\\d)?$`)) {
         res.clearCookie(cookieName, cookieOptions);
       }
     }
-  }
-
-  // TODO: more tests on this
-  private resetSetCookieHeader(res: AbstractResponse) {
-    const { name: sessionName } = this.config.session;
-    let previousCookies = res.getSetCookieHeader().filter((cookie) => !cookie.match(`^${sessionName}(?:\\.\\d)?=`));
-
-    res.setSetCookieHeader([...previousCookies]);
   }
 }
