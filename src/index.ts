@@ -28,6 +28,8 @@ import {
   ProfileOptions,
   CallbackOptions,
   AfterCallback,
+  AfterCallbackPageRoute,
+  AfterCallbackAppRoute,
   AfterRefetch,
   OnError
 } from './handlers';
@@ -259,6 +261,8 @@ export {
   GetAccessTokenResult,
   CallbackOptions,
   AfterCallback,
+  AfterCallbackPageRoute,
+  AfterCallbackAppRoute,
   AfterRefetch,
   LoginOptions,
   LogoutOptions,

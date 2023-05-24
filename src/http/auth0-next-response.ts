@@ -15,7 +15,8 @@ export default class Auth0NextResponse extends AbstractResponse<NextResponse> {
     }
   }
   public redirect(location: string, status = 302): void {
-    const headers = new Headers({ ...this.res.headers, location: this.res.headers.get('location') || location });
-    this.res = NextResponse.next({ ...this.res, status, headers });
+    const headers = new Headers({ location });
+    this.res.headers.forEach((value, key) => headers.set(key, value));
+    this.res = new NextResponse(null, { ...this.res, status, headers });
   }
 }

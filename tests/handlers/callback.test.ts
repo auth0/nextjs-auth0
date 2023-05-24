@@ -6,9 +6,10 @@ import { makeIdToken } from '../auth0-session/fixtures/cert';
 import { defaultConfig, get, post, toSignedCookieJar } from '../auth0-session/fixtures/helpers';
 import { encodeState } from '../../src/auth0-session/utils/encoding';
 import { defaultOnError, setup, teardown } from '../fixtures/setup';
-import { Session, AfterCallback, MissingStateCookieError } from '../../src';
+import { Session, AfterCallbackPageRoute, MissingStateCookieError } from '../../src';
 import nock from 'nock';
 import { signing } from '../../src/auth0-session/utils/hkdf';
+import { NextApiRequest, NextApiResponse } from 'next';
 
 const callback = (baseUrl: string, body: any, cookieJar?: CookieJar): Promise<any> =>
   post(baseUrl, `/api/auth/callback`, {
@@ -213,7 +214,11 @@ describe('callback handler', () => {
 
   test('remove properties from session with afterCallback hook', async () => {
     timekeeper.freeze(0);
-    const afterCallback: AfterCallback = (_req, _res, session: Session): Session => {
+    const afterCallback: AfterCallbackPageRoute = (
+      _req: NextApiRequest,
+      _res: NextApiResponse,
+      session: Session
+    ): Session => {
       delete session.accessToken;
       delete session.refreshToken;
       return session;
@@ -253,7 +258,7 @@ describe('callback handler', () => {
 
   test('add properties to session with afterCallback hook', async () => {
     timekeeper.freeze(0);
-    const afterCallback: AfterCallback = (_req, _res, session: Session): Session => {
+    const afterCallback: AfterCallbackPageRoute = (_req, _res, session: Session): Session => {
       session.foo = 'bar';
       return session;
     };

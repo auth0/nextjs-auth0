@@ -1,9 +1,9 @@
-import { IncomingMessage } from 'http';
 import { NextApiResponse, NextApiRequest } from 'next';
 import { ClientFactory } from '../auth0-session';
 import { SessionCache, Session, fromJson, GetAccessToken } from '../session';
 import { assertReqRes } from '../utils/assert';
 import { ProfileHandlerError, HandlerErrorCause } from '../utils/errors';
+import { NextRequest, NextResponse } from 'next/server';
 
 export type AfterRefetch = (req: NextApiRequest, res: NextApiResponse, session: Session) => Promise<Session> | Session;
 
@@ -35,7 +35,7 @@ export type ProfileOptions = {
  *
  * @category Server
  */
-export type ProfileOptionsProvider = (req: NextApiRequest) => ProfileOptions;
+export type ProfileOptionsProvider = (req: NextApiRequest | NextRequest) => ProfileOptions;
 
 /**
  * Use this to customize the default profile handler without overriding it.
@@ -108,7 +108,89 @@ export default function profileHandler(
   getAccessToken: GetAccessToken,
   sessionCache: SessionCache
 ): HandleProfile {
-  const profile: ProfileHandler = async (req: NextApiRequest, res: NextApiResponse, options = {}): Promise<void> => {
+  const appRouteHandler = appRouteHandlerFactory(getClient, getAccessToken, sessionCache);
+  const pageRouteHandler = pageRouteHandlerFactory(getClient, getAccessToken, sessionCache);
+
+  return (
+    reqOrOptions: NextApiRequest | ProfileOptionsProvider | ProfileOptions,
+    res?: NextApiResponse,
+    options?: ProfileOptions
+  ): any => {
+    if (typeof Request !== undefined && reqOrOptions instanceof Request) {
+      return appRouteHandler(reqOrOptions as NextRequest, options);
+    }
+    if ('socket' in reqOrOptions && res) {
+      return pageRouteHandler(reqOrOptions as NextApiRequest, res as NextApiResponse, options);
+    }
+    return (req: NextApiRequest | NextRequest, res: NextApiResponse) => {
+      const opts = (typeof reqOrOptions === 'function' ? reqOrOptions(req) : reqOrOptions) as ProfileOptions;
+
+      if (typeof Request !== undefined && reqOrOptions instanceof Request) {
+        return appRouteHandler(req as NextRequest, opts);
+      }
+      return pageRouteHandler(req as NextApiRequest, res as NextApiResponse, opts);
+    };
+  };
+}
+
+const appRouteHandlerFactory: (
+  getClient: ClientFactory,
+  getAccessToken: GetAccessToken,
+  sessionCache: SessionCache
+) => (req: NextRequest, options?: ProfileOptions) => Promise<Response> | Response =
+  (_getClient, _getAccessToken, sessionCache) =>
+  async (req, _options = {}) => {
+    try {
+      const res = new NextResponse();
+
+      if (!(await sessionCache.isAuthenticated(req, res))) {
+        return new Response(null, { status: 204 });
+      }
+
+      const session = (await sessionCache.get(req, res)) as Session;
+      res.headers.set('Cache-Control', 'no-store');
+
+      // TODO: support refetch in app router
+      // if (options.refetch) {
+      //   const { accessToken } = await getAccessToken(req, res);
+      //   if (!accessToken) {
+      //     throw new Error('No access token available to refetch the profile');
+      //   }
+      //
+      //   const client = await getClient();
+      //   const userInfo = await client.userinfo(accessToken);
+      //
+      //   let newSession = fromJson({
+      //     ...session,
+      //     user: {
+      //       ...session.user,
+      //       ...userInfo
+      //     }
+      //   }) as Session;
+      //
+      //   if (options.afterRefetch) {
+      //     newSession = await options.afterRefetch(req, res, newSession);
+      //   }
+      //
+      //   await sessionCache.set(req, res, newSession);
+      //
+      //   res.json(newSession.user);
+      //   return;
+      // }
+
+      return NextResponse.json(session.user, res);
+    } catch (e) {
+      throw new ProfileHandlerError(e as HandlerErrorCause);
+    }
+  };
+
+const pageRouteHandlerFactory: (
+  getClient: ClientFactory,
+  getAccessToken: GetAccessToken,
+  sessionCache: SessionCache
+) => (req: NextApiRequest, res: NextApiResponse, options?: ProfileOptions) => Promise<void> =
+  (getClient, getAccessToken, sessionCache) =>
+  async (req: NextApiRequest, res: NextApiResponse, options = {}): Promise<void> => {
     try {
       assertReqRes(req, res);
 
@@ -152,17 +234,3 @@ export default function profileHandler(
       throw new ProfileHandlerError(e as HandlerErrorCause);
     }
   };
-  return (
-    reqOrOptions: NextApiRequest | ProfileOptionsProvider | ProfileOptions,
-    res?: NextApiResponse,
-    options?: ProfileOptions
-  ): any => {
-    if (reqOrOptions instanceof IncomingMessage && res) {
-      return profile(reqOrOptions, res, options);
-    }
-    if (typeof reqOrOptions === 'function') {
-      return (req: NextApiRequest, res: NextApiResponse) => profile(req, res, reqOrOptions(req));
-    }
-    return (req: NextApiRequest, res: NextApiResponse) => profile(req, res, reqOrOptions as ProfileOptions);
-  };
-}

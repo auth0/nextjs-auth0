@@ -4,6 +4,8 @@ import { HandleLogout } from './logout';
 import { HandleCallback } from './callback';
 import { HandleProfile } from './profile';
 import { HandlerError } from '../utils/errors';
+import { AppRouteHandlerFn, AppRouteRouteHandlerContext } from 'next/dist/server/future/route-modules/app-route/module';
+import { NextRequest } from 'next/server';
 
 /**
  * If you want to add some custom behavior to the default auth handlers, you can pass in custom handlers for
@@ -65,7 +67,7 @@ type ApiHandlers = {
 };
 
 type ErrorHandlers = {
-  onError?: OnError;
+  onError?: PageRouterOnError | AppRouterOnError;
 };
 
 /**
@@ -91,7 +93,7 @@ type ErrorHandlers = {
  *
  * @category Server
  */
-export type HandleAuth = (userHandlers?: Handlers) => NextApiHandler;
+export type HandleAuth = (userHandlers?: Handlers) => NextApiHandler | AppRouteHandlerFn;
 
 /**
  * Error handler for the default auth routes.
@@ -114,14 +116,26 @@ export type HandleAuth = (userHandlers?: Handlers) => NextApiHandler;
  *
  * @category Server
  */
-export type OnError = (req: NextApiRequest, res: NextApiResponse, error: HandlerError) => Promise<void> | void;
+export type PageRouterOnError = (
+  req: NextApiRequest,
+  res: NextApiResponse,
+  error: HandlerError
+) => Promise<void> | void;
+export type AppRouterOnError = (req: NextRequest, error: HandlerError) => Promise<Response | void> | Response | void;
 
 /**
  * @ignore
  */
-const defaultOnError: OnError = (_req, res, error) => {
+const defaultPageRouterOnError: PageRouterOnError = (_req, res, error) => {
   console.error(error);
   res.status(error.status || 500).end();
+};
+
+/**
+ * @ignore
+ */
+const defaultAppRouterOnError: AppRouterOnError = (_req, error) => {
+  console.error(error);
 };
 
 /**
@@ -137,6 +151,8 @@ const unauthorized: NextApiHandler = (_req, res) => {
   });
 };
 
+type AppRouteHandlerFnContext = Parameters<AppRouteHandlerFn>[1];
+
 /**
  * @ignore
  */
@@ -151,7 +167,7 @@ export default function handlerFactory({
   handleCallback: HandleCallback;
   handleProfile: HandleProfile;
 }): HandleAuth {
-  return ({ onError, ...handlers }: Handlers = {}): NextApiHandler<void> => {
+  return ({ onError, ...handlers }: Handlers = {}): NextApiHandler<void> | AppRouteHandlerFn => {
     const customHandlers: ApiHandlers = {
       login: handleLogin,
       logout: handleLogout,
@@ -160,27 +176,60 @@ export default function handlerFactory({
       401: unauthorized,
       ...handlers
     };
-    return async (req, res): Promise<void> => {
-      let {
-        query: { auth0: route }
-      } = req;
 
-      route = Array.isArray(route) ? route[0] : /* c8 ignore next */ route;
+    const appRouteHandler = appRouteHandlerFactory(customHandlers, onError as AppRouterOnError);
+    const pageRouteHandler = pageRouteHandlerFactory(customHandlers, onError as PageRouterOnError);
 
-      try {
-        const handler = route && customHandlers.hasOwnProperty(route) && customHandlers[route];
-        if (handler) {
-          await handler(req, res);
-        } else {
-          res.status(404).end();
-        }
-      } catch (error) {
-        await (onError || defaultOnError)(req, res, error as HandlerError);
-        if (!res.writableEnded) {
-          // 200 is the default, so we assume it has not been set in the custom error handler if it equals 200
-          res.status(res.statusCode === 200 ? 500 : res.statusCode).end();
-        }
+    return (req: NextRequest | NextApiRequest, resOrCtx: NextApiResponse | AppRouteHandlerFnContext) => {
+      if ('params' in resOrCtx) {
+        return appRouteHandler(req as NextRequest, resOrCtx as AppRouteRouteHandlerContext);
       }
+      return pageRouteHandler(req as NextApiRequest, resOrCtx as NextApiResponse);
     };
   };
 }
+
+const appRouteHandlerFactory: (customHandlers: ApiHandlers, onError?: AppRouterOnError) => AppRouteHandlerFn =
+  (customHandlers, onError) =>
+  async (req: NextRequest, { params }) => {
+    const auth0 = params?.auth0;
+    const route = Array.isArray(auth0) ? auth0[0] : /* c8 ignore next */ auth0;
+    const handler = route && customHandlers.hasOwnProperty(route) && customHandlers[route];
+    try {
+      if (handler) {
+        console.log('exec handler', route, handler);
+        return await (handler as any)(req);
+      } else {
+        return new Response(null, { status: 404 });
+      }
+    } catch (error) {
+      console.log('error handler', error);
+      const res = await (onError || defaultAppRouterOnError)(req, error as HandlerError);
+      return res || new Response(null, { status: error.status || 500 });
+    }
+  };
+
+const pageRouteHandlerFactory: (customHandlers: ApiHandlers, onError?: PageRouterOnError) => NextApiHandler =
+  (customHandlers, onError) =>
+  async (req, res): Promise<void> => {
+    let {
+      query: { auth0: route }
+    } = req;
+
+    route = Array.isArray(route) ? route[0] : /* c8 ignore next */ route;
+
+    try {
+      const handler = route && customHandlers.hasOwnProperty(route) && customHandlers[route];
+      if (handler) {
+        await handler(req, res);
+      } else {
+        res.status(404).end();
+      }
+    } catch (error) {
+      await (onError || defaultPageRouterOnError)(req, res, error as HandlerError);
+      if (!res.writableEnded) {
+        // 200 is the default, so we assume it has not been set in the custom error handler if it equals 200
+        res.status(res.statusCode === 200 ? 500 : res.statusCode).end();
+      }
+    }
+  };

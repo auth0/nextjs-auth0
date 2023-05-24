@@ -1,3 +1,4 @@
+import { NextApiRequest, NextApiResponse } from 'next';
 import { login, setup, teardown } from '../fixtures/setup';
 import { withApi } from '../fixtures/default-settings';
 import { get } from '../auth0-session/fixtures/helpers';
@@ -18,7 +19,7 @@ describe('get access token', () => {
   test('should fail if access_token and refresh_token are missing', async () => {
     const baseUrl = await setup(withApi, {
       callbackOptions: {
-        afterCallback: (_req, _res, session): Session => {
+        afterCallback: (_req: NextApiRequest, _res: NextApiResponse, session: Session): Session => {
           delete session.accessToken;
           delete session.refreshToken;
           return session;
@@ -34,7 +35,7 @@ describe('get access token', () => {
   test('should fail if access_token expiry is missing', async () => {
     const baseUrl = await setup(withApi, {
       callbackOptions: {
-        afterCallback: (_req, _res, session): Session => {
+        afterCallback: (_req: NextApiRequest, _res: NextApiResponse, session: Session): Session => {
           delete session.accessTokenExpiresAt;
           return session;
         }
@@ -49,7 +50,7 @@ describe('get access token', () => {
   test('should fail if access_token scope is missing', async () => {
     const baseUrl = await setup(withApi, {
       callbackOptions: {
-        afterCallback: (_req, _res, session): Session => {
+        afterCallback: (_req: NextApiRequest, _res: NextApiResponse, session: Session): Session => {
           delete session.accessTokenScope;
           return session;
         }
@@ -67,7 +68,7 @@ describe('get access token', () => {
   test("should fail if access_token scope doesn't match requested scope", async () => {
     const baseUrl = await setup(withApi, {
       callbackOptions: {
-        afterCallback: (_req, _res, session): Session => {
+        afterCallback: (_req: NextApiRequest, _res: NextApiResponse, session: Session): Session => {
           session.accessTokenScope = 'read:bar';
           return session;
         }
@@ -85,7 +86,7 @@ describe('get access token', () => {
   test('should fail if the access token is expired', async () => {
     const baseUrl = await setup(withApi, {
       callbackOptions: {
-        afterCallback: (_req, _res, session): Session => {
+        afterCallback: (_req: NextApiRequest, _res: NextApiResponse, session: Session): Session => {
           delete session.refreshToken;
           session.accessTokenExpiresAt = -60;
           return session;
@@ -101,7 +102,7 @@ describe('get access token', () => {
   test('should fail if you try to refresh the access token without a refresh token', async () => {
     const baseUrl = await setup(withApi, {
       callbackOptions: {
-        afterCallback: (_req, _res, session): Session => {
+        afterCallback: (_req: NextApiRequest, _res: NextApiResponse, session: Session): Session => {
           delete session.refreshToken;
           return session;
         }
@@ -134,7 +135,7 @@ describe('get access token', () => {
     );
     const baseUrl = await setup(withApi, {
       callbackOptions: {
-        afterCallback: (_req, _res, session): Session => {
+        afterCallback: (_req: NextApiRequest, _res: NextApiResponse, session: Session): Session => {
           session.accessTokenExpiresAt = -60;
           return session;
         }
@@ -244,7 +245,7 @@ describe('get access token', () => {
     const baseUrl = await setup(withApi, {
       getAccessTokenOptions: { refresh: true },
       callbackOptions: {
-        afterCallback: (_req, _res, session): Session => {
+        afterCallback: (_req: NextApiRequest, _res: NextApiResponse, session: Session): Session => {
           session.foo = 'bar';
           session.user.bar = 'baz';
           return session;
