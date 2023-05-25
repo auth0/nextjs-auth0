@@ -1,7 +1,7 @@
 import createDebug from '../utils/debug';
 import { CookieSerializeOptions } from 'cookie';
 import { Config } from '../config';
-import { AbstractRequest, AbstractResponse } from '../http';
+import { Auth0RequestCookies, Auth0ResponseCookies } from '../http';
 
 const debug = createDebug('session');
 
@@ -38,11 +38,11 @@ const assert = (bool: boolean, msg: string) => {
 export abstract class AbstractSession<Session> {
   constructor(protected config: Config) {}
 
-  abstract getSession(req: AbstractRequest): Promise<SessionPayload<Session> | undefined | null>;
+  abstract getSession(req: Auth0RequestCookies): Promise<SessionPayload<Session> | undefined | null>;
 
   abstract setSession(
-    req: AbstractRequest,
-    res: AbstractResponse,
+    req: Auth0RequestCookies,
+    res: Auth0ResponseCookies,
     session: Session,
     uat: number,
     iat: number,
@@ -52,12 +52,12 @@ export abstract class AbstractSession<Session> {
   ): Promise<void>;
 
   abstract deleteSession(
-    req: AbstractRequest,
-    res: AbstractResponse,
+    req: Auth0RequestCookies,
+    res: Auth0ResponseCookies,
     cookieOptions: CookieSerializeOptions
   ): Promise<void>;
 
-  public async read(req: AbstractRequest): Promise<[Session?, number?]> {
+  public async read(req: Auth0RequestCookies): Promise<[Session?, number?]> {
     const { rollingDuration, absoluteDuration } = this.config.session;
 
     try {
@@ -90,8 +90,8 @@ export abstract class AbstractSession<Session> {
   }
 
   public async save(
-    req: AbstractRequest,
-    res: AbstractResponse,
+    req: Auth0RequestCookies,
+    res: Auth0ResponseCookies,
     session: Session | null | undefined,
     createdAt?: number
   ): Promise<void> {

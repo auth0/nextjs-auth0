@@ -10,8 +10,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@auth0/nextjs-auth0": "file:../auth0-nextjs-auth0-2.7.0-rsc.9.tgz",
-    "@serverless-jwt/next": "^0.2.1",
+    "@auth0/nextjs-auth0": "file:../",
     "@types/node": "file:../node_modules/@types/node",
     "@types/react": "file:../node_modules/@types/react",
     "@types/react-dom": "file:../node_modules/@types/react-dom",

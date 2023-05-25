@@ -13,7 +13,7 @@ import {
   MissingStateCookieError,
   MissingStateParamError
 } from '../utils/errors';
-import { AbstractRequest, AbstractResponse } from '../http';
+import { Auth0Request, Auth0Response } from '../http';
 import { IncomingMessage } from 'http';
 
 function getRedirectUri(config: Config): string {
@@ -32,7 +32,7 @@ export type CallbackOptions = {
 
 type ValidState = { [key: string]: any; returnTo?: string };
 
-export type HandleCallback = (req: AbstractRequest, res: AbstractResponse, options?: CallbackOptions) => Promise<void>;
+export type HandleCallback = (req: Auth0Request, res: Auth0Response, options?: CallbackOptions) => Promise<void>;
 
 export default function callbackHandlerFactory(
   config: Config,

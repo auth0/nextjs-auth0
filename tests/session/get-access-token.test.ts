@@ -277,7 +277,7 @@ describe('get access token', () => {
         refresh: true,
         afterRefresh(_req, _res, session) {
           delete session.accessTokenScope;
-          return session;
+          return session as Session;
         }
       }
     });

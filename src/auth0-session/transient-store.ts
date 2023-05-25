@@ -2,7 +2,7 @@ import { generators } from 'openid-client';
 import { generateCookieValue, getCookieValue } from './utils/signed-cookies';
 import { signing } from './utils/hkdf';
 import { Config } from './config';
-import { AbstractRequest, AbstractResponse } from './http';
+import { Auth0Request, Auth0Response } from './http';
 
 export interface StoreOptions {
   sameSite?: boolean | 'lax' | 'strict' | 'none';
@@ -37,8 +37,8 @@ export default class TransientStore {
    */
   async save(
     key: string,
-    _req: AbstractRequest,
-    res: AbstractResponse,
+    _req: Auth0Request,
+    res: Auth0Response,
     { sameSite = 'none', value = this.generateNonce() }: StoreOptions
   ): Promise<string> {
     const isSameSiteNone = sameSite === 'none';
@@ -79,7 +79,7 @@ export default class TransientStore {
    *
    * @return {String|undefined} Cookie value or undefined if cookie was not found.
    */
-  async read(key: string, req: AbstractRequest, res: AbstractResponse): Promise<string | undefined> {
+  async read(key: string, req: Auth0Request, res: Auth0Response): Promise<string | undefined> {
     const cookies = req.getCookies();
     const cookie = cookies[key];
     const cookieConfig = this.config.session.cookie;

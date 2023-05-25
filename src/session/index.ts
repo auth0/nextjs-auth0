@@ -6,6 +6,6 @@ export {
   AccessTokenRequest,
   GetAccessTokenResult
 } from './get-access-token';
-export { default as SessionCache } from './cache';
+export { default as SessionCache, get, set } from './cache';
 export { default as touchSessionFactory, TouchSession } from './touch-session';
 export { default as updateSessionFactory, UpdateSession } from './update-session';

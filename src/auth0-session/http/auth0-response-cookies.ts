@@ -1,8 +1,6 @@
 import { CookieSerializeOptions } from 'cookie';
 
-export default abstract class AbstractResponse<Res = any> {
-  protected constructor(public res: Res) {}
-
+export default abstract class Auth0ResponseCookies {
   public abstract setCookie(name: string, value: string, options?: CookieSerializeOptions): void;
 
   public clearCookie(name: string, options: CookieSerializeOptions = {}): void {
@@ -20,6 +18,4 @@ export default abstract class AbstractResponse<Res = any> {
     }
     this.setCookie(name, '', clearOptions);
   }
-
-  public abstract redirect(location: string, status?: number): void;
 }
