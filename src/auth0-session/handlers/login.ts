@@ -5,7 +5,7 @@ import TransientStore, { StoreOptions } from '../transient-store';
 import { encodeState } from '../utils/encoding';
 import { ClientFactory } from '../client';
 import createDebug from '../utils/debug';
-import { AbstractRequest, AbstractResponse } from '../http';
+import { Auth0Request, Auth0Response } from '../http';
 
 const debug = createDebug('handlers');
 
@@ -13,7 +13,7 @@ function getRedirectUri(config: Config): string {
   return urlJoin(config.baseURL, config.routes.callback);
 }
 
-export type HandleLogin = (req: AbstractRequest, res: AbstractResponse, options?: LoginOptions) => Promise<void>;
+export type HandleLogin = (req: Auth0Request, res: Auth0Response, options?: LoginOptions) => Promise<void>;
 
 export default function loginHandlerFactory(
   config: Config,

@@ -5,10 +5,18 @@ import type { TokenSet } from 'openid-client';
 import { Config, SessionCache as ISessionCache, AbstractSession } from '../auth0-session';
 import Session, { fromJson, fromTokenSet } from './session';
 import { NodeRequest, NodeResponse } from '../auth0-session/http';
-import { Auth0NextApiRequest, Auth0NextApiResponse, Auth0NextRequest, Auth0NextResponse } from '../http';
+import {
+  Auth0NextApiRequest,
+  Auth0NextApiResponse,
+  Auth0NextDynamicFunctionsRequest,
+  Auth0NextDynamicFunctionsResponse,
+  Auth0NextRequest,
+  Auth0NextResponse
+} from '../http';
 
 type Req = IncomingMessage | NextRequest | NextApiRequest;
 type Res = ServerResponse | NextResponse | NextApiResponse;
+
 const getAuth0Req = (req: Req) => {
   if (typeof Request !== undefined && req instanceof Request) {
     return new Auth0NextRequest(req);
@@ -30,10 +38,10 @@ const getAuth0Res = (res: Res) => {
 };
 
 export default class SessionCache implements ISessionCache<Req, Res, Session> {
-  private cache: WeakMap<Req, Session | null>;
+  private cache: WeakMap<Req, Session | null | undefined>;
   private iatCache: WeakMap<Req, number | undefined>;
 
-  constructor(private config: Config, private sessionStore: AbstractSession<Session>) {
+  constructor(public config: Config, public sessionStore: AbstractSession<Session>) {
     this.cache = new WeakMap();
     this.iatCache = new WeakMap();
   }
@@ -76,7 +84,7 @@ export default class SessionCache implements ISessionCache<Req, Res, Session> {
     return session?.idToken;
   }
 
-  async set(req: Req, res: Res, session: Session | null): Promise<void> {
+  async set(req: Req, res: Res, session: Session | null | undefined): Promise<void> {
     await this.init(req, res, false);
     this.cache.set(req, session);
     await this.save(req, res);
@@ -91,3 +99,54 @@ export default class SessionCache implements ISessionCache<Req, Res, Session> {
     return fromTokenSet(tokenSet, this.config);
   }
 }
+
+export const get = async ({
+  sessionCache,
+  req,
+  res
+}: {
+  sessionCache: SessionCache;
+  req?: Req;
+  res?: Res;
+}): Promise<[(Session | null)?, number?]> => {
+  if (req && res) {
+    return [await sessionCache.get(req, res)];
+  }
+  const {
+    sessionStore,
+    config: {
+      session: { rolling, autoSave }
+    }
+  } = sessionCache;
+  const auth0Req = new Auth0NextDynamicFunctionsRequest();
+  const [session, iat] = await sessionStore.read(auth0Req);
+  if (rolling && autoSave) {
+    await set({ session, sessionCache, iat });
+  }
+  return [session, iat];
+};
+
+export const set = async ({
+  session,
+  sessionCache,
+  iat,
+  req,
+  res
+}: {
+  session?: Session | null;
+  sessionCache: SessionCache;
+  iat?: number;
+  req?: Req;
+  res?: Res;
+}) => {
+  if (req && res) {
+    return sessionCache.set(req, res, session);
+  }
+  const { sessionStore } = sessionCache;
+  await sessionStore.save(
+    new Auth0NextDynamicFunctionsRequest(),
+    new Auth0NextDynamicFunctionsResponse(),
+    session,
+    iat
+  );
+};

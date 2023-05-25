@@ -1,7 +1,7 @@
-import { AbstractRequest } from '../auth0-session/http';
+import { Auth0Request } from '../auth0-session/http';
 import { NextApiRequest } from 'next';
 
-export default class Auth0NextApiRequest extends AbstractRequest<NextApiRequest> {
+export default class Auth0NextApiRequest extends Auth0Request<NextApiRequest> {
   public constructor(req: NextApiRequest) {
     super(req);
   }

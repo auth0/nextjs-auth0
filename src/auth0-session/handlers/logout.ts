@@ -4,11 +4,11 @@ import createDebug from '../utils/debug';
 import { Config, LogoutOptions } from '../config';
 import { ClientFactory } from '../client';
 import { SessionCache } from '../session-cache';
-import { AbstractRequest, AbstractResponse } from '../http';
+import { Auth0Request, Auth0Response } from '../http';
 
 const debug = createDebug('logout');
 
-export type HandleLogout = (req: AbstractRequest, res: AbstractResponse, options?: LogoutOptions) => Promise<void>;
+export type HandleLogout = (req: Auth0Request, res: Auth0Response, options?: LogoutOptions) => Promise<void>;
 
 export default function logoutHandlerFactory(
   config: Config,

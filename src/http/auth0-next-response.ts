@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import type { CookieSerializeOptions } from 'cookie';
-import { AbstractResponse } from '../auth0-session/http';
+import { Auth0Response } from '../auth0-session/http';
 
-export default class Auth0NextResponse extends AbstractResponse<NextResponse> {
+export default class Auth0NextResponse extends Auth0Response<NextResponse> {
   public constructor(res: NextResponse) {
     super(res);
   }

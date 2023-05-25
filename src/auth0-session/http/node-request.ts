@@ -1,8 +1,8 @@
 import { IncomingMessage } from 'http';
 import { parse } from 'cookie';
-import AbstractRequest from './abstract-request';
+import Auth0Request from './auth0-request';
 
-export default class NodeRequest extends AbstractRequest<IncomingMessage> {
+export default class NodeRequest extends Auth0Request<IncomingMessage> {
   public constructor(public req: IncomingMessage) {
     super(req);
   }

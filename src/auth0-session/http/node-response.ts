@@ -1,9 +1,9 @@
 import { ServerResponse } from 'http';
 import { CookieSerializeOptions, serialize } from 'cookie';
-import AbstractResponse from './abstract-response';
+import Auth0Response from './auth0-response';
 import { htmlSafe } from '../utils/errors';
 
-export default class NodeResponse<T extends ServerResponse = ServerResponse> extends AbstractResponse<ServerResponse> {
+export default class NodeResponse<T extends ServerResponse = ServerResponse> extends Auth0Response<ServerResponse> {
   public constructor(public res: T) {
     super(res);
   }

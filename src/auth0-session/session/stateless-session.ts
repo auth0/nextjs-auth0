@@ -4,7 +4,7 @@ import createDebug from '../utils/debug';
 import { Config } from '../config';
 import { encryption } from '../utils/hkdf';
 import { AbstractSession, Header, SessionPayload } from './abstract-session';
-import { AbstractRequest, AbstractResponse } from '../http';
+import { Auth0RequestCookies, Auth0ResponseCookies } from '../http';
 
 const debug = createDebug('stateless-session');
 
@@ -64,7 +64,7 @@ export class StatelessSession<
     throw err;
   }
 
-  async getSession(req: AbstractRequest): Promise<SessionPayload<Session> | undefined | null> {
+  async getSession(req: Auth0RequestCookies): Promise<SessionPayload<Session> | undefined | null> {
     const { name: sessionName } = this.config.session;
     const cookies = req.getCookies();
     let existingSessionValue: string | undefined;
@@ -104,8 +104,8 @@ export class StatelessSession<
   }
 
   async setSession(
-    req: AbstractRequest,
-    res: AbstractResponse,
+    req: Auth0RequestCookies,
+    res: Auth0ResponseCookies,
     session: Session,
     uat: number,
     iat: number,
@@ -143,8 +143,8 @@ export class StatelessSession<
   }
 
   async deleteSession(
-    req: AbstractRequest,
-    res: AbstractResponse,
+    req: Auth0RequestCookies,
+    res: Auth0ResponseCookies,
     cookieOptions: CookieSerializeOptions
   ): Promise<void> {
     const { name: sessionName } = this.config.session;
