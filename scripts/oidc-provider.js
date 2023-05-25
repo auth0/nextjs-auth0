@@ -41,7 +41,6 @@ const config = {
       enabled: true
     }
   },
-  rotateRefreshToken: true,
   interactions: {
     policy
   }
