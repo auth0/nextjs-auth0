@@ -1,9 +1,17 @@
-import { getSession } from '@auth0/nextjs-auth0';
+import { getSession, getAccessToken, Session } from '@auth0/nextjs-auth0';
 
 export default async function ServerComponent() {
   const session = await getSession();
+  const accessToken = await getAccessToken();
   if (session) {
-    return <pre>{JSON.stringify(session.user, null, 2)}</pre>;
+    return (
+      <>
+        <h3>Access Token</h3>
+        <pre>{JSON.stringify(accessToken, null, 2)}</pre>
+        <h3>User</h3>
+        <pre>{JSON.stringify(session.user, null, 2)}</pre>
+      </>
+    );
   }
   return <></>;
 }
