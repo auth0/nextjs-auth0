@@ -4,8 +4,17 @@ import { ClientFactory } from '../auth0-session';
 import { SessionCache, Session, fromJson, GetAccessToken } from '../session';
 import { assertReqRes } from '../utils/assert';
 import { ProfileHandlerError, HandlerErrorCause } from '../utils/errors';
+import { IncomingMessage, ServerResponse } from 'http';
 
-export type AfterRefetch = (req: NextApiRequest, res: NextApiResponse, session: Session) => Promise<Session> | Session;
+export type AfterRefetch = AfterRefetchPageRoute | AfterRefetchAppRoute;
+
+export type AfterRefetchPageRoute = (
+  req: NextApiRequest | IncomingMessage,
+  res: NextApiRequest | ServerResponse,
+  session: Session
+) => Promise<Session> | Session;
+
+export type AfterRefetchAppRoute = (session: Session) => Promise<Session> | Session;
 
 /**
  * Options to customize the profile handler.
@@ -125,7 +134,7 @@ export default function profileHandler(
     return (req: NextApiRequest | NextRequest, res: NextApiResponse) => {
       const opts = (typeof reqOrOptions === 'function' ? reqOrOptions(req) : reqOrOptions) as ProfileOptions;
 
-      if (typeof Request !== undefined && reqOrOptions instanceof Request) {
+      if (typeof Request !== undefined && req instanceof Request) {
         return appRouteHandler(req as NextRequest, opts);
       }
       return pageRouteHandler(req as NextApiRequest, res as NextApiResponse, opts);
@@ -138,8 +147,8 @@ const appRouteHandlerFactory: (
   getAccessToken: GetAccessToken,
   sessionCache: SessionCache
 ) => (req: NextRequest, options?: ProfileOptions) => Promise<Response> | Response =
-  (_getClient, _getAccessToken, sessionCache) =>
-  async (req, _options = {}) => {
+  (getClient, getAccessToken, sessionCache) =>
+  async (req, options = {}) => {
     try {
       const res = new NextResponse();
 
@@ -150,33 +159,31 @@ const appRouteHandlerFactory: (
       const session = (await sessionCache.get(req, res)) as Session;
       res.headers.set('Cache-Control', 'no-store');
 
-      // TODO: support refetch in app router
-      // if (options.refetch) {
-      //   const { accessToken } = await getAccessToken(req, res);
-      //   if (!accessToken) {
-      //     throw new Error('No access token available to refetch the profile');
-      //   }
-      //
-      //   const client = await getClient();
-      //   const userInfo = await client.userinfo(accessToken);
-      //
-      //   let newSession = fromJson({
-      //     ...session,
-      //     user: {
-      //       ...session.user,
-      //       ...userInfo
-      //     }
-      //   }) as Session;
-      //
-      //   if (options.afterRefetch) {
-      //     newSession = await options.afterRefetch(req, res, newSession);
-      //   }
-      //
-      //   await sessionCache.set(req, res, newSession);
-      //
-      //   res.json(newSession.user);
-      //   return;
-      // }
+      if (options.refetch) {
+        const { accessToken } = await getAccessToken();
+        if (!accessToken) {
+          throw new Error('No access token available to refetch the profile');
+        }
+
+        const client = await getClient();
+        const userInfo = await client.userinfo(accessToken);
+
+        let newSession = fromJson({
+          ...session,
+          user: {
+            ...session.user,
+            ...userInfo
+          }
+        }) as Session;
+
+        if (options.afterRefetch) {
+          newSession = await (options.afterRefetch as AfterRefetchAppRoute)(newSession);
+        }
+
+        await sessionCache.set(req, res, newSession);
+
+        return NextResponse.json(session.user, res);
+      }
 
       return NextResponse.json(session.user, res);
     } catch (e) {
@@ -220,7 +227,7 @@ const pageRouteHandlerFactory: (
         }) as Session;
 
         if (options.afterRefetch) {
-          newSession = await options.afterRefetch(req, res, newSession);
+          newSession = await (options.afterRefetch as AfterRefetchPageRoute)(req, res, newSession);
         }
 
         await sessionCache.set(req, res, newSession);

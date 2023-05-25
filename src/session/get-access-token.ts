@@ -7,9 +7,9 @@ import { intersect, match } from '../utils/array';
 import { Session, SessionCache, fromTokenSet, get, set } from '../session';
 import { AuthorizationParameters, NextConfig } from '../config';
 
-export type AfterRefresh = AfterRefreshPageRote | AfterRefreshAppRoute;
+export type AfterRefresh = AfterRefreshPageRoute | AfterRefreshAppRoute;
 
-export type AfterRefreshPageRote = (
+export type AfterRefreshPageRoute = (
   req: NextApiRequest | IncomingMessage,
   res: NextApiRequest | ServerResponse,
   session: Session
@@ -196,7 +196,7 @@ export default function accessTokenFactory(
 
       if (options?.afterRefresh) {
         if (req) {
-          session = await (options.afterRefresh as AfterRefreshPageRote)(
+          session = await (options.afterRefresh as AfterRefreshPageRoute)(
             req,
             res as NextApiResponse | ServerResponse,
             session
