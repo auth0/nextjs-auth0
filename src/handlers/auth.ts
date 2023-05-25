@@ -197,13 +197,11 @@ const appRouteHandlerFactory: (customHandlers: ApiHandlers, onError?: AppRouterO
     const handler = route && customHandlers.hasOwnProperty(route) && customHandlers[route];
     try {
       if (handler) {
-        console.log('exec handler', route, handler);
         return await (handler as any)(req);
       } else {
         return new Response(null, { status: 404 });
       }
     } catch (error) {
-      console.log('error handler', error);
       const res = await (onError || defaultAppRouterOnError)(req, error as HandlerError);
       return res || new Response(null, { status: error.status || 500 });
     }

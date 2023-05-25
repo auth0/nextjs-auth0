@@ -37,18 +37,8 @@ export default function Nav() {
               </Link>
             </li>
             <li>
-              <Link href="/profile-csr" legacyBehavior>
-                <a>Profile (CSR)</a>
-              </Link>
-            </li>{' '}
-            <li>
-              <Link href="/profile-ssr" legacyBehavior>
-                <a>Profile (SSR)</a>
-              </Link>
-            </li>{' '}
-            <li>
-              <Link href="/profile-middleware" legacyBehavior>
-                <a>Profile (Middleware)</a>
+              <Link href="/profile" legacyBehavior>
+                <a>Profile</a>
               </Link>
             </li>{' '}
             {user ? (
