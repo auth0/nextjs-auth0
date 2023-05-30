@@ -5,6 +5,7 @@ import { HandlerErrorCause, LogoutHandlerError } from '../utils/errors';
 import { Auth0NextApiRequest, Auth0NextApiResponse, Auth0NextRequest, Auth0NextResponse } from '../http';
 import { BaseConfig } from '../config';
 import { NextRequest, NextResponse } from 'next/server';
+import { AppRouteHandlerFnContext, AuthHandler, Handler, getHandler, OptionsProvider } from './router-helpers';
 
 /**
  * Options to customize the logout handler.
@@ -32,7 +33,7 @@ export interface LogoutOptions {
  *
  * @category Server
  */
-export type LogoutOptionsProvider = (req: NextApiRequest | NextRequest) => LogoutOptions;
+export type LogoutOptionsProvider = OptionsProvider<LogoutOptions>;
 
 /**
  * Use this to customize the default logout handler without overriding it.
@@ -84,11 +85,7 @@ export type LogoutOptionsProvider = (req: NextApiRequest | NextRequest) => Logou
  *
  * @category Server
  */
-export type HandleLogout = {
-  (req: NextApiRequest, res: NextApiResponse, options?: LogoutOptions): Promise<void>;
-  (provider: LogoutOptionsProvider): LogoutHandler;
-  (options: LogoutOptions): LogoutHandler;
-};
+export type HandleLogout = AuthHandler<LogoutOptions>;
 
 /**
  * The handler for the `/api/auth/logout` API route.
@@ -97,7 +94,7 @@ export type HandleLogout = {
  *
  * @category Server
  */
-export type LogoutHandler = (req: NextApiRequest, res: NextApiResponse, options?: LogoutOptions) => Promise<void>;
+export type LogoutHandler = Handler<LogoutOptions>;
 
 /**
  * @ignore
@@ -106,33 +103,14 @@ export default function handleLogoutFactory(handler: BaseHandleLogout): HandleLo
   const appRouteHandler = appRouteHandlerFactory(handler);
   const pageRouteHandler = pageRouteHandlerFactory(handler);
 
-  return (
-    reqOrOptions: NextApiRequest | LogoutOptionsProvider | LogoutOptions,
-    res?: NextApiResponse,
-    options?: LogoutOptions
-  ): any => {
-    if (typeof Request !== undefined && reqOrOptions instanceof Request) {
-      return appRouteHandler(reqOrOptions as NextRequest, options);
-    }
-    if ('socket' in reqOrOptions && res) {
-      return pageRouteHandler(reqOrOptions as NextApiRequest, res as NextApiResponse, options);
-    }
-    return (req: NextApiRequest | NextRequest, res: NextApiResponse) => {
-      const opts = (typeof reqOrOptions === 'function' ? reqOrOptions(req) : reqOrOptions) as LogoutOptions;
-
-      if (typeof Request !== undefined && reqOrOptions instanceof Request) {
-        return appRouteHandler(req as NextRequest, opts);
-      }
-      return pageRouteHandler(req as NextApiRequest, res as NextApiResponse, opts);
-    };
-  };
+  return getHandler<LogoutOptions>(appRouteHandler, pageRouteHandler) as HandleLogout;
 }
 
 const appRouteHandlerFactory: (
   handler: BaseHandleLogin
-) => (req: NextRequest, options?: LogoutOptions) => Promise<Response> | Response =
+) => (req: NextRequest, ctx: AppRouteHandlerFnContext, options?: LogoutOptions) => Promise<Response> | Response =
   (handler) =>
-  async (req, options = {}) => {
+  async (req, _ctx, options = {}) => {
     try {
       const auth0Res = new Auth0NextResponse(new NextResponse());
       await handler(new Auth0NextRequest(req), auth0Res, options);
@@ -144,7 +122,7 @@ const appRouteHandlerFactory: (
 
 const pageRouteHandlerFactory: (
   handler: BaseHandleLogin
-) => (req: NextApiRequest, res: NextApiResponse, options?: LogoutOptions) => Promise<void> =
+) => (req: NextApiRequest, res: NextApiResponse, options?: LogoutOptions) => Promise<void> | void =
   (handler) =>
   async (req, res, options = {}) => {
     try {

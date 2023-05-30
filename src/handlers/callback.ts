@@ -1,5 +1,6 @@
 import { strict as assert } from 'assert';
 import { NextApiResponse, NextApiRequest } from 'next';
+import { NextRequest, NextResponse } from 'next/server';
 import {
   AuthorizationParameters,
   HandleCallback as BaseHandleCallback,
@@ -12,7 +13,7 @@ import { BaseConfig, NextConfig } from '../config';
 import { CallbackHandlerError, HandlerErrorCause } from '../utils/errors';
 import { Auth0NextApiRequest, Auth0NextApiResponse, Auth0NextRequest, Auth0NextResponse } from '../http';
 import { LoginOptions } from './login';
-import { NextRequest, NextResponse } from 'next/server';
+import { AppRouteHandlerFnContext, AuthHandler, getHandler, Handler, OptionsProvider } from './router-helpers';
 
 /**
  * Use this function for validating additional claims on the user's ID token or adding removing items from
@@ -144,7 +145,7 @@ export interface CallbackOptions {
  *
  * @category Server
  */
-export type CallbackOptionsProvider = (req: NextApiRequest | NextRequest) => CallbackOptions;
+export type CallbackOptionsProvider = OptionsProvider<CallbackOptions>;
 
 /**
  * Use this to customize the default callback handler without overriding it.
@@ -196,11 +197,7 @@ export type CallbackOptionsProvider = (req: NextApiRequest | NextRequest) => Cal
  *
  * @category Server
  */
-export type HandleCallback = {
-  (req: NextApiRequest, res: NextApiResponse, options?: CallbackOptions): Promise<void>;
-  (provider: CallbackOptionsProvider): CallbackHandler;
-  (options: CallbackOptions): CallbackHandler;
-};
+export type HandleCallback = AuthHandler<CallbackOptions>;
 
 /**
  * The handler for the `/api/auth/callback` API route.
@@ -209,7 +206,7 @@ export type HandleCallback = {
  *
  * @category Server
  */
-export type CallbackHandler = (req: NextApiRequest, res: NextApiResponse, options?: CallbackOptions) => Promise<void>;
+export type CallbackHandler = Handler<CallbackOptions>;
 
 /**
  * @ignore
@@ -218,26 +215,7 @@ export default function handleCallbackFactory(handler: BaseHandleCallback, confi
   const appRouteHandler = appRouteHandlerFactory(handler, config);
   const pageRouteHandler = pageRouteHandlerFactory(handler, config);
 
-  return (
-    reqOrOptions: NextApiRequest | CallbackOptionsProvider | CallbackOptions,
-    res?: NextApiResponse,
-    options?: CallbackOptions
-  ): any => {
-    if (typeof Request !== undefined && reqOrOptions instanceof Request) {
-      return appRouteHandler(reqOrOptions as NextRequest, options);
-    }
-    if ('socket' in reqOrOptions && res) {
-      return pageRouteHandler(reqOrOptions as NextApiRequest, res as NextApiResponse, options);
-    }
-    return (req: NextApiRequest | NextRequest, res: NextApiResponse) => {
-      const opts = (typeof reqOrOptions === 'function' ? reqOrOptions(req) : reqOrOptions) as CallbackOptions;
-
-      if (typeof Request !== undefined && reqOrOptions instanceof Request) {
-        return appRouteHandler(req as NextRequest, opts);
-      }
-      return pageRouteHandler(req as NextApiRequest, res as NextApiResponse, opts);
-    };
-  };
+  return getHandler<CallbackOptions>(appRouteHandler, pageRouteHandler) as HandleCallback;
 }
 
 const applyOptions = (
@@ -277,9 +255,9 @@ const applyOptions = (
 const appRouteHandlerFactory: (
   handler: BaseHandleLogin,
   config: NextConfig
-) => (req: NextRequest, options?: CallbackOptions) => Promise<Response> | Response =
+) => (req: NextRequest, ctx: AppRouteHandlerFnContext, options?: CallbackOptions) => Promise<Response> | Response =
   (handler, config) =>
-  async (req, options = {}) => {
+  async (req, _ctx, options = {}) => {
     try {
       const auth0Res = new Auth0NextResponse(new NextResponse());
       await handler(new Auth0NextRequest(req), auth0Res, applyOptions(req, undefined, options, config));

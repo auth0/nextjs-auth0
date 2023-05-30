@@ -1,4 +1,4 @@
-import { IncomingMessage } from 'http';
+import type { IncomingMessage } from 'http';
 import type { AuthorizationParameters as OidcAuthorizationParameters } from 'openid-client';
 import type { LoginOptions } from './auth0-session/config';
 import { SessionStore } from './auth0-session/session/stateful-session';
@@ -355,7 +355,6 @@ export interface NextConfig extends Pick<BaseConfig, 'identityClaimFilter'> {
   routes: {
     callback: string;
     login: string;
-    unauthorized: string;
   };
   session: Pick<SessionConfig, 'storeIDToken'>;
 
@@ -600,8 +599,7 @@ export const getConfig = (params: ConfigParameters = {}): { baseConfig: BaseConf
   const nextConfig: NextConfig = {
     routes: {
       ...baseConfig.routes,
-      login: baseParams.routes?.login || getLoginUrl(),
-      unauthorized: baseParams.routes?.unauthorized || '/api/auth/401'
+      login: baseParams.routes?.login || getLoginUrl()
     },
     identityClaimFilter: baseConfig.identityClaimFilter,
     organization: organization || AUTH0_ORGANIZATION,

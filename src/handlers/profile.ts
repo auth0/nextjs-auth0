@@ -4,17 +4,17 @@ import { ClientFactory } from '../auth0-session';
 import { SessionCache, Session, fromJson, GetAccessToken } from '../session';
 import { assertReqRes } from '../utils/assert';
 import { ProfileHandlerError, HandlerErrorCause } from '../utils/errors';
-import { IncomingMessage, ServerResponse } from 'http';
+import { AppRouteHandlerFnContext, AuthHandler, getHandler, Handler, OptionsProvider } from './router-helpers';
 
 export type AfterRefetch = AfterRefetchPageRoute | AfterRefetchAppRoute;
 
 export type AfterRefetchPageRoute = (
-  req: NextApiRequest | IncomingMessage,
-  res: NextApiRequest | ServerResponse,
+  req: NextApiRequest,
+  res: NextApiResponse,
   session: Session
 ) => Promise<Session> | Session;
 
-export type AfterRefetchAppRoute = (session: Session) => Promise<Session> | Session;
+export type AfterRefetchAppRoute = (req: NextRequest, session: Session) => Promise<Session> | Session;
 
 /**
  * Options to customize the profile handler.
@@ -44,7 +44,7 @@ export type ProfileOptions = {
  *
  * @category Server
  */
-export type ProfileOptionsProvider = (req: NextApiRequest | NextRequest) => ProfileOptions;
+export type ProfileOptionsProvider = OptionsProvider<ProfileOptions>;
 
 /**
  * Use this to customize the default profile handler without overriding it.
@@ -94,11 +94,7 @@ export type ProfileOptionsProvider = (req: NextApiRequest | NextRequest) => Prof
  *
  * @category Server
  */
-export type HandleProfile = {
-  (req: NextApiRequest, res: NextApiResponse, options?: ProfileOptions): Promise<void>;
-  (provider: ProfileOptionsProvider): ProfileHandler;
-  (options: ProfileOptions): ProfileHandler;
-};
+export type HandleProfile = AuthHandler<ProfileOptions>;
 
 /**
  * The handler for the `/api/auth/me` API route.
@@ -107,7 +103,7 @@ export type HandleProfile = {
  *
  * @category Server
  */
-export type ProfileHandler = (req: NextApiRequest, res: NextApiResponse, options?: ProfileOptions) => Promise<void>;
+export type ProfileHandler = Handler<ProfileOptions>;
 
 /**
  * @ignore
@@ -120,35 +116,16 @@ export default function profileHandler(
   const appRouteHandler = appRouteHandlerFactory(getClient, getAccessToken, sessionCache);
   const pageRouteHandler = pageRouteHandlerFactory(getClient, getAccessToken, sessionCache);
 
-  return (
-    reqOrOptions: NextApiRequest | ProfileOptionsProvider | ProfileOptions,
-    res?: NextApiResponse,
-    options?: ProfileOptions
-  ): any => {
-    if (typeof Request !== undefined && reqOrOptions instanceof Request) {
-      return appRouteHandler(reqOrOptions as NextRequest, options);
-    }
-    if ('socket' in reqOrOptions && res) {
-      return pageRouteHandler(reqOrOptions as NextApiRequest, res as NextApiResponse, options);
-    }
-    return (req: NextApiRequest | NextRequest, res: NextApiResponse) => {
-      const opts = (typeof reqOrOptions === 'function' ? reqOrOptions(req) : reqOrOptions) as ProfileOptions;
-
-      if (typeof Request !== undefined && req instanceof Request) {
-        return appRouteHandler(req as NextRequest, opts);
-      }
-      return pageRouteHandler(req as NextApiRequest, res as NextApiResponse, opts);
-    };
-  };
+  return getHandler<ProfileOptions>(appRouteHandler, pageRouteHandler) as HandleProfile;
 }
 
 const appRouteHandlerFactory: (
   getClient: ClientFactory,
   getAccessToken: GetAccessToken,
   sessionCache: SessionCache
-) => (req: NextRequest, options?: ProfileOptions) => Promise<Response> | Response =
+) => (req: NextRequest, ctx: AppRouteHandlerFnContext, options?: ProfileOptions) => Promise<Response> | Response =
   (getClient, getAccessToken, sessionCache) =>
-  async (req, options = {}) => {
+  async (req, _ctx, options = {}) => {
     try {
       const res = new NextResponse();
 
@@ -177,7 +154,7 @@ const appRouteHandlerFactory: (
         }) as Session;
 
         if (options.afterRefetch) {
-          newSession = await (options.afterRefetch as AfterRefetchAppRoute)(newSession);
+          newSession = await (options.afterRefetch as AfterRefetchAppRoute)(req, newSession);
         }
 
         await sessionCache.set(req, res, newSession);

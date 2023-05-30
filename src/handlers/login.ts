@@ -1,4 +1,5 @@
 import { NextApiResponse, NextApiRequest } from 'next';
+import { NextRequest, NextResponse } from 'next/server';
 import {
   AuthorizationParameters,
   HandleLogin as BaseHandleLogin,
@@ -9,7 +10,7 @@ import { assertReqRes } from '../utils/assert';
 import { BaseConfig, NextConfig } from '../config';
 import { HandlerErrorCause, LoginHandlerError } from '../utils/errors';
 import { Auth0NextApiRequest, Auth0NextApiResponse, Auth0NextRequest, Auth0NextResponse } from '../http';
-import { NextRequest, NextResponse } from 'next/server';
+import { AppRouteHandlerFnContext, getHandler, OptionsProvider, Handler, AuthHandler } from './router-helpers';
 
 /**
  * Use this to store additional state for the user before they visit the identity provider to log in.
@@ -35,7 +36,10 @@ import { NextRequest, NextResponse } from 'next/server';
  *
  * @category Server
  */
-export type GetLoginState = (req: NextApiRequest | NextRequest, options: LoginOptions) => { [key: string]: any };
+export type GetLoginState = GetLoginStatePageRoute | GetLoginStateAppRoute;
+
+export type GetLoginStatePageRoute = (req: NextApiRequest, options: LoginOptions) => { [key: string]: any };
+export type GetLoginStateAppRoute = (req: NextApiRequest, options: LoginOptions) => { [key: string]: any };
 
 /**
  * Authorization params to pass to the login handler.
@@ -169,7 +173,7 @@ export interface LoginOptions {
  *
  * @category Server
  */
-export type LoginOptionsProvider = (req: NextApiRequest | NextRequest) => LoginOptions;
+export type LoginOptionsProvider = OptionsProvider<LoginOptions>;
 
 /**
  * Use this to customize the default login handler without overriding it.
@@ -225,12 +229,7 @@ export type LoginOptionsProvider = (req: NextApiRequest | NextRequest) => LoginO
  *
  * @category Server
  */
-export type HandleLogin = {
-  (req: NextRequest, options?: LoginOptions): Promise<void>;
-  (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions): Promise<void>;
-  (provider: LoginOptionsProvider): LoginHandler;
-  (options: LoginOptions): LoginHandler;
-};
+export type HandleLogin = AuthHandler<LoginOptions>;
 
 /**
  * The handler for the `/api/auth/login` API route.
@@ -239,11 +238,7 @@ export type HandleLogin = {
  *
  * @category Server
  */
-export type LoginHandler = {
-  (req: NextRequest, options?: LoginOptions): Promise<Response> | Response;
-  (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions): Promise<void> | void;
-  (req: NextApiRequest | NextRequest, resOrOpts?: NextApiResponse | LoginOptions, options?: LoginOptions): any;
-};
+export type LoginHandler = Handler<LoginOptions>;
 
 /**
  * @ignore
@@ -256,26 +251,7 @@ export default function handleLoginFactory(
   const appRouteHandler = appRouteHandlerFactory(handler, nextConfig, baseConfig);
   const pageRouteHandler = pageRouteHandlerFactory(handler, nextConfig, baseConfig);
 
-  return (
-    reqOrOptions: NextApiRequest | NextRequest | LoginOptionsProvider | LoginOptions,
-    res?: NextApiResponse | LoginOptions,
-    options?: LoginOptions
-  ): any => {
-    if (typeof Request !== undefined && reqOrOptions instanceof Request) {
-      return appRouteHandler(reqOrOptions as NextRequest, options);
-    }
-    if ('socket' in reqOrOptions && res) {
-      return pageRouteHandler(reqOrOptions as NextApiRequest, res as NextApiResponse, options);
-    }
-    return (req: NextApiRequest | NextRequest, res: NextApiResponse) => {
-      const opts = (typeof reqOrOptions === 'function' ? reqOrOptions(req) : reqOrOptions) as LoginOptions;
-
-      if (typeof Request !== undefined && reqOrOptions instanceof Request) {
-        return appRouteHandler(req as NextRequest, opts);
-      }
-      return pageRouteHandler(req as NextApiRequest, res as NextApiResponse, opts);
-    };
-  };
+  return getHandler<LoginOptions>(appRouteHandler, pageRouteHandler) as HandleLogin;
 }
 
 const applyOptions = (
@@ -284,8 +260,10 @@ const applyOptions = (
   dangerousReturnTo: string | undefined | null,
   nextConfig: NextConfig,
   baseConfig: BaseConfig
-) => {
-  let opts = { ...options };
+): BaseLoginOptions => {
+  let opts: BaseLoginOptions;
+  let getLoginState: GetLoginState | undefined;
+  ({ getLoginState, ...opts } = options);
   if (dangerousReturnTo) {
     const safeBaseUrl = new URL(options.authorizationParams?.redirect_uri || baseConfig.baseURL);
     const returnTo = toSafeRedirect(dangerousReturnTo, safeBaseUrl);
@@ -297,11 +275,8 @@ const applyOptions = (
       authorizationParams: { organization: nextConfig.organization, ...opts.authorizationParams }
     };
   }
-  if (opts.getLoginState) {
-    const fn = opts.getLoginState;
-    (opts as BaseLoginOptions).getLoginState = (opt) => {
-      return fn(req, opt as LoginOptions);
-    };
+  if (getLoginState) {
+    opts.getLoginState = (_opts) => (getLoginState as GetLoginState)(req as any, _opts as any);
   }
   return opts;
 };
@@ -310,9 +285,9 @@ const appRouteHandlerFactory: (
   handler: BaseHandleLogin,
   nextConfig: NextConfig,
   baseConfig: BaseConfig
-) => (req: NextRequest, options?: LoginOptions) => Promise<Response> | Response =
+) => (req: NextRequest, ctx: AppRouteHandlerFnContext, options?: LoginOptions) => Promise<Response> | Response =
   (handler, nextConfig, baseConfig) =>
-  async (req, options = {}) => {
+  async (req, _ctx, options = {}) => {
     try {
       const url = new URL(req.url);
       const dangerousReturnTo = url.searchParams.get('returnTo');
@@ -325,7 +300,6 @@ const appRouteHandlerFactory: (
       );
       return auth0Res.res;
     } catch (e) {
-      console.log('ERROR', e);
       throw new LoginHandlerError(e as HandlerErrorCause);
     }
   };
@@ -334,7 +308,7 @@ const pageRouteHandlerFactory: (
   handler: BaseHandleLogin,
   nextConfig: NextConfig,
   baseConfig: BaseConfig
-) => (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions) => Promise<void> =
+) => (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions) => Promise<void> | void =
   (handler, nextConfig, baseConfig) =>
   async (req, res, options = {}) => {
     try {
