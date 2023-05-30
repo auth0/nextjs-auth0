@@ -173,8 +173,16 @@ export default function handlerFactory({
 const appRouteHandlerFactory: (customHandlers: ApiHandlers, onError?: AppRouterOnError) => AppRouteHandlerFn =
   (customHandlers, onError) => async (req: NextRequest, ctx) => {
     const { params } = ctx;
-    const auth0 = params?.auth0;
-    const route = Array.isArray(auth0) ? auth0[0] : /* c8 ignore next */ auth0;
+    let route = params?.auth0;
+
+    if (Array.isArray(route)) {
+      let otherRoutes;
+      [route, ...otherRoutes] = route;
+      if (otherRoutes.length) {
+        return new Response(null, { status: 404 });
+      }
+    }
+
     const handler = route && customHandlers.hasOwnProperty(route) && customHandlers[route];
     try {
       if (handler) {
@@ -195,14 +203,14 @@ const pageRouteHandlerFactory: (customHandlers: ApiHandlers, onError?: PageRoute
       query: { auth0: route }
     } = req;
 
-      if (Array.isArray(route)) {
-        let otherRoutes;
-        [route, ...otherRoutes] = route;
-        if (otherRoutes.length) {
-          res.status(404).end();
-          return;
-        }
+    if (Array.isArray(route)) {
+      let otherRoutes;
+      [route, ...otherRoutes] = route;
+      if (otherRoutes.length) {
+        res.status(404).end();
+        return;
       }
+    }
 
     try {
       const handler = route && customHandlers.hasOwnProperty(route) && customHandlers[route];
