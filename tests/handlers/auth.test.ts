@@ -3,7 +3,7 @@ import { ArgumentsOf } from 'ts-jest';
 import { withoutApi } from '../fixtures/default-settings';
 import { login, setup, teardown } from '../fixtures/setup';
 import { get } from '../auth0-session/fixtures/helpers';
-import { initAuth0, OnError, Session } from '../../src';
+import { initAuth0, OnError } from '../../src';
 import { LoginOptions } from '../../src/handlers/login';
 import { LogoutOptions } from '../../src/handlers/logout';
 import { CallbackOptions } from '../../src/handlers/callback';
@@ -210,7 +210,7 @@ describe('custom options', () => {
   });
 
   test('accept custom profile options', async () => {
-    const afterRefetch = jest.fn(async (_req: IncomingMessage, _res: ServerResponse, session: Session) => session);
+    const afterRefetch = jest.fn(async (_req, _res, session) => session);
     const options: ProfileOptions = { refetch: true, afterRefetch };
     const baseUrl = await setup(withoutApi);
     const { handleProfile, handleAuth } = initAuth0(withoutApi);
@@ -291,7 +291,7 @@ describe('custom options providers', () => {
   });
 
   test('accept custom profile options provider', async () => {
-    const afterRefetch = jest.fn(async (_req: IncomingMessage, _res: ServerResponse, session: Session) => session);
+    const afterRefetch = jest.fn(async (_req, _res, session) => session);
     const options: ProfileOptions = { refetch: true, afterRefetch };
     const optionsProvider = jest.fn(() => options);
     const baseUrl = await setup(withoutApi);
