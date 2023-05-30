@@ -390,7 +390,7 @@ export interface NextConfig extends Pick<BaseConfig, 'identityClaimFilter'> {
  * {@link WithApiAuthRequired}, and {@link WithPageAuthRequired}).
  *
  * ```js
- * // pages/api/auth/[...auth0].js
+ * // pages/api/auth/[auth0].js
  * import { handleAuth } from '@auth0/nextjs-auth0';
  *
  * return handleAuth();
@@ -453,7 +453,7 @@ export interface NextConfig extends Pick<BaseConfig, 'identityClaimFilter'> {
  * Then import it into your route handler:
  *
  * ```js
- * // pages/api/auth/[...auth0].js
+ * // pages/api/auth/[auth0].js
  * import auth0 from '../../../../utils/auth0';
  *
  * return auth0.handleAuth();

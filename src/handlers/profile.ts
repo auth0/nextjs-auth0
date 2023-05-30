@@ -53,7 +53,7 @@ export type ProfileOptionsProvider = OptionsProvider<ProfileOptions>;
  * @example Pass an options object
  *
  * ```js
- * // pages/api/auth/[...auth0].js
+ * // pages/api/auth/[auth0].js
  * import { handleAuth, handleProfile } from '@auth0/nextjs-auth0';
  *
  * export default handleAuth({
@@ -64,7 +64,7 @@ export type ProfileOptionsProvider = OptionsProvider<ProfileOptions>;
  * @example Pass a function that receives the request and returns an options object
  *
  * ```js
- * // pages/api/auth/[...auth0].js
+ * // pages/api/auth/[auth0].js
  * import { handleAuth, handleProfile } from '@auth0/nextjs-auth0';
  *
  * export default handleAuth({

@@ -89,9 +89,9 @@ Go to your Next.js application and create a [catch-all, dynamic API route handle
 
 - Create an `auth` directory under the `/pages/api/` directory.
 
-- Create a `[...auth0].js` file under the newly created `auth` directory.
+- Create a `[auth0].js` file under the newly created `auth` directory.
 
-The path to your dynamic API route file would be `/pages/api/auth/[...auth0].js`. Populate that file as follows:
+The path to your dynamic API route file would be `/pages/api/auth/[auth0].js`. Populate that file as follows:
 
 ```js
 import { handleAuth } from '@auth0/nextjs-auth0';
