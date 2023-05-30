@@ -80,8 +80,6 @@ export default () => {
 };
 ```
 
-Have a look at the `basic-example` app [./examples/basic-example](./examples/basic-example).
-
 ## Create your own instance of the SDK
 
 When you use the named exports, the SDK creates an instance of the SDK for you and configures it with the provided environment variables.

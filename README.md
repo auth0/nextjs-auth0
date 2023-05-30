@@ -18,7 +18,7 @@ The Auth0 Next.js SDK is a library for implementing user authentication in Next.
 - [Security](https://github.com/auth0/nextjs-auth0/blob/main/SECURITY.md) - Some important security notices that you should check.
 - [Architecture](https://github.com/auth0/nextjs-auth0/blob/main/ARCHITECTURE.md) - Architectural overview of the SDK.
 - [Testing](https://github.com/auth0/nextjs-auth0/blob/main/TESTING.md) - Some help with testing your nextjs-auth0 application.
-- [Deploying](https://github.com/auth0/nextjs-auth0/blob/main/examples/README.md) - How we deploy our example app to Vercel.
+- [Deploying](https://github.com/auth0/nextjs-auth0/blob/main/example-app/README.md) - How we deploy our example app to Vercel.
 - [Docs Site](https://auth0.com/docs) - explore our docs site and learn more about Auth0.
 
 ## Getting Started
@@ -299,7 +299,7 @@ For end to end tests, have a look at how we use a [mock OIDC Provider](./scripts
 
 # Deploying
 
-For deploying, have a look at [how we deploy our example app to Vercel](./examples/README.md).
+For deploying, have a look at [how we deploy our example app to Vercel](./example-app/README.md).
 
 ## Contributing
 
