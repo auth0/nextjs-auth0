@@ -46,6 +46,14 @@ describe('auth handler', () => {
     global.handleAuth = initAuth0(withoutApi).handleAuth;
     await expect(get(baseUrl, '/api/auth/__proto__')).rejects.toThrow('Not Found');
   });
+
+  test('return 404 when routes have extra parts', async () => {
+    const baseUrl = await setup(withoutApi);
+    global.handleAuth = initAuth0(withoutApi).handleAuth;
+    await expect(get(baseUrl, '/api/auth/me.css')).rejects.toThrow('Not Found');
+    await expect(get(baseUrl, '/api/auth/me/foo.css')).rejects.toThrow('Not Found');
+    await expect(get(baseUrl, '/api/auth/me/foo/bar.css')).rejects.toThrow('Not Found');
+  });
 });
 
 describe('custom error handler', () => {
