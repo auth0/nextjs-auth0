@@ -90,7 +90,7 @@ type ErrorHandlers = {
  *
  * @category Server
  */
-export type HandleAuth = (userHandlers?: Handlers) => NextApiHandler | AppRouteHandlerFn;
+export type HandleAuth = (userHandlers?: Handlers) => NextApiHandler | AppRouteHandlerFn | any; // any is required for app router ts check
 
 /**
  * Error handler for the default auth routes.

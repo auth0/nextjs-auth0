@@ -1,4 +1,3 @@
-import type { IncomingMessage } from 'http';
 import type { AuthorizationParameters as OidcAuthorizationParameters } from 'openid-client';
 import type { LoginOptions } from './auth0-session/config';
 import { SessionStore } from './auth0-session/session/stateful-session';
@@ -357,25 +356,6 @@ export interface NextConfig extends Pick<BaseConfig, 'identityClaimFilter'> {
     login: string;
   };
   session: Pick<SessionConfig, 'storeIDToken'>;
-
-  /**
-   * Function that returns an object with URL-safe state values for login.
-   * Used for passing custom state parameters to your authorization server.
-   * Can also be passed in to {@link HandleLogin}.
-   *
-   * ```js
-   * {
-   *   ...
-   *   getLoginState(req, options) {
-   *     return {
-   *       returnTo: options.returnTo || req.originalUrl,
-   *       customState: 'foo'
-   *     };
-   *   }
-   * }
-   * ```
-   */
-  getLoginState: (req: IncomingMessage, options: LoginOptions) => Record<string, any>;
 }
 
 /**
@@ -603,10 +583,7 @@ export const getConfig = (params: ConfigParameters = {}): { baseConfig: BaseConf
     },
     identityClaimFilter: baseConfig.identityClaimFilter,
     organization: organization || AUTH0_ORGANIZATION,
-    session: { storeIDToken: baseConfig.session.storeIDToken },
-    getLoginState(_req, options) {
-      return { returnTo: options.returnTo };
-    }
+    session: { storeIDToken: baseConfig.session.storeIDToken }
   };
 
   return { baseConfig, nextConfig };
