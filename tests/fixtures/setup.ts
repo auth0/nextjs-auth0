@@ -13,14 +13,16 @@ import {
   AccessTokenRequest,
   Claims,
   OnError,
-  Handlers
+  HandleLogin,
+  HandleLogout,
+  HandleCallback,
+  HandleProfile
 } from '../../src';
 import { codeExchange, discovery, jwksEndpoint, userInfo } from './oidc-nocks';
 import { jwks, makeIdToken } from '../auth0-session/fixtures/cert';
 import { start, stop } from './server';
 import { encodeState } from '../../src/auth0-session/utils/encoding';
 import { post, toSignedCookieJar } from '../auth0-session/fixtures/helpers';
-import { HandleLogin, HandleLogout, HandleCallback, HandleProfile } from '../../src';
 
 export type SetupOptions = {
   idTokenClaims?: Claims;
@@ -88,7 +90,7 @@ export const setup = async (
   const login: NextApiHandler = (...args) => (loginHandler || handleLogin)(...args, loginOptions);
   const logout: NextApiHandler = (...args) => (logoutHandler || handleLogout)(...args, logoutOptions);
   const profile: NextApiHandler = (...args) => (profileHandler || handleProfile)(...args, profileOptions);
-  const handlers: Handlers = { onError, callback, login, logout, profile };
+  const handlers: { [key: string]: NextApiHandler } = { onError: onError as any, callback, login, logout, profile };
   global.handleAuth = handleAuth.bind(null, handlers);
   global.getSession = getSession;
   global.touchSession = touchSession;

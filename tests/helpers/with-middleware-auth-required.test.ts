@@ -57,17 +57,12 @@ describe('with-middleware-auth-required', () => {
 
   test('require auth on anonymous requests to api routes', async () => {
     const res = await setup({ url: 'http://example.com/api/foo' });
+    expect(res.ok).toBe(false);
     expect(res.status).toEqual(401);
-    expect(res.headers.get('x-middleware-rewrite')).toEqual('http://example.com/api/auth/401');
-  });
-
-  test('require auth on anonymous requests to api routes with custom 401', async () => {
-    const res = await setup({
-      url: 'http://example.com/api/foo',
-      config: { ...withoutApi, routes: { unauthorized: '/api/foo-401' } }
+    await expect(res.json()).resolves.toMatchObject({
+      error: 'not_authenticated',
+      description: 'The user does not have an active session or is not authenticated'
     });
-    expect(res.status).toEqual(401);
-    expect(res.headers.get('x-middleware-rewrite')).toEqual('http://example.com/api/foo-401');
   });
 
   test('return to previous url', async () => {

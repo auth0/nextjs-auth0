@@ -1,11 +1,11 @@
 import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next';
+import { NextRequest } from 'next/server';
 import { HandleLogin } from './login';
 import { HandleLogout } from './logout';
 import { HandleCallback } from './callback';
 import { HandleProfile } from './profile';
 import { HandlerError } from '../utils/errors';
-import { AppRouteHandlerFn, AppRouteRouteHandlerContext } from 'next/dist/server/future/route-modules/app-route/module';
-import { NextRequest } from 'next/server';
+import { AppRouteHandlerFn, AppRouteHandlerFnContext, Handler } from './router-helpers';
 
 /**
  * If you want to add some custom behavior to the default auth handlers, you can pass in custom handlers for
@@ -62,9 +62,7 @@ import { NextRequest } from 'next/server';
  */
 export type Handlers = ApiHandlers | ErrorHandlers;
 
-type ApiHandlers = {
-  [key: string]: NextApiHandler;
-};
+type ApiHandlers = { [key: string]: Handler };
 
 type ErrorHandlers = {
   onError?: PageRouterOnError | AppRouterOnError;
@@ -89,7 +87,6 @@ type ErrorHandlers = {
  * - `/api/auth/callback`: The page that your identity provider will redirect the user back to on login.
  * - `/api/auth/logout`: log the user out of your app.
  * - `/api/auth/me`: View the user profile JSON (used by the {@link UseUser} hook).
- * - `/api/auth/unauthorized`: Returns a 401 for use by {@link WithMiddlewareAuthRequired} when protecting API routes.
  *
  * @category Server
  */
@@ -139,21 +136,6 @@ const defaultAppRouterOnError: AppRouterOnError = (_req, error) => {
 };
 
 /**
- * This is a handler for use by {@link WithMiddlewareAuthRequired} when protecting an API route.
- * Middleware can't return a response body, so an unauthorized request for an API route
- * needs to rewrite to this handler.
- * @ignore
- */
-const unauthorized: NextApiHandler = (_req, res) => {
-  res.status(401).json({
-    error: 'not_authenticated',
-    description: 'The user does not have an active session or is not authenticated'
-  });
-};
-
-type AppRouteHandlerFnContext = Parameters<AppRouteHandlerFn>[1];
-
-/**
  * @ignore
  */
 export default function handlerFactory({
@@ -173,7 +155,6 @@ export default function handlerFactory({
       logout: handleLogout,
       callback: handleCallback,
       me: (handlers as ApiHandlers).profile || handleProfile,
-      401: unauthorized,
       ...handlers
     };
 
@@ -182,7 +163,7 @@ export default function handlerFactory({
 
     return (req: NextRequest | NextApiRequest, resOrCtx: NextApiResponse | AppRouteHandlerFnContext) => {
       if ('params' in resOrCtx) {
-        return appRouteHandler(req as NextRequest, resOrCtx as AppRouteRouteHandlerContext);
+        return appRouteHandler(req as NextRequest, resOrCtx as AppRouteHandlerFnContext);
       }
       return pageRouteHandler(req as NextApiRequest, resOrCtx as NextApiResponse);
     };
@@ -190,14 +171,14 @@ export default function handlerFactory({
 }
 
 const appRouteHandlerFactory: (customHandlers: ApiHandlers, onError?: AppRouterOnError) => AppRouteHandlerFn =
-  (customHandlers, onError) =>
-  async (req: NextRequest, { params }) => {
+  (customHandlers, onError) => async (req: NextRequest, ctx) => {
+    const { params } = ctx;
     const auth0 = params?.auth0;
     const route = Array.isArray(auth0) ? auth0[0] : /* c8 ignore next */ auth0;
     const handler = route && customHandlers.hasOwnProperty(route) && customHandlers[route];
     try {
       if (handler) {
-        return await (handler as any)(req);
+        return await (handler as AppRouteHandlerFn)(req, ctx);
       } else {
         return new Response(null, { status: 404 });
       }
@@ -209,7 +190,7 @@ const appRouteHandlerFactory: (customHandlers: ApiHandlers, onError?: AppRouterO
 
 const pageRouteHandlerFactory: (customHandlers: ApiHandlers, onError?: PageRouterOnError) => NextApiHandler =
   (customHandlers, onError) =>
-  async (req, res): Promise<void> => {
+  async (req: NextApiRequest, res: NextApiResponse): Promise<void> => {
     let {
       query: { auth0: route }
     } = req;
@@ -219,7 +200,7 @@ const pageRouteHandlerFactory: (customHandlers: ApiHandlers, onError?: PageRoute
     try {
       const handler = route && customHandlers.hasOwnProperty(route) && customHandlers[route];
       if (handler) {
-        await handler(req, res);
+        await (handler as NextApiHandler)(req, res);
       } else {
         res.status(404).end();
       }

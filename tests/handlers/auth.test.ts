@@ -11,6 +11,8 @@ import { ProfileOptions } from '../../src/handlers/profile';
 import * as baseLoginHandler from '../../src/auth0-session/handlers/login';
 import * as baseLogoutHandler from '../../src/auth0-session/handlers/logout';
 import * as baseCallbackHandler from '../../src/auth0-session/handlers/callback';
+import { Handler } from '../../src/handlers/router-helpers';
+import { NextApiHandler } from 'next';
 
 const handlerError = () =>
   expect.objectContaining({
@@ -43,12 +45,6 @@ describe('auth handler', () => {
     const baseUrl = await setup(withoutApi);
     global.handleAuth = initAuth0(withoutApi).handleAuth;
     await expect(get(baseUrl, '/api/auth/__proto__')).rejects.toThrow('Not Found');
-  });
-
-  test('return unauthorized for /401 route', async () => {
-    const baseUrl = await setup(withoutApi);
-    global.handleAuth = initAuth0(withoutApi).handleAuth;
-    await expect(get(baseUrl, '/api/auth/401')).rejects.toThrow('Unauthorized');
   });
 });
 
@@ -101,7 +97,7 @@ describe('custom handlers', () => {
   test('accept custom login handler', async () => {
     const login = jest.fn(async (_req, res) => {
       res.end();
-    });
+    }) as NextApiHandler as Handler;
     const baseUrl = await setup(withoutApi);
     global.handleAuth = initAuth0(withoutApi).handleAuth.bind(null, { login });
     await get(baseUrl, '/api/auth/login');
@@ -111,7 +107,7 @@ describe('custom handlers', () => {
   test('accept custom logout handler', async () => {
     const logout = jest.fn(async (_req, res) => {
       res.end();
-    });
+    }) as NextApiHandler as Handler;
     const baseUrl = await setup(withoutApi);
     global.handleAuth = initAuth0(withoutApi).handleAuth.bind(null, { logout });
     await get(baseUrl, '/api/auth/logout');
@@ -121,7 +117,7 @@ describe('custom handlers', () => {
   test('accept custom callback handler', async () => {
     const callback = jest.fn(async (_req, res) => {
       res.end();
-    });
+    }) as NextApiHandler as Handler;
     const baseUrl = await setup(withoutApi);
     global.handleAuth = initAuth0(withoutApi).handleAuth.bind(null, { callback });
     await get(baseUrl, '/api/auth/callback');
@@ -131,7 +127,7 @@ describe('custom handlers', () => {
   test('accept custom profile handler', async () => {
     const profile = jest.fn(async (_req, res) => {
       res.end();
-    });
+    }) as NextApiHandler as Handler;
     const baseUrl = await setup(withoutApi);
     global.handleAuth = initAuth0(withoutApi).handleAuth.bind(null, { profile });
     await get(baseUrl, '/api/auth/me');
@@ -141,7 +137,7 @@ describe('custom handlers', () => {
   test('accept custom arbitrary handler', async () => {
     const signup = jest.fn(async (_req, res) => {
       res.end();
-    });
+    }) as NextApiHandler as Handler;
     const baseUrl = await setup(withoutApi);
     global.handleAuth = initAuth0(withoutApi).handleAuth.bind(null, { signup });
     await get(baseUrl, '/api/auth/signup');

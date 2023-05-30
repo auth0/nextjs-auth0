@@ -17,3 +17,5 @@ export {
   PageRouterOnError,
   PageRouterOnError as OnError
 } from './auth';
+export { AppRouteHandlerFn } from './router-helpers';
+export { AppRouteHandlerFnContext } from './router-helpers';

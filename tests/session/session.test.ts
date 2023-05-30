@@ -3,7 +3,7 @@ import { fromJson, fromTokenSet } from '../../src/session';
 import { makeIdToken } from '../auth0-session/fixtures/cert';
 import { Session } from '../../src';
 
-const routes = { login: '', callback: '', postLogoutRedirect: '', unauthorized: '' };
+const routes = { login: '', callback: '', postLogoutRedirect: '' };
 
 const getLoginState = () => Promise.resolve({});
 

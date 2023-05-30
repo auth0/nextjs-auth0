@@ -49,14 +49,14 @@ export type WithMiddlewareAuthRequired = (middleware?: NextMiddleware) => NextMi
  * @ignore
  */
 export default function withMiddlewareAuthRequiredFactory(
-  { login, callback, unauthorized }: { login: string; callback: string; unauthorized: string },
+  { login, callback }: { login: string; callback: string },
   getSessionCache: () => SessionCache
 ): WithMiddlewareAuthRequired {
   return function withMiddlewareAuthRequired(middleware?): NextMiddleware {
     return async function wrappedMiddleware(...args) {
       const [req] = args;
       const { pathname, origin, search } = req.nextUrl;
-      const ignorePaths = [login, callback, unauthorized, '/_next', '/favicon.ico'];
+      const ignorePaths = [login, callback, '/_next', '/favicon.ico'];
       if (ignorePaths.some((p) => pathname.startsWith(p))) {
         return;
       }
@@ -67,7 +67,13 @@ export default function withMiddlewareAuthRequiredFactory(
       const session = await sessionCache.get(req, authRes);
       if (!session?.user) {
         if (pathname.startsWith('/api')) {
-          return NextResponse.rewrite(new URL(unauthorized, origin), { status: 401 });
+          return NextResponse.json(
+            {
+              error: 'not_authenticated',
+              description: 'The user does not have an active session or is not authenticated'
+            },
+            { status: 401 }
+          );
         }
         return NextResponse.redirect(
           new URL(`${login}?returnTo=${encodeURIComponent(`${pathname}${search}`)}`, origin)
