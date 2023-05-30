@@ -96,7 +96,6 @@ describe('config params', () => {
         'at_hash',
         'c_hash'
       ],
-      getLoginState: expect.any(Function),
       routes: {
         login: '/api/auth/login',
         callback: '/api/auth/callback',
