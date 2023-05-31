@@ -10,7 +10,7 @@ import { HandlerError } from '../utils/errors';
  * `login`, `logout`, `callback`, and `profile`. For example:
  *
  * ```js
- * // pages/api/auth/[...auth0].js
+ * // pages/api/auth/[auth0].js
  * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
  * import { errorReporter, logger } from '../../../utils';
  *
@@ -33,7 +33,7 @@ import { HandlerError } from '../utils/errors';
  * Alternatively, you can customize the default handlers without overriding them. For example:
  *
  * ```js
- * // pages/api/auth/[...auth0].js
+ * // pages/api/auth/[auth0].js
  * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
  *
  * export default handleAuth({
@@ -46,7 +46,7 @@ import { HandlerError } from '../utils/errors';
  * You can also create new handlers by customizing the default ones. For example:
  *
  * ```js
- * // pages/api/auth/[...auth0].js
+ * // pages/api/auth/[auth0].js
  * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
  *
  * export default handleAuth({
@@ -72,10 +72,10 @@ type ErrorHandlers = {
  * The main way to use the server SDK.
  *
  * Simply set the environment variables per {@link ConfigParameters} then create the file
- * `pages/api/auth/[...auth0].js`. For example:
+ * `pages/api/auth/[auth0].js`. For example:
  *
  * ```js
- * // pages/api/auth/[...auth0].js
+ * // pages/api/auth/[auth0].js
  * import { handleAuth } from '@auth0/nextjs-auth0';
  *
  * export default handleAuth();
@@ -165,7 +165,14 @@ export default function handlerFactory({
         query: { auth0: route }
       } = req;
 
-      route = Array.isArray(route) ? route[0] : /* c8 ignore next */ route;
+      if (Array.isArray(route)) {
+        let otherRoutes;
+        [route, ...otherRoutes] = route;
+        if (otherRoutes.length) {
+          res.status(404).end();
+          return;
+        }
+      }
 
       try {
         const handler = route && customHandlers.hasOwnProperty(route) && customHandlers[route];

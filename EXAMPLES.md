@@ -27,7 +27,7 @@ AUTH0_CLIENT_ID='CLIENT_ID'
 AUTH0_CLIENT_SECRET='CLIENT_SECRET'
 ```
 
-Create a [dynamic API route handler](https://nextjs.org/docs/api-routes/dynamic-api-routes) at `/pages/api/auth/[...auth0].js`.
+Create a [dynamic API route handler](https://nextjs.org/docs/api-routes/dynamic-api-routes) at `/pages/api/auth/[auth0].js`.
 
 ```js
 import { handleAuth } from '@auth0/nextjs-auth0';
@@ -126,7 +126,7 @@ export default initAuth0({
 Now rather than using the named exports, you can use the instance methods directly.
 
 ```js
-// pages/api/auth/[...auth0].js
+// pages/api/auth/[auth0].js
 import auth0 from '../../../utils/auth0';
 
 // Use the instance method
@@ -141,7 +141,8 @@ export default auth0.handleAuth();
 import auth0 from '../../../utils/auth0';
 import { handleLogin } from '@auth0/nextjs-auth0';
 
-export default auth0.handleAuth({ // <= instance method
+export default auth0.handleAuth({
+  // <= instance method
   async login(req, res) {
     try {
       // `auth0.handleAuth` and `handleLogin` will be using separate instances
@@ -159,7 +160,7 @@ export default auth0.handleAuth({ // <= instance method
 Pass custom parameters to the auth handlers or add your own logging and error handling.
 
 ```js
-// pages/api/auth/[...auth0].js
+// pages/api/auth/[auth0].js
 import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
 import { myCustomLogger, myCustomErrorReporter } from '../utils';
 
@@ -192,7 +193,7 @@ export default handleAuth({
 
 ## Use custom auth urls
 
-Instead of (or in addition to) creating `/pages/api/auth/[...auth0].js` to handle all requests, you can create them individually at different urls.
+Instead of (or in addition to) creating `/pages/api/auth/[auth0].js` to handle all requests, you can create them individually at different urls.
 
 Eg for login:
 
@@ -352,7 +353,7 @@ export default auth0.withMiddlewareAuthRequired(async function middleware(req) {
 Get an access token by providing your API's audience and scopes. You can pass them directly to the `handlelogin` method, or use environment variables instead.
 
 ```js
-// pages/api/auth/[...auth0].js
+// pages/api/auth/[auth0].js
 import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
 
 export default handleAuth({
@@ -404,7 +405,7 @@ Pass a custom authorize parameter to the login handler in a custom route.
 If you are using the [New Universal Login Experience](https://auth0.com/docs/universal-login/new-experience) you can pass the `screen_hint` parameter.
 
 ```js
-// pages/api/auth/[...auth0].js
+// pages/api/auth/[auth0].js
 import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
 
 export default handleAuth({

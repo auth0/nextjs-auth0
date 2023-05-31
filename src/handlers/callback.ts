@@ -14,7 +14,7 @@ import { CallbackHandlerError, HandlerErrorCause } from '../utils/errors';
  * @example Validate additional claims
  *
  * ```js
- * // pages/api/auth/[...auth0].js
+ * // pages/api/auth/[auth0].js
  * import { handleAuth, handleCallback } from '@auth0/nextjs-auth0';
  *
  * const afterCallback = (req, res, session, state) => {
@@ -39,7 +39,7 @@ import { CallbackHandlerError, HandlerErrorCause } from '../utils/errors';
  * @example Modify the session after login
  *
  * ```js
- * // pages/api/auth/[...auth0].js
+ * // pages/api/auth/[auth0].js
  * import { handleAuth, handleCallback } from '@auth0/nextjs-auth0';
  *
  * const afterCallback = (req, res, session, state) => {
@@ -62,7 +62,7 @@ import { CallbackHandlerError, HandlerErrorCause } from '../utils/errors';
  * @example Redirect successful login based on claim
  *
  * ```js
- * // pages/api/auth/[...auth0].js
+ * // pages/api/auth/[auth0].js
  * import { handleAuth, handleCallback } from '@auth0/nextjs-auth0';
  *
  * const afterCallback = (req, res, session, state) => {
@@ -138,7 +138,7 @@ export type CallbackOptionsProvider = (req: NextApiRequest) => CallbackOptions;
  * @example Pass an options object
  *
  * ```js
- * // pages/api/auth/[...auth0].js
+ * // pages/api/auth/[auth0].js
  * import { handleAuth, handleCallback } from '@auth0/nextjs-auth0';
  *
  * export default handleAuth({
@@ -149,7 +149,7 @@ export type CallbackOptionsProvider = (req: NextApiRequest) => CallbackOptions;
  * @example Pass a function that receives the request and returns an options object
  *
  * ```js
- * // pages/api/auth/[...auth0].js
+ * // pages/api/auth/[auth0].js
  * import { handleAuth, handleCallback } from '@auth0/nextjs-auth0';
  *
  * export default handleAuth({
