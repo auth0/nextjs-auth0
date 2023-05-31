@@ -40,6 +40,11 @@ export default function Nav() {
               <Link href="/profile" legacyBehavior>
                 <a>Profile</a>
               </Link>
+            </li>
+            <li>
+              <Link href="/profile-middleware" legacyBehavior>
+                <a>Profile (Middleware)</a>
+              </Link>
             </li>{' '}
             {user ? (
               <li>

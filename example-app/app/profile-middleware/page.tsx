@@ -8,7 +8,7 @@ export default async function Page() {
 
   return (
     <main>
-      <h1>Profile</h1>
+      <h1>Profile (protected by Middleware)</h1>
       <h2>Page:</h2>
       <h3>Access Token</h3>
       <pre>{JSON.stringify({ accessToken: session?.accessToken }, null, 2)}</pre>
