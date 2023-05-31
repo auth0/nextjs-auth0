@@ -1,6 +1,6 @@
 'use client';
 
-import { useUser } from '@auth0/nextjs-auth0/client';
+import { useUser } from '../../client';
 
 export default function ClientComponent() {
   const { user } = useUser();
