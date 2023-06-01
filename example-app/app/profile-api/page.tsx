@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { withPageAuthRequired } from '@auth0/nextjs-auth0/client';
 
-export default function ProfileApi() {
+export default withPageAuthRequired(function ProfileApi() {
   const [user, setUser] = useState();
 
   useEffect(() => {
@@ -19,4 +20,4 @@ export default function ProfileApi() {
       <pre data-testid="profile-api">{JSON.stringify(user, null, 2)}</pre>
     </main>
   );
-}
+});

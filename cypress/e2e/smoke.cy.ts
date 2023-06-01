@@ -64,6 +64,23 @@ describe('smoke tests', () => {
       cy.url().should('eq', `${Cypress.config().baseUrl}/page-router`);
       cy.get('[data-testid=login]').should('exist');
     });
+
+    it('should protect an api', () => {
+      cy.request({ url: '/api/page-router-profile', failOnStatusCode: false }).as('unauthorized');
+
+      cy.get('@unauthorized').should((response: any) => {
+        expect(response.status).to.eq(401);
+        expect(response.body.error).to.eq('not_authenticated');
+      });
+    });
+
+    it('should access an api', () => {
+      cy.visit('/page-router/profile-api');
+      login();
+
+      cy.url().should('eq', `${Cypress.config().baseUrl}/page-router/profile-api`);
+      cy.get('[data-testid=profile-api]').contains(EMAIL);
+    });
   });
   describe('app router', () => {
     it('should render an app route', () => {
@@ -72,6 +89,23 @@ describe('smoke tests', () => {
       cy.url().should('eq', `${Cypress.config().baseUrl}/profile`);
       cy.get('[data-testid=server-component]').contains(EMAIL);
       cy.get('[data-testid=client-component]').contains(EMAIL);
+    });
+
+    it('should protect an api', () => {
+      cy.request({ url: '/api/profile', failOnStatusCode: false }).as('unauthorized');
+
+      cy.get('@unauthorized').should((response: any) => {
+        expect(response.status).to.eq(401);
+        expect(response.body.error).to.eq('not_authenticated');
+      });
+    });
+
+    it.only('should access an api', () => {
+      cy.visit('/profile-api');
+      login();
+
+      cy.url().should('eq', `${Cypress.config().baseUrl}/profile-api`);
+      cy.get('[data-testid=profile-api]').contains(EMAIL);
     });
   });
 });
