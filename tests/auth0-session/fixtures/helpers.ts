@@ -17,11 +17,15 @@ export const defaultConfig: Omit<ConfigParameters, 'baseURL'> = {
   }
 };
 
+export const signCookie = async (key: string, value: string) => {
+  const signingKey = await signing(secret);
+  return generateCookieValue(key, value, signingKey);
+};
+
 export const toSignedCookieJar = async (cookies: { [key: string]: string }, url: string): Promise<CookieJar> => {
   const cookieJar = new CookieJar();
-  const signingKey = await signing(secret);
   for (const [key, value] of Object.entries(cookies)) {
-    cookieJar.setCookieSync(`${key}=${await generateCookieValue(key, value, signingKey)}`, url);
+    cookieJar.setCookieSync(`${key}=${await signCookie(key, value)}`, url);
   }
   return cookieJar;
 };

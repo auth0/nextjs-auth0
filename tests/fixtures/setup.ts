@@ -48,6 +48,21 @@ export const defaultOnError: OnError = (_req, res, error) => {
   res.status(error.status || 500).end(error.message);
 };
 
+export const setupNock = async (
+  config: ConfigParameters,
+  {
+    idTokenClaims,
+    discoveryOptions,
+    userInfoPayload = {},
+    userInfoToken = 'eyJz93a...k4laUWw'
+  }: Pick<SetupOptions, 'idTokenClaims' | 'discoveryOptions' | 'userInfoPayload' | 'userInfoToken'> = {}
+) => {
+  discovery(config, discoveryOptions);
+  jwksEndpoint(config, jwks);
+  codeExchange(config, await makeIdToken({ iss: 'https://acme.auth0.local/', ...idTokenClaims }));
+  userInfo(config, userInfoToken, userInfoPayload);
+};
+
 export const setup = async (
   config: ConfigParameters,
   {
@@ -69,10 +84,7 @@ export const setup = async (
     asyncProps
   }: SetupOptions = {}
 ): Promise<string> => {
-  discovery(config, discoveryOptions);
-  jwksEndpoint(config, jwks);
-  codeExchange(config, await makeIdToken({ iss: 'https://acme.auth0.local/', ...idTokenClaims }));
-  userInfo(config, userInfoToken, userInfoPayload);
+  await setupNock(config, { idTokenClaims, discoveryOptions, userInfoPayload, userInfoToken });
   const {
     handleAuth,
     handleCallback,

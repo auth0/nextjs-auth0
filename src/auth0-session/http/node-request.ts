@@ -4,6 +4,7 @@ import Auth0Request from './auth0-request';
 
 export default class NodeRequest extends Auth0Request<IncomingMessage> {
   public constructor(public req: IncomingMessage) {
+    /* c8 ignore next */
     super(req);
   }
 
