@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { NextApiRequest, NextApiResponse } from 'next';
 
 export type AppRouteHandlerFnContext = {
-  params?: Record<string, string | string[]>;
+  params: Record<string, string | string[]>;
 };
 
 /**
