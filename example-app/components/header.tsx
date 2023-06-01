@@ -45,6 +45,11 @@ const Header = (): React.ReactElement => {
               </Link>
             </li>{' '}
             <li>
+              <Link href="/page-router/profile-api" legacyBehavior>
+                <a>Profile (API)</a>
+              </Link>
+            </li>{' '}
+            <li>
               <Link href="/page-router/profile-middleware" legacyBehavior>
                 <a>Profile (Middleware)</a>
               </Link>
@@ -97,6 +102,7 @@ const Header = (): React.ReactElement => {
         .header.page-router a[href$='page-router'],
         .header.profile-csr a[href$='profile-csr'],
         .header.profile-ssr a[href$='profile-ssr'],
+        .header.profile-api a[href$='profile-api'],
         .header.profile-middleware a[href$='profile-middleware'],
         a.active {
           color: #888;

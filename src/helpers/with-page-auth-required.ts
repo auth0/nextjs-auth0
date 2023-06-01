@@ -1,5 +1,7 @@
+import type React from 'react';
 import { GetServerSideProps, GetServerSidePropsContext, GetServerSidePropsResult } from 'next';
-import { Claims, SessionCache } from '../session';
+import { redirect } from 'next/navigation';
+import { Claims, get, SessionCache } from '../session';
 import { assertCtx } from '../utils/assert';
 import { ParsedUrlQuery } from 'querystring';
 
@@ -28,8 +30,16 @@ export type GetServerSidePropsResultWithSession<P = any> = GetServerSidePropsRes
  * @category Server
  */
 export type PageRoute<P, Q extends ParsedUrlQuery = ParsedUrlQuery> = (
-  cts: GetServerSidePropsContext<Q>
+  ctx: GetServerSidePropsContext<Q>
 ) => Promise<GetServerSidePropsResultWithSession<P>>;
+
+/**
+ * @category Server
+ */
+export type AppRouterPageRoute = (obj: {
+  params?: { slug: string };
+  searchParams?: { [key: string]: string | string[] | undefined };
+}) => Promise<React.JSX.Element>;
 
 /**
  * If you have a custom returnTo url you should specify it in `returnTo`.
@@ -90,12 +100,16 @@ export type WithPageAuthRequiredOptions<
  *
  * @category Server
  */
-export type WithPageAuthRequired = <
+type WithPageAuthRequiredPageRouter = <
   P extends { [key: string]: any } = { [key: string]: any },
   Q extends ParsedUrlQuery = ParsedUrlQuery
 >(
   opts?: WithPageAuthRequiredOptions<P, Q>
 ) => PageRoute<P, Q>;
+
+type WithPageAuthRequiredAppRouter = (fn: AppRouterPageRoute, opts?: { returnTo?: string }) => AppRouterPageRoute;
+
+export type WithPageAuthRequired = WithPageAuthRequiredPageRouter & WithPageAuthRequiredAppRouter;
 
 /**
  * @ignore
@@ -104,26 +118,50 @@ export default function withPageAuthRequiredFactory(
   loginUrl: string,
   getSessionCache: () => SessionCache
 ): WithPageAuthRequired {
-  return ({ getServerSideProps, returnTo } = {}) =>
-    async (ctx) => {
-      assertCtx(ctx);
-      const sessionCache = getSessionCache();
-      const session = await sessionCache.get(ctx.req, ctx.res);
-      if (!session?.user) {
-        return {
-          redirect: {
-            destination: `${loginUrl}?returnTo=${encodeURIComponent(returnTo || ctx.resolvedUrl)}`,
-            permanent: false
-          }
-        };
-      }
-      let ret: any = { props: {} };
-      if (getServerSideProps) {
-        ret = await getServerSideProps(ctx);
-      }
-      if (ret.props instanceof Promise) {
-        return { ...ret, props: ret.props.then((props: any) => ({ user: session.user, ...props })) };
-      }
-      return { ...ret, props: { user: session.user, ...ret.props } };
-    };
+  const appRouteHandler = appRouteHandlerFactory(loginUrl, getSessionCache);
+  const pageRouteHandler = pageRouteHandlerFactory(loginUrl, getSessionCache);
+
+  return (fnOrOpts: any, opts?: any): any => {
+    if (typeof fnOrOpts === 'function') {
+      return appRouteHandler(fnOrOpts, opts);
+    }
+    return pageRouteHandler(fnOrOpts);
+  };
 }
+
+const appRouteHandlerFactory =
+  (loginUrl: string, getSessionCache: () => SessionCache): WithPageAuthRequiredAppRouter =>
+  (handler, opts = {}) =>
+  async (params) => {
+    const sessionCache = getSessionCache();
+    const [session] = await get({ sessionCache });
+    if (!session?.user) {
+      redirect(`${loginUrl}${opts.returnTo ? `?returnTo=${opts.returnTo}` : ''}`);
+    }
+    return handler(params);
+  };
+
+const pageRouteHandlerFactory =
+  (loginUrl: string, getSessionCache: () => SessionCache): WithPageAuthRequiredPageRouter =>
+  ({ getServerSideProps, returnTo } = {}) =>
+  async (ctx) => {
+    assertCtx(ctx);
+    const sessionCache = getSessionCache();
+    const session = await sessionCache.get(ctx.req, ctx.res);
+    if (!session?.user) {
+      return {
+        redirect: {
+          destination: `${loginUrl}?returnTo=${encodeURIComponent(returnTo || ctx.resolvedUrl)}`,
+          permanent: false
+        }
+      };
+    }
+    let ret: any = { props: {} };
+    if (getServerSideProps) {
+      ret = await getServerSideProps(ctx);
+    }
+    if (ret.props instanceof Promise) {
+      return { ...ret, props: ret.props.then((props: any) => ({ user: session.user, ...props })) };
+    }
+    return { ...ret, props: { user: session.user, ...ret.props } };
+  };

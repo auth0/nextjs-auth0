@@ -1,9 +1,9 @@
 import React from 'react';
-import { getSession } from '@auth0/nextjs-auth0';
+import { getSession, withPageAuthRequired } from '@auth0/nextjs-auth0';
 import ServerComponent from '@/app/server-component';
 import ClientComponent from '@/app/client-component';
 
-export default async function Page() {
+export default withPageAuthRequired(async function Page() {
   const session = await getSession();
 
   return (
@@ -21,4 +21,4 @@ export default async function Page() {
       <ClientComponent />
     </main>
   );
-}
+});
