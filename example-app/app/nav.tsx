@@ -42,6 +42,11 @@ export default function Nav() {
               </Link>
             </li>
             <li>
+              <Link href="/profile-api" legacyBehavior>
+                <a>Profile (API)</a>
+              </Link>
+            </li>
+            <li>
               <Link href="/profile-middleware" legacyBehavior>
                 <a>Profile (Middleware)</a>
               </Link>

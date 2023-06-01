@@ -34,6 +34,8 @@ li {
 .header.home a[href='/'],
 .header.page-router a[href$='page-router'],
 .header.profile a[href$='profile'],
+.header.profile-middleware a[href$='profile-middleware'],
+.header.profile-api a[href$='profile-api'],
 a.active {
     color: #888;
 }

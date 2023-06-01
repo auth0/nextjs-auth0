@@ -206,7 +206,8 @@ const getSessionCache = () => getInstance().sessionCache;
 export const getSession: GetSession = (...args) => getInstance().getSession(...args);
 export const updateSession: UpdateSession = (...args) => getInstance().updateSession(...args);
 export const getAccessToken: GetAccessToken = (...args) => getInstance().getAccessToken(...args);
-export const withApiAuthRequired: WithApiAuthRequired = (...args) => getInstance().withApiAuthRequired(...args);
+export const withApiAuthRequired: WithApiAuthRequired = (...args) =>
+  (getInstance().withApiAuthRequired as any)(...args);
 export const withPageAuthRequired: WithPageAuthRequired = withPageAuthRequiredFactory(getLoginUrl(), getSessionCache);
 export const handleLogin: HandleLogin = ((...args: Parameters<HandleLogin>) =>
   getInstance().handleLogin(...args)) as HandleLogin;
