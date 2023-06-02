@@ -30,8 +30,6 @@ const generateSignature = async (cookie: string, value: string): Promise<string>
 
 describe('callback handler', () => {
   describe('app router', () => {
-    afterEach(() => nock.cleanAll());
-
     test('should require a state parameter', async () => {
       await expect(getResponse({ url: '/api/auth/callback' })).resolves.toMatchObject({
         status: 404,

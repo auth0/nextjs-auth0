@@ -6,6 +6,7 @@ import { AccessTokenError, AccessTokenErrorCode } from '../utils/errors';
 import { intersect, match } from '../utils/array';
 import { Session, SessionCache, fromTokenSet, get, set } from '../session';
 import { AuthorizationParameters, NextConfig } from '../config';
+import { NextRequest, NextResponse } from 'next/server';
 
 export type AfterRefresh = AfterRefreshPageRoute | AfterRefreshAppRoute;
 
@@ -92,8 +93,8 @@ export interface GetAccessTokenResult {
  * @category Server
  */
 export type GetAccessToken = (
-  req?: IncomingMessage | NextApiRequest | AccessTokenRequest,
-  res?: ServerResponse | NextApiResponse,
+  req?: IncomingMessage | NextApiRequest | NextRequest | AccessTokenRequest,
+  res?: ServerResponse | NextApiResponse | NextResponse,
   accessTokenRequest?: AccessTokenRequest
 ) => Promise<GetAccessTokenResult>;
 
