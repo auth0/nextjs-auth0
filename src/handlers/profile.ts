@@ -137,7 +137,7 @@ const appRouteHandlerFactory: (
       res.headers.set('Cache-Control', 'no-store');
 
       if (options.refetch) {
-        const { accessToken } = await getAccessToken();
+        const { accessToken } = await getAccessToken(req, res);
         if (!accessToken) {
           throw new Error('No access token available to refetch the profile');
         }
@@ -159,7 +159,7 @@ const appRouteHandlerFactory: (
 
         await sessionCache.set(req, res, newSession);
 
-        return NextResponse.json(session.user, res);
+        return NextResponse.json(newSession.user, res);
       }
 
       return NextResponse.json(session.user, res);

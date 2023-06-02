@@ -100,7 +100,7 @@ describe('smoke tests', () => {
       });
     });
 
-    it.only('should access an api', () => {
+    it('should access an api', () => {
       cy.visit('/profile-api');
       login();
 
