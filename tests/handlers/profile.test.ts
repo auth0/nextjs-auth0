@@ -88,7 +88,6 @@ describe('profile handler', () => {
           }
         }
       });
-      //mocked(cookies).mockImplementation(() => loginRes.cookies);
       nock.cleanAll();
       nock(`${withApi.issuerBaseURL}`)
         .post('/oauth/token', `grant_type=refresh_token&refresh_token=GEbRxBN...edjnXbL`)
@@ -123,7 +122,6 @@ describe('profile handler', () => {
           }
         }
       });
-      //mocked(cookies).mockImplementation(() => loginRes.cookies);
       nock.cleanAll();
       await refreshTokenRotationExchange(withApi, 'GEbRxBN...edjnXbL', {}, 'new-access-token', 'new-refresh-token');
       const res = await getResponse({

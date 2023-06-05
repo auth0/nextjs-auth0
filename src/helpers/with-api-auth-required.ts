@@ -20,7 +20,7 @@ export type AppRouteHandlerFn = (
    * dynamic route).
    */
   ctx: AppRouteHandlerFnContext
-) => Promise<Response> | Response;
+) => Promise<NextResponse> | NextResponse;
 
 /**
  * Wrap an API route to check that the user has a valid session. If they're not logged in the
@@ -66,15 +66,21 @@ export default function withApiAuthFactory(sessionCache: SessionCache): WithApiA
 const appRouteHandlerFactory =
   (sessionCache: SessionCache): WithApiAuthRequiredAppRoute =>
   (apiRoute) =>
-  async (req, params): Promise<Response> => {
-    const [session] = await get({ sessionCache });
+  async (req, params): Promise<NextResponse> => {
+    const res = new NextResponse();
+    const [session] = await get({ sessionCache, req, res });
     if (!session || !session.user) {
       return NextResponse.json(
         { error: 'not_authenticated', description: 'The user does not have an active session or is not authenticated' },
         { status: 401 }
       );
     }
-    return apiRoute(req, params);
+    let apiRes: NextResponse | Response = await apiRoute(req, params);
+    let nextApiRes: NextResponse = apiRes instanceof NextResponse ? apiRes : new NextResponse(apiRes.body, apiRes);
+    for (const cookie of res.cookies.getAll()) {
+      nextApiRes.cookies.set(cookie);
+    }
+    return nextApiRes;
   };
 
 const pageRouteHandlerFactory =
