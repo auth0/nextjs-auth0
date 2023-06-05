@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server';
 
 export default class Auth0NextRequest extends Auth0Request<NextRequest> {
   public constructor(req: NextRequest) {
+    /* c8 ignore next */
     super(req);
   }
 

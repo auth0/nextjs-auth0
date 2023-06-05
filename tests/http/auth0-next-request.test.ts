@@ -8,7 +8,7 @@ const setup = (reqInit?: RequestInit): [NextRequest, NextResponse] => {
   return [new NextRequest(new URL('http://example.com'), reqInit), NextResponse.next()];
 };
 
-describe('cookie', () => {
+describe('auth0-next-request', () => {
   it('should get all cookies', async () => {
     const [req] = setup({ headers: { cookie: 'foo=bar; bar=baz;' } });
     expect(new Auth0NextRequest(req).getCookies()).toMatchObject({ foo: 'bar', bar: 'baz' });

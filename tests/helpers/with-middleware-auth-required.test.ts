@@ -208,4 +208,18 @@ describe('with-middleware-auth-required', () => {
     expect(res.status).toEqual(200);
     expect(res.headers.get('set-cookie')).toBeNull();
   });
+
+  test('should set a custom header', async () => {
+    const middleware = () => {
+      const res = NextResponse.next();
+      res.headers.set('foo', 'bar');
+      return res;
+    };
+    const res = await setup({
+      user: { name: 'dave' },
+      middleware
+    });
+    expect(res.status).toEqual(200);
+    expect(res.headers.get('foo')).toBe('bar');
+  });
 });

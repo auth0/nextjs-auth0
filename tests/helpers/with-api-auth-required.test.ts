@@ -23,6 +23,14 @@ describe('with-api-auth-required', () => {
               // @ts-expect-error This is not in lib/dom right now.
               return Response.json({ foo: 'bar' });
             })(req, ctx);
+          },
+          'protected-updates-headers'(req: NextRequest, ctx: { params: Record<string, any> }) {
+            return auth0Instance.withApiAuthRequired((_req: NextRequest) => {
+              const res = NextResponse.json({ foo: 'bar' });
+              res.cookies.set('foo', 'bar');
+              res.headers.set('baz', 'bar');
+              return res;
+            })(req, ctx);
           }
         },
         ...opts
@@ -54,6 +62,21 @@ describe('with-api-auth-required', () => {
       await expect(getSession(withApi, res)).resolves.toMatchObject({
         user: expect.objectContaining({ sub: '__test_sub__' })
       });
+    });
+
+    test('allow access to an api route that updates the cookies', async () => {
+      const loginRes = await appRouterLogin();
+      const res = await getApiResponse({
+        url: '/api/auth/protected-updates-headers',
+        cookies: { appSession: loginRes.cookies.get('appSession').value }
+      });
+      expect(res.status).toBe(200);
+      await expect(res.json()).resolves.toEqual({ foo: 'bar' });
+      await expect(getSession(withApi, res)).resolves.toMatchObject({
+        user: expect.objectContaining({ sub: '__test_sub__' })
+      });
+      expect(res.cookies.get('foo').value).toBe('bar');
+      expect(res.headers.get('baz')).toBe('bar');
     });
   });
 
