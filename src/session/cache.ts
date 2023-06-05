@@ -8,8 +8,8 @@ import { NodeRequest, NodeResponse } from '../auth0-session/http';
 import {
   Auth0NextApiRequest,
   Auth0NextApiResponse,
-  Auth0NextDynamicFunctionsRequest,
-  Auth0NextDynamicFunctionsResponse,
+  Auth0NextRequestCookies,
+  Auth0NextResponseCookies,
   Auth0NextRequest,
   Auth0NextResponse
 } from '../http';
@@ -118,7 +118,7 @@ export const get = async ({
       session: { rolling, autoSave }
     }
   } = sessionCache;
-  const auth0Req = new Auth0NextDynamicFunctionsRequest();
+  const auth0Req = new Auth0NextRequestCookies();
   const [session, iat] = await sessionStore.read(auth0Req);
   if (rolling && autoSave) {
     await set({ session, sessionCache, iat });
@@ -143,10 +143,5 @@ export const set = async ({
     return sessionCache.set(req, res, session);
   }
   const { sessionStore } = sessionCache;
-  await sessionStore.save(
-    new Auth0NextDynamicFunctionsRequest(),
-    new Auth0NextDynamicFunctionsResponse(),
-    session,
-    iat
-  );
+  await sessionStore.save(new Auth0NextRequestCookies(), new Auth0NextResponseCookies(), session, iat);
 };

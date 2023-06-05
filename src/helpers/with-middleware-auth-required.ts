@@ -86,7 +86,6 @@ export default function withMiddlewareAuthRequiredFactory(
         const cookies = headers.get('set-cookie')?.split(', ') || [];
         const authCookies = authRes.headers.get('set-cookie')?.split(', ') || [];
         if (cookies.length || authCookies.length) {
-          // TODO: Should Auth0NextResponse keep existing headers?
           headers.set('set-cookie', [...authCookies, ...cookies].join(', '));
         }
         return NextResponse.next({ ...res, status: res.status, headers });

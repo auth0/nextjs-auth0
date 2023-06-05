@@ -8,7 +8,7 @@ const setup = (reqInit?: RequestInit): [NextRequest, NextResponse] => {
   return [new NextRequest(new URL('http://example.com'), reqInit), NextResponse.next()];
 };
 
-describe('cookie', () => {
+describe('auth0-next-response', () => {
   it('should set a cookie', async () => {
     const [, res] = setup();
     const auth0Res = new Auth0NextResponse(res);

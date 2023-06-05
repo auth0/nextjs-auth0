@@ -3,6 +3,7 @@ import { NextApiRequest } from 'next';
 
 export default class Auth0NextApiRequest extends Auth0Request<NextApiRequest> {
   public constructor(req: NextApiRequest) {
+    /* c8 ignore next */
     super(req);
   }
 

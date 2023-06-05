@@ -4,6 +4,7 @@ import { Auth0Response } from '../auth0-session/http';
 
 export default class Auth0NextResponse extends Auth0Response<NextResponse> {
   public constructor(res: NextResponse) {
+    /* c8 ignore next */
     super(res);
   }
 
