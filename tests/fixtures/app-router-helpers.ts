@@ -1,5 +1,6 @@
 import nock from 'nock';
 import {
+  Auth0Server,
   CallbackOptions,
   Claims,
   ConfigParameters,
@@ -31,7 +32,10 @@ export type GetResponseOpts = {
   profileOpts?: ProfileOptions;
   extraHandlers?: any;
   clearNock?: boolean;
+  auth0Instance?: Auth0Server;
 };
+
+export type LoginOpts = Omit<GetResponseOpts, 'url'>;
 
 export const getResponse = async ({
   url,
@@ -46,13 +50,14 @@ export const getResponse = async ({
   logoutOpts,
   profileOpts,
   extraHandlers,
-  clearNock = true
+  clearNock = true,
+  auth0Instance
 }: GetResponseOpts) => {
   const opts = { ...withApi, ...config };
   clearNock && nock.cleanAll();
   await setupNock(opts, { idTokenClaims, discoveryOptions, userInfoPayload, userInfoToken });
   const auth0 = url.split('?')[0].split('/').slice(3);
-  const instance = initAuth0(opts);
+  const instance = auth0Instance || initAuth0(opts);
   const handleAuth = instance.handleAuth({
     ...(callbackOpts && { callback: instance.handleCallback(callbackOpts) }),
     ...(loginOpts && { login: instance.handleLogin(loginOpts) }),
@@ -84,7 +89,7 @@ export const getSession = async (config: any, res: NextResponse) => {
   return session;
 };
 
-export const login = async (opts: Omit<GetResponseOpts, 'url'> = {}) => {
+export const login = async (opts: LoginOpts = {}) => {
   const state = encodeState({ returnTo: '/' });
   const res = await getResponse({
     ...opts,

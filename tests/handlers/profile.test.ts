@@ -1,5 +1,4 @@
 import nock from 'nock';
-import { cookies } from 'next/headers';
 import { withApi, withoutApi } from '../fixtures/default-settings';
 import { refreshTokenRotationExchange, userInfo } from '../fixtures/oidc-nocks';
 import { get } from '../auth0-session/fixtures/helpers';
@@ -11,7 +10,6 @@ import {
   login as appRouterLogin,
   getSession as appRouterGetSession
 } from '../fixtures/app-router-helpers';
-import { mocked } from 'ts-jest/utils';
 import { NextRequest } from 'next/server';
 
 jest.mock('next/headers');
@@ -43,7 +41,6 @@ describe('profile handler', () => {
 
     test('should not allow caching the profile response when refetch is true', async () => {
       const loginRes = await appRouterLogin();
-      mocked(cookies).mockImplementation(() => loginRes.cookies);
       const res = await getResponse({
         url: '/api/auth/me',
         cookies: { appSession: loginRes.cookies.get('appSession').value },
@@ -61,7 +58,6 @@ describe('profile handler', () => {
           }
         }
       });
-      mocked(cookies).mockImplementation(() => loginRes.cookies);
       const res = await getResponse({
         url: '/api/auth/me',
         cookies: { appSession: loginRes.cookies.get('appSession').value },
@@ -73,7 +69,6 @@ describe('profile handler', () => {
 
     test('should refetch the user and update the session', async () => {
       const loginRes = await appRouterLogin();
-      mocked(cookies).mockImplementation(() => loginRes.cookies);
       const res = await getResponse({
         url: '/api/auth/me',
         cookies: { appSession: loginRes.cookies.get('appSession').value },
@@ -93,7 +88,7 @@ describe('profile handler', () => {
           }
         }
       });
-      mocked(cookies).mockImplementation(() => loginRes.cookies);
+      //mocked(cookies).mockImplementation(() => loginRes.cookies);
       nock.cleanAll();
       nock(`${withApi.issuerBaseURL}`)
         .post('/oauth/token', `grant_type=refresh_token&refresh_token=GEbRxBN...edjnXbL`)
@@ -128,7 +123,7 @@ describe('profile handler', () => {
           }
         }
       });
-      mocked(cookies).mockImplementation(() => loginRes.cookies);
+      //mocked(cookies).mockImplementation(() => loginRes.cookies);
       nock.cleanAll();
       await refreshTokenRotationExchange(withApi, 'GEbRxBN...edjnXbL', {}, 'new-access-token', 'new-refresh-token');
       const res = await getResponse({
