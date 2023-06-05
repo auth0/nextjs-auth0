@@ -1,5 +1,6 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { NextApiRequest, NextApiResponse } from 'next';
+import { NextRequest, NextResponse } from 'next/server';
 import { SessionCache, Session, get } from '../session';
 
 /**
@@ -8,15 +9,18 @@ import { SessionCache, Session, get } from '../session';
  * @category Server
  */
 export type GetSession = (
-  req?: IncomingMessage | NextApiRequest,
-  res?: ServerResponse | NextApiResponse
+  req?: IncomingMessage | NextApiRequest | NextRequest,
+  res?: ServerResponse | NextApiResponse | NextResponse
 ) => Promise<Session | null | undefined>;
 
 /**
  * @ignore
  */
 export default function sessionFactory(sessionCache: SessionCache) {
-  return async (req?: IncomingMessage | NextApiRequest, res?: ServerResponse | NextApiResponse) => {
+  return async (
+    req?: IncomingMessage | NextApiRequest | NextRequest,
+    res?: ServerResponse | NextApiResponse | NextResponse
+  ) => {
     const [session] = await get({ req, res, sessionCache });
     return session;
   };
