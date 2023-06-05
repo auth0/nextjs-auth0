@@ -1,5 +1,6 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { NextApiRequest, NextApiResponse } from 'next';
+import { NextRequest, NextResponse } from 'next/server';
 import { get, set, Session, SessionCache } from '../session';
 
 /**
@@ -24,8 +25,8 @@ import { get, set, Session, SessionCache } from '../session';
  * @category Server
  */
 export type UpdateSession = (
-  req?: IncomingMessage | NextApiRequest | Session,
-  res?: ServerResponse | NextApiResponse,
+  req?: IncomingMessage | NextApiRequest | NextRequest | Session,
+  res?: ServerResponse | NextApiResponse | NextResponse,
   user?: Session
 ) => Promise<void>;
 
@@ -35,7 +36,7 @@ export type UpdateSession = (
 export default function updateSessionFactory(sessionCache: SessionCache): UpdateSession {
   return async (reqOrSession, res, newSession) => {
     const session = (res ? newSession : reqOrSession) as Session | undefined;
-    const req = (res ? reqOrSession : undefined) as IncomingMessage | NextApiRequest | undefined;
+    const req = (res ? reqOrSession : undefined) as IncomingMessage | NextApiRequest | NextRequest | undefined;
 
     const [prevSession, iat] = await get({ sessionCache, req, res });
     if (!prevSession || !session || !session.user) {

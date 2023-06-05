@@ -1,5 +1,6 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { NextApiRequest, NextApiResponse } from 'next';
+import { NextRequest, NextResponse } from 'next/server';
 import { get, set, SessionCache } from '../session';
 
 /**
@@ -20,8 +21,8 @@ import { get, set, SessionCache } from '../session';
  * @category Server
  */
 export type TouchSession = (
-  req?: IncomingMessage | NextApiRequest,
-  res?: ServerResponse | NextApiResponse
+  req?: IncomingMessage | NextApiRequest | NextRequest,
+  res?: ServerResponse | NextApiResponse | NextResponse
 ) => Promise<void>;
 
 /**

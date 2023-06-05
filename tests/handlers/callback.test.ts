@@ -679,5 +679,32 @@ describe('callback handler', () => {
       expect(res.statusCode).toBe(302);
       expect(spy).toHaveBeenCalledWith(expect.stringContaining('foo=bar'));
     });
+
+    test('redirects from afterCallback hook', async () => {
+      const afterCallback = (_req: NextApiRequest, res: NextApiResponse): undefined => {
+        res.writeHead(302, '', { location: '/foo' });
+        res.end();
+        return;
+      };
+      const baseUrl = await setup(withApi, { callbackOptions: { afterCallback } });
+      const state = encodeState({ returnTo: baseUrl });
+      const cookieJar = await toSignedCookieJar(
+        {
+          state,
+          nonce: '__test_nonce__'
+        },
+        baseUrl
+      );
+      const { res } = await callback(
+        baseUrl,
+        {
+          state,
+          code: 'code'
+        },
+        cookieJar
+      );
+      expect(res.statusCode).toBe(302);
+      expect(res.headers.location).toBe('/foo');
+    });
   });
 });
