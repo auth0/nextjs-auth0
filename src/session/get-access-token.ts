@@ -110,7 +110,9 @@ export default function accessTokenFactory(
     const options = (res ? accessTokenRequest : reqOrOpts) as AccessTokenRequest | undefined;
     const req = (res ? reqOrOpts : undefined) as IncomingMessage | NextApiRequest | undefined;
 
-    let [session, iat] = await get({ sessionCache, req, res });
+    const parts = await get({ sessionCache, req, res });
+    let [session] = parts;
+    const [, iat] = parts;
     if (!session) {
       throw new AccessTokenError(AccessTokenErrorCode.MISSING_SESSION, 'The user does not have a valid session.');
     }

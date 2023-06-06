@@ -56,7 +56,10 @@ export type Handler<Opts = any> = {
 };
 
 export const getHandler =
-  <Opts extends object>(appRouteHandler: AppRouteHandlerFn<Opts>, pageRouteHandler: PageRouteHandlerFn<Opts>) =>
+  <Opts extends Record<string, any>>(
+    appRouteHandler: AppRouteHandlerFn<Opts>,
+    pageRouteHandler: PageRouteHandlerFn<Opts>
+  ) =>
   (
     reqOrOptions: NextApiRequest | NextRequest | Opts,
     resOrCtx: NextApiResponse | AppRouteHandlerFnContext,
@@ -66,7 +69,7 @@ export const getHandler =
       return appRouteHandler(reqOrOptions, resOrCtx as AppRouteHandlerFnContext, options);
     }
     if ('socket' in reqOrOptions) {
-      return pageRouteHandler(reqOrOptions, resOrCtx as NextApiResponse, options);
+      return pageRouteHandler(reqOrOptions as NextApiRequest, resOrCtx as NextApiResponse, options);
     }
     return (req: NextApiRequest | NextRequest, resOrCtxInner: NextApiResponse | AppRouteHandlerFnContext) => {
       const opts = typeof reqOrOptions === 'function' ? (reqOrOptions as OptionsProvider<Opts>)(req) : reqOrOptions;
