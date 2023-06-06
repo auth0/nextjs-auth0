@@ -1,10 +1,10 @@
 import { NextApiResponse, NextApiRequest } from 'next';
+import { NextRequest, NextResponse } from 'next/server';
 import { HandleLogin as BaseHandleLogin, HandleLogout as BaseHandleLogout } from '../auth0-session';
 import { assertReqRes } from '../utils/assert';
 import { HandlerErrorCause, LogoutHandlerError } from '../utils/errors';
 import { Auth0NextApiRequest, Auth0NextApiResponse, Auth0NextRequest, Auth0NextResponse } from '../http';
 import { BaseConfig } from '../config';
-import { NextRequest, NextResponse } from 'next/server';
 import { AppRouteHandlerFnContext, AuthHandler, Handler, getHandler, OptionsProvider } from './router-helpers';
 
 /**

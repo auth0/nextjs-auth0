@@ -83,7 +83,13 @@ export default function withMiddlewareAuthRequiredFactory(
 
       if (res) {
         const nextRes = new NextResponse(res.body, res);
-        for (const cookie of authRes.cookies.getAll()) {
+        let cookies = authRes.cookies.getAll();
+        if ('cookies' in res) {
+          for (const cookie of res.cookies.getAll()) {
+            nextRes.cookies.set(cookie);
+          }
+        }
+        for (const cookie of cookies) {
           if (!nextRes.cookies.get(cookie.name)) {
             nextRes.cookies.set(cookie);
           }

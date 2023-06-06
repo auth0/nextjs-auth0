@@ -1,4 +1,3 @@
-import { strict as assert } from 'assert';
 import { NextApiResponse, NextApiRequest } from 'next';
 import { NextRequest, NextResponse } from 'next/server';
 import {
@@ -297,13 +296,15 @@ const applyOptions = (
     (afterCallback?: AfterCallback, organization?: string): BaseAfterCallback =>
     (session, state) => {
       if (organization) {
-        assert(session.user.org_id, 'Organization Id (org_id) claim must be a string present in the ID token');
-        assert.equal(
-          session.user.org_id,
-          organization,
-          `Organization Id (org_id) claim value mismatch in the ID token; ` +
-            `expected "${organization}", found "${session.user.org_id}"`
-        );
+        if (!session.user.org_id) {
+          throw new Error('Organization Id (org_id) claim must be a string present in the ID token');
+        }
+        if (session.user.org_id !== organization) {
+          throw new Error(
+            `Organization Id (org_id) claim value mismatch in the ID token; ` +
+              `expected "${organization}", found "${session.user.org_id}"`
+          );
+        }
       }
       if (afterCallback) {
         if (res) {

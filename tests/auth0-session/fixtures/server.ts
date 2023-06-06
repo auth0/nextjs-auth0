@@ -9,7 +9,6 @@ import {
   loginHandler,
   getConfig,
   ConfigParameters,
-  clientFactory,
   TransientStore,
   StatelessSession,
   SessionCache,
@@ -27,6 +26,7 @@ import { cert, key } from './https';
 import { Claims } from '../../../src/session';
 import version from '../../../src/version';
 import { NodeRequest, NodeResponse } from '../../../src/auth0-session/http';
+import { NodeClient } from '../../../src/auth0-session/client/node-client';
 
 export type SessionResponse = TokenSetParameters & { claims: Claims };
 
@@ -55,7 +55,7 @@ class TestSessionCache implements SessionCache<IncomingMessage, ServerResponse> 
     const [session] = await this.cookieStore.read(new NodeRequest(req));
     return session?.id_token;
   }
-  fromTokenSet(tokenSet: TokenSet): { [p: string]: any } {
+  fromTokenEndpointResponse(tokenSet: TokenSet): { [p: string]: any } {
     return tokenSet;
   }
 }
@@ -69,15 +69,15 @@ type Handlers = {
 
 const createHandlers = (params: ConfigParameters): Handlers => {
   const config = getConfig(params);
-  const getClient = clientFactory(config, { name: 'nextjs-auth0', version });
+  const client = new NodeClient(config, { name: 'nextjs-auth0', version });
   const transientStore = new TransientStore(config);
   const cookieStore = params.session?.store ? new StatefulSession<any>(config) : new StatelessSession<any>(config);
   const sessionCache = new TestSessionCache(cookieStore);
 
   return {
-    handleLogin: loginHandler(config, getClient, transientStore),
-    handleLogout: logoutHandler(config, getClient, sessionCache),
-    handleCallback: callbackHandler(config, getClient, sessionCache, transientStore),
+    handleLogin: loginHandler(config, client, transientStore),
+    handleLogout: logoutHandler(config, client, sessionCache),
+    handleCallback: callbackHandler(config, client, sessionCache, transientStore),
     handleSession: async (req: IncomingMessage, res: ServerResponse) => {
       const nodeReq = new NodeRequest(req);
       const [json, iat] = await cookieStore.read(nodeReq);

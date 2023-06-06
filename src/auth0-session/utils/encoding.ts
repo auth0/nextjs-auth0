@@ -1,5 +1,4 @@
 import * as jose from 'jose';
-import { TextDecoder } from 'util';
 
 /**
  * Prepare a state object to send.

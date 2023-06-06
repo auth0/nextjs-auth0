@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies as nextCookies } from 'next/headers';
-import { mocked } from 'ts-jest/utils';
 import { CookieJar } from 'tough-cookie';
 import { login, setup, teardown } from '../fixtures/setup';
 import { withApi, withoutApi } from '../fixtures/default-settings';
@@ -37,7 +36,7 @@ describe('update-user', () => {
       // Note: An updated session from a React Server Component will not persist
       // because you can't write to a cookie from a RSC in the current version of Next.js
       // This test passes because we're mocking the dynamic `cookies` function.
-      mocked(nextCookies).mockImplementation(() => loginRes.cookies);
+      jest.mocked(nextCookies).mockImplementation(() => loginRes.cookies);
       const auth0Instance = initAuth0(withApi);
       const res = await getResponse({
         url: '/api/auth/update',

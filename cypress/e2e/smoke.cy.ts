@@ -120,4 +120,42 @@ describe('smoke tests', () => {
       cy.get('[data-testid=login]').should('exist');
     });
   });
+  describe('app router (edge)', () => {
+    it('should render an app route', () => {
+      cy.visit('/edge-profile');
+      login();
+      cy.url().should('eq', `${Cypress.config().baseUrl}/edge-profile`);
+      cy.get('[data-testid=profile]').contains(EMAIL);
+      cy.get('[data-testid=logout-edge]').click();
+    });
+
+    it('should protect an api', () => {
+      cy.request({ url: '/api/edge-profile', failOnStatusCode: false }).as('unauthorized-edge');
+
+      cy.get('@unauthorized-edge').should((response: any) => {
+        expect(response.status).to.eq(401);
+        expect(response.body.error).to.eq('not_authenticated');
+      });
+    });
+
+    it('should access an api', () => {
+      cy.visit('/edge-profile-api');
+      login();
+
+      cy.url().should('eq', `${Cypress.config().baseUrl}/edge-profile-api`);
+      cy.get('[data-testid=profile-api]').contains(EMAIL);
+    });
+
+    it('should logout and return to the index page', () => {
+      cy.visit('/edge-profile');
+      login();
+      cy.url().should('eq', `${Cypress.config().baseUrl}/edge-profile`);
+      cy.get('[data-testid=logout-edge]').click();
+      if (!useAuth0) {
+        cy.get('[name=logout]').click();
+      }
+      cy.url().should('eq', `${Cypress.config().baseUrl}/`);
+      cy.get('[data-testid=login-edge]').should('exist');
+    });
+  });
 });

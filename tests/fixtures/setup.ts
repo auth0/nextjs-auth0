@@ -37,7 +37,7 @@ export type SetupOptions = {
   withPageAuthRequiredOptions?: WithPageAuthRequiredPageRouterOptions;
   getAccessTokenOptions?: AccessTokenRequest;
   onError?: PageRouterOnError;
-  discoveryOptions?: Record<string, string>;
+  discoveryOptions?: Record<string, any>;
   userInfoPayload?: Record<string, string>;
   userInfoToken?: string;
   asyncProps?: boolean;

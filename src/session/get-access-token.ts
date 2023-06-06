@@ -1,10 +1,9 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { NextApiRequest, NextApiResponse } from 'next';
-import type { errors } from 'openid-client';
-import { ClientFactory, IdentityProviderError } from '../auth0-session';
+import { AbstractClient } from '../auth0-session';
 import { AccessTokenError, AccessTokenErrorCode } from '../utils/errors';
 import { intersect, match } from '../utils/array';
-import { Session, SessionCache, fromTokenSet, get, set } from '../session';
+import { Session, SessionCache, fromTokenEndpointResponse, get, set } from '../session';
 import { AuthorizationParameters, NextConfig } from '../config';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -120,7 +119,7 @@ export type GetAccessToken = (
  */
 export default function accessTokenFactory(
   config: NextConfig,
-  getClient: ClientFactory,
+  client: AbstractClient,
   sessionCache: SessionCache
 ): GetAccessToken {
   return async (reqOrOpts?, res?, accessTokenRequest?): Promise<GetAccessTokenResult> => {
@@ -192,22 +191,12 @@ export default function accessTokenFactory(
       (session.refreshToken && session.accessTokenExpiresAt * 1000 - 60000 < Date.now()) ||
       (session.refreshToken && options && options.refresh)
     ) {
-      const client = await getClient();
-      let tokenSet;
-      try {
-        tokenSet = await client.refresh(session.refreshToken, {
-          exchangeBody: options?.authorizationParams
-        });
-      } catch (e) {
-        throw new AccessTokenError(
-          AccessTokenErrorCode.FAILED_REFRESH_GRANT,
-          'The request to refresh the access token failed.',
-          new IdentityProviderError(e as errors.OPError)
-        );
-      }
+      const tokenSet = await client.refresh(session.refreshToken, {
+        exchangeBody: options?.authorizationParams
+      });
 
       // Update the session.
-      const newSession = fromTokenSet(tokenSet, config);
+      const newSession = fromTokenEndpointResponse(tokenSet, config);
       Object.assign(session, {
         ...newSession,
         refreshToken: newSession.refreshToken || session.refreshToken,

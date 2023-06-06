@@ -81,12 +81,13 @@ export function jwksEndpoint(params: ConfigParameters, keyset: JSONWebKeySet): n
 
 export function codeExchange(params: ConfigParameters, idToken: string, code = 'code'): nock.Scope {
   return nock(`${params.issuerBaseURL}`)
-    .post(
-      '/oauth/token',
-      `grant_type=authorization_code&code=${code}&redirect_uri=${encodeURIComponent(
-        `${params.baseURL}api/auth/callback`
-      )}`
-    )
+    .post('/oauth/token', (body: any) => {
+      return (
+        body.grant_type === 'authorization_code' &&
+        body.code === code &&
+        body.redirect_uri === `${params.baseURL}api/auth/callback`
+      );
+    })
     .reply(200, {
       access_token: 'eyJz93a...k4laUWw',
       expires_in: 750,
@@ -110,7 +111,9 @@ export async function refreshTokenExchange(
   });
 
   return nock(`${params.issuerBaseURL}`)
-    .post('/oauth/token', `grant_type=refresh_token&refresh_token=${refreshToken}`)
+    .post('/oauth/token', (body) => {
+      return body.grant_type === 'refresh_token' && body.refresh_token === refreshToken;
+    })
     .reply(200, {
       access_token: newToken || 'eyJz93a...k4laUWw',
       id_token: idToken,
@@ -145,7 +148,9 @@ export async function refreshTokenRotationExchange(
   });
 
   return nock(`${params.issuerBaseURL}`)
-    .post('/oauth/token', `grant_type=refresh_token&refresh_token=${refreshToken}`)
+    .post('/oauth/token', (body) => {
+      return body.grant_type === 'refresh_token' && body.refresh_token === refreshToken;
+    })
     .reply(200, {
       access_token: newToken || 'eyJz93a...k4laUWw',
       refresh_token: newrefreshToken || 'GEbRxBN...edjnXbL',
