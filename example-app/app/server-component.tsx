@@ -1,4 +1,4 @@
-import { getSession, getAccessToken } from '../../dist';
+import { getSession, getAccessToken } from '@auth0/nextjs-auth0';
 
 export default async function ServerComponent() {
   const session = await getSession();

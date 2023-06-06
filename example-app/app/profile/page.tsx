@@ -1,10 +1,20 @@
-import React from 'react';
+import React, { cache } from 'react';
+import { cookies } from 'next/headers';
 import { getSession, withPageAuthRequired } from '@auth0/nextjs-auth0';
 import ServerComponent from '@/app/server-component';
 import ClientComponent from '@/app/client-component';
 
+const getCookies = cache(() => cookies().getAll());
+
+const foo = new Map();
+
 export default withPageAuthRequired(
   async function Page() {
+    console.log(getCookies());
+
+    foo.set(cookies(), new Date());
+    console.log(foo);
+
     const session = await getSession();
 
     return (

@@ -107,5 +107,17 @@ describe('smoke tests', () => {
       cy.url().should('eq', `${Cypress.config().baseUrl}/profile-api`);
       cy.get('[data-testid=profile-api]').contains(EMAIL);
     });
+
+    it('should logout and return to the index page', () => {
+      cy.visit('/profile');
+      login();
+      cy.url().should('eq', `${Cypress.config().baseUrl}/profile`);
+      cy.get('[data-testid=logout]').click();
+      if (!useAuth0) {
+        cy.get('[name=logout]').click();
+      }
+      cy.url().should('eq', `${Cypress.config().baseUrl}/`);
+      cy.get('[data-testid=login]').should('exist');
+    });
   });
 });
