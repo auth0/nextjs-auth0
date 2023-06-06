@@ -17,7 +17,7 @@ export default class NodeRequest extends Auth0Request<IncomingMessage> {
   }
 
   public getBody() {
-    return (this.req as any).body as Record<string, string>;
+    return (this.req as IncomingMessage & { body: Record<string, string> }).body;
   }
 
   public getCookies(): Record<string, string> {

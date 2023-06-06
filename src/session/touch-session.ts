@@ -21,15 +21,14 @@ import { get, set, SessionCache } from '../session';
  * @category Server
  */
 export type TouchSession = (
-  req?: IncomingMessage | NextApiRequest | NextRequest,
-  res?: ServerResponse | NextApiResponse | NextResponse
+  ...args: [IncomingMessage, ServerResponse] | [NextApiRequest, NextApiResponse] | [NextRequest, NextResponse] | []
 ) => Promise<void>;
 
 /**
  * @ignore
  */
 export default function touchSessionFactory(sessionCache: SessionCache): TouchSession {
-  return async (req, res) => {
+  return async (req?, res?) => {
     const [session, iat] = await get({ sessionCache, req, res });
     if (!session) {
       return;

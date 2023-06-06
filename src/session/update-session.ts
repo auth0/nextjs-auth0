@@ -25,16 +25,18 @@ import { get, set, Session, SessionCache } from '../session';
  * @category Server
  */
 export type UpdateSession = (
-  req?: IncomingMessage | NextApiRequest | NextRequest | Session,
-  res?: ServerResponse | NextApiResponse | NextResponse,
-  user?: Session
+  ...args:
+    | [IncomingMessage, ServerResponse, Session]
+    | [NextApiRequest, NextApiResponse, Session]
+    | [NextRequest, NextResponse, Session]
+    | [Session]
 ) => Promise<void>;
 
 /**
  * @ignore
  */
 export default function updateSessionFactory(sessionCache: SessionCache): UpdateSession {
-  return async (reqOrSession, res, newSession) => {
+  return async (reqOrSession, res?, newSession?) => {
     const session = (res ? newSession : reqOrSession) as Session | undefined;
     const req = (res ? reqOrSession : undefined) as IncomingMessage | NextApiRequest | NextRequest | undefined;
 

@@ -9,18 +9,14 @@ import { SessionCache, Session, get } from '../session';
  * @category Server
  */
 export type GetSession = (
-  req?: IncomingMessage | NextApiRequest | NextRequest,
-  res?: ServerResponse | NextApiResponse | NextResponse
+  ...args: [IncomingMessage, ServerResponse] | [NextApiRequest, NextApiResponse] | [NextRequest, NextResponse] | []
 ) => Promise<Session | null | undefined>;
 
 /**
  * @ignore
  */
-export default function sessionFactory(sessionCache: SessionCache) {
-  return async (
-    req?: IncomingMessage | NextApiRequest | NextRequest,
-    res?: ServerResponse | NextApiResponse | NextResponse
-  ) => {
+export default function sessionFactory(sessionCache: SessionCache): GetSession {
+  return async (req?, res?) => {
     const [session] = await get({ req, res, sessionCache });
     return session;
   };
