@@ -42,8 +42,18 @@ export default function Nav() {
               </Link>
             </li>
             <li>
+              <Link href="/edge-profile" legacyBehavior>
+                <a>Profile (Edge)</a>
+              </Link>
+            </li>
+            <li>
               <Link href="/profile-api" legacyBehavior>
                 <a>Profile (API)</a>
+              </Link>
+            </li>
+            <li>
+              <Link href="/edge-profile-api" legacyBehavior>
+                <a>Profile (API / Edge)</a>
               </Link>
             </li>
             <li>
@@ -52,17 +62,31 @@ export default function Nav() {
               </Link>
             </li>{' '}
             {user ? (
-              <li>
-                <a href="/api/auth/logout" data-testid="logout">
-                  Logout
-                </a>
-              </li>
+              <>
+                <li>
+                  <a href="/api/auth/logout" data-testid="logout">
+                    Logout
+                  </a>
+                </li>
+                <li>
+                  <a href="/api/edge-auth/logout" data-testid="logout-edge">
+                    Logout (Edge)
+                  </a>
+                </li>
+              </>
             ) : (
-              <li>
-                <a href="/api/auth/login" data-testid="login">
-                  Login
-                </a>
-              </li>
+              <>
+                <li>
+                  <a href="/api/auth/login" data-testid="login">
+                    Login
+                  </a>
+                </li>
+                <li>
+                  <a href="/api/edge-auth/login" data-testid="login-edge">
+                    Login (Edge)
+                  </a>
+                </li>
+              </>
             )}
           </ul>
         </nav>

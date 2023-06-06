@@ -1,6 +1,5 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { Socket } from 'net';
-import { mocked } from 'ts-jest/utils';
 import { StatelessSession, getConfig } from '../../src/auth0-session';
 import { get, set } from '../../src/session/cache';
 import { ConfigParameters, Session, SessionCache } from '../../src';
@@ -15,13 +14,13 @@ describe('SessionCache', () => {
 
   const setup = (conf: ConfigParameters) => {
     const config = getConfig(conf);
-    sessionStore = mocked(new StatelessSession(config));
+    sessionStore = jest.mocked(new StatelessSession(config));
     sessionStore.save = jest.fn();
     session = new Session({ sub: '__test_user__' });
     session.idToken = '__test_id_token__';
     cache = new SessionCache(config, sessionStore);
-    req = mocked(new IncomingMessage(new Socket()));
-    res = mocked(new ServerResponse(req));
+    req = jest.mocked(new IncomingMessage(new Socket()));
+    res = jest.mocked(new ServerResponse(req));
   };
 
   beforeEach(() => {

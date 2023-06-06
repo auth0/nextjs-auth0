@@ -238,9 +238,15 @@ For other comprehensive examples, see the [EXAMPLES.md](https://github.com/auth0
 
 ## API Reference
 
-### Server (for Node.js)
+### Server
+
+#### For Node
 
 `import * from @auth0/nextjs-auth0`
+
+#### For Edge runtime
+
+`import * from @auth0/nextjs-auth0/edge`
 
 - [Configuration Options and Environment variables](https://auth0.github.io/nextjs-auth0/modules/config.html)
 - [initAuth0](https://auth0.github.io/nextjs-auth0/modules/index.html#initauth0)
@@ -254,15 +260,7 @@ For other comprehensive examples, see the [EXAMPLES.md](https://github.com/auth0
 - [getSession](https://auth0.github.io/nextjs-auth0/modules/session_get_session.html)
 - [updateSession](https://auth0.github.io/nextjs-auth0/modules/session_update_session.html)
 - [getAccessToken](https://auth0.github.io/nextjs-auth0/modules/session_get_access_token.html)
-
-### Edge (for Middleware and the Edge runtime)
-
-`import * from @auth0/nextjs-auth0/edge`
-
-- [Configuration Options and Environment variables](https://auth0.github.io/nextjs-auth0/modules/config.html)
-- [initAuth0](https://auth0.github.io/nextjs-auth0/modules/edge.html#initauth0-1)
-- [withMiddlewareAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_middleware_auth_required.html)
-- [getSession](https://auth0.github.io/nextjs-auth0/modules/edge.html#getsession-1)
+- [withMiddlewareAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_middleware_auth_required.html) (Edge only)
 
 ### Client (for the Browser)
 

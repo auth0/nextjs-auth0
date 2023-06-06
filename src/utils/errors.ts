@@ -1,5 +1,3 @@
-import { HttpError } from 'http-errors';
-
 /**
  * @ignore
  */
@@ -110,7 +108,7 @@ export class AccessTokenError extends AuthError {
 /**
  * @ignore
  */
-export type HandlerErrorCause = Error | AuthError | HttpError;
+export type HandlerErrorCause = Error | AuthError | (Error & { status: number; statusCode: number });
 
 type HandlerErrorOptions = {
   code: string;

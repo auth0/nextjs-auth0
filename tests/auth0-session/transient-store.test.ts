@@ -83,10 +83,12 @@ describe('TransientStore', () => {
     expect(cookie?.secure).toBeFalsy();
   });
 
-  it('should set SameSite=None, Secure=False for fallback cookie by default for http', async () => {
+  it('should not set SameSite and set Secure=False for fallback cookie by default for http', async () => {
     const baseURL: string = await setup(
       defaultConfig,
-      (req: NodeRequest, res: NodeResponse) => transientStore.save('test_key', req, res, { value: 'foo' }),
+      (req: NodeRequest, res: NodeResponse) => {
+        return transientStore.save('test_key', req, res, { value: 'foo' });
+      },
       false
     );
     const transientStore = new TransientStore(getConfig({ ...defaultConfig, baseURL }));
@@ -95,7 +97,7 @@ describe('TransientStore', () => {
     const fallbackCookie = getCookie('_test_key', cookieJar, baseURL);
     expect(value).toEqual(expect.any(String));
     expect(fallbackCookie).toMatchObject({
-      sameSite: 'none',
+      sameSite: undefined,
       secure: false,
       httpOnly: true
     });
@@ -211,11 +213,5 @@ describe('TransientStore', () => {
 
     const { value } = await get(baseURL, '/', { cookieJar });
     expect(value).toBeUndefined();
-  });
-
-  it('should generate a code verifier and challenge', async () => {
-    const transientStore = new TransientStore(getConfig({ ...defaultConfig, baseURL: 'http://example.com' }));
-    expect(transientStore.generateCodeVerifier()).toEqual(expect.any(String));
-    expect(transientStore.calculateCodeChallenge('foo')).toEqual(expect.any(String));
   });
 });

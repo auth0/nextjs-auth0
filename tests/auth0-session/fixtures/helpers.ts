@@ -1,8 +1,8 @@
+import { IncomingMessage, request as nodeHttpRequest } from 'http';
+import { request as nodeHttpsRequest } from 'https';
 import { Cookie, CookieJar } from 'tough-cookie';
 import { signing } from '../../../src/auth0-session/utils/hkdf';
 import { generateCookieValue } from '../../../src/auth0-session/utils/signed-cookies';
-import { IncomingMessage, request as nodeHttpRequest } from 'http';
-import { request as nodeHttpsRequest } from 'https';
 import { ConfigParameters } from '../../../src/auth0-session';
 import { base64url } from 'jose';
 

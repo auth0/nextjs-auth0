@@ -60,7 +60,7 @@ describe('generate-session-cookie', () => {
   test('use the current time for the header values', async () => {
     const now = Date.now();
     const current = (now / 1000) | 0;
-    const clock = jest.useFakeTimers('modern');
+    const clock = jest.useFakeTimers();
     clock.setSystemTime(now);
     await generateSessionCookie({}, { secret: '' });
     expect(encryptMock).toHaveBeenCalledWith(expect.anything(), {

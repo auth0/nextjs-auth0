@@ -1,5 +1,4 @@
-import type { AuthorizationParameters as OidcAuthorizationParameters } from 'openid-client';
-import type { LoginOptions } from './auth0-session/config';
+import type { LoginOptions, AuthorizationParameters as OidcAuthorizationParameters } from './auth0-session/config';
 import { SessionStore } from './auth0-session/session/stateful-session';
 import Session from './session/session';
 import { DeepPartial, get as getBaseConfig } from './auth0-session/get-config';
@@ -180,8 +179,10 @@ export interface BaseConfig {
    * Private key for use with `private_key_jwt` clients.
    * This should be a string that is the contents of a PEM file.
    * You can also use the `AUTH0_CLIENT_ASSERTION_SIGNING_KEY` environment variable.
+   *
+   * For Edge runtime, you can also provide an instance of `CryptoKey`.
    */
-  clientAssertionSigningKey?: string;
+  clientAssertionSigningKey?: string | CryptoKey;
 
   /**
    * The algorithm to sign the client assertion JWT.

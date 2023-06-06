@@ -8,21 +8,17 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { fetchUserErrorMock, withUserProvider, user } from '../fixtures/frontend';
 import { withPageAuthRequired } from '../../src/client';
 
-const windowLocation = window.location;
-
 describe('with-page-auth-required csr', () => {
   beforeAll(() => {
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore window.location is non-optional
-    delete window.location;
-    window.location = {
-      ...windowLocation,
-      assign: jest.fn(),
-      toString: jest.fn(() => 'https://example.com')
-    };
+    Object.defineProperty(window, 'location', {
+      writable: true,
+      value: {
+        assign: jest.fn(),
+        toString: () => 'https://example.com'
+      }
+    });
   });
   afterEach(() => delete (global as any).fetch);
-  afterAll(() => (window.location = windowLocation));
 
   it('should deny access to a CSR page when not authenticated', async () => {
     (global as any).fetch = fetchUserErrorMock;

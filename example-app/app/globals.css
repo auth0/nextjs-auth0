@@ -24,7 +24,7 @@ ul {
 li {
     margin-right: 1rem;
 }
-.header.secondary li:nth-last-child(2) {
+.header.secondary li:nth-last-child(3) {
     margin-right: auto;
 }
 .header a {
@@ -32,10 +32,12 @@ li {
     text-decoration: none;
 }
 .header.home a[href='/'],
-.header.page-router a[href$='page-router'],
-.header.profile a[href$='profile'],
-.header.profile-middleware a[href$='profile-middleware'],
-.header.profile-api a[href$='profile-api'],
+.header.page-router a[href$='/page-router'],
+.header.profile a[href$='/profile'],
+.header.edge-profile a[href$='/edge-profile'],
+.header.profile-middleware a[href$='/profile-middleware'],
+.header.profile-api a[href$='/profile-api'],
+.header.edge-profile-api a[href$='/edge-profile-api'],
 a.active {
     color: #888;
 }
