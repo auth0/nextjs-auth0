@@ -224,7 +224,7 @@ const applyOptions = (
   options: CallbackOptions,
   config: NextConfig
 ) => {
-  let opts = { ...options };
+  const opts = { ...options };
   const idTokenValidator =
     (afterCallback?: AfterCallback, organization?: string): BaseAfterCallback =>
     (session, state) => {

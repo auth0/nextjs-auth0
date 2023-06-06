@@ -263,6 +263,7 @@ const applyOptions = (
 ): BaseLoginOptions => {
   let opts: BaseLoginOptions;
   let getLoginState: GetLoginState | undefined;
+  // eslint-disable-next-line prefer-const
   ({ getLoginState, ...opts } = options);
   if (dangerousReturnTo) {
     const safeBaseUrl = new URL(options.authorizationParams?.redirect_uri || baseConfig.baseURL);

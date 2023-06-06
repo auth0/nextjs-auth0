@@ -75,8 +75,8 @@ const appRouteHandlerFactory =
         { status: 401 }
       );
     }
-    let apiRes: NextResponse | Response = await apiRoute(req, params);
-    let nextApiRes: NextResponse = apiRes instanceof NextResponse ? apiRes : new NextResponse(apiRes.body, apiRes);
+    const apiRes: NextResponse | Response = await apiRoute(req, params);
+    const nextApiRes: NextResponse = apiRes instanceof NextResponse ? apiRes : new NextResponse(apiRes.body, apiRes);
     for (const cookie of res.cookies.getAll()) {
       nextApiRes.cookies.set(cookie);
     }
