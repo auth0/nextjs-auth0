@@ -1,3 +1,4 @@
+import type { IncomingMessage } from 'http';
 import urlJoin from 'url-join';
 import createHttpError from 'http-errors';
 import { errors } from 'openid-client';
@@ -14,7 +15,6 @@ import {
   MissingStateParamError
 } from '../utils/errors';
 import { Auth0Request, Auth0Response } from '../http';
-import { IncomingMessage } from 'http';
 
 function getRedirectUri(config: Config): string {
   return urlJoin(config.baseURL, config.routes.callback);
@@ -37,7 +37,7 @@ export type HandleCallback = (req: Auth0Request, res: Auth0Response, options?: C
 export default function callbackHandlerFactory(
   config: Config,
   getClient: ClientFactory,
-  sessionCache: SessionCache<any, any>,
+  sessionCache: SessionCache,
   transientCookieHandler: TransientStore
 ): HandleCallback {
   return async (req, res, options) => {

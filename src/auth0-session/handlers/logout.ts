@@ -13,7 +13,7 @@ export type HandleLogout = (req: Auth0Request, res: Auth0Response, options?: Log
 export default function logoutHandlerFactory(
   config: Config,
   getClient: ClientFactory,
-  sessionCache: SessionCache<any, any>
+  sessionCache: SessionCache
 ): HandleLogout {
   return async (req, res, options = {}) => {
     let returnURL = options.returnTo || config.routes.postLogoutRedirect;

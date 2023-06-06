@@ -93,9 +93,11 @@ export interface GetAccessTokenResult {
  * @category Server
  */
 export type GetAccessToken = (
-  req?: IncomingMessage | NextApiRequest | NextRequest | AccessTokenRequest,
-  res?: ServerResponse | NextApiResponse | NextResponse,
-  accessTokenRequest?: AccessTokenRequest
+  ...args:
+    | [IncomingMessage, ServerResponse, AccessTokenRequest?]
+    | [NextApiRequest, NextApiResponse, AccessTokenRequest?]
+    | [NextRequest, NextResponse, AccessTokenRequest?]
+    | [AccessTokenRequest?]
 ) => Promise<GetAccessTokenResult>;
 
 /**
@@ -106,7 +108,7 @@ export default function accessTokenFactory(
   getClient: ClientFactory,
   sessionCache: SessionCache
 ): GetAccessToken {
-  return async (reqOrOpts, res, accessTokenRequest): Promise<GetAccessTokenResult> => {
+  return async (reqOrOpts?, res?, accessTokenRequest?): Promise<GetAccessTokenResult> => {
     const options = (res ? accessTokenRequest : reqOrOpts) as AccessTokenRequest | undefined;
     const req = (res ? reqOrOpts : undefined) as IncomingMessage | NextApiRequest | undefined;
 
