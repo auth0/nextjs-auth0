@@ -23,18 +23,6 @@ Please read [Auth0's contribution guidelines](https://github.com/auth0/open-sour
 
 ## Running examples against a mock openid provider
 
-Your env vars in `/example-app/.env.local` should look like
-
-```bash
-AUTH0_SECRET=#ANY LONG RANDOM VALUE
-AUTH0_ISSUER_BASE_URL=http://localhost:3000/oidc
-AUTH0_BASE_URL=http://localhost:3000
-AUTH0_CLIENT_ID=testing
-AUTH0_CLIENT_SECRET=testing
-```
-
-Then run one of the commands:
-
 - `start:example-local`: Run the example app with a mock openid provider
 - `test:example-local`: Run the E2E tests with a mock openid provider
 - `test:example-local:watch`: Run the E2E tests with a mock openid provider and watch for changes

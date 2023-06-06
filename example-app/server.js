@@ -2,9 +2,13 @@ const express = require('express');
 const next = require('next');
 const oidc = require('../scripts/oidc-provider');
 
-const port = process.env.PORT || 3000;
+const port = +(process.env.PORT || 3000);
 const app = next({ dev: true, hostname: 'localhost', port });
 const handle = app.getRequestHandler();
+
+process.env.AUTH0_ISSUER_BASE_URL = `http://localhost:${port}/oidc`;
+process.env.AUTH0_CLIENT_ID = 'testing';
+process.env.AUTH0_CLIENT_SECRET = 'testing';
 
 app
   .prepare()
