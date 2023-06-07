@@ -1,5 +1,11 @@
 # Change Log
 
+## [v2.6.1](https://github.com/auth0/nextjs-auth0/tree/v2.6.1) (2023-06-06)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.6.0...v2.6.1)
+
+**Fixed**
+- [SDK-4113] Lock down open ended auth route [\#1212](https://github.com/auth0/nextjs-auth0/pull/1212) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [v2.6.0](https://github.com/auth0/nextjs-auth0/tree/v2.6.0) (2023-05-12)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.5.0...v2.6.0)
 
