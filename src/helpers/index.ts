@@ -3,6 +3,7 @@ export {
   default as withPageAuthRequiredFactory,
   GetServerSidePropsResultWithSession,
   WithPageAuthRequired,
-  WithPageAuthRequiredOptions,
+  WithPageAuthRequiredPageRouterOptions,
+  WithPageAuthRequiredAppRouterOptions,
   PageRoute
 } from './with-page-auth-required';

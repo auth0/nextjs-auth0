@@ -1,5 +1,11 @@
 # Examples
 
+**App Router**
+
+- [Basic Setup](#basic-setup)
+
+**Page Router**
+
 - [Basic Setup](#basic-setup)
 - [Create your own instance of the SDK](#create-your-own-instance-of-the-sdk)
 - [Customize handlers behavior](#customize-handlers-behavior)
@@ -15,7 +21,75 @@
 
 See also the the [example app](./example-app).
 
-## Basic Setup
+## App Router
+
+### Basic Setup
+
+Configure the required options in an `.env.local` file in the root of your application:
+
+```sh
+AUTH0_SECRET='LONG_RANDOM_VALUE'
+AUTH0_BASE_URL='http://localhost:3000'
+AUTH0_ISSUER_BASE_URL='https://your-tenant.auth0.com'
+AUTH0_CLIENT_ID='CLIENT_ID'
+AUTH0_CLIENT_SECRET='CLIENT_SECRET'
+```
+
+Create a [dynamic API route handler](https://nextjs.org/docs/api-routes/dynamic-api-routes) at `/app/api/auth/[auth0]/route.js`.
+
+```js
+import { handleAuth } from '@auth0/nextjs-auth0';
+
+export const GET = handleAuth();
+```
+
+This will create the following urls: `/api/auth/login`, `/api/auth/callback`, `/api/auth/logout` and `/api/auth/me`.
+
+Wrap your `app/layout.jsx` component in the `UserProvider` component.
+
+```jsx
+// app/layout.jsx
+import React from 'react';
+import { UserProvider } from '@auth0/nextjs-auth0/client';
+
+export default function RootLayout({ children }) {
+  return (
+    <html lang="en">
+    <UserProvider>
+      <body>{children}</body>
+    </UserProvider>
+    </html>
+  );
+}
+```
+
+Check the user's authentication state and log them in or out from the front end using the `useUser` hook.
+
+```jsx
+// app/page.jsx
+'use client';
+import { useUser } from '@auth0/nextjs-auth0/client';
+
+export default function Index() {
+  const { user, error, isLoading } = useUser();
+
+  if (isLoading) return <div>Loading...</div>;
+  if (error) return <div>{error.message}</div>;
+
+  if (user) {
+    return (
+      <div>
+        Welcome {user.name}! <a href="/api/auth/logout">Logout</a>
+      </div>
+    );
+  }
+  return <a href="/api/auth/login">Login</a>;
+};
+```
+
+## Page Router
+
+### Basic Setup
 
 Configure the required options in an `.env.local` file in the root of your application:
 
@@ -63,7 +137,7 @@ Check the user's authentication state and log them in or out from the front end 
 // pages/index.jsx
 import { useUser } from '@auth0/nextjs-auth0/client';
 
-export default () => {
+export default function Index() {
   const { user, error, isLoading } = useUser();
 
   if (isLoading) return <div>Loading...</div>;
@@ -80,7 +154,7 @@ export default () => {
 };
 ```
 
-## Create your own instance of the SDK
+### Create your own instance of the SDK
 
 When you use the named exports, the SDK creates an instance of the SDK for you and configures it with the provided environment variables.
 
@@ -153,7 +227,7 @@ export default auth0.handleAuth({
 });
 ```
 
-## Customize handlers behavior
+### Customize handlers behavior
 
 Pass custom parameters to the auth handlers or add your own logging and error handling.
 
@@ -189,7 +263,7 @@ export default handleAuth({
 });
 ```
 
-## Use custom auth urls
+### Use custom auth urls
 
 Instead of (or in addition to) creating `/pages/api/auth/[auth0].js` to handle all requests, you can create them individually at different urls.
 
@@ -215,7 +289,7 @@ export default () => <a href="/api/custom-login">Login</a>;
 
 > Note: If you customize the login url you will need to set the environment variable `NEXT_PUBLIC_AUTH0_LOGIN` to this custom value for `withPageAuthRequired` to work correctly. And if you customize the profile url, you will need to set the `NEXT_PUBLIC_AUTH0_PROFILE` environment variable to this custom value for the `useUser` hook to work properly.
 
-## Protecting a Server-Side Rendered (SSR) Page
+### Protecting a Server-Side Rendered (SSR) Page
 
 Requests to `/pages/profile` without a valid session cookie will be redirected to the login page.
 
@@ -234,7 +308,7 @@ export const getServerSideProps = withPageAuthRequired();
 
 See a running example of an [SSR protected page](./example-app/pages/profile-ssr.tsx) in the example app or refer to the full list of configuration options for `withPageAuthRequired` [here](https://auth0.github.io/nextjs-auth0/modules/helpers_with_page_auth_required.html#withpageauthrequiredoptions).
 
-## Protecting a Client-Side Rendered (CSR) Page
+### Protecting a Client-Side Rendered (CSR) Page
 
 Requests to `/pages/profile` without a valid session cookie will be redirected to the login page.
 
@@ -249,7 +323,7 @@ export default withPageAuthRequired(function Profile({ user }) {
 
 See a running example of a [CSR protected page](./example-app/pages/profile.tsx) in the example app.
 
-## Protect an API Route
+### Protect an API Route
 
 Requests to `/pages/api/protected` without a valid session cookie will fail with `401`.
 
@@ -286,7 +360,7 @@ export default withPageAuthRequired(function Products() {
 See a running example in the example app, the [protected API route](./example-app/pages/api/shows.ts) and
 the [frontend code to access the protected API](./example-app/pages/shows.tsx).
 
-## Protecting pages with Middleware
+### Protecting pages with Middleware
 
 Protect your pages with Next.js Middleware.
 
@@ -346,7 +420,7 @@ export default auth0.withMiddlewareAuthRequired(async function middleware(req) {
 });
 ```
 
-## Access an External API from an API Route
+### Access an External API from an API Route
 
 Get an access token by providing your API's audience and scopes. You can pass them directly to the `handlelogin` method, or use environment variables instead.
 
@@ -388,8 +462,6 @@ export default withApiAuthRequired(async function products(req, res) {
 });
 ```
 
-See a running example of the [API route acting as a proxy to an External API](./example-app/pages/api/shows.ts) in the example app.
-
 ### Getting a Refresh Token
 
 - Include the `offline_access` scope your configuration (or `AUTH0_SCOPE`)
@@ -417,7 +489,7 @@ Users can then sign up using the signup handler.
 <a href="/api/auth/signup">Sign up</a>
 ```
 
-## Use with Base Path and Internationalized Routing
+### Use with Base Path and Internationalized Routing
 
 With Next.js you can deploy a Next.js application under a sub-path of a domain using [Base Path](https://nextjs.org/docs/api-reference/next.config.js/basepath) and serve internationalized (i18n) routes using [Internationalized Routing](https://nextjs.org/docs/advanced-features/i18n-routing).
 
@@ -468,7 +540,7 @@ export const getServerSideProps = (ctx) => {
 };
 ```
 
-## Use a custom session store
+### Use a custom session store
 
 You need to create your own instance of the SDK in code, so you can pass an instance of your session store to the SDK's configuration.
 

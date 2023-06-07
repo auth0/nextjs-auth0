@@ -8,7 +8,7 @@ import {
   LoginOptions,
   LogoutOptions,
   ProfileOptions,
-  WithPageAuthRequiredOptions,
+  WithPageAuthRequiredPageRouterOptions,
   initAuth0,
   AccessTokenRequest,
   Claims,
@@ -34,7 +34,7 @@ export type SetupOptions = {
   logoutOptions?: LogoutOptions;
   profileHandler?: HandleProfile;
   profileOptions?: ProfileOptions;
-  withPageAuthRequiredOptions?: WithPageAuthRequiredOptions;
+  withPageAuthRequiredOptions?: WithPageAuthRequiredPageRouterOptions;
   getAccessTokenOptions?: AccessTokenRequest;
   onError?: OnError;
   discoveryOptions?: Record<string, string>;

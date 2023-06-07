@@ -22,7 +22,7 @@ jest.mock('next/navigation', () => {
 
 describe('with-page-auth-required ssr', () => {
   describe('app route', () => {
-    const getPageResponse = ({ config, cookies, returnTo, loginRes }: any = {}) => {
+    const getPageResponse = ({ config, cookies, returnTo, loginRes, params, searchParams }: any = {}) => {
       const res = loginRes || new NextResponse();
       mocked(nextCookies).mockImplementation(() => res.cookies as any);
       const opts = { ...withApi, ...config };
@@ -39,7 +39,7 @@ describe('with-page-auth-required ssr', () => {
       const handler = instance.withPageAuthRequired(() => Promise.resolve(React.createElement('div', {}, 'foo')), {
         returnTo
       });
-      return handler({});
+      return handler({ params, searchParams });
     };
 
     test('protect a page', async () => {
@@ -52,6 +52,21 @@ describe('with-page-auth-required ssr', () => {
       jest.spyOn(navigation, 'redirect');
       await expect(getPageResponse({ returnTo: '/foo' })).rejects.toThrowError('NEXT_REDIRECT');
       expect(navigation.redirect).toHaveBeenCalledWith('/api/auth/login?returnTo=/foo');
+    });
+
+    test('protect a page and redirect to returnTo fn option', async () => {
+      jest.spyOn(navigation, 'redirect');
+      await expect(
+        getPageResponse({
+          returnTo({ params, searchParams }: any) {
+            const query = new URLSearchParams(searchParams).toString();
+            return `/foo/${params.slug}${query ? `?${query}` : ''}`;
+          },
+          params: { slug: 'bar' },
+          searchParams: { foo: 'bar' }
+        })
+      ).rejects.toThrowError('NEXT_REDIRECT');
+      expect(navigation.redirect).toHaveBeenCalledWith('/api/auth/login?returnTo=/foo/bar?foo=bar');
     });
 
     test('allow access to a page with a valid session', async () => {

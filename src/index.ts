@@ -54,7 +54,8 @@ import {
   WithApiAuthRequired,
   WithPageAuthRequired,
   GetServerSidePropsResultWithSession,
-  WithPageAuthRequiredOptions,
+  WithPageAuthRequiredPageRouterOptions,
+  WithPageAuthRequiredAppRouterOptions,
   PageRoute
 } from './helpers';
 import version from './version';
@@ -247,7 +248,8 @@ export {
   ProfileOptions,
   Handlers,
   GetServerSidePropsResultWithSession,
-  WithPageAuthRequiredOptions,
+  WithPageAuthRequiredPageRouterOptions,
+  WithPageAuthRequiredAppRouterOptions,
   PageRoute,
   WithApiAuthRequired,
   WithPageAuthRequired,
