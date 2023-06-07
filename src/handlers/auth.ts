@@ -62,14 +62,22 @@ import { AppRouteHandlerFn, AppRouteHandlerFnContext, Handler } from './router-h
  */
 export type Handlers = ApiHandlers | ErrorHandlers;
 
+/**
+ * @ignore
+ */
 type ApiHandlers = { [key: string]: Handler };
 
+/**
+ * @ignore
+ */
 type ErrorHandlers = {
   onError?: PageRouterOnError | AppRouterOnError;
 };
 
 /**
  * The main way to use the server SDK.
+ *
+ * *Page Router*
  *
  * Simply set the environment variables per {@link ConfigParameters} then create the file
  * `pages/api/auth/[auth0].js`. For example:
@@ -79,6 +87,18 @@ type ErrorHandlers = {
  * import { handleAuth } from '@auth0/nextjs-auth0';
  *
  * export default handleAuth();
+ * ```
+
+ * *App Router*
+ *
+ * Simply set the environment variables per {@link ConfigParameters} then create the file
+ * `app/api/auth/[auth0]/route.js`. For example:
+ *
+ * ```js
+ * // app/api/auth/[auth0]/route.js
+ * import { handleAuth } from '@auth0/nextjs-auth0';
+ *
+ * export const GET = handleAuth();
  * ```
  *
  * This will create 5 handlers for the following urls:
@@ -171,6 +191,9 @@ export default function handlerFactory({
   };
 }
 
+/**
+ * @ignore
+ */
 const appRouteHandlerFactory: (customHandlers: ApiHandlers, onError?: AppRouterOnError) => AppRouteHandlerFn =
   (customHandlers, onError) => async (req: NextRequest, ctx) => {
     const { params } = ctx;
@@ -197,6 +220,9 @@ const appRouteHandlerFactory: (customHandlers: ApiHandlers, onError?: AppRouterO
     }
   };
 
+/**
+ * @ignore
+ */
 const pageRouteHandlerFactory: (customHandlers: ApiHandlers, onError?: PageRouterOnError) => NextApiHandler =
   (customHandlers, onError) =>
   async (req: NextApiRequest, res: NextApiResponse): Promise<void> => {

@@ -3,7 +3,7 @@ import { ArgumentsOf } from 'ts-jest';
 import { withoutApi } from '../fixtures/default-settings';
 import { login, setup, teardown } from '../fixtures/setup';
 import { get } from '../auth0-session/fixtures/helpers';
-import { initAuth0, OnError } from '../../src';
+import { initAuth0, PageRouterOnError as OnError } from '../../src';
 import { LoginOptions, LogoutOptions, CallbackOptions, ProfileOptions } from '../../src/handlers';
 import * as baseLoginHandler from '../../src/auth0-session/handlers/login';
 import * as baseLogoutHandler from '../../src/auth0-session/handlers/logout';

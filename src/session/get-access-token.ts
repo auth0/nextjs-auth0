@@ -8,14 +8,29 @@ import { Session, SessionCache, fromTokenSet, get, set } from '../session';
 import { AuthorizationParameters, NextConfig } from '../config';
 import { NextRequest, NextResponse } from 'next/server';
 
+/**
+ * After refresh handler for page router {@link AfterRefreshPageRoute} and app router {@link AfterRefreshAppRoute}.
+ *
+ * @category Server
+ */
 export type AfterRefresh = AfterRefreshPageRoute | AfterRefreshAppRoute;
 
+/**
+ * After refresh handler for page router.
+ *
+ * @category Server
+ */
 export type AfterRefreshPageRoute = (
   req: NextApiRequest | IncomingMessage,
   res: NextApiRequest | ServerResponse,
   session: Session
 ) => Promise<Session> | Session;
 
+/**
+ * After refresh handler for app router.
+ *
+ * @category Server
+ */
 export type AfterRefreshAppRoute = (session: Session) => Promise<Session> | Session;
 
 /**

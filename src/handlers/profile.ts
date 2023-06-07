@@ -6,14 +6,29 @@ import { assertReqRes } from '../utils/assert';
 import { ProfileHandlerError, HandlerErrorCause } from '../utils/errors';
 import { AppRouteHandlerFnContext, AuthHandler, getHandler, Handler, OptionsProvider } from './router-helpers';
 
+/**
+ * After refetch handler for page router {@link AfterRefetchPageRoute} and app router {@link AfterRefetchAppRoute}.
+ *
+ * @category Server
+ */
 export type AfterRefetch = AfterRefetchPageRoute | AfterRefetchAppRoute;
 
+/**
+ * After refetch handler for page router.
+ *
+ * @category Server
+ */
 export type AfterRefetchPageRoute = (
   req: NextApiRequest,
   res: NextApiResponse,
   session: Session
 ) => Promise<Session> | Session;
 
+/**
+ * After refetch handler for app router.
+ *
+ * @category Server
+ */
 export type AfterRefetchAppRoute = (req: NextRequest, session: Session) => Promise<Session> | Session;
 
 /**
@@ -119,6 +134,9 @@ export default function profileHandler(
   return getHandler<ProfileOptions>(appRouteHandler, pageRouteHandler) as HandleProfile;
 }
 
+/**
+ * @ignore
+ */
 const appRouteHandlerFactory: (
   getClient: ClientFactory,
   getAccessToken: GetAccessToken,
@@ -168,6 +186,9 @@ const appRouteHandlerFactory: (
     }
   };
 
+/**
+ * @ignore
+ */
 const pageRouteHandlerFactory: (
   getClient: ClientFactory,
   getAccessToken: GetAccessToken,

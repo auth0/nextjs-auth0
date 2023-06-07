@@ -167,7 +167,7 @@ Create a [catch-all, dynamic API route handler](https://nextjs.org/docs/app/buil
 - Create a `[auth0]` directory under the newly created `auth` directory.
 - Create a `route.js` file under the newly created `[auth0]` directory.
 
-The path to your dynamic API route file would be `/app/api/auth/[auth0]/route.js`. Populate that file as follows:
+The path to your dynamic API route file will be `/app/api/auth/[auth0]/route.js`. Populate that file as follows:
 
 ```js
 import { handleAuth } from '@auth0/nextjs-auth0';
@@ -175,8 +175,7 @@ import { handleAuth } from '@auth0/nextjs-auth0';
 export const GET = handleAuth();
 ```
 
-
-##### Add the UserProvider to your layout
+##### Add the `UserProvider` to your layout
 
 Wrap your `app/layout.js` component with the `UserProvider` component:
 
@@ -200,6 +199,7 @@ You can now determine if a user is authenticated by checking that the `user` obj
 
 ```jsx
 // pages/index.js
+'use client';
 import { useUser } from '@auth0/nextjs-auth0/client';
 
 export default function Index() {
@@ -226,13 +226,13 @@ export default function Index() {
 
 At the time of writing, Server Components in the App Directory (including Pages and Layouts) _cannot_ write to a cookie.
 
-If you rely on Server Components to read and update your session you should be aware of the following:
+If you rely on Server Components to read and update your session from a Server Component you should be aware of the following:
 
 - If you have a rolling session (the default for this SDK), it will not be updated when the user visits your site. So their session expiration may revert to its absolute duration (7 days by default).
 - If you refresh the access token, the new access token will not be persisted in the session. So subsequent attempts to get an access token will always result in refreshing the expired access token in the session.
 - If you make any other updates to the session, they will not be persisted between requests.
 
-> The cookie will be updated from [middleware](https://nextjs.org/docs/app/building-your-application/routing/middleware) and [route handlers](https://nextjs.org/docs/app/building-your-application/routing/router-handlers).
+> The cookie is updated from [middleware](https://nextjs.org/docs/app/building-your-application/routing/middleware) and [route handlers](https://nextjs.org/docs/app/building-your-application/routing/router-handlers).
 
 For other comprehensive examples, see the [EXAMPLES.md](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md) document.
 

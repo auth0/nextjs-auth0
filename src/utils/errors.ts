@@ -48,7 +48,7 @@ export abstract class AuthError extends Error {
   /**
    * The underlying error, if any.
    *
-   * **IMPORTANT** When this error is from the Identity Provider ({@Link IdentityProviderError}) it can contain user
+   * **IMPORTANT** When this error is from the Identity Provider ({@link IdentityProviderError}) it can contain user
    * input and is only escaped using basic escaping for putting untrusted data directly into the HTML body.
    *
    * You should **not** render this error without using a templating engine that will properly escape it for other
@@ -129,7 +129,7 @@ type HandlerErrorOptions = {
  * without using a templating engine that will properly escape it for other HTML contexts first.
  *
  * @see the {@link AuthError.cause | cause property} contains the underlying error.
- * **IMPORTANT** When this error is from the Identity Provider ({@Link IdentityProviderError}) it can contain user
+ * **IMPORTANT** When this error is from the Identity Provider ({@link IdentityProviderError}) it can contain user
  * input and is only escaped using basic escaping for putting untrusted data directly into the HTML body.
  * You should **not** render this error without using a templating engine that will properly escape it for other
  * HTML contexts first.
@@ -158,7 +158,7 @@ export class HandlerError extends AuthError {
  * without using a templating engine that will properly escape it for other HTML contexts first.
  *
  * @see the {@link AuthError.cause | cause property} contains the underlying error.
- * **IMPORTANT** When this error is from the Identity Provider ({@Link IdentityProviderError}) it can contain user
+ * **IMPORTANT** When this error is from the Identity Provider ({@link IdentityProviderError}) it can contain user
  * input and is only escaped using basic escaping for putting untrusted data directly into the HTML body.
  * You should **not** render this error without using a templating engine that will properly escape it for other
  * HTML contexts first.

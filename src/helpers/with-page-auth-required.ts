@@ -33,7 +33,12 @@ export type PageRoute<P, Q extends ParsedUrlQuery = ParsedUrlQuery> = (
   ctx: GetServerSidePropsContext<Q>
 ) => Promise<GetServerSidePropsResultWithSession<P>>;
 
-type AppRouterPageRouteOpts = {
+/**
+ * Objects containing the route parameters and search parameters of th page.
+ *
+ * @category Server
+ */
+export type AppRouterPageRouteOpts = {
   params?: { slug: string };
   searchParams?: { [key: string]: string | string[] | undefined };
 };
@@ -104,7 +109,7 @@ export type WithPageAuthRequiredPageRouterOptions<
  *
  * @category Server
  */
-type WithPageAuthRequiredPageRouter = <
+export type WithPageAuthRequiredPageRouter = <
   P extends { [key: string]: any } = { [key: string]: any },
   Q extends ParsedUrlQuery = ParsedUrlQuery
 >(
@@ -112,6 +117,9 @@ type WithPageAuthRequiredPageRouter = <
 ) => PageRoute<P, Q>;
 
 /**
+ * Specify the URL to `returnTo` - this is important in app router pages because the server component
+ * won't know the URL of the page.
+ *
  * @category Server
  */
 export type WithPageAuthRequiredAppRouterOptions = {
@@ -156,11 +164,17 @@ export type WithPageAuthRequiredAppRouterOptions = {
  *
  * @category Server
  */
-type WithPageAuthRequiredAppRouter = (
+export type WithPageAuthRequiredAppRouter = (
   fn: AppRouterPageRoute,
   opts?: WithPageAuthRequiredAppRouterOptions
 ) => AppRouterPageRoute;
 
+/**
+ * Protects Page router pages {@link WithPageAuthRequiredPageRouter} or
+ * App router pages {@link WithPageAuthRequiredAppRouter}
+ *
+ * @category Server
+ */
 export type WithPageAuthRequired = WithPageAuthRequiredPageRouter & WithPageAuthRequiredAppRouter;
 
 /**
@@ -173,14 +187,20 @@ export default function withPageAuthRequiredFactory(
   const appRouteHandler = appRouteHandlerFactory(loginUrl, getSessionCache);
   const pageRouteHandler = pageRouteHandlerFactory(loginUrl, getSessionCache);
 
-  return (fnOrOpts: any, opts?: any): any => {
+  return ((
+    fnOrOpts?: WithPageAuthRequiredPageRouterOptions | AppRouterPageRoute,
+    opts?: WithPageAuthRequiredAppRouterOptions
+  ) => {
     if (typeof fnOrOpts === 'function') {
       return appRouteHandler(fnOrOpts, opts);
     }
     return pageRouteHandler(fnOrOpts);
-  };
+  }) as WithPageAuthRequired;
 }
 
+/**
+ * @ignore
+ */
 const appRouteHandlerFactory =
   (loginUrl: string, getSessionCache: () => SessionCache): WithPageAuthRequiredAppRouter =>
   (handler, opts = {}) =>
@@ -194,6 +214,9 @@ const appRouteHandlerFactory =
     return handler(params);
   };
 
+/**
+ * @ignore
+ */
 const pageRouteHandlerFactory =
   (loginUrl: string, getSessionCache: () => SessionCache): WithPageAuthRequiredPageRouter =>
   ({ getServerSideProps, returnTo } = {}) =>

@@ -16,22 +16,11 @@ import {
   loginHandler,
   logoutHandler,
   profileHandler,
-  Handlers,
   HandleAuth,
   HandleLogin,
   HandleProfile,
   HandleLogout,
-  HandleCallback,
-  LoginOptions,
-  LogoutOptions,
-  GetLoginState,
-  ProfileOptions,
-  CallbackOptions,
-  AfterCallback,
-  AfterCallbackPageRoute,
-  AfterCallbackAppRoute,
-  AfterRefetch,
-  OnError
+  HandleCallback
 } from './handlers';
 import {
   sessionFactory,
@@ -40,9 +29,6 @@ import {
   GetSession,
   GetAccessToken,
   Session,
-  AccessTokenRequest,
-  GetAccessTokenResult,
-  Claims,
   touchSessionFactory,
   TouchSession,
   updateSessionFactory,
@@ -52,11 +38,7 @@ import {
   withPageAuthRequiredFactory,
   withApiAuthRequiredFactory,
   WithApiAuthRequired,
-  WithPageAuthRequired,
-  GetServerSidePropsResultWithSession,
-  WithPageAuthRequiredPageRouterOptions,
-  WithPageAuthRequiredAppRouterOptions,
-  PageRoute
+  WithPageAuthRequired
 } from './helpers';
 import version from './version';
 import { getConfig, getLoginUrl, ConfigParameters } from './config';
@@ -232,6 +214,48 @@ export {
 } from './utils/errors';
 
 export {
+  Handlers,
+  LoginOptions,
+  LogoutOptions,
+  GetLoginState,
+  GetLoginStatePageRoute,
+  GetLoginStateAppRoute,
+  ProfileOptions,
+  CallbackOptions,
+  AfterCallback,
+  AfterCallbackPageRoute,
+  AfterCallbackAppRoute,
+  AfterRefetch,
+  AfterRefetchPageRoute,
+  AfterRefetchAppRoute,
+  AppRouterOnError,
+  PageRouterOnError
+} from './handlers';
+
+export {
+  AppRouterPageRouteOpts,
+  AppRouterPageRoute,
+  WithPageAuthRequiredPageRouter,
+  WithPageAuthRequiredAppRouter,
+  GetServerSidePropsResultWithSession,
+  WithPageAuthRequiredPageRouterOptions,
+  WithPageAuthRequiredAppRouterOptions,
+  PageRoute,
+  AppRouteHandlerFn,
+  WithApiAuthRequiredAppRoute,
+  WithApiAuthRequiredPageRoute
+} from './helpers';
+
+export {
+  AccessTokenRequest,
+  GetAccessTokenResult,
+  Claims,
+  AfterRefresh,
+  AfterRefreshPageRoute,
+  AfterRefreshAppRoute
+} from './session';
+
+export {
   MissingStateCookieError,
   MissingStateParamError,
   IdentityProviderError,
@@ -245,12 +269,6 @@ export {
   HandleProfile,
   HandleLogout,
   HandleCallback,
-  ProfileOptions,
-  Handlers,
-  GetServerSidePropsResultWithSession,
-  WithPageAuthRequiredPageRouterOptions,
-  WithPageAuthRequiredAppRouterOptions,
-  PageRoute,
   WithApiAuthRequired,
   WithPageAuthRequired,
   SessionCache,
@@ -258,19 +276,7 @@ export {
   TouchSession,
   UpdateSession,
   GetAccessToken,
-  Session,
-  Claims,
-  AccessTokenRequest,
-  GetAccessTokenResult,
-  CallbackOptions,
-  AfterCallback,
-  AfterCallbackPageRoute,
-  AfterCallbackAppRoute,
-  AfterRefetch,
-  LoginOptions,
-  LogoutOptions,
-  GetLoginState,
-  OnError
+  Session
 };
 
 export type SessionStore = GenericSessionStore<Session>;

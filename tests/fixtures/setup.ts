@@ -12,7 +12,7 @@ import {
   initAuth0,
   AccessTokenRequest,
   Claims,
-  OnError,
+  PageRouterOnError,
   HandleLogin,
   HandleLogout,
   HandleCallback,
@@ -36,14 +36,14 @@ export type SetupOptions = {
   profileOptions?: ProfileOptions;
   withPageAuthRequiredOptions?: WithPageAuthRequiredPageRouterOptions;
   getAccessTokenOptions?: AccessTokenRequest;
-  onError?: OnError;
+  onError?: PageRouterOnError;
   discoveryOptions?: Record<string, string>;
   userInfoPayload?: Record<string, string>;
   userInfoToken?: string;
   asyncProps?: boolean;
 };
 
-export const defaultOnError: OnError = (_req, res, error) => {
+export const defaultOnError: PageRouterOnError = (_req, res, error) => {
   res.statusMessage = error.message;
   res.status(error.status || 500).end(error.message);
 };
