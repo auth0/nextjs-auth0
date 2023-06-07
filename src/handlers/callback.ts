@@ -16,6 +16,11 @@ import { LoginOptions } from './login';
 import { AppRouteHandlerFnContext, AuthHandler, getHandler, Handler, OptionsProvider } from './router-helpers';
 
 /**
+ * afterCallback hook for page router {@link AfterCallbackPageRoute} and app router {@link AfterCallbackAppRoute}
+ */
+export type AfterCallback = AfterCallbackPageRoute | AfterCallbackAppRoute;
+
+/**
  * Use this function for validating additional claims on the user's ID token or adding removing items from
  * the session after login.
  *
@@ -95,8 +100,6 @@ import { AppRouteHandlerFnContext, AuthHandler, getHandler, Handler, OptionsProv
  *
  * @category Server
  */
-export type AfterCallback = AfterCallbackPageRoute | AfterCallbackAppRoute;
-
 export type AfterCallbackPageRoute = (
   req: NextApiRequest,
   res: NextApiResponse,
@@ -104,6 +107,71 @@ export type AfterCallbackPageRoute = (
   state?: { [key: string]: any }
 ) => Promise<Session | undefined> | Session | undefined;
 
+/**
+ * Use this function for validating additional claims on the user's ID token or adding removing items from
+ * the session after login.
+ *
+ * @example Validate additional claims
+ *
+ * ```js
+ * // app/api/auth/[auth0]/route.js
+ * import { handleAuth, handleCallback } from '@auth0/nextjs-auth0';
+ * import { redirect } from 'next/navigation';
+ *
+ * const afterCallback = (req, session, state) => {
+ *   if (session.user.isAdmin) {
+ *     return session;
+ *   } else {
+ *     redirect('/unauthorized');
+ *   }
+ * };
+ *
+ * export default handleAuth({
+ *   callback: handleCallback({ afterCallback })
+ * });
+ * ```
+ *
+ * @example Modify the session after login
+ *
+ * ```js
+ * // pages/api/auth/[auth0].js
+ * import { handleAuth, handleCallback } from '@auth0/nextjs-auth0';
+ * import { NextResponse } from 'next/server';
+ *
+ * const afterCallback = (req, session, state) => {
+ *   session.user.customProperty = 'foo';
+ *   delete session.refreshToken;
+ *   return session;
+ * };
+ *
+ * export default handleAuth({
+ *   callback: handleCallback({ afterCallback })
+ * });
+ * ```
+ *
+ * @example Redirect successful login based on claim
+ *
+ * ```js
+ * // pages/api/auth/[auth0].js
+ * import { handleAuth, handleCallback } from '@auth0/nextjs-auth0';
+ * import { headers } from 'next/headers';
+ *
+ * const afterCallback = (req, session, state) => {
+ *   if (!session.user.isAdmin) {
+ *     headers.set('location', '/admin');
+ *   }
+ *   return session;
+ * };
+ *
+ * export default handleAuth({
+ *   callback: handleCallback({ afterCallback })
+ * });
+ * ```
+ *
+ * @throws {@link HandlerError}
+ *
+ * @category Server
+ */
 export type AfterCallbackAppRoute = (
   req: NextRequest,
   session: Session,
@@ -252,6 +320,9 @@ const applyOptions = (
   };
 };
 
+/**
+ * @ignore
+ */
 const appRouteHandlerFactory: (
   handler: BaseHandleLogin,
   config: NextConfig
@@ -267,6 +338,9 @@ const appRouteHandlerFactory: (
     }
   };
 
+/**
+ * @ignore
+ */
 const pageRouteHandlerFactory: (
   handler: BaseHandleCallback,
   config: NextConfig

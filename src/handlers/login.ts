@@ -13,6 +13,11 @@ import { Auth0NextApiRequest, Auth0NextApiResponse, Auth0NextRequest, Auth0NextR
 import { AppRouteHandlerFnContext, getHandler, OptionsProvider, Handler, AuthHandler } from './router-helpers';
 
 /**
+ * Get login state hook for page router {@link GetLoginStatePageRoute} and app router {@link GetLoginStateAppRoute}.
+ */
+export type GetLoginState = GetLoginStatePageRoute | GetLoginStateAppRoute;
+
+/**
  * Use this to store additional state for the user before they visit the identity provider to log in.
  *
  * ```js
@@ -24,22 +29,33 @@ import { AppRouteHandlerFnContext, getHandler, OptionsProvider, Handler, AuthHan
  * };
  *
  * export default handleAuth({
- *   async login(req, res) {
- *     try {
- *       await handleLogin(req, res, { getLoginState });
- *     } catch (error) {
- *       res.status(error.status || 500).end();
- *     }
- *   }
+ *   login: handleLogin({ getLoginState })
  * });
  * ```
  *
  * @category Server
  */
-export type GetLoginState = GetLoginStatePageRoute | GetLoginStateAppRoute;
-
 export type GetLoginStatePageRoute = (req: NextApiRequest, options: LoginOptions) => { [key: string]: any };
-export type GetLoginStateAppRoute = (req: NextApiRequest, options: LoginOptions) => { [key: string]: any };
+
+/**
+ * Use this to store additional state for the user before they visit the identity provider to log in.
+ *
+ * ```js
+ * // app/api/auth/[auth0]/route.js
+ * import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
+ *
+ * const getLoginState = (req, loginOptions) => {
+ *   return { basket_id: getBasketId(req) };
+ * };
+ *
+ * export default handleAuth({
+ *   login: handleLogin({ getLoginState })
+ * });
+ * ```
+ *
+ * @category Server
+ */
+export type GetLoginStateAppRoute = (req: NextRequest, options: LoginOptions) => { [key: string]: any };
 
 /**
  * Authorization params to pass to the login handler.
@@ -254,6 +270,9 @@ export default function handleLoginFactory(
   return getHandler<LoginOptions>(appRouteHandler, pageRouteHandler) as HandleLogin;
 }
 
+/**
+ * @ignore
+ */
 const applyOptions = (
   req: NextApiRequest | NextRequest,
   options: LoginOptions,
@@ -282,6 +301,9 @@ const applyOptions = (
   return opts;
 };
 
+/**
+ * @ignore
+ */
 const appRouteHandlerFactory: (
   handler: BaseHandleLogin,
   nextConfig: NextConfig,
@@ -305,6 +327,9 @@ const appRouteHandlerFactory: (
     }
   };
 
+/**
+ * @ignore
+ */
 const pageRouteHandlerFactory: (
   handler: BaseHandleLogin,
   nextConfig: NextConfig,

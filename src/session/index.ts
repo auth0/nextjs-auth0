@@ -4,7 +4,10 @@ export {
   default as accessTokenFactory,
   GetAccessToken,
   AccessTokenRequest,
-  GetAccessTokenResult
+  GetAccessTokenResult,
+  AfterRefresh,
+  AfterRefreshPageRoute,
+  AfterRefreshAppRoute
 } from './get-access-token';
 export { default as SessionCache, get, set } from './cache';
 export { default as touchSessionFactory, TouchSession } from './touch-session';
