@@ -33,13 +33,17 @@ export type PageRoute<P, Q extends ParsedUrlQuery = ParsedUrlQuery> = (
   ctx: GetServerSidePropsContext<Q>
 ) => Promise<GetServerSidePropsResultWithSession<P>>;
 
-/**
- * @category Server
- */
-export type AppRouterPageRoute = (obj: {
+type AppRouterPageRouteOpts = {
   params?: { slug: string };
   searchParams?: { [key: string]: string | string[] | undefined };
-}) => Promise<React.JSX.Element>;
+};
+
+/**
+ * An app route that has been augmented with {@link WithPageAuthRequired}.
+ *
+ * @category Server
+ */
+export type AppRouterPageRoute = (obj: AppRouterPageRouteOpts) => Promise<React.JSX.Element>;
 
 /**
  * If you have a custom returnTo url you should specify it in `returnTo`.
@@ -72,7 +76,7 @@ export type AppRouterPageRoute = (obj: {
  *
  * @category Server
  */
-export type WithPageAuthRequiredOptions<
+export type WithPageAuthRequiredPageRouterOptions<
   P extends { [key: string]: any } = { [key: string]: any },
   Q extends ParsedUrlQuery = ParsedUrlQuery
 > = {
@@ -104,10 +108,58 @@ type WithPageAuthRequiredPageRouter = <
   P extends { [key: string]: any } = { [key: string]: any },
   Q extends ParsedUrlQuery = ParsedUrlQuery
 >(
-  opts?: WithPageAuthRequiredOptions<P, Q>
+  opts?: WithPageAuthRequiredPageRouterOptions<P, Q>
 ) => PageRoute<P, Q>;
 
-type WithPageAuthRequiredAppRouter = (fn: AppRouterPageRoute, opts?: { returnTo?: string }) => AppRouterPageRoute;
+/**
+ * @category Server
+ */
+export type WithPageAuthRequiredAppRouterOptions = {
+  returnTo?: string | ((obj: AppRouterPageRouteOpts) => Promise<string> | string);
+};
+
+/**
+ * Wrap your Server Component with this method to make sure the user is authenticated before
+ * visiting the page.
+ *
+ * ```js
+ * // app/protected-page/page.js
+ * import { withPageAuthRequired } from '@auth0/nextjs-auth0';
+ *
+ * export default function withPageAuthRequired(ProtectedPage() {
+ *   return <div>Protected content</div>;
+ * }, { returnTo: '/protected-page' });
+ * ```
+ *
+ * If the user visits `/protected-page` without a valid session, it will redirect the user to the
+ * login page.
+ *
+ * Note: Server Components are not aware of the req or the url of the page. So if you want the user to return to the
+ * page after login, you must specify the `returnTo` option.
+ *
+ * You can specify a function to `returnTo` that accepts the `params` (An object containing the dynamic
+ * route parameters) and `searchParams` (An object containing the search parameters of the current URL)
+ * argument from the page, to preserve dynamic routes and search params.
+ *
+ * ```js
+ * // app/protected-page/[slug]/page.js
+ * import { withPageAuthRequired } from '@auth0/nextjs-auth0';
+ *
+ * export default function withPageAuthRequired(ProtectedPage() {
+ *   return <div>Protected content</div>;
+ * }, {
+ *   returnTo({ params }) {
+ *     return `/protected-page/${params.slug}`
+ *   }
+ * });
+ * ```
+ *
+ * @category Server
+ */
+type WithPageAuthRequiredAppRouter = (
+  fn: AppRouterPageRoute,
+  opts?: WithPageAuthRequiredAppRouterOptions
+) => AppRouterPageRoute;
 
 export type WithPageAuthRequired = WithPageAuthRequiredPageRouter & WithPageAuthRequiredAppRouter;
 
@@ -136,7 +188,8 @@ const appRouteHandlerFactory =
     const sessionCache = getSessionCache();
     const [session] = await get({ sessionCache });
     if (!session?.user) {
-      redirect(`${loginUrl}${opts.returnTo ? `?returnTo=${opts.returnTo}` : ''}`);
+      const returnTo = typeof opts.returnTo === 'function' ? await opts.returnTo(params) : opts.returnTo;
+      redirect(`${loginUrl}${opts.returnTo ? `?returnTo=${returnTo}` : ''}`);
     }
     return handler(params);
   };
