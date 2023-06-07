@@ -156,11 +156,14 @@ export default function Index() {
 
 #### App Router
 
+> Important: You should understand the [limitations of the App Directory](#important-limitations-of-the-app-directory) before proceeding.
+
 ##### Add the Dynamic API Route
 
 Create a [catch-all, dynamic API route handler](https://nextjs.org/docs/app/building-your-application/routing/dynamic-routes) under the `/app/api` directory (strictly speaking you do not need to put API routes under `/api` but we maintain the convention for simplicity):
 
-- Create an `auth` directory under the `/app/api/` directory.
+- Create an `api` directory under the `/app/` directory.
+- Create an `auth` directory under the newly created `/app/api/` directory.
 - Create a `[auth0]` directory under the newly created `auth` directory.
 - Create a `route.js` file under the newly created `[auth0]` directory.
 
@@ -173,7 +176,7 @@ export const GET = handleAuth();
 ```
 
 
-##### Add the UserProvider to Custom App
+##### Add the UserProvider to your layout
 
 Wrap your `app/layout.js` component with the `UserProvider` component:
 
@@ -182,10 +185,10 @@ Wrap your `app/layout.js` component with the `UserProvider` component:
 import React from 'react';
 import { UserProvider } from '@auth0/nextjs-auth0/client';
 
-export default function App({ Component, pageProps }) {
+export default function App({ children }) {
   return (
     <UserProvider>
-      <Component {...pageProps} />
+      <body>{children}</body>
     </UserProvider>
   );
 }
