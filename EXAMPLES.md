@@ -19,7 +19,7 @@
 - [Use with Base Path and Internationalized Routing](#use-with-base-path-and-internationalized-routing)
 - [Use a custom session store](#use-a-custom-session-store)
 
-See also the the [example app](./example-app).
+See also the [example app](./example-app).
 
 ## App Router
 
