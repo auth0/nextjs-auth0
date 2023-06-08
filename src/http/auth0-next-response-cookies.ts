@@ -15,8 +15,8 @@ export default class Auth0NextResponseCookies extends Auth0ResponseCookies {
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore see: https://github.com/vercel/next.js/pull/50052
       cookieSetter.set({ ...options, name, value });
-      /* c8 ignore next 6 */
-    } catch (_) {
+    } catch (_) /* c8 ignore next */ {
+      /* c8 ignore next 8 */
       if (process.env.NODE_ENV === 'development' && !warned) {
         console.warn(
           'nextjs-auth0 is attempting to set cookies from a server component,' +
