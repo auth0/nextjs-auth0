@@ -16,18 +16,24 @@
 <li><a href="../modules/handlers_auth.html">handlers/auth</a></li>
 <li><a href="handlers_auth.HandleAuth.html">HandleAuth</a></li></ul>
 <h1>Type alias HandleAuth</h1></div>
-<div class="tsd-signature"><span class="tsd-kind-type-alias">Handle<wbr/>Auth</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span><span class="tsd-kind-parameter">userHandlers</span><span class="tsd-signature-symbol">?</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type ">NextApiHandler</span><span class="tsd-signature-symbol">)</span></div>
+<div class="tsd-signature"><span class="tsd-kind-type-alias">Handle<wbr/>Auth</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span><span class="tsd-kind-parameter">userHandlers</span><span class="tsd-signature-symbol">?</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type ">NextApiHandler</span><span class="tsd-signature-symbol"> | </span><a href="handlers_router_helpers.AppRouteHandlerFn.html" class="tsd-signature-type tsd-kind-type-alias">AppRouteHandlerFn</a><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">)</span></div>
 <div class="tsd-type-declaration">
 <h4>Type declaration</h4>
 <ul class="tsd-parameters">
 <li class="tsd-parameter-signature">
 <ul class="tsd-signatures">
-<li class="tsd-signature" id="__type.__type-1"><span class="tsd-signature-symbol">(</span><span class="tsd-kind-parameter">userHandlers</span><span class="tsd-signature-symbol">?</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type ">NextApiHandler</span></li>
+<li class="tsd-signature" id="__type.__type-1"><span class="tsd-signature-symbol">(</span><span class="tsd-kind-parameter">userHandlers</span><span class="tsd-signature-symbol">?</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type ">NextApiHandler</span><span class="tsd-signature-symbol"> | </span><a href="handlers_router_helpers.AppRouteHandlerFn.html" class="tsd-signature-type tsd-kind-type-alias">AppRouteHandlerFn</a><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">any</span></li>
 <li class="tsd-description">
 <div class="tsd-comment tsd-typography"><p>The main way to use the server SDK.</p>
+<p><em>Page Router</em></p>
 <p>Simply set the environment variables per ConfigParameters then create the file
 <code>pages/api/auth/[auth0].js</code>. For example:</p>
 <pre><code class="language-js"><span class="hl-0">// pages/api/auth/[auth0].js</span><br/><span class="hl-1">import</span><span class="hl-2"> { </span><span class="hl-3">handleAuth</span><span class="hl-2"> } </span><span class="hl-1">from</span><span class="hl-2"> </span><span class="hl-4">&#39;@auth0/nextjs-auth0&#39;</span><span class="hl-2">;</span><br/><br/><span class="hl-1">export</span><span class="hl-2"> </span><span class="hl-1">default</span><span class="hl-2"> </span><span class="hl-6">handleAuth</span><span class="hl-2">();</span>
+</code><button>Copy</button></pre>
+<p><em>App Router</em></p>
+<p>Simply set the environment variables per ConfigParameters then create the file
+<code>app/api/auth/[auth0]/route.js</code>. For example:</p>
+<pre><code class="language-js"><span class="hl-0">// app/api/auth/[auth0]/route.js</span><br/><span class="hl-1">import</span><span class="hl-2"> { </span><span class="hl-3">handleAuth</span><span class="hl-2"> } </span><span class="hl-1">from</span><span class="hl-2"> </span><span class="hl-4">&#39;@auth0/nextjs-auth0&#39;</span><span class="hl-2">;</span><br/><br/><span class="hl-1">export</span><span class="hl-2"> </span><span class="hl-5">const</span><span class="hl-2"> </span><span class="hl-7">GET</span><span class="hl-2"> = </span><span class="hl-6">handleAuth</span><span class="hl-2">();</span>
 </code><button>Copy</button></pre>
 <p>This will create 5 handlers for the following urls:</p>
 <ul>
@@ -35,7 +41,6 @@
 <li><code>/api/auth/callback</code>: The page that your identity provider will redirect the user back to on login.</li>
 <li><code>/api/auth/logout</code>: log the user out of your app.</li>
 <li><code>/api/auth/me</code>: View the user profile JSON (used by the UseUser hook).</li>
-<li><code>/api/auth/unauthorized</code>: Returns a 401 for use by WithMiddlewareAuthRequired when protecting API routes.</li>
 </ul>
 </div>
 <div class="tsd-parameters">
@@ -43,10 +48,10 @@
 <ul class="tsd-parameter-list">
 <li>
 <h5><code class="tsd-tag ts-flagOptional">Optional</code> <span class="tsd-kind-parameter">userHandlers</span>: <a href="handlers_auth.Handlers.html" class="tsd-signature-type tsd-kind-type-alias">Handlers</a></h5></li></ul></div>
-<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type ">NextApiHandler</span></h4>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type ">NextApiHandler</span><span class="tsd-signature-symbol"> | </span><a href="handlers_router_helpers.AppRouteHandlerFn.html" class="tsd-signature-type tsd-kind-type-alias">AppRouteHandlerFn</a><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">any</span></h4>
 <div class="tsd-comment tsd-typography"></div></li></ul></li></ul></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/e50a573/src/handlers/auth.ts#L94">handlers/auth.ts:94</a></li></ul></aside></div>
+<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/96216c9/src/handlers/auth.ts#L114">handlers/auth.ts:114</a></li></ul></aside></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
@@ -73,18 +78,27 @@
 <details class="tsd-index-accordion" open data-key="handlers/auth"><summary class="tsd-accordion-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><use href="#icon-chevronDown"></use></svg><a href="../modules/handlers_auth.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>handlers/auth</span></a></summary>
 <div class="tsd-accordion-details">
 <ul class="tsd-nested-navigation">
-<li><a href="handlers_auth.HandleAuth.html" class="current"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><g id="icon-4194304"><rect fill="var(--color-icon-background)" stroke="var(--color-ts-type-alias)" stroke-width="1.5" x="1" y="1" width="22" height="22" rx="6"></rect><path d="M11.31 16V8.224H8.91V7.24H14.79V8.224H12.39V16H11.31Z" fill="var(--color-text)"></path></g></svg><span>Handle<wbr/>Auth</span></a></li>
+<li><a href="handlers_auth.AppRouterOnError.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><g id="icon-4194304"><rect fill="var(--color-icon-background)" stroke="var(--color-ts-type-alias)" stroke-width="1.5" x="1" y="1" width="22" height="22" rx="6"></rect><path d="M11.31 16V8.224H8.91V7.24H14.79V8.224H12.39V16H11.31Z" fill="var(--color-text)"></path></g></svg><span>App<wbr/>Router<wbr/>On<wbr/>Error</span></a></li>
+<li><a href="handlers_auth.HandleAuth.html" class="current"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Handle<wbr/>Auth</span></a></li>
 <li><a href="handlers_auth.Handlers.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Handlers</span></a></li>
-<li><a href="handlers_auth.OnError.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>On<wbr/>Error</span></a></li></ul></div></details></li>
+<li><a href="handlers_auth.PageRouterOnError.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Page<wbr/>Router<wbr/>On<wbr/>Error</span></a></li></ul></div></details></li>
 <li><a href="../modules/handlers_callback.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>handlers/callback</span></a></li>
 <li><a href="../modules/handlers_login.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>handlers/login</span></a></li>
 <li><a href="../modules/handlers_logout.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>handlers/logout</span></a></li>
 <li><a href="../modules/handlers_profile.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>handlers/profile</span></a></li>
+<li><a href="../modules/handlers_router_helpers.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>handlers/router-<wbr/>helpers</span></a></li>
 <li><a href="../modules/helpers.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>helpers</span></a></li>
 <li><a href="../modules/helpers_testing.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>helpers/testing</span></a></li>
 <li><a href="../modules/helpers_with_api_auth_required.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>helpers/with-<wbr/>api-<wbr/>auth-<wbr/>required</span></a></li>
 <li><a href="../modules/helpers_with_middleware_auth_required.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>helpers/with-<wbr/>middleware-<wbr/>auth-<wbr/>required</span></a></li>
 <li><a href="../modules/helpers_with_page_auth_required.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>helpers/with-<wbr/>page-<wbr/>auth-<wbr/>required</span></a></li>
+<li><a href="../modules/http.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>http</span></a></li>
+<li><a href="../modules/http_auth0_next_api_request.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>http/auth0-<wbr/>next-<wbr/>api-<wbr/>request</span></a></li>
+<li><a href="../modules/http_auth0_next_api_response.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>http/auth0-<wbr/>next-<wbr/>api-<wbr/>response</span></a></li>
+<li><a href="../modules/http_auth0_next_request.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>http/auth0-<wbr/>next-<wbr/>request</span></a></li>
+<li><a href="../modules/http_auth0_next_request_cookies.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>http/auth0-<wbr/>next-<wbr/>request-<wbr/>cookies</span></a></li>
+<li><a href="../modules/http_auth0_next_response.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>http/auth0-<wbr/>next-<wbr/>response</span></a></li>
+<li><a href="../modules/http_auth0_next_response_cookies.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>http/auth0-<wbr/>next-<wbr/>response-<wbr/>cookies</span></a></li>
 <li><a href="../modules/index.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>index</span></a></li>
 <li><a href="../modules/session.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>session</span></a></li>
 <li><a href="../modules/session_get_access_token.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>session/get-<wbr/>access-<wbr/>token</span></a></li>
