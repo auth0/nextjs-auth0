@@ -4,11 +4,14 @@ import { NextRequest, NextResponse } from 'next/server';
 export default class MiddlewareCookies extends Cookies {
   protected getSetCookieHeader(res: NextResponse): string[] {
     const value = res.headers.get('set-cookie');
-    return value?.split(', ') || [];
+    return splitCookiesString(value as string);
   }
 
   protected setSetCookieHeader(res: NextResponse, cookies: string[]): void {
-    res.headers.set('set-cookie', cookies.join(', '));
+    res.headers.delete('set-cookie');
+    for (const cookie of cookies) {
+      res.headers.append('set-cookie', cookie);
+    }
   }
 
   getAll(req: NextRequest): Record<string, string> {
@@ -23,4 +26,76 @@ export default class MiddlewareCookies extends Cookies {
       return memo;
     }, {});
   }
+}
+
+/**
+ * Handle cookies with commas, eg `foo=; Expires=Thu, 01 Jan 1970 00:00:00 GMT`
+ * @source https://github.com/vercel/edge-runtime/blob/90160abc42e6139c41494c5d2e98f09e9a5fa514/packages/cookies/src/response-cookies.ts#L128
+ */
+function splitCookiesString(cookiesString: string) {
+  if (!cookiesString) return [];
+  var cookiesStrings = [];
+  var pos = 0;
+  var start;
+  var ch;
+  var lastComma;
+  var nextStart;
+  var cookiesSeparatorFound;
+
+  function skipWhitespace() {
+    while (pos < cookiesString.length && /\s/.test(cookiesString.charAt(pos))) {
+      pos += 1;
+    }
+    return pos < cookiesString.length;
+  }
+
+  function notSpecialChar() {
+    ch = cookiesString.charAt(pos);
+
+    return ch !== '=' && ch !== ';' && ch !== ',';
+  }
+
+  while (pos < cookiesString.length) {
+    start = pos;
+    cookiesSeparatorFound = false;
+
+    while (skipWhitespace()) {
+      ch = cookiesString.charAt(pos);
+      if (ch === ',') {
+        // ',' is a cookie separator if we have later first '=', not ';' or ','
+        lastComma = pos;
+        pos += 1;
+
+        skipWhitespace();
+        nextStart = pos;
+
+        while (pos < cookiesString.length && notSpecialChar()) {
+          pos += 1;
+        }
+
+        // currently special character
+        if (pos < cookiesString.length && cookiesString.charAt(pos) === '=') {
+          // we found cookies separator
+          cookiesSeparatorFound = true;
+          // pos is inside the next cookie, so back up and return it.
+          pos = nextStart;
+          cookiesStrings.push(cookiesString.substring(start, lastComma));
+          start = pos;
+          /* c8 ignore next 5 */
+        } else {
+          // in param ',' or param separator ';',
+          // we continue from that comma
+          pos = lastComma + 1;
+        }
+      } else {
+        pos += 1;
+      }
+    }
+
+    if (!cookiesSeparatorFound || pos >= cookiesString.length) {
+      cookiesStrings.push(cookiesString.substring(start, cookiesString.length));
+    }
+  }
+
+  return cookiesStrings;
 }
