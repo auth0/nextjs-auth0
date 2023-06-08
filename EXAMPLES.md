@@ -151,6 +151,8 @@ export default () => <a href="/api/custom-login">Login</a>;
 
 ### Protecting a Server-Side Rendered (SSR) Page
 
+#### Page Router
+
 Requests to `/pages/profile` without a valid session cookie will be redirected to the login page.
 
 ```jsx
@@ -166,7 +168,23 @@ export default function Profile({ user }) {
 export const getServerSideProps = withPageAuthRequired();
 ```
 
-See a running example of an [SSR protected page](./example-app/pages/profile-ssr.tsx) in the example app or refer to the full list of configuration options for `withPageAuthRequired` [here](https://auth0.github.io/nextjs-auth0/modules/helpers_with_page_auth_required.html#withpageauthrequiredoptions).
+See a running example of an [SSR protected page](./example-app/pages/page-router/profile-ssr.tsx) in the example app or refer to the full list of configuration options for `withPageAuthRequired` [here](https://auth0.github.io/nextjs-auth0/modules/helpers_with_page_auth_required.html#withpageauthrequiredoptions).
+
+#### App Router
+
+Requests to `/pages/profile` without a valid session cookie will be redirected to the login page.
+
+```jsx
+// app/profile/page.js
+import { withPageAuthRequired } from '@auth0/nextjs-auth0';
+
+export default withPageAuthRequired(function Profile({ user }) {
+  return <div>Hello {user.name}</div>;
+}, { returnTo: '/profile' })
+// You need to provide a `returnTo` since Server Components aren't aware of the page's URL
+```
+
+See a running example of a [protected server component page](./example-app/app/profile/page.tsx) in the example app or more info [in the docs](./src/helpers/with-page-auth-required.ts#129).
 
 ### Protecting a Client-Side Rendered (CSR) Page
 
@@ -185,7 +203,9 @@ See a running example of a [CSR protected page](./example-app/pages/profile.tsx)
 
 ### Protect an API Route
 
-Requests to `/pages/api/protected` without a valid session cookie will fail with `401`.
+#### Page Router
+
+Requests to `/api/protected` without a valid session cookie will fail with `401`.
 
 ```js
 // pages/api/protected.js
@@ -217,8 +237,47 @@ export default withPageAuthRequired(function Products() {
 });
 ```
 
-See a running example in the example app, the [protected API route](./example-app/pages/api/shows.ts) and
-the [frontend code to access the protected API](./example-app/pages/shows.tsx).
+See a running example in the example app, the [protected API route](./example-app/pages/api/page-router-profile.ts) and
+the [frontend code to access the protected API](./example-app/pages/page-router/profile-api.tsx).
+
+#### App Router
+
+Requests to `/api/protected` without a valid session cookie will fail with `401`.
+
+```js
+// app/api/protected/route.js
+import { withApiAuthRequired, getSession } from '@auth0/nextjs-auth0';
+
+export default withApiAuthRequired(async function myApiRoute(req) {
+  const res = new NextResponse();
+  const { user } = await getSession(req, res);
+  return NextResponse.json({ protected: 'My Secret', id: user.sub }, res);
+});
+```
+
+Then you can access your API from the frontend with a valid session cookie.
+
+```jsx
+// app/products/page.jsx
+'use client'
+import useSWR from 'swr';
+import { withPageAuthRequired } from '@auth0/nextjs-auth0/client';
+
+const fetcher = async (uri) => {
+  const response = await fetch(uri);
+  return response.json();
+};
+
+export default withPageAuthRequired(function Products() {
+  const { data, error } = useSWR('/api/protected', fetcher);
+  if (error) return <div>oops... {error.message}</div>;
+  if (data === undefined) return <div>Loading...</div>;
+  return <div>{data.protected}</div>;
+});
+```
+
+See a running example in the example app, the [protected API route](./example-app/app/api/profile/route.ts) and
+the [frontend code to access the protected API](./example-app/app/profile-api/page.tsx).
 
 ### Protecting pages with Middleware
 
