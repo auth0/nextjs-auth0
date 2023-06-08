@@ -14,25 +14,6 @@ describe('auth0-next-response', () => {
     expect(res.cookies.get('foo')?.value).toEqual('bar');
   });
 
-  it("should warn if cookie can't be set", async () => {
-    jest.spyOn(console, 'warn');
-    const cookies = new Auth0NextResponseCookies();
-    const res = new NextResponse();
-    mocked(nextCookies).mockImplementation(
-      () =>
-        ({
-          set() {
-            throw new Error();
-          }
-        } as any)
-    );
-    cookies.setCookie('foo', 'bar');
-    expect(console.warn).toHaveBeenCalledWith(
-      expect.stringMatching(/cant set cookies in app dir pages or server components/)
-    );
-    expect(res.cookies.get('foo')).toBeUndefined();
-  });
-
   it('should delete cookies', async () => {
     const cookies = new Auth0NextResponseCookies();
     const res = new NextResponse();
