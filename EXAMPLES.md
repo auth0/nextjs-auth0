@@ -178,7 +178,7 @@ export default handleAuth({
   },
   invite: handleLogin({
     authorizationParams: {
-      invitation: req.query.invitation,
+      invitation: req.query.invitation
     }
   }),
   'login-with-google': handleLogin({ authorizationParams: { connection: 'google' } }),
