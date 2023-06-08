@@ -28,19 +28,20 @@ export default class MiddlewareCookies extends Cookies {
   }
 }
 
+/* eslint-disable max-len */
 /**
  * Handle cookies with commas, eg `foo=; Expires=Thu, 01 Jan 1970 00:00:00 GMT`
  * @source https://github.com/vercel/edge-runtime/blob/90160abc42e6139c41494c5d2e98f09e9a5fa514/packages/cookies/src/response-cookies.ts#L128
  */
 function splitCookiesString(cookiesString: string) {
   if (!cookiesString) return [];
-  var cookiesStrings = [];
-  var pos = 0;
-  var start;
-  var ch;
-  var lastComma;
-  var nextStart;
-  var cookiesSeparatorFound;
+  const cookiesStrings = [];
+  let pos = 0;
+  let start;
+  let ch;
+  let lastComma;
+  let nextStart;
+  let cookiesSeparatorFound;
 
   function skipWhitespace() {
     while (pos < cookiesString.length && /\s/.test(cookiesString.charAt(pos))) {
