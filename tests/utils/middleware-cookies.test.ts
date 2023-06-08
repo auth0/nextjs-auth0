@@ -3,6 +3,7 @@
  */
 import MiddlewareCookies from '../../src/utils/middleware-cookies';
 import { NextRequest, NextResponse } from 'next/server';
+import { serialize } from 'cookie';
 
 const setup = (reqInit?: RequestInit): [NextRequest, NextResponse] => {
   return [new NextRequest(new URL('http://example.com'), reqInit), NextResponse.next()];
@@ -52,6 +53,20 @@ describe('cookie', () => {
     setter.set('baz', 'qux');
     setter.commit(res);
     expect(res.headers.get('set-cookie')).toEqual(['foo=bar', 'baz=qux'].join(', '));
+  });
+
+  it('should not overwrite existing set cookie with expiry', async () => {
+    const [, res] = setup();
+    res.headers.set('set-cookie', serialize('foo', '', { expires: new Date(0) }));
+    const setter = new MiddlewareCookies();
+    setter.set('baz', 'qux');
+    setter.commit(res);
+    expect(res.headers.get('set-cookie')).toEqual(
+      ['foo=; Expires=Thu, 01 Jan 1970 00:00:00 GMT', 'baz=qux'].join(', ')
+    );
+    if ('getAll' in res.headers) {
+      expect((res.headers.getAll as (header: string) => string[])('set-cookie')).toHaveLength(2);
+    }
   });
 
   it('should override existing cookies that equal name', async () => {
