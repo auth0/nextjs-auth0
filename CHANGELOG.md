@@ -1,5 +1,11 @@
 # Change Log
 
+## [v2.6.2](https://github.com/auth0/nextjs-auth0/tree/v2.6.2) (2023-06-09)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.6.1...v2.6.2)
+
+**Fixed**
+- Fix for handling chunked cookies in edge runtime [\#1236](https://github.com/auth0/nextjs-auth0/pull/1236) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [v2.6.1](https://github.com/auth0/nextjs-auth0/tree/v2.6.1) (2023-06-06)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.6.0...v2.6.1)
 
