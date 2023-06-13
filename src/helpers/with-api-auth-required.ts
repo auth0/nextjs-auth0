@@ -2,6 +2,7 @@ import { NextApiResponse, NextApiRequest, NextApiHandler } from 'next';
 import { NextRequest, NextResponse } from 'next/server';
 import { get, SessionCache } from '../session';
 import { assertReqRes } from '../utils/assert';
+import { isRequest } from '../utils/req-helpers';
 
 /**
  * This contains `param`s, which is an object containing the dynamic route parameters for the current route.
@@ -90,8 +91,11 @@ export default function withApiAuthFactory(sessionCache: SessionCache): WithApiA
 
   return (apiRoute: AppRouteHandlerFn | NextApiHandler): any =>
     (req: NextRequest | NextApiRequest, resOrParams: AppRouteHandlerFnContext | NextApiResponse) => {
-      if (req instanceof Request) {
-        return appRouteHandler(apiRoute as AppRouteHandlerFn)(req, resOrParams as AppRouteHandlerFnContext);
+      if (isRequest(req)) {
+        return appRouteHandler(apiRoute as AppRouteHandlerFn)(
+          req as NextRequest,
+          resOrParams as AppRouteHandlerFnContext
+        );
       }
       return (pageRouteHandler as WithApiAuthRequiredPageRoute)(apiRoute as NextApiHandler)(
         req as NextApiRequest,
