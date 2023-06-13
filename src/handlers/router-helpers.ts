@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { NextApiRequest, NextApiResponse } from 'next';
+import { isRequest } from '../utils/req-helpers';
 
 export type AppRouteHandlerFnContext = {
   params: Record<string, string | string[]>;
@@ -65,16 +66,18 @@ export const getHandler =
     resOrCtx: NextApiResponse | AppRouteHandlerFnContext,
     options?: Opts
   ) => {
-    if (reqOrOptions instanceof Request) {
-      return appRouteHandler(reqOrOptions, resOrCtx as AppRouteHandlerFnContext, options);
+    if (isRequest(reqOrOptions)) {
+      return appRouteHandler(reqOrOptions as NextRequest, resOrCtx as AppRouteHandlerFnContext, options);
     }
     if ('socket' in reqOrOptions) {
       return pageRouteHandler(reqOrOptions as NextApiRequest, resOrCtx as NextApiResponse, options);
     }
     return (req: NextApiRequest | NextRequest, resOrCtxInner: NextApiResponse | AppRouteHandlerFnContext) => {
-      const opts = typeof reqOrOptions === 'function' ? (reqOrOptions as OptionsProvider<Opts>)(req) : reqOrOptions;
+      const opts = (
+        typeof reqOrOptions === 'function' ? (reqOrOptions as OptionsProvider<Opts>)(req) : reqOrOptions
+      ) as Opts;
 
-      if (req instanceof Request) {
+      if (isRequest(req)) {
         return appRouteHandler(req as NextRequest, resOrCtxInner as AppRouteHandlerFnContext, opts);
       }
       return pageRouteHandler(req as NextApiRequest, resOrCtxInner as NextApiResponse, opts);

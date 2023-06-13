@@ -13,16 +13,17 @@ import {
   Auth0NextRequest,
   Auth0NextResponse
 } from '../http';
+import { isNextApiRequest, isRequest } from '../utils/req-helpers';
 
 type Req = IncomingMessage | NextRequest | NextApiRequest;
 type Res = ServerResponse | NextResponse | NextApiResponse;
 
 const getAuth0Req = (req: Req) => {
-  if (typeof Request !== undefined && req instanceof Request) {
-    return new Auth0NextRequest(req);
+  if (isRequest(req)) {
+    return new Auth0NextRequest(req as NextRequest);
   }
-  if ('previewData' in req) {
-    return new Auth0NextApiRequest(req);
+  if (isNextApiRequest(req)) {
+    return new Auth0NextApiRequest(req as NextApiRequest);
   }
   return new NodeRequest(req as IncomingMessage);
 };
