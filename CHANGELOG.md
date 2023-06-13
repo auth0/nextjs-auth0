@@ -1,5 +1,11 @@
 # Change Log
 
+## [v3.0.0-beta.1](https://github.com/auth0/nextjs-auth0/tree/v3.0.0-beta.1) (2023-06-13)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.0.0-beta.0...v3.0.0-beta.1)
+
+**Fixed**
+- Fix request check in node 16 [\#1250](https://github.com/auth0/nextjs-auth0/pull/1250) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [v3.0.0-beta.0](https://github.com/auth0/nextjs-auth0/tree/v3.0.0-beta.0) (2023-06-08)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.6.1...v3.0.0-beta.0)
 
