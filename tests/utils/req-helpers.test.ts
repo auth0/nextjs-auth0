@@ -21,6 +21,7 @@ describe('req-helpers', () => {
     expect(isRequest(reqNode16)).toBe(true);
     expect(isRequest(reqNext)).toBe(true);
     expect(isRequest(nodeReq)).toBe(false);
+    expect(isRequest(nextApiReq)).toBe(false);
   });
 
   test('#isNextApiRequest', () => {
