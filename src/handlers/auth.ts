@@ -6,6 +6,7 @@ import { HandleCallback } from './callback';
 import { HandleProfile } from './profile';
 import { HandlerError } from '../utils/errors';
 import { AppRouteHandlerFn, AppRouteHandlerFnContext, Handler } from './router-helpers';
+import { isRequest } from '../utils/req-helpers';
 
 /**
  * If you want to add some custom behavior to the default auth handlers, you can pass in custom handlers for
@@ -183,7 +184,7 @@ export default function handlerFactory({
     const pageRouteHandler = pageRouteHandlerFactory(customHandlers, onError as PageRouterOnError);
 
     return (req: NextRequest | NextApiRequest, resOrCtx: NextApiResponse | AppRouteHandlerFnContext) => {
-      if ('params' in resOrCtx) {
+      if (isRequest(req)) {
         return appRouteHandler(req as NextRequest, resOrCtx as AppRouteHandlerFnContext);
       }
       return pageRouteHandler(req as NextApiRequest, resOrCtx as NextApiResponse);
