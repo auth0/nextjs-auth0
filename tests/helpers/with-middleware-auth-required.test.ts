@@ -183,7 +183,16 @@ describe('with-middleware-auth-required', () => {
     };
     const res = await setup({ user: { name: 'dave' }, middleware });
     expect(res.status).toEqual(200);
-    expect(res.headers.get('set-cookie')).toMatch(/^appSession=.+, foo=bar;/);
+    expect(res.headers.get('set-cookie')).toMatch(/appSession=/);
+    expect(res.headers.get('set-cookie')).toMatch(/foo=bar;/);
+  });
+
+  test('should set status from custom middleware', async () => {
+    const middleware = () => {
+      return new NextResponse(null, { status: 400 });
+    };
+    const res = await setup({ user: { name: 'dave' }, middleware });
+    expect(res.status).toEqual(400);
   });
 
   test('should set just a custom cookie when session is not rolling', async () => {
