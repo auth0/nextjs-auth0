@@ -1,5 +1,11 @@
 # Change Log
 
+## [v3.0.0-beta.2](https://github.com/auth0/nextjs-auth0/tree/v3.0.0-beta.2) (2023-06-16)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.0.0-beta.1...v3.0.0-beta.2)
+
+**Fixed**
+- Fix issue where api wrapper was overwriting session update in api [\#1255](https://github.com/auth0/nextjs-auth0/pull/1255) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [v3.0.0-beta.1](https://github.com/auth0/nextjs-auth0/tree/v3.0.0-beta.1) (2023-06-13)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.0.0-beta.0...v3.0.0-beta.1)
 
