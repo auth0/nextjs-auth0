@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { login, setup, teardown } from '../fixtures/setup';
 import { withApi, withoutApi } from '../fixtures/default-settings';
@@ -29,6 +30,17 @@ describe('with-api-auth-required', () => {
               const res = NextResponse.json({ foo: 'bar' });
               res.cookies.set('foo', 'bar');
               res.headers.set('baz', 'bar');
+              return res;
+            })(req, ctx);
+          },
+          'protected-updates-session'(req: NextRequest, ctx: { params: Record<string, any> }) {
+            return auth0Instance.withApiAuthRequired(async (req: NextRequest) => {
+              const res = NextResponse.json({ foo: 'bar' });
+              const session = await auth0Instance.getSession(req, res);
+              await auth0Instance.updateSession(req, res, {
+                ...session,
+                user: { ...session?.user, update: opts.update }
+              });
               return res;
             })(req, ctx);
           }
@@ -77,6 +89,35 @@ describe('with-api-auth-required', () => {
       });
       expect(res.cookies.get('foo').value).toBe('bar');
       expect(res.headers.get('baz')).toBe('bar');
+    });
+
+    test('allow access to an api route that updates the session cookie', async () => {
+      const loginRes = await appRouterLogin();
+      const res = await getApiResponse({
+        url: '/api/auth/protected-updates-session',
+        cookies: { appSession: loginRes.cookies.get('appSession').value },
+        update: 'foo'
+      });
+      expect(res.status).toBe(200);
+      await expect(res.json()).resolves.toEqual({ foo: 'bar' });
+      await expect(getSession(withApi, res)).resolves.toMatchObject({
+        user: expect.objectContaining({ sub: '__test_sub__', update: 'foo' })
+      });
+    });
+
+    test('allow access to an api route that updates the session cookie to a chunked cookie', async () => {
+      const loginRes = await appRouterLogin();
+      const update = randomBytes(2000).toString('base64');
+      const res = await getApiResponse({
+        url: '/api/auth/protected-updates-session',
+        cookies: { appSession: loginRes.cookies.get('appSession').value },
+        update
+      });
+      expect(res.status).toBe(200);
+      await expect(res.json()).resolves.toEqual({ foo: 'bar' });
+      await expect(getSession(withApi, res)).resolves.toMatchObject({
+        user: expect.objectContaining({ sub: '__test_sub__', update })
+      });
     });
   });
 
