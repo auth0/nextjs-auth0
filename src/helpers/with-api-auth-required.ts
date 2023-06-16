@@ -122,7 +122,9 @@ const appRouteHandlerFactory =
     const apiRes: NextResponse | Response = await apiRoute(req, params);
     const nextApiRes: NextResponse = apiRes instanceof NextResponse ? apiRes : new NextResponse(apiRes.body, apiRes);
     for (const cookie of res.cookies.getAll()) {
-      nextApiRes.cookies.set(cookie);
+      if (!nextApiRes.cookies.get(cookie.name)) {
+        nextApiRes.cookies.set(cookie);
+      }
     }
     return nextApiRes;
   };
