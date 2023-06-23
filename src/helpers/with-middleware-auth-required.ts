@@ -82,13 +82,13 @@ export default function withMiddlewareAuthRequiredFactory(
       const res = await (middleware && middleware(...args));
 
       if (res) {
-        const headers = new Headers(res.headers);
-        const cookies = headers.get('set-cookie')?.split(', ') || [];
-        const authCookies = authRes.headers.get('set-cookie')?.split(', ') || [];
-        if (cookies.length || authCookies.length) {
-          headers.set('set-cookie', [...authCookies, ...cookies].join(', '));
+        const nextRes = new NextResponse(res.body, res);
+        for (const cookie of authRes.cookies.getAll()) {
+          if (!nextRes.cookies.get(cookie.name)) {
+            nextRes.cookies.set(cookie);
+          }
         }
-        return NextResponse.next({ ...res, status: res.status, headers });
+        return nextRes;
       } else {
         return authRes;
       }
