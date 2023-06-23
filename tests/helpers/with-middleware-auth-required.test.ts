@@ -178,7 +178,44 @@ describe('with-middleware-auth-required', () => {
     };
     const res = await setup({ user: { name: 'dave' }, middleware });
     expect(res.status).toEqual(200);
-    expect(res.headers.get('set-cookie')).toMatch(/^appSession=.+, foo=bar;/);
+    // @ts-expect-errors ts dom doesn't have getAll
+    expect(res.headers.getAll('set-cookie')).toHaveLength(2);
+    expect(res.headers.get('set-cookie')).toMatch(/appSession=/);
+    expect(res.headers.get('set-cookie')).toMatch(/foo=bar;/);
+  });
+
+  test('should allow responses from custom middleware', async () => {
+    const middleware = () => {
+      return NextResponse.json({ foo: 'bar' });
+    };
+    const res = await setup({ user: { name: 'dave' }, middleware });
+    expect(res.status).toEqual(200);
+    await expect(res.json()).resolves.toEqual({ foo: 'bar' });
+  });
+
+  test('should allow ReadableStream responses from custom middleware', async () => {
+    const middleware = () => {
+      // @ts-expect-errors ts dom doesn't have json
+      return new Response(Response.json({ foo: 'bar' }).body);
+    };
+    const res = await setup({ user: { name: 'dave' }, middleware });
+    expect(res.status).toEqual(200);
+    await expect(res.json()).resolves.toEqual({ foo: 'bar' });
+  });
+
+  test('should allow responses and cookies from custom middleware', async () => {
+    const middleware = () => {
+      const res = NextResponse.json({ foo: 'bar' });
+      res.cookies.set('foo', 'bar');
+      return res;
+    };
+    const res = await setup({ user: { name: 'dave' }, middleware });
+    expect(res.status).toEqual(200);
+    await expect(res.json()).resolves.toEqual({ foo: 'bar' });
+    // @ts-expect-errors ts dom doesn't have getAll
+    expect(res.headers.getAll('set-cookie')).toHaveLength(2);
+    expect(res.headers.get('set-cookie')).toMatch(/appSession=/);
+    expect(res.headers.get('set-cookie')).toMatch(/foo=bar;/);
   });
 
   test('should set just a custom cookie when session is not rolling', async () => {
