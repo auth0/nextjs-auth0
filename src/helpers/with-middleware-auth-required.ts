@@ -1,5 +1,6 @@
 import { NextMiddleware, NextRequest, NextResponse } from 'next/server';
 import { SessionCache } from '../session';
+import { splitCookiesString } from '../utils/middleware-cookies';
 
 /**
  * Protect your pages with Next.js Middleware. For example:
@@ -77,10 +78,11 @@ export default function withMiddlewareAuthRequiredFactory(
 
       if (res) {
         const headers = new Headers(res.headers);
-        const cookies = headers.get('set-cookie')?.split(', ') || [];
-        const authCookies = authRes.headers.get('set-cookie')?.split(', ') || [];
-        if (cookies.length || authCookies.length) {
-          headers.set('set-cookie', [...authCookies, ...cookies].join(', '));
+        const authCookies = splitCookiesString(authRes.headers.get('set-cookie')!);
+        if (authCookies.length) {
+          for (const cookie of authCookies) {
+            headers.append('set-cookie', cookie);
+          }
         }
         return NextResponse.next({ ...res, status: res.status, headers });
       } else {
