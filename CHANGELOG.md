@@ -1,5 +1,11 @@
 # Change Log
 
+## [v2.6.3](https://github.com/auth0/nextjs-auth0/tree/v2.6.3) (2023-06-26)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.6.2...v2.6.3)
+
+**Fixed**
+- Fix for setting custom cookies in `withMiddlewareAuthRequired` [\#1263](https://github.com/auth0/nextjs-auth0/pull/1263) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [v2.6.2](https://github.com/auth0/nextjs-auth0/tree/v2.6.2) (2023-06-09)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.6.1...v2.6.2)
 
