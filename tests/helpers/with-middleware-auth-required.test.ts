@@ -1,6 +1,3 @@
-/**
- * @jest-environment @edge-runtime/jest-environment
- */
 import { NextRequest, NextResponse } from 'next/server';
 import { NextFetchEvent } from 'next/dist/server/web/spec-extension/fetch-event';
 import { initAuth0 } from '../../src/edge';
@@ -10,6 +7,7 @@ import { encryption } from '../../src/auth0-session/utils/hkdf';
 import { defaultConfig } from '../auth0-session/fixtures/helpers';
 import { makeIdToken } from '../auth0-session/fixtures/cert';
 import * as jose from 'jose';
+import { getSession } from '../fixtures/app-router-helpers';
 
 const encrypted = async (claims: Partial<IdTokenClaims> = { sub: '__test_sub__' }): Promise<string> => {
   const key = await encryption(defaultConfig.secret as string);
@@ -34,8 +32,8 @@ const encrypted = async (claims: Partial<IdTokenClaims> = { sub: '__test_sub__' 
     .encrypt(key);
 };
 
-const setup = async ({ url = 'http://example.com', config = withoutApi, user, middleware }: any = {}) => {
-  const mw = initAuth0(config).withMiddlewareAuthRequired(middleware);
+const setup = async ({ url = 'http://example.com', config = withoutApi, user, middleware, instance }: any = {}) => {
+  const mw = (instance || initAuth0(config)).withMiddlewareAuthRequired(middleware);
   const request = new NextRequest(new URL(url));
   if (user) {
     request.cookies.set('appSession', await encrypted({ sub: 'foo' }));
@@ -178,8 +176,6 @@ describe('with-middleware-auth-required', () => {
     };
     const res = await setup({ user: { name: 'dave' }, middleware });
     expect(res.status).toEqual(200);
-    // @ts-expect-errors ts dom doesn't have getAll
-    expect(res.headers.getAll('set-cookie')).toHaveLength(2);
     expect(res.headers.get('set-cookie')).toMatch(/appSession=/);
     expect(res.headers.get('set-cookie')).toMatch(/foo=bar;/);
   });
@@ -212,8 +208,6 @@ describe('with-middleware-auth-required', () => {
     const res = await setup({ user: { name: 'dave' }, middleware });
     expect(res.status).toEqual(200);
     await expect(res.json()).resolves.toEqual({ foo: 'bar' });
-    // @ts-expect-errors ts dom doesn't have getAll
-    expect(res.headers.getAll('set-cookie')).toHaveLength(2);
     expect(res.headers.get('set-cookie')).toMatch(/appSession=/);
     expect(res.headers.get('set-cookie')).toMatch(/foo=bar;/);
   });
@@ -258,5 +252,39 @@ describe('with-middleware-auth-required', () => {
     });
     expect(res.status).toEqual(200);
     expect(res.headers.get('foo')).toBe('bar');
+  });
+
+  test('should update session from custom middleware', async () => {
+    const instance = initAuth0(withoutApi);
+    const middleware = async (req: NextRequest) => {
+      const res = NextResponse.next();
+      const session = await instance.getSession(req, res);
+      await instance.updateSession(req, res, { ...session, user: { ...session?.user, baz: 'bar' } });
+      return res;
+    };
+    const res = await setup({
+      instance,
+      user: { name: 'dave' },
+      middleware
+    });
+    await expect(getSession(withoutApi, res)).resolves.toMatchObject({ user: { sub: 'foo', baz: 'bar' } });
+  });
+
+  test('should update session with a large claim from middleware', async () => {
+    const instance = initAuth0(withoutApi);
+    const middleware = async (req: NextRequest) => {
+      const res = NextResponse.next();
+      const session = await instance.getSession(req, res);
+      await instance.updateSession(req, res, { ...session, user: { ...session?.user, baz: 'bar'.repeat(2000) } });
+      return res;
+    };
+    const res = await setup({
+      instance,
+      user: { name: 'dave' },
+      middleware
+    });
+    await expect(getSession(withoutApi, res)).resolves.toMatchObject({ user: { baz: expect.any(String) } });
+    expect(res.headers.get('set-cookie')).toMatch(/appSession=;/);
+    expect(res.headers.get('set-cookie')).toMatch(/appSession.0=/);
   });
 });

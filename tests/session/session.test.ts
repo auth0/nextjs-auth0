@@ -1,5 +1,5 @@
 import { TokenSet } from 'openid-client';
-import { fromJson, fromTokenSet } from '../../src/session';
+import { fromJson, fromTokenEndpointResponse } from '../../src/session';
 import { makeIdToken } from '../auth0-session/fixtures/cert';
 import { Session } from '../../src';
 
@@ -15,7 +15,7 @@ describe('session', () => {
   describe('from tokenSet', () => {
     test('should construct a session from a tokenSet', async () => {
       expect(
-        fromTokenSet(new TokenSet({ id_token: await makeIdToken({ foo: 'bar', bax: 'qux' }) }), {
+        fromTokenEndpointResponse(new TokenSet({ id_token: await makeIdToken({ foo: 'bar', bax: 'qux' }) }), {
           identityClaimFilter: ['baz'],
           routes,
           getLoginState,
@@ -36,7 +36,7 @@ describe('session', () => {
 
     test('should store the ID Token by default', async () => {
       expect(
-        fromTokenSet(new TokenSet({ id_token: await makeIdToken({ foo: 'bar' }) }), {
+        fromTokenEndpointResponse(new TokenSet({ id_token: await makeIdToken({ foo: 'bar' }) }), {
           identityClaimFilter: ['baz'],
           routes,
           getLoginState,
@@ -47,7 +47,7 @@ describe('session', () => {
 
     test('should not store the ID Token', async () => {
       expect(
-        fromTokenSet(new TokenSet({ id_token: await makeIdToken({ foo: 'bar' }) }), {
+        fromTokenEndpointResponse(new TokenSet({ id_token: await makeIdToken({ foo: 'bar' }) }), {
           session: {
             storeIDToken: false,
             name: '',

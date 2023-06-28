@@ -1,10 +1,10 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { NextApiRequest, NextApiResponse } from 'next';
 import { NextRequest, NextResponse } from 'next/server';
-import type { TokenSet } from 'openid-client';
+import type { TokenEndpointResponse } from '../auth0-session';
 import { Config, SessionCache as ISessionCache, AbstractSession } from '../auth0-session';
-import Session, { fromJson, fromTokenSet } from './session';
-import { NodeRequest, NodeResponse } from '../auth0-session/http';
+import Session, { fromJson, fromTokenEndpointResponse } from './session';
+import { Auth0Request, Auth0Response, NodeRequest, NodeResponse } from '../auth0-session/http';
 import {
   Auth0NextApiRequest,
   Auth0NextApiResponse,
@@ -18,24 +18,14 @@ import { isNextApiRequest, isRequest } from '../utils/req-helpers';
 type Req = IncomingMessage | NextRequest | NextApiRequest;
 type Res = ServerResponse | NextResponse | NextApiResponse;
 
-const getAuth0Req = (req: Req) => {
+const getAuth0ReqRes = (req: Req, res: Res): [Auth0Request, Auth0Response] => {
   if (isRequest(req)) {
-    return new Auth0NextRequest(req as NextRequest);
+    return [new Auth0NextRequest(req as NextRequest), new Auth0NextResponse(res as NextResponse)];
   }
   if (isNextApiRequest(req)) {
-    return new Auth0NextApiRequest(req as NextApiRequest);
+    return [new Auth0NextApiRequest(req as NextApiRequest), new Auth0NextApiResponse(res as NextApiResponse)];
   }
-  return new NodeRequest(req as IncomingMessage);
-};
-
-const getAuth0Res = (res: Res) => {
-  if (typeof Response !== undefined && res instanceof Response) {
-    return new Auth0NextResponse(res);
-  }
-  if ('setPreviewData' in res) {
-    return new Auth0NextApiResponse(res);
-  }
-  return new NodeResponse(res as ServerResponse);
+  return [new NodeRequest(req as IncomingMessage), new NodeResponse(res as ServerResponse)];
 };
 
 export default class SessionCache implements ISessionCache<Req, Res, Session> {
@@ -49,7 +39,8 @@ export default class SessionCache implements ISessionCache<Req, Res, Session> {
 
   private async init(req: Req, res: Res, autoSave = true): Promise<void> {
     if (!this.cache.has(req)) {
-      const [json, iat] = await this.sessionStore.read(getAuth0Req(req));
+      const [auth0Req] = getAuth0ReqRes(req, res);
+      const [json, iat] = await this.sessionStore.read(auth0Req);
       this.iatCache.set(req, iat);
       this.cache.set(req, fromJson(json));
       if (this.config.session.rolling && this.config.session.autoSave && autoSave) {
@@ -59,7 +50,8 @@ export default class SessionCache implements ISessionCache<Req, Res, Session> {
   }
 
   async save(req: Req, res: Res): Promise<void> {
-    await this.sessionStore.save(getAuth0Req(req), getAuth0Res(res), this.cache.get(req), this.iatCache.get(req));
+    const [auth0Req, auth0Res] = getAuth0ReqRes(req, res);
+    await this.sessionStore.save(auth0Req, auth0Res, this.cache.get(req), this.iatCache.get(req));
   }
 
   async create(req: Req, res: Res, session: Session): Promise<void> {
@@ -96,8 +88,8 @@ export default class SessionCache implements ISessionCache<Req, Res, Session> {
     return this.cache.get(req);
   }
 
-  fromTokenSet(tokenSet: TokenSet): Session {
-    return fromTokenSet(tokenSet, this.config);
+  fromTokenEndpointResponse(tokenSet: TokenEndpointResponse): Session {
+    return fromTokenEndpointResponse(tokenSet, this.config);
   }
 }
 

@@ -1,10 +1,11 @@
 import nock from 'nock';
-import { Client } from 'openid-client';
-import { getConfig, ConfigParameters } from '../../src/auth0-session';
-import { jwks } from './fixtures/cert';
-import pkg from '../../package.json';
-import wellKnown from './fixtures/well-known.json';
-import version from '../../src/version';
+import { getConfig, ConfigParameters } from '../../../src/auth0-session';
+import { jwks } from '../fixtures/cert';
+import pkg from '../../../package.json';
+import wellKnown from '../fixtures/well-known.json';
+import version from '../../../src/version';
+import { NodeClient } from '../../../src/auth0-session/client/node-client';
+import { UserInfoError } from '../../../src/auth0-session/utils/errors';
 
 const defaultConfig = {
   secret: '__test_session_secret__',
@@ -17,15 +18,14 @@ const defaultConfig = {
   }
 };
 
-const getClient = async (params: ConfigParameters = {}): Promise<Client> => {
-  const { default: clientFactory } = await import('../../src/auth0-session/client');
-  return clientFactory(getConfig({ ...defaultConfig, ...params }), {
+const getClient = async (params: ConfigParameters = {}): Promise<NodeClient> => {
+  return new NodeClient(getConfig({ ...defaultConfig, ...params }), {
     name: 'nextjs-auth0',
     version
-  })();
+  });
 };
 
-describe('clientFactory', function () {
+describe('node client', function () {
   beforeEach(() => {
     if (!nock.isActive()) {
       nock.activate();
@@ -33,7 +33,7 @@ describe('clientFactory', function () {
     nock('https://op.example.com').get('/.well-known/openid-configuration').reply(200, wellKnown);
     nock('https://op.example.com').get('/.well-known/jwks.json').reply(200, jwks);
     nock('https://op.example.com')
-      .post('/introspection')
+      .get('/userinfo')
       .reply(200, function () {
         return this.req.headers;
       });
@@ -44,15 +44,9 @@ describe('clientFactory', function () {
     nock.cleanAll();
   });
 
-  it('should save the passed values', async function () {
-    const client = await getClient();
-    expect(client.client_id).toEqual('__test_client_id__');
-    expect(client.client_secret).toEqual('__test_client_secret__');
-  });
-
   it('should send the correct default headers', async function () {
     const client = await getClient();
-    const headers = await client.introspect('__test_token__', '__test_hint__');
+    const headers = await client.userinfo('__test_token__');
     const headerProps = Object.getOwnPropertyNames(headers);
 
     expect(headerProps).toContain('auth0-client');
@@ -69,7 +63,7 @@ describe('clientFactory', function () {
 
   it('should disable telemetry', async function () {
     const client = await getClient({ enableTelemetry: false });
-    const headers = await client.introspect('__test_token__', '__test_hint__');
+    const headers = await client.userinfo('__test_token__');
     const headerProps = Object.getOwnPropertyNames(headers);
 
     expect(headerProps).not.toContain('auth0-client');
@@ -77,13 +71,8 @@ describe('clientFactory', function () {
 
   it('should not strip new headers', async function () {
     const client = await getClient();
-    const response = await client.requestResource('https://op.example.com/introspection', 'token', {
-      method: 'POST',
-      headers: {
-        Authorization: 'Bearer foo'
-      }
-    });
-    const headerProps = Object.getOwnPropertyNames(JSON.parse((response.body as Buffer).toString()));
+    const response = await client.userinfo('__test_token__');
+    const headerProps = Object.getOwnPropertyNames(response);
 
     expect(headerProps).toContain('authorization');
   });
@@ -102,17 +91,22 @@ describe('clientFactory', function () {
       issuerBaseURL: 'https://op2.example.com',
       idTokenSigningAlg: 'RS256'
     });
-    expect(client.id_token_signed_response_alg).toEqual('RS256');
+    // @ts-ignore
+    expect((await client.getClient()).id_token_signed_response_alg).toEqual('RS256');
   });
 
   it('should use discovered logout endpoint by default', async function () {
     const client = await getClient({ ...defaultConfig, idpLogout: true });
-    expect(client.endSessionUrl({})).toEqual('https://op.example.com/session/end?client_id=__test_client_id__');
+    await expect(client.endSessionUrl({})).resolves.toEqual(
+      'https://op.example.com/session/end?client_id=__test_client_id__'
+    );
   });
 
   it('should use auth0 logout endpoint if configured', async function () {
     const client = await getClient({ ...defaultConfig, idpLogout: true, auth0Logout: true });
-    expect(client.endSessionUrl({})).toEqual('https://op.example.com/v2/logout?client_id=__test_client_id__');
+    await expect(client.endSessionUrl({})).resolves.toEqual(
+      'https://op.example.com/v2/logout?client_id=__test_client_id__'
+    );
   });
 
   it('should use auth0 logout endpoint if domain is auth0.com', async function () {
@@ -120,7 +114,9 @@ describe('clientFactory', function () {
       .get('/.well-known/openid-configuration')
       .reply(200, { ...wellKnown, issuer: 'https://foo.auth0.com/' });
     const client = await getClient({ ...defaultConfig, idpLogout: true, issuerBaseURL: 'https://foo.auth0.com' });
-    expect(client.endSessionUrl({})).toEqual('https://foo.auth0.com/v2/logout?client_id=__test_client_id__');
+    await expect(client.endSessionUrl({})).resolves.toEqual(
+      'https://foo.auth0.com/v2/logout?client_id=__test_client_id__'
+    );
   });
 
   it('should use auth0 logout endpoint if domain is auth0.com and configured', async function () {
@@ -133,7 +129,9 @@ describe('clientFactory', function () {
       idpLogout: true,
       auth0Logout: true
     });
-    expect(client.endSessionUrl({})).toEqual('https://foo.auth0.com/v2/logout?client_id=__test_client_id__');
+    await expect(client.endSessionUrl({})).resolves.toEqual(
+      'https://foo.auth0.com/v2/logout?client_id=__test_client_id__'
+    );
   });
 
   it('should use discovered logout endpoint if domain is auth0.com but configured with auth0logout false', async function () {
@@ -150,7 +148,9 @@ describe('clientFactory', function () {
       idpLogout: true,
       auth0Logout: false
     });
-    expect(client.endSessionUrl({})).toEqual('https://foo.auth0.com/oidc/logout?client_id=__test_client_id__');
+    await expect(client.endSessionUrl({})).resolves.toEqual(
+      'https://foo.auth0.com/oidc/logout?client_id=__test_client_id__'
+    );
   });
 
   it('should create client with no end_session_endpoint', async function () {
@@ -162,7 +162,7 @@ describe('clientFactory', function () {
         end_session_endpoint: undefined
       });
     const client = await getClient({ ...defaultConfig, issuerBaseURL: 'https://op2.example.com' });
-    expect(() => client.endSessionUrl({})).toThrowError();
+    await expect(client.endSessionUrl({})).rejects.toThrowError();
   });
 
   it('should create custom logout for auth0', async function () {
@@ -175,8 +175,8 @@ describe('clientFactory', function () {
       issuerBaseURL: 'https://test.eu.auth0.com',
       idpLogout: true
     });
-    expect(client.endSessionUrl({ post_logout_redirect_uri: 'foo' })).toEqual(
-      'https://test.eu.auth0.com/v2/logout?returnTo=foo&client_id=__test_client_id__'
+    await expect(client.endSessionUrl({ post_logout_redirect_uri: 'foo' })).resolves.toEqual(
+      'https://test.eu.auth0.com/v2/logout?client_id=__test_client_id__&returnTo=foo'
     );
   });
 
@@ -194,10 +194,14 @@ describe('clientFactory', function () {
       );
 
     await expect(
-      getClient({
-        issuerBaseURL: 'https://op2.example.com',
-        idpLogout: true
-      })
+      (
+        await getClient({
+          issuerBaseURL: 'https://op2.example.com',
+          idpLogout: true
+        })
+      )
+        // @ts-ignore
+        .getClient()
     ).resolves.not.toThrow();
   });
 
@@ -205,8 +209,15 @@ describe('clientFactory', function () {
     nock.cleanAll();
     nock('https://op.example.com').get('/.well-known/oauth-authorization-server').reply(500);
     nock('https://op.example.com').get('/.well-known/openid-configuration').reply(500);
-    await expect(getClient()).rejects.toThrow(
+    await expect((await getClient()).userinfo('token')).rejects.toThrow(
       'Discovery requests failing for https://op.example.com, expected 200 OK, got: 500 Internal Server Error'
     );
+  });
+
+  it('should throw UserInfoError when userinfo fails', async () => {
+    nock.cleanAll();
+    nock('https://op.example.com').get('/.well-known/openid-configuration').reply(200, wellKnown);
+    nock('https://op.example.com').get('/userinfo').reply(500, {});
+    await expect((await getClient()).userinfo('token')).rejects.toThrow(UserInfoError);
   });
 });

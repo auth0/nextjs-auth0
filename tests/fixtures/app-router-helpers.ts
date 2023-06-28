@@ -1,22 +1,50 @@
 import nock from 'nock';
+import { default as nodeFetch } from 'node-fetch';
+import { NextRequest, NextResponse } from 'next/server';
 import {
   Auth0Server,
   CallbackOptions,
   Claims,
   ConfigParameters,
-  initAuth0,
+  initAuth0 as nodeInitAuth0,
   LoginOptions,
   LogoutOptions,
   ProfileOptions
 } from '../../src';
+import { initAuth0 as edgeInitAuth0 } from '../../src/edge';
 import { withApi } from './default-settings';
 import { setupNock } from './setup';
-import { NextRequest, NextResponse } from 'next/server';
 import { StatelessSession } from '../../src/auth0-session';
 import { getConfig } from '../../src/config';
 import { Auth0NextRequest } from '../../src/http';
 import { encodeState } from '../../src/auth0-session/utils/encoding';
 import { signCookie } from '../auth0-session/fixtures/helpers';
+
+const isEdgeRuntime =
+  // @ts-ignore
+  typeof EdgeRuntime !== 'undefined';
+
+export const initAuth0 = (config: ConfigParameters) => {
+  if (isEdgeRuntime) {
+    return edgeInitAuth0(config);
+  }
+  return nodeInitAuth0(config);
+};
+
+export const mockFetch = () => {
+  if (isEdgeRuntime) {
+    jest.spyOn(globalThis, 'fetch').mockImplementation((...args: any[]) =>
+      (nodeFetch as any)(...args).then(async (res: any) => {
+        const res2 = new Response(await res.text(), {
+          headers: Object.fromEntries(res.headers.entries()),
+          status: res.status
+        });
+        Object.defineProperty(res2, 'url', { value: args[0] });
+        return res2;
+      })
+    );
+  }
+};
 
 export type GetResponseOpts = {
   url: string;
@@ -93,14 +121,14 @@ export const getSession = async (config: any, res: NextResponse) => {
 
 export const login = async (opts: LoginOpts = {}) => {
   const state = encodeState({ returnTo: '/' });
-  const res = await getResponse({
+  return await getResponse({
     ...opts,
     url: `/api/auth/callback?state=${state}&code=code`,
     cookies: {
       ...opts.cookies,
       state: await signCookie('state', state),
-      nonce: await signCookie('nonce', '__test_nonce__')
+      nonce: await signCookie('nonce', '__test_nonce__'),
+      code_verifier: await signCookie('code_verifier', '__test_code_verifier__')
     }
   });
-  return res;
 };

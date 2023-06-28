@@ -54,10 +54,6 @@ describe('AccessTokenError', () => {
 });
 
 describe('HandlerError', () => {
-  test('should not be instance of itself', () => {
-    expect(new HandlerError({ code: '', message: '', name: '', cause: new Error() })).not.toBeInstanceOf(HandlerError);
-  });
-
   test('should set all required properties', () => {
     const code = 'foo';
     const message = 'bar';

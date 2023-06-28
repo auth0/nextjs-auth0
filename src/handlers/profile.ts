@@ -1,6 +1,6 @@
 import { NextApiResponse, NextApiRequest } from 'next';
 import { NextRequest, NextResponse } from 'next/server';
-import { ClientFactory } from '../auth0-session';
+import { AbstractClient } from '../auth0-session';
 import { SessionCache, Session, fromJson, GetAccessToken } from '../session';
 import { assertReqRes } from '../utils/assert';
 import { ProfileHandlerError, HandlerErrorCause } from '../utils/errors';
@@ -124,12 +124,12 @@ export type ProfileHandler = Handler<ProfileOptions>;
  * @ignore
  */
 export default function profileHandler(
-  getClient: ClientFactory,
+  client: AbstractClient,
   getAccessToken: GetAccessToken,
   sessionCache: SessionCache
 ): HandleProfile {
-  const appRouteHandler = appRouteHandlerFactory(getClient, getAccessToken, sessionCache);
-  const pageRouteHandler = pageRouteHandlerFactory(getClient, getAccessToken, sessionCache);
+  const appRouteHandler = appRouteHandlerFactory(client, getAccessToken, sessionCache);
+  const pageRouteHandler = pageRouteHandlerFactory(client, getAccessToken, sessionCache);
 
   return getHandler<ProfileOptions>(appRouteHandler, pageRouteHandler) as HandleProfile;
 }
@@ -138,11 +138,11 @@ export default function profileHandler(
  * @ignore
  */
 const appRouteHandlerFactory: (
-  getClient: ClientFactory,
+  client: AbstractClient,
   getAccessToken: GetAccessToken,
   sessionCache: SessionCache
 ) => (req: NextRequest, ctx: AppRouteHandlerFnContext, options?: ProfileOptions) => Promise<Response> | Response =
-  (getClient, getAccessToken, sessionCache) =>
+  (client, getAccessToken, sessionCache) =>
   async (req, _ctx, options = {}) => {
     try {
       const res = new NextResponse();
@@ -160,7 +160,6 @@ const appRouteHandlerFactory: (
           throw new Error('No access token available to refetch the profile');
         }
 
-        const client = await getClient();
         const userInfo = await client.userinfo(accessToken);
 
         let newSession = fromJson({
@@ -190,11 +189,11 @@ const appRouteHandlerFactory: (
  * @ignore
  */
 const pageRouteHandlerFactory: (
-  getClient: ClientFactory,
+  client: AbstractClient,
   getAccessToken: GetAccessToken,
   sessionCache: SessionCache
 ) => (req: NextApiRequest, res: NextApiResponse, options?: ProfileOptions) => Promise<void> =
-  (getClient, getAccessToken, sessionCache) =>
+  (client, getAccessToken, sessionCache) =>
   async (req: NextApiRequest, res: NextApiResponse, options = {}): Promise<void> => {
     try {
       assertReqRes(req, res);
@@ -213,7 +212,6 @@ const pageRouteHandlerFactory: (
           throw new Error('No access token available to refetch the profile');
         }
 
-        const client = await getClient();
         const userInfo = await client.userinfo(accessToken);
 
         let newSession = fromJson({

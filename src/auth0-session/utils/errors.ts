@@ -1,5 +1,3 @@
-import type { errors } from 'openid-client';
-
 export class EscapedError extends Error {
   /**
    * **WARNING** The message can contain user input and is only escaped using basic escaping for putting untrusted data
@@ -14,6 +12,8 @@ export class EscapedError extends Error {
 
 export class MissingStateParamError extends Error {
   static message = 'Missing state parameter in Authorization Response.';
+  status = 400;
+  statusCode = 400;
 
   constructor() {
     /* c8 ignore next */
@@ -24,6 +24,8 @@ export class MissingStateParamError extends Error {
 
 export class MissingStateCookieError extends Error {
   static message = 'Missing state cookie from login request (check login URL, callback URL and cookie config).';
+  status = 400;
+  statusCode = 400;
 
   constructor() {
     /* c8 ignore next */
@@ -37,7 +39,7 @@ export class ApplicationError extends EscapedError {
    * **WARNING** The message can contain user input and is only escaped using basic escaping for putting untrusted data
    * directly into the HTML body
    */
-  constructor(rpError: errors.RPError) {
+  constructor(rpError: Error) {
     /* c8 ignore next */
     super(rpError.message);
     Object.setPrototypeOf(this, ApplicationError.prototype);
@@ -62,7 +64,7 @@ export class IdentityProviderError extends EscapedError {
    * **WARNING** The message can contain user input and is only escaped using basic escaping for putting untrusted data
    * directly into the HTML body
    */
-  constructor(rpError: errors.OPError) {
+  constructor(rpError: { message: string; error?: string; error_description?: string }) {
     /* c8 ignore next */
     super(rpError.message);
     this.error = htmlSafe(rpError.error);
@@ -76,6 +78,14 @@ export class DiscoveryError extends EscapedError {
     /* c8 ignore next */
     super(`Discovery requests failing for ${issuerBaseUrl}, ${error.message}`);
     Object.setPrototypeOf(this, DiscoveryError.prototype);
+  }
+}
+
+export class UserInfoError extends EscapedError {
+  constructor(msg: string) {
+    /* c8 ignore next */
+    super(`Userinfo request failing with: ${msg}`);
+    Object.setPrototypeOf(this, UserInfoError.prototype);
   }
 }
 

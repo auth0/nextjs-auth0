@@ -1,4 +1,7 @@
-import type { AuthorizationParameters as OidcAuthorizationParameters, ClientAuthMethod } from 'openid-client';
+import type {
+  AuthorizationParameters as OidcAuthorizationParameters,
+  ClientAuthMethod
+} from './client/abstract-client';
 import { SessionStore } from './session/stateful-session';
 
 /**
@@ -172,8 +175,10 @@ export interface Config {
    * Private key for use with `private_key_jwt` clients.
    * This should be a string that is the contents of a PEM file.
    * you can also use the `AUTH0_CLIENT_ASSERTION_SIGNING_KEY` environment variable.
+   *
+   * For Edge runtime, you can also provide an instance of `CryptoKey`.
    */
-  clientAssertionSigningKey?: string;
+  clientAssertionSigningKey?: string | CryptoKey;
 
   /**
    * The algorithm used to sign the client assertion JWT.
