@@ -5,6 +5,7 @@ import pkg from '../../../package.json';
 import wellKnown from '../fixtures/well-known.json';
 import version from '../../../src/version';
 import { NodeClient } from '../../../src/auth0-session/client/node-client';
+import { UserInfoError } from '../../../src/auth0-session/utils/errors';
 
 const defaultConfig = {
   secret: '__test_session_secret__',
@@ -211,5 +212,12 @@ describe('node client', function () {
     await expect((await getClient()).userinfo('token')).rejects.toThrow(
       'Discovery requests failing for https://op.example.com, expected 200 OK, got: 500 Internal Server Error'
     );
+  });
+
+  it('should throw UserInfoError when userinfo fails', async () => {
+    nock.cleanAll();
+    nock('https://op.example.com').get('/.well-known/openid-configuration').reply(200, wellKnown);
+    nock('https://op.example.com').get('/userinfo').reply(500, {});
+    await expect((await getClient()).userinfo('token')).rejects.toThrow(UserInfoError);
   });
 });

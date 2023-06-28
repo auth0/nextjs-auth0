@@ -11,14 +11,14 @@ import {
   SessionCache,
   UpdateSession,
   WithApiAuthRequired,
-  WithPageAuthRequired
+  WithPageAuthRequired,
+  telemetry
 } from './shared';
 import { _initAuth } from './init';
 import { setIsUsingNamedExports, setIsUsingOwnInstance } from './utils/instance-check';
 import { getConfig, getLoginUrl } from './config';
 import { withPageAuthRequiredFactory } from './helpers';
 import { EdgeClient } from './auth0-session/client/edge-client';
-import version from './version';
 import { WithMiddlewareAuthRequired } from './helpers/with-middleware-auth-required';
 
 const genId = () => {
@@ -28,8 +28,6 @@ const genId = () => {
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
 };
-
-const telemetry = { name: 'nextjs-auth0', version };
 
 let instance: Auth0Server & { sessionCache: SessionCache };
 

@@ -4,6 +4,9 @@ import { SessionCache, GetSession, GetAccessToken, Session, TouchSession, Update
 import { WithApiAuthRequired, WithPageAuthRequired } from './helpers';
 import { ConfigParameters } from './config';
 import { WithMiddlewareAuthRequired } from './helpers/with-middleware-auth-required';
+import version from './version';
+
+export const telemetry = { name: 'nextjs-auth0', version };
 
 /**
  * The SDK server instance.

@@ -8,7 +8,7 @@ import { Cookie, CookieJar } from 'tough-cookie';
 describe('login handler (page router)', () => {
   afterEach(teardown);
 
-  test('should create a state', async () => {
+  test('should create a state, nonce, and code verifier', async () => {
     const baseUrl = await setup(withoutApi);
     const cookieJar = new CookieJar();
     await get(baseUrl, '/api/auth/login', { cookieJar });

@@ -27,9 +27,8 @@ const isEdgeRuntime =
 export const initAuth0 = (config: ConfigParameters) => {
   if (isEdgeRuntime) {
     return edgeInitAuth0(config);
-  } else {
-    return nodeInitAuth0(config);
   }
+  return nodeInitAuth0(config);
 };
 
 export const mockFetch = () => {

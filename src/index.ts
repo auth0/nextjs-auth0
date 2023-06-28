@@ -12,18 +12,16 @@ import {
   SessionCache,
   UpdateSession,
   WithApiAuthRequired,
-  WithPageAuthRequired
+  WithPageAuthRequired,
+  telemetry
 } from './shared';
 import { _initAuth } from './init';
 import { setIsUsingNamedExports, setIsUsingOwnInstance } from './utils/instance-check';
 import { getConfig, getLoginUrl } from './config';
 import { withPageAuthRequiredFactory } from './helpers';
 import { NodeClient } from './auth0-session/client/node-client';
-import version from './version';
 
 const genId = () => crypto.randomBytes(16).toString('hex');
-
-const telemetry = { name: 'nextjs-auth0', version };
 
 export type Auth0Server = Omit<Auth0ServerShared, 'withMiddlewareAuthRequired'>;
 
