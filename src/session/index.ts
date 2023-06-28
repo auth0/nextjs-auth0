@@ -1,4 +1,4 @@
-export { default as Session, Claims, fromJson, fromTokenSet } from './session';
+export { default as Session, Claims, fromJson, fromTokenEndpointResponse } from './session';
 export { default as sessionFactory, GetSession } from './get-session';
 export {
   default as accessTokenFactory,

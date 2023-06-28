@@ -68,7 +68,7 @@
   },
   "homepage": "https://github.com/auth0/nextjs-auth0#readme",
   "devDependencies": {
-    "@edge-runtime/jest-environment": "^1.1.0-beta.31",
+    "@edge-runtime/jest-environment": "^2.1.0",
     "@testing-library/jest-dom": "^5.11.9",
     "@testing-library/react": "^13.4.0",
     "@testing-library/react-hooks": "^5.0.3",
@@ -76,10 +76,10 @@
     "@types/clone": "^2.1.0",
     "@types/cookie": "^0.5.1",
     "@types/debug": "^4.1.5",
-    "@types/http-errors": "^1.8.0",
-    "@types/jest": "^27.0.1",
+    "@types/jest": "^29.5.2",
     "@types/jsonwebtoken": "^8.5.0",
     "@types/node": "^18.11.18",
+    "@types/node-fetch": "^2.6.4",
     "@types/on-headers": "^1.0.0",
     "@types/react": "^18.0.24",
     "@types/react-dom": "^17.0.9",
@@ -99,10 +99,12 @@
     "eslint-plugin-prettier": "^3.3.1",
     "eslint-plugin-react": "^7.22.0",
     "eslint-plugin-react-hooks": "^4.2.0",
-    "jest": "^27.2.0",
+    "jest": "^29.5.0",
+    "jest-environment-jsdom": "^29.5.0",
     "jest-environment-node-single-context": "^27.3.0",
-    "next": "^13.4.5-canary.0",
+    "next": "^13.4.6",
     "nock": "^13.0.5",
+    "node-fetch": "^2.6.11",
     "oidc-provider": "^7.6.0",
     "on-headers": "^1.0.2",
     "prettier": "^2.2.1",
@@ -113,7 +115,7 @@
     "start-server-and-test": "^1.11.7",
     "timekeeper": "^2.2.0",
     "tough-cookie": "^4.0.0",
-    "ts-jest": "^27.0.5",
+    "ts-jest": "^29.1.0",
     "typedoc": "^0.24.1",
     "typescript": "^4.1.3"
   },
@@ -121,9 +123,9 @@
     "@panva/hkdf": "^1.0.2",
     "cookie": "^0.5.0",
     "debug": "^4.3.4",
-    "http-errors": "^1.8.1",
     "joi": "^17.6.0",
     "jose": "^4.9.2",
+    "oauth4webapi": "^2.3.0",
     "openid-client": "^5.2.1",
     "tslib": "^2.4.0",
     "url-join": "^4.0.1"
@@ -132,16 +134,11 @@
     "next": ">=10"
   },
   "jest": {
-    "testEnvironment": "jest-environment-node-single-context",
-    "rootDir": ".",
-    "moduleFileExtensions": [
-      "ts",
-      "tsx",
-      "js"
-    ],
     "collectCoverageFrom": [
       "<rootDir>/src/**/*.*",
       "!<rootDir>/src/edge.ts",
+      "!<rootDir>/src/index.ts",
+      "!<rootDir>/src/shared.ts",
       "!<rootDir>/src/auth0-session/config.ts",
       "!<rootDir>/src/auth0-session/index.ts",
       "!<rootDir>/src/auth0-session/session-cache.ts"
@@ -160,10 +157,9 @@
       }
     },
     "coverageProvider": "v8",
-    "preset": "ts-jest",
-    "globalSetup": "./tests/global-setup.ts",
-    "setupFilesAfterEnv": [
-      "./tests/setup.ts"
+    "projects": [
+      "<rootDir>/jest-node.config.js",
+      "<rootDir>/jest-edge.config.js"
     ]
   }
 }

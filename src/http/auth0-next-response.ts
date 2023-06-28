@@ -17,14 +17,14 @@ export default class Auth0NextResponse extends Auth0Response<NextResponse> {
   }
 
   public redirect(location: string, status = 302): void {
-    const headers = new Headers({ location });
-    this.res.headers.forEach((value, key) => {
-      if (headers.has(key)) {
-        headers.append(key, value);
-      } else {
-        headers.set(key, value);
-      }
+    const oldRes = this.res;
+    this.res = new NextResponse(null, { status });
+    oldRes.headers.forEach((value, key) => {
+      this.res.headers.set(key, value);
     });
-    this.res = new NextResponse(null, { ...this.res, status, headers });
+    this.res.headers.set('location', location);
+    for (const cookie of oldRes.cookies.getAll()) {
+      this.res.cookies.set(cookie);
+    }
   }
 }

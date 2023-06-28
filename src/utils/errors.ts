@@ -1,5 +1,3 @@
-import { HttpError } from 'http-errors';
-
 /**
  * @ignore
  */
@@ -105,6 +103,14 @@ export class AccessTokenError extends AuthError {
     Error.captureStackTrace(this, this.constructor);
     Object.setPrototypeOf(this, AccessTokenError.prototype);
   }
+}
+
+/**
+ * @ignore
+ */
+interface HttpError extends Error {
+  status: number;
+  statusCode: number;
 }
 
 /**

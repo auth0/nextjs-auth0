@@ -1,5 +1,5 @@
 /**
- * @jest-environment @edge-runtime/jest-environment
+ * **REMOVE-TO-TEST-ON-EDGE**@jest-environment @edge-runtime/jest-environment
  */
 import Auth0NextResponse from '../../src/http/auth0-next-response';
 import { NextRequest, NextResponse } from 'next/server';

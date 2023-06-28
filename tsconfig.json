@@ -19,7 +19,7 @@
     "sourceMap": true,
     "skipLibCheck": true,
     "strict": true,
-    "target": "es5",
+    "target": "ES2017",
     "useUnknownInCatchVariables": false,
     "lib": ["es6", "dom"],
     "downlevelIteration": true,

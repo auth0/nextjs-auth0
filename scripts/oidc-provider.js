@@ -21,7 +21,11 @@ const config = {
     {
       client_id: 'testing',
       client_secret: 'testing',
-      redirect_uris: ['http://localhost:3000/api/auth/callback', 'http://localhost:3000/api/page-router-auth/callback'],
+      redirect_uris: [
+        'http://localhost:3000/api/auth/callback',
+        'http://localhost:3000/api/page-router-auth/callback',
+        'http://localhost:3000/api/edge-auth/callback'
+      ],
       post_logout_redirect_uris: ['http://localhost:3000', 'http://localhost:3000/page-router'],
       token_endpoint_auth_method: 'client_secret_post',
       grant_types: ['authorization_code', 'refresh_token']
@@ -53,7 +57,7 @@ module.exports = function createProvider(opts) {
   provider.use(async (ctx, next) => {
     await next();
 
-    if (ctx.oidc.route === 'end_session_success') {
+    if (ctx.oidc?.route === 'end_session_success') {
       ctx.redirect('http://localhost:3000');
     }
   });

@@ -5,7 +5,7 @@ jobs:
   build:
     docker:
       - image: cimg/node:lts-browsers
-    resource_class: xlarge
+    resource_class: 2xlarge
     steps:
       - checkout
       - restore_cache:

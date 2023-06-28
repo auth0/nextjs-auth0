@@ -3,7 +3,6 @@ import ReactDOMServer from 'react-dom/server';
 import { cookies as nextCookies } from 'next/headers';
 import * as navigation from 'next/navigation';
 import { NextResponse } from 'next/server';
-import { mocked } from 'ts-jest/utils';
 import { URL } from 'url';
 import { login, setup, teardown } from '../fixtures/setup';
 import { login as appRouterLogin } from '../fixtures/app-router-helpers';
@@ -24,7 +23,7 @@ describe('with-page-auth-required ssr', () => {
   describe('app route', () => {
     const getPageResponse = ({ config, cookies, returnTo, loginRes, params, searchParams }: any = {}) => {
       const res = loginRes || new NextResponse();
-      mocked(nextCookies).mockImplementation(() => res.cookies as any);
+      jest.mocked(nextCookies).mockImplementation(() => res.cookies as any);
       const opts = { ...withApi, ...config };
       const instance = initAuth0(opts);
       let headers = new Headers();
