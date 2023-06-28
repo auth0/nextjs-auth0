@@ -80,7 +80,7 @@ export class EdgeClient extends AbstractClient {
       ...(!this.config.clientAssertionSigningKey && { client_secret: this.config.clientSecret }),
       token_endpoint_auth_method: this.config.clientAuthMethod,
       id_token_signed_response_alg: this.config.idTokenSigningAlg,
-      clockTolerance: this.config.clockTolerance
+      [oauth.clockTolerance]: this.config.clockTolerance
     };
 
     return [this.as, this.client];
