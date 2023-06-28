@@ -16,7 +16,7 @@ import {
   generators,
   Issuer
 } from 'openid-client';
-import { ApplicationError, DiscoveryError, EscapedError, IdentityProviderError } from '../utils/errors';
+import { ApplicationError, DiscoveryError, EscapedError, IdentityProviderError, UserInfoError } from '../utils/errors';
 import { createPrivateKey } from 'crypto';
 import { exportJWK } from 'jose';
 import urlJoin from 'url-join';
@@ -202,7 +202,11 @@ export class NodeClient extends AbstractClient {
 
   async userinfo(accessToken: string): Promise<Record<string, unknown>> {
     const client = await this.getClient();
-    return client.userinfo(accessToken);
+    try {
+      return await client.userinfo(accessToken);
+    } catch (e) {
+      throw new UserInfoError(e.message);
+    }
   }
 
   async refresh(refreshToken: string, extras: { exchangeBody: Record<string, any> }): Promise<TokenEndpointResponse> {

@@ -9,7 +9,7 @@ import {
   EndSessionParameters,
   Telemetry
 } from './abstract-client';
-import { ApplicationError, DiscoveryError, IdentityProviderError } from '../utils/errors';
+import { ApplicationError, DiscoveryError, IdentityProviderError, UserInfoError } from '../utils/errors';
 import { AccessTokenError, AccessTokenErrorCode } from '../../utils/errors';
 import urlJoin from 'url-join';
 import { Config } from '../config';
@@ -185,7 +185,7 @@ export class EdgeClient extends AbstractClient {
       return auth0LogoutUrl.toString();
     }
     if (!as.end_session_endpoint) {
-      throw new Error('no rp inititated logout');
+      throw new Error('RP Initiated Logout is not supported on your Authorization Server.');
     }
     const oidcLogoutUrl = new URL(as.end_session_endpoint);
     Object.entries(parameters).forEach(([key, value]: [string, string]) => {
@@ -203,7 +203,11 @@ export class EdgeClient extends AbstractClient {
     const [as, client] = await this.getClient();
     const response = await oauth.userInfoRequest(as, client, accessToken, this.httpOptions());
 
-    return oauth.processUserInfoResponse(as, client, oauth.skipSubjectCheck, response);
+    try {
+      return await oauth.processUserInfoResponse(as, client, oauth.skipSubjectCheck, response);
+    } catch (e) {
+      throw new UserInfoError(e.message);
+    }
   }
 
   async refresh(refreshToken: string, extras: { exchangeBody: Record<string, any> }): Promise<TokenEndpointResponse> {

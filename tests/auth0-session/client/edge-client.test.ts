@@ -13,6 +13,7 @@ import { mockFetch } from '../../fixtures/app-router-helpers';
 import { Auth0Request } from '../../../src/auth0-session/http';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { UserInfoError } from '../../../src/auth0-session/utils/errors';
 
 class TestReq extends Auth0Request<null> {
   constructor() {
@@ -281,6 +282,14 @@ describe('edge client', function () {
     await expect((await getClient()).userinfo('token')).rejects.toThrow(
       /Discovery requests failing for https:\/\/op.example.com/
     );
+  });
+
+  it('should throw UserInfoError when userinfo fails', async () => {
+    nock.cleanAll();
+    nock('https://op.example.com').get('/.well-known/openid-configuration').reply(200, wellKnown);
+    nock('https://op.example.com').get('/userinfo').reply(500, {});
+    const client = await getClient();
+    await expect(client.userinfo('__test_token__')).rejects.toThrow(UserInfoError);
   });
 
   it('should only support code flow', async () => {

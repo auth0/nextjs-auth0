@@ -108,7 +108,15 @@ export class AccessTokenError extends AuthError {
 /**
  * @ignore
  */
-export type HandlerErrorCause = Error | AuthError | (Error & { status: number; statusCode: number });
+interface HttpError extends Error {
+  status: number;
+  statusCode: number;
+}
+
+/**
+ * @ignore
+ */
+export type HandlerErrorCause = Error | AuthError | HttpError;
 
 type HandlerErrorOptions = {
   code: string;

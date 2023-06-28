@@ -81,6 +81,14 @@ export class DiscoveryError extends EscapedError {
   }
 }
 
+export class UserInfoError extends EscapedError {
+  constructor(msg: string) {
+    /* c8 ignore next */
+    super(`Userinfo request failing with: ${msg}`);
+    Object.setPrototypeOf(this, UserInfoError.prototype);
+  }
+}
+
 // eslint-disable-next-line max-len
 // Basic escaping for putting untrusted data directly into the HTML body, per: https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html#rule-1-html-encode-before-inserting-untrusted-data-into-html-element-content.
 export function htmlSafe(input?: string): string | undefined {
