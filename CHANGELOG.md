@@ -1,5 +1,12 @@
 # Change Log
 
+## [v3.0.0-beta.3](https://github.com/auth0/nextjs-auth0/tree/v3.0.0-beta.3) (2023-06-28)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.0.0-beta.2...v3.0.0-beta.3)
+
+**Added**
+- [SDK-4319] Add support for Edge runtime [\#1269](https://github.com/auth0/nextjs-auth0/pull/1269) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- [SDK-4318] Enable responses from custom middleware [\#1265](https://github.com/auth0/nextjs-auth0/pull/1265) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [v3.0.0-beta.2](https://github.com/auth0/nextjs-auth0/tree/v3.0.0-beta.2) (2023-06-16)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.0.0-beta.1...v3.0.0-beta.2)
 
