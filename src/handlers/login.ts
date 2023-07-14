@@ -115,7 +115,7 @@ export interface AuthorizationParams extends Partial<AuthorizationParameters> {
    * ```
    *
    * Your invite url can then take the format:
-   * `https://example.com/api/invite?invitation=invitation_id&organization=org_id`.
+   * `https://example.com/api/invite?invitation=invitation_id&organization=org_id_or_name`.
    */
   invitation?: string;
 
