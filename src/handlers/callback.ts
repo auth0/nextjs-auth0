@@ -203,13 +203,23 @@ const idTokenValidator =
   (afterCallback?: AfterCallback, organization?: string): AfterCallback =>
   (req, res, session, state) => {
     if (organization) {
-      assert(session.user.org_id, 'Organization Id (org_id) claim must be a string present in the ID token');
-      assert.equal(
-        session.user.org_id,
-        organization,
-        `Organization Id (org_id) claim value mismatch in the ID token; ` +
-          `expected "${organization}", found "${session.user.org_id}"`
-      );
+      if (organization.startsWith('org_')) {
+        assert(session.user.org_id, 'Organization Id (org_id) claim must be a string present in the ID token');
+        assert.equal(
+          session.user.org_id,
+          organization,
+          `Organization Id (org_id) claim value mismatch in the ID token; ` +
+            `expected "${organization}", found "${session.user.org_id}"`
+        );
+      } else {
+        assert(session.user.org_name, 'Organization Name (org_name) claim must be a string present in the ID token');
+        assert.equal(
+          session.user.org_name.toLowerCase(),
+          organization.toLowerCase(),
+          `Organization Name (org_name) claim value mismatch in the ID token; ` +
+            `expected "${organization}", found "${session.user.org_name}"`
+        );
+      }
     }
     if (afterCallback) {
       return afterCallback(req, res, session, state);
