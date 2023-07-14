@@ -203,7 +203,7 @@ const idTokenValidator =
   (afterCallback?: AfterCallback, organization?: string): AfterCallback =>
   (req, res, session, state) => {
     if (organization) {
-      if (organization.indexOf('org_') === 0) {
+      if (organization.startsWith('org_')) {
         assert(session.user.org_id, 'Organization Id (org_id) claim must be a string present in the ID token');
         assert.equal(
           session.user.org_id,
