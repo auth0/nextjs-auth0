@@ -1,0 +1,7 @@
+.circleci/
+.github/
+cypress/
+docs/
+examples/
+tests/
+*.md
