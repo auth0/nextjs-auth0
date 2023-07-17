@@ -1,5 +1,3 @@
-.circleci/
-.github/
 cypress/
 docs/
 examples/
