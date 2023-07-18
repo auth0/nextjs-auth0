@@ -122,24 +122,27 @@ export class StatelessSession<
     const value = await this.encrypt(session, { iat, uat, exp });
 
     const chunkCount = Math.ceil(value.length / this.chunkSize);
+
+    const existingCookies = new Set(
+      Object.keys(cookies).filter((cookie) => cookie.match(`^${sessionName}(?:\\.\\d)?$`))
+    );
+
     if (chunkCount > 1) {
       debug('cookie size greater than %d, chunking', this.chunkSize);
       for (let i = 0; i < chunkCount; i++) {
         const chunkValue = value.slice(i * this.chunkSize, (i + 1) * this.chunkSize);
         const chunkCookieName = `${sessionName}.${i}`;
         cookieSetter.set(chunkCookieName, chunkValue, cookieOptions);
-      }
-      if (sessionName in cookies) {
-        cookieSetter.clear(sessionName, cookieOptions);
+        existingCookies.delete(chunkCookieName);
       }
     } else {
       cookieSetter.set(sessionName, value, cookieOptions);
-      for (const cookieName of Object.keys(cookies)) {
-        if (cookieName.match(`^${sessionName}\\.\\d$`)) {
-          cookieSetter.clear(cookieName, cookieOptions);
-        }
-      }
+      existingCookies.delete(sessionName);
     }
+
+    // When the number of chunks changes due to the cookie size changing,
+    // you need to delete any obsolete cookies.
+    existingCookies.forEach((cookie) => cookieSetter.clear(cookie, cookieOptions));
     cookieSetter.commit(res, this.config.session.name);
   }
 
