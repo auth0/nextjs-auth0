@@ -214,7 +214,7 @@ const idTokenValidator =
       } else {
         assert(session.user.org_name, 'Organization Name (org_name) claim must be a string present in the ID token');
         assert.equal(
-          session.user.org_name.toLowerCase(),
+          session.user.org_name,
           organization.toLowerCase(),
           `Organization Name (org_name) claim value mismatch in the ID token; ` +
             `expected "${organization}", found "${session.user.org_name}"`
