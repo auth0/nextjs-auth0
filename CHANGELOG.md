@@ -1,5 +1,14 @@
 # Change Log
 
+## [v2.7.0](https://github.com/auth0/nextjs-auth0/tree/v2.7.0) (2023-07-19)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.6.3...v2.7.0)
+
+**Added**
+- Support Organization Name [\#1291](https://github.com/auth0/nextjs-auth0/pull/1291) ([frederikprijck](https://github.com/frederikprijck))
+
+**Fixed**
+- Clean up erroneous cookies when chunk size decreases [\#1300](https://github.com/auth0/nextjs-auth0/pull/1300) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [v2.6.3](https://github.com/auth0/nextjs-auth0/tree/v2.6.3) (2023-06-26)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.6.2...v2.6.3)
 
