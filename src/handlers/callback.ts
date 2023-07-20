@@ -296,14 +296,26 @@ const applyOptions = (
     (afterCallback?: AfterCallback, organization?: string): BaseAfterCallback =>
     (session, state) => {
       if (organization) {
-        if (!session.user.org_id) {
-          throw new Error('Organization Id (org_id) claim must be a string present in the ID token');
-        }
-        if (session.user.org_id !== organization) {
-          throw new Error(
-            `Organization Id (org_id) claim value mismatch in the ID token; ` +
+        if (organization.startsWith('org_')) {
+          if (!session.user.org_id) {
+            throw new Error('Organization Id (org_id) claim must be a string present in the ID token');
+          }
+          if (session.user.org_id !== organization) {
+            throw new Error(
+              `Organization Id (org_id) claim value mismatch in the ID token; ` +
               `expected "${organization}", found "${session.user.org_id}"`
-          );
+            );
+          }
+        } else {
+          if (!session.user.org_name) {
+            throw new Error('Organization Name (org_name) claim must be a string present in the ID token');
+          }
+          if (session.user.org_name !== organization.toLowerCase()) {
+            throw new Error(
+              `Organization Name (org_name) claim value mismatch in the ID token; ` +
+              `expected "${organization}", found "${session.user.org_name}"`
+            );
+          }
         }
       }
       if (afterCallback) {

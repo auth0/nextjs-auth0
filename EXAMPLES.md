@@ -93,7 +93,7 @@ Pass custom parameters to the auth handlers or add your own logging and error ha
 
 ```js
 // pages/api/auth/[auth0].js
-import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
+import { handleAuth, handleLogin, handleProfile } from '@auth0/nextjs-auth0';
 import { myCustomLogger, myCustomErrorReporter } from '../utils';
 
 export default handleAuth({
@@ -108,13 +108,13 @@ export default handleAuth({
       returnTo: '/custom-page'
     });
   },
-  invite: loginHandler({
-    authorizationParams: (req) => {
-      invitation: req.query.invitation;
+  invite: handleLogin({
+    authorizationParams: {
+      invitation: req.query.invitation
     }
   }),
-  'login-with-google': loginHandler({ authorizationParams: { connection: 'google' } }),
-  'refresh-profile': profileHandler({ refetch: true }),
+  'login-with-google': handleLogin({ authorizationParams: { connection: 'google' } }),
+  'refresh-profile': handleProfile({ refetch: true }),
   onError(req, res, error) {
     // Add your own custom error handling
     myCustomErrorReporter(error);

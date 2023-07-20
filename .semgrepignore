@@ -1,0 +1,5 @@
+cypress/
+docs/
+examples/
+tests/
+*.md

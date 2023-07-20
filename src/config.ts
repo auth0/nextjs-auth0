@@ -347,7 +347,7 @@ export interface NextConfig extends Pick<BaseConfig, 'identityClaimFilter'> {
    * Log users in to a specific organization.
    *
    * This will specify an `organization` parameter in your user's login request and will add a step to validate
-   * the `org_id` claim in your user's ID token.
+   * the `org_id` or `org_name` claim in your user's ID token.
    *
    * If your app supports multiple organizations, you should take a look at {@link AuthorizationParams.organization}.
    */

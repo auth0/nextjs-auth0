@@ -4,7 +4,7 @@
 import Auth0NextRequest from '../../src/http/auth0-next-request';
 import { NextRequest, NextResponse } from 'next/server';
 
-const setup = (reqInit?: RequestInit): [NextRequest, NextResponse] => {
+const setup = (reqInit?: { headers: { cookie: string } }): [NextRequest, NextResponse] => {
   return [new NextRequest(new URL('http://example.com'), reqInit), NextResponse.next()];
 };
 
