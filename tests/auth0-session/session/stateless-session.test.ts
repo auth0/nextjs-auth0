@@ -182,6 +182,29 @@ describe('StatelessSession', () => {
     expect(cookies).not.toHaveProperty(['appSession.0']);
   });
 
+  it('should clean up chunked cookies when chunk size reduces', async () => {
+    const baseURL = await setup(defaultConfig);
+    const appSession = await encrypted({
+      big_claim: randomBytes(2000).toString('base64')
+    });
+    expect(appSession.length).toBeGreaterThan(4000);
+    const cookieJar = toCookieJar(
+      {
+        'appSession.0': appSession.slice(0, 100),
+        'appSession.1': appSession.slice(100, 200),
+        'appSession.2': appSession.slice(200)
+      },
+      baseURL
+    );
+    const { data: session, res } = await get(baseURL, '/session', { cookieJar, fullResponse: true });
+    expect(res.headers['set-cookie']).toHaveLength(3);
+    expect(session.claims).toHaveProperty('big_claim');
+    const cookies = fromCookieJar(cookieJar, baseURL);
+    expect(cookies).toHaveProperty(['appSession.0']);
+    expect(cookies).toHaveProperty(['appSession.1']);
+    expect(cookies).not.toHaveProperty(['appSession.2']);
+  });
+
   it('should set the default cookie options on http', async () => {
     const baseURL = await setup(defaultConfig);
     const appSession = await encrypted();

@@ -206,12 +206,32 @@ describe('callback handler (app router)', () => {
           code_verifier: await signCookie('code_verifier', '__test_code_verifier__')
         },
         callbackOpts: {
-          organization: 'foo'
+          organization: 'org_foo'
         }
       })
     ).resolves.toMatchObject({
       status: 500,
       statusText: expect.stringMatching(/Organization Id \(org_id\) claim must be a string present in the ID token/)
+    });
+  });
+
+  test('throws for missing org_name claim', async () => {
+    const state = encodeState({ returnTo: 'https://example.com/foo' });
+    await expect(
+      getResponse({
+        url: `/api/auth/callback?state=${state}&code=code`,
+        cookies: {
+          state: await signCookie('state', state),
+          nonce: await signCookie('nonce', '__test_nonce__'),
+          code_verifier: await signCookie('code_verifier', '__test_code_verifier__')
+        },
+        callbackOpts: {
+          organization: 'foo'
+        }
+      })
+    ).resolves.toMatchObject({
+      status: 500,
+      statusText: expect.stringMatching(/Organization Name \(org_name\) claim must be a string present in the ID token/)
     });
   });
 
@@ -226,19 +246,19 @@ describe('callback handler (app router)', () => {
           code_verifier: await signCookie('code_verifier', '__test_code_verifier__')
         },
         callbackOpts: {
-          organization: 'foo'
+          organization: 'org_foo'
         },
-        idTokenClaims: { org_id: 'bar' }
+        idTokenClaims: { org_id: 'org_bar' }
       })
     ).resolves.toMatchObject({
       status: 500,
       statusText: expect.stringMatching(
-        /Organization Id \(org_id\) claim value mismatch in the ID token; expected "foo", found "bar"/
+        /Organization Id \(org_id\) claim value mismatch in the ID token; expected "org_foo", found "org_bar"/
       )
     });
   });
 
-  test('accepts a valid organization', async () => {
+  test('throws for org_name claim mismatch', async () => {
     const state = encodeState({ returnTo: 'https://example.com/foo' });
     await expect(
       getResponse({
@@ -251,7 +271,50 @@ describe('callback handler (app router)', () => {
         callbackOpts: {
           organization: 'foo'
         },
-        idTokenClaims: { org_id: 'foo' }
+        idTokenClaims: { org_name: 'bar' }
+      })
+    ).resolves.toMatchObject({
+      status: 500,
+      statusText: expect.stringMatching(
+        /Organization Name \(org_name\) claim value mismatch in the ID token; expected "foo", found "bar"/
+      )
+    });
+  });
+
+  test('accepts a valid organization id', async () => {
+    const state = encodeState({ returnTo: 'https://example.com/foo' });
+    await expect(
+      getResponse({
+        url: `/api/auth/callback?state=${state}&code=code`,
+        cookies: {
+          state: await signCookie('state', state),
+          nonce: await signCookie('nonce', '__test_nonce__'),
+          code_verifier: await signCookie('code_verifier', '__test_code_verifier__')
+        },
+        callbackOpts: {
+          organization: 'org_foo'
+        },
+        idTokenClaims: { org_id: 'org_foo' }
+      })
+    ).resolves.toMatchObject({
+      status: 302
+    });
+  });
+
+  test('accepts a valid organization name', async () => {
+    const state = encodeState({ returnTo: 'https://example.com/foo' });
+    await expect(
+      getResponse({
+        url: `/api/auth/callback?state=${state}&code=code`,
+        cookies: {
+          state: await signCookie('state', state),
+          nonce: await signCookie('nonce', '__test_nonce__'),
+          code_verifier: await signCookie('code_verifier', '__test_code_verifier__')
+        },
+        callbackOpts: {
+          organization: 'foo'
+        },
+        idTokenClaims: { org_name: 'foo' }
       })
     ).resolves.toMatchObject({
       status: 302
