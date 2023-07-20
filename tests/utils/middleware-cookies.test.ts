@@ -5,7 +5,7 @@ import MiddlewareCookies from '../../src/utils/middleware-cookies';
 import { NextRequest, NextResponse } from 'next/server';
 import { serialize } from 'cookie';
 
-const setup = (reqInit?: RequestInit): [NextRequest, NextResponse] => {
+const setup = (reqInit?: { headers: Record<string, string> }): [NextRequest, NextResponse] => {
   return [new NextRequest(new URL('http://example.com'), reqInit), NextResponse.next()];
 };
 
