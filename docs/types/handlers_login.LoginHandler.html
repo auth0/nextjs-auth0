@@ -16,14 +16,31 @@
 <li><a href="../modules/handlers_login.html">handlers/login</a></li>
 <li><a href="handlers_login.LoginHandler.html">LoginHandler</a></li></ul>
 <h1>Type alias LoginHandler</h1></div>
-<div class="tsd-signature"><span class="tsd-kind-type-alias">Login<wbr/>Handler</span><span class="tsd-signature-symbol">:</span> <a href="handlers_router_helpers.Handler.html" class="tsd-signature-type tsd-kind-type-alias">Handler</a><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/handlers_login.LoginOptions.html" class="tsd-signature-type tsd-kind-interface">LoginOptions</a><span class="tsd-signature-symbol">&gt;</span></div>
+<div class="tsd-signature"><span class="tsd-kind-type-alias">Login<wbr/>Handler</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span><span class="tsd-kind-parameter">req</span>, <span class="tsd-kind-parameter">res</span>, <span class="tsd-kind-parameter">options</span><span class="tsd-signature-symbol">?</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type ">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span></div>
+<div class="tsd-type-declaration">
+<h4>Type declaration</h4>
+<ul class="tsd-parameters">
+<li class="tsd-parameter-signature">
+<ul class="tsd-signatures">
+<li class="tsd-signature" id="__type.__type-1"><span class="tsd-signature-symbol">(</span><span class="tsd-kind-parameter">req</span>, <span class="tsd-kind-parameter">res</span>, <span class="tsd-kind-parameter">options</span><span class="tsd-signature-symbol">?</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type ">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></li>
+<li class="tsd-description">
 <div class="tsd-comment tsd-typography"><p>The handler for the <code>/api/auth/login</code> API route.</p>
 </div>
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5><span class="tsd-kind-parameter">req</span>: <span class="tsd-signature-type ">NextApiRequest</span></h5></li>
+<li>
+<h5><span class="tsd-kind-parameter">res</span>: <span class="tsd-signature-type ">NextApiResponse</span></h5></li>
+<li>
+<h5><code class="tsd-tag ts-flagOptional">Optional</code> <span class="tsd-kind-parameter">options</span>: <a href="../interfaces/handlers_login.LoginOptions.html" class="tsd-signature-type tsd-kind-interface">LoginOptions</a></h5></li></ul></div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type ">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4>
 <div class="tsd-comment tsd-typography">
 <h4>Throws</h4><p>HandlerError</p>
-</div><aside class="tsd-sources">
+</div></li></ul></li></ul></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/3adc5d0/src/handlers/login.ts#L257">handlers/login.ts:257</a></li></ul></aside></div>
+<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/96d1234/src/handlers/login.ts#L236">handlers/login.ts:236</a></li></ul></aside></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
@@ -55,35 +72,23 @@
 <li><a href="../interfaces/handlers_login.AuthorizationParams.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><g id="icon-256"><rect fill="var(--color-icon-background)" stroke="var(--color-ts-interface)" stroke-width="1.5" x="1" y="1" width="22" height="22" rx="6"></rect><path d="M9.51 16V15.016H11.298V8.224H9.51V7.24H14.19V8.224H12.402V15.016H14.19V16H9.51Z" fill="var(--color-text)"></path></g></svg><span>Authorization<wbr/>Params</span></a></li>
 <li><a href="../interfaces/handlers_login.LoginOptions.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-256"></use></svg><span>Login<wbr/>Options</span></a></li>
 <li><a href="handlers_login.GetLoginState.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><g id="icon-4194304"><rect fill="var(--color-icon-background)" stroke="var(--color-ts-type-alias)" stroke-width="1.5" x="1" y="1" width="22" height="22" rx="6"></rect><path d="M11.31 16V8.224H8.91V7.24H14.79V8.224H12.39V16H11.31Z" fill="var(--color-text)"></path></g></svg><span>Get<wbr/>Login<wbr/>State</span></a></li>
-<li><a href="handlers_login.GetLoginStateAppRoute.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Get<wbr/>Login<wbr/>State<wbr/>App<wbr/>Route</span></a></li>
-<li><a href="handlers_login.GetLoginStatePageRoute.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Get<wbr/>Login<wbr/>State<wbr/>Page<wbr/>Route</span></a></li>
 <li><a href="handlers_login.HandleLogin.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Handle<wbr/>Login</span></a></li>
 <li><a href="handlers_login.LoginHandler.html" class="current"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Login<wbr/>Handler</span></a></li>
 <li><a href="handlers_login.LoginOptionsProvider.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Login<wbr/>Options<wbr/>Provider</span></a></li></ul></div></details></li>
 <li><a href="../modules/handlers_logout.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>handlers/logout</span></a></li>
 <li><a href="../modules/handlers_profile.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>handlers/profile</span></a></li>
-<li><a href="../modules/handlers_router_helpers.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>handlers/router-<wbr/>helpers</span></a></li>
 <li><a href="../modules/helpers.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>helpers</span></a></li>
 <li><a href="../modules/helpers_testing.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>helpers/testing</span></a></li>
 <li><a href="../modules/helpers_with_api_auth_required.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>helpers/with-<wbr/>api-<wbr/>auth-<wbr/>required</span></a></li>
 <li><a href="../modules/helpers_with_middleware_auth_required.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>helpers/with-<wbr/>middleware-<wbr/>auth-<wbr/>required</span></a></li>
 <li><a href="../modules/helpers_with_page_auth_required.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>helpers/with-<wbr/>page-<wbr/>auth-<wbr/>required</span></a></li>
-<li><a href="../modules/http.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>http</span></a></li>
-<li><a href="../modules/http_auth0_next_api_request.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>http/auth0-<wbr/>next-<wbr/>api-<wbr/>request</span></a></li>
-<li><a href="../modules/http_auth0_next_api_response.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>http/auth0-<wbr/>next-<wbr/>api-<wbr/>response</span></a></li>
-<li><a href="../modules/http_auth0_next_request.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>http/auth0-<wbr/>next-<wbr/>request</span></a></li>
-<li><a href="../modules/http_auth0_next_request_cookies.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>http/auth0-<wbr/>next-<wbr/>request-<wbr/>cookies</span></a></li>
-<li><a href="../modules/http_auth0_next_response.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>http/auth0-<wbr/>next-<wbr/>response</span></a></li>
-<li><a href="../modules/http_auth0_next_response_cookies.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>http/auth0-<wbr/>next-<wbr/>response-<wbr/>cookies</span></a></li>
 <li><a href="../modules/index.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>index</span></a></li>
-<li><a href="../modules/init.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>init</span></a></li>
 <li><a href="../modules/session.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>session</span></a></li>
 <li><a href="../modules/session_get_access_token.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>session/get-<wbr/>access-<wbr/>token</span></a></li>
 <li><a href="../modules/session_get_session.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>session/get-<wbr/>session</span></a></li>
 <li><a href="../modules/session_session.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>session/session</span></a></li>
 <li><a href="../modules/session_touch_session.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>session/touch-<wbr/>session</span></a></li>
 <li><a href="../modules/session_update_session.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>session/update-<wbr/>session</span></a></li>
-<li><a href="../modules/shared.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>shared</span></a></li>
 <li><a href="../modules/utils_errors.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>utils/errors</span></a></li>
 <li><a href="../modules/version.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>version</span></a></li></ul></nav></div></div></div>
 <div class="overlay"></div></body></html>
