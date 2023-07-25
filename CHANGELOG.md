@@ -1,5 +1,16 @@
 # Change Log
 
+## [v3.0.0](https://github.com/auth0/nextjs-auth0/tree/v3.0.0) (2023-07-25)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.7.0...v3.0.0)
+
+**Added**
+- Support for the App Router
+- Support for Edge Runtime
+- Support for Responses in Middleware
+
+**⚠️ BREAKING CHANGES**
+- Support for EOL Node versions 12 and 14 has been removed. See the [V3_MIGRATION_GUIDE.md](./V3_MIGRATION_GUIDE.md) for more details.
+
 ## [v2.7.0](https://github.com/auth0/nextjs-auth0/tree/v2.7.0) (2023-07-19)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.6.3...v2.7.0)
 
