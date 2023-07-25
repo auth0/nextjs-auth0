@@ -23,7 +23,7 @@
 <ul class="tsd-hierarchy">
 <li><span class="target">NextConfig</span></li></ul></li></ul></section><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/3adc5d0/src/config.ts#L345">config.ts:345</a></li></ul></aside>
+<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/96d1234/src/config.ts#L345">config.ts:345</a></li></ul></aside>
 <section class="tsd-panel-group tsd-index-group">
 <section class="tsd-panel tsd-index-panel">
 <details class="tsd-index-content tsd-index-accordion" open><summary class="tsd-accordion-summary tsd-index-summary">
@@ -48,35 +48,37 @@ You can also use the <code>AUTH0_IDENTITY_CLAIM_FILTER</code> environment variab
 <div class="tsd-comment tsd-typography"></div><aside class="tsd-sources">
 <p>Inherited from Pick.identityClaimFilter</p>
 <ul>
-<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/3adc5d0/src/config.ts#L130">config.ts:130</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/96d1234/src/config.ts#L132">config.ts:132</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member"><a id="organization" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><code class="tsd-tag ts-flagOptional">Optional</code> <span>organization</span><a href="#organization" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">organization</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div>
 <div class="tsd-comment tsd-typography"><p>Log users in to a specific organization.</p>
 <p>This will specify an <code>organization</code> parameter in your user&#39;s login request and will add a step to validate
-the <code>org_id</code> claim in your user&#39;s ID token.</p>
+the <code>org_id</code> or <code>org_name</code> claim in your user&#39;s ID token.</p>
 <p>If your app supports multiple organizations, you should take a look at AuthorizationParams.organization.</p>
 </div>
 <div class="tsd-comment tsd-typography"></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/3adc5d0/src/config.ts#L354">config.ts:354</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/96d1234/src/config.ts#L354">config.ts:354</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member"><a id="routes" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>routes</span><a href="#routes" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
-<div class="tsd-signature"><span class="tsd-kind-property">routes</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">{ </span><br/><span>    </span><span class="tsd-kind-property">callback</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">; </span><br/><span>    </span><span class="tsd-kind-property">login</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">; </span><br/><span class="tsd-signature-symbol">}</span></div>
+<div class="tsd-signature"><span class="tsd-kind-property">routes</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">{ </span><br/><span>    </span><span class="tsd-kind-property">callback</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">; </span><br/><span>    </span><span class="tsd-kind-property">login</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">; </span><br/><span>    </span><span class="tsd-kind-property">unauthorized</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">; </span><br/><span class="tsd-signature-symbol">}</span></div>
 <div class="tsd-type-declaration">
 <h4>Type declaration</h4>
 <ul class="tsd-parameters">
 <li class="tsd-parameter">
 <h5><span class="tsd-kind-property">callback</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span></h5></li>
 <li class="tsd-parameter">
-<h5><span class="tsd-kind-property">login</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span></h5></li></ul></div><aside class="tsd-sources">
+<h5><span class="tsd-kind-property">login</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span></h5></li>
+<li class="tsd-parameter">
+<h5><span class="tsd-kind-property">unauthorized</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span></h5></li></ul></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/3adc5d0/src/config.ts#L355">config.ts:355</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/96d1234/src/config.ts#L355">config.ts:355</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member"><a id="session" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>session</span><a href="#session" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">session</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type ">Pick</span><span class="tsd-signature-symbol">&lt;</span><a href="config.SessionConfig.html" class="tsd-signature-type tsd-kind-interface">SessionConfig</a><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">&quot;storeIDToken&quot;</span><span class="tsd-signature-symbol">&gt;</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/3adc5d0/src/config.ts#L359">config.ts:359</a></li></ul></aside></section></section></div>
+<li>Defined in <a href="https://github.com/auth0/nextjs-auth0/blob/96d1234/src/config.ts#L360">config.ts:360</a></li></ul></aside></section></section></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
@@ -121,28 +123,18 @@ the <code>org_id</code> claim in your user&#39;s ID token.</p>
 <li><a href="../modules/handlers_login.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>handlers/login</span></a></li>
 <li><a href="../modules/handlers_logout.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>handlers/logout</span></a></li>
 <li><a href="../modules/handlers_profile.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>handlers/profile</span></a></li>
-<li><a href="../modules/handlers_router_helpers.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>handlers/router-<wbr/>helpers</span></a></li>
 <li><a href="../modules/helpers.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>helpers</span></a></li>
 <li><a href="../modules/helpers_testing.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>helpers/testing</span></a></li>
 <li><a href="../modules/helpers_with_api_auth_required.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>helpers/with-<wbr/>api-<wbr/>auth-<wbr/>required</span></a></li>
 <li><a href="../modules/helpers_with_middleware_auth_required.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>helpers/with-<wbr/>middleware-<wbr/>auth-<wbr/>required</span></a></li>
 <li><a href="../modules/helpers_with_page_auth_required.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>helpers/with-<wbr/>page-<wbr/>auth-<wbr/>required</span></a></li>
-<li><a href="../modules/http.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>http</span></a></li>
-<li><a href="../modules/http_auth0_next_api_request.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>http/auth0-<wbr/>next-<wbr/>api-<wbr/>request</span></a></li>
-<li><a href="../modules/http_auth0_next_api_response.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>http/auth0-<wbr/>next-<wbr/>api-<wbr/>response</span></a></li>
-<li><a href="../modules/http_auth0_next_request.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>http/auth0-<wbr/>next-<wbr/>request</span></a></li>
-<li><a href="../modules/http_auth0_next_request_cookies.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>http/auth0-<wbr/>next-<wbr/>request-<wbr/>cookies</span></a></li>
-<li><a href="../modules/http_auth0_next_response.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>http/auth0-<wbr/>next-<wbr/>response</span></a></li>
-<li><a href="../modules/http_auth0_next_response_cookies.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>http/auth0-<wbr/>next-<wbr/>response-<wbr/>cookies</span></a></li>
 <li><a href="../modules/index.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>index</span></a></li>
-<li><a href="../modules/init.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>init</span></a></li>
 <li><a href="../modules/session.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>session</span></a></li>
 <li><a href="../modules/session_get_access_token.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>session/get-<wbr/>access-<wbr/>token</span></a></li>
 <li><a href="../modules/session_get_session.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>session/get-<wbr/>session</span></a></li>
 <li><a href="../modules/session_session.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>session/session</span></a></li>
 <li><a href="../modules/session_touch_session.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>session/touch-<wbr/>session</span></a></li>
 <li><a href="../modules/session_update_session.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>session/update-<wbr/>session</span></a></li>
-<li><a href="../modules/shared.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>shared</span></a></li>
 <li><a href="../modules/utils_errors.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>utils/errors</span></a></li>
 <li><a href="../modules/version.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4"></use></svg><span>version</span></a></li></ul></nav></div></div></div>
 <div class="overlay"></div></body></html>
