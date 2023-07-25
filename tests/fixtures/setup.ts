@@ -8,19 +8,21 @@ import {
   LoginOptions,
   LogoutOptions,
   ProfileOptions,
-  WithPageAuthRequiredOptions,
+  WithPageAuthRequiredPageRouterOptions,
   initAuth0,
   AccessTokenRequest,
   Claims,
-  OnError,
-  Handlers
+  PageRouterOnError,
+  HandleLogin,
+  HandleLogout,
+  HandleCallback,
+  HandleProfile
 } from '../../src';
 import { codeExchange, discovery, jwksEndpoint, userInfo } from './oidc-nocks';
 import { jwks, makeIdToken } from '../auth0-session/fixtures/cert';
 import { start, stop } from './server';
 import { encodeState } from '../../src/auth0-session/utils/encoding';
 import { post, toSignedCookieJar } from '../auth0-session/fixtures/helpers';
-import { HandleLogin, HandleLogout, HandleCallback, HandleProfile } from '../../src';
 
 export type SetupOptions = {
   idTokenClaims?: Claims;
@@ -32,18 +34,33 @@ export type SetupOptions = {
   logoutOptions?: LogoutOptions;
   profileHandler?: HandleProfile;
   profileOptions?: ProfileOptions;
-  withPageAuthRequiredOptions?: WithPageAuthRequiredOptions;
+  withPageAuthRequiredOptions?: WithPageAuthRequiredPageRouterOptions;
   getAccessTokenOptions?: AccessTokenRequest;
-  onError?: OnError;
-  discoveryOptions?: Record<string, string>;
+  onError?: PageRouterOnError;
+  discoveryOptions?: Record<string, any>;
   userInfoPayload?: Record<string, string>;
   userInfoToken?: string;
   asyncProps?: boolean;
 };
 
-export const defaultOnError: OnError = (_req, res, error) => {
+export const defaultOnError: PageRouterOnError = (_req, res, error) => {
   res.statusMessage = error.message;
   res.status(error.status || 500).end(error.message);
+};
+
+export const setupNock = async (
+  config: ConfigParameters,
+  {
+    idTokenClaims,
+    discoveryOptions,
+    userInfoPayload = {},
+    userInfoToken = 'eyJz93a...k4laUWw'
+  }: Pick<SetupOptions, 'idTokenClaims' | 'discoveryOptions' | 'userInfoPayload' | 'userInfoToken'> = {}
+) => {
+  discovery(config, discoveryOptions);
+  jwksEndpoint(config, jwks);
+  codeExchange(config, await makeIdToken({ iss: 'https://acme.auth0.local/', ...idTokenClaims }));
+  userInfo(config, userInfoToken, userInfoPayload);
 };
 
 export const setup = async (
@@ -67,10 +84,7 @@ export const setup = async (
     asyncProps
   }: SetupOptions = {}
 ): Promise<string> => {
-  discovery(config, discoveryOptions);
-  jwksEndpoint(config, jwks);
-  codeExchange(config, await makeIdToken({ iss: 'https://acme.auth0.local/', ...idTokenClaims }));
-  userInfo(config, userInfoToken, userInfoPayload);
+  await setupNock(config, { idTokenClaims, discoveryOptions, userInfoPayload, userInfoToken });
   const {
     handleAuth,
     handleCallback,
@@ -88,7 +102,7 @@ export const setup = async (
   const login: NextApiHandler = (...args) => (loginHandler || handleLogin)(...args, loginOptions);
   const logout: NextApiHandler = (...args) => (logoutHandler || handleLogout)(...args, logoutOptions);
   const profile: NextApiHandler = (...args) => (profileHandler || handleProfile)(...args, profileOptions);
-  const handlers: Handlers = { onError, callback, login, logout, profile };
+  const handlers: { [key: string]: NextApiHandler } = { onError: onError as any, callback, login, logout, profile };
   global.handleAuth = handleAuth.bind(null, handlers);
   global.getSession = getSession;
   global.touchSession = touchSession;

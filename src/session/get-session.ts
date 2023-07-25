@@ -1,7 +1,7 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { NextApiRequest, NextApiResponse } from 'next';
-import { SessionCache, Session } from '../session';
-import { assertReqRes } from '../utils/assert';
+import { NextRequest, NextResponse } from 'next/server';
+import { SessionCache, Session, get } from '../session';
 
 /**
  * Get the user's session from the request.
@@ -9,16 +9,15 @@ import { assertReqRes } from '../utils/assert';
  * @category Server
  */
 export type GetSession = (
-  req: IncomingMessage | NextApiRequest,
-  res: ServerResponse | NextApiResponse
+  ...args: [IncomingMessage, ServerResponse] | [NextApiRequest, NextApiResponse] | [NextRequest, NextResponse] | []
 ) => Promise<Session | null | undefined>;
 
 /**
  * @ignore
  */
 export default function sessionFactory(sessionCache: SessionCache): GetSession {
-  return (req, res) => {
-    assertReqRes(req, res);
-    return sessionCache.get(req, res);
+  return async (req?, res?) => {
+    const [session] = await get({ req, res, sessionCache });
+    return session;
   };
 }

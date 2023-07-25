@@ -1,4 +1,3 @@
-export { default as NodeCookies, Cookies } from './utils/cookies';
 export {
   MissingStateParamError,
   MissingStateCookieError,
@@ -14,5 +13,5 @@ export { get as getConfig, ConfigParameters, DeepPartial } from './get-config';
 export { default as loginHandler, HandleLogin } from './handlers/login';
 export { default as logoutHandler, HandleLogout } from './handlers/logout';
 export { default as callbackHandler, CallbackOptions, AfterCallback, HandleCallback } from './handlers/callback';
-export { default as clientFactory, ClientFactory } from './client';
+export { TokenEndpointResponse, AbstractClient } from './client/abstract-client';
 export { SessionCache } from './session-cache';

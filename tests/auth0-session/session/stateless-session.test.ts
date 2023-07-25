@@ -285,7 +285,7 @@ describe('StatelessSession', () => {
   });
 
   it('should expire after 1 day of inactivity by default', async () => {
-    const clock = jest.useFakeTimers('modern');
+    const clock = jest.useFakeTimers();
 
     const baseURL = await setup(defaultConfig);
     const appSession = await encrypted();
@@ -298,7 +298,7 @@ describe('StatelessSession', () => {
   });
 
   it('should expire after 7 days regardless of activity by default', async () => {
-    const clock = jest.useFakeTimers('modern');
+    const clock = jest.useFakeTimers();
     let days = 7;
 
     const baseURL = await setup(defaultConfig);
@@ -315,7 +315,7 @@ describe('StatelessSession', () => {
   });
 
   it('should expire only after custom absoluteDuration', async () => {
-    const clock = jest.useFakeTimers('modern');
+    const clock = jest.useFakeTimers();
 
     const baseURL = await setup({
       ...defaultConfig,
@@ -336,7 +336,7 @@ describe('StatelessSession', () => {
   });
 
   it('should expire only after defined rollingDuration period of inactivty', async () => {
-    const clock = jest.useFakeTimers('modern');
+    const clock = jest.useFakeTimers();
     const baseURL = await setup({
       ...defaultConfig,
       session: {

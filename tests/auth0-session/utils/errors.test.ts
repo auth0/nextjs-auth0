@@ -1,9 +1,8 @@
-import { IdentityProviderError } from '../../../src';
+import { IdentityProviderError } from '../../../src/auth0-session';
 
 describe('IdentityProviderError', () => {
   test('should escape error fields', () => {
     const error = new IdentityProviderError({
-      name: 'RPError',
       message: "<script>alert('foo')</script>",
       error: "<script>alert('foo')</script>",
       error_description: "<script>alert('foo')</script>"

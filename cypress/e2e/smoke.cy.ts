@@ -22,46 +22,140 @@ const loginToNodeOidc = () => {
 const login = useAuth0 ? loginToAuth0 : loginToNodeOidc;
 
 describe('smoke tests', () => {
-  it('should do basic login and show user', () => {
-    cy.visit('/');
-    cy.get('[data-testid=login]').click();
-    login();
-    cy.url().should('eq', `${Cypress.config().baseUrl}/`);
-    cy.get('[data-testid=profile]').contains(EMAIL);
-    cy.get('[data-testid=logout]').should('exist');
+  describe('page router', () => {
+    it('should do basic login and show user', () => {
+      cy.visit('/page-router');
+      cy.get('[data-testid=login]').click();
+      login();
+      cy.url().should('eq', `${Cypress.config().baseUrl}/page-router`);
+      cy.get('[data-testid=logout]').should('exist');
+    });
+
+    it('should protect a client-side rendered page', () => {
+      cy.visit('/page-router/profile-csr');
+      login();
+      cy.url().should('eq', `${Cypress.config().baseUrl}/page-router/profile-csr`);
+      cy.get('[data-testid=profile]').contains(EMAIL);
+    });
+
+    it('should protect a server-side rendered page', () => {
+      cy.visit('/page-router/profile-ssr');
+      login();
+
+      cy.url().should('eq', `${Cypress.config().baseUrl}/page-router/profile-ssr`);
+      cy.get('[data-testid=profile]').contains(EMAIL);
+    });
+
+    it('should protect a page with middleware', () => {
+      cy.visit('/page-router/profile-middleware');
+      login();
+      cy.url().should('eq', `${Cypress.config().baseUrl}/page-router/profile-middleware`);
+      cy.get('[data-testid=profile]').contains(EMAIL);
+    });
+
+    it('should logout and return to the index page', () => {
+      cy.visit('/page-router/profile-csr');
+      login();
+      cy.url().should('eq', `${Cypress.config().baseUrl}/page-router/profile-csr`);
+      cy.get('[data-testid=logout]').click();
+      if (!useAuth0) {
+        cy.get('[name=logout]').click();
+      }
+      cy.url().should('eq', `${Cypress.config().baseUrl}/page-router`);
+      cy.get('[data-testid=login]').should('exist');
+    });
+
+    it('should protect an api', () => {
+      cy.request({ url: '/api/page-router-profile', failOnStatusCode: false }).as('unauthorized');
+
+      cy.get('@unauthorized').should((response: any) => {
+        expect(response.status).to.eq(401);
+        expect(response.body.error).to.eq('not_authenticated');
+      });
+    });
+
+    it('should access an api', () => {
+      cy.visit('/page-router/profile-api');
+      login();
+
+      cy.url().should('eq', `${Cypress.config().baseUrl}/page-router/profile-api`);
+      cy.get('[data-testid=profile-api]').contains(EMAIL);
+    });
   });
+  describe('app router', () => {
+    it('should render an app route', () => {
+      cy.visit('/profile');
+      login();
+      cy.url().should('eq', `${Cypress.config().baseUrl}/profile`);
+      cy.get('[data-testid=server-component]').contains(EMAIL);
+      cy.get('[data-testid=client-component]').contains(EMAIL);
+    });
 
-  it('should protect a client-side rendered page', () => {
-    cy.visit('/profile');
-    login();
-    cy.url().should('eq', `${Cypress.config().baseUrl}/profile`);
-    cy.get('[data-testid=profile]').contains(EMAIL);
+    it('should protect an api', () => {
+      cy.request({ url: '/api/profile', failOnStatusCode: false }).as('unauthorized');
+
+      cy.get('@unauthorized').should((response: any) => {
+        expect(response.status).to.eq(401);
+        expect(response.body.error).to.eq('not_authenticated');
+      });
+    });
+
+    it('should access an api', () => {
+      cy.visit('/profile-api');
+      login();
+
+      cy.url().should('eq', `${Cypress.config().baseUrl}/profile-api`);
+      cy.get('[data-testid=profile-api]').contains(EMAIL);
+    });
+
+    it('should logout and return to the index page', () => {
+      cy.visit('/profile');
+      login();
+      cy.url().should('eq', `${Cypress.config().baseUrl}/profile`);
+      cy.get('[data-testid=logout]').click();
+      if (!useAuth0) {
+        cy.get('[name=logout]').click();
+      }
+      cy.url().should('eq', `${Cypress.config().baseUrl}/`);
+      cy.get('[data-testid=login]').should('exist');
+    });
   });
+  describe('app router (edge)', () => {
+    it('should render an app route', () => {
+      cy.visit('/edge-profile');
+      login();
+      cy.url().should('eq', `${Cypress.config().baseUrl}/edge-profile`);
+      cy.get('[data-testid=profile]').contains(EMAIL);
+      cy.get('[data-testid=logout-edge]').click();
+    });
 
-  it('should protect a server-side rendered page', () => {
-    cy.visit('/profile-ssr');
-    login();
+    it('should protect an api', () => {
+      cy.request({ url: '/api/edge-profile', failOnStatusCode: false }).as('unauthorized-edge');
 
-    cy.url().should('eq', `${Cypress.config().baseUrl}/profile-ssr`);
-    cy.get('[data-testid=profile]').contains(EMAIL);
-  });
+      cy.get('@unauthorized-edge').should((response: any) => {
+        expect(response.status).to.eq(401);
+        expect(response.body.error).to.eq('not_authenticated');
+      });
+    });
 
-  it('should protect a page with middleware', () => {
-    cy.visit('/profile-mw');
-    login();
-    cy.url().should('eq', `${Cypress.config().baseUrl}/profile-mw`);
-    cy.get('[data-testid=profile]').contains(EMAIL);
-  });
+    it('should access an api', () => {
+      cy.visit('/edge-profile-api');
+      login();
 
-  it('should logout and return to the index page', () => {
-    cy.visit('/profile');
-    login();
-    cy.url().should('eq', `${Cypress.config().baseUrl}/profile`);
-    cy.get('[data-testid=logout]').click();
-    if (!useAuth0) {
-      cy.get('[name=logout]').click();
-    }
-    cy.url().should('eq', `${Cypress.config().baseUrl}/`);
-    cy.get('[data-testid=login]').should('exist');
+      cy.url().should('eq', `${Cypress.config().baseUrl}/edge-profile-api`);
+      cy.get('[data-testid=profile-api]').contains(EMAIL);
+    });
+
+    it('should logout and return to the index page', () => {
+      cy.visit('/edge-profile');
+      login();
+      cy.url().should('eq', `${Cypress.config().baseUrl}/edge-profile`);
+      cy.get('[data-testid=logout-edge]').click();
+      if (!useAuth0) {
+        cy.get('[name=logout]').click();
+      }
+      cy.url().should('eq', `${Cypress.config().baseUrl}/`);
+      cy.get('[data-testid=login-edge]').should('exist');
+    });
   });
 });

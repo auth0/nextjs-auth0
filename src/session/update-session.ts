@@ -1,7 +1,7 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { NextApiRequest, NextApiResponse } from 'next';
-import { Session, SessionCache } from '../session';
-import { assertReqRes } from '../utils/assert';
+import { NextRequest, NextResponse } from 'next/server';
+import { get, set, Session, SessionCache } from '../session';
 
 /**
  * Update the session object. The provided `session` object will replace the existing session.
@@ -25,21 +25,25 @@ import { assertReqRes } from '../utils/assert';
  * @category Server
  */
 export type UpdateSession = (
-  req: IncomingMessage | NextApiRequest,
-  res: ServerResponse | NextApiResponse,
-  user: Session
+  ...args:
+    | [IncomingMessage, ServerResponse, Session]
+    | [NextApiRequest, NextApiResponse, Session]
+    | [NextRequest, NextResponse, Session]
+    | [Session]
 ) => Promise<void>;
 
 /**
  * @ignore
  */
 export default function updateSessionFactory(sessionCache: SessionCache): UpdateSession {
-  return async (req, res, newSession) => {
-    assertReqRes(req, res);
-    const session = await sessionCache.get(req, res);
-    if (!session || !newSession || !newSession.user) {
+  return async (reqOrSession, res?, newSession?) => {
+    const session = (res ? newSession : reqOrSession) as Session | undefined;
+    const req = (res ? reqOrSession : undefined) as IncomingMessage | NextApiRequest | NextRequest | undefined;
+
+    const [prevSession, iat] = await get({ sessionCache, req, res });
+    if (!prevSession || !session || !session.user) {
       return;
     }
-    await sessionCache.set(req, res, newSession);
+    await set({ req, res, session, sessionCache, iat });
   };
 }

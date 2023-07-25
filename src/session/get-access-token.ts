@@ -1,13 +1,36 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { NextApiRequest, NextApiResponse } from 'next';
-import type { errors } from 'openid-client';
-import { ClientFactory, IdentityProviderError } from '../auth0-session';
+import { AbstractClient } from '../auth0-session';
 import { AccessTokenError, AccessTokenErrorCode } from '../utils/errors';
 import { intersect, match } from '../utils/array';
-import { Session, SessionCache, fromTokenSet } from '../session';
+import { Session, SessionCache, fromTokenEndpointResponse, get, set } from '../session';
 import { AuthorizationParameters, NextConfig } from '../config';
+import { NextRequest, NextResponse } from 'next/server';
 
-export type AfterRefresh = (req: NextApiRequest, res: NextApiResponse, session: Session) => Promise<Session> | Session;
+/**
+ * After refresh handler for page router {@link AfterRefreshPageRoute} and app router {@link AfterRefreshAppRoute}.
+ *
+ * @category Server
+ */
+export type AfterRefresh = AfterRefreshPageRoute | AfterRefreshAppRoute;
+
+/**
+ * After refresh handler for page router.
+ *
+ * @category Server
+ */
+export type AfterRefreshPageRoute = (
+  req: NextApiRequest | IncomingMessage,
+  res: NextApiRequest | ServerResponse,
+  session: Session
+) => Promise<Session> | Session;
+
+/**
+ * After refresh handler for app router.
+ *
+ * @category Server
+ */
+export type AfterRefreshAppRoute = (session: Session) => Promise<Session> | Session;
 
 /**
  * Custom options to get an access token.
@@ -84,9 +107,11 @@ export interface GetAccessTokenResult {
  * @category Server
  */
 export type GetAccessToken = (
-  req: IncomingMessage | NextApiRequest,
-  res: ServerResponse | NextApiResponse,
-  accessTokenRequest?: AccessTokenRequest
+  ...args:
+    | [IncomingMessage, ServerResponse, AccessTokenRequest?]
+    | [NextApiRequest, NextApiResponse, AccessTokenRequest?]
+    | [NextRequest, NextResponse, AccessTokenRequest?]
+    | [AccessTokenRequest?]
 ) => Promise<GetAccessTokenResult>;
 
 /**
@@ -94,11 +119,16 @@ export type GetAccessToken = (
  */
 export default function accessTokenFactory(
   config: NextConfig,
-  getClient: ClientFactory,
+  client: AbstractClient,
   sessionCache: SessionCache
 ): GetAccessToken {
-  return async (req, res, accessTokenRequest): Promise<GetAccessTokenResult> => {
-    let session = await sessionCache.get(req, res);
+  return async (reqOrOpts?, res?, accessTokenRequest?): Promise<GetAccessTokenResult> => {
+    const options = (res ? accessTokenRequest : reqOrOpts) as AccessTokenRequest | undefined;
+    const req = (res ? reqOrOpts : undefined) as IncomingMessage | NextApiRequest | undefined;
+
+    const parts = await get({ sessionCache, req, res });
+    let [session] = parts;
+    const [, iat] = parts;
     if (!session) {
       throw new AccessTokenError(AccessTokenErrorCode.MISSING_SESSION, 'The user does not have a valid session.');
     }
@@ -117,7 +147,7 @@ export default function accessTokenFactory(
       );
     }
 
-    if (accessTokenRequest && accessTokenRequest.scopes) {
+    if (options && options.scopes) {
       const persistedScopes = session.accessTokenScope;
       if (!persistedScopes || persistedScopes.length === 0) {
         throw new AccessTokenError(
@@ -126,11 +156,11 @@ export default function accessTokenFactory(
         );
       }
 
-      const matchingScopes = intersect(accessTokenRequest.scopes, persistedScopes.split(' '));
-      if (!match(accessTokenRequest.scopes, [...matchingScopes])) {
+      const matchingScopes = intersect(options.scopes, persistedScopes.split(' '));
+      if (!match(options.scopes, [...matchingScopes])) {
         throw new AccessTokenError(
           AccessTokenErrorCode.INSUFFICIENT_SCOPE,
-          `Could not retrieve an access token with scopes "${accessTokenRequest.scopes.join(
+          `Could not retrieve an access token with scopes "${options.scopes.join(
             ' '
           )}". The user will need to sign in again.`
         );
@@ -147,7 +177,7 @@ export default function accessTokenFactory(
       );
     }
 
-    if (accessTokenRequest?.refresh && !session.refreshToken) {
+    if (options?.refresh && !session.refreshToken) {
       throw new AccessTokenError(
         AccessTokenErrorCode.MISSING_REFRESH_TOKEN,
         'A refresh token is required to refresh the access token, but none is present.'
@@ -159,35 +189,33 @@ export default function accessTokenFactory(
     // Adding a skew of 1 minute to compensate.
     if (
       (session.refreshToken && session.accessTokenExpiresAt * 1000 - 60000 < Date.now()) ||
-      (session.refreshToken && accessTokenRequest && accessTokenRequest.refresh)
+      (session.refreshToken && options && options.refresh)
     ) {
-      const client = await getClient();
-      let tokenSet;
-      try {
-        tokenSet = await client.refresh(session.refreshToken, {
-          exchangeBody: accessTokenRequest?.authorizationParams
-        });
-      } catch (e) {
-        throw new AccessTokenError(
-          AccessTokenErrorCode.FAILED_REFRESH_GRANT,
-          'The request to refresh the access token failed.',
-          new IdentityProviderError(e as errors.OPError)
-        );
-      }
+      const tokenSet = await client.refresh(session.refreshToken, {
+        exchangeBody: options?.authorizationParams
+      });
 
       // Update the session.
-      const newSession = fromTokenSet(tokenSet, config);
+      const newSession = fromTokenEndpointResponse(tokenSet, config);
       Object.assign(session, {
         ...newSession,
         refreshToken: newSession.refreshToken || session.refreshToken,
         user: { ...session.user, ...newSession.user }
       });
 
-      if (accessTokenRequest?.afterRefresh) {
-        session = await accessTokenRequest.afterRefresh(req as NextApiRequest, res as NextApiResponse, session);
+      if (options?.afterRefresh) {
+        if (req) {
+          session = await (options.afterRefresh as AfterRefreshPageRoute)(
+            req,
+            res as NextApiResponse | ServerResponse,
+            session
+          );
+        } else {
+          session = await (options.afterRefresh as AfterRefreshAppRoute)(session);
+        }
       }
 
-      await sessionCache.set(req, res, session);
+      await set({ sessionCache, req, res, session, iat });
 
       // Return the new access token.
       return {

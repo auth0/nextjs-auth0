@@ -18,7 +18,7 @@ The Auth0 Next.js SDK is a library for implementing user authentication in Next.
 - [Security](https://github.com/auth0/nextjs-auth0/blob/main/SECURITY.md) - Some important security notices that you should check.
 - [Architecture](https://github.com/auth0/nextjs-auth0/blob/main/ARCHITECTURE.md) - Architectural overview of the SDK.
 - [Testing](https://github.com/auth0/nextjs-auth0/blob/main/TESTING.md) - Some help with testing your nextjs-auth0 application.
-- [Deploying](https://github.com/auth0/nextjs-auth0/blob/main/examples/README.md) - How we deploy our example app to Vercel.
+- [Deploying](https://github.com/auth0/nextjs-auth0/blob/main/example-app/README.md) - How we deploy our example app to Vercel.
 - [Docs Site](https://auth0.com/docs) - explore our docs site and learn more about Auth0.
 
 ## Getting Started
@@ -31,10 +31,7 @@ Using [npm](https://npmjs.org):
 npm install @auth0/nextjs-auth0
 ```
 
-This library supports the following tooling versions:
-
-- Node.js: 12 LTS and newer LTS releases are supported.
-- Next.js: `>=10`
+This library requires Node.js 16 LTS and newer LTS versions.
 
 ### Auth0 Configuration
 
@@ -83,12 +80,22 @@ You can see a full list of Auth0 configuration options in the ["Configuration pr
 
 > For more details about loading environment variables in Next.js, visit the ["Environment Variables"](https://nextjs.org/docs/basic-features/environment-variables) document.
 
-#### Add the Dynamic API Route
+Add `handleAuth()` to your app, which creates the following route handlers under the hood that perform different parts of the authentication flow:
 
-Go to your Next.js application and create a [catch-all, dynamic API route handler](https://nextjs.org/docs/api-routes/dynamic-api-routes#optional-catch-all-api-routes) under the `/pages/api` directory:
+- `/api/auth/login`: Your Next.js application redirects users to your identity provider for them to log in (you can optionally pass a `returnTo` parameter to return to a custom relative URL after login, for example `/api/auth/login?returnTo=/profile`).
+- `/api/auth/callback`: Your identity provider redirects users to this route after they successfully log in.
+- `/api/auth/logout`: Your Next.js application logs out the user.
+- `/api/auth/me`: You can fetch user profile information in JSON format.
+
+> Note: `handleAuth` requires Node.js and so will not work on Cloudflare Workers or Vercel Edge Runtime.
+
+#### Page Router
+
+##### Add the Dynamic API Route
+
+Create a [catch-all, dynamic API route handler](https://nextjs.org/docs/api-routes/dynamic-api-routes#optional-catch-all-api-routes) under the `/pages/api` directory:
 
 - Create an `auth` directory under the `/pages/api/` directory.
-
 - Create a `[auth0].js` file under the newly created `auth` directory.
 
 The path to your dynamic API route file would be `/pages/api/auth/[auth0].js`. Populate that file as follows:
@@ -99,16 +106,7 @@ import { handleAuth } from '@auth0/nextjs-auth0';
 export default handleAuth();
 ```
 
-Executing `handleAuth()` creates the following route handlers under the hood that perform different parts of the authentication flow:
-
-- `/api/auth/login`: Your Next.js application redirects users to your identity provider for them to log in (you can optionally pass a `returnTo` parameter to return to a custom relative URL after login, for example `/api/auth/login?returnTo=/profile`).
-- `/api/auth/callback`: Your identity provider redirects users to this route after they successfully log in.
-- `/api/auth/logout`: Your Next.js application logs out the user.
-- `/api/auth/me`: You can fetch user profile information in JSON format.
-
-> Note: `handleAuth` requires Node.js and so will not work on Cloudflare Workers or Vercel Edge Runtime.
-
-#### Add the UserProvider to Custom App
+##### Add the UserProvider to Custom App
 
 Wrap your `pages/_app.js` component with the `UserProvider` component:
 
@@ -126,7 +124,7 @@ export default function App({ Component, pageProps }) {
 }
 ```
 
-#### Consume Authentication
+##### Consume Authentication
 
 You can now determine if a user is authenticated by checking that the `user` object returned by the `useUser()` hook is defined. You can also log in or log out your users from the frontend layer of your Next.js application by redirecting them to the appropriate automatically-generated route:
 
@@ -154,15 +152,99 @@ export default function Index() {
 
 > Next linting rules might suggest using the `Link` component instead of an anchor tag. The `Link` component is meant to perform [client-side transitions between pages](https://nextjs.org/docs/api-reference/next/link). As the links point to an API route and not to a page, you should keep them as anchor tags.
 
-There are two additional ways to check for an authenticated user; one for Next.js pages using [withPageAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_page_auth_required.html#withpageauthrequired) and one for Next.js API routes using [withApiAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_api_auth_required.html#withapiauthrequired).
+#### App Router
+
+> Important: You should understand the [limitations of the App Directory](#important-limitations-of-the-app-directory) before proceeding.
+
+##### Add the Dynamic API Route
+
+Create a [catch-all, dynamic API route handler](https://nextjs.org/docs/app/building-your-application/routing/dynamic-routes) under the `/app/api` directory (strictly speaking you do not need to put API routes under `/api` but we maintain the convention for simplicity):
+
+- Create an `api` directory under the `/app/` directory.
+- Create an `auth` directory under the newly created `/app/api/` directory.
+- Create a `[auth0]` directory under the newly created `auth` directory.
+- Create a `route.js` file under the newly created `[auth0]` directory.
+
+The path to your dynamic API route file will be `/app/api/auth/[auth0]/route.js`. Populate that file as follows:
+
+```js
+import { handleAuth } from '@auth0/nextjs-auth0';
+
+export const GET = handleAuth();
+```
+
+##### Add the `UserProvider` to your layout
+
+Wrap your `app/layout.js` component with the `UserProvider` component:
+
+```jsx
+// app/layout.js
+import React from 'react';
+import { UserProvider } from '@auth0/nextjs-auth0/client';
+
+export default function App({ children }) {
+  return (
+    <UserProvider>
+      <body>{children}</body>
+    </UserProvider>
+  );
+}
+```
+
+##### Consume Authentication
+
+You can now determine if a user is authenticated by checking that the `user` object returned by the `useUser()` hook is defined. You can also log in or log out your users from the frontend layer of your Next.js application by redirecting them to the appropriate automatically-generated route:
+
+```jsx
+// pages/index.js
+'use client';
+import { useUser } from '@auth0/nextjs-auth0/client';
+
+export default function Index() {
+  const { user, error, isLoading } = useUser();
+
+  if (isLoading) return <div>Loading...</div>;
+  if (error) return <div>{error.message}</div>;
+
+  if (user) {
+    return (
+      <div>
+        Welcome {user.name}! <a href="/api/auth/logout">Logout</a>
+      </div>
+    );
+  }
+
+  return <a href="/api/auth/login">Login</a>;
+}
+```
+
+> Next linting rules might suggest using the `Link` component instead of an anchor tag. The `Link` component is meant to perform [client-side transitions between pages](https://nextjs.org/docs/api-reference/next/link). As the links point to an API route and not to a page, you should keep them as anchor tags.
+
+##### Important: Limitations of the App Directory
+
+At the time of writing, Server Components in the App Directory (including Pages and Layouts) _cannot_ write to a cookie.
+
+If you rely on Server Components to read and update your session from a Server Component you should be aware of the following:
+
+- If you have a rolling session (the default for this SDK), it will not be updated when the user visits your site. So their session expiration may revert to its absolute duration (7 days by default).
+- If you refresh the access token, the new access token will not be persisted in the session. So subsequent attempts to get an access token will always result in refreshing the expired access token in the session.
+- If you make any other updates to the session, they will not be persisted between requests.
+
+> The cookie is updated from [middleware](https://nextjs.org/docs/app/building-your-application/routing/middleware) and [route handlers](https://nextjs.org/docs/app/building-your-application/routing/router-handlers).
 
 For other comprehensive examples, see the [EXAMPLES.md](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md) document.
 
 ## API Reference
 
-### Server (for Node.js)
+### Server
+
+#### For Node
 
 `import * from @auth0/nextjs-auth0`
+
+#### For Edge runtime
+
+`import * from @auth0/nextjs-auth0/edge`
 
 - [Configuration Options and Environment variables](https://auth0.github.io/nextjs-auth0/modules/config.html)
 - [initAuth0](https://auth0.github.io/nextjs-auth0/modules/index.html#initauth0)
@@ -176,15 +258,7 @@ For other comprehensive examples, see the [EXAMPLES.md](https://github.com/auth0
 - [getSession](https://auth0.github.io/nextjs-auth0/modules/session_get_session.html)
 - [updateSession](https://auth0.github.io/nextjs-auth0/modules/session_update_session.html)
 - [getAccessToken](https://auth0.github.io/nextjs-auth0/modules/session_get_access_token.html)
-
-### Edge (for Middleware and the Edge runtime)
-
-`import * from @auth0/nextjs-auth0/edge`
-
-- [Configuration Options and Environment variables](https://auth0.github.io/nextjs-auth0/modules/config.html)
-- [initAuth0](https://auth0.github.io/nextjs-auth0/modules/edge.html#initauth0-1)
-- [withMiddlewareAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_middleware_auth_required.html)
-- [getSession](https://auth0.github.io/nextjs-auth0/modules/edge.html#getsession-1)
+- [withMiddlewareAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_middleware_auth_required.html) (Edge only)
 
 ### Client (for the Browser)
 
@@ -299,7 +373,7 @@ For end to end tests, have a look at how we use a [mock OIDC Provider](./scripts
 
 # Deploying
 
-For deploying, have a look at [how we deploy our example app to Vercel](./examples/README.md).
+For deploying, have a look at [how we deploy our example app to Vercel](./example-app/README.md).
 
 ## Contributing
 

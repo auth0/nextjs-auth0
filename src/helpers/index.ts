@@ -1,8 +1,19 @@
-export { default as withApiAuthRequiredFactory, WithApiAuthRequired } from './with-api-auth-required';
+export {
+  default as withApiAuthRequiredFactory,
+  WithApiAuthRequired,
+  AppRouteHandlerFn,
+  WithApiAuthRequiredAppRoute,
+  WithApiAuthRequiredPageRoute
+} from './with-api-auth-required';
 export {
   default as withPageAuthRequiredFactory,
   GetServerSidePropsResultWithSession,
   WithPageAuthRequired,
-  WithPageAuthRequiredOptions,
-  PageRoute
+  WithPageAuthRequiredPageRouterOptions,
+  WithPageAuthRequiredAppRouterOptions,
+  PageRoute,
+  AppRouterPageRouteOpts,
+  AppRouterPageRoute,
+  WithPageAuthRequiredPageRouter,
+  WithPageAuthRequiredAppRouter
 } from './with-page-auth-required';

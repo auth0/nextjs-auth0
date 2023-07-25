@@ -9,17 +9,46 @@
 **Fixed**
 - Clean up erroneous cookies when chunk size decreases [\#1300](https://github.com/auth0/nextjs-auth0/pull/1300) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
+## [v3.0.0-beta.3](https://github.com/auth0/nextjs-auth0/tree/v3.0.0-beta.3) (2023-06-28)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.0.0-beta.2...v3.0.0-beta.3)
+
+**Added**
+- [SDK-4319] Add support for Edge runtime [\#1269](https://github.com/auth0/nextjs-auth0/pull/1269) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- [SDK-4318] Enable responses from custom middleware [\#1265](https://github.com/auth0/nextjs-auth0/pull/1265) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [v2.6.3](https://github.com/auth0/nextjs-auth0/tree/v2.6.3) (2023-06-26)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.6.2...v2.6.3)
 
 **Fixed**
 - Fix for setting custom cookies in `withMiddlewareAuthRequired` [\#1263](https://github.com/auth0/nextjs-auth0/pull/1263) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
+
+## [v3.0.0-beta.2](https://github.com/auth0/nextjs-auth0/tree/v3.0.0-beta.2) (2023-06-16)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.0.0-beta.1...v3.0.0-beta.2)
+
+**Fixed**
+- Fix issue where api wrapper was overwriting session update in api [\#1255](https://github.com/auth0/nextjs-auth0/pull/1255) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
+## [v3.0.0-beta.1](https://github.com/auth0/nextjs-auth0/tree/v3.0.0-beta.1) (2023-06-13)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.0.0-beta.0...v3.0.0-beta.1)
+
+**Fixed**
+- Fix request check in node 16 [\#1250](https://github.com/auth0/nextjs-auth0/pull/1250) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [v2.6.2](https://github.com/auth0/nextjs-auth0/tree/v2.6.2) (2023-06-09)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.6.1...v2.6.2)
 
 **Fixed**
 - Fix for handling chunked cookies in edge runtime [\#1236](https://github.com/auth0/nextjs-auth0/pull/1236) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
+## [v3.0.0-beta.0](https://github.com/auth0/nextjs-auth0/tree/v3.0.0-beta.0) (2023-06-08)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.6.1...v3.0.0-beta.0)
+
+**Added**
+- Support for the App Router.
+
+**⚠️ BREAKING CHANGES**
+- Support for EOL Node versions 12 and 14 has been removed. See the [V3_MIGRATION_GUIDE.md](./V3_MIGRATION_GUIDE.md) for more details.
 
 ## [v2.6.1](https://github.com/auth0/nextjs-auth0/tree/v2.6.1) (2023-06-06)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.6.0...v2.6.1)

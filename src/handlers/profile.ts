@@ -1,11 +1,35 @@
-import { IncomingMessage } from 'http';
 import { NextApiResponse, NextApiRequest } from 'next';
-import { ClientFactory } from '../auth0-session';
+import { NextRequest, NextResponse } from 'next/server';
+import { AbstractClient } from '../auth0-session';
 import { SessionCache, Session, fromJson, GetAccessToken } from '../session';
 import { assertReqRes } from '../utils/assert';
 import { ProfileHandlerError, HandlerErrorCause } from '../utils/errors';
+import { AppRouteHandlerFnContext, AuthHandler, getHandler, Handler, OptionsProvider } from './router-helpers';
 
-export type AfterRefetch = (req: NextApiRequest, res: NextApiResponse, session: Session) => Promise<Session> | Session;
+/**
+ * After refetch handler for page router {@link AfterRefetchPageRoute} and app router {@link AfterRefetchAppRoute}.
+ *
+ * @category Server
+ */
+export type AfterRefetch = AfterRefetchPageRoute | AfterRefetchAppRoute;
+
+/**
+ * After refetch handler for page router.
+ *
+ * @category Server
+ */
+export type AfterRefetchPageRoute = (
+  req: NextApiRequest,
+  res: NextApiResponse,
+  session: Session
+) => Promise<Session> | Session;
+
+/**
+ * After refetch handler for app router.
+ *
+ * @category Server
+ */
+export type AfterRefetchAppRoute = (req: NextRequest, session: Session) => Promise<Session> | Session;
 
 /**
  * Options to customize the profile handler.
@@ -35,7 +59,7 @@ export type ProfileOptions = {
  *
  * @category Server
  */
-export type ProfileOptionsProvider = (req: NextApiRequest) => ProfileOptions;
+export type ProfileOptionsProvider = OptionsProvider<ProfileOptions>;
 
 /**
  * Use this to customize the default profile handler without overriding it.
@@ -85,11 +109,7 @@ export type ProfileOptionsProvider = (req: NextApiRequest) => ProfileOptions;
  *
  * @category Server
  */
-export type HandleProfile = {
-  (req: NextApiRequest, res: NextApiResponse, options?: ProfileOptions): Promise<void>;
-  (provider: ProfileOptionsProvider): ProfileHandler;
-  (options: ProfileOptions): ProfileHandler;
-};
+export type HandleProfile = AuthHandler<ProfileOptions>;
 
 /**
  * The handler for the `/api/auth/me` API route.
@@ -98,17 +118,83 @@ export type HandleProfile = {
  *
  * @category Server
  */
-export type ProfileHandler = (req: NextApiRequest, res: NextApiResponse, options?: ProfileOptions) => Promise<void>;
+export type ProfileHandler = Handler<ProfileOptions>;
 
 /**
  * @ignore
  */
 export default function profileHandler(
-  getClient: ClientFactory,
+  client: AbstractClient,
   getAccessToken: GetAccessToken,
   sessionCache: SessionCache
 ): HandleProfile {
-  const profile: ProfileHandler = async (req: NextApiRequest, res: NextApiResponse, options = {}): Promise<void> => {
+  const appRouteHandler = appRouteHandlerFactory(client, getAccessToken, sessionCache);
+  const pageRouteHandler = pageRouteHandlerFactory(client, getAccessToken, sessionCache);
+
+  return getHandler<ProfileOptions>(appRouteHandler, pageRouteHandler) as HandleProfile;
+}
+
+/**
+ * @ignore
+ */
+const appRouteHandlerFactory: (
+  client: AbstractClient,
+  getAccessToken: GetAccessToken,
+  sessionCache: SessionCache
+) => (req: NextRequest, ctx: AppRouteHandlerFnContext, options?: ProfileOptions) => Promise<Response> | Response =
+  (client, getAccessToken, sessionCache) =>
+  async (req, _ctx, options = {}) => {
+    try {
+      const res = new NextResponse();
+
+      if (!(await sessionCache.isAuthenticated(req, res))) {
+        return new Response(null, { status: 204 });
+      }
+
+      const session = (await sessionCache.get(req, res)) as Session;
+      res.headers.set('Cache-Control', 'no-store');
+
+      if (options.refetch) {
+        const { accessToken } = await getAccessToken(req, res);
+        if (!accessToken) {
+          throw new Error('No access token available to refetch the profile');
+        }
+
+        const userInfo = await client.userinfo(accessToken);
+
+        let newSession = fromJson({
+          ...session,
+          user: {
+            ...session.user,
+            ...userInfo
+          }
+        }) as Session;
+
+        if (options.afterRefetch) {
+          newSession = await (options.afterRefetch as AfterRefetchAppRoute)(req, newSession);
+        }
+
+        await sessionCache.set(req, res, newSession);
+
+        return NextResponse.json(newSession.user, res);
+      }
+
+      return NextResponse.json(session.user, res);
+    } catch (e) {
+      throw new ProfileHandlerError(e as HandlerErrorCause);
+    }
+  };
+
+/**
+ * @ignore
+ */
+const pageRouteHandlerFactory: (
+  client: AbstractClient,
+  getAccessToken: GetAccessToken,
+  sessionCache: SessionCache
+) => (req: NextApiRequest, res: NextApiResponse, options?: ProfileOptions) => Promise<void> =
+  (client, getAccessToken, sessionCache) =>
+  async (req: NextApiRequest, res: NextApiResponse, options = {}): Promise<void> => {
     try {
       assertReqRes(req, res);
 
@@ -126,7 +212,6 @@ export default function profileHandler(
           throw new Error('No access token available to refetch the profile');
         }
 
-        const client = await getClient();
         const userInfo = await client.userinfo(accessToken);
 
         let newSession = fromJson({
@@ -138,7 +223,7 @@ export default function profileHandler(
         }) as Session;
 
         if (options.afterRefetch) {
-          newSession = await options.afterRefetch(req, res, newSession);
+          newSession = await (options.afterRefetch as AfterRefetchPageRoute)(req, res, newSession);
         }
 
         await sessionCache.set(req, res, newSession);
@@ -152,17 +237,3 @@ export default function profileHandler(
       throw new ProfileHandlerError(e as HandlerErrorCause);
     }
   };
-  return (
-    reqOrOptions: NextApiRequest | ProfileOptionsProvider | ProfileOptions,
-    res?: NextApiResponse,
-    options?: ProfileOptions
-  ): any => {
-    if (reqOrOptions instanceof IncomingMessage && res) {
-      return profile(reqOrOptions, res, options);
-    }
-    if (typeof reqOrOptions === 'function') {
-      return (req: NextApiRequest, res: NextApiResponse) => profile(req, res, reqOrOptions(req));
-    }
-    return (req: NextApiRequest, res: NextApiResponse) => profile(req, res, reqOrOptions as ProfileOptions);
-  };
-}
