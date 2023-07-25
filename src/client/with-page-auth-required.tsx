@@ -52,13 +52,6 @@ export interface WithPageAuthRequiredOptions {
   onError?: (error: Error) => JSX.Element;
 }
 
-/**
- * @ignore
- */
-export interface WithPageAuthRequiredProps {
-  [key: string]: any;
-}
-
 export interface UserProps {
   user: UserProfile;
 }
@@ -73,7 +66,7 @@ export interface UserProps {
  *
  * @category Client
  */
-export type WithPageAuthRequired = <P extends WithPageAuthRequiredProps>(
+export type WithPageAuthRequired = <P extends {}>(
   Component: ComponentType<P & UserProps>,
   options?: WithPageAuthRequiredOptions
 ) => React.FC<P>;

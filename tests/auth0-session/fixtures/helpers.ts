@@ -1,8 +1,8 @@
+import { IncomingMessage, request as nodeHttpRequest } from 'http';
+import { request as nodeHttpsRequest } from 'https';
 import { Cookie, CookieJar } from 'tough-cookie';
 import { signing } from '../../../src/auth0-session/utils/hkdf';
 import { generateCookieValue } from '../../../src/auth0-session/utils/signed-cookies';
-import { IncomingMessage, request as nodeHttpRequest } from 'http';
-import { request as nodeHttpsRequest } from 'https';
 import { ConfigParameters } from '../../../src/auth0-session';
 import { base64url } from 'jose';
 
@@ -17,11 +17,15 @@ export const defaultConfig: Omit<ConfigParameters, 'baseURL'> = {
   }
 };
 
+export const signCookie = async (key: string, value: string) => {
+  const signingKey = await signing(secret);
+  return generateCookieValue(key, value, signingKey);
+};
+
 export const toSignedCookieJar = async (cookies: { [key: string]: string }, url: string): Promise<CookieJar> => {
   const cookieJar = new CookieJar();
-  const signingKey = await signing(secret);
   for (const [key, value] of Object.entries(cookies)) {
-    cookieJar.setCookieSync(`${key}=${await generateCookieValue(key, value, signingKey)}`, url);
+    cookieJar.setCookieSync(`${key}=${await signCookie(key, value)}`, url);
   }
   return cookieJar;
 };

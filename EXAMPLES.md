@@ -1,6 +1,5 @@
 # Examples
 
-- [Basic Setup](#basic-setup)
 - [Create your own instance of the SDK](#create-your-own-instance-of-the-sdk)
 - [Customize handlers behavior](#customize-handlers-behavior)
 - [Use custom auth urls](#use-custom-auth-urls)
@@ -13,76 +12,9 @@
 - [Use with Base Path and Internationalized Routing](#use-with-base-path-and-internationalized-routing)
 - [Use a custom session store](#use-a-custom-session-store)
 
-All examples can be seen running in the [Kitchen Sink example app](./examples/kitchen-sink-example).
+See also the [example app](./example-app).
 
-## Basic Setup
-
-Configure the required options in an `.env.local` file in the root of your application:
-
-```sh
-AUTH0_SECRET='LONG_RANDOM_VALUE'
-AUTH0_BASE_URL='http://localhost:3000'
-AUTH0_ISSUER_BASE_URL='https://your-tenant.auth0.com'
-AUTH0_CLIENT_ID='CLIENT_ID'
-AUTH0_CLIENT_SECRET='CLIENT_SECRET'
-```
-
-Create a [dynamic API route handler](https://nextjs.org/docs/api-routes/dynamic-api-routes) at `/pages/api/auth/[auth0].js`.
-
-```js
-import { handleAuth } from '@auth0/nextjs-auth0';
-
-export default handleAuth();
-```
-
-This will create the following urls: `/api/auth/login`, `/api/auth/callback`, `/api/auth/logout` and `/api/auth/me`.
-
-Wrap your `pages/_app.jsx` component in the `UserProvider` component.
-
-```jsx
-// pages/_app.jsx
-import React from 'react';
-import { UserProvider } from '@auth0/nextjs-auth0/client';
-
-export default function App({ Component, pageProps }) {
-  // You can optionally pass the `user` prop from pages that require server-side
-  // rendering to prepopulate the `useUser` hook.
-  const { user } = pageProps;
-
-  return (
-    <UserProvider user={user}>
-      <Component {...pageProps} />
-    </UserProvider>
-  );
-}
-```
-
-Check the user's authentication state and log them in or out from the front end using the `useUser` hook.
-
-```jsx
-// pages/index.jsx
-import { useUser } from '@auth0/nextjs-auth0/client';
-
-export default () => {
-  const { user, error, isLoading } = useUser();
-
-  if (isLoading) return <div>Loading...</div>;
-  if (error) return <div>{error.message}</div>;
-
-  if (user) {
-    return (
-      <div>
-        Welcome {user.name}! <a href="/api/auth/logout">Logout</a>
-      </div>
-    );
-  }
-  return <a href="/api/auth/login">Login</a>;
-};
-```
-
-Have a look at the `basic-example` app [./examples/basic-example](./examples/basic-example).
-
-## Create your own instance of the SDK
+### Create your own instance of the SDK
 
 When you use the named exports, the SDK creates an instance of the SDK for you and configures it with the provided environment variables.
 
@@ -155,7 +87,7 @@ export default auth0.handleAuth({
 });
 ```
 
-## Customize handlers behavior
+### Customize handlers behavior
 
 Pass custom parameters to the auth handlers or add your own logging and error handling.
 
@@ -191,7 +123,7 @@ export default handleAuth({
 });
 ```
 
-## Use custom auth urls
+### Use custom auth urls
 
 Instead of (or in addition to) creating `/pages/api/auth/[auth0].js` to handle all requests, you can create them individually at different urls.
 
@@ -217,7 +149,9 @@ export default () => <a href="/api/custom-login">Login</a>;
 
 > Note: If you customize the login url you will need to set the environment variable `NEXT_PUBLIC_AUTH0_LOGIN` to this custom value for `withPageAuthRequired` to work correctly. And if you customize the profile url, you will need to set the `NEXT_PUBLIC_AUTH0_PROFILE` environment variable to this custom value for the `useUser` hook to work properly.
 
-## Protecting a Server-Side Rendered (SSR) Page
+### Protecting a Server-Side Rendered (SSR) Page
+
+#### Page Router
 
 Requests to `/pages/profile` without a valid session cookie will be redirected to the login page.
 
@@ -234,9 +168,25 @@ export default function Profile({ user }) {
 export const getServerSideProps = withPageAuthRequired();
 ```
 
-See a running example of an [SSR protected page](./examples/kitchen-sink-example/pages/profile-ssr.tsx) in the kitchen-sink example app or refer to the full list of configuration options for `withPageAuthRequired` [here](https://auth0.github.io/nextjs-auth0/modules/helpers_with_page_auth_required.html#withpageauthrequiredoptions).
+See a running example of an [SSR protected page](./example-app/pages/page-router/profile-ssr.tsx) in the example app or refer to the full list of configuration options for `withPageAuthRequired` [here](https://auth0.github.io/nextjs-auth0/modules/helpers_with_page_auth_required.html#withpageauthrequiredoptions).
 
-## Protecting a Client-Side Rendered (CSR) Page
+#### App Router
+
+Requests to `/pages/profile` without a valid session cookie will be redirected to the login page.
+
+```jsx
+// app/profile/page.js
+import { withPageAuthRequired } from '@auth0/nextjs-auth0';
+
+export default withPageAuthRequired(function Profile({ user }) {
+  return <div>Hello {user.name}</div>;
+}, { returnTo: '/profile' })
+// You need to provide a `returnTo` since Server Components aren't aware of the page's URL
+```
+
+See a running example of a [protected server component page](./example-app/app/profile/page.tsx) in the example app or more info [in the docs](./src/helpers/with-page-auth-required.ts#129).
+
+### Protecting a Client-Side Rendered (CSR) Page
 
 Requests to `/pages/profile` without a valid session cookie will be redirected to the login page.
 
@@ -249,11 +199,13 @@ export default withPageAuthRequired(function Profile({ user }) {
 });
 ```
 
-See a running example of a [CSR protected page](./examples/kitchen-sink-example/pages/profile.tsx) in the kitchen-sink example app.
+See a running example of a [CSR protected page](./example-app/pages/profile.tsx) in the example app.
 
-## Protect an API Route
+### Protect an API Route
 
-Requests to `/pages/api/protected` without a valid session cookie will fail with `401`.
+#### Page Router
+
+Requests to `/api/protected` without a valid session cookie will fail with `401`.
 
 ```js
 // pages/api/protected.js
@@ -285,10 +237,49 @@ export default withPageAuthRequired(function Products() {
 });
 ```
 
-See a running example in the kitchen-sink example app, the [protected API route](./examples/kitchen-sink-example/pages/api/shows.ts) and
-the [frontend code to access the protected API](./examples/kitchen-sink-example/pages/shows.tsx).
+See a running example in the example app, the [protected API route](./example-app/pages/api/page-router-profile.ts) and
+the [frontend code to access the protected API](./example-app/pages/page-router/profile-api.tsx).
 
-## Protecting pages with Middleware
+#### App Router
+
+Requests to `/api/protected` without a valid session cookie will fail with `401`.
+
+```js
+// app/api/protected/route.js
+import { withApiAuthRequired, getSession } from '@auth0/nextjs-auth0';
+
+export default withApiAuthRequired(async function myApiRoute(req) {
+  const res = new NextResponse();
+  const { user } = await getSession(req, res);
+  return NextResponse.json({ protected: 'My Secret', id: user.sub }, res);
+});
+```
+
+Then you can access your API from the frontend with a valid session cookie.
+
+```jsx
+// app/products/page.jsx
+'use client'
+import useSWR from 'swr';
+import { withPageAuthRequired } from '@auth0/nextjs-auth0/client';
+
+const fetcher = async (uri) => {
+  const response = await fetch(uri);
+  return response.json();
+};
+
+export default withPageAuthRequired(function Products() {
+  const { data, error } = useSWR('/api/protected', fetcher);
+  if (error) return <div>oops... {error.message}</div>;
+  if (data === undefined) return <div>Loading...</div>;
+  return <div>{data.protected}</div>;
+});
+```
+
+See a running example in the example app, the [protected API route](./example-app/app/api/profile/route.ts) and
+the [frontend code to access the protected API](./example-app/app/profile-api/page.tsx).
+
+### Protecting pages with Middleware
 
 Protect your pages with Next.js Middleware.
 
@@ -348,7 +339,7 @@ export default auth0.withMiddlewareAuthRequired(async function middleware(req) {
 });
 ```
 
-## Access an External API from an API Route
+### Access an External API from an API Route
 
 Get an access token by providing your API's audience and scopes. You can pass them directly to the `handlelogin` method, or use environment variables instead.
 
@@ -390,8 +381,6 @@ export default withApiAuthRequired(async function products(req, res) {
 });
 ```
 
-See a running example of the [API route acting as a proxy to an External API](./examples/kitchen-sink-example/pages/api/shows.ts) in the kitchen-sink example app.
-
 ### Getting a Refresh Token
 
 - Include the `offline_access` scope your configuration (or `AUTH0_SCOPE`)
@@ -419,7 +408,7 @@ Users can then sign up using the signup handler.
 <a href="/api/auth/signup">Sign up</a>
 ```
 
-## Use with Base Path and Internationalized Routing
+### Use with Base Path and Internationalized Routing
 
 With Next.js you can deploy a Next.js application under a sub-path of a domain using [Base Path](https://nextjs.org/docs/api-reference/next.config.js/basepath) and serve internationalized (i18n) routes using [Internationalized Routing](https://nextjs.org/docs/advanced-features/i18n-routing).
 
@@ -470,7 +459,7 @@ export const getServerSideProps = (ctx) => {
 };
 ```
 
-## Use a custom session store
+### Use a custom session store
 
 You need to create your own instance of the SDK in code, so you can pass an instance of your session store to the SDK's configuration.
 

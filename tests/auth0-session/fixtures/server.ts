@@ -6,11 +6,9 @@ import nock from 'nock';
 import { TokenSet, TokenSetParameters } from 'openid-client';
 import bodyParser from 'body-parser';
 import {
-  NodeCookies as Cookies,
   loginHandler,
   getConfig,
   ConfigParameters,
-  clientFactory,
   TransientStore,
   StatelessSession,
   SessionCache,
@@ -27,59 +25,69 @@ import { jwks } from './cert';
 import { cert, key } from './https';
 import { Claims } from '../../../src/session';
 import version from '../../../src/version';
+import { NodeRequest, NodeResponse } from '../../../src/auth0-session/http';
+import { NodeClient } from '../../../src/auth0-session/client/node-client';
 
 export type SessionResponse = TokenSetParameters & { claims: Claims };
 
-class TestSessionCache implements SessionCache {
-  constructor(private cookieStore: AbstractSession<IncomingMessage, ServerResponse, any>) {}
+interface NodeCallbackOptions extends Omit<CallbackOptions, 'afterCallback'> {
+  afterCallback?: (
+    req: IncomingMessage,
+    res: ServerResponse,
+    session: any,
+    state?: Record<string, any>
+  ) => Promise<any> | any | undefined;
+}
+
+class TestSessionCache implements SessionCache<IncomingMessage, ServerResponse> {
+  constructor(private cookieStore: AbstractSession<any>) {}
   async create(req: IncomingMessage, res: ServerResponse, tokenSet: TokenSet): Promise<void> {
-    await this.cookieStore.save(req, res, tokenSet);
+    await this.cookieStore.save(new NodeRequest(req), new NodeResponse(res), tokenSet);
   }
   async delete(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    await this.cookieStore.save(req, res, null);
+    await this.cookieStore.save(new NodeRequest(req), new NodeResponse(res), null);
   }
   async isAuthenticated(req: IncomingMessage): Promise<boolean> {
-    const [session] = await this.cookieStore.read(req);
+    const [session] = await this.cookieStore.read(new NodeRequest(req));
     return !!session?.id_token;
   }
   async getIdToken(req: IncomingMessage): Promise<string | undefined> {
-    const [session] = await this.cookieStore.read(req);
+    const [session] = await this.cookieStore.read(new NodeRequest(req));
     return session?.id_token;
   }
-  fromTokenSet(tokenSet: TokenSet): { [p: string]: any } {
+  fromTokenEndpointResponse(tokenSet: TokenSet): { [p: string]: any } {
     return tokenSet;
   }
 }
 
 type Handlers = {
-  handleLogin: (req: IncomingMessage, res: ServerResponse, opts?: LoginOptions) => Promise<void>;
-  handleLogout: (req: IncomingMessage, res: ServerResponse, opts?: LogoutOptions) => Promise<void>;
-  handleCallback: (req: IncomingMessage, res: ServerResponse, opts?: CallbackOptions) => Promise<void>;
+  handleLogin: (req: NodeRequest, res: NodeResponse, opts?: LoginOptions) => Promise<void>;
+  handleLogout: (req: NodeRequest, res: NodeResponse, opts?: LogoutOptions) => Promise<void>;
+  handleCallback: (req: NodeRequest, res: NodeResponse, opts?: CallbackOptions) => Promise<void>;
   handleSession: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
 };
 
 const createHandlers = (params: ConfigParameters): Handlers => {
   const config = getConfig(params);
-  const getClient = clientFactory(config, { name: 'nextjs-auth0', version });
+  const client = new NodeClient(config, { name: 'nextjs-auth0', version });
   const transientStore = new TransientStore(config);
-  const cookieStore = params.session?.store
-    ? new StatefulSession<IncomingMessage, ServerResponse, any>(config, Cookies)
-    : new StatelessSession<IncomingMessage, ServerResponse, any>(config, Cookies);
+  const cookieStore = params.session?.store ? new StatefulSession<any>(config) : new StatelessSession<any>(config);
   const sessionCache = new TestSessionCache(cookieStore);
 
   return {
-    handleLogin: loginHandler(config, getClient, transientStore),
-    handleLogout: logoutHandler(config, getClient, sessionCache),
-    handleCallback: callbackHandler(config, getClient, sessionCache, transientStore),
+    handleLogin: loginHandler(config, client, transientStore),
+    handleLogout: logoutHandler(config, client, sessionCache),
+    handleCallback: callbackHandler(config, client, sessionCache, transientStore),
     handleSession: async (req: IncomingMessage, res: ServerResponse) => {
-      const [json, iat] = await cookieStore.read(req);
+      const nodeReq = new NodeRequest(req);
+      const [json, iat] = await cookieStore.read(nodeReq);
       if (!json?.id_token) {
         res.writeHead(401);
         res.end();
         return;
       }
       const session = new TokenSet(json);
-      await cookieStore.save(req, res, session, iat);
+      await cookieStore.save(nodeReq, new NodeResponse(res), session, iat);
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify({ ...session, claims: session?.claims() } as SessionResponse));
     }
@@ -102,25 +110,39 @@ const requestListener =
   (
     handlers: Handlers,
     {
-      callbackOptions,
+      callbackOptions: nodeCallbackOptions,
       loginOptions,
       logoutOptions
-    }: { callbackOptions?: CallbackOptions; loginOptions?: LoginOptions; logoutOptions?: LogoutOptions }
+    }: { callbackOptions?: NodeCallbackOptions; loginOptions?: LoginOptions; logoutOptions?: LogoutOptions }
   ) =>
   async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     const { pathname } = url.parse(req.url as string, true);
     const parsedReq = await parseJson(req, res);
+    const nodeReq = new NodeRequest(parsedReq);
+    const nodeRes = new NodeResponse(res);
+    let callbackOptions: CallbackOptions | undefined = undefined;
+    if (nodeCallbackOptions?.afterCallback) {
+      const fn = nodeCallbackOptions.afterCallback;
+      callbackOptions = {
+        ...nodeCallbackOptions,
+        afterCallback: (...args) => fn(req, res, ...args)
+      };
+    }
 
     try {
       switch (pathname) {
         case '/login':
-          return await handlers.handleLogin(parsedReq, res, loginOptions);
+          return await handlers.handleLogin(nodeReq, nodeRes, loginOptions);
         case '/logout':
-          return await handlers.handleLogout(parsedReq, res, logoutOptions);
+          return await handlers.handleLogout(nodeReq, nodeRes, logoutOptions);
         case '/callback':
-          return await handlers.handleCallback(parsedReq, res, callbackOptions);
+          return await handlers.handleCallback(
+            nodeReq,
+            nodeRes,
+            (callbackOptions || nodeCallbackOptions) as CallbackOptions
+          );
         case '/session':
-          return await handlers.handleSession(parsedReq, res);
+          return await handlers.handleSession(req, res);
         default:
           res.writeHead(404);
           res.end();
@@ -143,7 +165,7 @@ export const setup = async (
     https
   }: {
     https?: boolean;
-    callbackOptions?: CallbackOptions;
+    callbackOptions?: NodeCallbackOptions;
     loginOptions?: LoginOptions;
     logoutOptions?: LogoutOptions;
     customListener?: (req: IncomingMessage, res: ServerResponse) => void;

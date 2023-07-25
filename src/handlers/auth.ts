@@ -1,9 +1,12 @@
 import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next';
+import { NextRequest } from 'next/server';
 import { HandleLogin } from './login';
 import { HandleLogout } from './logout';
 import { HandleCallback } from './callback';
 import { HandleProfile } from './profile';
 import { HandlerError } from '../utils/errors';
+import { AppRouteHandlerFn, AppRouteHandlerFnContext, Handler } from './router-helpers';
+import { isRequest } from '../utils/req-helpers';
 
 /**
  * If you want to add some custom behavior to the default auth handlers, you can pass in custom handlers for
@@ -60,16 +63,22 @@ import { HandlerError } from '../utils/errors';
  */
 export type Handlers = ApiHandlers | ErrorHandlers;
 
-type ApiHandlers = {
-  [key: string]: NextApiHandler;
-};
+/**
+ * @ignore
+ */
+type ApiHandlers = { [key: string]: Handler };
 
+/**
+ * @ignore
+ */
 type ErrorHandlers = {
-  onError?: OnError;
+  onError?: PageRouterOnError | AppRouterOnError;
 };
 
 /**
  * The main way to use the server SDK.
+ *
+ * *Page Router*
  *
  * Simply set the environment variables per {@link ConfigParameters} then create the file
  * `pages/api/auth/[auth0].js`. For example:
@@ -80,6 +89,18 @@ type ErrorHandlers = {
  *
  * export default handleAuth();
  * ```
+
+ * *App Router*
+ *
+ * Simply set the environment variables per {@link ConfigParameters} then create the file
+ * `app/api/auth/[auth0]/route.js`. For example:
+ *
+ * ```js
+ * // app/api/auth/[auth0]/route.js
+ * import { handleAuth } from '@auth0/nextjs-auth0';
+ *
+ * export const GET = handleAuth();
+ * ```
  *
  * This will create 5 handlers for the following urls:
  *
@@ -87,11 +108,11 @@ type ErrorHandlers = {
  * - `/api/auth/callback`: The page that your identity provider will redirect the user back to on login.
  * - `/api/auth/logout`: log the user out of your app.
  * - `/api/auth/me`: View the user profile JSON (used by the {@link UseUser} hook).
- * - `/api/auth/unauthorized`: Returns a 401 for use by {@link WithMiddlewareAuthRequired} when protecting API routes.
  *
  * @category Server
  */
-export type HandleAuth = (userHandlers?: Handlers) => NextApiHandler;
+// any is required for app router ts check
+export type HandleAuth = (userHandlers?: Handlers) => NextApiHandler | AppRouteHandlerFn | any;
 
 /**
  * Error handler for the default auth routes.
@@ -114,27 +135,26 @@ export type HandleAuth = (userHandlers?: Handlers) => NextApiHandler;
  *
  * @category Server
  */
-export type OnError = (req: NextApiRequest, res: NextApiResponse, error: HandlerError) => Promise<void> | void;
+export type PageRouterOnError = (
+  req: NextApiRequest,
+  res: NextApiResponse,
+  error: HandlerError
+) => Promise<void> | void;
+export type AppRouterOnError = (req: NextRequest, error: HandlerError) => Promise<Response | void> | Response | void;
 
 /**
  * @ignore
  */
-const defaultOnError: OnError = (_req, res, error) => {
+const defaultPageRouterOnError: PageRouterOnError = (_req, res, error) => {
   console.error(error);
   res.status(error.status || 500).end();
 };
 
 /**
- * This is a handler for use by {@link WithMiddlewareAuthRequired} when protecting an API route.
- * Middleware can't return a response body, so an unauthorized request for an API route
- * needs to rewrite to this handler.
  * @ignore
  */
-const unauthorized: NextApiHandler = (_req, res) => {
-  res.status(401).json({
-    error: 'not_authenticated',
-    description: 'The user does not have an active session or is not authenticated'
-  });
+const defaultAppRouterOnError: AppRouterOnError = (_req, error) => {
+  console.error(error);
 };
 
 /**
@@ -151,43 +171,87 @@ export default function handlerFactory({
   handleCallback: HandleCallback;
   handleProfile: HandleProfile;
 }): HandleAuth {
-  return ({ onError, ...handlers }: Handlers = {}): NextApiHandler<void> => {
+  return ({ onError, ...handlers }: Handlers = {}): NextApiHandler<void> | AppRouteHandlerFn => {
     const customHandlers: ApiHandlers = {
       login: handleLogin,
       logout: handleLogout,
       callback: handleCallback,
       me: (handlers as ApiHandlers).profile || handleProfile,
-      401: unauthorized,
       ...handlers
     };
-    return async (req, res): Promise<void> => {
-      let {
-        query: { auth0: route }
-      } = req;
 
-      if (Array.isArray(route)) {
-        let otherRoutes;
-        [route, ...otherRoutes] = route;
-        if (otherRoutes.length) {
-          res.status(404).end();
-          return;
-        }
-      }
+    const appRouteHandler = appRouteHandlerFactory(customHandlers, onError as AppRouterOnError);
+    const pageRouteHandler = pageRouteHandlerFactory(customHandlers, onError as PageRouterOnError);
 
-      try {
-        const handler = route && customHandlers.hasOwnProperty(route) && customHandlers[route];
-        if (handler) {
-          await handler(req, res);
-        } else {
-          res.status(404).end();
-        }
-      } catch (error) {
-        await (onError || defaultOnError)(req, res, error as HandlerError);
-        if (!res.writableEnded) {
-          // 200 is the default, so we assume it has not been set in the custom error handler if it equals 200
-          res.status(res.statusCode === 200 ? 500 : res.statusCode).end();
-        }
+    return (req: NextRequest | NextApiRequest, resOrCtx: NextApiResponse | AppRouteHandlerFnContext) => {
+      if (isRequest(req)) {
+        return appRouteHandler(req as NextRequest, resOrCtx as AppRouteHandlerFnContext);
       }
+      return pageRouteHandler(req as NextApiRequest, resOrCtx as NextApiResponse);
     };
   };
 }
+
+/**
+ * @ignore
+ */
+const appRouteHandlerFactory: (customHandlers: ApiHandlers, onError?: AppRouterOnError) => AppRouteHandlerFn =
+  (customHandlers, onError) => async (req: NextRequest, ctx) => {
+    const { params } = ctx;
+    let route = params.auth0;
+
+    if (Array.isArray(route)) {
+      let otherRoutes;
+      [route, ...otherRoutes] = route;
+      if (otherRoutes.length) {
+        return new Response(null, { status: 404 });
+      }
+    }
+
+    const handler = route && customHandlers.hasOwnProperty(route) && customHandlers[route];
+    try {
+      if (handler) {
+        return await (handler as AppRouteHandlerFn)(req, ctx);
+      } else {
+        return new Response(null, { status: 404 });
+      }
+    } catch (error) {
+      const res = await (onError || defaultAppRouterOnError)(req, error as HandlerError);
+      return res || new Response(null, { status: error.status || 500 });
+    }
+  };
+
+/**
+ * @ignore
+ */
+const pageRouteHandlerFactory: (customHandlers: ApiHandlers, onError?: PageRouterOnError) => NextApiHandler =
+  (customHandlers, onError) =>
+  async (req: NextApiRequest, res: NextApiResponse): Promise<void> => {
+    let {
+      query: { auth0: route }
+    } = req;
+
+    if (Array.isArray(route)) {
+      let otherRoutes;
+      [route, ...otherRoutes] = route;
+      if (otherRoutes.length) {
+        res.status(404).end();
+        return;
+      }
+    }
+
+    try {
+      const handler = route && customHandlers.hasOwnProperty(route) && customHandlers[route];
+      if (handler) {
+        await (handler as NextApiHandler)(req, res);
+      } else {
+        res.status(404).end();
+      }
+    } catch (error) {
+      await (onError || defaultPageRouterOnError)(req, res, error as HandlerError);
+      if (!res.writableEnded) {
+        // 200 is the default, so we assume it has not been set in the custom error handler if it equals 200
+        res.status(res.statusCode === 200 ? 500 : res.statusCode).end();
+      }
+    }
+  };

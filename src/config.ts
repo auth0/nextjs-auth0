@@ -1,6 +1,4 @@
-import { IncomingMessage } from 'http';
-import type { AuthorizationParameters as OidcAuthorizationParameters } from 'openid-client';
-import type { LoginOptions } from './auth0-session/config';
+import type { LoginOptions, AuthorizationParameters as OidcAuthorizationParameters } from './auth0-session/config';
 import { SessionStore } from './auth0-session/session/stateful-session';
 import Session from './session/session';
 import { DeepPartial, get as getBaseConfig } from './auth0-session/get-config';
@@ -113,7 +111,7 @@ export interface BaseConfig {
    * ```js
    * {
    *   ...
-   *   getLoginState(req, options) {
+   *   getLoginState(options) {
    *     return {
    *       returnTo: options.returnTo || req.originalUrl,
    *       customState: 'foo'
@@ -122,7 +120,7 @@ export interface BaseConfig {
    * }
    * ```
    */
-  getLoginState: (req: IncomingMessage, options: LoginOptions) => Record<string, any>;
+  getLoginState: (options: LoginOptions) => Record<string, any>;
 
   /**
    * Array value of claims to remove from the ID token before storing the cookie session.
@@ -181,8 +179,10 @@ export interface BaseConfig {
    * Private key for use with `private_key_jwt` clients.
    * This should be a string that is the contents of a PEM file.
    * You can also use the `AUTH0_CLIENT_ASSERTION_SIGNING_KEY` environment variable.
+   *
+   * For Edge runtime, you can also provide an instance of `CryptoKey`.
    */
-  clientAssertionSigningKey?: string;
+  clientAssertionSigningKey?: string | CryptoKey;
 
   /**
    * The algorithm to sign the client assertion JWT.
@@ -355,7 +355,6 @@ export interface NextConfig extends Pick<BaseConfig, 'identityClaimFilter'> {
   routes: {
     callback: string;
     login: string;
-    unauthorized: string;
   };
   session: Pick<SessionConfig, 'storeIDToken'>;
 }
@@ -443,8 +442,8 @@ export interface NextConfig extends Pick<BaseConfig, 'identityClaimFilter'> {
  *
  * **IMPORTANT** If you use {@link InitAuth0}, you should *not* use the other named exports as they will use a different
  * instance of the SDK. Also note - this is for the server side part of the SDK - you will always use named exports for
- * the front end components: {@Link UserProvider}, {@Link UseUser} and the
- * front end version of {@Link WithPageAuthRequired}
+ * the front end components: {@link UserProvider}, {@link UseUser} and the
+ * front end version of {@link WithPageAuthRequired}
  *
  * @category Server
  */
@@ -578,11 +577,10 @@ export const getConfig = (params: ConfigParameters = {}): { baseConfig: BaseConf
     clientAssertionSigningAlg: AUTH0_CLIENT_ASSERTION_SIGNING_ALG
   });
 
-  const nextConfig = {
+  const nextConfig: NextConfig = {
     routes: {
       ...baseConfig.routes,
-      login: baseParams.routes?.login || getLoginUrl(),
-      unauthorized: baseParams.routes?.unauthorized || '/api/auth/401'
+      login: baseParams.routes?.login || getLoginUrl()
     },
     identityClaimFilter: baseConfig.identityClaimFilter,
     organization: organization || AUTH0_ORGANIZATION,

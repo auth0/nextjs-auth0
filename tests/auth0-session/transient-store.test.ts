@@ -1,10 +1,10 @@
-import { IncomingMessage, ServerResponse } from 'http';
 import * as jose from 'jose';
 import { CookieJar } from 'tough-cookie';
 import { getConfig, TransientStore } from '../../src/auth0-session/';
 import { signing } from '../../src/auth0-session/utils/hkdf';
 import { defaultConfig, fromCookieJar, get, getCookie, toSignedCookieJar } from './fixtures/helpers';
 import { setup as createServer, teardown } from './fixtures/server';
+import { NodeRequest, NodeResponse } from '../../src/auth0-session/http';
 
 const generateSignature = async (cookie: string, value: string): Promise<string> => {
   const key = await signing(defaultConfig.secret as string);
@@ -14,10 +14,14 @@ const generateSignature = async (cookie: string, value: string): Promise<string>
   return signature;
 };
 
-const setup = async (params = defaultConfig, cb: Function, https = true): Promise<string> =>
+const setup = async (
+  params = defaultConfig,
+  cb: (req: NodeRequest, res: NodeResponse) => Promise<string | undefined>,
+  https = true
+): Promise<string> =>
   createServer(params, {
     customListener: async (req, res) => {
-      const value = await cb(req, res);
+      const value = await cb(new NodeRequest(req), new NodeResponse(res));
       res.end(JSON.stringify({ value }));
     },
     https
@@ -27,12 +31,10 @@ describe('TransientStore', () => {
   afterEach(teardown);
 
   it('should use the passed-in key to set the cookies', async () => {
-    const baseURL = await setup(
-      defaultConfig,
-      async (req: IncomingMessage, res: ServerResponse) =>
-        await transientStore.save('test_key', req, res, { value: 'foo' })
+    const baseURL: string = await setup(defaultConfig, async (req: NodeRequest, res: NodeResponse) =>
+      transientStore.save('test_key', req, res, { value: 'foo' })
     );
-    const transientStore = new TransientStore(getConfig({ ...defaultConfig, baseURL }));
+    const transientStore: TransientStore = new TransientStore(getConfig({ ...defaultConfig, baseURL }));
     const cookieJar = new CookieJar();
     const { value } = await get(baseURL, '/', { cookieJar });
     const cookies = fromCookieJar(cookieJar, baseURL);
@@ -43,7 +45,7 @@ describe('TransientStore', () => {
 
   it('should accept list of secrets', async () => {
     const config = { ...defaultConfig, secret: ['__old_secret__', defaultConfig.secret as string] };
-    const baseURL = await setup(config, (req: IncomingMessage, res: ServerResponse) =>
+    const baseURL: string = await setup(config, (req: NodeRequest, res: NodeResponse) =>
       transientStore.save('test_key', req, res, { value: 'foo' })
     );
     const transientStore = new TransientStore(getConfig({ ...config, baseURL }));
@@ -56,7 +58,7 @@ describe('TransientStore', () => {
   });
 
   it('should set cookie to secure by default when baseURL protocol is https', async () => {
-    const baseURL = await setup(defaultConfig, (req: IncomingMessage, res: ServerResponse) =>
+    const baseURL: string = await setup(defaultConfig, (req: NodeRequest, res: NodeResponse) =>
       transientStore.save('test_key', req, res, { value: 'foo' })
     );
     const transientStore = new TransientStore(getConfig({ ...defaultConfig, baseURL }));
@@ -68,9 +70,9 @@ describe('TransientStore', () => {
   });
 
   it('should set cookie to not secure when baseURL protocol is http and SameSite=Lax', async () => {
-    const baseURL = await setup(
+    const baseURL: string = await setup(
       defaultConfig,
-      (req: IncomingMessage, res: ServerResponse) => transientStore.save('test_key', req, res, { value: 'foo' }),
+      (req: NodeRequest, res: NodeResponse) => transientStore.save('test_key', req, res, { value: 'foo' }),
       false
     );
     const transientStore = new TransientStore(getConfig({ ...defaultConfig, baseURL }));
@@ -81,10 +83,12 @@ describe('TransientStore', () => {
     expect(cookie?.secure).toBeFalsy();
   });
 
-  it('should set SameSite=None, Secure=False for fallback cookie by default for http', async () => {
-    const baseURL = await setup(
+  it('should not set SameSite and set Secure=False for fallback cookie by default for http', async () => {
+    const baseURL: string = await setup(
       defaultConfig,
-      (req: IncomingMessage, res: ServerResponse) => transientStore.save('test_key', req, res, { value: 'foo' }),
+      (req: NodeRequest, res: NodeResponse) => {
+        return transientStore.save('test_key', req, res, { value: 'foo' });
+      },
       false
     );
     const transientStore = new TransientStore(getConfig({ ...defaultConfig, baseURL }));
@@ -93,16 +97,16 @@ describe('TransientStore', () => {
     const fallbackCookie = getCookie('_test_key', cookieJar, baseURL);
     expect(value).toEqual(expect.any(String));
     expect(fallbackCookie).toMatchObject({
-      sameSite: 'none',
+      sameSite: undefined,
       secure: false,
       httpOnly: true
     });
   });
 
   it('should turn off fallback', async () => {
-    const baseURL = await setup(
+    const baseURL: string = await setup(
       { ...defaultConfig, legacySameSiteCookie: false },
-      (req: IncomingMessage, res: ServerResponse) => transientStore.save('test_key', req, res, { value: 'foo' })
+      (req: NodeRequest, res: NodeResponse) => transientStore.save('test_key', req, res, { value: 'foo' })
     );
     const transientStore = new TransientStore(getConfig({ ...defaultConfig, baseURL, legacySameSiteCookie: false }));
     const cookieJar = new CookieJar();
@@ -113,7 +117,7 @@ describe('TransientStore', () => {
   });
 
   it('should set custom SameSite with no fallback', async () => {
-    const baseURL = await setup(defaultConfig, (req: IncomingMessage, res: ServerResponse) =>
+    const baseURL: string = await setup(defaultConfig, (req: NodeRequest, res: NodeResponse) =>
       transientStore.save('test_key', req, res, { sameSite: 'lax', value: 'foo' })
     );
     const transientStore = new TransientStore(getConfig({ ...defaultConfig, baseURL }));
@@ -132,7 +136,7 @@ describe('TransientStore', () => {
   });
 
   it('should return undefined if there are no cookies', async () => {
-    const baseURL = await setup(defaultConfig, (req: IncomingMessage, res: ServerResponse) =>
+    const baseURL: string = await setup(defaultConfig, (req: NodeRequest, res: NodeResponse) =>
       transientStore.read('test_key', req, res)
     );
     const transientStore = new TransientStore(getConfig({ ...defaultConfig, baseURL }));
@@ -141,7 +145,7 @@ describe('TransientStore', () => {
   });
 
   it('should return main value and delete both cookies by default', async () => {
-    const baseURL = await setup(defaultConfig, (req: IncomingMessage, res: ServerResponse) =>
+    const baseURL: string = await setup(defaultConfig, (req: NodeRequest, res: NodeResponse) =>
       transientStore.read('test_key', req, res)
     );
     const transientStore = new TransientStore(getConfig({ ...defaultConfig, baseURL }));
@@ -161,7 +165,7 @@ describe('TransientStore', () => {
   });
 
   it('should return fallback value and delete both cookies if main value not present', async () => {
-    const baseURL = await setup(defaultConfig, (req: IncomingMessage, res: ServerResponse) =>
+    const baseURL: string = await setup(defaultConfig, (req: NodeRequest, res: NodeResponse) =>
       transientStore.read('test_key', req, res)
     );
     const transientStore = new TransientStore(getConfig({ ...defaultConfig, baseURL }));
@@ -179,9 +183,9 @@ describe('TransientStore', () => {
   });
 
   it('should not check fallback value when legacySameSiteCookie is false', async () => {
-    const baseURL = await setup(
+    const baseURL: string = await setup(
       { ...defaultConfig, legacySameSiteCookie: false },
-      (req: IncomingMessage, res: ServerResponse) => transientStore.read('test_key', req, res)
+      (req: NodeRequest, res: NodeResponse) => transientStore.read('test_key', req, res)
     );
     const transientStore = new TransientStore(getConfig({ ...defaultConfig, baseURL, legacySameSiteCookie: false }));
     const cookieJar = await toSignedCookieJar(
@@ -197,9 +201,7 @@ describe('TransientStore', () => {
   });
 
   it("should not throw when it can't verify the signature", async () => {
-    const baseURL = await setup(defaultConfig, (req: IncomingMessage, res: ServerResponse) =>
-      transientStore.read('test_key', req, res)
-    );
+    const baseURL: string = await setup(defaultConfig, (req, res) => transientStore.read('test_key', req, res));
     const transientStore = new TransientStore(getConfig({ ...defaultConfig, baseURL }));
     const cookieJar = await toSignedCookieJar(
       {
@@ -211,11 +213,5 @@ describe('TransientStore', () => {
 
     const { value } = await get(baseURL, '/', { cookieJar });
     expect(value).toBeUndefined();
-  });
-
-  it('should generate a code verifier and challenge', async () => {
-    const transientStore = new TransientStore(getConfig({ ...defaultConfig, baseURL: 'http://example.com' }));
-    expect(transientStore.generateCodeVerifier()).toEqual(expect.any(String));
-    expect(transientStore.calculateCodeChallenge('foo')).toEqual(expect.any(String));
   });
 });

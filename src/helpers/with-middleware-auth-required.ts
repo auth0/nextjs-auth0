@@ -1,6 +1,5 @@
-import { NextMiddleware, NextRequest, NextResponse } from 'next/server';
+import { NextMiddleware, NextResponse } from 'next/server';
 import { SessionCache } from '../session';
-import { splitCookiesString } from '../utils/middleware-cookies';
 
 /**
  * Protect your pages with Next.js Middleware. For example:
@@ -50,14 +49,14 @@ export type WithMiddlewareAuthRequired = (middleware?: NextMiddleware) => NextMi
  * @ignore
  */
 export default function withMiddlewareAuthRequiredFactory(
-  { login, callback, unauthorized }: { login: string; callback: string; unauthorized: string },
-  getSessionCache: () => SessionCache<NextRequest, NextResponse>
+  { login, callback }: { login: string; callback: string },
+  getSessionCache: () => SessionCache
 ): WithMiddlewareAuthRequired {
   return function withMiddlewareAuthRequired(middleware?): NextMiddleware {
     return async function wrappedMiddleware(...args) {
       const [req] = args;
       const { pathname, origin, search } = req.nextUrl;
-      const ignorePaths = [login, callback, unauthorized, '/_next', '/favicon.ico'];
+      const ignorePaths = [login, callback, '/_next', '/favicon.ico'];
       if (ignorePaths.some((p) => pathname.startsWith(p))) {
         return;
       }
@@ -68,7 +67,13 @@ export default function withMiddlewareAuthRequiredFactory(
       const session = await sessionCache.get(req, authRes);
       if (!session?.user) {
         if (pathname.startsWith('/api')) {
-          return NextResponse.rewrite(new URL(unauthorized, origin), { status: 401 });
+          return NextResponse.json(
+            {
+              error: 'not_authenticated',
+              description: 'The user does not have an active session or is not authenticated'
+            },
+            { status: 401 }
+          );
         }
         return NextResponse.redirect(
           new URL(`${login}?returnTo=${encodeURIComponent(`${pathname}${search}`)}`, origin)
@@ -77,14 +82,19 @@ export default function withMiddlewareAuthRequiredFactory(
       const res = await (middleware && middleware(...args));
 
       if (res) {
-        const headers = new Headers(res.headers);
-        const authCookies = splitCookiesString(authRes.headers.get('set-cookie')!);
-        if (authCookies.length) {
-          for (const cookie of authCookies) {
-            headers.append('set-cookie', cookie);
+        const nextRes = new NextResponse(res.body, res);
+        let cookies = authRes.cookies.getAll();
+        if ('cookies' in res) {
+          for (const cookie of res.cookies.getAll()) {
+            nextRes.cookies.set(cookie);
           }
         }
-        return NextResponse.next({ ...res, status: res.status, headers });
+        for (const cookie of cookies) {
+          if (!nextRes.cookies.get(cookie.name)) {
+            nextRes.cookies.set(cookie);
+          }
+        }
+        return nextRes;
       } else {
         return authRes;
       }

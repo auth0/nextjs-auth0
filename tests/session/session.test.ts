@@ -1,9 +1,11 @@
 import { TokenSet } from 'openid-client';
-import { fromJson, fromTokenSet } from '../../src/session';
+import { fromJson, fromTokenEndpointResponse } from '../../src/session';
 import { makeIdToken } from '../auth0-session/fixtures/cert';
 import { Session } from '../../src';
 
-const routes = { login: '', callback: '', postLogoutRedirect: '', unauthorized: '' };
+const routes = { login: '', callback: '', postLogoutRedirect: '' };
+
+const getLoginState = () => Promise.resolve({});
 
 describe('session', () => {
   test('should construct a session with a user', async () => {
@@ -13,9 +15,10 @@ describe('session', () => {
   describe('from tokenSet', () => {
     test('should construct a session from a tokenSet', async () => {
       expect(
-        fromTokenSet(new TokenSet({ id_token: await makeIdToken({ foo: 'bar', bax: 'qux' }) }), {
+        fromTokenEndpointResponse(new TokenSet({ id_token: await makeIdToken({ foo: 'bar', bax: 'qux' }) }), {
           identityClaimFilter: ['baz'],
           routes,
+          getLoginState,
           session: { storeIDToken: true }
         }).user
       ).toEqual({
@@ -33,9 +36,10 @@ describe('session', () => {
 
     test('should store the ID Token by default', async () => {
       expect(
-        fromTokenSet(new TokenSet({ id_token: await makeIdToken({ foo: 'bar' }) }), {
+        fromTokenEndpointResponse(new TokenSet({ id_token: await makeIdToken({ foo: 'bar' }) }), {
           identityClaimFilter: ['baz'],
           routes,
+          getLoginState,
           session: { storeIDToken: true }
         }).idToken
       ).toBeDefined();
@@ -43,7 +47,7 @@ describe('session', () => {
 
     test('should not store the ID Token', async () => {
       expect(
-        fromTokenSet(new TokenSet({ id_token: await makeIdToken({ foo: 'bar' }) }), {
+        fromTokenEndpointResponse(new TokenSet({ id_token: await makeIdToken({ foo: 'bar' }) }), {
           session: {
             storeIDToken: false,
             name: '',
@@ -52,6 +56,7 @@ describe('session', () => {
             absoluteDuration: 0,
             cookie: { transient: false, httpOnly: false, sameSite: 'lax' }
           },
+          getLoginState,
           identityClaimFilter: ['baz'],
           routes
         }).idToken

@@ -1,4 +1,5 @@
-import type { TokenSet } from 'openid-client';
+import * as jose from 'jose';
+import type { TokenEndpointResponse } from '../auth0-session/client/abstract-client';
 import { Config } from '../auth0-session';
 import { NextConfig } from '../config';
 
@@ -60,14 +61,17 @@ export default class Session {
 /**
  * @ignore
  */
-export function fromTokenSet(tokenSet: TokenSet, config: Config | NextConfig): Session {
+export function fromTokenEndpointResponse(
+  tokenEndpointResponse: TokenEndpointResponse,
+  config: Config | NextConfig
+): Session {
   // Get the claims without any OIDC-specific claim.
-  const claims = tokenSet.claims();
+  const claims = jose.decodeJwt(tokenEndpointResponse.id_token as string);
   config.identityClaimFilter.forEach((claim) => {
     delete claims[claim];
   });
 
-  const { id_token, access_token, scope, expires_at, refresh_token, ...remainder } = tokenSet;
+  const { id_token, access_token, scope, expires_in, expires_at, refresh_token, ...remainder } = tokenEndpointResponse;
   const storeIDToken = config.session.storeIDToken;
 
   return Object.assign(
@@ -75,7 +79,7 @@ export function fromTokenSet(tokenSet: TokenSet, config: Config | NextConfig): S
     {
       accessToken: access_token,
       accessTokenScope: scope,
-      accessTokenExpiresAt: expires_at,
+      accessTokenExpiresAt: Math.floor(Date.now() / 1000) + Number(expires_in),
       refreshToken: refresh_token,
       ...(storeIDToken && { idToken: id_token })
     },

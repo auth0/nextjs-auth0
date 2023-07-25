@@ -1,5 +1,7 @@
-import type { IncomingMessage } from 'http';
-import type { AuthorizationParameters as OidcAuthorizationParameters, ClientAuthMethod } from 'openid-client';
+import type {
+  AuthorizationParameters as OidcAuthorizationParameters,
+  ClientAuthMethod
+} from './client/abstract-client';
 import { SessionStore } from './session/stateful-session';
 
 /**
@@ -111,7 +113,7 @@ export interface Config {
    * ```js
    * app.use(auth({
    *   ...
-   *   getLoginState(req, options) {
+   *   getLoginState(options) {
    *     return {
    *       returnTo: options.returnTo || req.originalUrl,
    *       customState: 'foo'
@@ -120,7 +122,7 @@ export interface Config {
    * }));
    * ```
    */
-  getLoginState: (req: IncomingMessage, options: LoginOptions) => Record<string, any>;
+  getLoginState: (options: LoginOptions) => Record<string, any>;
 
   /**
    * Array value of claims to remove from the ID token before storing the cookie session.
@@ -173,8 +175,10 @@ export interface Config {
    * Private key for use with `private_key_jwt` clients.
    * This should be a string that is the contents of a PEM file.
    * you can also use the `AUTH0_CLIENT_ASSERTION_SIGNING_KEY` environment variable.
+   *
+   * For Edge runtime, you can also provide an instance of `CryptoKey`.
    */
-  clientAssertionSigningKey?: string;
+  clientAssertionSigningKey?: string | CryptoKey;
 
   /**
    * The algorithm used to sign the client assertion JWT.
@@ -302,7 +306,7 @@ export interface AuthorizationParameters extends OidcAuthorizationParameters {
   response_type: 'id_token' | 'code id_token' | 'code';
 }
 
-export type GetLoginState = (req: any, options: LoginOptions) => { [key: string]: any };
+export type GetLoginState = (options: LoginOptions) => { [key: string]: any };
 
 /**
  * Custom options to pass to the login handler.
