@@ -226,11 +226,11 @@ At the time of writing, Server Components in the App Directory (including Pages 
 
 If you rely on Server Components to read and update your session from a Server Component you should be aware of the following:
 
-- If you have a rolling session (the default for this SDK), it will not be updated when the user visits your site. So their session expiration may revert to its absolute duration (7 days by default).
+- If you have a rolling session (the default for this SDK), the expiry will not be updated when the user visits your site. So the session may expire sooner than you would expect (you can use `withMiddlewareAuthRequired` to mitigate this).
 - If you refresh the access token, the new access token will not be persisted in the session. So subsequent attempts to get an access token will always result in refreshing the expired access token in the session.
 - If you make any other updates to the session, they will not be persisted between requests.
 
-> The cookie is updated from [middleware](https://nextjs.org/docs/app/building-your-application/routing/middleware) and [route handlers](https://nextjs.org/docs/app/building-your-application/routing/router-handlers).
+> The cookie _can_ be written from [middleware](https://nextjs.org/docs/app/building-your-application/routing/middleware) and [route handlers](https://nextjs.org/docs/app/building-your-application/routing/router-handlers).
 
 For other comprehensive examples, see the [EXAMPLES.md](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md) document.
 
