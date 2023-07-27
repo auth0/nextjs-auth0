@@ -176,9 +176,10 @@ Requests to `/pages/profile` without a valid session cookie will be redirected t
 
 ```jsx
 // app/profile/page.js
-import { withPageAuthRequired } from '@auth0/nextjs-auth0';
+import { withPageAuthRequired, getSession } from '@auth0/nextjs-auth0';
 
-export default withPageAuthRequired(function Profile({ user }) {
+export default withPageAuthRequired(async function Profile() {
+  const { user } = await getSession();
   return <div>Hello {user.name}</div>;
 }, { returnTo: '/profile' })
 // You need to provide a `returnTo` since Server Components aren't aware of the page's URL
