@@ -9,7 +9,7 @@ const warn = () => {
   if (process.env.NODE_ENV === 'development' && !warned) {
     console.warn(
       'nextjs-auth0 is attempting to set cookies from a server component,' +
-        'see https://github.com/auth0/nextjs-auth0/tree/beta#important-limitations-of-the-app-directory'
+        'see https://github.com/auth0/nextjs-auth0#important-limitations-of-the-app-directory'
     );
     warned = true;
   }
