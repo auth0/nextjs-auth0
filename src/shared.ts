@@ -107,7 +107,9 @@ export {
   AfterRefetchAppRoute,
   AppRouterOnError,
   PageRouterOnError,
-  AppRouteHandlerFnContext
+  AppRouteHandlerFnContext,
+  AppRouterHandler,
+  PageRouterHandler
 } from './handlers';
 
 export {
