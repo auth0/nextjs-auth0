@@ -24,5 +24,4 @@ export {
   AfterRefetchAppRoute
 } from './profile';
 export { default as handlerFactory, Handlers, HandleAuth, AppRouterOnError, PageRouterOnError } from './auth';
-export { AppRouteHandlerFn } from './router-helpers';
-export { AppRouteHandlerFnContext } from './router-helpers';
+export { AppRouteHandlerFnContext, PageRouterHandler, AppRouterHandler } from './router-helpers';
