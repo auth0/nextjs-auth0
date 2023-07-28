@@ -5,7 +5,7 @@ import { HandleLogout } from './logout';
 import { HandleCallback } from './callback';
 import { HandleProfile } from './profile';
 import { HandlerError } from '../utils/errors';
-import { AppRouteHandlerFn, AppRouteHandlerFnContext, Handler } from './router-helpers';
+import { AppRouteHandlerFn, AppRouteHandlerFnContext, AppRouterHandler, PageRouterHandler } from './router-helpers';
 import { isRequest } from '../utils/req-helpers';
 
 /**
@@ -66,7 +66,7 @@ export type Handlers = ApiHandlers | ErrorHandlers;
 /**
  * @ignore
  */
-type ApiHandlers = { [key: string]: Handler };
+type ApiHandlers = { [key: string]: PageRouterHandler | AppRouterHandler };
 
 /**
  * @ignore
