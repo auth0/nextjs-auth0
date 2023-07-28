@@ -39,7 +39,7 @@ export type PageRoute<P, Q extends ParsedUrlQuery = ParsedUrlQuery> = (
  * @category Server
  */
 export type AppRouterPageRouteOpts = {
-  params?: { slug: string };
+  params?: Record<string, string | string[]>;
   searchParams?: { [key: string]: string | string[] | undefined };
 };
 
