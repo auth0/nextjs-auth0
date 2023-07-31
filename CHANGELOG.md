@@ -1,5 +1,11 @@
 # Change Log
 
+## [v3.0.1](https://github.com/auth0/nextjs-auth0/tree/v3.0.1) (2023-07-31)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.0.0...v3.0.1)
+
+**Fixed**
+- Fix auth handler types when using custom handlers [\#1327](https://github.com/auth0/nextjs-auth0/pull/1327) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [v3.0.0](https://github.com/auth0/nextjs-auth0/tree/v3.0.0) (2023-07-25)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.7.0...v3.0.0)
 
