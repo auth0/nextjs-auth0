@@ -1,5 +1,15 @@
-import { NextMiddleware, NextResponse } from 'next/server';
+import { NextMiddleware, NextRequest, NextResponse } from 'next/server';
 import { SessionCache } from '../session';
+
+/**
+ * Pass custom options to {@link WithMiddlewareAuthRequired}.
+ *
+ * @category Server
+ */
+export type WithMiddlewareAuthRequiredOptions = {
+  middleware?: NextMiddleware;
+  returnTo?: string | ((req: NextRequest) => Promise<string> | string);
+};
 
 /**
  * Protect your pages with Next.js Middleware. For example:
@@ -41,9 +51,35 @@ import { SessionCache } from '../session';
  * });
  * ```
  *
+ * To provide a custom `returnTo` url to login:
+ *
+ * ```js
+ * // middleware.js
+ * import { withMiddlewareAuthRequired, getSession } from '@auth0/nextjs-auth0/edge';
+ *
+ * export default withMiddlewareAuthRequired({
+ *   returnTo: '/foo',
+ *   // Custom middleware is provided with the `middleware` config option
+ *   async middleware(req) { return NextResponse.next(); }
+ * });
+ * ```
+ *
+ * You can also provide a method for `returnTo` that takes the req as an argument.
+ *
+ * ```js
+ * // middleware.js
+ * import { withMiddlewareAuthRequired, getSession } from '@auth0/nextjs-auth0/edge';
+ *
+ * export default withMiddlewareAuthRequired({
+ *   returnTo(req) { return `${req.nextURL.basePath}${req.nextURL.pathname}`};
+ * });
+ * ```
+ *
  * @category Server
  */
-export type WithMiddlewareAuthRequired = (middleware?: NextMiddleware) => NextMiddleware;
+export type WithMiddlewareAuthRequired = (
+  middlewareOrOpts?: NextMiddleware | WithMiddlewareAuthRequiredOptions
+) => NextMiddleware;
 
 /**
  * @ignore
@@ -52,10 +88,18 @@ export default function withMiddlewareAuthRequiredFactory(
   { login, callback }: { login: string; callback: string },
   getSessionCache: () => SessionCache
 ): WithMiddlewareAuthRequired {
-  return function withMiddlewareAuthRequired(middleware?): NextMiddleware {
+  return function withMiddlewareAuthRequired(opts?): NextMiddleware {
     return async function wrappedMiddleware(...args) {
       const [req] = args;
+      let middleware: NextMiddleware | undefined;
       const { pathname, origin, search } = req.nextUrl;
+      let returnTo = `${pathname}${search}`;
+      if (typeof opts === 'function') {
+        middleware = opts;
+      } else if (opts) {
+        middleware = opts.middleware;
+        returnTo = (typeof opts.returnTo === 'function' ? await opts.returnTo(req) : opts.returnTo) || returnTo;
+      }
       const ignorePaths = [login, callback, '/_next', '/favicon.ico'];
       if (ignorePaths.some((p) => pathname.startsWith(p))) {
         return;
@@ -75,15 +119,13 @@ export default function withMiddlewareAuthRequiredFactory(
             { status: 401 }
           );
         }
-        return NextResponse.redirect(
-          new URL(`${login}?returnTo=${encodeURIComponent(`${pathname}${search}`)}`, origin)
-        );
+        return NextResponse.redirect(new URL(`${login}?returnTo=${encodeURIComponent(returnTo)}`, origin));
       }
       const res = await (middleware && middleware(...args));
 
       if (res) {
         const nextRes = new NextResponse(res.body, res);
-        let cookies = authRes.cookies.getAll();
+        const cookies = authRes.cookies.getAll();
         if ('cookies' in res) {
           for (const cookie of res.cookies.getAll()) {
             nextRes.cookies.set(cookie);
