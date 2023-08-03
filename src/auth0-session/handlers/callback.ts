@@ -3,7 +3,7 @@ import { AuthorizationParameters, Config } from '../config';
 import TransientStore from '../transient-store';
 import { decodeState } from '../utils/encoding';
 import { SessionCache } from '../session-cache';
-import { MissingStateCookieError, MissingStateParamError } from '../utils/errors';
+import { MalformedStateCookieError, MissingStateCookieError, MissingStateParamError } from '../utils/errors';
 import { Auth0Request, Auth0Response } from '../http';
 import { AbstractClient } from '../client/abstract-client';
 import type { AuthVerification } from './login';
@@ -35,18 +35,26 @@ export default function callbackHandlerFactory(
 
     let tokenResponse;
 
-    const authVerification = await transientCookieHandler.read('auth_verification', req, res);
+    let authVerification: AuthVerification;
+    const cookie = await transientCookieHandler.read('auth_verification', req, res);
+
+    if (!cookie) {
+      throw new MissingStateCookieError();
+    }
+
+    try {
+      authVerification = JSON.parse(cookie);
+    } catch (_) {
+      throw new MalformedStateCookieError();
+    }
+
     const {
       max_age,
       code_verifier,
       nonce,
       state: expectedState,
       response_type = config.authorizationParams.response_type
-    } = (authVerification ? JSON.parse(authVerification) : {}) as AuthVerification;
-
-    if (!expectedState) {
-      throw new MissingStateCookieError();
-    }
+    } = authVerification;
 
     let callbackParams: URLSearchParams;
     try {

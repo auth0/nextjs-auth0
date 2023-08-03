@@ -1,6 +1,7 @@
 export {
   MissingStateParamError,
   MissingStateCookieError,
+  MalformedStateCookieError,
   IdentityProviderError,
   ApplicationError
 } from './utils/errors';
