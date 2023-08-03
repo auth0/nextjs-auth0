@@ -52,6 +52,20 @@ describe('callback', () => {
     );
   });
 
+  it('should error when auth_verification cookie is malformed', async () => {
+    const baseURL = await setup(defaultConfig);
+
+    await expect(
+      post(baseURL, '/callback', {
+        body: {
+          state: '__test_state__',
+          id_token: '__invalid_token__'
+        },
+        cookieJar: await toSignedCookieJar({ auth_verification: 'not json' }, baseURL)
+      })
+    ).rejects.toThrowError('Your state cookie is not valid JSON.');
+  });
+
   it("should error when state doesn't match", async () => {
     const baseURL = await setup(defaultConfig);
 
@@ -167,9 +181,9 @@ describe('callback', () => {
     const baseURL = await setup({ ...defaultConfig, legacySameSiteCookie: false });
 
     const cookieJar = await toSignedCookieJar(
-      authVerificationCookie({
-        _state: '__valid_state__'
-      }),
+      {
+        _auth_verification: JSON.stringify({ state: '__valid_state__' })
+      },
       baseURL
     );
 
