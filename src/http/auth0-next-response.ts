@@ -13,7 +13,7 @@ export default class Auth0NextResponse extends Auth0Response<NextResponse> {
   }
 
   public clearCookie(name: string, options?: CookieSerializeOptions) {
-    this.res.cookies.delete({ ...options, name, value: '' });
+    this.setCookie(name, '', { ...options, expires: new Date(0) });
   }
 
   public redirect(location: string, status = 302): void {
