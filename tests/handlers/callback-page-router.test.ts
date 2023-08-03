@@ -1,15 +1,13 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { CookieJar } from 'tough-cookie';
-import * as jose from 'jose';
 import timekeeper from 'timekeeper';
 import { withApi, withoutApi } from '../fixtures/default-settings';
 import { makeIdToken } from '../auth0-session/fixtures/cert';
-import { defaultConfig, get, post, toSignedCookieJar } from '../auth0-session/fixtures/helpers';
+import { get, post, toSignedCookieJar } from '../auth0-session/fixtures/helpers';
 import { encodeState } from '../../src/auth0-session/utils/encoding';
 import { defaultOnError, setup, teardown } from '../fixtures/setup';
 import { Session, AfterCallbackPageRoute, MissingStateCookieError } from '../../src';
 import nock from 'nock';
-import { signing } from '../../src/auth0-session/utils/hkdf';
 
 const callback = (baseUrl: string, body: any, cookieJar?: CookieJar): Promise<any> =>
   post(baseUrl, `/api/auth/callback`, {
@@ -18,13 +16,7 @@ const callback = (baseUrl: string, body: any, cookieJar?: CookieJar): Promise<an
     fullResponse: true
   });
 
-const generateSignature = async (cookie: string, value: string): Promise<string> => {
-  const key = await signing(defaultConfig.secret as string);
-  const { signature } = await new jose.FlattenedSign(new TextEncoder().encode(`${cookie}=${value}`))
-    .setProtectedHeader({ alg: 'HS256', b64: false, crit: ['b64'] })
-    .sign(key);
-  return signature;
-};
+const authVerificationCookie = (cookies: Record<string, string>) => ({ auth_verification: JSON.stringify(cookies) });
 
 describe('callback handler (page router)', () => {
   afterEach(teardown);
@@ -49,9 +41,9 @@ describe('callback handler (page router)', () => {
   test('should validate the state', async () => {
     const baseUrl = await setup(withoutApi);
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         state: '__other_state__'
-      },
+      }),
       baseUrl
     );
     await expect(
@@ -69,10 +61,10 @@ describe('callback handler (page router)', () => {
     const baseUrl = await setup(withoutApi, { idTokenClaims: { aud: 'bar' } });
     const state = encodeState({ returnTo: baseUrl });
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         state,
         nonce: '__test_nonce__'
-      },
+      }),
       baseUrl
     );
     await expect(
@@ -91,10 +83,10 @@ describe('callback handler (page router)', () => {
     const baseUrl = await setup(withoutApi, { idTokenClaims: { aud: 'bar', iss: 'other-issuer' } });
     const state = encodeState({ returnTo: baseUrl });
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         state,
         nonce: '__test_nonce__'
-      },
+      }),
       baseUrl
     );
     await expect(
@@ -112,9 +104,9 @@ describe('callback handler (page router)', () => {
   test('should escape html in error qp', async () => {
     const baseUrl = await setup(withoutApi);
     const cookieJar = await toSignedCookieJar(
-      {
-        state: `foo.${await generateSignature('state', 'foo')}`
-      },
+      authVerificationCookie({
+        state: 'foo'
+      }),
       baseUrl
     );
     await expect(
@@ -126,10 +118,10 @@ describe('callback handler (page router)', () => {
     const baseUrl = await setup(withoutApi);
     const state = encodeState({ returnTo: baseUrl });
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         state,
         nonce: '__test_nonce__'
-      },
+      }),
       baseUrl
     );
     const { res } = await callback(
@@ -153,10 +145,10 @@ describe('callback handler (page router)', () => {
     const baseUrl = await setup(withoutApi);
     const state = encodeState({ returnTo: baseUrl });
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         state,
         nonce: '__test_nonce__'
-      },
+      }),
       baseUrl
     );
     const { res } = await post(baseUrl, `/api/auth/callback`, {
@@ -180,10 +172,10 @@ describe('callback handler (page router)', () => {
     const baseUrl = await setup(withApi);
     const state = encodeState({ returnTo: baseUrl });
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         state,
         nonce: '__test_nonce__'
-      },
+      }),
       baseUrl
     );
     const { res } = await callback(
@@ -226,10 +218,10 @@ describe('callback handler (page router)', () => {
     const baseUrl = await setup(withApi, { callbackOptions: { afterCallback } });
     const state = encodeState({ returnTo: baseUrl });
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         state,
         nonce: '__test_nonce__'
-      },
+      }),
       baseUrl
     );
     const { res } = await callback(
@@ -265,10 +257,10 @@ describe('callback handler (page router)', () => {
     const baseUrl = await setup(withApi, { callbackOptions: { afterCallback } });
     const state = encodeState({ returnTo: baseUrl });
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         state,
         nonce: '__test_nonce__'
-      },
+      }),
       baseUrl
     );
     const { res } = await callback(
@@ -299,10 +291,10 @@ describe('callback handler (page router)', () => {
     const baseUrl = await setup(withApi, { callbackOptions: { afterCallback } });
     const state = encodeState({ returnTo: baseUrl });
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         state,
         nonce: '__test_nonce__'
-      },
+      }),
       baseUrl
     );
     await expect(
@@ -321,10 +313,10 @@ describe('callback handler (page router)', () => {
     const baseUrl = await setup({ ...withApi, organization: 'org_foo' });
     const state = encodeState({ returnTo: baseUrl });
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         state,
         nonce: '__test_nonce__'
-      },
+      }),
       baseUrl
     );
     await expect(
@@ -343,10 +335,10 @@ describe('callback handler (page router)', () => {
     const baseUrl = await setup({ ...withApi, organization: 'org_foo' }, { idTokenClaims: { org_id: 'org_bar' } });
     const state = encodeState({ returnTo: baseUrl });
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         state,
         nonce: '__test_nonce__'
-      },
+      }),
       baseUrl
     );
     await expect(
@@ -370,10 +362,10 @@ describe('callback handler (page router)', () => {
     });
     const state = encodeState({ returnTo: baseUrl });
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         state,
         nonce: '__test_nonce__'
-      },
+      }),
       baseUrl
     );
     await expect(
@@ -399,10 +391,10 @@ describe('callback handler (page router)', () => {
     });
     const state = encodeState({ returnTo: baseUrl });
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         state,
         nonce: '__test_nonce__'
-      },
+      }),
       baseUrl
     );
     const spy = jest.fn();
@@ -442,10 +434,10 @@ describe('callback handler (page router)', () => {
     const baseUrl = await setup(withApi, { callbackOptions: { afterCallback } });
     const state = encodeState({ returnTo: baseUrl });
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         state,
         nonce: '__test_nonce__'
-      },
+      }),
       baseUrl
     );
     const { res } = await callback(

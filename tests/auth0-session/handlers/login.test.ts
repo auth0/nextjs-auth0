@@ -5,6 +5,8 @@ import { defaultConfig, fromCookieJar, get, getCookie } from '../fixtures/helper
 import { decodeState, encodeState } from '../../../src/auth0-session/utils/encoding';
 import { LoginOptions } from '../../../src/auth0-session';
 
+const authVerificationCookie = (cookie: string) => JSON.parse(decodeURIComponent(cookie));
+
 describe('login', () => {
   afterEach(teardown);
 
@@ -32,9 +34,9 @@ describe('login', () => {
       })
     });
 
-    expect(fromCookieJar(cookieJar, baseURL)).toMatchObject({
-      _state: parsed.query.state,
-      _nonce: parsed.query.nonce
+    expect(authVerificationCookie(fromCookieJar(cookieJar, baseURL)._auth_verification)).toMatchObject({
+      state: parsed.query.state,
+      nonce: parsed.query.nonce
     });
   });
 
@@ -69,7 +71,7 @@ describe('login', () => {
       })
     });
 
-    expect(fromCookieJar(cookieJar, baseURL)).toMatchObject({
+    expect(authVerificationCookie(fromCookieJar(cookieJar, baseURL).auth_verification)).toMatchObject({
       code_verifier: expect.any(String),
       state: parsed.query.state,
       nonce: parsed.query.nonce
@@ -107,10 +109,10 @@ describe('login', () => {
       })
     });
 
-    expect(fromCookieJar(cookieJar, baseURL)).toMatchObject({
-      _code_verifier: expect.any(String),
-      _state: parsed.query.state,
-      _nonce: parsed.query.nonce
+    expect(authVerificationCookie(fromCookieJar(cookieJar, baseURL)._auth_verification)).toMatchObject({
+      code_verifier: expect.any(String),
+      state: parsed.query.state,
+      nonce: parsed.query.nonce
     });
   });
 
@@ -120,11 +122,9 @@ describe('login', () => {
 
     await get(baseURL, '/login', { fullResponse: true, cookieJar });
 
-    expect(fromCookieJar(cookieJar, baseURL)).toEqual(
-      expect.objectContaining({
-        _max_age: '100'
-      })
-    );
+    expect(authVerificationCookie(fromCookieJar(cookieJar, baseURL)._auth_verification)).toMatchObject({
+      max_age: 100
+    });
   });
 
   it('should allow custom login returnTo param', async () => {
@@ -141,7 +141,9 @@ describe('login', () => {
       returnTo: '/foo'
     });
 
-    expect(fromCookieJar(cookieJar, baseURL)._state).toEqual(parsed.query.state);
+    expect(authVerificationCookie(fromCookieJar(cookieJar, baseURL)._auth_verification)).toMatchObject({
+      state: parsed.query.state
+    });
   });
 
   it('should not allow removing openid from scope', async () => {
@@ -174,7 +176,9 @@ describe('login', () => {
     );
 
     await get(baseURL, '/login', { cookieJar });
-    expect(fromCookieJar(cookieJar, baseURL)._response_type).toEqual('code');
+    expect(authVerificationCookie(fromCookieJar(cookieJar, baseURL)._auth_verification)).toMatchObject({
+      response_type: 'code'
+    });
   });
 
   it('should use a custom state builder', async () => {
@@ -200,7 +204,9 @@ describe('login', () => {
       customProp: '__test_custom_prop__'
     });
 
-    expect(fromCookieJar(cookieJar, baseURL)._state).toEqual(parsed.query.state);
+    expect(authVerificationCookie(fromCookieJar(cookieJar, baseURL)._auth_verification)).toMatchObject({
+      state: parsed.query.state
+    });
   });
 
   it('should throw on invalid state from custom state builder', async () => {
@@ -224,7 +230,7 @@ describe('login', () => {
     const { res } = await get(baseURL, '/login', { fullResponse: true, cookieJar });
     expect(res.statusCode).toEqual(302);
 
-    const cookie = getCookie('state', cookieJar, baseURL);
+    const cookie = getCookie('auth_verification', cookieJar, baseURL);
     expect(cookie?.sameSite).toEqual('lax');
     expect(cookie?.secure).toBeFalsy();
   });
@@ -250,7 +256,7 @@ describe('login', () => {
     const { res } = await get(baseURL, '/login', { fullResponse: true, cookieJar });
     expect(res.statusCode).toEqual(302);
 
-    const cookie = getCookie('state', cookieJar, baseURL);
+    const cookie = getCookie('auth_verification', cookieJar, baseURL);
     expect(cookie?.sameSite).toEqual('none');
     expect(cookie?.secure).toBeTruthy();
   });

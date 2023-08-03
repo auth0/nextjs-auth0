@@ -12,17 +12,7 @@ describe('login handler (app router)', () => {
     const res = await getResponse({
       url: '/api/auth/login'
     });
-    expect(res.cookies.get('nonce')).toMatchObject({
-      value: expect.any(String),
-      path: '/',
-      sameSite: 'lax'
-    });
-    expect(res.cookies.get('state')).toMatchObject({
-      value: expect.any(String),
-      path: '/',
-      sameSite: 'lax'
-    });
-    expect(res.cookies.get('code_verifier')).toMatchObject({
+    expect(res.cookies.get('auth_verification')).toMatchObject({
       value: expect.any(String),
       path: '/',
       sameSite: 'lax'
@@ -34,8 +24,9 @@ describe('login handler (app router)', () => {
       url: '/api/auth/login',
       loginOpts: { returnTo: '/custom-url' }
     });
-    const { value: state } = res.cookies.get('state');
-    const decodedState = decodeState(state.split('.')[0]);
+    const { value: authVerification } = res.cookies.get('auth_verification');
+    const { state } = JSON.parse(authVerification.split('.')[0]);
+    const decodedState = decodeState(state);
     expect(decodedState?.returnTo).toEqual('/custom-url');
   });
 
@@ -43,7 +34,8 @@ describe('login handler (app router)', () => {
     const res = await getResponse({
       url: '/api/auth/login'
     });
-    const { value: state } = res.cookies.get('state');
+    const { value: authVerification } = res.cookies.get('auth_verification');
+    const { state } = JSON.parse(authVerification.split('.')[0]);
     expect(urlParse(res.headers.get('location'), true)).toMatchObject({
       protocol: 'https:',
       host: 'acme.auth0.local',
@@ -54,7 +46,7 @@ describe('login handler (app router)', () => {
         response_type: 'code',
         redirect_uri: 'http://www.acme.com/api/auth/callback',
         nonce: expect.any(String),
-        state: state.split('.')[0],
+        state,
         code_challenge: expect.any(String),
         code_challenge_method: 'S256'
       },
@@ -119,8 +111,9 @@ describe('login handler (app router)', () => {
         }
       }
     });
-    const { value: state } = res.cookies.get('state');
-    const decodedState = decodeState(state.split('.')[0]);
+    const { value: authVerification } = res.cookies.get('auth_verification');
+    const { state } = JSON.parse(authVerification.split('.')[0]);
+    const decodedState = decodeState(state);
     expect(decodedState).toEqual({
       foo: 'bar',
       returnTo: 'http://www.acme.com/'
@@ -137,8 +130,9 @@ describe('login handler (app router)', () => {
         }
       }
     });
-    const { value: state } = res.cookies.get('state');
-    const decodedState = decodeState(state.split('.')[0]);
+    const { value: authVerification } = res.cookies.get('auth_verification');
+    const { state } = JSON.parse(authVerification.split('.')[0]);
+    const decodedState = decodeState(state);
     expect(decodedState).toEqual({
       foo: 'bar',
       returnTo: '/profile'
@@ -155,8 +149,9 @@ describe('login handler (app router)', () => {
         }
       }
     });
-    const { value: state } = res.cookies.get('state');
-    const decodedState = decodeState(state.split('.')[0]);
+    const { value: authVerification } = res.cookies.get('auth_verification');
+    const { state } = JSON.parse(authVerification.split('.')[0]);
+    const decodedState = decodeState(state);
     expect(decodedState).toEqual({
       foo: 'bar',
       returnTo: '/bar'
@@ -167,8 +162,9 @@ describe('login handler (app router)', () => {
     const res = await getResponse({
       url: '/api/auth/login?returnTo=/from-query'
     });
-    const { value: state } = res.cookies.get('state');
-    const decodedState = decodeState(state.split('.')[0]);
+    const { value: authVerification } = res.cookies.get('auth_verification');
+    const { state } = JSON.parse(authVerification.split('.')[0]);
+    const decodedState = decodeState(state);
     expect(decodedState?.returnTo).toEqual('http://www.acme.com/from-query');
   });
 
@@ -176,8 +172,9 @@ describe('login handler (app router)', () => {
     const res = await getResponse({
       url: '/api/auth/login?returnTo=/foo&returnTo=bar'
     });
-    const { value: state } = res.cookies.get('state');
-    const decodedState = decodeState(state.split('.')[0]);
+    const { value: authVerification } = res.cookies.get('auth_verification');
+    const { state } = JSON.parse(authVerification.split('.')[0]);
+    const decodedState = decodeState(state);
     expect(decodedState?.returnTo).toEqual('http://www.acme.com/foo');
   });
 
@@ -185,8 +182,9 @@ describe('login handler (app router)', () => {
     const res = await getResponse({
       url: '/api/auth/login?returnTo=https://evil.com'
     });
-    const { value: state } = res.cookies.get('state');
-    const decodedState = decodeState(state.split('.')[0]);
+    const { value: authVerification } = res.cookies.get('auth_verification');
+    const { state } = JSON.parse(authVerification.split('.')[0]);
+    const decodedState = decodeState(state);
     expect(decodedState?.returnTo).toBeUndefined();
   });
 
@@ -195,8 +193,9 @@ describe('login handler (app router)', () => {
       url: '/api/auth/login',
       loginOpts: { returnTo: 'https://google.com' }
     });
-    const { value: state } = res.cookies.get('state');
-    const decodedState = decodeState(state.split('.')[0]);
+    const { value: authVerification } = res.cookies.get('auth_verification');
+    const { state } = JSON.parse(authVerification.split('.')[0]);
+    const decodedState = decodeState(state);
     expect(decodedState?.returnTo).toBe('https://google.com');
   });
 
@@ -210,8 +209,9 @@ describe('login handler (app router)', () => {
       url: '/api/auth/login?returnTo=/bar',
       loginOpts
     });
-    const { value: state } = res.cookies.get('state');
-    const decodedState = decodeState(state.split('.')[0]);
+    const { value: authVerification } = res.cookies.get('auth_verification');
+    const { state } = JSON.parse(authVerification.split('.')[0]);
+    const decodedState = decodeState(state);
     expect(decodedState?.returnTo).toBe('https://other-org.acme.com/bar');
   });
 
@@ -224,8 +224,9 @@ describe('login handler (app router)', () => {
         }
       }
     });
-    const { value: state } = res.cookies.get('state');
-    const decodedState = decodeState(state.split('.')[0]);
+    const { value: authVerification } = res.cookies.get('auth_verification');
+    const { state } = JSON.parse(authVerification.split('.')[0]);
+    const decodedState = decodeState(state);
     expect(decodedState?.returnTo).toBe('/bar');
   });
 

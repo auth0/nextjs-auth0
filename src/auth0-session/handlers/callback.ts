@@ -6,6 +6,7 @@ import { SessionCache } from '../session-cache';
 import { MissingStateCookieError, MissingStateParamError } from '../utils/errors';
 import { Auth0Request, Auth0Response } from '../http';
 import { AbstractClient } from '../client/abstract-client';
+import type { AuthVerification } from './login';
 
 function getRedirectUri(config: Config): string {
   return urlJoin(config.baseURL, config.routes.callback);
@@ -34,7 +35,15 @@ export default function callbackHandlerFactory(
 
     let tokenResponse;
 
-    const expectedState = await transientCookieHandler.read('state', req, res);
+    const authVerification = await transientCookieHandler.read('auth_verification', req, res);
+    const {
+      max_age,
+      code_verifier,
+      nonce,
+      state: expectedState,
+      response_type = config.authorizationParams.response_type
+    } = (authVerification ? JSON.parse(authVerification) : {}) as AuthVerification;
+
     if (!expectedState) {
       throw new MissingStateCookieError();
     }
@@ -52,11 +61,6 @@ export default function callbackHandlerFactory(
     if (!callbackParams.get('state')) {
       throw new MissingStateParamError();
     }
-    const max_age = await transientCookieHandler.read('max_age', req, res);
-    const code_verifier = await transientCookieHandler.read('code_verifier', req, res);
-    const nonce = await transientCookieHandler.read('nonce', req, res);
-    const response_type =
-      (await transientCookieHandler.read('response_type', req, res)) || config.authorizationParams.response_type;
 
     try {
       tokenResponse = await client.callback(
