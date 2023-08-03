@@ -2,7 +2,7 @@ import { NextMiddleware, NextRequest, NextResponse } from 'next/server';
 import { SessionCache } from '../session';
 
 /**
- * Pass custom options to {@link WithMiddlewareAuthRequired}
+ * Pass custom options to {@link WithMiddlewareAuthRequired}.
  *
  * @category Server
  */
