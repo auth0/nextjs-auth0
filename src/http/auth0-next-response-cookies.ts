@@ -32,7 +32,7 @@ export default class Auth0NextResponseCookies extends Auth0ResponseCookies {
   public clearCookie(name: string, options?: CookieSerializeOptions) {
     const cookieSetter = cookies();
     try {
-      cookieSetter.delete({ ...options, name, value: '' });
+      cookieSetter.set({ ...options, name, value: '', expires: new Date(0) });
     } catch (_) {
       warn();
     }
