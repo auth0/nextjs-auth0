@@ -73,6 +73,29 @@ describe('with-middleware-auth-required', () => {
     expect(redirect.searchParams.get('returnTo')).toEqual('/foo/bar?baz=hello');
   });
 
+  test('return to provided url string', async () => {
+    const res = await setup({ url: 'http://example.com/foo/bar?baz=hello', middleware: { returnTo: '/qux' } });
+    const redirect = new URL(res.headers.get('location') as string);
+    expect(redirect).toMatchObject({
+      hostname: 'example.com',
+      pathname: '/api/auth/login'
+    });
+    expect(redirect.searchParams.get('returnTo')).toEqual('/qux');
+  });
+
+  test('return to provided url fn', async () => {
+    const res = await setup({
+      url: 'http://example.com/foo/bar?baz=hello',
+      middleware: { returnTo: (req: NextRequest) => Promise.resolve(`/qux${new URL(req.url).search}`) }
+    });
+    const redirect = new URL(res.headers.get('location') as string);
+    expect(redirect).toMatchObject({
+      hostname: 'example.com',
+      pathname: '/api/auth/login'
+    });
+    expect(redirect.searchParams.get('returnTo')).toEqual('/qux?baz=hello');
+  });
+
   test('should ignore static urls', async () => {
     const res = await setup({ url: 'http://example.com/_next/style.css' });
     expect(res).toBeUndefined();
@@ -131,6 +154,12 @@ describe('with-middleware-auth-required', () => {
   test('should run custom middleware for authenticated users', async () => {
     const middleware = jest.fn();
     await setup({ middleware, user: { name: 'dave' } });
+    expect(middleware).toHaveBeenCalled();
+  });
+
+  test('should accept custom middleware in options obj', async () => {
+    const middleware = jest.fn();
+    await setup({ middleware: { middleware }, user: { name: 'dave' } });
     expect(middleware).toHaveBeenCalled();
   });
 
