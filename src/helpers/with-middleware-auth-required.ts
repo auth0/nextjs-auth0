@@ -94,7 +94,7 @@ export default function withMiddlewareAuthRequiredFactory(
       let middleware: NextMiddleware | undefined;
       const { pathname, origin, search } = req.nextUrl;
       let returnTo = `${pathname}${search}`;
-      if (opts && typeof opts === 'function') {
+      if (typeof opts === 'function') {
         middleware = opts;
       } else if (opts) {
         middleware = opts.middleware;
