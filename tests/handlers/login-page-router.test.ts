@@ -3,7 +3,7 @@ import { withoutApi, withApi } from '../fixtures/default-settings';
 import { decodeState } from '../../src/auth0-session/utils/encoding';
 import { setup, teardown } from '../fixtures/setup';
 import { get, getCookie } from '../auth0-session/fixtures/helpers';
-import { Cookie, CookieJar } from 'tough-cookie';
+import { CookieJar } from 'tough-cookie';
 
 describe('login handler (page router)', () => {
   afterEach(teardown);
@@ -16,19 +16,7 @@ describe('login handler (page router)', () => {
     expect(cookieJar.getCookiesSync(baseUrl)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          key: 'nonce',
-          value: expect.any(String),
-          path: '/',
-          sameSite: 'lax'
-        }),
-        expect.objectContaining({
-          key: 'state',
-          value: expect.any(String),
-          path: '/',
-          sameSite: 'lax'
-        }),
-        expect.objectContaining({
-          key: 'code_verifier',
+          key: 'auth_verification',
           value: expect.any(String),
           path: '/',
           sameSite: 'lax'
@@ -42,10 +30,11 @@ describe('login handler (page router)', () => {
     const cookieJar = new CookieJar();
     await get(baseUrl, '/api/auth/login', { cookieJar });
 
-    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
+    const { value: authVerification } = getCookie('auth_verification', cookieJar, baseUrl)!;
+    const state = JSON.parse(decodeURIComponent(authVerification).split('.')[0]).state;
     expect(state).toBeTruthy();
 
-    const decodedState = decodeState(state.split('.')[0]);
+    const decodedState = decodeState(state);
     expect(decodedState?.returnTo).toEqual('/custom-url');
   });
 
@@ -58,7 +47,8 @@ describe('login handler (page router)', () => {
 
     expect(statusCode).toBe(302);
 
-    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
+    const { value: authVerification } = getCookie('auth_verification', cookieJar, baseUrl)!;
+    const state = JSON.parse(decodeURIComponent(authVerification).split('.')[0]).state;
     expect(urlParse(headers.location, true)).toMatchObject({
       protocol: 'https:',
       host: 'acme.auth0.local',
@@ -69,7 +59,7 @@ describe('login handler (page router)', () => {
         response_type: 'code',
         redirect_uri: 'http://www.acme.com/api/auth/callback',
         nonce: expect.any(String),
-        state: state.split('.')[0],
+        state,
         code_challenge: expect.any(String),
         code_challenge_method: 'S256'
       },
@@ -149,9 +139,10 @@ describe('login handler (page router)', () => {
     const cookieJar = new CookieJar();
     await get(baseUrl, '/api/auth/login', { cookieJar });
 
-    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
+    const { value: authVerification } = getCookie('auth_verification', cookieJar, baseUrl)!;
+    const state = JSON.parse(decodeURIComponent(authVerification).split('.')[0]).state;
 
-    const decodedState = decodeState(state.split('.')[0]);
+    const decodedState = decodeState(state);
     expect(decodedState).toEqual({
       foo: 'bar',
       returnTo: 'http://www.acme.com/'
@@ -171,9 +162,10 @@ describe('login handler (page router)', () => {
     const cookieJar = new CookieJar();
     await get(baseUrl, '/api/auth/login', { cookieJar });
 
-    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
+    const { value: authVerification } = getCookie('auth_verification', cookieJar, baseUrl)!;
+    const state = JSON.parse(decodeURIComponent(authVerification).split('.')[0]).state;
 
-    const decodedState = decodeState(state.split('.')[0]);
+    const decodedState = decodeState(state);
     expect(decodedState).toEqual({
       foo: 'bar',
       returnTo: '/profile'
@@ -194,9 +186,10 @@ describe('login handler (page router)', () => {
     const cookieJar = new CookieJar();
     await get(baseUrl, '/api/auth/login', { cookieJar });
 
-    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
+    const { value: authVerification } = getCookie('auth_verification', cookieJar, baseUrl)!;
+    const state = JSON.parse(decodeURIComponent(authVerification).split('.')[0]).state;
 
-    const decodedState = decodeState(state.split('.')[0]);
+    const decodedState = decodeState(state);
     expect(decodedState).toEqual({
       foo: 'bar',
       returnTo: '/foo'
@@ -210,9 +203,10 @@ describe('login handler (page router)', () => {
     const baseUrl = await setup(withoutApi, { loginOptions });
     const cookieJar = new CookieJar();
     await get(baseUrl, '/api/auth/login?returnTo=/foo', { cookieJar });
-    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
+    const { value: authVerification } = getCookie('auth_verification', cookieJar, baseUrl)!;
+    const state = JSON.parse(decodeURIComponent(authVerification).split('.')[0]).state;
 
-    const decodedState = decodeState(state.split('.')[0]);
+    const decodedState = decodeState(state);
     expect(decodedState).toEqual({
       returnTo: new URL('/foo', withoutApi.baseURL).toString()
     });
@@ -225,9 +219,10 @@ describe('login handler (page router)', () => {
     const baseUrl = await setup(withoutApi, { loginOptions });
     const cookieJar = new CookieJar();
     await get(baseUrl, '/api/auth/login?returnTo=/foo&returnTo=/bar', { cookieJar });
-    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
+    const { value: authVerification } = getCookie('auth_verification', cookieJar, baseUrl)!;
+    const state = JSON.parse(decodeURIComponent(authVerification).split('.')[0]).state;
 
-    const decodedState = decodeState(state.split('.')[0]);
+    const decodedState = decodeState(state);
     expect(decodedState).toEqual({
       returnTo: new URL('/foo', withoutApi.baseURL).toString()
     });
@@ -241,9 +236,10 @@ describe('login handler (page router)', () => {
 
     const cookieJar = new CookieJar();
     await get(baseUrl, '/api/auth/login?returnTo=https://www.google.com', { cookieJar });
-    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
+    const { value: authVerification } = getCookie('auth_verification', cookieJar, baseUrl)!;
+    const state = JSON.parse(decodeURIComponent(authVerification).split('.')[0]).state;
 
-    const decodedState = decodeState(state.split('.')[0]);
+    const decodedState = decodeState(state);
     expect(decodedState).toEqual({});
   });
 
@@ -255,9 +251,10 @@ describe('login handler (page router)', () => {
 
     const cookieJar = new CookieJar();
     await get(baseUrl, '/api/auth/login?returnTo=/foo?url=https://www.google.com', { cookieJar });
-    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
+    const { value: authVerification } = getCookie('auth_verification', cookieJar, baseUrl)!;
+    const state = JSON.parse(decodeURIComponent(authVerification).split('.')[0]).state;
 
-    const decodedState = decodeState(state.split('.')[0]);
+    const decodedState = decodeState(state);
     expect(decodedState).toEqual({
       returnTo: new URL('/foo?url=https://www.google.com', withoutApi.baseURL).toString()
     });
@@ -274,9 +271,10 @@ describe('login handler (page router)', () => {
 
     const cookieJar = new CookieJar();
     await get(baseUrl, '/api/auth/login?returnTo=/foo', { cookieJar });
-    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
+    const { value: authVerification } = getCookie('auth_verification', cookieJar, baseUrl)!;
+    const state = JSON.parse(decodeURIComponent(authVerification).split('.')[0]).state;
 
-    const decodedState = decodeState(state.split('.')[0]);
+    const decodedState = decodeState(state);
     expect(decodedState).toEqual({
       returnTo: 'https://other-org.acme.com/foo'
     });
@@ -294,9 +292,10 @@ describe('login handler (page router)', () => {
     const baseUrl = await setup(withoutApi, { loginOptions });
     const cookieJar = new CookieJar();
     await get(baseUrl, '/api/auth/login', { cookieJar });
-    const { value: state } = getCookie('state', cookieJar, baseUrl) as Cookie;
+    const { value: authVerification } = getCookie('auth_verification', cookieJar, baseUrl)!;
+    const state = JSON.parse(decodeURIComponent(authVerification).split('.')[0]).state;
 
-    const decodedState = decodeState(state.split('.')[0]);
+    const decodedState = decodeState(state);
     expect(decodedState).toEqual({
       returnTo: '/foo'
     });

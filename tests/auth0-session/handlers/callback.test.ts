@@ -15,6 +15,8 @@ const privateKey = readFileSync(join(__dirname, '..', 'fixtures', 'private-key.p
 
 const expectedDefaultState = encodeState({ returnTo: 'https://example.org' });
 
+const authVerificationCookie = (cookies: Record<string, string>) => ({ auth_verification: JSON.stringify(cookies) });
+
 describe('callback', () => {
   afterEach(teardown);
 
@@ -22,10 +24,10 @@ describe('callback', () => {
     const baseURL = await setup(defaultConfig);
 
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         nonce: '__test_nonce__',
         state: '__test_state__'
-      },
+      }),
       baseURL
     );
 
@@ -54,10 +56,10 @@ describe('callback', () => {
     const baseURL = await setup(defaultConfig);
 
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         nonce: '__valid_nonce__',
         state: '__valid_state__'
-      },
+      }),
       baseURL
     );
 
@@ -76,10 +78,10 @@ describe('callback', () => {
     const baseURL = await setup(defaultConfig);
 
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         nonce: '__valid_nonce__',
         state: '__valid_state__'
-      },
+      }),
       baseURL
     );
 
@@ -98,10 +100,10 @@ describe('callback', () => {
     const baseURL = await setup(defaultConfig);
 
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         nonce: '__valid_nonce__',
         state: '__valid_state__'
-      },
+      }),
       baseURL
     );
 
@@ -122,10 +124,10 @@ describe('callback', () => {
     const baseURL = await setup(defaultConfig);
 
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         nonce: '__valid_nonce__',
         state: '__valid_state__'
-      },
+      }),
       baseURL
     );
 
@@ -144,9 +146,9 @@ describe('callback', () => {
     const baseURL = await setup(defaultConfig);
 
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         state: '__valid_state__'
-      },
+      }),
       baseURL
     );
 
@@ -165,9 +167,9 @@ describe('callback', () => {
     const baseURL = await setup({ ...defaultConfig, legacySameSiteCookie: false });
 
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         _state: '__valid_state__'
-      },
+      }),
       baseURL
     );
 
@@ -197,11 +199,11 @@ describe('callback', () => {
     };
 
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         state: expectedDefaultState,
         nonce: '__test_nonce__',
         max_age: '100'
-      },
+      }),
       baseURL
     );
 
@@ -228,10 +230,10 @@ describe('callback', () => {
     };
 
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         state: expectedDefaultState,
         nonce: '__test_nonce__'
-      },
+      }),
       baseURL
     );
 
@@ -254,11 +256,11 @@ describe('callback', () => {
     const baseURL = await setup({ ...defaultConfig, authorizationParams: { response_type: 'id_token' } });
 
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         state: expectedDefaultState,
         nonce: '__test_nonce__',
         response_type: 'code id_token'
-      },
+      }),
       baseURL
     );
 
@@ -300,10 +302,10 @@ describe('callback', () => {
       }));
 
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         state: expectedDefaultState,
         nonce: '__test_nonce__'
-      },
+      }),
       baseURL
     );
 
@@ -360,10 +362,10 @@ describe('callback', () => {
       });
 
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         state: expectedDefaultState,
         nonce: '__test_nonce__'
-      },
+      }),
       baseURL
     );
 
@@ -411,10 +413,10 @@ describe('callback', () => {
       });
 
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         state: expectedDefaultState,
         nonce: '__test_nonce__'
-      },
+      }),
       baseURL
     );
 
@@ -441,10 +443,10 @@ describe('callback', () => {
 
     const state = encodeState({ foo: 'bar' });
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         state: state,
         nonce: '__test_nonce__'
-      },
+      }),
       baseURL
     );
 
@@ -465,7 +467,7 @@ describe('callback', () => {
     const redirectUri = 'http://messi:3000/api/auth/callback/runtime';
     const baseURL = await setup(defaultConfig, { callbackOptions: { redirectUri } });
     const state = encodeState({ foo: 'bar' });
-    const cookieJar = await toSignedCookieJar({ state, nonce: '__test_nonce__' }, baseURL);
+    const cookieJar = await toSignedCookieJar(authVerificationCookie({ state, nonce: '__test_nonce__' }), baseURL);
     const { res } = await post(baseURL, '/callback', {
       body: {
         state: state,
@@ -491,10 +493,10 @@ describe('callback', () => {
 
     const state = encodeState({ foo: 'bar' });
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         state: state,
         nonce: '__test_nonce__'
-      },
+      }),
       baseURL
     );
 
@@ -523,10 +525,10 @@ describe('callback', () => {
 
     const state = encodeState({ foo: 'bar' });
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         state: state,
         nonce: '__test_nonce__'
-      },
+      }),
       baseURL
     );
 
@@ -547,11 +549,11 @@ describe('callback', () => {
     const baseURL = await setup(defaultConfig);
 
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         state: expectedDefaultState,
         nonce: '__test_nonce__',
         response_type: 'code id_token'
-      },
+      }),
       baseURL
     );
 
@@ -572,11 +574,11 @@ describe('callback', () => {
     const baseURL = await setup(defaultConfig);
 
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         state: expectedDefaultState,
         nonce: '__test_nonce__',
         response_type: 'code id_token'
-      },
+      }),
       baseURL
     );
 
@@ -599,11 +601,11 @@ describe('callback', () => {
     nock('https://op2.example.com').get('/.well-known/openid-configuration').reply(500);
 
     const cookieJar = await toSignedCookieJar(
-      {
+      authVerificationCookie({
         state: expectedDefaultState,
         nonce: '__test_nonce__',
         response_type: 'code id_token'
-      },
+      }),
       baseURL
     );
 

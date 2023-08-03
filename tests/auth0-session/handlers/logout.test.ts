@@ -10,7 +10,7 @@ import wellKnown from '../fixtures/well-known.json';
 const login = async (baseURL: string): Promise<CookieJar> => {
   const nonce = '__test_nonce__';
   const state = encodeState({ returnTo: 'https://example.org' });
-  const cookieJar = await toSignedCookieJar({ state, nonce }, baseURL);
+  const cookieJar = await toSignedCookieJar({ auth_verification: JSON.stringify({ state, nonce }) }, baseURL);
   await post(baseURL, '/callback', {
     body: {
       state,
@@ -89,7 +89,7 @@ describe('logout route', () => {
     });
     const nonce = '__test_nonce__';
     const state = encodeState({ returnTo: 'https://example.org' });
-    const cookieJar = await toSignedCookieJar({ state, nonce }, baseURL);
+    const cookieJar = await toSignedCookieJar({ auth_verification: JSON.stringify({ state, nonce }) }, baseURL);
     await post(baseURL, '/callback', {
       body: {
         state,
