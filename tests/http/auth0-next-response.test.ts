@@ -34,11 +34,29 @@ describe('auth0-next-response', () => {
     expect(auth0Res.res.headers.get('set-cookie')).toEqual(['foo=bar; Path=/', 'baz=qux; Path=/'].join(', '));
   });
 
-  it('should clear cookies', async () => {
+  it('should delete a cookie', async () => {
     const [, res] = setup();
     const auth0Res = new Auth0NextResponse(res);
     auth0Res.clearCookie('foo');
 
-    expect(auth0Res.res.headers.get('set-cookie')).toMatch(/foo=;.*Expires=.*1970/);
+    expect(auth0Res.res.headers.get('set-cookie')).toBe('foo=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT');
+  });
+
+  it('should delete a cookie with domain option', async () => {
+    const [, res] = setup();
+    const auth0Res = new Auth0NextResponse(res);
+    auth0Res.clearCookie('foo', { domain: 'example.com' });
+
+    expect(auth0Res.res.headers.get('set-cookie')).toBe(
+      'foo=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Domain=example.com'
+    );
+  });
+
+  it('should delete a cookie with path option', async () => {
+    const [, res] = setup();
+    const auth0Res = new Auth0NextResponse(res);
+    auth0Res.clearCookie('foo', { path: '/foo' });
+
+    expect(auth0Res.res.headers.get('set-cookie')).toBe('foo=; Path=/foo; Expires=Thu, 01 Jan 1970 00:00:00 GMT');
   });
 });
