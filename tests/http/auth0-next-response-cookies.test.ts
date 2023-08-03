@@ -34,6 +34,24 @@ describe('auth0-next-response', () => {
     expect(res.headers.get('set-cookie')).toEqual('foo=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT');
   });
 
+  it('should delete cookies with a domain', async () => {
+    const cookies = new Auth0NextResponseCookies();
+    const res = new NextResponse();
+    jest.mocked(nextCookies).mockImplementation(() => res.cookies as any);
+    cookies.clearCookie('foo', { domain: 'example.com' });
+    expect(res.headers.get('set-cookie')).toEqual(
+      'foo=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Domain=example.com'
+    );
+  });
+
+  it('should delete cookies with a path', async () => {
+    const cookies = new Auth0NextResponseCookies();
+    const res = new NextResponse();
+    jest.mocked(nextCookies).mockImplementation(() => res.cookies as any);
+    cookies.clearCookie('foo', { path: '/foo' });
+    expect(res.headers.get('set-cookie')).toEqual('foo=; Path=/foo; Expires=Thu, 01 Jan 1970 00:00:00 GMT');
+  });
+
   it('should not throw when deleting a cookie fails', async () => {
     const cookies = new Auth0NextResponseCookies();
     jest.mocked(nextCookies).mockImplementation(
