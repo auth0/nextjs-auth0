@@ -126,9 +126,10 @@ export const login = async (opts: LoginOpts = {}) => {
     url: `/api/auth/callback?state=${state}&code=code`,
     cookies: {
       ...opts.cookies,
-      state: await signCookie('state', state),
-      nonce: await signCookie('nonce', '__test_nonce__'),
-      code_verifier: await signCookie('code_verifier', '__test_code_verifier__')
+      auth_verification: await signCookie(
+        'auth_verification',
+        JSON.stringify({ state, nonce: '__test_nonce__', code_verifier: '__test_code_verifier__' })
+      )
     }
   });
 };
