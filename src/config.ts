@@ -265,6 +265,7 @@ export interface SessionConfig {
    * Boolean value to store the ID token in the session. Storing it can make the session cookie too
    * large.
    * Defaults to `true`.
+   * You can also use the `AUTH0_SESSION_STORE_ID_TOKEN` environment variable.
    */
   storeIDToken: boolean;
 
