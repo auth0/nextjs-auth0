@@ -137,6 +137,7 @@ export {
 
 export {
   MissingStateCookieError,
+  MalformedStateCookieError,
   MissingStateParamError,
   IdentityProviderError,
   ApplicationError

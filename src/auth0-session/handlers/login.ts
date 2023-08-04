@@ -1,6 +1,6 @@
 import urlJoin from 'url-join';
 import { Config, LoginOptions } from '../config';
-import TransientStore, { StoreOptions } from '../transient-store';
+import TransientStore from '../transient-store';
 import { encodeState } from '../utils/encoding';
 import createDebug from '../utils/debug';
 import { Auth0Request, Auth0Response } from '../http';
@@ -13,6 +13,14 @@ function getRedirectUri(config: Config): string {
 }
 
 export type HandleLogin = (req: Auth0Request, res: Auth0Response, options?: LoginOptions) => Promise<void>;
+
+export type AuthVerification = {
+  nonce: string;
+  state: string;
+  max_age?: number;
+  code_verifier?: string;
+  response_type?: string;
+};
 
 export default function loginHandlerFactory(
   config: Config,
@@ -35,10 +43,6 @@ export default function loginHandlerFactory(
       ...(opts.authorizationParams || {})
     };
 
-    const transientOpts: Pick<StoreOptions, 'sameSite'> = {
-      sameSite: opts.authorizationParams.response_mode === 'form_post' ? 'none' : config.session.cookie.sameSite
-    };
-
     const stateValue = await opts.getLoginState(opts);
     if (typeof stateValue !== 'object') {
       throw new Error('Custom state value must be an object.');
@@ -53,47 +57,39 @@ export default function loginHandlerFactory(
       stateValue.code_verifier = client.generateRandomCodeVerifier();
     }
 
-    if (responseType !== config.authorizationParams.response_type) {
-      await transientHandler.save('response_type', req, res, {
-        ...transientOpts,
-        value: responseType
-      });
-    }
-
-    const authParams = {
-      ...opts.authorizationParams,
-      nonce: await transientHandler.save('nonce', req, res, { ...transientOpts, value: client.generateRandomNonce() }),
-      state: await transientHandler.save('state', req, res, {
-        ...transientOpts,
-        value: encodeState(stateValue)
-      }),
-      ...(usePKCE
-        ? {
-            code_challenge: await client.calculateCodeChallenge(
-              await transientHandler.save('code_verifier', req, res, {
-                ...transientOpts,
-                value: client.generateRandomCodeVerifier()
-              })
-            ),
-            code_challenge_method: 'S256'
-          }
-        : undefined)
-    };
-
     const validResponseTypes = ['id_token', 'code id_token', 'code'];
-    if (!validResponseTypes.includes(authParams.response_type as string)) {
+    if (!validResponseTypes.includes(responseType)) {
       throw new Error(`response_type should be one of ${validResponseTypes.join(', ')}`);
     }
-    if (!/\bopenid\b/.test(authParams.scope as string)) {
+    if (!/\bopenid\b/.test(opts.authorizationParams.scope as string)) {
       throw new Error('scope should contain "openid"');
     }
 
-    if (authParams.max_age) {
-      await transientHandler.save('max_age', req, res, {
-        ...transientOpts,
-        value: authParams.max_age.toString()
-      });
+    const authVerification: AuthVerification = {
+      nonce: client.generateRandomNonce(),
+      state: encodeState(stateValue)
+    };
+
+    if (opts.authorizationParams.max_age) {
+      authVerification.max_age = opts.authorizationParams.max_age;
     }
+
+    const authParams = { ...opts.authorizationParams, ...authVerification };
+
+    if (usePKCE) {
+      authVerification.code_verifier = client.generateRandomCodeVerifier();
+      authParams.code_challenge_method = 'S256';
+      authParams.code_challenge = await client.calculateCodeChallenge(authVerification.code_verifier);
+    }
+
+    if (responseType !== config.authorizationParams.response_type) {
+      authVerification.response_type = responseType;
+    }
+
+    await transientHandler.save('auth_verification', req, res, {
+      sameSite: authParams.response_mode === 'form_post' ? 'none' : config.session.cookie.sameSite,
+      value: JSON.stringify(authVerification)
+    });
 
     const authorizationUrl = await client.authorizationUrl(authParams);
     debug('redirecting to %s', authorizationUrl);

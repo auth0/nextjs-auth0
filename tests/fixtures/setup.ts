@@ -135,7 +135,7 @@ export const teardown = async (): Promise<void> => {
 export const login = async (baseUrl: string): Promise<CookieJar> => {
   const nonce = '__test_nonce__';
   const state = encodeState({ returnTo: '/' });
-  const cookieJar = await toSignedCookieJar({ state, nonce }, baseUrl);
+  const cookieJar = await toSignedCookieJar({ auth_verification: JSON.stringify({ state, nonce }) }, baseUrl);
   await post(baseUrl, '/api/auth/callback', {
     fullResponse: true,
     body: {

@@ -14,7 +14,10 @@ const epochNow = (Date.now() / 1000) | 0;
 const login = async (baseURL: string, existingSession?: { appSession: string }): Promise<CookieJar> => {
   const nonce = '__test_nonce__';
   const state = encodeState({ returnTo: 'https://example.org' });
-  const cookieJar = await toSignedCookieJar({ state, nonce, ...existingSession }, baseURL);
+  const cookieJar = await toSignedCookieJar(
+    { auth_verification: JSON.stringify({ state, nonce }), ...existingSession },
+    baseURL
+  );
   await post(baseURL, '/callback', {
     body: {
       state,

@@ -8,15 +8,19 @@ import { encodeState } from '../../src/auth0-session/utils/encoding';
 import type { Session } from '../../src';
 import { getResponse, mockFetch, getSession as getSessionFromRes } from '../fixtures/app-router-helpers';
 
+const authVerificationCookie = async (cookies: Record<string, string>) => ({
+  auth_verification: await signCookie('auth_verification', JSON.stringify(cookies))
+});
+
 describe('callback handler (app router)', () => {
   beforeEach(mockFetch);
 
   test('should require a state parameter', async () => {
     const res = await getResponse({
       url: '/api/auth/callback',
-      cookies: {
-        state: await signCookie('state', 'foo')
-      }
+      cookies: await authVerificationCookie({
+        state: 'foo'
+      })
     });
     expect(res.status).toBe(400);
     expect(res.statusText).toMatch(/Missing state parameter|response parameter &quot;state&quot; missing/);
@@ -33,9 +37,9 @@ describe('callback handler (app router)', () => {
   test('should validate the state', async () => {
     const res = await getResponse({
       url: '/api/auth/callback?state=__test_state__',
-      cookies: {
-        state: await signCookie('state', 'other_state')
-      }
+      cookies: await authVerificationCookie({
+        state: 'other_state'
+      })
     });
     expect(res.status).toBe(400);
     expect(res.statusText).toMatch(
@@ -47,11 +51,11 @@ describe('callback handler (app router)', () => {
     const state = encodeState({ returnTo: 'https://example.com' });
     const res = await getResponse({
       url: `/api/auth/callback?state=${state}&code=code`,
-      cookies: {
-        state: await signCookie('state', state),
-        nonce: await signCookie('nonce', '__test_nonce__'),
-        code_verifier: await signCookie('code_verifier', '__test_code_verifier__')
-      },
+      cookies: await authVerificationCookie({
+        state: state,
+        nonce: '__test_nonce__',
+        code_verifier: '__test_code_verifier__'
+      }),
       idTokenClaims: { aud: 'bar' }
     });
     expect(res.status).toBe(400);
@@ -64,11 +68,11 @@ describe('callback handler (app router)', () => {
     const state = encodeState({ returnTo: 'https://example.com' });
     const res = await getResponse({
       url: `/api/auth/callback?state=${state}&code=code`,
-      cookies: {
-        state: await signCookie('state', state),
-        nonce: await signCookie('nonce', '__test_nonce__'),
-        code_verifier: await signCookie('code_verifier', '__test_code_verifier__')
-      },
+      cookies: await authVerificationCookie({
+        state: state,
+        nonce: '__test_nonce__',
+        code_verifier: '__test_code_verifier__'
+      }),
       idTokenClaims: { iss: 'other-issuer' }
     });
     expect(res.status).toBe(400);
@@ -80,9 +84,9 @@ describe('callback handler (app router)', () => {
   test('should escape html in error qp', async () => {
     const res = await getResponse({
       url: '/api/auth/callback?error=%3Cscript%3Ealert(%27xss%27)%3C%2Fscript%3E&state=foo',
-      cookies: {
-        state: await signCookie('state', 'foo')
-      }
+      cookies: await authVerificationCookie({
+        state: 'foo'
+      })
     });
     expect(res.status).toBe(400);
     expect(res.statusText).toMatch(/&lt;script&gt;alert\(&#39;xss&#39;\)&lt;\/script&gt;/);
@@ -92,11 +96,11 @@ describe('callback handler (app router)', () => {
     const state = encodeState({ returnTo: 'https://example.com/foo' });
     const res = await getResponse({
       url: `/api/auth/callback?state=${state}&code=code`,
-      cookies: {
-        state: await signCookie('state', state),
-        nonce: await signCookie('nonce', '__test_nonce__'),
-        code_verifier: await signCookie('code_verifier', '__test_code_verifier__')
-      }
+      cookies: await authVerificationCookie({
+        state,
+        nonce: '__test_nonce__',
+        code_verifier: '__test_code_verifier__'
+      })
     });
     expect(res.status).toEqual(302);
     expect(res.headers.get('location')).toEqual('https://example.com/foo');
@@ -112,11 +116,11 @@ describe('callback handler (app router)', () => {
     const state = encodeState({ returnTo: 'https://example.com/foo' });
     const res = await getResponse({
       url: `/api/auth/callback?state=${state}&code=code`,
-      cookies: {
-        state: await signCookie('state', state),
-        nonce: await signCookie('nonce', '__test_nonce__'),
-        code_verifier: await signCookie('code_verifier', '__test_code_verifier__')
-      },
+      cookies: await authVerificationCookie({
+        state,
+        nonce: '__test_nonce__',
+        code_verifier: '__test_code_verifier__'
+      }),
       callbackOpts: {
         afterCallback(_req: NextRequest, session: Session) {
           delete session.accessToken;
@@ -137,11 +141,11 @@ describe('callback handler (app router)', () => {
     const state = encodeState({ returnTo: 'https://example.com/foo' });
     const res = await getResponse({
       url: `/api/auth/callback?state=${state}&code=code`,
-      cookies: {
-        state: await signCookie('state', state),
-        nonce: await signCookie('nonce', '__test_nonce__'),
-        code_verifier: await signCookie('code_verifier', '__test_code_verifier__')
-      },
+      cookies: await authVerificationCookie({
+        state: state,
+        nonce: '__test_nonce__',
+        code_verifier: '__test_code_verifier__'
+      }),
       callbackOpts: {
         afterCallback(_req: NextRequest, session: Session) {
           return { ...session, foo: 'bar' };
@@ -162,11 +166,11 @@ describe('callback handler (app router)', () => {
     await expect(
       getResponse({
         url: `/api/auth/callback?state=${state}&code=code`,
-        cookies: {
-          state: await signCookie('state', state),
-          nonce: await signCookie('nonce', '__test_nonce__'),
-          code_verifier: await signCookie('code_verifier', '__test_code_verifier__')
-        },
+        cookies: await authVerificationCookie({
+          state,
+          nonce: '__test_nonce__',
+          code_verifier: '__test_code_verifier__'
+        }),
         callbackOpts: {
           afterCallback() {
             throw new Error('some validation error.');
@@ -180,11 +184,11 @@ describe('callback handler (app router)', () => {
     const state = encodeState({ returnTo: 'https://example.com/foo' });
     const res = await getResponse({
       url: `/api/auth/callback?state=${state}&code=code`,
-      cookies: {
-        state: await signCookie('state', state),
-        nonce: await signCookie('nonce', '__test_nonce__'),
-        code_verifier: await signCookie('code_verifier', '__test_code_verifier__')
-      },
+      cookies: await authVerificationCookie({
+        state,
+        nonce: '__test_nonce__',
+        code_verifier: '__test_code_verifier__'
+      }),
       callbackOpts: {
         afterCallback() {
           return NextResponse.redirect('https://example.com/foo');
@@ -200,11 +204,11 @@ describe('callback handler (app router)', () => {
     await expect(
       getResponse({
         url: `/api/auth/callback?state=${state}&code=code`,
-        cookies: {
-          state: await signCookie('state', state),
-          nonce: await signCookie('nonce', '__test_nonce__'),
-          code_verifier: await signCookie('code_verifier', '__test_code_verifier__')
-        },
+        cookies: await authVerificationCookie({
+          state,
+          nonce: '__test_nonce__',
+          code_verifier: '__test_code_verifier__'
+        }),
         callbackOpts: {
           organization: 'org_foo'
         }
@@ -220,11 +224,11 @@ describe('callback handler (app router)', () => {
     await expect(
       getResponse({
         url: `/api/auth/callback?state=${state}&code=code`,
-        cookies: {
-          state: await signCookie('state', state),
-          nonce: await signCookie('nonce', '__test_nonce__'),
-          code_verifier: await signCookie('code_verifier', '__test_code_verifier__')
-        },
+        cookies: await authVerificationCookie({
+          state,
+          nonce: '__test_nonce__',
+          code_verifier: '__test_code_verifier__'
+        }),
         callbackOpts: {
           organization: 'foo'
         }
@@ -240,11 +244,11 @@ describe('callback handler (app router)', () => {
     await expect(
       getResponse({
         url: `/api/auth/callback?state=${state}&code=code`,
-        cookies: {
-          state: await signCookie('state', state),
-          nonce: await signCookie('nonce', '__test_nonce__'),
-          code_verifier: await signCookie('code_verifier', '__test_code_verifier__')
-        },
+        cookies: await authVerificationCookie({
+          state,
+          nonce: '__test_nonce__',
+          code_verifier: '__test_code_verifier__'
+        }),
         callbackOpts: {
           organization: 'org_foo'
         },
@@ -263,11 +267,11 @@ describe('callback handler (app router)', () => {
     await expect(
       getResponse({
         url: `/api/auth/callback?state=${state}&code=code`,
-        cookies: {
-          state: await signCookie('state', state),
-          nonce: await signCookie('nonce', '__test_nonce__'),
-          code_verifier: await signCookie('code_verifier', '__test_code_verifier__')
-        },
+        cookies: await authVerificationCookie({
+          state,
+          nonce: '__test_nonce__',
+          code_verifier: '__test_code_verifier__'
+        }),
         callbackOpts: {
           organization: 'foo'
         },
@@ -286,11 +290,11 @@ describe('callback handler (app router)', () => {
     await expect(
       getResponse({
         url: `/api/auth/callback?state=${state}&code=code`,
-        cookies: {
-          state: await signCookie('state', state),
-          nonce: await signCookie('nonce', '__test_nonce__'),
-          code_verifier: await signCookie('code_verifier', '__test_code_verifier__')
-        },
+        cookies: await authVerificationCookie({
+          state,
+          nonce: '__test_nonce__',
+          code_verifier: '__test_code_verifier__'
+        }),
         callbackOpts: {
           organization: 'org_foo'
         },
@@ -306,11 +310,11 @@ describe('callback handler (app router)', () => {
     await expect(
       getResponse({
         url: `/api/auth/callback?state=${state}&code=code`,
-        cookies: {
-          state: await signCookie('state', state),
-          nonce: await signCookie('nonce', '__test_nonce__'),
-          code_verifier: await signCookie('code_verifier', '__test_code_verifier__')
-        },
+        cookies: await authVerificationCookie({
+          state,
+          nonce: '__test_nonce__',
+          code_verifier: '__test_code_verifier__'
+        }),
         callbackOpts: {
           organization: 'foo'
         },
