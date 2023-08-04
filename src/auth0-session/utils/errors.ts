@@ -30,7 +30,7 @@ export class MalformedStateCookieError extends Error {
   constructor() {
     /* c8 ignore next */
     super(MalformedStateCookieError.message);
-    Object.setPrototypeOf(this, MissingStateCookieError.prototype);
+    Object.setPrototypeOf(this, MalformedStateCookieError.prototype);
   }
 }
 
