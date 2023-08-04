@@ -203,12 +203,10 @@ export interface BaseConfig {
    * `AUTH0_TRANSACTION_COOKIE_NAME`
    * `AUTH0_TRANSACTION_COOKIE_DOMAIN`
    * `AUTH0_TRANSACTION_COOKIE_PATH`
-   * `AUTH0_TRANSACTION_COOKIE_TRANSIENT`
-   * `AUTH0_TRANSACTION_COOKIE_HTTP_ONLY`
    * `AUTH0_TRANSACTION_COOKIE_SAME_SITE`
    * `AUTH0_TRANSACTION_COOKIE_SECURE`
    */
-  transactionCookie: CookieConfig & { name: string };
+  transactionCookie: Omit<CookieConfig, 'transient' | 'httpOnly'> & { name: string };
 }
 
 /**
@@ -437,8 +435,6 @@ export interface NextConfig extends Pick<BaseConfig, 'identityClaimFilter'> {
  * - `AUTH0_TRANSACTION_COOKIE_NAME` See {@link BaseConfig.transactionCookie}
  * - `AUTH0_TRANSACTION_COOKIE_DOMAIN` See {@link BaseConfig.transactionCookie}
  * - `AUTH0_TRANSACTION_COOKIE_PATH` See {@link BaseConfig.transactionCookie}
- * - `AUTH0_TRANSACTION_COOKIE_TRANSIENT` See {@link BaseConfig.transactionCookie}
- * - `AUTH0_TRANSACTION_COOKIE_HTTP_ONLY` See {@link BaseConfig.transactionCookie}
  * - `AUTH0_TRANSACTION_COOKIE_SAME_SITE` See {@link BaseConfig.transactionCookie}
  * - `AUTH0_TRANSACTION_COOKIE_SECURE` See {@link BaseConfig.transactionCookie}
  *
@@ -546,8 +542,6 @@ export const getConfig = (params: ConfigParameters = {}): { baseConfig: BaseConf
   const AUTH0_TRANSACTION_COOKIE_NAME = process.env.AUTH0_TRANSACTION_COOKIE_NAME;
   const AUTH0_TRANSACTION_COOKIE_DOMAIN = process.env.AUTH0_TRANSACTION_COOKIE_DOMAIN;
   const AUTH0_TRANSACTION_COOKIE_PATH = process.env.AUTH0_TRANSACTION_COOKIE_PATH;
-  const AUTH0_TRANSACTION_COOKIE_TRANSIENT = process.env.AUTH0_TRANSACTION_COOKIE_TRANSIENT;
-  const AUTH0_TRANSACTION_COOKIE_HTTP_ONLY = process.env.AUTH0_TRANSACTION_COOKIE_HTTP_ONLY;
   const AUTH0_TRANSACTION_COOKIE_SAME_SITE = process.env.AUTH0_TRANSACTION_COOKIE_SAME_SITE;
   const AUTH0_TRANSACTION_COOKIE_SECURE = process.env.AUTH0_TRANSACTION_COOKIE_SECURE;
 
@@ -611,8 +605,6 @@ export const getConfig = (params: ConfigParameters = {}): { baseConfig: BaseConf
       name: AUTH0_TRANSACTION_COOKIE_NAME,
       domain: AUTH0_TRANSACTION_COOKIE_DOMAIN,
       path: AUTH0_TRANSACTION_COOKIE_PATH || '/',
-      transient: bool(AUTH0_TRANSACTION_COOKIE_TRANSIENT),
-      httpOnly: bool(AUTH0_TRANSACTION_COOKIE_HTTP_ONLY),
       secure: bool(AUTH0_TRANSACTION_COOKIE_SECURE),
       sameSite: AUTH0_TRANSACTION_COOKIE_SAME_SITE as 'lax' | 'strict' | 'none' | undefined,
       ...baseParams.transactionCookie
