@@ -195,7 +195,7 @@ export interface Config {
    * secure in a way that would break the OAuth flow's usage of the transaction
    * cookie (Setting SameSite=Strict for example).
    */
-  transactionCookie: CookieConfig & { name: string };
+  transactionCookie: Omit<CookieConfig, 'transient' | 'httpOnly'> & { name: string };
 }
 
 /**

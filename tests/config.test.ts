@@ -84,11 +84,9 @@ describe('config params', () => {
       transactionCookie: {
         name: 'auth_verification',
         domain: undefined,
-        httpOnly: false,
         path: '/',
         sameSite: 'lax',
-        secure: true,
-        transient: false
+        secure: true
       }
     });
     expect(nextConfig).toStrictEqual({

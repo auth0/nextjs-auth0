@@ -170,8 +170,6 @@ const paramsSchema = Joi.object({
   transactionCookie: Joi.object({
     name: Joi.string().default('auth_verification'),
     domain: Joi.string().default(Joi.ref('/session.cookie.domain')),
-    transient: Joi.boolean().default(Joi.ref('/session.cookie.transient')),
-    httpOnly: Joi.boolean().default(Joi.ref('/session.cookie.transient')),
     secure: Joi.boolean().default(Joi.ref('/session.cookie.secure')),
     sameSite: Joi.string().valid('lax', 'strict', 'none').default(Joi.ref('/session.cookie.sameSite')),
     path: Joi.string().uri({ relativeOnly: true }).default(Joi.ref('/session.cookie.transient'))
