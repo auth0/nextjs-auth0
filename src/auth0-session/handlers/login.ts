@@ -86,8 +86,8 @@ export default function loginHandlerFactory(
       authVerification.response_type = responseType;
     }
 
-    await transientHandler.save('auth_verification', req, res, {
-      sameSite: authParams.response_mode === 'form_post' ? 'none' : config.session.cookie.sameSite,
+    await transientHandler.save(config.transactionCookie.name, req, res, {
+      sameSite: authParams.response_mode === 'form_post' ? 'none' : config.transactionCookie.sameSite,
       value: JSON.stringify(authVerification)
     });
 
