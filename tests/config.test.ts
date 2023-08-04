@@ -80,7 +80,16 @@ describe('config params', () => {
         'at_hash',
         'c_hash'
       ],
-      clientAuthMethod: 'client_secret_basic'
+      clientAuthMethod: 'client_secret_basic',
+      transactionCookie: {
+        name: 'auth_verification',
+        domain: undefined,
+        httpOnly: false,
+        path: '/',
+        sameSite: 'lax',
+        secure: true,
+        transient: false
+      }
     });
     expect(nextConfig).toStrictEqual({
       identityClaimFilter: [

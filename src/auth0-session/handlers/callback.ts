@@ -36,7 +36,7 @@ export default function callbackHandlerFactory(
     let tokenResponse;
 
     let authVerification: AuthVerification;
-    const cookie = await transientCookieHandler.read('auth_verification', req, res);
+    const cookie = await transientCookieHandler.read(config.transactionCookie.name, req, res);
 
     if (!cookie) {
       throw new MissingStateCookieError();
