@@ -41,7 +41,7 @@ export default class TransientStore {
     { sameSite = 'none', value }: StoreOptions
   ): Promise<string> {
     const isSameSiteNone = sameSite === 'none';
-    const { domain, path, secure } = this.config.session.cookie;
+    const { domain, path, secure } = this.config.transactionCookie;
     const basicAttr = {
       httpOnly: true,
       secure,
@@ -81,7 +81,7 @@ export default class TransientStore {
   async read(key: string, req: Auth0Request, res: Auth0Response): Promise<string | undefined> {
     const cookies = req.getCookies();
     const cookie = cookies[key];
-    const cookieConfig = this.config.session.cookie;
+    const cookieConfig = this.config.transactionCookie;
 
     const verifyingKeys = await this.getKeys();
     let value = await getCookieValue(key, cookie, verifyingKeys);
