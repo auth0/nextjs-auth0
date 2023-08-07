@@ -188,6 +188,14 @@ export interface Config {
    * You can also use the `AUTH0_CLIENT_ASSERTION_SIGNING_ALG` environment variable.
    */
   clientAssertionSigningAlg?: string;
+
+  /**
+   * By default, the transaction cookie takes the same settings as the
+   * session cookie. But you may want to configure the session cookie to be more
+   * secure in a way that would break the OAuth flow's usage of the transaction
+   * cookie (Setting SameSite=Strict for example).
+   */
+  transactionCookie: Omit<CookieConfig, 'transient' | 'httpOnly'> & { name: string };
 }
 
 /**

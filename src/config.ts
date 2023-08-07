@@ -192,6 +192,21 @@ export interface BaseConfig {
    *  You can also use the `AUTH0_CLIENT_ASSERTION_SIGNING_ALG` environment variable.
    */
   clientAssertionSigningAlg?: string;
+
+  /**
+   * By default, the transaction cookie takes the same settings as the
+   * session cookie. But you may want to configure the session cookie to be more
+   * secure in a way that would break the OAuth flow's usage of the transaction
+   * cookie (Setting SameSite=Strict for example).
+   *
+   * You can also use:
+   * `AUTH0_TRANSACTION_COOKIE_NAME`
+   * `AUTH0_TRANSACTION_COOKIE_DOMAIN`
+   * `AUTH0_TRANSACTION_COOKIE_PATH`
+   * `AUTH0_TRANSACTION_COOKIE_SAME_SITE`
+   * `AUTH0_TRANSACTION_COOKIE_SECURE`
+   */
+  transactionCookie: Omit<CookieConfig, 'transient' | 'httpOnly'> & { name: string };
 }
 
 /**
@@ -417,6 +432,11 @@ export interface NextConfig extends Pick<BaseConfig, 'identityClaimFilter'> {
  * - `AUTH0_COOKIE_SAME_SITE`: See {@link CookieConfig.sameSite}.
  * - `AUTH0_CLIENT_ASSERTION_SIGNING_KEY`: See {@link BaseConfig.clientAssertionSigningKey}
  * - `AUTH0_CLIENT_ASSERTION_SIGNING_ALG`: See {@link BaseConfig.clientAssertionSigningAlg}
+ * - `AUTH0_TRANSACTION_COOKIE_NAME` See {@link BaseConfig.transactionCookie}
+ * - `AUTH0_TRANSACTION_COOKIE_DOMAIN` See {@link BaseConfig.transactionCookie}
+ * - `AUTH0_TRANSACTION_COOKIE_PATH` See {@link BaseConfig.transactionCookie}
+ * - `AUTH0_TRANSACTION_COOKIE_SAME_SITE` See {@link BaseConfig.transactionCookie}
+ * - `AUTH0_TRANSACTION_COOKIE_SECURE` See {@link BaseConfig.transactionCookie}
  *
  * ### 2. Create your own instance using {@link InitAuth0}
  *
@@ -519,6 +539,11 @@ export const getConfig = (params: ConfigParameters = {}): { baseConfig: BaseConf
   const AUTH0_COOKIE_SAME_SITE = process.env.AUTH0_COOKIE_SAME_SITE;
   const AUTH0_CLIENT_ASSERTION_SIGNING_KEY = process.env.AUTH0_CLIENT_ASSERTION_SIGNING_KEY;
   const AUTH0_CLIENT_ASSERTION_SIGNING_ALG = process.env.AUTH0_CLIENT_ASSERTION_SIGNING_ALG;
+  const AUTH0_TRANSACTION_COOKIE_NAME = process.env.AUTH0_TRANSACTION_COOKIE_NAME;
+  const AUTH0_TRANSACTION_COOKIE_DOMAIN = process.env.AUTH0_TRANSACTION_COOKIE_DOMAIN;
+  const AUTH0_TRANSACTION_COOKIE_PATH = process.env.AUTH0_TRANSACTION_COOKIE_PATH;
+  const AUTH0_TRANSACTION_COOKIE_SAME_SITE = process.env.AUTH0_TRANSACTION_COOKIE_SAME_SITE;
+  const AUTH0_TRANSACTION_COOKIE_SECURE = process.env.AUTH0_TRANSACTION_COOKIE_SECURE;
 
   const baseURL =
     AUTH0_BASE_URL && !/^https?:\/\//.test(AUTH0_BASE_URL as string) ? `https://${AUTH0_BASE_URL}` : AUTH0_BASE_URL;
@@ -575,7 +600,15 @@ export const getConfig = (params: ConfigParameters = {}): { baseConfig: BaseConf
       postLogoutRedirect: baseParams.routes?.postLogoutRedirect || AUTH0_POST_LOGOUT_REDIRECT
     },
     clientAssertionSigningKey: AUTH0_CLIENT_ASSERTION_SIGNING_KEY,
-    clientAssertionSigningAlg: AUTH0_CLIENT_ASSERTION_SIGNING_ALG
+    clientAssertionSigningAlg: AUTH0_CLIENT_ASSERTION_SIGNING_ALG,
+    transactionCookie: {
+      name: AUTH0_TRANSACTION_COOKIE_NAME,
+      domain: AUTH0_TRANSACTION_COOKIE_DOMAIN,
+      path: AUTH0_TRANSACTION_COOKIE_PATH || '/',
+      secure: bool(AUTH0_TRANSACTION_COOKIE_SECURE),
+      sameSite: AUTH0_TRANSACTION_COOKIE_SAME_SITE as 'lax' | 'strict' | 'none' | undefined,
+      ...baseParams.transactionCookie
+    }
   });
 
   const nextConfig: NextConfig = {
