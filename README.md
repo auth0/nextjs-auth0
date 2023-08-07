@@ -87,7 +87,10 @@ Add `handleAuth()` to your app, which creates the following route handlers under
 - `/api/auth/logout`: Your Next.js application logs out the user.
 - `/api/auth/me`: You can fetch user profile information in JSON format.
 
-> Note: `handleAuth` requires Node.js and so will not work on Cloudflare Workers or Vercel Edge Runtime.
+**Continue setup depending on your router:**
+
+- [Page Router](#page-router)
+- [App Router](#app-router)
 
 #### Page Router
 
