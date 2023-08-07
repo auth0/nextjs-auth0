@@ -260,4 +260,29 @@ describe('login', () => {
     expect(cookie?.sameSite).toEqual('none');
     expect(cookie?.secure).toBeTruthy();
   });
+
+  it('transient cookie should honor transaction cookie config in code flow', async () => {
+    const baseURL = await setup(
+      {
+        ...defaultConfig,
+        clientSecret: '__test_client_secret__',
+        authorizationParams: {
+          response_type: 'code'
+        },
+        transactionCookie: {
+          name: 'foo_bar',
+          sameSite: 'none'
+        }
+      },
+      { https: true }
+    );
+    const cookieJar = new CookieJar();
+
+    const { res } = await get(baseURL, '/login', { fullResponse: true, cookieJar });
+    expect(res.statusCode).toEqual(302);
+
+    const cookie = getCookie('foo_bar', cookieJar, baseURL);
+    expect(cookie?.sameSite).toEqual('none');
+    expect(cookie?.secure).toBeTruthy();
+  });
 });
