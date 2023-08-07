@@ -636,4 +636,62 @@ describe('callback', () => {
       'Discovery requests failing for https://op2.example.com, expected 200 OK, got: 500 Internal Server Error'
     );
   });
+
+  it('should use custom transaction cookie name', async () => {
+    const idToken = await makeIdToken({
+      c_hash: '77QmUPtjPfzWtF2AnpK9RQ'
+    });
+
+    const baseURL = await setup({
+      ...defaultConfig,
+      clientSecret: '__test_client_secret__',
+      authorizationParams: {
+        response_type: 'code id_token',
+        audience: 'https://api.example.com/',
+        scope: 'openid profile email read:reports offline_access'
+      },
+      transactionCookie: { name: 'foo_bar' }
+    });
+
+    let credentials = '';
+    let body = '';
+    nock('https://op.example.com')
+      .post('/oauth/token')
+      .reply(200, function (_uri, requestBody) {
+        credentials = this.req.headers.authorization.replace('Basic ', '');
+        body = requestBody as string;
+        return {
+          access_token: '__test_access_token__',
+          refresh_token: '__test_refresh_token__',
+          id_token: idToken,
+          token_type: 'Bearer',
+          expires_in: 86400
+        };
+      });
+
+    const cookieJar = await toSignedCookieJar(
+      {
+        foo_bar: JSON.stringify({
+          state: expectedDefaultState,
+          nonce: '__test_nonce__'
+        })
+      },
+      baseURL
+    );
+
+    const code = 'jHkWEdUXMU1BwAsC4vtUsZwnNvTIxEl0z9K3vx5KF0Y';
+    await post(baseURL, '/callback', {
+      body: {
+        state: expectedDefaultState,
+        id_token: idToken,
+        code
+      },
+      cookieJar
+    });
+
+    expect(Buffer.from(credentials, 'base64').toString()).toEqual('__test_client_id__:__test_client_secret__');
+    expect(body).toEqual(
+      `grant_type=authorization_code&code=${code}&redirect_uri=${encodeURIComponent(baseURL)}%2Fcallback`
+    );
+  });
 });

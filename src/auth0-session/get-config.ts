@@ -166,7 +166,16 @@ const paramsSchema = Joi.object({
     }),
   clientAssertionSigningAlg: Joi.string()
     .optional()
-    .valid('RS256', 'RS384', 'RS512', 'PS256', 'PS384', 'PS512', 'ES256', 'ES256K', 'ES384', 'ES512', 'EdDSA')
+    .valid('RS256', 'RS384', 'RS512', 'PS256', 'PS384', 'PS512', 'ES256', 'ES256K', 'ES384', 'ES512', 'EdDSA'),
+  transactionCookie: Joi.object({
+    name: Joi.string().default('auth_verification'),
+    domain: Joi.string().default(Joi.ref('/session.cookie.domain')),
+    secure: Joi.boolean().default(Joi.ref('/session.cookie.secure')),
+    sameSite: Joi.string().valid('lax', 'strict', 'none').default(Joi.ref('/session.cookie.sameSite')),
+    path: Joi.string().uri({ relativeOnly: true }).default(Joi.ref('/session.cookie.transient'))
+  })
+    .default()
+    .unknown(false)
 });
 
 export type DeepPartial<T> = {
