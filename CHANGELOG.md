@@ -1,5 +1,18 @@
 # Change Log
 
+## [v3.1.0](https://github.com/auth0/nextjs-auth0/tree/v3.1.0) (2023-08-08)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.0.1...v3.1.0)
+
+**Added**
+- Add option to override transaction cookie name and config [\#1346](https://github.com/auth0/nextjs-auth0/pull/1346) ([adamjmcgrath](https://github.com/adamjmcgrath))
+- Add support for customizing returnTo in middleware [\#1342](https://github.com/auth0/nextjs-auth0/pull/1342) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
+**Changed**
+- Move state cookies to under a single cookie [\#1343](https://github.com/auth0/nextjs-auth0/pull/1343) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
+**Fixed**
+- Fix for edge cookies delete not supporting domain or path [\#1341](https://github.com/auth0/nextjs-auth0/pull/1341) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [v3.0.1](https://github.com/auth0/nextjs-auth0/tree/v3.0.1) (2023-07-31)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.0.0...v3.0.1)
 
