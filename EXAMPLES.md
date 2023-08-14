@@ -172,7 +172,7 @@ See a running example of an [SSR protected page](./example-app/pages/page-router
 
 #### App Router
 
-Requests to `/app/profile/page` without a valid session cookie will be redirected to the login page.
+Requests to `/profile` without a valid session cookie will be redirected to the login page.
 
 ```jsx
 // app/profile/page.js
