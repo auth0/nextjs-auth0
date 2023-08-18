@@ -46,8 +46,7 @@ import { SessionCache, Session, get } from '../session';
  *
  * **Note:** You can't write to the cookie in a React Server Component, so updates
  * to the session like setting the expiry of the rolling session won't be persisted.
- * For this, we recommend touching the session in the middleware using `getSession` or
- * `withMiddlewareAuthRequired`.
+ * For this, we recommend interacting with the session in the middleware.
  *
  * You can also get the session in a page or route in the Edge Runtime:
  *
