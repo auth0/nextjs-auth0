@@ -20,16 +20,16 @@ import { SessionCache, Session, get } from '../session';
  * }
  *
  * // Or, it's slightly more efficient to use the `req`, `res` args if you're
- * // using with another part of the SDK like `withApiAuthRequired` or `getAccessToken`
+ * // using another part of the SDK like `withApiAuthRequired` or `getAccessToken`.
  * import { getSession, withApiAuthRequired } from '@auth0/nextjs-auth0';
  *
  * const GET = withApiAuthRequired(async function GET(req) {
  *   const res = new NextResponse();
  *   const { user } = await getSession(req, res);
  *   return NextResponse.json({ foo: 'bar' }, res);
- * })
+ * });
  *
- * export { GET }
+ * export { GET };
  * ```
  *
  * In a page or React Server Component:
@@ -40,34 +40,34 @@ import { SessionCache, Session, get } from '../session';
  *
  * export default async function MyPage({ params, searchParams }) {
  *   const { user } = await getSession();
- *   return <h1>My Page</h1>
+ *   return <h1>My Page</h1>;
  * }
  * ```
  *
  * **Note:** You can't write to the cookie in a React Server Component, so updates
  * to the session like setting the expiry of the rolling session won't be persisted.
- * For this we recommend touching the session in the middleware using `getSession` or
+ * For this, we recommend touching the session in the middleware using `getSession` or
  * `withMiddlewareAuthRequired`.
  *
  * You can also get the session in a page or route in the Edge Runtime:
  *
  * ```js
  * // app/my-api/route.js
- * import { getSession } from '@auth0/nextjs-auth0/edge';
+ * import { getSession } from '@auth0/nextjs-auth0/edge'; // Note the /edge import
  *
  * export default async function MyPage({ params, searchParams }) {
  *   const { user } = await getSession();
- *   return <h1>My Page</h1>
+ *   return <h1>My Page</h1>;
  * }
  *
- * export const runtime = 'edge'
+ * export const runtime = 'edge';
  * ```
  *
  * **Note:** The Edge runtime features are only supported in the App Router.
  *
  * **In the Page Router:**
  *
- * In an api handler:
+ * In an API handler:
  *
  * ```js
  * // pages/api/my-api.js
@@ -75,7 +75,7 @@ import { SessionCache, Session, get } from '../session';
  *
  * export default async function MyApi(req, res) {
  *   const { user } = await getSession(req, res);
- *   res.status(200).json({ name: user.name })
+ *   res.status(200).json({ name: user.name });
  * }
  * ```
  *
@@ -86,13 +86,12 @@ import { SessionCache, Session, get } from '../session';
  * import { getSession } from '@auth0/nextjs-auth0';
  *
  * export default function About() {
- *   return <div>About</div>
+ *   return <div>About</div>;
  * }
  *
  * export async function getServerSideProps(ctx) {
  *   const { user } = await getSession(ctx.req, ctx.res);
- *
- *   return { props: { foo: 'bar' } }
+ *   return { props: { foo: 'bar' } };
  * }
  * ```
  *
@@ -100,7 +99,7 @@ import { SessionCache, Session, get } from '../session';
  *
  * ```js
  * import { NextResponse } from 'next/server';
- * import { getSession } from '@auth0/nextjs-auth0/edge';
+ * import { getSession } from '@auth0/nextjs-auth0/edge'; // Note the /edge import
  *
  * export async function middleware(req) {
  *   const res = new NextResponse();
@@ -110,7 +109,7 @@ import { SessionCache, Session, get } from '../session';
  *
  * export const config = {
  *   matcher: '/foo',
- * }
+ * };
  *
  * @category Server
  */

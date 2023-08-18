@@ -117,7 +117,7 @@ export interface GetAccessTokenResult {
  * }
  *
  * // Or, it's slightly more efficient to use the `req`, `res` args if you're
- * // using with another part of the SDK like `withApiAuthRequired` or `getSession`
+ * // using another part of the SDK like `withApiAuthRequired` or `getSession`.
  * import { NextResponse } from 'next/server';
  * import { getAccessToken, withApiAuthRequired } from '@auth0/nextjs-auth0';
  *
@@ -125,9 +125,9 @@ export interface GetAccessTokenResult {
  *   const res = new NextResponse();
  *   const { accessToken } = await getAccessToken(req, res);
  *   return NextResponse.json({ foo: 'bar' }, res);
- * })
+ * });
  *
- * export { GET }
+ * export { GET };
  * ```
  *
  * In a page or React Server Component:
@@ -138,33 +138,33 @@ export interface GetAccessTokenResult {
  *
  * export default async function MyPage({ params, searchParams }) {
  *   const { accessToken } = await getAccessToken();
- *   return <h1>My Page</h1>
+ *   return <h1>My Page</h1>;
  * }
  * ```
  *
  * **Note:** You can't write to the cookie in a React Server Component, so if
- * the Access Token is refreshed, it won't be persisted in the session.
+ * the access token is refreshed, it won't be persisted in the session.
  *
  * You can also get the access token in a page or route in the Edge Runtime:
  *
  * ```js
  * // app/my-api/route.js
  * import { NextResponse } from 'next/server';
- * import { getAccessToken } from '@auth0/nextjs-auth0/edge';
+ * import { getAccessToken } from '@auth0/nextjs-auth0/edge'; // Note the /edge import
  *
  * export async function GET() {
  *   const { accessToken } = await getAccessToken();
  *   return NextResponse.json({ foo: 'bar' });
  * }
  *
- * export const runtime = 'edge'
+ * export const runtime = 'edge';
  * ```
  *
  * **Note:** The Edge runtime features are only supported in the App Router.
  *
  * **In the Page Router:**
  *
- * In an api handler:
+ * In an API handler:
  *
  * ```js
  * // pages/api/my-api.js
@@ -172,7 +172,7 @@ export interface GetAccessTokenResult {
  *
  * export default async function MyApi(req, res) {
  *   const { accessToken } = await getAccessToken(req, res);
- *   res.status(200).json({ name: 'John Doe' })
+ *   res.status(200).json({ name: 'John Doe' });
  * }
  * ```
  *
@@ -183,13 +183,12 @@ export interface GetAccessTokenResult {
  * import { getAccessToken } from '@auth0/nextjs-auth0';
  *
  * export default function About() {
- *   return <div>About</div>
+ *   return <div>About</div>;
  * }
  *
  * export async function getServerSideProps(ctx) {
  *   const { accessToken } = await getAccessToken(ctx.req, ctx.res);
- *
- *   return { props: { foo: 'bar' } }
+ *   return { props: { foo: 'bar' } };
  * }
  * ```
  *
@@ -197,7 +196,8 @@ export interface GetAccessTokenResult {
  *
  * ```js
  * import { NextResponse } from 'next/server';
- * import { getAccessToken } from '@auth0/nextjs-auth0/edge';
+ * import { getAccessToken } from '@auth0/nextjs-auth0/edge'; // Note the /edge import
+
  *
  * export async function middleware(req) {
  *   const res = new NextResponse();
@@ -207,7 +207,7 @@ export interface GetAccessTokenResult {
  *
  * export const config = {
  *   matcher: '/foo',
- * }
+ * };
  * ```
  *
  * @throws {@link AccessTokenError}

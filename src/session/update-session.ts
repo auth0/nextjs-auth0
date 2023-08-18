@@ -24,7 +24,7 @@ import { get, set, Session, SessionCache } from '../session';
  * }
  *
  * // Or, it's slightly more efficient to use the `req`, `res` args if you're
- * // using with another part of the SDK like `withApiAuthRequired` or `getSession`
+ * // using another part of the SDK like `withApiAuthRequired` or `getSession`.
  * import { getSession, updateSession, withApiAuthRequired } from '@auth0/nextjs-auth0';
  *
  * const GET = withApiAuthRequired(async function GET(req) {
@@ -32,9 +32,9 @@ import { get, set, Session, SessionCache } from '../session';
  *   const { user } = await getSession(req, res);
  *   await updateSession(req, res, { ...session, user: { ...session.user, foo: 'bar' }});
  *   return NextResponse.json({ foo: 'bar' }, res);
- * })
+ * });
  *
- * export { GET }
+ * export { GET };
  * ```
  *
  * In a Server Action in a page or React Server Component:
@@ -65,7 +65,7 @@ import { get, set, Session, SessionCache } from '../session';
  *
  * ```js
  * // app/my-page/page.js
- * import { getSession, updateSession } from '@auth0/nextjs-auth0/edge';
+ * import { getSession, updateSession } from '@auth0/nextjs-auth0/edge'; // Note the /edge import
  *
  * export default async function Page() {
  *   async function updateUser(updates) {
@@ -86,7 +86,7 @@ import { get, set, Session, SessionCache } from '../session';
  *
  * **In the Page Router:**
  *
- * In an api handler:
+ * In an API handler:
  *
  * ```js
  * // pages/api/my-api.js
@@ -121,7 +121,7 @@ import { get, set, Session, SessionCache } from '../session';
  *
  * ```js
  * import { NextResponse } from 'next/server';
- * import { getSession, updateSession } from '@auth0/nextjs-auth0/edge';
+ * import { getSession, updateSession } from '@auth0/nextjs-auth0/edge'; // Note the /edge import
  *
  * export async function middleware(req) {
  *   const res = new NextResponse();
