@@ -45,7 +45,7 @@ import { get, set, Session, SessionCache } from '../session';
  *
  * export default async function Page() {
  *   async function updateUser(updates) {
- *     'use server'
+ *     'use server';
  *     const { user } = await getSession();
  *     await updateSession(req, res, { ...session, user: { ...session.user, ...updates }});
  *   }
@@ -53,7 +53,7 @@ import { get, set, Session, SessionCache } from '../session';
  *     <form action={updateUser}>
  *       <button type="submit">Update User</button>
  *     </form>
- *   )
+ *   );
  * }
  * ```
  *
@@ -69,7 +69,7 @@ import { get, set, Session, SessionCache } from '../session';
  *
  * export default async function Page() {
  *   async function updateUser(updates) {
- *     'use server'
+ *     'use server';
  *     const { user } = await getSession();
  *     await updateSession(req, res, { ...session, user: { ...session.user, ...updates }});
  *   }
@@ -77,9 +77,9 @@ import { get, set, Session, SessionCache } from '../session';
  *     <form action={updateUser}>
  *       <button type="submit">Update User</button>
  *     </form>
- *   )
+ *   );
  * }
- * export const runtime = 'edge'
+ * export const runtime = 'edge';
  * ```
  *
  * **Note:** The Edge runtime features are only supported in the App Router.
@@ -106,14 +106,13 @@ import { get, set, Session, SessionCache } from '../session';
  * import { getSession, updateSession } from '@auth0/nextjs-auth0';
  *
  * export default function About() {
- *   return <div>About</div>
+ *   return <div>About</div>;
  * }
  *
  * export async function getServerSideProps(ctx) {
  *   const { user } = await getSession(ctx.req, ctx.res);
  *   await updateSession(req, res, { ...session, user: { ...session.user, foo: 'bar' }});
- *
- *   return { props: { foo: 'bar' } }
+ *   return { props: { foo: 'bar' } };
  * }
  * ```
  *
@@ -133,7 +132,7 @@ import { get, set, Session, SessionCache } from '../session';
  * // See "Matching Paths" below to learn more
  * export const config = {
  *   matcher: '/foo',
- * }
+ * };
  *
  * @category Server
  */
