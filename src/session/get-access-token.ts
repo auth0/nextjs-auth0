@@ -100,7 +100,115 @@ export interface GetAccessTokenResult {
 }
 
 /**
- * Get an access token to access an external API.
+ * Get an access token to access an external API from the server.
+ *
+ * **In the App Router:**
+ *
+ * In a route handler:
+ *
+ * ```js
+ * // app/my-api/route.js
+ * import { NextResponse } from 'next/server';
+ * import { getAccessToken } from '@auth0/nextjs-auth0';
+ *
+ * export async function GET() {
+ *   const { accessToken } = await getAccessToken();
+ *   return NextResponse.json({ foo: 'bar' });
+ * }
+ *
+ * // Or, it's slightly more efficient to use the `req`, `res` args if you're
+ * // using another part of the SDK like `withApiAuthRequired` or `getSession`.
+ * import { NextResponse } from 'next/server';
+ * import { getAccessToken, withApiAuthRequired } from '@auth0/nextjs-auth0';
+ *
+ * const GET = withApiAuthRequired(async function GET(req) {
+ *   const res = new NextResponse();
+ *   const { accessToken } = await getAccessToken(req, res);
+ *   return NextResponse.json({ foo: 'bar' }, res);
+ * });
+ *
+ * export { GET };
+ * ```
+ *
+ * In a page or React Server Component:
+ *
+ * ```js
+ * // app/my-page/page.js
+ * import { getAccessToken } from '@auth0/nextjs-auth0';
+ *
+ * export default async function MyPage({ params, searchParams }) {
+ *   const { accessToken } = await getAccessToken();
+ *   return <h1>My Page</h1>;
+ * }
+ * ```
+ *
+ * **Note:** You can't write to the cookie in a React Server Component, so if
+ * the access token is refreshed, it won't be persisted in the session.
+ *
+ * You can also get the access token in a page or route in the Edge Runtime:
+ *
+ * ```js
+ * // app/my-api/route.js
+ * import { NextResponse } from 'next/server';
+ * import { getAccessToken } from '@auth0/nextjs-auth0/edge'; // Note the /edge import
+ *
+ * export async function GET() {
+ *   const { accessToken } = await getAccessToken();
+ *   return NextResponse.json({ foo: 'bar' });
+ * }
+ *
+ * export const runtime = 'edge';
+ * ```
+ *
+ * **Note:** The Edge runtime features are only supported in the App Router.
+ *
+ * **In the Page Router:**
+ *
+ * In an API handler:
+ *
+ * ```js
+ * // pages/api/my-api.js
+ * import { getAccessToken } from '@auth0/nextjs-auth0';
+ *
+ * export default async function MyApi(req, res) {
+ *   const { accessToken } = await getAccessToken(req, res);
+ *   res.status(200).json({ name: 'John Doe' });
+ * }
+ * ```
+ *
+ * In a page:
+ *
+ * ```js
+ * // pages/my-page.js
+ * import { getAccessToken } from '@auth0/nextjs-auth0';
+ *
+ * export default function About() {
+ *   return <div>About</div>;
+ * }
+ *
+ * export async function getServerSideProps(ctx) {
+ *   const { accessToken } = await getAccessToken(ctx.req, ctx.res);
+ *   return { props: { foo: 'bar' } };
+ * }
+ * ```
+ *
+ * **In middleware:**
+ *
+ * ```js
+ * import { NextResponse } from 'next/server';
+ * import { getAccessToken } from '@auth0/nextjs-auth0/edge'; // Note the /edge import
+
+ *
+ * export async function middleware(req) {
+ *   const res = new NextResponse();
+ *   const { accessToken } = await getAccessToken(req, res);
+ *   return NextResponse.redirect(new URL('/bar', request.url), res);
+ * }
+ *
+ * export const config = {
+ *   matcher: '/foo',
+ * };
+ * ```
  *
  * @throws {@link AccessTokenError}
  *

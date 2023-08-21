@@ -249,33 +249,33 @@ For other comprehensive examples, see the [EXAMPLES.md](https://github.com/auth0
 
 `import * from @auth0/nextjs-auth0/edge`
 
-- [Configuration Options and Environment variables](https://auth0.github.io/nextjs-auth0/modules/config.html)
-- [initAuth0](https://auth0.github.io/nextjs-auth0/modules/index.html#initauth0)
-- [handleAuth](https://auth0.github.io/nextjs-auth0/modules/handlers_auth.html)
-- [handleLogin](https://auth0.github.io/nextjs-auth0/modules/handlers_login.html#handlelogin)
-- [handleCallback](https://auth0.github.io/nextjs-auth0/modules/handlers_callback.html)
-- [handleLogout](https://auth0.github.io/nextjs-auth0/modules/handlers_logout.html)
-- [handleProfile](https://auth0.github.io/nextjs-auth0/modules/handlers_profile.html)
-- [withApiAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_api_auth_required.html)
-- [withPageAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_page_auth_required.html#withpageauthrequired)
-- [getSession](https://auth0.github.io/nextjs-auth0/modules/session_get_session.html)
-- [updateSession](https://auth0.github.io/nextjs-auth0/modules/session_update_session.html)
-- [getAccessToken](https://auth0.github.io/nextjs-auth0/modules/session_get_access_token.html)
-- [withMiddlewareAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_middleware_auth_required.html) (Edge only)
+- [Configuration Options and Environment variables](https://auth0.github.io/nextjs-auth0/types/config.ConfigParameters.html)
+- [initAuth0](https://auth0.github.io/nextjs-auth0/types/init.InitAuth0.html)
+- [handleAuth](https://auth0.github.io/nextjs-auth0/types/handlers_auth.HandleAuth.html)
+- [handleLogin](https://auth0.github.io/nextjs-auth0/types/handlers_login.HandleLogin.html)
+- [handleCallback](https://auth0.github.io/nextjs-auth0/types/handlers_callback.HandleCallback.html)
+- [handleLogout](https://auth0.github.io/nextjs-auth0/types/handlers_logout.HandleLogout.html)
+- [handleProfile](https://auth0.github.io/nextjs-auth0/types/handlers_profile.HandleProfile.html)
+- [withApiAuthRequired](https://auth0.github.io/nextjs-auth0/types/helpers_with_api_auth_required.WithApiAuthRequired.html)
+- [withPageAuthRequired](https://auth0.github.io/nextjs-auth0/types/helpers_with_page_auth_required.WithPageAuthRequired.html)
+- [getSession](https://auth0.github.io/nextjs-auth0/types/session_get_session.GetSession.html)
+- [updateSession](https://auth0.github.io/nextjs-auth0/types/session_update_session.UpdateSession.html)
+- [getAccessToken](https://auth0.github.io/nextjs-auth0/types/session_get_access_token.GetAccessToken.html)
+- [withMiddlewareAuthRequired](https://auth0.github.io/nextjs-auth0/types/helpers_with_middleware_auth_required.WithMiddlewareAuthRequired.html) (Edge only)
 
 ### Client (for the Browser)
 
 `import * from @auth0/nextjs-auth0/client`
 
-- [UserProvider](https://auth0.github.io/nextjs-auth0/modules/client_use_user.html#userprovider)
-- [useUser](https://auth0.github.io/nextjs-auth0/modules/client_use_user.html)
-- [withPageAuthRequired](https://auth0.github.io/nextjs-auth0/modules/client_with_page_auth_required.html)
+- [UserProvider](https://auth0.github.io/nextjs-auth0/types/client_use_user.UserProvider.html)
+- [useUser](https://auth0.github.io/nextjs-auth0/functions/client_use_user.useUser.html)
+- [withPageAuthRequired](https://auth0.github.io/nextjs-auth0/types/client_with_page_auth_required.WithPageAuthRequired.html)
 
 ### Testing helpers
 
 `import * from @auth0/nextjs-auth0/testing`
 
-- [generateSessionCookie](https://auth0.github.io/nextjs-auth0/modules/helpers_testing.html#generatesessioncookie)
+- [generateSessionCookie](https://auth0.github.io/nextjs-auth0/types/helpers_testing.GenerateSessionCookieConfig.html)
 
 Visit the auto-generated [API Docs](https://auth0.github.io/nextjs-auth0/) for more details
 
