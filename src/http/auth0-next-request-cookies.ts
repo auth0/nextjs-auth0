@@ -1,4 +1,3 @@
-import { cookies } from 'next/headers';
 import { Auth0RequestCookies } from '../auth0-session/http';
 
 export default class Auth0NextRequestCookies extends Auth0RequestCookies {
@@ -7,7 +6,14 @@ export default class Auth0NextRequestCookies extends Auth0RequestCookies {
   }
 
   public getCookies(): Record<string, string> {
+    const { cookies } = require('next/headers');
     const cookieStore = cookies();
-    return cookieStore.getAll().reduce((memo, { name, value }) => ({ ...memo, [name]: value }), {});
+    return cookieStore.getAll().reduce(
+      (memo: Record<string, string>, { name, value }: { name: string; value: string }) => ({
+        ...memo,
+        [name]: value
+      }),
+      {}
+    );
   }
 }
