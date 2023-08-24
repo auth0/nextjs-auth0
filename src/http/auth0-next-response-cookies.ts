@@ -20,6 +20,7 @@ export default class Auth0NextResponseCookies extends Auth0ResponseCookies {
   }
 
   public setCookie(name: string, value: string, options?: CookieSerializeOptions) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { cookies } = require('next/headers');
     const cookieSetter = cookies();
     try {
@@ -30,6 +31,7 @@ export default class Auth0NextResponseCookies extends Auth0ResponseCookies {
   }
 
   public clearCookie(name: string, options?: CookieSerializeOptions) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { cookies } = require('next/headers');
     const cookieSetter = cookies();
     try {

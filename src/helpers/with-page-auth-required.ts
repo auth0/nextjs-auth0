@@ -208,7 +208,8 @@ const appRouteHandlerFactory =
     const [session] = await get({ sessionCache });
     if (!session?.user) {
       const returnTo = typeof opts.returnTo === 'function' ? await opts.returnTo(params) : opts.returnTo;
-      const { redirect } = await import('next/navigation');
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { redirect } = require('next/navigation');
       redirect(`${loginUrl}${opts.returnTo ? `?returnTo=${returnTo}` : ''}`);
     }
     return handler(params);
