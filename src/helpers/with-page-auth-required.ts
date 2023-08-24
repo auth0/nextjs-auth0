@@ -1,6 +1,5 @@
 import type React from 'react';
 import { GetServerSideProps, GetServerSidePropsContext, GetServerSidePropsResult } from 'next';
-import { redirect } from 'next/navigation';
 import { Claims, get, SessionCache } from '../session';
 import { assertCtx } from '../utils/assert';
 import { ParsedUrlQuery } from 'querystring';
@@ -209,6 +208,7 @@ const appRouteHandlerFactory =
     const [session] = await get({ sessionCache });
     if (!session?.user) {
       const returnTo = typeof opts.returnTo === 'function' ? await opts.returnTo(params) : opts.returnTo;
+      const { redirect } = await import('next/navigation');
       redirect(`${loginUrl}${opts.returnTo ? `?returnTo=${returnTo}` : ''}`);
     }
     return handler(params);

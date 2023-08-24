@@ -53,5 +53,23 @@ export default handleAuth({
     });
   }
 });
-
 ```
+
+## Using middleware on Next 12 requires custom Webpack config
+
+v3 of this SDK uses modules that are only available to Next 13. When this SDK is bundled to middleware using Next.js 12, Webpack can't resolve these modules - so you need to ignore them from your webpack config like so:
+
+```js
+const webpack = require('webpack');
+
+/** @type {import('next').NextConfig} */
+module.exports = {
+  webpack(config) {
+    config.plugins.push(new webpack.IgnorePlugin({ resourceRegExp: /^next\/(navigation|headers)$/ }))
+    return config;
+  }
+}
+```
+
+It's safe to ignore these modules as you will not hit these code paths using Next.js 12.
+
