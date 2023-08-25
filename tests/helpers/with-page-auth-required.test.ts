@@ -1,7 +1,5 @@
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
-import { cookies as nextCookies } from 'next/headers';
-import * as navigation from 'next/navigation';
 import { NextResponse } from 'next/server';
 import { URL } from 'url';
 import { login, setup, teardown } from '../fixtures/setup';
@@ -10,20 +8,24 @@ import { withApi, withoutApi } from '../fixtures/default-settings';
 import { get } from '../auth0-session/fixtures/helpers';
 import { initAuth0 } from '../../src';
 
-jest.mock('next/headers');
-jest.mock('next/navigation', () => {
-  const navigation = jest.requireActual('next/navigation');
-  return {
-    ...navigation,
-    redirect: jest.fn(navigation.redirect)
-  };
-});
-
 describe('with-page-auth-required ssr', () => {
   describe('app route', () => {
+    let redirect: jest.Mock;
+
+    beforeEach(() => {
+      jest.doMock('next/navigation', () => {
+        const navigation = jest.requireActual('next/navigation');
+        redirect = jest.fn(navigation.redirect);
+        return {
+          ...navigation,
+          redirect
+        };
+      });
+    });
+
     const getPageResponse = ({ config, cookies, returnTo, loginRes, params, searchParams }: any = {}) => {
       const res = loginRes || new NextResponse();
-      jest.mocked(nextCookies).mockImplementation(() => res.cookies as any);
+      jest.doMock('next/headers', () => ({ cookies: () => res.cookies }));
       const opts = { ...withApi, ...config };
       const instance = initAuth0(opts);
       let headers = new Headers();
@@ -42,19 +44,16 @@ describe('with-page-auth-required ssr', () => {
     };
 
     test('protect a page', async () => {
-      jest.spyOn(navigation, 'redirect');
       await expect(getPageResponse({})).rejects.toThrowError('NEXT_REDIRECT');
-      expect(navigation.redirect).toHaveBeenCalledWith('/api/auth/login');
+      expect(redirect).toHaveBeenCalledWith('/api/auth/login');
     });
 
     test('protect a page and redirect to returnTo option', async () => {
-      jest.spyOn(navigation, 'redirect');
       await expect(getPageResponse({ returnTo: '/foo' })).rejects.toThrowError('NEXT_REDIRECT');
-      expect(navigation.redirect).toHaveBeenCalledWith('/api/auth/login?returnTo=/foo');
+      expect(redirect).toHaveBeenCalledWith('/api/auth/login?returnTo=/foo');
     });
 
     test('protect a page and redirect to returnTo fn option', async () => {
-      jest.spyOn(navigation, 'redirect');
       await expect(
         getPageResponse({
           returnTo({ params, searchParams }: any) {
@@ -65,7 +64,7 @@ describe('with-page-auth-required ssr', () => {
           searchParams: { foo: 'bar' }
         })
       ).rejects.toThrowError('NEXT_REDIRECT');
-      expect(navigation.redirect).toHaveBeenCalledWith('/api/auth/login?returnTo=/foo/bar?foo=bar');
+      expect(redirect).toHaveBeenCalledWith('/api/auth/login?returnTo=/foo/bar?foo=bar');
     });
 
     test('allow access to a page with a valid session', async () => {
@@ -82,7 +81,7 @@ describe('with-page-auth-required ssr', () => {
       await expect(
         getPageResponse({ config: { routes: { ...withApi.routes, login: '/api/auth/custom-login' } } })
       ).rejects.toThrowError('NEXT_REDIRECT');
-      expect(navigation.redirect).toHaveBeenCalledWith('/api/auth/custom-login');
+      expect(redirect).toHaveBeenCalledWith('/api/auth/custom-login');
     });
   });
 
