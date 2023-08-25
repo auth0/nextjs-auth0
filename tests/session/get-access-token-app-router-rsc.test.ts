@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies as nextCookies } from 'next/headers';
 import nock from 'nock';
 import { withApi } from '../fixtures/default-settings';
 import { AccessTokenRequest, initAuth0, Session } from '../../src';
@@ -11,8 +10,6 @@ import {
   login as appRouterLogin,
   mockFetch
 } from '../fixtures/app-router-helpers';
-
-jest.mock('next/headers');
 
 const getAccessTokenResponse = async ({
   authenticated = false,
@@ -30,7 +27,7 @@ const getAccessTokenResponse = async ({
   if (authenticated) {
     const loginRes = await appRouterLogin(loginOpts);
     cookies.appSession = loginRes.cookies.get('appSession').value;
-    jest.mocked(nextCookies).mockImplementation(() => loginRes.cookies);
+    jest.doMock('next/headers', () => ({ cookies: () => loginRes.cookies }));
   }
   await refreshTokenExchange(
     withApi,
