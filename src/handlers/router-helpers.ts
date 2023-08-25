@@ -47,8 +47,17 @@ export type AuthHandler<Opts> = Handler<Opts> & {
   (options?: Opts): Handler<Opts>;
 };
 
-export type PageRouterHandler = (req: NextRequest, ctx: AppRouteHandlerFnContext) => Promise<Response> | Response;
-export type AppRouterHandler = (req: NextApiRequest, res: NextApiResponse) => Promise<unknown> | unknown;
+export type NextAppRouterHandler = (req: NextRequest, ctx: AppRouteHandlerFnContext) => Promise<Response> | Response;
+export type NextPageRouterHandler = (req: NextApiRequest, res: NextApiResponse) => Promise<unknown> | unknown;
+
+/**
+ * @deprecated use {@link NextPageRouterHandler}
+ */
+export type AppRouterHandler = NextPageRouterHandler;
+/**
+ * @deprecated use {@link NextAppRouterHandler}
+ */
+export type PageRouterHandler = NextAppRouterHandler;
 
 export type Handler<Opts = any> = {
   (req: NextRequest, ctx: AppRouteHandlerFnContext, options?: Opts): Promise<Response> | Response;
