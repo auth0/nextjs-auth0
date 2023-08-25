@@ -108,6 +108,8 @@ export {
   AppRouterOnError,
   PageRouterOnError,
   AppRouteHandlerFnContext,
+  NextAppRouterHandler,
+  NextPageRouterHandler,
   AppRouterHandler,
   PageRouterHandler
 } from './handlers';
