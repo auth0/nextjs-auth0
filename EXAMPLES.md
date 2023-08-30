@@ -189,6 +189,8 @@ See a running example of a [protected server component page](./example-app/app/p
 
 ### Protecting a Client-Side Rendered (CSR) Page
 
+#### Page Router
+
 Requests to `/pages/profile` without a valid session cookie will be redirected to the login page.
 
 ```jsx
@@ -200,7 +202,7 @@ export default withPageAuthRequired(function Profile({ user }) {
 });
 ```
 
-See a running example of a [CSR protected page](./example-app/pages/profile.tsx) in the example app.
+See a running example of a [CSR protected page](./example-app/pages/page-router/profile-csr.tsx) in the example app.
 
 ### Protect an API Route
 
