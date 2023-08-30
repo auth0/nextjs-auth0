@@ -1,5 +1,6 @@
 cypress/
 docs/
 examples/
+example-app/
 tests/
 *.md
