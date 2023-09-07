@@ -193,7 +193,25 @@ export default function App({ children }) {
   );
 }
 ```
+##### nextjs 13 app route allow authentication with layout
 
+```tsx
+import { UserProvider } from "@auth0/nextjs-auth0/client";
+import { withPageAuthRequired } from "@auth0/nextjs-auth0";
+
+export default withPageAuthRequired(
+  async function Layout({ children }: any) {
+    return (
+      <UserProvider>
+        <main className={`flex flex-col justify-start items-center`}>
+            {children}
+        </main>
+      </UserProvider>
+    )
+  }
+)
+
+```
 ##### Consume Authentication
 
 You can now determine if a user is authenticated by checking that the `user` object returned by the `useUser()` hook is defined. You can also log in or log out your users from the frontend layer of your Next.js application by redirecting them to the appropriate automatically-generated route:
