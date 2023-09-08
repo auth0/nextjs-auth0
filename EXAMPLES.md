@@ -106,13 +106,15 @@ export default handleAuth({
         custom_param: 'custom'
       },
       returnTo: '/custom-page'
-    });
+    })(req,res);
   },
-  invite: handleLogin({
-    authorizationParams: {
-      invitation: req.query.invitation
-    }
-  }),
+  async invite(req,res) {
+    await handleLogin(req,res, {
+        authorizationParams: {
+        invitation: req.query.invitation
+      }
+    })(req,res)
+  },
   'login-with-google': handleLogin({ authorizationParams: { connection: 'google' } }),
   'refresh-profile': handleProfile({ refetch: true }),
   onError(req, res, error) {
