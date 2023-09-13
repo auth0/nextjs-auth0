@@ -124,6 +124,7 @@
     "@panva/hkdf": "^1.0.2",
     "cookie": "^0.5.0",
     "debug": "^4.3.4",
+    "https-proxy-agent": "^7.0.2",
     "joi": "^17.6.0",
     "jose": "^4.9.2",
     "oauth4webapi": "^2.3.0",

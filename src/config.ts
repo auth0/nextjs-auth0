@@ -97,6 +97,15 @@ export interface BaseConfig {
   httpTimeout: number;
 
   /**
+   * String value for an https proxy URL that requests can route through.
+   * You can also use any of the following environment variables:
+   * - `AUTH0_HTTPS_PROXY`
+   * - `HTTPS_PROXY`
+   * - `https_proxy`
+   */
+  httpsProxy?: string;
+
+  /**
    * Boolean value to opt-out of sending the library and node version to your authorization server
    * via the `Auth0-Client` header. Defaults to `true`.
    * You can also use the `AUTH0_ENABLE_TELEMETRY` environment variable.
@@ -408,6 +417,7 @@ export interface NextConfig extends Pick<BaseConfig, 'identityClaimFilter'> {
  *
  * - `AUTH0_CLOCK_TOLERANCE`: See {@link clockTolerance}.
  * - `AUTH0_HTTP_TIMEOUT`: See {@link httpTimeout}.
+ * - `AUTH0_HTTPS_PROXY`: See {@link httpsProxy}.
  * - `AUTH0_ENABLE_TELEMETRY`: See {@link enableTelemetry}.
  * - `AUTH0_IDP_LOGOUT`: See {@link idpLogout}.
  * - `AUTH0_ID_TOKEN_SIGNING_ALG`: See {@link idTokenSigningAlg}.

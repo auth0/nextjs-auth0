@@ -23,6 +23,7 @@ import urlJoin from 'url-join';
 import createDebug from '../utils/debug';
 import { IncomingMessage } from 'http';
 import { AccessTokenError, AccessTokenErrorCode } from '../../utils/errors';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 
 const debug = createDebug('client');
 
@@ -41,6 +42,9 @@ export class NodeClient extends AbstractClient {
       config,
       telemetry: { name, version }
     } = this;
+
+    const proxy =
+      config.httpsProxy || process.env.AUTH0_HTTPS_PROXY || process.env.HTTPS_PROXY || process.env.https_proxy;
 
     const defaultHttpOptions: CustomHttpOptionsProvider = (_url, options) => ({
       ...options,
@@ -61,7 +65,8 @@ export class NodeClient extends AbstractClient {
             }
           : undefined)
       },
-      timeout: config.httpTimeout
+      timeout: config.httpTimeout,
+      ...(proxy && { agent: new HttpsProxyAgent(proxy) })
     });
     const applyHttpOptionsCustom = (entity: Issuer<Client> | typeof Issuer | Client) => {
       entity[custom.http_options] = defaultHttpOptions;

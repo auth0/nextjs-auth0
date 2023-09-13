@@ -101,6 +101,15 @@ export interface Config {
   httpTimeout: number;
 
   /**
+   * String value for an https proxy URL that requests can route through.
+   * You can also use any of the following environment variables:
+   * - `AUTH0_HTTPS_PROXY`
+   * - `HTTPS_PROXY`
+   * - `https_proxy`
+   */
+  httpsProxy?: string;
+
+  /**
    * Boolean value to opt-out of sending the library and Node.js version to your authorization server
    * via the `Auth0-Client` header. Defaults to `true`.
    */
