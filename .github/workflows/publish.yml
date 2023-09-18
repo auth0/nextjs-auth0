@@ -99,6 +99,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
         run: npm ci
@@ -107,31 +108,3 @@ jobs:
         run: npm publish --provenance --tag ${{ needs.configure.outputs.vtag }} ${{ needs.configure.outputs.dry-run }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-  publish-gh:
-    needs:
-      - configure
-      - publish-npm # Don't publish to GitHub Packages until publishing to NPM is successfully completed
-
-    name: Publish to GitHub Packages
-    runs-on: ubuntu-latest
-    environment: 'release'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v3
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          registry-url: 'https://npm.pkg.github.com'
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Publish release to GitHub Packages
-        run: npm publish --provenance --tag ${{ needs.configure.outputs.vtag }} ${{ needs.configure.outputs.dry-run }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
