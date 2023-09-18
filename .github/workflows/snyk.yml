@@ -1,7 +1,8 @@
-name: Semgrep
+name: Snyk
 
 on:
   merge_group:
+  workflow_dispatch:
   pull_request_target:
     types:
       - opened
@@ -27,14 +28,11 @@ jobs:
     steps:
       - run: true
 
-  run:
-    needs: authorize # Require approval before running on forked pull requests
+  check:
+    needs: authorize
 
     name: Check for Vulnerabilities
     runs-on: ubuntu-latest
-
-    container:
-      image: returntocorp/semgrep
 
     steps:
       - if: github.actor == 'dependabot[bot]' || github.event_name == 'merge_group'
@@ -44,6 +42,6 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.ref }}
 
-      - run: semgrep ci
+      - uses: snyk/actions/php@b98d498629f1c368650224d6d212bf7dfa89e4bf # pin@0.4.0
         env:
-          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
