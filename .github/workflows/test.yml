@@ -54,6 +54,7 @@ jobs:
           node: ${{ env.NODE_VERSION }}
           cache: ${{ env.CACHE_KEY }}
 
+      - run: npm run build
       - run: npm run build:test
       - run: npm test
 
