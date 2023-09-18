@@ -53,7 +53,8 @@ jobs:
         with:
           node: ${{ env.NODE_VERSION }}
           cache: ${{ env.CACHE_KEY }}
-
+      - run: nom ci
+      - run: npm run install:example
       - run: npm run build
       - run: npm run build:test
       - run: npm test
