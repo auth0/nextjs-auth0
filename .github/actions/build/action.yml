@@ -1,0 +1,28 @@
+name: Build package
+description: Build the SDK package
+
+inputs:
+  node:
+    description: The Node version to use
+    required: false
+    default: 18
+
+runs:
+  using: composite
+
+  steps:
+    - name: Setup Node
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ inputs.node }}
+        cache: npm
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci
+      env:
+        NODE_ENV: development
+
+    - name: Build package
+      shell: bash
+      run: npm run build

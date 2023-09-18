@@ -1,0 +1,25 @@
+name: Prepare test
+description: Prepare an SDK test
+
+inputs:
+  node:
+    description: The Node version to use
+    required: false
+    default: 18
+  cache:
+      description: The cache key identifier to use
+      required: true
+
+runs:
+  using: composite
+
+  steps:
+      - uses: actions/setup-node@v3
+        with:
+          node-version: ${{ input.node }}
+          cache: npm
+
+      - uses: actions/cache/restore@v3
+        with:
+          path: .
+          key: ${{ input.cache }}
