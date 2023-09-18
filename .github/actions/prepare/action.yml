@@ -16,10 +16,10 @@ runs:
   steps:
       - uses: actions/setup-node@v3
         with:
-          node-version: ${{ input.node }}
+          node-version: ${{ inputs.node }}
           cache: npm
 
       - uses: actions/cache/restore@v3
         with:
           path: .
-          key: ${{ input.cache }}
+          key: ${{ inputs.cache }}
