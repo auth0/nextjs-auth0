@@ -44,7 +44,7 @@ jobs:
     needs: build # Require build to complete before running tests
 
     name: Run Unit Tests
-    runs-on: macos-13
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
