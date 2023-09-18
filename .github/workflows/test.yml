@@ -44,11 +44,11 @@ jobs:
     needs: build # Require build to complete before running tests
 
     name: Run Unit Tests
-    runs-on: ubuntu-latest
+    runs-on: macos-13
 
     steps:
       - uses: actions/checkout@v4
-      
+
       - run: npm test
 
       - uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d # pin@3.1.4
