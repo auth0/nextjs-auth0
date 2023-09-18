@@ -90,7 +90,7 @@
     "@typescript-eslint/parser": "^4.13.0",
     "body-parser": "^1.19.0",
     "browserstack-cypress-cli": "^1.19.1",
-    "cypress": "^11.2.0",
+    "cypress": "^13.2.0",
     "eslint": "^7.17.0",
     "eslint-config-prettier": "^8.1.0",
     "eslint-import-resolver-typescript": "^3.5.2",
