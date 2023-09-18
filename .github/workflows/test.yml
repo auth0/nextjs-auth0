@@ -48,15 +48,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - uses: ./.github/actions/prepare
-        with:
-          node: ${{ env.NODE_VERSION }}
-          cache: ${{ env.CACHE_KEY }}
-      - run: npm ci
-      - run: npm run install:example
-      - run: npm run build
-      - run: npm run build:test
+      
       - run: npm test
 
       - uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d # pin@3.1.4
