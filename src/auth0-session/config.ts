@@ -2,6 +2,7 @@ import type {
   AuthorizationParameters as OidcAuthorizationParameters,
   ClientAuthMethod
 } from './client/abstract-client';
+import type { Agent } from 'https';
 import { SessionStore } from './session/stateful-session';
 
 /**
@@ -99,6 +100,11 @@ export interface Config {
    * Defaults to `5000` ms.
    */
   httpTimeout: number;
+
+  /**
+   * Instance of an HTTP agent for authentication requests.
+   */
+  httpAgent?: Agent;
 
   /**
    * Boolean value to opt-out of sending the library and Node.js version to your authorization server

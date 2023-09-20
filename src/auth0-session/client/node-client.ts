@@ -61,7 +61,8 @@ export class NodeClient extends AbstractClient {
             }
           : undefined)
       },
-      timeout: config.httpTimeout
+      timeout: config.httpTimeout,
+      agent: config.httpAgent
     });
     const applyHttpOptionsCustom = (entity: Issuer<Client> | typeof Issuer | Client) => {
       entity[custom.http_options] = defaultHttpOptions;

@@ -1,3 +1,4 @@
+import type { Agent } from 'https';
 import type { LoginOptions, AuthorizationParameters as OidcAuthorizationParameters } from './auth0-session/config';
 import { SessionStore } from './auth0-session/session/stateful-session';
 import Session from './session/session';
@@ -95,6 +96,11 @@ export interface BaseConfig {
    * You can also use the `AUTH0_HTTP_TIMEOUT` environment variable.
    */
   httpTimeout: number;
+
+  /**
+   * Instance of an HTTP agent for authentication requests.
+   */
+  httpAgent?: Agent;
 
   /**
    * Boolean value to opt-out of sending the library and node version to your authorization server
