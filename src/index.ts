@@ -10,6 +10,7 @@ import {
   HandleLogout,
   HandleProfile,
   SessionCache,
+  TouchSession,
   UpdateSession,
   WithApiAuthRequired,
   WithPageAuthRequired,
@@ -61,6 +62,7 @@ const getSessionCache = () => getInstance().sessionCache;
 export const getSession: GetSession = (...args) => getInstance().getSession(...args);
 export const updateSession: UpdateSession = (...args) => getInstance().updateSession(...args);
 export const getAccessToken: GetAccessToken = (...args) => getInstance().getAccessToken(...args);
+export const touchSession: TouchSession = (...args) => getInstance().touchSession(...args);
 export const withApiAuthRequired: WithApiAuthRequired = (...args) =>
   (getInstance().withApiAuthRequired as any)(...args);
 export const withPageAuthRequired: WithPageAuthRequired = withPageAuthRequiredFactory(getLoginUrl(), getSessionCache);
