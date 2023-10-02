@@ -20,4 +20,5 @@ export const start = async (): Promise<string> => {
 
 export const stop = async (): Promise<void> => {
   await new Promise((resolve) => server.close(resolve as (err?: Error) => {}));
+  process.removeAllListeners();
 };
