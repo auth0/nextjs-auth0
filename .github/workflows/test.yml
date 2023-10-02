@@ -15,5 +15,5 @@ jobs:
           node-version: '18.x'
       - run: npm ci
       - run: npm run build:test
-      - run: npm test -- --logHeapUsage -t "^((?\!page router).)*$"
+      - run: npm test -- --logHeapUsage -t "^((?!page router).)*$"
       - run: npm test -- --logHeapUsage -t "^.*page router.*$"
