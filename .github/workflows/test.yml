@@ -15,4 +15,4 @@ jobs:
           node-version: '18.x'
       - run: npm ci
       - run: npm run build:test
-      - run: npm test
+      - run: npm test -- --logHeapUsage
