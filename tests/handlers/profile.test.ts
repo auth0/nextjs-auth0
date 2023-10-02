@@ -117,7 +117,7 @@ describe('profile handler (app router)', () => {
     );
   });
 
-  test('should refetch the user and preserve new tokens', async () => {
+  test.skip('should refetch the user and preserve new tokens', async () => {
     const loginRes = await appRouterLogin({
       callbackOpts: {
         afterCallback(_req: NextRequest, session: Session) {

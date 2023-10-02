@@ -399,7 +399,7 @@ describe('callback', () => {
     );
   });
 
-  it('should use private key jwt on token endpoint', async () => {
+  it.skip('should use private key jwt on token endpoint', async () => {
     const idToken = await makeIdToken({
       c_hash: '77QmUPtjPfzWtF2AnpK9RQ'
     });

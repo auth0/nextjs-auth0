@@ -4,5 +4,5 @@ const base = require('./jest-base.config');
 module.exports = {
   ...base,
   displayName: 'node',
-  testEnvironment: 'jest-environment-node-single-context'
+  testEnvironment: 'node'
 };

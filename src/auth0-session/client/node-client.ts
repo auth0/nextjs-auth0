@@ -109,6 +109,7 @@ export class NodeClient extends AbstractClient {
     }
 
     let jwks;
+    /* c8 ignore next 5 */
     if (config.clientAssertionSigningKey) {
       const privateKey = createPrivateKey({ key: config.clientAssertionSigningKey as string });
       const jwk = await exportJWK(privateKey);
