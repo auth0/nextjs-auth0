@@ -99,6 +99,7 @@ export interface BaseConfig {
 
   /**
    * Instance of an HTTP agent for authentication requests.
+   * (This is for the Node.js runtime only)
    */
   httpAgent?: Agent;
 
