@@ -112,6 +112,7 @@ const paramsSchema = Joi.object({
     ),
   clockTolerance: Joi.number().optional().default(60),
   httpTimeout: Joi.number().optional().default(5000),
+  httpAgent: Joi.object().optional(),
   enableTelemetry: Joi.boolean().optional().default(true),
   getLoginState: Joi.function()
     .optional()
