@@ -5,11 +5,15 @@ import { parse } from 'url';
 import { AddressInfo } from 'net';
 
 let server: Server;
+let app: any;
+let handle: any;
 
 export const start = async (): Promise<string> => {
-  const app = next({ dev: false, dir: path.join(__dirname, 'test-app') });
-  await app.prepare();
-  const handle = app.getRequestHandler();
+  if (!app) {
+    app = next({ dev: false, dir: path.join(__dirname, 'test-app') });
+    await app.prepare();
+    handle = app.getRequestHandler();
+  }
   server = createHttpServer(async (req, res) => {
     const parsedUrl = parse(req.url as string, true);
     await handle(req, res, parsedUrl);
