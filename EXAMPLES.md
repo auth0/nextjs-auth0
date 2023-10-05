@@ -251,7 +251,7 @@ Requests to `/api/protected` without a valid session cookie will fail with `401`
 // app/api/protected/route.js
 import { withApiAuthRequired, getSession } from '@auth0/nextjs-auth0';
 
-export default withApiAuthRequired(async function myApiRoute(req) {
+export const GET = withApiAuthRequired(async function myApiRoute(req) {
   const res = new NextResponse();
   const { user } = await getSession(req, res);
   return NextResponse.json({ protected: 'My Secret', id: user.sub }, res);
