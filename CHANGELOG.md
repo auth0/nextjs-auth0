@@ -1,5 +1,15 @@
 # Change Log
 
+## [v3.2.0](https://github.com/auth0/nextjs-auth0/tree/v3.2.0) (2023-10-05)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.1.0...v3.2.0)
+
+**Added**
+- Add support for passing a custom http agent [\#1447](https://github.com/auth0/nextjs-auth0/pull/1447) ([ryanolson-aumni](https://github.com/ryanolson-aumni))
+- fix: add missing touchSession for exported function [\#1461](https://github.com/auth0/nextjs-auth0/pull/1461) ([benevbright](https://github.com/benevbright))
+
+**Fixed**
+- withApiAuthRequired callback can return just Response [\#1476](https://github.com/auth0/nextjs-auth0/pull/1476) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [v3.1.0](https://github.com/auth0/nextjs-auth0/tree/v3.1.0) (2023-08-08)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.0.1...v3.1.0)
 
