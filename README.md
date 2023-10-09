@@ -96,7 +96,7 @@ Add `handleAuth()` to your app, which creates the following route handlers under
 
 ##### Add the Dynamic API Route
 
-Create a [catch-all, dynamic API route handler](https://nextjs.org/docs/api-routes/dynamic-api-routes#optional-catch-all-api-routes) under the `/pages/api` directory:
+Create a [dynamic API route handler](https://nextjs.org/docs/pages/building-your-application/routing/api-routes#dynamic-api-routes) under the `/pages/api` directory:
 
 - Create an `auth` directory under the `/pages/api/` directory.
 - Create a `[auth0].js` file under the newly created `auth` directory.
