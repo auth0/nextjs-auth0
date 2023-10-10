@@ -14,5 +14,5 @@ jobs:
         with:
           node-version: '20.x'
       - run: npm ci
-      - run: npm run build:test -- --maxConcurrency=1
-      - run: npm test
+      - run: npm run build:test
+      - run: npm test -- --maxConcurrency=1
