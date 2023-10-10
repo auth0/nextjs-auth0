@@ -13,7 +13,6 @@ if (typeof TextDecoder !== 'undefined') {
 }
 
 beforeEach(() => {
-  globalThis.WebSocket = globalThis.WebSocket || function () {};
   jest.spyOn(console, 'warn').mockImplementation(() => {
     // no-op
   });
