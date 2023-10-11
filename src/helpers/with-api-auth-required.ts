@@ -32,7 +32,7 @@ export type AppRouteHandlerFn = (
    * dynamic route).
    */
   ctx: AppRouteHandlerFnContext
-) => Promise<NextResponse> | NextResponse;
+) => Promise<Response> | Response;
 
 /**
  * Wrap an app router API route to check that the user has a valid session. If they're not logged in the
