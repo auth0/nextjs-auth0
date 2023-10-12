@@ -12,7 +12,6 @@ Please read [Auth0's contribution guidelines](https://github.com/auth0/open-sour
 
 - `npm install`: install dependencies
 - `npm run build`: Build the binary
-- `npm run build:test`: Do this once to build the test harness for the tests
 - `npm test`: Run the unit tests
 - `npm run test:watch`: Run the unit tests and watch for changes
 - `npm run install:example`: Install the examples

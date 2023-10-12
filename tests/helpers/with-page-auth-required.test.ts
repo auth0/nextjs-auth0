@@ -170,15 +170,6 @@ describe('with-page-auth-required ssr', () => {
       delete process.env.NEXT_PUBLIC_AUTH0_LOGIN;
     });
 
-    test('is a no-op when invoked as a client-side protection from the server', async () => {
-      const baseUrl = await setup(withoutApi);
-      const cookieJar = await login(baseUrl);
-      const {
-        res: { statusCode }
-      } = await get(baseUrl, '/csr-protected', { cookieJar, fullResponse: true });
-      expect(statusCode).toBe(200);
-    });
-
     test('should preserve multiple query params in the returnTo URL', async () => {
       const baseUrl = await setup(withoutApi, { withPageAuthRequiredOptions: { returnTo: '/foo?bar=baz&qux=quux' } });
       const {

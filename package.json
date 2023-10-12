@@ -35,7 +35,6 @@
     "prepack": "npm run build",
     "install:example": "npm i --prefix=example-app --no-package-lock",
     "build": "npm run clean && tsc -p tsconfig.build.json",
-    "build:test": "next build tests/fixtures/test-app",
     "build:example": "npm run build --prefix=example-app",
     "build:vercel": "npm run install:example && npm run build && npm run build:example",
     "start:example": "npm run dev --prefix=example-app",
