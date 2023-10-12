@@ -4,7 +4,6 @@ import { createServer as createHttpsServer, Server as HttpsServer } from 'https'
 import url from 'url';
 import nock from 'nock';
 import { TokenSet, TokenSetParameters } from 'openid-client';
-import bodyParser from 'body-parser';
 import {
   loginHandler,
   getConfig,
@@ -94,9 +93,10 @@ const createHandlers = (params: ConfigParameters): Handlers => {
   };
 };
 
-const jsonParse = bodyParser.json();
-const parseJson = (req: IncomingMessage, res: ServerResponse): Promise<IncomingMessage> =>
-  new Promise((resolve, reject) => {
+export const parseJson = async (req: IncomingMessage, res: ServerResponse): Promise<IncomingMessage> => {
+  const { default: bodyParser } = await import('body-parser');
+  const jsonParse = bodyParser.json();
+  return await new Promise((resolve, reject) => {
     jsonParse(req, res, (error: Error | undefined) => {
       if (error) {
         reject(error);
@@ -105,6 +105,7 @@ const parseJson = (req: IncomingMessage, res: ServerResponse): Promise<IncomingM
       }
     });
   });
+};
 
 const requestListener =
   (
