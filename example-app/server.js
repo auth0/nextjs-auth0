@@ -6,6 +6,8 @@ const port = +(process.env.PORT || 3000);
 const app = next({ dev: true, hostname: 'localhost', port });
 const handle = app.getRequestHandler();
 
+process.env.AUTH0_BASE_URL = 'http://localhost:3000';
+process.env.AUTH0_SECRET = 'testing123';
 process.env.AUTH0_ISSUER_BASE_URL = `http://localhost:${port}/oidc/`;
 process.env.AUTH0_CLIENT_ID = 'testing';
 process.env.AUTH0_CLIENT_SECRET = 'testing';
