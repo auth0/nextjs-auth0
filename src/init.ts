@@ -97,7 +97,7 @@ export const _initAuth = (conf: {
     sessionCache: SessionCache;
   };
 
-  const getInstance = (): any => {
+  const getInstance = (...args: any[]): any => {
     if (!instance) {
       instance = __initAuth(conf);
     }
@@ -106,17 +106,41 @@ export const _initAuth = (conf: {
 
   return {
     sessionCache: () => getInstance().sessionCache,
-    getSession: (...args: any[]) => getInstance().getSession(...args),
-    touchSession: (...args: any[]) => getInstance().touchSession(...args),
-    updateSession: (...args: any[]) => getInstance().updateSession(...args),
-    getAccessToken: (...args: any[]) => getInstance().getAccessToken(...args),
-    withApiAuthRequired: (...args: any[]) => getInstance().withApiAuthRequired(...args),
-    withPageAuthRequired: (...args: any[]) => getInstance().withPageAuthRequired(...args),
-    handleLogin: (...args: any[]) => getInstance().handleLogin(...args),
-    handleLogout: (...args: any[]) => getInstance().handleLogout(...args),
-    handleCallback: (...args: any[]) => getInstance().handleCallback(...args),
-    handleProfile: (...args: any[]) => getInstance().handleProfile(...args),
-    handleAuth: (...args: any[]) => getInstance().handleAuth(...args),
-    withMiddlewareAuthRequired: (...args: any[]) => getInstance().withMiddlewareAuthRequired(...args)
+    getSession: (...args: any[]) => getInstance(...args).getSession(...args),
+    touchSession: (...args: any[]) => getInstance(...args).touchSession(...args),
+    updateSession: (...args: any[]) => getInstance(...args).updateSession(...args),
+    getAccessToken: (...args: any[]) => getInstance(...args).getAccessToken(...args),
+    withApiAuthRequired:
+      (...args: any[]) =>
+      (...reqArgs: any[]) =>
+        getInstance(...args).withApiAuthRequired(...args)(...reqArgs),
+    withPageAuthRequired:
+      (...args: any[]) =>
+      (...reqArgs: any[]) =>
+        getInstance(...args).withPageAuthRequired(...args)(...reqArgs),
+    handleLogin:
+      (...args: any[]) =>
+      (...reqArgs: any[]) =>
+        getInstance(...args).handleLogin(...args)(...reqArgs),
+    handleLogout:
+      (...args: any[]) =>
+      (...reqArgs: any[]) =>
+        getInstance(...args).handleLogout(...args)(...reqArgs),
+    handleCallback:
+      (...args: any[]) =>
+      (...reqArgs: any[]) =>
+        getInstance(...args).handleCallback(...args)(...reqArgs),
+    handleProfile:
+      (...args: any[]) =>
+      (...reqArgs: any[]) =>
+        getInstance(...args).handleProfile(...args)(...reqArgs),
+    handleAuth:
+      (...args: any[]) =>
+      (...reqArgs: any[]) =>
+        getInstance(...args).handleAuth(...args)(...reqArgs),
+    withMiddlewareAuthRequired:
+      (...args: any[]) =>
+      (...reqArgs: any[]) =>
+        getInstance(...args).withMiddlewareAuthRequired(...args)(...reqArgs)
   } as unknown as Auth0Server & { sessionCache: () => SessionCache };
 };
