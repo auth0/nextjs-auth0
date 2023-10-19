@@ -17,8 +17,8 @@ import {
   updateSessionFactory
 } from './session/';
 import { withPageAuthRequiredFactory, withApiAuthRequiredFactory } from './helpers';
-import { ConfigParameters, BaseConfig, NextConfig } from './config';
-import { Auth0Server } from './shared';
+import { ConfigParameters, getConfig } from './config';
+import { Auth0Server, telemetry } from './shared';
 import withMiddlewareAuthRequiredFactory from './helpers/with-middleware-auth-required';
 
 /**
@@ -30,17 +30,20 @@ import withMiddlewareAuthRequiredFactory from './helpers/with-middleware-auth-re
  */
 export type InitAuth0 = (params?: ConfigParameters) => Auth0Server;
 
-export const _initAuth = ({
-  baseConfig,
-  nextConfig,
-  client
+const __initAuth = ({
+  genId,
+  params,
+  ClientCtor
 }: {
-  baseConfig: BaseConfig;
-  nextConfig: NextConfig;
-  client: AbstractClient;
+  params?: ConfigParameters;
+  genId: () => string;
+  ClientCtor: new (...args: any[]) => AbstractClient;
 }): Auth0Server & {
   sessionCache: SessionCache;
 } => {
+  const { baseConfig, nextConfig } = getConfig({ ...params, session: { genId, ...params?.session } });
+  const client = new ClientCtor(baseConfig, telemetry);
+
   // Init base layer (with base config)
   const transientStore = new TransientStore(baseConfig);
 
@@ -81,4 +84,39 @@ export const _initAuth = ({
     handleAuth,
     withMiddlewareAuthRequired
   };
+};
+
+export const _initAuth = (conf: {
+  params?: ConfigParameters;
+  genId: () => string;
+  ClientCtor: any;
+}): Auth0Server & {
+  sessionCache: () => SessionCache;
+} => {
+  let instance: Auth0Server & {
+    sessionCache: SessionCache;
+  };
+
+  const getInstance = (): any => {
+    if (!instance) {
+      instance = __initAuth(conf);
+    }
+    return instance;
+  };
+
+  return {
+    sessionCache: () => getInstance().sessionCache,
+    getSession: (...args: any[]) => getInstance().getSession(...args),
+    touchSession: (...args: any[]) => getInstance().touchSession(...args),
+    updateSession: (...args: any[]) => getInstance().updateSession(...args),
+    getAccessToken: (...args: any[]) => getInstance().getAccessToken(...args),
+    withApiAuthRequired: (...args: any[]) => getInstance().withApiAuthRequired(...args),
+    withPageAuthRequired: (...args: any[]) => getInstance().withPageAuthRequired(...args),
+    handleLogin: (...args: any[]) => getInstance().handleLogin(...args),
+    handleLogout: (...args: any[]) => getInstance().handleLogout(...args),
+    handleCallback: (...args: any[]) => getInstance().handleCallback(...args),
+    handleProfile: (...args: any[]) => getInstance().handleProfile(...args),
+    handleAuth: (...args: any[]) => getInstance().handleAuth(...args),
+    withMiddlewareAuthRequired: (...args: any[]) => getInstance().withMiddlewareAuthRequired(...args)
+  } as unknown as Auth0Server & { sessionCache: () => SessionCache };
 };
