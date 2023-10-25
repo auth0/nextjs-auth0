@@ -21,7 +21,7 @@ export type AfterRefresh = AfterRefreshPageRoute | AfterRefreshAppRoute;
  */
 export type AfterRefreshPageRoute = (
   req: NextApiRequest | IncomingMessage,
-  res: NextApiRequest | ServerResponse,
+  res: NextApiResponse | ServerResponse,
   session: Session
 ) => Promise<Session> | Session;
 
