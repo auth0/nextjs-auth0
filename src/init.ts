@@ -17,8 +17,8 @@ import {
   updateSessionFactory
 } from './session/';
 import { withPageAuthRequiredFactory, withApiAuthRequiredFactory } from './helpers';
-import { ConfigParameters, BaseConfig, NextConfig } from './config';
-import { Auth0Server } from './shared';
+import { ConfigParameters, getConfig } from './config';
+import { Auth0Server, telemetry } from './shared';
 import withMiddlewareAuthRequiredFactory from './helpers/with-middleware-auth-required';
 
 /**
@@ -31,16 +31,18 @@ import withMiddlewareAuthRequiredFactory from './helpers/with-middleware-auth-re
 export type InitAuth0 = (params?: ConfigParameters) => Auth0Server;
 
 export const _initAuth = ({
-  baseConfig,
-  nextConfig,
-  client
+  params,
+  genId,
+  ClientCtor
 }: {
-  baseConfig: BaseConfig;
-  nextConfig: NextConfig;
-  client: AbstractClient;
-}): Auth0Server & {
-  sessionCache: SessionCache;
-} => {
+  params?: ConfigParameters;
+  genId: () => string;
+  ClientCtor: new (...args: any[]) => AbstractClient;
+}): Auth0Server => {
+  // const lazy = (): Auth0Server => {
+  const { baseConfig, nextConfig } = getConfig({ ...params, session: { genId, ...params?.session } });
+  const client = new ClientCtor(baseConfig, telemetry);
+
   // Init base layer (with base config)
   const transientStore = new TransientStore(baseConfig);
 
@@ -58,7 +60,7 @@ export const _initAuth = ({
   const updateSession = updateSessionFactory(sessionCache);
   const getAccessToken = accessTokenFactory(nextConfig, client, sessionCache);
   const withApiAuthRequired = withApiAuthRequiredFactory(sessionCache);
-  const withPageAuthRequired = withPageAuthRequiredFactory(nextConfig.routes.login, () => sessionCache);
+  const withPageAuthRequired = withPageAuthRequiredFactory(nextConfig, sessionCache);
   const handleLogin = loginHandler(baseHandleLogin, nextConfig, baseConfig);
   const handleLogout = logoutHandler(baseHandleLogout);
   const handleCallback = callbackHandler(baseHandleCallback, nextConfig);
@@ -67,7 +69,6 @@ export const _initAuth = ({
   const withMiddlewareAuthRequired = withMiddlewareAuthRequiredFactory(nextConfig.routes, () => sessionCache);
 
   return {
-    sessionCache,
     getSession,
     touchSession,
     updateSession,

@@ -3,6 +3,7 @@ import { GetServerSideProps, GetServerSidePropsContext, GetServerSidePropsResult
 import { Claims, get, SessionCache } from '../session';
 import { assertCtx } from '../utils/assert';
 import { ParsedUrlQuery } from 'querystring';
+import { NextConfig } from '../config';
 
 /**
  * If you wrap your `getServerSideProps` with {@link WithPageAuthRequired} your props object will be augmented with
@@ -180,11 +181,11 @@ export type WithPageAuthRequired = WithPageAuthRequiredPageRouter & WithPageAuth
  * @ignore
  */
 export default function withPageAuthRequiredFactory(
-  loginUrl: string,
-  getSessionCache: () => SessionCache
+  nextConfig: NextConfig,
+  sessionCache: SessionCache
 ): WithPageAuthRequired {
-  const appRouteHandler = appRouteHandlerFactory(loginUrl, getSessionCache);
-  const pageRouteHandler = pageRouteHandlerFactory(loginUrl, getSessionCache);
+  const appRouteHandler = appRouteHandlerFactory(nextConfig, sessionCache);
+  const pageRouteHandler = pageRouteHandlerFactory(nextConfig, sessionCache);
 
   return ((
     fnOrOpts?: WithPageAuthRequiredPageRouterOptions | AppRouterPageRoute,
@@ -201,16 +202,15 @@ export default function withPageAuthRequiredFactory(
  * @ignore
  */
 const appRouteHandlerFactory =
-  (loginUrl: string, getSessionCache: () => SessionCache): WithPageAuthRequiredAppRouter =>
+  (nextConfig: NextConfig, sessionCache: SessionCache): WithPageAuthRequiredAppRouter =>
   (handler, opts = {}) =>
   async (params) => {
-    const sessionCache = getSessionCache();
     const [session] = await get({ sessionCache });
     if (!session?.user) {
       const returnTo = typeof opts.returnTo === 'function' ? await opts.returnTo(params) : opts.returnTo;
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { redirect } = require('next/navigation');
-      redirect(`${loginUrl}${opts.returnTo ? `?returnTo=${returnTo}` : ''}`);
+      redirect(`${nextConfig.routes.login}${opts.returnTo ? `?returnTo=${returnTo}` : ''}`);
     }
     return handler(params);
   };
@@ -219,16 +219,15 @@ const appRouteHandlerFactory =
  * @ignore
  */
 const pageRouteHandlerFactory =
-  (loginUrl: string, getSessionCache: () => SessionCache): WithPageAuthRequiredPageRouter =>
+  (nextConfig: NextConfig, sessionCache: SessionCache): WithPageAuthRequiredPageRouter =>
   ({ getServerSideProps, returnTo } = {}) =>
   async (ctx) => {
     assertCtx(ctx);
-    const sessionCache = getSessionCache();
     const session = await sessionCache.get(ctx.req, ctx.res);
     if (!session?.user) {
       return {
         redirect: {
-          destination: `${loginUrl}?returnTo=${encodeURIComponent(returnTo || ctx.resolvedUrl)}`,
+          destination: `${nextConfig.routes.login}?returnTo=${encodeURIComponent(returnTo || ctx.resolvedUrl)}`,
           permanent: false
         }
       };
