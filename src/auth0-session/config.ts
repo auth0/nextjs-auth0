@@ -364,3 +364,5 @@ export interface LogoutOptions {
    */
   logoutParams?: { [key: string]: any };
 }
+
+export type GetConfig = Config | (() => Config | Promise<Config>);

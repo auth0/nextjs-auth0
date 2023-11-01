@@ -38,9 +38,10 @@ export class NodeClient extends AbstractClient {
       return this.client;
     }
     const {
-      config,
+      getConfig,
       telemetry: { name, version }
     } = this;
+    const config = await getConfig();
 
     const defaultHttpOptions: CustomHttpOptionsProvider = (_url, options) => ({
       ...options,
@@ -132,10 +133,7 @@ export class NodeClient extends AbstractClient {
     const issuerUrl = new URL(issuer.metadata.issuer);
 
     if (config.idpLogout) {
-      if (
-        this.config.idpLogout &&
-        (this.config.auth0Logout || (issuerUrl.hostname.match('\\.auth0\\.com$') && this.config.auth0Logout !== false))
-      ) {
+      if (config.auth0Logout || (issuerUrl.hostname.match('\\.auth0\\.com$') && config.auth0Logout !== false)) {
         Object.defineProperty(this.client, 'endSessionUrl', {
           value(params: EndSessionParameters) {
             const { id_token_hint, post_logout_redirect_uri, ...extraParams } = params;

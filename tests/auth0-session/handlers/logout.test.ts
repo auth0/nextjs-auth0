@@ -6,6 +6,7 @@ import { toSignedCookieJar, defaultConfig, get, post, fromCookieJar } from '../f
 import { makeIdToken } from '../fixtures/cert';
 import { encodeState } from '../../../src/auth0-session/utils/encoding';
 import wellKnown from '../fixtures/well-known.json';
+import logoutHandlerFactory from '../../../src/auth0-session/handlers/logout';
 
 const login = async (baseURL: string): Promise<CookieJar> => {
   const nonce = '__test_nonce__';
@@ -23,6 +24,13 @@ const login = async (baseURL: string): Promise<CookieJar> => {
 
 describe('logout route', () => {
   afterEach(teardown);
+
+  it('should accept lazy config', () => {
+    const getConfig = () => {
+      throw new Error();
+    };
+    expect(() => (logoutHandlerFactory as any)(getConfig)).not.toThrow();
+  });
 
   it('should perform a local logout', async () => {
     const baseURL = await setup({ ...defaultConfig, idpLogout: false });
