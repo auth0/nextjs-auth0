@@ -6,13 +6,11 @@ import {
   OpenIDCallbackChecks,
   TokenEndpointResponse,
   AbstractClient,
-  EndSessionParameters,
-  Telemetry
+  EndSessionParameters
 } from './abstract-client';
 import { ApplicationError, DiscoveryError, IdentityProviderError, UserInfoError } from '../utils/errors';
 import { AccessTokenError, AccessTokenErrorCode } from '../../utils/errors';
 import urlJoin from 'url-join';
-import { Config } from '../config';
 
 const encodeBase64 = (input: string) => {
   const unencoded = new TextEncoder().encode(input);
@@ -28,36 +26,29 @@ const encodeBase64 = (input: string) => {
 export class EdgeClient extends AbstractClient {
   private client?: oauth.Client;
   private as?: oauth.AuthorizationServer;
-  private httpOptions: () => oauth.HttpRequestOptions;
 
-  constructor(protected config: Config, protected telemetry: Telemetry) {
-    super(config, telemetry);
-    if (config.authorizationParams.response_type !== 'code') {
-      throw new Error('This SDK only supports `response_type=code` when used in an Edge runtime.');
+  private async httpOptions(): Promise<oauth.HttpRequestOptions> {
+    const headers = new Headers();
+    const config = await this.getConfig();
+    if (config.enableTelemetry) {
+      const { name, version } = this.telemetry;
+      headers.set('User-Agent', `${name}/${version}`);
+      headers.set(
+        'Auth0-Client',
+        encodeBase64(
+          JSON.stringify({
+            name,
+            version,
+            env: {
+              edge: true
+            }
+          })
+        )
+      );
     }
-
-    this.httpOptions = () => {
-      const headers = new Headers();
-      if (config.enableTelemetry) {
-        const { name, version } = telemetry;
-        headers.set('User-Agent', `${name}/${version}`);
-        headers.set(
-          'Auth0-Client',
-          encodeBase64(
-            JSON.stringify({
-              name,
-              version,
-              env: {
-                edge: true
-              }
-            })
-          )
-        );
-      }
-      return {
-        signal: AbortSignal.timeout(this.config.httpTimeout),
-        headers
-      };
+    return {
+      signal: AbortSignal.timeout(config.httpTimeout),
+      headers
     };
   }
 
@@ -65,22 +56,26 @@ export class EdgeClient extends AbstractClient {
     if (this.as) {
       return [this.as, this.client as oauth.Client];
     }
+    const config = await this.getConfig();
+    if (config.authorizationParams.response_type !== 'code') {
+      throw new Error('This SDK only supports `response_type=code` when used in an Edge runtime.');
+    }
 
-    const issuer = new URL(this.config.issuerBaseURL);
+    const issuer = new URL(config.issuerBaseURL);
     try {
       this.as = await oauth
-        .discoveryRequest(issuer, this.httpOptions())
+        .discoveryRequest(issuer, await this.httpOptions())
         .then((response) => oauth.processDiscoveryResponse(issuer, response));
     } catch (e) {
-      throw new DiscoveryError(e, this.config.issuerBaseURL);
+      throw new DiscoveryError(e, config.issuerBaseURL);
     }
 
     this.client = {
-      client_id: this.config.clientID,
-      ...(!this.config.clientAssertionSigningKey && { client_secret: this.config.clientSecret }),
-      token_endpoint_auth_method: this.config.clientAuthMethod,
-      id_token_signed_response_alg: this.config.idTokenSigningAlg,
-      [oauth.clockTolerance]: this.config.clockTolerance
+      client_id: config.clientID,
+      ...(!config.clientAssertionSigningKey && { client_secret: config.clientSecret }),
+      token_endpoint_auth_method: config.clientAuthMethod,
+      id_token_signed_response_alg: config.idTokenSigningAlg,
+      [oauth.clockTolerance]: config.clockTolerance
     };
 
     return [this.as, this.client];
@@ -88,8 +83,9 @@ export class EdgeClient extends AbstractClient {
 
   async authorizationUrl(parameters: Record<string, unknown>): Promise<string> {
     const [as] = await this.getClient();
+    const config = await this.getConfig();
     const authorizationUrl = new URL(as.authorization_endpoint as string);
-    authorizationUrl.searchParams.set('client_id', this.config.clientID);
+    authorizationUrl.searchParams.set('client_id', config.clientID);
     Object.entries(parameters).forEach(([key, value]) => {
       if (value === null || value === undefined) {
         return;
@@ -126,8 +122,7 @@ export class EdgeClient extends AbstractClient {
     extras: CallbackExtras
   ): Promise<TokenEndpointResponse> {
     const [as, client] = await this.getClient();
-
-    const { clientAssertionSigningKey, clientAssertionSigningAlg } = this.config;
+    const { clientAssertionSigningKey, clientAssertionSigningAlg } = await this.getConfig();
 
     let clientPrivateKey = clientAssertionSigningKey as CryptoKey | undefined;
     /* c8 ignore next 3 */
@@ -167,15 +162,16 @@ export class EdgeClient extends AbstractClient {
   async endSessionUrl(parameters: EndSessionParameters): Promise<string> {
     const [as] = await this.getClient();
     const issuerUrl = new URL(as.issuer);
+    const config = await this.getConfig();
 
     if (
-      this.config.idpLogout &&
-      (this.config.auth0Logout || (issuerUrl.hostname.match('\\.auth0\\.com$') && this.config.auth0Logout !== false))
+      config.idpLogout &&
+      (config.auth0Logout || (issuerUrl.hostname.match('\\.auth0\\.com$') && config.auth0Logout !== false))
     ) {
       const { id_token_hint, post_logout_redirect_uri, ...extraParams } = parameters;
       const auth0LogoutUrl: URL = new URL(urlJoin(as.issuer, '/v2/logout'));
       post_logout_redirect_uri && auth0LogoutUrl.searchParams.set('returnTo', post_logout_redirect_uri);
-      auth0LogoutUrl.searchParams.set('client_id', this.config.clientID);
+      auth0LogoutUrl.searchParams.set('client_id', config.clientID);
       Object.entries(extraParams).forEach(([key, value]: [string, string]) => {
         if (value === null || value === undefined) {
           return;
@@ -195,13 +191,13 @@ export class EdgeClient extends AbstractClient {
       oidcLogoutUrl.searchParams.set(key, value);
     });
 
-    oidcLogoutUrl.searchParams.set('client_id', this.config.clientID);
+    oidcLogoutUrl.searchParams.set('client_id', config.clientID);
     return oidcLogoutUrl.toString();
   }
 
   async userinfo(accessToken: string): Promise<Record<string, unknown>> {
     const [as, client] = await this.getClient();
-    const response = await oauth.userInfoRequest(as, client, accessToken, this.httpOptions());
+    const response = await oauth.userInfoRequest(as, client, accessToken, await this.httpOptions());
 
     try {
       return await oauth.processUserInfoResponse(as, client, oauth.skipSubjectCheck, response);

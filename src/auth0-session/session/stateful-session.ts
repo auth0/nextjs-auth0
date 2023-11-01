@@ -1,6 +1,5 @@
 import { CookieSerializeOptions } from 'cookie';
 import createDebug from '../utils/debug';
-import { Config } from '../config';
 import { AbstractSession, SessionPayload } from './abstract-session';
 import { generateCookieValue, getCookieValue } from '../utils/signed-cookies';
 import { signing } from '../utils/hkdf';
@@ -29,16 +28,20 @@ export class StatefulSession<
   Session extends { [key: string]: any } = { [key: string]: any }
 > extends AbstractSession<Session> {
   private keys?: Uint8Array[];
-  private store: SessionStore<Session>;
+  private store?: SessionStore<Session>;
 
-  constructor(protected config: Config) {
-    super(config);
-    this.store = config.session.store as SessionStore<Session>;
+  private async getStore(): Promise<SessionStore<Session>> {
+    if (!this.store) {
+      const config = await this.getConfig();
+      this.store = config.session.store as SessionStore<Session>;
+    }
+    return this.store;
   }
 
   private async getKeys(): Promise<Uint8Array[]> {
     if (!this.keys) {
-      const secret = this.config.secret;
+      const config = await this.getConfig();
+      const secret = config.secret;
       const secrets = Array.isArray(secret) ? secret : [secret];
       this.keys = await Promise.all(secrets.map(signing));
     }
@@ -46,14 +49,16 @@ export class StatefulSession<
   }
 
   async getSession(req: Auth0RequestCookies): Promise<SessionPayload<Session> | undefined | null> {
-    const { name: sessionName } = this.config.session;
+    const config = await this.getConfig();
+    const { name: sessionName } = config.session;
     const cookies = req.getCookies();
     const keys = await this.getKeys();
     const sessionId = await getCookieValue(sessionName, cookies[sessionName], keys);
 
     if (sessionId) {
+      const store = await this.getStore();
       debug('reading session from %s store', sessionId);
-      return this.store.get(sessionId);
+      return store.get(sessionId);
     }
     return;
   }
@@ -68,7 +73,9 @@ export class StatefulSession<
     cookieOptions: CookieSerializeOptions,
     isNewSession: boolean
   ): Promise<void> {
-    const { name: sessionName, genId } = this.config.session;
+    const config = await this.getConfig();
+    const store = await this.getStore();
+    const { name: sessionName, genId } = config.session;
     const cookies = req.getCookies();
     const keys = await this.getKeys();
     let sessionId = await getCookieValue(sessionName, cookies[sessionName], keys);
@@ -77,7 +84,7 @@ export class StatefulSession<
     // from the store and regenerate the session id to prevent session fixation issue.
     if (sessionId && isNewSession) {
       debug('regenerating session id %o to prevent session fixation', sessionId);
-      await this.store.delete(sessionId);
+      await store.delete(sessionId);
       sessionId = undefined;
     }
 
@@ -88,7 +95,7 @@ export class StatefulSession<
     debug('set session %o', sessionId);
     const cookieValue = await generateCookieValue(sessionName, sessionId, keys[0]);
     res.setCookie(sessionName, cookieValue, cookieOptions);
-    await this.store.set(sessionId, {
+    await store.set(sessionId, {
       header: { iat, uat, exp },
       data: session
     });
@@ -99,15 +106,17 @@ export class StatefulSession<
     res: Auth0ResponseCookies,
     cookieOptions: CookieSerializeOptions
   ): Promise<void> {
-    const { name: sessionName } = this.config.session;
+    const config = await this.getConfig();
+    const { name: sessionName } = config.session;
     const cookies = req.getCookies();
     const keys = await this.getKeys();
     const sessionId = await getCookieValue(sessionName, cookies[sessionName], keys);
 
     if (sessionId) {
+      const store = await this.getStore();
       debug('deleting session %o', sessionId);
       res.clearCookie(sessionName, cookieOptions);
-      await this.store.delete(sessionId);
+      await store.delete(sessionId);
     }
   }
 }

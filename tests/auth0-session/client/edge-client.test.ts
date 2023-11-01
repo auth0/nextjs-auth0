@@ -293,7 +293,8 @@ describe('edge client', function () {
   });
 
   it('should only support code flow', async () => {
-    await expect(getClient({ authorizationParams: { response_type: 'id_token' } })).rejects.toThrow(
+    const client = await getClient({ authorizationParams: { response_type: 'id_token' } });
+    await expect(client.authorizationUrl({})).rejects.toThrow(
       'This SDK only supports `response_type=code` when used in an Edge runtime.'
     );
   });

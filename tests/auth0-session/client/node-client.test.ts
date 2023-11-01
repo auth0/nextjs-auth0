@@ -69,6 +69,21 @@ describe('node client', function () {
     expect(headerProps).not.toContain('auth0-client');
   });
 
+  it('should accept lazy config', async function () {
+    expect(
+      () =>
+        new NodeClient(
+          () => {
+            throw new Error();
+          },
+          {
+            name: 'nextjs-auth0',
+            version
+          }
+        )
+    ).not.toThrow();
+  });
+
   it('should not strip new headers', async function () {
     const client = await getClient();
     const response = await client.userinfo('__test_token__');

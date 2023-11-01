@@ -18,28 +18,36 @@ export class StatelessSession<
   Session extends { [key: string]: any } = { [key: string]: any }
 > extends AbstractSession<Session> {
   private keys?: Uint8Array[];
-  private chunkSize: number;
+  private chunkSize?: number;
 
   constructor(protected config: Config) {
     super(config);
-    const {
-      cookie: { transient, ...cookieConfig },
-      name: sessionName
-    } = this.config.session;
-    const cookieOptions: CookieSerializeOptions = {
-      ...cookieConfig
-    };
-    if (!transient) {
-      cookieOptions.expires = new Date();
-    }
+  }
 
-    const emptyCookie = serialize(`${sessionName}.0`, '', cookieOptions);
-    this.chunkSize = MAX_COOKIE_SIZE - emptyCookie.length;
+  private async getChunkSize(): Promise<number> {
+    if (this.chunkSize === undefined) {
+      const config = await this.getConfig();
+      const {
+        cookie: { transient, ...cookieConfig },
+        name: sessionName
+      } = config.session;
+      const cookieOptions: CookieSerializeOptions = {
+        ...cookieConfig
+      };
+      if (!transient) {
+        cookieOptions.expires = new Date();
+      }
+
+      const emptyCookie = serialize(`${sessionName}.0`, '', cookieOptions);
+      this.chunkSize = MAX_COOKIE_SIZE - emptyCookie.length;
+    }
+    return this.chunkSize;
   }
 
   private async getKeys(): Promise<Uint8Array[]> {
     if (!this.keys) {
-      const secret = this.config.secret;
+      const config = await this.getConfig();
+      const secret = config.secret;
       const secrets = Array.isArray(secret) ? secret : [secret];
       this.keys = await Promise.all(secrets.map(encryption));
     }
@@ -65,7 +73,8 @@ export class StatelessSession<
   }
 
   async getSession(req: Auth0RequestCookies): Promise<SessionPayload<Session> | undefined | null> {
-    const { name: sessionName } = this.config.session;
+    const config = await this.getConfig();
+    const { name: sessionName } = config.session;
     const cookies = req.getCookies();
     let existingSessionValue: string | undefined;
     if (sessionName in cookies) {
@@ -112,13 +121,15 @@ export class StatelessSession<
     exp: number,
     cookieOptions: CookieSerializeOptions
   ): Promise<void> {
-    const { name: sessionName } = this.config.session;
+    const config = await this.getConfig();
+    const { name: sessionName } = config.session;
     const cookies = req.getCookies();
 
     debug('found session, creating signed session cookie(s) with name %o(.i)', sessionName);
     const value = await this.encrypt(session, { iat, uat, exp });
 
-    const chunkCount = Math.ceil(value.length / this.chunkSize);
+    const chunkSize = await this.getChunkSize();
+    const chunkCount = Math.ceil(value.length / chunkSize);
 
     const existingCookies = new Set(
       Object.keys(cookies).filter((cookie) => cookie.match(`^${sessionName}(?:\\.\\d)?$`))
@@ -127,7 +138,7 @@ export class StatelessSession<
     if (chunkCount > 1) {
       debug('cookie size greater than %d, chunking', this.chunkSize);
       for (let i = 0; i < chunkCount; i++) {
-        const chunkValue = value.slice(i * this.chunkSize, (i + 1) * this.chunkSize);
+        const chunkValue = value.slice(i * chunkSize, (i + 1) * chunkSize);
         const chunkCookieName = `${sessionName}.${i}`;
         res.setCookie(chunkCookieName, chunkValue, cookieOptions);
         existingCookies.delete(chunkCookieName);
@@ -147,7 +158,8 @@ export class StatelessSession<
     res: Auth0ResponseCookies,
     cookieOptions: CookieSerializeOptions
   ): Promise<void> {
-    const { name: sessionName } = this.config.session;
+    const config = await this.getConfig();
+    const { name: sessionName } = config.session;
     const cookies = req.getCookies();
 
     for (const cookieName of Object.keys(cookies)) {

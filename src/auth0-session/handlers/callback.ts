@@ -1,5 +1,5 @@
 import urlJoin from 'url-join';
-import { AuthorizationParameters, Config } from '../config';
+import { AuthorizationParameters, GetConfig, Config } from '../config';
 import TransientStore from '../transient-store';
 import { decodeState } from '../utils/encoding';
 import { SessionCache } from '../session-cache';
@@ -25,12 +25,14 @@ export type CallbackOptions = {
 export type HandleCallback = (req: Auth0Request, res: Auth0Response, options?: CallbackOptions) => Promise<void>;
 
 export default function callbackHandlerFactory(
-  config: Config,
+  getConfig: GetConfig,
   client: AbstractClient,
   sessionCache: SessionCache,
   transientCookieHandler: TransientStore
 ): HandleCallback {
+  const getConfigFn = typeof getConfig === 'function' ? getConfig : () => getConfig;
   return async (req, res, options) => {
+    const config = await getConfigFn();
     const redirectUri = options?.redirectUri || getRedirectUri(config);
 
     let tokenResponse;
