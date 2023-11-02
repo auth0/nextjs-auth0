@@ -1,11 +1,14 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { NextApiRequest, NextApiResponse } from 'next';
-import { AbstractClient } from '../auth0-session';
+import { NextRequest, NextResponse } from 'next/server';
+import { AuthorizationParameters } from '../auth0-session';
 import { AccessTokenError, AccessTokenErrorCode } from '../utils/errors';
 import { intersect, match } from '../utils/array';
 import { Session, SessionCache, fromTokenEndpointResponse, get, set } from '../session';
-import { AuthorizationParameters, NextConfig } from '../config';
-import { NextRequest, NextResponse } from 'next/server';
+import { GetClient } from '../auth0-session/client/abstract-client';
+import { GetConfig } from '../config';
+import { getAuth0ReqRes } from './cache';
+import { Auth0NextRequestCookies } from '../http';
 
 /**
  * After refresh handler for page router {@link AfterRefreshPageRoute} and app router {@link AfterRefreshAppRoute}.
@@ -226,13 +229,16 @@ export type GetAccessToken = (
  * @ignore
  */
 export default function accessTokenFactory(
-  config: NextConfig,
-  client: AbstractClient,
+  getConfig: GetConfig,
+  getClient: GetClient,
   sessionCache: SessionCache
 ): GetAccessToken {
   return async (reqOrOpts?, res?, accessTokenRequest?): Promise<GetAccessTokenResult> => {
     const options = (res ? accessTokenRequest : reqOrOpts) as AccessTokenRequest | undefined;
     const req = (res ? reqOrOpts : undefined) as IncomingMessage | NextApiRequest | undefined;
+    // TODO: clean up
+    const config = await getConfig(req ? getAuth0ReqRes(req, res as any)[0] : new Auth0NextRequestCookies());
+    const client = await getClient(config);
 
     const parts = await get({ sessionCache, req, res });
     let [session] = parts;

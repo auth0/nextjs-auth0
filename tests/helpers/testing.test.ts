@@ -4,6 +4,7 @@ import { generateSessionCookie } from '../../src/helpers/testing';
 jest.mock('../../src/auth0-session/session/stateless-session');
 
 const encryptMock = jest.spyOn(CookieStore.prototype, 'encrypt');
+jest.spyOn(CookieStore.prototype, 'getKeys').mockReturnValue(Promise.resolve([]));
 const weekInSeconds = 7 * 24 * 60 * 60;
 
 describe('generate-session-cookie', () => {
@@ -54,7 +55,7 @@ describe('generate-session-cookie', () => {
 
   test('use the provided session', async () => {
     await generateSessionCookie({ user: { foo: 'bar' } }, { secret: '' });
-    expect(encryptMock).toHaveBeenCalledWith({ user: { foo: 'bar' } }, expect.anything());
+    expect(encryptMock).toHaveBeenCalledWith({ user: { foo: 'bar' } }, expect.anything(), undefined);
   });
 
   test('use the current time for the header values', async () => {
@@ -63,11 +64,15 @@ describe('generate-session-cookie', () => {
     const clock = jest.useFakeTimers();
     clock.setSystemTime(now);
     await generateSessionCookie({}, { secret: '' });
-    expect(encryptMock).toHaveBeenCalledWith(expect.anything(), {
-      iat: current,
-      uat: current,
-      exp: current + weekInSeconds
-    });
+    expect(encryptMock).toHaveBeenCalledWith(
+      expect.anything(),
+      {
+        iat: current,
+        uat: current,
+        exp: current + weekInSeconds
+      },
+      undefined
+    );
     clock.restoreAllMocks();
     jest.useRealTimers();
   });

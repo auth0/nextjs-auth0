@@ -1,4 +1,4 @@
-import { BaseConfig, NextConfig, getConfig } from '../src/config';
+import { NextConfig, getConfig } from '../src/config';
 
 const getConfigWithEnv = (
   env: any = {},
@@ -10,7 +10,7 @@ const getConfigWithEnv = (
     AUTH0_CLIENT_ID: '__test_client_id__',
     AUTH0_CLIENT_SECRET: '__test_client_secret__'
   }
-): { baseConfig: BaseConfig; nextConfig: NextConfig } => {
+): NextConfig => {
   const bkp = process.env;
   process.env = {
     ...process.env,
@@ -28,8 +28,8 @@ const getConfigWithEnv = (
 
 describe('config params', () => {
   test('should return an object from empty defaults', () => {
-    const { baseConfig, nextConfig } = getConfigWithEnv();
-    expect(baseConfig).toStrictEqual({
+    const nextConfig = getConfigWithEnv();
+    expect(nextConfig).toStrictEqual({
       secret: '__long_super_secret_secret__',
       issuerBaseURL: 'https://example.auth0.com',
       baseURL: 'https://example.com',
@@ -65,7 +65,7 @@ describe('config params', () => {
           sameSite: 'lax'
         }
       },
-      routes: { callback: '/api/auth/callback', postLogoutRedirect: '' },
+      routes: { callback: '/api/auth/callback', postLogoutRedirect: '', login: '/api/auth/login' },
       getLoginState: expect.any(Function),
       identityClaimFilter: [
         'aud',
@@ -87,31 +87,8 @@ describe('config params', () => {
         path: '/',
         sameSite: 'lax',
         secure: true
-      }
-    });
-    expect(nextConfig).toStrictEqual({
-      identityClaimFilter: [
-        'aud',
-        'iss',
-        'iat',
-        'exp',
-        'nbf',
-        'nonce',
-        'azp',
-        'auth_time',
-        's_hash',
-        'at_hash',
-        'c_hash'
-      ],
-      routes: {
-        login: '/api/auth/login',
-        callback: '/api/auth/callback',
-        postLogoutRedirect: ''
       },
-      organization: undefined,
-      session: {
-        storeIDToken: true
-      }
+      organization: undefined
     });
   });
 
@@ -128,7 +105,7 @@ describe('config params', () => {
         AUTH0_COOKIE_SECURE: 'ok',
         AUTH0_SESSION_ABSOLUTE_DURATION: 'no',
         AUTH0_SESSION_STORE_ID_TOKEN: '0'
-      }).baseConfig
+      })
     ).toMatchObject({
       auth0Logout: false,
       enableTelemetry: false,
@@ -149,7 +126,7 @@ describe('config params', () => {
       getConfigWithEnv({
         AUTH0_SESSION_ROLLING_DURATION: 'no',
         AUTH0_SESSION_ROLLING: 'no'
-      }).baseConfig
+      })
     ).toMatchObject({
       session: {
         rolling: false,
@@ -165,7 +142,7 @@ describe('config params', () => {
         AUTH0_HTTP_TIMEOUT: '9999',
         AUTH0_SESSION_ROLLING_DURATION: '0',
         AUTH0_SESSION_ABSOLUTE_DURATION: '1'
-      }).baseConfig
+      })
     ).toMatchObject({
       clockTolerance: 100,
       httpTimeout: 9999,
@@ -181,14 +158,14 @@ describe('config params', () => {
     expect(
       getConfigWithEnv({
         AUTH0_IDENTITY_CLAIM_FILTER: 'claim1,claim2,claim3'
-      }).baseConfig
+      })
     ).toMatchObject({
       identityClaimFilter: ['claim1', 'claim2', 'claim3']
     });
   });
 
   test('passed in arguments should take precedence', () => {
-    const { baseConfig, nextConfig } = getConfigWithEnv(
+    const nextConfig = getConfigWithEnv(
       {
         AUTH0_ORGANIZATION: 'foo'
       },
@@ -212,7 +189,7 @@ describe('config params', () => {
         organization: 'bar'
       }
     );
-    expect(baseConfig).toMatchObject({
+    expect(nextConfig).toMatchObject({
       authorizationParams: {
         audience: 'foo',
         scope: 'openid bar'
@@ -228,9 +205,7 @@ describe('config params', () => {
           transient: false
         },
         name: 'quuuux'
-      }
-    });
-    expect(nextConfig).toMatchObject({
+      },
       organization: 'bar'
     });
   });
@@ -239,7 +214,7 @@ describe('config params', () => {
     expect(
       getConfigWithEnv({
         AUTH0_BASE_URL: 'foo.auth0.com'
-      }).baseConfig
+      })
     ).toMatchObject({
       baseURL: 'https://foo.auth0.com'
     });
@@ -259,7 +234,7 @@ describe('config params', () => {
           AUTH0_CLIENT_ID: '__test_client_id__',
           AUTH0_CLIENT_SECRET: '__test_client_secret__'
         }
-      ).baseConfig
+      )
     ).toMatchObject({
       baseURL: 'https://public-foo.auth0.com'
     });
@@ -270,18 +245,15 @@ describe('config params', () => {
       getConfigWithEnv({
         AUTH0_BASE_URL: 'foo.auth0.com',
         NEXT_PUBLIC_AUTH0_BASE_URL: 'bar.auth0.com'
-      }).baseConfig
+      })
     ).toMatchObject({
       baseURL: 'https://foo.auth0.com'
     });
   });
 
   test('should accept optional callback path', () => {
-    const { baseConfig, nextConfig } = getConfigWithEnv({
+    const nextConfig = getConfigWithEnv({
       AUTH0_CALLBACK: '/api/custom-callback'
-    });
-    expect(baseConfig).toMatchObject({
-      routes: expect.objectContaining({ callback: '/api/custom-callback' })
     });
     expect(nextConfig).toMatchObject({
       routes: expect.objectContaining({ callback: '/api/custom-callback' })

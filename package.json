@@ -139,6 +139,7 @@
       "!<rootDir>/src/edge.ts",
       "!<rootDir>/src/index.ts",
       "!<rootDir>/src/shared.ts",
+      "!<rootDir>/src/version.ts",
       "!<rootDir>/src/auth0-session/config.ts",
       "!<rootDir>/src/auth0-session/index.ts",
       "!<rootDir>/src/auth0-session/session-cache.ts"

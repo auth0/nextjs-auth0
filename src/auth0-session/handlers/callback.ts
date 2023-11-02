@@ -5,7 +5,7 @@ import { decodeState } from '../utils/encoding';
 import { SessionCache } from '../session-cache';
 import { MalformedStateCookieError, MissingStateCookieError, MissingStateParamError } from '../utils/errors';
 import { Auth0Request, Auth0Response } from '../http';
-import { AbstractClient } from '../client/abstract-client';
+import { GetClient } from '../client/abstract-client';
 import type { AuthVerification } from './login';
 
 function getRedirectUri(config: Config): string {
@@ -26,13 +26,14 @@ export type HandleCallback = (req: Auth0Request, res: Auth0Response, options?: C
 
 export default function callbackHandlerFactory(
   getConfig: GetConfig,
-  client: AbstractClient,
+  getClient: GetClient,
   sessionCache: SessionCache,
   transientCookieHandler: TransientStore
 ): HandleCallback {
   const getConfigFn = typeof getConfig === 'function' ? getConfig : () => getConfig;
   return async (req, res, options) => {
-    const config = await getConfigFn();
+    const config = await getConfigFn(req);
+    const client = await getClient(config);
     const redirectUri = options?.redirectUri || getRedirectUri(config);
 
     let tokenResponse;
@@ -93,7 +94,7 @@ export default function callbackHandlerFactory(
     }
 
     const openidState: { returnTo?: string } = decodeState(expectedState as string)!;
-    let session = sessionCache.fromTokenEndpointResponse(tokenResponse);
+    let session = await sessionCache.fromTokenEndpointResponse(req, res, tokenResponse);
 
     if (options?.afterCallback) {
       session = await options.afterCallback(session, openidState);

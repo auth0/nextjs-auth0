@@ -36,7 +36,7 @@ const assert = (bool: boolean, msg: string) => {
 };
 
 export abstract class AbstractSession<Session> {
-  protected getConfig: () => Config | Promise<Config>;
+  protected getConfig: (req: Auth0RequestCookies) => Config | Promise<Config>;
 
   constructor(getConfig: GetConfig) {
     this.getConfig = typeof getConfig === 'function' ? getConfig : () => getConfig;
@@ -62,7 +62,7 @@ export abstract class AbstractSession<Session> {
   ): Promise<void>;
 
   public async read(req: Auth0RequestCookies): Promise<[Session?, number?]> {
-    const config = await this.getConfig();
+    const config = await this.getConfig(req);
     const { rollingDuration, absoluteDuration } = config.session;
 
     try {
@@ -100,7 +100,7 @@ export abstract class AbstractSession<Session> {
     session: Session | null | undefined,
     createdAt?: number
   ): Promise<void> {
-    const config = await this.getConfig();
+    const config = await this.getConfig(req);
     const {
       cookie: { transient, ...cookieConfig }
     } = config.session;

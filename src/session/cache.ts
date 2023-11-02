@@ -2,7 +2,7 @@ import { IncomingMessage, ServerResponse } from 'http';
 import { NextApiRequest, NextApiResponse } from 'next';
 import { NextRequest, NextResponse } from 'next/server';
 import type { TokenEndpointResponse } from '../auth0-session';
-import { Config, SessionCache as ISessionCache, AbstractSession } from '../auth0-session';
+import { SessionCache as ISessionCache, AbstractSession, StatefulSession, StatelessSession } from '../auth0-session';
 import Session, { fromJson, fromTokenEndpointResponse } from './session';
 import { Auth0Request, Auth0Response, NodeRequest, NodeResponse } from '../auth0-session/http';
 import {
@@ -14,11 +14,12 @@ import {
   Auth0NextResponse
 } from '../http';
 import { isNextApiRequest, isRequest } from '../utils/req-helpers';
+import { GetConfig, NextConfig } from '../config';
 
 type Req = IncomingMessage | NextRequest | NextApiRequest;
 type Res = ServerResponse | NextResponse | NextApiResponse;
 
-const getAuth0ReqRes = (req: Req, res: Res): [Auth0Request, Auth0Response] => {
+export const getAuth0ReqRes = (req: Req, res: Res): [Auth0Request, Auth0Response] => {
   if (isRequest(req)) {
     return [new Auth0NextRequest(req as NextRequest), new Auth0NextResponse(res as NextResponse)];
   }
@@ -31,19 +32,31 @@ const getAuth0ReqRes = (req: Req, res: Res): [Auth0Request, Auth0Response] => {
 export default class SessionCache implements ISessionCache<Req, Res, Session> {
   private cache: WeakMap<Req, Session | null | undefined>;
   private iatCache: WeakMap<Req, number | undefined>;
+  private sessionStore?: AbstractSession<Session>;
 
-  constructor(public config: Config, public sessionStore: AbstractSession<Session>) {
+  constructor(public getConfig: GetConfig) {
     this.cache = new WeakMap();
     this.iatCache = new WeakMap();
+  }
+
+  public getSessionStore(config: NextConfig): AbstractSession<Session> {
+    if (!this.sessionStore) {
+      this.sessionStore = config.session.store
+        ? new StatefulSession<Session>(config)
+        : new StatelessSession<Session>(config);
+    }
+    return this.sessionStore;
   }
 
   private async init(req: Req, res: Res, autoSave = true): Promise<void> {
     if (!this.cache.has(req)) {
       const [auth0Req] = getAuth0ReqRes(req, res);
-      const [json, iat] = await this.sessionStore.read(auth0Req);
+      const config = await this.getConfig(auth0Req);
+      const sessionStore = this.getSessionStore(config);
+      const [json, iat] = await sessionStore.read(auth0Req);
       this.iatCache.set(req, iat);
       this.cache.set(req, fromJson(json));
-      if (this.config.session.rolling && this.config.session.autoSave && autoSave) {
+      if (config.session.rolling && config.session.autoSave && autoSave) {
         await this.save(req, res);
       }
     }
@@ -51,7 +64,9 @@ export default class SessionCache implements ISessionCache<Req, Res, Session> {
 
   async save(req: Req, res: Res): Promise<void> {
     const [auth0Req, auth0Res] = getAuth0ReqRes(req, res);
-    await this.sessionStore.save(auth0Req, auth0Res, this.cache.get(req), this.iatCache.get(req));
+    const config = await this.getConfig(auth0Req);
+    const sessionStore = this.getSessionStore(config);
+    await sessionStore.save(auth0Req, auth0Res, this.cache.get(req), this.iatCache.get(req));
   }
 
   async create(req: Req, res: Res, session: Session): Promise<void> {
@@ -88,8 +103,10 @@ export default class SessionCache implements ISessionCache<Req, Res, Session> {
     return this.cache.get(req);
   }
 
-  fromTokenEndpointResponse(tokenSet: TokenEndpointResponse): Session {
-    return fromTokenEndpointResponse(tokenSet, this.config);
+  async fromTokenEndpointResponse(req: Req, res: Res, tokenSet: TokenEndpointResponse): Promise<Session> {
+    const [auth0Req] = getAuth0ReqRes(req, res);
+    const config = await this.getConfig(auth0Req);
+    return fromTokenEndpointResponse(tokenSet, config);
   }
 }
 
@@ -105,13 +122,12 @@ export const get = async ({
   if (req && res) {
     return [await sessionCache.get(req, res)];
   }
-  const {
-    sessionStore,
-    config: {
-      session: { rolling, autoSave }
-    }
-  } = sessionCache;
   const auth0Req = new Auth0NextRequestCookies();
+  const config = await sessionCache.getConfig(auth0Req);
+  const sessionStore = sessionCache.getSessionStore(config);
+  const {
+    session: { rolling, autoSave }
+  } = config;
   const [session, iat] = await sessionStore.read(auth0Req);
   if (rolling && autoSave) {
     await set({ session, sessionCache, iat });
@@ -131,10 +147,12 @@ export const set = async ({
   iat?: number;
   req?: Req;
   res?: Res;
-}) => {
+}): Promise<void> => {
   if (req && res) {
     return sessionCache.set(req, res, session);
   }
-  const { sessionStore } = sessionCache;
-  await sessionStore.save(new Auth0NextRequestCookies(), new Auth0NextResponseCookies(), session, iat);
+  const auth0Req = new Auth0NextRequestCookies();
+  const config = await sessionCache.getConfig(auth0Req);
+  const sessionStore = sessionCache.getSessionStore(config);
+  await sessionStore.save(auth0Req, new Auth0NextResponseCookies(), session, iat);
 };

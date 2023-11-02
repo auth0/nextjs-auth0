@@ -4,6 +4,7 @@ import type {
 } from './client/abstract-client';
 import type { Agent } from 'https';
 import { SessionStore } from './session/stateful-session';
+import { Auth0RequestCookies } from './http';
 
 /**
  * Configuration properties.
@@ -365,4 +366,4 @@ export interface LogoutOptions {
   logoutParams?: { [key: string]: any };
 }
 
-export type GetConfig = Config | (() => Config | Promise<Config>);
+export type GetConfig = Config | ((req: Auth0RequestCookies) => Config | Promise<Config>);
