@@ -3,6 +3,9 @@ import { GetServerSideProps, GetServerSidePropsContext, GetServerSidePropsResult
 import { Claims, get, SessionCache } from '../session';
 import { assertCtx } from '../utils/assert';
 import { ParsedUrlQuery } from 'querystring';
+import { GetConfig } from '../config';
+import { Auth0NextRequestCookies } from '../http';
+import { NodeRequest } from '../auth0-session/http';
 
 /**
  * If you wrap your `getServerSideProps` with {@link WithPageAuthRequired} your props object will be augmented with
@@ -180,11 +183,11 @@ export type WithPageAuthRequired = WithPageAuthRequiredPageRouter & WithPageAuth
  * @ignore
  */
 export default function withPageAuthRequiredFactory(
-  loginUrl: string,
-  getSessionCache: () => SessionCache
+  getConfig: GetConfig,
+  sessionCache: SessionCache
 ): WithPageAuthRequired {
-  const appRouteHandler = appRouteHandlerFactory(loginUrl, getSessionCache);
-  const pageRouteHandler = pageRouteHandlerFactory(loginUrl, getSessionCache);
+  const appRouteHandler = appRouteHandlerFactory(getConfig, sessionCache);
+  const pageRouteHandler = pageRouteHandlerFactory(getConfig, sessionCache);
 
   return ((
     fnOrOpts?: WithPageAuthRequiredPageRouterOptions | AppRouterPageRoute,
@@ -201,10 +204,12 @@ export default function withPageAuthRequiredFactory(
  * @ignore
  */
 const appRouteHandlerFactory =
-  (loginUrl: string, getSessionCache: () => SessionCache): WithPageAuthRequiredAppRouter =>
+  (getConfig: GetConfig, sessionCache: SessionCache): WithPageAuthRequiredAppRouter =>
   (handler, opts = {}) =>
   async (params) => {
-    const sessionCache = getSessionCache();
+    const {
+      routes: { login: loginUrl }
+    } = await getConfig(new Auth0NextRequestCookies());
     const [session] = await get({ sessionCache });
     if (!session?.user) {
       const returnTo = typeof opts.returnTo === 'function' ? await opts.returnTo(params) : opts.returnTo;
@@ -219,11 +224,13 @@ const appRouteHandlerFactory =
  * @ignore
  */
 const pageRouteHandlerFactory =
-  (loginUrl: string, getSessionCache: () => SessionCache): WithPageAuthRequiredPageRouter =>
+  (getConfig: GetConfig, sessionCache: SessionCache): WithPageAuthRequiredPageRouter =>
   ({ getServerSideProps, returnTo } = {}) =>
   async (ctx) => {
     assertCtx(ctx);
-    const sessionCache = getSessionCache();
+    const {
+      routes: { login: loginUrl }
+    } = await getConfig(new NodeRequest(ctx.req));
     const session = await sessionCache.get(ctx.req, ctx.res);
     if (!session?.user) {
       return {

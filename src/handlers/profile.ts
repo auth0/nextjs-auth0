@@ -1,10 +1,12 @@
 import { NextApiResponse, NextApiRequest } from 'next';
 import { NextRequest, NextResponse } from 'next/server';
-import { AbstractClient } from '../auth0-session';
 import { SessionCache, Session, fromJson, GetAccessToken } from '../session';
 import { assertReqRes } from '../utils/assert';
 import { ProfileHandlerError, HandlerErrorCause } from '../utils/errors';
 import { AppRouteHandlerFnContext, AuthHandler, getHandler, Handler, OptionsProvider } from './router-helpers';
+import { GetClient } from '../auth0-session/client/abstract-client';
+import { GetConfig } from '../config';
+import { Auth0NextApiRequest, Auth0NextRequest } from '../http';
 
 /**
  * After refetch handler for page router {@link AfterRefetchPageRoute} and app router {@link AfterRefetchAppRoute}.
@@ -124,12 +126,13 @@ export type ProfileHandler = Handler<ProfileOptions>;
  * @ignore
  */
 export default function profileHandler(
-  client: AbstractClient,
+  getConfig: GetConfig,
+  getClient: GetClient,
   getAccessToken: GetAccessToken,
   sessionCache: SessionCache
 ): HandleProfile {
-  const appRouteHandler = appRouteHandlerFactory(client, getAccessToken, sessionCache);
-  const pageRouteHandler = pageRouteHandlerFactory(client, getAccessToken, sessionCache);
+  const appRouteHandler = appRouteHandlerFactory(getConfig, getClient, getAccessToken, sessionCache);
+  const pageRouteHandler = pageRouteHandlerFactory(getConfig, getClient, getAccessToken, sessionCache);
 
   return getHandler<ProfileOptions>(appRouteHandler, pageRouteHandler) as HandleProfile;
 }
@@ -138,13 +141,16 @@ export default function profileHandler(
  * @ignore
  */
 const appRouteHandlerFactory: (
-  client: AbstractClient,
+  getConfig: GetConfig,
+  getClient: GetClient,
   getAccessToken: GetAccessToken,
   sessionCache: SessionCache
 ) => (req: NextRequest, ctx: AppRouteHandlerFnContext, options?: ProfileOptions) => Promise<Response> | Response =
-  (client, getAccessToken, sessionCache) =>
+  (getConfig, getClient, getAccessToken, sessionCache) =>
   async (req, _ctx, options = {}) => {
     try {
+      const config = await getConfig(new Auth0NextRequest(req));
+      const client = await getClient(config);
       const res = new NextResponse();
 
       if (!(await sessionCache.isAuthenticated(req, res))) {
@@ -189,14 +195,17 @@ const appRouteHandlerFactory: (
  * @ignore
  */
 const pageRouteHandlerFactory: (
-  client: AbstractClient,
+  getConfig: GetConfig,
+  getClient: GetClient,
   getAccessToken: GetAccessToken,
   sessionCache: SessionCache
 ) => (req: NextApiRequest, res: NextApiResponse, options?: ProfileOptions) => Promise<void> =
-  (client, getAccessToken, sessionCache) =>
+  (getConfig, getClient, getAccessToken, sessionCache) =>
   async (req: NextApiRequest, res: NextApiResponse, options = {}): Promise<void> => {
     try {
       assertReqRes(req, res);
+      const config = await getConfig(new Auth0NextApiRequest(req));
+      const client = await getClient(config);
 
       if (!(await sessionCache.isAuthenticated(req, res))) {
         res.status(204).end();

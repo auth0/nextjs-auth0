@@ -1,7 +1,15 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { Socket } from 'net';
 import { withoutApi } from './fixtures/default-settings';
-import { WithApiAuthRequired, WithPageAuthRequired, InitAuth0, GetSession, ConfigParameters } from '../src';
+import {
+  WithApiAuthRequired,
+  WithPageAuthRequired,
+  InitAuth0,
+  GetSession,
+  ConfigParameters,
+  AppRouteHandlerFn
+} from '../src';
+import { NextRequest } from 'next/server';
 
 describe('index', () => {
   let withPageAuthRequired: WithPageAuthRequired,
@@ -31,9 +39,14 @@ describe('index', () => {
     jest.resetModules();
   });
 
-  test('withPageAuthRequired should not create an SDK instance at build time', () => {
+  test('withPageAuthRequired should not create an SDK instance at build time', async () => {
     process.env = { ...env, AUTH0_SECRET: undefined };
-    expect(() => withApiAuthRequired(jest.fn())).toThrow('"secret" is required');
+    await expect(() =>
+      withApiAuthRequired(jest.fn() as AppRouteHandlerFn)(new NextRequest(new URL('http://example.com')), {
+        params: {}
+      })
+    ).rejects.toThrow('"secret" is required');
+    expect(() => withApiAuthRequired(jest.fn())).not.toThrow();
     expect(() => withPageAuthRequired()).not.toThrow();
   });
 

@@ -24,9 +24,8 @@ export class StatelessSession<
     super(config);
   }
 
-  private async getChunkSize(): Promise<number> {
+  private async getChunkSize(config: Config): Promise<number> {
     if (this.chunkSize === undefined) {
-      const config = await this.getConfig();
       const {
         cookie: { transient, ...cookieConfig },
         name: sessionName
@@ -44,9 +43,8 @@ export class StatelessSession<
     return this.chunkSize;
   }
 
-  private async getKeys(): Promise<Uint8Array[]> {
+  public async getKeys(config: Config): Promise<Uint8Array[]> {
     if (!this.keys) {
-      const config = await this.getConfig();
       const secret = config.secret;
       const secrets = Array.isArray(secret) ? secret : [secret];
       this.keys = await Promise.all(secrets.map(encryption));
@@ -54,13 +52,11 @@ export class StatelessSession<
     return this.keys;
   }
 
-  public async encrypt(payload: jose.JWTPayload, { iat, uat, exp }: Header): Promise<string> {
-    const [key] = await this.getKeys();
+  public async encrypt(payload: jose.JWTPayload, { iat, uat, exp }: Header, key: Uint8Array): Promise<string> {
     return await new jose.EncryptJWT({ ...payload }).setProtectedHeader({ alg, enc, uat, iat, exp }).encrypt(key);
   }
 
-  private async decrypt(jwe: string): Promise<jose.JWTDecryptResult> {
-    const keys = await this.getKeys();
+  private async decrypt(jwe: string, keys: Uint8Array[]): Promise<jose.JWTDecryptResult> {
     let err;
     for (const key of keys) {
       try {
@@ -73,7 +69,7 @@ export class StatelessSession<
   }
 
   async getSession(req: Auth0RequestCookies): Promise<SessionPayload<Session> | undefined | null> {
-    const config = await this.getConfig();
+    const config = await this.getConfig(req);
     const { name: sessionName } = config.session;
     const cookies = req.getCookies();
     let existingSessionValue: string | undefined;
@@ -106,7 +102,8 @@ export class StatelessSession<
         .join('');
     }
     if (existingSessionValue) {
-      const { protectedHeader, payload } = await this.decrypt(existingSessionValue);
+      const keys = await this.getKeys(config);
+      const { protectedHeader, payload } = await this.decrypt(existingSessionValue, keys);
       return { header: protectedHeader as unknown as Header, data: payload as Session };
     }
     return;
@@ -121,14 +118,15 @@ export class StatelessSession<
     exp: number,
     cookieOptions: CookieSerializeOptions
   ): Promise<void> {
-    const config = await this.getConfig();
+    const config = await this.getConfig(req);
     const { name: sessionName } = config.session;
     const cookies = req.getCookies();
 
     debug('found session, creating signed session cookie(s) with name %o(.i)', sessionName);
-    const value = await this.encrypt(session, { iat, uat, exp });
+    const [key] = await this.getKeys(config);
+    const value = await this.encrypt(session, { iat, uat, exp }, key);
 
-    const chunkSize = await this.getChunkSize();
+    const chunkSize = await this.getChunkSize(config);
     const chunkCount = Math.ceil(value.length / chunkSize);
 
     const existingCookies = new Set(
@@ -158,7 +156,7 @@ export class StatelessSession<
     res: Auth0ResponseCookies,
     cookieOptions: CookieSerializeOptions
   ): Promise<void> {
-    const config = await this.getConfig();
+    const config = await this.getConfig(req);
     const { name: sessionName } = config.session;
     const cookies = req.getCookies();
 

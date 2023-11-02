@@ -4,7 +4,7 @@ import { jwks } from '../fixtures/cert';
 import pkg from '../../../package.json';
 import wellKnown from '../fixtures/well-known.json';
 import version from '../../../src/version';
-import { NodeClient } from '../../../src/auth0-session/client/node-client';
+import { NodeClient, clientGetter } from '../../../src/auth0-session/client/node-client';
 import { UserInfoError } from '../../../src/auth0-session/utils/errors';
 
 const defaultConfig = {
@@ -19,10 +19,10 @@ const defaultConfig = {
 };
 
 const getClient = async (params: ConfigParameters = {}): Promise<NodeClient> => {
-  return new NodeClient(getConfig({ ...defaultConfig, ...params }), {
+  return clientGetter({
     name: 'nextjs-auth0',
     version
-  });
+  })(getConfig({ ...defaultConfig, ...params }));
 };
 
 describe('node client', function () {
@@ -70,17 +70,11 @@ describe('node client', function () {
   });
 
   it('should accept lazy config', async function () {
-    expect(
-      () =>
-        new NodeClient(
-          () => {
-            throw new Error();
-          },
-          {
-            name: 'nextjs-auth0',
-            version
-          }
-        )
+    expect(() =>
+      clientGetter({
+        name: 'nextjs-auth0',
+        version
+      })
     ).not.toThrow();
   });
 
@@ -107,7 +101,7 @@ describe('node client', function () {
       idTokenSigningAlg: 'RS256'
     });
     // @ts-ignore
-    expect((await client.getClient()).id_token_signed_response_alg).toEqual('RS256');
+    expect((await client.client).id_token_signed_response_alg).toEqual('RS256');
   });
 
   it('should use discovered logout endpoint by default', async function () {
@@ -209,14 +203,10 @@ describe('node client', function () {
       );
 
     await expect(
-      (
-        await getClient({
-          issuerBaseURL: 'https://op2.example.com',
-          idpLogout: true
-        })
-      )
-        // @ts-ignore
-        .getClient()
+      getClient({
+        issuerBaseURL: 'https://op2.example.com',
+        idpLogout: true
+      })
     ).resolves.not.toThrow();
   });
 
@@ -224,7 +214,7 @@ describe('node client', function () {
     nock.cleanAll();
     nock('https://op.example.com').get('/.well-known/oauth-authorization-server').reply(500);
     nock('https://op.example.com').get('/.well-known/openid-configuration').reply(500);
-    await expect((await getClient()).userinfo('token')).rejects.toThrow(
+    await expect(getClient).rejects.toThrow(
       'Discovery requests failing for https://op.example.com, expected 200 OK, got: 500 Internal Server Error'
     );
   });

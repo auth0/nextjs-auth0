@@ -1,5 +1,5 @@
-import { Config, GetConfig } from '../config';
 import { Auth0Request } from '../http';
+import { Config } from '../config';
 
 export type Telemetry = {
   name: string;
@@ -85,10 +85,6 @@ export interface AuthorizationParameters {
 }
 
 export abstract class AbstractClient {
-  protected getConfig: () => Config | Promise<Config>;
-  constructor(getConfig: GetConfig, protected telemetry: Telemetry) {
-    this.getConfig = typeof getConfig === 'function' ? getConfig : () => getConfig;
-  }
   abstract authorizationUrl(parameters: Record<string, unknown>): Promise<string>;
   abstract callbackParams(req: Auth0Request, expectedState: string): Promise<URLSearchParams>;
   abstract callback(
@@ -107,3 +103,5 @@ export abstract class AbstractClient {
   abstract generateRandomNonce(): string;
   abstract calculateCodeChallenge(codeVerifier: string): Promise<string> | string;
 }
+
+export type GetClient = (config: Config) => Promise<AbstractClient>;

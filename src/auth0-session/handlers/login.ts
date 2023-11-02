@@ -4,7 +4,7 @@ import TransientStore from '../transient-store';
 import { encodeState } from '../utils/encoding';
 import createDebug from '../utils/debug';
 import { Auth0Request, Auth0Response } from '../http';
-import { AbstractClient } from '../client/abstract-client';
+import { GetClient } from '../client/abstract-client';
 
 const debug = createDebug('handlers');
 
@@ -24,12 +24,13 @@ export type AuthVerification = {
 
 export default function loginHandlerFactory(
   getConfig: GetConfig,
-  client: AbstractClient,
+  getClient: GetClient,
   transientHandler: TransientStore
 ): HandleLogin {
   const getConfigFn = typeof getConfig === 'function' ? getConfig : () => getConfig;
   return async (req, res, options = {}) => {
-    const config = await getConfigFn();
+    const config = await getConfigFn(req);
+    const client = await getClient(config);
     const returnTo = options.returnTo || config.baseURL;
 
     const opts = {
