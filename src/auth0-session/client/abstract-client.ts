@@ -1,5 +1,5 @@
-import { Auth0Request } from '../http';
 import { Config } from '../config';
+import { Auth0Request } from '../http';
 
 export type Telemetry = {
   name: string;
@@ -85,6 +85,7 @@ export interface AuthorizationParameters {
 }
 
 export abstract class AbstractClient {
+  constructor(protected config: Config, protected telemetry: Telemetry) {}
   abstract authorizationUrl(parameters: Record<string, unknown>): Promise<string>;
   abstract callbackParams(req: Auth0Request, expectedState: string): Promise<URLSearchParams>;
   abstract callback(
