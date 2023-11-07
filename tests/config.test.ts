@@ -1,4 +1,6 @@
-import { NextConfig, getConfig } from '../src/config';
+import { NextRequest } from 'next/server';
+import { NextConfig, getConfig, configSingletonGetter } from '../src/config';
+import { Auth0NextRequest, Auth0NextRequestCookies } from '../src/http';
 
 const getConfigWithEnv = (
   env: any = {},
@@ -258,5 +260,27 @@ describe('config params', () => {
     expect(nextConfig).toMatchObject({
       routes: expect.objectContaining({ callback: '/api/custom-callback' })
     });
+  });
+
+  test('getConfig should query RSC cookies to bail out of static rendering', async () => {
+    const req = jest.mocked(new Auth0NextRequestCookies());
+    jest.spyOn(req, 'getCookies').mockImplementation(() => {
+      throw new Error('BAIL');
+    });
+    const getConfig = configSingletonGetter({}, () => '');
+    await expect(() => getConfig(req)).toThrow('BAIL');
+    await expect(() => getConfig(req)).not.toThrow('"secret" is required');
+    expect(req.getCookies).toHaveBeenCalled();
+  });
+
+  test('getConfig should query API route URL to bail out of static rendering', async () => {
+    const req = jest.mocked(new Auth0NextRequest(new NextRequest(new URL('http://example.com'))));
+    jest.spyOn(req, 'getUrl').mockImplementation(() => {
+      throw new Error('BAIL');
+    });
+    const getConfig = configSingletonGetter({}, () => '');
+    await expect(() => getConfig(req)).toThrow('BAIL');
+    await expect(() => getConfig(req)).not.toThrow('"secret" is required');
+    expect(req.getUrl).toHaveBeenCalled();
   });
 });
