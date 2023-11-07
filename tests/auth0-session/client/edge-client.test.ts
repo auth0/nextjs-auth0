@@ -8,7 +8,7 @@ import { jwks, makeIdToken } from '../fixtures/cert';
 import pkg from '../../../package.json';
 import wellKnown from '../fixtures/well-known.json';
 import version from '../../../src/version';
-import { EdgeClient, clientGetter } from '../../../src/auth0-session/client/edge-client';
+import { EdgeClient } from '../../../src/auth0-session/client/edge-client';
 import { mockFetch } from '../../fixtures/app-router-helpers';
 import { Auth0Request } from '../../../src/auth0-session/http';
 import { readFileSync } from 'fs';
@@ -50,14 +50,14 @@ const defaultConfig: ConfigParameters = {
 };
 
 const getClient = async (params: ConfigParameters = {}): Promise<EdgeClient> => {
-  return clientGetter({
+  return new EdgeClient(getConfig({ ...defaultConfig, ...params }), {
     name: 'nextjs-auth0',
     version
-  })(getConfig({ ...defaultConfig, ...params }));
+  });
 };
 
 describe('edge client', function () {
-  const headersSpy = jest.fn();
+  let headersSpy = jest.fn();
 
   beforeEach(() => {
     mockFetch();
@@ -147,7 +147,7 @@ describe('edge client', function () {
       idTokenSigningAlg: 'RS256'
     });
     // @ts-ignore
-    expect(client.client.id_token_signed_response_alg).toEqual('RS256');
+    expect((await client.getClient())[1].id_token_signed_response_alg).toEqual('RS256');
   });
 
   it('should use discovered logout endpoint by default', async function () {
@@ -264,10 +264,14 @@ describe('edge client', function () {
       );
 
     await expect(
-      getClient({
-        issuerBaseURL: 'https://op2.example.com',
-        idpLogout: true
-      })
+      (
+        await getClient({
+          issuerBaseURL: 'https://op2.example.com',
+          idpLogout: true
+        })
+      )
+        // @ts-ignore
+        .getClient()
     ).resolves.not.toThrow();
   });
 
@@ -275,7 +279,9 @@ describe('edge client', function () {
     nock.cleanAll();
     nock('https://op.example.com').get('/.well-known/oauth-authorization-server').reply(500);
     nock('https://op.example.com').get('/.well-known/openid-configuration').reply(500);
-    await expect(getClient()).rejects.toThrow(/Discovery requests failing for https:\/\/op.example.com/);
+    await expect((await getClient()).userinfo('token')).rejects.toThrow(
+      /Discovery requests failing for https:\/\/op.example.com/
+    );
   });
 
   it('should throw UserInfoError when userinfo fails', async () => {
