@@ -390,7 +390,7 @@ export default withApiAuthRequired(async function products(req, res) {
 - Check "Allow Offline Access" in your [API Settings](https://auth0.com/docs/get-started/apis/api-settings#access-settings)
 - Make sure the "Refresh Token" grant is enabled in your [Application Settings](https://auth0.com/docs/get-started/applications/application-settings#grant-types) (this is the default)
 
-# Add a signup handler
+### Add a signup handler
 
 Pass a custom authorize parameter to the login handler in a custom route.
 
@@ -402,6 +402,18 @@ import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
 
 export default handleAuth({
   signup: handleLogin({ authorizationParams: { screen_hint: 'signup' } })
+});
+```
+
+If you are using the [Classic Universal Login](https://auth0.com/docs/universal-login/classic), in addition to the above change, you will also need to edit the [Custom Login Page](https://manage.auth0.com/#/login_page) to set the [initialScreen](https://auth0.com/docs/libraries/lock/v11/configuration#initialscreen-string-) option inside the `<script>` tag:
+
+```js
+var isSignup = config.extraParams && config.extraParams.screen_hint === "signup";
+
+var lock = new Auth0Lock(config.clientID, config.auth0Domain, {
+  // [...] // all other Lock options
+  // use the value obtained to decide the first screen
+  initialScreen: isSignup ? "signUp" : "login",
 });
 ```
 
