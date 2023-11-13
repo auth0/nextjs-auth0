@@ -1,20 +1,23 @@
 import urlJoin from 'url-join';
 import createDebug from '../utils/debug';
-import { Config, LogoutOptions } from '../config';
+import { GetConfig, LogoutOptions } from '../config';
 import { SessionCache } from '../session-cache';
 import { Auth0Request, Auth0Response } from '../http';
-import { AbstractClient } from '../client/abstract-client';
+import { GetClient } from '../client/abstract-client';
 
 const debug = createDebug('logout');
 
 export type HandleLogout = (req: Auth0Request, res: Auth0Response, options?: LogoutOptions) => Promise<void>;
 
 export default function logoutHandlerFactory(
-  config: Config,
-  client: AbstractClient,
+  getConfig: GetConfig,
+  getClient: GetClient,
   sessionCache: SessionCache
 ): HandleLogout {
+  const getConfigFn = typeof getConfig === 'function' ? getConfig : () => getConfig;
   return async (req, res, options = {}) => {
+    const config = await getConfigFn(req);
+    const client = await getClient(config);
     let returnURL = options.returnTo || config.routes.postLogoutRedirect;
     debug('logout() with return url: %s', returnURL);
 

@@ -1,7 +1,7 @@
 import { generateCookieValue, getCookieValue } from './utils/signed-cookies';
 import { signing } from './utils/hkdf';
-import { Config } from './config';
-import { Auth0Request, Auth0Response } from './http';
+import { Config, GetConfig } from './config';
+import { Auth0Request, Auth0RequestCookies, Auth0Response } from './http';
 
 export interface StoreOptions {
   sameSite?: boolean | 'lax' | 'strict' | 'none';
@@ -11,11 +11,15 @@ export interface StoreOptions {
 export default class TransientStore {
   private keys?: Uint8Array[];
 
-  constructor(private config: Config) {}
+  protected getConfig: (req: Auth0RequestCookies) => Config | Promise<Config>;
 
-  private async getKeys(): Promise<Uint8Array[]> {
+  constructor(getConfig: GetConfig) {
+    this.getConfig = typeof getConfig === 'function' ? getConfig : () => getConfig;
+  }
+
+  private async getKeys(config: Config): Promise<Uint8Array[]> {
     if (!this.keys) {
-      const secret = this.config.secret;
+      const secret = config.secret;
       const secrets = Array.isArray(secret) ? secret : [secret];
       this.keys = await Promise.all(secrets.map(signing));
     }
@@ -26,7 +30,7 @@ export default class TransientStore {
    * Set a cookie with a value or a generated nonce.
    *
    * @param {String} key Cookie name to use.
-   * @param {IncomingMessage} _req Server Request object.
+   * @param {IncomingMessage} req Server Request object.
    * @param {ServerResponse} res Server Response object.
    * @param {Object} opts Options object.
    * @param {String} opts.sameSite SameSite attribute of `None`, `Lax`, or `Strict`. Defaults to `None`.
@@ -36,19 +40,20 @@ export default class TransientStore {
    */
   async save(
     key: string,
-    _req: Auth0Request,
+    req: Auth0Request,
     res: Auth0Response,
     { sameSite = 'none', value }: StoreOptions
   ): Promise<string> {
     const isSameSiteNone = sameSite === 'none';
-    const { domain, path, secure } = this.config.transactionCookie;
+    const config = await this.getConfig(req);
+    const { domain, path, secure } = config.transactionCookie;
     const basicAttr = {
       httpOnly: true,
       secure,
       domain,
       path
     };
-    const [signingKey] = await this.getKeys();
+    const [signingKey] = await this.getKeys(config);
 
     {
       const cookieValue = await generateCookieValue(key, value, signingKey);
@@ -60,7 +65,7 @@ export default class TransientStore {
       });
     }
 
-    if (isSameSiteNone && this.config.legacySameSiteCookie) {
+    if (isSameSiteNone && config.legacySameSiteCookie) {
       const cookieValue = await generateCookieValue(`_${key}`, value, signingKey);
       // Set the fallback cookie with no SameSite or Secure attributes.
       res.setCookie(`_${key}`, cookieValue, basicAttr);
@@ -81,13 +86,14 @@ export default class TransientStore {
   async read(key: string, req: Auth0Request, res: Auth0Response): Promise<string | undefined> {
     const cookies = req.getCookies();
     const cookie = cookies[key];
-    const cookieConfig = this.config.transactionCookie;
+    const config = await this.getConfig(req);
+    const cookieConfig = config.transactionCookie;
 
-    const verifyingKeys = await this.getKeys();
+    const verifyingKeys = await this.getKeys(config);
     let value = await getCookieValue(key, cookie, verifyingKeys);
     res.clearCookie(key, cookieConfig);
 
-    if (this.config.legacySameSiteCookie) {
+    if (config.legacySameSiteCookie) {
       const fallbackKey = `_${key}`;
       if (!value) {
         const fallbackCookie = cookies[fallbackKey];

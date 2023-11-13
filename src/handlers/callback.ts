@@ -8,10 +8,9 @@ import {
 } from '../auth0-session';
 import { Session } from '../session';
 import { assertReqRes } from '../utils/assert';
-import { BaseConfig, NextConfig } from '../config';
+import { GetConfig, NextConfig } from '../config';
 import { CallbackHandlerError, HandlerErrorCause } from '../utils/errors';
 import { Auth0NextApiRequest, Auth0NextApiResponse, Auth0NextRequest, Auth0NextResponse } from '../http';
-import { LoginOptions } from './login';
 import { AppRouteHandlerFnContext, AuthHandler, getHandler, Handler, OptionsProvider } from './router-helpers';
 
 /**
@@ -278,9 +277,9 @@ export type CallbackHandler = Handler<CallbackOptions>;
 /**
  * @ignore
  */
-export default function handleCallbackFactory(handler: BaseHandleCallback, config: NextConfig): HandleCallback {
-  const appRouteHandler = appRouteHandlerFactory(handler, config);
-  const pageRouteHandler = pageRouteHandlerFactory(handler, config);
+export default function handleCallbackFactory(handler: BaseHandleCallback, getConfig: GetConfig): HandleCallback {
+  const appRouteHandler = appRouteHandlerFactory(handler, getConfig);
+  const pageRouteHandler = pageRouteHandlerFactory(handler, getConfig);
 
   return getHandler<CallbackOptions>(appRouteHandler, pageRouteHandler) as HandleCallback;
 }
@@ -303,7 +302,7 @@ const applyOptions = (
           if (session.user.org_id !== organization) {
             throw new Error(
               `Organization Id (org_id) claim value mismatch in the ID token; ` +
-              `expected "${organization}", found "${session.user.org_id}"`
+                `expected "${organization}", found "${session.user.org_id}"`
             );
           }
         } else {
@@ -313,7 +312,7 @@ const applyOptions = (
           if (session.user.org_name !== organization.toLowerCase()) {
             throw new Error(
               `Organization Name (org_name) claim value mismatch in the ID token; ` +
-              `expected "${organization}", found "${session.user.org_name}"`
+                `expected "${organization}", found "${session.user.org_name}"`
             );
           }
         }
@@ -338,13 +337,15 @@ const applyOptions = (
  */
 const appRouteHandlerFactory: (
   handler: BaseHandleLogin,
-  config: NextConfig
+  getConfig: GetConfig
 ) => (req: NextRequest, ctx: AppRouteHandlerFnContext, options?: CallbackOptions) => Promise<Response> | Response =
-  (handler, config) =>
+  (handler, getConfig) =>
   async (req, _ctx, options = {}) => {
     try {
+      const auth0Req = new Auth0NextRequest(req);
+      const nextConfig = await getConfig(auth0Req);
       const auth0Res = new Auth0NextResponse(new NextResponse());
-      await handler(new Auth0NextRequest(req), auth0Res, applyOptions(req, undefined, options, config));
+      await handler(auth0Req, auth0Res, applyOptions(req, undefined, options, nextConfig));
       return auth0Res.res;
     } catch (e) {
       throw new CallbackHandlerError(e as HandlerErrorCause);
@@ -356,17 +357,15 @@ const appRouteHandlerFactory: (
  */
 const pageRouteHandlerFactory: (
   handler: BaseHandleCallback,
-  config: NextConfig
+  getConfig: GetConfig
 ) => (req: NextApiRequest, res: NextApiResponse, options?: CallbackOptions) => Promise<void> =
-  (handler, config) =>
+  (handler, getConfig) =>
   async (req: NextApiRequest, res: NextApiResponse, options = {}): Promise<void> => {
     try {
+      const auth0Req = new Auth0NextApiRequest(req);
+      const nextConfig = await getConfig(auth0Req);
       assertReqRes(req, res);
-      return await handler(
-        new Auth0NextApiRequest(req),
-        new Auth0NextApiResponse(res),
-        applyOptions(req, res, options, config)
-      );
+      return await handler(auth0Req, new Auth0NextApiResponse(res), applyOptions(req, res, options, nextConfig));
     } catch (e) {
       throw new CallbackHandlerError(e as HandlerErrorCause);
     }
