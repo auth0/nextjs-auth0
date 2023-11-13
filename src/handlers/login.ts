@@ -7,7 +7,7 @@ import {
 } from '../auth0-session';
 import toSafeRedirect from '../utils/url-helpers';
 import { assertReqRes } from '../utils/assert';
-import { BaseConfig, NextConfig } from '../config';
+import { GetConfig, NextConfig } from '../config';
 import { HandlerErrorCause, LoginHandlerError } from '../utils/errors';
 import { Auth0NextApiRequest, Auth0NextApiResponse, Auth0NextRequest, Auth0NextResponse } from '../http';
 import { AppRouteHandlerFnContext, getHandler, OptionsProvider, Handler, AuthHandler } from './router-helpers';
@@ -259,13 +259,9 @@ export type LoginHandler = Handler<LoginOptions>;
 /**
  * @ignore
  */
-export default function handleLoginFactory(
-  handler: BaseHandleLogin,
-  nextConfig: NextConfig,
-  baseConfig: BaseConfig
-): HandleLogin {
-  const appRouteHandler = appRouteHandlerFactory(handler, nextConfig, baseConfig);
-  const pageRouteHandler = pageRouteHandlerFactory(handler, nextConfig, baseConfig);
+export default function handleLoginFactory(handler: BaseHandleLogin, getConfig: GetConfig): HandleLogin {
+  const appRouteHandler = appRouteHandlerFactory(handler, getConfig);
+  const pageRouteHandler = pageRouteHandlerFactory(handler, getConfig);
 
   return getHandler<LoginOptions>(appRouteHandler, pageRouteHandler) as HandleLogin;
 }
@@ -277,22 +273,21 @@ const applyOptions = (
   req: NextApiRequest | NextRequest,
   options: LoginOptions,
   dangerousReturnTo: string | undefined | null,
-  nextConfig: NextConfig,
-  baseConfig: BaseConfig
+  config: NextConfig
 ): BaseLoginOptions => {
   let opts: BaseLoginOptions;
   let getLoginState: GetLoginState | undefined;
   // eslint-disable-next-line prefer-const
   ({ getLoginState, ...opts } = options);
   if (dangerousReturnTo) {
-    const safeBaseUrl = new URL(options.authorizationParams?.redirect_uri || baseConfig.baseURL);
+    const safeBaseUrl = new URL(options.authorizationParams?.redirect_uri || config.baseURL);
     const returnTo = toSafeRedirect(dangerousReturnTo, safeBaseUrl);
     opts = { ...opts, returnTo };
   }
-  if (nextConfig.organization) {
+  if (config.organization) {
     opts = {
       ...opts,
-      authorizationParams: { organization: nextConfig.organization, ...opts.authorizationParams }
+      authorizationParams: { organization: config.organization, ...opts.authorizationParams }
     };
   }
   if (getLoginState) {
@@ -306,21 +301,18 @@ const applyOptions = (
  */
 const appRouteHandlerFactory: (
   handler: BaseHandleLogin,
-  nextConfig: NextConfig,
-  baseConfig: BaseConfig
+  getConfig: GetConfig
 ) => (req: NextRequest, ctx: AppRouteHandlerFnContext, options?: LoginOptions) => Promise<Response> | Response =
-  (handler, nextConfig, baseConfig) =>
+  (handler, getConfig) =>
   async (req, _ctx, options = {}) => {
     try {
+      const auth0Req = new Auth0NextRequest(req);
+      const config = await getConfig(auth0Req);
       const url = new URL(req.url);
       const dangerousReturnTo = url.searchParams.get('returnTo');
 
       const auth0Res = new Auth0NextResponse(new NextResponse());
-      await handler(
-        new Auth0NextRequest(req),
-        auth0Res,
-        applyOptions(req, options, dangerousReturnTo, nextConfig, baseConfig) as BaseLoginOptions
-      );
+      await handler(auth0Req, auth0Res, applyOptions(req, options, dangerousReturnTo, config) as BaseLoginOptions);
       return auth0Res.res;
     } catch (e) {
       throw new LoginHandlerError(e as HandlerErrorCause);
@@ -332,20 +324,21 @@ const appRouteHandlerFactory: (
  */
 const pageRouteHandlerFactory: (
   handler: BaseHandleLogin,
-  nextConfig: NextConfig,
-  baseConfig: BaseConfig
+  getConfig: GetConfig
 ) => (req: NextApiRequest, res: NextApiResponse, options?: LoginOptions) => Promise<void> | void =
-  (handler, nextConfig, baseConfig) =>
+  (handler, getConfig) =>
   async (req, res, options = {}) => {
     try {
+      const auth0Req = new Auth0NextApiRequest(req);
+      const config = await getConfig(auth0Req);
       assertReqRes(req, res);
       const dangerousReturnTo =
         req.query.returnTo && Array.isArray(req.query.returnTo) ? req.query.returnTo[0] : req.query.returnTo;
 
       return await handler(
-        new Auth0NextApiRequest(req),
+        auth0Req,
         new Auth0NextApiResponse(res),
-        applyOptions(req, options, dangerousReturnTo, nextConfig, baseConfig) as BaseLoginOptions
+        applyOptions(req, options, dangerousReturnTo, config) as BaseLoginOptions
       );
     } catch (e) {
       throw new LoginHandlerError(e as HandlerErrorCause);

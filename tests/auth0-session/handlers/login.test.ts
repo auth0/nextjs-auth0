@@ -4,11 +4,19 @@ import { setup, teardown } from '../fixtures/server';
 import { defaultConfig, fromCookieJar, get, getCookie } from '../fixtures/helpers';
 import { decodeState, encodeState } from '../../../src/auth0-session/utils/encoding';
 import { LoginOptions } from '../../../src/auth0-session';
+import loginHandlerFactory from '../../../src/auth0-session/handlers/login';
 
 const authVerificationCookie = (cookie: string) => JSON.parse(decodeURIComponent(cookie));
 
 describe('login', () => {
   afterEach(teardown);
+
+  it('should accept lazy config', () => {
+    const getConfig = () => {
+      throw new Error();
+    };
+    expect(() => (loginHandlerFactory as any)(getConfig)).not.toThrow();
+  });
 
   it('should redirect to the authorize url for /login', async () => {
     const baseURL = await setup(defaultConfig);

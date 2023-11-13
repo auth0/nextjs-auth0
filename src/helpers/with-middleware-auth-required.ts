@@ -1,5 +1,7 @@
 import { NextMiddleware, NextRequest, NextResponse } from 'next/server';
 import { SessionCache } from '../session';
+import { GetConfig } from '../config';
+import { Auth0NextRequest } from '../http';
 
 /**
  * Pass custom options to {@link WithMiddlewareAuthRequired}.
@@ -85,12 +87,15 @@ export type WithMiddlewareAuthRequired = (
  * @ignore
  */
 export default function withMiddlewareAuthRequiredFactory(
-  { login, callback }: { login: string; callback: string },
-  getSessionCache: () => SessionCache
+  getConfig: GetConfig,
+  sessionCache: SessionCache
 ): WithMiddlewareAuthRequired {
   return function withMiddlewareAuthRequired(opts?): NextMiddleware {
     return async function wrappedMiddleware(...args) {
       const [req] = args;
+      const {
+        routes: { login, callback }
+      } = await getConfig(new Auth0NextRequest(req));
       let middleware: NextMiddleware | undefined;
       const { pathname, origin, search } = req.nextUrl;
       let returnTo = `${pathname}${search}`;
@@ -104,8 +109,6 @@ export default function withMiddlewareAuthRequiredFactory(
       if (ignorePaths.some((p) => pathname.startsWith(p))) {
         return;
       }
-
-      const sessionCache = getSessionCache();
 
       const authRes = NextResponse.next();
       const session = await sessionCache.get(req, authRes);

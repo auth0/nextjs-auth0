@@ -1,10 +1,10 @@
 import urlJoin from 'url-join';
-import { Config, LoginOptions } from '../config';
+import { Config, GetConfig, LoginOptions } from '../config';
 import TransientStore from '../transient-store';
 import { encodeState } from '../utils/encoding';
 import createDebug from '../utils/debug';
 import { Auth0Request, Auth0Response } from '../http';
-import { AbstractClient } from '../client/abstract-client';
+import { GetClient } from '../client/abstract-client';
 
 const debug = createDebug('handlers');
 
@@ -23,11 +23,14 @@ export type AuthVerification = {
 };
 
 export default function loginHandlerFactory(
-  config: Config,
-  client: AbstractClient,
+  getConfig: GetConfig,
+  getClient: GetClient,
   transientHandler: TransientStore
 ): HandleLogin {
+  const getConfigFn = typeof getConfig === 'function' ? getConfig : () => getConfig;
   return async (req, res, options = {}) => {
+    const config = await getConfigFn(req);
+    const client = await getClient(config);
     const returnTo = options.returnTo || config.baseURL;
 
     const opts = {

@@ -114,7 +114,7 @@ export const getSession = async (config: any, res: NextResponse) => {
     .getAll()
     .forEach(({ name, value }: { name: string; value: string }) => value && req.cookies.set(name, value));
 
-  const store = new StatelessSession(getConfig(config).baseConfig);
+  const store = new StatelessSession(getConfig(config));
   const [session] = await store.read(new Auth0NextRequest(req));
   return session;
 };

@@ -4,7 +4,8 @@ import {
   CallbackParamsType,
   OpenIDCallbackChecks,
   TokenEndpointResponse,
-  AbstractClient
+  AbstractClient,
+  Telemetry
 } from './abstract-client';
 import {
   Client,
@@ -23,6 +24,7 @@ import urlJoin from 'url-join';
 import createDebug from '../utils/debug';
 import { IncomingMessage } from 'http';
 import { AccessTokenError, AccessTokenErrorCode } from '../../utils/errors';
+import { Config } from '../config';
 
 const debug = createDebug('client');
 
@@ -235,3 +237,13 @@ export class NodeClient extends AbstractClient {
     return generators.codeChallenge(codeVerifier);
   }
 }
+
+export const clientGetter = (telemetry: Telemetry): ((config: Config) => Promise<NodeClient>) => {
+  let client: NodeClient;
+  return async (config) => {
+    if (!client) {
+      client = new NodeClient(config, telemetry);
+    }
+    return client;
+  };
+};

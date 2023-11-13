@@ -1,6 +1,5 @@
 import * as jose from 'jose';
 import type { TokenEndpointResponse } from '../auth0-session/client/abstract-client';
-import { Config } from '../auth0-session';
 import { NextConfig } from '../config';
 
 /**
@@ -61,10 +60,7 @@ export default class Session {
 /**
  * @ignore
  */
-export function fromTokenEndpointResponse(
-  tokenEndpointResponse: TokenEndpointResponse,
-  config: Config | NextConfig
-): Session {
+export function fromTokenEndpointResponse(tokenEndpointResponse: TokenEndpointResponse, config: NextConfig): Session {
   // Get the claims without any OIDC-specific claim.
   const claims = jose.decodeJwt(tokenEndpointResponse.id_token as string);
   config.identityClaimFilter.forEach((claim) => {

@@ -104,3 +104,5 @@ export abstract class AbstractClient {
   abstract generateRandomNonce(): string;
   abstract calculateCodeChallenge(codeVerifier: string): Promise<string> | string;
 }
+
+export type GetClient = (config: Config) => Promise<AbstractClient>;
