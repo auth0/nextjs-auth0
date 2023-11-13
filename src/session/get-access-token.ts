@@ -236,7 +236,6 @@ export default function accessTokenFactory(
   return async (reqOrOpts?, res?, accessTokenRequest?): Promise<GetAccessTokenResult> => {
     const options = (res ? accessTokenRequest : reqOrOpts) as AccessTokenRequest | undefined;
     const req = (res ? reqOrOpts : undefined) as IncomingMessage | NextApiRequest | undefined;
-    // TODO: clean up
     const config = await getConfig(req ? getAuth0ReqRes(req, res as any)[0] : new Auth0NextRequestCookies());
     const client = await getClient(config);
 
