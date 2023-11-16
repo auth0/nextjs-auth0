@@ -30,6 +30,15 @@ const setup = async (
 describe('TransientStore', () => {
   afterEach(teardown);
 
+  it('should accept lazy config', () => {
+    expect(
+      () =>
+        new TransientStore(() => {
+          throw new Error();
+        })
+    ).not.toThrow();
+  });
+
   it('should use the passed-in key to set the cookies', async () => {
     const baseURL: string = await setup(defaultConfig, async (req: NodeRequest, res: NodeResponse) =>
       transientStore.save('test_key', req, res, { value: 'foo' })

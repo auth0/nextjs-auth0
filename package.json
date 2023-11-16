@@ -1,6 +1,6 @@
 {
   "name": "@auth0/nextjs-auth0",
-  "version": "3.2.0",
+  "version": "3.3.0",
   "description": "Next.js SDK for signing in with Auth0",
   "exports": {
     ".": "./dist/index.js",
@@ -121,7 +121,7 @@
   },
   "dependencies": {
     "@panva/hkdf": "^1.0.2",
-    "cookie": "^0.5.0",
+    "cookie": "^0.6.0",
     "debug": "^4.3.4",
     "joi": "^17.6.0",
     "jose": "^4.9.2",
@@ -139,6 +139,7 @@
       "!<rootDir>/src/edge.ts",
       "!<rootDir>/src/index.ts",
       "!<rootDir>/src/shared.ts",
+      "!<rootDir>/src/version.ts",
       "!<rootDir>/src/auth0-session/config.ts",
       "!<rootDir>/src/auth0-session/index.ts",
       "!<rootDir>/src/auth0-session/session-cache.ts"

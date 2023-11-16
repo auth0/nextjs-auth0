@@ -5,5 +5,5 @@ export interface SessionCache<Req = any, Res = any, Session = { [key: string]: a
   delete(req: Req, res: Res): Promise<void>;
   isAuthenticated(req: Req, res: Res): Promise<boolean>;
   getIdToken(req: Req, res: Res): Promise<string | undefined>;
-  fromTokenEndpointResponse(tokenSet: TokenEndpointResponse): Session;
+  fromTokenEndpointResponse(req: Req, res: Res, tokenSet: TokenEndpointResponse): Promise<Session>;
 }

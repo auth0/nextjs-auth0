@@ -10,6 +10,7 @@ import { IncomingMessage, ServerResponse } from 'http';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import * as qs from 'querystring';
+import callbackHandlerFactory from '../../../src/auth0-session/handlers/callback';
 
 const privateKey = readFileSync(join(__dirname, '..', 'fixtures', 'private-key.pem'), 'utf-8');
 
@@ -19,6 +20,13 @@ const authVerificationCookie = (cookies: Record<string, string>) => ({ auth_veri
 
 describe('callback', () => {
   afterEach(teardown);
+
+  it('should accept lazy config', () => {
+    const getConfig = () => {
+      throw new Error();
+    };
+    expect(() => (callbackHandlerFactory as any)(getConfig)).not.toThrow();
+  });
 
   it('should error when the body is empty', async () => {
     const baseURL = await setup(defaultConfig);

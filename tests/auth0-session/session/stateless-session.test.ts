@@ -9,6 +9,7 @@ import { setup, teardown } from '../fixtures/server';
 import { defaultConfig, fromCookieJar, get, toCookieJar } from '../fixtures/helpers';
 import { encryption } from '../../../src/auth0-session/utils/hkdf';
 import { makeIdToken } from '../fixtures/cert';
+import { StatelessSession } from '../../../src/auth0-session';
 
 const hr = 60 * 60 * 1000;
 const day = 24 * hr;
@@ -37,6 +38,15 @@ const encrypted = async (claims: Partial<IdTokenClaims> = { sub: '__test_sub__' 
 
 describe('StatelessSession', () => {
   afterEach(teardown);
+
+  it('should accept lazy config', () => {
+    expect(
+      () =>
+        new StatelessSession((() => {
+          throw new Error();
+        }) as any)
+    ).not.toThrow();
+  });
 
   it('should not create a session when there are no cookies', async () => {
     const baseURL = await setup(defaultConfig);

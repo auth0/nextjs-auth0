@@ -1,6 +1,6 @@
 import createDebug from '../utils/debug';
 import { CookieSerializeOptions } from 'cookie';
-import { Config } from '../config';
+import { Config, GetConfig } from '../config';
 import { Auth0RequestCookies, Auth0ResponseCookies } from '../http';
 
 const debug = createDebug('session');
@@ -36,7 +36,11 @@ const assert = (bool: boolean, msg: string) => {
 };
 
 export abstract class AbstractSession<Session> {
-  constructor(protected config: Config) {}
+  protected getConfig: (req: Auth0RequestCookies) => Config | Promise<Config>;
+
+  constructor(getConfig: GetConfig) {
+    this.getConfig = typeof getConfig === 'function' ? getConfig : () => getConfig;
+  }
 
   abstract getSession(req: Auth0RequestCookies): Promise<SessionPayload<Session> | undefined | null>;
 
@@ -58,7 +62,8 @@ export abstract class AbstractSession<Session> {
   ): Promise<void>;
 
   public async read(req: Auth0RequestCookies): Promise<[Session?, number?]> {
-    const { rollingDuration, absoluteDuration } = this.config.session;
+    const config = await this.getConfig(req);
+    const { rollingDuration, absoluteDuration } = config.session;
 
     try {
       const existingSessionValue = await this.getSession(req);
@@ -95,9 +100,10 @@ export abstract class AbstractSession<Session> {
     session: Session | null | undefined,
     createdAt?: number
   ): Promise<void> {
+    const config = await this.getConfig(req);
     const {
       cookie: { transient, ...cookieConfig }
-    } = this.config.session;
+    } = config.session;
 
     if (!session) {
       await this.deleteSession(req, res, cookieConfig);
@@ -107,7 +113,7 @@ export abstract class AbstractSession<Session> {
     const isNewSession = typeof createdAt === 'undefined';
     const uat = epoch();
     const iat = typeof createdAt === 'number' ? createdAt : uat;
-    const exp = this.calculateExp(iat, uat);
+    const exp = this.calculateExp(iat, uat, config);
 
     const cookieOptions: CookieSerializeOptions = {
       ...cookieConfig
@@ -119,9 +125,9 @@ export abstract class AbstractSession<Session> {
     await this.setSession(req, res, session, uat, iat, exp, cookieOptions, isNewSession);
   }
 
-  private calculateExp(iat: number, uat: number): number {
-    const { absoluteDuration } = this.config.session;
-    const { rolling, rollingDuration } = this.config.session;
+  private calculateExp(iat: number, uat: number, config: Config): number {
+    const { absoluteDuration } = config.session;
+    const { rolling, rollingDuration } = config.session;
 
     if (typeof absoluteDuration !== 'number') {
       return uat + (rollingDuration as number);

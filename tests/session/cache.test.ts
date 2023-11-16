@@ -1,6 +1,7 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { Socket } from 'net';
-import { StatelessSession, getConfig } from '../../src/auth0-session';
+import { StatelessSession } from '../../src/auth0-session';
+import { getConfig } from '../../src/config';
 import { get, set } from '../../src/session/cache';
 import { ConfigParameters, Session, SessionCache } from '../../src';
 import { withoutApi } from '../fixtures/default-settings';
@@ -18,7 +19,8 @@ describe('SessionCache', () => {
     sessionStore.save = jest.fn();
     session = new Session({ sub: '__test_user__' });
     session.idToken = '__test_id_token__';
-    cache = new SessionCache(config, sessionStore);
+    cache = new SessionCache(() => config);
+    cache.getSessionStore = () => sessionStore;
     req = jest.mocked(new IncomingMessage(new Socket()));
     res = jest.mocked(new ServerResponse(req));
   };
@@ -106,5 +108,11 @@ describe('SessionCache', () => {
     expect((await get({ sessionCache: cache }))[0]?.user).toEqual({ sub: '__test_user__' });
     expect(sessionStore.read).toHaveBeenCalledTimes(2);
     expect(sessionStore.save).toHaveBeenCalledTimes(1);
+  });
+
+  test('should get an instance of Session from an RSC', async () => {
+    sessionStore.read = jest.fn().mockResolvedValue([{ user: { sub: '__test_user__' } }, 500]);
+    const [session] = await get({ sessionCache: cache });
+    expect(session).toBeInstanceOf(Session);
   });
 });

@@ -1,5 +1,14 @@
 # Change Log
 
+## [v3.3.0](https://github.com/auth0/nextjs-auth0/tree/v3.3.0) (2023-11-13)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.2.0...v3.3.0)
+
+**Added**
+- Bail out of static rendering for pages and routes in app dir [\#1541](https://github.com/auth0/nextjs-auth0/pull/1541) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
+**Fixed**
+- Fix wrong response type in AfterRefreshPageRoute [\#1523](https://github.com/auth0/nextjs-auth0/pull/1523) ([thutter](https://github.com/thutter))
+
 ## [v3.2.0](https://github.com/auth0/nextjs-auth0/tree/v3.2.0) (2023-10-05)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.1.0...v3.2.0)
 
