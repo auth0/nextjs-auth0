@@ -109,4 +109,10 @@ describe('SessionCache', () => {
     expect(sessionStore.read).toHaveBeenCalledTimes(2);
     expect(sessionStore.save).toHaveBeenCalledTimes(1);
   });
+
+  test('should get an instance of Session from an RSC', async () => {
+    sessionStore.read = jest.fn().mockResolvedValue([{ user: { sub: '__test_user__' } }, 500]);
+    const [session] = await get({ sessionCache: cache });
+    expect(session).toBeInstanceOf(Session);
+  });
 });

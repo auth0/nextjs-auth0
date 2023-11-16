@@ -128,7 +128,8 @@ export const get = async ({
   const {
     session: { rolling, autoSave }
   } = config;
-  const [session, iat] = await sessionStore.read(auth0Req);
+  const [json, iat] = await sessionStore.read(auth0Req);
+  const session = fromJson(json);
   if (rolling && autoSave) {
     await set({ session, sessionCache, iat });
   }
