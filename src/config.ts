@@ -103,7 +103,7 @@ export interface NextConfig extends BaseConfig {
  * // pages/api/auth/[auth0].js
  * import auth0 from '../../../../utils/auth0';
  *
- * return auth0.handleAuth();
+ * export default auth0.handleAuth();
  * ```
  *
  * **IMPORTANT** If you use {@link InitAuth0}, you should *not* use the other named exports as they will use a different
