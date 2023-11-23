@@ -68,7 +68,7 @@ type UserFetcher = (url: string) => Promise<UserProfile | undefined>;
 /**
  * Configure the {@link UserProvider} component.
  *
- * If you have any server-side rendered pages (using `getServerSideProps`), you should get the
+ * If you have any server-side rendered pages (using `getServerSideProps` or Server Components), you should get the
  * user from the server-side session and pass it to the `<UserProvider>` component via the `user`
  * prop. This will prefill the {@link useUser} hook with the {@link UserProfile} object.
  * For example:
@@ -88,6 +88,29 @@ type UserFetcher = (url: string) => Promise<UserProfile | undefined>;
  *     <UserProvider user={user}>
  *       <Component {...pageProps} />
  *     </UserProvider>
+ *   );
+ * }
+ * ```
+ *
+ * or
+ *
+ * ```js
+ * // app/layout.js
+ * import { UserProvider } from '@auth0/nextjs-auth0/client';
+ *
+ * export default async function RootLayout({ children }) {
+ *   // this will emit a warning because Server Components cannot write to cookies
+ *   // see https://github.com/auth0/nextjs-auth0#using-this-sdk-with-react-server-components
+ *   const session = await getSession();
+ *
+ *   return (
+ *     <html lang="en">
+ *       <body>
+ *         <UserProvider user={session?.user}>
+ *           {children}
+ *         </UserProvider>
+ *       </body>
+ *     </html>
  *   );
  * }
  * ```
