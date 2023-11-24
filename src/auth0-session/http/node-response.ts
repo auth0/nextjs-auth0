@@ -30,4 +30,13 @@ export default class NodeResponse<T extends ServerResponse = ServerResponse> ext
     });
     this.res.end(htmlSafe(location));
   }
+
+  public send204(): void {
+    this.res.statusCode = 204;
+    this.res.end();
+  }
+
+  public setHeader(name: string, value: string): void {
+    this.res.setHeader(name, value);
+  }
 }

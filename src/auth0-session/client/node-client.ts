@@ -15,7 +15,8 @@ import {
   EndSessionParameters,
   errors,
   generators,
-  Issuer
+  Issuer,
+  IssuerMetadata
 } from 'openid-client';
 import { ApplicationError, DiscoveryError, EscapedError, IdentityProviderError, UserInfoError } from '../utils/errors';
 import { createPrivateKey } from 'crypto';
@@ -235,6 +236,11 @@ export class NodeClient extends AbstractClient {
 
   calculateCodeChallenge(codeVerifier: string): string {
     return generators.codeChallenge(codeVerifier);
+  }
+
+  async getIssuerMetadata(): Promise<IssuerMetadata> {
+    const { issuer } = await this.getClient();
+    return issuer.metadata;
   }
 }
 
