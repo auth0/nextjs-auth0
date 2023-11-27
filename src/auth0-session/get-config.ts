@@ -38,7 +38,7 @@ const paramsSchema = Joi.object({
           not: Joi.exist(),
           then: Joi.object().required().messages({
             // eslint-disable-next-line max-len
-            'any.required': `Back-Channel Logout requires a "backchannelLogout.store" (you can also reuse "session.store if you have stateful sessions).`
+            'any.required': `Back-Channel Logout requires a "backchannelLogout.store" (you can also reuse "session.store" if you have stateful sessions).`
           })
         })
       }),

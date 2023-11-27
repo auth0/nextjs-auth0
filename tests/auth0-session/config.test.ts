@@ -549,7 +549,7 @@ describe('Config', () => {
   it('should require a session store for back-channel logout', () => {
     expect(() => getConfig({ ...defaultConfig, backchannelLogout: true })).toThrow(
       // eslint-disable-next-line max-len
-      `Back-Channel Logout requires a "backchannelLogout.store" (you can also reuse "session.store if you have stateful sessions).`
+      `Back-Channel Logout requires a "backchannelLogout.store" (you can also reuse "session.store" if you have stateful sessions).`
     );
   });
 
