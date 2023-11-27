@@ -90,7 +90,8 @@ describe('config params', () => {
         sameSite: 'lax',
         secure: true
       },
-      organization: undefined
+      organization: undefined,
+      backchannelLogout: false
     });
   });
 

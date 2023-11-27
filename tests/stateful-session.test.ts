@@ -1,5 +1,5 @@
 import { withoutApi } from './fixtures/default-settings';
-import { get, toSignedCookieJar } from './auth0-session/fixtures/helpers';
+import { get, toSignedCookieJar, Store } from './auth0-session/fixtures/helpers';
 import { setup, teardown, login } from './fixtures/setup';
 import { SessionPayload } from '../src/auth0-session/session/abstract-session';
 import { makeIdToken } from './auth0-session/fixtures/cert';
@@ -9,24 +9,6 @@ import { TokenSet } from 'openid-client';
 const hr = 60 * 60 * 1000;
 const day = 24 * hr;
 const epochNow = (Date.now() / 1000) | 0;
-
-class Store {
-  public store: { [key: string]: any };
-  constructor() {
-    this.store = {};
-  }
-  get(id: string) {
-    return Promise.resolve(this.store[id]);
-  }
-  async set(id: string, val: any) {
-    this.store[id] = val;
-    await Promise.resolve();
-  }
-  async delete(id: string) {
-    delete this.store[id];
-    await Promise.resolve();
-  }
-}
 
 const getPayload = async (
   data = { sub: 'dave' },

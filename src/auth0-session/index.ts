@@ -26,7 +26,9 @@ export {
   default as backchannelLogoutHandler,
   HandleBackchannelLogout,
   isLoggedOut,
-  IsLoggedOut
+  IsLoggedOut,
+  DeleteSub,
+  deleteSub
 } from './handlers/backchannel-logout';
 export { TokenEndpointResponse, AbstractClient, Telemetry } from './client/abstract-client';
 export { SessionCache } from './session-cache';
