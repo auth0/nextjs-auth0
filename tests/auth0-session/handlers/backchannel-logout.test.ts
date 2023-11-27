@@ -1,25 +1,7 @@
 import { setup, teardown } from '../fixtures/server';
-import { defaultConfig, post } from '../fixtures/helpers';
+import { defaultConfig, post, Store } from '../fixtures/helpers';
 import { makeLogoutToken } from '../fixtures/cert';
-import { isLoggedOut, getConfig } from '../../../src/auth0-session';
-
-class Store {
-  public store: { [key: string]: any };
-  constructor() {
-    this.store = {};
-  }
-  get(id: string) {
-    return Promise.resolve(this.store[id]);
-  }
-  async set(id: string, val: any) {
-    this.store[id] = val;
-    await Promise.resolve();
-  }
-  async delete(id: string) {
-    delete this.store[id];
-    await Promise.resolve();
-  }
-}
+import { isLoggedOut, getConfig, deleteSub } from '../../../src/auth0-session';
 
 describe('backchannel-logout', () => {
   afterEach(teardown);
@@ -101,5 +83,15 @@ describe('backchannel-logout', () => {
       data: {}
     });
     expect(res.statusCode).toEqual(204);
+  });
+
+  it('should delete a sub entry from the logout store', async () => {
+    const store = new Store();
+    const config = getConfig({ ...defaultConfig, session: { store, genId: () => 'foo' }, baseURL: 'http://localhost' });
+    await expect(isLoggedOut({ sub: 'bar' }, config)).resolves.toEqual(false);
+    await store.set('sub|__test_client_id__|bar', {});
+    await expect(isLoggedOut({ sub: 'bar' }, config)).resolves.toEqual(true);
+    await deleteSub('bar', config);
+    await expect(isLoggedOut({ sub: 'bar' }, config)).resolves.toEqual(false);
   });
 });
