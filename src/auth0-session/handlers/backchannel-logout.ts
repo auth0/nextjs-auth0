@@ -1,5 +1,5 @@
 import { Auth0Request, Auth0Response } from '../http';
-import { GetConfig } from '../config';
+import { Config, GetConfig } from '../config';
 import { GetClient } from '../client/abstract-client';
 import getLogoutTokenVerifier from '../utils/logout-token-verifier';
 import * as querystring from 'querystring';
@@ -30,6 +30,7 @@ export default function backchannelLogoutHandlerFactory(
     }
     const token = await verifyLogoutToken(logoutToken, config, await client.getIssuerMetadata());
     const {
+      clientID,
       session: { absoluteDuration, rolling: rollingEnabled, rollingDuration, store },
       backchannelLogout
     } = config;
@@ -43,11 +44,28 @@ export default function backchannelLogoutHandlerFactory(
       header: { iat: now, uat: now, exp: now + maxAge, maxAge },
       data: {}
     };
-    const { iss, sid, sub } = token;
+    const { sid, sub } = token;
     await Promise.all([
-      sid && backchannelLogoutStore.set(`${iss}|${sid}`, payload),
-      sub && backchannelLogoutStore.set(`${iss}|${sub}`, payload)
+      sid && backchannelLogoutStore.set(`sid|${clientID}|${sid}`, payload),
+      sub && backchannelLogoutStore.set(`sub|${clientID}|${sub}`, payload)
     ]);
     res.send204();
   };
 }
+
+export type IsLoggedOut = (user: { [key: string]: any }, config: Config) => Promise<boolean>;
+
+export const isLoggedOut: IsLoggedOut = async (user, config) => {
+  const {
+    clientID,
+    session: { store },
+    backchannelLogout
+  } = config;
+  const backchannelLogoutStore = typeof backchannelLogout === 'boolean' ? store! : backchannelLogout.store;
+  const { sid, sub } = user;
+  const [logoutSid, logoutSub] = await Promise.all([
+    backchannelLogoutStore.get(`sid|${clientID}|${sid}`),
+    backchannelLogoutStore.get(`sub|${clientID}|${sub}`)
+  ]);
+  return !!(logoutSid || logoutSub);
+};
