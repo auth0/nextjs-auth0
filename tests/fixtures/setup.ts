@@ -16,7 +16,8 @@ import {
   HandleLogin,
   HandleLogout,
   HandleCallback,
-  HandleProfile
+  HandleProfile,
+  HandleBackchannelLogout
 } from '../../src';
 import { codeExchange, discovery, jwksEndpoint, userInfo } from './oidc-nocks';
 import { jwks, makeIdToken } from '../auth0-session/fixtures/cert';
@@ -33,6 +34,7 @@ export type SetupOptions = {
   logoutHandler?: HandleLogout;
   logoutOptions?: LogoutOptions;
   profileHandler?: HandleProfile;
+  backchannelLogoutHandler?: HandleBackchannelLogout;
   profileOptions?: ProfileOptions;
   withPageAuthRequiredOptions?: WithPageAuthRequiredPageRouterOptions;
   getAccessTokenOptions?: AccessTokenRequest;
@@ -74,6 +76,7 @@ export const setup = async (
     loginHandler,
     loginOptions,
     profileHandler,
+    backchannelLogoutHandler,
     profileOptions,
     withPageAuthRequiredOptions,
     onError = defaultOnError,
@@ -90,6 +93,7 @@ export const setup = async (
     handleCallback,
     handleLogin,
     handleLogout,
+    handleBackchannelLogout,
     handleProfile,
     getSession,
     touchSession,
@@ -102,7 +106,15 @@ export const setup = async (
   const login: NextApiHandler = (...args) => (loginHandler || handleLogin)(...args, loginOptions);
   const logout: NextApiHandler = (...args) => (logoutHandler || handleLogout)(...args, logoutOptions);
   const profile: NextApiHandler = (...args) => (profileHandler || handleProfile)(...args, profileOptions);
-  const handlers: { [key: string]: NextApiHandler } = { onError: onError as any, callback, login, logout, profile };
+  const backchannelLogout: NextApiHandler = (...args) => (backchannelLogoutHandler || handleBackchannelLogout)(...args);
+  const handlers: { [key: string]: NextApiHandler } = {
+    onError: onError as any,
+    callback,
+    login,
+    logout,
+    profile,
+    'backchannel-logout:': backchannelLogout
+  };
   global.handleAuth = handleAuth.bind(null, handlers);
   global.getSession = getSession;
   global.touchSession = touchSession;

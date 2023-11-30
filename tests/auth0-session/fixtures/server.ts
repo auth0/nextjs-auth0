@@ -27,6 +27,7 @@ import version from '../../../src/version';
 import { NodeRequest, NodeResponse } from '../../../src/auth0-session/http';
 import { clientGetter } from '../../../src/auth0-session/client/node-client';
 import backchannelLogoutHandlerFactory from '../../../src/auth0-session/handlers/backchannel-logout';
+import { promisify } from 'util';
 
 export type SessionResponse = TokenSetParameters & { claims: Claims };
 
@@ -102,16 +103,14 @@ const createHandlers = (params: ConfigParameters): Handlers => {
 
 export const parseJson = async (req: IncomingMessage, res: ServerResponse): Promise<IncomingMessage> => {
   const { default: bodyParser } = await import('body-parser');
-  const jsonParse = bodyParser.json();
-  return await new Promise((resolve, reject) => {
-    jsonParse(req, res, (error: Error | undefined) => {
-      if (error) {
-        reject(error);
-      } else {
-        resolve(req);
-      }
-    });
-  });
+  const jsonParser = promisify(bodyParser.json());
+  const formParser = promisify(bodyParser.urlencoded({ extended: true }));
+  if (req.headers['content-type'] === 'application/json') {
+    await jsonParser(req, res);
+  } else {
+    await formParser(req, res);
+  }
+  return req;
 };
 
 const requestListener =

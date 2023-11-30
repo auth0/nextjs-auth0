@@ -11,8 +11,6 @@ import { IssuerMetadata } from '../client/abstract-client';
 
 type GetKeyFn = GetKeyFunction<JWSHeaderParameters, FlattenedJWSInput>;
 
-const isObject = (a: any) => !!a && a.constructor === Object;
-
 export type VerifyLogoutToken = (
   logoutToken: string,
   config: Config,
@@ -51,7 +49,7 @@ export default function getLogoutTokenVerifier(): VerifyLogoutToken {
       throw new Error('"events" claim is missing');
     }
 
-    if (!isObject(payload.events)) {
+    if (typeof payload.events !== 'object' || payload.events === null) {
       throw new Error('"events" claim must be an object');
     }
 
@@ -59,7 +57,9 @@ export default function getLogoutTokenVerifier(): VerifyLogoutToken {
       throw new Error('"http://schemas.openid.net/event/backchannel-logout" member is missing in the "events" claim');
     }
 
-    if (!isObject((payload as { events?: any }).events['http://schemas.openid.net/event/backchannel-logout'])) {
+    if (
+      typeof (payload as { events?: any }).events['http://schemas.openid.net/event/backchannel-logout'] !== 'object'
+    ) {
       throw new Error(
         '"http://schemas.openid.net/event/backchannel-logout" member in the "events" claim must be an object'
       );

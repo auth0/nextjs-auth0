@@ -68,6 +68,21 @@ describe('backchannel-logout', () => {
     await expect(isLoggedOut({ sub: 'bar' }, getConfig({ baseURL, ...params }))).resolves.toEqual(true);
   });
 
+  it('should fail when saving fails', async () => {
+    const store = new Store();
+    store.set = function () {
+      throw new Error('saving failed');
+    };
+    const params = { ...defaultConfig, session: { store, genId: () => 'foo' } };
+    const baseURL = await setup(params);
+    await expect(
+      post(baseURL, '/backchannel-logout', {
+        body: { logout_token: await makeLogoutToken({ sub: 'bar' }) },
+        fullResponse: true
+      })
+    ).rejects.toThrow('saving failed');
+  });
+
   it('should save logout with absolute duration', async () => {
     const store = new Store();
     const baseURL = await setup({ ...defaultConfig, session: { store, genId: () => 'foo', rolling: false } });
