@@ -3,6 +3,8 @@ import { Config, GetConfig } from '../config';
 import { GetClient } from '../client/abstract-client';
 import getLogoutTokenVerifier from '../utils/logout-token-verifier';
 import * as querystring from 'querystring';
+import { BackchannelLogoutError } from '../utils/errors';
+import { JWTPayload } from 'jose';
 
 const getStore = (config: Config) => {
   const {
@@ -28,15 +30,21 @@ export default function backchannelLogoutHandlerFactory(
     if (typeof body === 'string') {
       try {
         body = querystring.parse(body) as Record<string, string>;
+        /* c8 ignore next 3 */
       } catch (e) {
         body = {};
       }
     }
     const logoutToken = (body as Record<string, string>).logout_token;
     if (!logoutToken) {
-      throw new Error('Missing Logout Token');
+      throw new BackchannelLogoutError('invalid_request', 'Missing Logout Token');
     }
-    const token = await verifyLogoutToken(logoutToken, config, await client.getIssuerMetadata());
+    let token: JWTPayload;
+    try {
+      token = await verifyLogoutToken(logoutToken, config, await client.getIssuerMetadata());
+    } catch (e) {
+      throw new BackchannelLogoutError('invalid_request', e.message);
+    }
     const {
       clientID,
       session: { absoluteDuration, rolling: rollingEnabled, rollingDuration }
@@ -51,11 +59,15 @@ export default function backchannelLogoutHandlerFactory(
       header: { iat: now, uat: now, exp: now + maxAge, maxAge },
       data: {}
     };
-    const { sid, sub } = token;
-    await Promise.all([
-      sid && store.set(`sid|${clientID}|${sid}`, payload),
-      sub && store.set(`sub|${clientID}|${sub}`, payload)
-    ]);
+    try {
+      const { sid, sub } = token;
+      await Promise.all([
+        sid && store.set(`sid|${clientID}|${sid}`, payload),
+        sub && store.set(`sub|${clientID}|${sub}`, payload)
+      ]);
+    } catch (e) {
+      throw new BackchannelLogoutError('application_error', e.message);
+    }
     res.send204();
   };
 }

@@ -101,6 +101,14 @@ export class UserInfoError extends EscapedError {
   }
 }
 
+export class BackchannelLogoutError extends Error {
+  constructor(public code: string, public description: string) {
+    /* c8 ignore next */
+    super(description);
+    Object.setPrototypeOf(this, BackchannelLogoutError.prototype);
+  }
+}
+
 // eslint-disable-next-line max-len
 // Basic escaping for putting untrusted data directly into the HTML body, per: https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html#rule-1-html-encode-before-inserting-untrusted-data-into-html-element-content.
 export function htmlSafe(input?: string): string | undefined {

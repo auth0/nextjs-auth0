@@ -50,7 +50,11 @@ export const getCookie = (findKey: string, cookieJar: CookieJar, url: string): C
 const request = (
   url: string,
   method = 'GET',
-  { body, cookieJar, fullResponse }: { body?: { [key: string]: string }; cookieJar?: CookieJar; fullResponse?: boolean }
+  {
+    body,
+    cookieJar,
+    fullResponse
+  }: { body?: { [key: string]: string } | string; cookieJar?: CookieJar; fullResponse?: boolean }
 ): Promise<{ [key: string]: string } | string | { data: { [key: string]: string } | string; res: IncomingMessage }> =>
   new Promise((resolve, reject) => {
     const { pathname, port, protocol, search = '' } = new URL(url);
@@ -90,13 +94,17 @@ const request = (
         });
       }
     );
-    req.setHeader('content-type', 'application/json');
+    if (typeof body === 'string') {
+      req.setHeader('content-type', 'application/x-www-form-urlencoded');
+    } else {
+      req.setHeader('content-type', 'application/json');
+    }
     if (cookieJar) {
       req.setHeader('cookie', cookieJar.getCookieStringSync(url));
     }
     req.on('error', reject);
     if (body) {
-      req.write(JSON.stringify(body));
+      req.write(typeof body === 'string' ? body : JSON.stringify(body));
     }
     req.end();
   });
@@ -116,7 +124,7 @@ export const post = async (
     cookieJar,
     body,
     fullResponse
-  }: { body: { [key: string]: any }; cookieJar?: CookieJar; fullResponse?: boolean; https?: boolean }
+  }: { body: { [key: string]: any } | string; cookieJar?: CookieJar; fullResponse?: boolean; https?: boolean }
 ): Promise<any | Response> => request(`${baseURL}${path}`, 'POST', { body, cookieJar, fullResponse });
 
 export const decodeJWT = (

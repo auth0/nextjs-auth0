@@ -69,7 +69,7 @@ describe('logoutTokenVerifier', () => {
   });
 
   it('should fail when events not an object', async () => {
-    const token = await makeLogoutToken({ events: [], sid: 'foo' });
+    const token = await makeLogoutToken({ events: true, sid: 'foo' });
     await expect(verify(token, getConfig(withApi), metadata)).rejects.toThrow('"events" claim must be an object');
     expect(jwksSpy).toHaveBeenCalled();
   });

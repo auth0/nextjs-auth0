@@ -3,9 +3,17 @@ import {
   loginHandler as baseLoginHandler,
   logoutHandler as baseLogoutHandler,
   callbackHandler as baseCallbackHandler,
+  backchannelLogoutHandler as baseBackchannelLogoutHandler,
   Telemetry
 } from './auth0-session';
-import { handlerFactory, callbackHandler, loginHandler, logoutHandler, profileHandler } from './handlers';
+import {
+  handlerFactory,
+  callbackHandler,
+  loginHandler,
+  logoutHandler,
+  profileHandler,
+  backchannelLogoutHandler
+} from './handlers';
 import {
   sessionFactory,
   accessTokenFactory,
@@ -47,6 +55,7 @@ export const _initAuth = ({
   const baseHandleLogin = baseLoginHandler(getConfig, getClient, transientStore);
   const baseHandleLogout = baseLogoutHandler(getConfig, getClient, sessionCache);
   const baseHandleCallback = baseCallbackHandler(getConfig, getClient, sessionCache, transientStore);
+  const baseHandleBackchannelLogout = baseBackchannelLogoutHandler(getConfig, getClient);
 
   // Init Next layer (with next config)
   const getSession = sessionFactory(sessionCache);
@@ -58,8 +67,15 @@ export const _initAuth = ({
   const handleLogin = loginHandler(baseHandleLogin, getConfig);
   const handleLogout = logoutHandler(baseHandleLogout);
   const handleCallback = callbackHandler(baseHandleCallback, getConfig);
+  const handleBackchannelLogout = backchannelLogoutHandler(baseHandleBackchannelLogout, getConfig);
   const handleProfile = profileHandler(getConfig, getClient, getAccessToken, sessionCache);
-  const handleAuth = handlerFactory({ handleLogin, handleLogout, handleCallback, handleProfile });
+  const handleAuth = handlerFactory({
+    handleLogin,
+    handleLogout,
+    handleCallback,
+    handleProfile,
+    handleBackchannelLogout
+  });
   const withMiddlewareAuthRequired = withMiddlewareAuthRequiredFactory(getConfig, sessionCache);
 
   return {
@@ -72,6 +88,7 @@ export const _initAuth = ({
     handleLogin,
     handleLogout,
     handleCallback,
+    handleBackchannelLogout,
     handleProfile,
     handleAuth,
     withMiddlewareAuthRequired
