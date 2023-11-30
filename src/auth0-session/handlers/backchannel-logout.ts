@@ -2,7 +2,6 @@ import { Auth0Request, Auth0Response } from '../http';
 import { Config, GetConfig } from '../config';
 import { GetClient } from '../client/abstract-client';
 import getLogoutTokenVerifier from '../utils/logout-token-verifier';
-import * as querystring from 'querystring';
 import { BackchannelLogoutError } from '../utils/errors';
 import { JWTPayload } from 'jose';
 
@@ -26,16 +25,8 @@ export default function backchannelLogoutHandlerFactory(
     const config = await getConfigFn(req);
     const client = await getClient(config);
     res.setHeader('cache-control', 'no-store');
-    let body = await req.getBody();
-    if (typeof body === 'string') {
-      try {
-        body = querystring.parse(body) as Record<string, string>;
-        /* c8 ignore next 3 */
-      } catch (e) {
-        body = {};
-      }
-    }
-    const logoutToken = (body as Record<string, string>).logout_token;
+    const body = new URLSearchParams(await req.getBody());
+    const logoutToken = body.get('logout_token');
     if (!logoutToken) {
       throw new BackchannelLogoutError('invalid_request', 'Missing Logout Token');
     }
