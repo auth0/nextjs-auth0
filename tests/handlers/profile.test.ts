@@ -10,9 +10,11 @@ import {
   getResponse,
   login as appRouterLogin,
   getSession as appRouterGetSession,
-  mockFetch
+  mockFetch,
+  initAuth0
 } from '../fixtures/app-router-helpers';
 import { NextRequest } from 'next/server';
+import { Store } from '../auth0-session/fixtures/helpers';
 
 describe('profile handler (app router)', () => {
   beforeEach(mockFetch);
@@ -177,5 +179,26 @@ describe('profile handler (app router)', () => {
         }
       })
     ).resolves.toMatchObject({ status: 500, statusText: expect.stringMatching(/some validation error/) });
+  });
+
+  test('should clear the cookie after back-channel logout', async () => {
+    const store = new Store();
+    const auth0Instance = initAuth0({ ...withApi, backchannelLogout: { store } });
+    const loginRes = await appRouterLogin({ auth0Instance });
+    const res = await getResponse({
+      auth0Instance,
+      url: '/api/auth/me',
+      cookies: { appSession: loginRes.cookies.get('appSession').value }
+    });
+    expect(res.status).toBe(200);
+    const user = await res.json();
+    await store.set(`sub|${withApi.clientID}|${user.sub}`, {});
+    const res2 = await getResponse({
+      auth0Instance,
+      url: '/api/auth/me',
+      cookies: { appSession: loginRes.cookies.get('appSession').value }
+    });
+    expect(res2.status).toBe(204);
+    expect(res2.headers.get('Set-cookie')).toMatch(/^appSession=;.*/);
   });
 });
