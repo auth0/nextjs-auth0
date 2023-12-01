@@ -45,7 +45,7 @@ const appRouteHandlerFactory: (
           error: e.code || 'unknown_error',
           error_description: e.description || e.message
         },
-        { status: 400 }
+        { status: 400, headers: { 'cache-control': 'no-store' } }
       );
     }
   };
@@ -63,6 +63,7 @@ const pageRouteHandlerFactory: (
     }
     return await handler(auth0Req, new Auth0NextApiResponse(res));
   } catch (e) {
+    res.setHeader('cache-control', 'no-store');
     res.status(400).json({
       error: e.code || 'unknown_error',
       error_description: e.description || e.message

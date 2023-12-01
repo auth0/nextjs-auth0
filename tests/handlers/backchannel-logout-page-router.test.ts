@@ -53,9 +53,12 @@ describe('backchannel-logout handler (page router)', () => {
     const logoutToken = await makeLogoutToken({ iss: 'https://acme.auth0.local/', sid: 'foo', sub: 'bar' });
     const baseUrl = await setup({ ...withoutApi, backchannelLogout: { store } });
 
-    await expect(
-      post(baseUrl, '/api/auth/backchannel-logout', { fullResponse: true, body: `logout_token=${logoutToken}` })
-    ).resolves.toMatchObject({ res: { statusCode: 204 } });
+    const { res } = await post(baseUrl, '/api/auth/backchannel-logout', {
+      fullResponse: true,
+      body: `logout_token=${logoutToken}`
+    });
+    expect(res.statusCode).toBe(204);
+    expect(res.headers['cache-control']).toBe('no-store');
     await expect(store.get('sid|__test_client_id__|foo')).resolves.toMatchObject({ data: {} });
     await expect(store.get('sub|__test_client_id__|bar')).resolves.toMatchObject({ data: {} });
   });
