@@ -60,6 +60,7 @@ describe('backchannel-logout handler (app router)', () => {
       reqInit: { method: 'post', body: `logout_token=${logoutToken}` }
     });
     expect(res.status).toBe(204);
+    expect(res.headers.get('cache-control')).toBe('no-store');
   });
 
   test('should fail when logout token validation fails', async () => {
@@ -73,6 +74,7 @@ describe('backchannel-logout handler (app router)', () => {
       error: 'invalid_request',
       error_description: '"events" claim must be an object'
     });
+    expect(res.headers.get('cache-control')).toBe('no-store');
   });
 
   test('should save tokens into the store when a valid logout token is provided', async () => {
