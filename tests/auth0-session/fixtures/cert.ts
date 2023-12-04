@@ -1,4 +1,5 @@
 import * as jose from 'jose';
+import crypto from 'crypto';
 import { IdTokenClaims } from 'openid-client';
 
 const publicKey = {
@@ -56,4 +57,23 @@ export const makeIdToken = async (payload?: Partial<IdTokenClaims>): Promise<str
   return new jose.SignJWT(payload as IdTokenClaims)
     .setProtectedHeader({ alg: 'RS256' })
     .sign(await jose.importJWK(privateKey));
+};
+
+export const makeLogoutToken = async (payload = {}, secret?: string) => {
+  payload = {
+    iss: 'https://op.example.com/',
+    aud: '__test_client_id__',
+    iat: Math.round(Date.now() / 1000),
+    jti: crypto.randomBytes(16).toString('hex'),
+    events: {
+      'http://schemas.openid.net/event/backchannel-logout': {}
+    },
+    ...payload
+  };
+
+  const symmetricKey = (secret && new TextEncoder().encode(secret)) || null;
+
+  return new jose.SignJWT(payload)
+    .setProtectedHeader({ alg: symmetricKey ? 'HS256' : 'RS256', typ: 'logout+jwt' })
+    .sign(symmetricKey || (await jose.importJWK(privateKey)));
 };

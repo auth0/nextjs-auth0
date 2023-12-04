@@ -22,5 +22,13 @@ export { get as getConfig, ConfigParameters, DeepPartial } from './get-config';
 export { default as loginHandler, HandleLogin } from './handlers/login';
 export { default as logoutHandler, HandleLogout } from './handlers/logout';
 export { default as callbackHandler, CallbackOptions, AfterCallback, HandleCallback } from './handlers/callback';
+export {
+  default as backchannelLogoutHandler,
+  HandleBackchannelLogout,
+  isLoggedOut,
+  IsLoggedOut,
+  DeleteSub,
+  deleteSub
+} from './handlers/backchannel-logout';
 export { TokenEndpointResponse, AbstractClient, Telemetry } from './client/abstract-client';
 export { SessionCache } from './session-cache';

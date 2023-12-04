@@ -2,7 +2,14 @@ import { IncomingMessage, ServerResponse } from 'http';
 import { NextApiRequest, NextApiResponse } from 'next';
 import { NextRequest, NextResponse } from 'next/server';
 import type { TokenEndpointResponse } from '../auth0-session';
-import { SessionCache as ISessionCache, AbstractSession, StatefulSession, StatelessSession } from '../auth0-session';
+import {
+  SessionCache as ISessionCache,
+  AbstractSession,
+  StatefulSession,
+  StatelessSession,
+  isLoggedOut,
+  deleteSub
+} from '../auth0-session';
 import Session, { fromJson, fromTokenEndpointResponse } from './session';
 import { Auth0Request, Auth0Response, NodeRequest, NodeResponse } from '../auth0-session/http';
 import {
@@ -54,10 +61,16 @@ export default class SessionCache implements ISessionCache<Req, Res, Session> {
       const config = await this.getConfig(auth0Req);
       const sessionStore = this.getSessionStore(config);
       const [json, iat] = await sessionStore.read(auth0Req);
-      this.iatCache.set(req, iat);
-      this.cache.set(req, fromJson(json));
-      if (config.session.rolling && config.session.autoSave && autoSave) {
+      const session = fromJson(json);
+      if (session && config.backchannelLogout && (await isLoggedOut(session.user, config))) {
+        this.cache.set(req, null);
         await this.save(req, res);
+      } else {
+        this.iatCache.set(req, iat);
+        this.cache.set(req, session);
+        if (config.session.rolling && config.session.autoSave && autoSave) {
+          await this.save(req, res);
+        }
       }
     }
   }
@@ -70,6 +83,11 @@ export default class SessionCache implements ISessionCache<Req, Res, Session> {
   }
 
   async create(req: Req, res: Res, session: Session): Promise<void> {
+    const [auth0Req] = getAuth0ReqRes(req, res);
+    const config = await this.getConfig(auth0Req);
+    if (config.backchannelLogout) {
+      await deleteSub(session.user.sub, config);
+    }
     this.cache.set(req, session);
     await this.save(req, res);
   }
@@ -130,10 +148,15 @@ export const get = async ({
   } = config;
   const [json, iat] = await sessionStore.read(auth0Req);
   const session = fromJson(json);
-  if (rolling && autoSave) {
-    await set({ session, sessionCache, iat });
+  if (session && config.backchannelLogout && (await isLoggedOut(session.user, config))) {
+    await set({ session: null, sessionCache });
+    return [];
+  } else {
+    if (rolling && autoSave) {
+      await set({ session, sessionCache, iat });
+    }
+    return [session, iat];
   }
-  return [session, iat];
 };
 
 export const set = async ({

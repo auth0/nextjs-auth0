@@ -84,6 +84,11 @@ export interface AuthorizationParameters {
   [key: string]: unknown;
 }
 
+export type IssuerMetadata = {
+  issuer: string;
+  jwks_uri?: string;
+};
+
 export abstract class AbstractClient {
   constructor(protected config: Config, protected telemetry: Telemetry) {}
   abstract authorizationUrl(parameters: Record<string, unknown>): Promise<string>;
@@ -103,6 +108,7 @@ export abstract class AbstractClient {
   abstract generateRandomCodeVerifier(): string;
   abstract generateRandomNonce(): string;
   abstract calculateCodeChallenge(codeVerifier: string): Promise<string> | string;
+  abstract getIssuerMetadata(): Promise<IssuerMetadata>;
 }
 
 export type GetClient = (config: Config) => Promise<AbstractClient>;

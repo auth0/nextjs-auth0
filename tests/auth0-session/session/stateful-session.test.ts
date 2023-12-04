@@ -1,6 +1,6 @@
 import { TokenSet } from 'openid-client';
 import { setup, teardown } from '../fixtures/server';
-import { defaultConfig, get, post, toSignedCookieJar } from '../fixtures/helpers';
+import { defaultConfig, get, post, toSignedCookieJar, Store } from '../fixtures/helpers';
 import { ConfigParameters, SessionStore } from '../../../src/auth0-session';
 import { SessionPayload } from '../../../src/auth0-session/session/abstract-session';
 import { makeIdToken } from '../fixtures/cert';
@@ -27,24 +27,6 @@ const login = async (baseURL: string, existingSession?: { appSession: string }):
   });
   return cookieJar;
 };
-
-class Store {
-  public store: { [key: string]: any };
-  constructor() {
-    this.store = {};
-  }
-  get(id: string) {
-    return Promise.resolve(this.store[id]);
-  }
-  async set(id: string, val: any) {
-    this.store[id] = val;
-    await Promise.resolve();
-  }
-  async delete(id: string) {
-    delete this.store[id];
-    await Promise.resolve();
-  }
-}
 
 const getPayload = async (
   data = { sub: 'dave' },

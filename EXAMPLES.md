@@ -11,6 +11,7 @@
 - [Add a signup handler](#add-a-signup-handler)
 - [Use with Base Path and Internationalized Routing](#use-with-base-path-and-internationalized-routing)
 - [Use a custom session store](#use-a-custom-session-store)
+- [Back-Channel Logout](#back-channel-logout)
 
 See also the [example app](./example-app).
 
@@ -505,25 +506,73 @@ class Store implements SessionStore {
   }
 }
 
-let auth0;
-
-export default () => {
-  if (!auth0) {
-    auth0 = initAuth0({
-      session: {
-        store: new Store()
-      }
-    });
+export default initAuth0({
+  session: {
+    store: new Store()
   }
-  return auth0;
-};
+});
 ```
 
 Then use your instance wherever you use the server methods of the SDK.
 
 ```ts
 // /pages/api/auth/[auth0].js
-import getAuth0 from '../../../lib/auth0';
+import auth0 from '../../../lib/auth0';
 
-export default getAuth0().handleAuth();
+export default auth0.handleAuth();
 ```
+
+### Back-Channel Logout
+
+Back-Channel Logout requires a session store, so you'll need to create your own instance of the SDK in code and pass an instance of your session store to the SDK's configuration:
+
+```js
+// lib/auth0.ts
+import { initAuth0 } from '@auth0/nextjs-auth0';
+
+export default initAuth0({
+  backChannelLogout: {
+    store: new Store() // See "Use a custom session store" for how to define a Store class.
+  }
+});
+```
+
+If you are already using a session store, you can just reuse that:
+
+```js
+// lib/auth0.ts
+import { initAuth0 } from '@auth0/nextjs-auth0';
+
+export default initAuth0({
+  session: {
+    store: new Store()
+  },
+  backchannelLogout: true
+});
+```
+
+Once you've enabled the `backchannelLogout` option, `handleAuth` will create a `/api/auth/backchannel-logout` POST handler.
+
+#### Pages Router
+
+```ts
+// /pages/api/auth/[auth0].js
+import auth0 from '../../../lib/auth0';
+
+export default auth0.handleAuth();
+```
+
+#### App Router
+
+```ts
+// /app/api/auth/[auth0]/route.js
+import auth0 from '../../../lib/auth0';
+
+const handler = auth0.handleAuth();
+
+// For Back-Channel Logout you need to export a GET and a POST handler.
+export { handler as GET, handler as POST };
+```
+
+Then configure your tenant following [these instructions](https://auth0.com/docs/authenticate/login/logout/back-channel-logout/configure-back-channel-logout#configure-auth0).
+Your "OpenID Connect Back-Channel Logout URI" will be `{YOUR_AUTH0_BASE_URL}/api/auth/backchannel-logout`. 
