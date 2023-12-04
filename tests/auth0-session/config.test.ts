@@ -545,4 +545,35 @@ describe('Config', () => {
     ).not.toThrowError();
     expect(() => config({ response_type: 'code id_token', response_mode: 'form_post' })).not.toThrow();
   });
+
+  it('should require a session store for back-channel logout', () => {
+    expect(() => getConfig({ ...defaultConfig, backchannelLogout: true })).toThrow(
+      // eslint-disable-next-line max-len
+      `Back-Channel Logout requires a "backchannelLogout.store" (you can also reuse "session.store" if you have stateful sessions).`
+    );
+  });
+
+  it(`should configure back-channel logout with it's own store`, () => {
+    expect(() =>
+      getConfig({
+        ...defaultConfig,
+        backchannelLogout: { store: {} }
+      })
+    ).not.toThrow();
+  });
+
+  it(`should configure back-channel logout with a shared store`, () => {
+    expect(() =>
+      getConfig({
+        ...defaultConfig,
+        backchannelLogout: true,
+        session: {
+          store: {},
+          genId() {
+            return '';
+          }
+        }
+      })
+    ).not.toThrow();
+  });
 });

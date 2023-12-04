@@ -26,6 +26,8 @@ import { Claims } from '../../../src/session';
 import version from '../../../src/version';
 import { NodeRequest, NodeResponse } from '../../../src/auth0-session/http';
 import { clientGetter } from '../../../src/auth0-session/client/node-client';
+import backchannelLogoutHandlerFactory from '../../../src/auth0-session/handlers/backchannel-logout';
+import { promisify } from 'util';
 
 export type SessionResponse = TokenSetParameters & { claims: Claims };
 
@@ -67,6 +69,7 @@ type Handlers = {
   handleLogin: (req: NodeRequest, res: NodeResponse, opts?: LoginOptions) => Promise<void>;
   handleLogout: (req: NodeRequest, res: NodeResponse, opts?: LogoutOptions) => Promise<void>;
   handleCallback: (req: NodeRequest, res: NodeResponse, opts?: CallbackOptions) => Promise<void>;
+  handleBackchannelLogout: (req: NodeRequest, res: NodeResponse) => Promise<void>;
   handleSession: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
 };
 
@@ -81,6 +84,7 @@ const createHandlers = (params: ConfigParameters): Handlers => {
     handleLogin: loginHandler(config, getClient, transientStore),
     handleLogout: logoutHandler(config, getClient, sessionCache),
     handleCallback: callbackHandler(config, getClient, sessionCache, transientStore),
+    handleBackchannelLogout: backchannelLogoutHandlerFactory(config, getClient),
     handleSession: async (req: IncomingMessage, res: ServerResponse) => {
       const nodeReq = new NodeRequest(req);
       const [json, iat] = await cookieStore.read(nodeReq);
@@ -99,16 +103,14 @@ const createHandlers = (params: ConfigParameters): Handlers => {
 
 export const parseJson = async (req: IncomingMessage, res: ServerResponse): Promise<IncomingMessage> => {
   const { default: bodyParser } = await import('body-parser');
-  const jsonParse = bodyParser.json();
-  return await new Promise((resolve, reject) => {
-    jsonParse(req, res, (error: Error | undefined) => {
-      if (error) {
-        reject(error);
-      } else {
-        resolve(req);
-      }
-    });
-  });
+  const jsonParser = promisify(bodyParser.json());
+  const formParser = promisify(bodyParser.urlencoded({ extended: true }));
+  if (req.headers['content-type'] === 'application/json') {
+    await jsonParser(req, res);
+  } else {
+    await formParser(req, res);
+  }
+  return req;
 };
 
 const requestListener =
@@ -146,6 +148,8 @@ const requestListener =
             nodeRes,
             (callbackOptions || nodeCallbackOptions) as CallbackOptions
           );
+        case '/backchannel-logout':
+          return await handlers.handleBackchannelLogout(nodeReq, nodeRes);
         case '/session':
           return await handlers.handleSession(req, res);
         default:
