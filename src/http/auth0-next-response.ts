@@ -27,4 +27,16 @@ export default class Auth0NextResponse extends Auth0Response<NextResponse> {
       this.res.cookies.set(cookie);
     }
   }
+
+  public setHeader(name: string, value: string) {
+    this.res.headers.set(name, value);
+  }
+
+  public send204() {
+    const oldRes = this.res;
+    this.res = new NextResponse(null, { status: 204 });
+    oldRes.headers.forEach((value, key) => {
+      this.res.headers.set(key, value);
+    });
+  }
 }

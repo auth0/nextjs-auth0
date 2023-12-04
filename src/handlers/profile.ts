@@ -154,7 +154,9 @@ const appRouteHandlerFactory: (
       const res = new NextResponse();
 
       if (!(await sessionCache.isAuthenticated(req, res))) {
-        return new Response(null, { status: 204 });
+        const emptyRes = new NextResponse(null, { status: 204 });
+        res.headers.forEach((val, key) => emptyRes.headers.set(key, val));
+        return emptyRes;
       }
 
       const session = (await sessionCache.get(req, res)) as Session;

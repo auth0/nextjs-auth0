@@ -204,6 +204,30 @@ export interface Config {
    * cookie (Setting SameSite=Strict for example).
    */
   transactionCookie: Omit<CookieConfig, 'transient' | 'httpOnly'> & { name: string };
+
+  /**
+   * Set to `true` to enable Back-Channel Logout in your application.
+   *
+   * On receipt of a Logout Token the backchannelLogout webhook will store the token, then on any
+   * subsequent requests, will check the store for a Logout Token that corresponds to the
+   * current session. If it finds one, it will log the user out.
+   *
+   * In order for this to work you need to specify a {@link BackchannelLogoutOptions.store},
+   * or you can reuse {@link SessionConfigParams.store} if you are using one already.
+   *
+   * See: https://openid.net/specs/openid-connect-backchannel-1_0.html
+   */
+  backchannelLogout: boolean | BackchannelLogoutOptions;
+}
+
+export interface BackchannelLogoutOptions {
+  /**
+   * Used to store Back-Channel Logout entries, you can specify a separate store
+   * for this or just reuse {@link SessionConfig.store} if you are using one already.
+   *
+   * The store should have `get`, `set` and `destroy` methods.
+   */
+  store: SessionStore<any>;
 }
 
 /**

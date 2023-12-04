@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server';
 import { HandleLogin } from './login';
 import { HandleLogout } from './logout';
 import { HandleCallback } from './callback';
+import { HandleBackchannelLogout } from './backchannel-logout';
 import { HandleProfile } from './profile';
 import { HandlerError } from '../utils/errors';
 import {
@@ -169,18 +170,21 @@ export default function handlerFactory({
   handleLogin,
   handleLogout,
   handleCallback,
-  handleProfile
+  handleProfile,
+  handleBackchannelLogout
 }: {
   handleLogin: HandleLogin;
   handleLogout: HandleLogout;
   handleCallback: HandleCallback;
   handleProfile: HandleProfile;
+  handleBackchannelLogout: HandleBackchannelLogout;
 }): HandleAuth {
   return ({ onError, ...handlers }: Handlers = {}): NextApiHandler<void> | AppRouteHandlerFn => {
     const customHandlers: ApiHandlers = {
       login: handleLogin,
       logout: handleLogout,
       callback: handleCallback,
+      'backchannel-logout': handleBackchannelLogout,
       me: (handlers as ApiHandlers).profile || handleProfile,
       ...handlers
     };

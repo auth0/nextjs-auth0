@@ -61,6 +61,7 @@ export type GetResponseOpts = {
   extraHandlers?: any;
   clearNock?: boolean;
   auth0Instance?: Auth0Server;
+  reqInit?: RequestInit;
 };
 
 export type LoginOpts = Omit<GetResponseOpts, 'url'>;
@@ -79,7 +80,8 @@ export const getResponse = async ({
   profileOpts,
   extraHandlers,
   clearNock = true,
-  auth0Instance
+  auth0Instance,
+  reqInit
 }: GetResponseOpts) => {
   const opts = { ...withApi, ...config };
   clearNock && nock.cleanAll();
@@ -105,7 +107,7 @@ export const getResponse = async ({
         .join('; ')
     );
   }
-  return handleAuth(new NextRequest(new URL(url, opts.baseURL), { headers }), { params: { auth0 } });
+  return handleAuth(new NextRequest(new URL(url, opts.baseURL), { headers, ...reqInit } as any), { params: { auth0 } });
 };
 
 export const getSession = async (config: any, res: NextResponse) => {

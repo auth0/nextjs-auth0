@@ -242,6 +242,11 @@ export class EdgeClient extends AbstractClient {
   calculateCodeChallenge(codeVerifier: string): Promise<string> {
     return oauth.calculatePKCECodeChallenge(codeVerifier);
   }
+
+  async getIssuerMetadata(): Promise<oauth.AuthorizationServer> {
+    const [as] = await this.getClient();
+    return as;
+  }
 }
 
 export const clientGetter = (telemetry: Telemetry): ((config: Config) => Promise<EdgeClient>) => {

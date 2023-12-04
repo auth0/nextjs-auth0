@@ -1,10 +1,11 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { Socket } from 'net';
-import { StatelessSession } from '../../src/auth0-session';
+import { isLoggedOut, StatelessSession } from '../../src/auth0-session';
 import { getConfig } from '../../src/config';
 import { get, set } from '../../src/session/cache';
 import { ConfigParameters, Session, SessionCache } from '../../src';
 import { withoutApi } from '../fixtures/default-settings';
+import { Store } from '../auth0-session/fixtures/helpers';
 
 describe('SessionCache', () => {
   let cache: SessionCache;
@@ -44,6 +45,17 @@ describe('SessionCache', () => {
     );
   });
 
+  test(`should create the session entry and delete the user's logout entry`, async () => {
+    const store = new Store();
+    const params = { ...withoutApi, backchannelLogout: { store } };
+    setup(params);
+    await store.set(`sub|${withoutApi.clientID}|${session.user.sub}`, {});
+    await expect(isLoggedOut(session.user, getConfig(params))).resolves.toEqual(true);
+    await cache.create(req, res, session);
+    await expect(store.get(`sub|${withoutApi.clientID}|${session.user.sub}`)).resolves.toBeUndefined();
+    await expect(isLoggedOut(session.user, getConfig(params))).resolves.toEqual(false);
+  });
+
   test('should delete the session entry', async () => {
     await cache.create(req, res, session);
     expect(await cache.get(req, res)).toEqual(session);
@@ -63,6 +75,20 @@ describe('SessionCache', () => {
   test('should get an id token for authenticated user', async () => {
     await cache.create(req, res, session);
     expect(await cache.getIdToken(req, res)).toEqual('__test_id_token__');
+  });
+
+  test('should logout a user via back-channel', async () => {
+    const store = new Store();
+    const params = { ...withoutApi, backchannelLogout: { store } };
+    setup(params);
+    sessionStore.read = jest.fn().mockResolvedValue([session, 500]);
+    await expect(cache.isAuthenticated(req, res)).resolves.toEqual(true);
+    await store.set(`sub|${withoutApi.clientID}|${session.user.sub}`, {});
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    cache.cache.delete(req); // clear cache
+    await expect(cache.isAuthenticated(req, res)).resolves.toEqual(false);
+    expect(sessionStore.save).toHaveBeenCalledWith(expect.anything(), expect.anything(), null, 500);
   });
 
   test('should get no id token for anonymous user', async () => {
@@ -114,5 +140,16 @@ describe('SessionCache', () => {
     sessionStore.read = jest.fn().mockResolvedValue([{ user: { sub: '__test_user__' } }, 500]);
     const [session] = await get({ sessionCache: cache });
     expect(session).toBeInstanceOf(Session);
+  });
+
+  test('should logout a user via back-channel from RSC', async () => {
+    const store = new Store();
+    const params = { ...withoutApi, backchannelLogout: { store } };
+    setup(params);
+    sessionStore.read = jest.fn().mockResolvedValue([session, 500]);
+    expect((await get({ sessionCache: cache }))[0]?.user).toEqual(session.user);
+    await store.set(`sub|${withoutApi.clientID}|${session.user.sub}`, {});
+    expect((await get({ sessionCache: cache }))[0]?.user).toBeUndefined();
+    expect(sessionStore.save).toHaveBeenCalledWith(expect.anything(), expect.anything(), null, undefined);
   });
 });
