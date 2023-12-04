@@ -1,5 +1,14 @@
 # Change Log
 
+## [v3.4.0](https://github.com/auth0/nextjs-auth0/tree/v3.4.0) (2023-12-04)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.3.0...v3.4.0)
+
+**Added**
+- [SDK-4719] Back-Channel Logout [\#1590](https://github.com/auth0/nextjs-auth0/pull/1590) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
+**Fixed**
+- Should get instance of Session in RSCs [\#1565](https://github.com/auth0/nextjs-auth0/pull/1565) ([adamjmcgrath](https://github.com/adamjmcgrath))
+
 ## [v3.3.0](https://github.com/auth0/nextjs-auth0/tree/v3.3.0) (2023-11-13)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.2.0...v3.3.0)
 
