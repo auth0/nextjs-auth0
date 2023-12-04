@@ -30,7 +30,18 @@ const paramsSchema = Joi.object({
       .default(7 * 24 * 60 * 60), // 7 days,
     autoSave: Joi.boolean().optional().default(true),
     name: Joi.string().token().optional().default('appSession'),
-    store: Joi.object().optional(),
+    store: Joi.object()
+      .optional()
+      .when(Joi.ref('/backchannelLogout'), {
+        not: false,
+        then: Joi.when('/backchannelLogout.store', {
+          not: Joi.exist(),
+          then: Joi.object().required().messages({
+            // eslint-disable-next-line max-len
+            'any.required': `Back-Channel Logout requires a "backchannelLogout.store" (you can also reuse "session.store" if you have stateful sessions).`
+          })
+        })
+      }),
     genId: Joi.function().maxArity(2).when(Joi.ref('store'), { then: Joi.required() }),
     storeIDToken: Joi.boolean().optional().default(true),
     cookie: Joi.object({
@@ -176,7 +187,13 @@ const paramsSchema = Joi.object({
     path: Joi.string().uri({ relativeOnly: true }).default(Joi.ref('/session.cookie.transient'))
   })
     .default()
-    .unknown(false)
+    .unknown(false),
+  backchannelLogout: Joi.alternatives([
+    Joi.object({
+      store: Joi.object().optional()
+    }),
+    Joi.boolean()
+  ]).default(false)
 });
 
 export type DeepPartial<T> = {

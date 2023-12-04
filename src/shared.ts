@@ -1,5 +1,12 @@
 import { SessionStore as GenericSessionStore, SessionPayload } from './auth0-session';
-import { HandleAuth, HandleLogin, HandleProfile, HandleLogout, HandleCallback } from './handlers';
+import {
+  HandleAuth,
+  HandleLogin,
+  HandleProfile,
+  HandleLogout,
+  HandleCallback,
+  HandleBackchannelLogout
+} from './handlers';
 import { SessionCache, GetSession, GetAccessToken, Session, TouchSession, UpdateSession } from './session/';
 import { WithApiAuthRequired, WithPageAuthRequired } from './helpers';
 import { ConfigParameters } from './config';
@@ -52,6 +59,11 @@ export interface Auth0Server {
    * Logout handler which will clear the local session and the Auth0 session.
    */
   handleLogout: HandleLogout;
+
+  /**
+   * Logout handler which will clear the local session and the Auth0 session.
+   */
+  handleBackchannelLogout: HandleBackchannelLogout;
 
   /**
    * Profile handler which return profile information about the user.
@@ -152,6 +164,7 @@ export {
   HandleProfile,
   HandleLogout,
   HandleCallback,
+  HandleBackchannelLogout,
   WithApiAuthRequired,
   WithPageAuthRequired,
   SessionCache,

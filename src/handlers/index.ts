@@ -15,6 +15,7 @@ export {
   GetLoginStateAppRoute
 } from './login';
 export { default as logoutHandler, HandleLogout, LogoutOptions } from './logout';
+export { default as backchannelLogoutHandler, HandleBackchannelLogout } from './backchannel-logout';
 export {
   default as profileHandler,
   HandleProfile,
