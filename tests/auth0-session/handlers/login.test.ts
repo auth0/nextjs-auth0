@@ -293,4 +293,30 @@ describe('login', () => {
     expect(cookie?.sameSite).toEqual('none');
     expect(cookie?.secure).toBeTruthy();
   });
+
+  it('should redirect to the authorize url for /login when "pushedAuthorizationRequests" is enabled', async () => {
+    const baseURL = await setup({
+      ...defaultConfig,
+      clientSecret: '__test_client_secret__',
+      clientAuthMethod: 'client_secret_post',
+      pushedAuthorizationRequests: true
+    });
+    const cookieJar = new CookieJar();
+
+    const { res } = await get(baseURL, '/login', { fullResponse: true, cookieJar });
+    expect(res.statusCode).toEqual(302);
+
+    const parsed = parse(res.headers.location, true);
+    expect(parsed).toMatchObject({
+      host: 'op.example.com',
+      hostname: 'op.example.com',
+      pathname: '/authorize',
+      protocol: 'https:',
+      query: expect.objectContaining({
+        request_uri: 'foo',
+        response_type: 'code',
+        scope: 'openid'
+      })
+    });
+  });
 });

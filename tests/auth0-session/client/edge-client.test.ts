@@ -57,7 +57,7 @@ const getClient = async (params: ConfigParameters = {}): Promise<EdgeClient> => 
 };
 
 describe('edge client', function () {
-  let headersSpy = jest.fn();
+  const headersSpy = jest.fn();
 
   beforeEach(() => {
     mockFetch();
@@ -387,5 +387,26 @@ describe('edge client', function () {
     await expect(client.refresh('foo', { exchangeBody: { error: '1' } })).rejects.toThrow(
       'The request to refresh the access token failed. CAUSE: bar'
     );
+  });
+
+  it('should throw an error if "pushedAuthorizationRequests" is enabled and issuer does not support pushed_authorization_request_endpoint', async function () {
+    nock.cleanAll();
+    nock('https://op.example.com')
+      .get('/.well-known/openid-configuration')
+      .reply(200, {
+        ...wellKnown,
+        pushed_authorization_request_endpoint: undefined
+      });
+    const client = await getClient({ ...defaultConfig, pushedAuthorizationRequests: true });
+    // @ts-ignore
+    await expect(client.getClient()).rejects.toThrow(
+      'pushed_authorization_request_endpoint must be configured on the issuer to use pushedAuthorizationRequests'
+    );
+  });
+
+  it('should succeed if "pushedAuthorizationRequests" is enabled and issuer supports pushed_authorization_request_endpoint', async function () {
+    const client = await getClient({ ...defaultConfig, pushedAuthorizationRequests: true });
+    // @ts-ignore
+    await expect(client.getClient()).resolves.not.toThrow();
   });
 });

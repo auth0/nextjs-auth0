@@ -19,7 +19,7 @@ import {
   HandleProfile,
   HandleBackchannelLogout
 } from '../../src';
-import { codeExchange, discovery, jwksEndpoint, userInfo } from './oidc-nocks';
+import { codeExchange, discovery, jwksEndpoint, par, userInfo } from './oidc-nocks';
 import { jwks, makeIdToken } from '../auth0-session/fixtures/cert';
 import { start, stop } from './server';
 import { encodeState } from '../../src/auth0-session/utils/encoding';
@@ -43,6 +43,8 @@ export type SetupOptions = {
   userInfoPayload?: Record<string, string>;
   userInfoToken?: string;
   asyncProps?: boolean;
+  parStatus?: number;
+  parPayload?: Record<string, unknown>;
 };
 
 export const defaultOnError: PageRouterOnError = (_req, res, error) => {
@@ -56,13 +58,19 @@ export const setupNock = async (
     idTokenClaims,
     discoveryOptions,
     userInfoPayload = {},
-    userInfoToken = 'eyJz93a...k4laUWw'
-  }: Pick<SetupOptions, 'idTokenClaims' | 'discoveryOptions' | 'userInfoPayload' | 'userInfoToken'> = {}
+    userInfoToken = 'eyJz93a...k4laUWw',
+    parStatus = 201,
+    parPayload = { request_uri: 'foo', expires_in: 100 }
+  }: Pick<
+    SetupOptions,
+    'idTokenClaims' | 'discoveryOptions' | 'userInfoPayload' | 'userInfoToken' | 'parStatus' | 'parPayload'
+  > = {}
 ) => {
   discovery(config, discoveryOptions);
   jwksEndpoint(config, jwks);
   codeExchange(config, await makeIdToken({ iss: 'https://acme.auth0.local/', ...idTokenClaims }));
   userInfo(config, userInfoToken, userInfoPayload);
+  par(config, parStatus, parPayload);
 };
 
 export const setup = async (

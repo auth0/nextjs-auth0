@@ -220,4 +220,25 @@ describe('node client', function () {
     nock('https://op.example.com').get('/userinfo').reply(500, {});
     await expect((await getClient()).userinfo('token')).rejects.toThrow(UserInfoError);
   });
+
+  it('should throw an error if "pushedAuthorizationRequests" is enabled and issuer does not support pushed_authorization_request_endpoint', async function () {
+    nock.cleanAll();
+    nock('https://op.example.com')
+      .get('/.well-known/openid-configuration')
+      .reply(200, {
+        ...wellKnown,
+        pushed_authorization_request_endpoint: undefined
+      });
+    const client = await getClient({ ...defaultConfig, pushedAuthorizationRequests: true });
+    // @ts-ignore
+    await expect(client.getClient()).rejects.toThrow(
+      'pushed_authorization_request_endpoint must be configured on the issuer to use pushedAuthorizationRequests'
+    );
+  });
+
+  it('should succeed if "pushedAuthorizationRequests" is enabled and issuer supports pushed_authorization_request_endpoint', async function () {
+    const client = await getClient({ ...defaultConfig, pushedAuthorizationRequests: true });
+    // @ts-ignore
+    await expect(client.getClient()).resolves.not.toThrow()
+  });
 });
