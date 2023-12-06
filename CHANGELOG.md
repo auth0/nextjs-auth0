@@ -1,5 +1,11 @@
 # Change Log
 
+## [v3.5.0](https://github.com/auth0/nextjs-auth0/tree/v3.5.0) (2023-12-06)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.4.0...v3.5.0)
+
+**Added**
+- Add Pushed Authorization Requests [\#1598](https://github.com/auth0/nextjs-auth0/pull/1598) ([ewanharris](https://github.com/ewanharris))
+
 ## [v3.4.0](https://github.com/auth0/nextjs-auth0/tree/v3.4.0) (2023-12-04)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.3.0...v3.4.0)
 
