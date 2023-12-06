@@ -62,6 +62,8 @@ export type GetResponseOpts = {
   clearNock?: boolean;
   auth0Instance?: Auth0Server;
   reqInit?: RequestInit;
+  parStatus?: number;
+  parPayload?: Record<string, unknown>;
 };
 
 export type LoginOpts = Omit<GetResponseOpts, 'url'>;
@@ -81,11 +83,13 @@ export const getResponse = async ({
   extraHandlers,
   clearNock = true,
   auth0Instance,
-  reqInit
+  reqInit,
+  parStatus,
+  parPayload
 }: GetResponseOpts) => {
   const opts = { ...withApi, ...config };
   clearNock && nock.cleanAll();
-  await setupNock(opts, { idTokenClaims, discoveryOptions, userInfoPayload, userInfoToken });
+  await setupNock(opts, { idTokenClaims, discoveryOptions, userInfoPayload, userInfoToken, parPayload, parStatus });
   const auth0 = url.split('?')[0].split('/').slice(3);
   const instance = auth0Instance || initAuth0(opts);
   const handleAuth = instance.handleAuth({

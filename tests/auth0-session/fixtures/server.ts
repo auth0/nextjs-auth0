@@ -187,6 +187,8 @@ export const setup = async (
 
   nock('https://op.example.com').get('/.well-known/jwks.json').reply(200, jwks);
 
+  nock('https://op.example.com').post('/oauth/par').reply(201, { request_uri: 'foo', expires_in: 100 });
+
   nock('https://test.eu.auth0.com')
     .get('/.well-known/openid-configuration')
     .reply(200, { ...wellKnown, issuer: 'https://test.eu.auth0.com/', end_session_endpoint: undefined });

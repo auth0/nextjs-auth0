@@ -576,4 +576,14 @@ describe('Config', () => {
       })
     ).not.toThrow();
   });
+
+  it(`shouldn't allow pushed authentication requests when clientAuthMethod is "none"`, () => {
+    expect(() =>
+      getConfig({
+        ...defaultConfig,
+        clientAuthMethod: 'none',
+        pushedAuthorizationRequests: true
+      })
+    ).toThrow(new TypeError('Public PAR clients are not supported'));
+  });
 });

@@ -254,4 +254,40 @@ describe('login handler (app router)', () => {
     expect(res.status).toBe(500);
     expect(res.statusText).toMatch(/Login handler failed. CAUSE: Custom state value must be an object/);
   });
+
+  test('should redirect to the identity provider when using pushedAuthorizationRequests', async () => {
+    const res = await getResponse({
+      url: '/api/auth/login',
+      config: {
+        clientSecret: '__test_client_secret__',
+        clientAuthMethod: 'client_secret_post',
+        pushedAuthorizationRequests: true
+      }
+    });
+    expect(urlParse(res.headers.get('location'), true)).toMatchObject({
+      protocol: 'https:',
+      host: 'acme.auth0.local',
+      hash: null,
+      query: {
+        request_uri: 'foo',
+        client_id: '__test_client_id__'
+      },
+      pathname: '/authorize'
+    });
+  });
+
+  test('should throw an error if the PAR endpoint returns an error', async () => {
+    const res = await getResponse({
+      url: '/api/auth/login',
+      config: {
+        clientSecret: '__test_client_secret__',
+        clientAuthMethod: 'client_secret_post',
+        pushedAuthorizationRequests: true
+      },
+      parStatus: 401,
+      parPayload: { error: 'invalid_client' }
+    });
+    expect(res.ok).toBe(false);
+    expect(res.statusText).toBe('Login handler failed. CAUSE: invalid_client');
+  });
 });

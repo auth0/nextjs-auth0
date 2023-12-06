@@ -147,7 +147,7 @@ const paramsSchema = Joi.object({
     .valid('client_secret_basic', 'client_secret_post', 'client_secret_jwt', 'private_key_jwt', 'none')
     .optional()
     .default((parent) => {
-      if (parent.authorizationParams.response_type === 'id_token') {
+      if (parent.authorizationParams.response_type === 'id_token' && !parent.pushedAuthorizationRequests) {
         return 'none';
       }
 
@@ -167,7 +167,13 @@ const paramsSchema = Joi.object({
           'any.only': 'Public code flow clients are not supported.'
         })
       }
-    ),
+    )
+    .when(Joi.ref('pushedAuthorizationRequests'), {
+      is: true,
+      then: Joi.string().invalid('none').messages({
+        'any.only': 'Public PAR clients are not supported'
+      })
+    }),
   clientAssertionSigningKey: Joi.any()
     .optional()
     .when(Joi.ref('clientAuthMethod'), {
@@ -193,7 +199,8 @@ const paramsSchema = Joi.object({
       store: Joi.object().optional()
     }),
     Joi.boolean()
-  ]).default(false)
+  ]).default(false),
+  pushedAuthorizationRequests: Joi.boolean().optional().default(false)
 });
 
 export type DeepPartial<T> = {

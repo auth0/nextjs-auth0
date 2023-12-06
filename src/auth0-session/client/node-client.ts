@@ -112,6 +112,12 @@ export class NodeClient extends AbstractClient {
       );
     }
 
+    if (config.pushedAuthorizationRequests && !issuer.pushed_authorization_request_endpoint) {
+      throw new TypeError(
+        'pushed_authorization_request_endpoint must be configured on the issuer to use pushedAuthorizationRequests'
+      );
+    }
+
     let jwks;
     if (config.clientAssertionSigningKey) {
       const privateKey = createPrivateKey({ key: config.clientAssertionSigningKey as string });
@@ -164,6 +170,12 @@ export class NodeClient extends AbstractClient {
 
   async authorizationUrl(parameters: Record<string, unknown>): Promise<string> {
     const client = await this.getClient();
+
+    if (this.config.pushedAuthorizationRequests) {
+      const { request_uri } = await client.pushedAuthorizationRequest(parameters);
+      parameters = { request_uri };
+    }
+
     return client.authorizationUrl(parameters);
   }
 

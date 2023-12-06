@@ -58,6 +58,7 @@ export interface NextConfig extends BaseConfig {
  * - `AUTH0_ID_TOKEN_SIGNING_ALG`: See {@link BaseConfig.idTokenSigningAlg}.
  * - `AUTH0_LEGACY_SAME_SITE_COOKIE`: See {@link BaseConfig.legacySameSiteCookie}.
  * - `AUTH0_IDENTITY_CLAIM_FILTER`: See {@link BaseConfig.identityClaimFilter}.
+ * - `AUTH0_PUSHED_AUTHORIZATION_REQUESTS` See {@link BaseConfig.pushedAuthorizationRequests}.
  * - `NEXT_PUBLIC_AUTH0_LOGIN`: See {@link NextConfig.routes}.
  * - `AUTH0_CALLBACK`: See {@link BaseConfig.routes}.
  * - `AUTH0_POST_LOGOUT_REDIRECT`: See {@link BaseConfig.routes}.
@@ -158,6 +159,7 @@ export const getConfig = (params: ConfigParameters = {}): NextConfig => {
   const AUTH0_ID_TOKEN_SIGNING_ALG = process.env.AUTH0_ID_TOKEN_SIGNING_ALG;
   const AUTH0_LEGACY_SAME_SITE_COOKIE = process.env.AUTH0_LEGACY_SAME_SITE_COOKIE;
   const AUTH0_IDENTITY_CLAIM_FILTER = process.env.AUTH0_IDENTITY_CLAIM_FILTER;
+  const AUTH0_PUSHED_AUTHORIZATION_REQUESTS = process.env.AUTH0_PUSHED_AUTHORIZATION_REQUESTS;
   const AUTH0_CALLBACK = process.env.AUTH0_CALLBACK;
   const AUTH0_POST_LOGOUT_REDIRECT = process.env.AUTH0_POST_LOGOUT_REDIRECT;
   const AUTH0_AUDIENCE = process.env.AUTH0_AUDIENCE;
@@ -202,6 +204,7 @@ export const getConfig = (params: ConfigParameters = {}): NextConfig => {
     idTokenSigningAlg: AUTH0_ID_TOKEN_SIGNING_ALG,
     legacySameSiteCookie: bool(AUTH0_LEGACY_SAME_SITE_COOKIE),
     identityClaimFilter: array(AUTH0_IDENTITY_CLAIM_FILTER),
+    pushedAuthorizationRequests: bool(AUTH0_PUSHED_AUTHORIZATION_REQUESTS, false),
     ...baseParams,
     authorizationParams: {
       response_type: 'code',

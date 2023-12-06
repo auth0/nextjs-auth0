@@ -218,6 +218,14 @@ export interface Config {
    * See: https://openid.net/specs/openid-connect-backchannel-1_0.html
    */
   backchannelLogout: boolean | BackchannelLogoutOptions;
+
+  /**
+   * Set to `true` to perform a Pushed Authorization Request at the issuer's
+   * `pushed_authorization_request_endpoint` at login.
+   *
+   * See: https://www.rfc-editor.org/rfc/rfc9126.html
+   */
+  pushedAuthorizationRequests: boolean;
 }
 
 export interface BackchannelLogoutOptions {

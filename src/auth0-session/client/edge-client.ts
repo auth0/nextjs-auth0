@@ -75,6 +75,12 @@ export class EdgeClient extends AbstractClient {
       throw new DiscoveryError(e, this.config.issuerBaseURL);
     }
 
+    if (this.config.pushedAuthorizationRequests && !this.as.pushed_authorization_request_endpoint) {
+      throw new TypeError(
+        'pushed_authorization_request_endpoint must be configured on the issuer to use pushedAuthorizationRequests'
+      );
+    }
+
     this.client = {
       client_id: this.config.clientID,
       ...(!this.config.clientAssertionSigningKey && { client_secret: this.config.clientSecret }),
@@ -87,7 +93,22 @@ export class EdgeClient extends AbstractClient {
   }
 
   async authorizationUrl(parameters: Record<string, unknown>): Promise<string> {
-    const [as] = await this.getClient();
+    const [as, client] = await this.getClient();
+
+    if (this.config.pushedAuthorizationRequests) {
+      const response = await oauth.pushedAuthorizationRequest(as, client, parameters as Record<string, string>);
+      const result = await oauth.processPushedAuthorizationResponse(as, client, response);
+      if (oauth.isOAuth2Error(result)) {
+        throw new IdentityProviderError({
+          message: result.error_description || result.error,
+          error: result.error,
+          error_description: result.error_description
+        });
+      }
+
+      parameters = { request_uri: result.request_uri };
+    }
+
     const authorizationUrl = new URL(as.authorization_endpoint as string);
     authorizationUrl.searchParams.set('client_id', this.config.clientID);
     Object.entries(parameters).forEach(([key, value]) => {

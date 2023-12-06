@@ -23,6 +23,7 @@ export function discovery(params: ConfigParameters, discoveryOptions?: any): noc
         token_endpoint: `${params.issuerBaseURL}/oauth/token`,
         userinfo_endpoint: `${params.issuerBaseURL}/userinfo`,
         jwks_uri: `${params.issuerBaseURL}/.well-known/jwks.json`,
+        pushed_authorization_request_endpoint: `${params.issuerBaseURL}/oauth/par`,
         scopes_supported: [
           'openid',
           'profile',
@@ -169,4 +170,8 @@ export function userInfo(params: ConfigParameters, token: string, payload: Recor
   })
     .get('/userinfo')
     .reply(200, payload);
+}
+
+export function par(params: ConfigParameters, status = 201, payload: Record<string, unknown>): nock.Scope {
+  return nock(`${params.issuerBaseURL}`).post('/oauth/par').reply(status, payload);
 }
