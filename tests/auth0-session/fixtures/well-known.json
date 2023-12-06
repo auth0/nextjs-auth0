@@ -2,6 +2,7 @@
   "issuer": "https://op.example.com/",
   "authorization_endpoint": "https://op.example.com/authorize",
   "token_endpoint": "https://op.example.com/oauth/token",
+  "pushed_authorization_request_endpoint": "https://op.example.com/oauth/par",
   "userinfo_endpoint": "https://op.example.com/userinfo",
   "mfa_challenge_endpoint": "https://op.example.com/mfa/challenge",
   "jwks_uri": "https://op.example.com/.well-known/jwks.json",

@@ -327,4 +327,31 @@ describe('login handler (page router)', () => {
       /Login handler failed. CAUSE: Custom state value must be an object/
     );
   });
+
+  test('should redirect to the identity provider', async () => {
+    const baseUrl = await setup({
+      ...withoutApi,
+      clientSecret: '__test_client_secret__',
+      clientAuthMethod: 'client_secret_post',
+      pushedAuthorizationRequests: true
+    });
+    const cookieJar = new CookieJar();
+    const {
+      res: { statusCode, headers }
+    } = await get(baseUrl, '/api/auth/login', { cookieJar, fullResponse: true });
+
+    expect(statusCode).toBe(302);
+    expect(urlParse(headers.location, true)).toMatchObject({
+      protocol: 'https:',
+      host: 'acme.auth0.local',
+      hash: null,
+      query: {
+        request_uri: 'foo',
+        response_type: 'code',
+        scope: 'openid',
+        client_id: '__test_client_id__'
+      },
+      pathname: '/authorize'
+    });
+  });
 });

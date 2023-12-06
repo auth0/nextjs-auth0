@@ -91,7 +91,8 @@ describe('config params', () => {
         secure: true
       },
       organization: undefined,
-      backchannelLogout: false
+      backchannelLogout: false,
+      pushedAuthorizationRequests: false
     });
   });
 

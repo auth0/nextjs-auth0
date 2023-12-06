@@ -19,7 +19,7 @@ import {
   HandleProfile,
   HandleBackchannelLogout
 } from '../../src';
-import { codeExchange, discovery, jwksEndpoint, userInfo } from './oidc-nocks';
+import { codeExchange, discovery, jwksEndpoint, par, userInfo } from './oidc-nocks';
 import { jwks, makeIdToken } from '../auth0-session/fixtures/cert';
 import { start, stop } from './server';
 import { encodeState } from '../../src/auth0-session/utils/encoding';
@@ -63,6 +63,7 @@ export const setupNock = async (
   jwksEndpoint(config, jwks);
   codeExchange(config, await makeIdToken({ iss: 'https://acme.auth0.local/', ...idTokenClaims }));
   userInfo(config, userInfoToken, userInfoPayload);
+  par(config);
 };
 
 export const setup = async (
