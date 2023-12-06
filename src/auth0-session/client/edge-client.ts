@@ -97,8 +97,16 @@ export class EdgeClient extends AbstractClient {
 
     if (this.config.pushedAuthorizationRequests) {
       const response = await oauth.pushedAuthorizationRequest(as, client, parameters as Record<string, string>);
-      const body = await response.json();
-      parameters = { request_uri: body.request_uri };
+      const result = await oauth.processPushedAuthorizationResponse(as, client, response);
+      if (oauth.isOAuth2Error(result)) {
+        throw new IdentityProviderError({
+          message: result.error_description || result.error,
+          error: result.error,
+          error_description: result.error_description
+        });
+      }
+
+      parameters = { request_uri: result.request_uri };
     }
 
     const authorizationUrl = new URL(as.authorization_endpoint as string);

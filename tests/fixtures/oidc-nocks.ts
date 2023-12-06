@@ -172,6 +172,6 @@ export function userInfo(params: ConfigParameters, token: string, payload: Recor
     .reply(200, payload);
 }
 
-export function par(params: ConfigParameters): nock.Scope {
-  return nock(`${params.issuerBaseURL}`).post('/oauth/par').reply(201, { request_uri: 'foo', expires_in: 100 });
+export function par(params: ConfigParameters, status = 201, payload: Record<string, unknown>): nock.Scope {
+  return nock(`${params.issuerBaseURL}`).post('/oauth/par').reply(status, payload);
 }
