@@ -114,18 +114,23 @@ export type AfterCallbackPageRoute = (
  * ```js
  * // app/api/auth/[auth0]/route.js
  * import { handleAuth, handleCallback } from '@auth0/nextjs-auth0';
- * import { redirect } from 'next/navigation';
+ * import { NextResponse } from 'next/server';
  *
- * const afterCallback = (req, session, state) => {
+ * const afterCallback = (req, session) => {
  *   if (session.user.isAdmin) {
  *     return session;
- *   } else {
- *     redirect('/unauthorized');
  *   }
  * };
- *
- * export default handleAuth({
- *   callback: handleCallback({ afterCallback })
+
+ * export const GET = handleAuth({
+ *   async callback(req, ctx) {
+ *     const res = await handleCallback(req, ctx, { afterCallback });
+ *     const session = await getSession(req, res);
+ *     if (!session) {
+ *       return NextResponse.redirect(`${process.env.AUTH0_BASE_URL}/fail`, res);
+ *     }
+ *     return res;
+ *   },
  * });
  * ```
  *
@@ -142,27 +147,27 @@ export type AfterCallbackPageRoute = (
  *   return session;
  * };
  *
- * export default handleAuth({
+ * export const GET = handleAuth({
  *   callback: handleCallback({ afterCallback })
  * });
  * ```
  *
- * @example Redirect successful login based on claim
+ * @example Redirect successful login based on claim (afterCallback is not required).
  *
  * ```js
  * // pages/api/auth/[auth0].js
  * import { handleAuth, handleCallback } from '@auth0/nextjs-auth0';
- * import { headers } from 'next/headers';
+ * import { NextResponse } from 'next/server';
  *
- * const afterCallback = (req, session, state) => {
- *   if (!session.user.isAdmin) {
- *     headers.set('location', '/admin');
- *   }
- *   return session;
- * };
- *
- * export default handleAuth({
- *   callback: handleCallback({ afterCallback })
+ * export const GET = handleAuth({
+ *   async callback(req, ctx) {
+ *     const res = await handleCallback(req, ctx);
+ *     const session = await getSession(req, res);
+ *     if (session?.user.isAdmin) {
+ *       return NextResponse.redirect(`${process.env.AUTH0_BASE_URL}/admin`, res);
+ *     }
+ *     return res;
+ *   },
  * });
  * ```
  *
