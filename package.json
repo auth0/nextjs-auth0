@@ -112,7 +112,7 @@
     "react-dom": "^18.2.0",
     "react-test-renderer": "^18.2.0",
     "rimraf": "^3.0.2",
-    "start-server-and-test": "^1.11.7",
+    "start-server-and-test": "^2.0.3",
     "timekeeper": "^2.2.0",
     "tough-cookie": "^4.0.0",
     "ts-jest": "^29.1.0",
