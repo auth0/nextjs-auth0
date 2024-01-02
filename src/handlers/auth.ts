@@ -108,7 +108,7 @@ type ErrorHandlers = {
  * export const GET = handleAuth();
  * ```
  *
- * This will create 5 handlers for the following urls:
+ * This will create 4 handlers for the following urls:
  *
  * - `/api/auth/login`: log the user in to your app by redirecting them to your identity provider.
  * - `/api/auth/callback`: The page that your identity provider will redirect the user back to on login.
