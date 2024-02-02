@@ -56,7 +56,7 @@ jobs:
 
       - run: npm test
 
-      - uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d # pin@3.1.4
+      - uses: codecov/codecov-action@e0b68c6749509c5f83f984dd99a76a1c1a231044 # pin@4.0.1
 
   lint:
     needs: build # Require build to complete before running tests
