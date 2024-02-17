@@ -170,8 +170,8 @@ export type UseUser = () => UserContext;
  *
  *   if (isLoading) return <div>Loading...</div>;
  *   if (error) return <div>{error.message}</div>;
- *   if (!user) return <Link href="/api/auth/login"><a>Login</a></Link>;
- *   return <div>Hello {user.name}, <Link href="/api/auth/logout"><a>Logout</a></Link></div>;
+ *   if (!user) return <Link href="/api/auth/login">Login</Link>;
+ *   return <div>Hello {user.name}, <Link href="/api/auth/logout">Logout</Link></div>;
  * }
  * ```
  *
