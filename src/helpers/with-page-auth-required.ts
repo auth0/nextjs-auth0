@@ -36,11 +36,12 @@ export type PageRoute<P, Q extends ParsedUrlQuery = ParsedUrlQuery> = (
 ) => Promise<GetServerSidePropsResultWithSession<P>>;
 
 /**
- * Objects containing the route parameters and search parameters of th page.
+ * Objects containing the route parameters and search parameters of the page or layout.
  *
  * @category Server
  */
 export type AppRouterPageRouteOpts = {
+  children?: React.ReactNode;
   params?: Record<string, string | string[]>;
   searchParams?: { [key: string]: string | string[] | undefined };
 };
