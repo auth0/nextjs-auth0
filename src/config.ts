@@ -70,6 +70,7 @@ export interface NextConfig extends BaseConfig {
  * - `AUTH0_SESSION_ROLLING_DURATION`: See {@link SessionConfig.rollingDuration}.
  * - `AUTH0_SESSION_ABSOLUTE_DURATION`: See {@link SessionConfig.absoluteDuration}.
  * - `AUTH0_SESSION_AUTO_SAVE`: See {@link SessionConfig.autoSave}.
+ * - `AUTH0_SESSION_STORE_ID_TOKEN`: See {@link SessionConfig.storeIDToken}.
  * - `AUTH0_COOKIE_DOMAIN`: See {@link CookieConfig.domain}.
  * - `AUTH0_COOKIE_PATH`: See {@link CookieConfig.path}.
  * - `AUTH0_COOKIE_TRANSIENT`: See {@link CookieConfig.transient}.
