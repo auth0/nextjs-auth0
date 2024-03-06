@@ -45,7 +45,7 @@ describe('backchannel-logout handler (page router)', () => {
 
     await expect(
       post(baseUrl, '/api/auth/backchannel-logout', { fullResponse: true, body: `logout_token=${logoutToken}` })
-    ).resolves.toMatchObject({ res: { statusCode: 204 } });
+    ).resolves.toMatchObject({ res: { statusCode: 200 } });
   });
 
   test('should save tokens into the store when a valid logout token is provided', async () => {
@@ -57,7 +57,7 @@ describe('backchannel-logout handler (page router)', () => {
       fullResponse: true,
       body: `logout_token=${logoutToken}`
     });
-    expect(res.statusCode).toBe(204);
+    expect(res.statusCode).toBe(200);
     expect(res.headers['cache-control']).toBe('no-store');
     await expect(store.get('sid|__test_client_id__|foo')).resolves.toMatchObject({ data: {} });
     await expect(store.get('sub|__test_client_id__|bar')).resolves.toMatchObject({ data: {} });

@@ -59,7 +59,7 @@ describe('backchannel-logout handler (app router)', () => {
       url: '/api/auth/backchannel-logout',
       reqInit: { method: 'post', body: `logout_token=${logoutToken}` }
     });
-    expect(res.status).toBe(204);
+    expect(res.status).toBe(200);
     expect(res.headers.get('cache-control')).toBe('no-store');
   });
 
@@ -86,7 +86,7 @@ describe('backchannel-logout handler (app router)', () => {
         url: '/api/auth/backchannel-logout',
         reqInit: { method: 'post', body: `logout_token=${logoutToken}` }
       })
-    ).resolves.toMatchObject({ status: 204 });
+    ).resolves.toMatchObject({ status: 200 });
     await expect(store.get('sid|__test_client_id__|foo')).resolves.toMatchObject({ data: {} });
     await expect(store.get('sub|__test_client_id__|bar')).resolves.toMatchObject({ data: {} });
   });

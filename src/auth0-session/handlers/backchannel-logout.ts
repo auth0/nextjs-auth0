@@ -59,7 +59,7 @@ export default function backchannelLogoutHandlerFactory(
     } catch (e) {
       throw new BackchannelLogoutError('application_error', e.message);
     }
-    res.send204();
+    res.sendEmpty200();
   };
 }
 

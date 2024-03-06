@@ -31,8 +31,8 @@ export default class NodeResponse<T extends ServerResponse = ServerResponse> ext
     this.res.end(htmlSafe(location));
   }
 
-  public send204(): void {
-    this.res.statusCode = 204;
+  public sendEmpty200(): void {
+    this.res.statusCode = 200;
     this.res.end();
   }
 

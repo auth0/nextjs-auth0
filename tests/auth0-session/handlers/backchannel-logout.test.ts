@@ -28,7 +28,7 @@ describe('backchannel-logout', () => {
       },
       data: {}
     });
-    expect(res.statusCode).toEqual(204);
+    expect(res.statusCode).toEqual(200);
     await expect(isLoggedOut({ sid: 'foo' }, getConfig({ baseURL, ...params }))).resolves.toEqual(true);
   });
 
@@ -46,7 +46,7 @@ describe('backchannel-logout', () => {
     await expect(store.get('sub|__test_client_id__|bar')).resolves.toMatchObject({
       data: {}
     });
-    expect(res.statusCode).toEqual(204);
+    expect(res.statusCode).toEqual(200);
     await expect(isLoggedOut({ sid: 'foo' }, getConfig({ baseURL, ...params }))).resolves.toEqual(true);
     await expect(isLoggedOut({ sub: 'bar' }, getConfig({ baseURL, ...params }))).resolves.toEqual(true);
     await expect(isLoggedOut({ sid: 'foo', sub: 'bar' }, getConfig({ baseURL, ...params }))).resolves.toEqual(true);
@@ -64,7 +64,7 @@ describe('backchannel-logout', () => {
     await expect(store.get('sub|__test_client_id__|bar')).resolves.toMatchObject({
       data: {}
     });
-    expect(res.statusCode).toEqual(204);
+    expect(res.statusCode).toEqual(200);
     await expect(isLoggedOut({ sub: 'bar' }, getConfig({ baseURL, ...params }))).resolves.toEqual(true);
   });
 
@@ -97,7 +97,7 @@ describe('backchannel-logout', () => {
       },
       data: {}
     });
-    expect(res.statusCode).toEqual(204);
+    expect(res.statusCode).toEqual(200);
   });
 
   it('should delete a sub entry from the logout store', async () => {

@@ -32,9 +32,9 @@ export default class Auth0NextResponse extends Auth0Response<NextResponse> {
     this.res.headers.set(name, value);
   }
 
-  public send204() {
+  public sendEmpty200() {
     const oldRes = this.res;
-    this.res = new NextResponse(null, { status: 204 });
+    this.res = new NextResponse(null, { status: 200 });
     oldRes.headers.forEach((value, key) => {
       this.res.headers.set(key, value);
     });
