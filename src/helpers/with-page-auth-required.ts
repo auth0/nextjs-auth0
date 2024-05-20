@@ -136,9 +136,11 @@ export type WithPageAuthRequiredAppRouterOptions = {
  * // app/protected-page/page.js
  * import { withPageAuthRequired } from '@auth0/nextjs-auth0';
  *
- * export default withPageAuthRequired(async function ProtectedPage() {
+ * const ProtectedPage = withPageAuthRequired(async function ProtectedPage() {
  *   return <div>Protected content</div>;
  * }, { returnTo: '/protected-page' });
+ *
+ * export default ProtectedPage;
  * ```
  *
  * If the user visits `/protected-page` without a valid session, it will redirect the user to the
@@ -154,16 +156,19 @@ export type WithPageAuthRequiredAppRouterOptions = {
  * ```js
  * // app/protected-page/[slug]/page.js
  * import { AppRouterPageRouteOpts, withPageAuthRequired } from '@auth0/nextjs-auth0';
- *
- * export default withPageAuthRequired(async function ProtectedPage({
+ * 
+ * const ProtectedPage = withPageAuthRequired(async function ProtectedPage({
  *   params, searchParams
  * }: AppRouterPageRouteOpts) {
- *   return <div>Protected content</div>;
+ *   const slug = params?.slug as string;
+ *   return <div>Protected content for {slug}</div>;
  * }, {
  *   returnTo({ params }) {
  *     return `/protected-page/${params?.slug}`;
  *   }
  * });
+ * 
+ * export default ProtectedPage;
  * ```
  *
  * @category Server
