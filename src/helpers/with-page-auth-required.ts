@@ -136,7 +136,7 @@ export type WithPageAuthRequiredAppRouterOptions = {
  * // app/protected-page/page.js
  * import { withPageAuthRequired } from '@auth0/nextjs-auth0';
  *
- * export default function withPageAuthRequired(ProtectedPage() {
+ * export default withPageAuthRequired(async function ProtectedPage() {
  *   return <div>Protected content</div>;
  * }, { returnTo: '/protected-page' });
  * ```
@@ -153,13 +153,15 @@ export type WithPageAuthRequiredAppRouterOptions = {
  *
  * ```js
  * // app/protected-page/[slug]/page.js
- * import { withPageAuthRequired } from '@auth0/nextjs-auth0';
+ * import { AppRouterPageRouteOpts, withPageAuthRequired } from '@auth0/nextjs-auth0';
  *
- * export default function withPageAuthRequired(ProtectedPage() {
+ * export default withPageAuthRequired(async function ProtectedPage({
+ *   params, searchParams
+ * }: AppRouterPageRouteOpts) {
  *   return <div>Protected content</div>;
  * }, {
  *   returnTo({ params }) {
- *     return `/protected-page/${params.slug}`
+ *     return `/protected-page/${params?.slug}`;
  *   }
  * });
  * ```
