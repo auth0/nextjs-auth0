@@ -17,6 +17,7 @@ import {
 import { _initAuth } from './init';
 import { setIsUsingNamedExports, setIsUsingOwnInstance } from './utils/instance-check';
 import { clientGetter } from './auth0-session/client/node-client';
+import { GetSessionCache } from './session/get-session-cache';
 
 const genId = () => crypto.randomBytes(16).toString('hex');
 
@@ -53,7 +54,7 @@ export const initAuth0: InitAuth0 = (params) => {
   });
   return publicApi;
 };
-
+export const getSessionCache: GetSessionCache = (...args) => getInstance().getSessionCache(...args);
 export const getSession: GetSession = (...args) => getInstance().getSession(...args);
 export const updateSession: UpdateSession = (...args) => getInstance().updateSession(...args);
 export const getAccessToken: GetAccessToken = (...args) => getInstance().getAccessToken(...args);

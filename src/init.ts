@@ -26,6 +26,7 @@ import { configSingletonGetter, ConfigParameters } from './config';
 import { Auth0Server, telemetry } from './shared';
 import withMiddlewareAuthRequiredFactory from './helpers/with-middleware-auth-required';
 import { GetClient } from './auth0-session/client/abstract-client';
+import sessionCacheFactory from './session/get-session-cache';
 
 /**
  * Initialise your own instance of the SDK.
@@ -58,6 +59,7 @@ export const _initAuth = ({
   const baseHandleBackchannelLogout = baseBackchannelLogoutHandler(getConfig, getClient);
 
   // Init Next layer (with next config)
+  const getSessionCache = sessionCacheFactory(sessionCache);
   const getSession = sessionFactory(sessionCache);
   const touchSession = touchSessionFactory(sessionCache);
   const updateSession = updateSessionFactory(sessionCache);
@@ -80,6 +82,7 @@ export const _initAuth = ({
 
   return {
     getSession,
+    getSessionCache,
     touchSession,
     updateSession,
     getAccessToken,

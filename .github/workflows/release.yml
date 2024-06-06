@@ -1,25 +1,76 @@
-name: Create GitHub Release
+name: CI
 
 on:
-  pull_request:
-    types:
-      - closed
+  push:
+    branches: [ main ]
+
   workflow_dispatch:
 
-permissions:
-  contents: write
-  id-token: write # For publishing to npm using --provenance
-
-### TODO: Replace instances of './.github/workflows/' w/ `auth0/dx-sdk-actions/workflows/` and append `@latest` after the common `dx-sdk-actions` repo is made public.
-### TODO: Also remove `get-prerelease`, `get-release-notes`, `get-version`, `npm-publish`, `release-create`, and `tag-exists` actions from this repo's .github/actions folder once the repo is public.
-### TODO: Also remove `npm-release` workflow from this repo's .github/workflows folder once the repo is public.
-
 jobs:
+  cache-node-modules: 
+    runs-on: ubuntu-latest 
+    permissions: 
+      contents: read
+      packages: write 
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '12.x'
+        env:
+          SSH_PRIV_KEY: '${{ secrets.ARIAMANUEL_SSH }}'
+      - name: Cache node modules
+        uses: actions/cache@v2
+        id: cache-dependencies
+        env:
+          cache-name: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ env.cache-name }}-
+            ${{ runner.os }}-build-
+            ${{ runner.os }}-
+      - name: Copy SSH key
+        shell: sh
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "$SSH_PRIV_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+      - name: Install Dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          npm install
+
   release:
-    uses: ./.github/workflows/npm-release.yml
-    with:
-      node-version: 18
-      require-build: false
-    secrets:
-      npm-token: ${{ secrets.NPM_TOKEN }}
-      github-token: ${{ secrets.GITHUB_TOKEN }}
+    runs-on: ubuntu-latest
+    needs: [cache-node-modules]
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          token: ${{ secrets.ARIAMANUEL_PAT }}
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '12'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@Hello-Aria'
+      - name: Cache node modules
+        uses: actions/cache@v2
+        id: cache-dependencies
+        env:
+          cache-name: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ env.cache-name }}-
+            ${{ runner.os }}-build-
+            ${{ runner.os }}-
+      - run: npm run build
+      - run: npm run release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
