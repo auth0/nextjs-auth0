@@ -36,7 +36,7 @@ export type PageRoute<P, Q extends ParsedUrlQuery = ParsedUrlQuery> = (
 ) => Promise<GetServerSidePropsResultWithSession<P>>;
 
 /**
- * Objects containing the route parameters and search parameters of th page.
+ * Objects containing the route parameters and search parameters of the page.
  *
  * @category Server
  */
@@ -50,7 +50,7 @@ export type AppRouterPageRouteOpts = {
  *
  * @category Server
  */
-export type AppRouterPageRoute = (obj: AppRouterPageRouteOpts) => Promise<React.JSX.Element>;
+export type AppRouterPageRoute<PageProps> = (obj: PageProps) => Promise<React.JSX.Element>;
 
 /**
  * If you have a custom returnTo url you should specify it in `returnTo`.
@@ -124,8 +124,8 @@ export type WithPageAuthRequiredPageRouter = <
  *
  * @category Server
  */
-export type WithPageAuthRequiredAppRouterOptions = {
-  returnTo?: string | ((obj: AppRouterPageRouteOpts) => Promise<string> | string);
+export type WithPageAuthRequiredAppRouterOptions<PageProps> = {
+  returnTo?: string | ((obj: PageProps) => Promise<string> | string);
 };
 
 /**
@@ -166,10 +166,17 @@ export type WithPageAuthRequiredAppRouterOptions = {
  *
  * @category Server
  */
-export type WithPageAuthRequiredAppRouter = (
-  fn: AppRouterPageRoute,
-  opts?: WithPageAuthRequiredAppRouterOptions
-) => AppRouterPageRoute;
+export type WithPageAuthRequiredAppRouter = <
+  T extends {
+    params: T['params'] extends undefined ? undefined : { [K in keyof T['params']]: string };
+    searchParams: T['searchParams'] extends undefined
+      ? undefined
+      : { [K in keyof T['searchParams']]: string | undefined };
+  }
+>(
+  fn: (obj: T) => Promise<React.JSX.Element>,
+  opts?: WithPageAuthRequiredAppRouterOptions<T>
+) => AppRouterPageRoute<T>;
 
 /**
  * Protects Page router pages {@link WithPageAuthRequiredPageRouter} or
@@ -190,8 +197,8 @@ export default function withPageAuthRequiredFactory(
   const pageRouteHandler = pageRouteHandlerFactory(getConfig, sessionCache);
 
   return ((
-    fnOrOpts?: WithPageAuthRequiredPageRouterOptions | AppRouterPageRoute,
-    opts?: WithPageAuthRequiredAppRouterOptions
+    fnOrOpts?: WithPageAuthRequiredPageRouterOptions | AppRouterPageRoute<unknown>,
+    opts?: WithPageAuthRequiredAppRouterOptions<unknown>
   ) => {
     if (typeof fnOrOpts === 'function') {
       return appRouteHandler(fnOrOpts, opts);
