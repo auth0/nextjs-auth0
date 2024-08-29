@@ -139,7 +139,7 @@ export interface Config {
   identityClaimFilter: string[];
 
   /**
-   * Boolean value to log the user out from the identity provider on application logout. Defaults to `false`.
+   * Boolean value to log the user out from the identity provider on application logout. Defaults to `true`.
    */
   idpLogout: boolean;
 
