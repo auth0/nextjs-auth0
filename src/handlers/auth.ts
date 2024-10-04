@@ -207,7 +207,7 @@ export default function handlerFactory({
 const appRouteHandlerFactory: (customHandlers: ApiHandlers, onError?: AppRouterOnError) => AppRouteHandlerFn =
   (customHandlers, onError) => async (req: NextRequest, ctx) => {
     const { params } = ctx;
-    let route = params.auth0;
+    let route = (await params).auth0;
 
     if (Array.isArray(route)) {
       let otherRoutes;
