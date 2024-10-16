@@ -198,7 +198,6 @@ describe('node client', function () {
     );
   });
 
-
   it('should handle limited openid-configuration', async function () {
     nock('https://op2.example.com')
       .get('/.well-known/openid-configuration')
