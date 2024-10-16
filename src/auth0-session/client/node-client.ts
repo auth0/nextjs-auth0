@@ -52,16 +52,16 @@ export class NodeClient extends AbstractClient {
         'User-Agent': `${name}/${version}`,
         ...(config.enableTelemetry
           ? {
-            'Auth0-Client': Buffer.from(
-              JSON.stringify({
-                name,
-                version,
-                env: {
-                  node: process.version
-                }
-              })
-            ).toString('base64')
-          }
+              'Auth0-Client': Buffer.from(
+                JSON.stringify({
+                  name,
+                  version,
+                  env: {
+                    node: process.version
+                  }
+                })
+              ).toString('base64')
+            }
           : undefined)
       },
       timeout: config.httpTimeout,
