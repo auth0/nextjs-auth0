@@ -1,0 +1,59 @@
+{
+  "type": "module",
+  "name": "@auth0/nextjs-auth0",
+  "version": "4.0.0",
+  "description": "Auth0 Next.js SDK",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc -w",
+    "test": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/auth0/nextjs-auth0.git"
+  },
+  "keywords": [
+    "auth0",
+    "next.js",
+    "react",
+    "oidc",
+    "authentication",
+    "vercel"
+  ],
+  "author": "Auth0 (https://auth0.com)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/auth0/nextjs-auth0/issues"
+  },
+  "homepage": "https://github.com/auth0/nextjs-auth0#readme",
+  "devDependencies": {
+    "@ianvs/prettier-plugin-sort-imports": "^4.3.1",
+    "@types/node": "^22.5.1",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "@vitest/coverage-v8": "2.1.3",
+    "next": "^14.2.15",
+    "prettier": "^3.3.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.3"
+  },
+  "peerDependencies": {
+    "next": ">=14",
+    "react": ">=18"
+  },
+  "exports": {
+    ".": "./dist/client/index.js",
+    "./server": "./dist/server/index.js"
+  },
+  "dependencies": {
+    "@edge-runtime/cookies": "^5.0.0",
+    "@panva/hkdf": "^1.2.1",
+    "jose": "^5.8.0",
+    "oauth4webapi": "^2.12.0",
+    "swr": "^2.2.5"
+  }
+}

@@ -1,0 +1,141 @@
+import * as cookies from "../cookies"
+import { AbstractSessionStore, SessionData } from "./abstract-session-store"
+
+// the value of the stateful session cookie containing a unique session ID to identify
+// the current session
+interface SessionCookieValue {
+  id: string
+}
+
+export interface SessionStore {
+  /**
+   * Gets the session from the store given a session ID.
+   */
+  get(id: string): Promise<SessionData | null>
+
+  /**
+   * Upsert a session in the store given a session ID and `SessionData`.
+   */
+  set(id: string, session: SessionData): Promise<void>
+
+  /**
+   * Destroys the session with the given session ID.
+   */
+  delete(id: string): Promise<void>
+}
+
+interface StatefulSessionStoreOptions {
+  secret: string
+
+  rolling?: boolean // defaults to true
+  absoluteDuration?: number // defaults to 30 days
+  inactivityDuration?: number // defaults to 7 days
+
+  store: SessionStore
+}
+
+const generateId = () => {
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
+}
+
+export class StatefulSessionStore extends AbstractSessionStore {
+  private store: SessionStore
+
+  constructor({
+    secret,
+    store,
+    rolling,
+    absoluteDuration,
+    inactivityDuration,
+  }: StatefulSessionStoreOptions) {
+    super({
+      secret,
+      rolling,
+      absoluteDuration,
+      inactivityDuration,
+    })
+
+    this.store = store
+  }
+
+  async get(reqCookies: cookies.RequestCookies) {
+    const cookieValue = reqCookies.get(this.SESSION_COOKIE_NAME)?.value
+
+    if (!cookieValue) {
+      return null
+    }
+
+    const { id } = await cookies.decrypt<SessionCookieValue>(
+      cookieValue,
+      this.secret
+    )
+
+    return this.store.get(id)
+  }
+
+  async set(
+    reqCookies: cookies.RequestCookies,
+    resCookies: cookies.ResponseCookies,
+    session: SessionData,
+    isNew: boolean = false
+  ) {
+    // check if a session already exists. If so, maintain the existing session ID
+    let sessionId = null
+    const cookieValue = reqCookies.get(this.SESSION_COOKIE_NAME)?.value
+    if (cookieValue) {
+      const sessionCookie = await cookies.decrypt<SessionCookieValue>(
+        cookieValue,
+        this.secret
+      )
+      sessionId = sessionCookie.id
+    }
+
+    // if this is a new session created by a new login we need to remove the old session
+    // from the store and regenerate the session ID to prevent session fixation.
+    if (sessionId && isNew) {
+      await this.store.delete(sessionId)
+      sessionId = generateId()
+    }
+
+    if (!sessionId) {
+      sessionId = generateId()
+    }
+
+    const jwe = await cookies.encrypt(
+      {
+        id: sessionId,
+      },
+      this.secret
+    )
+    const maxAge = this.calculateMaxAge(session.internal.createdAt)
+
+    resCookies.set(this.SESSION_COOKIE_NAME, jwe.toString(), {
+      ...this.cookieConfig,
+      maxAge,
+    })
+    await this.store.set(sessionId, session)
+  }
+
+  async delete(
+    reqCookies: cookies.RequestCookies,
+    resCookies: cookies.ResponseCookies
+  ) {
+    const cookieValue = reqCookies.get(this.SESSION_COOKIE_NAME)?.value
+    await resCookies.delete(this.SESSION_COOKIE_NAME)
+
+    if (!cookieValue) {
+      return
+    }
+
+    const { id } = await cookies.decrypt<SessionCookieValue>(
+      cookieValue,
+      this.secret
+    )
+
+    await this.store.delete(id)
+  }
+}
