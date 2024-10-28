@@ -58,7 +58,6 @@ interface SessionStoreOptions extends SessionConfiguration {
 export abstract class AbstractSessionStore {
   public secret: string
   public SESSION_COOKIE_NAME = "__session"
-  public TOKEN_SET_COOKIE_NAME = "__token_set"
 
   private rolling: boolean
   private absoluteDuration: number

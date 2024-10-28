@@ -9,17 +9,17 @@ importers:
   .:
     dependencies:
       '@edge-runtime/cookies':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.0.1
+        version: 5.0.1
       '@panva/hkdf':
         specifier: ^1.2.1
         version: 1.2.1
       jose:
-        specifier: ^5.8.0
-        version: 5.8.0
+        specifier: ^5.9.6
+        version: 5.9.6
       oauth4webapi:
-        specifier: ^2.12.0
-        version: 2.12.0
+        specifier: ^3.1.2
+        version: 3.1.2
       swr:
         specifier: ^2.2.5
         version: 2.2.5(react@18.3.1)
@@ -138,8 +138,8 @@ packages:
   '@bcoe/v8-coverage@0.2.3':
     resolution: {integrity: sha512-0hYQ8SB4Db5zvZB4axdMHGwEaQjkZzFjQiN9LVYvIFB2nSUHW9tYpxWriPrWDASIxiaXax83REcLxuSdnGPZtw==}
 
-  '@edge-runtime/cookies@5.0.0':
-    resolution: {integrity: sha512-VTTuKiK86cLuLKoLLwkCLN75CrXElmitD6Q+7XAYOMQyDUgsNEF/muorgZWttrvYQBVG+7Pdb8udFqIcLszyLw==}
+  '@edge-runtime/cookies@5.0.1':
+    resolution: {integrity: sha512-H5aW+ngFNNpJDnIfShz/YNh6EEhOzLdQdP1o7Ja8ksyfvXANwUwC+YLhnI9DXysN42AXOFgdt3o0KGRDB0PPrA==}
     engines: {node: '>=16'}
 
   '@esbuild/aix-ppc64@0.21.5':
@@ -708,8 +708,8 @@ packages:
   jackspeak@3.4.3:
     resolution: {integrity: sha512-OGlZQpz2yfahA/Rd1Y8Cd9SIEsqvXkLVoSw/cgwhnhFMDbsQFeZYoJJ7bIZBS9BcamUW96asq/npPWugM+RQBw==}
 
-  jose@5.8.0:
-    resolution: {integrity: sha512-E7CqYpL/t7MMnfGnK/eg416OsFCVUrU/Y3Vwe7QjKhu/BkS1Ms455+2xsqZQVN57/U2MHMBvEb5SrmAZWAIntA==}
+  jose@5.9.6:
+    resolution: {integrity: sha512-AMlnetc9+CV9asI19zHmrgS/WYsWUwCn2R7RzlbJWD7F9eWYUTGyBmU9o6PxngtLGOiDGPRu+Uc4fhKzbpteZQ==}
 
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
@@ -784,8 +784,8 @@ packages:
   node-releases@2.0.18:
     resolution: {integrity: sha512-d9VeXT4SJ7ZeOqGX6R5EM022wpL+eWPooLI+5UpWn2jCT1aosUQEhQP214x33Wkwx3JQMvIm+tIoVOdodFS40g==}
 
-  oauth4webapi@2.12.0:
-    resolution: {integrity: sha512-WFmcHzhFtq2Ar91crpGQZUD8DS0SG7Zti1AgbansUAfdpIsoRXE+hcMNi8MW6bGNNObWis0x8BZRl6K+FR4oQg==}
+  oauth4webapi@3.1.2:
+    resolution: {integrity: sha512-KQZkNU+xn02lWrFu5Vjqg9E81yPtDSxUZorRHlLWVoojD+H/0GFbH59kcnz5Thdjj7c4/mYMBPj/mhvGe/kKXA==}
 
   package-json-from-dist@1.0.1:
     resolution: {integrity: sha512-UEZIS3/by4OC8vL3P2dTXRETpebLI2NiI5vIrjaD/5UtrkFX/tNbwjTSRAGC/+7CAo2pIcBaRgWmcBBHcsaCIw==}
@@ -1172,7 +1172,7 @@ snapshots:
 
   '@bcoe/v8-coverage@0.2.3': {}
 
-  '@edge-runtime/cookies@5.0.0': {}
+  '@edge-runtime/cookies@5.0.1': {}
 
   '@esbuild/aix-ppc64@0.21.5':
     optional: true
@@ -1634,7 +1634,7 @@ snapshots:
     optionalDependencies:
       '@pkgjs/parseargs': 0.11.0
 
-  jose@5.8.0: {}
+  jose@5.9.6: {}
 
   js-tokens@4.0.0: {}
 
@@ -1705,7 +1705,7 @@ snapshots:
 
   node-releases@2.0.18: {}
 
-  oauth4webapi@2.12.0: {}
+  oauth4webapi@3.1.2: {}
 
   package-json-from-dist@1.0.1: {}
 

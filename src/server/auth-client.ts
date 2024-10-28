@@ -5,6 +5,7 @@ import {
   AuthorizationCodeGrantError,
   AuthorizationError,
   DiscoveryError,
+  InvalidStateError,
   MissingRefreshToken,
   MissingStateError,
   OAuth2Error,
@@ -53,7 +54,7 @@ export interface AuthorizationParameters {
    *
    * Defaults to `"openid profile email offline_access"`.
    */
-  scope: string
+  scope?: string
   /**
    * The maximum amount of time, in seconds, after which a user must reauthenticate.
    */
@@ -79,6 +80,9 @@ export interface AuthClientOptions {
 
   beforeSessionSaved?: BeforeSessionSavedHook
   onCallback?: OnCallbackHook
+
+  // custom fetch implementation to allow for dependency injection
+  fetch?: typeof fetch
 }
 
 export class AuthClient {
@@ -86,6 +90,7 @@ export class AuthClient {
   private sessionStore: AbstractSessionStore
 
   private clientMetadata: oauth.Client
+  private clientSecret: string
   private issuer: string
   private redirectUri: URL
   private authorizationParameters: AuthorizationParameters
@@ -96,17 +101,20 @@ export class AuthClient {
   private beforeSessionSaved?: BeforeSessionSavedHook
   private onCallback: OnCallbackHook
 
+  private fetch: typeof fetch
+
   constructor(options: AuthClientOptions) {
+    // dependencies
+    this.fetch = options.fetch || fetch
+
     // stores
     this.transactionStore = options.transactionStore
     this.sessionStore = options.sessionStore
 
     // authorization server
     this.issuer = `https://${options.domain}`
-    this.clientMetadata = {
-      client_id: options.clientId,
-      client_secret: options.clientSecret,
-    }
+    this.clientMetadata = { client_id: options.clientId }
+    this.clientSecret = options.clientSecret
     this.redirectUri = new URL("/auth/callback", options.appBaseUrl) // must be registed with the authorization server
     this.authorizationParameters = options.authorizationParameters || {
       scope: DEFAULT_SCOPES,
@@ -302,7 +310,7 @@ export class AuthClient {
 
     const transactionState = await this.transactionStore.get(req.cookies, state)
     if (!transactionState) {
-      return this.onCallback(new MissingStateError(), {}, null)
+      return this.onCallback(new InvalidStateError(), {}, null)
     }
 
     const onCallbackCtx: OnCallbackContext = {
@@ -316,19 +324,20 @@ export class AuthClient {
       return this.onCallback(discoveryError, onCallbackCtx, null)
     }
 
-    const codeGrantParams = oauth.validateAuthResponse(
-      authorizationServerMetadata,
-      this.clientMetadata,
-      req.nextUrl.searchParams,
-      transactionState.state
-    )
-
-    if (oauth.isOAuth2Error(codeGrantParams)) {
+    let codeGrantParams: URLSearchParams
+    try {
+      codeGrantParams = oauth.validateAuthResponse(
+        authorizationServerMetadata,
+        this.clientMetadata,
+        req.nextUrl.searchParams,
+        transactionState.state
+      )
+    } catch (e: any) {
       return this.onCallback(
         new AuthorizationError({
           cause: new OAuth2Error({
-            code: codeGrantParams.error,
-            message: codeGrantParams.error_description,
+            code: e.error,
+            message: e.error_description,
           }),
         }),
         onCallbackCtx,
@@ -339,25 +348,33 @@ export class AuthClient {
     const codeGrantResponse = await oauth.authorizationCodeGrantRequest(
       authorizationServerMetadata,
       this.clientMetadata,
+      oauth.ClientSecretPost(this.clientSecret),
       codeGrantParams,
       this.redirectUri.toString(),
-      transactionState.codeVerifier
+      transactionState.codeVerifier,
+      {
+        [oauth.customFetch]: this.fetch,
+      }
     )
 
-    const oidcRes = await oauth.processAuthorizationCodeOpenIDResponse(
-      authorizationServerMetadata,
-      this.clientMetadata,
-      codeGrantResponse,
-      transactionState.nonce,
-      transactionState.maxAge
-    )
-
-    if (oauth.isOAuth2Error(oidcRes)) {
+    let oidcRes: oauth.TokenEndpointResponse
+    try {
+      oidcRes = await oauth.processAuthorizationCodeResponse(
+        authorizationServerMetadata,
+        this.clientMetadata,
+        codeGrantResponse,
+        {
+          expectedNonce: transactionState.nonce,
+          maxAge: transactionState.maxAge,
+          requireIdToken: true,
+        }
+      )
+    } catch (e: any) {
       return this.onCallback(
         new AuthorizationCodeGrantError({
           cause: new OAuth2Error({
-            code: oidcRes.error,
-            message: oidcRes.error_description,
+            code: e.error,
+            message: e.error_description,
           }),
         }),
         onCallbackCtx,
@@ -365,7 +382,7 @@ export class AuthClient {
       )
     }
 
-    const idTokenClaims = oauth.getValidatedIdTokenClaims(oidcRes)
+    const idTokenClaims = oauth.getValidatedIdTokenClaims(oidcRes)!
     let session: SessionData = {
       user: idTokenClaims,
       tokenSet: {
@@ -455,12 +472,12 @@ export class AuthClient {
     tokenSet: TokenSet
   ): Promise<[null, TokenSet] | [SdkError, null]> {
     // the access token has expired but we do not have a refresh token
-    if (!tokenSet.refreshToken && tokenSet.expiresAt < Date.now() / 1000) {
+    if (!tokenSet.refreshToken && tokenSet.expiresAt <= Date.now() / 1000) {
       return [new MissingRefreshToken(), null]
     }
 
     // the access token has expired and we have a refresh token
-    if (tokenSet.refreshToken && tokenSet.expiresAt < Date.now() / 1000) {
+    if (tokenSet.refreshToken && tokenSet.expiresAt <= Date.now() / 1000) {
       const [discoveryError, authorizationServerMetadata] =
         await this.discoverAuthorizationServerMetadata()
 
@@ -471,20 +488,26 @@ export class AuthClient {
       const refreshTokenRes = await oauth.refreshTokenGrantRequest(
         authorizationServerMetadata,
         this.clientMetadata,
-        tokenSet.refreshToken
-      )
-      const oauthRes = await oauth.processRefreshTokenResponse(
-        authorizationServerMetadata,
-        this.clientMetadata,
-        refreshTokenRes
+        oauth.ClientSecretPost(this.clientSecret),
+        tokenSet.refreshToken,
+        {
+          [oauth.customFetch]: this.fetch,
+        }
       )
 
-      if (oauth.isOAuth2Error(oauthRes)) {
+      let oauthRes: oauth.TokenEndpointResponse
+      try {
+        oauthRes = await oauth.processRefreshTokenResponse(
+          authorizationServerMetadata,
+          this.clientMetadata,
+          refreshTokenRes
+        )
+      } catch (e: any) {
         return [
           new RefreshTokenGrantError({
             cause: new OAuth2Error({
-              code: oauthRes.error,
-              message: oauthRes.error_description,
+              code: e.error,
+              message: e.error_description,
             }),
           }),
           null,
@@ -521,7 +544,9 @@ export class AuthClient {
 
     try {
       const authorizationServerMetadata = await oauth
-        .discoveryRequest(issuer)
+        .discoveryRequest(issuer, {
+          [oauth.customFetch]: this.fetch,
+        })
         .then((response) => oauth.processDiscoveryResponse(issuer, response))
 
       return [null, authorizationServerMetadata]
@@ -541,7 +566,9 @@ export class AuthClient {
     _session: SessionData | null
   ) {
     if (error) {
-      return new NextResponse(error.message)
+      return new NextResponse(error.message, {
+        status: 500,
+      })
     }
 
     const res = NextResponse.redirect(
