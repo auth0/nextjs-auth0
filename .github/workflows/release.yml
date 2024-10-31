@@ -15,8 +15,22 @@ permissions:
 ### TODO: Also remove `npm-release` workflow from this repo's .github/workflows folder once the repo is public.
 
 jobs:
+  rl-scanner:
+    uses: ./.github/workflows/rl-secure.yml
+    with:
+      node-version: 18 ## depends if build requires node else we can remove this.
+      artifact-name: 'nextjs-auth0.tgz' ## Will change respective to Repository 
+    secrets:
+      RLSECURE_LICENSE: ${{ secrets.RLSECURE_LICENSE }}
+      RLSECURE_SITE_KEY: ${{ secrets.RLSECURE_SITE_KEY }}
+      SIGNAL_HANDLER_TOKEN: ${{ secrets.SIGNAL_HANDLER_TOKEN }}
+      PRODSEC_TOOLS_USER: ${{ secrets.PRODSEC_TOOLS_USER }}
+      PRODSEC_TOOLS_TOKEN: ${{ secrets.PRODSEC_TOOLS_TOKEN }}
+      PRODSEC_TOOLS_ARN: ${{ secrets.PRODSEC_TOOLS_ARN }}
+
   release:
     uses: ./.github/workflows/npm-release.yml
+    needs: rl-scanner ## this is important as this will not let release job to run until rl-scanner is done
     with:
       node-version: 18
       require-build: false
