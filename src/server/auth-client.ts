@@ -1,9 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server"
+import * as jose from "jose"
 import * as oauth from "oauth4webapi"
 
 import {
   AuthorizationCodeGrantError,
   AuthorizationError,
+  BackchannelLogoutError,
   DiscoveryError,
   InvalidStateError,
   MissingRefreshToken,
@@ -14,6 +16,7 @@ import {
 } from "../errors"
 import {
   AbstractSessionStore,
+  LogoutToken,
   SessionData,
   TokenSet,
 } from "./session/abstract-session-store"
@@ -83,6 +86,7 @@ export interface AuthClientOptions {
 
   // custom fetch implementation to allow for dependency injection
   fetch?: typeof fetch
+  jwksCache?: jose.JWKSCacheInput
 }
 
 export class AuthClient {
@@ -102,10 +106,12 @@ export class AuthClient {
   private onCallback: OnCallbackHook
 
   private fetch: typeof fetch
+  private jwksCache: jose.JWKSCacheInput
 
   constructor(options: AuthClientOptions) {
     // dependencies
     this.fetch = options.fetch || fetch
+    this.jwksCache = options.jwksCache || {}
 
     // stores
     this.transactionStore = options.transactionStore
@@ -156,6 +162,8 @@ export class AuthClient {
       return this.handleProfile(req)
     } else if (method === "GET" && pathname === "/auth/access-token") {
       return this.handleAccessToken(req)
+    } else if (method === "GET" && pathname === "/auth/backchannel-logout") {
+      return this.handleBackChannelLogout(req)
     } else {
       // no auth handler found, simply touch the sessions
       // TODO: this should only happen if rolling sessions are enabled. Also, we should
@@ -464,6 +472,45 @@ export class AuthClient {
     return res
   }
 
+  async handleBackChannelLogout(req: NextRequest): Promise<NextResponse> {
+    if (!this.sessionStore.store) {
+      return new NextResponse("A session data store is not configured.", {
+        status: 500,
+      })
+    }
+
+    if (!this.sessionStore.store.deleteByLogoutToken) {
+      return new NextResponse(
+        "Back-channel logout is not supported by the session data store.",
+        {
+          status: 500,
+        }
+      )
+    }
+
+    const body = new URLSearchParams(await req.text())
+    const logoutToken = body.get("logout_token")
+
+    if (!logoutToken) {
+      return new NextResponse("Missing `logout_token` in the request body.", {
+        status: 400,
+      })
+    }
+
+    const [error, logoutTokenClaims] = await this.verifyLogoutToken(logoutToken)
+    if (error) {
+      return new NextResponse(error.message, {
+        status: 400,
+      })
+    }
+
+    await this.sessionStore.store.deleteByLogoutToken(logoutTokenClaims)
+
+    return new NextResponse(null, {
+      status: 204,
+    })
+  }
+
   /**
    * getTokenSet returns a valid token set. If the access token has expired, it will attempt to
    * refresh it using the refresh token, if available.
@@ -576,5 +623,97 @@ export class AuthClient {
     )
 
     return res
+  }
+
+  private async verifyLogoutToken(
+    logoutToken: string
+  ): Promise<[null, LogoutToken] | [SdkError, null]> {
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata()
+
+    if (discoveryError) {
+      return [discoveryError, null]
+    }
+
+    // only `RS256` is supported for logout tokens
+    const ID_TOKEN_SIGNING_ALG = "RS256"
+
+    const keyInput = jose.createRemoteJWKSet(
+      new URL(authorizationServerMetadata.jwks_uri!),
+      {
+        [jose.jwksCache]: this.jwksCache,
+      }
+    )
+
+    const { payload } = await jose.jwtVerify(logoutToken, keyInput, {
+      issuer: authorizationServerMetadata.issuer,
+      audience: this.clientMetadata.client_id,
+      algorithms: [ID_TOKEN_SIGNING_ALG],
+      requiredClaims: ["iat"],
+    })
+
+    if (!("sid" in payload) && !("sub" in payload)) {
+      return [
+        new BackchannelLogoutError(
+          'either "sid" or "sub" (or both) claims must be present'
+        ),
+        null,
+      ]
+    }
+
+    if ("sid" in payload && typeof payload.sid !== "string") {
+      return [new BackchannelLogoutError('"sid" claim must be a string'), null]
+    }
+
+    if ("sub" in payload && typeof payload.sub !== "string") {
+      return [new BackchannelLogoutError('"sub" claim must be a string'), null]
+    }
+
+    if ("nonce" in payload) {
+      return [new BackchannelLogoutError('"nonce" claim is prohibited'), null]
+    }
+
+    if (!("events" in payload)) {
+      return [new BackchannelLogoutError('"events" claim is missing'), null]
+    }
+
+    if (typeof payload.events !== "object" || payload.events === null) {
+      return [
+        new BackchannelLogoutError('"events" claim must be an object'),
+        null,
+      ]
+    }
+
+    if (
+      !("http://schemas.openid.net/event/backchannel-logout" in payload.events)
+    ) {
+      return [
+        new BackchannelLogoutError(
+          '"http://schemas.openid.net/event/backchannel-logout" member is missing in the "events" claim'
+        ),
+        null,
+      ]
+    }
+
+    if (
+      typeof payload.events[
+        "http://schemas.openid.net/event/backchannel-logout"
+      ] !== "object"
+    ) {
+      return [
+        new BackchannelLogoutError(
+          '"http://schemas.openid.net/event/backchannel-logout" member in the "events" claim must be an object'
+        ),
+        null,
+      ]
+    }
+
+    return [
+      null,
+      {
+        sid: payload.sid as string,
+        sub: payload.sub,
+      },
+    ]
   }
 }

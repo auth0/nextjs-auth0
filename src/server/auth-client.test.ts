@@ -7,20 +7,123 @@ import { generateSecret } from "../test/utils"
 import { AuthClient } from "./auth-client"
 import { decrypt, encrypt } from "./cookies"
 import { SessionData } from "./session/abstract-session-store"
+import { StatefulSessionStore } from "./session/stateful-session-store"
 import { StatelessSessionStore } from "./session/stateless-session-store"
 import { TransactionState, TransactionStore } from "./transaction-store"
 
-const DEFAULT = {
-  domain: "guabu.us.auth0.com",
-  clientId: "client_123",
-  clientSecret: "client-secret",
-  appBaseUrl: "https://example.com",
-  sid: "auth0-sid",
-  accessToken: "at_123",
-  refreshToken: "rt_123",
-}
-
 describe("Authentication Client", async () => {
+  const DEFAULT = {
+    domain: "guabu.us.auth0.com",
+    clientId: "client_123",
+    clientSecret: "client-secret",
+    appBaseUrl: "https://example.com",
+    sid: "auth0-sid",
+    accessToken: "at_123",
+    refreshToken: "rt_123",
+    sub: "user_123",
+    alg: "RS256",
+    keyPair: await jose.generateKeyPair("RS256"),
+  }
+
+  function getMockAuthorizationServer({
+    tokenEndpointResponse,
+    discoveryResponse,
+    audience,
+    nonce,
+    keyPair = DEFAULT.keyPair,
+  }: {
+    tokenEndpointResponse?: oauth.TokenEndpointResponse | oauth.OAuth2Error
+    discoveryResponse?: Response
+    audience?: string
+    nonce?: string
+    keyPair?: jose.GenerateKeyPairResult<jose.KeyLike>
+  } = {}) {
+    // this function acts as a mock authorization server
+    return vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
+      let url: URL
+      if (input instanceof Request) {
+        url = new URL(input.url)
+      } else {
+        url = new URL(input)
+      }
+
+      if (url.pathname === "/oauth/token") {
+        const jwt = await new jose.SignJWT({
+          sid: DEFAULT.sid,
+          auth_time: Date.now(),
+          nonce: nonce ?? "nonce-value",
+          "https://example.com/custom_claim": "value",
+        })
+          .setProtectedHeader({ alg: DEFAULT.alg })
+          .setSubject(DEFAULT.sub)
+          .setIssuedAt()
+          .setIssuer(_authorizationServerMetadata.issuer)
+          .setAudience(audience ?? DEFAULT.clientId)
+          .setExpirationTime("2h")
+          .sign(keyPair.privateKey)
+
+        return Response.json(
+          tokenEndpointResponse ?? {
+            token_type: "Bearer",
+            access_token: DEFAULT.accessToken,
+            refresh_token: DEFAULT.refreshToken,
+            id_token: jwt,
+            expires_in: 86400, // expires in 10 days
+          }
+        )
+      }
+
+      // discovery URL
+      if (url.pathname === "/.well-known/openid-configuration") {
+        return discoveryResponse ?? Response.json(_authorizationServerMetadata)
+      }
+
+      return new Response(null, { status: 404 })
+    })
+  }
+
+  async function generateLogoutToken({
+    claims = {},
+    audience = DEFAULT.clientId,
+    issuer = _authorizationServerMetadata.issuer,
+    alg = DEFAULT.alg,
+
+    privateKey = DEFAULT.keyPair.privateKey,
+  }: {
+    claims?: any
+    audience?: string
+    issuer?: string
+    alg?: string
+    privateKey?: jose.KeyLike
+  }): Promise<string> {
+    return await new jose.SignJWT({
+      events: {
+        "http://schemas.openid.net/event/backchannel-logout": {},
+      },
+      sub: DEFAULT.sub,
+      sid: DEFAULT.sid,
+      ...claims,
+    })
+      .setProtectedHeader({ alg, typ: "logout+jwt" })
+      .setIssuedAt()
+      .setIssuer(issuer)
+      .setAudience(audience)
+      .setExpirationTime("2h")
+      .setJti("some-jti")
+      .sign(privateKey)
+  }
+
+  async function getCachedJWKS(): Promise<jose.ExportedJWKSCache> {
+    const publicJwk = await jose.exportJWK(DEFAULT.keyPair.publicKey)
+
+    return {
+      jwks: {
+        keys: [publicJwk],
+      },
+      uat: Date.now() - 1000 * 60,
+    }
+  }
+
   describe("initialization", async () => {
     it("should throw an error if the openid scope is not included", async () => {
       const secret = await generateSecret(32)
@@ -48,7 +151,7 @@ describe("Authentication Client", async () => {
               scope: "profile email",
             },
 
-            fetch: getMockFetchImplementation(),
+            fetch: getMockAuthorizationServer(),
           })
       ).toThrowError()
     })
@@ -74,7 +177,7 @@ describe("Authentication Client", async () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockFetchImplementation(),
+        fetch: getMockAuthorizationServer(),
       })
       const request = new NextRequest("https://example.com/auth/login", {
         method: "GET",
@@ -103,7 +206,7 @@ describe("Authentication Client", async () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockFetchImplementation(),
+        fetch: getMockAuthorizationServer(),
       })
       const request = new NextRequest("https://example.com/auth/callback", {
         method: "GET",
@@ -132,7 +235,7 @@ describe("Authentication Client", async () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockFetchImplementation(),
+        fetch: getMockAuthorizationServer(),
       })
       const request = new NextRequest("https://example.com/auth/logout", {
         method: "GET",
@@ -161,7 +264,7 @@ describe("Authentication Client", async () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockFetchImplementation(),
+        fetch: getMockAuthorizationServer(),
       })
       const request = new NextRequest("https://example.com/auth/profile", {
         method: "GET",
@@ -190,7 +293,7 @@ describe("Authentication Client", async () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockFetchImplementation(),
+        fetch: getMockAuthorizationServer(),
       })
       const request = new NextRequest("https://example.com/auth/access-token", {
         method: "GET",
@@ -198,6 +301,38 @@ describe("Authentication Client", async () => {
       authClient.handleAccessToken = vi.fn()
       await authClient.handler(request)
       expect(authClient.handleAccessToken).toHaveBeenCalled()
+    })
+
+    it("should call the back-channel logout handler if the path is /auth/backchannel-logout", async () => {
+      const secret = await generateSecret(32)
+      const transactionStore = new TransactionStore({
+        secret,
+      })
+      const sessionStore = new StatelessSessionStore({
+        secret,
+      })
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        fetch: getMockAuthorizationServer(),
+      })
+      const request = new NextRequest(
+        "https://example.com/auth/backchannel-logout",
+        {
+          method: "GET",
+        }
+      )
+      authClient.handleBackChannelLogout = vi.fn()
+      await authClient.handler(request)
+      expect(authClient.handleBackChannelLogout).toHaveBeenCalled()
     })
 
     describe("rolling sessions - no matching auth route", async () => {
@@ -224,11 +359,11 @@ describe("Authentication Client", async () => {
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
-          fetch: getMockFetchImplementation(),
+          fetch: getMockAuthorizationServer(),
         })
 
         const session: SessionData = {
-          user: { sub: "user_123" },
+          user: { sub: DEFAULT.sub },
           tokenSet: {
             accessToken: DEFAULT.accessToken,
             refreshToken: DEFAULT.refreshToken,
@@ -272,7 +407,7 @@ describe("Authentication Client", async () => {
         )
         expect(updatedSessionCookieValue).toEqual({
           user: {
-            sub: "user_123",
+            sub: DEFAULT.sub,
           },
           tokenSet: {
             accessToken: "at_456",
@@ -312,7 +447,7 @@ describe("Authentication Client", async () => {
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
-          fetch: getMockFetchImplementation(),
+          fetch: getMockAuthorizationServer(),
         })
 
         const request = new NextRequest(
@@ -355,11 +490,11 @@ describe("Authentication Client", async () => {
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
-          fetch: getMockFetchImplementation(),
+          fetch: getMockAuthorizationServer(),
         })
 
         const session: SessionData = {
-          user: { sub: "user_123" },
+          user: { sub: DEFAULT.sub },
           tokenSet: {
             accessToken: DEFAULT.accessToken,
             refreshToken: DEFAULT.refreshToken,
@@ -418,7 +553,7 @@ describe("Authentication Client", async () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockFetchImplementation(),
+        fetch: getMockAuthorizationServer(),
       })
       const request = new NextRequest(
         new URL("/auth/login", DEFAULT.appBaseUrl),
@@ -485,7 +620,7 @@ describe("Authentication Client", async () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockFetchImplementation({
+        fetch: getMockAuthorizationServer({
           discoveryResponse: new Response(null, { status: 500 }),
         }),
       })
@@ -524,7 +659,7 @@ describe("Authentication Client", async () => {
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
-          fetch: getMockFetchImplementation(),
+          fetch: getMockAuthorizationServer(),
         })
         const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl)
         loginUrl.searchParams.set("custom_param", "custom_value")
@@ -606,7 +741,7 @@ describe("Authentication Client", async () => {
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
-          fetch: getMockFetchImplementation(),
+          fetch: getMockAuthorizationServer(),
         })
         const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl)
         const request = new NextRequest(loginUrl, {
@@ -672,7 +807,7 @@ describe("Authentication Client", async () => {
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
-          fetch: getMockFetchImplementation(),
+          fetch: getMockAuthorizationServer(),
         })
         const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl)
         loginUrl.searchParams.set("custom_param", "from-query")
@@ -749,7 +884,7 @@ describe("Authentication Client", async () => {
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
-          fetch: getMockFetchImplementation(),
+          fetch: getMockAuthorizationServer(),
         })
         const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl)
         loginUrl.searchParams.set("client_id", "from-query")
@@ -826,7 +961,7 @@ describe("Authentication Client", async () => {
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
-          fetch: getMockFetchImplementation(),
+          fetch: getMockAuthorizationServer(),
         })
         const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl)
         const request = new NextRequest(loginUrl, {
@@ -888,7 +1023,7 @@ describe("Authentication Client", async () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockFetchImplementation(),
+        fetch: getMockAuthorizationServer(),
       })
       const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl)
       const request = new NextRequest(loginUrl, {
@@ -934,7 +1069,7 @@ describe("Authentication Client", async () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockFetchImplementation(),
+        fetch: getMockAuthorizationServer(),
       })
       const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl)
       loginUrl.searchParams.set("returnTo", "/dashboard")
@@ -980,12 +1115,12 @@ describe("Authentication Client", async () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockFetchImplementation(),
+        fetch: getMockAuthorizationServer(),
       })
 
       // set the session cookie to assert it's been cleared
       const session: SessionData = {
-        user: { sub: "user_123" },
+        user: { sub: DEFAULT.sub },
         tokenSet: {
           accessToken: DEFAULT.accessToken,
           refreshToken: DEFAULT.refreshToken,
@@ -1050,7 +1185,7 @@ describe("Authentication Client", async () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockFetchImplementation(),
+        fetch: getMockAuthorizationServer(),
       })
 
       const request = new NextRequest(
@@ -1101,7 +1236,7 @@ describe("Authentication Client", async () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockFetchImplementation({
+        fetch: getMockAuthorizationServer({
           discoveryResponse: Response.json(
             {
               ..._authorizationServerMetadata,
@@ -1150,7 +1285,7 @@ describe("Authentication Client", async () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockFetchImplementation({
+        fetch: getMockAuthorizationServer({
           discoveryResponse: new Response(null, { status: 500 }),
         }),
       })
@@ -1190,13 +1325,13 @@ describe("Authentication Client", async () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockFetchImplementation(),
+        fetch: getMockAuthorizationServer(),
       })
 
       // set the session cookie to assert it's been cleared
       const session: SessionData = {
         user: {
-          sub: "user_123",
+          sub: DEFAULT.sub,
           name: "John Doe",
           email: "john@example.com",
           picture: "https://example.com/john.jpg",
@@ -1225,7 +1360,7 @@ describe("Authentication Client", async () => {
       const response = await authClient.handleProfile(request)
       expect(response.status).toEqual(200)
       expect(await response.json()).toEqual({
-        sub: "user_123",
+        sub: DEFAULT.sub,
         name: "John Doe",
         email: "john@example.com",
         picture: "https://example.com/john.jpg",
@@ -1251,7 +1386,7 @@ describe("Authentication Client", async () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockFetchImplementation(),
+        fetch: getMockAuthorizationServer(),
       })
 
       const request = new NextRequest(
@@ -1290,7 +1425,7 @@ describe("Authentication Client", async () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockFetchImplementation(),
+        fetch: getMockAuthorizationServer(),
       })
 
       const url = new URL("/auth/callback", DEFAULT.appBaseUrl)
@@ -1328,7 +1463,7 @@ describe("Authentication Client", async () => {
       const session = await decrypt(sessionCookie!.value, secret)
       expect(session).toEqual({
         user: {
-          sub: "user_123",
+          sub: DEFAULT.sub,
         },
         tokenSet: {
           accessToken: DEFAULT.accessToken,
@@ -1371,7 +1506,7 @@ describe("Authentication Client", async () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockFetchImplementation(),
+        fetch: getMockAuthorizationServer(),
       })
 
       const url = new URL("/auth/callback", DEFAULT.appBaseUrl)
@@ -1408,7 +1543,7 @@ describe("Authentication Client", async () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockFetchImplementation(),
+        fetch: getMockAuthorizationServer(),
       })
 
       const url = new URL("/auth/callback", DEFAULT.appBaseUrl)
@@ -1459,7 +1594,7 @@ describe("Authentication Client", async () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockFetchImplementation(),
+        fetch: getMockAuthorizationServer(),
       })
 
       const url = new URL("/auth/callback", DEFAULT.appBaseUrl)
@@ -1514,7 +1649,7 @@ describe("Authentication Client", async () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockFetchImplementation({
+        fetch: getMockAuthorizationServer({
           tokenEndpointResponse: {
             error: "some-error-code",
             error_description: "some-error-description",
@@ -1573,7 +1708,7 @@ describe("Authentication Client", async () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockFetchImplementation({
+        fetch: getMockAuthorizationServer({
           discoveryResponse: new Response(null, { status: 500 }),
         }),
       })
@@ -1636,7 +1771,7 @@ describe("Authentication Client", async () => {
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
-          fetch: getMockFetchImplementation(),
+          fetch: getMockAuthorizationServer(),
 
           onCallback: mockOnCallback,
         })
@@ -1671,7 +1806,7 @@ describe("Authentication Client", async () => {
 
         const expectedSession = {
           user: {
-            sub: "user_123",
+            sub: DEFAULT.sub,
           },
           tokenSet: {
             accessToken: DEFAULT.accessToken,
@@ -1727,7 +1862,7 @@ describe("Authentication Client", async () => {
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
-          fetch: getMockFetchImplementation(),
+          fetch: getMockAuthorizationServer(),
 
           onCallback: mockOnCallback,
         })
@@ -1783,7 +1918,7 @@ describe("Authentication Client", async () => {
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
-          fetch: getMockFetchImplementation(),
+          fetch: getMockAuthorizationServer(),
 
           onCallback: mockOnCallback,
         })
@@ -1853,7 +1988,7 @@ describe("Authentication Client", async () => {
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
-          fetch: getMockFetchImplementation(),
+          fetch: getMockAuthorizationServer(),
 
           onCallback: mockOnCallback,
         })
@@ -1933,7 +2068,7 @@ describe("Authentication Client", async () => {
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
-          fetch: getMockFetchImplementation({
+          fetch: getMockAuthorizationServer({
             tokenEndpointResponse: {
               error: "some-error-code",
               error_description: "some-error-description",
@@ -2013,13 +2148,13 @@ describe("Authentication Client", async () => {
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
-          fetch: getMockFetchImplementation(),
+          fetch: getMockAuthorizationServer(),
 
           beforeSessionSaved: async (session) => {
             return {
               ...session,
               user: {
-                sub: "user_123",
+                sub: DEFAULT.sub,
                 name: "John Doe",
                 email: "john@example.com",
                 custom: "value",
@@ -2063,7 +2198,7 @@ describe("Authentication Client", async () => {
         const session = await decrypt(sessionCookie!.value, secret)
         expect(session).toEqual({
           user: {
-            sub: "user_123",
+            sub: DEFAULT.sub,
             name: "John Doe",
             email: "john@example.com",
             custom: "value",
@@ -2101,7 +2236,7 @@ describe("Authentication Client", async () => {
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
-          fetch: getMockFetchImplementation(),
+          fetch: getMockAuthorizationServer(),
 
           beforeSessionSaved: mockBeforeSessionSaved,
         })
@@ -2137,14 +2272,14 @@ describe("Authentication Client", async () => {
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
-          fetch: getMockFetchImplementation(),
+          fetch: getMockAuthorizationServer(),
 
           // @ts-expect-error
           beforeSessionSaved: async (session) => {
             return {
               ...session,
               user: {
-                sub: "user_123",
+                sub: DEFAULT.sub,
                 name: "John Doe",
                 email: "john@example.com",
                 custom: "value",
@@ -2189,7 +2324,7 @@ describe("Authentication Client", async () => {
         const session = await decrypt(sessionCookie!.value, secret)
         expect(session).toEqual({
           user: {
-            sub: "user_123",
+            sub: DEFAULT.sub,
             name: "John Doe",
             email: "john@example.com",
             custom: "value",
@@ -2231,7 +2366,7 @@ describe("Authentication Client", async () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockFetchImplementation({
+        fetch: getMockAuthorizationServer({
           tokenEndpointResponse: {
             token_type: "Bearer",
             access_token: newAccessToken,
@@ -2244,7 +2379,7 @@ describe("Authentication Client", async () => {
       const expiresAt = Math.floor(Date.now() / 1000) - 10 * 24 * 60 * 60 // expired 10 days ago
       const session: SessionData = {
         user: {
-          sub: "user_123",
+          sub: DEFAULT.sub,
           name: "John Doe",
           email: "john@example.com",
           picture: "https://example.com/john.jpg",
@@ -2305,7 +2440,7 @@ describe("Authentication Client", async () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockFetchImplementation(),
+        fetch: getMockAuthorizationServer(),
       })
 
       const request = new NextRequest(
@@ -2345,13 +2480,13 @@ describe("Authentication Client", async () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockFetchImplementation(),
+        fetch: getMockAuthorizationServer(),
       })
 
       const expiresAt = Math.floor(Date.now() / 1000) - 10 * 24 * 60 * 60 // expires in 10 days
       const session: SessionData = {
         user: {
-          sub: "user_123",
+          sub: DEFAULT.sub,
           name: "John Doe",
           email: "john@example.com",
           picture: "https://example.com/john.jpg",
@@ -2390,6 +2525,536 @@ describe("Authentication Client", async () => {
     })
   })
 
+  describe("handleBackChannelLogout", async () => {
+    it("should return a 204 when successful — happy path", async () => {
+      const deleteByLogoutTokenSpy = vi.fn()
+      const secret = await generateSecret(32)
+      const transactionStore = new TransactionStore({
+        secret,
+      })
+      const sessionStore = new StatefulSessionStore({
+        secret,
+        store: {
+          get: vi.fn(),
+          set: vi.fn(),
+          delete: vi.fn(),
+          deleteByLogoutToken: deleteByLogoutTokenSpy,
+        },
+      })
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        fetch: getMockAuthorizationServer(),
+        jwksCache: await getCachedJWKS(),
+      })
+
+      const request = new NextRequest(
+        new URL("/auth/backchannel-logout", DEFAULT.appBaseUrl),
+        {
+          method: "POST",
+          body: new URLSearchParams({
+            logout_token: await generateLogoutToken({}),
+          }),
+        }
+      )
+
+      const response = await authClient.handleBackChannelLogout(request)
+      expect(response.status).toEqual(204)
+      expect(response.body).toBeNull()
+
+      expect(deleteByLogoutTokenSpy).toHaveBeenCalledWith({
+        sub: DEFAULT.sub,
+        sid: DEFAULT.sid,
+      })
+    })
+
+    it("should return a 500 if a session store is not configured", async () => {
+      const secret = await generateSecret(32)
+      const transactionStore = new TransactionStore({
+        secret,
+      })
+      // pass in a stateless session store that does not implement a store
+      const sessionStore = new StatelessSessionStore({
+        secret,
+      })
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        fetch: getMockAuthorizationServer(),
+        jwksCache: await getCachedJWKS(),
+      })
+
+      const request = new NextRequest(
+        new URL("/auth/backchannel-logout", DEFAULT.appBaseUrl),
+        {
+          method: "POST",
+          body: new URLSearchParams({
+            logout_token: await generateLogoutToken({}),
+          }),
+        }
+      )
+
+      const response = await authClient.handleBackChannelLogout(request)
+      expect(response.status).toEqual(500)
+      expect(await response.text()).toEqual(
+        "A session data store is not configured."
+      )
+    })
+
+    it("should return a 500 if a session store deleteByLogoutToken method is not implemented", async () => {
+      const secret = await generateSecret(32)
+      const transactionStore = new TransactionStore({
+        secret,
+      })
+      const sessionStore = new StatefulSessionStore({
+        secret,
+        store: {
+          get: vi.fn(),
+          set: vi.fn(),
+          delete: vi.fn(),
+        },
+      })
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        fetch: getMockAuthorizationServer(),
+        jwksCache: await getCachedJWKS(),
+      })
+
+      const request = new NextRequest(
+        new URL("/auth/backchannel-logout", DEFAULT.appBaseUrl),
+        {
+          method: "POST",
+          body: new URLSearchParams({
+            logout_token: await generateLogoutToken({}),
+          }),
+        }
+      )
+
+      const response = await authClient.handleBackChannelLogout(request)
+      expect(response.status).toEqual(500)
+      expect(await response.text()).toEqual(
+        "Back-channel logout is not supported by the session data store."
+      )
+    })
+
+    describe("malformed logout tokens", async () => {
+      it("should return a 400 if a logout token contains a nonce", async () => {
+        const deleteByLogoutTokenSpy = vi.fn()
+        const secret = await generateSecret(32)
+        const transactionStore = new TransactionStore({
+          secret,
+        })
+        const sessionStore = new StatefulSessionStore({
+          secret,
+          store: {
+            get: vi.fn(),
+            set: vi.fn(),
+            delete: vi.fn(),
+            deleteByLogoutToken: deleteByLogoutTokenSpy,
+          },
+        })
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          fetch: getMockAuthorizationServer(),
+          jwksCache: await getCachedJWKS(),
+        })
+
+        const request = new NextRequest(
+          new URL("/auth/backchannel-logout", DEFAULT.appBaseUrl),
+          {
+            method: "POST",
+            body: new URLSearchParams({
+              logout_token: await generateLogoutToken({
+                claims: {
+                  nonce: "nonce-value", // nonce should NOT be present
+                },
+              }),
+            }),
+          }
+        )
+
+        const response = await authClient.handleBackChannelLogout(request)
+        expect(response.status).toEqual(400)
+        expect(deleteByLogoutTokenSpy).not.toHaveBeenCalled()
+      })
+
+      it("should return a 400 if a logout token is not provided in the request", async () => {
+        const deleteByLogoutTokenSpy = vi.fn()
+        const secret = await generateSecret(32)
+        const transactionStore = new TransactionStore({
+          secret,
+        })
+        const sessionStore = new StatefulSessionStore({
+          secret,
+          store: {
+            get: vi.fn(),
+            set: vi.fn(),
+            delete: vi.fn(),
+            deleteByLogoutToken: deleteByLogoutTokenSpy,
+          },
+        })
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          fetch: getMockAuthorizationServer(),
+          jwksCache: await getCachedJWKS(),
+        })
+
+        const request = new NextRequest(
+          new URL("/auth/backchannel-logout", DEFAULT.appBaseUrl),
+          {
+            method: "POST",
+            body: new URLSearchParams({}),
+          }
+        )
+
+        const response = await authClient.handleBackChannelLogout(request)
+        expect(response.status).toEqual(400)
+        expect(deleteByLogoutTokenSpy).not.toHaveBeenCalled()
+      })
+
+      it("should return a 400 if a logout token does not contain a sid nor sub", async () => {
+        const deleteByLogoutTokenSpy = vi.fn()
+        const secret = await generateSecret(32)
+        const transactionStore = new TransactionStore({
+          secret,
+        })
+        const sessionStore = new StatefulSessionStore({
+          secret,
+          store: {
+            get: vi.fn(),
+            set: vi.fn(),
+            delete: vi.fn(),
+            deleteByLogoutToken: deleteByLogoutTokenSpy,
+          },
+        })
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          fetch: getMockAuthorizationServer(),
+          jwksCache: await getCachedJWKS(),
+        })
+
+        const request = new NextRequest(
+          new URL("/auth/backchannel-logout", DEFAULT.appBaseUrl),
+          {
+            method: "POST",
+            body: new URLSearchParams({
+              logout_token: await generateLogoutToken({
+                claims: {
+                  sid: null,
+                  sub: null,
+                },
+              }),
+            }),
+          }
+        )
+
+        const response = await authClient.handleBackChannelLogout(request)
+        expect(response.status).toEqual(400)
+        expect(deleteByLogoutTokenSpy).not.toHaveBeenCalled()
+      })
+
+      it("should return a 400 if the sub claim is not a string", async () => {
+        const deleteByLogoutTokenSpy = vi.fn()
+        const secret = await generateSecret(32)
+        const transactionStore = new TransactionStore({
+          secret,
+        })
+        const sessionStore = new StatefulSessionStore({
+          secret,
+          store: {
+            get: vi.fn(),
+            set: vi.fn(),
+            delete: vi.fn(),
+            deleteByLogoutToken: deleteByLogoutTokenSpy,
+          },
+        })
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          fetch: getMockAuthorizationServer(),
+          jwksCache: await getCachedJWKS(),
+        })
+
+        const request = new NextRequest(
+          new URL("/auth/backchannel-logout", DEFAULT.appBaseUrl),
+          {
+            method: "POST",
+            body: new URLSearchParams({
+              logout_token: await generateLogoutToken({
+                claims: {
+                  sub: 123,
+                },
+              }),
+            }),
+          }
+        )
+
+        const response = await authClient.handleBackChannelLogout(request)
+        expect(response.status).toEqual(400)
+        expect(deleteByLogoutTokenSpy).not.toHaveBeenCalled()
+      })
+
+      it("should return a 400 if the sid claim is not a string", async () => {
+        const deleteByLogoutTokenSpy = vi.fn()
+        const secret = await generateSecret(32)
+        const transactionStore = new TransactionStore({
+          secret,
+        })
+        const sessionStore = new StatefulSessionStore({
+          secret,
+          store: {
+            get: vi.fn(),
+            set: vi.fn(),
+            delete: vi.fn(),
+            deleteByLogoutToken: deleteByLogoutTokenSpy,
+          },
+        })
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          fetch: getMockAuthorizationServer(),
+          jwksCache: await getCachedJWKS(),
+        })
+
+        const request = new NextRequest(
+          new URL("/auth/backchannel-logout", DEFAULT.appBaseUrl),
+          {
+            method: "POST",
+            body: new URLSearchParams({
+              logout_token: await generateLogoutToken({
+                claims: {
+                  sid: 123,
+                },
+              }),
+            }),
+          }
+        )
+
+        const response = await authClient.handleBackChannelLogout(request)
+        expect(response.status).toEqual(400)
+        expect(deleteByLogoutTokenSpy).not.toHaveBeenCalled()
+      })
+
+      it("should return a 400 if the events claim is missing", async () => {
+        const deleteByLogoutTokenSpy = vi.fn()
+        const secret = await generateSecret(32)
+        const transactionStore = new TransactionStore({
+          secret,
+        })
+        const sessionStore = new StatefulSessionStore({
+          secret,
+          store: {
+            get: vi.fn(),
+            set: vi.fn(),
+            delete: vi.fn(),
+            deleteByLogoutToken: deleteByLogoutTokenSpy,
+          },
+        })
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          fetch: getMockAuthorizationServer(),
+          jwksCache: await getCachedJWKS(),
+        })
+
+        const request = new NextRequest(
+          new URL("/auth/backchannel-logout", DEFAULT.appBaseUrl),
+          {
+            method: "POST",
+            body: new URLSearchParams({
+              logout_token: await generateLogoutToken({
+                claims: {
+                  events: null,
+                },
+              }),
+            }),
+          }
+        )
+
+        const response = await authClient.handleBackChannelLogout(request)
+        expect(response.status).toEqual(400)
+        expect(deleteByLogoutTokenSpy).not.toHaveBeenCalled()
+      })
+
+      it("should return a 400 if the events object does not contain the backchannel logout member", async () => {
+        const deleteByLogoutTokenSpy = vi.fn()
+        const secret = await generateSecret(32)
+        const transactionStore = new TransactionStore({
+          secret,
+        })
+        const sessionStore = new StatefulSessionStore({
+          secret,
+          store: {
+            get: vi.fn(),
+            set: vi.fn(),
+            delete: vi.fn(),
+            deleteByLogoutToken: deleteByLogoutTokenSpy,
+          },
+        })
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          fetch: getMockAuthorizationServer(),
+          jwksCache: await getCachedJWKS(),
+        })
+
+        const request = new NextRequest(
+          new URL("/auth/backchannel-logout", DEFAULT.appBaseUrl),
+          {
+            method: "POST",
+            body: new URLSearchParams({
+              logout_token: await generateLogoutToken({
+                claims: {
+                  events: {},
+                },
+              }),
+            }),
+          }
+        )
+
+        const response = await authClient.handleBackChannelLogout(request)
+        expect(response.status).toEqual(400)
+        expect(deleteByLogoutTokenSpy).not.toHaveBeenCalled()
+      })
+
+      it("should return a 400 if the backchannel event is not an object", async () => {
+        const deleteByLogoutTokenSpy = vi.fn()
+        const secret = await generateSecret(32)
+        const transactionStore = new TransactionStore({
+          secret,
+        })
+        const sessionStore = new StatefulSessionStore({
+          secret,
+          store: {
+            get: vi.fn(),
+            set: vi.fn(),
+            delete: vi.fn(),
+            deleteByLogoutToken: deleteByLogoutTokenSpy,
+          },
+        })
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          fetch: getMockAuthorizationServer(),
+          jwksCache: await getCachedJWKS(),
+        })
+
+        const request = new NextRequest(
+          new URL("/auth/backchannel-logout", DEFAULT.appBaseUrl),
+          {
+            method: "POST",
+            body: new URLSearchParams({
+              logout_token: await generateLogoutToken({
+                claims: {
+                  events: {
+                    "http://schemas.openid.net/event/backchannel-logout":
+                      "some string",
+                  },
+                },
+              }),
+            }),
+          }
+        )
+
+        const response = await authClient.handleBackChannelLogout(request)
+        expect(response.status).toEqual(400)
+        expect(deleteByLogoutTokenSpy).not.toHaveBeenCalled()
+      })
+    })
+  })
+
   describe("getTokenSet", async () => {
     it("should return the access token if it has not expired", async () => {
       const secret = await generateSecret(32)
@@ -2410,7 +3075,7 @@ describe("Authentication Client", async () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockFetchImplementation(),
+        fetch: getMockAuthorizationServer(),
       })
 
       const expiresAt = Math.floor(Date.now() / 1000) + 10 * 24 * 60 * 60 // expires in 10 days
@@ -2444,7 +3109,7 @@ describe("Authentication Client", async () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockFetchImplementation(),
+        fetch: getMockAuthorizationServer(),
       })
 
       const expiresAt = Math.floor(Date.now() / 1000) - 10 * 24 * 60 * 60 // expired 10 days ago
@@ -2477,7 +3142,7 @@ describe("Authentication Client", async () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockFetchImplementation({
+        fetch: getMockAuthorizationServer({
           tokenEndpointResponse: {
             token_type: "Bearer",
             access_token: DEFAULT.accessToken,
@@ -2521,7 +3186,7 @@ describe("Authentication Client", async () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockFetchImplementation({
+        fetch: getMockAuthorizationServer({
           tokenEndpointResponse: {
             error: "some-error-code",
             error_description: "some-error-description",
@@ -2560,7 +3225,7 @@ describe("Authentication Client", async () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockFetchImplementation({
+        fetch: getMockAuthorizationServer({
           discoveryResponse: new Response(null, { status: 500 }),
         }),
       })
@@ -2597,7 +3262,7 @@ describe("Authentication Client", async () => {
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
-          fetch: getMockFetchImplementation({
+          fetch: getMockAuthorizationServer({
             tokenEndpointResponse: {
               token_type: "Bearer",
               access_token: DEFAULT.accessToken,
@@ -2625,64 +3290,6 @@ describe("Authentication Client", async () => {
     })
   })
 })
-
-function getMockFetchImplementation({
-  tokenEndpointResponse,
-  discoveryResponse,
-  audience,
-  nonce,
-}: {
-  tokenEndpointResponse?: oauth.TokenEndpointResponse | oauth.OAuth2Error
-  discoveryResponse?: Response
-  audience?: string
-  nonce?: string
-} = {}) {
-  // this function acts as a mock authorization server
-  return vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
-    let url: URL
-    if (input instanceof Request) {
-      url = new URL(input.url)
-    } else {
-      url = new URL(input)
-    }
-
-    // JWKS
-    const alg = "RS256"
-    const { privateKey } = await jose.generateKeyPair(alg)
-    const jwt = await new jose.SignJWT({
-      sid: DEFAULT.sid,
-      auth_time: Date.now(),
-      nonce: nonce ?? "nonce-value",
-      "https://example.com/custom_claim": "value",
-    })
-      .setProtectedHeader({ alg })
-      .setSubject("user_123")
-      .setIssuedAt()
-      .setIssuer(_authorizationServerMetadata.issuer)
-      .setAudience(audience ?? "client_123")
-      .setExpirationTime("2h")
-      .sign(privateKey)
-
-    if (url.pathname === "/oauth/token") {
-      return Response.json(
-        tokenEndpointResponse ?? {
-          token_type: "Bearer",
-          access_token: DEFAULT.accessToken,
-          refresh_token: DEFAULT.refreshToken,
-          id_token: jwt,
-          expires_in: 86400, // expires in 10 days
-        }
-      )
-    }
-
-    // discovery URL
-    if (url.pathname === "/.well-known/openid-configuration") {
-      return discoveryResponse ?? Response.json(_authorizationServerMetadata)
-    }
-
-    return new Response(null, { status: 404 })
-  })
-}
 
 const _authorizationServerMetadata = {
   issuer: "https://guabu.us.auth0.com/",
