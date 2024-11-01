@@ -1,8 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { Auth0Client } from "./client"
-import { StatelessSessionStore } from "./session/stateless-session-store"
-import { TransactionStore } from "./transaction-store"
 
 describe("Auth0Client", () => {
   let originalEnv: NodeJS.ProcessEnv
