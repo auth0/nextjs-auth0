@@ -92,3 +92,15 @@ export class AuthorizationCodeGrantError extends SdkError {
     this.name = "AuthorizationCodeGrantError"
   }
 }
+
+export class BackchannelLogoutError extends SdkError {
+  public code: string = "backchannel_logout_error"
+
+  constructor(message?: string) {
+    super(
+      message ??
+        "An error occured while completing the backchannel logout request."
+    )
+    this.name = "BackchannelLogoutError"
+  }
+}

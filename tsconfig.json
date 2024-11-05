@@ -10,4 +10,5 @@
     "jsx": "react",
     "declaration": true
   },
+  "include": ["src/**/*"],
 }

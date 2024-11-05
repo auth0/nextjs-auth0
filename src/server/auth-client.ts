@@ -1,10 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server"
+import * as jose from "jose"
 import * as oauth from "oauth4webapi"
 
 import {
   AuthorizationCodeGrantError,
   AuthorizationError,
+  BackchannelLogoutError,
   DiscoveryError,
+  InvalidStateError,
   MissingRefreshToken,
   MissingStateError,
   OAuth2Error,
@@ -13,6 +16,7 @@ import {
 } from "../errors"
 import {
   AbstractSessionStore,
+  LogoutToken,
   SessionData,
   TokenSet,
 } from "./session/abstract-session-store"
@@ -53,7 +57,7 @@ export interface AuthorizationParameters {
    *
    * Defaults to `"openid profile email offline_access"`.
    */
-  scope: string
+  scope?: string
   /**
    * The maximum amount of time, in seconds, after which a user must reauthenticate.
    */
@@ -79,6 +83,10 @@ export interface AuthClientOptions {
 
   beforeSessionSaved?: BeforeSessionSavedHook
   onCallback?: OnCallbackHook
+
+  // custom fetch implementation to allow for dependency injection
+  fetch?: typeof fetch
+  jwksCache?: jose.JWKSCacheInput
 }
 
 export class AuthClient {
@@ -86,6 +94,7 @@ export class AuthClient {
   private sessionStore: AbstractSessionStore
 
   private clientMetadata: oauth.Client
+  private clientSecret: string
   private issuer: string
   private redirectUri: URL
   private authorizationParameters: AuthorizationParameters
@@ -96,17 +105,22 @@ export class AuthClient {
   private beforeSessionSaved?: BeforeSessionSavedHook
   private onCallback: OnCallbackHook
 
+  private fetch: typeof fetch
+  private jwksCache: jose.JWKSCacheInput
+
   constructor(options: AuthClientOptions) {
+    // dependencies
+    this.fetch = options.fetch || fetch
+    this.jwksCache = options.jwksCache || {}
+
     // stores
     this.transactionStore = options.transactionStore
     this.sessionStore = options.sessionStore
 
     // authorization server
     this.issuer = `https://${options.domain}`
-    this.clientMetadata = {
-      client_id: options.clientId,
-      client_secret: options.clientSecret,
-    }
+    this.clientMetadata = { client_id: options.clientId }
+    this.clientSecret = options.clientSecret
     this.redirectUri = new URL("/auth/callback", options.appBaseUrl) // must be registed with the authorization server
     this.authorizationParameters = options.authorizationParameters || {
       scope: DEFAULT_SCOPES,
@@ -148,6 +162,8 @@ export class AuthClient {
       return this.handleProfile(req)
     } else if (method === "GET" && pathname === "/auth/access-token") {
       return this.handleAccessToken(req)
+    } else if (method === "POST" && pathname === "/auth/backchannel-logout") {
+      return this.handleBackChannelLogout(req)
     } else {
       // no auth handler found, simply touch the sessions
       // TODO: this should only happen if rolling sessions are enabled. Also, we should
@@ -302,7 +318,7 @@ export class AuthClient {
 
     const transactionState = await this.transactionStore.get(req.cookies, state)
     if (!transactionState) {
-      return this.onCallback(new MissingStateError(), {}, null)
+      return this.onCallback(new InvalidStateError(), {}, null)
     }
 
     const onCallbackCtx: OnCallbackContext = {
@@ -316,19 +332,20 @@ export class AuthClient {
       return this.onCallback(discoveryError, onCallbackCtx, null)
     }
 
-    const codeGrantParams = oauth.validateAuthResponse(
-      authorizationServerMetadata,
-      this.clientMetadata,
-      req.nextUrl.searchParams,
-      transactionState.state
-    )
-
-    if (oauth.isOAuth2Error(codeGrantParams)) {
+    let codeGrantParams: URLSearchParams
+    try {
+      codeGrantParams = oauth.validateAuthResponse(
+        authorizationServerMetadata,
+        this.clientMetadata,
+        req.nextUrl.searchParams,
+        transactionState.state
+      )
+    } catch (e: any) {
       return this.onCallback(
         new AuthorizationError({
           cause: new OAuth2Error({
-            code: codeGrantParams.error,
-            message: codeGrantParams.error_description,
+            code: e.error,
+            message: e.error_description,
           }),
         }),
         onCallbackCtx,
@@ -339,25 +356,33 @@ export class AuthClient {
     const codeGrantResponse = await oauth.authorizationCodeGrantRequest(
       authorizationServerMetadata,
       this.clientMetadata,
+      oauth.ClientSecretPost(this.clientSecret),
       codeGrantParams,
       this.redirectUri.toString(),
-      transactionState.codeVerifier
+      transactionState.codeVerifier,
+      {
+        [oauth.customFetch]: this.fetch,
+      }
     )
 
-    const oidcRes = await oauth.processAuthorizationCodeOpenIDResponse(
-      authorizationServerMetadata,
-      this.clientMetadata,
-      codeGrantResponse,
-      transactionState.nonce,
-      transactionState.maxAge
-    )
-
-    if (oauth.isOAuth2Error(oidcRes)) {
+    let oidcRes: oauth.TokenEndpointResponse
+    try {
+      oidcRes = await oauth.processAuthorizationCodeResponse(
+        authorizationServerMetadata,
+        this.clientMetadata,
+        codeGrantResponse,
+        {
+          expectedNonce: transactionState.nonce,
+          maxAge: transactionState.maxAge,
+          requireIdToken: true,
+        }
+      )
+    } catch (e: any) {
       return this.onCallback(
         new AuthorizationCodeGrantError({
           cause: new OAuth2Error({
-            code: oidcRes.error,
-            message: oidcRes.error_description,
+            code: e.error,
+            message: e.error_description,
           }),
         }),
         onCallbackCtx,
@@ -365,7 +390,7 @@ export class AuthClient {
       )
     }
 
-    const idTokenClaims = oauth.getValidatedIdTokenClaims(oidcRes)
+    const idTokenClaims = oauth.getValidatedIdTokenClaims(oidcRes)!
     let session: SessionData = {
       user: idTokenClaims,
       tokenSet: {
@@ -447,6 +472,45 @@ export class AuthClient {
     return res
   }
 
+  async handleBackChannelLogout(req: NextRequest): Promise<NextResponse> {
+    if (!this.sessionStore.store) {
+      return new NextResponse("A session data store is not configured.", {
+        status: 500,
+      })
+    }
+
+    if (!this.sessionStore.store.deleteByLogoutToken) {
+      return new NextResponse(
+        "Back-channel logout is not supported by the session data store.",
+        {
+          status: 500,
+        }
+      )
+    }
+
+    const body = new URLSearchParams(await req.text())
+    const logoutToken = body.get("logout_token")
+
+    if (!logoutToken) {
+      return new NextResponse("Missing `logout_token` in the request body.", {
+        status: 400,
+      })
+    }
+
+    const [error, logoutTokenClaims] = await this.verifyLogoutToken(logoutToken)
+    if (error) {
+      return new NextResponse(error.message, {
+        status: 400,
+      })
+    }
+
+    await this.sessionStore.store.deleteByLogoutToken(logoutTokenClaims)
+
+    return new NextResponse(null, {
+      status: 204,
+    })
+  }
+
   /**
    * getTokenSet returns a valid token set. If the access token has expired, it will attempt to
    * refresh it using the refresh token, if available.
@@ -455,12 +519,12 @@ export class AuthClient {
     tokenSet: TokenSet
   ): Promise<[null, TokenSet] | [SdkError, null]> {
     // the access token has expired but we do not have a refresh token
-    if (!tokenSet.refreshToken && tokenSet.expiresAt < Date.now() / 1000) {
+    if (!tokenSet.refreshToken && tokenSet.expiresAt <= Date.now() / 1000) {
       return [new MissingRefreshToken(), null]
     }
 
     // the access token has expired and we have a refresh token
-    if (tokenSet.refreshToken && tokenSet.expiresAt < Date.now() / 1000) {
+    if (tokenSet.refreshToken && tokenSet.expiresAt <= Date.now() / 1000) {
       const [discoveryError, authorizationServerMetadata] =
         await this.discoverAuthorizationServerMetadata()
 
@@ -471,20 +535,26 @@ export class AuthClient {
       const refreshTokenRes = await oauth.refreshTokenGrantRequest(
         authorizationServerMetadata,
         this.clientMetadata,
-        tokenSet.refreshToken
-      )
-      const oauthRes = await oauth.processRefreshTokenResponse(
-        authorizationServerMetadata,
-        this.clientMetadata,
-        refreshTokenRes
+        oauth.ClientSecretPost(this.clientSecret),
+        tokenSet.refreshToken,
+        {
+          [oauth.customFetch]: this.fetch,
+        }
       )
 
-      if (oauth.isOAuth2Error(oauthRes)) {
+      let oauthRes: oauth.TokenEndpointResponse
+      try {
+        oauthRes = await oauth.processRefreshTokenResponse(
+          authorizationServerMetadata,
+          this.clientMetadata,
+          refreshTokenRes
+        )
+      } catch (e: any) {
         return [
           new RefreshTokenGrantError({
             cause: new OAuth2Error({
-              code: oauthRes.error,
-              message: oauthRes.error_description,
+              code: e.error,
+              message: e.error_description,
             }),
           }),
           null,
@@ -521,7 +591,9 @@ export class AuthClient {
 
     try {
       const authorizationServerMetadata = await oauth
-        .discoveryRequest(issuer)
+        .discoveryRequest(issuer, {
+          [oauth.customFetch]: this.fetch,
+        })
         .then((response) => oauth.processDiscoveryResponse(issuer, response))
 
       return [null, authorizationServerMetadata]
@@ -541,7 +613,9 @@ export class AuthClient {
     _session: SessionData | null
   ) {
     if (error) {
-      return new NextResponse(error.message)
+      return new NextResponse(error.message, {
+        status: 500,
+      })
     }
 
     const res = NextResponse.redirect(
@@ -549,5 +623,97 @@ export class AuthClient {
     )
 
     return res
+  }
+
+  private async verifyLogoutToken(
+    logoutToken: string
+  ): Promise<[null, LogoutToken] | [SdkError, null]> {
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata()
+
+    if (discoveryError) {
+      return [discoveryError, null]
+    }
+
+    // only `RS256` is supported for logout tokens
+    const ID_TOKEN_SIGNING_ALG = "RS256"
+
+    const keyInput = jose.createRemoteJWKSet(
+      new URL(authorizationServerMetadata.jwks_uri!),
+      {
+        [jose.jwksCache]: this.jwksCache,
+      }
+    )
+
+    const { payload } = await jose.jwtVerify(logoutToken, keyInput, {
+      issuer: authorizationServerMetadata.issuer,
+      audience: this.clientMetadata.client_id,
+      algorithms: [ID_TOKEN_SIGNING_ALG],
+      requiredClaims: ["iat"],
+    })
+
+    if (!("sid" in payload) && !("sub" in payload)) {
+      return [
+        new BackchannelLogoutError(
+          'either "sid" or "sub" (or both) claims must be present'
+        ),
+        null,
+      ]
+    }
+
+    if ("sid" in payload && typeof payload.sid !== "string") {
+      return [new BackchannelLogoutError('"sid" claim must be a string'), null]
+    }
+
+    if ("sub" in payload && typeof payload.sub !== "string") {
+      return [new BackchannelLogoutError('"sub" claim must be a string'), null]
+    }
+
+    if ("nonce" in payload) {
+      return [new BackchannelLogoutError('"nonce" claim is prohibited'), null]
+    }
+
+    if (!("events" in payload)) {
+      return [new BackchannelLogoutError('"events" claim is missing'), null]
+    }
+
+    if (typeof payload.events !== "object" || payload.events === null) {
+      return [
+        new BackchannelLogoutError('"events" claim must be an object'),
+        null,
+      ]
+    }
+
+    if (
+      !("http://schemas.openid.net/event/backchannel-logout" in payload.events)
+    ) {
+      return [
+        new BackchannelLogoutError(
+          '"http://schemas.openid.net/event/backchannel-logout" member is missing in the "events" claim'
+        ),
+        null,
+      ]
+    }
+
+    if (
+      typeof payload.events[
+        "http://schemas.openid.net/event/backchannel-logout"
+      ] !== "object"
+    ) {
+      return [
+        new BackchannelLogoutError(
+          '"http://schemas.openid.net/event/backchannel-logout" member in the "events" claim must be an object'
+        ),
+        null,
+      ]
+    }
+
+    return [
+      null,
+      {
+        sid: payload.sid as string,
+        sub: payload.sub,
+      },
+    ]
   }
 }
