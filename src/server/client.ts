@@ -13,11 +13,9 @@ import {
   AbstractSessionStore,
   SessionConfiguration,
   SessionData,
+  SessionDataStore,
 } from "./session/abstract-session-store"
-import {
-  SessionStore,
-  StatefulSessionStore,
-} from "./session/stateful-session-store"
+import { StatefulSessionStore } from "./session/stateful-session-store"
 import { StatelessSessionStore } from "./session/stateless-session-store"
 import { TransactionStore } from "./transaction-store"
 
@@ -90,7 +88,7 @@ interface Auth0ClientOptions {
    *
    * See [Database sessions](https://github.com/auth0/nextjs-auth0#database-sessions) for additional details.
    */
-  sessionStore?: SessionStore
+  sessionStore?: SessionDataStore
 }
 
 type PagesRouterRequest = Pick<NextApiRequest, "headers">
