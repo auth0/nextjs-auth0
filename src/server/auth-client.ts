@@ -162,7 +162,7 @@ export class AuthClient {
       return this.handleProfile(req)
     } else if (method === "GET" && pathname === "/auth/access-token") {
       return this.handleAccessToken(req)
-    } else if (method === "GET" && pathname === "/auth/backchannel-logout") {
+    } else if (method === "POST" && pathname === "/auth/backchannel-logout") {
       return this.handleBackChannelLogout(req)
     } else {
       // no auth handler found, simply touch the sessions

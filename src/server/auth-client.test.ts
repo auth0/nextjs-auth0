@@ -327,7 +327,7 @@ describe("Authentication Client", async () => {
       const request = new NextRequest(
         "https://example.com/auth/backchannel-logout",
         {
-          method: "GET",
+          method: "POST",
         }
       )
       authClient.handleBackChannelLogout = vi.fn()
