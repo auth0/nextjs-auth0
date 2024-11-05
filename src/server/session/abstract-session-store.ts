@@ -23,6 +23,30 @@ export interface SessionData {
   [key: string]: unknown
 }
 
+export type LogoutToken = { sub?: string; sid?: string }
+
+export interface SessionDataStore {
+  /**
+   * Gets the session from the store given a session ID.
+   */
+  get(id: string): Promise<SessionData | null>
+
+  /**
+   * Upsert a session in the store given a session ID and `SessionData`.
+   */
+  set(id: string, session: SessionData): Promise<void>
+
+  /**
+   * Destroys the session with the given session ID.
+   */
+  delete(id: string): Promise<void>
+
+  /**
+   * Deletes the session with the given logout token which may contain a session ID or a user ID, or both.
+   */
+  deleteByLogoutToken?(logoutToken: LogoutToken): Promise<void>
+}
+
 export interface SessionConfiguration {
   /**
    * A boolean indicating whether rolling sessions should be used or not.
@@ -53,16 +77,18 @@ export interface SessionConfiguration {
 
 interface SessionStoreOptions extends SessionConfiguration {
   secret: string
+  store?: SessionDataStore
 }
 
 export abstract class AbstractSessionStore {
   public secret: string
   public SESSION_COOKIE_NAME = "__session"
-  public TOKEN_SET_COOKIE_NAME = "__token_set"
 
   private rolling: boolean
   private absoluteDuration: number
   private inactivityDuration: number
+
+  public store?: SessionDataStore
 
   public cookieConfig = {
     httpOnly: true,
@@ -77,12 +103,14 @@ export abstract class AbstractSessionStore {
     rolling = true,
     absoluteDuration = 60 * 60 * 24 * 30, // 30 days in seconds
     inactivityDuration = 60 * 60 * 24 * 7, // 7 days in seconds
+    store,
   }: SessionStoreOptions) {
     this.secret = secret
 
     this.rolling = rolling
     this.absoluteDuration = absoluteDuration
     this.inactivityDuration = inactivityDuration
+    this.store = store
   }
 
   abstract get(

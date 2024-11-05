@@ -390,16 +390,28 @@ export const auth0 = new Auth0Client({
     async delete(id) {
       // delete the session using its ID
     },
+    async deleteByLogoutToken({ sid, sub }: { sid: string; sub: string }) {
+      // optional method to be implemented when using Back-Channel Logout
+    },
   },
 })
 ```
 
+## Back-Channel Logout
+
+The SDK can be configured to listen to [Back-Channel Logout](https://auth0.com/docs/authenticate/login/logout/back-channel-logout) events. By default, a route will be mounted `/auth/backchannel-logout` which will verify the logout token and call the `deleteByLogoutToken` method of your session store implementation to allow you to remove the session.
+
+To use Back-Channel Logout, you will need to provide a session store implementation as shown in the [Database sessions](#database-sessions) section above with the `deleteByLogoutToken` implemented.
+
+A `LogoutToken` object will be passed as the parameter to `deleteByLogoutToken` which will contain either a `sid` claim, a `sub` claim, or both.
+
 ## Routes
 
-The SDK mounts 5 routes:
+The SDK mounts 6 routes:
 
 1. `/auth/login`: the login route that the user will be redirected to to start a initiate an authentication transaction
 2. `/auth/logout`: the logout route that must be addedto your Auth0 application's Allowed Logout URLs
 3. `/auth/callback`: the callback route that must be addedto your Auth0 application's Allowed Callback URLs
 4. `/auth/profile`: the route to check the user's session and return their attributes
 5. `/auth/access-token`: the route to check the user's session and return an access token (which will be automatically refreshed if a refresh token is available)
+6. `/auth/backchannel-logout`: the route that will receive a `logout_token` when a configured Back-Channel Logout initiator occurs
