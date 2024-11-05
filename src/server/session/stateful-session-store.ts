@@ -1,27 +1,14 @@
 import * as cookies from "../cookies"
-import { AbstractSessionStore, SessionData } from "./abstract-session-store"
+import {
+  AbstractSessionStore,
+  SessionData,
+  SessionDataStore,
+} from "./abstract-session-store"
 
 // the value of the stateful session cookie containing a unique session ID to identify
 // the current session
 interface SessionCookieValue {
   id: string
-}
-
-export interface SessionStore {
-  /**
-   * Gets the session from the store given a session ID.
-   */
-  get(id: string): Promise<SessionData | null>
-
-  /**
-   * Upsert a session in the store given a session ID and `SessionData`.
-   */
-  set(id: string, session: SessionData): Promise<void>
-
-  /**
-   * Destroys the session with the given session ID.
-   */
-  delete(id: string): Promise<void>
 }
 
 interface StatefulSessionStoreOptions {
@@ -31,7 +18,7 @@ interface StatefulSessionStoreOptions {
   absoluteDuration?: number // defaults to 30 days
   inactivityDuration?: number // defaults to 7 days
 
-  store: SessionStore
+  store: SessionDataStore
 }
 
 const generateId = () => {
@@ -43,7 +30,7 @@ const generateId = () => {
 }
 
 export class StatefulSessionStore extends AbstractSessionStore {
-  private store: SessionStore
+  public store: SessionDataStore
 
   constructor({
     secret,
