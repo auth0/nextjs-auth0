@@ -162,7 +162,7 @@ export type UseUser = () => UserContext;
  *
  * ```js
  * // pages/profile.js
- * import Link from 'next/link';
+ * 'use client';
  * import { useUser } from '@auth0/nextjs-auth0/client';
  *
  * export default function Profile() {
@@ -170,8 +170,8 @@ export type UseUser = () => UserContext;
  *
  *   if (isLoading) return <div>Loading...</div>;
  *   if (error) return <div>{error.message}</div>;
- *   if (!user) return <Link href="/api/auth/login"><a>Login</a></Link>;
- *   return <div>Hello {user.name}, <Link href="/api/auth/logout"><a>Logout</a></Link></div>;
+ *   if (!user) return <a href="/api/auth/login">Login</a>;
+ *   return <div>Hello {user.name}, <a href="/api/auth/logout">Logout</a></div>;
  * }
  * ```
  *
