@@ -422,6 +422,35 @@ To use Back-Channel Logout, you will need to provide a session store implementat
 
 A `LogoutToken` object will be passed as the parameter to `deleteByLogoutToken` which will contain either a `sid` claim, a `sub` claim, or both.
 
+## Combining middleware
+
+By default, the middleware does not protect any pages. It is used to mount the authentication routes and provide the necessary functionality for rolling sessions.
+
+You can combine multiple middleware, like so:
+
+```ts
+export async function middleware(request: NextRequest) {
+  const authResponse = await auth0.middleware(request)
+
+  // if path starts with /auth, let the auth middleware handle it
+  if (request.nextUrl.pathname.startsWith("/auth")) {
+    return authResponse
+  }
+
+  // call any other middleware here
+  const someOtherResponse = await someOtherMiddleware(request)
+
+  // add any headers from the auth middleware to the response
+  for (const [key, value] of authResponse.headers) {
+    someOtherResponse.headers.set(key, value)
+  }
+
+  return someOtherResponse
+}
+```
+
+For a complete example using `next-intl` middleware, please see the `examples/` directory of this repository.
+
 ## Routes
 
 The SDK mounts 6 routes:
