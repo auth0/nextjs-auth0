@@ -142,6 +142,23 @@ The second option is through the query parameters to the `/auth/login` endpoint 
 <a href="/auth/login?audience=urn:my-api">Login</a>
 ```
 
+## The `returnTo` parameter
+
+### Redirecting the user after authentication
+
+The `returnTo` parameter can be appended to the login to specify where you would like to redirect the user after they have completed their authentication and have returned to your application.
+
+For example: `/auth/login?returnTo=/dashboard` would redirect the user to the `/dashboard` route after they have authenticated.
+
+### Redirecting the user after logging out
+
+The `returnTo` parameter can be appended to the logout to specify where you would like to redirect the user after they have logged out.
+
+For example: `/auth/login?returnTo=https://example.com/some-page` would redirect the user to the `https://example.com/some-page` URL after they have logged out.
+
+> [!NOTE]  
+> The URLs specified as `returnTo` parameters must be registered in your client's **Allowed Logout URLs**.
+
 ## Accessing the authenticated user
 
 ### In the browser
