@@ -142,6 +142,23 @@ The second option is through the query parameters to the `/auth/login` endpoint 
 <a href="/auth/login?audience=urn:my-api">Login</a>
 ```
 
+## The `returnTo` parameter
+
+### Redirecting the user after authentication
+
+The `returnTo` parameter can be appended to the login to specify where you would like to redirect the user after they have completed their authentication and have returned to your application.
+
+For example: `/auth/login?returnTo=/dashboard` would redirect the user to the `/dashboard` route after they have authenticated.
+
+### Redirecting the user after logging out
+
+The `returnTo` parameter can be appended to the logout to specify where you would like to redirect the user after they have logged out.
+
+For example: `/auth/login?returnTo=https://example.com/some-page` would redirect the user to the `https://example.com/some-page` URL after they have logged out.
+
+> [!NOTE]  
+> The URLs specified as `returnTo` parameters must be registered in your client's **Allowed Logout URLs**.
+
 ## Accessing the authenticated user
 
 ### In the browser
@@ -404,6 +421,35 @@ The SDK can be configured to listen to [Back-Channel Logout](https://auth0.com/d
 To use Back-Channel Logout, you will need to provide a session store implementation as shown in the [Database sessions](#database-sessions) section above with the `deleteByLogoutToken` implemented.
 
 A `LogoutToken` object will be passed as the parameter to `deleteByLogoutToken` which will contain either a `sid` claim, a `sub` claim, or both.
+
+## Combining middleware
+
+By default, the middleware does not protect any pages. It is used to mount the authentication routes and provide the necessary functionality for rolling sessions.
+
+You can combine multiple middleware, like so:
+
+```ts
+export async function middleware(request: NextRequest) {
+  const authResponse = await auth0.middleware(request)
+
+  // if path starts with /auth, let the auth middleware handle it
+  if (request.nextUrl.pathname.startsWith("/auth")) {
+    return authResponse
+  }
+
+  // call any other middleware here
+  const someOtherResponse = await someOtherMiddleware(request)
+
+  // add any headers from the auth middleware to the response
+  for (const [key, value] of authResponse.headers) {
+    someOtherResponse.headers.set(key, value)
+  }
+
+  return someOtherResponse
+}
+```
+
+For a complete example using `next-intl` middleware, please see the `examples/` directory of this repository.
 
 ## Routes
 
