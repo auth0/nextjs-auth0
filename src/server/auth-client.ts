@@ -298,7 +298,10 @@ export class AuthClient {
 
     const url = new URL(authorizationServerMetadata.end_session_endpoint)
     url.searchParams.set("client_id", this.clientMetadata.client_id)
-    url.searchParams.set("post_logout_redirect_uri", this.appBaseUrl)
+    url.searchParams.set(
+      "post_logout_redirect_uri",
+      req.nextUrl.searchParams.get("returnTo") || this.appBaseUrl
+    )
 
     if (session?.internal.sid) {
       url.searchParams.set("logout_hint", session.internal.sid)
