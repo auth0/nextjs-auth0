@@ -1166,6 +1166,76 @@ describe("Authentication Client", async () => {
       expect(cookie?.expires).toEqual(new Date("1970-01-01T00:00:00.000Z"))
     })
 
+    it("should use the returnTo URL as the post_logout_redirect_uri if provided", async () => {
+      const secret = await generateSecret(32)
+      const transactionStore = new TransactionStore({
+        secret,
+      })
+      const sessionStore = new StatelessSessionStore({
+        secret,
+      })
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        fetch: getMockAuthorizationServer(),
+      })
+
+      // set the session cookie to assert it's been cleared
+      const session: SessionData = {
+        user: { sub: DEFAULT.sub },
+        tokenSet: {
+          accessToken: DEFAULT.accessToken,
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt: 123456,
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Math.floor(Date.now() / 1000),
+        },
+      }
+      const sessionCookie = await encrypt(session, secret)
+      const headers = new Headers()
+      headers.append("cookie", `__session=${sessionCookie}`)
+
+      const url = new URL("/auth/logout", DEFAULT.appBaseUrl)
+      url.searchParams.set("returnTo", `${DEFAULT.appBaseUrl}/some-other-page`)
+      const request = new NextRequest(url, {
+        method: "GET",
+        headers,
+      })
+
+      const response = await authClient.handleLogout(request)
+      expect(response.status).toEqual(307)
+      expect(response.headers.get("Location")).not.toBeNull()
+
+      const authorizationUrl = new URL(response.headers.get("Location")!)
+      expect(authorizationUrl.origin).toEqual(`https://${DEFAULT.domain}`)
+
+      // query parameters
+      expect(authorizationUrl.searchParams.get("client_id")).toEqual(
+        DEFAULT.clientId
+      )
+      expect(
+        authorizationUrl.searchParams.get("post_logout_redirect_uri")
+      ).toEqual(`${DEFAULT.appBaseUrl}/some-other-page`)
+      expect(authorizationUrl.searchParams.get("logout_hint")).toEqual(
+        DEFAULT.sid
+      )
+
+      // session cookie is cleared
+      const cookie = response.cookies.get("__session")
+      expect(cookie?.value).toEqual("")
+      expect(cookie?.expires).toEqual(new Date("1970-01-01T00:00:00.000Z"))
+    })
+
     it("should not include the logout_hint parameter if a session does not exist", async () => {
       const secret = await generateSecret(32)
       const transactionStore = new TransactionStore({
