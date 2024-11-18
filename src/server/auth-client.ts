@@ -96,7 +96,6 @@ export class AuthClient {
   private clientMetadata: oauth.Client
   private clientSecret: string
   private issuer: string
-  private redirectUri: URL
   private authorizationParameters: AuthorizationParameters
 
   private appBaseUrl: string
@@ -121,7 +120,6 @@ export class AuthClient {
     this.issuer = `https://${options.domain}`
     this.clientMetadata = { client_id: options.clientId }
     this.clientSecret = options.clientSecret
-    this.redirectUri = new URL("/auth/callback", options.appBaseUrl) // must be registed with the authorization server
     this.authorizationParameters = options.authorizationParameters || {
       scope: DEFAULT_SCOPES,
     }
@@ -208,6 +206,7 @@ export class AuthClient {
       )
     }
 
+    const redirectUri = new URL("/auth/callback", this.appBaseUrl) // must be registed with the authorization server
     const returnTo =
       req.nextUrl.searchParams.get("returnTo") || this.signInReturnToPath
 
@@ -224,10 +223,7 @@ export class AuthClient {
       "client_id",
       this.clientMetadata.client_id
     )
-    authorizationUrl.searchParams.set(
-      "redirect_uri",
-      this.redirectUri.toString()
-    )
+    authorizationUrl.searchParams.set("redirect_uri", redirectUri.toString())
     authorizationUrl.searchParams.set("response_type", "code")
     authorizationUrl.searchParams.set("code_challenge", codeChallenge)
     authorizationUrl.searchParams.set(
@@ -356,12 +352,13 @@ export class AuthClient {
       )
     }
 
+    const redirectUri = new URL("/auth/callback", this.appBaseUrl) // must be registed with the authorization server
     const codeGrantResponse = await oauth.authorizationCodeGrantRequest(
       authorizationServerMetadata,
       this.clientMetadata,
       oauth.ClientSecretPost(this.clientSecret),
       codeGrantParams,
-      this.redirectUri.toString(),
+      redirectUri.toString(),
       transactionState.codeVerifier,
       {
         [oauth.customFetch]: this.fetch,
