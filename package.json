@@ -1,6 +1,6 @@
 {
   "name": "@auth0/nextjs-auth0",
-  "version": "4.0.0-beta.6",
+  "version": "4.0.0-beta.7",
   "description": "Auth0 Next.js SDK",
   "main": "dist/index.js",
   "scripts": {
