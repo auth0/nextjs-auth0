@@ -1,0 +1,27 @@
+{
+  "name": "test-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "file:../../node_modules/next",
+    "react": "file:../../node_modules/react",
+    "react-dom": "file:../../node_modules/react-dom",
+    "@auth0/nextjs-auth0": "file:../../"
+  },
+  "devDependencies": {
+    "typescript": "^5",
+    "@types/node": "file:../../node_modules/@types/node",
+    "@types/react": "file:../../node_modules/@types/react",
+    "@types/react-dom": "file:../../node_modules/@types/react-dom",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1",
+    "eslint": "^8",
+    "eslint-config-next": "15.0.3"
+  }
+}
