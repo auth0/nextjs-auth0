@@ -5,7 +5,7 @@
 ### 1. Install the SDK
 
 ```shell
-npm i @auth0/nextjs-auth0@4.0.0-beta.4
+npm i @auth0/nextjs-auth0@4.0.0-beta.7
 ```
 
 ### 2. Add the environment variables
