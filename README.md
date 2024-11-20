@@ -5,7 +5,7 @@
 ### 1. Install the SDK
 
 ```shell
-npm i @auth0/nextjs-auth0@4.0.0-beta.7
+npm i @auth0/nextjs-auth0@4.0.0-beta.8
 ```
 
 ### 2. Add the environment variables
@@ -34,7 +34,7 @@ The `APP_BASE_URL` is the URL that your application is running on. When developi
 > You will need to register the follwing URLs in your Auth0 Application via the [Auth0 Dashboard](https://manage.auth0.com):
 >
 > - Add `http://localhost:3000/auth/callback` to the list of **Allowed Callback URLs**
-> - Add `http://localhost:3000/auth/logout` to the list of **Allowed Logout URLs**
+> - Add `http://localhost:3000` to the list of **Allowed Logout URLs**
 
 ### 3. Create the Auth0 SDK client
 
