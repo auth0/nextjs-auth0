@@ -1287,7 +1287,7 @@ describe("Authentication Client", async () => {
       expect(cookie?.expires).toEqual(new Date("1970-01-01T00:00:00.000Z"))
     })
 
-    it("should return an error if the client does not have RP-Initiated Logout enabled", async () => {
+    it("should fallback to the /v2/logout endpoint if the client does not have RP-Initiated Logout enabled", async () => {
       const secret = await generateSecret(32)
       const transactionStore = new TransactionStore({
         secret,
@@ -1330,10 +1330,13 @@ describe("Authentication Client", async () => {
       )
 
       const response = await authClient.handleLogout(request)
-      expect(response.status).toEqual(500)
-      expect(await response.text()).toEqual(
-        "An error occured while trying to initiate the logout request."
-      )
+      expect(response.status).toEqual(307)
+      const logoutUrl = new URL(response.headers.get("Location")!)
+      expect(logoutUrl.origin).toEqual(`https://${DEFAULT.domain}`)
+
+      // query parameters
+      expect(logoutUrl.searchParams.get("client_id")).toEqual(DEFAULT.clientId)
+      expect(logoutUrl.searchParams.get("returnTo")).toEqual(DEFAULT.appBaseUrl)
     })
 
     it("should return an error if the discovery endpoint could not be fetched", async () => {
