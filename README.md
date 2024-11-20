@@ -451,6 +451,25 @@ export async function middleware(request: NextRequest) {
 
 For a complete example using `next-intl` middleware, please see the `examples/` directory of this repository.
 
+## ID Token claims and the user object
+
+By default, the following properties claims from the ID token are added to the `user` object in the session automatically:
+
+- `sub`
+- `name`
+- `nickname`
+- `given_name`
+- `family_name`
+- `picture`
+- `email`
+- `email_verified`
+- `org_id`
+
+If you'd like to customize the `user` object to include additional custom claims from the ID token, you can use the `beforeSessionSaved` hook (see [beforeSessionSaved hook](#beforesessionsaved))
+
+> [!NOTE]  
+> It's best practice to limit what claims are stored on the `user` object in the session to avoid bloating the session cookie size and going over browser limits.
+
 ## Routes
 
 The SDK mounts 6 routes:
