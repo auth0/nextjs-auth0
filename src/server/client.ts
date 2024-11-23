@@ -2,6 +2,7 @@ import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
 import { NextApiRequest } from "next/types"
 
+import { SessionData } from "../types"
 import {
   AuthClient,
   AuthorizationParameters,
@@ -12,7 +13,6 @@ import { RequestCookies } from "./cookies"
 import {
   AbstractSessionStore,
   SessionConfiguration,
-  SessionData,
   SessionDataStore,
 } from "./session/abstract-session-store"
 import { StatefulSessionStore } from "./session/stateful-session-store"

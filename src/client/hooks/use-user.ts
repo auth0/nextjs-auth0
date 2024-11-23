@@ -2,7 +2,7 @@
 
 import useSWR from "swr"
 
-import { User } from "../../server/user"
+import type { User } from "../../types"
 
 export function useUser() {
   const { data, error, isLoading } = useSWR<User, Error, string>(

@@ -52,6 +52,9 @@
     },
     "./server": {
       "import": "./dist/server/index.js"
+    },
+    "./types": {
+      "import": "./dist/types/index.d.ts"
     }
   },
   "dependencies": {

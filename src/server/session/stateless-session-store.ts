@@ -1,5 +1,6 @@
+import { SessionData } from "../../types"
 import * as cookies from "../cookies"
-import { AbstractSessionStore, SessionData } from "./abstract-session-store"
+import { AbstractSessionStore } from "./abstract-session-store"
 
 interface StatelessSessionStoreOptions {
   secret: string

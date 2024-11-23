@@ -14,11 +14,10 @@ import {
   RefreshTokenGrantError,
   SdkError,
 } from "../errors"
+import { SessionData, TokenSet } from "../types"
 import {
   AbstractSessionStore,
   LogoutToken,
-  SessionData,
-  TokenSet,
 } from "./session/abstract-session-store"
 import { TransactionState, TransactionStore } from "./transaction-store"
 import { filterClaims } from "./user"
