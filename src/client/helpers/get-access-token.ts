@@ -22,8 +22,5 @@ export async function getAccessToken() {
   }
 
   const tokenSet = await tokenRes.json()
-  return {
-    token: tokenSet.access_token,
-    expiresAt: tokenSet.expires_at,
-  }
+  return tokenSet.access_token
 }
