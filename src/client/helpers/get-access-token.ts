@@ -22,5 +22,5 @@ export async function getAccessToken() {
   }
 
   const tokenSet = await tokenRes.json()
-  return tokenSet.access_token
+  return tokenSet.token
 }
