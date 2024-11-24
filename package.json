@@ -53,6 +53,9 @@
     "./server": {
       "import": "./dist/server/index.js"
     },
+    "./errors": {
+      "import": "./dist/errors/index.js"
+    },
     "./types": {
       "import": "./dist/types/index.d.ts"
     }

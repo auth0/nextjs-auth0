@@ -1,6 +1,29 @@
-export async function getAccessToken() {
-  // TODO: cache response and invalidate according to expiresAt
-  const tokenRes = await fetch("/auth/access-token").then((res) => res.json())
+import { AccessTokenError } from "../../errors"
 
-  return tokenRes.token
+export async function getAccessToken() {
+  const tokenRes = await fetch("/auth/access-token")
+
+  if (!tokenRes.ok) {
+    // try to parse it as JSON and throw the error from the API
+    // otherwise, throw a generic error
+    let accessTokenError
+    try {
+      accessTokenError = await tokenRes.json()
+    } catch (e) {
+      throw new Error(
+        "An unexpected error occurred while trying to fetch the access token."
+      )
+    }
+
+    throw new AccessTokenError(
+      accessTokenError.error.code,
+      accessTokenError.error.message
+    )
+  }
+
+  const tokenSet = await tokenRes.json()
+  return {
+    token: tokenSet.access_token,
+    expiresAt: tokenSet.expires_at,
+  }
 }

@@ -2526,7 +2526,10 @@ describe("Authentication Client", async () => {
       const response = await authClient.handleAccessToken(request)
       expect(response.status).toEqual(401)
       expect(await response.json()).toEqual({
-        error: "You are not authenticated.",
+        error: {
+          message: "The user does not have an active session.",
+          code: "missing_session",
+        },
       })
 
       // validate that the session cookie has not been set
@@ -2588,9 +2591,11 @@ describe("Authentication Client", async () => {
       const response = await authClient.handleAccessToken(request)
       expect(response.status).toEqual(401)
       expect(await response.json()).toEqual({
-        error_code: "missing_refresh_token",
-        error:
-          "The access token has expired and a refresh token was not granted.",
+        error: {
+          message:
+            "The access token has expired and a refresh token was not provided. The user needs to re-authenticate.",
+          code: "missing_refresh_token",
+        },
       })
 
       // validate that the session cookie has not been set
@@ -3275,7 +3280,7 @@ describe("Authentication Client", async () => {
       }
 
       const [error, updatedTokenSet] = await authClient.getTokenSet(tokenSet)
-      expect(error?.code).toEqual("refresh_token_grant_error")
+      expect(error?.code).toEqual("failed_to_refresh_token")
       expect(updatedTokenSet).toBeNull()
     })
 

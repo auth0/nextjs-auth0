@@ -259,9 +259,12 @@ import { getAccessToken } from "@auth0/nextjs-auth0"
 
 export default function Component() {
   async function fetchData() {
-    const token = await getAccessToken()
-
-    // call external API with the token...
+    try {
+      const token = await auth0.getAccessToken()
+      // call external API with token...
+    } catch (err) {
+      // err will be an instance of AccessTokenError if an access token could not be obtained
+    }
   }
 
   return (
@@ -282,9 +285,12 @@ import { NextResponse } from "next/server"
 import { auth0 } from "@/lib/auth0"
 
 export async function GET() {
-  const token = await auth0.getAccessToken()
-
-  // call external API with token...
+  try {
+    const token = await auth0.getAccessToken()
+    // call external API with token...
+  } catch (err) {
+    // err will be an instance of AccessTokenError if an access token could not be obtained
+  }
 
   return NextResponse.json({
     message: "Success!",
@@ -305,9 +311,12 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<{ message: string }>
 ) {
-  const token = await auth0.getAccessToken(req)
-
-  // call external API with token...
+  try {
+    const token = await auth0.getAccessToken(req)
+    // call external API with token...
+  } catch (err) {
+    // err will be an instance of AccessTokenError if an access token could not be obtained
+  }
 
   res.status(200).json({ message: "Success!" })
 }
