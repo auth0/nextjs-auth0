@@ -2,6 +2,8 @@ import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
 import { NextApiRequest } from "next/types"
 
+import { AccessTokenError, AccessTokenErrorCode } from "../errors"
+import { SessionData } from "../types"
 import {
   AuthClient,
   AuthorizationParameters,
@@ -12,7 +14,6 @@ import { RequestCookies } from "./cookies"
 import {
   AbstractSessionStore,
   SessionConfiguration,
-  SessionData,
   SessionDataStore,
 } from "./session/abstract-session-store"
 import { StatefulSessionStore } from "./session/stateful-session-store"
@@ -179,7 +180,7 @@ export class Auth0Client {
    *
    * This method can be used in Server Components, Server Actions, Route Handlers, and middleware in the **App Router**.
    */
-  async getAccessToken(): Promise<{ token: string; expiresAt: number }>
+  async getAccessToken(): Promise<{ token: string; expiresAt: number } | null>
 
   /**
    * getAccessToken returns the access token.
@@ -188,12 +189,14 @@ export class Auth0Client {
    */
   async getAccessToken(
     req: PagesRouterRequest
-  ): Promise<{ token: string; expiresAt: number }>
+  ): Promise<{ token: string; expiresAt: number } | null>
 
   /**
    * getAccessToken returns the access token.
    */
-  async getAccessToken(req?: PagesRouterRequest) {
+  async getAccessToken(
+    req?: PagesRouterRequest
+  ): Promise<{ token: string; expiresAt: number } | null> {
     let session: SessionData | null = null
 
     if (req) {
@@ -203,7 +206,25 @@ export class Auth0Client {
     }
 
     if (!session) {
-      return null
+      throw new AccessTokenError(
+        AccessTokenErrorCode.MISSING_SESSION,
+        "The user does not have an active session."
+      )
+    }
+
+    // if access token has expired, return null
+    if (session.tokenSet.expiresAt <= Date.now() / 1000) {
+      if (!session.tokenSet.refreshToken) {
+        throw new AccessTokenError(
+          AccessTokenErrorCode.MISSING_REFRESH_TOKEN,
+          "The access token has expired and a refresh token was not provided. The user needs to re-authenticate."
+        )
+      }
+
+      throw new AccessTokenError(
+        AccessTokenErrorCode.FAILED_TO_REFRESH_TOKEN,
+        "The access token has expired and there was an error while trying to refresh it. Check the server logs for more information."
+      )
     }
 
     return {
