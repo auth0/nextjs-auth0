@@ -2,11 +2,14 @@ export abstract class SdkError extends Error {
   public abstract code: string
 }
 
+/**
+ * Errors that come from Auth0 in the `redirect_uri` callback may contain reflected user input via the OpenID Connect `error` and `error_description` query parameter.
+ * You should **not** render the error `message`, or `error` and `error_description` properties without properly escaping them first.
+ */
 export class OAuth2Error extends SdkError {
   public code: string
 
   constructor({ code, message }: { code: string; message?: string }) {
-    // TODO: sanitize error message or add warning
     super(
       message ??
         "An error occured while interacting with the authorization server."
@@ -22,31 +25,6 @@ export class DiscoveryError extends SdkError {
   constructor(message?: string) {
     super(message ?? "Discovery failed for the OpenID Connect configuration.")
     this.name = "DiscoveryError"
-  }
-}
-
-export class MissingRefreshToken extends SdkError {
-  public code: string = "missing_refresh_token"
-
-  constructor(message?: string) {
-    super(
-      message ??
-        "The access token has expired and a refresh token was not granted."
-    )
-    this.name = "MissingRefreshToken"
-  }
-}
-
-export class RefreshTokenGrantError extends SdkError {
-  public code: string = "refresh_token_grant_error"
-  public cause: OAuth2Error
-
-  constructor({ cause, message }: { cause: OAuth2Error; message?: string }) {
-    super(
-      message ?? "An error occured while trying to refresh the access token."
-    )
-    this.cause = cause
-    this.name = "RefreshTokenGrantError"
   }
 }
 
@@ -102,5 +80,21 @@ export class BackchannelLogoutError extends SdkError {
         "An error occured while completing the backchannel logout request."
     )
     this.name = "BackchannelLogoutError"
+  }
+}
+
+export enum AccessTokenErrorCode {
+  MISSING_SESSION = "missing_session",
+  MISSING_REFRESH_TOKEN = "missing_refresh_token",
+  FAILED_TO_REFRESH_TOKEN = "failed_to_refresh_token",
+}
+
+export class AccessTokenError extends SdkError {
+  public code: string
+
+  constructor(code: string, message: string) {
+    super(message)
+    this.name = "AccessTokenError"
+    this.code = code
   }
 }

@@ -1,7 +1,7 @@
+import { SessionData } from "../../types"
 import * as cookies from "../cookies"
 import {
   AbstractSessionStore,
-  SessionData,
   SessionDataStore,
 } from "./abstract-session-store"
 

@@ -3,22 +3,21 @@ import * as jose from "jose"
 import * as oauth from "oauth4webapi"
 
 import {
+  AccessTokenError,
+  AccessTokenErrorCode,
   AuthorizationCodeGrantError,
   AuthorizationError,
   BackchannelLogoutError,
   DiscoveryError,
   InvalidStateError,
-  MissingRefreshToken,
   MissingStateError,
   OAuth2Error,
-  RefreshTokenGrantError,
   SdkError,
 } from "../errors"
+import { SessionData, TokenSet } from "../types"
 import {
   AbstractSessionStore,
   LogoutToken,
-  SessionData,
-  TokenSet,
 } from "./session/abstract-session-store"
 import { TransactionState, TransactionStore } from "./transaction-store"
 import { filterClaims } from "./user"
@@ -176,8 +175,6 @@ export class AuthClient {
         )
 
         if (error) {
-          // TODO: accept a logger in the constructor to log these errors
-          console.error(`Failed to fetch token set: ${error.message}`)
           return res
         }
 
@@ -280,24 +277,22 @@ export class AuthClient {
       )
     }
 
+    const returnTo = req.nextUrl.searchParams.get("returnTo") || this.appBaseUrl
+
     if (!authorizationServerMetadata.end_session_endpoint) {
-      console.error(
-        "The Auth0 client does not have RP-initiated logout enabled. Learn how to enable it here: https://auth0.com/docs/authenticate/login/logout/log-users-out-of-auth0#enable-endpoint-discovery"
+      // the Auth0 client does not have RP-initiated logout enabled, redirect to the `/v2/logout` endpoint
+      console.warn(
+        "The Auth0 client does not have RP-initiated logout enabled, the user will be redirected to the `/v2/logout` endpoint instead. Learn how to enable it here: https://auth0.com/docs/authenticate/login/logout/log-users-out-of-auth0#enable-endpoint-discovery"
       )
-      return new NextResponse(
-        "An error occured while trying to initiate the logout request.",
-        {
-          status: 500,
-        }
-      )
+      const url = new URL("/v2/logout", this.issuer)
+      url.searchParams.set("returnTo", returnTo)
+      url.searchParams.set("client_id", this.clientMetadata.client_id)
+      return NextResponse.redirect(url)
     }
 
     const url = new URL(authorizationServerMetadata.end_session_endpoint)
     url.searchParams.set("client_id", this.clientMetadata.client_id)
-    url.searchParams.set(
-      "post_logout_redirect_uri",
-      req.nextUrl.searchParams.get("returnTo") || this.appBaseUrl
-    )
+    url.searchParams.set("post_logout_redirect_uri", returnTo)
 
     if (session?.internal.sid) {
       url.searchParams.set("logout_hint", session.internal.sid)
@@ -437,7 +432,10 @@ export class AuthClient {
     if (!session) {
       return NextResponse.json(
         {
-          error: "You are not authenticated.",
+          error: {
+            message: "The user does not have an active session.",
+            code: AccessTokenErrorCode.MISSING_SESSION,
+          },
         },
         {
           status: 401,
@@ -450,8 +448,10 @@ export class AuthClient {
     if (error) {
       return NextResponse.json(
         {
-          error: error.message,
-          error_code: error.code,
+          error: {
+            message: error.message,
+            code: error.code,
+          },
         },
         {
           status: 401,
@@ -520,7 +520,13 @@ export class AuthClient {
   ): Promise<[null, TokenSet] | [SdkError, null]> {
     // the access token has expired but we do not have a refresh token
     if (!tokenSet.refreshToken && tokenSet.expiresAt <= Date.now() / 1000) {
-      return [new MissingRefreshToken(), null]
+      return [
+        new AccessTokenError(
+          AccessTokenErrorCode.MISSING_REFRESH_TOKEN,
+          "The access token has expired and a refresh token was not provided. The user needs to re-authenticate."
+        ),
+        null,
+      ]
     }
 
     // the access token has expired and we have a refresh token
@@ -529,6 +535,7 @@ export class AuthClient {
         await this.discoverAuthorizationServerMetadata()
 
       if (discoveryError) {
+        console.error(discoveryError)
         return [discoveryError, null]
       }
 
@@ -550,13 +557,12 @@ export class AuthClient {
           refreshTokenRes
         )
       } catch (e: any) {
+        console.error(e)
         return [
-          new RefreshTokenGrantError({
-            cause: new OAuth2Error({
-              code: e.error,
-              message: e.error_description,
-            }),
-          }),
+          new AccessTokenError(
+            AccessTokenErrorCode.FAILED_TO_REFRESH_TOKEN,
+            "The access token has expired and there was an error while trying to refresh it. Check the server logs for more information."
+          ),
           null,
         ]
       }
