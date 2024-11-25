@@ -5,7 +5,7 @@
 ### 1. Install the SDK
 
 ```shell
-npm i @auth0/nextjs-auth0@4.0.0-beta.7
+npm i @auth0/nextjs-auth0@4.0.0-beta.8
 ```
 
 ### 2. Add the environment variables
@@ -34,7 +34,7 @@ The `APP_BASE_URL` is the URL that your application is running on. When developi
 > You will need to register the follwing URLs in your Auth0 Application via the [Auth0 Dashboard](https://manage.auth0.com):
 >
 > - Add `http://localhost:3000/auth/callback` to the list of **Allowed Callback URLs**
-> - Add `http://localhost:3000/auth/logout` to the list of **Allowed Logout URLs**
+> - Add `http://localhost:3000` to the list of **Allowed Logout URLs**
 
 ### 3. Create the Auth0 SDK client
 
@@ -259,9 +259,12 @@ import { getAccessToken } from "@auth0/nextjs-auth0"
 
 export default function Component() {
   async function fetchData() {
-    const token = await getAccessToken()
-
-    // call external API with the token...
+    try {
+      const token = await auth0.getAccessToken()
+      // call external API with token...
+    } catch (err) {
+      // err will be an instance of AccessTokenError if an access token could not be obtained
+    }
   }
 
   return (
@@ -282,9 +285,12 @@ import { NextResponse } from "next/server"
 import { auth0 } from "@/lib/auth0"
 
 export async function GET() {
-  const token = await auth0.getAccessToken()
-
-  // call external API with token...
+  try {
+    const token = await auth0.getAccessToken()
+    // call external API with token...
+  } catch (err) {
+    // err will be an instance of AccessTokenError if an access token could not be obtained
+  }
 
   return NextResponse.json({
     message: "Success!",
@@ -305,9 +311,12 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<{ message: string }>
 ) {
-  const token = await auth0.getAccessToken(req)
-
-  // call external API with token...
+  try {
+    const token = await auth0.getAccessToken(req)
+    // call external API with token...
+  } catch (err) {
+    // err will be an instance of AccessTokenError if an access token could not be obtained
+  }
 
   res.status(200).json({ message: "Success!" })
 }
@@ -450,6 +459,25 @@ export async function middleware(request: NextRequest) {
 ```
 
 For a complete example using `next-intl` middleware, please see the `examples/` directory of this repository.
+
+## ID Token claims and the user object
+
+By default, the following properties claims from the ID token are added to the `user` object in the session automatically:
+
+- `sub`
+- `name`
+- `nickname`
+- `given_name`
+- `family_name`
+- `picture`
+- `email`
+- `email_verified`
+- `org_id`
+
+If you'd like to customize the `user` object to include additional custom claims from the ID token, you can use the `beforeSessionSaved` hook (see [beforeSessionSaved hook](#beforesessionsaved))
+
+> [!NOTE]  
+> It's best practice to limit what claims are stored on the `user` object in the session to avoid bloating the session cookie size and going over browser limits.
 
 ## Routes
 

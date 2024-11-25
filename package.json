@@ -1,6 +1,6 @@
 {
   "name": "@auth0/nextjs-auth0",
-  "version": "4.0.0-beta.7",
+  "version": "4.0.0-beta.8",
   "description": "Auth0 Next.js SDK",
   "main": "dist/index.js",
   "scripts": {
@@ -52,6 +52,12 @@
     },
     "./server": {
       "import": "./dist/server/index.js"
+    },
+    "./errors": {
+      "import": "./dist/errors/index.js"
+    },
+    "./types": {
+      "import": "./dist/types/index.d.ts"
     }
   },
   "dependencies": {
