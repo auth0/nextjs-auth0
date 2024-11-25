@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { generateSecret } from "../../test/utils"
+import { SessionData } from "../../types"
 import { decrypt, encrypt, RequestCookies, ResponseCookies } from "../cookies"
-import { SessionData } from "./abstract-session-store"
 import { StatefulSessionStore } from "./stateful-session-store"
 
 describe("Stateful Session Store", async () => {

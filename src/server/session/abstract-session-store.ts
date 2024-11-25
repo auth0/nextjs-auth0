@@ -1,27 +1,9 @@
+import type { SessionData } from "../../types"
 import {
   ReadonlyRequestCookies,
   RequestCookies,
   ResponseCookies,
 } from "../cookies"
-import { User } from "../user"
-
-export interface TokenSet {
-  accessToken: string
-  refreshToken?: string
-  expiresAt: number // the time at which the access token expires in seconds since epoch
-}
-
-export interface SessionData {
-  user: User
-  tokenSet: TokenSet
-  internal: {
-    // the session ID from the authorization server
-    sid: string
-    // the time at which the session was created in seconds since epoch
-    createdAt: number
-  }
-  [key: string]: unknown
-}
 
 export type LogoutToken = { sub?: string; sid?: string }
 
