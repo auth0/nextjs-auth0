@@ -4,9 +4,9 @@ import * as oauth from "oauth4webapi"
 import { describe, expect, it, vi } from "vitest"
 
 import { generateSecret } from "../test/utils"
+import { SessionData } from "../types"
 import { AuthClient } from "./auth-client"
 import { decrypt, encrypt } from "./cookies"
-import { SessionData } from "./session/abstract-session-store"
 import { StatefulSessionStore } from "./session/stateful-session-store"
 import { StatelessSessionStore } from "./session/stateless-session-store"
 import { TransactionState, TransactionStore } from "./transaction-store"
@@ -1287,7 +1287,7 @@ describe("Authentication Client", async () => {
       expect(cookie?.expires).toEqual(new Date("1970-01-01T00:00:00.000Z"))
     })
 
-    it("should return an error if the client does not have RP-Initiated Logout enabled", async () => {
+    it("should fallback to the /v2/logout endpoint if the client does not have RP-Initiated Logout enabled", async () => {
       const secret = await generateSecret(32)
       const transactionStore = new TransactionStore({
         secret,
@@ -1330,10 +1330,13 @@ describe("Authentication Client", async () => {
       )
 
       const response = await authClient.handleLogout(request)
-      expect(response.status).toEqual(500)
-      expect(await response.text()).toEqual(
-        "An error occured while trying to initiate the logout request."
-      )
+      expect(response.status).toEqual(307)
+      const logoutUrl = new URL(response.headers.get("Location")!)
+      expect(logoutUrl.origin).toEqual(`https://${DEFAULT.domain}`)
+
+      // query parameters
+      expect(logoutUrl.searchParams.get("client_id")).toEqual(DEFAULT.clientId)
+      expect(logoutUrl.searchParams.get("returnTo")).toEqual(DEFAULT.appBaseUrl)
     })
 
     it("should return an error if the discovery endpoint could not be fetched", async () => {
@@ -2523,7 +2526,10 @@ describe("Authentication Client", async () => {
       const response = await authClient.handleAccessToken(request)
       expect(response.status).toEqual(401)
       expect(await response.json()).toEqual({
-        error: "You are not authenticated.",
+        error: {
+          message: "The user does not have an active session.",
+          code: "missing_session",
+        },
       })
 
       // validate that the session cookie has not been set
@@ -2585,9 +2591,11 @@ describe("Authentication Client", async () => {
       const response = await authClient.handleAccessToken(request)
       expect(response.status).toEqual(401)
       expect(await response.json()).toEqual({
-        error_code: "missing_refresh_token",
-        error:
-          "The access token has expired and a refresh token was not granted.",
+        error: {
+          message:
+            "The access token has expired and a refresh token was not provided. The user needs to re-authenticate.",
+          code: "missing_refresh_token",
+        },
       })
 
       // validate that the session cookie has not been set
@@ -3272,7 +3280,7 @@ describe("Authentication Client", async () => {
       }
 
       const [error, updatedTokenSet] = await authClient.getTokenSet(tokenSet)
-      expect(error?.code).toEqual("refresh_token_grant_error")
+      expect(error?.code).toEqual("failed_to_refresh_token")
       expect(updatedTokenSet).toBeNull()
     })
 
