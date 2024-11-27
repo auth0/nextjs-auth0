@@ -287,7 +287,10 @@ export class AuthClient {
       const url = new URL("/v2/logout", this.issuer)
       url.searchParams.set("returnTo", returnTo)
       url.searchParams.set("client_id", this.clientMetadata.client_id)
-      return NextResponse.redirect(url)
+
+      const res = NextResponse.redirect(url)
+      await this.sessionStore.delete(req.cookies, res.cookies)
+      return res
     }
 
     const url = new URL(authorizationServerMetadata.end_session_endpoint)
