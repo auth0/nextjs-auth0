@@ -322,6 +322,36 @@ export default async function handler(
 }
 ```
 
+## `<Auth0Provider />`
+
+### Passing an initial user from the server
+
+You can wrap your components in an `<Auth0Provider />` and pass an initial user object to make it available to your components using the `useUser()` hook. For example:
+
+```tsx
+import { Auth0Provider } from "@auth0/nextjs-auth0"
+
+import { auth0 } from "@/lib/auth0"
+
+export default async function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode
+}>) {
+  const session = await auth0.getSession()
+
+  return (
+    <html lang="en">
+      <body>
+        <Auth0Provider user={session?.user}>{children}</Auth0Provider>
+      </body>
+    </html>
+  )
+}
+```
+
+The loaded user will then be used as a fallback in `useUser()` hook.
+
 ## Hooks
 
 The SDK exposes hooks to enable you to provide custom logic that would be run at certain lifecycle events.
