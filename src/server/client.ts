@@ -180,7 +180,7 @@ export class Auth0Client {
    *
    * This method can be used in Server Components, Server Actions, Route Handlers, and middleware in the **App Router**.
    */
-  async getAccessToken(): Promise<{ token: string; expiresAt: number } | null>
+  async getAccessToken(): Promise<{ token: string; expiresAt: number }>
 
   /**
    * getAccessToken returns the access token.
@@ -189,14 +189,14 @@ export class Auth0Client {
    */
   async getAccessToken(
     req: PagesRouterRequest
-  ): Promise<{ token: string; expiresAt: number } | null>
+  ): Promise<{ token: string; expiresAt: number }>
 
   /**
    * getAccessToken returns the access token.
    */
   async getAccessToken(
     req?: PagesRouterRequest
-  ): Promise<{ token: string; expiresAt: number } | null> {
+  ): Promise<{ token: string; expiresAt: number }> {
     let session: SessionData | null = null
 
     if (req) {
@@ -212,7 +212,7 @@ export class Auth0Client {
       )
     }
 
-    // if access token has expired, return null
+    // if access token has expired, throw an error
     if (session.tokenSet.expiresAt <= Date.now() / 1000) {
       if (!session.tokenSet.refreshToken) {
         throw new AccessTokenError(

@@ -1337,6 +1337,11 @@ describe("Authentication Client", async () => {
       // query parameters
       expect(logoutUrl.searchParams.get("client_id")).toEqual(DEFAULT.clientId)
       expect(logoutUrl.searchParams.get("returnTo")).toEqual(DEFAULT.appBaseUrl)
+
+      // session cookie is cleared
+      const cookie = response.cookies.get("__session")
+      expect(cookie?.value).toEqual("")
+      expect(cookie?.expires).toEqual(new Date("1970-01-01T00:00:00.000Z"))
     })
 
     it("should return an error if the discovery endpoint could not be fetched", async () => {
