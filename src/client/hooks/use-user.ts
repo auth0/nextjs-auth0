@@ -17,6 +17,15 @@ export function useUser() {
       })
   )
 
+  // if we have the user loaded via the provider, return it
+  if (data) {
+    return {
+      user: data,
+      isLoading: false,
+      error: null,
+    }
+  }
+
   if (error) {
     return {
       user: null,
