@@ -607,6 +607,10 @@ export class AuthClient {
 
       return [null, authorizationServerMetadata]
     } catch (e) {
+      console.error(
+        `An error occured while performing the discovery request. Please make sure the AUTH0_DOMAIN environment variable is correctly configured — the format must be 'example.us.auth0.com'. issuer=${issuer.toString()}, error:`,
+        e
+      )
       return [
         new DiscoveryError(
           "Discovery failed for the OpenID Connect configuration."
