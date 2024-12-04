@@ -196,6 +196,7 @@ export class EdgeClient extends AbstractClient {
       const { id_token_hint, post_logout_redirect_uri, ...extraParams } = parameters;
       const auth0LogoutUrl: URL = new URL(urlJoin(as.issuer, '/v2/logout'));
       post_logout_redirect_uri && auth0LogoutUrl.searchParams.set('returnTo', post_logout_redirect_uri);
+      id_token_hint && auth0LogoutUrl.searchParams.set('id_token_hint', id_token_hint);
       auth0LogoutUrl.searchParams.set('client_id', this.config.clientID);
       Object.entries(extraParams).forEach(([key, value]: [string, string]) => {
         if (value === null || value === undefined) {
