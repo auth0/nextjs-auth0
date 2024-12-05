@@ -84,5 +84,8 @@
         "./dist/client/index.d.ts"
       ]
     }
-  }
+  },
+  "files": [
+    "dist"
+  ]
 }
