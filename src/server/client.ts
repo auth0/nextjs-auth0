@@ -40,8 +40,14 @@ interface Auth0ClientOptions {
    * If it's not specified, it will be loaded from the `AUTH0_CLIENT_SECRET` environment variable.
    */
   clientSecret?: string
-
+  /**
+   * Additional parameters to send to the `/authorize` endpoint.
+   */
   authorizationParameters?: AuthorizationParameters
+  /**
+   * If enabled, the SDK will use the Pushed Authorization Requests (PAR) protocol when communicating with the authorization server.
+   */
+  pushedAuthorizationRequests?: boolean
 
   // application configuration
   /**
@@ -133,6 +139,7 @@ export class Auth0Client {
       clientId,
       clientSecret,
       authorizationParameters: options.authorizationParameters,
+      pushedAuthorizationRequests: options.pushedAuthorizationRequests,
 
       appBaseUrl,
       secret,

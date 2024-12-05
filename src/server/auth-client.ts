@@ -75,6 +75,7 @@ export interface AuthClientOptions {
   clientId: string
   clientSecret: string
   authorizationParameters?: AuthorizationParameters
+  pushedAuthorizationRequests?: boolean
 
   secret: string
   appBaseUrl: string
@@ -96,6 +97,7 @@ export class AuthClient {
   private clientSecret: string
   private issuer: string
   private authorizationParameters: AuthorizationParameters
+  private pushedAuthorizationRequests: boolean
 
   private appBaseUrl: string
   private signInReturnToPath: string
@@ -122,6 +124,8 @@ export class AuthClient {
     this.authorizationParameters = options.authorizationParameters || {
       scope: DEFAULT_SCOPES,
     }
+    this.pushedAuthorizationRequests =
+      options.pushedAuthorizationRequests ?? false
 
     if (!this.authorizationParameters.scope) {
       this.authorizationParameters.scope = DEFAULT_SCOPES
@@ -191,18 +195,6 @@ export class AuthClient {
   }
 
   async handleLogin(req: NextRequest): Promise<NextResponse> {
-    const [discoveryError, authorizationServerMetadata] =
-      await this.discoverAuthorizationServerMetadata()
-
-    if (discoveryError) {
-      return new NextResponse(
-        "An error occured while trying to initiate the login request.",
-        {
-          status: 500,
-        }
-      )
-    }
-
     const redirectUri = new URL("/auth/callback", this.appBaseUrl) // must be registed with the authorization server
     const returnTo =
       req.nextUrl.searchParams.get("returnTo") || this.signInReturnToPath
@@ -213,22 +205,14 @@ export class AuthClient {
     const state = oauth.generateRandomState()
     const nonce = oauth.generateRandomNonce()
 
-    const authorizationUrl = new URL(
-      authorizationServerMetadata.authorization_endpoint!
-    )
-    authorizationUrl.searchParams.set(
-      "client_id",
-      this.clientMetadata.client_id
-    )
-    authorizationUrl.searchParams.set("redirect_uri", redirectUri.toString())
-    authorizationUrl.searchParams.set("response_type", "code")
-    authorizationUrl.searchParams.set("code_challenge", codeChallenge)
-    authorizationUrl.searchParams.set(
-      "code_challenge_method",
-      codeChallengeMethod
-    )
-    authorizationUrl.searchParams.set("state", state)
-    authorizationUrl.searchParams.set("nonce", nonce)
+    const authorizationParams = new URLSearchParams()
+    authorizationParams.set("client_id", this.clientMetadata.client_id)
+    authorizationParams.set("redirect_uri", redirectUri.toString())
+    authorizationParams.set("response_type", "code")
+    authorizationParams.set("code_challenge", codeChallenge)
+    authorizationParams.set("code_challenge_method", codeChallengeMethod)
+    authorizationParams.set("state", state)
+    authorizationParams.set("nonce", nonce)
 
     // any custom params to forward to /authorize defined as configuration
     Object.entries(this.authorizationParameters).forEach(([key, val]) => {
@@ -237,14 +221,14 @@ export class AuthClient {
           return
         }
 
-        authorizationUrl.searchParams.set(key, String(val))
+        authorizationParams.set(key, String(val))
       }
     })
 
     // any custom params to forward to /authorize passed as query parameters
     req.nextUrl.searchParams.forEach((val, key) => {
       if (!INTERNAL_AUTHORIZE_PARAMS.includes(key)) {
-        authorizationUrl.searchParams.set(key, val)
+        authorizationParams.set(key, val)
       }
     })
 
@@ -255,6 +239,17 @@ export class AuthClient {
       responseType: "code",
       state,
       returnTo,
+    }
+
+    const [error, authorizationUrl] =
+      await this.authorizationUrl(authorizationParams)
+    if (error) {
+      return new NextResponse(
+        "An error occured while trying to initiate the login request.",
+        {
+          status: 500,
+        }
+      )
     }
 
     const res = NextResponse.redirect(authorizationUrl.toString())
@@ -728,5 +723,81 @@ export class AuthClient {
         sub: payload.sub,
       },
     ]
+  }
+
+  private async authorizationUrl(
+    params: URLSearchParams
+  ): Promise<[null, URL] | [Error, null]> {
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata()
+    if (discoveryError) {
+      return [discoveryError, null]
+    }
+
+    if (
+      this.pushedAuthorizationRequests &&
+      !authorizationServerMetadata.pushed_authorization_request_endpoint
+    ) {
+      console.error(
+        "The Auth0 tenant does not have pushed authorization requests enabled. Learn how to enable it here: https://auth0.com/docs/get-started/applications/configure-par"
+      )
+      return [
+        new Error(
+          "The authorization server does not support pushed authorization requests."
+        ),
+        null,
+      ]
+    }
+
+    const authorizationUrl = new URL(
+      authorizationServerMetadata.authorization_endpoint!
+    )
+
+    if (this.pushedAuthorizationRequests) {
+      // push the request params to the authorization server
+      const response = await oauth.pushedAuthorizationRequest(
+        authorizationServerMetadata,
+        this.clientMetadata,
+        oauth.ClientSecretPost(this.clientSecret),
+        params,
+        {
+          [oauth.customFetch]: this.fetch,
+        }
+      )
+
+      let parRes: oauth.PushedAuthorizationResponse
+      try {
+        parRes = await oauth.processPushedAuthorizationResponse(
+          authorizationServerMetadata,
+          this.clientMetadata,
+          response
+        )
+      } catch (e: any) {
+        return [
+          new AuthorizationError({
+            cause: new OAuth2Error({
+              code: e.error,
+              message: e.error_description,
+            }),
+            message:
+              "An error occured while pushing the authorization request.",
+          }),
+          null,
+        ]
+      }
+
+      authorizationUrl.searchParams.set("request_uri", parRes.request_uri)
+      authorizationUrl.searchParams.set(
+        "client_id",
+        this.clientMetadata.client_id
+      )
+
+      return [null, authorizationUrl]
+    }
+
+    // append the query parameters to the authorization URL for the normal flow
+    authorizationUrl.search = params.toString()
+
+    return [null, authorizationUrl]
   }
 }
