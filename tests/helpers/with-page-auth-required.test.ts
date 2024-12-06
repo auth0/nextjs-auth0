@@ -1,14 +1,68 @@
+import { expectTypeOf } from 'expect-type';
+import { NextResponse } from 'next/server';
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
-import { NextResponse } from 'next/server';
 import { URL } from 'url';
-import { login, setup, teardown } from '../fixtures/setup';
+import { initAuth0 } from '../../src';
+import { get } from '../auth0-session/fixtures/helpers';
 import { login as appRouterLogin } from '../fixtures/app-router-helpers';
 import { withApi, withoutApi } from '../fixtures/default-settings';
-import { get } from '../auth0-session/fixtures/helpers';
-import { initAuth0 } from '../../src';
+import { login, setup, teardown } from '../fixtures/setup';
 
 describe('with-page-auth-required ssr', () => {
+  describe('typed app route', () => {
+    let redirect: jest.Mock;
+
+    beforeEach(() => {
+      jest.doMock('next/headers', () => ({ cookies: () => new NextResponse().cookies }));
+      jest.doMock('next/navigation', () => {
+        const navigation = jest.requireActual('next/navigation');
+        redirect = jest.fn(navigation.redirect);
+        return {
+          ...navigation,
+          redirect
+        };
+      });
+    });
+
+    test('basic with params', async () => {
+      const instance = initAuth0(withApi);
+      const handler = instance.withPageAuthRequired(
+        ({ params }: { params: { lang: string; slug: string } }) =>
+          Promise.resolve(React.createElement('div', {}, `${params.lang}/${params.slug}`)),
+        { returnTo: '/foo' }
+      );
+      expectTypeOf(handler).parameter(0).toMatchTypeOf<{ params: { lang: string } }>();
+    });
+
+    test('basic with search param', async () => {
+      const instance = initAuth0(withApi);
+      const handler = instance.withPageAuthRequired(
+        ({ searchParams }: { searchParams: { limit: string | undefined } }) =>
+          Promise.resolve(React.createElement('div', {}, `${searchParams.limit}`)),
+        { returnTo: '/foo' }
+      );
+      expectTypeOf(handler).parameter(0).toMatchTypeOf<{ searchParams: { limit: string | undefined } }>();
+    });
+
+    test('basic with params and search param', async () => {
+      const instance = initAuth0(withApi);
+      const handler = instance.withPageAuthRequired(
+        ({
+          searchParams,
+          params: { lang }
+        }: {
+          params: { lang: string };
+          searchParams: { limit: string | undefined };
+        }) => Promise.resolve(React.createElement('div', {}, `${lang}${searchParams.limit}`)),
+        { returnTo: ({ params, searchParams }) => `/foo/${params.lang}?limit=${searchParams.limit}` }
+      );
+      expectTypeOf(handler)
+        .parameter(0)
+        .toMatchTypeOf<{ params: { lang: string }; searchParams: { limit: string | undefined } }>();
+    });
+  });
+
   describe('app route', () => {
     let redirect: jest.Mock;
 
