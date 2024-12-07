@@ -67,6 +67,18 @@ export interface AuthorizationParameters {
   [key: string]: unknown
 }
 
+interface Routes {
+  login: string
+  logout: string
+  callback: string
+  profile: string
+  accessToken: string
+  backChannelLogout: string
+}
+export type RoutesOptions = Partial<
+  Pick<Routes, "login" | "callback" | "logout" | "backChannelLogout">
+>
+
 export interface AuthClientOptions {
   transactionStore: TransactionStore
   sessionStore: AbstractSessionStore
@@ -75,6 +87,7 @@ export interface AuthClientOptions {
   clientId: string
   clientSecret: string
   authorizationParameters?: AuthorizationParameters
+  pushedAuthorizationRequests?: boolean
 
   secret: string
   appBaseUrl: string
@@ -82,6 +95,8 @@ export interface AuthClientOptions {
 
   beforeSessionSaved?: BeforeSessionSavedHook
   onCallback?: OnCallbackHook
+
+  routes?: RoutesOptions
 
   // custom fetch implementation to allow for dependency injection
   fetch?: typeof fetch
@@ -96,12 +111,15 @@ export class AuthClient {
   private clientSecret: string
   private issuer: string
   private authorizationParameters: AuthorizationParameters
+  private pushedAuthorizationRequests: boolean
 
   private appBaseUrl: string
   private signInReturnToPath: string
 
   private beforeSessionSaved?: BeforeSessionSavedHook
   private onCallback: OnCallbackHook
+
+  private routes: Routes
 
   private fetch: typeof fetch
   private jwksCache: jose.JWKSCacheInput
@@ -122,6 +140,8 @@ export class AuthClient {
     this.authorizationParameters = options.authorizationParameters || {
       scope: DEFAULT_SCOPES,
     }
+    this.pushedAuthorizationRequests =
+      options.pushedAuthorizationRequests ?? false
 
     if (!this.authorizationParameters.scope) {
       this.authorizationParameters.scope = DEFAULT_SCOPES
@@ -143,23 +163,38 @@ export class AuthClient {
     // hooks
     this.beforeSessionSaved = options.beforeSessionSaved
     this.onCallback = options.onCallback || this.defaultOnCallback
+
+    // routes
+    this.routes = {
+      login: "/auth/login",
+      logout: "/auth/logout",
+      callback: "/auth/callback",
+      backChannelLogout: "/auth/backchannel-logout",
+      profile: process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile",
+      accessToken:
+        process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
+      ...options.routes,
+    }
   }
 
   async handler(req: NextRequest): Promise<NextResponse> {
     const { pathname } = req.nextUrl
     const method = req.method
 
-    if (method === "GET" && pathname === "/auth/login") {
+    if (method === "GET" && pathname === this.routes.login) {
       return this.handleLogin(req)
-    } else if (method === "GET" && pathname === "/auth/logout") {
+    } else if (method === "GET" && pathname === this.routes.logout) {
       return this.handleLogout(req)
-    } else if (method === "GET" && pathname === "/auth/callback") {
+    } else if (method === "GET" && pathname === this.routes.callback) {
       return this.handleCallback(req)
-    } else if (method === "GET" && pathname === "/auth/profile") {
+    } else if (method === "GET" && pathname === this.routes.profile) {
       return this.handleProfile(req)
-    } else if (method === "GET" && pathname === "/auth/access-token") {
+    } else if (method === "GET" && pathname === this.routes.accessToken) {
       return this.handleAccessToken(req)
-    } else if (method === "POST" && pathname === "/auth/backchannel-logout") {
+    } else if (
+      method === "POST" &&
+      pathname === this.routes.backChannelLogout
+    ) {
       return this.handleBackChannelLogout(req)
     } else {
       // no auth handler found, simply touch the sessions
@@ -191,19 +226,7 @@ export class AuthClient {
   }
 
   async handleLogin(req: NextRequest): Promise<NextResponse> {
-    const [discoveryError, authorizationServerMetadata] =
-      await this.discoverAuthorizationServerMetadata()
-
-    if (discoveryError) {
-      return new NextResponse(
-        "An error occured while trying to initiate the login request.",
-        {
-          status: 500,
-        }
-      )
-    }
-
-    const redirectUri = new URL("/auth/callback", this.appBaseUrl) // must be registed with the authorization server
+    const redirectUri = new URL(this.routes.callback, this.appBaseUrl) // must be registed with the authorization server
     const returnTo =
       req.nextUrl.searchParams.get("returnTo") || this.signInReturnToPath
 
@@ -213,22 +236,14 @@ export class AuthClient {
     const state = oauth.generateRandomState()
     const nonce = oauth.generateRandomNonce()
 
-    const authorizationUrl = new URL(
-      authorizationServerMetadata.authorization_endpoint!
-    )
-    authorizationUrl.searchParams.set(
-      "client_id",
-      this.clientMetadata.client_id
-    )
-    authorizationUrl.searchParams.set("redirect_uri", redirectUri.toString())
-    authorizationUrl.searchParams.set("response_type", "code")
-    authorizationUrl.searchParams.set("code_challenge", codeChallenge)
-    authorizationUrl.searchParams.set(
-      "code_challenge_method",
-      codeChallengeMethod
-    )
-    authorizationUrl.searchParams.set("state", state)
-    authorizationUrl.searchParams.set("nonce", nonce)
+    const authorizationParams = new URLSearchParams()
+    authorizationParams.set("client_id", this.clientMetadata.client_id)
+    authorizationParams.set("redirect_uri", redirectUri.toString())
+    authorizationParams.set("response_type", "code")
+    authorizationParams.set("code_challenge", codeChallenge)
+    authorizationParams.set("code_challenge_method", codeChallengeMethod)
+    authorizationParams.set("state", state)
+    authorizationParams.set("nonce", nonce)
 
     // any custom params to forward to /authorize defined as configuration
     Object.entries(this.authorizationParameters).forEach(([key, val]) => {
@@ -237,14 +252,14 @@ export class AuthClient {
           return
         }
 
-        authorizationUrl.searchParams.set(key, String(val))
+        authorizationParams.set(key, String(val))
       }
     })
 
     // any custom params to forward to /authorize passed as query parameters
     req.nextUrl.searchParams.forEach((val, key) => {
       if (!INTERNAL_AUTHORIZE_PARAMS.includes(key)) {
-        authorizationUrl.searchParams.set(key, val)
+        authorizationParams.set(key, val)
       }
     })
 
@@ -255,6 +270,17 @@ export class AuthClient {
       responseType: "code",
       state,
       returnTo,
+    }
+
+    const [error, authorizationUrl] =
+      await this.authorizationUrl(authorizationParams)
+    if (error) {
+      return new NextResponse(
+        "An error occured while trying to initiate the login request.",
+        {
+          status: 500,
+        }
+      )
     }
 
     const res = NextResponse.redirect(authorizationUrl.toString())
@@ -350,7 +376,7 @@ export class AuthClient {
       )
     }
 
-    const redirectUri = new URL("/auth/callback", this.appBaseUrl) // must be registed with the authorization server
+    const redirectUri = new URL(this.routes.callback, this.appBaseUrl) // must be registed with the authorization server
     const codeGrantResponse = await oauth.authorizationCodeGrantRequest(
       authorizationServerMetadata,
       this.clientMetadata,
@@ -607,6 +633,10 @@ export class AuthClient {
 
       return [null, authorizationServerMetadata]
     } catch (e) {
+      console.error(
+        `An error occured while performing the discovery request. Please make sure the AUTH0_DOMAIN environment variable is correctly configured — the format must be 'example.us.auth0.com'. issuer=${issuer.toString()}, error:`,
+        e
+      )
       return [
         new DiscoveryError(
           "Discovery failed for the OpenID Connect configuration."
@@ -724,5 +754,81 @@ export class AuthClient {
         sub: payload.sub,
       },
     ]
+  }
+
+  private async authorizationUrl(
+    params: URLSearchParams
+  ): Promise<[null, URL] | [Error, null]> {
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata()
+    if (discoveryError) {
+      return [discoveryError, null]
+    }
+
+    if (
+      this.pushedAuthorizationRequests &&
+      !authorizationServerMetadata.pushed_authorization_request_endpoint
+    ) {
+      console.error(
+        "The Auth0 tenant does not have pushed authorization requests enabled. Learn how to enable it here: https://auth0.com/docs/get-started/applications/configure-par"
+      )
+      return [
+        new Error(
+          "The authorization server does not support pushed authorization requests."
+        ),
+        null,
+      ]
+    }
+
+    const authorizationUrl = new URL(
+      authorizationServerMetadata.authorization_endpoint!
+    )
+
+    if (this.pushedAuthorizationRequests) {
+      // push the request params to the authorization server
+      const response = await oauth.pushedAuthorizationRequest(
+        authorizationServerMetadata,
+        this.clientMetadata,
+        oauth.ClientSecretPost(this.clientSecret),
+        params,
+        {
+          [oauth.customFetch]: this.fetch,
+        }
+      )
+
+      let parRes: oauth.PushedAuthorizationResponse
+      try {
+        parRes = await oauth.processPushedAuthorizationResponse(
+          authorizationServerMetadata,
+          this.clientMetadata,
+          response
+        )
+      } catch (e: any) {
+        return [
+          new AuthorizationError({
+            cause: new OAuth2Error({
+              code: e.error,
+              message: e.error_description,
+            }),
+            message:
+              "An error occured while pushing the authorization request.",
+          }),
+          null,
+        ]
+      }
+
+      authorizationUrl.searchParams.set("request_uri", parRes.request_uri)
+      authorizationUrl.searchParams.set(
+        "client_id",
+        this.clientMetadata.client_id
+      )
+
+      return [null, authorizationUrl]
+    }
+
+    // append the query parameters to the authorization URL for the normal flow
+    authorizationUrl.search = params.toString()
+
+    return [null, authorizationUrl]
   }
 }

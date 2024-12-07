@@ -1,7 +1,9 @@
 import { AccessTokenError } from "../../errors"
 
 export async function getAccessToken() {
-  const tokenRes = await fetch("/auth/access-token")
+  const tokenRes = await fetch(
+    process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token"
+  )
 
   if (!tokenRes.ok) {
     // try to parse it as JSON and throw the error from the API
