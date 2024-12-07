@@ -123,9 +123,32 @@ export class Auth0Client {
       process.env.APP_BASE_URL) as string
     const secret = (options.secret || process.env.AUTH0_SECRET) as string
 
+    const cookieOptions = {
+      secure: false,
+    }
+    if (appBaseUrl) {
+      const { protocol } = new URL(appBaseUrl)
+      if (protocol === "https:") {
+        cookieOptions.secure = true
+      }
+
+      if (process.env.NODE_ENV === "production" && !cookieOptions.secure) {
+        console.warn(
+          `The application's base URL (${appBaseUrl}) is not set to HTTPS. This is not recommended for production environments.`
+        )
+      }
+    }
+
+    if (domain && domain.includes("://")) {
+      throw new Error(
+        "The Auth0 domain should not contain a protocol. Please ensure the AUTH0_DOMAIN environment variable or `domain` configuration option uses the correct format (`example.us.auth0.com`)."
+      )
+    }
+
     this.transactionStore = new TransactionStore({
       ...options.session,
       secret,
+      cookieOptions,
     })
 
     this.sessionStore = options.sessionStore
@@ -133,10 +156,12 @@ export class Auth0Client {
           ...options.session,
           secret,
           store: options.sessionStore,
+          cookieOptions,
         })
       : new StatelessSessionStore({
           ...options.session,
           secret,
+          cookieOptions,
         })
 
     this.authClient = new AuthClient({
