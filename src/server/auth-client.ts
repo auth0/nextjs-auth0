@@ -67,6 +67,18 @@ export interface AuthorizationParameters {
   [key: string]: unknown
 }
 
+interface Routes {
+  login: string
+  logout: string
+  callback: string
+  profile: string
+  accessToken: string
+  backChannelLogout: string
+}
+export type RoutesOptions = Partial<
+  Pick<Routes, "login" | "callback" | "logout" | "backChannelLogout">
+>
+
 export interface AuthClientOptions {
   transactionStore: TransactionStore
   sessionStore: AbstractSessionStore
@@ -83,6 +95,8 @@ export interface AuthClientOptions {
 
   beforeSessionSaved?: BeforeSessionSavedHook
   onCallback?: OnCallbackHook
+
+  routes?: RoutesOptions
 
   // custom fetch implementation to allow for dependency injection
   fetch?: typeof fetch
@@ -104,6 +118,8 @@ export class AuthClient {
 
   private beforeSessionSaved?: BeforeSessionSavedHook
   private onCallback: OnCallbackHook
+
+  private routes: Routes
 
   private fetch: typeof fetch
   private jwksCache: jose.JWKSCacheInput
@@ -147,23 +163,38 @@ export class AuthClient {
     // hooks
     this.beforeSessionSaved = options.beforeSessionSaved
     this.onCallback = options.onCallback || this.defaultOnCallback
+
+    // routes
+    this.routes = {
+      login: "/auth/login",
+      logout: "/auth/logout",
+      callback: "/auth/callback",
+      backChannelLogout: "/auth/backchannel-logout",
+      profile: process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile",
+      accessToken:
+        process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
+      ...options.routes,
+    }
   }
 
   async handler(req: NextRequest): Promise<NextResponse> {
     const { pathname } = req.nextUrl
     const method = req.method
 
-    if (method === "GET" && pathname === "/auth/login") {
+    if (method === "GET" && pathname === this.routes.login) {
       return this.handleLogin(req)
-    } else if (method === "GET" && pathname === "/auth/logout") {
+    } else if (method === "GET" && pathname === this.routes.logout) {
       return this.handleLogout(req)
-    } else if (method === "GET" && pathname === "/auth/callback") {
+    } else if (method === "GET" && pathname === this.routes.callback) {
       return this.handleCallback(req)
-    } else if (method === "GET" && pathname === "/auth/profile") {
+    } else if (method === "GET" && pathname === this.routes.profile) {
       return this.handleProfile(req)
-    } else if (method === "GET" && pathname === "/auth/access-token") {
+    } else if (method === "GET" && pathname === this.routes.accessToken) {
       return this.handleAccessToken(req)
-    } else if (method === "POST" && pathname === "/auth/backchannel-logout") {
+    } else if (
+      method === "POST" &&
+      pathname === this.routes.backChannelLogout
+    ) {
       return this.handleBackChannelLogout(req)
     } else {
       // no auth handler found, simply touch the sessions
@@ -195,7 +226,7 @@ export class AuthClient {
   }
 
   async handleLogin(req: NextRequest): Promise<NextResponse> {
-    const redirectUri = new URL("/auth/callback", this.appBaseUrl) // must be registed with the authorization server
+    const redirectUri = new URL(this.routes.callback, this.appBaseUrl) // must be registed with the authorization server
     const returnTo =
       req.nextUrl.searchParams.get("returnTo") || this.signInReturnToPath
 
@@ -345,7 +376,7 @@ export class AuthClient {
       )
     }
 
-    const redirectUri = new URL("/auth/callback", this.appBaseUrl) // must be registed with the authorization server
+    const redirectUri = new URL(this.routes.callback, this.appBaseUrl) // must be registed with the authorization server
     const codeGrantResponse = await oauth.authorizationCodeGrantRequest(
       authorizationServerMetadata,
       this.clientMetadata,

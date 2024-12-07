@@ -123,6 +123,7 @@ You can customize the client by using the options below:
 | onCallback                  | `OnCallbackHook`          | A method to handle errors or manage redirects after attempting to authenticate. See [onCallback](#oncallback) for additional details.                          |
 | sessionStore                | `SessionStore`            | A custom session store implementation used to persist sessions to a data store. See [Database sessions](#database-sessions) for additional details.            |
 | pushedAuthorizationRequests | `boolean`                 | Configure the SDK to use the Pushed Authorization Requests (PAR) protocol when communicating with the authorization server.                                    |
+| routes                      | `Routes`                  | Configure the paths for the authentication routes. See [Custom routes](#custom-routes) for additional details.                                                 |
 
 ## Passing authorization parameters
 
@@ -520,3 +521,33 @@ The SDK mounts 6 routes:
 4. `/auth/profile`: the route to check the user's session and return their attributes
 5. `/auth/access-token`: the route to check the user's session and return an access token (which will be automatically refreshed if a refresh token is available)
 6. `/auth/backchannel-logout`: the route that will receive a `logout_token` when a configured Back-Channel Logout initiator occurs
+
+### Custom routes
+
+The default paths can be set using the `routes` configuration option. For example, when instantiating the client:
+
+```ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server"
+
+export const auth0 = new Auth0Client({
+  routes: {
+    login: "/login",
+    logout: "/logout",
+    callback: "/callback",
+    backChannelLogout: "/backchannel-logout",
+  },
+})
+```
+
+To configure the profile and access token routes, you must use the `NEXT_PUBLIC_PROFILE_ROUTE` and `NEXT_PUBLIC_ACCESS_TOKEN_ROUTE`, respectively. For example:
+
+```
+# .env.local
+# required environment variables...
+
+NEXT_PUBLIC_PROFILE_ROUTE=/api/me
+NEXT_PUBLIC_ACCESS_TOKEN_ROUTE=/api/auth/token
+```
+
+> [!IMPORTANT]  
+> Updating the route paths will also require updating the **Allowed Callback URLs** and **Allowed Logout URLs** configured in the [Auth0 Dashboard](https://manage.auth0.com) for your client.

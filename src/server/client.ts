@@ -9,6 +9,7 @@ import {
   AuthorizationParameters,
   BeforeSessionSavedHook,
   OnCallbackHook,
+  RoutesOptions,
 } from "./auth-client"
 import { RequestCookies } from "./cookies"
 import {
@@ -96,6 +97,13 @@ interface Auth0ClientOptions {
    * See [Database sessions](https://github.com/auth0/nextjs-auth0#database-sessions) for additional details.
    */
   sessionStore?: SessionDataStore
+
+  /**
+   * Configure the paths for the authentication routes.
+   *
+   * See [Custom routes](https://github.com/auth0/nextjs-auth0#custom-routes) for additional details.
+   */
+  routes?: RoutesOptions
 }
 
 type PagesRouterRequest = Pick<NextApiRequest, "headers">
@@ -147,6 +155,8 @@ export class Auth0Client {
 
       beforeSessionSaved: options.beforeSessionSaved,
       onCallback: options.onCallback,
+
+      routes: options.routes,
     })
   }
 
