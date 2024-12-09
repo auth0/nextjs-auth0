@@ -81,6 +81,7 @@
         "./dist/errors/index.d.ts"
       ],
       "*": [
+        "./dist/client/*",
         "./dist/client/index.d.ts"
       ]
     }
