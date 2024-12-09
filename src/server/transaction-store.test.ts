@@ -93,6 +93,7 @@ describe("Transaction Store", async () => {
       expect(cookie?.httpOnly).toEqual(true)
       expect(cookie?.sameSite).toEqual("lax")
       expect(cookie?.maxAge).toEqual(3600)
+      expect(cookie?.secure).toEqual(false)
     })
 
     it("should throw an error if the transaction does not contain a state", async () => {
@@ -117,6 +118,44 @@ describe("Transaction Store", async () => {
       expect(() =>
         transactionStore.save(responseCookies, transactionState)
       ).rejects.toThrowError()
+    })
+
+    describe("with cookieOptions", async () => {
+      it("should apply the secure attribute to the cookie", async () => {
+        const secret = await generateSecret(32)
+        const codeVerifier = oauth.generateRandomCodeVerifier()
+        const nonce = oauth.generateRandomNonce()
+        const state = oauth.generateRandomState()
+        const transactionState: TransactionState = {
+          nonce,
+          maxAge: 3600,
+          codeVerifier: codeVerifier,
+          responseType: "code",
+          state,
+          returnTo: "/dashboard",
+        }
+        const headers = new Headers()
+        const responseCookies = new ResponseCookies(headers)
+
+        const transactionStore = new TransactionStore({
+          secret,
+          cookieOptions: {
+            secure: true,
+          },
+        })
+        await transactionStore.save(responseCookies, transactionState)
+
+        const cookieName = `__txn_${state}`
+        const cookie = responseCookies.get(cookieName)
+
+        expect(cookie).toBeDefined()
+        expect(await decrypt(cookie!.value, secret)).toEqual(transactionState)
+        expect(cookie?.path).toEqual("/")
+        expect(cookie?.httpOnly).toEqual(true)
+        expect(cookie?.sameSite).toEqual("lax")
+        expect(cookie?.maxAge).toEqual(3600)
+        expect(cookie?.secure).toEqual(true)
+      })
     })
   })
 

@@ -23,6 +23,7 @@ describe("Authentication Client", async () => {
     sub: "user_123",
     alg: "RS256",
     keyPair: await jose.generateKeyPair("RS256"),
+    requestUri: "urn:ietf:params:oauth:request_uri:6esc_11ACC5bwc014ltc14eY22c",
   }
 
   function getMockAuthorizationServer({
@@ -31,55 +32,76 @@ describe("Authentication Client", async () => {
     audience,
     nonce,
     keyPair = DEFAULT.keyPair,
+    onParRequest,
   }: {
     tokenEndpointResponse?: oauth.TokenEndpointResponse | oauth.OAuth2Error
     discoveryResponse?: Response
     audience?: string
     nonce?: string
     keyPair?: jose.GenerateKeyPairResult<jose.KeyLike>
+    onParRequest?: (request: Request) => Promise<void>
   } = {}) {
     // this function acts as a mock authorization server
-    return vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
-      let url: URL
-      if (input instanceof Request) {
-        url = new URL(input.url)
-      } else {
-        url = new URL(input)
-      }
+    return vi.fn(
+      async (
+        input: RequestInfo | URL,
+        init?: RequestInit
+      ): Promise<Response> => {
+        let url: URL
+        if (input instanceof Request) {
+          url = new URL(input.url)
+        } else {
+          url = new URL(input)
+        }
 
-      if (url.pathname === "/oauth/token") {
-        const jwt = await new jose.SignJWT({
-          sid: DEFAULT.sid,
-          auth_time: Date.now(),
-          nonce: nonce ?? "nonce-value",
-          "https://example.com/custom_claim": "value",
-        })
-          .setProtectedHeader({ alg: DEFAULT.alg })
-          .setSubject(DEFAULT.sub)
-          .setIssuedAt()
-          .setIssuer(_authorizationServerMetadata.issuer)
-          .setAudience(audience ?? DEFAULT.clientId)
-          .setExpirationTime("2h")
-          .sign(keyPair.privateKey)
-
-        return Response.json(
-          tokenEndpointResponse ?? {
-            token_type: "Bearer",
-            access_token: DEFAULT.accessToken,
-            refresh_token: DEFAULT.refreshToken,
-            id_token: jwt,
-            expires_in: 86400, // expires in 10 days
+        if (url.pathname === "/oauth/token") {
+          const jwt = await new jose.SignJWT({
+            sid: DEFAULT.sid,
+            auth_time: Date.now(),
+            nonce: nonce ?? "nonce-value",
+            "https://example.com/custom_claim": "value",
+          })
+            .setProtectedHeader({ alg: DEFAULT.alg })
+            .setSubject(DEFAULT.sub)
+            .setIssuedAt()
+            .setIssuer(_authorizationServerMetadata.issuer)
+            .setAudience(audience ?? DEFAULT.clientId)
+            .setExpirationTime("2h")
+            .sign(keyPair.privateKey)
+          return Response.json(
+            tokenEndpointResponse ?? {
+              token_type: "Bearer",
+              access_token: DEFAULT.accessToken,
+              refresh_token: DEFAULT.refreshToken,
+              id_token: jwt,
+              expires_in: 86400, // expires in 10 days
+            }
+          )
+        }
+        // discovery URL
+        if (url.pathname === "/.well-known/openid-configuration") {
+          return (
+            discoveryResponse ?? Response.json(_authorizationServerMetadata)
+          )
+        }
+        // PAR endpoint
+        if (url.pathname === "/oauth/par") {
+          if (onParRequest) {
+            // TODO: for some reason the input here is a URL and not a request
+            await onParRequest(new Request(input, init))
           }
-        )
-      }
 
-      // discovery URL
-      if (url.pathname === "/.well-known/openid-configuration") {
-        return discoveryResponse ?? Response.json(_authorizationServerMetadata)
-      }
+          return Response.json(
+            { request_uri: DEFAULT.requestUri, expires_in: 30 },
+            {
+              status: 201,
+            }
+          )
+        }
 
-      return new Response(null, { status: 404 })
-    })
+        return new Response(null, { status: 404 })
+      }
+    )
   }
 
   async function generateLogoutToken({
@@ -529,6 +551,230 @@ describe("Authentication Client", async () => {
         // assert session has not been updated
         const updatedSessionCookie = response.cookies.get("__session")
         expect(updatedSessionCookie).toBeUndefined()
+      })
+    })
+
+    describe("with custom routes", async () => {
+      it("should call the login handler when the configured route is called", async () => {
+        const secret = await generateSecret(32)
+        const transactionStore = new TransactionStore({
+          secret,
+        })
+        const sessionStore = new StatelessSessionStore({
+          secret,
+        })
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          fetch: getMockAuthorizationServer(),
+
+          routes: {
+            login: "/custom-login",
+          },
+        })
+        const request = new NextRequest(
+          new URL("/custom-login", DEFAULT.appBaseUrl),
+          {
+            method: "GET",
+          }
+        )
+
+        authClient.handleLogin = vi.fn()
+        await authClient.handler(request)
+        expect(authClient.handleLogin).toHaveBeenCalled()
+      })
+
+      it("should call the logout handler when the configured route is called", async () => {
+        const secret = await generateSecret(32)
+        const transactionStore = new TransactionStore({
+          secret,
+        })
+        const sessionStore = new StatelessSessionStore({
+          secret,
+        })
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          fetch: getMockAuthorizationServer(),
+
+          routes: {
+            logout: "/custom-logout",
+          },
+        })
+        const request = new NextRequest(
+          new URL("/custom-logout", DEFAULT.appBaseUrl),
+          {
+            method: "GET",
+          }
+        )
+
+        authClient.handleLogout = vi.fn()
+        await authClient.handler(request)
+        expect(authClient.handleLogout).toHaveBeenCalled()
+      })
+
+      it("should call the callback handler when the configured route is called", async () => {
+        const secret = await generateSecret(32)
+        const transactionStore = new TransactionStore({
+          secret,
+        })
+        const sessionStore = new StatelessSessionStore({
+          secret,
+        })
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          fetch: getMockAuthorizationServer(),
+
+          routes: {
+            callback: "/custom-callback",
+          },
+        })
+        const request = new NextRequest(
+          new URL("/custom-callback", DEFAULT.appBaseUrl),
+          {
+            method: "GET",
+          }
+        )
+
+        authClient.handleCallback = vi.fn()
+        await authClient.handler(request)
+        expect(authClient.handleCallback).toHaveBeenCalled()
+      })
+
+      it("should call the backChannelLogout handler when the configured route is called", async () => {
+        const secret = await generateSecret(32)
+        const transactionStore = new TransactionStore({
+          secret,
+        })
+        const sessionStore = new StatelessSessionStore({
+          secret,
+        })
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          fetch: getMockAuthorizationServer(),
+
+          routes: {
+            backChannelLogout: "/custom-backchannel-logout",
+          },
+        })
+        const request = new NextRequest(
+          new URL("/custom-backchannel-logout", DEFAULT.appBaseUrl),
+          {
+            method: "POST",
+          }
+        )
+
+        authClient.handleBackChannelLogout = vi.fn()
+        await authClient.handler(request)
+        expect(authClient.handleBackChannelLogout).toHaveBeenCalled()
+      })
+
+      it("should call the profile handler when the configured route is called", async () => {
+        process.env.NEXT_PUBLIC_PROFILE_ROUTE = "/custom-profile"
+
+        const secret = await generateSecret(32)
+        const transactionStore = new TransactionStore({
+          secret,
+        })
+        const sessionStore = new StatelessSessionStore({
+          secret,
+        })
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          fetch: getMockAuthorizationServer(),
+        })
+        const request = new NextRequest(
+          new URL("/custom-profile", DEFAULT.appBaseUrl),
+          {
+            method: "GET",
+          }
+        )
+
+        authClient.handleProfile = vi.fn()
+        await authClient.handler(request)
+        expect(authClient.handleProfile).toHaveBeenCalled()
+
+        delete process.env.NEXT_PUBLIC_PROFILE_ROUTE
+      })
+
+      it("should call the access-token handler when the configured route is called", async () => {
+        process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE = "/custom-access-token"
+
+        const secret = await generateSecret(32)
+        const transactionStore = new TransactionStore({
+          secret,
+        })
+        const sessionStore = new StatelessSessionStore({
+          secret,
+        })
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          fetch: getMockAuthorizationServer(),
+        })
+        const request = new NextRequest(
+          new URL("/custom-access-token", DEFAULT.appBaseUrl),
+          {
+            method: "GET",
+          }
+        )
+
+        authClient.handleAccessToken = vi.fn()
+        await authClient.handler(request)
+        expect(authClient.handleAccessToken).toHaveBeenCalled()
+
+        delete process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE
       })
     })
   })
@@ -1091,6 +1337,259 @@ describe("Authentication Client", async () => {
         responseType: "code",
         state: authorizationUrl.searchParams.get("state"),
         returnTo: "/dashboard",
+      })
+    })
+
+    describe("with pushed authorization requests", async () => {
+      it("should return an error if the authorization server does not support PAR", async () => {
+        const secret = await generateSecret(32)
+        const transactionStore = new TransactionStore({
+          secret,
+        })
+        const sessionStore = new StatelessSessionStore({
+          secret,
+        })
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          pushedAuthorizationRequests: true,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          fetch: getMockAuthorizationServer({
+            discoveryResponse: Response.json(
+              {
+                ..._authorizationServerMetadata,
+                pushed_authorization_request_endpoint: null,
+              },
+              {
+                status: 200,
+                headers: {
+                  "content-type": "application/json",
+                },
+              }
+            ),
+          }),
+        })
+
+        const request = new NextRequest(
+          new URL("/auth/login", DEFAULT.appBaseUrl),
+          {
+            method: "GET",
+          }
+        )
+        const response = await authClient.handleLogin(request)
+
+        expect(response.status).toEqual(500)
+        expect(await response.text()).toEqual(
+          "An error occured while trying to initiate the login request."
+        )
+      })
+
+      it("should redirect to the authorization server with the request_uri and store the transaction state", async () => {
+        const secret = await generateSecret(32)
+        const transactionStore = new TransactionStore({
+          secret,
+        })
+        const sessionStore = new StatelessSessionStore({
+          secret,
+        })
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          pushedAuthorizationRequests: true,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          fetch: getMockAuthorizationServer({
+            onParRequest: async (request) => {
+              const params = new URLSearchParams(await request.text())
+              expect(params.get("client_id")).toEqual(DEFAULT.clientId)
+              expect(params.get("redirect_uri")).toEqual(
+                `${DEFAULT.appBaseUrl}/auth/callback`
+              )
+              expect(params.get("response_type")).toEqual("code")
+              expect(params.get("code_challenge")).toEqual(expect.any(String))
+              expect(params.get("code_challenge_method")).toEqual("S256")
+              expect(params.get("state")).toEqual(expect.any(String))
+              expect(params.get("nonce")).toEqual(expect.any(String))
+              expect(params.get("scope")).toEqual(
+                "openid profile email offline_access"
+              )
+            },
+          }),
+        })
+
+        const request = new NextRequest(
+          new URL("/auth/login", DEFAULT.appBaseUrl),
+          {
+            method: "GET",
+          }
+        )
+
+        const response = await authClient.handleLogin(request)
+        expect(response.status).toEqual(307)
+        expect(response.headers.get("Location")).not.toBeNull()
+
+        const authorizationUrl = new URL(response.headers.get("Location")!)
+        expect(authorizationUrl.origin).toEqual(`https://${DEFAULT.domain}`)
+        // query parameters should only include the `request_uri` and not the standard auth params
+        expect(authorizationUrl.searchParams.get("request_uri")).toEqual(
+          DEFAULT.requestUri
+        )
+        expect(authorizationUrl.searchParams.get("client_id")).toEqual(
+          DEFAULT.clientId
+        )
+        expect(authorizationUrl.searchParams.get("redirect_uri")).toBeNull()
+        expect(authorizationUrl.searchParams.get("response_type")).toBeNull()
+        expect(authorizationUrl.searchParams.get("code_challenge")).toBeNull()
+        expect(
+          authorizationUrl.searchParams.get("code_challenge_method")
+        ).toBeNull()
+        expect(authorizationUrl.searchParams.get("state")).toBeNull()
+        expect(authorizationUrl.searchParams.get("nonce")).toBeNull()
+        expect(authorizationUrl.searchParams.get("scope")).toBeNull()
+
+        // transaction state
+        const transactionCookies = response.cookies
+          .getAll()
+          .filter((c) => c.name.startsWith("__txn_"))
+        expect(transactionCookies.length).toEqual(1)
+        const transactionCookie = transactionCookies[0]
+        const state = transactionCookie.name.replace("__txn_", "")
+        expect(transactionCookie).toBeDefined()
+        expect(await decrypt(transactionCookie!.value, secret)).toEqual({
+          nonce: expect.any(String),
+          codeVerifier: expect.any(String),
+          responseType: "code",
+          state,
+          returnTo: "/",
+        })
+      })
+
+      it("should forward any custom parameters to the authorization server in the PAR request", async () => {
+        const secret = await generateSecret(32)
+        const transactionStore = new TransactionStore({
+          secret,
+        })
+        const sessionStore = new StatelessSessionStore({
+          secret,
+        })
+
+        // set custom parameters in the login URL which should be forwarded to the authorization server (in PAR request)
+        const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl)
+        loginUrl.searchParams.set("ext-custom_param", "custom_value")
+        loginUrl.searchParams.set("audience", "urn:mystore:api")
+        const request = new NextRequest(loginUrl, {
+          method: "GET",
+        })
+
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          pushedAuthorizationRequests: true,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          fetch: getMockAuthorizationServer({
+            onParRequest: async (request) => {
+              const params = new URLSearchParams(await request.text())
+              expect(params.get("ext-custom_param")).toEqual("custom_value")
+              expect(params.get("audience")).toEqual("urn:mystore:api")
+            },
+          }),
+        })
+
+        const response = await authClient.handleLogin(request)
+        expect(response.status).toEqual(307)
+        expect(response.headers.get("Location")).not.toBeNull()
+        const authorizationUrl = new URL(response.headers.get("Location")!)
+        expect(authorizationUrl.origin).toEqual(`https://${DEFAULT.domain}`)
+        // query parameters should only include the `request_uri` and not the standard auth params
+        expect(authorizationUrl.searchParams.get("request_uri")).toEqual(
+          DEFAULT.requestUri
+        )
+        expect(authorizationUrl.searchParams.get("client_id")).toEqual(
+          DEFAULT.clientId
+        )
+        expect(authorizationUrl.searchParams.get("redirect_uri")).toBeNull()
+        expect(authorizationUrl.searchParams.get("response_type")).toBeNull()
+        expect(authorizationUrl.searchParams.get("code_challenge")).toBeNull()
+        expect(
+          authorizationUrl.searchParams.get("code_challenge_method")
+        ).toBeNull()
+        expect(authorizationUrl.searchParams.get("state")).toBeNull()
+        expect(authorizationUrl.searchParams.get("nonce")).toBeNull()
+        expect(authorizationUrl.searchParams.get("scope")).toBeNull()
+
+        // transaction state
+        const transactionCookies = response.cookies
+          .getAll()
+          .filter((c) => c.name.startsWith("__txn_"))
+        expect(transactionCookies.length).toEqual(1)
+        const transactionCookie = transactionCookies[0]
+        const state = transactionCookie.name.replace("__txn_", "")
+        expect(transactionCookie).toBeDefined()
+        expect(await decrypt(transactionCookie!.value, secret)).toEqual({
+          nonce: expect.any(String),
+          codeVerifier: expect.any(String),
+          responseType: "code",
+          state,
+          returnTo: "/",
+        })
+      })
+    })
+
+    describe("with custom callback route", async () => {
+      it("should redirect to the custom callback route after login", async () => {
+        const secret = await generateSecret(32)
+        const transactionStore = new TransactionStore({
+          secret,
+        })
+        const sessionStore = new StatelessSessionStore({
+          secret,
+        })
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          fetch: getMockAuthorizationServer(),
+
+          routes: {
+            callback: "/custom-callback",
+          },
+        })
+        const request = new NextRequest(
+          new URL("/auth/login", DEFAULT.appBaseUrl),
+          {
+            method: "GET",
+          }
+        )
+
+        const response = await authClient.handleLogin(request)
+        expect(response.status).toEqual(307)
+        expect(response.headers.get("Location")).not.toBeNull()
+
+        const authorizationUrl = new URL(response.headers.get("Location")!)
+        expect(authorizationUrl.origin).toEqual(`https://${DEFAULT.domain}`)
+
+        // query parameters
+        expect(authorizationUrl.searchParams.get("redirect_uri")).toEqual(
+          `${DEFAULT.appBaseUrl}/custom-callback`
+        )
       })
     })
   })
@@ -3442,4 +3941,5 @@ const _authorizationServerMetadata = {
   backchannel_logout_supported: true,
   backchannel_logout_session_supported: true,
   end_session_endpoint: "https://guabu.us.auth0.com/oidc/logout",
+  pushed_authorization_request_endpoint: "https://guabu.us.auth0.com/oauth/par",
 }
