@@ -5,7 +5,7 @@
 ### 1. Install the SDK
 
 ```shell
-npm i @auth0/nextjs-auth0@4.0.0-beta.9
+npm i @auth0/nextjs-auth0@4.0.0-beta.10
 ```
 
 ### 2. Add the environment variables
@@ -109,19 +109,21 @@ export default async function Home() {
 
 You can customize the client by using the options below:
 
-| Option                  | Type                      | Description                                                                                                                                                    |
-| ----------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| domain                  | `string`                  | The Auth0 domain for the tenant (e.g.: `example.us.auth0.com`). If it's not specified, it will be loaded from the `AUTH0_DOMAIN` environment variable.         |
-| clientId                | `string`                  | The Auth0 client ID. If it's not specified, it will be loaded from the `AUTH0_CLIENT_ID` environment variable.                                                 |
-| clientSecret            | `string`                  | The Auth0 client secret. If it's not specified, it will be loaded from the `AUTH0_CLIENT_SECRET` environment variable.                                         |
-| authorizationParameters | `AuthorizationParameters` | The authorization parameters to pass to the `/authorize` endpoint. See [Passing authorization parameters](#passing-authorization-parameters) for more details. |
-| appBaseUrl              | `string`                  | The URL of your application (e.g.: `http://localhost:3000`). If it's not specified, it will be loaded from the `APP_BASE_URL` environment variable.            |
-| secret                  | `string`                  | A 32-byte, hex-encoded secret used for encrypting cookies. If it's not specified, it will be loaded from the `AUTH0_SECRET` environment variable.              |
-| signInReturnToPath      | `string`                  | The path to redirect the user to after successfully authenticating. Defaults to `/`.                                                                           |
-| session                 | `SessionConfiguration`    | Configure the session timeouts and whether to use rolling sessions or not. See [Session configuration](#session-configuration) for additional details.         |
-| beforeSessionSaved      | `BeforeSessionSavedHook`  | A method to manipulate the session before persisting it. See [beforeSessionSaved](#beforesessionsaved) for additional details.                                 |
-| onCallback              | `OnCallbackHook`          | A method to handle errors or manage redirects after attempting to authenticate. See [onCallback](#oncallback) for additional details.                          |
-| sessionStore            | `SessionStore`            | A custom session store implementation used to persist sessions to a data store. See [Database sessions](#database-sessions) for additional details.            |
+| Option                      | Type                      | Description                                                                                                                                                    |
+| --------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| domain                      | `string`                  | The Auth0 domain for the tenant (e.g.: `example.us.auth0.com`). If it's not specified, it will be loaded from the `AUTH0_DOMAIN` environment variable.         |
+| clientId                    | `string`                  | The Auth0 client ID. If it's not specified, it will be loaded from the `AUTH0_CLIENT_ID` environment variable.                                                 |
+| clientSecret                | `string`                  | The Auth0 client secret. If it's not specified, it will be loaded from the `AUTH0_CLIENT_SECRET` environment variable.                                         |
+| authorizationParameters     | `AuthorizationParameters` | The authorization parameters to pass to the `/authorize` endpoint. See [Passing authorization parameters](#passing-authorization-parameters) for more details. |
+| appBaseUrl                  | `string`                  | The URL of your application (e.g.: `http://localhost:3000`). If it's not specified, it will be loaded from the `APP_BASE_URL` environment variable.            |
+| secret                      | `string`                  | A 32-byte, hex-encoded secret used for encrypting cookies. If it's not specified, it will be loaded from the `AUTH0_SECRET` environment variable.              |
+| signInReturnToPath          | `string`                  | The path to redirect the user to after successfully authenticating. Defaults to `/`.                                                                           |
+| session                     | `SessionConfiguration`    | Configure the session timeouts and whether to use rolling sessions or not. See [Session configuration](#session-configuration) for additional details.         |
+| beforeSessionSaved          | `BeforeSessionSavedHook`  | A method to manipulate the session before persisting it. See [beforeSessionSaved](#beforesessionsaved) for additional details.                                 |
+| onCallback                  | `OnCallbackHook`          | A method to handle errors or manage redirects after attempting to authenticate. See [onCallback](#oncallback) for additional details.                          |
+| sessionStore                | `SessionStore`            | A custom session store implementation used to persist sessions to a data store. See [Database sessions](#database-sessions) for additional details.            |
+| pushedAuthorizationRequests | `boolean`                 | Configure the SDK to use the Pushed Authorization Requests (PAR) protocol when communicating with the authorization server.                                    |
+| routes                      | `Routes`                  | Configure the paths for the authentication routes. See [Custom routes](#custom-routes) for additional details.                                                 |
 
 ## Passing authorization parameters
 
@@ -519,3 +521,33 @@ The SDK mounts 6 routes:
 4. `/auth/profile`: the route to check the user's session and return their attributes
 5. `/auth/access-token`: the route to check the user's session and return an access token (which will be automatically refreshed if a refresh token is available)
 6. `/auth/backchannel-logout`: the route that will receive a `logout_token` when a configured Back-Channel Logout initiator occurs
+
+### Custom routes
+
+The default paths can be set using the `routes` configuration option. For example, when instantiating the client:
+
+```ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server"
+
+export const auth0 = new Auth0Client({
+  routes: {
+    login: "/login",
+    logout: "/logout",
+    callback: "/callback",
+    backChannelLogout: "/backchannel-logout",
+  },
+})
+```
+
+To configure the profile and access token routes, you must use the `NEXT_PUBLIC_PROFILE_ROUTE` and `NEXT_PUBLIC_ACCESS_TOKEN_ROUTE`, respectively. For example:
+
+```
+# .env.local
+# required environment variables...
+
+NEXT_PUBLIC_PROFILE_ROUTE=/api/me
+NEXT_PUBLIC_ACCESS_TOKEN_ROUTE=/api/auth/token
+```
+
+> [!IMPORTANT]  
+> Updating the route paths will also require updating the **Allowed Callback URLs** and **Allowed Logout URLs** configured in the [Auth0 Dashboard](https://manage.auth0.com) for your client.
