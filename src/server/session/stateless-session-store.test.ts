@@ -96,6 +96,7 @@ describe("Stateless Session Store", async () => {
         expect(cookie?.httpOnly).toEqual(true)
         expect(cookie?.sameSite).toEqual("lax")
         expect(cookie?.maxAge).toEqual(1800) // should be extended by inactivity duration
+        expect(cookie?.secure).toEqual(false)
       })
 
       it("should not exceed the absolute timeout duration", async () => {
@@ -137,6 +138,7 @@ describe("Stateless Session Store", async () => {
         expect(cookie?.httpOnly).toEqual(true)
         expect(cookie?.sameSite).toEqual("lax")
         expect(cookie?.maxAge).toEqual(0) // cookie should expire immediately
+        expect(cookie?.secure).toEqual(false)
       })
     })
 
@@ -173,6 +175,47 @@ describe("Stateless Session Store", async () => {
         expect(cookie?.httpOnly).toEqual(true)
         expect(cookie?.sameSite).toEqual("lax")
         expect(cookie?.maxAge).toEqual(3600)
+        expect(cookie?.secure).toEqual(false)
+      })
+    })
+
+    describe("with cookieOptions", async () => {
+      it("should apply the secure attribute to the cookie", async () => {
+        const secret = await generateSecret(32)
+        const session: SessionData = {
+          user: { sub: "user_123" },
+          tokenSet: {
+            accessToken: "at_123",
+            refreshToken: "rt_123",
+            expiresAt: 123456,
+          },
+          internal: {
+            sid: "auth0-sid",
+            createdAt: Math.floor(Date.now() / 1000),
+          },
+        }
+        const requestCookies = new RequestCookies(new Headers())
+        const responseCookies = new ResponseCookies(new Headers())
+
+        const sessionStore = new StatelessSessionStore({
+          secret,
+          rolling: false,
+          absoluteDuration: 3600,
+          cookieOptions: {
+            secure: true,
+          },
+        })
+        await sessionStore.set(requestCookies, responseCookies, session)
+
+        const cookie = responseCookies.get("__session")
+
+        expect(cookie).toBeDefined()
+        expect(await decrypt(cookie!.value, secret)).toEqual(session)
+        expect(cookie?.path).toEqual("/")
+        expect(cookie?.httpOnly).toEqual(true)
+        expect(cookie?.sameSite).toEqual("lax")
+        expect(cookie?.maxAge).toEqual(3600)
+        expect(cookie?.secure).toEqual(true)
       })
     })
   })
