@@ -1,5 +1,6 @@
 import type { SessionData } from "../../types"
 import {
+  CookieOptions,
   ReadonlyRequestCookies,
   RequestCookies,
   ResponseCookies,
@@ -60,6 +61,8 @@ export interface SessionConfiguration {
 interface SessionStoreOptions extends SessionConfiguration {
   secret: string
   store?: SessionDataStore
+
+  cookieOptions?: Partial<Pick<CookieOptions, "secure">>
 }
 
 export abstract class AbstractSessionStore {
@@ -72,12 +75,7 @@ export abstract class AbstractSessionStore {
 
   public store?: SessionDataStore
 
-  public cookieConfig = {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-  } as const
+  public cookieConfig: CookieOptions
 
   constructor({
     secret,
@@ -86,6 +84,8 @@ export abstract class AbstractSessionStore {
     absoluteDuration = 60 * 60 * 24 * 30, // 30 days in seconds
     inactivityDuration = 60 * 60 * 24 * 7, // 7 days in seconds
     store,
+
+    cookieOptions,
   }: SessionStoreOptions) {
     this.secret = secret
 
@@ -93,6 +93,13 @@ export abstract class AbstractSessionStore {
     this.absoluteDuration = absoluteDuration
     this.inactivityDuration = inactivityDuration
     this.store = store
+
+    this.cookieConfig = {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: cookieOptions?.secure ?? false,
+      path: "/",
+    }
   }
 
   abstract get(

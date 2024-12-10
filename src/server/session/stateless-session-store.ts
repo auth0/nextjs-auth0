@@ -8,6 +8,8 @@ interface StatelessSessionStoreOptions {
   rolling?: boolean // defaults to true
   absoluteDuration?: number // defaults to 30 days
   inactivityDuration?: number // defaults to 7 days
+
+  cookieOptions?: Partial<Pick<cookies.CookieOptions, "secure">>
 }
 
 export class StatelessSessionStore extends AbstractSessionStore {
@@ -16,12 +18,14 @@ export class StatelessSessionStore extends AbstractSessionStore {
     rolling,
     absoluteDuration,
     inactivityDuration,
+    cookieOptions,
   }: StatelessSessionStoreOptions) {
     super({
       secret,
       rolling,
       absoluteDuration,
       inactivityDuration,
+      cookieOptions,
     })
   }
 
