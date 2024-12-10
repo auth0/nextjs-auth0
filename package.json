@@ -1,8 +1,7 @@
 {
   "name": "@auth0/nextjs-auth0",
-  "version": "4.0.0-beta.9",
+  "version": "4.0.0-beta.10",
   "description": "Auth0 Next.js SDK",
-  "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
     "build:watch": "tsc -w",
@@ -69,5 +68,25 @@
   },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "typesVersions": {
+    "*": {
+      "types": [
+        "./dist/types/index.d.ts"
+      ],
+      "server": [
+        "./dist/server/index.d.ts"
+      ],
+      "errors": [
+        "./dist/errors/index.d.ts"
+      ],
+      "*": [
+        "./dist/client/*",
+        "./dist/client/index.d.ts"
+      ]
+    }
+  },
+  "files": [
+    "dist"
+  ]
 }

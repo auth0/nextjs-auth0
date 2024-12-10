@@ -19,6 +19,8 @@ interface StatefulSessionStoreOptions {
   inactivityDuration?: number // defaults to 7 days
 
   store: SessionDataStore
+
+  cookieOptions?: Partial<Pick<cookies.CookieOptions, "secure">>
 }
 
 const generateId = () => {
@@ -38,12 +40,14 @@ export class StatefulSessionStore extends AbstractSessionStore {
     rolling,
     absoluteDuration,
     inactivityDuration,
+    cookieOptions,
   }: StatefulSessionStoreOptions) {
     super({
       secret,
       rolling,
       absoluteDuration,
       inactivityDuration,
+      cookieOptions,
     })
 
     this.store = store

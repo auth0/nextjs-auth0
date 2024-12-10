@@ -6,7 +6,7 @@ import type { User } from "../../types"
 
 export function useUser() {
   const { data, error, isLoading } = useSWR<User, Error, string>(
-    "/auth/profile",
+    process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile",
     (...args) =>
       fetch(...args).then((res) => {
         if (!res.ok) {
