@@ -15,6 +15,7 @@ export interface TransactionState extends jose.JWTPayload {
 
 interface TransactionStoreOptions {
   secret: string
+  cookieOptions?: Partial<Pick<cookies.CookieOptions, "secure">>
 }
 
 /**
@@ -26,12 +27,12 @@ export class TransactionStore {
   private secret: string
   private cookieConfig: cookies.CookieOptions
 
-  constructor({ secret }: TransactionStoreOptions) {
+  constructor({ secret, cookieOptions }: TransactionStoreOptions) {
     this.secret = secret
     this.cookieConfig = {
       httpOnly: true,
       sameSite: "lax", // required to allow the cookie to be sent on the callback request
-      secure: process.env.NODE_ENV === "production",
+      secure: cookieOptions?.secure ?? false,
       path: "/",
       maxAge: 60 * 60, // 1 hour in seconds
     }

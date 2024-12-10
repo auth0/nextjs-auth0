@@ -9,6 +9,7 @@ import {
   AuthorizationParameters,
   BeforeSessionSavedHook,
   OnCallbackHook,
+  RoutesOptions,
 } from "./auth-client"
 import { RequestCookies } from "./cookies"
 import {
@@ -40,8 +41,14 @@ interface Auth0ClientOptions {
    * If it's not specified, it will be loaded from the `AUTH0_CLIENT_SECRET` environment variable.
    */
   clientSecret?: string
-
+  /**
+   * Additional parameters to send to the `/authorize` endpoint.
+   */
   authorizationParameters?: AuthorizationParameters
+  /**
+   * If enabled, the SDK will use the Pushed Authorization Requests (PAR) protocol when communicating with the authorization server.
+   */
+  pushedAuthorizationRequests?: boolean
 
   // application configuration
   /**
@@ -90,6 +97,13 @@ interface Auth0ClientOptions {
    * See [Database sessions](https://github.com/auth0/nextjs-auth0#database-sessions) for additional details.
    */
   sessionStore?: SessionDataStore
+
+  /**
+   * Configure the paths for the authentication routes.
+   *
+   * See [Custom routes](https://github.com/auth0/nextjs-auth0#custom-routes) for additional details.
+   */
+  routes?: RoutesOptions
 }
 
 type PagesRouterRequest = Pick<NextApiRequest, "headers">
@@ -109,9 +123,32 @@ export class Auth0Client {
       process.env.APP_BASE_URL) as string
     const secret = (options.secret || process.env.AUTH0_SECRET) as string
 
+    const cookieOptions = {
+      secure: false,
+    }
+    if (appBaseUrl) {
+      const { protocol } = new URL(appBaseUrl)
+      if (protocol === "https:") {
+        cookieOptions.secure = true
+      }
+
+      if (process.env.NODE_ENV === "production" && !cookieOptions.secure) {
+        console.warn(
+          `The application's base URL (${appBaseUrl}) is not set to HTTPS. This is not recommended for production environments.`
+        )
+      }
+    }
+
+    if (domain && domain.includes("://")) {
+      throw new Error(
+        "The Auth0 domain should not contain a protocol. Please ensure the AUTH0_DOMAIN environment variable or `domain` configuration option uses the correct format (`example.us.auth0.com`)."
+      )
+    }
+
     this.transactionStore = new TransactionStore({
       ...options.session,
       secret,
+      cookieOptions,
     })
 
     this.sessionStore = options.sessionStore
@@ -119,10 +156,12 @@ export class Auth0Client {
           ...options.session,
           secret,
           store: options.sessionStore,
+          cookieOptions,
         })
       : new StatelessSessionStore({
           ...options.session,
           secret,
+          cookieOptions,
         })
 
     this.authClient = new AuthClient({
@@ -133,6 +172,7 @@ export class Auth0Client {
       clientId,
       clientSecret,
       authorizationParameters: options.authorizationParameters,
+      pushedAuthorizationRequests: options.pushedAuthorizationRequests,
 
       appBaseUrl,
       secret,
@@ -140,6 +180,8 @@ export class Auth0Client {
 
       beforeSessionSaved: options.beforeSessionSaved,
       onCallback: options.onCallback,
+
+      routes: options.routes,
     })
   }
 
