@@ -85,7 +85,9 @@ export interface AuthClientOptions {
 
   domain: string
   clientId: string
-  clientSecret: string
+  clientSecret?: string
+  clientAssertionSigningKey?: string | CryptoKey
+  clientAssertionSigningAlg?: string
   authorizationParameters?: AuthorizationParameters
   pushedAuthorizationRequests?: boolean
 
@@ -108,7 +110,9 @@ export class AuthClient {
   private sessionStore: AbstractSessionStore
 
   private clientMetadata: oauth.Client
-  private clientSecret: string
+  private clientSecret?: string
+  private clientAssertionSigningKey?: string | CryptoKey
+  private clientAssertionSigningAlg: string
   private issuer: string
   private authorizationParameters: AuthorizationParameters
   private pushedAuthorizationRequests: boolean
@@ -142,6 +146,9 @@ export class AuthClient {
     }
     this.pushedAuthorizationRequests =
       options.pushedAuthorizationRequests ?? false
+    this.clientAssertionSigningKey = options.clientAssertionSigningKey
+    this.clientAssertionSigningAlg =
+      options.clientAssertionSigningAlg || "RS256"
 
     if (!this.authorizationParameters.scope) {
       this.authorizationParameters.scope = DEFAULT_SCOPES
@@ -380,7 +387,7 @@ export class AuthClient {
     const codeGrantResponse = await oauth.authorizationCodeGrantRequest(
       authorizationServerMetadata,
       this.clientMetadata,
-      oauth.ClientSecretPost(this.clientSecret),
+      await this.getClientAuth(),
       codeGrantParams,
       redirectUri.toString(),
       transactionState.codeVerifier,
@@ -571,7 +578,7 @@ export class AuthClient {
       const refreshTokenRes = await oauth.refreshTokenGrantRequest(
         authorizationServerMetadata,
         this.clientMetadata,
-        oauth.ClientSecretPost(this.clientSecret),
+        await this.getClientAuth(),
         tokenSet.refreshToken,
         {
           [oauth.customFetch]: this.fetch,
@@ -789,7 +796,7 @@ export class AuthClient {
       const response = await oauth.pushedAuthorizationRequest(
         authorizationServerMetadata,
         this.clientMetadata,
-        oauth.ClientSecretPost(this.clientSecret),
+        await this.getClientAuth(),
         params,
         {
           [oauth.customFetch]: this.fetch,
@@ -830,5 +837,28 @@ export class AuthClient {
     authorizationUrl.search = params.toString()
 
     return [null, authorizationUrl]
+  }
+
+  private async getClientAuth(): Promise<oauth.ClientAuth> {
+    if (!this.clientSecret && !this.clientAssertionSigningKey) {
+      throw new Error(
+        "The client secret or client assertion signing key must be provided."
+      )
+    }
+
+    let clientPrivateKey = this.clientAssertionSigningKey as
+      | CryptoKey
+      | undefined
+
+    if (clientPrivateKey && !(clientPrivateKey instanceof CryptoKey)) {
+      clientPrivateKey = await jose.importPKCS8<CryptoKey>(
+        clientPrivateKey,
+        this.clientAssertionSigningAlg
+      )
+    }
+
+    return clientPrivateKey
+      ? oauth.PrivateKeyJwt(clientPrivateKey)
+      : oauth.ClientSecretPost(this.clientSecret!)
   }
 }

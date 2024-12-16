@@ -1,6 +1,7 @@
+import type { IncomingMessage, ServerResponse } from "node:http"
 import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
-import { NextApiRequest } from "next/types"
+import { NextApiRequest, NextApiResponse } from "next/types"
 
 import { AccessTokenError, AccessTokenErrorCode } from "../errors"
 import { SessionData } from "../types"
@@ -11,7 +12,7 @@ import {
   OnCallbackHook,
   RoutesOptions,
 } from "./auth-client"
-import { RequestCookies } from "./cookies"
+import { RequestCookies, ResponseCookies } from "./cookies"
 import {
   AbstractSessionStore,
   SessionConfiguration,
@@ -49,6 +50,18 @@ interface Auth0ClientOptions {
    * If enabled, the SDK will use the Pushed Authorization Requests (PAR) protocol when communicating with the authorization server.
    */
   pushedAuthorizationRequests?: boolean
+  /**
+   * Private key for use with `private_key_jwt` clients.
+   * This should be a string that is the contents of a PEM file or a CryptoKey.
+   */
+  clientAssertionSigningKey?: string | CryptoKey
+  /**
+   * The algorithm used to sign the client assertion JWT.
+   * Uses one of `token_endpoint_auth_signing_alg_values_supported` if not specified.
+   * If the Authorization Server discovery document does not list `token_endpoint_auth_signing_alg_values_supported`
+   * this property will be required.
+   */
+  clientAssertionSigningAlg?: string
 
   // application configuration
   /**
@@ -106,7 +119,8 @@ interface Auth0ClientOptions {
   routes?: RoutesOptions
 }
 
-type PagesRouterRequest = Pick<NextApiRequest, "headers">
+type PagesRouterRequest = IncomingMessage | NextApiRequest
+type PagesRouterResponse = ServerResponse<IncomingMessage> | NextApiResponse
 
 export class Auth0Client {
   private transactionStore: TransactionStore
@@ -173,6 +187,8 @@ export class Auth0Client {
       clientSecret,
       authorizationParameters: options.authorizationParameters,
       pushedAuthorizationRequests: options.pushedAuthorizationRequests,
+      clientAssertionSigningKey: options.clientAssertionSigningKey,
+      clientAssertionSigningAlg: options.clientAssertionSigningAlg,
 
       appBaseUrl,
       secret,
@@ -272,6 +288,73 @@ export class Auth0Client {
     return {
       token: session.tokenSet.accessToken,
       expiresAt: session.tokenSet.expiresAt,
+    }
+  }
+
+  /**
+   * updateSession updates the session of the currently authenticated user. If the user does not have a session, an error is thrown.
+   *
+   * This method can be used in `getServerSideProps`, API routes, and middleware in the **Pages Router**.
+   */
+  async updateSession(
+    req: PagesRouterRequest,
+    res: PagesRouterResponse,
+    session: SessionData
+  ): Promise<void>
+
+  /**
+   * updateSession updates the session of the currently authenticated user. If the user does not have a session, an error is thrown.
+   *
+   * This method can be used in Server Actions, Route Handlers, and middleware in the **App Router**.
+   */
+  async updateSession(session: SessionData): Promise<void>
+
+  /**
+   * updateSession updates the session of the currently authenticated user. If the user does not have a session, an error is thrown.
+   */
+  async updateSession(
+    reqOrSession: PagesRouterRequest | SessionData,
+    res?: PagesRouterResponse,
+    sessionData?: SessionData
+  ) {
+    if (!res) {
+      // app router
+      const existingSession = await this.getSession()
+
+      if (!existingSession) {
+        throw new Error("The user is not authenticated.")
+      }
+
+      const updatedSession = reqOrSession as SessionData
+      await this.sessionStore.set(await cookies(), await cookies(), {
+        ...updatedSession,
+        internal: {
+          ...existingSession.internal,
+        },
+      })
+    } else {
+      // pages router
+      const req = reqOrSession as NextApiRequest
+      const existingSession = await this.getSession(req)
+
+      if (!existingSession) {
+        throw new Error("The user is not authenticated.")
+      }
+
+      const resHeaders = new Headers()
+      const resCookies = new ResponseCookies(resHeaders)
+      const updatedSession = sessionData as SessionData
+
+      await this.sessionStore.set(this.createRequestCookies(req), resCookies, {
+        ...updatedSession,
+        internal: {
+          ...existingSession.internal,
+        },
+      })
+
+      for (const [key, value] of resHeaders.entries()) {
+        res.setHeader(key, value)
+      }
     }
   }
 
