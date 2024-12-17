@@ -85,7 +85,9 @@ export interface AuthClientOptions {
 
   domain: string
   clientId: string
-  clientSecret: string
+  clientSecret?: string
+  clientAssertionSigningKey?: string | CryptoKey
+  clientAssertionSigningAlg?: string
   authorizationParameters?: AuthorizationParameters
   pushedAuthorizationRequests?: boolean
 
@@ -101,6 +103,7 @@ export interface AuthClientOptions {
   // custom fetch implementation to allow for dependency injection
   fetch?: typeof fetch
   jwksCache?: jose.JWKSCacheInput
+  allowInsecureRequests?: boolean
 }
 
 export class AuthClient {
@@ -108,7 +111,9 @@ export class AuthClient {
   private sessionStore: AbstractSessionStore
 
   private clientMetadata: oauth.Client
-  private clientSecret: string
+  private clientSecret?: string
+  private clientAssertionSigningKey?: string | CryptoKey
+  private clientAssertionSigningAlg: string
   private issuer: string
   private authorizationParameters: AuthorizationParameters
   private pushedAuthorizationRequests: boolean
@@ -123,18 +128,30 @@ export class AuthClient {
 
   private fetch: typeof fetch
   private jwksCache: jose.JWKSCacheInput
+  private allowInsecureRequests: boolean
 
   constructor(options: AuthClientOptions) {
     // dependencies
     this.fetch = options.fetch || fetch
     this.jwksCache = options.jwksCache || {}
+    this.allowInsecureRequests = options.allowInsecureRequests ?? false
+
+    if (this.allowInsecureRequests && process.env.NODE_ENV === "production") {
+      throw new Error(
+        "Insecure requests are not allowed in production environments."
+      )
+    }
 
     // stores
     this.transactionStore = options.transactionStore
     this.sessionStore = options.sessionStore
 
     // authorization server
-    this.issuer = `https://${options.domain}`
+    this.issuer =
+      options.domain.startsWith("http://") ||
+      options.domain.startsWith("https://")
+        ? options.domain
+        : `https://${options.domain}`
     this.clientMetadata = { client_id: options.clientId }
     this.clientSecret = options.clientSecret
     this.authorizationParameters = options.authorizationParameters || {
@@ -142,6 +159,9 @@ export class AuthClient {
     }
     this.pushedAuthorizationRequests =
       options.pushedAuthorizationRequests ?? false
+    this.clientAssertionSigningKey = options.clientAssertionSigningKey
+    this.clientAssertionSigningAlg =
+      options.clientAssertionSigningAlg || "RS256"
 
     if (!this.authorizationParameters.scope) {
       this.authorizationParameters.scope = DEFAULT_SCOPES
@@ -380,12 +400,13 @@ export class AuthClient {
     const codeGrantResponse = await oauth.authorizationCodeGrantRequest(
       authorizationServerMetadata,
       this.clientMetadata,
-      oauth.ClientSecretPost(this.clientSecret),
+      await this.getClientAuth(),
       codeGrantParams,
       redirectUri.toString(),
       transactionState.codeVerifier,
       {
         [oauth.customFetch]: this.fetch,
+        [oauth.allowInsecureRequests]: this.allowInsecureRequests,
       }
     )
 
@@ -571,10 +592,11 @@ export class AuthClient {
       const refreshTokenRes = await oauth.refreshTokenGrantRequest(
         authorizationServerMetadata,
         this.clientMetadata,
-        oauth.ClientSecretPost(this.clientSecret),
+        await this.getClientAuth(),
         tokenSet.refreshToken,
         {
           [oauth.customFetch]: this.fetch,
+          [oauth.allowInsecureRequests]: this.allowInsecureRequests,
         }
       )
 
@@ -628,6 +650,7 @@ export class AuthClient {
       const authorizationServerMetadata = await oauth
         .discoveryRequest(issuer, {
           [oauth.customFetch]: this.fetch,
+          [oauth.allowInsecureRequests]: this.allowInsecureRequests,
         })
         .then((response) => oauth.processDiscoveryResponse(issuer, response))
 
@@ -789,10 +812,11 @@ export class AuthClient {
       const response = await oauth.pushedAuthorizationRequest(
         authorizationServerMetadata,
         this.clientMetadata,
-        oauth.ClientSecretPost(this.clientSecret),
+        await this.getClientAuth(),
         params,
         {
           [oauth.customFetch]: this.fetch,
+          [oauth.allowInsecureRequests]: this.allowInsecureRequests,
         }
       )
 
@@ -830,5 +854,28 @@ export class AuthClient {
     authorizationUrl.search = params.toString()
 
     return [null, authorizationUrl]
+  }
+
+  private async getClientAuth(): Promise<oauth.ClientAuth> {
+    if (!this.clientSecret && !this.clientAssertionSigningKey) {
+      throw new Error(
+        "The client secret or client assertion signing key must be provided."
+      )
+    }
+
+    let clientPrivateKey = this.clientAssertionSigningKey as
+      | CryptoKey
+      | undefined
+
+    if (clientPrivateKey && !(clientPrivateKey instanceof CryptoKey)) {
+      clientPrivateKey = await jose.importPKCS8<CryptoKey>(
+        clientPrivateKey,
+        this.clientAssertionSigningAlg
+      )
+    }
+
+    return clientPrivateKey
+      ? oauth.PrivateKeyJwt(clientPrivateKey)
+      : oauth.ClientSecretPost(this.clientSecret!)
   }
 }
