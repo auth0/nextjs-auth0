@@ -23,6 +23,34 @@ describe("Authentication Client", async () => {
     sub: "user_123",
     alg: "RS256",
     keyPair: await jose.generateKeyPair("RS256"),
+    clientAssertionSigningKey: `-----BEGIN PRIVATE KEY-----
+MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDbTKOQLtaZ6U1k
+3fcYCMVoy8poieNPPcbj15TCLOm4Bbox73/UUxIArqczVcjtUGnL+jn5982V5EiB
+y8W51m5K9mIBgEFLYdLkXk+OW5UTE/AdMPtfsIjConGrrs3mxN4WSH9kvh9Yr41r
+hWUUSwqFyMOssbGE8K46Cv0WYvS7RXH9MzcyTcMSFp/60yUXH4rdHYZElF7XCdiE
+63WxebxI1Qza4xkjTlbp5EWfWBQB1Ms10JO8NjrtkCXrDI57Bij5YanPAVhctcO9
+z5/y9i5xEzcer8ZLO8VDiXSdEsuP/fe+UKDyYHUITD8u51p3O2JwCKvdTHduemej
+3Kd1RlHrAgMBAAECggEATWdzpASkQpcSdjPSb21JIIAt5VAmJ2YKuYjyPMdVh1qe
+Kdn7KJpZlFwRMBFrZjgn35Nmu1A4BFwbK5UdKUcCjvsABL+cTFsu8ORI+Fpi9+Tl
+r6gGUfQhkXF85bhBfN6n9P2J2akxrz/njrf6wXrrL+V5C498tQuus1YFls0+zIpD
+N+GngNOPHlGeY3gW4K/HjGuHwuJOvWNmE4KNQhBijdd50Am824Y4NV/SmsIo7z+s
+8CLjp/qtihwnE4rkUHnR6M4u5lpzXOnodzkDTG8euOJds0T8DwLNTx1b+ETim35i
+D/hOCVwl8QFoj2aatjuJ5LXZtZUEpGpBF2TQecB+gQKBgQDvaZ1jG/FNPnKdayYv
+z5yTOhKM6JTB+WjB0GSx8rebtbFppiHGgVhOd1bLIzli9uMOPdCNuXh7CKzIgSA6
+Q76Wxfuaw8F6CBIdlG9bZNL6x8wp6zF8tGz/BgW7fFKBwFYSWzTcStGr2QGtwr6F
+9p1gYPSGfdERGOQc7RmhoNNHcQKBgQDqfkhpPfJlP/SdFnF7DDUvuMnaswzUsM6D
+ZPhvfzdMBV8jGc0WjCW2Vd3pvsdPgWXZqAKjN7+A5HiT/8qv5ruoqOJSR9ZFZI/B
+8v+8gS9Af7K56mCuCFKZmOXUmaL+3J2FKtzAyOlSLjEYyLuCgmhEA9Zo+duGR5xX
+AIjx7N/ZGwKBgCZAYqQeJ8ymqJtcLkq/Sg3/3kzjMDlZxxIIYL5JwGpBemod4BGe
+QuSujpCAPUABoD97QuIR+xz1Qt36O5LzlfTzBwMwOa5ssbBGMhCRKGBnIcikylBZ
+Z3zLkojlES2n9FiUd/qmfZ+OWYVQsy4mO/jVJNyEJ64qou+4NjsrvfYRAoGAORki
+3K1+1nSqRY3vd/zS/pnKXPx4RVoADzKI4+1gM5yjO9LOg40AqdNiw8X2lj9143fr
+nH64nNQFIFSKsCZIz5q/8TUY0bDY6GsZJnd2YAg4JtkRTY8tPcVjQU9fxxtFJ+X1
+9uN1HNOulNBcCD1k0hr1HH6qm5nYUb8JmY8KOr0CgYB85pvPhBqqfcWi6qaVQtK1
+ukIdiJtMNPwePfsT/2KqrbnftQnAKNnhsgcYGo8NAvntX4FokOAEdunyYmm85mLp
+BGKYgVXJqnm6+TJyCRac1ro3noG898P/LZ8MOBoaYQtWeWRpDc46jPrA0FqUJy+i
+ca/T0LLtgmbMmxSv/MmzIg==
+-----END PRIVATE KEY-----`,
     requestUri: "urn:ietf:params:oauth:request_uri:6esc_11ACC5bwc014ltc14eY22c",
   }
 
@@ -2062,6 +2090,114 @@ describe("Authentication Client", async () => {
       )
     })
 
+    it("must use private_key_jwt when a clientAssertionSigningKey is specified", async () => {
+      function pemToArrayBuffer(pem: string) {
+        const b64 = pem
+          .replace("\n", "")
+          .replace("-----BEGIN PRIVATE KEY-----", "")
+          .replace("-----END PRIVATE KEY-----", "")
+
+        const byteString = atob(b64)
+        const byteArray = new Uint8Array(byteString.length)
+        for (let i = 0; i < byteString.length; i++) {
+          byteArray[i] = byteString.charCodeAt(i)
+        }
+        return byteArray
+      }
+
+      const clientAssertionSigningKey = await crypto.subtle.importKey(
+        "pkcs8",
+        pemToArrayBuffer(DEFAULT.clientAssertionSigningKey),
+        {
+          name: "RSASSA-PKCS1-v1_5",
+          hash: { name: "SHA-256" }, // or SHA-512
+        },
+        true,
+        ["sign"]
+      )
+
+      const state = "transaction-state"
+      const code = "auth-code"
+
+      const secret = await generateSecret(32)
+      const transactionStore = new TransactionStore({
+        secret,
+      })
+      const sessionStore = new StatelessSessionStore({
+        secret,
+      })
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientAssertionSigningKey: clientAssertionSigningKey,
+        clientAssertionSigningAlg: "RS256",
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        fetch: getMockAuthorizationServer(),
+      })
+
+      const url = new URL("/auth/callback", DEFAULT.appBaseUrl)
+      url.searchParams.set("code", code)
+      url.searchParams.set("state", state)
+
+      const headers = new Headers()
+      const transactionState: TransactionState = {
+        nonce: "nonce-value",
+        maxAge: 3600,
+        codeVerifier: "code-verifier",
+        responseType: "code",
+        state: state,
+        returnTo: "/dashboard",
+      }
+      headers.set(
+        "cookie",
+        `__txn_${state}=${await encrypt(transactionState, secret)}`
+      )
+      const request = new NextRequest(url, {
+        method: "GET",
+        headers,
+      })
+
+      const response = await authClient.handleCallback(request)
+      expect(response.status).toEqual(307)
+      expect(response.headers.get("Location")).not.toBeNull()
+
+      const redirectUrl = new URL(response.headers.get("Location")!)
+      expect(redirectUrl.pathname).toEqual("/dashboard")
+
+      // validate the session cookie
+      const sessionCookie = response.cookies.get("__session")
+      expect(sessionCookie).toBeDefined()
+      const session = await decrypt(sessionCookie!.value, secret)
+      expect(session).toEqual({
+        user: {
+          sub: DEFAULT.sub,
+        },
+        tokenSet: {
+          accessToken: DEFAULT.accessToken,
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt: expect.any(Number),
+        },
+        internal: {
+          sid: expect.any(String),
+          createdAt: expect.any(Number),
+        },
+      })
+
+      // validate the transaction cookie has been removed
+      const transactionCookie = response.cookies.get(`__txn_${state}`)
+      expect(transactionCookie).toBeDefined()
+      expect(transactionCookie!.value).toEqual("")
+      expect(transactionCookie!.expires).toEqual(
+        new Date("1970-01-01T00:00:00.000Z")
+      )
+    })
+
     it("should return an error if the state parameter is missing", async () => {
       const code = "auth-code"
 
@@ -3869,6 +4005,38 @@ describe("Authentication Client", async () => {
           expiresAt: expect.any(Number),
         })
       })
+    })
+  })
+
+  describe("allowInsecureRequests", async () => {
+    it("should now allow setting allowInsecureRequests when NODE_ENV is set to `production`", async () => {
+      process.env.NODE_ENV = "production"
+      const secret = await generateSecret(32)
+      const transactionStore = new TransactionStore({
+        secret,
+      })
+      const sessionStore = new StatelessSessionStore({
+        secret,
+      })
+      expect(
+        () =>
+          new AuthClient({
+            transactionStore,
+            sessionStore,
+
+            domain: DEFAULT.domain,
+            clientId: DEFAULT.clientId,
+            clientSecret: DEFAULT.clientSecret,
+
+            secret,
+            appBaseUrl: DEFAULT.appBaseUrl,
+
+            fetch: getMockAuthorizationServer(),
+            allowInsecureRequests: true,
+          })
+      ).toThrowError(
+        "Insecure requests are not allowed in production environments."
+      )
     })
   })
 })
