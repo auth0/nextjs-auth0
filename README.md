@@ -334,7 +334,7 @@ import { getAccessToken } from "@auth0/nextjs-auth0"
 export default function Component() {
   async function fetchData() {
     try {
-      const token = await auth0.getAccessToken()
+      const token = await getAccessToken()
       // call external API with token...
     } catch (err) {
       // err will be an instance of AccessTokenError if an access token could not be obtained
