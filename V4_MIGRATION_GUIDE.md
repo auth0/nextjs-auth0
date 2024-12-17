@@ -241,3 +241,4 @@ If you'd like to customize the `user` object to include additional custom claims
 - All cookies set by the SDK default to `SameSite=Lax`
 - `touchSession` method was removed. The middleware enables rolling sessions by default and can be configured via the [session configuration](https://github.com/auth0/nextjs-auth0/tree/v4?tab=readme-ov-file#session-configuration).
 - `getAccessToken` can now be called in React Server Components.
+- By default, v4 will use [OpenID Connect's RP-Initiated Logout](https://auth0.com/docs/authenticate/login/logout/log-users-out-of-auth0) if it's enabled on the tenant. Otherwise, it will fallback to the `/v2/logout` endpoint.
