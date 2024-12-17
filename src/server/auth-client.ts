@@ -103,6 +103,7 @@ export interface AuthClientOptions {
   // custom fetch implementation to allow for dependency injection
   fetch?: typeof fetch
   jwksCache?: jose.JWKSCacheInput
+  allowInsecureRequests?: boolean
 }
 
 export class AuthClient {
@@ -127,18 +128,30 @@ export class AuthClient {
 
   private fetch: typeof fetch
   private jwksCache: jose.JWKSCacheInput
+  private allowInsecureRequests: boolean
 
   constructor(options: AuthClientOptions) {
     // dependencies
     this.fetch = options.fetch || fetch
     this.jwksCache = options.jwksCache || {}
+    this.allowInsecureRequests = options.allowInsecureRequests ?? false
+
+    if (this.allowInsecureRequests && process.env.NODE_ENV === "production") {
+      throw new Error(
+        "Insecure requests are not allowed in production environments."
+      )
+    }
 
     // stores
     this.transactionStore = options.transactionStore
     this.sessionStore = options.sessionStore
 
     // authorization server
-    this.issuer = `https://${options.domain}`
+    this.issuer =
+      options.domain.startsWith("http://") ||
+      options.domain.startsWith("https://")
+        ? options.domain
+        : `https://${options.domain}`
     this.clientMetadata = { client_id: options.clientId }
     this.clientSecret = options.clientSecret
     this.authorizationParameters = options.authorizationParameters || {
@@ -393,6 +406,7 @@ export class AuthClient {
       transactionState.codeVerifier,
       {
         [oauth.customFetch]: this.fetch,
+        [oauth.allowInsecureRequests]: this.allowInsecureRequests,
       }
     )
 
@@ -582,6 +596,7 @@ export class AuthClient {
         tokenSet.refreshToken,
         {
           [oauth.customFetch]: this.fetch,
+          [oauth.allowInsecureRequests]: this.allowInsecureRequests,
         }
       )
 
@@ -635,6 +650,7 @@ export class AuthClient {
       const authorizationServerMetadata = await oauth
         .discoveryRequest(issuer, {
           [oauth.customFetch]: this.fetch,
+          [oauth.allowInsecureRequests]: this.allowInsecureRequests,
         })
         .then((response) => oauth.processDiscoveryResponse(issuer, response))
 
@@ -800,6 +816,7 @@ export class AuthClient {
         params,
         {
           [oauth.customFetch]: this.fetch,
+          [oauth.allowInsecureRequests]: this.allowInsecureRequests,
         }
       )
 

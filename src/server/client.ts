@@ -117,6 +117,13 @@ interface Auth0ClientOptions {
    * See [Custom routes](https://github.com/auth0/nextjs-auth0#custom-routes) for additional details.
    */
   routes?: RoutesOptions
+
+  /**
+   * Allow insecure requests to be made to the authorization server. This can be useful when testing
+   * with a mock OIDC provider that does not support TLS, locally.
+   * This option can only be used when NODE_ENV is not set to `production`.
+   */
+  allowInsecureRequests?: boolean
 }
 
 type PagesRouterRequest = IncomingMessage | NextApiRequest
@@ -151,12 +158,6 @@ export class Auth0Client {
           `The application's base URL (${appBaseUrl}) is not set to HTTPS. This is not recommended for production environments.`
         )
       }
-    }
-
-    if (domain && domain.includes("://")) {
-      throw new Error(
-        "The Auth0 domain should not contain a protocol. Please ensure the AUTH0_DOMAIN environment variable or `domain` configuration option uses the correct format (`example.us.auth0.com`)."
-      )
     }
 
     this.transactionStore = new TransactionStore({
@@ -198,6 +199,8 @@ export class Auth0Client {
       onCallback: options.onCallback,
 
       routes: options.routes,
+
+      allowInsecureRequests: options.allowInsecureRequests,
     })
   }
 
