@@ -82,3 +82,35 @@ test("protected API route", async ({ page, request, context }) => {
   expect(authedRes.status()).toBe(200)
   expect(await authedRes.json()).toEqual({ email: "test@example.com" })
 })
+
+test("updateSession()", async ({ page, context }) => {
+  const now = Date.now()
+
+  await page.goto("/auth/login?returnTo=/pages-router/server")
+
+  // fill out Auth0 form
+  await page.fill('input[id="username"]', "test@example.com")
+  await page.fill('input[id="password"]', process.env.TEST_USER_PASSWORD!)
+  await page.getByText("Continue", { exact: true }).click()
+
+  // check that the page says "Welcome, test@example.com!"
+  expect(await page.getByRole("heading", { level: 1 }).textContent()).toBe(
+    "Welcome, test@example.com!"
+  )
+
+  // the session should not have an `updatedAt` field initially
+  let getSessionRes = await context.request.fetch(
+    "/api/pages-router/get-session"
+  )
+  let getSessionJson = await getSessionRes.json()
+  expect(getSessionJson.updatedAt).toBeUndefined()
+
+  // now update the session and check that the `updatedAt` field is updated
+  const updateSessionRes = await context.request.fetch(
+    "/api/pages-router/update-session"
+  )
+  expect(updateSessionRes.status()).toBe(200)
+  getSessionRes = await context.request.fetch("/api/pages-router/get-session")
+  getSessionJson = await getSessionRes.json()
+  expect(getSessionJson.updatedAt).toBeGreaterThan(now)
+})
