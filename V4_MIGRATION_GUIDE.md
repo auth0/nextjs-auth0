@@ -21,6 +21,9 @@ Of the required variables, the following have changed from v3:
 
 All other configuration must be specified via the `Auth0Client` constructor.
 
+> [!NOTE]
+> In v3 the `audience` parameter could be specified via the `AUTH0_AUDIENCE` environment variable. In v4, the `audience` parameter must be specified as a query parameter or via the `authorizationParamaters` configuration option. For more information on how to pass custom parameters in v4, please see [Passing custom authorization parameters](#passing-custom-authorization-parameters).
+
 ## Routes
 
 Previously, it was required to set up a dynamic Route Handler to mount the authentication endpoints to handle requests.
@@ -237,5 +240,4 @@ If you'd like to customize the `user` object to include additional custom claims
   - To store large session data, please use a [custom data store](https://github.com/auth0/nextjs-auth0/tree/v4?tab=readme-ov-file#database-sessions) with a SessionStore implementation
 - All cookies set by the SDK default to `SameSite=Lax`
 - `touchSession` method was removed. The middleware enables rolling sessions by default and can be configured via the [session configuration](https://github.com/auth0/nextjs-auth0/tree/v4?tab=readme-ov-file#session-configuration).
-- `updateSession` method was removed.
 - `getAccessToken` can now be called in React Server Components.
