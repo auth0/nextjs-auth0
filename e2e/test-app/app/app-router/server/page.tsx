@@ -15,6 +15,7 @@ export default async function Home() {
   return (
     <main>
       <h1>Welcome, {session.user.email}!</h1>
+      <p id="updated-at">{session.user.updatedAt}</p>
     </main>
   )
 }

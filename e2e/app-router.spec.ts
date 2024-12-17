@@ -65,7 +65,7 @@ test("getAccessToken()", async ({ page }) => {
   expect(tokenRequest).toHaveProperty("expires_at")
 })
 
-test("protected server route", async ({ page, request, context }) => {
+test("protected server route", async ({ page, context }) => {
   // before establishing a session, we should receive a 401
   const unauthedRes = await context.request.fetch("/app-router/api/test")
   expect(unauthedRes.status()).toBe(401)
@@ -100,4 +100,34 @@ test("protected server action", async ({ page }) => {
   // call protected server action, now authenticated
   await page.getByText("Call server action").click()
   await expect(page.locator("#status")).toHaveValue("authenticated")
+})
+
+test("updateSession()", async ({ page, context }) => {
+  const now = Date.now()
+
+  await page.goto("/auth/login?returnTo=/app-router/server")
+
+  // fill out Auth0 form
+  await page.fill('input[id="username"]', "test@example.com")
+  await page.fill('input[id="password"]', process.env.TEST_USER_PASSWORD!)
+  await page.getByText("Continue", { exact: true }).click()
+
+  // check that the page says "Welcome, test@example.com!"
+  expect(await page.getByRole("heading", { level: 1 }).textContent()).toBe(
+    "Welcome, test@example.com!"
+  )
+
+  // the session should not have an `updatedAt` field initially
+  let getSessionRes = await context.request.fetch("/app-router/api/get-session")
+  let getSessionJson = await getSessionRes.json()
+  expect(getSessionJson.updatedAt).toBeUndefined()
+
+  // now update the session and check that the `updatedAt` field is updated
+  const updateSessionRes = await context.request.fetch(
+    "/app-router/api/update-session"
+  )
+  expect(updateSessionRes.status()).toBe(200)
+  getSessionRes = await context.request.fetch("/app-router/api/get-session")
+  getSessionJson = await getSessionRes.json()
+  expect(getSessionJson.updatedAt).toBeGreaterThan(now)
 })
