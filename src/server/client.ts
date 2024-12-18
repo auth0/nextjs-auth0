@@ -152,12 +152,6 @@ export class Auth0Client {
       if (protocol === "https:") {
         cookieOptions.secure = true
       }
-
-      if (process.env.NODE_ENV === "production" && !cookieOptions.secure) {
-        console.warn(
-          `The application's base URL (${appBaseUrl}) is not set to HTTPS. This is not recommended for production environments.`
-        )
-      }
     }
 
     this.transactionStore = new TransactionStore({
