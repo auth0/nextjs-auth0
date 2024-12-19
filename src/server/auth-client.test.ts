@@ -2764,6 +2764,84 @@ ca/T0LLtgmbMmxSv/MmzIg==
     })
 
     describe("beforeSessionSaved hook", async () => {
+      it("should be called with the correct arguments", async () => {
+        const state = "transaction-state"
+        const code = "auth-code"
+
+        const secret = await generateSecret(32)
+        const transactionStore = new TransactionStore({
+          secret,
+        })
+        const sessionStore = new StatelessSessionStore({
+          secret,
+        })
+        const mockBeforeSessionSaved = vi.fn().mockResolvedValue({
+          user: {
+            sub: DEFAULT.sub,
+          },
+          internal: {
+            sid: DEFAULT.sid,
+            expiresAt: expect.any(Number),
+          },
+        })
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          fetch: getMockAuthorizationServer(),
+
+          beforeSessionSaved: mockBeforeSessionSaved,
+        })
+
+        const url = new URL("/auth/callback", DEFAULT.appBaseUrl)
+        url.searchParams.set("code", code)
+        url.searchParams.set("state", state)
+
+        const headers = new Headers()
+        const transactionState: TransactionState = {
+          nonce: "nonce-value",
+          maxAge: 3600,
+          codeVerifier: "code-verifier",
+          responseType: "code",
+          state: state,
+          returnTo: "/dashboard",
+        }
+        headers.set(
+          "cookie",
+          `__txn_${state}=${await encrypt(transactionState, secret)}`
+        )
+        const request = new NextRequest(url, {
+          method: "GET",
+          headers,
+        })
+
+        await authClient.handleCallback(request)
+        expect(mockBeforeSessionSaved).toHaveBeenCalledWith(
+          {
+            user: expect.objectContaining({
+              sub: DEFAULT.sub,
+            }),
+            tokenSet: {
+              accessToken: DEFAULT.accessToken,
+              refreshToken: DEFAULT.refreshToken,
+              expiresAt: expect.any(Number),
+            },
+            internal: {
+              sid: expect.any(String),
+              createdAt: expect.any(Number),
+            },
+          },
+          expect.any(String)
+        )
+      })
+
       it("should use the return value of the hook as the session data", async () => {
         const state = "transaction-state"
         const code = "auth-code"

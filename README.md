@@ -439,11 +439,11 @@ The SDK exposes hooks to enable you to provide custom logic that would be run at
 
 The `beforeSessionSaved` hook is run right before the session is persisted. It provides a mechanism to modify the session claims before persisting them.
 
-The hook recieves a `SessionData` object and must return a Promise that resolves to a `SessionData` object: `(session: SessionData) => Promise<SessionData>`. For example:
+The hook recieves a `SessionData` object and an ID token. The function must return a Promise that resolves to a `SessionData` object: `(session: SessionData) => Promise<SessionData>`. For example:
 
 ```ts
 export const auth0 = new Auth0Client({
-  async beforeSessionSaved(session) {
+  async beforeSessionSaved(session, idToken) {
     return {
       ...session,
       user: {

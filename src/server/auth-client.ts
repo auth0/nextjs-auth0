@@ -23,7 +23,8 @@ import { TransactionState, TransactionStore } from "./transaction-store"
 import { filterClaims } from "./user"
 
 export type BeforeSessionSavedHook = (
-  session: SessionData
+  session: SessionData,
+  idToken: string | null
 ) => Promise<SessionData>
 
 type OnCallbackContext = {
@@ -438,8 +439,14 @@ export class AuthClient {
     const res = await this.onCallback(null, onCallbackCtx, session)
 
     if (this.beforeSessionSaved) {
-      const { user } = await this.beforeSessionSaved(session)
-      session.user = user || {}
+      const updatedSession = await this.beforeSessionSaved(
+        session,
+        oidcRes.id_token ?? null
+      )
+      session = {
+        ...updatedSession,
+        internal: session.internal,
+      }
     } else {
       session.user = filterClaims(idTokenClaims)
     }
