@@ -2,11 +2,9 @@ import type { NextApiRequest, NextApiResponse } from "next"
 
 import { auth0 } from "@/lib/auth0"
 
-type ResponseData =
-  | {}
-  | {
-      error: string
-    }
+type ResponseData = {
+  error?: string
+}
 
 export default async function handler(
   req: NextApiRequest,

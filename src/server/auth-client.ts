@@ -137,8 +137,8 @@ export class AuthClient {
     this.allowInsecureRequests = options.allowInsecureRequests ?? false
 
     if (this.allowInsecureRequests && process.env.NODE_ENV === "production") {
-      throw new Error(
-        "Insecure requests are not allowed in production environments."
+      console.warn(
+        "allowInsecureRequests is enabled in a production environment. This is not recommended."
       )
     }
 

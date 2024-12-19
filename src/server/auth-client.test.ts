@@ -3932,38 +3932,6 @@ ca/T0LLtgmbMmxSv/MmzIg==
       })
     })
   })
-
-  describe("allowInsecureRequests", async () => {
-    it("should now allow setting allowInsecureRequests when NODE_ENV is set to `production`", async () => {
-      process.env.NODE_ENV = "production"
-      const secret = await generateSecret(32)
-      const transactionStore = new TransactionStore({
-        secret,
-      })
-      const sessionStore = new StatelessSessionStore({
-        secret,
-      })
-      expect(
-        () =>
-          new AuthClient({
-            transactionStore,
-            sessionStore,
-
-            domain: DEFAULT.domain,
-            clientId: DEFAULT.clientId,
-            clientSecret: DEFAULT.clientSecret,
-
-            secret,
-            appBaseUrl: DEFAULT.appBaseUrl,
-
-            fetch: getMockAuthorizationServer(),
-            allowInsecureRequests: true,
-          })
-      ).toThrowError(
-        "Insecure requests are not allowed in production environments."
-      )
-    })
-  })
 })
 
 const _authorizationServerMetadata = {
