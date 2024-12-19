@@ -114,7 +114,7 @@ export class AuthClient {
   private clientSecret?: string
   private clientAssertionSigningKey?: string | CryptoKey
   private clientAssertionSigningAlg: string
-  private issuer: string
+  private domain: string
   private authorizationParameters: AuthorizationParameters
   private pushedAuthorizationRequests: boolean
 
@@ -147,11 +147,7 @@ export class AuthClient {
     this.sessionStore = options.sessionStore
 
     // authorization server
-    this.issuer =
-      options.domain.startsWith("http://") ||
-      options.domain.startsWith("https://")
-        ? options.domain
-        : `https://${options.domain}`
+    this.domain = options.domain
     this.clientMetadata = { client_id: options.clientId }
     this.clientSecret = options.clientSecret
     this.authorizationParameters = options.authorizationParameters || {
@@ -867,5 +863,12 @@ export class AuthClient {
     return clientPrivateKey
       ? oauth.PrivateKeyJwt(clientPrivateKey)
       : oauth.ClientSecretPost(this.clientSecret!)
+  }
+
+  private get issuer(): string {
+    return this.domain.startsWith("http://") ||
+      this.domain.startsWith("https://")
+      ? this.domain
+      : `https://${this.domain}`
   }
 }
