@@ -240,6 +240,8 @@ export class Auth0Client {
    * getAccessToken returns the access token.
    *
    * This method can be used in Server Components, Server Actions, Route Handlers, and middleware in the **App Router**.
+   *
+   * NOTE: Server Components cannot set cookies. Calling `getAccessToken()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not to be persisted.
    */
   async getAccessToken(): Promise<{ token: string; expiresAt: number }>
 
@@ -249,14 +251,18 @@ export class Auth0Client {
    * This method can be used in `getServerSideProps`, API routes, and middleware in the **Pages Router**.
    */
   async getAccessToken(
-    req: PagesRouterRequest
+    req: PagesRouterRequest,
+    res: PagesRouterResponse
   ): Promise<{ token: string; expiresAt: number }>
 
   /**
    * getAccessToken returns the access token.
+   *
+   * NOTE: Server Components cannot set cookies. Calling `getAccessToken()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not to be persisted.
    */
   async getAccessToken(
-    req?: PagesRouterRequest
+    req?: PagesRouterRequest,
+    res?: PagesRouterResponse
   ): Promise<{ token: string; expiresAt: number }> {
     let session: SessionData | null = null
 
@@ -273,24 +279,54 @@ export class Auth0Client {
       )
     }
 
-    // if access token has expired, throw an error
-    if (session.tokenSet.expiresAt <= Date.now() / 1000) {
-      if (!session.tokenSet.refreshToken) {
-        throw new AccessTokenError(
-          AccessTokenErrorCode.MISSING_REFRESH_TOKEN,
-          "The access token has expired and a refresh token was not provided. The user needs to re-authenticate."
-        )
-      }
+    const [error, tokenSet] = await this.authClient.getTokenSet(
+      session.tokenSet
+    )
+    if (error) {
+      throw error
+    }
 
-      throw new AccessTokenError(
-        AccessTokenErrorCode.FAILED_TO_REFRESH_TOKEN,
-        "The access token has expired and there was an error while trying to refresh it. Check the server logs for more information."
-      )
+    // update the session with the new token set, if necessary
+    if (
+      tokenSet.accessToken !== session.tokenSet.accessToken ||
+      tokenSet.expiresAt !== session.tokenSet.expiresAt ||
+      tokenSet.refreshToken !== session.tokenSet.refreshToken
+    ) {
+      if (req && res) {
+        const resHeaders = new Headers()
+        const resCookies = new ResponseCookies(resHeaders)
+
+        await this.sessionStore.set(
+          this.createRequestCookies(req),
+          resCookies,
+          {
+            ...session,
+            tokenSet,
+          }
+        )
+
+        for (const [key, value] of resHeaders.entries()) {
+          res.setHeader(key, value)
+        }
+      } else {
+        try {
+          await this.sessionStore.set(await cookies(), await cookies(), {
+            ...session,
+            tokenSet,
+          })
+        } catch (e) {
+          if (process.env.NODE_ENV === "development") {
+            console.warn(
+              "Failed to persist the updated token set. `getAccessToken()` was likely called from a Server Component which cannot set cookies."
+            )
+          }
+        }
+      }
     }
 
     return {
-      token: session.tokenSet.accessToken,
-      expiresAt: session.tokenSet.expiresAt,
+      token: tokenSet.accessToken,
+      expiresAt: tokenSet.expiresAt,
     }
   }
 

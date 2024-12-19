@@ -224,20 +224,10 @@ export class AuthClient {
       const session = await this.sessionStore.get(req.cookies)
 
       if (session) {
-        // refresh the access token, if necessary
-        const [error, updatedTokenSet] = await this.getTokenSet(
-          session.tokenSet
-        )
-
-        if (error) {
-          return res
-        }
-
         // we pass the existing session (containing an `createdAt` timestamp) to the set method
         // which will update the cookie's `maxAge` property based on the `createdAt` time
         await this.sessionStore.set(req.cookies, res.cookies, {
           ...session,
-          tokenSet: updatedTokenSet,
         })
       }
 

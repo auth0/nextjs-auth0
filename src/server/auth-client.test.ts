@@ -435,18 +435,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         )
 
-        const expiresAt = Math.floor(Date.now() / 1000) - 10 * 24 * 60 * 60 // expired 10 days ago
-        const updatedTokenSet = {
-          accessToken: "at_456",
-          refreshToken: "rt_456",
-          expiresAt,
-        }
-        authClient.getTokenSet = vi
-          .fn()
-          .mockResolvedValue([null, updatedTokenSet])
-
         const response = await authClient.handler(request)
-        expect(authClient.getTokenSet).toHaveBeenCalled()
 
         // assert session has been updated
         const updatedSessionCookie = response.cookies.get("__session")
@@ -460,8 +449,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
             sub: DEFAULT.sub,
           },
           tokenSet: {
-            accessToken: "at_456",
-            refreshToken: "rt_456",
+            accessToken: "at_123",
+            refreshToken: "rt_123",
             expiresAt: expect.any(Number),
           },
           internal: {
@@ -511,70 +500,6 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         const response = await authClient.handler(request)
         expect(authClient.getTokenSet).not.toHaveBeenCalled()
-
-        // assert session has not been updated
-        const updatedSessionCookie = response.cookies.get("__session")
-        expect(updatedSessionCookie).toBeUndefined()
-      })
-
-      it("should pass the request through if there was an error fetching the updated token set", async () => {
-        const secret = await generateSecret(32)
-        const transactionStore = new TransactionStore({
-          secret,
-        })
-        const sessionStore = new StatelessSessionStore({
-          secret,
-
-          rolling: true,
-          absoluteDuration: 3600,
-          inactivityDuration: 1800,
-        })
-        const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
-
-          domain: DEFAULT.domain,
-          clientId: DEFAULT.clientId,
-          clientSecret: DEFAULT.clientSecret,
-
-          secret,
-          appBaseUrl: DEFAULT.appBaseUrl,
-
-          fetch: getMockAuthorizationServer(),
-        })
-
-        const session: SessionData = {
-          user: { sub: DEFAULT.sub },
-          tokenSet: {
-            accessToken: DEFAULT.accessToken,
-            refreshToken: DEFAULT.refreshToken,
-            expiresAt: 123456,
-          },
-          internal: {
-            sid: DEFAULT.sid,
-            createdAt: Math.floor(Date.now() / 1000),
-          },
-        }
-        const sessionCookie = await encrypt(session, secret)
-        const headers = new Headers()
-        headers.append("cookie", `__session=${sessionCookie}`)
-        const request = new NextRequest(
-          "https://example.com/dashboard/projects",
-          {
-            method: "GET",
-            headers,
-          }
-        )
-
-        authClient.getTokenSet = vi
-          .fn()
-          .mockResolvedValue([
-            new Error("error fetching updated token set"),
-            null,
-          ])
-
-        const response = await authClient.handler(request)
-        expect(authClient.getTokenSet).toHaveBeenCalled()
 
         // assert session has not been updated
         const updatedSessionCookie = response.cookies.get("__session")

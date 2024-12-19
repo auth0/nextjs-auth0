@@ -351,7 +351,12 @@ export default function Component() {
 
 ### On the server (App Router)
 
-On the server, the `getAccessToken()` helper can be used in Server Components, Server Routes, Server Actions, and middleware to get an access token to call external APIs, like so:
+On the server, the `getAccessToken()` helper can be used in Server Routes, Server Actions, and middleware to get an access token to call external APIs.
+
+> [!IMPORTANT]  
+> Server Components cannot set cookies. Calling `getAccessToken()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not to be persisted.
+
+For example:
 
 ```tsx
 import { NextResponse } from "next/server"
@@ -374,7 +379,7 @@ export async function GET() {
 
 ### On the server (Pages Router)
 
-On the server, the `getAccessToken(req)` helper can be used in `getServerSideProps`, API routes, and middleware to get an access token to call external APIs, like so:
+On the server, the `getAccessToken(req, res)` helper can be used in `getServerSideProps`, API routes, and middleware to get an access token to call external APIs, like so:
 
 ```tsx
 import type { NextApiRequest, NextApiResponse } from "next"
@@ -386,7 +391,7 @@ export default async function handler(
   res: NextApiResponse<{ message: string }>
 ) {
   try {
-    const token = await auth0.getAccessToken(req)
+    const token = await auth0.getAccessToken(req, res)
     // call external API with token...
   } catch (err) {
     // err will be an instance of AccessTokenError if an access token could not be obtained
