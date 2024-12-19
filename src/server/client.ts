@@ -144,6 +144,13 @@ export class Auth0Client {
       process.env.APP_BASE_URL) as string
     const secret = (options.secret || process.env.AUTH0_SECRET) as string
 
+    const clientAssertionSigningKey =
+      options.clientAssertionSigningKey ||
+      process.env.AUTH0_CLIENT_ASSERTION_SIGNING_KEY
+    const clientAssertionSigningAlg =
+      options.clientAssertionSigningAlg ||
+      process.env.AUTH0_CLIENT_ASSERTION_SIGNING_ALG
+
     const cookieOptions = {
       secure: false,
     }
@@ -180,10 +187,10 @@ export class Auth0Client {
       domain,
       clientId,
       clientSecret,
+      clientAssertionSigningKey,
+      clientAssertionSigningAlg,
       authorizationParameters: options.authorizationParameters,
       pushedAuthorizationRequests: options.pushedAuthorizationRequests,
-      clientAssertionSigningKey: options.clientAssertionSigningKey,
-      clientAssertionSigningAlg: options.clientAssertionSigningAlg,
 
       appBaseUrl,
       secret,
