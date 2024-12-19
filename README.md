@@ -351,7 +351,7 @@ export default function Component() {
 
 ### On the server (App Router)
 
-On the server, the `getAccessToken()` helper can be used in Server Routes, Server Actions, and middleware to get an access token to call external APIs.
+On the server, the `getAccessToken()` helper can be used in Server Routes, Server Actions, Server Components, and middleware to get an access token to call external APIs.
 
 > [!IMPORTANT]  
 > Server Components cannot set cookies. Calling `getAccessToken()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not to be persisted.
