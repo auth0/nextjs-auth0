@@ -235,6 +235,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
       authClient.handleLogin = vi.fn()
       await authClient.handler(request)
       expect(authClient.handleLogin).toHaveBeenCalled()
+
+      // Also checks if the path is /auth/login/ (with trailing slash)
+      const request2 = new NextRequest("https://example.com/auth/login/", {
+        method: "GET",
+      })
+      await authClient.handler(request2)
+      expect(authClient.handleLogin).toHaveBeenCalled()
     })
 
     it("should call the callback handler if the path is /auth/callback", async () => {

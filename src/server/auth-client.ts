@@ -198,19 +198,19 @@ export class AuthClient {
     const { pathname } = req.nextUrl
     const method = req.method
 
-    if (method === "GET" && pathname === this.routes.login) {
+    if (method === "GET" && pathname.startsWith(this.routes.login)) {
       return this.handleLogin(req)
-    } else if (method === "GET" && pathname === this.routes.logout) {
+    } else if (method === "GET" && pathname.startsWith(this.routes.logout)) {
       return this.handleLogout(req)
-    } else if (method === "GET" && pathname === this.routes.callback) {
+    } else if (method === "GET" && pathname.startsWith(this.routes.callback)) {
       return this.handleCallback(req)
-    } else if (method === "GET" && pathname === this.routes.profile) {
+    } else if (method === "GET" && pathname.startsWith(this.routes.profile)) {
       return this.handleProfile(req)
-    } else if (method === "GET" && pathname === this.routes.accessToken) {
+    } else if (method === "GET" && pathname.startsWith(this.routes.accessToken)) {
       return this.handleAccessToken(req)
     } else if (
       method === "POST" &&
-      pathname === this.routes.backChannelLogout
+      pathname.startsWith(this.routes.backChannelLogout)
     ) {
       return this.handleBackChannelLogout(req)
     } else {
