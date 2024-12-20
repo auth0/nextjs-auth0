@@ -98,3 +98,20 @@ export class AccessTokenError extends SdkError {
     this.code = code
   }
 }
+
+export enum FederatedConnectionAccessTokenErrorCode {
+  MISSING_SESSION = "missing_session",
+  MISSING_REFRESH_TOKEN = "missing_refresh_token",
+
+  FAILED_TO_EXCHANGE = "failed_to_exchange_refresh_token",
+}
+
+export class FederatedConnectionsAccessTokenError extends SdkError {
+  public code: string
+
+  constructor(code: string, message: string) {
+    super(message)
+    this.name = "FederatedConnectionAccessTokenError"
+    this.code = code
+  }
+}
