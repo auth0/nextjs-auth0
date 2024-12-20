@@ -3,7 +3,7 @@ import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
 import { NextApiRequest, NextApiResponse } from "next/types"
 
-import { AccessTokenError, AccessTokenErrorCode } from "../errors"
+import { AccessTokenError, AccessTokenErrorCode, FederatedConnectionAccessTokenErrorCode, FederatedConnectionsAccessTokenError, SdkError } from "../errors"
 import { SessionData } from "../types"
 import {
   AuthClient,
@@ -330,6 +330,42 @@ export class Auth0Client {
       expiresAt: tokenSet.expiresAt,
     }
   }
+
+  /**
+   * Implements the current proposed federated connection access token flow.
+   */
+  async getFederatedConnectionAccessToken(connection: string, login_hint?: string, req?: PagesRouterRequest) {
+    let session: SessionData | null = null
+
+    if (req) {
+      session = await this.sessionStore.get(this.createRequestCookies(req))
+    } else {
+      session = await this.sessionStore.get(await cookies())
+    }
+
+    if (!session) {
+      throw new FederatedConnectionsAccessTokenError(
+        FederatedConnectionAccessTokenErrorCode.MISSING_SESSION,
+        "The user does not have an active session."
+      )
+    }
+
+
+
+    const [error, response] = await this.authClient.federatedConnectionTokenExchange(session.tokenSet, connection, login_hint);
+
+    if (error !== null) {
+      throw error;
+    }
+
+
+    return {
+      federatedConnectionAccessToken: response.accessToken,
+      expiresAt: response.expiresAt
+    }
+
+  }
+
 
   /**
    * updateSession updates the session of the currently authenticated user. If the user does not have a session, an error is thrown.

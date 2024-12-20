@@ -9,6 +9,8 @@ import {
   AuthorizationError,
   BackchannelLogoutError,
   DiscoveryError,
+  FederatedConnectionAccessTokenErrorCode,
+  FederatedConnectionsAccessTokenError,
   InvalidStateError,
   MissingStateError,
   OAuth2Error,
@@ -51,6 +53,13 @@ const DEFAULT_SCOPES = ["openid", "profile", "email", "offline_access"].join(
   " "
 )
 
+const GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN = "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token";
+
+const SUBJECT_TYPE_REFRESH_TOKEN = "urn:ietf:params:oauth:token-type:refresh_token";
+
+const REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN = "http://auth0.com/oauth/token-type/federated-connection-access-token"
+
+
 export interface AuthorizationParameters {
   /**
    * The list of scopes to request authorization for.
@@ -67,6 +76,7 @@ export interface AuthorizationParameters {
    */
   [key: string]: unknown
 }
+
 
 interface Routes {
   login: string
@@ -106,6 +116,13 @@ export interface AuthClientOptions {
   jwksCache?: jose.JWKSCacheInput
   allowInsecureRequests?: boolean
 }
+
+export interface FederatedConnectionAccessTokenResponse {
+  accessToken: string,
+  expiresAt: number,
+  scope?: string  
+}
+
 
 export class AuthClient {
   private transactionStore: TransactionStore
@@ -877,5 +894,71 @@ export class AuthClient {
       this.domain.startsWith("https://")
       ? this.domain
       : `https://${this.domain}`
+  }
+
+  
+  /**
+   * This implements the experimental federated connections access token endpoint support
+   */
+  async federatedConnectionTokenExchange(tokenSet: TokenSet, connection: string, login_hint?: string): Promise<[SdkError, null] | [null, FederatedConnectionAccessTokenResponse]> {
+    if (!tokenSet.refreshToken) {
+      return [new FederatedConnectionsAccessTokenError(
+        FederatedConnectionAccessTokenErrorCode.MISSING_REFRESH_TOKEN,
+        "A refresh token was not present, Federated Connection Access Token requires a refresh token. The user needs to re-authenticate."
+      ), null];
+    }
+
+
+    const params = new URLSearchParams();
+
+    params.append("connection", connection);
+    params.append("subject_token_type", SUBJECT_TYPE_REFRESH_TOKEN);
+    params.append("subject_token", tokenSet.refreshToken);
+
+    params.append("requested_token_type", REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN);
+
+    if (login_hint) {
+      params.append("login_hint", login_hint);
+    }
+
+
+    const [discoveryError, authorizationServerMetadata] = await this.discoverAuthorizationServerMetadata()
+
+    if (discoveryError) {
+      console.error(discoveryError)
+      return [discoveryError, null]
+    }
+
+    const httpResponse = await oauth.genericTokenEndpointRequest(
+      authorizationServerMetadata, 
+      this.clientMetadata,
+      await this.getClientAuth(),
+      GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN,
+      params,
+      {
+        [oauth.customFetch]: this.fetch,
+        [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+      }
+    );
+
+    let tokenEndpointResponse: oauth.TokenEndpointResponse;
+    try {
+      tokenEndpointResponse = await oauth.processGenericTokenEndpointResponse(authorizationServerMetadata, this.clientMetadata, httpResponse);
+    } catch (err) {
+      console.error(err);
+      return [
+        new FederatedConnectionsAccessTokenError(
+          FederatedConnectionAccessTokenErrorCode.FAILED_TO_EXCHANGE,
+          "There was an error trying to exchange the refresh token for a federated connection access token. Check the server logs for more information."
+        ),
+        null,
+      ]
+    }
+
+    return [null, {
+      accessToken: tokenEndpointResponse.access_token,
+      expiresAt: tokenEndpointResponse.expires_in! + (Date.now() / 1000),
+      scope: tokenEndpointResponse.scope,
+    }]
   }
 }
