@@ -109,6 +109,9 @@ export class StatefulSessionStore extends AbstractSessionStore {
       maxAge,
     })
     await this.store.set(sessionId, session)
+
+    // to enable read-after-write in the same request for middleware
+    reqCookies.set(this.SESSION_COOKIE_NAME, jwe.toString())
   }
 
   async delete(

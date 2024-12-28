@@ -43,22 +43,25 @@ export class StatelessSessionStore extends AbstractSessionStore {
    * save adds the encrypted session cookie as a `Set-Cookie` header.
    */
   async set(
-    _reqCookies: cookies.RequestCookies,
+    reqCookies: cookies.RequestCookies,
     resCookies: cookies.ResponseCookies,
     session: SessionData,
     _isNew?: boolean
   ) {
     const jwe = await cookies.encrypt(session, this.secret)
     const maxAge = this.calculateMaxAge(session.internal.createdAt)
+    const cookieValue = jwe.toString()
 
     resCookies.set(this.SESSION_COOKIE_NAME, jwe.toString(), {
       ...this.cookieConfig,
       maxAge,
     })
+    // to enable read-after-write in the same request for middleware
+    reqCookies.set(this.SESSION_COOKIE_NAME, cookieValue)
 
     // check if the session cookie size exceeds 4096 bytes, and if so, log a warning
     const cookieJarSizeTest = new cookies.ResponseCookies(new Headers())
-    cookieJarSizeTest.set(this.SESSION_COOKIE_NAME, jwe.toString(), {
+    cookieJarSizeTest.set(this.SESSION_COOKIE_NAME, cookieValue, {
       ...this.cookieConfig,
       maxAge,
     })
