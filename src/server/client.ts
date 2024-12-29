@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { NextApiRequest, NextApiResponse } from "next/types"
 
 import { AccessTokenError, AccessTokenErrorCode } from "../errors"
-import { SessionData } from "../types"
+import { SessionData, SessionDataStore } from "../types"
 import {
   AuthClient,
   AuthorizationParameters,
@@ -16,7 +16,6 @@ import { RequestCookies, ResponseCookies } from "./cookies"
 import {
   AbstractSessionStore,
   SessionConfiguration,
-  SessionDataStore,
 } from "./session/abstract-session-store"
 import { StatefulSessionStore } from "./session/stateful-session-store"
 import { StatelessSessionStore } from "./session/stateless-session-store"

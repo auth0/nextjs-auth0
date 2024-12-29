@@ -1,34 +1,10 @@
-import type { SessionData } from "../../types"
+import type { SessionData, SessionDataStore } from "../../types"
 import {
   CookieOptions,
   ReadonlyRequestCookies,
   RequestCookies,
   ResponseCookies,
 } from "../cookies"
-
-export type LogoutToken = { sub?: string; sid?: string }
-
-export interface SessionDataStore {
-  /**
-   * Gets the session from the store given a session ID.
-   */
-  get(id: string): Promise<SessionData | null>
-
-  /**
-   * Upsert a session in the store given a session ID and `SessionData`.
-   */
-  set(id: string, session: SessionData): Promise<void>
-
-  /**
-   * Destroys the session with the given session ID.
-   */
-  delete(id: string): Promise<void>
-
-  /**
-   * Deletes the session with the given logout token which may contain a session ID or a user ID, or both.
-   */
-  deleteByLogoutToken?(logoutToken: LogoutToken): Promise<void>
-}
 
 export interface SessionConfiguration {
   /**
