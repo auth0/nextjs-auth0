@@ -57,6 +57,9 @@
     },
     "./types": {
       "import": "./dist/types/index.d.ts"
+    },
+    "./testing": {
+      "import": "./dist/testing/index.js"
     }
   },
   "dependencies": {
@@ -71,6 +74,9 @@
   },
   "typesVersions": {
     "*": {
+      "testing": [
+        "./dist/testing/index.d.ts"
+      ],
       "types": [
         "./dist/types/index.d.ts"
       ],

@@ -821,3 +821,29 @@ NEXT_PUBLIC_ACCESS_TOKEN_ROUTE=/api/auth/token
 
 > [!IMPORTANT]  
 > Updating the route paths will also require updating the **Allowed Callback URLs** and **Allowed Logout URLs** configured in the [Auth0 Dashboard](https://manage.auth0.com) for your client.
+
+## Testing helpers
+
+### `generateSessionCookie`
+
+The `generateSessionCookie` helper can be used to generate a session cookie value for use during tests:
+
+```ts
+import { generateSessionCookie } from "@auth0/nextjs-auth0/testing"
+
+const sessionCookieValue = await generateSessionCookie(
+  {
+    user: {
+      sub: "user_123",
+    },
+    tokenSet: {
+      accessToken: "at_123",
+      refreshToken: "rt_123",
+      expiresAt: 123456789,
+    },
+  },
+  {
+    secret: process.env.AUTH0_SECRET!,
+  }
+)
+```
