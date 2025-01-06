@@ -193,7 +193,7 @@ export default function Profile() {
 
 ### On the server (App Router)
 
-On the server, the `getSession()` helper can be used in Server Components, Server Routes, Server Actions, and middleware to get the session of the currently authenticated user and to protect resources, like so:
+On the server, the `getSession()` helper can be used in Server Components, Server Routes, and Server Actions to get the session of the currently authenticated user and to protect resources, like so:
 
 ```tsx
 import { auth0 } from "@/lib/auth0"
@@ -215,7 +215,7 @@ export default async function Home() {
 
 ### On the server (Pages Router)
 
-On the server, the `getSession(req)` helper can be used in `getServerSideProps`, API routes, and middleware to get the session of the currently authenticated user and to protect resources, like so:
+On the server, the `getSession(req)` helper can be used in `getServerSideProps` and API routes to get the session of the currently authenticated user and to protect resources, like so:
 
 ```tsx
 import type { GetServerSideProps, InferGetServerSidePropsType } from "next"
@@ -249,16 +249,47 @@ export default function Page({
 }
 ```
 
+### Middleware
+
+In middleware, the `getSession(req)` helper can be used to get the session of the currently authenticated user and to protect resources, like so:
+
+```ts
+import { NextRequest, NextResponse } from "next/server"
+
+import { auth0 } from "@/lib/auth0"
+
+export async function middleware(request: NextRequest) {
+  const authRes = await auth0.middleware(request)
+
+  if (request.nextUrl.pathname.startsWith("/auth")) {
+    return authRes
+  }
+
+  const session = await auth0.getSession(request)
+
+  if (!session) {
+    // user is not authenticated, redirect to login page
+    return NextResponse.redirect(new URL("/auth/login", request.nextUrl.origin))
+  }
+
+  // the headers from the auth middleware should always be returned
+  return authRes
+}
+```
+
+> [!IMPORTANT]  
+> The `request` object must be passed as a parameter to the `getSession(request)` method when called from a middleware to ensure that any updates to the session can be read within the same request.
+
 ## Updating the session
 
-The `updateSession` method could be used to update the session of the currently authenticated user in both the App Router and Pages Router. If the user does not have a session, an error will be thrown.
+The `updateSession` method could be used to update the session of the currently authenticated user in the App Router, Pages Router, and middleware. If the user does not have a session, an error will be thrown.
 
 > [!NOTE]
 > Any updates to the session will be overwritten when the user re-authenticates and obtains a new session.
 
 ### On the server (App Router)
 
-On the server, the `updateSession()` helper can be used in Server Routes, Server Actions, and middleware to update the session of the currently authenticated user, like so:
+On the server, the `updateSession()` helper can be used in Server Routes and Server Actions to update the session of the currently authenticated user, like so:
 
 ```tsx
 import { NextResponse } from "next/server"
@@ -286,7 +317,7 @@ export async function GET() {
 
 ### On the server (Pages Router)
 
-On the server, the `updateSession(req, res, session)` helper can be used in `getServerSideProps`, API routes, and middleware to update the session of the currently authenticated user, like so:
+On the server, the `updateSession(req, res, session)` helper can be used in `getServerSideProps` and API routes to update the session of the currently authenticated user, like so:
 
 ```tsx
 import type { NextApiRequest, NextApiResponse } from "next"
@@ -315,6 +346,93 @@ export default async function handler(
   })
 
   res.status(200).json({})
+}
+```
+
+### Middleware
+
+In middleware, the `updateSession(req, res, session)` helper can be used to update the session of the currently authenticated user, like so:
+
+```ts
+import { NextRequest, NextResponse } from "next/server"
+
+import { auth0 } from "@/lib/auth0"
+
+export async function middleware(request: NextRequest) {
+  const authRes = await auth0.middleware(request)
+
+  if (request.nextUrl.pathname.startsWith("/auth")) {
+    return authRes
+  }
+
+  const session = await auth0.getSession(request)
+
+  if (!session) {
+    // user is not authenticated, redirect to login page
+    return NextResponse.redirect(new URL("/auth/login", request.nextUrl.origin))
+  }
+
+  await auth0.updateSession(request, authRes, {
+    ...session,
+    user: {
+      ...session.user,
+      // add custom user data
+      updatedAt: Date.now(),
+    },
+  })
+
+  // the headers from the auth middleware should always be returned
+  return authRes
+}
+```
+
+> [!IMPORTANT]  
+> The `request` and `response` objects must be passed as a parameters to the `updateSession(request, response, session)` method when called from a middleware to ensure that any updates to the session can be read within the same request.
+
+If you are using the Pages Router and need to read updates to the session made in the middleware within the same request, you will need to ensure that any updates to the session are propagated on the request object, like so:
+
+```ts
+import { NextRequest, NextResponse } from "next/server"
+
+import { auth0 } from "@/lib/auth0"
+
+export async function middleware(request: NextRequest) {
+  const authRes = await auth0.middleware(request)
+
+  if (request.nextUrl.pathname.startsWith("/auth")) {
+    return authRes
+  }
+
+  const session = await auth0.getSession(request)
+
+  if (!session) {
+    // user is not authenticated, redirect to login page
+    return NextResponse.redirect(new URL("/auth/login", request.nextUrl.origin))
+  }
+
+  await auth0.updateSession(request, authRes, {
+    ...session,
+    user: {
+      ...session.user,
+      // add custom user data
+      updatedAt: Date.now(),
+    },
+  })
+
+  // create a new response with the updated request headers
+  const resWithCombinedHeaders = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  })
+
+  // set the response headers (set-cookie) from the auth response
+  authRes.headers.forEach((value, key) => {
+    resWithCombinedHeaders.headers.set(key, value)
+  })
+
+  // the headers from the auth middleware should always be returned
+  return resWithCombinedHeaders
 }
 ```
 
@@ -351,14 +469,16 @@ export default function Component() {
 
 ### On the server (App Router)
 
-On the server, the `getAccessToken()` helper can be used in Server Routes, Server Actions, Server Components, and middleware to get an access token to call external APIs.
+On the server, the `getAccessToken()` helper can be used in Server Routes, Server Actions and Server Components to get an access token to call external APIs.
 
 > [!IMPORTANT]  
 > Server Components cannot set cookies. Calling `getAccessToken()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not to be persisted.
+>
+> It is recommended to call `getAccessToken(req, res)` in the middleware if you need to use the refresh token in a Server Component as this will ensure the token is refreshed and correctly persisted.
 
 For example:
 
-```tsx
+```ts
 import { NextResponse } from "next/server"
 
 import { auth0 } from "@/lib/auth0"
@@ -379,9 +499,9 @@ export async function GET() {
 
 ### On the server (Pages Router)
 
-On the server, the `getAccessToken(req, res)` helper can be used in `getServerSideProps`, API routes, and middleware to get an access token to call external APIs, like so:
+On the server, the `getAccessToken(req, res)` helper can be used in `getServerSideProps` and API routes to get an access token to call external APIs, like so:
 
-```tsx
+```ts
 import type { NextApiRequest, NextApiResponse } from "next"
 
 import { auth0 } from "@/lib/auth0"
@@ -398,6 +518,79 @@ export default async function handler(
   }
 
   res.status(200).json({ message: "Success!" })
+}
+```
+
+### Middleware
+
+In middleware, the `getAccessToken(req, res)` helper can be used to get an access token to call external APIs, like so:
+
+```tsx
+import { NextRequest, NextResponse } from "next/server"
+
+import { auth0 } from "@/lib/auth0"
+
+export async function middleware(request: NextRequest) {
+  const authRes = await auth0.middleware(request)
+
+  if (request.nextUrl.pathname.startsWith("/auth")) {
+    return authRes
+  }
+
+  const session = await auth0.getSession(request)
+
+  if (!session) {
+    // user is not authenticated, redirect to login page
+    return NextResponse.redirect(new URL("/auth/login", request.nextUrl.origin))
+  }
+
+  const accessToken = await auth0.getAccessToken(request, authRes)
+
+  // the headers from the auth middleware should always be returned
+  return authRes
+}
+```
+
+> [!IMPORTANT]  
+> The `request` and `response` objects must be passed as a parameters to the `getAccessToken(request, response)` method when called from a middleware to ensure that the refreshed access token can be accessed within the same request.
+
+If you are using the Pages Router and are calling the `getAccessToken` method in both the middleware and an API Route or `getServerSideProps`, it's recommended to propagate the headers from the middleware, as shown below. This will ensure that calling `getAccessToken` in the API Route or `getServerSideProps` will not result in the access token being refreshed again.
+
+```ts
+import { NextRequest, NextResponse } from "next/server"
+
+import { auth0 } from "@/lib/auth0"
+
+export async function middleware(request: NextRequest) {
+  const authRes = await auth0.middleware(request)
+
+  if (request.nextUrl.pathname.startsWith("/auth")) {
+    return authRes
+  }
+
+  const session = await auth0.getSession(request)
+
+  if (!session) {
+    // user is not authenticated, redirect to login page
+    return NextResponse.redirect(new URL("/auth/login", request.nextUrl.origin))
+  }
+
+  const accessToken = await auth0.getAccessToken(request, authRes)
+
+  // create a new response with the updated request headers
+  const resWithCombinedHeaders = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  })
+
+  // set the response headers (set-cookie) from the auth response
+  authRes.headers.forEach((value, key) => {
+    resWithCombinedHeaders.headers.set(key, value)
+  })
+
+  // the headers from the auth middleware should always be returned
+  return resWithCombinedHeaders
 }
 ```
 
@@ -628,3 +821,29 @@ NEXT_PUBLIC_ACCESS_TOKEN_ROUTE=/api/auth/token
 
 > [!IMPORTANT]  
 > Updating the route paths will also require updating the **Allowed Callback URLs** and **Allowed Logout URLs** configured in the [Auth0 Dashboard](https://manage.auth0.com) for your client.
+
+## Testing helpers
+
+### `generateSessionCookie`
+
+The `generateSessionCookie` helper can be used to generate a session cookie value for use during tests:
+
+```ts
+import { generateSessionCookie } from "@auth0/nextjs-auth0/testing"
+
+const sessionCookieValue = await generateSessionCookie(
+  {
+    user: {
+      sub: "user_123",
+    },
+    tokenSet: {
+      accessToken: "at_123",
+      refreshToken: "rt_123",
+      expiresAt: 123456789,
+    },
+  },
+  {
+    secret: process.env.AUTH0_SECRET!,
+  }
+)
+```
