@@ -14,11 +14,8 @@ import {
   OAuth2Error,
   SdkError,
 } from "../errors"
-import { SessionData, TokenSet } from "../types"
-import {
-  AbstractSessionStore,
-  LogoutToken,
-} from "./session/abstract-session-store"
+import { LogoutToken, SessionData, TokenSet } from "../types"
+import { AbstractSessionStore } from "./session/abstract-session-store"
 import { TransactionState, TransactionStore } from "./transaction-store"
 import { filterClaims } from "./user"
 
