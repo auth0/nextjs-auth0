@@ -1,9 +1,6 @@
-import { SessionData } from "../../types"
+import { SessionData, SessionDataStore } from "../../types"
 import * as cookies from "../cookies"
-import {
-  AbstractSessionStore,
-  SessionDataStore,
-} from "./abstract-session-store"
+import { AbstractSessionStore } from "./abstract-session-store"
 
 // the value of the stateful session cookie containing a unique session ID to identify
 // the current session
@@ -109,6 +106,9 @@ export class StatefulSessionStore extends AbstractSessionStore {
       maxAge,
     })
     await this.store.set(sessionId, session)
+
+    // to enable read-after-write in the same request for middleware
+    reqCookies.set(this.SESSION_COOKIE_NAME, jwe.toString())
   }
 
   async delete(
