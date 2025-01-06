@@ -1,6 +1,6 @@
 {
   "name": "@auth0/nextjs-auth0",
-  "version": "4.0.0-beta.13",
+  "version": "4.0.0-beta.14",
   "description": "Auth0 Next.js SDK",
   "scripts": {
     "build": "tsc",
@@ -57,6 +57,9 @@
     },
     "./types": {
       "import": "./dist/types/index.d.ts"
+    },
+    "./testing": {
+      "import": "./dist/testing/index.js"
     }
   },
   "dependencies": {
@@ -71,6 +74,9 @@
   },
   "typesVersions": {
     "*": {
+      "testing": [
+        "./dist/testing/index.d.ts"
+      ],
       "types": [
         "./dist/types/index.d.ts"
       ],

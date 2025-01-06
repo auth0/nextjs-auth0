@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { NextApiRequest, NextApiResponse } from "next/types"
 
 import { AccessTokenError, AccessTokenErrorCode } from "../errors"
-import { SessionData } from "../types"
+import { SessionData, SessionDataStore } from "../types"
 import {
   AuthClient,
   AuthorizationParameters,
@@ -16,7 +16,6 @@ import { RequestCookies, ResponseCookies } from "./cookies"
 import {
   AbstractSessionStore,
   SessionConfiguration,
-  SessionDataStore,
 } from "./session/abstract-session-store"
 import { StatefulSessionStore } from "./session/stateful-session-store"
 import { StatelessSessionStore } from "./session/stateless-session-store"
@@ -215,61 +214,81 @@ export class Auth0Client {
   /**
    * getSession returns the session data for the current request.
    *
-   * This method can be used in Server Components, Server Actions, Route Handlers, and middleware in the **App Router**.
+   * This method can be used in Server Components, Server Actions, and Route Handlers in the **App Router**.
    */
   async getSession(): Promise<SessionData | null>
 
   /**
    * getSession returns the session data for the current request.
    *
-   * This method can be used in `getServerSideProps`, API routes, and middleware in the **Pages Router**.
+   * This method can be used in middleware and `getServerSideProps`, API routes in the **Pages Router**.
    */
-  async getSession(req: PagesRouterRequest): Promise<SessionData | null>
+  async getSession(
+    req: PagesRouterRequest | NextRequest
+  ): Promise<SessionData | null>
 
   /**
    * getSession returns the session data for the current request.
    */
-  async getSession(req?: PagesRouterRequest): Promise<SessionData | null> {
+  async getSession(
+    req?: PagesRouterRequest | NextRequest
+  ): Promise<SessionData | null> {
     if (req) {
+      // middleware usage
+      if (req instanceof NextRequest) {
+        return this.sessionStore.get(req.cookies)
+      }
+
+      // pages router usage
       return this.sessionStore.get(this.createRequestCookies(req))
     }
 
+    // app router usage: Server Components, Server Actions, Route Handlers
     return this.sessionStore.get(await cookies())
   }
 
   /**
    * getAccessToken returns the access token.
    *
-   * This method can be used in Server Components, Server Actions, Route Handlers, and middleware in the **App Router**.
+   * This method can be used in Server Components, Server Actions, and Route Handlers in the **App Router**.
    *
    * NOTE: Server Components cannot set cookies. Calling `getAccessToken()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not to be persisted.
+   * It is recommended to call `getAccessToken(req, res)` in the middleware if you need to retrieve the access token in a Server Component to ensure the updated token set is persisted.
    */
   async getAccessToken(): Promise<{ token: string; expiresAt: number }>
 
   /**
    * getAccessToken returns the access token.
    *
-   * This method can be used in `getServerSideProps`, API routes, and middleware in the **Pages Router**.
+   * This method can be used in middleware and `getServerSideProps`, API routes in the **Pages Router**.
    */
   async getAccessToken(
-    req: PagesRouterRequest,
-    res: PagesRouterResponse
+    req: PagesRouterRequest | NextRequest,
+    res: PagesRouterResponse | NextResponse
   ): Promise<{ token: string; expiresAt: number }>
 
   /**
    * getAccessToken returns the access token.
    *
    * NOTE: Server Components cannot set cookies. Calling `getAccessToken()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not to be persisted.
+   * It is recommended to call `getAccessToken(req, res)` in the middleware if you need to retrieve the access token in a Server Component to ensure the updated token set is persisted.
    */
   async getAccessToken(
-    req?: PagesRouterRequest,
-    res?: PagesRouterResponse
+    req?: PagesRouterRequest | NextRequest,
+    res?: PagesRouterResponse | NextResponse
   ): Promise<{ token: string; expiresAt: number }> {
     let session: SessionData | null = null
 
     if (req) {
-      session = await this.sessionStore.get(this.createRequestCookies(req))
+      if (req instanceof NextRequest) {
+        // middleware usage
+        session = await this.sessionStore.get(req.cookies)
+      } else {
+        // pages router usage
+        session = await this.sessionStore.get(this.createRequestCookies(req))
+      }
     } else {
+      // app router usage: Server Components, Server Actions, Route Handlers
       session = await this.sessionStore.get(await cookies())
     }
 
@@ -294,22 +313,33 @@ export class Auth0Client {
       tokenSet.refreshToken !== session.tokenSet.refreshToken
     ) {
       if (req && res) {
-        const resHeaders = new Headers()
-        const resCookies = new ResponseCookies(resHeaders)
-
-        await this.sessionStore.set(
-          this.createRequestCookies(req),
-          resCookies,
-          {
+        if (req instanceof NextRequest && res instanceof NextResponse) {
+          // middleware usage
+          await this.sessionStore.set(req.cookies, res.cookies, {
             ...session,
             tokenSet,
-          }
-        )
+          })
+        } else {
+          // pages router usage
+          const resHeaders = new Headers()
+          const resCookies = new ResponseCookies(resHeaders)
+          const pagesRouterRes = res as PagesRouterResponse
 
-        for (const [key, value] of resHeaders.entries()) {
-          res.setHeader(key, value)
+          await this.sessionStore.set(
+            this.createRequestCookies(req as PagesRouterRequest),
+            resCookies,
+            {
+              ...session,
+              tokenSet,
+            }
+          )
+
+          for (const [key, value] of resHeaders.entries()) {
+            pagesRouterRes.setHeader(key, value)
+          }
         }
       } else {
+        // app router usage: Server Components, Server Actions, Route Handlers
         try {
           await this.sessionStore.set(await cookies(), await cookies(), {
             ...session,
@@ -334,18 +364,18 @@ export class Auth0Client {
   /**
    * updateSession updates the session of the currently authenticated user. If the user does not have a session, an error is thrown.
    *
-   * This method can be used in `getServerSideProps`, API routes, and middleware in the **Pages Router**.
+   * This method can be used in middleware and `getServerSideProps`, API routes, and middleware in the **Pages Router**.
    */
   async updateSession(
-    req: PagesRouterRequest,
-    res: PagesRouterResponse,
+    req: PagesRouterRequest | NextRequest,
+    res: PagesRouterResponse | NextResponse,
     session: SessionData
   ): Promise<void>
 
   /**
    * updateSession updates the session of the currently authenticated user. If the user does not have a session, an error is thrown.
    *
-   * This method can be used in Server Actions, Route Handlers, and middleware in the **App Router**.
+   * This method can be used in Server Actions and Route Handlers in the **App Router**.
    */
   async updateSession(session: SessionData): Promise<void>
 
@@ -353,12 +383,12 @@ export class Auth0Client {
    * updateSession updates the session of the currently authenticated user. If the user does not have a session, an error is thrown.
    */
   async updateSession(
-    reqOrSession: PagesRouterRequest | SessionData,
-    res?: PagesRouterResponse,
+    reqOrSession: PagesRouterRequest | NextRequest | SessionData,
+    res?: PagesRouterResponse | NextResponse,
     sessionData?: SessionData
   ) {
     if (!res) {
-      // app router
+      // app router: Server Actions, Route Handlers
       const existingSession = await this.getSession()
 
       if (!existingSession) {
@@ -366,6 +396,10 @@ export class Auth0Client {
       }
 
       const updatedSession = reqOrSession as SessionData
+      if (!updatedSession) {
+        throw new Error("The session data is missing.")
+      }
+
       await this.sessionStore.set(await cookies(), await cookies(), {
         ...updatedSession,
         internal: {
@@ -373,27 +407,50 @@ export class Auth0Client {
         },
       })
     } else {
-      // pages router
-      const req = reqOrSession as NextApiRequest
-      const existingSession = await this.getSession(req)
+      const req = reqOrSession as PagesRouterRequest | NextRequest
 
-      if (!existingSession) {
-        throw new Error("The user is not authenticated.")
+      if (!sessionData) {
+        throw new Error("The session data is missing.")
       }
 
-      const resHeaders = new Headers()
-      const resCookies = new ResponseCookies(resHeaders)
-      const updatedSession = sessionData as SessionData
+      if (req instanceof NextRequest && res instanceof NextResponse) {
+        // middleware usage
+        const existingSession = await this.getSession(req)
 
-      await this.sessionStore.set(this.createRequestCookies(req), resCookies, {
-        ...updatedSession,
-        internal: {
-          ...existingSession.internal,
-        },
-      })
+        if (!existingSession) {
+          throw new Error("The user is not authenticated.")
+        }
 
-      for (const [key, value] of resHeaders.entries()) {
-        res.setHeader(key, value)
+        await this.sessionStore.set(req.cookies, res.cookies, {
+          ...sessionData,
+          internal: {
+            ...existingSession.internal,
+          },
+        })
+      } else {
+        // pages router usage
+        const existingSession = await this.getSession(req as PagesRouterRequest)
+
+        if (!existingSession) {
+          throw new Error("The user is not authenticated.")
+        }
+
+        const resHeaders = new Headers()
+        const resCookies = new ResponseCookies(resHeaders)
+        const updatedSession = sessionData as SessionData
+        const reqCookies = this.createRequestCookies(req as PagesRouterRequest)
+        const pagesRouterRes = res as PagesRouterResponse
+
+        await this.sessionStore.set(reqCookies, resCookies, {
+          ...updatedSession,
+          internal: {
+            ...existingSession.internal,
+          },
+        })
+
+        for (const [key, value] of resHeaders.entries()) {
+          pagesRouterRes.setHeader(key, value)
+        }
       }
     }
   }
