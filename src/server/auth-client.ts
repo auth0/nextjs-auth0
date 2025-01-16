@@ -102,6 +102,8 @@ export interface AuthClientOptions {
   fetch?: typeof fetch
   jwksCache?: jose.JWKSCacheInput
   allowInsecureRequests?: boolean
+  httpTimeout?: number
+  enableTelemetry?: boolean
 }
 
 export class AuthClient {
@@ -127,12 +129,38 @@ export class AuthClient {
   private fetch: typeof fetch
   private jwksCache: jose.JWKSCacheInput
   private allowInsecureRequests: boolean
+  private httpOptions: () => oauth.HttpRequestOptions<"GET" | "POST">
 
   constructor(options: AuthClientOptions) {
     // dependencies
     this.fetch = options.fetch || fetch
     this.jwksCache = options.jwksCache || {}
     this.allowInsecureRequests = options.allowInsecureRequests ?? false
+    this.httpOptions = () => {
+      const headers = new Headers()
+      const enableTelemetry = options.enableTelemetry ?? true
+      const timeout = options.httpTimeout ?? 5000
+      if (enableTelemetry) {
+        const name = "nextjs-auth0"
+        const version = "4.0.0"
+
+        headers.set("User-Agent", `${name}/${version}`)
+        headers.set(
+          "Auth0-Client",
+          encodeBase64(
+            JSON.stringify({
+              name,
+              version,
+            })
+          )
+        )
+      }
+
+      return {
+        signal: AbortSignal.timeout(timeout),
+        headers,
+      }
+    }
 
     if (this.allowInsecureRequests && process.env.NODE_ENV === "production") {
       console.warn(
@@ -389,6 +417,7 @@ export class AuthClient {
       redirectUri.toString(),
       transactionState.codeVerifier,
       {
+        ...this.httpOptions(),
         [oauth.customFetch]: this.fetch,
         [oauth.allowInsecureRequests]: this.allowInsecureRequests,
       }
@@ -585,6 +614,7 @@ export class AuthClient {
         await this.getClientAuth(),
         tokenSet.refreshToken,
         {
+          ...this.httpOptions(),
           [oauth.customFetch]: this.fetch,
           [oauth.allowInsecureRequests]: this.allowInsecureRequests,
         }
@@ -639,6 +669,7 @@ export class AuthClient {
     try {
       const authorizationServerMetadata = await oauth
         .discoveryRequest(issuer, {
+          ...this.httpOptions(),
           [oauth.customFetch]: this.fetch,
           [oauth.allowInsecureRequests]: this.allowInsecureRequests,
         })
@@ -805,6 +836,7 @@ export class AuthClient {
         await this.getClientAuth(),
         params,
         {
+          ...this.httpOptions(),
           [oauth.customFetch]: this.fetch,
           [oauth.allowInsecureRequests]: this.allowInsecureRequests,
         }
@@ -875,4 +907,17 @@ export class AuthClient {
       ? this.domain
       : `https://${this.domain}`
   }
+}
+
+const encodeBase64 = (input: string) => {
+  const unencoded = new TextEncoder().encode(input)
+  const CHUNK_SIZE = 0x8000
+  const arr = []
+  for (let i = 0; i < unencoded.length; i += CHUNK_SIZE) {
+    arr.push(
+      // @ts-expect-error Argument of type 'Uint8Array' is not assignable to parameter of type 'number[]'.
+      String.fromCharCode.apply(null, unencoded.subarray(i, i + CHUNK_SIZE))
+    )
+  }
+  return btoa(arr.join(""))
 }

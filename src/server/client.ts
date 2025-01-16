@@ -123,6 +123,18 @@ interface Auth0ClientOptions {
    * This option can only be used when NODE_ENV is not set to `production`.
    */
   allowInsecureRequests?: boolean
+
+  /**
+   * Integer value for the HTTP timeout in milliseconds for authentication requests.
+   * Defaults to `5000` ms.
+   */
+  httpTimeout?: number
+
+  /**
+   * Boolean value to opt-out of sending the library name and version to your authorization server
+   * via the `Auth0-Client` header. Defaults to `true`.
+   */
+  enableTelemetry?: boolean
 }
 
 type PagesRouterRequest = IncomingMessage | NextApiRequest
@@ -201,6 +213,8 @@ export class Auth0Client {
       routes: options.routes,
 
       allowInsecureRequests: options.allowInsecureRequests,
+      httpTimeout: options.httpTimeout,
+      enableTelemetry: options.enableTelemetry,
     })
   }
 
