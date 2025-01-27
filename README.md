@@ -699,8 +699,8 @@ export const auth0 = new Auth0Client({
 | Option             | Type      | Description                                                                                                                                                                                                                                   |
 | ------------------ | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | rolling            | `boolean` | When enabled, the session will continue to be extended as long as it is used within the inactivity duration. Once the upper bound, set via the `absoluteDuration`, has been reached, the session will no longer be extended. Default: `true`. |
-| absoluteDuration   | `number`  | The absolute duration after which the session will expire. The value must be specified in seconds. Default: `30 days`.                                                                                                                        |
-| inactivityDuration | `number`  | The duration of inactivity after which the session will expire. The value must be specified in seconds. Default: `7 days`.                                                                                                                    |
+| absoluteDuration   | `number`  | The absolute duration after which the session will expire. The value must be specified in seconds. Default: `3 days`.                                                                                                                         |
+| inactivityDuration | `number`  | The duration of inactivity after which the session will expire. The value must be specified in seconds. Default: `1 day`.                                                                                                                     |
 
 ## Database sessions
 

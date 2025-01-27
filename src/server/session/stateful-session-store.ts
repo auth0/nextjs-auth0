@@ -12,8 +12,8 @@ interface StatefulSessionStoreOptions {
   secret: string
 
   rolling?: boolean // defaults to true
-  absoluteDuration?: number // defaults to 30 days
-  inactivityDuration?: number // defaults to 7 days
+  absoluteDuration?: number // defaults to 3 days
+  inactivityDuration?: number // defaults to 1 day
 
   store: SessionDataStore
 
