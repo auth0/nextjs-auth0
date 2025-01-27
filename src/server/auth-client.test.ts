@@ -3086,6 +3086,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           tokenEndpointResponse: {
             token_type: "Bearer",
             access_token: newAccessToken,
+            scope: "openid profile email",
             expires_in: 86400, // expires in 10 days
           } as oauth.TokenEndpointResponse,
         }),
@@ -3102,6 +3103,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         },
         tokenSet: {
           accessToken: currentAccessToken,
+          scope: "openid profile email",
           refreshToken: DEFAULT.refreshToken,
           expiresAt,
         },
@@ -3125,6 +3127,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(response.status).toEqual(200)
       expect(await response.json()).toEqual({
         token: newAccessToken,
+        scope: "openid profile email",
         expires_at: expect.any(Number),
       })
 
