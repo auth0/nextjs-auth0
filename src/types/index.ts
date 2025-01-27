@@ -1,5 +1,6 @@
 export interface TokenSet {
   accessToken: string
+  scope?: string
   refreshToken?: string
   expiresAt: number // the time at which the access token expires in seconds since epoch
 }
