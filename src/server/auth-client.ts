@@ -131,6 +131,8 @@ export class AuthClient {
   private allowInsecureRequests: boolean
   private httpOptions: () => oauth.HttpRequestOptions<"GET" | "POST">
 
+  private authorizationServerMetadata?: oauth.AuthorizationServer
+
   constructor(options: AuthClientOptions) {
     // dependencies
     this.fetch = options.fetch || fetch
@@ -664,6 +666,10 @@ export class AuthClient {
   private async discoverAuthorizationServerMetadata(): Promise<
     [null, oauth.AuthorizationServer] | [SdkError, null]
   > {
+    if (this.authorizationServerMetadata) {
+      return [null, this.authorizationServerMetadata]
+    }
+
     const issuer = new URL(this.issuer)
 
     try {
@@ -674,6 +680,8 @@ export class AuthClient {
           [oauth.allowInsecureRequests]: this.allowInsecureRequests,
         })
         .then((response) => oauth.processDiscoveryResponse(issuer, response))
+
+      this.authorizationServerMetadata = authorizationServerMetadata
 
       return [null, authorizationServerMetadata]
     } catch (e) {
