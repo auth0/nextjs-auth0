@@ -21,7 +21,7 @@ export interface SessionConfiguration {
    *
    * Once the absolute duration has been reached, the session will no longer be extended.
    *
-   * Default: 30 days.
+   * Default: 3 days.
    */
   absoluteDuration?: number
   /**
@@ -29,7 +29,7 @@ export interface SessionConfiguration {
    *
    * The session will be extended as long as it was active before the inactivity duration has been reached.
    *
-   * Default: 7 days.
+   * Default: 1 day.
    */
   inactivityDuration?: number
 }
@@ -57,8 +57,8 @@ export abstract class AbstractSessionStore {
     secret,
 
     rolling = true,
-    absoluteDuration = 60 * 60 * 24 * 30, // 30 days in seconds
-    inactivityDuration = 60 * 60 * 24 * 7, // 7 days in seconds
+    absoluteDuration = 60 * 60 * 24 * 3, // 3 days in seconds
+    inactivityDuration = 60 * 60 * 24 * 1, // 1 day in seconds
     store,
 
     cookieOptions,
