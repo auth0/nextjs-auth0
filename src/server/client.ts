@@ -290,7 +290,7 @@ export class Auth0Client {
   async getAccessToken(
     req?: PagesRouterRequest | NextRequest,
     res?: PagesRouterResponse | NextResponse
-  ): Promise<{ token: string; expiresAt: number }> {
+  ): Promise<{ token: string; expiresAt: number; scope?: string }> {
     let session: SessionData | null = null
 
     if (req) {
@@ -371,6 +371,7 @@ export class Auth0Client {
 
     return {
       token: tokenSet.accessToken,
+      scope: tokenSet.scope,
       expiresAt: tokenSet.expiresAt,
     }
   }

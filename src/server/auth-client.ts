@@ -453,6 +453,7 @@ export class AuthClient {
       user: idTokenClaims,
       tokenSet: {
         accessToken: oidcRes.access_token,
+        scope: oidcRes.scope,
         refreshToken: oidcRes.refresh_token,
         expiresAt: Math.floor(Date.now() / 1000) + Number(oidcRes.expires_in),
       },
@@ -530,6 +531,7 @@ export class AuthClient {
 
     const res = NextResponse.json({
       token: updatedTokenSet.accessToken,
+      scope: updatedTokenSet.scope,
       expires_at: updatedTokenSet.expiresAt,
     })
 
