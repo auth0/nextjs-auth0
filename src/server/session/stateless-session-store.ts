@@ -1,6 +1,9 @@
 import { SessionData } from "../../types"
 import * as cookies from "../cookies"
-import { AbstractSessionStore } from "./abstract-session-store"
+import {
+  AbstractSessionStore,
+  SessionCookieOptions,
+} from "./abstract-session-store"
 
 interface StatelessSessionStoreOptions {
   secret: string
@@ -9,7 +12,7 @@ interface StatelessSessionStoreOptions {
   absoluteDuration?: number // defaults to 3 days
   inactivityDuration?: number // defaults to 1 day
 
-  cookieOptions?: Partial<Pick<cookies.CookieOptions, "secure">>
+  cookieOptions?: SessionCookieOptions
 }
 
 export class StatelessSessionStore extends AbstractSessionStore {
@@ -30,7 +33,7 @@ export class StatelessSessionStore extends AbstractSessionStore {
   }
 
   async get(reqCookies: cookies.RequestCookies) {
-    const cookieValue = reqCookies.get(this.SESSION_COOKIE_NAME)?.value
+    const cookieValue = reqCookies.get(this.sessionCookieName)?.value
 
     if (!cookieValue) {
       return null
@@ -52,16 +55,16 @@ export class StatelessSessionStore extends AbstractSessionStore {
     const maxAge = this.calculateMaxAge(session.internal.createdAt)
     const cookieValue = jwe.toString()
 
-    resCookies.set(this.SESSION_COOKIE_NAME, jwe.toString(), {
+    resCookies.set(this.sessionCookieName, jwe.toString(), {
       ...this.cookieConfig,
       maxAge,
     })
     // to enable read-after-write in the same request for middleware
-    reqCookies.set(this.SESSION_COOKIE_NAME, cookieValue)
+    reqCookies.set(this.sessionCookieName, cookieValue)
 
     // check if the session cookie size exceeds 4096 bytes, and if so, log a warning
     const cookieJarSizeTest = new cookies.ResponseCookies(new Headers())
-    cookieJarSizeTest.set(this.SESSION_COOKIE_NAME, cookieValue, {
+    cookieJarSizeTest.set(this.sessionCookieName, cookieValue, {
       ...this.cookieConfig,
       maxAge,
     })
@@ -78,6 +81,6 @@ export class StatelessSessionStore extends AbstractSessionStore {
     _reqCookies: cookies.RequestCookies,
     resCookies: cookies.ResponseCookies
   ) {
-    await resCookies.delete(this.SESSION_COOKIE_NAME)
+    await resCookies.delete(this.sessionCookieName)
   }
 }

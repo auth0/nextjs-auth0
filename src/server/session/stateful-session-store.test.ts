@@ -378,6 +378,106 @@ describe("Stateful Session Store", async () => {
         expect(cookie?.maxAge).toEqual(1800)
         expect(cookie?.secure).toEqual(true)
       })
+
+      it("should apply the sameSite attribute to the cookie", async () => {
+        const currentTime = Date.now()
+        const createdAt = Math.floor(currentTime / 1000)
+        const secret = await generateSecret(32)
+        const session: SessionData = {
+          user: { sub: "user_123" },
+          tokenSet: {
+            accessToken: "at_123",
+            refreshToken: "rt_123",
+            expiresAt: 123456,
+          },
+          internal: {
+            sid: "auth0-sid",
+            createdAt,
+          },
+        }
+        const store = {
+          get: vi.fn().mockResolvedValue(session),
+          set: vi.fn(),
+          delete: vi.fn(),
+        }
+
+        const requestCookies = new RequestCookies(new Headers())
+        const responseCookies = new ResponseCookies(new Headers())
+
+        const sessionStore = new StatefulSessionStore({
+          secret,
+          store,
+          rolling: true,
+          absoluteDuration: 3600,
+          inactivityDuration: 1800,
+
+          cookieOptions: {
+            sameSite: "strict",
+          },
+        })
+        await sessionStore.set(requestCookies, responseCookies, session)
+
+        const cookie = responseCookies.get("__session")
+        const cookieValue = await decrypt(cookie!.value, secret)
+
+        expect(cookie).toBeDefined()
+        expect(cookieValue).toHaveProperty("id")
+        expect(cookie?.path).toEqual("/")
+        expect(cookie?.httpOnly).toEqual(true)
+        expect(cookie?.sameSite).toEqual("strict")
+        expect(cookie?.maxAge).toEqual(1800)
+        expect(cookie?.secure).toEqual(false)
+      })
+
+      it("should apply the cookie name", async () => {
+        const currentTime = Date.now()
+        const createdAt = Math.floor(currentTime / 1000)
+        const secret = await generateSecret(32)
+        const session: SessionData = {
+          user: { sub: "user_123" },
+          tokenSet: {
+            accessToken: "at_123",
+            refreshToken: "rt_123",
+            expiresAt: 123456,
+          },
+          internal: {
+            sid: "auth0-sid",
+            createdAt,
+          },
+        }
+        const store = {
+          get: vi.fn().mockResolvedValue(session),
+          set: vi.fn(),
+          delete: vi.fn(),
+        }
+
+        const requestCookies = new RequestCookies(new Headers())
+        const responseCookies = new ResponseCookies(new Headers())
+
+        const sessionStore = new StatefulSessionStore({
+          secret,
+          store,
+          rolling: true,
+          absoluteDuration: 3600,
+          inactivityDuration: 1800,
+
+          cookieOptions: {
+            name: "my-session",
+          },
+        })
+        await sessionStore.set(requestCookies, responseCookies, session)
+
+        const cookie = responseCookies.get("my-session")
+        const cookieValue = await decrypt(cookie!.value, secret)
+
+        expect(cookie).toBeDefined()
+        expect(cookieValue).toHaveProperty("id")
+        expect(cookie?.path).toEqual("/")
+        expect(cookie?.httpOnly).toEqual(true)
+        expect(cookie?.sameSite).toEqual("lax")
+        expect(cookie?.maxAge).toEqual(1800)
+        expect(cookie?.secure).toEqual(false)
+      })
     })
   })
 

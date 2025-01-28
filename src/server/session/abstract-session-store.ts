@@ -6,6 +6,27 @@ import {
   ResponseCookies,
 } from "../cookies"
 
+export interface SessionCookieOptions {
+  /**
+   * The name of the session cookie.
+   *
+   * Default: `__session`.
+   */
+  name?: string
+  /**
+   * The sameSite attribute of the session cookie.
+   *
+   * Default: `lax`.
+   */
+  sameSite?: "strict" | "lax" | "none"
+  /**
+   * The secure attribute of the session cookie.
+   *
+   * Default: depends on the protocol of the application's base URL. If the protocol is `https`, then `true`, otherwise `false`.
+   */
+  secure?: boolean
+}
+
 export interface SessionConfiguration {
   /**
    * A boolean indicating whether rolling sessions should be used or not.
@@ -32,18 +53,25 @@ export interface SessionConfiguration {
    * Default: 1 day.
    */
   inactivityDuration?: number
+
+  /**
+   * The options for the session cookie.
+   */
+  cookie?: SessionCookieOptions
 }
 
 interface SessionStoreOptions extends SessionConfiguration {
   secret: string
   store?: SessionDataStore
 
-  cookieOptions?: Partial<Pick<CookieOptions, "secure">>
+  cookieOptions?: SessionCookieOptions
 }
+
+const SESSION_COOKIE_NAME = "__session"
 
 export abstract class AbstractSessionStore {
   public secret: string
-  public SESSION_COOKIE_NAME = "__session"
+  public sessionCookieName: string
 
   private rolling: boolean
   private absoluteDuration: number
@@ -70,9 +98,10 @@ export abstract class AbstractSessionStore {
     this.inactivityDuration = inactivityDuration
     this.store = store
 
+    this.sessionCookieName = cookieOptions?.name ?? SESSION_COOKIE_NAME
     this.cookieConfig = {
       httpOnly: true,
-      sameSite: "lax",
+      sameSite: cookieOptions?.sameSite ?? "lax",
       secure: cookieOptions?.secure ?? false,
       path: "/",
     }
