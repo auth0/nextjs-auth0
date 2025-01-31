@@ -1,6 +1,9 @@
 import { SessionData, SessionDataStore } from "../../types"
 import * as cookies from "../cookies"
-import { AbstractSessionStore } from "./abstract-session-store"
+import {
+  AbstractSessionStore,
+  SessionCookieOptions,
+} from "./abstract-session-store"
 
 // the value of the stateful session cookie containing a unique session ID to identify
 // the current session
@@ -17,7 +20,7 @@ interface StatefulSessionStoreOptions {
 
   store: SessionDataStore
 
-  cookieOptions?: Partial<Pick<cookies.CookieOptions, "secure">>
+  cookieOptions?: SessionCookieOptions
 }
 
 const generateId = () => {
@@ -51,7 +54,7 @@ export class StatefulSessionStore extends AbstractSessionStore {
   }
 
   async get(reqCookies: cookies.RequestCookies) {
-    const cookieValue = reqCookies.get(this.SESSION_COOKIE_NAME)?.value
+    const cookieValue = reqCookies.get(this.sessionCookieName)?.value
 
     if (!cookieValue) {
       return null
@@ -73,7 +76,7 @@ export class StatefulSessionStore extends AbstractSessionStore {
   ) {
     // check if a session already exists. If so, maintain the existing session ID
     let sessionId = null
-    const cookieValue = reqCookies.get(this.SESSION_COOKIE_NAME)?.value
+    const cookieValue = reqCookies.get(this.sessionCookieName)?.value
     if (cookieValue) {
       const sessionCookie = await cookies.decrypt<SessionCookieValue>(
         cookieValue,
@@ -101,22 +104,22 @@ export class StatefulSessionStore extends AbstractSessionStore {
     )
     const maxAge = this.calculateMaxAge(session.internal.createdAt)
 
-    resCookies.set(this.SESSION_COOKIE_NAME, jwe.toString(), {
+    resCookies.set(this.sessionCookieName, jwe.toString(), {
       ...this.cookieConfig,
       maxAge,
     })
     await this.store.set(sessionId, session)
 
     // to enable read-after-write in the same request for middleware
-    reqCookies.set(this.SESSION_COOKIE_NAME, jwe.toString())
+    reqCookies.set(this.sessionCookieName, jwe.toString())
   }
 
   async delete(
     reqCookies: cookies.RequestCookies,
     resCookies: cookies.ResponseCookies
   ) {
-    const cookieValue = reqCookies.get(this.SESSION_COOKIE_NAME)?.value
-    await resCookies.delete(this.SESSION_COOKIE_NAME)
+    const cookieValue = reqCookies.get(this.sessionCookieName)?.value
+    await resCookies.delete(this.sessionCookieName)
 
     if (!cookieValue) {
       return
