@@ -1,5 +1,14 @@
 # Change Log
 
+## [v3.6.0](https://github.com/auth0/nextjs-auth0/tree/v3.6.0) (2025-01-31)
+This is a maintainance release for V3 of the SDK.  
+V4 supports Next.JS 15 and React 19 and is published on [npm](https://www.npmjs.com/package/@auth0/nextjs-auth0)!  
+We will continue to add features and security upgrades in V4 going further. Please migrate to V4 for a better experience.
+
+
+**Security**
+- [bump jshttp/cookie from 0.6.0 to 0.7.1](https://github.com/auth0/nextjs-auth0/pull/1778)
+
 ## [v3.5.0](https://github.com/auth0/nextjs-auth0/tree/v3.5.0) (2023-12-06)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.4.0...v3.5.0)
 
