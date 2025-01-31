@@ -217,6 +217,84 @@ describe("Stateless Session Store", async () => {
         expect(cookie?.maxAge).toEqual(3600)
         expect(cookie?.secure).toEqual(true)
       })
+
+      it("should apply the sameSite attribute to the cookie", async () => {
+        const secret = await generateSecret(32)
+        const session: SessionData = {
+          user: { sub: "user_123" },
+          tokenSet: {
+            accessToken: "at_123",
+            refreshToken: "rt_123",
+            expiresAt: 123456,
+          },
+          internal: {
+            sid: "auth0-sid",
+            createdAt: Math.floor(Date.now() / 1000),
+          },
+        }
+        const requestCookies = new RequestCookies(new Headers())
+        const responseCookies = new ResponseCookies(new Headers())
+
+        const sessionStore = new StatelessSessionStore({
+          secret,
+          rolling: false,
+          absoluteDuration: 3600,
+          cookieOptions: {
+            secure: true,
+            sameSite: "strict",
+          },
+        })
+        await sessionStore.set(requestCookies, responseCookies, session)
+
+        const cookie = responseCookies.get("__session")
+
+        expect(cookie).toBeDefined()
+        expect(await decrypt(cookie!.value, secret)).toEqual(session)
+        expect(cookie?.path).toEqual("/")
+        expect(cookie?.httpOnly).toEqual(true)
+        expect(cookie?.sameSite).toEqual("strict")
+        expect(cookie?.maxAge).toEqual(3600)
+        expect(cookie?.secure).toEqual(true)
+      })
+
+      it("should apply the cookie name", async () => {
+        const secret = await generateSecret(32)
+        const session: SessionData = {
+          user: { sub: "user_123" },
+          tokenSet: {
+            accessToken: "at_123",
+            refreshToken: "rt_123",
+            expiresAt: 123456,
+          },
+          internal: {
+            sid: "auth0-sid",
+            createdAt: Math.floor(Date.now() / 1000),
+          },
+        }
+        const requestCookies = new RequestCookies(new Headers())
+        const responseCookies = new ResponseCookies(new Headers())
+
+        const sessionStore = new StatelessSessionStore({
+          secret,
+          rolling: false,
+          absoluteDuration: 3600,
+          cookieOptions: {
+            secure: true,
+            name: "custom-session",
+          },
+        })
+        await sessionStore.set(requestCookies, responseCookies, session)
+
+        const cookie = responseCookies.get("custom-session")
+
+        expect(cookie).toBeDefined()
+        expect(await decrypt(cookie!.value, secret)).toEqual(session)
+        expect(cookie?.path).toEqual("/")
+        expect(cookie?.httpOnly).toEqual(true)
+        expect(cookie?.sameSite).toEqual("lax")
+        expect(cookie?.maxAge).toEqual(3600)
+        expect(cookie?.secure).toEqual(true)
+      })
     })
   })
 

@@ -16,10 +16,11 @@ import { RequestCookies, ResponseCookies } from "./cookies"
 import {
   AbstractSessionStore,
   SessionConfiguration,
+  SessionCookieOptions,
 } from "./session/abstract-session-store"
 import { StatefulSessionStore } from "./session/stateful-session-store"
 import { StatelessSessionStore } from "./session/stateless-session-store"
-import { TransactionStore } from "./transaction-store"
+import { TransactionCookieOptions, TransactionStore } from "./transaction-store"
 
 interface Auth0ClientOptions {
   // authorization server configuration
@@ -87,6 +88,12 @@ interface Auth0ClientOptions {
    * See [Session configuration](https://github.com/auth0/nextjs-auth0#session-configuration) for additional details.
    */
   session?: SessionConfiguration
+
+  // transaction cookie configuration
+  /**
+   * Configure the transaction cookie used to store the state of the authentication transaction.
+   */
+  transactionCookie?: TransactionCookieOptions
 
   // hooks
   /**
@@ -162,20 +169,30 @@ export class Auth0Client {
       options.clientAssertionSigningAlg ||
       process.env.AUTH0_CLIENT_ASSERTION_SIGNING_ALG
 
-    const cookieOptions = {
-      secure: false,
+    const sessionCookieOptions: SessionCookieOptions = {
+      name: options.session?.cookie?.name ?? "__session",
+      secure: options.session?.cookie?.secure ?? false,
+      sameSite: options.session?.cookie?.sameSite ?? "lax",
     }
+
+    const transactionCookieOptions: TransactionCookieOptions = {
+      prefix: options.transactionCookie?.prefix ?? "__txn_",
+      secure: options.transactionCookie?.secure ?? false,
+      sameSite: options.transactionCookie?.sameSite ?? "lax",
+    }
+
     if (appBaseUrl) {
       const { protocol } = new URL(appBaseUrl)
       if (protocol === "https:") {
-        cookieOptions.secure = true
+        sessionCookieOptions.secure = true
+        transactionCookieOptions.secure = true
       }
     }
 
     this.transactionStore = new TransactionStore({
       ...options.session,
       secret,
-      cookieOptions,
+      cookieOptions: transactionCookieOptions,
     })
 
     this.sessionStore = options.sessionStore
@@ -183,12 +200,12 @@ export class Auth0Client {
           ...options.session,
           secret,
           store: options.sessionStore,
-          cookieOptions,
+          cookieOptions: sessionCookieOptions,
         })
       : new StatelessSessionStore({
           ...options.session,
           secret,
-          cookieOptions,
+          cookieOptions: sessionCookieOptions,
         })
 
     this.authClient = new AuthClient({

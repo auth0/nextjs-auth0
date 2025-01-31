@@ -156,6 +156,78 @@ describe("Transaction Store", async () => {
         expect(cookie?.maxAge).toEqual(3600)
         expect(cookie?.secure).toEqual(true)
       })
+
+      it("should apply the sameSite attribute to the cookie", async () => {
+        const secret = await generateSecret(32)
+        const codeVerifier = oauth.generateRandomCodeVerifier()
+        const nonce = oauth.generateRandomNonce()
+        const state = oauth.generateRandomState()
+        const transactionState: TransactionState = {
+          nonce,
+          maxAge: 3600,
+          codeVerifier: codeVerifier,
+          responseType: "code",
+          state,
+          returnTo: "/dashboard",
+        }
+        const headers = new Headers()
+        const responseCookies = new ResponseCookies(headers)
+
+        const transactionStore = new TransactionStore({
+          secret,
+          cookieOptions: {
+            sameSite: "strict",
+          },
+        })
+        await transactionStore.save(responseCookies, transactionState)
+
+        const cookieName = `__txn_${state}`
+        const cookie = responseCookies.get(cookieName)
+
+        expect(cookie).toBeDefined()
+        expect(await decrypt(cookie!.value, secret)).toEqual(transactionState)
+        expect(cookie?.path).toEqual("/")
+        expect(cookie?.httpOnly).toEqual(true)
+        expect(cookie?.sameSite).toEqual("strict")
+        expect(cookie?.maxAge).toEqual(3600)
+        expect(cookie?.secure).toEqual(false)
+      })
+
+      it("should apply the cookie prefix to the cookie name", async () => {
+        const secret = await generateSecret(32)
+        const codeVerifier = oauth.generateRandomCodeVerifier()
+        const nonce = oauth.generateRandomNonce()
+        const state = oauth.generateRandomState()
+        const transactionState: TransactionState = {
+          nonce,
+          maxAge: 3600,
+          codeVerifier: codeVerifier,
+          responseType: "code",
+          state,
+          returnTo: "/dashboard",
+        }
+        const headers = new Headers()
+        const responseCookies = new ResponseCookies(headers)
+
+        const transactionStore = new TransactionStore({
+          secret,
+          cookieOptions: {
+            prefix: "custom_",
+          },
+        })
+        await transactionStore.save(responseCookies, transactionState)
+
+        const cookieName = `custom_${state}`
+        const cookie = responseCookies.get(cookieName)
+
+        expect(cookie).toBeDefined()
+        expect(await decrypt(cookie!.value, secret)).toEqual(transactionState)
+        expect(cookie?.path).toEqual("/")
+        expect(cookie?.httpOnly).toEqual(true)
+        expect(cookie?.sameSite).toEqual("lax")
+        expect(cookie?.maxAge).toEqual(3600)
+        expect(cookie?.secure).toEqual(false)
+      })
     })
   })
 
