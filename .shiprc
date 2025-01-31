@@ -3,5 +3,33 @@
         "src/version.ts": [],
         ".version": []
     },
+    "prFilters": [
+        {
+            "type": "title",
+            "args": [
+                "^Release 4\\.0\\.0\\s*$",
+                "^feat: allow configuring cookie name and samesite attribute\\s*$",
+                "^chore: in-memory cache for authorization server metadata\\s*$",
+                "^fix: persist access token scope in tokenset\\s*$",
+                "^chore: reduce session lifetime defaults\\s*$",
+                "^chore: add telemetry and options to disable\\s*$",
+                "^4\\.0\\.0-beta\\.14\\s*$",
+                "^4\\.0\\.0-beta\\.13\\s*$",
+                "^4\\.0\\.0-beta\\.12\\s*$",
+                "^4\\.0\\.0-beta\\.11\\s*$",
+                "^4\\.0\\.0-beta\\.10\\s*$",
+                "^Add a note to the current readme to point towards our v4 branch for N\\.\\.\\.\\s*$",
+                "^4\\.0\\.0-beta\\.9\\s*$",
+                "^4\\.0\\.0-beta\\.8\\s*$",
+                "^4\\.0\\.0-beta\\.4\\s*$",
+                "^4\\.0\\.0-beta\\.3\\s*$",
+                "^Release v4\\.0\\.0-beta\\.0\\s*$",
+                "^Updating LICENSE and package-lock\\.json\\s*$",
+                "^Release v4\\.0\\.0-alpha\\.0\\s*$",
+                "^SDK v4\\s*$"
+            ],
+            "invert": true
+        }
+    ],
     "postbump": "npm run docs"
 }
