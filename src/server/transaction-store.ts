@@ -13,9 +13,30 @@ export interface TransactionState extends jose.JWTPayload {
   maxAge?: number // the maximum age of the authentication session
 }
 
+export interface TransactionCookieOptions {
+  /**
+   * The prefix of the cookie used to store the transaction state.
+   *
+   * Default: `__txn_{state}`.
+   */
+  prefix?: string
+  /**
+   * The sameSite attribute of the transaction cookie.
+   *
+   * Default: `lax`.
+   */
+  sameSite?: "strict" | "lax" | "none"
+  /**
+   * The secure attribute of the transaction cookie.
+   *
+   * Default: depends on the protocol of the application's base URL. If the protocol is `https`, then `true`, otherwise `false`.
+   */
+  secure?: boolean
+}
+
 interface TransactionStoreOptions {
   secret: string
-  cookieOptions?: Partial<Pick<cookies.CookieOptions, "secure">>
+  cookieOptions?: TransactionCookieOptions
 }
 
 /**
@@ -25,13 +46,16 @@ interface TransactionStoreOptions {
  */
 export class TransactionStore {
   private secret: string
+  private transactionCookiePrefix: string
   private cookieConfig: cookies.CookieOptions
 
   constructor({ secret, cookieOptions }: TransactionStoreOptions) {
     this.secret = secret
+    this.transactionCookiePrefix =
+      cookieOptions?.prefix ?? TRANSACTION_COOKIE_PREFIX
     this.cookieConfig = {
       httpOnly: true,
-      sameSite: "lax", // required to allow the cookie to be sent on the callback request
+      sameSite: cookieOptions?.sameSite ?? "lax", // required to allow the cookie to be sent on the callback request
       secure: cookieOptions?.secure ?? false,
       path: "/",
       maxAge: 60 * 60, // 1 hour in seconds
@@ -44,7 +68,7 @@ export class TransactionStore {
    * between different transactions.
    */
   private getTransactionCookieName(state: string) {
-    return `${TRANSACTION_COOKIE_PREFIX}${state}`
+    return `${this.transactionCookiePrefix}${state}`
   }
 
   async save(
