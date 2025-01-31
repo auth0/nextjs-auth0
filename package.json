@@ -1,6 +1,6 @@
 {
   "name": "@auth0/nextjs-auth0",
-  "version": "3.5.0",
+  "version": "3.6.0",
   "description": "Next.js SDK for signing in with Auth0",
   "exports": {
     ".": "./dist/index.js",
@@ -39,8 +39,8 @@
     "build:vercel": "npm run install:example && npm run build && npm run build:example",
     "start:example": "npm run dev --prefix=example-app",
     "start:example-local": "npm run dev:local --prefix=example-app",
-    "test": "jest tests --coverage",
-    "test:watch": "jest --coverage --watch",
+    "test": "jest tests",
+    "test:watch": "jest",
     "test:example": "start-server-and-test start:example http-get://localhost:3000 cypress:run",
     "test:example:watch": "start-server-and-test start:example 3000 cypress:open",
     "test:example-local": "npx start-server-and-test 'start:example-local' http://localhost:3000 'cypress run --config-file=./cypress-local.config.js'",
