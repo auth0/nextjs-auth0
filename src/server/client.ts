@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { NextApiRequest, NextApiResponse } from "next/types";
 
-import { AccessTokenError, AccessTokenErrorCode } from "../errors";
+import { AccessTokenError, AccessTokenErrorCode, FederatedConnectionAccessTokenErrorCode, FederatedConnectionsAccessTokenError } from "../errors";
 import { SessionData, SessionDataStore } from "../types";
 import {
   AuthClient,
@@ -398,6 +398,56 @@ export class Auth0Client {
       expiresAt: tokenSet.expiresAt
     };
   }
+
+  /**
+   * Retrieves an access token for a federated connection.
+   *
+   * This method attempts to obtain an access token for a specified federated connection.
+   * It first checks if a session exists, either from the provided request or from cookies.
+   * If no session is found, it throws a `FederatedConnectionsAccessTokenError` indicating
+   * that the user does not have an active session.
+   *
+   * @param {string} connection - The name of the federated connection for which to obtain an access token.
+   * @param {string} [login_hint] - An optional login hint to assist in the authentication process.
+   * @param {PagesRouterRequest} [req] - An optional request object from which to extract session information.
+   * 
+   * @throws {FederatedConnectionsAccessTokenError} If the user does not have an active session.
+   * @throws {Error} If there is an error during the token exchange process.
+   * 
+   * @returns {Promise<{ federatedConnectionAccessToken: string, expiresAt: number }>} An object containing the access token and its expiration time.
+   */
+  async getFederatedConnectionAccessToken(connection: string, login_hint?: string, req?: PagesRouterRequest): Promise<{ federatedConnectionAccessToken: string; expiresAt: number }> {
+    let session: SessionData | null = null
+
+    if (req) {
+      session = await this.sessionStore.get(this.createRequestCookies(req))
+    } else {
+      session = await this.sessionStore.get(await cookies())
+    }
+
+    if (!session) {
+      throw new FederatedConnectionsAccessTokenError(
+        FederatedConnectionAccessTokenErrorCode.MISSING_SESSION,
+        "The user does not have an active session."
+      )
+    }
+
+
+
+    const [error, response] = await this.authClient.federatedConnectionTokenExchange(session.tokenSet, connection, login_hint);
+
+    if (error !== null) {
+      throw error;
+    }
+
+
+    return {
+      federatedConnectionAccessToken: response.accessToken,
+      expiresAt: response.expiresAt
+    }
+
+  }
+
 
   /**
    * updateSession updates the session of the currently authenticated user. If the user does not have a session, an error is thrown.
