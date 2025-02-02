@@ -4012,7 +4012,123 @@ ca/T0LLtgmbMmxSv/MmzIg==
         })
       })
     })
-  })
+  });
+
+  describe("federatedConnectionAccessToken", async () => {
+
+    it("Should exchange a refresh token for an access token", async () => {
+      const secret = await generateSecret(32)
+      const transactionStore = new TransactionStore({
+        secret,
+      })
+      const sessionStore = new StatelessSessionStore({
+        secret,
+      })
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        fetch: getMockAuthorizationServer({
+          tokenEndpointResponse: {
+            token_type: "Bearer",
+            access_token: DEFAULT.accessToken,
+            expires_in: 86400, // expires in 10 days
+          } as oauth.TokenEndpointResponse,
+        }),
+      })
+
+      const expiresAt = Math.floor(Date.now() / 1000) - 10 * 24 * 60 * 60 // expired 10 days ago
+      const tokenSet = {
+        accessToken: DEFAULT.accessToken,
+        refreshToken: DEFAULT.refreshToken,
+        expiresAt,
+      };
+
+      const response = await authClient.federatedConnectionTokenExchange(tokenSet, "google-oauth2", "000100123");
+      const [error, federatedConnectionTokenSet] = response;
+      expect(error).toBe(null);
+      expect(federatedConnectionTokenSet).toEqual({
+        accessToken: DEFAULT.accessToken,
+        expiresAt: expect.any(Number),
+      })
+    })
+
+    it("should return an error if the discovery endpoint could not be fetched", async () => {
+      const secret = await generateSecret(32)
+      const transactionStore = new TransactionStore({
+        secret,
+      })
+      const sessionStore = new StatelessSessionStore({
+        secret,
+      })
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        fetch: getMockAuthorizationServer({
+          discoveryResponse: new Response(null, { status: 500 }),
+        }),
+      })
+
+      const expiresAt = Math.floor(Date.now() / 1000) - 10 * 24 * 60 * 60 // expired 10 days ago
+      const tokenSet = {
+        accessToken: DEFAULT.accessToken,
+        refreshToken: DEFAULT.refreshToken,
+        expiresAt,
+      }
+
+      const [error, federatedConnectionTokenSet] = await authClient.federatedConnectionTokenExchange(tokenSet, "google-oauth2")
+      expect(error?.code).toEqual("discovery_error")
+      expect(federatedConnectionTokenSet).toBeNull()
+    })
+
+    it("should return an error if the token set does not contain a refresh token", async () => {
+      const secret = await generateSecret(32)
+      const transactionStore = new TransactionStore({
+        secret,
+      })
+      const sessionStore = new StatelessSessionStore({
+        secret,
+      })
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        fetch: getMockAuthorizationServer(),
+      })
+
+      const expiresAt = Math.floor(Date.now() / 1000) - 10 * 24 * 60 * 60 // expired 10 days ago
+      const tokenSet = {
+        accessToken: DEFAULT.accessToken,
+        expiresAt,
+      }
+
+      const [error, federatedConnectionTokenSet] = await authClient.federatedConnectionTokenExchange(tokenSet, "google-oauth2")
+      expect(error?.code).toEqual("missing_refresh_token")
+      expect(federatedConnectionTokenSet).toBeNull()
+    })
+  });
 })
 
 const _authorizationServerMetadata = {
