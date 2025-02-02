@@ -98,3 +98,46 @@ export class AccessTokenError extends SdkError {
     this.code = code
   }
 }
+
+/**
+ * Enum representing error codes related to federated connection access tokens.
+ */
+export enum FederatedConnectionAccessTokenErrorCode {
+  /**
+   * The session is missing.
+   */
+  MISSING_SESSION = "missing_session",
+
+  /**
+   * The refresh token is missing.
+   */
+  MISSING_REFRESH_TOKEN = "missing_refresh_token",
+
+  /**
+   * Failed to exchange the refresh token.
+   */
+  FAILED_TO_EXCHANGE = "failed_to_exchange_refresh_token",
+}
+
+/**
+ * Error class representing an access token error for federated connections.
+ * Extends the `SdkError` class.
+ */
+export class FederatedConnectionsAccessTokenError extends SdkError {
+  /**
+   * The error code associated with the access token error.
+   */
+  public code: string;
+
+  /**
+   * Constructs a new `FederatedConnectionsAccessTokenError` instance.
+   * 
+   * @param code - The error code.
+   * @param message - The error message.
+   */
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "FederatedConnectionAccessTokenError";
+    this.code = code;
+  }
+}

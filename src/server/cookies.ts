@@ -53,3 +53,67 @@ export type ReadonlyRequestCookies = Omit<
   Pick<ResponseCookies, "set" | "delete">
 export { ResponseCookies }
 export { RequestCookies }
+
+export interface EncryptAndSetCookieOptions {
+  reqCookies: RequestCookies;
+  resCookies: ResponseCookies;
+  payload: jose.JWTPayload;
+  cookieName: string;
+  maxAge: number;
+  cookieOptions: CookieOptions;
+  secret: string;
+}
+
+export const encryptAndSet = async({
+  reqCookies,
+  resCookies,
+  payload,
+  cookieName,
+  maxAge,
+  cookieOptions,
+  secret,
+}: EncryptAndSetCookieOptions) => {
+  const jwe = await encrypt(payload, secret)
+  const value = jwe.toString()
+
+  resCookies.set(cookieName, value, {
+    ...cookieOptions,
+    maxAge,
+  })
+  // to enable read-after-write in the same request for middleware
+  reqCookies.set(cookieName, value)
+
+  // check if the cookie size exceeds 4096 bytes, and if so, log a warning
+  const cookieJarSizeTest = new ResponseCookies(new Headers())
+  cookieJarSizeTest.set(cookieName, value, {
+    ...cookieOptions,
+    maxAge,
+  })
+  if (new TextEncoder().encode(cookieJarSizeTest.toString()).length >= 4096) {
+    console.warn(
+      "The session cookie size exceeds 4096 bytes, which may cause issues in some browsers. " +
+        "Consider removing any unnecessary custom claims from the access token or the user profile. " +
+        "Alternatively, you can use a stateful session implementation to store the session data in a data store."
+    )
+  }
+}
+
+export type DecryptAndGetCookieOptions = {
+  reqCookies: RequestCookies | ReadonlyRequestCookies;
+  cookieName: string;
+  secret: string;
+};
+
+export const decryptAndGet = async <T>({
+  reqCookies,
+  cookieName,
+  secret,
+}: DecryptAndGetCookieOptions): Promise<T | null> => {
+  const cookieValue = reqCookies.get(cookieName)?.value;
+
+  if (!cookieValue) {
+    return null;
+  }
+
+  return decrypt<T>(cookieValue, secret);
+};
