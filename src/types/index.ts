@@ -1,3 +1,5 @@
+import { FederatedConnectionMap } from "../server/federatedConnections/serializer"
+
 export interface TokenSet {
   accessToken: string;
   scope?: string;
@@ -12,9 +14,10 @@ export interface SessionData {
     // the session ID from the authorization server
     sid: string;
     // the time at which the session was created in seconds since epoch
-    createdAt: number;
-  };
-  [key: string]: unknown;
+    createdAt: number
+  },
+  federatedConnectionsMap?: FederatedConnectionMap
+  [key: string]: unknown
 }
 
 export interface SessionDataStore {
