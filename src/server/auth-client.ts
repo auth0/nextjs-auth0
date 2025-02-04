@@ -14,10 +14,9 @@ import {
   InvalidStateError,
   MissingStateError,
   OAuth2Error,
-  SdkError
+  SdkError,
 } from "../errors";
-import { LogoutToken, SessionData, TokenSet } from "../types";
-import { toSafeRedirect } from "../utils/url-helpers";
+import { FederatedConnectionTokenSet, LogoutToken, SessionData, TokenSet } from "../types";
 import { AbstractSessionStore } from "./session/abstract-session-store";
 import { TransactionState, TransactionStore } from "./transaction-store";
 import { filterClaims } from "./user";
@@ -53,9 +52,9 @@ const DEFAULT_SCOPES = ["openid", "profile", "email", "offline_access"].join(
 
 /**
  * A constant representing the grant type for federated connection access token exchange.
- * 
+ *
  * This grant type is used in OAuth token exchange scenarios where a federated connection
- * access token is required. It is specific to Auth0's implementation and follows the 
+ * access token is required. It is specific to Auth0's implementation and follows the
  * "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token" format.
  */
 const GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN = "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token";
@@ -63,7 +62,7 @@ const GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN = "urn:auth0:params:oauth:gra
 /**
  * Constant representing the subject type for a refresh token.
  * This is used in OAuth 2.0 token exchange to specify that the token being exchanged is a refresh token.
- * 
+ *
  * @see {@link https://tools.ietf.org/html/rfc8693#section-3.1 RFC 8693 Section 3.1}
  */
 const SUBJECT_TYPE_REFRESH_TOKEN = "urn:ietf:params:oauth:token-type:refresh_token";
@@ -71,7 +70,7 @@ const SUBJECT_TYPE_REFRESH_TOKEN = "urn:ietf:params:oauth:token-type:refresh_tok
 /**
  * A constant representing the token type for federated connection access tokens.
  * This is used to specify the type of token being requested from Auth0.
- * 
+ *
  * @constant
  * @type {string}
  */
@@ -151,7 +150,7 @@ export interface FederatedConnectionAccessTokenResponse {
   /**
    * Optional. The scope of the access token.
    */
-  scope?: string  
+  scope?: string
 }
 
 export class AuthClient {
@@ -993,75 +992,108 @@ export class AuthClient {
    * the request to the authorization server's token endpoint.
    *
    * @param {TokenSet} tokenSet - The set of tokens, including the refresh token.
+   * @param {FederatedConnectionTokenSet | undefined} federatedConnectionTokenSet - The existing federated connection token set.
    * @param {string} connection - The federated connection identifier.
    * @param {string} [login_hint] - Optional login hint to be included in the request.
-   * @returns {Promise<[SdkError, null] | [null, FederatedConnectionAccessTokenResponse]>} A promise that resolves to a tuple.
+   * @returns {Promise<[SdkError, null] | [null, FederatedConnectionTokenSet]>} A promise that resolves to a tuple.
    *          The first element is either an `SdkError` if an error occurred, or `null` if the request was successful.
    *          The second element is either `null` if an error occurred, or a `FederatedConnectionAccessTokenResponse` object
    *          containing the access token, expiration time, and scope if the request was successful.
    *
    * @throws {FederatedConnectionsAccessTokenError} If the refresh token is missing or if there is an error during the token exchange process.
    */
-  async federatedConnectionTokenExchange(tokenSet: TokenSet, connection: string, login_hint?: string): Promise<[SdkError, null] | [null, FederatedConnectionAccessTokenResponse]> {
+  async getFederatedConnectionTokenSet(
+    tokenSet: TokenSet,
+    federatedConnectionTokenSet: FederatedConnectionTokenSet | undefined,
+    connection: string,
+    login_hint?: string
+  ): Promise<
+    [SdkError, null] | [null, FederatedConnectionTokenSet]
+  > {
     if (!tokenSet.refreshToken) {
-      return [new FederatedConnectionsAccessTokenError(
-        FederatedConnectionAccessTokenErrorCode.MISSING_REFRESH_TOKEN,
-        "A refresh token was not present, Federated Connection Access Token requires a refresh token. The user needs to re-authenticate."
-      ), null];
-    }
-
-
-    const params = new URLSearchParams();
-
-    params.append("connection", connection);
-    params.append("subject_token_type", SUBJECT_TYPE_REFRESH_TOKEN);
-    params.append("subject_token", tokenSet.refreshToken);
-
-    params.append("requested_token_type", REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN);
-
-    if (login_hint) {
-      params.append("login_hint", login_hint);
-    }
-
-
-    const [discoveryError, authorizationServerMetadata] = await this.discoverAuthorizationServerMetadata()
-
-    if (discoveryError) {
-      console.error(discoveryError)
-      return [discoveryError, null]
-    }
-
-    const httpResponse = await oauth.genericTokenEndpointRequest(
-      authorizationServerMetadata, 
-      this.clientMetadata,
-      await this.getClientAuth(),
-      GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN,
-      params,
-      {
-        [oauth.customFetch]: this.fetch,
-        [oauth.allowInsecureRequests]: this.allowInsecureRequests,
-      }
-    );
-
-    let tokenEndpointResponse: oauth.TokenEndpointResponse;
-    try {
-      tokenEndpointResponse = await oauth.processGenericTokenEndpointResponse(authorizationServerMetadata, this.clientMetadata, httpResponse);
-    } catch (err) {
-      console.error(err);
       return [
         new FederatedConnectionsAccessTokenError(
-          FederatedConnectionAccessTokenErrorCode.FAILED_TO_EXCHANGE,
-          "There was an error trying to exchange the refresh token for a federated connection access token. Check the server logs for more information."
+          FederatedConnectionAccessTokenErrorCode.MISSING_REFRESH_TOKEN,
+          "A refresh token was not present, Federated Connection Access Token requires a refresh token. The user needs to re-authenticate."
         ),
         null,
       ]
     }
 
-    return [null, {
-      accessToken: tokenEndpointResponse.access_token,
-      expiresAt: tokenEndpointResponse.expires_in! + (Date.now() / 1000),
-      scope: tokenEndpointResponse.scope,
-    }]
+    // When we do not have a federated connection token set, or the one we have is expired
+    // we need to call Auth0 for a new one.
+    if (
+      !federatedConnectionTokenSet ||
+      federatedConnectionTokenSet.expiresAt <= Date.now() / 1000
+    ) {
+      const params = new URLSearchParams()
+
+      params.append("connection", connection)
+      params.append("subject_token_type", SUBJECT_TYPE_REFRESH_TOKEN)
+      params.append("subject_token", tokenSet.refreshToken)
+
+      params.append(
+        "requested_token_type",
+        REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN
+      )
+
+      if (login_hint) {
+        params.append("login_hint", login_hint)
+      }
+
+      const [discoveryError, authorizationServerMetadata] =
+        await this.discoverAuthorizationServerMetadata()
+
+      if (discoveryError) {
+        console.error(discoveryError)
+        return [discoveryError, null]
+      }
+
+      const httpResponse = await oauth.genericTokenEndpointRequest(
+        authorizationServerMetadata,
+        this.clientMetadata,
+        await this.getClientAuth(),
+        GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN,
+        params,
+        {
+          [oauth.customFetch]: this.fetch,
+          [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+        }
+      )
+
+      let tokenEndpointResponse: oauth.TokenEndpointResponse
+      try {
+        tokenEndpointResponse = await oauth.processGenericTokenEndpointResponse(
+          authorizationServerMetadata,
+          this.clientMetadata,
+          httpResponse
+        )
+      } catch (err) {
+        console.error(err);
+        return [
+          new FederatedConnectionsAccessTokenError(
+            FederatedConnectionAccessTokenErrorCode.FAILED_TO_EXCHANGE,
+            "There was an error trying to exchange the refresh token for a federated connection access token. Check the server logs for more information."
+          ),
+          null,
+        ]
+      }
+
+      return [
+        null,
+        {
+          accessToken: tokenEndpointResponse.access_token,
+          expiresAt: Math.floor(Date.now() / 1000) + Number(tokenEndpointResponse.expires_in),
+          scope: tokenEndpointResponse.scope,
+          connection
+        },
+      ]
+    }
+
+    return [
+      null,
+      federatedConnectionTokenSet,
+    ]
   }
 }
 

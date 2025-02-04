@@ -1,4 +1,4 @@
-import { SessionData } from "../../types";
+import { FederatedConnectionTokenSet, SessionData } from "../../types";
 import * as cookies from "../cookies";
 import {
   AbstractSessionStore,
@@ -16,6 +16,8 @@ interface StatelessSessionStoreOptions {
 }
 
 export class StatelessSessionStore extends AbstractSessionStore {
+  federatedConnectionTokenSetsCookieName = '__federated_connections'
+
   constructor({
     secret,
     rolling,
@@ -39,7 +41,27 @@ export class StatelessSessionStore extends AbstractSessionStore {
       return null;
     }
 
-    return cookies.decrypt<SessionData>(cookieValue, this.secret);
+    const originalSession = await cookies.decrypt<SessionData>(
+      cookieValue,
+      this.secret
+    );
+
+    // As federated connection access tokens are stored in seperate cookies,
+    // we need to get all cookies and only use those that are prefixed with `this.federatedConnectionTokenSetsCookieName`
+    const federatedConnectionTokenSets = await Promise.all(
+      this.getFederatedConnectionTokenSetsCookies(reqCookies).map(
+        (fcatCookie) =>
+          cookies.decrypt<FederatedConnectionTokenSet>(
+            fcatCookie.value,
+            this.secret
+          )
+      )
+    )
+
+    return {
+      ...originalSession,
+      federatedConnectionTokenSets,
+    }
   }
 
   /**
@@ -50,20 +72,59 @@ export class StatelessSessionStore extends AbstractSessionStore {
     resCookies: cookies.ResponseCookies,
     session: SessionData
   ) {
+
+    const { federatedConnectionTokenSets, ...originalSession } = session
+    const maxAge = this.calculateMaxAge(session.internal.createdAt)
+
+    await this.storeInCookie(
+      reqCookies,
+      resCookies,
+      originalSession,
+      this.sessionCookieName,
+      maxAge
+    );
+
+    // Store federated connection access tokens, each in its own cookie
+    if (federatedConnectionTokenSets?.length) {
+      await Promise.all(
+        federatedConnectionTokenSets.map((federatedConnectionTokenSet, index) =>
+          this.storeInCookie(
+            reqCookies,
+            resCookies,
+            federatedConnectionTokenSet,
+            `${this.federatedConnectionTokenSetsCookieName}_${index}`,
+            maxAge
+          )
+        )
+      )
+    }
+  }
+
+  async delete(
+    reqCookies: cookies.RequestCookies,
+    resCookies: cookies.ResponseCookies
+  ) {
+    resCookies.delete(this.sessionCookieName);
+    this.getFederatedConnectionTokenSetsCookies(reqCookies)
+      .forEach(cookie => resCookies.delete(cookie.name));
+    
+  }
+
+  private async storeInCookie(reqCookies: cookies.RequestCookies, resCookies: cookies.ResponseCookies, session: JWTPayload, sessionCookieName: string, maxAge: number) {
     const jwe = await cookies.encrypt(session, this.secret);
-    const maxAge = this.calculateMaxAge(session.internal.createdAt);
+    
     const cookieValue = jwe.toString();
 
-    resCookies.set(this.sessionCookieName, jwe.toString(), {
+    resCookies.set(sessionCookieName, jwe.toString(), {
       ...this.cookieConfig,
       maxAge
     });
     // to enable read-after-write in the same request for middleware
-    reqCookies.set(this.sessionCookieName, cookieValue);
+    reqCookies.set(sessionCookieName, cookieValue);
 
     // check if the session cookie size exceeds 4096 bytes, and if so, log a warning
     const cookieJarSizeTest = new cookies.ResponseCookies(new Headers());
-    cookieJarSizeTest.set(this.sessionCookieName, cookieValue, {
+    cookieJarSizeTest.set(sessionCookieName, cookieValue, {
       ...this.cookieConfig,
       maxAge
     });
@@ -76,10 +137,9 @@ export class StatelessSessionStore extends AbstractSessionStore {
     }
   }
 
-  async delete(
-    _reqCookies: cookies.RequestCookies,
-    resCookies: cookies.ResponseCookies
-  ) {
-    await resCookies.delete(this.sessionCookieName);
+  private getFederatedConnectionTokenSetsCookies(cookies: cookies.RequestCookies | cookies.ResponseCookies) {
+    return cookies
+      .getAll()
+      .filter(cookie => cookie.name.startsWith(this.federatedConnectionTokenSetsCookieName));
   }
 }
