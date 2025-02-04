@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@auth0/nextjs-auth0':
-        specifier: ^4.0.0
-        version: 4.0.0(next@15.0.2(react-dom@19.0.0-rc-02c0e824-20241028(react@19.0.0-rc-02c0e824-20241028))(react@19.0.0-rc-02c0e824-20241028))(react-dom@19.0.0-rc-02c0e824-20241028(react@19.0.0-rc-02c0e824-20241028))(react@19.0.0-rc-02c0e824-20241028)
+        specifier: file:../../auth0-nextjs-auth0-4.0.0.tgz
+        version: file:../../auth0-nextjs-auth0-4.0.0.tgz(next@15.0.2(react-dom@19.0.0-rc-02c0e824-20241028(react@19.0.0-rc-02c0e824-20241028))(react@19.0.0-rc-02c0e824-20241028))(react-dom@19.0.0-rc-02c0e824-20241028(react@19.0.0-rc-02c0e824-20241028))(react@19.0.0-rc-02c0e824-20241028)
       '@radix-ui/react-avatar':
         specifier: ^1.1.1
         version: 1.1.1(@types/react-dom@18.3.1)(@types/react@18.3.12)(react-dom@19.0.0-rc-02c0e824-20241028(react@19.0.0-rc-02c0e824-20241028))(react@19.0.0-rc-02c0e824-20241028)
@@ -91,8 +91,9 @@ packages:
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
     engines: {node: '>=10'}
 
-  '@auth0/nextjs-auth0@4.0.0':
-    resolution: {integrity: sha512-pFnbGXMjNNYRB4jHvjBDOZdvsvYeyIJn0LILD+g8tl8dUStS90spAd3ziPY/YOiaeIejqm5Iy7uYhNlHITJlUg==}
+  '@auth0/nextjs-auth0@file:../../auth0-nextjs-auth0-4.0.0.tgz':
+    resolution: {integrity: sha512-GaYBP6wEcypAJUYq2p8YOixqEqqO421YA5eju0r+qjL8rmJJoy0HdgdhxuZET8+NXXHgP4/TEreLMtOz8/7sFw==, tarball: file:../../auth0-nextjs-auth0-4.0.0.tgz}
+    version: 4.0.0
     peerDependencies:
       next: ^14.0.0 || ^15.0.0
       react: ^18.0.0 || ^19.0.0 || ^19.0.0-0
@@ -2000,8 +2001,8 @@ packages:
     resolution: {integrity: sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==}
     engines: {node: '>= 0.4'}
 
-  swr@2.3.2:
-    resolution: {integrity: sha512-RosxFpiabojs75IwQ316DGoDRmOqtiAj0tg8wCcbEu4CiLZBs/a9QNtHV7TUfDXmmlgqij/NqzKq/eLelyv9xA==}
+  swr@2.3.0:
+    resolution: {integrity: sha512-NyZ76wA4yElZWBHzSgEJc28a0u6QZvhb6w0azeL2k7+Q1gAzVK+IqQYXhVOC/mzi+HZIozrZvBVeSeOZNR2bqA==}
     peerDependencies:
       react: ^16.11.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
@@ -2158,7 +2159,7 @@ snapshots:
 
   '@alloc/quick-lru@5.2.0': {}
 
-  '@auth0/nextjs-auth0@4.0.0(next@15.0.2(react-dom@19.0.0-rc-02c0e824-20241028(react@19.0.0-rc-02c0e824-20241028))(react@19.0.0-rc-02c0e824-20241028))(react-dom@19.0.0-rc-02c0e824-20241028(react@19.0.0-rc-02c0e824-20241028))(react@19.0.0-rc-02c0e824-20241028)':
+  '@auth0/nextjs-auth0@file:../../auth0-nextjs-auth0-4.0.0.tgz(next@15.0.2(react-dom@19.0.0-rc-02c0e824-20241028(react@19.0.0-rc-02c0e824-20241028))(react@19.0.0-rc-02c0e824-20241028))(react-dom@19.0.0-rc-02c0e824-20241028(react@19.0.0-rc-02c0e824-20241028))(react@19.0.0-rc-02c0e824-20241028)':
     dependencies:
       '@edge-runtime/cookies': 5.0.2
       '@panva/hkdf': 1.2.1
@@ -2167,7 +2168,7 @@ snapshots:
       oauth4webapi: 3.1.4
       react: 19.0.0-rc-02c0e824-20241028
       react-dom: 19.0.0-rc-02c0e824-20241028(react@19.0.0-rc-02c0e824-20241028)
-      swr: 2.3.2(react@19.0.0-rc-02c0e824-20241028)
+      swr: 2.3.0(react@19.0.0-rc-02c0e824-20241028)
 
   '@edge-runtime/cookies@5.0.2': {}
 
@@ -4211,7 +4212,7 @@ snapshots:
 
   supports-preserve-symlinks-flag@1.0.0: {}
 
-  swr@2.3.2(react@19.0.0-rc-02c0e824-20241028):
+  swr@2.3.0(react@19.0.0-rc-02c0e824-20241028):
     dependencies:
       dequal: 2.0.3
       react: 19.0.0-rc-02c0e824-20241028

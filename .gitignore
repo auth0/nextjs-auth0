@@ -67,7 +67,9 @@ web_modules/
 .node_repl_history
 
 # Output of 'npm pack'
-*.tgz
+# *.tgz
+# Disabling this gitignore for this Proof of Concept.
+# We should ignore this again eventually.
 
 # Yarn Integrity file
 .yarn-integrity
