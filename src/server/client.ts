@@ -462,6 +462,9 @@ export class Auth0Client {
     ) {
       let federatedConnectionTokenSets;
 
+      // If we already had the federated connection token set in the session
+      // we need to update the item in the array
+      // If not, we need to add it.
       if (existingFederatedConnectionTokenSet) {
         federatedConnectionTokenSets = session.federatedConnectionTokenSets?.map(tokenSet => tokenSet.connection === connection ? federatedConnectionTokenSet : tokenSet)
       } else {
