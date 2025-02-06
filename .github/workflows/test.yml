@@ -17,5 +17,7 @@ jobs:
         node-version: ${{ matrix.node }}
     - name: Install dependencies
       run: npm install -g pnpm && pnpm install
+    - name: Run Build
+      run: pnpm run build
     - name: Run Unit tests
       run: pnpm run test:unit
