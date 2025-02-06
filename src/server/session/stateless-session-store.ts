@@ -33,13 +33,7 @@ export class StatelessSessionStore extends AbstractSessionStore {
   }
 
   async get(reqCookies: cookies.RequestCookies) {
-    const cookieValue = reqCookies.get(this.sessionCookieName)?.value
-
-    if (!cookieValue) {
-      return null
-    }
-
-    return cookies.decrypt<SessionData>(cookieValue, this.secret)
+    return await this.getDecryptedSessionCookie<SessionData>(reqCookies);
   }
 
   /**
