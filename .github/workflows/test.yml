@@ -37,16 +37,28 @@ jobs:
         shell: bash
         run: |
           npm i -g pnpm
-          pnpm --version  # Verify installation
+          pnpm --version
 
-      - name: Setup pnpm cache
-        uses: actions/setup-node@v4
+      - name: Restore pnpm cache
+        uses: actions/cache/restore@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
+          path: ~/.pnpm-store
+          key: pnpm-${{ github.ref }}
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Save pnpm cache
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.pnpm-store
+          key: pnpm-${{ github.ref }}
+
+      - name: Save node_modules cache
+        uses: actions/cache/save@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ github.ref }}
 
   unit:
     needs: build
@@ -69,19 +81,19 @@ jobs:
         shell: bash
         run: |
           npm i -g pnpm
-          pnpm --version  # Verify installation
+          pnpm --version
 
-      - name: Setup pnpm cache
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node }}
-          cache: 'pnpm'
-
-      - name: Restore build artifacts
+      - name: Restore pnpm cache
         uses: actions/cache/restore@v4
         with:
-          path: .
-          key: build-${{ github.ref }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ~/.pnpm-store
+          key: pnpm-${{ github.ref }}
+
+      - name: Restore node_modules cache
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ github.ref }}
 
       - name: Run Unit Tests
         run: pnpm test:unit
@@ -109,19 +121,19 @@ jobs:
         shell: bash
         run: |
           npm i -g pnpm
-          pnpm --version  # Verify installation
+          pnpm --version
 
-      - name: Setup pnpm cache
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node }}
-          cache: 'pnpm'
-
-      - name: Restore build artifacts
+      - name: Restore pnpm cache
         uses: actions/cache/restore@v4
         with:
-          path: .
-          key: build-${{ github.ref }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ~/.pnpm-store
+          key: pnpm-${{ github.ref }}
+
+      - name: Restore node_modules cache
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ github.ref }}
 
       - name: Run Test Coverage
         run: pnpm test:coverage
