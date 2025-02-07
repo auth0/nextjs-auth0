@@ -36,7 +36,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.ref }}
 
       - shell: bash
-        run: npm i --legacy-peer-deps
+        run: pnpm i
 
       - uses: snyk/actions/node@b98d498629f1c368650224d6d212bf7dfa89e4bf # pin@0.4.0
         env:
