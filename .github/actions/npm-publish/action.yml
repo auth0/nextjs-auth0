@@ -19,18 +19,17 @@ runs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Setup Node
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ inputs.node-version }}
-        cache: 'pnpm'
-        registry-url: 'https://registry.npmjs.org'
+    - name: Setup Node.js with pnpm caching
+      - uses: pnpm/action-setup@v4
+        name: Install pnpm
+        with:
+          version: 10
 
-    - name: Install pnpm
-      shell: bash
-      run: |
-        npm i -g pnpm
-        pnpm --version  # Verify installation
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
 
     - name: Install dependencies
       shell: bash

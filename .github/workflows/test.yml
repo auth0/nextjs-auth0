@@ -28,37 +28,31 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Setup Node.js with pnpm caching
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-
-      - name: Install pnpm
-        shell: bash
-        run: |
-          npm i -g pnpm
-          pnpm --version
-
-      - name: Restore pnpm cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ~/.pnpm-store
-          key: pnpm-${{ github.ref }}
+          cache: 'pnpm'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Save pnpm cache
-        uses: actions/cache/save@v4
+      - name: Run build step
+        uses: ./.github/actions/build
         with:
-          path: ~/.pnpm-store
-          key: pnpm-${{ github.ref }}
+          node: ${{ env.NODE_VERSION }}
 
-      - name: Save node_modules cache
+      - name: Save build artifacts
         uses: actions/cache/save@v4
         with:
-          path: node_modules
-          key: node-modules-${{ github.ref }}
+          path: .
+          key: ${{ env.CACHE_KEY }}
 
   unit:
     needs: build
@@ -70,35 +64,31 @@ jobs:
         node: [20, 22]
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Setup Node.js with pnpm caching
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
+          cache: 'pnpm'
 
-      - name: Install pnpm
-        shell: bash
-        run: |
-          npm i -g pnpm
-          pnpm --version
-
-      - name: Restore pnpm cache
+      - name: Restore build artifacts
         uses: actions/cache/restore@v4
         with:
-          path: ~/.pnpm-store
-          key: pnpm-${{ github.ref }}
-
-      - name: Restore node_modules cache
-        uses: actions/cache/restore@v4
-        with:
-          path: node_modules
-          key: node-modules-${{ github.ref }}
+          path: .
+          key: ${{ env.CACHE_KEY }}
 
       - name: Run Unit Tests
         run: pnpm test:unit
 
-      - uses: codecov/codecov-action@v4 # Latest version
+      - uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d
 
   coverage:
     needs: build
@@ -110,32 +100,28 @@ jobs:
         node: [20, 22]
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Setup Node.js with pnpm caching
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
+          cache: 'pnpm'
 
-      - name: Install pnpm
-        shell: bash
-        run: |
-          npm i -g pnpm
-          pnpm --version
-
-      - name: Restore pnpm cache
+      - name: Restore build artifacts
         uses: actions/cache/restore@v4
         with:
-          path: ~/.pnpm-store
-          key: pnpm-${{ github.ref }}
-
-      - name: Restore node_modules cache
-        uses: actions/cache/restore@v4
-        with:
-          path: node_modules
-          key: node-modules-${{ github.ref }}
+          path: .
+          key: ${{ env.CACHE_KEY }}
 
       - name: Run Test Coverage
         run: pnpm test:coverage
 
-      - uses: codecov/codecov-action@v4
+      - uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d
