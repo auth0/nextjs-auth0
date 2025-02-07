@@ -18,7 +18,7 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
-  NODE_VERSION: 18
+  NODE_VERSION: 22
   CACHE_KEY: "${{ github.ref }}-${{ github.run_id }}-${{ github.run_attempt }}"
 
 jobs:
@@ -29,6 +29,16 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Setup Node and pnpm
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Enable pnpm
+        shell: bash
+        run: corepack enable && corepack prepare pnpm@latest --activate
 
       - uses: ./.github/actions/build
         with:
@@ -49,19 +59,88 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Node and pnpm
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Enable pnpm
+        shell: bash
+        run: corepack enable && corepack prepare pnpm@latest --activate
+
       - uses: ./.github/actions/prepare
         with:
           node: ${{ env.NODE_VERSION }}
           cache: ${{ env.CACHE_KEY }}
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v3 # docs https://pnpm.io/continuous-integration#github-actions
-        with:
-          version: 8
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
-      - run: pnpm test
+      - name: Run unit tests
+        run: pnpm test:unit
 
       - uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d # pin@3.1.4
+
+  coverage:
+    needs: build
+    name: Run Coverage Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node and pnpm
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Enable pnpm
+        shell: bash
+        run: corepack enable && corepack prepare pnpm@latest --activate
+
+      - uses: ./.github/actions/prepare
+        with:
+          node: ${{ env.NODE_VERSION }}
+          cache: ${{ env.CACHE_KEY }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run test coverage
+        run: pnpm test:coverage
+
+      - uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d # pin@3.1.4
+
+  e2e:
+    needs: build
+    name: Run End-to-End Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node and pnpm
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Enable pnpm
+        shell: bash
+        run: corepack enable && corepack prepare pnpm@latest --activate
+
+      - uses: ./.github/actions/prepare
+        with:
+          node: ${{ env.NODE_VERSION }}
+          cache: ${{ env.CACHE_KEY }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run e2e tests
+        run: pnpm test:e2e
 
   lint:
     needs: build # Require build to complete before running tests
@@ -72,14 +151,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Node and pnpm
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Enable pnpm
+        shell: bash
+        run: corepack enable && corepack prepare pnpm@latest --activate
+
       - uses: ./.github/actions/prepare
         with:
           node: ${{ env.NODE_VERSION }}
           cache: ${{ env.CACHE_KEY }}
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v3 # docs https://pnpm.io/continuous-integration#github-actions
-        with:
-          version: 8
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - run: pnpm run lint

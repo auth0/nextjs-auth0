@@ -5,7 +5,7 @@ inputs:
   node:
     description: The Node version to use
     required: false
-    default: 18
+    default: 22
   cache:
       description: The cache key identifier to use
       required: true

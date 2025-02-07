@@ -23,17 +23,21 @@ runs:
       uses: actions/setup-node@v4
       with:
         node-version: ${{ inputs.node-version }}
-        cache: 'npm'
+        cache: 'pnpm'
         registry-url: 'https://registry.npmjs.org'
+
+    - name: Enable pnpm
+      shell: bash
+      run: corepack enable && corepack prepare pnpm@latest --activate
 
     - name: Install dependencies
       shell: bash
-      run: npm ci --include=dev
+      run: pnpm install --frozen-lockfile
 
     - name: Build package
       if: inputs.require-build == 'true'
       shell: bash
-      run: npm run build
+      run: pnpm run build
 
     - name: Publish release to NPM
       shell: bash
@@ -46,7 +50,7 @@ runs:
         else
           TAG="latest"
         fi
-        npm publish --provenance --tag $TAG
+        pnpm publish --provenance --tag $TAG
       env:
         NODE_AUTH_TOKEN: ${{ inputs.npm-token }}
         VERSION: ${{ inputs.version }}

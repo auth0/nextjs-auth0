@@ -5,7 +5,7 @@ inputs:
   node:
     description: The Node version to use
     required: false
-    default: 18
+    default: 22
 
 runs:
   using: composite
@@ -14,17 +14,20 @@ runs:
     - uses: actions/setup-node@v3
       with:
         node-version: ${{ inputs.node }}
-        cache: npm
+        cache: pnpm
 
     - shell: bash
-      run: npm ci
+      run: corepack enable && corepack prepare pnpm@latest --activate
+
+    - shell: bash
+      run: pnpm install
       env:
         NODE_ENV: development
 
     - shell: bash
-      run: npm run install:example
+      run: pnpm run install:examples
       env:
         NODE_ENV: development
 
     - shell: bash
-      run: npm run build
+      run: pnpm run build

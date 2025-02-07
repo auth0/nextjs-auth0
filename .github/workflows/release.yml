@@ -18,7 +18,7 @@ jobs:
   rl-scanner:
     uses: ./.github/workflows/rl-secure.yml
     with:
-      node-version: 18 ## depends if build requires node else we can remove this.
+      node-version: 22 ## Updated to Node.js 22
       artifact-name: 'nextjs-auth0.tgz' ## Will change respective to Repository 
     secrets:
       RLSECURE_LICENSE: ${{ secrets.RLSECURE_LICENSE }}
@@ -32,7 +32,7 @@ jobs:
     uses: ./.github/workflows/npm-release.yml
     needs: rl-scanner ## this is important as this will not let release job to run until rl-scanner is done
     with:
-      node-version: 18
+      node-version: 22 ## Updated to Node.js 22
       require-build: false
     secrets:
       npm-token: ${{ secrets.NPM_TOKEN }}
