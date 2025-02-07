@@ -54,7 +54,12 @@ jobs:
           node: ${{ env.NODE_VERSION }}
           cache: ${{ env.CACHE_KEY }}
 
-      - run: npm test
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3 # docs https://pnpm.io/continuous-integration#github-actions
+        with:
+          version: 8
+
+      - run: pnpm test
 
       - uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d # pin@3.1.4
 
@@ -72,4 +77,9 @@ jobs:
           node: ${{ env.NODE_VERSION }}
           cache: ${{ env.CACHE_KEY }}
 
-      - run: npm run lint
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3 # docs https://pnpm.io/continuous-integration#github-actions
+        with:
+          version: 8
+
+      - run: pnpm run lint
