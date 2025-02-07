@@ -25,9 +25,4 @@ runs:
         NODE_ENV: development
 
     - shell: bash
-      run: pnpm run install:examples
-      env:
-        NODE_ENV: development
-
-    - shell: bash
       run: pnpm run build
