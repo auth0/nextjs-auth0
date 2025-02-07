@@ -36,8 +36,7 @@ jobs:
       - name: Install pnpm
         shell: bash
         run: |
-          corepack enable
-          corepack prepare pnpm@latest --activate
+          npm i -g pnpm
           pnpm --version  # Verify installation
 
       - name: Setup pnpm cache
@@ -67,9 +66,11 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: 'pnpm'
 
-      - name: Enable pnpm
+      - name: Install pnpm
         shell: bash
-        run: corepack enable && corepack prepare pnpm@latest --activate
+        run: |
+          npm i -g pnpm
+          pnpm --version  # Verify installation
 
       - name: Restore build artifacts
         uses: actions/cache/restore@v4
@@ -100,9 +101,11 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: 'pnpm'
 
-      - name: Enable pnpm
+      - name: Install pnpm
         shell: bash
-        run: corepack enable && corepack prepare pnpm@latest --activate
+        run: |
+          npm i -g pnpm
+          pnpm --version  # Verify installation
 
       - name: Restore build artifacts
         uses: actions/cache/restore@v4
