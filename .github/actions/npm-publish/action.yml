@@ -26,9 +26,11 @@ runs:
         cache: 'pnpm'
         registry-url: 'https://registry.npmjs.org'
 
-    - name: Enable pnpm
+    - name: Install pnpm
       shell: bash
-      run: corepack enable && corepack prepare pnpm@latest --activate
+      run: |
+        npm i -g pnpm
+        pnpm --version  # Verify installation
 
     - name: Install dependencies
       shell: bash

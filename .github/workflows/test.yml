@@ -60,17 +60,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node and pnpm
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-          cache: 'pnpm'
 
       - name: Install pnpm
         shell: bash
         run: |
           npm i -g pnpm
           pnpm --version  # Verify installation
+
+      - name: Setup pnpm cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: 'pnpm'
 
       - name: Restore build artifacts
         uses: actions/cache/restore@v4
@@ -95,17 +100,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node and pnpm
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-          cache: 'pnpm'
 
       - name: Install pnpm
         shell: bash
         run: |
           npm i -g pnpm
           pnpm --version  # Verify installation
+
+      - name: Setup pnpm cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: 'pnpm'
 
       - name: Restore build artifacts
         uses: actions/cache/restore@v4

@@ -17,7 +17,9 @@ runs:
         cache: pnpm
 
     - shell: bash
-      run: corepack enable && corepack prepare pnpm@latest --activate
+      run: |
+        npm i -g pnpm
+        pnpm --version  # Verify installation
 
     - shell: bash
       run: pnpm install
