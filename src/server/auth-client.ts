@@ -109,32 +109,32 @@ export interface AuthClientOptions {
 }
 
 export class AuthClient {
-  private readonly transactionStore: TransactionStore
-  private readonly sessionStore: AbstractSessionStore
+  private transactionStore: TransactionStore
+  private sessionStore: AbstractSessionStore
 
-  private readonly clientMetadata: oauth.Client
-  private readonly clientSecret?: string
-  private readonly clientAssertionSigningKey?: string | CryptoKey
-  private readonly clientAssertionSigningAlg: string
-  private readonly domain: string
-  private readonly authorizationParameters: AuthorizationParameters
-  private readonly pushedAuthorizationRequests: boolean
+  private clientMetadata: oauth.Client
+  private clientSecret?: string
+  private clientAssertionSigningKey?: string | CryptoKey
+  private clientAssertionSigningAlg: string
+  private domain: string
+  private authorizationParameters: AuthorizationParameters
+  private pushedAuthorizationRequests: boolean
 
-  private readonly appBaseUrl: string
-  private readonly signInReturnToPath: string
+  private appBaseUrl: string
+  private signInReturnToPath: string
 
-  private readonly beforeSessionSaved?: BeforeSessionSavedHook
-  private readonly onCallback: OnCallbackHook
+  private beforeSessionSaved?: BeforeSessionSavedHook
+  private onCallback: OnCallbackHook
 
-  private readonly routes: Routes
+  private routes: Routes
 
-  private readonly fetch: typeof fetch
-  private readonly jwksCache: jose.JWKSCacheInput
-  private readonly allowInsecureRequests: boolean
-  private readonly httpOptions: () => oauth.HttpRequestOptions<"GET" | "POST">
+  private fetch: typeof fetch
+  private jwksCache: jose.JWKSCacheInput
+  private allowInsecureRequests: boolean
+  private httpOptions: () => oauth.HttpRequestOptions<"GET" | "POST">
   
-  private readonly authServerMetadata:AuthServerMetadata;
-  private readonly metadataDiscoverOptions:MetadataDiscoverOptions;
+  private authServerMetadata:AuthServerMetadata;
+  private metadataDiscoverOptions:MetadataDiscoverOptions;
   
   public federatedConnections:FederatedConnections;
 
