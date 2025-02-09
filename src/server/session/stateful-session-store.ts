@@ -7,7 +7,7 @@ import {
 
 // the value of the stateful session cookie containing a unique session ID to identify
 // the current session
-interface StatefulSessionData {
+interface SessionCookieValue {
   id: string
 }
 
@@ -54,11 +54,18 @@ export class StatefulSessionStore extends AbstractSessionStore {
   }
 
   async get(reqCookies: cookies.RequestCookies) {
-    
-    const cookie = await this.getDecryptedSessionCookie<StatefulSessionData>(reqCookies);
-    if(!cookie) return null;
+    const cookieValue = reqCookies.get(this.sessionCookieName)?.value
 
-    return this.store.get(cookie.id);
+    if (!cookieValue) {
+      return null
+    }
+
+    const { id } = await cookies.decrypt<SessionCookieValue>(
+      cookieValue,
+      this.secret
+    )
+
+    return this.store.get(id)
   }
 
   async set(
@@ -71,7 +78,7 @@ export class StatefulSessionStore extends AbstractSessionStore {
     let sessionId = null
     const cookieValue = reqCookies.get(this.sessionCookieName)?.value
     if (cookieValue) {
-      const sessionCookie = await cookies.decrypt<StatefulSessionData>(
+      const sessionCookie = await cookies.decrypt<SessionCookieValue>(
         cookieValue,
         this.secret
       )
@@ -118,7 +125,7 @@ export class StatefulSessionStore extends AbstractSessionStore {
       return
     }
 
-    const { id } = await cookies.decrypt<StatefulSessionData>(
+    const { id } = await cookies.decrypt<SessionCookieValue>(
       cookieValue,
       this.secret
     )
