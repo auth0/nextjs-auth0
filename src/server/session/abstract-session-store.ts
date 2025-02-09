@@ -90,19 +90,19 @@ export abstract class AbstractSessionStore {
    * Indicates whether the session should be refreshed on each request.
    * Default is true, meaning the session will be extended with each request.
    */
-  private rolling: boolean
+  private readonly rolling: boolean
 
   /**
    * The maximum duration (in seconds) a session can last, regardless of activity.
    * Default is 3 days (259200 seconds).
    */
-  private absoluteDuration: number
+  private readonly absoluteDuration: number
 
   /**
    * The duration (in seconds) after which a session will expire if there is no activity.
    * Default is 1 day (86400 seconds).
    */
-  private inactivityDuration: number
+  private readonly inactivityDuration: number
 
   /**
    * An optional reference to a specific session data store implementation.
@@ -142,18 +142,6 @@ export abstract class AbstractSessionStore {
       secure: cookieOptions?.secure ?? false, // Use secure cookies if true (HTTPS)
       path: "/", // Cookie is valid for all paths
     }
-  }
-
-  async getDecryptedSessionCookie<T>(
-    reqCookies: RequestCookies | ReadonlyRequestCookies
-  ): Promise<T | null> {
-    const cookieValue = reqCookies.get(this.sessionCookieName)?.value
-
-    if (!cookieValue) {
-      return null
-    }
-
-    return decrypt<T>(cookieValue, this.secret)
   }
 
   /**

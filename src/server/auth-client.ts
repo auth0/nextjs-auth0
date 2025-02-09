@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 import * as jose from "jose"
 import * as oauth from "oauth4webapi"
+import { AuthServerMetadata, MetadataDiscoverOptions } from './authServerMetadata';
 
 import {
   AccessTokenError,
@@ -8,9 +9,6 @@ import {
   AuthorizationCodeGrantError,
   AuthorizationError,
   BackchannelLogoutError,
-  DiscoveryError,
-  FederatedConnectionAccessTokenErrorCode,
-  FederatedConnectionsAccessTokenError,
   InvalidStateError,
   MissingStateError,
   OAuth2Error,
@@ -20,6 +18,8 @@ import { LogoutToken, SessionData, TokenSet } from "../types"
 import { AbstractSessionStore } from "./session/abstract-session-store"
 import { TransactionState, TransactionStore } from "./transaction-store"
 import { filterClaims } from "./user"
+import { HTTP_METHOD } from "next/dist/server/web/http"
+import FederatedConnections from "./federatedConnections";
 
 export type BeforeSessionSavedHook = (
   session: SessionData,
@@ -49,33 +49,6 @@ const INTERNAL_AUTHORIZE_PARAMS = [
 const DEFAULT_SCOPES = ["openid", "profile", "email", "offline_access"].join(
   " "
 )
-
-/**
- * A constant representing the grant type for federated connection access token exchange.
- * 
- * This grant type is used in OAuth token exchange scenarios where a federated connection
- * access token is required. It is specific to Auth0's implementation and follows the 
- * "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token" format.
- */
-const GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN = "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token";
-
-/**
- * Constant representing the subject type for a refresh token.
- * This is used in OAuth 2.0 token exchange to specify that the token being exchanged is a refresh token.
- * 
- * @see {@link https://tools.ietf.org/html/rfc8693#section-3.1 RFC 8693 Section 3.1}
- */
-const SUBJECT_TYPE_REFRESH_TOKEN = "urn:ietf:params:oauth:token-type:refresh_token";
-
-/**
- * A constant representing the token type for federated connection access tokens.
- * This is used to specify the type of token being requested from Auth0.
- * 
- * @constant
- * @type {string}
- */
-const REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN = "http://auth0.com/oauth/token-type/federated-connection-access-token"
-
 
 export interface AuthorizationParameters {
   /**
@@ -135,53 +108,41 @@ export interface AuthClientOptions {
   enableTelemetry?: boolean
 }
 
-/**
- * Represents the response containing an access token from a federated connection.
- */
-export interface FederatedConnectionAccessTokenResponse {
-  /**
-   * The access token issued by the federated connection.
-   */
-  accessToken: string,
-  /**
-   * The timestamp (in seconds since epoch) when the access token expires.
-   */
-  expiresAt: number,
-  /**
-   * Optional. The scope of the access token.
-   */
-  scope?: string  
-}
-
 export class AuthClient {
-  private transactionStore: TransactionStore
-  private sessionStore: AbstractSessionStore
+  private readonly transactionStore: TransactionStore
+  private readonly sessionStore: AbstractSessionStore
 
-  private clientMetadata: oauth.Client
-  private clientSecret?: string
-  private clientAssertionSigningKey?: string | CryptoKey
-  private clientAssertionSigningAlg: string
-  private domain: string
-  private authorizationParameters: AuthorizationParameters
-  private pushedAuthorizationRequests: boolean
+  private readonly clientMetadata: oauth.Client
+  private readonly clientSecret?: string
+  private readonly clientAssertionSigningKey?: string | CryptoKey
+  private readonly clientAssertionSigningAlg: string
+  private readonly domain: string
+  private readonly authorizationParameters: AuthorizationParameters
+  private readonly pushedAuthorizationRequests: boolean
 
-  private appBaseUrl: string
-  private signInReturnToPath: string
+  private readonly appBaseUrl: string
+  private readonly signInReturnToPath: string
 
-  private beforeSessionSaved?: BeforeSessionSavedHook
-  private onCallback: OnCallbackHook
+  private readonly beforeSessionSaved?: BeforeSessionSavedHook
+  private readonly onCallback: OnCallbackHook
 
-  private routes: Routes
+  private readonly routes: Routes
 
-  private fetch: typeof fetch
-  private jwksCache: jose.JWKSCacheInput
-  private allowInsecureRequests: boolean
-  private httpOptions: () => oauth.HttpRequestOptions<"GET" | "POST">
-
-  private authorizationServerMetadata?: oauth.AuthorizationServer
+  private readonly fetch: typeof fetch
+  private readonly jwksCache: jose.JWKSCacheInput
+  private readonly allowInsecureRequests: boolean
+  private readonly httpOptions: () => oauth.HttpRequestOptions<"GET" | "POST">
+  
+  private readonly authServerMetadata:AuthServerMetadata;
+  private readonly metadataDiscoverOptions:MetadataDiscoverOptions;
+  
+  public federatedConnections:FederatedConnections;
 
   constructor(options: AuthClientOptions) {
     // dependencies
+
+    this.authServerMetadata = new AuthServerMetadata();
+
     this.fetch = options.fetch || fetch
     this.jwksCache = options.jwksCache || {}
     this.allowInsecureRequests = options.allowInsecureRequests ?? false
@@ -232,7 +193,7 @@ export class AuthClient {
       options.pushedAuthorizationRequests ?? false
     this.clientAssertionSigningKey = options.clientAssertionSigningKey
     this.clientAssertionSigningAlg =
-      options.clientAssertionSigningAlg || "RS256"
+      options.clientAssertionSigningAlg ?? "RS256"
 
     if (!this.authorizationParameters.scope) {
       this.authorizationParameters.scope = DEFAULT_SCOPES
@@ -249,7 +210,7 @@ export class AuthClient {
 
     // application
     this.appBaseUrl = options.appBaseUrl
-    this.signInReturnToPath = options.signInReturnToPath || "/"
+    this.signInReturnToPath = options.signInReturnToPath ?? "/"
 
     // hooks
     this.beforeSessionSaved = options.beforeSessionSaved
@@ -261,13 +222,26 @@ export class AuthClient {
       logout: "/auth/logout",
       callback: "/auth/callback",
       backChannelLogout: "/auth/backchannel-logout",
-      profile: process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile",
+      profile: process.env.NEXT_PUBLIC_PROFILE_ROUTE ?? "/auth/profile",
       accessToken:
-        process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
+        process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE ?? "/auth/access-token",
       ...options.routes,
     }
-  }
 
+    this.metadataDiscoverOptions = {
+      allowInsecureRequests: this.allowInsecureRequests,
+      fetch: this.fetch,
+      httpOptions: this.httpOptions,
+      issuer: this.issuer
+    };
+
+    this.federatedConnections = new FederatedConnections({
+        clientAuth: this.getClientAuth,
+        metadataDiscoverOptions: this.metadataDiscoverOptions,
+        clientMetadata: this.clientMetadata
+    });
+  }
+  
   async handler(req: NextRequest): Promise<NextResponse> {
     const { pathname } = req.nextUrl
     const method = req.method
@@ -288,28 +262,28 @@ export class AuthClient {
     ) {
       return this.handleBackChannelLogout(req)
     } else {
-      // no auth handler found, simply touch the sessions
-      // TODO: this should only happen if rolling sessions are enabled. Also, we should
-      // try to avoid reading from the DB (for stateful sessions) on every request if possible.
+    // no auth handler found, simply touch the sessions
+    // TODO: this should only happen if rolling sessions are enabled. Also, we should
+    // try to avoid reading from the DB (for stateful sessions) on every request if possible.
       const res = NextResponse.next()
       const session = await this.sessionStore.get(req.cookies)
 
-      if (session) {
-        // we pass the existing session (containing an `createdAt` timestamp) to the set method
-        // which will update the cookie's `maxAge` property based on the `createdAt` time
-        await this.sessionStore.set(req.cookies, res.cookies, {
-          ...session,
+    if (session) {
+    // we pass the existing session (containing an `createdAt` timestamp) to the set method
+    // which will update the cookie's `maxAge` property based on the `createdAt` time
+    await this.sessionStore.set(req.cookies, res.cookies, {
+      ...session,
         })
-      }
+    }
 
       return res
-    }
   }
+}
 
   async handleLogin(req: NextRequest): Promise<NextResponse> {
     const redirectUri = new URL(this.routes.callback, this.appBaseUrl) // must be registed with the authorization server
     const returnTo =
-      req.nextUrl.searchParams.get("returnTo") || this.signInReturnToPath
+      req.nextUrl.searchParams.get("returnTo") ?? this.signInReturnToPath
 
     const codeChallengeMethod = "S256"
     const codeVerifier = oauth.generateRandomCodeVerifier()
@@ -373,7 +347,7 @@ export class AuthClient {
   async handleLogout(req: NextRequest): Promise<NextResponse> {
     const session = await this.sessionStore.get(req.cookies)
     const [discoveryError, authorizationServerMetadata] =
-      await this.discoverAuthorizationServerMetadata()
+      await this.authServerMetadata.discover(this.metadataDiscoverOptions)
 
     if (discoveryError) {
       return new NextResponse(
@@ -384,7 +358,7 @@ export class AuthClient {
       )
     }
 
-    const returnTo = req.nextUrl.searchParams.get("returnTo") || this.appBaseUrl
+    const returnTo = req.nextUrl.searchParams.get("returnTo") ?? this.appBaseUrl
 
     if (!authorizationServerMetadata.end_session_endpoint) {
       // the Auth0 client does not have RP-initiated logout enabled, redirect to the `/v2/logout` endpoint
@@ -430,7 +404,7 @@ export class AuthClient {
     }
 
     const [discoveryError, authorizationServerMetadata] =
-      await this.discoverAuthorizationServerMetadata()
+      await this.authServerMetadata.discover(this.metadataDiscoverOptions)
 
     if (discoveryError) {
       return this.onCallback(discoveryError, onCallbackCtx, null)
@@ -510,6 +484,7 @@ export class AuthClient {
         sid: idTokenClaims.sid as string,
         createdAt: Math.floor(Date.now() / 1000),
       },
+      federatedConnectiontMap: {}
     }
 
     const res = await this.onCallback(null, onCallbackCtx, session)
@@ -652,7 +627,7 @@ export class AuthClient {
     // the access token has expired and we have a refresh token
     if (tokenSet.refreshToken && tokenSet.expiresAt <= Date.now() / 1000) {
       const [discoveryError, authorizationServerMetadata] =
-        await this.discoverAuthorizationServerMetadata()
+        await this.authServerMetadata.discover(this.metadataDiscoverOptions)
 
       if (discoveryError) {
         console.error(discoveryError)
@@ -712,41 +687,6 @@ export class AuthClient {
     return [null, tokenSet]
   }
 
-  private async discoverAuthorizationServerMetadata(): Promise<
-    [null, oauth.AuthorizationServer] | [SdkError, null]
-  > {
-    if (this.authorizationServerMetadata) {
-      return [null, this.authorizationServerMetadata]
-    }
-
-    const issuer = new URL(this.issuer)
-
-    try {
-      const authorizationServerMetadata = await oauth
-        .discoveryRequest(issuer, {
-          ...this.httpOptions(),
-          [oauth.customFetch]: this.fetch,
-          [oauth.allowInsecureRequests]: this.allowInsecureRequests,
-        })
-        .then((response) => oauth.processDiscoveryResponse(issuer, response))
-
-      this.authorizationServerMetadata = authorizationServerMetadata
-
-      return [null, authorizationServerMetadata]
-    } catch (e) {
-      console.error(
-        `An error occured while performing the discovery request. Please make sure the AUTH0_DOMAIN environment variable is correctly configured — the format must be 'example.us.auth0.com'. issuer=${issuer.toString()}, error:`,
-        e
-      )
-      return [
-        new DiscoveryError(
-          "Discovery failed for the OpenID Connect configuration."
-        ),
-        null,
-      ]
-    }
-  }
-
   private async defaultOnCallback(
     error: SdkError | null,
     ctx: OnCallbackContext,
@@ -759,7 +699,7 @@ export class AuthClient {
     }
 
     const res = NextResponse.redirect(
-      new URL(ctx.returnTo || "/", this.appBaseUrl)
+      new URL(ctx.returnTo ?? "/", this.appBaseUrl)
     )
 
     return res
@@ -769,7 +709,7 @@ export class AuthClient {
     logoutToken: string
   ): Promise<[null, LogoutToken] | [SdkError, null]> {
     const [discoveryError, authorizationServerMetadata] =
-      await this.discoverAuthorizationServerMetadata()
+      await this.authServerMetadata.discover(this.metadataDiscoverOptions);
 
     if (discoveryError) {
       return [discoveryError, null]
@@ -861,7 +801,7 @@ export class AuthClient {
     params: URLSearchParams
   ): Promise<[null, URL] | [Error, null]> {
     const [discoveryError, authorizationServerMetadata] =
-      await this.discoverAuthorizationServerMetadata()
+      await this.authServerMetadata.discover(this.metadataDiscoverOptions);
     if (discoveryError) {
       return [discoveryError, null]
     }
@@ -966,83 +906,12 @@ export class AuthClient {
   }
 
   /**
-   * Exchanges a refresh token for a federated connection access token.
+   * Retrieves the audience for the authentication client.
    *
-   * This method performs a token exchange using the provided refresh token and connection details.
-   * It first checks if the refresh token is present in the `tokenSet`. If not, it returns an error.
-   * Then, it constructs the necessary parameters for the token exchange request and performs
-   * the request to the authorization server's token endpoint.
-   *
-   * @param {TokenSet} tokenSet - The set of tokens, including the refresh token.
-   * @param {string} connection - The federated connection identifier.
-   * @param {string} [login_hint] - Optional login hint to be included in the request.
-   * @returns {Promise<[SdkError, null] | [null, FederatedConnectionAccessTokenResponse]>} A promise that resolves to a tuple.
-   *          The first element is either an `SdkError` if an error occurred, or `null` if the request was successful.
-   *          The second element is either `null` if an error occurred, or a `FederatedConnectionAccessTokenResponse` object
-   *          containing the access token, expiration time, and scope if the request was successful.
-   *
-   * @throws {FederatedConnectionsAccessTokenError} If the refresh token is missing or if there is an error during the token exchange process.
+   * @returns {string} The client ID from the client metadata.
    */
-  async federatedConnectionTokenExchange(tokenSet: TokenSet, connection: string, login_hint?: string): Promise<[SdkError, null] | [null, FederatedConnectionAccessTokenResponse]> {
-    if (!tokenSet.refreshToken) {
-      return [new FederatedConnectionsAccessTokenError(
-        FederatedConnectionAccessTokenErrorCode.MISSING_REFRESH_TOKEN,
-        "A refresh token was not present, Federated Connection Access Token requires a refresh token. The user needs to re-authenticate."
-      ), null];
-    }
-
-
-    const params = new URLSearchParams();
-
-    params.append("connection", connection);
-    params.append("subject_token_type", SUBJECT_TYPE_REFRESH_TOKEN);
-    params.append("subject_token", tokenSet.refreshToken);
-
-    params.append("requested_token_type", REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN);
-
-    if (login_hint) {
-      params.append("login_hint", login_hint);
-    }
-
-
-    const [discoveryError, authorizationServerMetadata] = await this.discoverAuthorizationServerMetadata()
-
-    if (discoveryError) {
-      console.error(discoveryError)
-      return [discoveryError, null]
-    }
-
-    const httpResponse = await oauth.genericTokenEndpointRequest(
-      authorizationServerMetadata, 
-      this.clientMetadata,
-      await this.getClientAuth(),
-      GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN,
-      params,
-      {
-        [oauth.customFetch]: this.fetch,
-        [oauth.allowInsecureRequests]: this.allowInsecureRequests,
-      }
-    );
-
-    let tokenEndpointResponse: oauth.TokenEndpointResponse;
-    try {
-      tokenEndpointResponse = await oauth.processGenericTokenEndpointResponse(authorizationServerMetadata, this.clientMetadata, httpResponse);
-    } catch (err) {
-      console.error(err);
-      return [
-        new FederatedConnectionsAccessTokenError(
-          FederatedConnectionAccessTokenErrorCode.FAILED_TO_EXCHANGE,
-          "There was an error trying to exchange the refresh token for a federated connection access token. Check the server logs for more information."
-        ),
-        null,
-      ]
-    }
-
-    return [null, {
-      accessToken: tokenEndpointResponse.access_token,
-      expiresAt: tokenEndpointResponse.expires_in! + (Date.now() / 1000),
-      scope: tokenEndpointResponse.scope,
-    }]
+  public getAudience(): string {
+    return this.clientMetadata.client_id
   }
 }
 
