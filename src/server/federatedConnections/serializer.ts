@@ -188,7 +188,7 @@ export const deserializeFederatedTokens = async (
 export const isTokenSetExpired = (
   tokenSet: FederatedConnectionTokenSet | SerializedFCTokenSet
 ): boolean => {
-  return !tokenSet || tokenSet.expiresAt <= Date.now()
+  return !tokenSet || tokenSet.expiresAt <= (Date.now() / 1000)
 }
 
 export const findFederatedToken = (
