@@ -48,6 +48,12 @@ jobs:
         with:
           node: ${{ env.NODE_VERSION }}
 
+      - name: Save build artifacts
+        uses: actions/cache/save@v4
+        with:
+          path: .
+          key: ${{ env.CACHE_KEY }}
+
   unit:
     needs: build
     name: Run Unit Tests
@@ -72,6 +78,12 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: 'pnpm'
+
+      - name: Restore build artifacts
+        uses: actions/cache/restore@v4
+        with:
+          path: .
+          key: ${{ env.CACHE_KEY }}
 
       - name: Run Unit Tests
         run: pnpm test:unit
@@ -102,6 +114,12 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: 'pnpm'
+
+      - name: Restore build artifacts
+        uses: actions/cache/restore@v4
+        with:
+          path: .
+          key: ${{ env.CACHE_KEY }}
 
       - name: Run Test Coverage
         run: pnpm test:coverage
