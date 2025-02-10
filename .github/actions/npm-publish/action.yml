@@ -1,0 +1,58 @@
+name: Publish release to npm
+
+inputs:
+  node-version:
+    required: true
+  npm-token:
+    required: true
+  version:
+    required: true
+  require-build:
+    default: true
+  release-directory:
+    default: './'
+
+runs:
+  using: composite
+
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js with pnpm caching
+      - uses: pnpm/action-setup@v4
+        name: Install pnpm
+        with:
+          version: 10
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile
+
+    - name: Build package
+      if: inputs.require-build == 'true'
+      shell: bash
+      run: pnpm run build
+
+    - name: Publish release to NPM
+      shell: bash
+      working-directory: ${{ inputs.release-directory }}
+      run: |
+        if [[ "${VERSION}" == *"beta"* ]]; then
+          TAG="beta"
+        elif [[ "${VERSION}" == *"alpha"* ]]; then
+          TAG="alpha"
+        else
+          TAG="latest"
+        fi
+        pnpm publish --tag $TAG
+      env:
+        NODE_AUTH_TOKEN: ${{ inputs.npm-token }}
+        VERSION: ${{ inputs.version }}
+        NPM_CONFIG_PROVENANCE: true
