@@ -1,0 +1,27 @@
+name: Prepare test
+description: Prepare an SDK test
+
+inputs:
+  node:
+    description: The Node version to use
+    required: false
+    default: 22
+  cache:
+    description: The cache key identifier to use
+    required: true
+
+runs:
+  using: composite
+
+  steps:
+    - name: Setup Node.js with pnpm caching
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node }}
+        cache: 'pnpm'
+
+    - name: Restore cache manually
+      uses: actions/cache/restore@v4
+      with:
+        path: .
+        key: ${{ inputs.cache }}
