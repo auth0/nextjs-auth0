@@ -1,5 +1,4 @@
-import { JWTPayload } from "jose";
-
+import type { JWTPayload } from "jose";
 import { FederatedConnectionTokenSet, SessionData } from "../../types";
 import * as cookies from "../cookies";
 import {
@@ -62,7 +61,8 @@ export class StatelessSessionStore extends AbstractSessionStore {
 
     return {
       ...originalSession,
-      federatedConnectionTokenSets
+      // Ensure that when there are no federated connection token sets, we omit the property.
+      ...(federatedConnectionTokenSets.length ? { federatedConnectionTokenSets } : {}),
     };
   }
 

@@ -14,18 +14,13 @@ import {
   InvalidStateError,
   MissingStateError,
   OAuth2Error,
-  SdkError
-} from "../errors";
-import {
-  FederatedConnectionTokenSet,
-  LogoutToken,
-  SessionData,
-  TokenSet
-} from "../types";
+  SdkError,
+} from "../errors"
+import { FederatedConnectionTokenSet, GetFederatedConnectionAccessTokenOptions, LogoutToken, SessionData, TokenSet } from "../types"
+import { AbstractSessionStore } from "./session/abstract-session-store"
+import { TransactionState, TransactionStore } from "./transaction-store"
+import { filterClaims } from "./user"
 import { toSafeRedirect } from "../utils/url-helpers";
-import { AbstractSessionStore } from "./session/abstract-session-store";
-import { TransactionState, TransactionStore } from "./transaction-store";
-import { filterClaims } from "./user";
 
 export type BeforeSessionSavedHook = (
   session: SessionData,
@@ -998,11 +993,7 @@ export class AuthClient {
    * It first checks if the refresh token is present in the `tokenSet`. If not, it returns an error.
    * Then, it constructs the necessary parameters for the token exchange request and performs
    * the request to the authorization server's token endpoint.
-   *
-   * @param {TokenSet} tokenSet - The set of tokens, including the refresh token.
-   * @param {FederatedConnectionTokenSet | undefined} federatedConnectionTokenSet - The existing federated connection token set.
-   * @param {string} connection - The federated connection identifier.
-   * @param {string} [login_hint] - Optional login hint to be included in the request.
+   * 
    * @returns {Promise<[SdkError, null] | [null, FederatedConnectionTokenSet]>} A promise that resolves to a tuple.
    *          The first element is either an `SdkError` if an error occurred, or `null` if the request was successful.
    *          The second element is either `null` if an error occurred, or a `FederatedConnectionAccessTokenResponse` object
@@ -1013,8 +1004,7 @@ export class AuthClient {
   async getFederatedConnectionTokenSet(
     tokenSet: TokenSet,
     federatedConnectionTokenSet: FederatedConnectionTokenSet | undefined,
-    connection: string,
-    login_hint?: string
+    options: GetFederatedConnectionAccessTokenOptions,
   ): Promise<[SdkError, null] | [null, FederatedConnectionTokenSet]> {
     if (!tokenSet.refreshToken) {
       return [
@@ -1037,17 +1027,16 @@ export class AuthClient {
 
     const params = new URLSearchParams();
 
-    params.append("connection", connection);
+    params.append("connection", options.connection);
     params.append("subject_token_type", SUBJECT_TYPE_REFRESH_TOKEN);
     params.append("subject_token", tokenSet.refreshToken);
-
     params.append(
       "requested_token_type",
       REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN
     );
 
-    if (login_hint) {
-      params.append("login_hint", login_hint);
+    if (options.login_hint) {
+      params.append("login_hint", options.login_hint);
     }
 
     const [discoveryError, authorizationServerMetadata] =
@@ -1096,7 +1085,7 @@ export class AuthClient {
           Math.floor(Date.now() / 1000) +
           Number(tokenEndpointResponse.expires_in),
         scope: tokenEndpointResponse.scope,
-        connection
+        connection: options.connection,
       }
     ];
   }
