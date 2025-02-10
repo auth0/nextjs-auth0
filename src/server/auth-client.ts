@@ -191,7 +191,7 @@ export class AuthClient {
       options.pushedAuthorizationRequests ?? false
     this.clientAssertionSigningKey = options.clientAssertionSigningKey
     this.clientAssertionSigningAlg =
-      options.clientAssertionSigningAlg ?? "RS256"
+      options.clientAssertionSigningAlg || "RS256"
 
     if (!this.authorizationParameters.scope) {
       this.authorizationParameters.scope = DEFAULT_SCOPES
@@ -208,7 +208,7 @@ export class AuthClient {
 
     // application
     this.appBaseUrl = options.appBaseUrl
-    this.signInReturnToPath = options.signInReturnToPath ?? "/"
+    this.signInReturnToPath = options.signInReturnToPath || "/"
 
     // hooks
     this.beforeSessionSaved = options.beforeSessionSaved
@@ -220,9 +220,9 @@ export class AuthClient {
       logout: "/auth/logout",
       callback: "/auth/callback",
       backChannelLogout: "/auth/backchannel-logout",
-      profile: process.env.NEXT_PUBLIC_PROFILE_ROUTE ?? "/auth/profile",
+      profile: process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile",
       accessToken:
-        process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE ?? "/auth/access-token",
+        process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
       ...options.routes,
     }
 
@@ -280,7 +280,7 @@ export class AuthClient {
   async handleLogin(req: NextRequest): Promise<NextResponse> {
     const redirectUri = new URL(this.routes.callback, this.appBaseUrl) // must be registed with the authorization server
     const returnTo =
-      req.nextUrl.searchParams.get("returnTo") ?? this.signInReturnToPath
+      req.nextUrl.searchParams.get("returnTo") || this.signInReturnToPath
 
     const codeChallengeMethod = "S256"
     const codeVerifier = oauth.generateRandomCodeVerifier()
@@ -355,7 +355,7 @@ export class AuthClient {
       )
     }
 
-    const returnTo = req.nextUrl.searchParams.get("returnTo") ?? this.appBaseUrl
+    const returnTo = req.nextUrl.searchParams.get("returnTo") || this.appBaseUrl
 
     if (!authorizationServerMetadata.end_session_endpoint) {
       // the Auth0 client does not have RP-initiated logout enabled, redirect to the `/v2/logout` endpoint
@@ -696,7 +696,7 @@ export class AuthClient {
     }
 
     const res = NextResponse.redirect(
-      new URL(ctx.returnTo ?? "/", this.appBaseUrl)
+      new URL(ctx.returnTo || "/", this.appBaseUrl)
     )
 
     return res
