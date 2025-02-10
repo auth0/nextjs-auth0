@@ -4051,7 +4051,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expiresAt,
       };
 
-      const response = await authClient.federatedConnectionTokenExchange(tokenSet, "google-oauth2", "000100123");
+      const response = await authClient.federatedConnectionTokenExchange({ tokenSet, connection: "google-oauth2" });
       const [error, federatedConnectionTokenSet] = response;
       expect(error).toBe(null);
       expect(federatedConnectionTokenSet).toEqual({
@@ -4091,7 +4091,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expiresAt,
       }
 
-      const [error, federatedConnectionTokenSet] = await authClient.federatedConnectionTokenExchange(tokenSet, "google-oauth2")
+      const [error, federatedConnectionTokenSet] = await authClient.federatedConnectionTokenExchange({ tokenSet, connection: "google-oauth2" })
       expect(error?.code).toEqual("discovery_error")
       expect(federatedConnectionTokenSet).toBeNull()
     })
@@ -4124,7 +4124,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expiresAt,
       }
 
-      const [error, federatedConnectionTokenSet] = await authClient.federatedConnectionTokenExchange(tokenSet, "google-oauth2")
+      const [error, federatedConnectionTokenSet] = await authClient.federatedConnectionTokenExchange({ tokenSet, connection: "google-oauth2" })
       expect(error?.code).toEqual("missing_refresh_token")
       expect(federatedConnectionTokenSet).toBeNull()
     })

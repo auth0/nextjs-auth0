@@ -16,7 +16,7 @@ export interface SessionData {
     // the time at which the session was created in seconds since epoch
     createdAt: number
   },
-  federatedConnectiontMap: FederatedConnectionMap
+  federatedConnectiontMap?: FederatedConnectionMap
   [key: string]: unknown
 }
 

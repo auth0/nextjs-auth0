@@ -13,7 +13,7 @@ import {
   RoutesOptions,
 } from "./auth-client"
 import { ReadonlyRequestCookies, RequestCookies, ResponseCookies } from "./cookies"
-import { FederatedConnectionTokenSet } from "./federatedConnections"
+import { FederatedConnectionTokenSet } from "./federatedConnections/serializer"
 import { addOrUpdateFederatedTokenToSession, findFederatedToken } from "./federatedConnections/serializer"
 import {
   AbstractSessionStore,
