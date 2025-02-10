@@ -50,7 +50,7 @@ export class StatelessSessionStore extends AbstractSessionStore {
       secret: this.secret,
     })
     if (session) {
-      session.federatedConnectiontMap = (await deserializeFederatedTokens(reqCookies)) ?? {}
+      session.federatedConnectiontMap = (await deserializeFederatedTokens(reqCookies, this.secret)) ?? {}
     }
     return session
   }

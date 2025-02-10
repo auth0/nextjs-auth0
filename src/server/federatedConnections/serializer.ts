@@ -4,6 +4,7 @@ import {
   ResponseCookies,
   set,
   SetCookieOptions,
+  decrypt,
 } from "../cookies"
 
 export const FCAT_AUDIENCE_DEFAULT = "__"
@@ -112,7 +113,8 @@ export const serializeFederatedTokens = async (
  * @returns A promise that resolves to a `FederatedConnectionMap` containing the deserialized federated tokens.
  */
 export const deserializeFederatedTokens = async (
-  cookies: RequestCookies | ResponseCookies
+  cookies: RequestCookies | ResponseCookies,
+  secret: string
 ): Promise<FederatedConnectionMap> => {
   /**
    * Represents a mapping for federated connections.
@@ -153,21 +155,26 @@ export const deserializeFederatedTokens = async (
    * The first segment is ignored, the second segment is used as the provider.
    * The `value` property of the cookie is parsed as JSON to obtain the tokenSet.
    */
-  const cookieToFCKVMapper = (cookie: {
+  const cookieToFCKVMapper = async (cookie: {
     name: string
     value: string
-  }): FCMapping => {
+  }): Promise<FCMapping> => {
     const [_, provider] = cookie.name.split(FCAT_DELIMITER)
     return {
       provider,
-      tokenSet: JSON.parse(cookie.value),
+      tokenSet: await decrypt<any>(
+        cookie.value,
+        secret
+      ),
     }
   }
 
-  return cookies
+  const allCookies = await Promise.all(cookies
     .getAll() // Get all cookies
     .filter((cookie) => cookie.name.startsWith(FCAT_PREFIX)) // Filter cookies that start with the FCAT prefix
-    .map(cookieToFCKVMapper) // Map each cookie to an FCMapping object
+    .map(cookieToFCKVMapper))
+    
+  return allCookies// Map each cookie to an FCMapping object
     .filter((FCMapping) => !isTokenSetExpired(FCMapping.tokenSet)) // Filter out expired token sets
     .reduce(reduceFCKVToTokenSetMap, {} as FederatedConnectionMap) // Reduce the array of FCMapping objects into a FederatedConnectionMap
 }
