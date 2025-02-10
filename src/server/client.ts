@@ -480,13 +480,13 @@ export class Auth0Client {
     }
 
     const existingTokenSet = findFederatedToken(session, connection)
-    if (existingTokenSet) return existingTokenSet
 
     const [error, federatedTokenSet] =
       await this.authClient.federatedConnectionTokenExchange({
         connection,
         tokenSet: session.tokenSet,
         login_hint,
+        existingTokenSet
       })
 
     if (error !== null) {

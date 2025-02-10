@@ -53,7 +53,8 @@ export type FederatedConnectionTokenExchangeOptions = {
   /**
    * Optional hint for login.
    */
-  login_hint?: string
+  login_hint?: string,
+  existingTokenSet?: FederatedConnectionTokenSet
 }
 
 export type FederatedConnectionsOptions = {
@@ -64,7 +65,7 @@ export type FederatedConnectionsOptions = {
   /**
    * Metadata for the OAuth client.
    */
-  clientMetadata: oauth.Client
+  clientMetadata: oauth.Client,
 }
 
 /**
@@ -91,9 +92,11 @@ export default class FederatedConnections {
       tokenSet,
       connection,
       login_hint,
+      existingTokenSet
     }: FederatedConnectionTokenExchangeOptions,
     clientAuth: oauth.ClientAuth
   ): Promise<FederatedConnectionTokenExchangeOutput> {
+    if(existingTokenSet) return [null, existingTokenSet];
     if (!tokenSet.refreshToken) {
       return [
         new FederatedConnectionsAccessTokenError(
