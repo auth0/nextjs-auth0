@@ -208,16 +208,16 @@ export class Auth0Client {
 
     this.sessionStore = options.sessionStore
       ? new StatefulSessionStore({
-          ...options.session,
-          secret,
-          store: options.sessionStore,
-          cookieOptions: sessionCookieOptions
-        })
+        ...options.session,
+        secret,
+        store: options.sessionStore,
+        cookieOptions: sessionCookieOptions,
+      })
       : new StatelessSessionStore({
-          ...options.session,
-          secret,
-          cookieOptions: sessionCookieOptions
-        });
+        ...options.session,
+        secret,
+        cookieOptions: sessionCookieOptions,
+      });
 
     this.authClient = new AuthClient({
       transactionStore: this.transactionStore,
@@ -319,20 +319,7 @@ export class Auth0Client {
     req?: PagesRouterRequest | NextRequest,
     res?: PagesRouterResponse | NextResponse
   ): Promise<{ token: string; expiresAt: number; scope?: string }> {
-    let session: SessionData | null = null;
-
-    if (req) {
-      if (req instanceof NextRequest) {
-        // middleware usage
-        session = await this.sessionStore.get(req.cookies);
-      } else {
-        // pages router usage
-        session = await this.sessionStore.get(this.createRequestCookies(req));
-      }
-    } else {
-      // app router usage: Server Components, Server Actions, Route Handlers
-      session = await this.sessionStore.get(await cookies());
-    }
+    const session: SessionData | null = await this.getSessionDataFromRequest(req);
 
     if (!session) {
       throw new AccessTokenError(
@@ -354,47 +341,10 @@ export class Auth0Client {
       tokenSet.expiresAt !== session.tokenSet.expiresAt ||
       tokenSet.refreshToken !== session.tokenSet.refreshToken
     ) {
-      if (req && res) {
-        if (req instanceof NextRequest && res instanceof NextResponse) {
-          // middleware usage
-          await this.sessionStore.set(req.cookies, res.cookies, {
-            ...session,
-            tokenSet
-          });
-        } else {
-          // pages router usage
-          const resHeaders = new Headers();
-          const resCookies = new ResponseCookies(resHeaders);
-          const pagesRouterRes = res as PagesRouterResponse;
-
-          await this.sessionStore.set(
-            this.createRequestCookies(req as PagesRouterRequest),
-            resCookies,
-            {
-              ...session,
-              tokenSet
-            }
-          );
-
-          for (const [key, value] of resHeaders.entries()) {
-            pagesRouterRes.setHeader(key, value);
-          }
-        }
-      } else {
-        // app router usage: Server Components, Server Actions, Route Handlers
-        try {
-          await this.sessionStore.set(await cookies(), await cookies(), {
-            ...session,
-            tokenSet
-          });
-        } catch (e) {
-          if (process.env.NODE_ENV === "development") {
-            console.warn(
-              "Failed to persist the updated token set. `getAccessToken()` was likely called from a Server Component which cannot set cookies."
-            );
-          }
-        }
-      }
+      await this.saveToSession({
+        ...session,
+        tokenSet,
+      }, req, res);
     }
 
     return {
@@ -444,20 +394,7 @@ export class Auth0Client {
    * @returns {Promise<{ federatedConnectionAccessToken: string, expiresAt: number }>} An object containing the access token and its expiration time.
    */
   async getFederatedConnectionAccessToken(options: GetFederatedConnectionAccessTokenOptions, req?: PagesRouterRequest | NextRequest, res?: PagesRouterResponse | NextResponse): Promise<{ token: string; expiresAt: number; scope?: string }> {
-    let session: SessionData | null = null
-
-    if (req) {
-      if (req instanceof NextRequest) {
-        // middleware usage
-        session = await this.sessionStore.get(req.cookies)
-      } else {
-        // pages router usage
-        session = await this.sessionStore.get(this.createRequestCookies(req))
-      }
-    } else {
-      // app router usage: Server Components, Server Actions, Route Handlers
-      session = await this.sessionStore.get(await cookies())
-    }
+    const session: SessionData | null = await this.getSessionDataFromRequest(req);
 
     if (!session) {
       throw new FederatedConnectionsAccessTokenError(
@@ -468,7 +405,7 @@ export class Auth0Client {
 
     // Find the federated connection token set in the session
     const existingFederatedConnectionTokenSet = session.federatedConnectionTokenSets?.find(
-        (tokenSet) => tokenSet.connection === options.connection
+      (tokenSet) => tokenSet.connection === options.connection
     )
 
 
@@ -484,11 +421,11 @@ export class Auth0Client {
     if (
       !existingFederatedConnectionTokenSet ||
       federatedConnectionTokenSet.accessToken !==
-        existingFederatedConnectionTokenSet.accessToken ||
+      existingFederatedConnectionTokenSet.accessToken ||
       federatedConnectionTokenSet.expiresAt !==
-        existingFederatedConnectionTokenSet.expiresAt ||
+      existingFederatedConnectionTokenSet.expiresAt ||
       federatedConnectionTokenSet.scope !==
-        existingFederatedConnectionTokenSet.scope
+      existingFederatedConnectionTokenSet.scope
     ) {
       let federatedConnectionTokenSets
 
@@ -501,47 +438,10 @@ export class Auth0Client {
         federatedConnectionTokenSets = [...(session.federatedConnectionTokenSets || []), federatedConnectionTokenSet];
       }
 
-      if (req && res) {
-        if (req instanceof NextRequest && res instanceof NextResponse) {
-          // middleware usage
-          await this.sessionStore.set(req.cookies, res.cookies, {
-            ...session,
-            federatedConnectionTokenSets
-          });
-        } else {
-          // pages router usage
-          const resHeaders = new Headers();
-          const resCookies = new ResponseCookies(resHeaders);
-          const pagesRouterRes = res as PagesRouterResponse;
-
-          await this.sessionStore.set(
-            this.createRequestCookies(req as PagesRouterRequest),
-            resCookies,
-            {
-              ...session,
-              federatedConnectionTokenSets
-            }
-          );
-
-          for (const [key, value] of resHeaders.entries()) {
-            pagesRouterRes.setHeader(key, value);
-          }
-        }
-      } else {
-        // app router usage: Server Components, Server Actions, Route Handlers
-        try {
-          await this.sessionStore.set(await cookies(), await cookies(), {
-            ...session,
-            federatedConnectionTokenSets
-          });
-        } catch (e) {
-          if (process.env.NODE_ENV === "development") {
-            console.warn(
-              "Failed to persist the updated token set. `getFederatedAccessToken()` was likely called from a Server Component which cannot set cookies."
-            );
-          }
-        }
-      }
+      await this.saveToSession({
+        ...session,
+        federatedConnectionTokenSets,
+      }, req, res);
     }
 
     return {
@@ -662,4 +562,55 @@ export class Auth0Client {
 
     return new RequestCookies(headers);
   }
+
+  private async getSessionDataFromRequest(req?: PagesRouterRequest | NextRequest) {
+    if (req) {
+      if (req instanceof NextRequest) {
+        // middleware usage
+        return await this.sessionStore.get(req.cookies)
+      } else {
+        // pages router usage
+        return await this.sessionStore.get(this.createRequestCookies(req))
+      }
+    } else {
+      // app router usage: Server Components, Server Actions, Route Handlers
+      return await this.sessionStore.get(await cookies())
+    }
+  }
+
+  private async saveToSession(data: SessionData, req?: PagesRouterRequest | NextRequest, res?: PagesRouterResponse | NextResponse) {
+    if (req && res) {
+      if (req instanceof NextRequest && res instanceof NextResponse) {
+        // middleware usage
+        await this.sessionStore.set(req.cookies, res.cookies, data)
+      } else {
+        // pages router usage
+        const resHeaders = new Headers()
+        const resCookies = new ResponseCookies(resHeaders)
+        const pagesRouterRes = res as PagesRouterResponse
+
+        await this.sessionStore.set(
+          this.createRequestCookies(req as PagesRouterRequest),
+          resCookies,
+          data
+        )
+
+        for (const [key, value] of resHeaders.entries()) {
+          pagesRouterRes.setHeader(key, value)
+        }
+      }
+    } else {
+      // app router usage: Server Components, Server Actions, Route Handlers
+      try {
+        await this.sessionStore.set(await cookies(), await cookies(), data)
+      } catch (e) {
+        if (process.env.NODE_ENV === "development") {
+          console.warn(
+            "Failed to persist the updated token set. `getAccessToken()` was likely called from a Server Component which cannot set cookies."
+          )
+        }
+      }
+    }
+  }
 }
+
