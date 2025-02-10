@@ -9,7 +9,8 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "prepack": "pnpm run build",
-    "install:examples": "pnpm install --filter ./examples/with-next-intl --shamefully-hoist && pnpm install --filter ./examples/with-shadcn --shamefully-hoist"
+    "install:examples": "pnpm install --filter ./examples/with-next-intl --shamefully-hoist && pnpm install --filter ./examples/with-shadcn --shamefully-hoist",
+    "docs": "typedoc"
   },
   "repository": {
     "type": "git",
@@ -38,6 +39,7 @@
     "@vitest/coverage-v8": "2.1.4",
     "next": "15.0.2",
     "prettier": "^3.3.3",
+    "typedoc": "^0.27.7",
     "typescript": "^5.6.3",
     "vite": "^5.4.11",
     "vitest": "^2.1.4"
