@@ -2,7 +2,11 @@
 
 The Auth0 Next.js SDK is a library for implementing user authentication in Next.js applications.
 
-📚 [Documentation](#documentation) - 🚀 [Getting Started](#getting-started) - 💬 [Contributing](#contributing)
+![Release](https://img.shields.io/npm/v/@auth0/nextjs-auth0)
+![Downloads](https://img.shields.io/npm/dw/@auth0/nextjs-auth0)
+[![License](https://img.shields.io/:license-mit-blue.svg?style=flat)](https://opensource.org/licenses/MIT)
+
+📚 [Documentation](#documentation) - 🚀 [Getting Started](#getting-started) - 💬 [Feedback](#feedback)
 
 ## Documentation
 
@@ -154,47 +158,19 @@ The SDK mounts 6 routes:
 5. `/auth/access-token`: the route to check the user's session and return an access token (which will be automatically refreshed if a refresh token is available)
 6. `/auth/backchannel-logout`: the route that will receive a `logout_token` when a configured Back-Channel Logout initiator occurs
 
-## Cookies and Security
+## Feedback
 
-All cookies will be set to `HttpOnly, SameSite=Lax` and will be set to `Secure` if the application's `APP_BASE_URL` is `https`.
-
-The `HttpOnly` setting will make sure that client-side JavaScript is unable to access the cookie to reduce the attack surface of [XSS attacks](https://auth0.com/blog/developers-guide-to-common-vulnerabilities-and-how-to-prevent-them/#Cross-Site-Scripting--XSS-).
-
-The `SameSite=Lax` setting will help mitigate CSRF attacks. Learn more about SameSite by reading the ["Upcoming Browser Behavior Changes: What Developers Need to Know"](https://auth0.com/blog/browser-behavior-changes-what-developers-need-to-know/) blog post.
-
-## Caching and Security
-
-Many hosting providers will offer to cache your content at the edge in order to serve data to your users as fast as possible. For example Vercel will [cache your content on the Vercel Edge Network](https://vercel.com/docs/concepts/edge-network/caching) for all static content and Serverless Functions if you provide the necessary caching headers on your response.
-
-It's generally a bad idea to cache any response that requires authentication, even if the response's content appears safe to cache there may be other data in the response that isn't.
-
-This SDK offers a rolling session by default, which means that any response that reads the session will have a `Set-Cookie` header to update the cookie's expiry. Vercel and potentially other hosting providers include the `Set-Cookie` header in the cached response, so even if you think the response's content can be cached publicly, the responses `Set-Cookie` header cannot.
-
-Check your hosting provider's caching rules, but in general you should **never** cache responses that either require authentication or even touch the session to check authentication (e.g.: `getSession` or `getAccessToken`).
-
-## Error Handling and Security
-
-If you write your own error handler, you should **not** render the error `message`, or `error` and `error_description` properties returned via the OpenID Connect `error` query parameter without using a templating engine that will properly [escape characters](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html#rule-1-html-encode-before-inserting-untrusted-data-into-html-element-content) to avoid potential XSS vulenrabilities.
-
-## Comparison with the Auth0 React SDK
-
-We also provide an Auth0 React SDK, [auth0-react](https://github.com/auth0/auth0-react), which may be suitable for your Next.js application.
-
-The SPA security model used by `auth0-react` is different from the Web Application security model used by this SDK. In short, this SDK protects pages and API routes with a cookie session (see ["Cookies and Security"](#cookies-and-security)). A SPA library like `auth0-react` will store the user's ID Token and Access Token directly in the browser and use them to access external APIs directly.
-
-You should be aware of the security implications of both models. However, [auth0-react](https://github.com/auth0/auth0-react) may be more suitable for your needs if you meet any of the following scenarios:
-
-- You are using [Static HTML Export](https://nextjs.org/docs/advanced-features/static-html-export) with Next.js.
-- You do not need to access user data during server-side rendering.
-- You want to get the access token and call external API's directly from the frontend layer rather than using Next.js API Routes as a proxy to call external APIs
-
-## Contributing
+### Contributing
 
 We appreciate feedback and contribution to this repo! Before you get started, please read the following:
 
 - [Auth0's general contribution guidelines](https://github.com/auth0/open-source-template/blob/master/GENERAL-CONTRIBUTING.md)
 - [Auth0's code of conduct guidelines](https://github.com/auth0/express-openid-connect/blob/master/CODE-OF-CONDUCT.md)
 - [This repo's contribution guide](./CONTRIBUTING.md)
+
+### Raise an issue
+
+To provide feedback or report a bug, please [raise an issue on our issue tracker](https://github.com/auth0/nextjs-auth0/issues).
 
 ## Vulnerability Reporting
 
