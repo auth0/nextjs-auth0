@@ -54,42 +54,6 @@ jobs:
           path: .
           key: ${{ env.CACHE_KEY }}
 
-  unit:
-    needs: build
-    name: Run Unit Tests
-    runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        node: [20, 22]
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-          run_install: false
-
-      - name: Setup Node.js with pnpm caching
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node }}
-          cache: 'pnpm'
-
-      - name: Restore build artifacts
-        uses: actions/cache/restore@v4
-        with:
-          path: .
-          key: ${{ env.CACHE_KEY }}
-
-      - name: Run Unit Tests
-        run: pnpm test:unit
-
-      - uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d
-
   coverage:
     needs: build
     name: Run Coverage Tests
