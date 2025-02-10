@@ -19,3 +19,9 @@ runs:
       with:
         node-version: ${{ inputs.node }}
         cache: 'pnpm'
+
+    - name: Restore cache manually
+      uses: actions/cache/restore@v4
+      with:
+        path: .
+        key: ${{ inputs.cache }}
