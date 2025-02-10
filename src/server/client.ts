@@ -333,8 +333,8 @@ export class Auth0Client {
       tokenSet.refreshToken !== session.tokenSet.refreshToken
     ) {
       this.setSessionStore({
-        ...session,
-        tokenSet,
+          ...session,
+          tokenSet,
       }, req, res)
     }
 
@@ -398,60 +398,58 @@ export class Auth0Client {
     res?: PagesRouterResponse | NextResponse,
     sessionData?: SessionData
   ) {
-    let params: SessionStoreParams;
-  
+    let params: SessionStoreParams
+
     if (!res) {
       // app router: Server Actions, Route Handlers
       params = {
         reqCookies: await cookies(),
         resCookies: await cookies(),
         updatedSession: reqOrSession as SessionData,
-        existingSession: await this.getSession()
-      };
+        existingSession: await this.getSession(),
+      }
     } else {
-      const req = reqOrSession as PagesRouterRequest | NextRequest;
-  
+      const req = reqOrSession as PagesRouterRequest | NextRequest
+
       if (req instanceof NextRequest && res instanceof NextResponse) {
         // middleware usage
         params = {
           reqCookies: req.cookies,
           resCookies: res.cookies,
           updatedSession: sessionData,
-          existingSession: await this.getSession(req)
-        };
+          existingSession: await this.getSession(req),
+        }
       } else {
         // pages router usage
-        const resHeaders = new Headers();
-        const pagesRouterRes = res as PagesRouterResponse;
-  
+        const resHeaders = new Headers()
+        const pagesRouterRes = res as PagesRouterResponse
+
         params = {
           reqCookies: this.createRequestCookies(req as PagesRouterRequest),
           resCookies: new ResponseCookies(resHeaders),
           updatedSession: sessionData,
-          existingSession: await this.getSession(req as PagesRouterRequest)
-        };
-  
+          existingSession: await this.getSession(req as PagesRouterRequest),
+        }
+
         for (const [key, value] of resHeaders.entries()) {
-          pagesRouterRes.setHeader(key, value);
+          pagesRouterRes.setHeader(key, value)
         }
       }
     }
-  
-    await this.updateExistingSession(params);
-  }
-  
 
+    await this.updateExistingSession(params)
+  }
 
   /**
    * Retrieves a federated connection access token for a specified connection.
-   * 
+   *
    * @param connection - The name of the federated connection.
    * @param login_hint - Optional login hint to be used during the token exchange.
    * @param req - Optional request object containing the session information.
    * @returns A promise that resolves to a `FederatedConnectionTokenSet`.
    * @throws {FederatedConnectionsAccessTokenError} If the user does not have an active session.
    * @throws {Error} If there is an error during the federated connection token exchange.
-   * 
+   *
    * @example
    * ```typescript
    * async function exampleUsage() {
@@ -469,7 +467,8 @@ export class Auth0Client {
   async getFederatedConnectionAccessToken(
     connection: string,
     login_hint?: string,
-    req?: PagesRouterRequest
+    req?: PagesRouterRequest | NextRequest,
+    res?: PagesRouterResponse | NextResponse
   ): Promise<FederatedConnectionTokenSet> {
     const session = req ? await this.getSession(req) : await this.getSession()
 
@@ -480,27 +479,25 @@ export class Auth0Client {
       )
     }
 
-    const existingTokenSet = findFederatedToken(
-      session,
-      connection,
-      this.authClient.getAudience()
-    )
+    const existingTokenSet = findFederatedToken(session, connection)
     if (existingTokenSet) return existingTokenSet
 
     const [error, federatedTokenSet] =
-      await this.authClient.federatedConnections.federatedConnectionTokenExchange(
-        {
-          connection,
-          tokenSet: session.tokenSet,
-          login_hint,
-        }
-      )
+      await this.authClient.federatedConnectionTokenExchange({
+        connection,
+        tokenSet: session.tokenSet,
+        login_hint,
+      })
 
     if (error !== null) {
       throw error
     }
 
-    this.setSessionStore(addOrUpdateFederatedTokenToSession(session, connection, federatedTokenSet), req)
+    this.setSessionStore(
+      addOrUpdateFederatedTokenToSession(session, federatedTokenSet),
+      req,
+      res
+    )
 
     return federatedTokenSet
   }
@@ -538,8 +535,8 @@ export class Auth0Client {
 }
 
 type SessionStoreParams = {
-  reqCookies: RequestCookies | ReadonlyRequestCookies;
-  resCookies: ResponseCookies;
-  updatedSession?: SessionData | null;
-  existingSession?: SessionData | null;
-};
+  reqCookies: RequestCookies | ReadonlyRequestCookies
+  resCookies: ResponseCookies
+  updatedSession?: SessionData | null
+  existingSession?: SessionData | null
+}

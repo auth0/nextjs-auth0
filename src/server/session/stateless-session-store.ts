@@ -50,7 +50,7 @@ export class StatelessSessionStore extends AbstractSessionStore {
       secret: this.secret,
     })
     if (session) {
-      session.federatedConnectiontMap = await deserializeFederatedTokens(reqCookies) ?? {}
+      session.federatedConnectiontMap = (await deserializeFederatedTokens(reqCookies)) ?? {}
     }
     return session
   }
@@ -79,8 +79,7 @@ export class StatelessSessionStore extends AbstractSessionStore {
     }
 
     await cookies.set(setCookieOptions)
-    fcMap &&
-      (await serializeFederatedTokens(fcMap, setCookieOptions, undefined))
+    fcMap && (await serializeFederatedTokens(fcMap, setCookieOptions))
   }
 
   async delete(

@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import * as jose from "jose"
 import * as oauth from "oauth4webapi"
-import { AuthServerMetadata, MetadataDiscoverOptions } from './authServerMetadata';
 
 import {
   AccessTokenError,
@@ -15,11 +14,17 @@ import {
   SdkError,
 } from "../errors"
 import { LogoutToken, SessionData, TokenSet } from "../types"
+import {
+  AuthServerMetadata,
+  MetadataDiscoverOptions,
+} from "./authServerMetadata"
+import FederatedConnections, {
+  FederatedConnectionTokenExchangeOptions,
+  FederatedConnectionTokenExchangeOutput,
+} from "./federatedConnections/exchange"
 import { AbstractSessionStore } from "./session/abstract-session-store"
 import { TransactionState, TransactionStore } from "./transaction-store"
 import { filterClaims } from "./user"
-import { HTTP_METHOD } from "next/dist/server/web/http"
-import FederatedConnections from "./federatedConnections";
 
 export type BeforeSessionSavedHook = (
   session: SessionData,
@@ -111,7 +116,6 @@ export interface AuthClientOptions {
 export class AuthClient {
   private transactionStore: TransactionStore
   private sessionStore: AbstractSessionStore
-
   private clientMetadata: oauth.Client
   private clientSecret?: string
   private clientAssertionSigningKey?: string | CryptoKey
@@ -119,29 +123,23 @@ export class AuthClient {
   private domain: string
   private authorizationParameters: AuthorizationParameters
   private pushedAuthorizationRequests: boolean
-
   private appBaseUrl: string
   private signInReturnToPath: string
-
   private beforeSessionSaved?: BeforeSessionSavedHook
   private onCallback: OnCallbackHook
-
   private routes: Routes
-
   private fetch: typeof fetch
   private jwksCache: jose.JWKSCacheInput
   private allowInsecureRequests: boolean
   private httpOptions: () => oauth.HttpRequestOptions<"GET" | "POST">
-  
-  private authServerMetadata:AuthServerMetadata;
-  private metadataDiscoverOptions:MetadataDiscoverOptions;
-  
-  public federatedConnections:FederatedConnections;
+  private authServerMetadata: AuthServerMetadata
+  private metadataDiscoverOptions: MetadataDiscoverOptions
+  public federatedConnections: FederatedConnections
 
   constructor(options: AuthClientOptions) {
     // dependencies
 
-    this.authServerMetadata = new AuthServerMetadata();
+    this.authServerMetadata = new AuthServerMetadata()
 
     this.fetch = options.fetch || fetch
     this.jwksCache = options.jwksCache || {}
@@ -232,16 +230,15 @@ export class AuthClient {
       allowInsecureRequests: this.allowInsecureRequests,
       fetch: this.fetch,
       httpOptions: this.httpOptions,
-      issuer: this.issuer
-    };
+      issuer: this.issuer,
+    }
 
     this.federatedConnections = new FederatedConnections({
-        clientAuth: this.getClientAuth,
-        metadataDiscoverOptions: this.metadataDiscoverOptions,
-        clientMetadata: this.clientMetadata
-    });
+      metadataDiscoverOptions: this.metadataDiscoverOptions,
+      clientMetadata: this.clientMetadata,
+    })
   }
-  
+
   async handler(req: NextRequest): Promise<NextResponse> {
     const { pathname } = req.nextUrl
     const method = req.method
@@ -262,23 +259,23 @@ export class AuthClient {
     ) {
       return this.handleBackChannelLogout(req)
     } else {
-    // no auth handler found, simply touch the sessions
-    // TODO: this should only happen if rolling sessions are enabled. Also, we should
-    // try to avoid reading from the DB (for stateful sessions) on every request if possible.
+      // no auth handler found, simply touch the sessions
+      // TODO: this should only happen if rolling sessions are enabled. Also, we should
+      // try to avoid reading from the DB (for stateful sessions) on every request if possible.
       const res = NextResponse.next()
       const session = await this.sessionStore.get(req.cookies)
 
-    if (session) {
-    // we pass the existing session (containing an `createdAt` timestamp) to the set method
-    // which will update the cookie's `maxAge` property based on the `createdAt` time
-    await this.sessionStore.set(req.cookies, res.cookies, {
-      ...session,
+      if (session) {
+        // we pass the existing session (containing an `createdAt` timestamp) to the set method
+        // which will update the cookie's `maxAge` property based on the `createdAt` time
+        await this.sessionStore.set(req.cookies, res.cookies, {
+          ...session,
         })
-    }
+      }
 
       return res
+    }
   }
-}
 
   async handleLogin(req: NextRequest): Promise<NextResponse> {
     const redirectUri = new URL(this.routes.callback, this.appBaseUrl) // must be registed with the authorization server
@@ -484,7 +481,7 @@ export class AuthClient {
         sid: idTokenClaims.sid as string,
         createdAt: Math.floor(Date.now() / 1000),
       },
-      federatedConnectiontMap: {}
+      federatedConnectiontMap: {},
     }
 
     const res = await this.onCallback(null, onCallbackCtx, session)
@@ -709,7 +706,7 @@ export class AuthClient {
     logoutToken: string
   ): Promise<[null, LogoutToken] | [SdkError, null]> {
     const [discoveryError, authorizationServerMetadata] =
-      await this.authServerMetadata.discover(this.metadataDiscoverOptions);
+      await this.authServerMetadata.discover(this.metadataDiscoverOptions)
 
     if (discoveryError) {
       return [discoveryError, null]
@@ -801,7 +798,7 @@ export class AuthClient {
     params: URLSearchParams
   ): Promise<[null, URL] | [Error, null]> {
     const [discoveryError, authorizationServerMetadata] =
-      await this.authServerMetadata.discover(this.metadataDiscoverOptions);
+      await this.authServerMetadata.discover(this.metadataDiscoverOptions)
     if (discoveryError) {
       return [discoveryError, null]
     }
@@ -905,13 +902,13 @@ export class AuthClient {
       : `https://${this.domain}`
   }
 
-  /**
-   * Retrieves the audience for the authentication client.
-   *
-   * @returns {string} The client ID from the client metadata.
-   */
-  public getAudience(): string {
-    return this.clientMetadata.client_id
+  public federatedConnectionTokenExchange = async (
+    options: FederatedConnectionTokenExchangeOptions
+  ): Promise<FederatedConnectionTokenExchangeOutput> => {
+    return this.federatedConnections.federatedConnectionTokenExchange(
+      options,
+      await this.getClientAuth()
+    )
   }
 }
 

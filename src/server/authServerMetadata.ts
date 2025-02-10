@@ -19,10 +19,6 @@ export type MetadataDiscoverResult =
 export class AuthServerMetadata {
   private authorizationServerMetadata?: oauth.AuthorizationServer
 
-  constructor() {
-    this.authorizationServerMetadata = undefined
-  }
-
   /**
    * Discover the authorization server metadata from the given issuer URL.
    *

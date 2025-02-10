@@ -12,7 +12,6 @@ import {
 } from "../authServerMetadata"
 import { FederatedConnectionTokenSet } from "./serializer"
 
-
 /**
  * A constant representing the grant type for federated connection access token exchange.
  *
@@ -59,10 +58,6 @@ export type FederatedConnectionTokenExchangeOptions = {
 
 export type FederatedConnectionsOptions = {
   /**
-   * Client authentication details.
-   */
-  clientAuth: () => Promise<oauth.ClientAuth>
-  /**
    * Options for metadata discovery.
    */
   metadataDiscoverOptions: MetadataDiscoverOptions
@@ -91,11 +86,14 @@ export default class FederatedConnections {
     this.federatedConnectionsOptions = federatedConnectionsOptions
   }
 
-  async federatedConnectionTokenExchange({
-    tokenSet,
-    connection,
-    login_hint,
-  }: FederatedConnectionTokenExchangeOptions): Promise<FederatedConnectionTokenExchangeOutput> {
+  async federatedConnectionTokenExchange(
+    {
+      tokenSet,
+      connection,
+      login_hint,
+    }: FederatedConnectionTokenExchangeOptions,
+    clientAuth: oauth.ClientAuth
+  ): Promise<FederatedConnectionTokenExchangeOutput> {
     if (!tokenSet.refreshToken) {
       return [
         new FederatedConnectionsAccessTokenError(
@@ -135,7 +133,7 @@ export default class FederatedConnections {
     const httpResponse = await oauth.genericTokenEndpointRequest(
       authorizationServerMetadata,
       clientMetadata,
-      await this.federatedConnectionsOptions.clientAuth(),
+      clientAuth,
       GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN,
       params,
       {
