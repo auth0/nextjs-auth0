@@ -8,7 +8,7 @@
     "test:unit": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "prepack": "npm run build",
+    "prepack": "pnpm run build",
     "install:examples": "pnpm install --filter ./examples/with-next-intl --shamefully-hoist && pnpm install --filter ./examples/with-shadcn --shamefully-hoist"
   },
   "repository": {
