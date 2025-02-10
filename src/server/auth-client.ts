@@ -290,12 +290,15 @@ export class AuthClient {
       }
     })
 
-    // any custom params to forward to /authorize passed as query parameters
-    req.nextUrl.searchParams.forEach((val, key) => {
-      if (!INTERNAL_AUTHORIZE_PARAMS.includes(key)) {
-        authorizationParams.set(key, val)
-      }
-    })
+    // custom parameters passed in via the query params to ensure only the confidential client can set them
+    if (!this.pushedAuthorizationRequests) {
+      // any custom params to forward to /authorize passed as query parameters
+      req.nextUrl.searchParams.forEach((val, key) => {
+        if (!INTERNAL_AUTHORIZE_PARAMS.includes(key)) {
+          authorizationParams.set(key, val)
+        }
+      })
+    }
 
     const transactionState: TransactionState = {
       nonce,
