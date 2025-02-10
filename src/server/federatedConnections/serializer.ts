@@ -196,8 +196,11 @@ export const findFederatedToken = (
   provider: string
 ): FederatedConnectionTokenSet | undefined => {
   const partialTokenSet = session.federatedConnectiontMap?.[provider]
+
+  if (partialTokenSet) {
   return {
     ...partialTokenSet,
     connection: provider,
   } as FederatedConnectionTokenSet
+  }
 }
