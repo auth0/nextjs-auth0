@@ -1498,6 +1498,82 @@ ca/T0LLtgmbMmxSv/MmzIg==
             returnTo: "/",
           })
         })
+
+        it("should forward custom parameters set in the configuration to the authorization server", async () => {
+          const secret = await generateSecret(32)
+          const transactionStore = new TransactionStore({
+            secret,
+          })
+          const sessionStore = new StatelessSessionStore({
+            secret,
+          })
+
+          // set custom parameters in the login URL which should not be forwarded to the authorization server (in PAR request)
+          const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl)
+          const request = new NextRequest(loginUrl, {
+            method: "GET",
+          })
+
+          const authClient = new AuthClient({
+            transactionStore,
+            sessionStore,
+            domain: DEFAULT.domain,
+            clientId: DEFAULT.clientId,
+            clientSecret: DEFAULT.clientSecret,
+            pushedAuthorizationRequests: true,
+            secret,
+            appBaseUrl: DEFAULT.appBaseUrl,
+            authorizationParameters: {
+              "ext-custom_param": "custom_value",
+              audience: "urn:mystore:api",
+            },
+            fetch: getMockAuthorizationServer({
+              onParRequest: async (request) => {
+                const params = new URLSearchParams(await request.text())
+                expect(params.get("ext-custom_param")).toEqual("custom_value")
+                expect(params.get("audience")).toEqual("urn:mystore:api")
+              },
+            }),
+          })
+
+          const response = await authClient.handleLogin(request)
+          expect(response.status).toEqual(307)
+          expect(response.headers.get("Location")).not.toBeNull()
+          const authorizationUrl = new URL(response.headers.get("Location")!)
+          expect(authorizationUrl.origin).toEqual(`https://${DEFAULT.domain}`)
+          // query parameters should only include the `request_uri` and not the standard auth params
+          expect(authorizationUrl.searchParams.get("request_uri")).toEqual(
+            DEFAULT.requestUri
+          )
+          expect(authorizationUrl.searchParams.get("client_id")).toEqual(
+            DEFAULT.clientId
+          )
+          expect(authorizationUrl.searchParams.get("redirect_uri")).toBeNull()
+          expect(authorizationUrl.searchParams.get("response_type")).toBeNull()
+          expect(authorizationUrl.searchParams.get("code_challenge")).toBeNull()
+          expect(
+            authorizationUrl.searchParams.get("code_challenge_method")
+          ).toBeNull()
+          expect(authorizationUrl.searchParams.get("state")).toBeNull()
+          expect(authorizationUrl.searchParams.get("nonce")).toBeNull()
+          expect(authorizationUrl.searchParams.get("scope")).toBeNull()
+
+          // transaction state
+          const transactionCookies = response.cookies
+            .getAll()
+            .filter((c) => c.name.startsWith("__txn_"))
+          expect(transactionCookies.length).toEqual(1)
+          const transactionCookie = transactionCookies[0]
+          const state = transactionCookie.name.replace("__txn_", "")
+          expect(transactionCookie).toBeDefined()
+          expect(await decrypt(transactionCookie!.value, secret)).toEqual({
+            nonce: expect.any(String),
+            codeVerifier: expect.any(String),
+            responseType: "code",
+            state,
+            returnTo: "/",
+          })
+        })
       })
     })
 
