@@ -32,7 +32,6 @@ jobs:
         uses: pnpm/action-setup@v4
         with:
           version: 10
-          run_install: false
 
       - name: Setup Node.js with pnpm caching
         uses: actions/setup-node@v4
@@ -71,7 +70,6 @@ jobs:
         uses: pnpm/action-setup@v4
         with:
           version: 10
-          run_install: false
 
       - name: Setup Node.js with pnpm caching
         uses: actions/setup-node@v4
@@ -88,4 +86,4 @@ jobs:
       - name: Run Test Coverage
         run: pnpm test:coverage
 
-      - uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d
+      - uses: codecov/codecov-action@13ce06bfc6bbe3ecf90edbbf1bc32fe5978ca1d3 # pin@5.3.1
