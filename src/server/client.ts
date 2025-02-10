@@ -332,9 +332,10 @@ export class Auth0Client {
       tokenSet.expiresAt !== session.tokenSet.expiresAt ||
       tokenSet.refreshToken !== session.tokenSet.refreshToken
     ) {
-      this.setSessionStore({
-          ...session,
-          tokenSet,
+
+      await this.setSessionStore({
+        ...session,
+        tokenSet,
       }, req, res)
     }
 
@@ -493,7 +494,7 @@ export class Auth0Client {
       throw error
     }
 
-    this.setSessionStore(
+    await this.setSessionStore(
       addOrUpdateFederatedTokenToSession(session, federatedTokenSet),
       req,
       res
