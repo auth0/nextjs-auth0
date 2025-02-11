@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vitest";
 
-import { filterClaims } from "./user"
+import { filterClaims } from "./user";
 
 describe("filterClaims", async () => {
   it("should return only the allowed claims", () => {
@@ -17,8 +17,8 @@ describe("filterClaims", async () => {
 
       // Extra claims
       iat: 1234567890,
-      exp: 1234567890,
-    }
+      exp: 1234567890
+    };
 
     expect(filterClaims(claims)).toEqual({
       sub: "user_123",
@@ -29,11 +29,11 @@ describe("filterClaims", async () => {
       picture: "https://example.com/johndoe.jpg",
       email: "john@example.com",
       email_verified: true,
-      org_id: "org_123",
-    })
-  })
+      org_id: "org_123"
+    });
+  });
 
   it("should return an empty object if no claims are provided", () => {
-    expect(filterClaims({})).toEqual({})
-  })
-})
+    expect(filterClaims({})).toEqual({});
+  });
+});
