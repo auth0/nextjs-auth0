@@ -35,7 +35,7 @@ describe("url-helpers", () => {
       for (const payload of payloads) {
         expect(
           toSafeRedirect(payload, safeBaseUrl) || safeBaseUrl.toString()
-        ).toMatch(/^http:\/\/www.example.com\//);
+        ).toMatch(/^http:\/\/www\.example\.com\//);
       }
     });
 
