@@ -148,7 +148,9 @@ export interface Auth0ClientOptions {
 }
 
 export type PagesRouterRequest = IncomingMessage | NextApiRequest;
-export type PagesRouterResponse = ServerResponse<IncomingMessage> | NextApiResponse;
+export type PagesRouterResponse =
+  | ServerResponse<IncomingMessage>
+  | NextApiResponse;
 
 export class Auth0Client {
   private transactionStore: TransactionStore;
