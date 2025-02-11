@@ -1,18 +1,18 @@
-import { SessionData } from "../../types"
-import * as cookies from "../cookies"
+import { SessionData } from "../../types";
+import * as cookies from "../cookies";
 import {
   AbstractSessionStore,
-  SessionCookieOptions,
-} from "./abstract-session-store"
+  SessionCookieOptions
+} from "./abstract-session-store";
 
 interface StatelessSessionStoreOptions {
-  secret: string
+  secret: string;
 
-  rolling?: boolean // defaults to true
-  absoluteDuration?: number // defaults to 3 days
-  inactivityDuration?: number // defaults to 1 day
+  rolling?: boolean; // defaults to true
+  absoluteDuration?: number; // defaults to 3 days
+  inactivityDuration?: number; // defaults to 1 day
 
-  cookieOptions?: SessionCookieOptions
+  cookieOptions?: SessionCookieOptions;
 }
 
 export class StatelessSessionStore extends AbstractSessionStore {
@@ -21,25 +21,25 @@ export class StatelessSessionStore extends AbstractSessionStore {
     rolling,
     absoluteDuration,
     inactivityDuration,
-    cookieOptions,
+    cookieOptions
   }: StatelessSessionStoreOptions) {
     super({
       secret,
       rolling,
       absoluteDuration,
       inactivityDuration,
-      cookieOptions,
-    })
+      cookieOptions
+    });
   }
 
   async get(reqCookies: cookies.RequestCookies) {
-    const cookieValue = reqCookies.get(this.sessionCookieName)?.value
+    const cookieValue = reqCookies.get(this.sessionCookieName)?.value;
 
     if (!cookieValue) {
-      return null
+      return null;
     }
 
-    return cookies.decrypt<SessionData>(cookieValue, this.secret)
+    return cookies.decrypt<SessionData>(cookieValue, this.secret);
   }
 
   /**
@@ -48,32 +48,31 @@ export class StatelessSessionStore extends AbstractSessionStore {
   async set(
     reqCookies: cookies.RequestCookies,
     resCookies: cookies.ResponseCookies,
-    session: SessionData,
-    _isNew?: boolean
+    session: SessionData
   ) {
-    const jwe = await cookies.encrypt(session, this.secret)
-    const maxAge = this.calculateMaxAge(session.internal.createdAt)
-    const cookieValue = jwe.toString()
+    const jwe = await cookies.encrypt(session, this.secret);
+    const maxAge = this.calculateMaxAge(session.internal.createdAt);
+    const cookieValue = jwe.toString();
 
     resCookies.set(this.sessionCookieName, jwe.toString(), {
       ...this.cookieConfig,
-      maxAge,
-    })
+      maxAge
+    });
     // to enable read-after-write in the same request for middleware
-    reqCookies.set(this.sessionCookieName, cookieValue)
+    reqCookies.set(this.sessionCookieName, cookieValue);
 
     // check if the session cookie size exceeds 4096 bytes, and if so, log a warning
-    const cookieJarSizeTest = new cookies.ResponseCookies(new Headers())
+    const cookieJarSizeTest = new cookies.ResponseCookies(new Headers());
     cookieJarSizeTest.set(this.sessionCookieName, cookieValue, {
       ...this.cookieConfig,
-      maxAge,
-    })
+      maxAge
+    });
     if (new TextEncoder().encode(cookieJarSizeTest.toString()).length >= 4096) {
       console.warn(
         "The session cookie size exceeds 4096 bytes, which may cause issues in some browsers. " +
           "Consider removing any unnecessary custom claims from the access token or the user profile. " +
           "Alternatively, you can use a stateful session implementation to store the session data in a data store."
-      )
+      );
     }
   }
 
@@ -81,6 +80,6 @@ export class StatelessSessionStore extends AbstractSessionStore {
     _reqCookies: cookies.RequestCookies,
     resCookies: cookies.ResponseCookies
   ) {
-    await resCookies.delete(this.sessionCookieName)
+    await resCookies.delete(this.sessionCookieName);
   }
 }

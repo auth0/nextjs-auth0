@@ -1,4 +1,4 @@
-import type { User } from "../types"
+import type { User } from "../types";
 
 const DEFAULT_ALLOWED_CLAIMS = [
   "sub",
@@ -9,14 +9,14 @@ const DEFAULT_ALLOWED_CLAIMS = [
   "picture",
   "email",
   "email_verified",
-  "org_id",
-]
+  "org_id"
+];
 
 export function filterClaims(claims: { [key: string]: any }) {
   return Object.keys(claims).reduce((acc, key) => {
     if (DEFAULT_ALLOWED_CLAIMS.includes(key)) {
-      acc[key] = claims[key]
+      acc[key] = claims[key];
     }
-    return acc
-  }, {} as User)
+    return acc;
+  }, {} as User);
 }
