@@ -3,6 +3,7 @@
     "./src/client/index.ts",
     "./src/types/index.ts",
     "./src/server/index.ts",
+    "./src/testing/index.ts",
     "./src/errors/index.ts",
 ],
   "out": "docs",

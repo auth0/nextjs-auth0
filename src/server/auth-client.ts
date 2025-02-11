@@ -24,7 +24,7 @@ export type BeforeSessionSavedHook = (
   idToken: string | null
 ) => Promise<SessionData>;
 
-type OnCallbackContext = {
+export type OnCallbackContext = {
   returnTo?: string;
 };
 export type OnCallbackHook = (
@@ -65,7 +65,7 @@ export interface AuthorizationParameters {
   [key: string]: unknown;
 }
 
-interface Routes {
+export interface Routes {
   login: string;
   logout: string;
   callback: string;
