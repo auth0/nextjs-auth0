@@ -4,9 +4,9 @@ on:
   merge_group:
   workflow_dispatch:
   pull_request:
-    branches: [ main, v4 ]
+    branches: [main, v4]
   push:
-    branches: [ main, v4 ]
+    branches: [main, v4]
 
 permissions:
   contents: read
@@ -37,7 +37,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -75,7 +75,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - name: Restore build artifacts
         uses: actions/cache/restore@v4
@@ -87,3 +87,19 @@ jobs:
         run: pnpm test:coverage
 
       - uses: codecov/codecov-action@13ce06bfc6bbe3ecf90edbbf1bc32fe5978ca1d3 # pin@5.3.1
+
+  lint:
+    needs: build # Require build to complete before running tests
+
+    name: Lint Code
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/prepare
+        with:
+          node: ${{ env.NODE_VERSION }}
+          cache: ${{ env.CACHE_KEY }}
+
+      - run: pnpm run lint
