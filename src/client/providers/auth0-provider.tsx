@@ -1,26 +1,26 @@
-"use client"
+"use client";
 
-import React from "react"
-import { SWRConfig } from "swr"
+import React from "react";
+import { SWRConfig } from "swr";
 
-import { User } from "../../types"
+import { User } from "../../types";
 
 export function Auth0Provider({
   user,
-  children,
+  children
 }: {
-  user?: User
-  children: React.ReactNode
+  user?: User;
+  children: React.ReactNode;
 }) {
   return (
     <SWRConfig
       value={{
         fallback: {
-          "/auth/profile": user,
-        },
+          "/auth/profile": user
+        }
       }}
     >
       {children}
     </SWRConfig>
-  )
+  );
 }

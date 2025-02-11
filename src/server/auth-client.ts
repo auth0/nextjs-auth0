@@ -666,7 +666,7 @@ export class AuthClient {
       const accessTokenExpiresAt =
         Math.floor(Date.now() / 1000) + Number(oauthRes.expires_in);
 
-      let updatedTokenSet = {
+      const updatedTokenSet = {
         ...tokenSet, // contains the existing `iat` claim to maintain the session lifetime
         accessToken: oauthRes.access_token,
         expiresAt: accessTokenExpiresAt
@@ -723,8 +723,7 @@ export class AuthClient {
 
   private async defaultOnCallback(
     error: SdkError | null,
-    ctx: OnCallbackContext,
-    _session: SessionData | null
+    ctx: OnCallbackContext
   ) {
     if (error) {
       return new NextResponse(error.message, {

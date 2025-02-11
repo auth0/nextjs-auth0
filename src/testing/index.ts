@@ -1,4 +1,4 @@
 export {
   GenerateSessionCookieConfig,
-  generateSessionCookie,
-} from "./generate-session-cookie"
+  generateSessionCookie
+} from "./generate-session-cookie";
