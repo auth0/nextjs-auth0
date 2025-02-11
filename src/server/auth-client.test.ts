@@ -3130,7 +3130,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           fetch: getMockAuthorizationServer(),
 
-          // @ts-expect-error
+          // @ts-expect-error intentionally testing invalid internal session data
           beforeSessionSaved: async (session) => {
             return {
               ...session,

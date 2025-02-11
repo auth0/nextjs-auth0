@@ -1,10 +1,10 @@
-import type { SessionData, SessionDataStore } from "../../types"
+import type { SessionData, SessionDataStore } from "../../types";
 import {
   CookieOptions,
   ReadonlyRequestCookies,
   RequestCookies,
-  ResponseCookies,
-} from "../cookies"
+  ResponseCookies
+} from "../cookies";
 
 export interface SessionCookieOptions {
   /**
@@ -12,19 +12,19 @@ export interface SessionCookieOptions {
    *
    * Default: `__session`.
    */
-  name?: string
+  name?: string;
   /**
    * The sameSite attribute of the session cookie.
    *
    * Default: `lax`.
    */
-  sameSite?: "strict" | "lax" | "none"
+  sameSite?: "strict" | "lax" | "none";
   /**
    * The secure attribute of the session cookie.
    *
    * Default: depends on the protocol of the application's base URL. If the protocol is `https`, then `true`, otherwise `false`.
    */
-  secure?: boolean
+  secure?: boolean;
 }
 
 export interface SessionConfiguration {
@@ -36,7 +36,7 @@ export interface SessionConfiguration {
    *
    * Default: `true`.
    */
-  rolling?: boolean
+  rolling?: boolean;
   /**
    * The absolute duration after which the session will expire. The value must be specified in seconds..
    *
@@ -44,7 +44,7 @@ export interface SessionConfiguration {
    *
    * Default: 3 days.
    */
-  absoluteDuration?: number
+  absoluteDuration?: number;
   /**
    * The duration of inactivity after which the session will expire. The value must be specified in seconds.
    *
@@ -52,34 +52,34 @@ export interface SessionConfiguration {
    *
    * Default: 1 day.
    */
-  inactivityDuration?: number
+  inactivityDuration?: number;
 
   /**
    * The options for the session cookie.
    */
-  cookie?: SessionCookieOptions
+  cookie?: SessionCookieOptions;
 }
 
 interface SessionStoreOptions extends SessionConfiguration {
-  secret: string
-  store?: SessionDataStore
+  secret: string;
+  store?: SessionDataStore;
 
-  cookieOptions?: SessionCookieOptions
+  cookieOptions?: SessionCookieOptions;
 }
 
-const SESSION_COOKIE_NAME = "__session"
+const SESSION_COOKIE_NAME = "__session";
 
 export abstract class AbstractSessionStore {
-  public secret: string
-  public sessionCookieName: string
+  public secret: string;
+  public sessionCookieName: string;
 
-  private rolling: boolean
-  private absoluteDuration: number
-  private inactivityDuration: number
+  private rolling: boolean;
+  private absoluteDuration: number;
+  private inactivityDuration: number;
 
-  public store?: SessionDataStore
+  public store?: SessionDataStore;
 
-  public cookieConfig: CookieOptions
+  public cookieConfig: CookieOptions;
 
   constructor({
     secret,
@@ -89,27 +89,27 @@ export abstract class AbstractSessionStore {
     inactivityDuration = 60 * 60 * 24 * 1, // 1 day in seconds
     store,
 
-    cookieOptions,
+    cookieOptions
   }: SessionStoreOptions) {
-    this.secret = secret
+    this.secret = secret;
 
-    this.rolling = rolling
-    this.absoluteDuration = absoluteDuration
-    this.inactivityDuration = inactivityDuration
-    this.store = store
+    this.rolling = rolling;
+    this.absoluteDuration = absoluteDuration;
+    this.inactivityDuration = inactivityDuration;
+    this.store = store;
 
-    this.sessionCookieName = cookieOptions?.name ?? SESSION_COOKIE_NAME
+    this.sessionCookieName = cookieOptions?.name ?? SESSION_COOKIE_NAME;
     this.cookieConfig = {
       httpOnly: true,
       sameSite: cookieOptions?.sameSite ?? "lax",
       secure: cookieOptions?.secure ?? false,
-      path: "/",
-    }
+      path: "/"
+    };
   }
 
   abstract get(
     reqCookies: RequestCookies | ReadonlyRequestCookies
-  ): Promise<SessionData | null>
+  ): Promise<SessionData | null>;
 
   /**
    * save adds the encrypted session cookie as a `Set-Cookie` header. If the `iat` property
@@ -120,18 +120,18 @@ export abstract class AbstractSessionStore {
     resCookies: ResponseCookies,
     session: SessionData,
     isNew?: boolean
-  ): Promise<void>
+  ): Promise<void>;
 
   abstract delete(
     reqCookies: RequestCookies | ReadonlyRequestCookies,
     resCookies: ResponseCookies
-  ): Promise<void>
+  ): Promise<void>;
 
   /**
    * epoch returns the time since unix epoch in seconds.
    */
   epoch() {
-    return (Date.now() / 1000) | 0
+    return (Date.now() / 1000) | 0;
   }
 
   /**
@@ -139,16 +139,16 @@ export abstract class AbstractSessionStore {
    */
   calculateMaxAge(createdAt: number) {
     if (!this.rolling) {
-      return this.absoluteDuration
+      return this.absoluteDuration;
     }
 
-    const updatedAt = this.epoch()
+    const updatedAt = this.epoch();
     const expiresAt = Math.min(
       updatedAt + this.inactivityDuration,
       createdAt + this.absoluteDuration
-    )
-    const maxAge = expiresAt - this.epoch()
+    );
+    const maxAge = expiresAt - this.epoch();
 
-    return maxAge > 0 ? maxAge : 0
+    return maxAge > 0 ? maxAge : 0;
   }
 }
