@@ -16,3 +16,8 @@ Please read [Auth0's contribution guidelines](https://github.com/auth0/open-sour
 - `pnpm test:unit`: Run the unit tests
 - `pnpm run test:coverage`: Run unit test coverage
 - `pnpm run test:e2e`: Run the E2E tests and watch for changes (you will need to populate the `TEST_USER_PASSWORD` env var)
+
+## Generate docs
+
+- `pnpm run docs` – Generates the API documentation 
+- `npx http-server docs` – Serves the documentation locally
