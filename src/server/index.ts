@@ -1,1 +1,1 @@
-export { Auth0Client } from "./client"
+export { Auth0Client } from "./client";
