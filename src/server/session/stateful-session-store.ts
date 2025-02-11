@@ -1,38 +1,38 @@
-import { SessionData, SessionDataStore } from "../../types"
-import * as cookies from "../cookies"
+import { SessionData, SessionDataStore } from "../../types";
+import * as cookies from "../cookies";
 import {
   AbstractSessionStore,
-  SessionCookieOptions,
-} from "./abstract-session-store"
+  SessionCookieOptions
+} from "./abstract-session-store";
 
 // the value of the stateful session cookie containing a unique session ID to identify
 // the current session
 interface SessionCookieValue {
-  id: string
+  id: string;
 }
 
 interface StatefulSessionStoreOptions {
-  secret: string
+  secret: string;
 
-  rolling?: boolean // defaults to true
-  absoluteDuration?: number // defaults to 3 days
-  inactivityDuration?: number // defaults to 1 day
+  rolling?: boolean; // defaults to true
+  absoluteDuration?: number; // defaults to 3 days
+  inactivityDuration?: number; // defaults to 1 day
 
-  store: SessionDataStore
+  store: SessionDataStore;
 
-  cookieOptions?: SessionCookieOptions
+  cookieOptions?: SessionCookieOptions;
 }
 
 const generateId = () => {
-  const bytes = new Uint8Array(16)
-  crypto.getRandomValues(bytes)
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
   return Array.from(bytes)
     .map((b) => b.toString(16).padStart(2, "0"))
-    .join("")
-}
+    .join("");
+};
 
 export class StatefulSessionStore extends AbstractSessionStore {
-  public store: SessionDataStore
+  public store: SessionDataStore;
 
   constructor({
     secret,
@@ -40,32 +40,32 @@ export class StatefulSessionStore extends AbstractSessionStore {
     rolling,
     absoluteDuration,
     inactivityDuration,
-    cookieOptions,
+    cookieOptions
   }: StatefulSessionStoreOptions) {
     super({
       secret,
       rolling,
       absoluteDuration,
       inactivityDuration,
-      cookieOptions,
-    })
+      cookieOptions
+    });
 
-    this.store = store
+    this.store = store;
   }
 
   async get(reqCookies: cookies.RequestCookies) {
-    const cookieValue = reqCookies.get(this.sessionCookieName)?.value
+    const cookieValue = reqCookies.get(this.sessionCookieName)?.value;
 
     if (!cookieValue) {
-      return null
+      return null;
     }
 
     const { id } = await cookies.decrypt<SessionCookieValue>(
       cookieValue,
       this.secret
-    )
+    );
 
-    return this.store.get(id)
+    return this.store.get(id);
   }
 
   async set(
@@ -75,61 +75,61 @@ export class StatefulSessionStore extends AbstractSessionStore {
     isNew: boolean = false
   ) {
     // check if a session already exists. If so, maintain the existing session ID
-    let sessionId = null
-    const cookieValue = reqCookies.get(this.sessionCookieName)?.value
+    let sessionId = null;
+    const cookieValue = reqCookies.get(this.sessionCookieName)?.value;
     if (cookieValue) {
       const sessionCookie = await cookies.decrypt<SessionCookieValue>(
         cookieValue,
         this.secret
-      )
-      sessionId = sessionCookie.id
+      );
+      sessionId = sessionCookie.id;
     }
 
     // if this is a new session created by a new login we need to remove the old session
     // from the store and regenerate the session ID to prevent session fixation.
     if (sessionId && isNew) {
-      await this.store.delete(sessionId)
-      sessionId = generateId()
+      await this.store.delete(sessionId);
+      sessionId = generateId();
     }
 
     if (!sessionId) {
-      sessionId = generateId()
+      sessionId = generateId();
     }
 
     const jwe = await cookies.encrypt(
       {
-        id: sessionId,
+        id: sessionId
       },
       this.secret
-    )
-    const maxAge = this.calculateMaxAge(session.internal.createdAt)
+    );
+    const maxAge = this.calculateMaxAge(session.internal.createdAt);
 
     resCookies.set(this.sessionCookieName, jwe.toString(), {
       ...this.cookieConfig,
-      maxAge,
-    })
-    await this.store.set(sessionId, session)
+      maxAge
+    });
+    await this.store.set(sessionId, session);
 
     // to enable read-after-write in the same request for middleware
-    reqCookies.set(this.sessionCookieName, jwe.toString())
+    reqCookies.set(this.sessionCookieName, jwe.toString());
   }
 
   async delete(
     reqCookies: cookies.RequestCookies,
     resCookies: cookies.ResponseCookies
   ) {
-    const cookieValue = reqCookies.get(this.sessionCookieName)?.value
-    await resCookies.delete(this.sessionCookieName)
+    const cookieValue = reqCookies.get(this.sessionCookieName)?.value;
+    await resCookies.delete(this.sessionCookieName);
 
     if (!cookieValue) {
-      return
+      return;
     }
 
     const { id } = await cookies.decrypt<SessionCookieValue>(
       cookieValue,
       this.secret
-    )
+    );
 
-    await this.store.delete(id)
+    await this.store.delete(id);
   }
 }

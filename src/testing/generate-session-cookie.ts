@@ -1,5 +1,5 @@
-import { encrypt } from "../server/cookies"
-import { SessionData } from "../types"
+import { encrypt } from "../server/cookies";
+import { SessionData } from "../types";
 
 export type GenerateSessionCookieConfig = {
   /**
@@ -7,8 +7,8 @@ export type GenerateSessionCookieConfig = {
    *
    * **IMPORTANT**: you must use the same value as in the SDK configuration.
    */
-  secret: string
-}
+  secret: string;
+};
 
 export const generateSessionCookie = async (
   session: Partial<SessionData>,
@@ -17,9 +17,9 @@ export const generateSessionCookie = async (
   if (!("internal" in session)) {
     session.internal = {
       sid: "auth0-sid",
-      createdAt: Math.floor(Date.now() / 1000),
-    }
+      createdAt: Math.floor(Date.now() / 1000)
+    };
   }
 
-  return encrypt(session, config.secret)
-}
+  return encrypt(session, config.secret);
+};
