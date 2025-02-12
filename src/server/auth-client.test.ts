@@ -1293,7 +1293,51 @@ ca/T0LLtgmbMmxSv/MmzIg==
         codeVerifier: expect.any(String),
         responseType: "code",
         state: authorizationUrl.searchParams.get("state"),
-        returnTo: "/dashboard"
+        returnTo: "https://example.com/dashboard"
+      });
+    });
+
+    it("should prevent open redirects originating from the returnTo parameter", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        fetch: getMockAuthorizationServer()
+      });
+      const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
+      loginUrl.searchParams.set("returnTo", "https://google.com");
+      const request = new NextRequest(loginUrl, {
+        method: "GET"
+      });
+
+      const response = await authClient.handleLogin(request);
+      const authorizationUrl = new URL(response.headers.get("Location")!);
+
+      // transaction state
+      const transactionCookie = response.cookies.get(
+        `__txn_${authorizationUrl.searchParams.get("state")}`
+      );
+      expect(transactionCookie).toBeDefined();
+      expect(await decrypt(transactionCookie!.value, secret)).toEqual({
+        nonce: authorizationUrl.searchParams.get("nonce"),
+        codeVerifier: expect.any(String),
+        responseType: "code",
+        state: authorizationUrl.searchParams.get("state"),
+        returnTo: "/"
       });
     });
 

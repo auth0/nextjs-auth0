@@ -15,6 +15,7 @@ import {
   SdkError
 } from "../errors";
 import { LogoutToken, SessionData, TokenSet } from "../types";
+import { toSafeRedirect } from "../utils/url-helpers";
 import { AbstractSessionStore } from "./session/abstract-session-store";
 import { TransactionState, TransactionStore } from "./transaction-store";
 import { filterClaims } from "./user";
@@ -261,8 +262,20 @@ export class AuthClient {
 
   async handleLogin(req: NextRequest): Promise<NextResponse> {
     const redirectUri = new URL(this.routes.callback, this.appBaseUrl); // must be registed with the authorization server
-    const returnTo =
-      req.nextUrl.searchParams.get("returnTo") || this.signInReturnToPath;
+    const dangerousReturnTo = req.nextUrl.searchParams.get("returnTo");
+    let returnTo = this.signInReturnToPath;
+
+    if (dangerousReturnTo) {
+      const safeBaseUrl = new URL(
+        (this.authorizationParameters.redirect_uri as string | undefined) ||
+          this.appBaseUrl
+      );
+      const sanitizedReturnTo = toSafeRedirect(dangerousReturnTo, safeBaseUrl);
+
+      if (sanitizedReturnTo) {
+        returnTo = sanitizedReturnTo;
+      }
+    }
 
     const codeChallengeMethod = "S256";
     const codeVerifier = oauth.generateRandomCodeVerifier();
