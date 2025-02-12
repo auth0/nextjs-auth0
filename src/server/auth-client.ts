@@ -25,6 +25,7 @@ import FederatedConnections, {
 import { AbstractSessionStore } from "./session/abstract-session-store"
 import { TransactionState, TransactionStore } from "./transaction-store"
 import { filterClaims } from "./user"
+import { toSafeRedirect } from "../utils/url-helpers";
 
 export type BeforeSessionSavedHook = (
   session: SessionData,
