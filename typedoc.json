@@ -1,0 +1,19 @@
+{
+  "entryPoints": [
+    "./src/client/index.ts",
+    "./src/types/index.ts",
+    "./src/server/index.ts",
+    "./src/testing/index.ts",
+    "./src/errors/index.ts",
+],
+  "out": "docs",
+  "tsconfig": "tsconfig.json",
+  "includeVersion": true,
+  "readme": "README.md",
+  "hideGenerator": true,
+  "excludePrivate": true,
+  "excludeExternals": true,
+  "exclude": ["**/node_modules/**", "**/test/**", "**/examples/**", "**/e2e/**"],
+  "categorizeByGroup": false,
+  "theme": "default"
+}
