@@ -53,10 +53,6 @@ export const addOrUpdateFederatedTokenToSession = (
   session: SessionData,
   fcat: FederatedConnectionTokenSet
 ): SessionData => {
-  if (!session.federatedConnectionTokenSets) {
-    session.federatedConnectionTokenSets = {}
-  }
-
   const serializedFCTokenSet: SerializedFCTokenSet = {
     accessToken: fcat.accessToken,
     expiresAt: fcat.expiresAt,
