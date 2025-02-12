@@ -1,6 +1,6 @@
 # Change Log
 
-## [v4.0.1](https://github.com/auth0/nextjs-auth0/pull/1897) (2025-02-12)
+## [v4.0.1](https://github.com/auth0/nextjs-auth0/releases/tag/v4.0.1) (2025-02-12)
 
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.0.0...v4.0.1)
 
