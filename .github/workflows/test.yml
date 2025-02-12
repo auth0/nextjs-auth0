@@ -86,7 +86,10 @@ jobs:
       - name: Run Test Coverage
         run: pnpm test:coverage
 
-      - uses: codecov/codecov-action@13ce06bfc6bbe3ecf90edbbf1bc32fe5978ca1d3 # pin@5.3.1
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@13ce06bfc6bbe3ecf90edbbf1bc32fe5978ca1d3 # pin@5.3.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   lint:
     needs: build # Require build to complete before running tests
