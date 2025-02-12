@@ -18,7 +18,7 @@ interface StatelessSessionStoreOptions {
 }
 
 export class StatelessSessionStore extends AbstractSessionStore {
-  federatedConnectionTokenSetsCookieName = "__federated_connections";
+  federatedConnectionTokenSetsCookieName = "__FC";
 
   constructor({
     secret,
