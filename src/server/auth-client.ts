@@ -145,7 +145,7 @@ export class AuthClient {
       const timeout = options.httpTimeout ?? 5000;
       if (enableTelemetry) {
         const name = "nextjs-auth0";
-        const version = "4.0.0";
+        const version = "4.0.1";
 
         headers.set("User-Agent", `${name}/${version}`);
         headers.set(
