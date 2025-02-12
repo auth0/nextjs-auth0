@@ -4155,7 +4155,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
   });
 
   describe("federatedConnectionAccessToken", async () => {
-    it("Should exchange a refresh token for an access token", async () => {
+    it("should call for an access token when no federated connection token set in the session", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({
         secret
@@ -4163,6 +4163,14 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const sessionStore = new StatelessSessionStore({
         secret
       });
+      const fetchSpy = getMockAuthorizationServer({
+        tokenEndpointResponse: {
+          token_type: "Bearer",
+          access_token: DEFAULT.accessToken,
+          expires_in: 86400 // expires in 10 days
+        } as oauth.TokenEndpointResponse
+      });
+
       const authClient = new AuthClient({
         transactionStore,
         sessionStore,
@@ -4174,13 +4182,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
-        fetch: getMockAuthorizationServer({
-          tokenEndpointResponse: {
-            token_type: "Bearer",
-            access_token: DEFAULT.accessToken,
-            expires_in: 86400 // expires in 10 days
-          } as oauth.TokenEndpointResponse
-        })
+        fetch: fetchSpy
       });
 
       const expiresAt = Math.floor(Date.now() / 1000) - 10 * 24 * 60 * 60; // expired 10 days ago
@@ -4197,11 +4199,108 @@ ca/T0LLtgmbMmxSv/MmzIg==
       );
       const [error, federatedConnectionTokenSet] = response;
       expect(error).toBe(null);
+      expect(fetchSpy).toHaveBeenCalled();
       expect(federatedConnectionTokenSet).toEqual({
         accessToken: DEFAULT.accessToken,
         connection: "google-oauth2",
         expiresAt: expect.any(Number)
       });
+    });
+
+    it("should return access token from the session when federated connection token set in the session is not expired", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const fetchSpy = vi.fn();
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        fetch: fetchSpy
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) - 10 * 24 * 60 * 60; // expired 10 days ago
+      const tokenSet = {
+        accessToken: DEFAULT.accessToken,
+        refreshToken: DEFAULT.refreshToken,
+        expiresAt,
+      };
+
+      const response = await authClient.getFederatedConnectionTokenSet(
+        tokenSet,
+        { connection: 'google-oauth2', accessToken: 'fc_at', expiresAt: Math.floor(Date.now() / 1000) + 86400 },
+        { connection: "google-oauth2", login_hint: "000100123" }
+      );
+      const [error, federatedConnectionTokenSet] = response;
+      expect(error).toBe(null);
+      expect(federatedConnectionTokenSet).toEqual({
+        accessToken: 'fc_at',
+        connection: "google-oauth2",
+        expiresAt: expect.any(Number)
+      });
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("should call for an access token when federated connection token set in the session is expired", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const fetchSpy = getMockAuthorizationServer({
+        tokenEndpointResponse: {
+          token_type: "Bearer",
+          access_token: DEFAULT.accessToken,
+          expires_in: 86400 // expires in 10 days
+        } as oauth.TokenEndpointResponse
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        fetch: fetchSpy
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) - 10 * 24 * 60 * 60; // expired 10 days ago
+      const tokenSet = {
+        accessToken: DEFAULT.accessToken,
+        refreshToken: DEFAULT.refreshToken,
+        expiresAt,
+      };
+
+      const response = await authClient.getFederatedConnectionTokenSet(
+        tokenSet,
+        { connection: 'google-oauth2', accessToken: 'fc_at', expiresAt },
+        { connection: "google-oauth2", login_hint: "000100123" }
+      );
+      const [error, federatedConnectionTokenSet] = response;
+      expect(error).toBe(null);
+      expect(federatedConnectionTokenSet).toEqual({
+        accessToken: DEFAULT.accessToken,
+        connection: "google-oauth2",
+        expiresAt: expect.any(Number)
+      });
+      expect(fetchSpy).toHaveBeenCalled();
     });
 
     it("should return an error if the discovery endpoint could not be fetched", async () => {
