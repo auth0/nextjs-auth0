@@ -4154,7 +4154,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     });
   });
 
-  describe("federatedConnectionAccessToken", async () => {
+  describe("getFederatedConnectionTokenSet", async () => {
     it("should call for an access token when no federated connection token set in the session", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({
