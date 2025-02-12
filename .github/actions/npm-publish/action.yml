@@ -51,7 +51,7 @@ runs:
           TAG="latest"
         fi
         npm config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}"
-        pnpm publish --publish-branch v4 --tag $TAG
+        pnpm publish --tag $TAG
       env:
         NPM_TOKEN: ${{ inputs.npm-token }}
         VERSION: ${{ inputs.version }}
