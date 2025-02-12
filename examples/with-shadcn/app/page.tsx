@@ -18,13 +18,13 @@ import { auth0 } from "@/lib/auth0"
 export default async function Page() {
   async function getGoogleToken() {
     'use server'
-    const token = await auth0.getFederatedConnectionAccessToken('google-oauth2');
+    const token = await auth0.getFederatedConnectionAccessToken({ connection: 'google-oauth2' });
     console.log(token);
   }
 
   async function getGitHubToken() {
     'use server'
-    const token = await auth0.getFederatedConnectionAccessToken('github');
+    const token = await auth0.getFederatedConnectionAccessToken({ connection: 'github' });
     console.log(token);
   }
 

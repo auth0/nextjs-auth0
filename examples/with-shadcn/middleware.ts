@@ -3,19 +3,7 @@ import type { NextRequest } from "next/server"
 import { auth0 } from "./lib/auth0"
 
 export async function middleware(request: NextRequest) {
-  const res =  await auth0.middleware(request);
-
-  const session = await auth0.getSession(request);
-
-  if (session) {
-    console.log('There is a session')
-    await auth0.getFederatedConnectionAccessToken('google-oauth2');
-  } else {
-    console.log('There is no session')
-    await auth0.getFederatedConnectionAccessToken('google-oauth2');
-  }
-
-  return res;
+  return await auth0.middleware(request);
 }
 
 export const config = {
