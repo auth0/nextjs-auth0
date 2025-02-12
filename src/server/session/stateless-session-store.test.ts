@@ -44,7 +44,7 @@ describe("Stateless Session Store", async () => {
       });
 
       expect(await sessionStore.get(requestCookies)).toBeNull();
-    })
+    });
 
     it("should return the decrypted session cookie if it exists with federated connection", async () => {
       const secret = await generateSecret(32);
@@ -53,13 +53,19 @@ describe("Stateless Session Store", async () => {
         tokenSet: {
           accessToken: "at_123",
           refreshToken: "rt_123",
-          expiresAt: 123456,
+          expiresAt: 123456
         },
         internal: {
           sid: "auth0-sid",
-          createdAt: Math.floor(Date.now() / 1000),
+          createdAt: Math.floor(Date.now() / 1000)
         },
-        federatedConnectionTokenSets: [ { connection: 'google-oauth', accessToken: 'google-at-123', expiresAt: 123456 } ],
+        federatedConnectionTokenSets: [
+          {
+            connection: "google-oauth",
+            accessToken: "google-at-123",
+            expiresAt: 123456
+          }
+        ]
       };
       const encryptedCookieValue = await encrypt(session, secret);
 
@@ -68,10 +74,10 @@ describe("Stateless Session Store", async () => {
       const requestCookies = new RequestCookies(headers);
 
       const sessionStore = new StatelessSessionStore({
-        secret,
+        secret
       });
 
-      expect(await sessionStore.get(requestCookies)).toEqual(session)
+      expect(await sessionStore.get(requestCookies)).toEqual(session);
     });
   });
 

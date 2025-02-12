@@ -4236,11 +4236,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
       };
 
       const [error, federatedConnectionTokenSet] =
-        await authClient.getFederatedConnectionTokenSet(
-          tokenSet,
-          undefined,
-          { connection: "google-oauth2" }
-        );
+        await authClient.getFederatedConnectionTokenSet(tokenSet, undefined, {
+          connection: "google-oauth2"
+        });
       expect(error?.code).toEqual("discovery_error");
       expect(federatedConnectionTokenSet).toBeNull();
     });
@@ -4274,11 +4272,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
       };
 
       const [error, federatedConnectionTokenSet] =
-        await authClient.getFederatedConnectionTokenSet(
-          tokenSet,
-          undefined,
-          { connection: "google-oauth2" }
-        );
+        await authClient.getFederatedConnectionTokenSet(tokenSet, undefined, {
+          connection: "google-oauth2"
+        });
       expect(error?.code).toEqual("missing_refresh_token");
       expect(federatedConnectionTokenSet).toBeNull();
     });

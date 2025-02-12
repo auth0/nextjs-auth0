@@ -14,13 +14,19 @@ import {
   InvalidStateError,
   MissingStateError,
   OAuth2Error,
-  SdkError,
-} from "../errors"
-import { FederatedConnectionTokenSet, GetFederatedConnectionAccessTokenOptions, LogoutToken, SessionData, TokenSet } from "../types"
-import { AbstractSessionStore } from "./session/abstract-session-store"
-import { TransactionState, TransactionStore } from "./transaction-store"
-import { filterClaims } from "./user"
+  SdkError
+} from "../errors";
+import {
+  FederatedConnectionTokenSet,
+  GetFederatedConnectionAccessTokenOptions,
+  LogoutToken,
+  SessionData,
+  TokenSet
+} from "../types";
 import { toSafeRedirect } from "../utils/url-helpers";
+import { AbstractSessionStore } from "./session/abstract-session-store";
+import { TransactionState, TransactionStore } from "./transaction-store";
+import { filterClaims } from "./user";
 
 export type BeforeSessionSavedHook = (
   session: SessionData,
@@ -993,7 +999,7 @@ export class AuthClient {
    * It first checks if the refresh token is present in the `tokenSet`. If not, it returns an error.
    * Then, it constructs the necessary parameters for the token exchange request and performs
    * the request to the authorization server's token endpoint.
-   * 
+   *
    * @returns {Promise<[SdkError, null] | [null, FederatedConnectionTokenSet]>} A promise that resolves to a tuple.
    *          The first element is either an `SdkError` if an error occurred, or `null` if the request was successful.
    *          The second element is either `null` if an error occurred, or a `FederatedConnectionAccessTokenResponse` object
@@ -1004,7 +1010,7 @@ export class AuthClient {
   async getFederatedConnectionTokenSet(
     tokenSet: TokenSet,
     federatedConnectionTokenSet: FederatedConnectionTokenSet | undefined,
-    options: GetFederatedConnectionAccessTokenOptions,
+    options: GetFederatedConnectionAccessTokenOptions
   ): Promise<[SdkError, null] | [null, FederatedConnectionTokenSet]> {
     if (!tokenSet.refreshToken) {
       return [
@@ -1085,7 +1091,7 @@ export class AuthClient {
           Math.floor(Date.now() / 1000) +
           Number(tokenEndpointResponse.expires_in),
         scope: tokenEndpointResponse.scope,
-        connection: options.connection,
+        connection: options.connection
       }
     ];
   }
