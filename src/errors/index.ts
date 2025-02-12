@@ -116,7 +116,7 @@ export enum FederatedConnectionAccessTokenErrorCode {
   /**
    * Failed to exchange the refresh token.
    */
-  FAILED_TO_EXCHANGE = "failed_to_exchange_refresh_token",
+  FAILED_TO_EXCHANGE = "failed_to_exchange_refresh_token"
 }
 
 /**
@@ -131,7 +131,7 @@ export class FederatedConnectionsAccessTokenError extends SdkError {
 
   /**
    * Constructs a new `FederatedConnectionsAccessTokenError` instance.
-   * 
+   *
    * @param code - The error code.
    * @param message - The error message.
    */

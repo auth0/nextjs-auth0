@@ -1,3 +1,5 @@
+import { JWTPayload } from "jose";
+
 import { FederatedConnectionTokenSet, SessionData } from "../../types";
 import * as cookies from "../cookies";
 import {
@@ -16,7 +18,7 @@ interface StatelessSessionStoreOptions {
 }
 
 export class StatelessSessionStore extends AbstractSessionStore {
-  federatedConnectionTokenSetsCookieName = '__federated_connections'
+  federatedConnectionTokenSetsCookieName = "__federated_connections";
 
   constructor({
     secret,
@@ -56,12 +58,12 @@ export class StatelessSessionStore extends AbstractSessionStore {
             this.secret
           )
       )
-    )
+    );
 
     return {
       ...originalSession,
-      federatedConnectionTokenSets,
-    }
+      federatedConnectionTokenSets
+    };
   }
 
   /**
@@ -72,9 +74,8 @@ export class StatelessSessionStore extends AbstractSessionStore {
     resCookies: cookies.ResponseCookies,
     session: SessionData
   ) {
-
-    const { federatedConnectionTokenSets, ...originalSession } = session
-    const maxAge = this.calculateMaxAge(session.internal.createdAt)
+    const { federatedConnectionTokenSets, ...originalSession } = session;
+    const maxAge = this.calculateMaxAge(session.internal.createdAt);
 
     await this.storeInCookie(
       reqCookies,
@@ -96,7 +97,7 @@ export class StatelessSessionStore extends AbstractSessionStore {
             maxAge
           )
         )
-      )
+      );
     }
   }
 
@@ -105,14 +106,20 @@ export class StatelessSessionStore extends AbstractSessionStore {
     resCookies: cookies.ResponseCookies
   ) {
     resCookies.delete(this.sessionCookieName);
-    this.getFederatedConnectionTokenSetsCookies(reqCookies)
-      .forEach(cookie => resCookies.delete(cookie.name));
-    
+    this.getFederatedConnectionTokenSetsCookies(reqCookies).forEach((cookie) =>
+      resCookies.delete(cookie.name)
+    );
   }
 
-  private async storeInCookie(reqCookies: cookies.RequestCookies, resCookies: cookies.ResponseCookies, session: JWTPayload, sessionCookieName: string, maxAge: number) {
+  private async storeInCookie(
+    reqCookies: cookies.RequestCookies,
+    resCookies: cookies.ResponseCookies,
+    session: JWTPayload,
+    sessionCookieName: string,
+    maxAge: number
+  ) {
     const jwe = await cookies.encrypt(session, this.secret);
-    
+
     const cookieValue = jwe.toString();
 
     resCookies.set(sessionCookieName, jwe.toString(), {
@@ -137,9 +144,13 @@ export class StatelessSessionStore extends AbstractSessionStore {
     }
   }
 
-  private getFederatedConnectionTokenSetsCookies(cookies: cookies.RequestCookies | cookies.ResponseCookies) {
+  private getFederatedConnectionTokenSetsCookies(
+    cookies: cookies.RequestCookies | cookies.ResponseCookies
+  ) {
     return cookies
       .getAll()
-      .filter(cookie => cookie.name.startsWith(this.federatedConnectionTokenSetsCookieName));
+      .filter((cookie) =>
+        cookie.name.startsWith(this.federatedConnectionTokenSetsCookieName)
+      );
   }
 }

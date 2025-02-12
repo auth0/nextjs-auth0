@@ -6,11 +6,11 @@ export interface TokenSet {
 }
 
 export interface FederatedConnectionTokenSet {
-  accessToken: string
-  scope?: string
-  expiresAt: number // the time at which the access token expires in seconds since epoch
-  connection: string
-  [key: string]: unknown
+  accessToken: string;
+  scope?: string;
+  expiresAt: number; // the time at which the access token expires in seconds since epoch
+  connection: string;
+  [key: string]: unknown;
 }
 
 export interface SessionData {
@@ -21,7 +21,7 @@ export interface SessionData {
     sid: string;
     // the time at which the session was created in seconds since epoch
     createdAt: number;
-  }
+  };
   federatedConnectionTokenSets?: FederatedConnectionTokenSet[];
   [key: string]: unknown;
 }

@@ -2,7 +2,13 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { NextApiRequest, NextApiResponse } from "next/types";
-import { AccessTokenError, AccessTokenErrorCode, FederatedConnectionAccessTokenErrorCode, FederatedConnectionsAccessTokenError } from "../errors";
+
+import {
+  AccessTokenError,
+  AccessTokenErrorCode,
+  FederatedConnectionAccessTokenErrorCode,
+  FederatedConnectionsAccessTokenError
+} from "../errors";
 import { SessionData, SessionDataStore } from "../types";
 import {
   AuthClient,
@@ -410,42 +416,53 @@ export class Auth0Client {
    * @param {string} [login_hint] - An optional login hint to assist in the authentication process.
    * @param {PagesRouterRequest | NextRequest} [req] - An optional request object from which to extract session information.
    * @param {PagesRouterResponse | NextResponse} [res] - An optional response object from which to extract session information.
-   * 
+   *
    * @throws {FederatedConnectionsAccessTokenError} If the user does not have an active session.
    * @throws {Error} If there is an error during the token exchange process.
-   * 
+   *
    * @returns {Promise<{ federatedConnectionAccessToken: string, expiresAt: number }>} An object containing the access token and its expiration time.
    */
-  async getFederatedConnectionAccessToken(connection: string, login_hint?: string, req?: PagesRouterRequest | NextRequest, res?: PagesRouterResponse | NextResponse): Promise<{ token: string; expiresAt: number; scope?: string }> {
-    let session: SessionData | null = null
+  async getFederatedConnectionAccessToken(
+    connection: string,
+    login_hint?: string,
+    req?: PagesRouterRequest | NextRequest,
+    res?: PagesRouterResponse | NextResponse
+  ): Promise<{ token: string; expiresAt: number; scope?: string }> {
+    let session: SessionData | null = null;
 
     if (req) {
       if (req instanceof NextRequest) {
         // middleware usage
-        session = await this.sessionStore.get(req.cookies)
+        session = await this.sessionStore.get(req.cookies);
       } else {
         // pages router usage
-        session = await this.sessionStore.get(this.createRequestCookies(req))
+        session = await this.sessionStore.get(this.createRequestCookies(req));
       }
     } else {
       // app router usage: Server Components, Server Actions, Route Handlers
-      session = await this.sessionStore.get(await cookies())
+      session = await this.sessionStore.get(await cookies());
     }
 
     if (!session) {
       throw new FederatedConnectionsAccessTokenError(
         FederatedConnectionAccessTokenErrorCode.MISSING_SESSION,
         "The user does not have an active session."
-      )
+      );
     }
 
     // Find the federated connection token set in the session
-    const existingFederatedConnectionTokenSet = session.federatedConnectionTokenSets?.find(
+    const existingFederatedConnectionTokenSet =
+      session.federatedConnectionTokenSets?.find(
         (tokenSet) => tokenSet.connection === connection
-    )
+      );
 
-
-    const [error, federatedConnectionTokenSet] = await this.authClient.getFederatedConnectionTokenSet(session.tokenSet, existingFederatedConnectionTokenSet, connection, login_hint);
+    const [error, federatedConnectionTokenSet] =
+      await this.authClient.getFederatedConnectionTokenSet(
+        session.tokenSet,
+        existingFederatedConnectionTokenSet,
+        connection,
+        login_hint
+      );
 
     if (error !== null) {
       throw error;
@@ -456,9 +473,12 @@ export class Auth0Client {
     // We want to update the store.
     if (
       !existingFederatedConnectionTokenSet ||
-      federatedConnectionTokenSet.accessToken !== existingFederatedConnectionTokenSet.accessToken ||
-      federatedConnectionTokenSet.expiresAt !== existingFederatedConnectionTokenSet.expiresAt ||
-      federatedConnectionTokenSet.scope !== existingFederatedConnectionTokenSet.scope
+      federatedConnectionTokenSet.accessToken !==
+        existingFederatedConnectionTokenSet.accessToken ||
+      federatedConnectionTokenSet.expiresAt !==
+        existingFederatedConnectionTokenSet.expiresAt ||
+      federatedConnectionTokenSet.scope !==
+        existingFederatedConnectionTokenSet.scope
     ) {
       let federatedConnectionTokenSets;
 
@@ -466,9 +486,17 @@ export class Auth0Client {
       // we need to update the item in the array
       // If not, we need to add it.
       if (existingFederatedConnectionTokenSet) {
-        federatedConnectionTokenSets = session.federatedConnectionTokenSets?.map(tokenSet => tokenSet.connection === connection ? federatedConnectionTokenSet : tokenSet)
+        federatedConnectionTokenSets =
+          session.federatedConnectionTokenSets?.map((tokenSet) =>
+            tokenSet.connection === connection
+              ? federatedConnectionTokenSet
+              : tokenSet
+          );
       } else {
-        federatedConnectionTokenSets = [...(session.federatedConnectionTokenSets || []), federatedConnectionTokenSet];
+        federatedConnectionTokenSets = [
+          ...(session.federatedConnectionTokenSets || []),
+          federatedConnectionTokenSet
+        ];
       }
 
       if (req && res) {
@@ -477,12 +505,12 @@ export class Auth0Client {
           await this.sessionStore.set(req.cookies, res.cookies, {
             ...session,
             federatedConnectionTokenSets
-          })
+          });
         } else {
           // pages router usage
-          const resHeaders = new Headers()
-          const resCookies = new ResponseCookies(resHeaders)
-          const pagesRouterRes = res as PagesRouterResponse
+          const resHeaders = new Headers();
+          const resCookies = new ResponseCookies(resHeaders);
+          const pagesRouterRes = res as PagesRouterResponse;
 
           await this.sessionStore.set(
             this.createRequestCookies(req as PagesRouterRequest),
@@ -491,10 +519,10 @@ export class Auth0Client {
               ...session,
               federatedConnectionTokenSets
             }
-          )
+          );
 
           for (const [key, value] of resHeaders.entries()) {
-            pagesRouterRes.setHeader(key, value)
+            pagesRouterRes.setHeader(key, value);
           }
         }
       } else {
@@ -503,25 +531,23 @@ export class Auth0Client {
           await this.sessionStore.set(await cookies(), await cookies(), {
             ...session,
             federatedConnectionTokenSets
-          })
+          });
         } catch (e) {
           if (process.env.NODE_ENV === "development") {
             console.warn(
               "Failed to persist the updated token set. `getFederatedAccessToken()` was likely called from a Server Component which cannot set cookies."
-            )
+            );
           }
         }
       }
     }
 
-
     return {
       token: federatedConnectionTokenSet.accessToken,
       scope: federatedConnectionTokenSet.scope,
-      expiresAt: federatedConnectionTokenSet.expiresAt,
-    }
+      expiresAt: federatedConnectionTokenSet.expiresAt
+    };
   }
-
 
   /**
    * updateSession updates the session of the currently authenticated user. If the user does not have a session, an error is thrown.
