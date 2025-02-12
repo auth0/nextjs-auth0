@@ -144,24 +144,6 @@ export interface AuthClientOptions {
   enableTelemetry?: boolean;
 }
 
-/**
- * Represents the response containing an access token from a federated connection.
- */
-export interface FederatedConnectionAccessTokenResponse {
-  /**
-   * The access token issued by the federated connection.
-   */
-  accessToken: string;
-  /**
-   * The timestamp (in seconds since epoch) when the access token expires.
-   */
-  expiresAt: number;
-  /**
-   * Optional. The scope of the access token.
-   */
-  scope?: string;
-}
-
 export class AuthClient {
   private transactionStore: TransactionStore;
   private sessionStore: AbstractSessionStore;
@@ -1002,7 +984,7 @@ export class AuthClient {
    *
    * @returns {Promise<[SdkError, null] | [null, FederatedConnectionTokenSet]>} A promise that resolves to a tuple.
    *          The first element is either an `SdkError` if an error occurred, or `null` if the request was successful.
-   *          The second element is either `null` if an error occurred, or a `FederatedConnectionAccessTokenResponse` object
+   *          The second element is either `null` if an error occurred, or a `FederatedConnectionTokenSet` object
    *          containing the access token, expiration time, and scope if the request was successful.
    *
    * @throws {FederatedConnectionsAccessTokenError} If the refresh token is missing or if there is an error during the token exchange process.
