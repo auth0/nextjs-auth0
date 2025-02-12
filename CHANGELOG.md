@@ -1,5 +1,13 @@
 # Change Log
 
+## [v4.0.1](https://github.com/auth0/nextjs-auth0/pull/1897) (2025-02-12)
+
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.0.0...v4.0.1)
+
+**Fixed**
+
+- fix: sanitize the returnTo parameter to prevent open redirect vulnerabilities. [\#1897](https://github.com/auth0/nextjs-auth0/pull/1897) ([guabu](https://github.com/guabu))
+
 ## [v3.6.0](https://github.com/auth0/nextjs-auth0/tree/v3.6.0) (2025-01-31)
 
 This is a maintainance release for V3 of the SDK.  
