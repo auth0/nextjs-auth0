@@ -25,7 +25,7 @@ import {
   TransactionStore
 } from "./transaction-store";
 
-interface Auth0ClientOptions {
+export interface Auth0ClientOptions {
   // authorization server configuration
   /**
    * The Auth0 domain for the tenant (e.g.: `example.us.auth0.com`).
@@ -147,8 +147,10 @@ interface Auth0ClientOptions {
   enableTelemetry?: boolean;
 }
 
-type PagesRouterRequest = IncomingMessage | NextApiRequest;
-type PagesRouterResponse = ServerResponse<IncomingMessage> | NextApiResponse;
+export type PagesRouterRequest = IncomingMessage | NextApiRequest;
+export type PagesRouterResponse =
+  | ServerResponse<IncomingMessage>
+  | NextApiResponse;
 
 export class Auth0Client {
   private transactionStore: TransactionStore;
