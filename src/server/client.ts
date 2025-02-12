@@ -401,7 +401,7 @@ export class Auth0Client {
    * @throws {FederatedConnectionsAccessTokenError} If the user does not have an active session.
    * @throws {Error} If there is an error during the token exchange process.
    *
-   * @returns {Promise<{ federatedConnectionAccessToken: string, expiresAt: number }>} An object containing the access token and its expiration time.
+   * @returns {Promise<{ token: string; expiresAt: number; scope?: string }} An object containing the access token and its expiration time.
    */
   async getFederatedConnectionAccessToken(
     options: GetFederatedConnectionAccessTokenOptions,
@@ -419,15 +419,14 @@ export class Auth0Client {
     }
 
     // Find the federated connection token set in the session
-    const existingFederatedConnectionTokenSet =
-      session.federatedConnectionTokenSets?.find(
-        (tokenSet) => tokenSet.connection === options.connection
-      );
+    const existingTokenSet = session.federatedConnectionTokenSets?.find(
+      (tokenSet) => tokenSet.connection === options.connection
+    );
 
-    const [error, federatedConnectionTokenSet] =
+    const [error, retrievedTokenSet] =
       await this.authClient.getFederatedConnectionTokenSet(
         session.tokenSet,
-        existingFederatedConnectionTokenSet,
+        existingTokenSet,
         options
       );
 
@@ -435,45 +434,38 @@ export class Auth0Client {
       throw error;
     }
 
-    // If we didnt have a corresponding federated connectio token set in the session
+    // If we didnt have a corresponding federated connection token set in the session
     // or if the one we have in the session does not match the one we received
-    // We want to update the store.
+    // We want to update the store incase we retrieved a token set.
     if (
-      !existingFederatedConnectionTokenSet ||
-      federatedConnectionTokenSet.accessToken !==
-        existingFederatedConnectionTokenSet.accessToken ||
-      federatedConnectionTokenSet.expiresAt !==
-        existingFederatedConnectionTokenSet.expiresAt ||
-      federatedConnectionTokenSet.scope !==
-        existingFederatedConnectionTokenSet.scope
+      retrievedTokenSet &&
+      (!existingTokenSet ||
+        retrievedTokenSet.accessToken !== existingTokenSet.accessToken ||
+        retrievedTokenSet.expiresAt !== existingTokenSet.expiresAt ||
+        retrievedTokenSet.scope !== existingTokenSet.scope)
     ) {
-      let federatedConnectionTokenSets;
+      let tokenSets;
 
       // If we already had the federated connection token set in the session
       // we need to update the item in the array
       // If not, we need to add it.
-      if (existingFederatedConnectionTokenSet) {
-        federatedConnectionTokenSets =
-          session.federatedConnectionTokenSets?.map((tokenSet) =>
-            tokenSet.connection === options.connection
-              ? federatedConnectionTokenSet
-              : tokenSet
-          );
+      if (existingTokenSet) {
+        tokenSets = session.federatedConnectionTokenSets?.map((tokenSet) =>
+          tokenSet.connection === options.connection
+            ? retrievedTokenSet
+            : tokenSet
+        );
       } else {
-        federatedConnectionTokenSets = [
+        tokenSets = [
           ...(session.federatedConnectionTokenSets || []),
-          federatedConnectionTokenSet
+          retrievedTokenSet
         ];
       }
-
-      console.log(
-        `[${options.connection}] Saving Federated Connection Token Set to session`
-      );
 
       await this.saveToSession(
         {
           ...session,
-          federatedConnectionTokenSets
+          federatedConnectionTokenSets: tokenSets
         },
         req,
         res
@@ -481,9 +473,9 @@ export class Auth0Client {
     }
 
     return {
-      token: federatedConnectionTokenSet.accessToken,
-      scope: federatedConnectionTokenSet.scope,
-      expiresAt: federatedConnectionTokenSet.expiresAt
+      token: retrievedTokenSet.accessToken,
+      scope: retrievedTokenSet.scope,
+      expiresAt: retrievedTokenSet.expiresAt
     };
   }
 

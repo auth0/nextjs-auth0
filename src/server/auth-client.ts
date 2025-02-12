@@ -1012,7 +1012,14 @@ export class AuthClient {
     federatedConnectionTokenSet: FederatedConnectionTokenSet | undefined,
     options: GetFederatedConnectionAccessTokenOptions
   ): Promise<[SdkError, null] | [null, FederatedConnectionTokenSet]> {
-    if (!tokenSet.refreshToken) {
+    // If we do not have a refresh token
+    // and we do not have a federated connection token set in the cache or the one we have is expired,
+    // there is noting to retrieve and we return an error.
+    if (
+      !tokenSet.refreshToken &&
+      (!federatedConnectionTokenSet ||
+        federatedConnectionTokenSet.expiresAt <= Date.now() / 1000)
+    ) {
       return [
         new FederatedConnectionsAccessTokenError(
           FederatedConnectionAccessTokenErrorCode.MISSING_REFRESH_TOKEN,
@@ -1022,77 +1029,82 @@ export class AuthClient {
       ];
     }
 
-    // When have a federated connection token set, and it is not expired
-    // we can avoid calling Auth0 for a new one.
+    // If we do have a refresh token,
+    // and we do not have a federated connection token set in the cache or the one we have is expired,
+    // we need to exchange the refresh token for a federated connection access token.
     if (
-      federatedConnectionTokenSet &&
-      federatedConnectionTokenSet.expiresAt > Date.now() / 1000
+      tokenSet.refreshToken &&
+      (!federatedConnectionTokenSet ||
+        federatedConnectionTokenSet.expiresAt <= Date.now() / 1000)
     ) {
-      return [null, federatedConnectionTokenSet];
-    }
+      const params = new URLSearchParams();
 
-    const params = new URLSearchParams();
+      params.append("connection", options.connection);
+      params.append("subject_token_type", SUBJECT_TYPE_REFRESH_TOKEN);
+      params.append("subject_token", tokenSet.refreshToken);
+      params.append(
+        "requested_token_type",
+        REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN
+      );
 
-    params.append("connection", options.connection);
-    params.append("subject_token_type", SUBJECT_TYPE_REFRESH_TOKEN);
-    params.append("subject_token", tokenSet.refreshToken);
-    params.append(
-      "requested_token_type",
-      REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN
-    );
-
-    if (options.login_hint) {
-      params.append("login_hint", options.login_hint);
-    }
-
-    const [discoveryError, authorizationServerMetadata] =
-      await this.discoverAuthorizationServerMetadata();
-
-    if (discoveryError) {
-      console.error(discoveryError);
-      return [discoveryError, null];
-    }
-
-    const httpResponse = await oauth.genericTokenEndpointRequest(
-      authorizationServerMetadata,
-      this.clientMetadata,
-      await this.getClientAuth(),
-      GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN,
-      params,
-      {
-        [oauth.customFetch]: this.fetch,
-        [oauth.allowInsecureRequests]: this.allowInsecureRequests
+      if (options.login_hint) {
+        params.append("login_hint", options.login_hint);
       }
-    );
 
-    let tokenEndpointResponse: oauth.TokenEndpointResponse;
-    try {
-      tokenEndpointResponse = await oauth.processGenericTokenEndpointResponse(
+      const [discoveryError, authorizationServerMetadata] =
+        await this.discoverAuthorizationServerMetadata();
+
+      if (discoveryError) {
+        console.error(discoveryError);
+        return [discoveryError, null];
+      }
+
+      const httpResponse = await oauth.genericTokenEndpointRequest(
         authorizationServerMetadata,
         this.clientMetadata,
-        httpResponse
+        await this.getClientAuth(),
+        GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN,
+        params,
+        {
+          [oauth.customFetch]: this.fetch,
+          [oauth.allowInsecureRequests]: this.allowInsecureRequests
+        }
       );
-    } catch (err) {
-      console.error(err);
+
+      let tokenEndpointResponse: oauth.TokenEndpointResponse;
+      try {
+        tokenEndpointResponse = await oauth.processGenericTokenEndpointResponse(
+          authorizationServerMetadata,
+          this.clientMetadata,
+          httpResponse
+        );
+      } catch (err) {
+        console.error(err);
+        return [
+          new FederatedConnectionsAccessTokenError(
+            FederatedConnectionAccessTokenErrorCode.FAILED_TO_EXCHANGE,
+            "There was an error trying to exchange the refresh token for a federated connection access token. Check the server logs for more information."
+          ),
+          null
+        ];
+      }
+
       return [
-        new FederatedConnectionsAccessTokenError(
-          FederatedConnectionAccessTokenErrorCode.FAILED_TO_EXCHANGE,
-          "There was an error trying to exchange the refresh token for a federated connection access token. Check the server logs for more information."
-        ),
-        null
+        null,
+        {
+          accessToken: tokenEndpointResponse.access_token,
+          expiresAt:
+            Math.floor(Date.now() / 1000) +
+            Number(tokenEndpointResponse.expires_in),
+          scope: tokenEndpointResponse.scope,
+          connection: options.connection
+        }
       ];
     }
 
-    return [
+    return [null, federatedConnectionTokenSet] as [
       null,
-      {
-        accessToken: tokenEndpointResponse.access_token,
-        expiresAt:
-          Math.floor(Date.now() / 1000) +
-          Number(tokenEndpointResponse.expires_in),
-        scope: tokenEndpointResponse.scope,
-        connection: options.connection
-      }
+      FederatedConnectionTokenSet
     ];
   }
 }
