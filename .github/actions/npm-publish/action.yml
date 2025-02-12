@@ -20,16 +20,15 @@ runs:
       uses: actions/checkout@v4
 
     - name: Setup Node.js with pnpm caching
-      - uses: pnpm/action-setup@v4
-        name: Install pnpm
-        with:
-          version: 10
+      uses: pnpm/action-setup@v4
+      with:
+        version: 10
 
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: 'pnpm'
+    - name: Install Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: 'pnpm'
 
     - name: Install dependencies
       shell: bash
@@ -51,8 +50,9 @@ runs:
         else
           TAG="latest"
         fi
-        pnpm publish --tag $TAG
+        npm config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}"
+        pnpm publish --publish-branch v4 --tag $TAG
       env:
-        NODE_AUTH_TOKEN: ${{ inputs.npm-token }}
+        NPM_TOKEN: ${{ inputs.npm-token }}
         VERSION: ${{ inputs.version }}
         NPM_CONFIG_PROVENANCE: true
