@@ -383,8 +383,7 @@ export class Auth0Client {
    * If no session is found, it throws a `FederatedConnectionsAccessTokenError` indicating
    * that the user does not have an active session.
    *
-   * @param {string} connection - The name of the federated connection for which to obtain an access token.
-   * @param {string} [login_hint] - An optional login hint to assist in the authentication process.
+   * @param {GetFederatedConnectionAccessTokenOptions} options - Options for retrieving a federated connection access token.
    * @param {PagesRouterRequest | NextRequest} [req] - An optional request object from which to extract session information.
    * @param {PagesRouterResponse | NextResponse} [res] - An optional response object from which to extract session information.
    * 
