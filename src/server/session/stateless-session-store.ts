@@ -118,32 +118,42 @@ export class StatelessSessionStore extends AbstractSessionStore {
     reqCookies: cookies.RequestCookies,
     resCookies: cookies.ResponseCookies,
     session: JWTPayload,
-    sessionCookieName: string,
+    cookieName: string,
     maxAge: number
   ) {
     const jwe = await cookies.encrypt(session, this.secret);
 
     const cookieValue = jwe.toString();
 
-    resCookies.set(sessionCookieName, jwe.toString(), {
+    resCookies.set(cookieName, jwe.toString(), {
       ...this.cookieConfig,
       maxAge
     });
     // to enable read-after-write in the same request for middleware
-    reqCookies.set(sessionCookieName, cookieValue);
+    reqCookies.set(cookieName, cookieValue);
 
     // check if the session cookie size exceeds 4096 bytes, and if so, log a warning
     const cookieJarSizeTest = new cookies.ResponseCookies(new Headers());
-    cookieJarSizeTest.set(sessionCookieName, cookieValue, {
+    cookieJarSizeTest.set(cookieName, cookieValue, {
       ...this.cookieConfig,
       maxAge
     });
+
     if (new TextEncoder().encode(cookieJarSizeTest.toString()).length >= 4096) {
-      console.warn(
-        "The session cookie size exceeds 4096 bytes, which may cause issues in some browsers. " +
-          "Consider removing any unnecessary custom claims from the access token or the user profile. " +
-          "Alternatively, you can use a stateful session implementation to store the session data in a data store."
-      );
+      // if the cookie is the session cookie, log a warning with additional information about the claims and user profile.
+      if (cookieName === this.sessionCookieName) {
+        console.warn(
+          `The ${cookieName} cookie size exceeds 4096 bytes, which may cause issues in some browsers. ` +
+            "Consider removing any unnecessary custom claims from the access token or the user profile. " +
+            "Alternatively, you can use a stateful session implementation to store the session data in a data store."
+        );
+      } else {
+        console.warn(
+          `The ${cookieName} cookie size exceeds 4096 bytes, which may cause issues in some browsers. ` +
+            "You can use a stateful session implementation to store the session data in a data store."
+        );
+      }
+      
     }
   }
 
