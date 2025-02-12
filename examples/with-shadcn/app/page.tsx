@@ -13,21 +13,8 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
-import { auth0 } from "@/lib/auth0"
 
-export default async function Page() {
-  async function getGoogleToken() {
-    'use server'
-    const token = await auth0.getFederatedConnectionAccessToken({ connection: 'google-oauth2' });
-    console.log(token);
-  }
-
-  async function getGitHubToken() {
-    'use server'
-    const token = await auth0.getFederatedConnectionAccessToken({ connection: 'github' });
-    console.log(token);
-  }
-
+export default function Page() {
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -59,8 +46,6 @@ export default async function Page() {
           </div>
           <div className="min-h-[100vh] flex-1 rounded-xl bg-muted/50 md:min-h-min" />
         </div>
-        <form action={getGoogleToken}><button>Get Token for Google</button></form>
-        <form action={getGitHubToken}><button>Get Token for GitHub</button></form>
       </SidebarInset>
     </SidebarProvider>
   )
