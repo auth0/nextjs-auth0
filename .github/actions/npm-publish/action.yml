@@ -50,7 +50,7 @@ runs:
         else
           TAG="latest"
         fi
-        pnpm publish --tag $TAG
+        pnpm publish --publish-branch v4 --tag $TAG
       env:
         NODE_AUTH_TOKEN: ${{ inputs.npm-token }}
         VERSION: ${{ inputs.version }}
