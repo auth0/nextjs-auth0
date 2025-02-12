@@ -324,7 +324,7 @@ export class Auth0Client {
     res?: PagesRouterResponse | NextResponse
   ): Promise<{ token: string; expiresAt: number; scope?: string }> {
     const session: SessionData | null =
-      await this.getSessionDataFromRequest(req);
+      req ? await this.getSession(req) : await this.getSession();
 
     if (!session) {
       throw new AccessTokenError(
@@ -409,7 +409,7 @@ export class Auth0Client {
     res?: PagesRouterResponse | NextResponse
   ): Promise<{ token: string; expiresAt: number; scope?: string }> {
     const session: SessionData | null =
-      await this.getSessionDataFromRequest(req);
+    req ? await this.getSession(req) : await this.getSession();
 
     if (!session) {
       throw new FederatedConnectionsAccessTokenError(
@@ -589,23 +589,6 @@ export class Auth0Client {
     }
 
     return new RequestCookies(headers);
-  }
-
-  private async getSessionDataFromRequest(
-    req?: PagesRouterRequest | NextRequest
-  ) {
-    if (req) {
-      if (req instanceof NextRequest) {
-        // middleware usage
-        return await this.sessionStore.get(req.cookies);
-      } else {
-        // pages router usage
-        return await this.sessionStore.get(this.createRequestCookies(req));
-      }
-    } else {
-      // app router usage: Server Components, Server Actions, Route Handlers
-      return await this.sessionStore.get(await cookies());
-    }
   }
 
   private async saveToSession(
