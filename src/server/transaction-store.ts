@@ -34,7 +34,7 @@ export interface TransactionCookieOptions {
   secure?: boolean;
 }
 
-interface TransactionStoreOptions {
+export interface TransactionStoreOptions {
   secret: string;
   cookieOptions?: TransactionCookieOptions;
 }

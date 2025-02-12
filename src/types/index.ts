@@ -54,3 +54,34 @@ export interface User {
 
   [key: string]: any;
 }
+
+export type {
+  Auth0ClientOptions,
+  PagesRouterRequest,
+  PagesRouterResponse
+} from "../server/client";
+
+export type {
+  AuthorizationParameters,
+  BeforeSessionSavedHook,
+  OnCallbackHook,
+  RoutesOptions,
+  AuthClientOptions,
+  OnCallbackContext,
+  Routes
+} from "../server/auth-client";
+
+export type { TransactionCookieOptions } from "../server/transaction-store";
+
+export type {
+  SessionConfiguration,
+  SessionCookieOptions,
+  SessionStoreOptions
+} from "../server/session/abstract-session-store";
+
+export type { CookieOptions, ReadonlyRequestCookies } from "../server/cookies";
+
+export type {
+  TransactionStoreOptions,
+  TransactionState
+} from "../server/transaction-store";

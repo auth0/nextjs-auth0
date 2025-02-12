@@ -60,7 +60,7 @@ export interface SessionConfiguration {
   cookie?: SessionCookieOptions;
 }
 
-interface SessionStoreOptions extends SessionConfiguration {
+export interface SessionStoreOptions extends SessionConfiguration {
   secret: string;
   store?: SessionDataStore;
 
