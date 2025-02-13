@@ -1472,7 +1472,6 @@ ca/T0LLtgmbMmxSv/MmzIg==
         });
       });
 
-<<<<<<< HEAD
       describe("custom parameters to the authorization server", async () => {
         it("should not forward any custom parameters sent via the query parameters to /auth/login", async () => {
           const secret = await generateSecret(32);
@@ -1626,79 +1625,6 @@ ca/T0LLtgmbMmxSv/MmzIg==
             state,
             returnTo: "/"
           });
-=======
-      it("should forward any custom parameters to the authorization server in the PAR request", async () => {
-        const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
-
-        // set custom parameters in the login URL which should be forwarded to the authorization server (in PAR request)
-        const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
-        loginUrl.searchParams.set("ext-custom_param", "custom_value");
-        loginUrl.searchParams.set("audience", "urn:mystore:api");
-        const request = new NextRequest(loginUrl, {
-          method: "GET"
-        });
-
-        const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
-          domain: DEFAULT.domain,
-          clientId: DEFAULT.clientId,
-          clientSecret: DEFAULT.clientSecret,
-          pushedAuthorizationRequests: true,
-          secret,
-          appBaseUrl: DEFAULT.appBaseUrl,
-          fetch: getMockAuthorizationServer({
-            onParRequest: async (request) => {
-              const params = new URLSearchParams(await request.text());
-              expect(params.get("ext-custom_param")).toEqual("custom_value");
-              expect(params.get("audience")).toEqual("urn:mystore:api");
-            }
-          })
-        });
-
-        const response = await authClient.handleLogin(request);
-        expect(response.status).toEqual(307);
-        expect(response.headers.get("Location")).not.toBeNull();
-        const authorizationUrl = new URL(response.headers.get("Location")!);
-        expect(authorizationUrl.origin).toEqual(`https://${DEFAULT.domain}`);
-        // query parameters should only include the `request_uri` and not the standard auth params
-        expect(authorizationUrl.searchParams.get("request_uri")).toEqual(
-          DEFAULT.requestUri
-        );
-        expect(authorizationUrl.searchParams.get("client_id")).toEqual(
-          DEFAULT.clientId
-        );
-        expect(authorizationUrl.searchParams.get("redirect_uri")).toBeNull();
-        expect(authorizationUrl.searchParams.get("response_type")).toBeNull();
-        expect(authorizationUrl.searchParams.get("code_challenge")).toBeNull();
-        expect(
-          authorizationUrl.searchParams.get("code_challenge_method")
-        ).toBeNull();
-        expect(authorizationUrl.searchParams.get("state")).toBeNull();
-        expect(authorizationUrl.searchParams.get("nonce")).toBeNull();
-        expect(authorizationUrl.searchParams.get("scope")).toBeNull();
-
-        // transaction state
-        const transactionCookies = response.cookies
-          .getAll()
-          .filter((c) => c.name.startsWith("__txn_"));
-        expect(transactionCookies.length).toEqual(1);
-        const transactionCookie = transactionCookies[0];
-        const state = transactionCookie.name.replace("__txn_", "");
-        expect(transactionCookie).toBeDefined();
-        expect(await decrypt(transactionCookie!.value, secret)).toEqual({
-          nonce: expect.any(String),
-          codeVerifier: expect.any(String),
-          responseType: "code",
-          state,
-          returnTo: "/"
->>>>>>> 667385d8 (chore: configure eslint)
         });
       });
     });
@@ -4225,6 +4151,231 @@ ca/T0LLtgmbMmxSv/MmzIg==
           expiresAt: expect.any(Number)
         });
       });
+    });
+  });
+
+  describe("getFederatedConnectionTokenSet", async () => {
+    it("should call for an access token when no federated connection token set in the session", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const fetchSpy = getMockAuthorizationServer({
+        tokenEndpointResponse: {
+          token_type: "Bearer",
+          access_token: DEFAULT.accessToken,
+          expires_in: 86400 // expires in 10 days
+        } as oauth.TokenEndpointResponse
+      });
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        fetch: fetchSpy
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) - 10 * 24 * 60 * 60; // expired 10 days ago
+      const tokenSet = {
+        accessToken: DEFAULT.accessToken,
+        refreshToken: DEFAULT.refreshToken,
+        expiresAt
+      };
+
+      const response = await authClient.getFederatedConnectionTokenSet(
+        tokenSet,
+        undefined,
+        { connection: "google-oauth2", login_hint: "000100123" }
+      );
+      const [error, federatedConnectionTokenSet] = response;
+      expect(error).toBe(null);
+      expect(fetchSpy).toHaveBeenCalled();
+      expect(federatedConnectionTokenSet).toEqual({
+        accessToken: DEFAULT.accessToken,
+        connection: "google-oauth2",
+        expiresAt: expect.any(Number)
+      });
+    });
+
+    it("should return access token from the session when federated connection token set in the session is not expired", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const fetchSpy = vi.fn();
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        fetch: fetchSpy
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) - 10 * 24 * 60 * 60; // expired 10 days ago
+      const tokenSet = {
+        accessToken: DEFAULT.accessToken,
+        refreshToken: DEFAULT.refreshToken,
+        expiresAt,
+      };
+
+      const response = await authClient.getFederatedConnectionTokenSet(
+        tokenSet,
+        { connection: 'google-oauth2', accessToken: 'fc_at', expiresAt: Math.floor(Date.now() / 1000) + 86400 },
+        { connection: "google-oauth2", login_hint: "000100123" }
+      );
+      const [error, federatedConnectionTokenSet] = response;
+      expect(error).toBe(null);
+      expect(federatedConnectionTokenSet).toEqual({
+        accessToken: 'fc_at',
+        connection: "google-oauth2",
+        expiresAt: expect.any(Number)
+      });
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("should call for an access token when federated connection token set in the session is expired", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const fetchSpy = getMockAuthorizationServer({
+        tokenEndpointResponse: {
+          token_type: "Bearer",
+          access_token: DEFAULT.accessToken,
+          expires_in: 86400 // expires in 10 days
+        } as oauth.TokenEndpointResponse
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        fetch: fetchSpy
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) - 10 * 24 * 60 * 60; // expired 10 days ago
+      const tokenSet = {
+        accessToken: DEFAULT.accessToken,
+        refreshToken: DEFAULT.refreshToken,
+        expiresAt,
+      };
+
+      const response = await authClient.getFederatedConnectionTokenSet(
+        tokenSet,
+        { connection: 'google-oauth2', accessToken: 'fc_at', expiresAt },
+        { connection: "google-oauth2", login_hint: "000100123" }
+      );
+      const [error, federatedConnectionTokenSet] = response;
+      expect(error).toBe(null);
+      expect(federatedConnectionTokenSet).toEqual({
+        accessToken: DEFAULT.accessToken,
+        connection: "google-oauth2",
+        expiresAt: expect.any(Number)
+      });
+      expect(fetchSpy).toHaveBeenCalled();
+    });
+
+    it("should return an error if the discovery endpoint could not be fetched", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        fetch: getMockAuthorizationServer({
+          discoveryResponse: new Response(null, { status: 500 })
+        })
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) - 10 * 24 * 60 * 60; // expired 10 days ago
+      const tokenSet = {
+        accessToken: DEFAULT.accessToken,
+        refreshToken: DEFAULT.refreshToken,
+        expiresAt
+      };
+
+      const [error, federatedConnectionTokenSet] =
+        await authClient.getFederatedConnectionTokenSet(tokenSet, undefined, {
+          connection: "google-oauth2"
+        });
+      expect(error?.code).toEqual("discovery_error");
+      expect(federatedConnectionTokenSet).toBeNull();
+    });
+
+    it("should return an error if the token set does not contain a refresh token", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        fetch: getMockAuthorizationServer()
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) - 10 * 24 * 60 * 60; // expired 10 days ago
+      const tokenSet = {
+        accessToken: DEFAULT.accessToken,
+        expiresAt
+      };
+
+      const [error, federatedConnectionTokenSet] =
+        await authClient.getFederatedConnectionTokenSet(tokenSet, undefined, {
+          connection: "google-oauth2"
+        });
+      expect(error?.code).toEqual("missing_refresh_token");
+      expect(federatedConnectionTokenSet).toBeNull();
     });
   });
 });
