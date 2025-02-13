@@ -5,21 +5,23 @@ inputs:
   node:
     description: The Node version to use
     required: false
-    default: 18
+    default: 22
   cache:
-      description: The cache key identifier to use
-      required: true
+    description: The cache key identifier to use
+    required: true
 
 runs:
   using: composite
 
   steps:
-      - uses: actions/setup-node@v3
-        with:
-          node-version: ${{ inputs.node }}
-          cache: npm
+    - name: Setup Node.js with pnpm caching
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node }}
+        cache: 'pnpm'
 
-      - uses: actions/cache/restore@v3
-        with:
-          path: .
-          key: ${{ inputs.cache }}
+    - name: Restore cache manually
+      uses: actions/cache/restore@v4
+      with:
+        path: .
+        key: ${{ inputs.cache }}

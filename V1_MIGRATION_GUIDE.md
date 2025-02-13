@@ -26,56 +26,56 @@ If you still want to create the SDK instance yourself, note that the configurati
 #### Before
 
 ```js
-import { initAuth0 } from '@auth0/nextjs-auth0';
+import { initAuth0 } from "@auth0/nextjs-auth0"
 
 export default initAuth0({
-  domain: 'my-tenant.auth0.com',
-  clientId: 'MY_CLIENT_ID',
-  clientSecret: 'MY_CLIENT_SECRET',
-  scope: 'openid profile',
-  audience: 'MY_AUDIENCE',
-  redirectUri: 'http://localhost:3000/api/callback',
-  postLogoutRedirectUri: 'http://localhost:3000/',
+  domain: "my-tenant.auth0.com",
+  clientId: "MY_CLIENT_ID",
+  clientSecret: "MY_CLIENT_SECRET",
+  scope: "openid profile",
+  audience: "MY_AUDIENCE",
+  redirectUri: "http://localhost:3000/api/callback",
+  postLogoutRedirectUri: "http://localhost:3000/",
   session: {
-    cookieSecret: 'some_very_long_secret_string',
+    cookieSecret: "some_very_long_secret_string",
     cookieLifetime: 60 * 60 * 8,
     storeIdToken: false,
     storeRefreshToken: false,
-    storeAccessToken: false
+    storeAccessToken: false,
   },
   oidcClient: {
     clockTolerance: 10000,
-    httpTimeout: 2500
-  }
-});
+    httpTimeout: 2500,
+  },
+})
 ```
 
 #### After
 
 ```js
-import { initAuth0 } from '@auth0/nextjs-auth0';
+import { initAuth0 } from "@auth0/nextjs-auth0"
 
 export default initAuth0({
-  baseURL: 'http://localhost:3000',
-  issuerBaseURL: 'https://my-tenant.auth0.com',
-  clientID: 'MY_CLIENT_ID',
-  clientSecret: 'MY_CLIENT_SECRET',
-  secret: 'some_very_long_secret_string',
+  baseURL: "http://localhost:3000",
+  issuerBaseURL: "https://my-tenant.auth0.com",
+  clientID: "MY_CLIENT_ID",
+  clientSecret: "MY_CLIENT_SECRET",
+  secret: "some_very_long_secret_string",
   clockTolerance: 60,
   httpTimeout: 5000,
   authorizationParams: {
-    scope: 'openid profile email',
-    audience: 'MY_AUDIENCE'
+    scope: "openid profile email",
+    audience: "MY_AUDIENCE",
   },
   routes: {
-    callback: '/api/callback',
-    postLogoutRedirect: '/'
+    callback: "/api/callback",
+    postLogoutRedirect: "/",
   },
   session: {
     rollingDuration: 60 * 60 * 24,
-    absoluteDuration: 60 * 60 * 24 * 7
-  }
-});
+    absoluteDuration: 60 * 60 * 24 * 7,
+  },
+})
 ```
 
 See the API docs for a [full list of configuration options](https://auth0.github.io/nextjs-auth0/modules/config.html).
@@ -88,10 +88,10 @@ See the API docs for a [full list of configuration options](https://auth0.github
 
 ```js
 // pages/api/shows.js
-import auth0 from '../../lib/auth0';
+import auth0 from "../../lib/auth0"
 
 export default function shows(req, res) {
-  const session = auth0.getSession(req);
+  const session = auth0.getSession(req)
   // ...
 }
 ```
@@ -100,10 +100,10 @@ export default function shows(req, res) {
 
 ```js
 // pages/api/shows.js
-import auth0 from '../../lib/auth0';
+import auth0 from "../../lib/auth0"
 
 export default function shows(req, res) {
-  const session = auth0.getSession(req, res); // Note: the extra argument
+  const session = auth0.getSession(req, res) // Note: the extra argument
   // ...
 }
 ```
@@ -118,13 +118,13 @@ See the [getSession docs](https://auth0.github.io/nextjs-auth0/modules/session_g
 
 ```js
 // pages/api/shows.js
-import auth0 from '../../lib/auth0';
+import auth0 from "../../lib/auth0"
 
 export default async function shows(req, res) {
-  const tokenCache = auth0.tokenCache(req, res);
+  const tokenCache = auth0.tokenCache(req, res)
   const { accessToken } = await tokenCache.getAccessToken({
-    scopes: ['read:shows']
-  });
+    scopes: ["read:shows"],
+  })
   // ...
 }
 ```
@@ -133,12 +133,12 @@ export default async function shows(req, res) {
 
 ```js
 // pages/api/shows.js
-import auth0 from '../../lib/auth0';
+import auth0 from "../../lib/auth0"
 
 export default async function shows(req, res) {
   const { accessToken } = await auth0.getAccessToken(req, res, {
-    scopes: ['read:shows']
-  });
+    scopes: ["read:shows"],
+  })
   // ...
 }
 ```
@@ -156,22 +156,22 @@ The options passed to `handleLogin` have changed.
 
 ```js
 // pages/api/login.js
-import auth0 from '../../utils/auth0';
+import auth0 from "../../utils/auth0"
 
 export default async function login(req, res) {
   try {
     await auth0.handleLogin(req, res, {
       authParams: {
-        login_hint: 'foo@acme.com',
-        ui_locales: 'nl',
-        scope: 'some other scope',
-        foo: 'bar'
+        login_hint: "foo@acme.com",
+        ui_locales: "nl",
+        scope: "some other scope",
+        foo: "bar",
       },
-      redirectTo: '/custom-url'
-    });
+      redirectTo: "/custom-url",
+    })
   } catch (error) {
-    console.error(error);
-    res.status(error.status || 500).end(error.message);
+    console.error(error)
+    res.status(error.status || 500).end(error.message)
   }
 }
 ```
@@ -180,22 +180,22 @@ export default async function login(req, res) {
 
 ```js
 // pages/api/login.js
-import auth0 from '../../utils/auth0';
+import auth0 from "../../utils/auth0"
 
 export default async function login(req, res) {
   try {
     await auth0.handleLogin(req, res, {
       authorizationParams: {
-        login_hint: 'foo@acme.com',
-        ui_locales: 'nl',
-        scope: 'some other scope',
-        foo: 'bar'
+        login_hint: "foo@acme.com",
+        ui_locales: "nl",
+        scope: "some other scope",
+        foo: "bar",
       },
-      returnTo: '/custom-url'
-    });
+      returnTo: "/custom-url",
+    })
   } catch (error) {
-    console.error(error);
-    res.status(error.status || 500).end(error.message);
+    console.error(error)
+    res.status(error.status || 500).end(error.message)
   }
 }
 ```
@@ -212,16 +212,16 @@ The options passed to `handleLogout` have changed.
 
 ```js
 // pages/api/logout.js
-import auth0 from '../../utils/auth0';
+import auth0 from "../../utils/auth0"
 
 export default async function logout(req, res) {
   try {
     await auth0.handleLogout(req, res, {
-      redirectTo: '/custom-url'
-    });
+      redirectTo: "/custom-url",
+    })
   } catch (error) {
-    console.error(error);
-    res.status(error.status || 500).end(error.message);
+    console.error(error)
+    res.status(error.status || 500).end(error.message)
   }
 }
 ```
@@ -230,16 +230,16 @@ export default async function logout(req, res) {
 
 ```js
 // pages/api/logout.js
-import auth0 from '../../utils/auth0';
+import auth0 from "../../utils/auth0"
 
 export default async function logout(req, res) {
   try {
     await auth0.handleLogout(req, res, {
-      returnTo: '/custom-url'
-    });
+      returnTo: "/custom-url",
+    })
   } catch (error) {
-    console.error(error);
-    res.status(error.status || 500).end(error.message);
+    console.error(error)
+    res.status(error.status || 500).end(error.message)
   }
 }
 ```
@@ -256,18 +256,18 @@ The options passed to `handleCallback` have changed.
 
 ```js
 // pages/api/callback.js
-import auth0 from '../../utils/auth0';
+import auth0 from "../../utils/auth0"
 
 export default async function callback(req, res) {
   try {
     await auth0.handleCallback(req, res, {
       async onUserLoaded(req, res, session, state) {
-        return session;
-      }
-    });
+        return session
+      },
+    })
   } catch (error) {
-    console.error(error);
-    res.status(error.status || 500).end(error.message);
+    console.error(error)
+    res.status(error.status || 500).end(error.message)
   }
 }
 ```
@@ -276,18 +276,18 @@ export default async function callback(req, res) {
 
 ```js
 // pages/api/callback.js
-import auth0 from '../../utils/auth0';
+import auth0 from "../../utils/auth0"
 
 export default async function callback(req, res) {
   try {
     await auth0.handleCallback(req, res, {
       async afterCallback(req, res, session, state) {
-        return session;
-      }
-    });
+        return session
+      },
+    })
   } catch (error) {
-    console.error(error);
-    res.status(error.status || 500).end(error.message);
+    console.error(error)
+    res.status(error.status || 500).end(error.message)
   }
 }
 ```
