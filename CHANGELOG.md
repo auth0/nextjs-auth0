@@ -1,202 +1,403 @@
 # Change Log
 
+## [v4.0.1](https://github.com/auth0/nextjs-auth0/releases/tag/v4.0.1) (2025-02-12)
+
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.0.0...v4.0.1)
+
+**Fixed**
+
+- fix: sanitize the returnTo parameter to prevent open redirect vulnerabilities. [\#1897](https://github.com/auth0/nextjs-auth0/pull/1897) ([guabu](https://github.com/guabu))
+
 ## [v3.6.0](https://github.com/auth0/nextjs-auth0/tree/v3.6.0) (2025-01-31)
+
 This is a maintainance release for V3 of the SDK.  
 V4 supports Next.JS 15 and React 19 and is published on [npm](https://www.npmjs.com/package/@auth0/nextjs-auth0)!  
 We will continue to add features and security upgrades in V4 going further. Please migrate to V4 for a better experience.
 
-
 **Security**
+
 - [bump jshttp/cookie from 0.6.0 to 0.7.1](https://github.com/auth0/nextjs-auth0/pull/1778)
 
+## [v4.0.0](https://github.com/auth0/nextjs-auth0/releases/tag/v4.0.0) (2024-01-30)
+
+**⚠️ BREAKING CHANGES**.
+
+Significant updates have been introduced in this release. Please refer to the V3 → V4 [MIGRATION GUIDE](https://github.com/auth0/nextjs-auth0/blob/v4/V4_MIGRATION_GUIDE.md) for details on upgrading.
+
+**Fixed**
+
+- chore: add telemetry and options to disable in #1864
+- chore: reduce session lifetime defaults in #1869
+- fix: persist access token scope in tokenset in #1870
+- chore: in-memory cache for authorization server metadata in #1871
+
+## [v4.0.0-beta.14](https://github.com/auth0/nextjs-auth0/releases/tag/v4.0.0-beta.14) (2024-01-06)
+
+**Fixed**
+
+- fix: propagate session data updates within the same request (fixes: #1841)
+- chore: export SessionDataStore and LogoutToken types (closes: #1852)
+- feat: add generateSessionCookie testing helper (closes: #1857)
+
+## [v4.0.0-beta.13](https://github.com/auth0/nextjs-auth0/releases/tag/v4.0.0-beta.13) (2024-12-20)
+
+**Fixed**
+
+- chore: refresh the token set when calling getAccessToken instead of the middleware (fixes: #1851 and #1841)
+- feat: add idToken to beforeSessionSaved hook (closes: #1840)
+- fix: ensure builds succeed without AUTH0_DOMAIN set (closes: #1849)
+- chore: allow specifying client assertion config via env vars
+
+## [v4.0.0-beta.12](https://github.com/auth0/nextjs-auth0/releases/tag/v4.0.0-beta.12) (2024-12-18)
+
+**Fixed**
+
+- chore: add note about RP-Initiated logout
+- chore: warn instead of throwing error when using insecure requests flag in prod (closes: #1846)
+- chore: remove warning for prod env with non-https (closes: #1847)
+
+## [v4.0.0-beta.11](https://github.com/auth0/nextjs-auth0/releases/tag/v4.0.0-beta.11) (2024-12-17)
+
+- feat: introduce updateSession helper (closes: #1836)
+- feat: private_key_jwt authentication method
+- fix: peerDependencies for React 19 (closes: #1844)
+- chore: allowInsecureRequests for mock OIDC server during development (closes: #1846)
+
+## [v4.0.0-beta.10](https://github.com/auth0/nextjs-auth0/releases/tag/v4.0.0-beta.10) (2024-12-10)
+
+**Fixed**
+
+- chore: add more description in error log on discovery errors (closes: #1832)
+- chore: migration guide
+- chore: include typeVersions for type resolution (fixes: #1816)
+- fix: only dist files should be published (fixes: #1825)
+- feat: add PAR support
+- feat: allow customizing auth routes (closes: #1834)
+- chore: set secure cookie attribute based on app base URL protocol (closes: #1821)
+
+## [v4.0.0-beta.9](https://github.com/auth0/nextjs-auth0/releases/tag/v4.0.0-beta.9) (2024-12-03)
+
+**Fixed**
+
+- fix: clear session before redirecting to /v2/logout (closes #1826)
+- feature: add Auth0Provider to pass initialUser (closes: #1823)
+- fix: getAccessToken types should not return null (closes: #1831)
+
+## [v4.0.0-beta.8](https://github.com/auth0/nextjs-auth0/releases/tag/v4.0.0-beta.8) (2024-11-25)
+
+**Fixed**
+
+- Fixes documentation for allowed logout URL
+- Falls back to /v2/logout endpoint when the end_session_endpoint is not enabled for a tenant
+- Adds docs about default claims from ID token populated in the user object
+- Prevent revalidation when user is not authenticated in useUser() hook
+- Fix error handling in useUser() hook (closes #1817)
+- Export types under /types sub-module (closes #1824 and #1810)
+- Exports errors under /errors sub-module
+- getAccessToken() method throws an error when an access token could not be obtained to allow handling by the caller (closes #1820 and #1819)
+- Add warning when cookie size exceeds 4096 bytes
+
+## [v4.0.0-beta.7](https://github.com/auth0/nextjs-auth0/releases/tag/v4.0.0-beta.7) (2024-11-19)
+
+**Fixed**
+
+- Updated README.md
+- Bumped up the version
+
+## [v4.0.0-beta.5](https://github.com/auth0/nextjs-auth0/releases/tag/v4.0.0-beta.5) (2024-11-19)
+
+**Fixed**
+
+- Bumping up the version
+
+## [v4.0.0-beta.4](https://github.com/auth0/nextjs-auth0/releases/tag/v4.0.0-beta.4) (2024-11-19)
+
+**Fixed**
+
+- Adds e2e tests.
+- Removes error on env vars when undefined during build.
+
+## [v4.0.0-beta.3](https://github.com/auth0/nextjs-auth0/releases/tag/v4.0.0-beta.3) (2024-11-14)
+
+**Fixed**
+
+- Bug fixes
+- Addressing the following customer issues.
+  - #1797
+  - #1795
+  - #1794
+
+## [v4.0.0-beta.2](https://github.com/auth0/nextjs-auth0/releases/tag/v4.0.0-beta.2) (2024-11-11)
+
+- The previous NPM publish missed including the build files. We are now bumping the version and releasing an updated version with the latest build.
+
+## [v4.0.0-beta.1](https://github.com/auth0/nextjs-auth0/releases/tag/v4.0.0-beta.1) (2024-11-11)
+
+**Fixed**
+
+- ESM imports for Pages router
+
+## [v4.0.0-beta.0](https://github.com/auth0/nextjs-auth0/releases/tag/v4.0.0-beta.0) (2024-11-05)
+
+- Expands unit test coverage
+- Implements Back-Channel Logout
+- Adds sample with shadcn
+- Refer [README.md](https://github.com/auth0/nextjs-auth0/tree/v4?tab=readme-ov-file) for more details.
+
+## [v4.0.0-alpha.0](https://github.com/auth0/nextjs-auth0/releases/tag/v4.0.0-alpha.0) (2024-10-23)
+
+- This is an experimental alpha release, and we encourage users to test it thoroughly in their development environments before upgrading in production.
+- Review the breaking changes carefully to ensure a smooth transition.
+- Refer [README.md](https://github.com/auth0/nextjs-auth0/tree/v4?tab=readme-ov-file) for more details.
+
 ## [v3.5.0](https://github.com/auth0/nextjs-auth0/tree/v3.5.0) (2023-12-06)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.4.0...v3.5.0)
 
 **Added**
+
 - Add Pushed Authorization Requests [\#1598](https://github.com/auth0/nextjs-auth0/pull/1598) ([ewanharris](https://github.com/ewanharris))
 
 ## [v3.4.0](https://github.com/auth0/nextjs-auth0/tree/v3.4.0) (2023-12-04)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.3.0...v3.4.0)
 
 **Added**
+
 - [SDK-4719] Back-Channel Logout [\#1590](https://github.com/auth0/nextjs-auth0/pull/1590) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
 **Fixed**
+
 - Should get instance of Session in RSCs [\#1565](https://github.com/auth0/nextjs-auth0/pull/1565) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
 ## [v3.3.0](https://github.com/auth0/nextjs-auth0/tree/v3.3.0) (2023-11-13)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.2.0...v3.3.0)
 
 **Added**
+
 - Bail out of static rendering for pages and routes in app dir [\#1541](https://github.com/auth0/nextjs-auth0/pull/1541) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
 **Fixed**
+
 - Fix wrong response type in AfterRefreshPageRoute [\#1523](https://github.com/auth0/nextjs-auth0/pull/1523) ([thutter](https://github.com/thutter))
 
 ## [v3.2.0](https://github.com/auth0/nextjs-auth0/tree/v3.2.0) (2023-10-05)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.1.0...v3.2.0)
 
 **Added**
+
 - Add support for passing a custom http agent [\#1447](https://github.com/auth0/nextjs-auth0/pull/1447) ([ryanolson-aumni](https://github.com/ryanolson-aumni))
 - fix: add missing touchSession for exported function [\#1461](https://github.com/auth0/nextjs-auth0/pull/1461) ([benevbright](https://github.com/benevbright))
 
 **Fixed**
+
 - withApiAuthRequired callback can return just Response [\#1476](https://github.com/auth0/nextjs-auth0/pull/1476) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
 ## [v3.1.0](https://github.com/auth0/nextjs-auth0/tree/v3.1.0) (2023-08-08)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.0.1...v3.1.0)
 
 **Added**
+
 - Add option to override transaction cookie name and config [\#1346](https://github.com/auth0/nextjs-auth0/pull/1346) ([adamjmcgrath](https://github.com/adamjmcgrath))
 - Add support for customizing returnTo in middleware [\#1342](https://github.com/auth0/nextjs-auth0/pull/1342) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
 **Changed**
+
 - Move state cookies to under a single cookie [\#1343](https://github.com/auth0/nextjs-auth0/pull/1343) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
 **Fixed**
+
 - Fix for edge cookies delete not supporting domain or path [\#1341](https://github.com/auth0/nextjs-auth0/pull/1341) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
 ## [v3.0.1](https://github.com/auth0/nextjs-auth0/tree/v3.0.1) (2023-07-31)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.0.0...v3.0.1)
 
 **Fixed**
+
 - Fix auth handler types when using custom handlers [\#1327](https://github.com/auth0/nextjs-auth0/pull/1327) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
 ## [v3.0.0](https://github.com/auth0/nextjs-auth0/tree/v3.0.0) (2023-07-25)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.7.0...v3.0.0)
 
 **Added**
+
 - Support for the App Router
 - Support for Edge Runtime
 - Support for Responses in Middleware
 
 **⚠️ BREAKING CHANGES**
+
 - Support for EOL Node versions 12 and 14 has been removed. See the [V3_MIGRATION_GUIDE.md](./V3_MIGRATION_GUIDE.md) for more details.
 
 ## [v2.7.0](https://github.com/auth0/nextjs-auth0/tree/v2.7.0) (2023-07-19)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.6.3...v2.7.0)
 
 **Added**
+
 - Support Organization Name [\#1291](https://github.com/auth0/nextjs-auth0/pull/1291) ([frederikprijck](https://github.com/frederikprijck))
 
 **Fixed**
+
 - Clean up erroneous cookies when chunk size decreases [\#1300](https://github.com/auth0/nextjs-auth0/pull/1300) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
 ## [v3.0.0-beta.3](https://github.com/auth0/nextjs-auth0/tree/v3.0.0-beta.3) (2023-06-28)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.0.0-beta.2...v3.0.0-beta.3)
 
 **Added**
+
 - [SDK-4319] Add support for Edge runtime [\#1269](https://github.com/auth0/nextjs-auth0/pull/1269) ([adamjmcgrath](https://github.com/adamjmcgrath))
 - [SDK-4318] Enable responses from custom middleware [\#1265](https://github.com/auth0/nextjs-auth0/pull/1265) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
 ## [v2.6.3](https://github.com/auth0/nextjs-auth0/tree/v2.6.3) (2023-06-26)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.6.2...v2.6.3)
 
 **Fixed**
+
 - Fix for setting custom cookies in `withMiddlewareAuthRequired` [\#1263](https://github.com/auth0/nextjs-auth0/pull/1263) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
-
 ## [v3.0.0-beta.2](https://github.com/auth0/nextjs-auth0/tree/v3.0.0-beta.2) (2023-06-16)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.0.0-beta.1...v3.0.0-beta.2)
 
 **Fixed**
+
 - Fix issue where api wrapper was overwriting session update in api [\#1255](https://github.com/auth0/nextjs-auth0/pull/1255) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
 ## [v3.0.0-beta.1](https://github.com/auth0/nextjs-auth0/tree/v3.0.0-beta.1) (2023-06-13)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.0.0-beta.0...v3.0.0-beta.1)
 
 **Fixed**
+
 - Fix request check in node 16 [\#1250](https://github.com/auth0/nextjs-auth0/pull/1250) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
 ## [v2.6.2](https://github.com/auth0/nextjs-auth0/tree/v2.6.2) (2023-06-09)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.6.1...v2.6.2)
 
 **Fixed**
+
 - Fix for handling chunked cookies in edge runtime [\#1236](https://github.com/auth0/nextjs-auth0/pull/1236) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
 ## [v3.0.0-beta.0](https://github.com/auth0/nextjs-auth0/tree/v3.0.0-beta.0) (2023-06-08)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.6.1...v3.0.0-beta.0)
 
 **Added**
+
 - Support for the App Router.
 
 **⚠️ BREAKING CHANGES**
+
 - Support for EOL Node versions 12 and 14 has been removed. See the [V3_MIGRATION_GUIDE.md](./V3_MIGRATION_GUIDE.md) for more details.
 
 ## [v2.6.1](https://github.com/auth0/nextjs-auth0/tree/v2.6.1) (2023-06-06)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.6.0...v2.6.1)
 
 **Fixed**
+
 - [SDK-4113] Lock down open ended auth route [\#1212](https://github.com/auth0/nextjs-auth0/pull/1212) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
 ## [v2.6.0](https://github.com/auth0/nextjs-auth0/tree/v2.6.0) (2023-05-12)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.5.0...v2.6.0)
 
 **Added**
+
 - Add prefixed url env for preview deploys on middleware [\#1198](https://github.com/auth0/nextjs-auth0/pull/1198) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
 ## [v2.5.0](https://github.com/auth0/nextjs-auth0/tree/v2.5.0) (2023-04-18)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.4.0...v2.5.0)
 
 **Added**
+
 - feat: add optional session param to genId function [\#1158](https://github.com/auth0/nextjs-auth0/pull/1158) ([PSoltes](https://github.com/PSoltes))
 
 ## [v2.4.0](https://github.com/auth0/nextjs-auth0/tree/v2.4.0) (2023-03-27)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.3.1...v2.4.0)
 
 **Added**
+
 - Add `autoSave`/`touchSession` for rolling session expiry management [\#1116](https://github.com/auth0/nextjs-auth0/pull/1116) ([aovens-quantifi](https://github.com/aovens-quantifi))
 
 ## [v2.3.1](https://github.com/auth0/nextjs-auth0/tree/v2.3.1) (2023-03-17)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.3.0...v2.3.1)
 
 **Fixed**
+
 - Update stateful session cookie expiry on set [\#1115](https://github.com/auth0/nextjs-auth0/pull/1115) ([aovens-quantifi](https://github.com/aovens-quantifi))
 
 ## [v2.3.0](https://github.com/auth0/nextjs-auth0/tree/v2.3.0) (2023-03-16)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.2.3...v2.3.0)
 
 **Added**
+
 - Add AUTH0_LOGOUT env var [\#1113](https://github.com/auth0/nextjs-auth0/pull/1113) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
 ## [v2.2.3](https://github.com/auth0/nextjs-auth0/tree/v2.2.3) (2023-03-13)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.2.2...v2.2.3)
 
 **Fixed**
+
 - [SDK-3887] Always honor auth0Logout config [\#1104](https://github.com/auth0/nextjs-auth0/pull/1104) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
 ## [v2.2.2](https://github.com/auth0/nextjs-auth0/tree/v2.2.2) (2023-03-02)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.2.1...v2.2.2)
 
 **Fixed**
+
 - Fix issue where storeIDToken config not used by getAccessToken [\#1091](https://github.com/auth0/nextjs-auth0/pull/1091) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
 ## [v2.2.1](https://github.com/auth0/nextjs-auth0/tree/v2.2.1) (2023-01-27)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.2.0...v2.2.1)
 
 **Fixed**
+
 - Remove type from export in d.ts files [\#1037](https://github.com/auth0/nextjs-auth0/pull/1037) ([ewanharris](https://github.com/ewanharris))
 
 ## [v2.2.0](https://github.com/auth0/nextjs-auth0/tree/v2.2.0) (2023-01-24)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.1.0...v2.2.0)
 
 **Added**
+
 - [SDK-3862] Add support for JWT client authentication [\#1029](https://github.com/auth0/nextjs-auth0/pull/1029) ([ewanharris](https://github.com/ewanharris))
 
 **Fixed**
+
 - withMiddlewareAuthRequired returnTo should be a relative url [\#1028](https://github.com/auth0/nextjs-auth0/pull/1028) ([adamjmcgrath](https://github.com/adamjmcgrath))
 - Infer user exists if WithPageAuthRequired page is rendered [\#1014](https://github.com/auth0/nextjs-auth0/pull/1014) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
 ## [v2.1.0](https://github.com/auth0/nextjs-auth0/tree/v2.1.0) (2023-01-11)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.0.1...v2.1.0)
 
 **Added**
+
 - SDK-3807 Add custom session stores [\#993](https://github.com/auth0/nextjs-auth0/pull/993) ([adamjmcgrath](https://github.com/adamjmcgrath))
 
 ## [v2.0.1](https://github.com/auth0/nextjs-auth0/tree/v2.0.1) (2022-12-09)
+
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v2.0.0...v2.0.1)
 
 **Fixed**
+
 - afterCallback return type fix [\#954](https://github.com/auth0/nextjs-auth0/pull/954) ([alexmalev](https://github.com/alexmalev))
 - fix/rerenders: useMemo to avoid unnecessary rerenders [\#945](https://github.com/auth0/nextjs-auth0/pull/945) ([stavros-liaskos](https://github.com/stavros-liaskos))
 

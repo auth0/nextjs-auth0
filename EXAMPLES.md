@@ -1,578 +1,754 @@
 # Examples
 
-- [Create your own instance of the SDK](#create-your-own-instance-of-the-sdk)
-- [Customize handlers behavior](#customize-handlers-behavior)
-- [Use custom auth urls](#use-custom-auth-urls)
-- [Protecting a Server-Side Rendered (SSR) Page](#protecting-a-server-side-rendered-ssr-page)
-- [Protecting a Client-Side Rendered (CSR) Page](#protecting-a-client-side-rendered-csr-page)
-- [Protect an API Route](#protect-an-api-route)
-- [Protecting pages with Middleware](#protecting-pages-with-middleware)
-- [Access an External API from an API Route](#access-an-external-api-from-an-api-route)
-- [Add a signup handler](#add-a-signup-handler)
-- [Use with Base Path and Internationalized Routing](#use-with-base-path-and-internationalized-routing)
-- [Use a custom session store](#use-a-custom-session-store)
+- [Passing authorization parameters](#passing-authorization-parameters)
+- [The `returnTo` parameter](#the-returnto-parameter)
+  - [Redirecting the user after authentication](#redirecting-the-user-after-authentication)
+  - [Redirecting the user after logging out](#redirecting-the-user-after-logging-out)
+- [Accessing the authenticated user](#accessing-the-authenticated-user)
+  - [In the browser](#in-the-browser)
+  - [On the server (App Router)](#on-the-server-app-router)
+  - [On the server (Pages Router)](#on-the-server-pages-router)
+  - [Middleware](#middleware)
+- [Updating the session](#updating-the-session)
+  - [On the server (App Router)](#on-the-server-app-router-1)
+  - [On the server (Pages Router)](#on-the-server-pages-router-1)
+  - [Middleware](#middleware-1)
+- [Getting an access token](#getting-an-access-token)
+  - [In the browser](#in-the-browser-1)
+  - [On the server (App Router)](#on-the-server-app-router-2)
+  - [On the server (Pages Router)](#on-the-server-pages-router-2)
+  - [Middleware](#middleware-2)
+- [`<Auth0Provider />`](#auth0provider-)
+  - [Passing an initial user from the server](#passing-an-initial-user-from-the-server)
+- [Hooks](#hooks)
+  - [`beforeSessionSaved`](#beforesessionsaved)
+  - [`onCallback`](#oncallback)
+- [Session configuration](#session-configuration)
+- [Database sessions](#database-sessions)
 - [Back-Channel Logout](#back-channel-logout)
+- [Combining middleware](#combining-middleware)
+- [ID Token claims and the user object](#id-token-claims-and-the-user-object)
+- [Routes](#routes)
+  - [Custom routes](#custom-routes)
+- [Testing helpers](#testing-helpers)
+  - [`generateSessionCookie`](#generatesessioncookie)
 
-See also the [example app](./example-app).
+## Passing authorization parameters
 
-### Create your own instance of the SDK
+There are 2 ways to customize the authorization parameters that will be passed to the `/authorize` endpoint. The first option is through static configuration when instantiating the client, like so:
 
-When you use the named exports, the SDK creates an instance of the SDK for you and configures it with the provided environment variables.
-
-```js
-// These named exports create and manage their own instance of the SDK configured with
-// the provided `AUTH0_*` environment variables
-import {
-  handleAuth,
-  handleLogin,
-  handleCallback,
-  handleLogout,
-  handleProfile,
-  withApiAuthRequired,
-  withPageAuthRequired,
-  getSession,
-  getAccessToken
-} from '@auth0/nextjs-auth0';
-```
-
-However, there are various reasons why you might want to create and manage an instance of the SDK yourself:
-
-- You may want to create your own instance for testing
-- You may not want to use environment variables for the configuration of secrets (for example, to use CredStash or AWS's Key Management Service)
-- You may be using a [custom session store](#use-a-custom-session-store) and need to provide the configuration as code.
-
-In this case you can use the [initAuth0](https://auth0.github.io/nextjs-auth0/modules/instance.html) method to create an instance.
-
-```js
-// utils/auth0.js
-import { initAuth0 } from '@auth0/nextjs-auth0';
-
-export default initAuth0({
-  secret: 'LONG_RANDOM_VALUE',
-  issuerBaseURL: 'https://your-tenant.auth0.com',
-  baseURL: 'http://localhost:3000',
-  clientID: 'CLIENT_ID',
-  clientSecret: 'CLIENT_SECRET'
-});
-```
-
-Now rather than using the named exports, you can use the instance methods directly.
-
-```js
-// pages/api/auth/[auth0].js
-import auth0 from '../../../utils/auth0';
-
-// Use the instance method
-export default auth0.handleAuth();
-```
-
-> Note: You should not use the instance methods in combination with the named exports,
-> otherwise you will be creating multiple instances of the SDK. For example:
-
-```js
-// DON'T Mix instance methods and named exports
-import auth0 from '../../../utils/auth0';
-import { handleLogin } from '@auth0/nextjs-auth0';
-
-export default auth0.handleAuth({
-  // <= instance method
-  async login(req, res) {
-    try {
-      // `auth0.handleAuth` and `handleLogin` will be using separate instances
-      // You should use `auth0.handleLogin` instead
-      await handleLogin(req, res); // <= named export
-    } catch (error) {
-      res.status(error.status || 400).end(error.message);
-    }
-  }
-});
-```
-
-### Customize handlers behavior
-
-Pass custom parameters to the auth handlers or add your own logging and error handling.
-
-```js
-// pages/api/auth/[auth0].js
-import { handleAuth, handleLogin, handleProfile } from '@auth0/nextjs-auth0';
-import { myCustomLogger, myCustomErrorReporter } from '../utils';
-
-export default handleAuth({
-  async login(req, res) {
-    // Add your own custom logger
-    myCustomLogger('Logging in');
-    // Pass custom parameters to login
-    await handleLogin(req, res, {
-      authorizationParams: {
-        custom_param: 'custom'
-      },
-      returnTo: '/custom-page'
-    });
+```ts
+export const auth0 = new Auth0Client({
+  authorizationParameters: {
+    scope: "openid profile email",
+    audience: "urn:custom:api",
   },
-  invite: handleLogin({
-    authorizationParams: {
-      invitation: req.query.invitation
-    }
-  }),
-  'login-with-google': handleLogin({ authorizationParams: { connection: 'google' } }),
-  'refresh-profile': handleProfile({ refetch: true }),
-  onError(req, res, error) {
-    // Add your own custom error handling
-    myCustomErrorReporter(error);
-    res.status(error.status || 400).end();
-  }
-});
+})
 ```
 
-### Use custom auth urls
-
-Instead of (or in addition to) creating `/pages/api/auth/[auth0].js` to handle all requests, you can create them individually at different urls.
-
-Eg for login:
-
-```js
-// api/custom-login.js
-import { handleLogin } from '@auth0/nextjs-auth0';
-
-export default async function login(req, res) {
-  try {
-    await handleLogin(req, res);
-  } catch (error) {
-    res.status(error.status || 400).end(error.message);
-  }
-}
-```
-
-```jsx
-// components/login-button.js
-export default () => <a href="/api/custom-login">Login</a>;
-```
-
-> Note: If you customize the login url you will need to set the environment variable `NEXT_PUBLIC_AUTH0_LOGIN` to this custom value for `withPageAuthRequired` to work correctly. And if you customize the profile url, you will need to set the `NEXT_PUBLIC_AUTH0_PROFILE` environment variable to this custom value for the `useUser` hook to work properly.
-
-### Protecting a Server-Side Rendered (SSR) Page
-
-#### Page Router
-
-Requests to `/pages/profile` without a valid session cookie will be redirected to the login page.
-
-```jsx
-// pages/profile.js
-import { withPageAuthRequired } from '@auth0/nextjs-auth0';
-
-export default function Profile({ user }) {
-  return <div>Hello {user.name}</div>;
-}
-
-// You can optionally pass your own `getServerSideProps` function into
-// `withPageAuthRequired` and the props will be merged with the `user` prop
-export const getServerSideProps = withPageAuthRequired();
-```
-
-See a running example of an [SSR protected page](./example-app/pages/page-router/profile-ssr.tsx) in the example app or refer to the full list of configuration options for `withPageAuthRequired` [here](https://auth0.github.io/nextjs-auth0/modules/helpers_with_page_auth_required.html#withpageauthrequiredoptions).
-
-#### App Router
-
-Requests to `/profile` without a valid session cookie will be redirected to the login page.
-
-```jsx
-// app/profile/page.js
-import { withPageAuthRequired, getSession } from '@auth0/nextjs-auth0';
-
-export default withPageAuthRequired(async function Profile() {
-  const { user } = await getSession();
-  return <div>Hello {user.name}</div>;
-}, { returnTo: '/profile' })
-// You need to provide a `returnTo` since Server Components aren't aware of the page's URL
-```
-
-See a running example of a [protected server component page](./example-app/app/profile/page.tsx) in the example app or more info [in the docs](./src/helpers/with-page-auth-required.ts#129).
-
-### Protecting a Client-Side Rendered (CSR) Page
-
-#### Page Router
-
-Requests to `/pages/profile` without a valid session cookie will be redirected to the login page.
-
-```jsx
-// pages/profile.js
-import { withPageAuthRequired } from '@auth0/nextjs-auth0/client';
-
-export default withPageAuthRequired(function Profile({ user }) {
-  return <div>Hello {user.name}</div>;
-});
-```
-
-See a running example of a [CSR protected page](./example-app/pages/page-router/profile-csr.tsx) in the example app.
-
-### Protect an API Route
-
-#### Page Router
-
-Requests to `/api/protected` without a valid session cookie will fail with `401`.
-
-```js
-// pages/api/protected.js
-import { withApiAuthRequired, getSession } from '@auth0/nextjs-auth0';
-
-export default withApiAuthRequired(async function myApiRoute(req, res) {
-  const { user } = await getSession(req, res);
-  res.json({ protected: 'My Secret', id: user.sub });
-});
-```
-
-Then you can access your API from the frontend with a valid session cookie.
-
-```jsx
-// pages/products
-import useSWR from 'swr';
-import { withPageAuthRequired } from '@auth0/nextjs-auth0/client';
-
-const fetcher = async (uri) => {
-  const response = await fetch(uri);
-  return response.json();
-};
-
-export default withPageAuthRequired(function Products() {
-  const { data, error } = useSWR('/api/protected', fetcher);
-  if (error) return <div>oops... {error.message}</div>;
-  if (data === undefined) return <div>Loading...</div>;
-  return <div>{data.protected}</div>;
-});
-```
-
-See a running example in the example app, the [protected API route](./example-app/pages/api/page-router-profile.ts) and
-the [frontend code to access the protected API](./example-app/pages/page-router/profile-api.tsx).
-
-#### App Router
-
-Requests to `/api/protected` without a valid session cookie will fail with `401`.
-
-```js
-// app/api/protected/route.js
-import { withApiAuthRequired, getSession } from '@auth0/nextjs-auth0';
-
-export const GET = withApiAuthRequired(async function myApiRoute(req) {
-  const res = new NextResponse();
-  const { user } = await getSession(req, res);
-  return NextResponse.json({ protected: 'My Secret', id: user.sub }, res);
-});
-```
-
-Then you can access your API from the frontend with a valid session cookie.
-
-```jsx
-// app/products/page.jsx
-'use client'
-import useSWR from 'swr';
-import { withPageAuthRequired } from '@auth0/nextjs-auth0/client';
-
-const fetcher = async (uri) => {
-  const response = await fetch(uri);
-  return response.json();
-};
-
-export default withPageAuthRequired(function Products() {
-  const { data, error } = useSWR('/api/protected', fetcher);
-  if (error) return <div>oops... {error.message}</div>;
-  if (data === undefined) return <div>Loading...</div>;
-  return <div>{data.protected}</div>;
-});
-```
-
-See a running example in the example app, the [protected API route](./example-app/app/api/profile/route.ts) and
-the [frontend code to access the protected API](./example-app/app/profile-api/page.tsx).
-
-### Protecting pages with Middleware
-
-Protect your pages with Next.js Middleware.
-
-To protect all your routes:
-
-```js
-// middleware.js
-import { withMiddlewareAuthRequired } from '@auth0/nextjs-auth0/edge';
-
-export default withMiddlewareAuthRequired();
-```
-
-To protect specific routes:
-
-```js
-// middleware.js
-import { withMiddlewareAuthRequired } from '@auth0/nextjs-auth0/edge';
-
-export default withMiddlewareAuthRequired();
-
-export const config = {
-  matcher: '/about/:path*'
-};
-```
-
-For more info see: https://nextjs.org/docs/advanced-features/middleware#matching-paths
-
-To run custom middleware for authenticated users:
-
-```js
-// middleware.js
-import { withMiddlewareAuthRequired, getSession } from '@auth0/nextjs-auth0/edge';
-
-export default withMiddlewareAuthRequired(async function middleware(req) {
-  const res = NextResponse.next();
-  const user = await getSession(req, res);
-  res.cookies.set('hl', user.language);
-  return res;
-});
-```
-
-For using middleware with your own instance of the SDK:
-
-```js
-// middleware.js
-import {
-  initAuth0 // note the edge runtime specific `initAuth0`
-} from '@auth0/nextjs-auth0/edge';
-
-const auth0 = initAuth0({ ... });
-
-export default auth0.withMiddlewareAuthRequired(async function middleware(req) {
-  const res = NextResponse.next();
-  const user = await auth0.getSession(req, res);
-  res.cookies.set('hl', user.language);
-  return res;
-});
-```
-
-### Access an External API from an API Route
-
-Get an access token by providing your API's audience and scopes. You can pass them directly to the `handlelogin` method, or use environment variables instead.
-
-```js
-// pages/api/auth/[auth0].js
-import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
-
-export default handleAuth({
-  login: handleLogin({
-    authorizationParams: {
-      audience: 'https://api.example.com/products', // or AUTH0_AUDIENCE
-      // Add the `offline_access` scope to also get a Refresh Token
-      scope: 'openid profile email read:products' // or AUTH0_SCOPE
-    }
-  })
-});
-```
-
-Use the session to protect your API route and the access token to protect your external API.
-The API route serves as a proxy between your front end and the external API.
-
-```js
-// pages/api/products.js
-import { getAccessToken, withApiAuthRequired } from '@auth0/nextjs-auth0';
-
-export default withApiAuthRequired(async function products(req, res) {
-  // If your access token is expired and you have a refresh token
-  // `getAccessToken` will fetch you a new one using the `refresh_token` grant
-  const { accessToken } = await getAccessToken(req, res, {
-    scopes: ['read:products']
-  });
-  const response = await fetch('https://api.example.com/products', {
-    headers: {
-      Authorization: `Bearer ${accessToken}`
-    }
-  });
-  const products = await response.json();
-  res.status(200).json(products);
-});
-```
-
-### Getting a Refresh Token
-
-- Include the `offline_access` scope your configuration (or `AUTH0_SCOPE`)
-- Check "Allow Offline Access" in your [API Settings](https://auth0.com/docs/get-started/apis/api-settings#access-settings)
-- Make sure the "Refresh Token" grant is enabled in your [Application Settings](https://auth0.com/docs/get-started/applications/application-settings#grant-types) (this is the default)
-
-### Add a signup handler
-
-Pass a custom authorize parameter to the login handler in a custom route.
-
-If you are using the [New Universal Login Experience](https://auth0.com/docs/universal-login/new-experience) you can pass the `screen_hint` parameter.
-
-```js
-// pages/api/auth/[auth0].js
-import { handleAuth, handleLogin } from '@auth0/nextjs-auth0';
-
-export default handleAuth({
-  signup: handleLogin({ authorizationParams: { screen_hint: 'signup' } })
-});
-```
-
-If you are using the [Classic Universal Login](https://auth0.com/docs/universal-login/classic), in addition to the above change, you will also need to edit the [Custom Login Page](https://manage.auth0.com/#/login_page) to set the [initialScreen](https://auth0.com/docs/libraries/lock/v11/configuration#initialscreen-string-) option inside the `<script>` tag:
-
-```js
-var isSignup = config.extraParams && config.extraParams.screen_hint === "signup";
-
-var lock = new Auth0Lock(config.clientID, config.auth0Domain, {
-  // [...] // all other Lock options
-  // use the value obtained to decide the first screen
-  initialScreen: isSignup ? "signUp" : "login",
-});
-```
-
-Users can then sign up using the signup handler.
+The second option is through the query parameters to the `/auth/login` endpoint which allows you to specify the authorization parameters dynamically. For example, to specify an `audience`, the login URL would look like so:
 
 ```html
-<a href="/api/auth/signup">Sign up</a>
+<a href="/auth/login?audience=urn:my-api">Login</a>
 ```
 
-### Use with Base Path and Internationalized Routing
+## The `returnTo` parameter
 
-With Next.js you can deploy a Next.js application under a sub-path of a domain using [Base Path](https://nextjs.org/docs/api-reference/next.config.js/basepath) and serve internationalized (i18n) routes using [Internationalized Routing](https://nextjs.org/docs/advanced-features/i18n-routing).
+### Redirecting the user after authentication
 
-If you use these features the urls of your application will change and so the urls to the nextjs-auth0 routes will change. To accommodate this there are various places in the SDK that you can customise the url.
+The `returnTo` parameter can be appended to the login to specify where you would like to redirect the user after they have completed their authentication and have returned to your application.
 
-For example if `basePath: '/foo'` you should prepend this to the `loginUrl` and `profileUrl` specified in your `Auth0Provider`
+For example: `/auth/login?returnTo=/dashboard` would redirect the user to the `/dashboard` route after they have authenticated.
 
-```jsx
-// _app.jsx
-function App({ Component, pageProps }) {
+### Redirecting the user after logging out
+
+The `returnTo` parameter can be appended to the logout to specify where you would like to redirect the user after they have logged out.
+
+For example: `/auth/login?returnTo=https://example.com/some-page` would redirect the user to the `https://example.com/some-page` URL after they have logged out.
+
+> [!NOTE]  
+> The URLs specified as `returnTo` parameters must be registered in your client's **Allowed Logout URLs**.
+
+## Accessing the authenticated user
+
+### In the browser
+
+To access the currently authenticated user on the client, you can use the `useUser()` hook, like so:
+
+```tsx
+"use client"
+
+import { useUser } from "@auth0/nextjs-auth0"
+
+export default function Profile() {
+  const { user, isLoading, error } = useUser()
+
+  if (isLoading) return <div>Loading...</div>
+
   return (
-    <UserProvider loginUrl="/foo/api/auth/login" profileUrl="/foo/api/auth/me">
-      <Component {...pageProps} />
-    </UserProvider>
-  );
+    <main>
+      <h1>Profile</h1>
+      <div>
+        <pre>{JSON.stringify(user, null, 2)}</pre>
+      </div>
+    </main>
+  )
 }
 ```
 
-Also, any links to login or logout should include the `basePath`:
+### On the server (App Router)
 
-```html
-<a href="/foo/api/auth/login">Login</a><br />
-<a href="/foo/api/auth/logout">Logout</a>
-```
+On the server, the `getSession()` helper can be used in Server Components, Server Routes, and Server Actions to get the session of the currently authenticated user and to protect resources, like so:
 
-You should configure [baseUrl](https://auth0.github.io/nextjs-auth0/interfaces/config.baseconfig.html#baseurl) (or the `AUTH0_BASE_URL` environment variable) eg
+```tsx
+import { auth0 } from "@/lib/auth0"
 
-```shell
-# .env.local
-AUTH0_BASE_URL=http://localhost:3000/foo
-```
+export default async function Home() {
+  const session = await auth0.getSession()
 
-For any pages that are protected with the Server Side [withPageAuthRequired](https://auth0.github.io/nextjs-auth0/modules/helpers_with_page_auth_required.html#withpageauthrequired) you should update the `returnTo` parameter depending on the `basePath` and `locale` if necessary.
-
-```js
-// ./pages/my-ssr-page.jsx
-export default MySsrPage = () => <></>;
-
-const getFullReturnTo = (ctx) => {
-  // TODO: implement getFullReturnTo based on the ctx.resolvedUrl, ctx.locale
-  // and your next.config.js's basePath and i18n settings.
-  return '/foo/en-US/my-ssr-page';
-};
-
-export const getServerSideProps = (ctx) => {
-  const returnTo = getFullReturnTo(ctx.req);
-  return withPageAuthRequired({ returnTo })(ctx);
-};
-```
-
-### Use a custom session store
-
-You need to create your own instance of the SDK in code, so you can pass an instance of your session store to the SDK's configuration.
-
-```typescript
-// lib/auth0.ts
-import { SessionStore, SessionStorePayload, initAuth0 } from '@auth0/nextjs-auth0';
-
-class Store implements SessionStore {
-  private store: KeyValueStoreLikeRedis<SessionStorePayload>;
-  constructor() {
-    // If you set the expiry accross the whole store use the session config,
-    // for example `min(config.session.rollingDuration, config.session.absoluteDuration)`
-    // the default is 24 hrs
-    this.store = new KeyValueStoreLikeRedis();
+  if (!session) {
+    return <div>Not authenticated</div>
   }
-  async get(id) {
-    const val = await this.store.get(id);
-    return val;
-  }
-  async set(id, val) {
-    // To set the expiry per item, use `val.header.exp` (in secs)
-    const expiryMs = val.header.exp * 1000;
-    // Example for Redis: redis.set(id, val, { pxat: expiryMs });
-    await this.store.set(id, val);
-  }
-  async delete(id) {
-    await this.store.delete(id);
-  }
+
+  return (
+    <main>
+      <h1>Welcome, {session.user.name}!</h1>
+    </main>
+  )
 }
-
-export default initAuth0({
-  session: {
-    store: new Store()
-  }
-});
 ```
 
-Then use your instance wherever you use the server methods of the SDK.
+### On the server (Pages Router)
+
+On the server, the `getSession(req)` helper can be used in `getServerSideProps` and API routes to get the session of the currently authenticated user and to protect resources, like so:
+
+```tsx
+import type { GetServerSideProps, InferGetServerSidePropsType } from "next"
+
+import { auth0 } from "@/lib/auth0"
+
+export const getServerSideProps = (async (ctx) => {
+  const session = await auth0.getSession(ctx.req)
+
+  if (!session) return { props: { user: null } }
+
+  return { props: { user: session.user ?? null } }
+}) satisfies GetServerSideProps<{ user: any | null }>
+
+export default function Page({
+  user,
+}: InferGetServerSidePropsType<typeof getServerSideProps>) {
+  if (!user) {
+    return (
+      <main>
+        <p>Not authenticated!</p>
+      </main>
+    )
+  }
+
+  return (
+    <main>
+      <p>Welcome, {user.name}!</p>
+    </main>
+  )
+}
+```
+
+### Middleware
+
+In middleware, the `getSession(req)` helper can be used to get the session of the currently authenticated user and to protect resources, like so:
 
 ```ts
-// /pages/api/auth/[auth0].js
-import auth0 from '../../../lib/auth0';
+import { NextRequest, NextResponse } from "next/server"
 
-export default auth0.handleAuth();
-```
+import { auth0 } from "@/lib/auth0"
 
-### Back-Channel Logout
+export async function middleware(request: NextRequest) {
+  const authRes = await auth0.middleware(request)
 
-Back-Channel Logout requires a session store, so you'll need to create your own instance of the SDK in code and pass an instance of your session store to the SDK's configuration:
-
-```js
-// lib/auth0.ts
-import { initAuth0 } from '@auth0/nextjs-auth0';
-
-export default initAuth0({
-  backChannelLogout: {
-    store: new Store() // See "Use a custom session store" for how to define a Store class.
+  if (request.nextUrl.pathname.startsWith("/auth")) {
+    return authRes
   }
-});
+
+  const session = await auth0.getSession(request)
+
+  if (!session) {
+    // user is not authenticated, redirect to login page
+    return NextResponse.redirect(new URL("/auth/login", request.nextUrl.origin))
+  }
+
+  // the headers from the auth middleware should always be returned
+  return authRes
+}
 ```
 
-If you are already using a session store, you can just reuse that:
+> [!IMPORTANT]  
+> The `request` object must be passed as a parameter to the `getSession(request)` method when called from a middleware to ensure that any updates to the session can be read within the same request.
 
-```js
-// lib/auth0.ts
-import { initAuth0 } from '@auth0/nextjs-auth0';
+## Updating the session
 
-export default initAuth0({
-  session: {
-    store: new Store()
+The `updateSession` method could be used to update the session of the currently authenticated user in the App Router, Pages Router, and middleware. If the user does not have a session, an error will be thrown.
+
+> [!NOTE]
+> Any updates to the session will be overwritten when the user re-authenticates and obtains a new session.
+
+### On the server (App Router)
+
+On the server, the `updateSession()` helper can be used in Server Routes and Server Actions to update the session of the currently authenticated user, like so:
+
+```tsx
+import { NextResponse } from "next/server"
+
+import { auth0 } from "@/lib/auth0"
+
+export async function GET() {
+  const session = await auth0.getSession()
+
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  await auth0.updateSession({
+    ...session,
+    updatedAt: Date.now(),
+  })
+
+  return NextResponse.json(null, { status: 200 })
+}
+```
+
+> [!NOTE]
+> The `updateSession()` method is not usable in Server Components as it is not possible to write cookies.
+
+### On the server (Pages Router)
+
+On the server, the `updateSession(req, res, session)` helper can be used in `getServerSideProps` and API routes to update the session of the currently authenticated user, like so:
+
+```tsx
+import type { NextApiRequest, NextApiResponse } from "next"
+
+import { auth0 } from "@/lib/auth0"
+
+type ResponseData =
+  | {}
+  | {
+      error: string
+    }
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse<ResponseData>
+) {
+  const session = await auth0.getSession(req)
+
+  if (!session) {
+    return res.status(401).json({ error: "Unauthorized" })
+  }
+
+  await auth0.updateSession(req, res, {
+    ...session,
+    updatedAt: Date.now(),
+  })
+
+  res.status(200).json({})
+}
+```
+
+### Middleware
+
+In middleware, the `updateSession(req, res, session)` helper can be used to update the session of the currently authenticated user, like so:
+
+```ts
+import { NextRequest, NextResponse } from "next/server"
+
+import { auth0 } from "@/lib/auth0"
+
+export async function middleware(request: NextRequest) {
+  const authRes = await auth0.middleware(request)
+
+  if (request.nextUrl.pathname.startsWith("/auth")) {
+    return authRes
+  }
+
+  const session = await auth0.getSession(request)
+
+  if (!session) {
+    // user is not authenticated, redirect to login page
+    return NextResponse.redirect(new URL("/auth/login", request.nextUrl.origin))
+  }
+
+  await auth0.updateSession(request, authRes, {
+    ...session,
+    user: {
+      ...session.user,
+      // add custom user data
+      updatedAt: Date.now(),
+    },
+  })
+
+  // the headers from the auth middleware should always be returned
+  return authRes
+}
+```
+
+> [!IMPORTANT]  
+> The `request` and `response` objects must be passed as a parameters to the `updateSession(request, response, session)` method when called from a middleware to ensure that any updates to the session can be read within the same request.
+
+If you are using the Pages Router and need to read updates to the session made in the middleware within the same request, you will need to ensure that any updates to the session are propagated on the request object, like so:
+
+```ts
+import { NextRequest, NextResponse } from "next/server"
+
+import { auth0 } from "@/lib/auth0"
+
+export async function middleware(request: NextRequest) {
+  const authRes = await auth0.middleware(request)
+
+  if (request.nextUrl.pathname.startsWith("/auth")) {
+    return authRes
+  }
+
+  const session = await auth0.getSession(request)
+
+  if (!session) {
+    // user is not authenticated, redirect to login page
+    return NextResponse.redirect(new URL("/auth/login", request.nextUrl.origin))
+  }
+
+  await auth0.updateSession(request, authRes, {
+    ...session,
+    user: {
+      ...session.user,
+      // add custom user data
+      updatedAt: Date.now(),
+    },
+  })
+
+  // create a new response with the updated request headers
+  const resWithCombinedHeaders = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  })
+
+  // set the response headers (set-cookie) from the auth response
+  authRes.headers.forEach((value, key) => {
+    resWithCombinedHeaders.headers.set(key, value)
+  })
+
+  // the headers from the auth middleware should always be returned
+  return resWithCombinedHeaders
+}
+```
+
+## Getting an access token
+
+The `getAccessToken()` helper can be used both in the browser and on the server to obtain the access token to call external APIs. If the access token has expired and a refresh token is available, it will automatically be refreshed and persisted.
+
+### In the browser
+
+To obtain an access token to call an external API on the client, you can use the `getAccessToken()` helper, like so:
+
+```tsx
+"use client"
+
+import { getAccessToken } from "@auth0/nextjs-auth0"
+
+export default function Component() {
+  async function fetchData() {
+    try {
+      const token = await getAccessToken()
+      // call external API with token...
+    } catch (err) {
+      // err will be an instance of AccessTokenError if an access token could not be obtained
+    }
+  }
+
+  return (
+    <main>
+      <button onClick={fetchData}>Fetch Data</button>
+    </main>
+  )
+}
+```
+
+### On the server (App Router)
+
+On the server, the `getAccessToken()` helper can be used in Server Routes, Server Actions and Server Components to get an access token to call external APIs.
+
+> [!IMPORTANT]  
+> Server Components cannot set cookies. Calling `getAccessToken()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not to be persisted.
+>
+> It is recommended to call `getAccessToken(req, res)` in the middleware if you need to use the refresh token in a Server Component as this will ensure the token is refreshed and correctly persisted.
+
+For example:
+
+```ts
+import { NextResponse } from "next/server"
+
+import { auth0 } from "@/lib/auth0"
+
+export async function GET() {
+  try {
+    const token = await auth0.getAccessToken()
+    // call external API with token...
+  } catch (err) {
+    // err will be an instance of AccessTokenError if an access token could not be obtained
+  }
+
+  return NextResponse.json({
+    message: "Success!",
+  })
+}
+```
+
+### On the server (Pages Router)
+
+On the server, the `getAccessToken(req, res)` helper can be used in `getServerSideProps` and API routes to get an access token to call external APIs, like so:
+
+```ts
+import type { NextApiRequest, NextApiResponse } from "next"
+
+import { auth0 } from "@/lib/auth0"
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse<{ message: string }>
+) {
+  try {
+    const token = await auth0.getAccessToken(req, res)
+    // call external API with token...
+  } catch (err) {
+    // err will be an instance of AccessTokenError if an access token could not be obtained
+  }
+
+  res.status(200).json({ message: "Success!" })
+}
+```
+
+### Middleware
+
+In middleware, the `getAccessToken(req, res)` helper can be used to get an access token to call external APIs, like so:
+
+```tsx
+import { NextRequest, NextResponse } from "next/server"
+
+import { auth0 } from "@/lib/auth0"
+
+export async function middleware(request: NextRequest) {
+  const authRes = await auth0.middleware(request)
+
+  if (request.nextUrl.pathname.startsWith("/auth")) {
+    return authRes
+  }
+
+  const session = await auth0.getSession(request)
+
+  if (!session) {
+    // user is not authenticated, redirect to login page
+    return NextResponse.redirect(new URL("/auth/login", request.nextUrl.origin))
+  }
+
+  const accessToken = await auth0.getAccessToken(request, authRes)
+
+  // the headers from the auth middleware should always be returned
+  return authRes
+}
+```
+
+> [!IMPORTANT]  
+> The `request` and `response` objects must be passed as a parameters to the `getAccessToken(request, response)` method when called from a middleware to ensure that the refreshed access token can be accessed within the same request.
+
+If you are using the Pages Router and are calling the `getAccessToken` method in both the middleware and an API Route or `getServerSideProps`, it's recommended to propagate the headers from the middleware, as shown below. This will ensure that calling `getAccessToken` in the API Route or `getServerSideProps` will not result in the access token being refreshed again.
+
+```ts
+import { NextRequest, NextResponse } from "next/server"
+
+import { auth0 } from "@/lib/auth0"
+
+export async function middleware(request: NextRequest) {
+  const authRes = await auth0.middleware(request)
+
+  if (request.nextUrl.pathname.startsWith("/auth")) {
+    return authRes
+  }
+
+  const session = await auth0.getSession(request)
+
+  if (!session) {
+    // user is not authenticated, redirect to login page
+    return NextResponse.redirect(new URL("/auth/login", request.nextUrl.origin))
+  }
+
+  const accessToken = await auth0.getAccessToken(request, authRes)
+
+  // create a new response with the updated request headers
+  const resWithCombinedHeaders = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  })
+
+  // set the response headers (set-cookie) from the auth response
+  authRes.headers.forEach((value, key) => {
+    resWithCombinedHeaders.headers.set(key, value)
+  })
+
+  // the headers from the auth middleware should always be returned
+  return resWithCombinedHeaders
+}
+```
+
+## `<Auth0Provider />`
+
+### Passing an initial user from the server
+
+You can wrap your components in an `<Auth0Provider />` and pass an initial user object to make it available to your components using the `useUser()` hook. For example:
+
+```tsx
+import { Auth0Provider } from "@auth0/nextjs-auth0"
+
+import { auth0 } from "@/lib/auth0"
+
+export default async function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode
+}>) {
+  const session = await auth0.getSession()
+
+  return (
+    <html lang="en">
+      <body>
+        <Auth0Provider user={session?.user}>{children}</Auth0Provider>
+      </body>
+    </html>
+  )
+}
+```
+
+The loaded user will then be used as a fallback in `useUser()` hook.
+
+## Hooks
+
+The SDK exposes hooks to enable you to provide custom logic that would be run at certain lifecycle events.
+
+### `beforeSessionSaved`
+
+The `beforeSessionSaved` hook is run right before the session is persisted. It provides a mechanism to modify the session claims before persisting them.
+
+The hook recieves a `SessionData` object and an ID token. The function must return a Promise that resolves to a `SessionData` object: `(session: SessionData) => Promise<SessionData>`. For example:
+
+```ts
+export const auth0 = new Auth0Client({
+  async beforeSessionSaved(session, idToken) {
+    return {
+      ...session,
+      user: {
+        ...session.user,
+        foo: "bar",
+      },
+    }
   },
-  backchannelLogout: true
-});
+})
 ```
 
-Once you've enabled the `backchannelLogout` option, `handleAuth` will create a `/api/auth/backchannel-logout` POST handler.
+### `onCallback`
 
-#### Pages Router
+The `onCallback` hook is run once the user has been redirected back from Auth0 to your application with either an error or the authorization code which will be verified and exchanged.
+
+The `onCallback` hook receives 3 parameters:
+
+1. `error`: the error returned from Auth0 or when attempting to complete the transaction. This will be `null` if the transaction was completed successfully.
+2. `context`: provides context on the transaction that initiated the transaction.
+3. `session`: the `SessionData` that will be persisted once the transaction completes successfully. This will be `null` if there was an error.
+
+The hook must return a Promise that resolves to a `NextResponse`.
+
+For example, a custom `onCallback` hook may be specified like so:
 
 ```ts
-// /pages/api/auth/[auth0].js
-import auth0 from '../../../lib/auth0';
+export const auth0 = new Auth0Client({
+  async onCallback(error, context, session) {
+    // redirect the user to a custom error page
+    if (error) {
+      return NextResponse.redirect(
+        new URL(`/error?error=${error.message}`, process.env.APP_BASE_URL)
+      )
+    }
 
-export default auth0.handleAuth();
+    // complete the redirect to the provided returnTo URL
+    return NextResponse.redirect(
+      new URL(context.returnTo || "/", process.env.APP_BASE_URL)
+    )
+  },
+})
 ```
 
-#### App Router
+## Session configuration
+
+The session configuration can be managed by specifying a `session` object when configuring the Auth0 client, like so:
 
 ```ts
-// /app/api/auth/[auth0]/route.js
-import auth0 from '../../../lib/auth0';
-
-const handler = auth0.handleAuth();
-
-// For Back-Channel Logout you need to export a GET and a POST handler.
-export { handler as GET, handler as POST };
+export const auth0 = new Auth0Client({
+  session: {
+    rolling: true,
+    absoluteDuration: 60 * 60 * 24 * 30, // 30 days in seconds
+    inactivityDuration: 60 * 60 * 24 * 7, // 7 days in seconds
+  },
+})
 ```
 
-Then configure your tenant following [these instructions](https://auth0.com/docs/authenticate/login/logout/back-channel-logout/configure-back-channel-logout#configure-auth0).
-Your "OpenID Connect Back-Channel Logout URI" will be `{YOUR_AUTH0_BASE_URL}/api/auth/backchannel-logout`. 
+| Option             | Type      | Description                                                                                                                                                                                                                                   |
+| ------------------ | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| rolling            | `boolean` | When enabled, the session will continue to be extended as long as it is used within the inactivity duration. Once the upper bound, set via the `absoluteDuration`, has been reached, the session will no longer be extended. Default: `true`. |
+| absoluteDuration   | `number`  | The absolute duration after which the session will expire. The value must be specified in seconds. Default: `3 days`.                                                                                                                         |
+| inactivityDuration | `number`  | The duration of inactivity after which the session will expire. The value must be specified in seconds. Default: `1 day`.                                                                                                                     |
+
+## Database sessions
+
+By default, the user's sessions are stored in encrypted cookies. You may choose to persist the sessions in your data store of choice.
+
+To do this, you can provide a `SessionStore` implementation as an option when configuring the Auth0 client, like so:
+
+```ts
+export const auth0 = new Auth0Client({
+  sessionStore: {
+    async get(id) {
+      // query and return a session by its ID
+    },
+    async set(id, sessionData) {
+      // upsert the session given its ID and sessionData
+    },
+    async delete(id) {
+      // delete the session using its ID
+    },
+    async deleteByLogoutToken({ sid, sub }: { sid: string; sub: string }) {
+      // optional method to be implemented when using Back-Channel Logout
+    },
+  },
+})
+```
+
+## Back-Channel Logout
+
+The SDK can be configured to listen to [Back-Channel Logout](https://auth0.com/docs/authenticate/login/logout/back-channel-logout) events. By default, a route will be mounted `/auth/backchannel-logout` which will verify the logout token and call the `deleteByLogoutToken` method of your session store implementation to allow you to remove the session.
+
+To use Back-Channel Logout, you will need to provide a session store implementation as shown in the [Database sessions](#database-sessions) section above with the `deleteByLogoutToken` implemented.
+
+A `LogoutToken` object will be passed as the parameter to `deleteByLogoutToken` which will contain either a `sid` claim, a `sub` claim, or both.
+
+## Combining middleware
+
+By default, the middleware does not protect any pages. It is used to mount the authentication routes and provide the necessary functionality for rolling sessions.
+
+You can combine multiple middleware, like so:
+
+```ts
+export async function middleware(request: NextRequest) {
+  const authResponse = await auth0.middleware(request)
+
+  // if path starts with /auth, let the auth middleware handle it
+  if (request.nextUrl.pathname.startsWith("/auth")) {
+    return authResponse
+  }
+
+  // call any other middleware here
+  const someOtherResponse = await someOtherMiddleware(request)
+
+  // add any headers from the auth middleware to the response
+  for (const [key, value] of authResponse.headers) {
+    someOtherResponse.headers.set(key, value)
+  }
+
+  return someOtherResponse
+}
+```
+
+For a complete example using `next-intl` middleware, please see the `examples/` directory of this repository.
+
+## ID Token claims and the user object
+
+By default, the following properties claims from the ID token are added to the `user` object in the session automatically:
+
+- `sub`
+- `name`
+- `nickname`
+- `given_name`
+- `family_name`
+- `picture`
+- `email`
+- `email_verified`
+- `org_id`
+
+If you'd like to customize the `user` object to include additional custom claims from the ID token, you can use the `beforeSessionSaved` hook (see [beforeSessionSaved hook](#beforesessionsaved))
+
+> [!NOTE]  
+> It's best practice to limit what claims are stored on the `user` object in the session to avoid bloating the session cookie size and going over browser limits.
+
+## Routes
+
+The SDK mounts 6 routes:
+
+1. `/auth/login`: the login route that the user will be redirected to to start a initiate an authentication transaction
+2. `/auth/logout`: the logout route that must be addedto your Auth0 application's Allowed Logout URLs
+3. `/auth/callback`: the callback route that must be addedto your Auth0 application's Allowed Callback URLs
+4. `/auth/profile`: the route to check the user's session and return their attributes
+5. `/auth/access-token`: the route to check the user's session and return an access token (which will be automatically refreshed if a refresh token is available)
+6. `/auth/backchannel-logout`: the route that will receive a `logout_token` when a configured Back-Channel Logout initiator occurs
+
+### Custom routes
+
+The default paths can be set using the `routes` configuration option. For example, when instantiating the client:
+
+```ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server"
+
+export const auth0 = new Auth0Client({
+  routes: {
+    login: "/login",
+    logout: "/logout",
+    callback: "/callback",
+    backChannelLogout: "/backchannel-logout",
+  },
+})
+```
+
+To configure the profile and access token routes, you must use the `NEXT_PUBLIC_PROFILE_ROUTE` and `NEXT_PUBLIC_ACCESS_TOKEN_ROUTE`, respectively. For example:
+
+```
+# .env.local
+# required environment variables...
+
+NEXT_PUBLIC_PROFILE_ROUTE=/api/me
+NEXT_PUBLIC_ACCESS_TOKEN_ROUTE=/api/auth/token
+```
+
+> [!IMPORTANT]  
+> Updating the route paths will also require updating the **Allowed Callback URLs** and **Allowed Logout URLs** configured in the [Auth0 Dashboard](https://manage.auth0.com) for your client.
+
+## Testing helpers
+
+### `generateSessionCookie`
+
+The `generateSessionCookie` helper can be used to generate a session cookie value for use during tests:
+
+```ts
+import { generateSessionCookie } from "@auth0/nextjs-auth0/testing"
+
+const sessionCookieValue = await generateSessionCookie(
+  {
+    user: {
+      sub: "user_123",
+    },
+    tokenSet: {
+      accessToken: "at_123",
+      refreshToken: "rt_123",
+      expiresAt: 123456789,
+    },
+  },
+  {
+    secret: process.env.AUTH0_SECRET!,
+  }
+)
+```

@@ -1,32 +1,14 @@
 {
   "compilerOptions": {
-    "alwaysStrict": true,
-    "declaration": true,
-    "declarationMap": true,
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "importHelpers": true,
-    "allowSyntheticDefaultImports": true,
-    "allowJs": true,
-    "module": "commonjs",
-    "moduleResolution": "node",
-    "noFallthroughCasesInSwitch": true,
-    "noImplicitAny": true,
-    "noImplicitReturns": true,
-    "noImplicitThis": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "sourceMap": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "target": "ES2017",
-    "useUnknownInCatchVariables": false,
-    "lib": ["es6", "dom"],
-    "downlevelIteration": true,
-    "resolveJsonModule": true,
-    "jsx": "react",
+    "target": "ES2021",
+    "moduleResolution": "Bundler",
+    "rootDir": "./src",
     "outDir": "./dist",
-    "types": ["jest", "node", "@testing-library/jest-dom"]
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "jsx": "react",
+    "declaration": true
   },
-  "include": ["src", "tests"]
+  "include": ["src/**/*"]
 }

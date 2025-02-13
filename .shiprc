@@ -1,7 +1,0 @@
-{
-    "files": {
-        "src/version.ts": [],
-        ".version": []
-    },
-    "postbump": "npm run docs"
-}

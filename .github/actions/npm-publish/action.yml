@@ -19,21 +19,25 @@ runs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Setup Node
+    - name: Setup Node.js with pnpm caching
+      uses: pnpm/action-setup@v4
+      with:
+        version: 10
+
+    - name: Install Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: ${{ inputs.node-version }}
-        cache: 'npm'
-        registry-url: 'https://registry.npmjs.org'
+        node-version: 22
+        cache: 'pnpm'
 
     - name: Install dependencies
       shell: bash
-      run: npm ci --include=dev
+      run: pnpm install --frozen-lockfile
 
     - name: Build package
       if: inputs.require-build == 'true'
       shell: bash
-      run: npm run build
+      run: pnpm run build
 
     - name: Publish release to NPM
       shell: bash
@@ -46,7 +50,9 @@ runs:
         else
           TAG="latest"
         fi
-        npm publish --provenance --tag $TAG
+        npm config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}"
+        pnpm publish --tag $TAG
       env:
-        NODE_AUTH_TOKEN: ${{ inputs.npm-token }}
+        NPM_TOKEN: ${{ inputs.npm-token }}
         VERSION: ${{ inputs.version }}
+        NPM_CONFIG_PROVENANCE: true

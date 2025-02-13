@@ -22,10 +22,10 @@ Node 12 LTS and newer LTS releases are supported.
 
 ```js
 // /pages/api/my-api
-import { getSession } from '@auth0/nextjs-auth0';
+import { getSession } from "@auth0/nextjs-auth0"
 
 function myApiRoute(req, res) {
-  const session = getSession(req, res);
+  const session = getSession(req, res)
   // ...
 }
 ```
@@ -34,10 +34,10 @@ function myApiRoute(req, res) {
 
 ```js
 // /pages/api/my-api
-import { getSession } from '@auth0/nextjs-auth0';
+import { getSession } from "@auth0/nextjs-auth0"
 
 async function myApiRoute(req, res) {
-  const session = await getSession(req, res);
+  const session = await getSession(req, res)
   // ...
 }
 ```
@@ -50,37 +50,37 @@ All methods and components for the browser should now be accessed under `/client
 
 ```js
 // pages/_app.js
-import React from 'react';
-import { UserProvider } from '@auth0/nextjs-auth0';
+import React from "react"
+import { UserProvider } from "@auth0/nextjs-auth0"
 
 export default function App({ Component, pageProps }) {
   return (
     <UserProvider>
       <Component {...pageProps} />
     </UserProvider>
-  );
+  )
 }
 ```
 
 ```js
 // pages/index.js
-import { useUser } from '@auth0/nextjs-auth0';
+import { useUser } from "@auth0/nextjs-auth0"
 
 export default function Index() {
-  const { user, error, isLoading } = useUser();
+  const { user, error, isLoading } = useUser()
 
-  if (isLoading) return <div>Loading...</div>;
-  if (error) return <div>{error.message}</div>;
+  if (isLoading) return <div>Loading...</div>
+  if (error) return <div>{error.message}</div>
 
   if (user) {
     return (
       <div>
         Welcome {user.name}! <a href="/api/auth/logout">Logout</a>
       </div>
-    );
+    )
   }
 
-  return <a href="/api/auth/login">Login</a>;
+  return <a href="/api/auth/login">Login</a>
 }
 ```
 
@@ -88,42 +88,46 @@ export default function Index() {
 
 ```js
 // pages/_app.js
-import React from 'react';
-import { UserProvider } from '@auth0/nextjs-auth0/client';
+import React from "react"
+import { UserProvider } from "@auth0/nextjs-auth0/client"
 
 export default function App({ Component, pageProps }) {
   return (
     <UserProvider>
       <Component {...pageProps} />
     </UserProvider>
-  );
+  )
 }
 ```
 
 ```js
 // pages/index.js
-import { useUser, withPageAuthRequired as withPageAuthRequiredCSR } from '@auth0/nextjs-auth0/client';
+
 // The SSR version of withPageAuthRequired is still in the root export
-import { withPageAuthRequired as withPageAuthRequiredSSR } from '@auth0/nextjs-auth0';
+import { withPageAuthRequired as withPageAuthRequiredSSR } from "@auth0/nextjs-auth0"
+import {
+  useUser,
+  withPageAuthRequired as withPageAuthRequiredCSR,
+} from "@auth0/nextjs-auth0/client"
 
 export default withPageAuthRequiredCSR(function Index() {
-  const { user, error, isLoading } = useUser();
+  const { user, error, isLoading } = useUser()
 
-  if (isLoading) return <div>Loading...</div>;
-  if (error) return <div>{error.message}</div>;
+  if (isLoading) return <div>Loading...</div>
+  if (error) return <div>{error.message}</div>
 
   if (user) {
     return (
       <div>
         Welcome {user.name}! <a href="/api/auth/logout">Logout</a>
       </div>
-    );
+    )
   }
 
-  return <a href="/api/auth/login">Login</a>;
-});
+  return <a href="/api/auth/login">Login</a>
+})
 
-export const getServerSideProps = withPageAuthRequiredSSR();
+export const getServerSideProps = withPageAuthRequiredSSR()
 ```
 
 ### Before
@@ -136,12 +140,12 @@ Previously your application could make modifications to the session during the l
 
 ```js
 // /pages/api/update-user
-import { getSession } from '@auth0/nextjs-auth0';
+import { getSession } from "@auth0/nextjs-auth0"
 
 function myApiRoute(req, res) {
-  const session = getSession(req, res);
-  session.foo = 'bar';
-  res.json({ success: true });
+  const session = getSession(req, res)
+  session.foo = "bar"
+  res.json({ success: true })
 }
 // The updated session is serialized and the cookie is updated
 // when the cookie headers are written to the response.
@@ -155,14 +159,17 @@ This will immediately serialise the session, write it to the cookie and return a
 
 ```js
 // /pages/api/update-user
-import { getSession, updateSession } from '@auth0/nextjs-auth0';
+import { getSession, updateSession } from "@auth0/nextjs-auth0"
 
 async function myApiRoute(req, res) {
-  const session = await getSession(req, res);
+  const session = await getSession(req, res)
   // The session is updated, serialized and the cookie is updated
   // everytime you call `updateSession`.
-  await updateSession(req, res, { ...session, user: { ...session.user, foo: 'bar' } });
-  res.json({ success: true });
+  await updateSession(req, res, {
+    ...session,
+    user: { ...session.user, foo: "bar" },
+  })
+  res.json({ success: true })
 }
 ```
 
@@ -174,26 +181,26 @@ Because the process of modifying the session is now explicit, you no longer have
 
 ```js
 export const getServerSideProps = getServerSidePropsWrapper((ctx) => {
-  const session = getSession(ctx.req, ctx.res);
+  const session = getSession(ctx.req, ctx.res)
   if (session) {
     // User is authenticated
   } else {
     // User is not authenticated
   }
-});
+})
 ```
 
 ### After
 
 ```js
 export const getServerSideProps = async (ctx) => {
-  const session = await getSession(ctx.req, ctx.res);
+  const session = await getSession(ctx.req, ctx.res)
   if (session) {
     // User is authenticated
   } else {
     // User is not authenticated
   }
-};
+}
 ```
 
 ## Profile API route no longer returns a 401
@@ -210,22 +217,22 @@ You can now set the default error handler for the auth routes in a single place.
 export default handleAuth({
   async login(req, res) {
     try {
-      await handleLogin(req, res);
+      await handleLogin(req, res)
     } catch (error) {
-      errorLogger(error);
-      res.status(error.status || 500).end();
+      errorLogger(error)
+      res.status(error.status || 500).end()
     }
   },
   async callback(req, res) {
     try {
-      await handleLogin(req, res);
+      await handleLogin(req, res)
     } catch (error) {
-      errorLogger(error);
-      res.status(error.status || 500).end();
+      errorLogger(error)
+      res.status(error.status || 500).end()
     }
-  }
+  },
   // ...
-});
+})
 ```
 
 ### After
@@ -233,15 +240,15 @@ export default handleAuth({
 ```js
 export default handleAuth({
   onError(req, res, error) {
-    errorLogger(error);
+    errorLogger(error)
     // You can finish the response yourself if you want to customize
     // the status code or redirect the user
     // res.writeHead(302, {
     //     Location: '/custom-error-page'
     // });
     // res.end();
-  }
-});
+  },
+})
 ```
 
 ## `afterCallback` can write to the response
@@ -297,13 +304,13 @@ export default handleAuth({
   login: async (req, res) => {
     try {
       await handleLogin(req, res, {
-        authorizationParams: { connection: 'github' }
-      });
+        authorizationParams: { connection: "github" },
+      })
     } catch (error) {
       // ...
     }
-  }
-});
+  },
+})
 ```
 
 ### After
@@ -313,9 +320,9 @@ Now you can configure a default handler by passing an options object to it.
 ```js
 export default handleAuth({
   login: handleLogin({
-    authorizationParams: { connection: 'github' }
-  })
-});
+    authorizationParams: { connection: "github" },
+  }),
+})
 ```
 
 You can also pass a function that receives the request and returns an options object.
@@ -324,10 +331,10 @@ You can also pass a function that receives the request and returns an options ob
 export default handleAuth({
   login: handleLogin((req) => {
     return {
-      authorizationParams: { connection: 'github' }
-    };
-  })
-});
+      authorizationParams: { connection: "github" },
+    }
+  }),
+})
 ```
 
 You can even create new handlers by configuring the default ones.
@@ -336,9 +343,9 @@ You can even create new handlers by configuring the default ones.
 export default handleAuth({
   // Creates /api/auth/signup
   signup: handleLogin({
-    authorizationParams: { screen_hint: 'signup' }
-  })
-});
+    authorizationParams: { screen_hint: "signup" },
+  }),
+})
 ```
 
 It is still possible to override the default handlers if needed.
