@@ -6,7 +6,7 @@ The Auth0 Next.js SDK is a library for implementing user authentication in Next.
 ![Downloads](https://img.shields.io/npm/dw/@auth0/nextjs-auth0)
 [![License](https://img.shields.io/:license-mit-blue.svg?style=flat)](https://opensource.org/licenses/MIT)
 
-📚 [Documentation](#documentation) - 🚀 [Getting Started](#getting-started) - 💬 [Feedback](#feedback)
+📚 [Documentation](#documentation) - 🚀 [Getting Started](#getting-started) - 💻 [API Reference](https://auth0.github.io/nextjs-auth0/) - 💬 [Feedback](#feedback)
 
 ## Documentation
 
