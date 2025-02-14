@@ -464,6 +464,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
       });
 
       it("should pass the request through if there is no session", async () => {
+        const spyOnNextResponseNext = vi.spyOn(NextResponse, 'next');
+
         const secret = await generateSecret(32);
         const transactionStore = new TransactionStore({
           secret
@@ -489,10 +491,14 @@ ca/T0LLtgmbMmxSv/MmzIg==
           fetch: getMockAuthorizationServer()
         });
 
+        const headers = new Headers();
+        headers.append("x-custom-header", `custom-header-value`);
+
         const request = new NextRequest(
           "https://example.com/dashboard/projects",
           {
-            method: "GET"
+            method: "GET",
+            headers
           }
         );
 
@@ -504,6 +510,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
         // assert session has not been updated
         const updatedSessionCookie = response.cookies.get("__session");
         expect(updatedSessionCookie).toBeUndefined();
+
+        // assert that an original request is retained
+        expect(spyOnNextResponseNext).toHaveBeenCalledWith({request});
       });
     });
 

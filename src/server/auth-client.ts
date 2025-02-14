@@ -245,7 +245,7 @@ export class AuthClient {
       // no auth handler found, simply touch the sessions
       // TODO: this should only happen if rolling sessions are enabled. Also, we should
       // try to avoid reading from the DB (for stateful sessions) on every request if possible.
-      const res = NextResponse.next();
+      const res = NextResponse.next({request: req});
       const session = await this.sessionStore.get(req.cookies);
 
       if (session) {
