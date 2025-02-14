@@ -5,14 +5,6 @@ export interface TokenSet {
   expiresAt: number; // the time at which the access token expires in seconds since epoch
 }
 
-export interface FederatedConnectionTokenSet {
-  accessToken: string;
-  scope?: string;
-  expiresAt: number; // the time at which the access token expires in seconds since epoch
-  connection: string;
-  [key: string]: unknown;
-}
-
 export interface SessionData {
   user: User;
   tokenSet: TokenSet;
@@ -22,7 +14,6 @@ export interface SessionData {
     // the time at which the session was created in seconds since epoch
     createdAt: number;
   };
-  federatedConnectionTokenSets?: FederatedConnectionTokenSet[];
   [key: string]: unknown;
 }
 
@@ -94,18 +85,3 @@ export type {
   TransactionStoreOptions,
   TransactionState
 } from "../server/transaction-store";
-
-/**
- * Options for retrieving a federated connection access token.
- */
-export interface GetFederatedConnectionAccessTokenOptions {
-  /**
-   * The connection name for while you want to retrieve the access token.
-   */
-  connection: string;
-
-  /**
-   * An optiona login hint to pass to the authorization server.
-   */
-  login_hint?: string;
-}
