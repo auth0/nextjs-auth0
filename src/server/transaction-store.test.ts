@@ -30,9 +30,9 @@ describe("Transaction Store", async () => {
         secret
       });
 
-      expect(await transactionStore.get(requestCookies, state)).toEqual(
-        transactionState
-      );
+      expect(
+        (await transactionStore.get(requestCookies, state))?.payload
+      ).toEqual(transactionState);
     });
 
     it("should return null if no transaction cookie with a matching state exists", async () => {
@@ -88,7 +88,9 @@ describe("Transaction Store", async () => {
       const cookie = responseCookies.get(cookieName);
 
       expect(cookie).toBeDefined();
-      expect(await decrypt(cookie!.value, secret)).toEqual(transactionState);
+      expect((await decrypt(cookie!.value, secret)).payload).toEqual(
+        transactionState
+      );
       expect(cookie?.path).toEqual("/");
       expect(cookie?.httpOnly).toEqual(true);
       expect(cookie?.sameSite).toEqual("lax");
@@ -149,7 +151,9 @@ describe("Transaction Store", async () => {
         const cookie = responseCookies.get(cookieName);
 
         expect(cookie).toBeDefined();
-        expect(await decrypt(cookie!.value, secret)).toEqual(transactionState);
+        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
+          transactionState
+        );
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("lax");
@@ -185,7 +189,9 @@ describe("Transaction Store", async () => {
         const cookie = responseCookies.get(cookieName);
 
         expect(cookie).toBeDefined();
-        expect(await decrypt(cookie!.value, secret)).toEqual(transactionState);
+        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
+          transactionState
+        );
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("strict");
@@ -221,7 +227,9 @@ describe("Transaction Store", async () => {
         const cookie = responseCookies.get(cookieName);
 
         expect(cookie).toBeDefined();
-        expect(await decrypt(cookie!.value, secret)).toEqual(transactionState);
+        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
+          transactionState
+        );
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("lax");
