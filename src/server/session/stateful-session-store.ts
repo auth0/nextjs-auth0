@@ -4,6 +4,10 @@ import {
   AbstractSessionStore,
   SessionCookieOptions
 } from "./abstract-session-store";
+import {
+  LEGACY_COOKIE_NAME,
+  normalizeStatefulSession
+} from "./normalize-session";
 
 // the value of the stateful session cookie containing a unique session ID to identify
 // the current session
@@ -54,18 +58,47 @@ export class StatefulSessionStore extends AbstractSessionStore {
   }
 
   async get(reqCookies: cookies.RequestCookies) {
-    const cookieValue = reqCookies.get(this.sessionCookieName)?.value;
+    const cookie =
+      reqCookies.get(this.sessionCookieName) ||
+      reqCookies.get(LEGACY_COOKIE_NAME);
 
-    if (!cookieValue) {
+    if (!cookie || !cookie.value) {
       return null;
     }
 
-    const { id } = await cookies.decrypt<SessionCookieValue>(
-      cookieValue,
-      this.secret
-    );
+    let sessionId: string | null = null;
+    try {
+      const { payload: sessionCookie } =
+        await cookies.decrypt<SessionCookieValue>(cookie.value, this.secret);
+      sessionId = sessionCookie.id;
+    } catch (e: any) {
+      // the session cookie could not be decrypted, try to verify if it's a legacy session
+      if (e.code === "ERR_JWE_INVALID") {
+        const legacySessionId = await cookies.verifySigned(
+          cookie.name,
+          cookie.value,
+          this.secret
+        );
 
-    return this.store.get(id);
+        if (!legacySessionId) {
+          return null;
+        }
+
+        sessionId = legacySessionId;
+      }
+    }
+
+    if (!sessionId) {
+      return null;
+    }
+
+    const session = await this.store.get(sessionId);
+
+    if (!session) {
+      return null;
+    }
+
+    return normalizeStatefulSession(session);
   }
 
   async set(
@@ -78,10 +111,8 @@ export class StatefulSessionStore extends AbstractSessionStore {
     let sessionId = null;
     const cookieValue = reqCookies.get(this.sessionCookieName)?.value;
     if (cookieValue) {
-      const sessionCookie = await cookies.decrypt<SessionCookieValue>(
-        cookieValue,
-        this.secret
-      );
+      const { payload: sessionCookie } =
+        await cookies.decrypt<SessionCookieValue>(cookieValue, this.secret);
       sessionId = sessionCookie.id;
     }
 
@@ -125,11 +156,11 @@ export class StatefulSessionStore extends AbstractSessionStore {
       return;
     }
 
-    const { id } = await cookies.decrypt<SessionCookieValue>(
+    const { payload: session } = await cookies.decrypt<SessionCookieValue>(
       cookieValue,
       this.secret
     );
 
-    await this.store.delete(id);
+    await this.store.delete(session.id);
   }
 }
