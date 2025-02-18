@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { generateSecret } from "../../test/utils";
 import { SessionData } from "../../types";
 import { decrypt, encrypt, RequestCookies, ResponseCookies } from "../cookies";
+import { LegacySession } from "./normalize-session";
 import { StatelessSessionStore } from "./stateless-session-store";
 
 describe("Stateless Session Store", async () => {
@@ -44,6 +45,145 @@ describe("Stateless Session Store", async () => {
       });
 
       expect(await sessionStore.get(requestCookies)).toBeNull();
+    });
+
+    describe("migrate legacy session", async () => {
+      it("should convert the legacy session to the new format", async () => {
+        const secret = await generateSecret(32);
+        const legacySession: LegacySession = {
+          user: {
+            sub: "user_123",
+            sid: "auth0-sid"
+          },
+          accessToken: "at_123",
+          accessTokenScope: "openid profile email",
+          refreshToken: "rt_123",
+          accessTokenExpiresAt: 123456
+        };
+        const legacyHeader = {
+          iat: Math.floor(Date.now() / 1000),
+          uat: Math.floor(Date.now() / 1000),
+          exp: Math.floor(Date.now() / 1000)
+        };
+        const encryptedCookieValue = await encrypt(
+          legacySession,
+          secret,
+          legacyHeader
+        );
+
+        const headers = new Headers();
+        headers.append("cookie", `appSession=${encryptedCookieValue}`);
+        const requestCookies = new RequestCookies(headers);
+
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+
+        expect(await sessionStore.get(requestCookies)).toEqual({
+          user: { sub: "user_123", sid: "auth0-sid" },
+          tokenSet: {
+            accessToken: "at_123",
+            refreshToken: "rt_123",
+            expiresAt: 123456,
+            scope: "openid profile email"
+          },
+          internal: {
+            sid: "auth0-sid",
+            createdAt: legacyHeader.iat
+          }
+        });
+      });
+
+      it("should discard any missing properties", async () => {
+        const secret = await generateSecret(32);
+        const legacySession: LegacySession = {
+          user: {
+            sub: "user_123"
+          }
+        };
+        const legacyHeader = {
+          iat: Math.floor(Date.now() / 1000),
+          uat: Math.floor(Date.now() / 1000),
+          exp: Math.floor(Date.now() / 1000)
+        };
+        const encryptedCookieValue = await encrypt(
+          legacySession,
+          secret,
+          legacyHeader
+        );
+
+        const headers = new Headers();
+        headers.append("cookie", `appSession=${encryptedCookieValue}`);
+        const requestCookies = new RequestCookies(headers);
+
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+
+        expect(await sessionStore.get(requestCookies)).toEqual({
+          user: { sub: "user_123" },
+          tokenSet: {
+            expiresAt: undefined,
+            accessToken: undefined,
+            refreshToken: undefined,
+            scope: undefined
+          },
+          internal: {
+            sid: undefined,
+            createdAt: legacyHeader.iat
+          }
+        });
+      });
+
+      it("should convert legacy sessions with custom cookie names", async () => {
+        const cookieName = "custom-session";
+        const secret = await generateSecret(32);
+        const legacySession: LegacySession = {
+          user: {
+            sub: "user_123",
+            sid: "auth0-sid"
+          },
+          accessToken: "at_123",
+          accessTokenScope: "openid profile email",
+          refreshToken: "rt_123",
+          accessTokenExpiresAt: 123456
+        };
+        const legacyHeader = {
+          iat: Math.floor(Date.now() / 1000),
+          uat: Math.floor(Date.now() / 1000),
+          exp: Math.floor(Date.now() / 1000)
+        };
+        const encryptedCookieValue = await encrypt(
+          legacySession,
+          secret,
+          legacyHeader
+        );
+
+        const headers = new Headers();
+        headers.append("cookie", `${cookieName}=${encryptedCookieValue}`);
+        const requestCookies = new RequestCookies(headers);
+
+        const sessionStore = new StatelessSessionStore({
+          secret,
+          cookieOptions: {
+            name: cookieName
+          }
+        });
+
+        expect(await sessionStore.get(requestCookies)).toEqual({
+          user: { sub: "user_123", sid: "auth0-sid" },
+          tokenSet: {
+            accessToken: "at_123",
+            refreshToken: "rt_123",
+            expiresAt: 123456,
+            scope: "openid profile email"
+          },
+          internal: {
+            sid: "auth0-sid",
+            createdAt: legacyHeader.iat
+          }
+        });
+      });
     });
   });
 
@@ -91,7 +231,7 @@ describe("Stateless Session Store", async () => {
         const cookie = responseCookies.get("__session");
 
         expect(cookie).toBeDefined();
-        expect(await decrypt(cookie!.value, secret)).toEqual(session);
+        expect((await decrypt(cookie!.value, secret)).payload).toEqual(session);
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("lax");
@@ -133,7 +273,7 @@ describe("Stateless Session Store", async () => {
         const cookie = responseCookies.get("__session");
 
         expect(cookie).toBeDefined();
-        expect(await decrypt(cookie!.value, secret)).toEqual(session);
+        expect((await decrypt(cookie!.value, secret)).payload).toEqual(session);
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("lax");
@@ -170,7 +310,7 @@ describe("Stateless Session Store", async () => {
         const cookie = responseCookies.get("__session");
 
         expect(cookie).toBeDefined();
-        expect(await decrypt(cookie!.value, secret)).toEqual(session);
+        expect((await decrypt(cookie!.value, secret)).payload).toEqual(session);
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("lax");
@@ -210,7 +350,7 @@ describe("Stateless Session Store", async () => {
         const cookie = responseCookies.get("__session");
 
         expect(cookie).toBeDefined();
-        expect(await decrypt(cookie!.value, secret)).toEqual(session);
+        expect((await decrypt(cookie!.value, secret)).payload).toEqual(session);
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("lax");
@@ -249,7 +389,7 @@ describe("Stateless Session Store", async () => {
         const cookie = responseCookies.get("__session");
 
         expect(cookie).toBeDefined();
-        expect(await decrypt(cookie!.value, secret)).toEqual(session);
+        expect((await decrypt(cookie!.value, secret)).payload).toEqual(session);
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("strict");
@@ -288,7 +428,7 @@ describe("Stateless Session Store", async () => {
         const cookie = responseCookies.get("custom-session");
 
         expect(cookie).toBeDefined();
-        expect(await decrypt(cookie!.value, secret)).toEqual(session);
+        expect((await decrypt(cookie!.value, secret)).payload).toEqual(session);
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("lax");

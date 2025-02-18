@@ -29,7 +29,7 @@ describe("generateSessionCookie", async () => {
     };
     const sessionCookie = await generateSessionCookie(session, config);
     expect(sessionCookie).toEqual(expect.any(String));
-    expect(await decrypt(sessionCookie, secret)).toEqual({
+    expect((await decrypt(sessionCookie, secret)).payload).toEqual({
       user: {
         sub: "user_123"
       },
@@ -60,7 +60,7 @@ describe("generateSessionCookie", async () => {
     };
     const sessionCookie = await generateSessionCookie(session, config);
     expect(sessionCookie).toEqual(expect.any(String));
-    expect(await decrypt(sessionCookie, secret)).toEqual({
+    expect((await decrypt(sessionCookie, secret)).payload).toEqual({
       user: {
         sub: "user_123"
       },
@@ -93,7 +93,7 @@ describe("generateSessionCookie", async () => {
     };
     const sessionCookie = await generateSessionCookie(session, config);
     expect(sessionCookie).toEqual(expect.any(String));
-    expect(await decrypt(sessionCookie, secret)).toEqual({
+    expect((await decrypt(sessionCookie, secret)).payload).toEqual({
       user: {
         sub: "user_123"
       },
@@ -122,7 +122,7 @@ describe("generateSessionCookie", async () => {
     };
     const sessionCookie = await generateSessionCookie(session, config);
     expect(sessionCookie).toEqual(expect.any(String));
-    expect(await decrypt(sessionCookie, secret)).toEqual({
+    expect((await decrypt(sessionCookie, secret)).payload).toEqual({
       user: {
         sub: "user_123"
       },

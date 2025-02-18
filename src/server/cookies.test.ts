@@ -12,7 +12,7 @@ describe("encrypt/decrypt", async () => {
     const encrypted = await encrypt(payload, secret);
     const decrypted = await decrypt(encrypted, secret);
 
-    expect(decrypted).toEqual(payload);
+    expect(decrypted.payload).toEqual(payload);
   });
 
   it("should fail to decrypt a payload with the incorrect secret", async () => {

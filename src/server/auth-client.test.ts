@@ -440,7 +440,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         // assert session has been updated
         const updatedSessionCookie = response.cookies.get("__session");
         expect(updatedSessionCookie).toBeDefined();
-        const updatedSessionCookieValue = await decrypt(
+        const { payload: updatedSessionCookieValue } = await decrypt(
           updatedSessionCookie!.value,
           secret
         );
@@ -795,13 +795,15 @@ ca/T0LLtgmbMmxSv/MmzIg==
         `__txn_${authorizationUrl.searchParams.get("state")}`
       );
       expect(transactionCookie).toBeDefined();
-      expect(await decrypt(transactionCookie!.value, secret)).toEqual({
-        nonce: authorizationUrl.searchParams.get("nonce"),
-        codeVerifier: expect.any(String),
-        responseType: "code",
-        state: authorizationUrl.searchParams.get("state"),
-        returnTo: "/"
-      });
+      expect((await decrypt(transactionCookie!.value, secret)).payload).toEqual(
+        {
+          nonce: authorizationUrl.searchParams.get("nonce"),
+          codeVerifier: expect.any(String),
+          responseType: "code",
+          state: authorizationUrl.searchParams.get("state"),
+          returnTo: "/"
+        }
+      );
     });
 
     it("should return an error if the discovery endpoint could not be fetched", async () => {
@@ -911,7 +913,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
           `__txn_${authorizationUrl.searchParams.get("state")}`
         );
         expect(transactionCookie).toBeDefined();
-        expect(await decrypt(transactionCookie!.value, secret)).toEqual({
+        expect(
+          (await decrypt(transactionCookie!.value, secret)).payload
+        ).toEqual({
           nonce: authorizationUrl.searchParams.get("nonce"),
           codeVerifier: expect.any(String),
           responseType: "code",
@@ -1243,14 +1247,16 @@ ca/T0LLtgmbMmxSv/MmzIg==
         `__txn_${authorizationUrl.searchParams.get("state")}`
       );
       expect(transactionCookie).toBeDefined();
-      expect(await decrypt(transactionCookie!.value, secret)).toEqual({
-        nonce: authorizationUrl.searchParams.get("nonce"),
-        maxAge: 3600,
-        codeVerifier: expect.any(String),
-        responseType: "code",
-        state: authorizationUrl.searchParams.get("state"),
-        returnTo: "/"
-      });
+      expect((await decrypt(transactionCookie!.value, secret)).payload).toEqual(
+        {
+          nonce: authorizationUrl.searchParams.get("nonce"),
+          maxAge: 3600,
+          codeVerifier: expect.any(String),
+          responseType: "code",
+          state: authorizationUrl.searchParams.get("state"),
+          returnTo: "/"
+        }
+      );
     });
 
     it("should store the returnTo path in the transaction state", async () => {
@@ -1288,13 +1294,15 @@ ca/T0LLtgmbMmxSv/MmzIg==
         `__txn_${authorizationUrl.searchParams.get("state")}`
       );
       expect(transactionCookie).toBeDefined();
-      expect(await decrypt(transactionCookie!.value, secret)).toEqual({
-        nonce: authorizationUrl.searchParams.get("nonce"),
-        codeVerifier: expect.any(String),
-        responseType: "code",
-        state: authorizationUrl.searchParams.get("state"),
-        returnTo: "https://example.com/dashboard"
-      });
+      expect((await decrypt(transactionCookie!.value, secret)).payload).toEqual(
+        {
+          nonce: authorizationUrl.searchParams.get("nonce"),
+          codeVerifier: expect.any(String),
+          responseType: "code",
+          state: authorizationUrl.searchParams.get("state"),
+          returnTo: "https://example.com/dashboard"
+        }
+      );
     });
 
     it("should prevent open redirects originating from the returnTo parameter", async () => {
@@ -1332,13 +1340,15 @@ ca/T0LLtgmbMmxSv/MmzIg==
         `__txn_${authorizationUrl.searchParams.get("state")}`
       );
       expect(transactionCookie).toBeDefined();
-      expect(await decrypt(transactionCookie!.value, secret)).toEqual({
-        nonce: authorizationUrl.searchParams.get("nonce"),
-        codeVerifier: expect.any(String),
-        responseType: "code",
-        state: authorizationUrl.searchParams.get("state"),
-        returnTo: "/"
-      });
+      expect((await decrypt(transactionCookie!.value, secret)).payload).toEqual(
+        {
+          nonce: authorizationUrl.searchParams.get("nonce"),
+          codeVerifier: expect.any(String),
+          responseType: "code",
+          state: authorizationUrl.searchParams.get("state"),
+          returnTo: "/"
+        }
+      );
     });
 
     describe("with pushed authorization requests", async () => {
@@ -1463,7 +1473,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const transactionCookie = transactionCookies[0];
         const state = transactionCookie.name.replace("__txn_", "");
         expect(transactionCookie).toBeDefined();
-        expect(await decrypt(transactionCookie!.value, secret)).toEqual({
+        expect(
+          (await decrypt(transactionCookie!.value, secret)).payload
+        ).toEqual({
           nonce: expect.any(String),
           codeVerifier: expect.any(String),
           responseType: "code",
@@ -1540,7 +1552,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
           const transactionCookie = transactionCookies[0];
           const state = transactionCookie.name.replace("__txn_", "");
           expect(transactionCookie).toBeDefined();
-          expect(await decrypt(transactionCookie!.value, secret)).toEqual({
+          expect(
+            (await decrypt(transactionCookie!.value, secret)).payload
+          ).toEqual({
             nonce: expect.any(String),
             codeVerifier: expect.any(String),
             responseType: "code",
@@ -1618,7 +1632,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
           const transactionCookie = transactionCookies[0];
           const state = transactionCookie.name.replace("__txn_", "");
           expect(transactionCookie).toBeDefined();
-          expect(await decrypt(transactionCookie!.value, secret)).toEqual({
+          expect(
+            (await decrypt(transactionCookie!.value, secret)).payload
+          ).toEqual({
             nonce: expect.any(String),
             codeVerifier: expect.any(String),
             responseType: "code",
@@ -2122,7 +2138,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       // validate the session cookie
       const sessionCookie = response.cookies.get("__session");
       expect(sessionCookie).toBeDefined();
-      const session = await decrypt(sessionCookie!.value, secret);
+      const { payload: session } = await decrypt(sessionCookie!.value, secret);
       expect(session).toEqual({
         user: {
           sub: DEFAULT.sub
@@ -2230,7 +2246,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       // validate the session cookie
       const sessionCookie = response.cookies.get("__session");
       expect(sessionCookie).toBeDefined();
-      const session = await decrypt(sessionCookie!.value, secret);
+      const { payload: session } = await decrypt(sessionCookie!.value, secret);
       expect(session).toEqual({
         user: {
           sub: DEFAULT.sub
@@ -2601,7 +2617,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
         // validate the session cookie
         const sessionCookie = response.cookies.get("__session");
         expect(sessionCookie).toBeDefined();
-        const session = await decrypt(sessionCookie!.value, secret);
+        const { payload: session } = await decrypt(
+          sessionCookie!.value,
+          secret
+        );
         expect(session).toEqual(expectedSession);
       });
 
@@ -3051,7 +3070,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
         // validate the session cookie
         const sessionCookie = response.cookies.get("__session");
         expect(sessionCookie).toBeDefined();
-        const session = await decrypt(sessionCookie!.value, secret);
+        const { payload: session } = await decrypt(
+          sessionCookie!.value,
+          secret
+        );
         expect(session).toEqual({
           user: {
             sub: DEFAULT.sub,
@@ -3177,7 +3199,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
         // validate the session cookie
         const sessionCookie = response.cookies.get("__session");
         expect(sessionCookie).toBeDefined();
-        const session = await decrypt(sessionCookie!.value, secret);
+        const { payload: session } = await decrypt(
+          sessionCookie!.value,
+          secret
+        );
         expect(session).toEqual({
           user: {
             sub: DEFAULT.sub,
@@ -3273,7 +3298,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       // validate that the session cookie has been updated
       const updatedSessionCookie = response.cookies.get("__session");
-      const updatedSession = await decrypt<SessionData>(
+      const { payload: updatedSession } = await decrypt<SessionData>(
         updatedSessionCookie!.value,
         secret
       );
