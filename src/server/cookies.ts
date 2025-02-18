@@ -46,9 +46,17 @@ export async function decrypt<T>(cookieValue: string, secret: string) {
   return cookie;
 }
 
+/**
+ * Derive a signing key from a given secret.
+ * This method is used solely to migrate signed, legacy cookies to the new encrypted cookie format (v4+).
+ */
 const signingSecret = (secret: string): Promise<Uint8Array> =>
   hkdf("sha256", secret, "", "JWS Cookie Signing", BYTE_LENGTH);
 
+/**
+ * Verify a signed cookie. If the cookie is valid, the value is returned. Otherwise, undefined is returned.
+ * This method is used solely to migrate signed, legacy cookies to the new encrypted cookie format (v4+).
+ */
 export async function verifySigned(
   k: string,
   v: string,
@@ -77,6 +85,10 @@ export async function verifySigned(
   }
 }
 
+/**
+ * Sign a cookie value using a secret.
+ * This method is used solely to migrate signed, legacy cookies to the new encrypted cookie format (v4+).
+ */
 export async function sign(
   name: string,
   value: string,

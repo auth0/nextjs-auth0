@@ -66,6 +66,10 @@ export class StatefulSessionStore extends AbstractSessionStore {
       return null;
     }
 
+    // we attempt to extract the session ID by decrypting the cookie value (assuming it's a JWE, v4+) first
+    // if that fails, we attempt to verify the cookie value as a signed cookie (legacy, v3-)
+    // if both fail, we return null
+    // this ensures that v3 sessions are respected and can be transparently rolled over to v4+ sessions
     let sessionId: string | null = null;
     try {
       const { payload: sessionCookie } =
