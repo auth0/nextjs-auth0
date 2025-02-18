@@ -48,14 +48,14 @@ export async function middleware(request: NextRequest) {
 }
 ```
 
-For a complete example, see [the Getting Started section](https://github.com/auth0/nextjs-auth0/tree/v4?tab=readme-ov-file#getting-started).
+For a complete example, see [the Getting Started section](https://github.com/auth0/nextjs-auth0/tree/main?tab=readme-ov-file#getting-started).
 
 Additionally, in v4, the mounted routes drop the `/api` prefix. For example, the default login route is now `/auth/login` instead of `/api/auth/login`. To link to the login route, it would now be: `<a href="/auth/login">Log in</a>`.
 
 > [!NOTE]  
 > If you are using an existing client, you will need to update your **Allowed Callback URLs** accordingly.
 
-The complete list of routes mounted by the SDK can be found [here](https://github.com/auth0/nextjs-auth0/tree/v4?tab=readme-ov-file#routes).
+The complete list of routes mounted by the SDK can be found [here](https://github.com/auth0/nextjs-auth0/tree/main?tab=readme-ov-file#routes).
 
 ## Auth0 middleware
 
@@ -87,7 +87,7 @@ export const config = {
 }
 ```
 
-See [the Getting Started section](https://github.com/auth0/nextjs-auth0/tree/v4?tab=readme-ov-file#getting-started) for details on how to configure the middleware.
+See [the Getting Started section](https://github.com/auth0/nextjs-auth0/tree/main?tab=readme-ov-file#getting-started) for details on how to configure the middleware.
 
 ### Protecting routes
 
@@ -123,13 +123,13 @@ The `<UserProvider />` has been renamed to `<Auth0Provider />`.
 
 Previously, when setting up your application to use v3 of the SDK, it was required to wrap your layout in the `<UserProvider />`. **This is no longer required by default.**
 
-If you would like to pass an initial user during server rendering to be available to the `useUser()` hook, you can wrap your components with the new `<Auth0Provider />` ([see example](https://github.com/auth0/nextjs-auth0/tree/v4?tab=readme-ov-file#auth0provider-)).
+If you would like to pass an initial user during server rendering to be available to the `useUser()` hook, you can wrap your components with the new `<Auth0Provider />` ([see example](https://github.com/auth0/nextjs-auth0/tree/main?tab=readme-ov-file#auth0provider-)).
 
 ## Rolling sessions
 
 In v4, rolling sessions are enabled by default and are handled automatically by the middleware with no additional configuration required.
 
-See the [session configuration section](https://github.com/auth0/nextjs-auth0/tree/v4?tab=readme-ov-file#session-configuration) for additional details on how to configure it.
+See the [session configuration section](https://github.com/auth0/nextjs-auth0/tree/main?tab=readme-ov-file#session-configuration) for additional details on how to configure it.
 
 ## `withPageAuthRequired` and `withApiAuthRequired`
 
@@ -155,7 +155,7 @@ The `getSession()` method can be used in the App Router in Server Components, Se
 
 In the Pages Router, the `getSession(req)` method takes a request object and can be used in `getServerSideProps`, API routes, and middleware.
 
-Read more about [accessing the authenticated user here](https://github.com/guabu/nextjs-auth0/tree/v4?tab=readme-ov-file#accessing-the-authenticated-user).
+Read more about [accessing the authenticated user here](https://github.com/guabu/nextjs-auth0/tree/main?tab=readme-ov-file#accessing-the-authenticated-user).
 
 In the browser, you can rely on the `useUser()` hook to check if the user is authenticated. For example:
 
@@ -212,7 +212,7 @@ export const auth0 = new Auth0Client({
 })
 ```
 
-Read more about [passing authorization parameters](https://github.com/auth0/nextjs-auth0/tree/v4?tab=readme-ov-file#passing-authorization-parameters).
+Read more about [passing authorization parameters](https://github.com/auth0/nextjs-auth0/tree/main?tab=readme-ov-file#passing-authorization-parameters).
 
 ## ID token claims
 
@@ -230,15 +230,15 @@ In v4, by default, the only claims that are persisted in the `user` object of se
 - `email_verified`
 - `org_id`
 
-If you'd like to customize the `user` object to include additional custom claims from the ID token, you can use the `beforeSessionSaved` hook (see [beforeSessionSaved hook](https://github.com/guabu/nextjs-auth0/tree/v4?tab=readme-ov-file#beforesessionsaved))
+If you'd like to customize the `user` object to include additional custom claims from the ID token, you can use the `beforeSessionSaved` hook (see [beforeSessionSaved hook](https://github.com/guabu/nextjs-auth0/tree/main?tab=readme-ov-file#beforesessionsaved))
 
 ## Additional changes
 
 - By default, v4 is edge-compatible and as such there is no longer a `@auth0/nextjs-auth0/edge` export.
 - Cookie chunking has been removed
   - If the cookie size exceeds the browser limit of 4096 bytes, a warning will be logged
-  - To store large session data, please use a [custom data store](https://github.com/auth0/nextjs-auth0/tree/v4?tab=readme-ov-file#database-sessions) with a SessionStore implementation
+  - To store large session data, please use a [custom data store](https://github.com/auth0/nextjs-auth0/tree/main?tab=readme-ov-file#database-sessions) with a SessionStore implementation
 - All cookies set by the SDK default to `SameSite=Lax`
-- `touchSession` method was removed. The middleware enables rolling sessions by default and can be configured via the [session configuration](https://github.com/auth0/nextjs-auth0/tree/v4?tab=readme-ov-file#session-configuration).
+- `touchSession` method was removed. The middleware enables rolling sessions by default and can be configured via the [session configuration](https://github.com/auth0/nextjs-auth0/tree/main?tab=readme-ov-file#session-configuration).
 - `getAccessToken` can now be called in React Server Components.
 - By default, v4 will use [OpenID Connect's RP-Initiated Logout](https://auth0.com/docs/authenticate/login/logout/log-users-out-of-auth0) if it's enabled on the tenant. Otherwise, it will fallback to the `/v2/logout` endpoint.
