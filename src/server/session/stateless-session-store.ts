@@ -4,6 +4,11 @@ import {
   AbstractSessionStore,
   SessionCookieOptions
 } from "./abstract-session-store";
+import {
+  LEGACY_COOKIE_NAME,
+  LegacySessionPayload,
+  normalizeStatelessSession
+} from "./normalize-session";
 
 interface StatelessSessionStoreOptions {
   secret: string;
@@ -33,13 +38,19 @@ export class StatelessSessionStore extends AbstractSessionStore {
   }
 
   async get(reqCookies: cookies.RequestCookies) {
-    const cookieValue = reqCookies.get(this.sessionCookieName)?.value;
+    const cookieValue =
+      reqCookies.get(this.sessionCookieName)?.value ||
+      reqCookies.get(LEGACY_COOKIE_NAME)?.value;
 
     if (!cookieValue) {
       return null;
     }
 
-    return cookies.decrypt<SessionData>(cookieValue, this.secret);
+    const originalSession = await cookies.decrypt<
+      SessionData | LegacySessionPayload
+    >(cookieValue, this.secret);
+
+    return normalizeStatelessSession(originalSession);
   }
 
   /**

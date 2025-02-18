@@ -2,7 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { generateSecret } from "../../test/utils";
 import { SessionData } from "../../types";
-import { decrypt, encrypt, RequestCookies, ResponseCookies } from "../cookies";
+import {
+  decrypt,
+  encrypt,
+  RequestCookies,
+  ResponseCookies,
+  sign
+} from "../cookies";
+import { LegacySessionPayload } from "./normalize-session";
 import { StatefulSessionStore } from "./stateful-session-store";
 
 describe("Stateful Session Store", async () => {
@@ -113,6 +120,165 @@ describe("Stateful Session Store", async () => {
       expect(store.get).toHaveBeenCalledWith(sessionId);
       expect(sessionFromDb).toBeNull();
     });
+
+    describe("migrate legacy session", async () => {
+      it("should convert the legacy session to the new format", async () => {
+        const sessionId = "ses_123";
+        const secret = await generateSecret(32);
+        const legacySession: LegacySessionPayload = {
+          header: {
+            iat: Math.floor(Date.now() / 1000),
+            uat: Math.floor(Date.now() / 1000),
+            exp: Math.floor(Date.now() / 1000)
+          },
+          data: {
+            user: {
+              sub: "user_123",
+              sid: "auth0-sid"
+            },
+            accessToken: "at_123",
+            accessTokenScope: "openid profile email",
+            refreshToken: "rt_123",
+            accessTokenExpiresAt: 123456
+          }
+        };
+        const store = {
+          get: vi.fn().mockResolvedValue(legacySession),
+          set: vi.fn(),
+          delete: vi.fn()
+        };
+        const signedCookieValue = await sign("appSession", sessionId, secret);
+
+        const headers = new Headers();
+        headers.append("cookie", `appSession=${signedCookieValue}`);
+        const requestCookies = new RequestCookies(headers);
+
+        const sessionStore = new StatefulSessionStore({
+          secret,
+          store
+        });
+
+        const sessionFromDb = await sessionStore.get(requestCookies);
+        expect(store.get).toHaveBeenCalledOnce();
+        expect(store.get).toHaveBeenCalledWith(sessionId);
+        expect(sessionFromDb).toEqual({
+          user: { sub: "user_123", sid: "auth0-sid" },
+          tokenSet: {
+            accessToken: "at_123",
+            refreshToken: "rt_123",
+            expiresAt: 123456,
+            scope: "openid profile email"
+          },
+          internal: {
+            sid: "auth0-sid",
+            createdAt: legacySession.header.iat
+          }
+        });
+      });
+
+      it("should discard any missing properties", async () => {
+        const sessionId = "ses_123";
+        const secret = await generateSecret(32);
+        const legacySession: LegacySessionPayload = {
+          header: {
+            iat: Math.floor(Date.now() / 1000),
+            uat: Math.floor(Date.now() / 1000),
+            exp: Math.floor(Date.now() / 1000)
+          },
+          data: {
+            user: {
+              sub: "user_123",
+              sid: "auth0-sid"
+            }
+          }
+        };
+        const store = {
+          get: vi.fn().mockResolvedValue(legacySession),
+          set: vi.fn(),
+          delete: vi.fn()
+        };
+        const signedCookieValue = await sign("appSession", sessionId, secret);
+
+        const headers = new Headers();
+        headers.append("cookie", `appSession=${signedCookieValue}`);
+        const requestCookies = new RequestCookies(headers);
+
+        const sessionStore = new StatefulSessionStore({
+          secret,
+          store
+        });
+
+        const sessionFromDb = await sessionStore.get(requestCookies);
+        expect(store.get).toHaveBeenCalledOnce();
+        expect(store.get).toHaveBeenCalledWith(sessionId);
+        expect(sessionFromDb).toEqual({
+          user: { sub: "user_123", sid: "auth0-sid" },
+          tokenSet: {},
+          internal: {
+            sid: "auth0-sid",
+            createdAt: legacySession.header.iat
+          }
+        });
+      });
+
+      it("should convert legacy sessions with custom cookie names", async () => {
+        const cookieName = "customSession";
+        const sessionId = "ses_123";
+        const secret = await generateSecret(32);
+        const legacySession: LegacySessionPayload = {
+          header: {
+            iat: Math.floor(Date.now() / 1000),
+            uat: Math.floor(Date.now() / 1000),
+            exp: Math.floor(Date.now() / 1000)
+          },
+          data: {
+            user: {
+              sub: "user_123",
+              sid: "auth0-sid"
+            },
+            accessToken: "at_123",
+            accessTokenScope: "openid profile email",
+            refreshToken: "rt_123",
+            accessTokenExpiresAt: 123456
+          }
+        };
+        const store = {
+          get: vi.fn().mockResolvedValue(legacySession),
+          set: vi.fn(),
+          delete: vi.fn()
+        };
+        const signedCookieValue = await sign(cookieName, sessionId, secret);
+
+        const headers = new Headers();
+        headers.append("cookie", `${cookieName}=${signedCookieValue}`);
+        const requestCookies = new RequestCookies(headers);
+
+        const sessionStore = new StatefulSessionStore({
+          secret,
+          store,
+          cookieOptions: {
+            name: cookieName
+          }
+        });
+
+        const sessionFromDb = await sessionStore.get(requestCookies);
+        expect(store.get).toHaveBeenCalledOnce();
+        expect(store.get).toHaveBeenCalledWith(sessionId);
+        expect(sessionFromDb).toEqual({
+          user: { sub: "user_123", sid: "auth0-sid" },
+          tokenSet: {
+            accessToken: "at_123",
+            refreshToken: "rt_123",
+            expiresAt: 123456,
+            scope: "openid profile email"
+          },
+          internal: {
+            sid: "auth0-sid",
+            createdAt: legacySession.header.iat
+          }
+        });
+      });
+    });
   });
 
   describe("set", async () => {
@@ -160,7 +326,7 @@ describe("Stateful Session Store", async () => {
         await sessionStore.set(requestCookies, responseCookies, session);
 
         const cookie = responseCookies.get("__session");
-        const cookieValue = await decrypt(cookie!.value, secret);
+        const { payload: cookieValue } = await decrypt(cookie!.value, secret);
 
         expect(cookie).toBeDefined();
         expect(cookieValue).toHaveProperty("id");
@@ -214,7 +380,7 @@ describe("Stateful Session Store", async () => {
         await sessionStore.set(requestCookies, responseCookies, session);
 
         const cookie = responseCookies.get("__session");
-        const cookieValue = await decrypt(cookie!.value, secret);
+        const { payload: cookieValue } = await decrypt(cookie!.value, secret);
 
         expect(cookie).toBeDefined();
         expect(cookieValue).toHaveProperty("id");
@@ -262,7 +428,7 @@ describe("Stateful Session Store", async () => {
         await sessionStore.set(requestCookies, responseCookies, session);
 
         const cookie = responseCookies.get("__session");
-        const cookieValue = await decrypt(cookie!.value, secret);
+        const { payload: cookieValue } = await decrypt(cookie!.value, secret);
 
         expect(cookie).toBeDefined();
         expect(cookieValue).toHaveProperty("id");
@@ -319,7 +485,7 @@ describe("Stateful Session Store", async () => {
         await sessionStore.set(requestCookies, responseCookies, session, true);
 
         const cookie = responseCookies.get("__session");
-        const cookieValue = await decrypt(cookie!.value, secret);
+        const { payload: cookieValue } = await decrypt(cookie!.value, secret);
 
         expect(cookie).toBeDefined();
         expect(store.delete).toHaveBeenCalledWith(sessionId); // the old session should be deleted
@@ -368,7 +534,7 @@ describe("Stateful Session Store", async () => {
         await sessionStore.set(requestCookies, responseCookies, session);
 
         const cookie = responseCookies.get("__session");
-        const cookieValue = await decrypt(cookie!.value, secret);
+        const { payload: cookieValue } = await decrypt(cookie!.value, secret);
 
         expect(cookie).toBeDefined();
         expect(cookieValue).toHaveProperty("id");
@@ -418,7 +584,7 @@ describe("Stateful Session Store", async () => {
         await sessionStore.set(requestCookies, responseCookies, session);
 
         const cookie = responseCookies.get("__session");
-        const cookieValue = await decrypt(cookie!.value, secret);
+        const { payload: cookieValue } = await decrypt(cookie!.value, secret);
 
         expect(cookie).toBeDefined();
         expect(cookieValue).toHaveProperty("id");
@@ -468,7 +634,7 @@ describe("Stateful Session Store", async () => {
         await sessionStore.set(requestCookies, responseCookies, session);
 
         const cookie = responseCookies.get("my-session");
-        const cookieValue = await decrypt(cookie!.value, secret);
+        const { payload: cookieValue } = await decrypt(cookie!.value, secret);
 
         expect(cookie).toBeDefined();
         expect(cookieValue).toHaveProperty("id");

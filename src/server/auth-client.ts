@@ -390,14 +390,15 @@ export class AuthClient {
       return this.onCallback(new MissingStateError(), {}, null);
     }
 
-    const transactionState = await this.transactionStore.get(
+    const transactionStateCookie = await this.transactionStore.get(
       req.cookies,
       state
     );
-    if (!transactionState) {
+    if (!transactionStateCookie) {
       return this.onCallback(new InvalidStateError(), {}, null);
     }
 
+    const transactionState = transactionStateCookie.payload;
     const onCallbackCtx: OnCallbackContext = {
       returnTo: transactionState.returnTo
     };
