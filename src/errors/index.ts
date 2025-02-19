@@ -100,9 +100,9 @@ export class AccessTokenError extends SdkError {
 }
 
 /**
- * Enum representing error codes related to federated connection access tokens.
+ * Enum representing error codes related to access tokens for connections.
  */
-export enum FederatedConnectionAccessTokenErrorCode {
+export enum AccessTokenForConnectionErrorCode {
   /**
    * The session is missing.
    */
@@ -120,24 +120,24 @@ export enum FederatedConnectionAccessTokenErrorCode {
 }
 
 /**
- * Error class representing an access token error for federated connections.
+ * Error class representing an access token for connection error.
  * Extends the `SdkError` class.
  */
-export class FederatedConnectionsAccessTokenError extends SdkError {
+export class AccessTokenForConnectionError extends SdkError {
   /**
    * The error code associated with the access token error.
    */
   public code: string;
 
   /**
-   * Constructs a new `FederatedConnectionsAccessTokenError` instance.
+   * Constructs a new `AccessTokenForConnectionError` instance.
    *
    * @param code - The error code.
    * @param message - The error message.
    */
   constructor(code: string, message: string) {
     super(message);
-    this.name = "FederatedConnectionAccessTokenError";
+    this.name = "AccessTokenForConnectionError";
     this.code = code;
   }
 }

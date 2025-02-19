@@ -6,7 +6,7 @@ export interface TokenSet {
   expiresAt: number; // the time at which the access token expires in seconds since epoch
 }
 
-export interface FederatedConnectionTokenSet {
+export interface ConnectionTokenSet {
   accessToken: string;
   scope?: string;
   expiresAt: number; // the time at which the access token expires in seconds since epoch
@@ -23,7 +23,7 @@ export interface SessionData {
     // the time at which the session was created in seconds since epoch
     createdAt: number;
   };
-  federatedConnectionTokenSets?: FederatedConnectionTokenSet[];
+  connectionTokenSets?: ConnectionTokenSet[];
   [key: string]: unknown;
 }
 
@@ -131,9 +131,9 @@ export interface AuthorizationParameters {
 }
 
 /**
- * Options for retrieving a federated connection access token.
+ * Options for retrieving a connection access token.
  */
-export interface GetFederatedConnectionAccessTokenOptions {
+export interface AccessTokenForConnectionOptions {
   /**
    * The connection name for while you want to retrieve the access token.
    */

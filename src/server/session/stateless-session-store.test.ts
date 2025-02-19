@@ -185,7 +185,7 @@ describe("Stateless Session Store", async () => {
         });
       });
     });
-    it("should return the decrypted session cookie if it exists with federated connection", async () => {
+    it("should return the decrypted session cookie if it exists with connection", async () => {
       const secret = await generateSecret(32);
       const session: SessionData = {
         user: { sub: "user_123" },

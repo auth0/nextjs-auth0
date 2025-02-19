@@ -10,8 +10,8 @@ import {
   AuthorizationError,
   BackchannelLogoutError,
   DiscoveryError,
-  FederatedConnectionAccessTokenErrorCode,
-  FederatedConnectionsAccessTokenError,
+  AccessTokenForConnectionError,
+  AccessTokenForConnectionErrorCode,
   InvalidStateError,
   MissingStateError,
   OAuth2Error,
@@ -19,8 +19,8 @@ import {
 } from "../errors";
 import {
   AuthorizationParameters,
-  FederatedConnectionTokenSet,
-  GetFederatedConnectionAccessTokenOptions,
+  ConnectionTokenSet,
+  AccessTokenForConnectionOptions,
   LogoutToken,
   SessionData,
   StartInteractiveLoginOptions,
@@ -994,49 +994,49 @@ export class AuthClient {
   }
 
   /**
-   * Exchanges a refresh token for a federated connection access token.
+   * Exchanges a refresh token for an access token for a connection.
    *
    * This method performs a token exchange using the provided refresh token and connection details.
    * It first checks if the refresh token is present in the `tokenSet`. If not, it returns an error.
    * Then, it constructs the necessary parameters for the token exchange request and performs
    * the request to the authorization server's token endpoint.
    *
-   * @returns {Promise<[SdkError, null] | [null, FederatedConnectionTokenSet]>} A promise that resolves to a tuple.
+   * @returns {Promise<[SdkError, null] | [null, ConnectionTokenSet]>} A promise that resolves to a tuple.
    *          The first element is either an `SdkError` if an error occurred, or `null` if the request was successful.
-   *          The second element is either `null` if an error occurred, or a `FederatedConnectionTokenSet` object
+   *          The second element is either `null` if an error occurred, or a `ConnectionTokenSet` object
    *          containing the access token, expiration time, and scope if the request was successful.
    *
-   * @throws {FederatedConnectionsAccessTokenError} If the refresh token is missing or if there is an error during the token exchange process.
+   * @throws {AccessTokenForConnectionError} If the refresh token is missing or if there is an error during the token exchange process.
    */
-  async getFederatedConnectionTokenSet(
+  async getConnectionTokenSet(
     tokenSet: TokenSet,
-    federatedConnectionTokenSet: FederatedConnectionTokenSet | undefined,
-    options: GetFederatedConnectionAccessTokenOptions
-  ): Promise<[SdkError, null] | [null, FederatedConnectionTokenSet]> {
+    connectionTokenSet: ConnectionTokenSet | undefined,
+    options: AccessTokenForConnectionOptions
+  ): Promise<[SdkError, null] | [null, ConnectionTokenSet]> {
     // If we do not have a refresh token
-    // and we do not have a federated connection token set in the cache or the one we have is expired,
+    // and we do not have a connection token set in the cache or the one we have is expired,
     // there is noting to retrieve and we return an error.
     if (
       !tokenSet.refreshToken &&
-      (!federatedConnectionTokenSet ||
-        federatedConnectionTokenSet.expiresAt <= Date.now() / 1000)
+      (!connectionTokenSet ||
+        connectionTokenSet.expiresAt <= Date.now() / 1000)
     ) {
       return [
-        new FederatedConnectionsAccessTokenError(
-          FederatedConnectionAccessTokenErrorCode.MISSING_REFRESH_TOKEN,
-          "A refresh token was not present, Federated Connection Access Token requires a refresh token. The user needs to re-authenticate."
+        new AccessTokenForConnectionError(
+          AccessTokenForConnectionErrorCode.MISSING_REFRESH_TOKEN,
+          "A refresh token was not present, Connection Access Token requires a refresh token. The user needs to re-authenticate."
         ),
         null
       ];
     }
 
     // If we do have a refresh token,
-    // and we do not have a federated connection token set in the cache or the one we have is expired,
-    // we need to exchange the refresh token for a federated connection access token.
+    // and we do not have a connection token set in the cache or the one we have is expired,
+    // we need to exchange the refresh token for a connection access token.
     if (
       tokenSet.refreshToken &&
-      (!federatedConnectionTokenSet ||
-        federatedConnectionTokenSet.expiresAt <= Date.now() / 1000)
+      (!connectionTokenSet ||
+        connectionTokenSet.expiresAt <= Date.now() / 1000)
     ) {
       const params = new URLSearchParams();
 
@@ -1082,9 +1082,9 @@ export class AuthClient {
       } catch (err) {
         console.error(err);
         return [
-          new FederatedConnectionsAccessTokenError(
-            FederatedConnectionAccessTokenErrorCode.FAILED_TO_EXCHANGE,
-            "There was an error trying to exchange the refresh token for a federated connection access token. Check the server logs for more information."
+          new AccessTokenForConnectionError(
+            AccessTokenForConnectionErrorCode.FAILED_TO_EXCHANGE,
+            "There was an error trying to exchange the refresh token for a connection access token. Check the server logs for more information."
           ),
           null
         ];
@@ -1103,9 +1103,9 @@ export class AuthClient {
       ];
     }
 
-    return [null, federatedConnectionTokenSet] as [
+    return [null, connectionTokenSet] as [
       null,
-      FederatedConnectionTokenSet
+      ConnectionTokenSet
     ];
   }
 }

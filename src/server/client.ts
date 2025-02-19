@@ -6,12 +6,12 @@ import { NextApiRequest, NextApiResponse } from "next/types";
 import {
   AccessTokenError,
   AccessTokenErrorCode,
-  FederatedConnectionAccessTokenErrorCode,
-  FederatedConnectionsAccessTokenError
+  AccessTokenForConnectionError,
+  AccessTokenForConnectionErrorCode,
 } from "../errors";
 import {
   AuthorizationParameters,
-  GetFederatedConnectionAccessTokenOptions,
+  AccessTokenForConnectionOptions,
   SessionData,
   SessionDataStore,
   StartInteractiveLoginOptions
@@ -379,47 +379,47 @@ export class Auth0Client {
   }
 
   /**
-   * Retrieves an access token for a federated connection.
+   * Retrieves an access token for a connection.
    *
    * This method can be used in Server Components, Server Actions, and Route Handlers in the **App Router**.
    *
-   * NOTE: Server Components cannot set cookies. Calling `getFederatedConnectionAccessToken()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not to be persisted.
-   * It is recommended to call `getFederatedConnectionAccessToken(req, res)` in the middleware if you need to retrieve the access token in a Server Component to ensure the updated token set is persisted.
+   * NOTE: Server Components cannot set cookies. Calling `getAccessTokenForConnection()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not to be persisted.
+   * It is recommended to call `getAccessTokenForConnection(req, res)` in the middleware if you need to retrieve the access token in a Server Component to ensure the updated token set is persisted.
    */
-  async getFederatedConnectionAccessToken(
-    options: GetFederatedConnectionAccessTokenOptions
+  async getAccessTokenForConnection(
+    options: AccessTokenForConnectionOptions
   ): Promise<{ token: string; expiresAt: number }>;
 
   /**
-   * Retrieves an access token for a federated connection.
+   * Retrieves an access token for a connection.
    *
    * This method can be used in middleware and `getServerSideProps`, API routes in the **Pages Router**.
    */
-  async getFederatedConnectionAccessToken(
-    options: GetFederatedConnectionAccessTokenOptions,
+  async getAccessTokenForConnection(
+    options: AccessTokenForConnectionOptions,
     req: PagesRouterRequest | NextRequest | undefined,
     res: PagesRouterResponse | NextResponse | undefined
   ): Promise<{ token: string; expiresAt: number }>;
 
   /**
-   * Retrieves an access token for a federated connection.
+   * Retrieves an access token for a connection.
    *
-   * This method attempts to obtain an access token for a specified federated connection.
+   * This method attempts to obtain an access token for a specified connection.
    * It first checks if a session exists, either from the provided request or from cookies.
-   * If no session is found, it throws a `FederatedConnectionsAccessTokenError` indicating
+   * If no session is found, it throws a `AccessTokenForConnectionError` indicating
    * that the user does not have an active session.
    *
-   * @param {GetFederatedConnectionAccessTokenOptions} options - Options for retrieving a federated connection access token.
+   * @param {AccessTokenForConnectionOptions} options - Options for retrieving an access token for a connection.
    * @param {PagesRouterRequest | NextRequest} [req] - An optional request object from which to extract session information.
    * @param {PagesRouterResponse | NextResponse} [res] - An optional response object from which to extract session information.
    *
-   * @throws {FederatedConnectionsAccessTokenError} If the user does not have an active session.
+   * @throws {AccessTokenForConnectionError} If the user does not have an active session.
    * @throws {Error} If there is an error during the token exchange process.
    *
    * @returns {Promise<{ token: string; expiresAt: number; scope?: string }} An object containing the access token and its expiration time.
    */
-  async getFederatedConnectionAccessToken(
-    options: GetFederatedConnectionAccessTokenOptions,
+  async getAccessTokenForConnection(
+    options: AccessTokenForConnectionOptions,
     req?: PagesRouterRequest | NextRequest,
     res?: PagesRouterResponse | NextResponse
   ): Promise<{ token: string; expiresAt: number; scope?: string }> {
@@ -428,19 +428,19 @@ export class Auth0Client {
       : await this.getSession();
 
     if (!session) {
-      throw new FederatedConnectionsAccessTokenError(
-        FederatedConnectionAccessTokenErrorCode.MISSING_SESSION,
+      throw new AccessTokenForConnectionError(
+        AccessTokenForConnectionErrorCode.MISSING_SESSION,
         "The user does not have an active session."
       );
     }
 
-    // Find the federated connection token set in the session
-    const existingTokenSet = session.federatedConnectionTokenSets?.find(
+    // Find the connection token set in the session
+    const existingTokenSet = session.connectionTokenSets?.find(
       (tokenSet) => tokenSet.connection === options.connection
     );
 
     const [error, retrievedTokenSet] =
-      await this.authClient.getFederatedConnectionTokenSet(
+      await this.authClient.getConnectionTokenSet(
         session.tokenSet,
         existingTokenSet,
         options
@@ -450,7 +450,7 @@ export class Auth0Client {
       throw error;
     }
 
-    // If we didnt have a corresponding federated connection token set in the session
+    // If we didnt have a corresponding connection token set in the session
     // or if the one we have in the session does not match the one we received
     // We want to update the store incase we retrieved a token set.
     if (
@@ -462,18 +462,18 @@ export class Auth0Client {
     ) {
       let tokenSets;
 
-      // If we already had the federated connection token set in the session
+      // If we already had the connection token set in the session
       // we need to update the item in the array
       // If not, we need to add it.
       if (existingTokenSet) {
-        tokenSets = session.federatedConnectionTokenSets?.map((tokenSet) =>
+        tokenSets = session.connectionTokenSets?.map((tokenSet) =>
           tokenSet.connection === options.connection
             ? retrievedTokenSet
             : tokenSet
         );
       } else {
         tokenSets = [
-          ...(session.federatedConnectionTokenSets || []),
+          ...(session.connectionTokenSets || []),
           retrievedTokenSet
         ];
       }
@@ -481,7 +481,7 @@ export class Auth0Client {
       await this.saveToSession(
         {
           ...session,
-          federatedConnectionTokenSets: tokenSets
+          connectionTokenSets: tokenSets
         },
         req,
         res

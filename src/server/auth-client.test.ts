@@ -4528,8 +4528,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
     });
   });
 
-  describe("getFederatedConnectionTokenSet", async () => {
-    it("should call for an access token when no federated connection token set in the session", async () => {
+  describe("getonnectionTokenSet", async () => {
+    it("should call for an access token when no connection token set in the session", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({
         secret
@@ -4566,22 +4566,22 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expiresAt
       };
 
-      const response = await authClient.getFederatedConnectionTokenSet(
+      const response = await authClient.getConnectionTokenSet(
         tokenSet,
         undefined,
         { connection: "google-oauth2", login_hint: "000100123" }
       );
-      const [error, federatedConnectionTokenSet] = response;
+      const [error, connectionTokenSet] = response;
       expect(error).toBe(null);
       expect(fetchSpy).toHaveBeenCalled();
-      expect(federatedConnectionTokenSet).toEqual({
+      expect(connectionTokenSet).toEqual({
         accessToken: DEFAULT.accessToken,
         connection: "google-oauth2",
         expiresAt: expect.any(Number)
       });
     });
 
-    it("should return access token from the session when federated connection token set in the session is not expired", async () => {
+    it("should return access token from the session when connection token set in the session is not expired", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({
         secret
@@ -4611,14 +4611,14 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expiresAt,
       };
 
-      const response = await authClient.getFederatedConnectionTokenSet(
+      const response = await authClient.getConnectionTokenSet(
         tokenSet,
         { connection: 'google-oauth2', accessToken: 'fc_at', expiresAt: Math.floor(Date.now() / 1000) + 86400 },
         { connection: "google-oauth2", login_hint: "000100123" }
       );
-      const [error, federatedConnectionTokenSet] = response;
+      const [error, connectionTokenSet] = response;
       expect(error).toBe(null);
-      expect(federatedConnectionTokenSet).toEqual({
+      expect(connectionTokenSet).toEqual({
         accessToken: 'fc_at',
         connection: "google-oauth2",
         expiresAt: expect.any(Number)
@@ -4626,7 +4626,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(fetchSpy).not.toHaveBeenCalled();
     });
 
-    it("should call for an access token when federated connection token set in the session is expired", async () => {
+    it("should call for an access token when connection token set in the session is expired", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({
         secret
@@ -4662,14 +4662,14 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expiresAt,
       };
 
-      const response = await authClient.getFederatedConnectionTokenSet(
+      const response = await authClient.getConnectionTokenSet(
         tokenSet,
         { connection: 'google-oauth2', accessToken: 'fc_at', expiresAt },
         { connection: "google-oauth2", login_hint: "000100123" }
       );
-      const [error, federatedConnectionTokenSet] = response;
+      const [error, connectionTokenSet] = response;
       expect(error).toBe(null);
-      expect(federatedConnectionTokenSet).toEqual({
+      expect(connectionTokenSet).toEqual({
         accessToken: DEFAULT.accessToken,
         connection: "google-oauth2",
         expiresAt: expect.any(Number)
@@ -4708,12 +4708,12 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expiresAt
       };
 
-      const [error, federatedConnectionTokenSet] =
-        await authClient.getFederatedConnectionTokenSet(tokenSet, undefined, {
+      const [error, connectionTokenSet] =
+        await authClient.getConnectionTokenSet(tokenSet, undefined, {
           connection: "google-oauth2"
         });
       expect(error?.code).toEqual("discovery_error");
-      expect(federatedConnectionTokenSet).toBeNull();
+      expect(connectionTokenSet).toBeNull();
     });
 
     it("should return an error if the token set does not contain a refresh token", async () => {
@@ -4744,12 +4744,12 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expiresAt
       };
 
-      const [error, federatedConnectionTokenSet] =
-        await authClient.getFederatedConnectionTokenSet(tokenSet, undefined, {
+      const [error, connectionTokenSet] =
+        await authClient.getConnectionTokenSet(tokenSet, undefined, {
           connection: "google-oauth2"
         });
       expect(error?.code).toEqual("missing_refresh_token");
-      expect(federatedConnectionTokenSet).toBeNull();
+      expect(connectionTokenSet).toBeNull();
     });
   });
 });
