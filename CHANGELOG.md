@@ -1,5 +1,16 @@
 # Change Log
 
+## [v4.0.2](https://github.com/auth0/nextjs-auth0/tree/v4.0.2) (2025-02-19)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.0.1...v4.0.2)
+
+**Changed**
+- Update API DOCs link on the README.md [\#1914](https://github.com/auth0/nextjs-auth0/pull/1914) ([nandan-bhat](https://github.com/nandan-bhat))
+- Updating API DOCs [\#1913](https://github.com/auth0/nextjs-auth0/pull/1913) ([nandan-bhat](https://github.com/nandan-bhat))
+
+**Fixed**
+- fix: read and migrate v3 session format to v4 [\#1923](https://github.com/auth0/nextjs-auth0/pull/1923) ([guabu](https://github.com/guabu))
+- fix/updateV4MigrationGuide [\#1925](https://github.com/auth0/nextjs-auth0/pull/1925) ([tusharpandey13](https://github.com/tusharpandey13))
+
 ## [v4.0.1](https://github.com/auth0/nextjs-auth0/releases/tag/v4.0.1) (2025-02-12)
 
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.0.0...v4.0.1)

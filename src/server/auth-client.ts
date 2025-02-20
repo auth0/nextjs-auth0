@@ -145,7 +145,7 @@ export class AuthClient {
       const timeout = options.httpTimeout ?? 5000;
       if (enableTelemetry) {
         const name = "nextjs-auth0";
-        const version = "4.0.1";
+        const version = "4.0.2";
 
         headers.set("User-Agent", `${name}/${version}`);
         headers.set(
@@ -390,14 +390,15 @@ export class AuthClient {
       return this.onCallback(new MissingStateError(), {}, null);
     }
 
-    const transactionState = await this.transactionStore.get(
+    const transactionStateCookie = await this.transactionStore.get(
       req.cookies,
       state
     );
-    if (!transactionState) {
+    if (!transactionStateCookie) {
       return this.onCallback(new InvalidStateError(), {}, null);
     }
 
+    const transactionState = transactionStateCookie.payload;
     const onCallbackCtx: OnCallbackContext = {
       returnTo: transactionState.returnTo
     };
