@@ -125,8 +125,8 @@
     "debug": "^4.3.4",
     "joi": "^17.6.0",
     "jose": "^4.9.2",
-    "oauth4webapi": "^2.3.0",
-    "openid-client": "^5.2.1",
+    "oauth4webapi": "^2.17.0",
+    "openid-client": "^5.7.1",
     "tslib": "^2.4.0",
     "url-join": "^4.0.1"
   },
