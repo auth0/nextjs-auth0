@@ -2146,6 +2146,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         tokenSet: {
           accessToken: DEFAULT.accessToken,
           refreshToken: DEFAULT.refreshToken,
+          idToken: expect.stringMatching(/^eyJhbGciOiJSUzI1NiJ9\..+\..+$/),
           expiresAt: expect.any(Number)
         },
         internal: {
@@ -2253,6 +2254,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         },
         tokenSet: {
           accessToken: DEFAULT.accessToken,
+          idToken: expect.any(String),
           refreshToken: DEFAULT.refreshToken,
           expiresAt: expect.any(Number)
         },
@@ -2597,6 +2599,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           tokenSet: {
             accessToken: DEFAULT.accessToken,
             refreshToken: DEFAULT.refreshToken,
+            idToken: expect.any(String),
             expiresAt: expect.any(Number)
           },
           internal: {
@@ -2990,6 +2993,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             tokenSet: {
               accessToken: DEFAULT.accessToken,
               refreshToken: DEFAULT.refreshToken,
+              idToken: expect.any(String),
               expiresAt: expect.any(Number)
             },
             internal: {
@@ -3084,6 +3088,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           tokenSet: {
             accessToken: DEFAULT.accessToken,
             refreshToken: DEFAULT.refreshToken,
+            idToken: expect.any(String),
             expiresAt: expect.any(Number)
           },
           internal: {
@@ -3213,6 +3218,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           tokenSet: {
             accessToken: DEFAULT.accessToken,
             refreshToken: DEFAULT.refreshToken,
+            idToken: expect.any(String),
             expiresAt: expect.any(Number)
           },
           internal: {
