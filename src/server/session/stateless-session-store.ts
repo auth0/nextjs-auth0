@@ -1,6 +1,6 @@
 import type { JWTPayload } from "jose";
 
-import { FederatedConnectionTokenSet, SessionData } from "../../types";
+import { ConnectionTokenSet, SessionData } from "../../types";
 import * as cookies from "../cookies";
 import {
   AbstractSessionStore,
@@ -18,7 +18,7 @@ interface StatelessSessionStoreOptions {
 }
 
 export class StatelessSessionStore extends AbstractSessionStore {
-  federatedConnectionTokenSetsCookieName = "__FC";
+  connectionTokenSetsCookieName = "__FC";
 
   constructor({
     secret,
@@ -48,13 +48,13 @@ export class StatelessSessionStore extends AbstractSessionStore {
       this.secret
     );
 
-    // As federated connection access tokens are stored in seperate cookies,
-    // we need to get all cookies and only use those that are prefixed with `this.federatedConnectionTokenSetsCookieName`
-    const federatedConnectionTokenSets = await Promise.all(
-      this.getFederatedConnectionTokenSetsCookies(reqCookies).map(
-        (fcatCookie) =>
-          cookies.decrypt<FederatedConnectionTokenSet>(
-            fcatCookie.value,
+    // As connection access tokens are stored in seperate cookies,
+    // we need to get all cookies and only use those that are prefixed with `this.connectionTokenSetsCookieName`
+    const connectionTokenSets = await Promise.all(
+      this.getConnectionTokenSetsCookies(reqCookies).map(
+        (cookie) =>
+          cookies.decrypt<ConnectionTokenSet>(
+            cookie.value,
             this.secret
           )
       )
@@ -62,9 +62,9 @@ export class StatelessSessionStore extends AbstractSessionStore {
 
     return {
       ...originalSession,
-      // Ensure that when there are no federated connection token sets, we omit the property.
-      ...(federatedConnectionTokenSets.length
-        ? { federatedConnectionTokenSets }
+      // Ensure that when there are no connection token sets, we omit the property.
+      ...(connectionTokenSets.length
+        ? { connectionTokenSets }
         : {})
     };
   }
@@ -77,7 +77,7 @@ export class StatelessSessionStore extends AbstractSessionStore {
     resCookies: cookies.ResponseCookies,
     session: SessionData
   ) {
-    const { federatedConnectionTokenSets, ...originalSession } = session;
+    const { connectionTokenSets, ...originalSession } = session;
     const maxAge = this.calculateMaxAge(session.internal.createdAt);
 
     await this.storeInCookie(
@@ -88,15 +88,15 @@ export class StatelessSessionStore extends AbstractSessionStore {
       maxAge
     );
 
-    // Store federated connection access tokens, each in its own cookie
-    if (federatedConnectionTokenSets?.length) {
+    // Store connection access tokens, each in its own cookie
+    if (connectionTokenSets?.length) {
       await Promise.all(
-        federatedConnectionTokenSets.map((federatedConnectionTokenSet, index) =>
+        connectionTokenSets.map((connectionTokenSet, index) =>
           this.storeInCookie(
             reqCookies,
             resCookies,
-            federatedConnectionTokenSet,
-            `${this.federatedConnectionTokenSetsCookieName}_${index}`,
+            connectionTokenSet,
+            `${this.connectionTokenSetsCookieName}_${index}`,
             maxAge
           )
         )
@@ -109,7 +109,7 @@ export class StatelessSessionStore extends AbstractSessionStore {
     resCookies: cookies.ResponseCookies
   ) {
     resCookies.delete(this.sessionCookieName);
-    this.getFederatedConnectionTokenSetsCookies(reqCookies).forEach((cookie) =>
+    this.getConnectionTokenSetsCookies(reqCookies).forEach((cookie) =>
       resCookies.delete(cookie.name)
     );
   }
@@ -157,13 +157,13 @@ export class StatelessSessionStore extends AbstractSessionStore {
     }
   }
 
-  private getFederatedConnectionTokenSetsCookies(
+  private getConnectionTokenSetsCookies(
     cookies: cookies.RequestCookies | cookies.ResponseCookies
   ) {
     return cookies
       .getAll()
       .filter((cookie) =>
-        cookie.name.startsWith(this.federatedConnectionTokenSetsCookieName)
+        cookie.name.startsWith(this.connectionTokenSetsCookieName)
       );
   }
 }
