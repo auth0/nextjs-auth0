@@ -165,7 +165,7 @@ The SDK mounts 6 routes:
 We appreciate feedback and contribution to this repo! Before you get started, please read the following:
 
 - [Auth0's general contribution guidelines](https://github.com/auth0/open-source-template/blob/master/GENERAL-CONTRIBUTING.md)
-- [Auth0's code of conduct guidelines](https://github.com/auth0/express-openid-connect/blob/master/CODE-OF-CONDUCT.md)
+- [Auth0's code of conduct guidelines](https://github.com/auth0/nextjs-auth0/blob/main/CODE-OF-CONDUCT.md)
 - [This repo's contribution guide](./CONTRIBUTING.md)
 
 ### Raise an issue
