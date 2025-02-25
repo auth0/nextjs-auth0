@@ -752,3 +752,24 @@ const sessionCookieValue = await generateSessionCookie(
   }
 )
 ```
+
+## Getting access tokens for connections
+You can retrieve access tokens for connections using the `getAccessTokenForConnection()` method of `AuthClient`. 
+This is an async method and can be run either from middleware, a client page or a server rendered page.
+Note that to cache these tokens retrieved from auth0, this needs to be called in the middleware:
+
+```typescript
+export async function middleware(request: NextRequest) {
+  const authResponse = await auth0.middleware(request);
+  const session = await auth0.getSession();
+  if (session) {
+    // cache token for google connection to session store
+    console.log(await auth0.getFederatedConnectionAccessToken({connection: 'google-oauth2'}));
+  }
+  return authResponse
+}
+```
+`connection` parameter is the federated connection string for the provider.  
+Here, we are accessing the token for `google-oauth2` connection.
+
+Upon further calls for the same provider, the cached value will be used until it expires.
