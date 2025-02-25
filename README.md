@@ -151,9 +151,9 @@ You can customize the client by using the options below:
 
 The SDK mounts 6 routes:
 
-1. `/auth/login`: the login route that the user will be redirected to to start a initiate an authentication transaction
-2. `/auth/logout`: the logout route that must be addedto your Auth0 application's Allowed Logout URLs
-3. `/auth/callback`: the callback route that must be addedto your Auth0 application's Allowed Callback URLs
+1. `/auth/login`: the login route that the user will be redirected to to initiate an authentication transaction
+2. `/auth/logout`: the logout route that must be added to your Auth0 application's Allowed Logout URLs
+3. `/auth/callback`: the callback route that must be added to your Auth0 application's Allowed Callback URLs
 4. `/auth/profile`: the route to check the user's session and return their attributes
 5. `/auth/access-token`: the route to check the user's session and return an access token (which will be automatically refreshed if a refresh token is available)
 6. `/auth/backchannel-logout`: the route that will receive a `logout_token` when a configured Back-Channel Logout initiator occurs
@@ -165,7 +165,7 @@ The SDK mounts 6 routes:
 We appreciate feedback and contribution to this repo! Before you get started, please read the following:
 
 - [Auth0's general contribution guidelines](https://github.com/auth0/open-source-template/blob/master/GENERAL-CONTRIBUTING.md)
-- [Auth0's code of conduct guidelines](https://github.com/auth0/express-openid-connect/blob/master/CODE-OF-CONDUCT.md)
+- [Auth0's code of conduct guidelines](https://github.com/auth0/nextjs-auth0/blob/main/CODE-OF-CONDUCT.md)
 - [This repo's contribution guide](./CONTRIBUTING.md)
 
 ### Raise an issue
@@ -189,5 +189,5 @@ Please do not report security vulnerabilities on the public GitHub issue tracker
   Auth0 is an easy to implement, adaptable authentication and authorization platform. To learn more checkout <a href="https://auth0.com/why-auth0">Why Auth0?</a>
 </p>
 <p align="center">
-  This project is licensed under the MIT license. See the <a href="https://github.com/auth0/express-openid-connect/blob/master/LICENSE"> LICENSE</a> file for more info.
+  This project is licensed under the MIT license. See the <a href="https://github.com/auth0/nextjs-auth0/blob/main/LICENSE"> LICENSE</a> file for more info.
 </p>
