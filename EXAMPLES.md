@@ -764,7 +764,7 @@ export async function middleware(request: NextRequest) {
   const session = await auth0.getSession();
   if (session) {
     // cache token for google connection to session store
-    console.log(await auth0.getFederatedConnectionAccessToken({connection: 'google-oauth2'}));
+    console.log(await auth0.getAccessTokenForConnection({connection: 'google-oauth2'}));
   }
   return authResponse
 }
