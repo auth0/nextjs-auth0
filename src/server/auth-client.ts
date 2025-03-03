@@ -107,6 +107,18 @@ export interface AuthClientOptions {
   enableTelemetry?: boolean;
 }
 
+function ensureTrailingSlash(value: string) {
+  return value && !value.endsWith('/') ? `${value}/` : value;
+}
+
+function ensureNoLeadingSlash(value: string) {
+  return value && value.startsWith('/') ? value.substring(1, value.length) : value;
+}
+
+function createRouteUrl(url: string, base: string) {
+  return new URL(ensureNoLeadingSlash(url), ensureTrailingSlash(base));
+}
+
 export class AuthClient {
   private transactionStore: TransactionStore;
   private sessionStore: AbstractSessionStore;
@@ -261,7 +273,7 @@ export class AuthClient {
   }
 
   async handleLogin(req: NextRequest): Promise<NextResponse> {
-    const redirectUri = new URL(this.routes.callback, this.appBaseUrl); // must be registed with the authorization server
+    const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registed with the authorization server
     const dangerousReturnTo = req.nextUrl.searchParams.get("returnTo");
     let returnTo = this.signInReturnToPath;
 
@@ -431,7 +443,7 @@ export class AuthClient {
       );
     }
 
-    const redirectUri = new URL(this.routes.callback, this.appBaseUrl); // must be registed with the authorization server
+    const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registed with the authorization server
     const codeGrantResponse = await oauth.authorizationCodeGrantRequest(
       authorizationServerMetadata,
       this.clientMetadata,
@@ -733,7 +745,7 @@ export class AuthClient {
     }
 
     const res = NextResponse.redirect(
-      new URL(ctx.returnTo || "/", this.appBaseUrl)
+      createRouteUrl(ctx.returnTo || "/", this.appBaseUrl)
     );
 
     return res;

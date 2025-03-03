@@ -806,6 +806,42 @@ ca/T0LLtgmbMmxSv/MmzIg==
       );
     });
 
+    it("should configure redirect_uri when appBaseUrl isnt the root", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: `${DEFAULT.appBaseUrl}/sub-path`,
+
+        fetch: getMockAuthorizationServer()
+      });
+      const request = new NextRequest(
+        new URL("/auth/login", DEFAULT.appBaseUrl),
+        {
+          method: "GET"
+        }
+      );
+
+      const response = await authClient.handleLogin(request);
+      const authorizationUrl = new URL(response.headers.get("Location")!);
+
+      expect(authorizationUrl.searchParams.get("redirect_uri")).toEqual(
+        `${DEFAULT.appBaseUrl}/sub-path/auth/callback`
+      );
+    });
+
     it("should return an error if the discovery endpoint could not be fetched", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({
