@@ -510,4 +510,10 @@ export class Auth0Client {
 
     return new RequestCookies(headers);
   }
+
+  async interactiveLogin(
+    params: Record<string, string> = {}
+  ): Promise<NextResponse> {
+    return this.authClient.startInteractiveLogin(params);
+  }
 }
