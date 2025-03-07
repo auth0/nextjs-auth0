@@ -85,3 +85,20 @@ export type {
   TransactionStoreOptions,
   TransactionState
 } from "../server/transaction-store";
+
+export interface InteractiveLoginAuthorizationParameters {
+  /**
+   * The scope of the access request, expressed as a list of space-delimited, case-sensitive strings.
+   */
+  scope?: string;
+  /**
+   * The unique identifier of the target API you want to access.
+   */
+  audience?: string;
+  /**
+   * The URL to which the authorization server will redirect the user after granting authorization.
+   */
+  redirect_uri?: string;
+
+  [key: string]: unknown;
+}

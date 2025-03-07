@@ -4,7 +4,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { NextApiRequest, NextApiResponse } from "next/types";
 
 import { AccessTokenError, AccessTokenErrorCode } from "../errors";
-import { SessionData, SessionDataStore } from "../types";
+import {
+  InteractiveLoginAuthorizationParameters,
+  SessionData,
+  SessionDataStore
+} from "../types";
 import {
   AuthClient,
   AuthorizationParameters,
@@ -512,7 +516,7 @@ export class Auth0Client {
   }
 
   async interactiveLogin(
-    params: Record<string, string> = {}
+    params: InteractiveLoginAuthorizationParameters
   ): Promise<NextResponse> {
     return this.authClient.startInteractiveLogin(params);
   }
