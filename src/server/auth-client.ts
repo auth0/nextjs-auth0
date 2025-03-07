@@ -14,7 +14,12 @@ import {
   OAuth2Error,
   SdkError
 } from "../errors";
-import { LogoutToken, SessionData, TokenSet } from "../types";
+import {
+  InteractiveLoginAuthorizationParameters,
+  LogoutToken,
+  SessionData,
+  TokenSet
+} from "../types";
 import { toSafeRedirect } from "../utils/url-helpers";
 import { AbstractSessionStore } from "./session/abstract-session-store";
 import { TransactionState, TransactionStore } from "./transaction-store";
@@ -275,10 +280,10 @@ export class AuthClient {
   }
 
   async startInteractiveLogin(
-    params: Record<string, string>
+    params: InteractiveLoginAuthorizationParameters
   ): Promise<NextResponse> {
     const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registed with the authorization server
-    const dangerousReturnTo = params?.["returnTo"];
+    const dangerousReturnTo = params?.["returnTo"] as string;
     let returnTo = this.signInReturnToPath;
 
     // Validate returnTo parameter
@@ -325,7 +330,7 @@ export class AuthClient {
         // any custom params to forward to /authorize passed as query parameters
         // do not set returnTo parameter (possibly maliciously injected)
         if (!INTERNAL_AUTHORIZE_PARAMS.includes(key) && key !== "returnTo") {
-          authorizationParams.set(key, val);
+          authorizationParams.set(key, val as string);
         }
       });
     }
