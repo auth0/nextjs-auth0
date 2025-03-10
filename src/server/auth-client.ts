@@ -15,7 +15,7 @@ import {
   SdkError
 } from "../errors";
 import {
-  InteractiveLoginAuthorizationParameters,
+  AuthorizationParameters,
   LoginOptions,
   LogoutToken,
   SessionData,
@@ -54,23 +54,6 @@ const INTERNAL_AUTHORIZE_PARAMS = [
 const DEFAULT_SCOPES = ["openid", "profile", "email", "offline_access"].join(
   " "
 );
-
-export interface AuthorizationParameters {
-  /**
-   * The list of scopes to request authorization for.
-   *
-   * Defaults to `"openid profile email offline_access"`.
-   */
-  scope?: string;
-  /**
-   * The maximum amount of time, in seconds, after which a user must reauthenticate.
-   */
-  max_age?: number;
-  /**
-   * Additional authorization parameters.
-   */
-  [key: string]: unknown;
-}
 
 export interface Routes {
   login: string;
@@ -316,24 +299,21 @@ export class AuthClient {
     authorizationParams.set("state", state);
     authorizationParams.set("nonce", nonce);
 
-    // any custom params to forward to /authorize defined as configuration
-    Object.entries(this.authorizationParameters).forEach(([key, val]) => {
+    const mergedAuthorizationParams: AuthorizationParameters = {
+      // any custom params to forward to /authorize defined as configuration
+      ...this.authorizationParameters,
+      // SECURITY CRITICAL: Only forward query params when PAR is disabled
+      // custom parameters passed in via the query params to ensure only the confidential client can set them
+      ...((!this.pushedAuthorizationRequests &&
+        options.authorizationParameters) ??
+        {})
+    };
+
+    Object.entries(mergedAuthorizationParams).forEach(([key, val]) => {
       if (!INTERNAL_AUTHORIZE_PARAMS.includes(key) && val != null) {
         authorizationParams.set(key, String(val));
       }
     });
-
-    // SECURITY CRITICAL: Only forward query params when PAR is disabled
-    // custom parameters passed in via the query params to ensure only the confidential client can set them
-    if (!this.pushedAuthorizationRequests && options.authorizationParams) {
-      Object.entries(options.authorizationParams).forEach(([key, val]) => {
-        // any custom params to forward to /authorize passed as query parameters
-        // do not set returnTo parameter (possibly maliciously injected)
-        if (!INTERNAL_AUTHORIZE_PARAMS.includes(key)) {
-          authorizationParams.set(key, val as string);
-        }
-      });
-    }
 
     // Prepare transaction state
     const transactionState: TransactionState = {
@@ -367,7 +347,7 @@ export class AuthClient {
   async handleLogin(req: NextRequest): Promise<NextResponse> {
     const searchParams = Object.fromEntries(req.nextUrl.searchParams.entries());
     const options: LoginOptions = {
-      authorizationParams: searchParams,
+      authorizationParameters: searchParams,
       returnTo: searchParams.returnTo
     };
     return this.startInteractiveLogin(options);
