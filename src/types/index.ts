@@ -86,6 +86,17 @@ export type {
   TransactionState
 } from "../server/transaction-store";
 
+export interface LoginOptions {
+  /**
+   * Authorization parameters to be passed to the authorization server.
+   */
+  authorizationParams?: InteractiveLoginAuthorizationParameters;
+  /**
+   * The URL to redirect to after a successful login.
+   */
+  returnTo?: string;
+}
+
 export interface InteractiveLoginAuthorizationParameters {
   /**
    * The scope of the access request, expressed as a list of space-delimited, case-sensitive strings.

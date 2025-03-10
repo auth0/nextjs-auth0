@@ -16,6 +16,7 @@ import {
 } from "../errors";
 import {
   InteractiveLoginAuthorizationParameters,
+  LoginOptions,
   LogoutToken,
   SessionData,
   TokenSet
@@ -280,19 +281,18 @@ export class AuthClient {
   }
 
   async startInteractiveLogin(
-    params: InteractiveLoginAuthorizationParameters
+    options: LoginOptions = {}
   ): Promise<NextResponse> {
     const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registed with the authorization server
-    const dangerousReturnTo = params?.["returnTo"] as string;
     let returnTo = this.signInReturnToPath;
 
     // Validate returnTo parameter
-    if (dangerousReturnTo) {
+    if (options.returnTo) {
       const safeBaseUrl = new URL(
         (this.authorizationParameters.redirect_uri as string | undefined) ||
           this.appBaseUrl
       );
-      const sanitizedReturnTo = toSafeRedirect(dangerousReturnTo, safeBaseUrl);
+      const sanitizedReturnTo = toSafeRedirect(options.returnTo, safeBaseUrl);
 
       if (sanitizedReturnTo) {
         returnTo = sanitizedReturnTo;
@@ -325,11 +325,11 @@ export class AuthClient {
 
     // SECURITY CRITICAL: Only forward query params when PAR is disabled
     // custom parameters passed in via the query params to ensure only the confidential client can set them
-    if (!this.pushedAuthorizationRequests) {
-      Object.entries(params).forEach(([key, val]) => {
+    if (!this.pushedAuthorizationRequests && options.authorizationParams) {
+      Object.entries(options.authorizationParams).forEach(([key, val]) => {
         // any custom params to forward to /authorize passed as query parameters
         // do not set returnTo parameter (possibly maliciously injected)
-        if (!INTERNAL_AUTHORIZE_PARAMS.includes(key) && key !== "returnTo") {
+        if (!INTERNAL_AUTHORIZE_PARAMS.includes(key)) {
           authorizationParams.set(key, val as string);
         }
       });
@@ -365,9 +365,12 @@ export class AuthClient {
   }
 
   async handleLogin(req: NextRequest): Promise<NextResponse> {
-    return this.startInteractiveLogin(
-      Object.fromEntries(req.nextUrl.searchParams.entries())
-    );
+    const searchParams = Object.fromEntries(req.nextUrl.searchParams.entries());
+    const options: LoginOptions = {
+      authorizationParams: searchParams,
+      returnTo: searchParams.returnTo
+    };
+    return this.startInteractiveLogin(options);
   }
 
   async handleLogout(req: NextRequest): Promise<NextResponse> {
