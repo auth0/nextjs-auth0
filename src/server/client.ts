@@ -4,11 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { NextApiRequest, NextApiResponse } from "next/types";
 
 import { AccessTokenError, AccessTokenErrorCode } from "../errors";
-import {
-  InteractiveLoginAuthorizationParameters,
-  SessionData,
-  SessionDataStore
-} from "../types";
+import { LoginOptions, SessionData, SessionDataStore } from "../types";
 import {
   AuthClient,
   AuthorizationParameters,
@@ -515,9 +511,7 @@ export class Auth0Client {
     return new RequestCookies(headers);
   }
 
-  async interactiveLogin(
-    params: InteractiveLoginAuthorizationParameters
-  ): Promise<NextResponse> {
-    return this.authClient.startInteractiveLogin(params);
+  async interactiveLogin(options: LoginOptions): Promise<NextResponse> {
+    return this.authClient.startInteractiveLogin(options);
   }
 }
