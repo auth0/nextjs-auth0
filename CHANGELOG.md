@@ -4,7 +4,6 @@
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.0.2...v4.0.3)
 
 **Fixed**
-- Enable ship usage [\#1949](https://github.com/auth0/nextjs-auth0/pull/1949) ([tusharpandey13](https://github.com/tusharpandey13))
 - Fix route matching when Next.js trailingSlash is enabled [\#1948](https://github.com/auth0/nextjs-auth0/pull/1948) ([tusharpandey13](https://github.com/tusharpandey13))
 - fix: allow appBaseUrl to not be the root [\#1941](https://github.com/auth0/nextjs-auth0/pull/1941) ([frederikprijck](https://github.com/frederikprijck))
 
