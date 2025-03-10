@@ -4,10 +4,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { NextApiRequest, NextApiResponse } from "next/types";
 
 import { AccessTokenError, AccessTokenErrorCode } from "../errors";
-import { LoginOptions, SessionData, SessionDataStore } from "../types";
+import {
+  AuthorizationParameters,
+  LoginOptions,
+  SessionData,
+  SessionDataStore
+} from "../types";
 import {
   AuthClient,
-  AuthorizationParameters,
   BeforeSessionSavedHook,
   OnCallbackHook,
   RoutesOptions
