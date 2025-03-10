@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import * as jose from "jose";
 import * as oauth from "oauth4webapi";
 
+import { version } from "../../package.json";
 import {
   AccessTokenError,
   AccessTokenErrorCode,
@@ -154,7 +155,6 @@ export class AuthClient {
       const timeout = options.httpTimeout ?? 5000;
       if (enableTelemetry) {
         const name = "nextjs-auth0";
-        const version = "4.0.2";
 
         headers.set("User-Agent", `${name}/${version}`);
         headers.set(
