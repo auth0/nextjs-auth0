@@ -6,9 +6,9 @@ import { NextApiRequest, NextApiResponse } from "next/types";
 import { AccessTokenError, AccessTokenErrorCode } from "../errors";
 import {
   AuthorizationParameters,
-  LoginOptions,
   SessionData,
-  SessionDataStore
+  SessionDataStore,
+  StartInteractiveLoginOptions
 } from "../types";
 import {
   AuthClient,
@@ -515,7 +515,9 @@ export class Auth0Client {
     return new RequestCookies(headers);
   }
 
-  async interactiveLogin(options: LoginOptions): Promise<NextResponse> {
+  async interactiveLogin(
+    options: StartInteractiveLoginOptions
+  ): Promise<NextResponse> {
     return this.authClient.startInteractiveLogin(options);
   }
 }

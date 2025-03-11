@@ -16,9 +16,9 @@ import {
 } from "../errors";
 import {
   AuthorizationParameters,
-  LoginOptions,
   LogoutToken,
   SessionData,
+  StartInteractiveLoginOptions,
   TokenSet
 } from "../types";
 import { toSafeRedirect } from "../utils/url-helpers";
@@ -264,7 +264,7 @@ export class AuthClient {
   }
 
   async startInteractiveLogin(
-    options: LoginOptions = {}
+    options: StartInteractiveLoginOptions = {}
   ): Promise<NextResponse> {
     const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registed with the authorization server
     let returnTo = this.signInReturnToPath;
@@ -302,11 +302,8 @@ export class AuthClient {
     const mergedAuthorizationParams: AuthorizationParameters = {
       // any custom params to forward to /authorize defined as configuration
       ...this.authorizationParameters,
-      // SECURITY CRITICAL: Only forward query params when PAR is disabled
       // custom parameters passed in via the query params to ensure only the confidential client can set them
-      ...((!this.pushedAuthorizationRequests &&
-        options.authorizationParameters) ??
-        {})
+      ...options.authorizationParameters
     };
 
     Object.entries(mergedAuthorizationParams).forEach(([key, val]) => {
@@ -346,8 +343,11 @@ export class AuthClient {
 
   async handleLogin(req: NextRequest): Promise<NextResponse> {
     const searchParams = Object.fromEntries(req.nextUrl.searchParams.entries());
-    const options: LoginOptions = {
-      authorizationParameters: searchParams,
+    const options: StartInteractiveLoginOptions = {
+      // SECURITY CRITICAL: Only forward query params when PAR is disabled
+      authorizationParameters: !this.pushedAuthorizationRequests
+        ? searchParams
+        : {},
       returnTo: searchParams.returnTo
     };
     return this.startInteractiveLogin(options);
