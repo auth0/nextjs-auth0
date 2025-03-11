@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import * as jose from "jose";
 import * as oauth from "oauth4webapi";
 
+import { version } from "../../package.json";
 import {
   AccessTokenError,
   AccessTokenErrorCode,
@@ -21,6 +22,11 @@ import {
   StartInteractiveLoginOptions,
   TokenSet
 } from "../types";
+import {
+  ensureNoLeadingSlash,
+  ensureTrailingSlash,
+  removeTrailingSlash
+} from "../utils/pathUtils";
 import { toSafeRedirect } from "../utils/url-helpers";
 import { AbstractSessionStore } from "./session/abstract-session-store";
 import { TransactionState, TransactionStore } from "./transaction-store";
@@ -96,16 +102,6 @@ export interface AuthClientOptions {
   enableTelemetry?: boolean;
 }
 
-function ensureTrailingSlash(value: string) {
-  return value && !value.endsWith("/") ? `${value}/` : value;
-}
-
-function ensureNoLeadingSlash(value: string) {
-  return value && value.startsWith("/")
-    ? value.substring(1, value.length)
-    : value;
-}
-
 function createRouteUrl(url: string, base: string) {
   return new URL(ensureNoLeadingSlash(url), ensureTrailingSlash(base));
 }
@@ -148,7 +144,6 @@ export class AuthClient {
       const timeout = options.httpTimeout ?? 5000;
       if (enableTelemetry) {
         const name = "nextjs-auth0";
-        const version = "4.0.2";
 
         headers.set("User-Agent", `${name}/${version}`);
         headers.set(
@@ -227,21 +222,25 @@ export class AuthClient {
 
   async handler(req: NextRequest): Promise<NextResponse> {
     const { pathname } = req.nextUrl;
+    const sanitizedPathname = removeTrailingSlash(pathname);
     const method = req.method;
 
-    if (method === "GET" && pathname === this.routes.login) {
+    if (method === "GET" && sanitizedPathname === this.routes.login) {
       return this.handleLogin(req);
-    } else if (method === "GET" && pathname === this.routes.logout) {
+    } else if (method === "GET" && sanitizedPathname === this.routes.logout) {
       return this.handleLogout(req);
-    } else if (method === "GET" && pathname === this.routes.callback) {
+    } else if (method === "GET" && sanitizedPathname === this.routes.callback) {
       return this.handleCallback(req);
-    } else if (method === "GET" && pathname === this.routes.profile) {
+    } else if (method === "GET" && sanitizedPathname === this.routes.profile) {
       return this.handleProfile(req);
-    } else if (method === "GET" && pathname === this.routes.accessToken) {
+    } else if (
+      method === "GET" &&
+      sanitizedPathname === this.routes.accessToken
+    ) {
       return this.handleAccessToken(req);
     } else if (
       method === "POST" &&
-      pathname === this.routes.backChannelLogout
+      sanitizedPathname === this.routes.backChannelLogout
     ) {
       return this.handleBackChannelLogout(req);
     } else {
