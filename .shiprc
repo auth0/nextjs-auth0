@@ -1,0 +1,6 @@
+{
+    "files": {
+        ".version": []
+    },
+    "postbump": "pnpm run docs"
+}

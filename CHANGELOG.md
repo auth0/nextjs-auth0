@@ -1,5 +1,12 @@
 # Change Log
 
+## [v4.0.3](https://github.com/auth0/nextjs-auth0/tree/v4.0.3) (2025-03-10)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.0.2...v4.0.3)
+
+**Fixed**
+- Fix route matching when Next.js trailingSlash is enabled [\#1948](https://github.com/auth0/nextjs-auth0/pull/1948) ([tusharpandey13](https://github.com/tusharpandey13))
+- fix: allow appBaseUrl to not be the root [\#1941](https://github.com/auth0/nextjs-auth0/pull/1941) ([frederikprijck](https://github.com/frederikprijck))
+
 ## [v4.0.2](https://github.com/auth0/nextjs-auth0/tree/v4.0.2) (2025-02-19)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.0.1...v4.0.2)
 
