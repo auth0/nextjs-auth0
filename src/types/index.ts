@@ -85,7 +85,7 @@ export type {
   TransactionState
 } from "../server/transaction-store";
 
-export interface LoginOptions {
+export interface StartInteractiveLoginOptions {
   /**
    * Authorization parameters to be passed to the authorization server.
    */
