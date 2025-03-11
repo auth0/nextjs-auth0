@@ -515,7 +515,7 @@ export class Auth0Client {
     return new RequestCookies(headers);
   }
 
-  async interactiveLogin(
+  async startInteractiveLogin(
     options: StartInteractiveLoginOptions
   ): Promise<NextResponse> {
     return this.authClient.startInteractiveLogin(options);
