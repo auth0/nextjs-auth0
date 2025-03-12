@@ -752,3 +752,41 @@ const sessionCookieValue = await generateSessionCookie(
   }
 )
 ```
+
+
+## Programmatic Pushed Authentication Requests (PAR)
+
+The method `startInteractiveLogin` can be called with authorizationParams to initiate an interactive login flow.  
+It's similar to the `handleLogin` method but `authorizationParams` are explicitly provided here.  
+The code collects authorization parameters on the server side rather than constructing them directly in the browser.
+
+```typescript
+// app/api/auth/login/route.ts
+import { getAuth0 } from '@auth0/nextjs-auth0';
+import { NextRequest } from 'next/server';
+import { auth0Config } from '@/auth0-config';
+
+export const GET = async (req: NextRequest) => {
+  const auth0 = getAuth0(auth0Config);
+  
+  try {
+    // Extract custom parameters from request URL if needed
+    const searchParams = Object.fromEntries(req.nextUrl.searchParams.entries());
+    
+    // Call startInteractiveLogin with optional parameters
+    return auth0.startInteractiveLogin({
+      returnTo: searchParams.returnTo || '/dashboard',
+      authorizationParameters: {
+        // Add any custom auth parameters
+        prompt: searchParams.prompt,
+        login_hint: searchParams.login_hint,
+        // You can specify a different audience for specific resources
+        audience: searchParams.audience || auth0Config.authorizationParams.audience
+      }
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    return new Response('Login failed', { status: 500 });
+  }
+};
+```
