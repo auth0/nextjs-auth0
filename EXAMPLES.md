@@ -752,3 +752,33 @@ const sessionCookieValue = await generateSessionCookie(
   }
 )
 ```
+
+
+## Programmatic Pushed Authentication Requests (PAR)
+
+The method `startInteractiveLogin` can be called with authorizationParams to initiate an interactive login flow.  
+The code collects authorization parameters on the server side rather than constructing them directly in the browser.
+
+```typescript
+// app/api/auth/login/route.ts
+import { auth0 } from "./lib/auth0";
+import { NextRequest } from "next/server";
+
+export const GET = async (req: NextRequest) => {
+  // Extract custom parameters from request URL if needed
+  const searchParams = Object.fromEntries(req.nextUrl.searchParams.entries());
+
+  // Call startInteractiveLogin with optional parameters
+  return auth0.startInteractiveLogin({
+    // a custom returnTo URL can be specified
+    returnTo: "/dashboard",
+    authorizationParameters: {
+      prompt: searchParams.prompt,
+      login_hint: searchParams.login_hint,
+      // Add any custom auth parameters if required
+      audience: "custom-audience"
+    }
+  });
+};
+
+```
