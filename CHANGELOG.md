@@ -1,5 +1,14 @@
 # Change Log
 
+## [v4.1.0](https://github.com/auth0/nextjs-auth0/tree/v4.1.0) (2025-03-13)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.0.3...v4.1.0)
+
+**Added**
+- Programmatic PAR [\#1946](https://github.com/auth0/nextjs-auth0/pull/1946) ([tusharpandey13](https://github.com/tusharpandey13))
+
+**Fixed**
+- fix: stop importing named export from package.json [\#1962](https://github.com/auth0/nextjs-auth0/pull/1962) ([tusharpandey13](https://github.com/tusharpandey13))
+
 ## [v4.0.3](https://github.com/auth0/nextjs-auth0/tree/v4.0.3) (2025-03-10)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.0.2...v4.0.3)
 
