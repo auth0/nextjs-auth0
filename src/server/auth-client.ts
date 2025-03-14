@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import * as jose from "jose";
 import * as oauth from "oauth4webapi";
 
+import packageJson from "../../package.json";
 import {
   AccessTokenError,
   AccessTokenErrorCode,
@@ -14,7 +15,18 @@ import {
   OAuth2Error,
   SdkError
 } from "../errors";
-import { LogoutToken, SessionData, TokenSet } from "../types";
+import {
+  AuthorizationParameters,
+  LogoutToken,
+  SessionData,
+  StartInteractiveLoginOptions,
+  TokenSet
+} from "../types";
+import {
+  ensureNoLeadingSlash,
+  ensureTrailingSlash,
+  removeTrailingSlash
+} from "../utils/pathUtils";
 import { toSafeRedirect } from "../utils/url-helpers";
 import { AbstractSessionStore } from "./session/abstract-session-store";
 import { TransactionState, TransactionStore } from "./transaction-store";
@@ -48,23 +60,6 @@ const INTERNAL_AUTHORIZE_PARAMS = [
 const DEFAULT_SCOPES = ["openid", "profile", "email", "offline_access"].join(
   " "
 );
-
-export interface AuthorizationParameters {
-  /**
-   * The list of scopes to request authorization for.
-   *
-   * Defaults to `"openid profile email offline_access"`.
-   */
-  scope?: string;
-  /**
-   * The maximum amount of time, in seconds, after which a user must reauthenticate.
-   */
-  max_age?: number;
-  /**
-   * Additional authorization parameters.
-   */
-  [key: string]: unknown;
-}
 
 export interface Routes {
   login: string;
@@ -107,6 +102,10 @@ export interface AuthClientOptions {
   enableTelemetry?: boolean;
 }
 
+function createRouteUrl(url: string, base: string) {
+  return new URL(ensureNoLeadingSlash(url), ensureTrailingSlash(base));
+}
+
 export class AuthClient {
   private transactionStore: TransactionStore;
   private sessionStore: AbstractSessionStore;
@@ -145,7 +144,7 @@ export class AuthClient {
       const timeout = options.httpTimeout ?? 5000;
       if (enableTelemetry) {
         const name = "nextjs-auth0";
-        const version = "4.0.2";
+        const version = packageJson.version;
 
         headers.set("User-Agent", `${name}/${version}`);
         headers.set(
@@ -224,21 +223,25 @@ export class AuthClient {
 
   async handler(req: NextRequest): Promise<NextResponse> {
     const { pathname } = req.nextUrl;
+    const sanitizedPathname = removeTrailingSlash(pathname);
     const method = req.method;
 
-    if (method === "GET" && pathname === this.routes.login) {
+    if (method === "GET" && sanitizedPathname === this.routes.login) {
       return this.handleLogin(req);
-    } else if (method === "GET" && pathname === this.routes.logout) {
+    } else if (method === "GET" && sanitizedPathname === this.routes.logout) {
       return this.handleLogout(req);
-    } else if (method === "GET" && pathname === this.routes.callback) {
+    } else if (method === "GET" && sanitizedPathname === this.routes.callback) {
       return this.handleCallback(req);
-    } else if (method === "GET" && pathname === this.routes.profile) {
+    } else if (method === "GET" && sanitizedPathname === this.routes.profile) {
       return this.handleProfile(req);
-    } else if (method === "GET" && pathname === this.routes.accessToken) {
+    } else if (
+      method === "GET" &&
+      sanitizedPathname === this.routes.accessToken
+    ) {
       return this.handleAccessToken(req);
     } else if (
       method === "POST" &&
-      pathname === this.routes.backChannelLogout
+      sanitizedPathname === this.routes.backChannelLogout
     ) {
       return this.handleBackChannelLogout(req);
     } else {
@@ -260,29 +263,33 @@ export class AuthClient {
     }
   }
 
-  async handleLogin(req: NextRequest): Promise<NextResponse> {
-    const redirectUri = new URL(this.routes.callback, this.appBaseUrl); // must be registed with the authorization server
-    const dangerousReturnTo = req.nextUrl.searchParams.get("returnTo");
+  async startInteractiveLogin(
+    options: StartInteractiveLoginOptions = {}
+  ): Promise<NextResponse> {
+    const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registed with the authorization server
     let returnTo = this.signInReturnToPath;
 
-    if (dangerousReturnTo) {
+    // Validate returnTo parameter
+    if (options.returnTo) {
       const safeBaseUrl = new URL(
         (this.authorizationParameters.redirect_uri as string | undefined) ||
           this.appBaseUrl
       );
-      const sanitizedReturnTo = toSafeRedirect(dangerousReturnTo, safeBaseUrl);
+      const sanitizedReturnTo = toSafeRedirect(options.returnTo, safeBaseUrl);
 
       if (sanitizedReturnTo) {
         returnTo = sanitizedReturnTo;
       }
     }
 
+    // Generate PKCE challenges
     const codeChallengeMethod = "S256";
     const codeVerifier = oauth.generateRandomCodeVerifier();
     const codeChallenge = await oauth.calculatePKCECodeChallenge(codeVerifier);
     const state = oauth.generateRandomState();
     const nonce = oauth.generateRandomNonce();
 
+    // Construct base authorization parameters
     const authorizationParams = new URLSearchParams();
     authorizationParams.set("client_id", this.clientMetadata.client_id);
     authorizationParams.set("redirect_uri", redirectUri.toString());
@@ -292,36 +299,30 @@ export class AuthClient {
     authorizationParams.set("state", state);
     authorizationParams.set("nonce", nonce);
 
-    // any custom params to forward to /authorize defined as configuration
-    Object.entries(this.authorizationParameters).forEach(([key, val]) => {
-      if (!INTERNAL_AUTHORIZE_PARAMS.includes(key)) {
-        if (val === null || val === undefined) {
-          return;
-        }
+    const mergedAuthorizationParams: AuthorizationParameters = {
+      // any custom params to forward to /authorize defined as configuration
+      ...this.authorizationParameters,
+      // custom parameters passed in via the query params to ensure only the confidential client can set them
+      ...options.authorizationParameters
+    };
 
+    Object.entries(mergedAuthorizationParams).forEach(([key, val]) => {
+      if (!INTERNAL_AUTHORIZE_PARAMS.includes(key) && val != null) {
         authorizationParams.set(key, String(val));
       }
     });
 
-    // custom parameters passed in via the query params to ensure only the confidential client can set them
-    if (!this.pushedAuthorizationRequests) {
-      // any custom params to forward to /authorize passed as query parameters
-      req.nextUrl.searchParams.forEach((val, key) => {
-        if (!INTERNAL_AUTHORIZE_PARAMS.includes(key)) {
-          authorizationParams.set(key, val);
-        }
-      });
-    }
-
+    // Prepare transaction state
     const transactionState: TransactionState = {
       nonce,
       maxAge: this.authorizationParameters.max_age,
-      codeVerifier: codeVerifier,
+      codeVerifier,
       responseType: "code",
       state,
       returnTo
     };
 
+    // Generate authorization URL with PAR handling
     const [error, authorizationUrl] =
       await this.authorizationUrl(authorizationParams);
     if (error) {
@@ -333,10 +334,23 @@ export class AuthClient {
       );
     }
 
+    // Set response and save transaction
     const res = NextResponse.redirect(authorizationUrl.toString());
     await this.transactionStore.save(res.cookies, transactionState);
 
     return res;
+  }
+
+  async handleLogin(req: NextRequest): Promise<NextResponse> {
+    const searchParams = Object.fromEntries(req.nextUrl.searchParams.entries());
+    const options: StartInteractiveLoginOptions = {
+      // SECURITY CRITICAL: Only forward query params when PAR is disabled
+      authorizationParameters: !this.pushedAuthorizationRequests
+        ? searchParams
+        : {},
+      returnTo: searchParams.returnTo
+    };
+    return this.startInteractiveLogin(options);
   }
 
   async handleLogout(req: NextRequest): Promise<NextResponse> {
@@ -431,7 +445,7 @@ export class AuthClient {
       );
     }
 
-    const redirectUri = new URL(this.routes.callback, this.appBaseUrl); // must be registed with the authorization server
+    const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registed with the authorization server
     const codeGrantResponse = await oauth.authorizationCodeGrantRequest(
       authorizationServerMetadata,
       this.clientMetadata,
@@ -733,7 +747,7 @@ export class AuthClient {
     }
 
     const res = NextResponse.redirect(
-      new URL(ctx.returnTo || "/", this.appBaseUrl)
+      createRouteUrl(ctx.returnTo || "/", this.appBaseUrl)
     );
 
     return res;
