@@ -140,7 +140,7 @@ export interface AccessTokenForConnectionOptions {
   connection: string;
 
   /**
-   * An optiona login hint to pass to the authorization server.
+   * An optional login hint to pass to the authorization server.
    */
   login_hint?: string;
 }
