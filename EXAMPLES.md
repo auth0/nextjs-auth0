@@ -32,6 +32,10 @@
   - [Custom routes](#custom-routes)
 - [Testing helpers](#testing-helpers)
   - [`generateSessionCookie`](#generatesessioncookie)
+- [Getting access tokens for connections](#getting-access-tokens-for-connections)
+  - [On the server (App Router)](#on-the-server-app-router-3)
+  - [On the server (Pages Router)](#on-the-server-pages-router-3)
+  - [Middleware](#middleware-3)
 
 ## Passing authorization parameters
 
@@ -754,22 +758,132 @@ const sessionCookieValue = await generateSessionCookie(
 ```
 
 ## Getting access tokens for connections
-You can retrieve access tokens for connections using the `getAccessTokenForConnection()` method of `AuthClient`. 
-This is an async method and can be run either from middleware, a client page or a server rendered page.
-Note that to cache these tokens retrieved from auth0, this needs to be called in the middleware:
+You can retrieve an access token for a connection using the `getAccessTokenForConnection()` method, which accepts an object with the following properties:
+- `connection`: The federated connection for which an access token should be retrieved.
+- `login_hint`: The optional login_hint parameter to pass to the `/authorize` endpoint.
 
-```typescript
-export async function middleware(request: NextRequest) {
-  const authResponse = await auth0.middleware(request);
-  const session = await auth0.getSession();
-  if (session) {
-    // cache token for google connection to session store
-    console.log(await auth0.getAccessTokenForConnection({connection: 'google-oauth2'}));
+### On the server (App Router)
+
+On the server, the `getAccessTokenForConnection()` helper can be used in Server Routes, Server Actions and Server Components to get an access token for a connection.
+
+> [!IMPORTANT]  
+> Server Components cannot set cookies. Calling `getAccessTokenForConnection()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not to be persisted.
+>
+> It is recommended to call `getAccessTokenForConnection(req, res)` in the middleware if you need to refresh the token in a Server Component as this will ensure the token is refreshed and correctly persisted.
+
+For example:
+
+```ts
+import { NextResponse } from "next/server"
+
+import { auth0 } from "@/lib/auth0"
+
+export async function GET() {
+  try {
+    const token = await auth0.getAccessTokenForConnection({ connection: 'google-oauth2' })
+    // call external API with token...
+  } catch (err) {
+    // err will be an instance of AccessTokenError if an access token could not be obtained
   }
-  return authResponse
+
+  return NextResponse.json({
+    message: "Success!",
+  })
 }
 ```
-`connection` parameter is the federated connection string for the provider.  
-Here, we are accessing the token for `google-oauth2` connection.
 
-Upon further calls for the same provider, the cached value will be used until it expires.
+### On the server (Pages Router)
+
+On the server, the `getAccessTokenForConnection({}, req, res)` helper can be used in `getServerSideProps` and API routes to get an access token for a connection, like so:
+
+```ts
+import type { NextApiRequest, NextApiResponse } from "next"
+
+import { auth0 } from "@/lib/auth0"
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse<{ message: string }>
+) {
+  try {
+    const token = await auth0.getAccessTokenForConnection({ connection: 'google-oauth2' }, req, res)
+  } catch (err) {
+    // err will be an instance of AccessTokenError if an access token could not be obtained
+  }
+
+  res.status(200).json({ message: "Success!" })
+}
+```
+
+### Middleware
+
+In middleware, the `getAccessTokenForConnection({}, req, res)` helper can be used to get an access token for a connection, like so:
+
+```tsx
+import { NextRequest, NextResponse } from "next/server"
+
+import { auth0 } from "@/lib/auth0"
+
+export async function middleware(request: NextRequest) {
+  const authRes = await auth0.middleware(request)
+
+  if (request.nextUrl.pathname.startsWith("/auth")) {
+    return authRes
+  }
+
+  const session = await auth0.getSession(request)
+
+  if (!session) {
+    // user is not authenticated, redirect to login page
+    return NextResponse.redirect(new URL("/auth/login", request.nextUrl.origin))
+  }
+
+  const accessToken = await auth0.getAccessTokenForConnection({ connection: 'google-oauth2' }, request, authRes)
+
+  // the headers from the auth middleware should always be returned
+  return authRes
+}
+```
+
+> [!IMPORTANT]  
+> The `request` and `response` objects must be passed as a parameters to the `getAccessTokenForConnection({}, request, response)` method when called from a middleware to ensure that the refreshed access token can be accessed within the same request.
+
+If you are using the Pages Router and are calling the `getAccessTokenForConnection` method in both the middleware and an API Route or `getServerSideProps`, it's recommended to propagate the headers from the middleware, as shown below. This will ensure that calling `getAccessTokenForConnection` in the API Route or `getServerSideProps` will not result in the access token being refreshed again.
+
+```ts
+import { NextRequest, NextResponse } from "next/server"
+
+import { auth0 } from "@/lib/auth0"
+
+export async function middleware(request: NextRequest) {
+  const authRes = await auth0.middleware(request)
+
+  if (request.nextUrl.pathname.startsWith("/auth")) {
+    return authRes
+  }
+
+  const session = await auth0.getSession(request)
+
+  if (!session) {
+    // user is not authenticated, redirect to login page
+    return NextResponse.redirect(new URL("/auth/login", request.nextUrl.origin))
+  }
+
+  const accessToken = await auth0.getAccessTokenForConnection({ connection: 'google-oauth2' }, request, authRes)
+
+  // create a new response with the updated request headers
+  const resWithCombinedHeaders = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  })
+
+  // set the response headers (set-cookie) from the auth response
+  authRes.headers.forEach((value, key) => {
+    resWithCombinedHeaders.headers.set(key, value)
+  })
+
+  // the headers from the auth middleware should always be returned
+  return resWithCombinedHeaders
+}
+```
