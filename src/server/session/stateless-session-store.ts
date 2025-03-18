@@ -1,4 +1,4 @@
-import { SessionData } from "../../types";
+import { CookieOptions, SessionData } from "../../types";
 import * as cookies from "../cookies";
 import {
   AbstractSessionStore,
@@ -39,8 +39,8 @@ export class StatelessSessionStore extends AbstractSessionStore {
 
   async get(reqCookies: cookies.RequestCookies) {
     const cookieValue =
-      reqCookies.get(this.sessionCookieName)?.value ||
-      reqCookies.get(LEGACY_COOKIE_NAME)?.value;
+      cookies.getChunkedCookie(this.sessionCookieName, reqCookies) ??
+      cookies.getChunkedCookie(LEGACY_COOKIE_NAME, reqCookies);
 
     if (!cookieValue) {
       return null;
@@ -64,33 +64,28 @@ export class StatelessSessionStore extends AbstractSessionStore {
     const jwe = await cookies.encrypt(session, this.secret);
     const maxAge = this.calculateMaxAge(session.internal.createdAt);
     const cookieValue = jwe.toString();
-
-    resCookies.set(this.sessionCookieName, jwe.toString(), {
+    const options: CookieOptions = {
       ...this.cookieConfig,
       maxAge
-    });
-    // to enable read-after-write in the same request for middleware
-    reqCookies.set(this.sessionCookieName, cookieValue);
+    };
 
-    // check if the session cookie size exceeds 4096 bytes, and if so, log a warning
-    const cookieJarSizeTest = new cookies.ResponseCookies(new Headers());
-    cookieJarSizeTest.set(this.sessionCookieName, cookieValue, {
-      ...this.cookieConfig,
-      maxAge
-    });
-    if (new TextEncoder().encode(cookieJarSizeTest.toString()).length >= 4096) {
-      console.warn(
-        "The session cookie size exceeds 4096 bytes, which may cause issues in some browsers. " +
-          "Consider removing any unnecessary custom claims from the access token or the user profile. " +
-          "Alternatively, you can use a stateful session implementation to store the session data in a data store."
-      );
-    }
+    cookies.setChunkedCookie(
+      this.sessionCookieName,
+      cookieValue,
+      options,
+      reqCookies,
+      resCookies
+    );
   }
 
   async delete(
     _reqCookies: cookies.RequestCookies,
     resCookies: cookies.ResponseCookies
   ) {
-    await resCookies.delete(this.sessionCookieName);
+    cookies.deleteChunkedCookie(
+      this.sessionCookieName,
+      _reqCookies,
+      resCookies
+    );
   }
 }
