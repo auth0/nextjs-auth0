@@ -1,4 +1,8 @@
-import { RequestCookies, ResponseCookies } from "@edge-runtime/cookies";
+import {
+  RequestCookie,
+  RequestCookies,
+  ResponseCookies
+} from "@edge-runtime/cookies";
 import hkdf from "@panva/hkdf";
 import * as jose from "jose";
 
@@ -118,3 +122,141 @@ export type ReadonlyRequestCookies = Omit<
   Pick<ResponseCookies, "set" | "delete">;
 export { ResponseCookies };
 export { RequestCookies };
+
+// Configuration
+const MAX_CHUNK_SIZE = 3500; // Slightly under 4KB
+const CHUNK_PREFIX = "__";
+const CHUNK_INDEX_REGEX = new RegExp(`${CHUNK_PREFIX}(\\d+)$`);
+const COOKIE_SIZE_WARNING_THRESHOLD = 4096;
+
+/**
+ * Retrieves the index of a cookie based on its name.
+ *
+ * @param name - The name of the cookie.
+ * @returns The index of the cookie. Returns undefined if no index is found.
+ */
+const getChunkedCookieIndex = (name: string): number | undefined => {
+  const match = CHUNK_INDEX_REGEX.exec(name);
+  if (!match) {
+    return undefined;
+  }
+  return parseInt(match[1], 10);
+};
+
+/**
+ * Retrieves all cookies from the request that have names starting with a specific prefix.
+ *
+ * @param reqCookies - The cookies from the request.
+ * @param name - The base name of the cookies to retrieve.
+ * @returns An array of cookies that have names starting with the specified prefix.
+ */
+const getAllChunkedCookies = (
+  reqCookies: RequestCookies,
+  name: string
+): RequestCookie[] => {
+  const PREFIX = `${name}${CHUNK_PREFIX}`;
+  return reqCookies.getAll().filter((cookie) => cookie.name.startsWith(PREFIX));
+};
+
+/**
+ * Splits cookie value into multiple chunks if needed
+ */
+export function setChunkedCookie(
+  name: string,
+  value: string,
+  options: CookieOptions,
+  reqCookies: RequestCookies,
+  resCookies: ResponseCookies
+): void {
+  const valueBytes = new TextEncoder().encode(value).length;
+
+  if (valueBytes > COOKIE_SIZE_WARNING_THRESHOLD) {
+    console.warn(
+      `The cookie size exceeds ${COOKIE_SIZE_WARNING_THRESHOLD} bytes, which may cause issues in some browsers. ` +
+        "Consider removing any unnecessary custom claims from the access token or the user profile. " +
+        "Alternatively, you can use a stateful session implementation to store the session data in a data store."
+    );
+  }
+
+  // If value fits in a single cookie, set it directly
+  if (valueBytes <= MAX_CHUNK_SIZE) {
+    resCookies.set(name, value, options);
+    // to enable read-after-write in the same request for middleware
+    reqCookies.set(name, value);
+    return;
+  }
+
+  // Split value into chunks
+  let position = 0;
+  let chunkIndex = 0;
+
+  while (position < value.length) {
+    const chunk = value.slice(position, position + MAX_CHUNK_SIZE);
+    const chunkName = `${name}${CHUNK_PREFIX}${chunkIndex}`;
+
+    resCookies.set(chunkName, chunk, options);
+    // to enable read-after-write in the same request for middleware
+    reqCookies.set(chunkName, chunk);
+    position += MAX_CHUNK_SIZE;
+    chunkIndex++;
+  }
+}
+
+/**
+ * Reconstructs cookie value from chunks
+ */
+export function getChunkedCookie(
+  name: string,
+  reqCookies: RequestCookies
+): string | undefined {
+  // Check if regular cookie exists
+  const cookie = reqCookies.get(name);
+  if (cookie?.value) {
+    return cookie.value;
+  }
+
+  const chunks = getAllChunkedCookies(reqCookies, name).sort(
+    // Extract index from cookie name and sort numerically
+    (first, second) => {
+      return (
+        getChunkedCookieIndex(first.name)! - getChunkedCookieIndex(second.name)!
+      );
+    }
+  );
+
+  if (chunks.length === 0) {
+    return undefined;
+  }
+
+  // Validate sequence integrity - check for missing chunks
+  const highestIndex = getChunkedCookieIndex(chunks[chunks.length - 1].name)!;
+  if (chunks.length !== highestIndex + 1) {
+    console.warn(
+      `Incomplete chunked cookie '${name}': Found ${chunks.length} chunks, expected ${highestIndex + 1}`
+    );
+
+    // TODO: Invalid sequence, delete all chunks
+    // deleteChunkedCookie(name, reqCookies, resCookies);
+
+    return undefined;
+  }
+
+  // Combine all chunks
+  return chunks.map((c) => c.value).join("");
+}
+
+/**
+ * Deletes all chunks of a cookie
+ */
+export function deleteChunkedCookie(
+  name: string,
+  reqCookies: RequestCookies,
+  resCookies: ResponseCookies
+): void {
+  // Delete main cookie
+  resCookies.delete(name);
+
+  getAllChunkedCookies(reqCookies, name).forEach((cookie) => {
+    resCookies.delete(cookie.name); // Delete each filtered cookie
+  });
+}
