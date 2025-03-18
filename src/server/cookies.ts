@@ -123,7 +123,7 @@ export type ReadonlyRequestCookies = Omit<
 export { ResponseCookies };
 export { RequestCookies };
 
-// Configuration
+// Chunked cookies Configuration
 const MAX_CHUNK_SIZE = 3500; // Slightly under 4KB
 const CHUNK_PREFIX = "__";
 const CHUNK_INDEX_REGEX = new RegExp(`${CHUNK_PREFIX}(\\d+)$`);
@@ -159,7 +159,18 @@ const getAllChunkedCookies = (
 };
 
 /**
- * Splits cookie value into multiple chunks if needed
+ * Sets a cookie with the given name and value, splitting it into chunks if necessary.
+ *
+ * If the value exceeds the maximum chunk size, it will be split into multiple cookies
+ * with names suffixed by a chunk index.
+ *
+ * @param name - The name of the cookie.
+ * @param value - The value to be stored in the cookie.
+ * @param options - Options for setting the cookie.
+ * @param reqCookies - The request cookies object, used to enable read-after-write in the same request for middleware.
+ * @param resCookies - The response cookies object, used to set the cookies in the response.
+ *
+ * @throws {Error} If the cookie size exceeds the warning threshold.
  */
 export function setChunkedCookie(
   name: string,
@@ -203,7 +214,13 @@ export function setChunkedCookie(
 }
 
 /**
- * Reconstructs cookie value from chunks
+ * Retrieves a chunked cookie by its name from the request cookies.
+ * If a regular cookie with the given name exists, it returns its value.
+ * Otherwise, it attempts to retrieve and combine all chunks of the cookie.
+ *
+ * @param name - The name of the cookie to retrieve.
+ * @param reqCookies - The request cookies object.
+ * @returns The combined value of the chunked cookie, or `undefined` if the cookie does not exist or is incomplete.
  */
 export function getChunkedCookie(
   name: string,
@@ -236,6 +253,7 @@ export function getChunkedCookie(
     );
 
     // TODO: Invalid sequence, delete all chunks
+    // this cannot be done here rn because we don't have access to the response cookies
     // deleteChunkedCookie(name, reqCookies, resCookies);
 
     return undefined;
@@ -246,7 +264,11 @@ export function getChunkedCookie(
 }
 
 /**
- * Deletes all chunks of a cookie
+ * Deletes a chunked cookie and all its associated chunks from the response cookies.
+ *
+ * @param name - The name of the main cookie to delete.
+ * @param reqCookies - The request cookies object containing all cookies from the request.
+ * @param resCookies - The response cookies object to manipulate the cookies in the response.
  */
 export function deleteChunkedCookie(
   name: string,
