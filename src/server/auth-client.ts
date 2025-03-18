@@ -1001,8 +1001,8 @@ export class AuthClient {
    * Then, it constructs the necessary parameters for the token exchange request and performs
    * the request to the authorization server's token endpoint.
    *
-   * @returns {Promise<[SdkError, null] | [null, ConnectionTokenSet]>} A promise that resolves to a tuple.
-   *          The first element is either an `SdkError` if an error occurred, or `null` if the request was successful.
+   * @returns {Promise<[AccessTokenForConnectionError, null] | [null, ConnectionTokenSet]>} A promise that resolves to a tuple.
+   *          The first element is either an `AccessTokenForConnectionError` if an error occurred, or `null` if the request was successful.
    *          The second element is either `null` if an error occurred, or a `ConnectionTokenSet` object
    *          containing the access token, expiration time, and scope if the request was successful.
    *
@@ -1012,7 +1012,7 @@ export class AuthClient {
     tokenSet: TokenSet,
     connectionTokenSet: ConnectionTokenSet | undefined,
     options: AccessTokenForConnectionOptions
-  ): Promise<[SdkError, null] | [null, ConnectionTokenSet]> {
+  ): Promise<[AccessTokenForConnectionError, null] | [null, ConnectionTokenSet]> {
     // If we do not have a refresh token
     // and we do not have a connection token set in the cache or the one we have is expired,
     // there is noting to retrieve and we return an error.
@@ -1024,7 +1024,7 @@ export class AuthClient {
       return [
         new AccessTokenForConnectionError(
           AccessTokenForConnectionErrorCode.MISSING_REFRESH_TOKEN,
-          "A refresh token was not present, Connection Access Token requires a refresh token. The user needs to re-authenticate."
+          "A refresh token was not present, Connection Access Token requires a refresh token. The user needs to re-authenticate.",
         ),
         null
       ];
@@ -1079,12 +1079,16 @@ export class AuthClient {
           this.clientMetadata,
           httpResponse
         );
-      } catch (err) {
+      } catch (err: any) {
         console.error(err);
         return [
           new AccessTokenForConnectionError(
             AccessTokenForConnectionErrorCode.FAILED_TO_EXCHANGE,
-            "There was an error trying to exchange the refresh token for a connection access token. Check the server logs for more information."
+            "There was an error trying to exchange the refresh token for a connection access token. Check the server logs for more information.",
+            new OAuth2Error({
+              code: err.error,
+              message: err.error_description
+            })
           ),
           null
         ];

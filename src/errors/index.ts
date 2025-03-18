@@ -128,16 +128,19 @@ export class AccessTokenForConnectionError extends SdkError {
    * The error code associated with the access token error.
    */
   public code: string;
+  public cause?: OAuth2Error;
 
   /**
    * Constructs a new `AccessTokenForConnectionError` instance.
    *
    * @param code - The error code.
    * @param message - The error message.
+   * @param cause - The OAuth2 cause of the error.
    */
-  constructor(code: string, message: string) {
+  constructor(code: string, message: string, cause?: OAuth2Error) {
     super(message);
     this.name = "AccessTokenForConnectionError";
     this.code = code;
+    this.cause = cause;
   }
 }

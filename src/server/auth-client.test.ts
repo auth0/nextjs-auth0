@@ -56,6 +56,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
   function getMockAuthorizationServer({
     tokenEndpointResponse,
+    tokenEndpointErrorResponse,
     discoveryResponse,
     audience,
     nonce,
@@ -63,6 +64,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     onParRequest
   }: {
     tokenEndpointResponse?: oauth.TokenEndpointResponse | oauth.OAuth2Error;
+    tokenEndpointErrorResponse?: oauth.OAuth2Error;
     discoveryResponse?: Response;
     audience?: string;
     nonce?: string;
@@ -96,6 +98,12 @@ ca/T0LLtgmbMmxSv/MmzIg==
             .setAudience(audience ?? DEFAULT.clientId)
             .setExpirationTime("2h")
             .sign(keyPair.privateKey);
+
+          if (tokenEndpointErrorResponse) {
+            return Response.json(tokenEndpointErrorResponse, {
+              status: 400
+            });
+          }
           return Response.json(
             tokenEndpointResponse ?? {
               token_type: "Bearer",
@@ -4528,7 +4536,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     });
   });
 
-  describe("getonnectionTokenSet", async () => {
+  describe("getConnectionTokenSet", async () => {
     it("should call for an access token when no connection token set in the session", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({
@@ -4608,18 +4616,22 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const tokenSet = {
         accessToken: DEFAULT.accessToken,
         refreshToken: DEFAULT.refreshToken,
-        expiresAt,
+        expiresAt
       };
 
       const response = await authClient.getConnectionTokenSet(
         tokenSet,
-        { connection: 'google-oauth2', accessToken: 'fc_at', expiresAt: Math.floor(Date.now() / 1000) + 86400 },
+        {
+          connection: "google-oauth2",
+          accessToken: "fc_at",
+          expiresAt: Math.floor(Date.now() / 1000) + 86400
+        },
         { connection: "google-oauth2", login_hint: "000100123" }
       );
       const [error, connectionTokenSet] = response;
       expect(error).toBe(null);
       expect(connectionTokenSet).toEqual({
-        accessToken: 'fc_at',
+        accessToken: "fc_at",
         connection: "google-oauth2",
         expiresAt: expect.any(Number)
       });
@@ -4659,12 +4671,12 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const tokenSet = {
         accessToken: DEFAULT.accessToken,
         refreshToken: DEFAULT.refreshToken,
-        expiresAt,
+        expiresAt
       };
 
       const response = await authClient.getConnectionTokenSet(
         tokenSet,
-        { connection: 'google-oauth2', accessToken: 'fc_at', expiresAt },
+        { connection: "google-oauth2", accessToken: "fc_at", expiresAt },
         { connection: "google-oauth2", login_hint: "000100123" }
       );
       const [error, connectionTokenSet] = response;
@@ -4749,6 +4761,50 @@ ca/T0LLtgmbMmxSv/MmzIg==
           connection: "google-oauth2"
         });
       expect(error?.code).toEqual("missing_refresh_token");
+      expect(connectionTokenSet).toBeNull();
+    });
+
+    it("should return an error and capture it as the cause when exchange failed", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        fetch: getMockAuthorizationServer({
+          tokenEndpointErrorResponse: {
+            error: "some-error-code",
+            error_description: "some-error-description"
+          }
+        })
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) - 10 * 24 * 60 * 60; // expired 10 days ago
+      const tokenSet = {
+        accessToken: DEFAULT.accessToken,
+        refreshToken: DEFAULT.refreshToken,
+        expiresAt
+      };
+
+      const [error, connectionTokenSet] =
+        await authClient.getConnectionTokenSet(tokenSet, undefined, {
+          connection: "google-oauth2"
+        });
+      expect(error?.code).toEqual("failed_to_exchange_refresh_token");
+      expect(error?.cause?.code).toEqual("some-error-code");
+      expect(error?.cause?.message).toEqual("some-error-description");
       expect(connectionTokenSet).toBeNull();
     });
   });
