@@ -154,8 +154,10 @@ const getAllChunkedCookies = (
   reqCookies: RequestCookies,
   name: string
 ): RequestCookie[] => {
-  const PREFIX = `${name}${CHUNK_PREFIX}`;
-  return reqCookies.getAll().filter((cookie) => cookie.name.startsWith(PREFIX));
+  const chunkedCookieRegex = new RegExp(`^${name}${CHUNK_PREFIX}\\d+$`);
+  return reqCookies
+    .getAll()
+    .filter((cookie) => chunkedCookieRegex.test(cookie.name));
 };
 
 /**
