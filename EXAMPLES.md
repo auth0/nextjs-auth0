@@ -32,7 +32,10 @@
   - [Custom routes](#custom-routes)
 - [Testing helpers](#testing-helpers)
   - [`generateSessionCookie`](#generatesessioncookie)
-
+- [Programmatically starting interactive login](#programmatically-starting-interactive-login)
+  - [Passing authorization parameters](#passing-authorization-parameters-1)
+  - [The `returnTo` parameter](#the-returnto-parameter-1)
+    - [Redirecting the user after authentication](#redirecting-the-user-after-authentication-1)
 
 ## Passing authorization parameters
 
