@@ -798,8 +798,10 @@ import { NextRequest } from "next/server";
 export const GET = async (req: NextRequest) => {
   // Call startInteractiveLogin with optional parameters
   return auth0.startInteractiveLogin({
-    scope: "openid profile email",
-    audience: "urn:custom:api",
+    authorizationParameters: {
+      scope: "openid profile email",
+      audience: "urn:custom:api",
+    }
   });
 };
 ```
