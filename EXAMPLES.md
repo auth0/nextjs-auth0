@@ -33,6 +33,7 @@
 - [Testing helpers](#testing-helpers)
   - [`generateSessionCookie`](#generatesessioncookie)
 
+
 ## Passing authorization parameters
 
 There are 2 ways to customize the authorization parameters that will be passed to the `/authorize` endpoint. The first option is through static configuration when instantiating the client, like so:
@@ -60,6 +61,10 @@ The `returnTo` parameter can be appended to the login to specify where you would
 
 For example: `/auth/login?returnTo=/dashboard` would redirect the user to the `/dashboard` route after they have authenticated.
 
+> [!NOTE]  
+> The URL specified as `returnTo` parameters must be registered in your client's **Allowed Callback URLs**.
+
+
 ### Redirecting the user after logging out
 
 The `returnTo` parameter can be appended to the logout to specify where you would like to redirect the user after they have logged out.
@@ -67,7 +72,7 @@ The `returnTo` parameter can be appended to the logout to specify where you woul
 For example: `/auth/login?returnTo=https://example.com/some-page` would redirect the user to the `https://example.com/some-page` URL after they have logged out.
 
 > [!NOTE]  
-> The URLs specified as `returnTo` parameters must be registered in your client's **Allowed Logout URLs**.
+> The URL specified as `returnTo` parameters must be registered in your client's **Allowed Logout URLs**.
 
 ## Accessing the authenticated user
 
@@ -754,31 +759,64 @@ const sessionCookieValue = await generateSessionCookie(
 ```
 
 
-## Programmatic Pushed Authentication Requests (PAR)
+## Programmatically starting interactive login
 
-The method `startInteractiveLogin` can be called with authorizationParams to initiate an interactive login flow.  
-The code collects authorization parameters on the server side rather than constructing them directly in the browser.
+Additionally to the ability to initialize the interactive login process by redirecting the user to the built-in `auth/login` endpoint,
+the `startInteractiveLogin` method can also be called programmatically.
 
 ```typescript
-// app/api/auth/login/route.ts
 import { auth0 } from "./lib/auth0";
 import { NextRequest } from "next/server";
 
 export const GET = async (req: NextRequest) => {
-  // Extract custom parameters from request URL if needed
-  const searchParams = Object.fromEntries(req.nextUrl.searchParams.entries());
+  return auth0.startInteractiveLogin();
+};
+```
 
+### Passing authorization parameters
+
+There are 2 ways to customize the authorization parameters that will be passed to the `/authorize` endpoint when calling `startInteractiveLogin` programmatically. The first option is through static configuration when instantiating the client, like so:
+
+```ts
+export const auth0 = new Auth0Client({
+  authorizationParameters: {
+    scope: "openid profile email",
+    audience: "urn:custom:api",
+  },
+});
+```
+
+The second option is by configuring `authorizationParams` when calling `startInteractiveLogin`:
+
+```ts
+import { auth0 } from "./lib/auth0";
+import { NextRequest } from "next/server";
+
+export const GET = async (req: NextRequest) => {
   // Call startInteractiveLogin with optional parameters
   return auth0.startInteractiveLogin({
-    // a custom returnTo URL can be specified
-    returnTo: "/dashboard",
-    authorizationParameters: {
-      prompt: searchParams.prompt,
-      login_hint: searchParams.login_hint,
-      // Add any custom auth parameters if required
-      audience: "custom-audience"
-    }
+    scope: "openid profile email",
+    audience: "urn:custom:api",
   });
 };
-
 ```
+
+## The `returnTo` parameter
+
+### Redirecting the user after authentication
+
+When calling `startInteractiveLogin`, the `returnTo` parameter can be configured to specify where you would like to redirect the user to after they have completed their authentication and have returned to your application.
+
+```ts
+import { auth0 } from "./lib/auth0";
+import { NextRequest } from "next/server";
+
+export const GET = async (req: NextRequest) => {
+  return auth0.startInteractiveLogin({
+    returnTo: '/dashboard',
+  });
+};
+```
+
+> [!NOTE]  
+> The URLs specified as `returnTo` parameters must be registered in your client's **Allowed Callback URLs**.
