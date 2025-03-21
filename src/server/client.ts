@@ -149,6 +149,19 @@ export interface Auth0ClientOptions {
    * via the `Auth0-Client` header. Defaults to `true`.
    */
   enableTelemetry?: boolean;
+
+  /**
+   * Boolean value to enable the `/auth/access-token` endpoint for use in the client app.
+   *
+   * Defaults to `true`.
+   *
+   * NOTE: Set this to `false` if your client does not need to directly interact with resource servers (Token Mediating Backend). This will be false for most apps.
+   *
+   * A security best practice is to disable this to avoid exposing access tokens to the client app.
+   *
+   * See: https://datatracker.ietf.org/doc/html/draft-ietf-oauth-browser-based-apps#name-token-mediating-backend
+   */
+  enableAccessTokenEndpoint?: boolean;
 }
 
 export type PagesRouterRequest = IncomingMessage | NextApiRequest;
