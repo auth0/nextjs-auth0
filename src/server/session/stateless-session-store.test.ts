@@ -476,7 +476,7 @@ describe("Stateless Session Store", async () => {
         secret
       });
 
-      expect(
+      await expect(
         sessionStore.delete(requestCookies, responseCookies)
       ).resolves.not.toThrow();
     });

@@ -117,7 +117,7 @@ describe("Transaction Store", async () => {
         secret
       });
 
-      expect(() =>
+      await expect(() =>
         transactionStore.save(responseCookies, transactionState)
       ).rejects.toThrowError();
     });
@@ -283,7 +283,7 @@ describe("Transaction Store", async () => {
         secret
       });
 
-      expect(
+      await expect(
         transactionStore.delete(responseCookies, "non-existent-state")
       ).resolves.not.toThrow();
     });

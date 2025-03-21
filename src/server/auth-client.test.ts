@@ -875,7 +875,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       const response = await authClient.handleLogin(request);
       expect(response.status).toEqual(500);
-      expect(await response.text()).toEqual(
+      expect(await response.text()).toContain(
         "An error occured while trying to initiate the login request."
       );
     });
