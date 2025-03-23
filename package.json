@@ -131,7 +131,7 @@
     "url-join": "^4.0.1"
   },
   "peerDependencies": {
-    "next": ">=10"
+    "next": "^10.0.0 || ^11.0.0 || ^12.0.0 || ^13.5.9 || ^14.2.25 || ^15.2.3"
   },
   "jest": {
     "collectCoverageFrom": [
