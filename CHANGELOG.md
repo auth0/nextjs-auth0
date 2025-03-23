@@ -1,5 +1,13 @@
 # Change Log
 
+## [v4.2.0](https://github.com/auth0/nextjs-auth0/tree/v4.2.0) (2025-03-23)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.1.0...v4.2.0)
+
+**Security**
+- Enforce nextjs peerDependency to 14.2.25 and 15.2.3 [\#1988](https://github.com/auth0/nextjs-auth0/pull/1988) ([frederikprijck](https://github.com/frederikprijck))
+
+The above security fix was done to help prevent customers being vulnerable to [Authorization Bypass in Next.js Middleware](https://github.com/advisories/GHSA-f82v-jwr5-mffw).
+
 ## [v4.1.0](https://github.com/auth0/nextjs-auth0/tree/v4.1.0) (2025-03-13)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.0.3...v4.1.0)
 
