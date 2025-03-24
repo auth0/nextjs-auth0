@@ -1,5 +1,11 @@
 # Change Log
 
+## [v4.2.1](https://github.com/auth0/nextjs-auth0/tree/v4.2.1) (2025-03-24)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.2.0...v4.2.1)
+
+**Changed**
+- Bump next in SDK as well as examples [\#1992](https://github.com/auth0/nextjs-auth0/pull/1992) ([frederikprijck](https://github.com/frederikprijck))
+
 ## [v4.2.0](https://github.com/auth0/nextjs-auth0/tree/v4.2.0) (2025-03-23)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.1.0...v4.2.0)
 
