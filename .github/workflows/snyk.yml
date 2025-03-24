@@ -4,6 +4,8 @@ on:
   merge_group:
   workflow_dispatch:
   pull_request:
+    branches-ignore:
+      - v3
     types:
       - opened
       - synchronize
