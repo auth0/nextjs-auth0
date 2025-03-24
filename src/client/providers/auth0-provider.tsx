@@ -16,7 +16,7 @@ export function Auth0Provider({
     <SWRConfig
       value={{
         fallback: {
-          "/auth/profile": user
+          [process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile"]: user
         }
       }}
     >
