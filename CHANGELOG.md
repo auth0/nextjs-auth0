@@ -1,5 +1,13 @@
 # Change Log
 
+## [v4.3.0](https://github.com/auth0/nextjs-auth0/tree/v4.3.0) (2025-03-28)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.2.1...v4.3.0)
+
+**Added**
+- Access Token Exposure Control [\#1979](https://github.com/auth0/nextjs-auth0/pull/1979) ([tusharpandey13](https://github.com/tusharpandey13))
+- Cookie chunking support [\#1975](https://github.com/auth0/nextjs-auth0/pull/1975) ([tusharpandey13](https://github.com/tusharpandey13))
+- Add idToken to TokenSet in SessionData [\#1978](https://github.com/auth0/nextjs-auth0/pull/1978) ([tusharpandey13](https://github.com/tusharpandey13))
+
 ## [v4.2.1](https://github.com/auth0/nextjs-auth0/tree/v4.2.1) (2025-03-24)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.2.0...v4.2.1)
 
