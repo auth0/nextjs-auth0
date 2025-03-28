@@ -193,6 +193,15 @@ export async function middleware(request: NextRequest) {
 > [!IMPORTANT]  
 > The `request` object must be passed as a parameter to the `getSession(request)` method when called from a middleware to ensure that any updates to the session can be read within the same request.
 
+## Accessing the idToken
+`idToken` can be accessed from the session in the following way:
+
+```js
+const session = await auth0.getSession();
+const idToken = session.tokenSet.idToken;
+```
+
+
 ## Updating the session
 
 The `updateSession` method could be used to update the session of the currently authenticated user in the App Router, Pages Router, and middleware. If the user does not have a session, an error will be thrown.
