@@ -100,6 +100,7 @@ export interface AuthClientOptions {
   allowInsecureRequests?: boolean;
   httpTimeout?: number;
   enableTelemetry?: boolean;
+  enableAccessTokenEndpoint?: boolean;
 }
 
 function createRouteUrl(url: string, base: string) {
@@ -132,6 +133,8 @@ export class AuthClient {
   private httpOptions: () => oauth.HttpRequestOptions<"GET" | "POST">;
 
   private authorizationServerMetadata?: oauth.AuthorizationServer;
+
+  private readonly enableAccessTokenEndpoint: boolean;
 
   constructor(options: AuthClientOptions) {
     // dependencies
@@ -219,6 +222,8 @@ export class AuthClient {
         process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
       ...options.routes
     };
+
+    this.enableAccessTokenEndpoint = options.enableAccessTokenEndpoint ?? true;
   }
 
   async handler(req: NextRequest): Promise<NextResponse> {
@@ -236,7 +241,8 @@ export class AuthClient {
       return this.handleProfile(req);
     } else if (
       method === "GET" &&
-      sanitizedPathname === this.routes.accessToken
+      sanitizedPathname === this.routes.accessToken &&
+      this.enableAccessTokenEndpoint
     ) {
       return this.handleAccessToken(req);
     } else if (
