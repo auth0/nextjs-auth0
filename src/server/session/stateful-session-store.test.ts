@@ -9,7 +9,7 @@ import {
   ResponseCookies,
   sign
 } from "../cookies";
-import { LegacySessionPayload } from "./normalize-session";
+import { LEGACY_COOKIE_NAME, LegacySessionPayload } from "./normalize-session";
 import { StatefulSessionStore } from "./stateful-session-store";
 
 describe("Stateful Session Store", async () => {
@@ -644,6 +644,45 @@ describe("Stateful Session Store", async () => {
         expect(cookie?.maxAge).toEqual(1800);
         expect(cookie?.secure).toEqual(false);
       });
+    });
+
+
+    it("should remove the legacy cookie if it exists", async () => {
+      const currentTime = Date.now();
+      const createdAt = Math.floor(currentTime / 1000);
+      const secret = await generateSecret(32);
+      const session: SessionData = {
+        user: { sub: "user_123" },
+        tokenSet: {
+          accessToken: "at_123",
+          refreshToken: "rt_123",
+          expiresAt: 123456
+        },
+        internal: {
+          sid: "auth0-sid",
+          createdAt
+        }
+      };
+      const store = {
+        get: vi.fn(),
+        set: vi.fn(),
+        delete: vi.fn()
+      };
+
+      const requestCookies = new RequestCookies(new Headers());
+      const responseCookies = new ResponseCookies(new Headers());
+
+      const sessionStore = new StatefulSessionStore({
+        secret,
+        store,
+      });
+
+      vi.spyOn(requestCookies, "has").mockReturnValue(true);
+      vi.spyOn(responseCookies, "delete");
+
+      await sessionStore.set(requestCookies, responseCookies, session);
+
+      expect(responseCookies.delete).toHaveBeenCalledWith(LEGACY_COOKIE_NAME);
     });
   });
 
