@@ -100,6 +100,7 @@ export interface AuthClientOptions {
   allowInsecureRequests?: boolean;
   httpTimeout?: number;
   enableTelemetry?: boolean;
+  enableAccessTokenEndpoint?: boolean;
 }
 
 function createRouteUrl(url: string, base: string) {
@@ -132,6 +133,8 @@ export class AuthClient {
   private httpOptions: () => oauth.HttpRequestOptions<"GET" | "POST">;
 
   private authorizationServerMetadata?: oauth.AuthorizationServer;
+
+  private readonly enableAccessTokenEndpoint: boolean;
 
   constructor(options: AuthClientOptions) {
     // dependencies
@@ -219,6 +222,8 @@ export class AuthClient {
         process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
       ...options.routes
     };
+
+    this.enableAccessTokenEndpoint = options.enableAccessTokenEndpoint ?? true;
   }
 
   async handler(req: NextRequest): Promise<NextResponse> {
@@ -236,7 +241,8 @@ export class AuthClient {
       return this.handleProfile(req);
     } else if (
       method === "GET" &&
-      sanitizedPathname === this.routes.accessToken
+      sanitizedPathname === this.routes.accessToken &&
+      this.enableAccessTokenEndpoint
     ) {
       return this.handleAccessToken(req);
     } else if (
@@ -490,6 +496,7 @@ export class AuthClient {
       user: idTokenClaims,
       tokenSet: {
         accessToken: oidcRes.access_token,
+        idToken: oidcRes.id_token,
         scope: oidcRes.scope,
         refreshToken: oidcRes.refresh_token,
         expiresAt: Math.floor(Date.now() / 1000) + Number(oidcRes.expires_in)
@@ -565,7 +572,6 @@ export class AuthClient {
         }
       );
     }
-
     const res = NextResponse.json({
       token: updatedTokenSet.accessToken,
       scope: updatedTokenSet.scope,
@@ -684,6 +690,7 @@ export class AuthClient {
       const updatedTokenSet = {
         ...tokenSet, // contains the existing `iat` claim to maintain the session lifetime
         accessToken: oauthRes.access_token,
+        idToken: oauthRes.id_token,
         expiresAt: accessTokenExpiresAt
       };
 

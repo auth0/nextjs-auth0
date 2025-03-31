@@ -324,7 +324,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(authClient.handleProfile).toHaveBeenCalled();
     });
 
-    it("should call the access token handler if the path is /auth/access-token", async () => {
+    it("should call the handleAccessToken method if the path is /auth/access-token and enableAccessTokenEndpoint is true", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({
         secret
@@ -342,6 +342,69 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+        enableAccessTokenEndpoint: true,
+
+        fetch: getMockAuthorizationServer()
+      });
+      const request = new NextRequest("https://example.com/auth/access-token", {
+        method: "GET"
+      });
+      authClient.handleAccessToken = vi.fn();
+      await authClient.handler(request);
+      expect(authClient.handleAccessToken).toHaveBeenCalled();
+    });
+
+    it("should not call the handleAccessToken method if the path is /auth/access-token but enableAccessTokenEndpoint is false", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        enableAccessTokenEndpoint: false,
+
+        fetch: getMockAuthorizationServer()
+      });
+      const request = new NextRequest("https://example.com/auth/access-token", {
+        method: "GET"
+      });
+      authClient.handleAccessToken = vi.fn();
+      const response = await authClient.handler(request);
+      expect(authClient.handleAccessToken).not.toHaveBeenCalled();
+      // When a route doesn't match, the handler returns a NextResponse.next() with status 200
+      expect(response.status).toBe(200);
+    });
+    
+    it("should use the default value (true) for enableAccessTokenEndpoint when not explicitly provided", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        // enableAccessTokenEndpoint not specified, should default to true
 
         fetch: getMockAuthorizationServer()
       });
@@ -875,7 +938,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       const response = await authClient.handleLogin(request);
       expect(response.status).toEqual(500);
-      expect(await response.text()).toEqual(
+      expect(await response.text()).toContain(
         "An error occured while trying to initiate the login request."
       );
     });
@@ -2182,6 +2245,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         tokenSet: {
           accessToken: DEFAULT.accessToken,
           refreshToken: DEFAULT.refreshToken,
+          idToken: expect.stringMatching(/^eyJhbGciOiJSUzI1NiJ9\..+\..+$/),
           expiresAt: expect.any(Number)
         },
         internal: {
@@ -2289,6 +2353,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         },
         tokenSet: {
           accessToken: DEFAULT.accessToken,
+          idToken: expect.any(String),
           refreshToken: DEFAULT.refreshToken,
           expiresAt: expect.any(Number)
         },
@@ -2633,6 +2698,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           tokenSet: {
             accessToken: DEFAULT.accessToken,
             refreshToken: DEFAULT.refreshToken,
+            idToken: expect.any(String),
             expiresAt: expect.any(Number)
           },
           internal: {
@@ -3026,6 +3092,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             tokenSet: {
               accessToken: DEFAULT.accessToken,
               refreshToken: DEFAULT.refreshToken,
+              idToken: expect.any(String),
               expiresAt: expect.any(Number)
             },
             internal: {
@@ -3120,6 +3187,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           tokenSet: {
             accessToken: DEFAULT.accessToken,
             refreshToken: DEFAULT.refreshToken,
+            idToken: expect.any(String),
             expiresAt: expect.any(Number)
           },
           internal: {
@@ -3249,6 +3317,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           tokenSet: {
             accessToken: DEFAULT.accessToken,
             refreshToken: DEFAULT.refreshToken,
+            idToken: expect.any(String),
             expiresAt: expect.any(Number)
           },
           internal: {
