@@ -213,6 +213,19 @@ export function setChunkedCookie(
     position += MAX_CHUNK_SIZE;
     chunkIndex++;
   }
+
+  // clear unused chunks
+  const chunks = getAllChunkedCookies(reqCookies, name);
+  const chunksToRemove = chunks.length - chunkIndex;
+
+  if (chunksToRemove > 0) {
+    for (let i = 0; i < chunksToRemove; i++) {
+      const chunkIndexToRemove = chunkIndex + i;
+      const chunkName = `${name}${CHUNK_PREFIX}${chunkIndexToRemove}`;
+      resCookies.delete(chunkName);
+      reqCookies.delete(chunkName);
+    }
+  }
 }
 
 /**
