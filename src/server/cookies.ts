@@ -196,6 +196,13 @@ export function setChunkedCookie(
     resCookies.set(name, value, options);
     // to enable read-after-write in the same request for middleware
     reqCookies.set(name, value);
+
+    // When we are writing a non-chunked cookie, we should remove the chunked cookies
+    getAllChunkedCookies(reqCookies, name).forEach(cookieChunk => {
+      resCookies.delete(cookieChunk.name);
+      reqCookies.delete(cookieChunk.name);
+    });
+
     return;
   }
 
@@ -226,6 +233,10 @@ export function setChunkedCookie(
       reqCookies.delete(chunkName);
     }
   }
+
+   // When we have written chunked cookies, we should remove the non-chunked cookie
+   resCookies.delete(name);
+   reqCookies.delete(name);
 }
 
 /**
