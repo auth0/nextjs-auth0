@@ -10,6 +10,8 @@ import {
   AuthorizationError,
   BackchannelLogoutError,
   DiscoveryError,
+  AccessTokenForConnectionError,
+  AccessTokenForConnectionErrorCode,
   InvalidStateError,
   MissingStateError,
   OAuth2Error,
@@ -17,6 +19,8 @@ import {
 } from "../errors";
 import {
   AuthorizationParameters,
+  ConnectionTokenSet,
+  AccessTokenForConnectionOptions,
   LogoutToken,
   SessionData,
   StartInteractiveLoginOptions,
@@ -60,6 +64,36 @@ const INTERNAL_AUTHORIZE_PARAMS = [
 const DEFAULT_SCOPES = ["openid", "profile", "email", "offline_access"].join(
   " "
 );
+
+
+/**
+ * A constant representing the grant type for federated connection access token exchange.
+ *
+ * This grant type is used in OAuth token exchange scenarios where a federated connection
+ * access token is required. It is specific to Auth0's implementation and follows the
+ * "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token" format.
+ */
+const GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN =
+  "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token";
+
+/**
+ * Constant representing the subject type for a refresh token.
+ * This is used in OAuth 2.0 token exchange to specify that the token being exchanged is a refresh token.
+ *
+ * @see {@link https://tools.ietf.org/html/rfc8693#section-3.1 RFC 8693 Section 3.1}
+ */
+const SUBJECT_TYPE_REFRESH_TOKEN =
+  "urn:ietf:params:oauth:token-type:refresh_token";
+
+/**
+ * A constant representing the token type for federated connection access tokens.
+ * This is used to specify the type of token being requested from Auth0.
+ *
+ * @constant
+ * @type {string}
+ */
+const REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN =
+  "http://auth0.com/oauth/token-type/federated-connection-access-token";
 
 export interface Routes {
   login: string;
@@ -957,6 +991,126 @@ export class AuthClient {
       this.domain.startsWith("https://")
       ? this.domain
       : `https://${this.domain}`;
+  }
+
+  /**
+   * Exchanges a refresh token for an access token for a connection.
+   *
+   * This method performs a token exchange using the provided refresh token and connection details.
+   * It first checks if the refresh token is present in the `tokenSet`. If not, it returns an error.
+   * Then, it constructs the necessary parameters for the token exchange request and performs
+   * the request to the authorization server's token endpoint.
+   *
+   * @returns {Promise<[AccessTokenForConnectionError, null] | [null, ConnectionTokenSet]>} A promise that resolves to a tuple.
+   *          The first element is either an `AccessTokenForConnectionError` if an error occurred, or `null` if the request was successful.
+   *          The second element is either `null` if an error occurred, or a `ConnectionTokenSet` object
+   *          containing the access token, expiration time, and scope if the request was successful.
+   *
+   * @throws {AccessTokenForConnectionError} If the refresh token is missing or if there is an error during the token exchange process.
+   */
+  async getConnectionTokenSet(
+    tokenSet: TokenSet,
+    connectionTokenSet: ConnectionTokenSet | undefined,
+    options: AccessTokenForConnectionOptions
+  ): Promise<[AccessTokenForConnectionError, null] | [null, ConnectionTokenSet]> {
+    // If we do not have a refresh token
+    // and we do not have a connection token set in the cache or the one we have is expired,
+    // there is noting to retrieve and we return an error.
+    if (
+      !tokenSet.refreshToken &&
+      (!connectionTokenSet ||
+        connectionTokenSet.expiresAt <= Date.now() / 1000)
+    ) {
+      return [
+        new AccessTokenForConnectionError(
+          AccessTokenForConnectionErrorCode.MISSING_REFRESH_TOKEN,
+          "A refresh token was not present, Connection Access Token requires a refresh token. The user needs to re-authenticate.",
+        ),
+        null
+      ];
+    }
+
+    // If we do have a refresh token,
+    // and we do not have a connection token set in the cache or the one we have is expired,
+    // we need to exchange the refresh token for a connection access token.
+    if (
+      tokenSet.refreshToken &&
+      (!connectionTokenSet ||
+        connectionTokenSet.expiresAt <= Date.now() / 1000)
+    ) {
+      const params = new URLSearchParams();
+
+      params.append("connection", options.connection);
+      params.append("subject_token_type", SUBJECT_TYPE_REFRESH_TOKEN);
+      params.append("subject_token", tokenSet.refreshToken);
+      params.append(
+        "requested_token_type",
+        REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN
+      );
+
+      if (options.login_hint) {
+        params.append("login_hint", options.login_hint);
+      }
+
+      const [discoveryError, authorizationServerMetadata] =
+        await this.discoverAuthorizationServerMetadata();
+
+      if (discoveryError) {
+        console.error(discoveryError);
+        return [discoveryError, null];
+      }
+
+      const httpResponse = await oauth.genericTokenEndpointRequest(
+        authorizationServerMetadata,
+        this.clientMetadata,
+        await this.getClientAuth(),
+        GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN,
+        params,
+        {
+          [oauth.customFetch]: this.fetch,
+          [oauth.allowInsecureRequests]: this.allowInsecureRequests
+        }
+      );
+
+      let tokenEndpointResponse: oauth.TokenEndpointResponse;
+      try {
+        tokenEndpointResponse = await oauth.processGenericTokenEndpointResponse(
+          authorizationServerMetadata,
+          this.clientMetadata,
+          httpResponse
+        );
+      } catch (err: any) {
+        console.error(err);
+        return [
+          new AccessTokenForConnectionError(
+            AccessTokenForConnectionErrorCode.FAILED_TO_EXCHANGE,
+            "There was an error trying to exchange the refresh token for a connection access token. Check the server logs for more information.",
+            new OAuth2Error({
+              code: err.error,
+              message: err.error_description
+            })
+          ),
+          null
+        ];
+      }
+
+      return [
+        null,
+        {
+          accessToken: tokenEndpointResponse.access_token,
+          expiresAt:
+            Math.floor(Date.now() / 1000) +
+            Number(tokenEndpointResponse.expires_in),
+          scope: tokenEndpointResponse.scope,
+          connection: options.connection
+        }
+      ];
+    }
+
+    return [null, connectionTokenSet] as [
+      null,
+      ConnectionTokenSet
+    ];
   }
 }
 
