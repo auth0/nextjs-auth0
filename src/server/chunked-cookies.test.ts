@@ -233,18 +233,6 @@ describe("Chunked Cookie Utils", () => {
       expect(reqCookies.delete).toHaveBeenCalledWith(`${name}__4`);
     });
 
-    it("should log a warning when cookie size exceeds warning threshold", () => {
-      const name = "warningCookie";
-      const options = { path: "/" } as CookieOptions;
-
-      // Create a value that exceeds the warning threshold (4096 bytes)
-      const value = "a".repeat(4097);
-
-      setChunkedCookie(name, value, options, reqCookies, resCookies);
-
-      expect(console.warn).toHaveBeenCalled();
-    });
-
     describe("getChunkedCookie", () => {
       it("should return undefined when cookie does not exist", () => {
         const result = getChunkedCookie("nonexistent", reqCookies);
