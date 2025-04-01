@@ -13,8 +13,6 @@
 - fix: Clean up cookie chunks when cookie size shrinks [\#2014](https://github.com/auth0/nextjs-auth0/pull/2014) ([frederikprijck](https://github.com/frederikprijck))
 - fix: use NEXT_PUBLIC_PROFILE_ROUTE in Auth0Provider [\#2021](https://github.com/auth0/nextjs-auth0/pull/2021) ([tusharpandey13](https://github.com/tusharpandey13))
 - fix: Ensure to pass-through enableAccessTokenEndpoint [\#2015](https://github.com/auth0/nextjs-auth0/pull/2015) ([frederikprijck](https://github.com/frederikprijck))
-
-**Removed**
 - fix: Remove obsolete warning about cookie-size [\#2012](https://github.com/auth0/nextjs-auth0/pull/2012) ([frederikprijck](https://github.com/frederikprijck))
 
 ## [v4.3.0](https://github.com/auth0/nextjs-auth0/tree/v4.3.0) (2025-03-28)
