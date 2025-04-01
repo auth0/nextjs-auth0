@@ -1,5 +1,22 @@
 # Change Log
 
+## [v4.4.0](https://github.com/auth0/nextjs-auth0/tree/v4.4.0) (2025-04-01)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.3.0...v4.4.0)
+
+**Added**
+- Add note about access-token endpoint to README [\#2020](https://github.com/auth0/nextjs-auth0/pull/2020) ([frederikprijck](https://github.com/frederikprijck))
+- Add support for Connection Access Token [\#2010](https://github.com/auth0/nextjs-auth0/pull/2010) ([frederikprijck](https://github.com/frederikprijck))
+
+**Fixed**
+- fix: Delete legacy cookie once v4 cookie is set [\#2019](https://github.com/auth0/nextjs-auth0/pull/2019) ([frederikprijck](https://github.com/frederikprijck))
+- fix: Ensure to delete cookies when switching from single to chunks and vica versa [\#2013](https://github.com/auth0/nextjs-auth0/pull/2013) ([frederikprijck](https://github.com/frederikprijck))
+- fix: Clean up cookie chunks when cookie size shrinks [\#2014](https://github.com/auth0/nextjs-auth0/pull/2014) ([frederikprijck](https://github.com/frederikprijck))
+- rebase onto contributors commit [\#2021](https://github.com/auth0/nextjs-auth0/pull/2021) ([tusharpandey13](https://github.com/tusharpandey13))
+- fix: Ensure to pass-through enableAccessTokenEndpoint [\#2015](https://github.com/auth0/nextjs-auth0/pull/2015) ([frederikprijck](https://github.com/frederikprijck))
+
+**Removed**
+- fix: Remove obsolete warning about cookie-size [\#2012](https://github.com/auth0/nextjs-auth0/pull/2012) ([frederikprijck](https://github.com/frederikprijck))
+
 ## [v4.3.0](https://github.com/auth0/nextjs-auth0/tree/v4.3.0) (2025-03-28)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.2.1...v4.3.0)
 
