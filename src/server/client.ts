@@ -3,9 +3,15 @@ import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { NextApiRequest, NextApiResponse } from "next/types";
 
-import { AccessTokenError, AccessTokenErrorCode } from "../errors";
+import {
+  AccessTokenError,
+  AccessTokenErrorCode,
+  AccessTokenForConnectionError,
+  AccessTokenForConnectionErrorCode,
+} from "../errors";
 import {
   AuthorizationParameters,
+  AccessTokenForConnectionOptions,
   SessionData,
   SessionDataStore,
   StartInteractiveLoginOptions
@@ -331,20 +337,9 @@ export class Auth0Client {
     req?: PagesRouterRequest | NextRequest,
     res?: PagesRouterResponse | NextResponse
   ): Promise<{ token: string; expiresAt: number; scope?: string }> {
-    let session: SessionData | null = null;
-
-    if (req) {
-      if (req instanceof NextRequest) {
-        // middleware usage
-        session = await this.sessionStore.get(req.cookies);
-      } else {
-        // pages router usage
-        session = await this.sessionStore.get(this.createRequestCookies(req));
-      }
-    } else {
-      // app router usage: Server Components, Server Actions, Route Handlers
-      session = await this.sessionStore.get(await cookies());
-    }
+    const session: SessionData | null = req
+      ? await this.getSession(req)
+      : await this.getSession();
 
     if (!session) {
       throw new AccessTokenError(
@@ -366,53 +361,137 @@ export class Auth0Client {
       tokenSet.expiresAt !== session.tokenSet.expiresAt ||
       tokenSet.refreshToken !== session.tokenSet.refreshToken
     ) {
-      if (req && res) {
-        if (req instanceof NextRequest && res instanceof NextResponse) {
-          // middleware usage
-          await this.sessionStore.set(req.cookies, res.cookies, {
-            ...session,
-            tokenSet
-          });
-        } else {
-          // pages router usage
-          const resHeaders = new Headers();
-          const resCookies = new ResponseCookies(resHeaders);
-          const pagesRouterRes = res as PagesRouterResponse;
-
-          await this.sessionStore.set(
-            this.createRequestCookies(req as PagesRouterRequest),
-            resCookies,
-            {
-              ...session,
-              tokenSet
-            }
-          );
-
-          for (const [key, value] of resHeaders.entries()) {
-            pagesRouterRes.setHeader(key, value);
-          }
-        }
-      } else {
-        // app router usage: Server Components, Server Actions, Route Handlers
-        try {
-          await this.sessionStore.set(await cookies(), await cookies(), {
-            ...session,
-            tokenSet
-          });
-        } catch (e) {
-          if (process.env.NODE_ENV === "development") {
-            console.warn(
-              "Failed to persist the updated token set. `getAccessToken()` was likely called from a Server Component which cannot set cookies."
-            );
-          }
-        }
-      }
+      await this.saveToSession(
+        {
+          ...session,
+          tokenSet
+        },
+        req,
+        res
+      );
     }
 
     return {
       token: tokenSet.accessToken,
       scope: tokenSet.scope,
       expiresAt: tokenSet.expiresAt
+    };
+  }
+
+  /**
+   * Retrieves an access token for a connection.
+   *
+   * This method can be used in Server Components, Server Actions, and Route Handlers in the **App Router**.
+   *
+   * NOTE: Server Components cannot set cookies. Calling `getAccessTokenForConnection()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not to be persisted.
+   * It is recommended to call `getAccessTokenForConnection(req, res)` in the middleware if you need to retrieve the access token in a Server Component to ensure the updated token set is persisted.
+   */
+  async getAccessTokenForConnection(
+    options: AccessTokenForConnectionOptions
+  ): Promise<{ token: string; expiresAt: number }>;
+
+  /**
+   * Retrieves an access token for a connection.
+   *
+   * This method can be used in middleware and `getServerSideProps`, API routes in the **Pages Router**.
+   */
+  async getAccessTokenForConnection(
+    options: AccessTokenForConnectionOptions,
+    req: PagesRouterRequest | NextRequest | undefined,
+    res: PagesRouterResponse | NextResponse | undefined
+  ): Promise<{ token: string; expiresAt: number }>;
+
+  /**
+   * Retrieves an access token for a connection.
+   *
+   * This method attempts to obtain an access token for a specified connection.
+   * It first checks if a session exists, either from the provided request or from cookies.
+   * If no session is found, it throws a `AccessTokenForConnectionError` indicating
+   * that the user does not have an active session.
+   *
+   * @param {AccessTokenForConnectionOptions} options - Options for retrieving an access token for a connection.
+   * @param {PagesRouterRequest | NextRequest} [req] - An optional request object from which to extract session information.
+   * @param {PagesRouterResponse | NextResponse} [res] - An optional response object from which to extract session information.
+   *
+   * @throws {AccessTokenForConnectionError} If the user does not have an active session.
+   * @throws {Error} If there is an error during the token exchange process.
+   *
+   * @returns {Promise<{ token: string; expiresAt: number; scope?: string }} An object containing the access token and its expiration time.
+   */
+  async getAccessTokenForConnection(
+    options: AccessTokenForConnectionOptions,
+    req?: PagesRouterRequest | NextRequest,
+    res?: PagesRouterResponse | NextResponse
+  ): Promise<{ token: string; expiresAt: number; scope?: string }> {
+    const session: SessionData | null = req
+      ? await this.getSession(req)
+      : await this.getSession();
+
+    if (!session) {
+      throw new AccessTokenForConnectionError(
+        AccessTokenForConnectionErrorCode.MISSING_SESSION,
+        "The user does not have an active session."
+      );
+    }
+
+    // Find the connection token set in the session
+    const existingTokenSet = session.connectionTokenSets?.find(
+      (tokenSet) => tokenSet.connection === options.connection
+    );
+
+    const [error, retrievedTokenSet] =
+      await this.authClient.getConnectionTokenSet(
+        session.tokenSet,
+        existingTokenSet,
+        options
+      );
+
+    if (error !== null) {
+      throw error;
+    }
+
+    // If we didnt have a corresponding connection token set in the session
+    // or if the one we have in the session does not match the one we received
+    // We want to update the store incase we retrieved a token set.
+    if (
+      retrievedTokenSet &&
+      (!existingTokenSet ||
+        retrievedTokenSet.accessToken !== existingTokenSet.accessToken ||
+        retrievedTokenSet.expiresAt !== existingTokenSet.expiresAt ||
+        retrievedTokenSet.scope !== existingTokenSet.scope)
+    ) {
+      let tokenSets;
+
+      // If we already had the connection token set in the session
+      // we need to update the item in the array
+      // If not, we need to add it.
+      if (existingTokenSet) {
+        tokenSets = session.connectionTokenSets?.map((tokenSet) =>
+          tokenSet.connection === options.connection
+            ? retrievedTokenSet
+            : tokenSet
+        );
+      } else {
+        tokenSets = [
+          ...(session.connectionTokenSets || []),
+          retrievedTokenSet
+        ];
+      }
+
+      await this.saveToSession(
+        {
+          ...session,
+          connectionTokenSets: tokenSets
+        },
+        req,
+        res
+      );
+    }
+
+    return {
+      token: retrievedTokenSet.accessToken,
+      scope: retrievedTokenSet.scope,
+      expiresAt: retrievedTokenSet.expiresAt
     };
   }
 
@@ -532,5 +611,44 @@ export class Auth0Client {
     options: StartInteractiveLoginOptions
   ): Promise<NextResponse> {
     return this.authClient.startInteractiveLogin(options);
+  }
+
+  private async saveToSession(
+    data: SessionData,
+    req?: PagesRouterRequest | NextRequest,
+    res?: PagesRouterResponse | NextResponse
+  ) {
+    if (req && res) {
+      if (req instanceof NextRequest && res instanceof NextResponse) {
+        // middleware usage
+        await this.sessionStore.set(req.cookies, res.cookies, data);
+      } else {
+        // pages router usage
+        const resHeaders = new Headers();
+        const resCookies = new ResponseCookies(resHeaders);
+        const pagesRouterRes = res as PagesRouterResponse;
+
+        await this.sessionStore.set(
+          this.createRequestCookies(req as PagesRouterRequest),
+          resCookies,
+          data
+        );
+
+        for (const [key, value] of resHeaders.entries()) {
+          pagesRouterRes.setHeader(key, value);
+        }
+      }
+    } else {
+      // app router usage: Server Components, Server Actions, Route Handlers
+      try {
+        await this.sessionStore.set(await cookies(), await cookies(), data);
+      } catch (e) {
+        if (process.env.NODE_ENV === "development") {
+          console.warn(
+            "Failed to persist the updated token set. `getAccessToken()` was likely called from a Server Component which cannot set cookies."
+          );
+        }
+      }
+    }
   }
 }

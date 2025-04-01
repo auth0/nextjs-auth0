@@ -185,6 +185,39 @@ describe("Stateless Session Store", async () => {
         });
       });
     });
+    it("should return the decrypted session cookie if it exists with connection", async () => {
+      const secret = await generateSecret(32);
+      const session: SessionData = {
+        user: { sub: "user_123" },
+        tokenSet: {
+          accessToken: "at_123",
+          refreshToken: "rt_123",
+          expiresAt: 123456
+        },
+        internal: {
+          sid: "auth0-sid",
+          createdAt: Math.floor(Date.now() / 1000)
+        },
+        federatedConnectionTokenSets: [
+          {
+            connection: "google-oauth",
+            accessToken: "google-at-123",
+            expiresAt: 123456
+          }
+        ]
+      };
+      const encryptedCookieValue = await encrypt(session, secret);
+
+      const headers = new Headers();
+      headers.append("cookie", `__session=${encryptedCookieValue}`);
+      const requestCookies = new RequestCookies(headers);
+
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+
+      expect(await sessionStore.get(requestCookies)).toEqual(session);
+    });
   });
 
   describe("set", async () => {
