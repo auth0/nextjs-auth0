@@ -158,6 +158,9 @@ The SDK mounts 6 routes:
 5. `/auth/access-token`: the route to check the user's session and return an access token (which will be automatically refreshed if a refresh token is available)
 6. `/auth/backchannel-logout`: the route that will receive a `logout_token` when a configured Back-Channel Logout initiator occurs
 
+> [!IMPORTANT]  
+> The `/auth/access-token` route is enabled by default, but is only neccessary when the access token is needed in the client. If this isn't something you need, you can disable this endpoint by setting `enableAccessTokenEndpoint` to `false`.
+
 ## Feedback
 
 ### Contributing
