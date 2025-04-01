@@ -127,7 +127,6 @@ export { RequestCookies };
 const MAX_CHUNK_SIZE = 3500; // Slightly under 4KB
 const CHUNK_PREFIX = "__";
 const CHUNK_INDEX_REGEX = new RegExp(`${CHUNK_PREFIX}(\\d+)$`);
-const COOKIE_SIZE_WARNING_THRESHOLD = 4096;
 
 /**
  * Retrieves the index of a cookie based on its name.
@@ -171,8 +170,6 @@ const getAllChunkedCookies = (
  * @param options - Options for setting the cookie.
  * @param reqCookies - The request cookies object, used to enable read-after-write in the same request for middleware.
  * @param resCookies - The response cookies object, used to set the cookies in the response.
- *
- * @throws {Error} If the cookie size exceeds the warning threshold.
  */
 export function setChunkedCookie(
   name: string,
@@ -183,19 +180,18 @@ export function setChunkedCookie(
 ): void {
   const valueBytes = new TextEncoder().encode(value).length;
 
-  if (valueBytes > COOKIE_SIZE_WARNING_THRESHOLD) {
-    console.warn(
-      `The cookie size exceeds ${COOKIE_SIZE_WARNING_THRESHOLD} bytes, which may cause issues in some browsers. ` +
-        "Consider removing any unnecessary custom claims from the access token or the user profile. " +
-        "Alternatively, you can use a stateful session implementation to store the session data in a data store."
-    );
-  }
-
   // If value fits in a single cookie, set it directly
   if (valueBytes <= MAX_CHUNK_SIZE) {
     resCookies.set(name, value, options);
     // to enable read-after-write in the same request for middleware
     reqCookies.set(name, value);
+
+    // When we are writing a non-chunked cookie, we should remove the chunked cookies
+    getAllChunkedCookies(reqCookies, name).forEach(cookieChunk => {
+      resCookies.delete(cookieChunk.name);
+      reqCookies.delete(cookieChunk.name);
+    });
+
     return;
   }
 
@@ -213,6 +209,23 @@ export function setChunkedCookie(
     position += MAX_CHUNK_SIZE;
     chunkIndex++;
   }
+
+  // clear unused chunks
+  const chunks = getAllChunkedCookies(reqCookies, name);
+  const chunksToRemove = chunks.length - chunkIndex;
+
+  if (chunksToRemove > 0) {
+    for (let i = 0; i < chunksToRemove; i++) {
+      const chunkIndexToRemove = chunkIndex + i;
+      const chunkName = `${name}${CHUNK_PREFIX}${chunkIndexToRemove}`;
+      resCookies.delete(chunkName);
+      reqCookies.delete(chunkName);
+    }
+  }
+
+   // When we have written chunked cookies, we should remove the non-chunked cookie
+   resCookies.delete(name);
+   reqCookies.delete(name);
 }
 
 /**
