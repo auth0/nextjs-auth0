@@ -1,5 +1,23 @@
 # Change Log
 
+## [v3.7.0](https://github.com/auth0/nextjs-auth0/tree/v3.7.0) (2025-03-24)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.6.0...v3.7.0)
+
+**Security**
+- Enforce nextjs peerDependency to 12.3.5, 13.5.9, 14.2.25 and 15.2.3 [\#1989](https://github.com/auth0/nextjs-auth0/pull/1989) ([frederikprijck](https://github.com/frederikprijck))
+
+The above security fix was done to help prevent customers being vulnerable to [Authorization Bypass in Next.js Middleware](https://github.com/advisories/GHSA-f82v-jwr5-mffw).
+
+## [v3.6.0](https://github.com/auth0/nextjs-auth0/tree/v3.6.0) (2025-01-31)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.5.0...v3.6.0)
+
+This is a maintainance release for V3 of the SDK.  
+V4 supports Next.JS 15 and React 19 and is published on [npm](https://www.npmjs.com/package/@auth0/nextjs-auth0)!  
+We will continue to add features and security upgrades in V4 going further. Please migrate to V4 for a better experience.
+
+**Security**
+- [bump jshttp/cookie from 0.6.0 to 0.7.1](https://github.com/auth0/nextjs-auth0/pull/1778)
+
 ## [v3.5.0](https://github.com/auth0/nextjs-auth0/tree/v3.5.0) (2023-12-06)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.4.0...v3.5.0)
 
