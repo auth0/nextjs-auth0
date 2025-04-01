@@ -147,6 +147,12 @@ export class StatefulSessionStore extends AbstractSessionStore {
 
     // to enable read-after-write in the same request for middleware
     reqCookies.set(this.sessionCookieName, jwe.toString());
+
+    // Any existing v3 cookie can also be deleted once we have set a v4 cookie.
+    // In stateful sessions, we do not have to worry about chunking.
+    if (reqCookies.has(LEGACY_COOKIE_NAME)) {
+      resCookies.delete(LEGACY_COOKIE_NAME);
+    }
   }
 
   async delete(
