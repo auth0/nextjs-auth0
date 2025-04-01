@@ -32,6 +32,14 @@
   - [Custom routes](#custom-routes)
 - [Testing helpers](#testing-helpers)
   - [`generateSessionCookie`](#generatesessioncookie)
+- [Programmatically starting interactive login](#programmatically-starting-interactive-login)
+  - [Passing authorization parameters](#passing-authorization-parameters-1)
+  - [The `returnTo` parameter](#the-returnto-parameter-1)
+    - [Redirecting the user after authentication](#redirecting-the-user-after-authentication-1)
+- [Getting access tokens for connections](#getting-access-tokens-for-connections)
+  - [On the server (App Router)](#on-the-server-app-router-3)
+  - [On the server (Pages Router)](#on-the-server-pages-router-3)
+  - [Middleware](#middleware-3)
 
 ## Passing authorization parameters
 
@@ -60,6 +68,10 @@ The `returnTo` parameter can be appended to the login to specify where you would
 
 For example: `/auth/login?returnTo=/dashboard` would redirect the user to the `/dashboard` route after they have authenticated.
 
+> [!NOTE]  
+> The URL specified as `returnTo` parameters must be registered in your client's **Allowed Callback URLs**.
+
+
 ### Redirecting the user after logging out
 
 The `returnTo` parameter can be appended to the logout to specify where you would like to redirect the user after they have logged out.
@@ -67,7 +79,7 @@ The `returnTo` parameter can be appended to the logout to specify where you woul
 For example: `/auth/login?returnTo=https://example.com/some-page` would redirect the user to the `https://example.com/some-page` URL after they have logged out.
 
 > [!NOTE]  
-> The URLs specified as `returnTo` parameters must be registered in your client's **Allowed Logout URLs**.
+> The URL specified as `returnTo` parameters must be registered in your client's **Allowed Logout URLs**.
 
 ## Accessing the authenticated user
 
@@ -184,6 +196,15 @@ export async function middleware(request: NextRequest) {
 
 > [!IMPORTANT]  
 > The `request` object must be passed as a parameter to the `getSession(request)` method when called from a middleware to ensure that any updates to the session can be read within the same request.
+
+## Accessing the idToken
+`idToken` can be accessed from the session in the following way:
+
+```js
+const session = await auth0.getSession();
+const idToken = session.tokenSet.idToken;
+```
+
 
 ## Updating the session
 
@@ -753,32 +774,200 @@ const sessionCookieValue = await generateSessionCookie(
 )
 ```
 
+## Programmatically starting interactive login
 
-## Programmatic Pushed Authentication Requests (PAR)
-
-The method `startInteractiveLogin` can be called with authorizationParams to initiate an interactive login flow.  
-The code collects authorization parameters on the server side rather than constructing them directly in the browser.
+Additionally to the ability to initialize the interactive login process by redirecting the user to the built-in `auth/login` endpoint,
+the `startInteractiveLogin` method can also be called programmatically.
 
 ```typescript
-// app/api/auth/login/route.ts
 import { auth0 } from "./lib/auth0";
 import { NextRequest } from "next/server";
 
 export const GET = async (req: NextRequest) => {
-  // Extract custom parameters from request URL if needed
-  const searchParams = Object.fromEntries(req.nextUrl.searchParams.entries());
+  return auth0.startInteractiveLogin();
+};
+```
 
+### Passing authorization parameters
+
+There are 2 ways to customize the authorization parameters that will be passed to the `/authorize` endpoint when calling `startInteractiveLogin` programmatically. The first option is through static configuration when instantiating the client, like so:
+
+```ts
+export const auth0 = new Auth0Client({
+  authorizationParameters: {
+    scope: "openid profile email",
+    audience: "urn:custom:api",
+  },
+});
+```
+
+The second option is by configuring `authorizationParams` when calling `startInteractiveLogin`:
+
+```ts
+import { auth0 } from "./lib/auth0";
+import { NextRequest } from "next/server";
+
+export const GET = async (req: NextRequest) => {
   // Call startInteractiveLogin with optional parameters
   return auth0.startInteractiveLogin({
-    // a custom returnTo URL can be specified
-    returnTo: "/dashboard",
     authorizationParameters: {
-      prompt: searchParams.prompt,
-      login_hint: searchParams.login_hint,
-      // Add any custom auth parameters if required
-      audience: "custom-audience"
+      scope: "openid profile email",
+      audience: "urn:custom:api",
     }
   });
 };
+```
 
+## The `returnTo` parameter
+
+### Redirecting the user after authentication
+
+When calling `startInteractiveLogin`, the `returnTo` parameter can be configured to specify where you would like to redirect the user to after they have completed their authentication and have returned to your application.
+
+```ts
+import { auth0 } from "./lib/auth0";
+import { NextRequest } from "next/server";
+
+export const GET = async (req: NextRequest) => {
+  return auth0.startInteractiveLogin({
+    returnTo: '/dashboard',
+  });
+};
+```
+
+> [!NOTE]  
+> The URLs specified as `returnTo` parameters must be registered in your client's **Allowed Callback URLs**.
+
+
+## Getting access tokens for connections
+You can retrieve an access token for a connection using the `getAccessTokenForConnection()` method, which accepts an object with the following properties:
+- `connection`: The federated connection for which an access token should be retrieved.
+- `login_hint`: The optional login_hint parameter to pass to the `/authorize` endpoint.
+
+### On the server (App Router)
+
+On the server, the `getAccessTokenForConnection()` helper can be used in Server Routes, Server Actions and Server Components to get an access token for a connection.
+
+> [!IMPORTANT]  
+> Server Components cannot set cookies. Calling `getAccessTokenForConnection()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not to be persisted.
+>
+> It is recommended to call `getAccessTokenForConnection(req, res)` in the middleware if you need to refresh the token in a Server Component as this will ensure the token is refreshed and correctly persisted.
+
+For example:
+
+```ts
+import { NextResponse } from "next/server"
+
+import { auth0 } from "@/lib/auth0"
+
+export async function GET() {
+  try {
+    const token = await auth0.getAccessTokenForConnection({ connection: 'google-oauth2' })
+    // call external API with token...
+  } catch (err) {
+    // err will be an instance of AccessTokenError if an access token could not be obtained
+  }
+
+  return NextResponse.json({
+    message: "Success!",
+  })
+}
+```
+
+Upon further calls for the same provider, the cached value will be used until it expires.
+
+### On the server (Pages Router)
+
+On the server, the `getAccessTokenForConnection({}, req, res)` helper can be used in `getServerSideProps` and API routes to get an access token for a connection, like so:
+
+```ts
+import type { NextApiRequest, NextApiResponse } from "next"
+
+import { auth0 } from "@/lib/auth0"
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse<{ message: string }>
+) {
+  try {
+    const token = await auth0.getAccessTokenForConnection({ connection: 'google-oauth2' }, req, res)
+  } catch (err) {
+    // err will be an instance of AccessTokenError if an access token could not be obtained
+  }
+
+  res.status(200).json({ message: "Success!" })
+}
+```
+
+### Middleware
+
+In middleware, the `getAccessTokenForConnection({}, req, res)` helper can be used to get an access token for a connection, like so:
+
+```tsx
+import { NextRequest, NextResponse } from "next/server"
+
+import { auth0 } from "@/lib/auth0"
+
+export async function middleware(request: NextRequest) {
+  const authRes = await auth0.middleware(request)
+
+  if (request.nextUrl.pathname.startsWith("/auth")) {
+    return authRes
+  }
+
+  const session = await auth0.getSession(request)
+
+  if (!session) {
+    // user is not authenticated, redirect to login page
+    return NextResponse.redirect(new URL("/auth/login", request.nextUrl.origin))
+  }
+
+  const accessToken = await auth0.getAccessTokenForConnection({ connection: 'google-oauth2' }, request, authRes)
+
+  // the headers from the auth middleware should always be returned
+  return authRes
+}
+```
+
+> [!IMPORTANT]  
+> The `request` and `response` objects must be passed as a parameters to the `getAccessTokenForConnection({}, request, response)` method when called from a middleware to ensure that the refreshed access token can be accessed within the same request.
+
+If you are using the Pages Router and are calling the `getAccessTokenForConnection` method in both the middleware and an API Route or `getServerSideProps`, it's recommended to propagate the headers from the middleware, as shown below. This will ensure that calling `getAccessTokenForConnection` in the API Route or `getServerSideProps` will not result in the access token being refreshed again.
+
+```ts
+import { NextRequest, NextResponse } from "next/server"
+
+import { auth0 } from "@/lib/auth0"
+
+export async function middleware(request: NextRequest) {
+  const authRes = await auth0.middleware(request)
+
+  if (request.nextUrl.pathname.startsWith("/auth")) {
+    return authRes
+  }
+
+  const session = await auth0.getSession(request)
+
+  if (!session) {
+    // user is not authenticated, redirect to login page
+    return NextResponse.redirect(new URL("/auth/login", request.nextUrl.origin))
+  }
+
+  const accessToken = await auth0.getAccessTokenForConnection({ connection: 'google-oauth2' }, request, authRes)
+
+  // create a new response with the updated request headers
+  const resWithCombinedHeaders = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  })
+
+  // set the response headers (set-cookie) from the auth response
+  authRes.headers.forEach((value, key) => {
+    resWithCombinedHeaders.headers.set(key, value)
+  })
+
+  // the headers from the auth middleware should always be returned
+  return resWithCombinedHeaders
+}
 ```
