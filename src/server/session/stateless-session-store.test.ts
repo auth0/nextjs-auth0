@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { generateSecret } from "../../test/utils";
 import { SessionData } from "../../types";
 import { decrypt, encrypt, RequestCookies, ResponseCookies } from "../cookies";
-import { LegacySession } from "./normalize-session";
+import { LEGACY_COOKIE_NAME, LegacySession } from "./normalize-session";
 import { StatelessSessionStore } from "./stateless-session-store";
 
 describe("Stateless Session Store", async () => {
@@ -312,6 +312,72 @@ describe("Stateless Session Store", async () => {
         expect(cookie?.sameSite).toEqual("lax");
         expect(cookie?.maxAge).toEqual(0); // cookie should expire immediately
         expect(cookie?.secure).toEqual(false);
+      });
+
+      it("should delete the legacy cookie if it exists", async () => {
+        const currentTime = Date.now();
+        const createdAt = Math.floor(currentTime / 1000);
+        const secret = await generateSecret(32);
+        const session: SessionData = {
+          user: { sub: "user_123" },
+          tokenSet: {
+            accessToken: "at_123",
+            refreshToken: "rt_123",
+            expiresAt: 123456
+          },
+          internal: {
+            sid: "auth0-sid",
+            createdAt
+          }
+        };
+        const requestCookies = new RequestCookies(new Headers());
+        const responseCookies = new ResponseCookies(new Headers());
+
+        const sessionStore = new StatelessSessionStore({
+          secret,
+        });
+
+        vi.spyOn(responseCookies, "delete");
+        vi.spyOn(requestCookies, "has").mockReturnValue(true);
+
+        await sessionStore.set(requestCookies, responseCookies, session);
+
+        expect(responseCookies.delete).toHaveBeenCalledWith(LEGACY_COOKIE_NAME);
+      });
+
+      it("should delete the legacy cookie chunks if they exists", async () => {
+        const currentTime = Date.now();
+        const createdAt = Math.floor(currentTime / 1000);
+        const secret = await generateSecret(32);
+        const session: SessionData = {
+          user: { sub: "user_123" },
+          tokenSet: {
+            accessToken: "at_123",
+            refreshToken: "rt_123",
+            expiresAt: 123456
+          },
+          internal: {
+            sid: "auth0-sid",
+            createdAt
+          }
+        };
+        const requestCookies = new RequestCookies(new Headers());
+        const responseCookies = new ResponseCookies(new Headers());
+
+        const sessionStore = new StatelessSessionStore({
+          secret,
+        });
+
+        vi.spyOn(responseCookies, "delete");
+        vi.spyOn(requestCookies, "getAll").mockReturnValue([
+          { name: `${LEGACY_COOKIE_NAME}__0`, value: '' },
+          { name: `${LEGACY_COOKIE_NAME}__1`, value: '' }
+        ]);
+
+        await sessionStore.set(requestCookies, responseCookies, session);
+
+        expect(responseCookies.delete).toHaveBeenCalledWith(`${LEGACY_COOKIE_NAME}__0`);
+        expect(responseCookies.delete).toHaveBeenCalledWith(`${LEGACY_COOKIE_NAME}__1`);
       });
     });
 
