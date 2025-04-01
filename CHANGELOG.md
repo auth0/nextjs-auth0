@@ -1,5 +1,11 @@
 # Change Log
 
+## [v4.4.0](https://github.com/auth0/nextjs-auth0/tree/v4.4.0) (2025-04-01)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.3.0...v4.4.0)
+
+**Added**
+- Add support for Connection Access Token [\#2010](https://github.com/auth0/nextjs-auth0/pull/2010) ([frederikprijck](https://github.com/frederikprijck))
+
 ## [v4.3.0](https://github.com/auth0/nextjs-auth0/tree/v4.3.0) (2025-03-28)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.2.1...v4.3.0)
 
