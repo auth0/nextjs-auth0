@@ -260,7 +260,8 @@ export class Auth0Client {
 
       allowInsecureRequests: options.allowInsecureRequests,
       httpTimeout: options.httpTimeout,
-      enableTelemetry: options.enableTelemetry
+      enableTelemetry: options.enableTelemetry,
+      enableAccessTokenEndpoint: options.enableAccessTokenEndpoint,
     });
   }
 
