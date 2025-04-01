@@ -11,7 +11,7 @@
 - fix: Delete legacy cookie once v4 cookie is set [\#2019](https://github.com/auth0/nextjs-auth0/pull/2019) ([frederikprijck](https://github.com/frederikprijck))
 - fix: Ensure to delete cookies when switching from single to chunks and vica versa [\#2013](https://github.com/auth0/nextjs-auth0/pull/2013) ([frederikprijck](https://github.com/frederikprijck))
 - fix: Clean up cookie chunks when cookie size shrinks [\#2014](https://github.com/auth0/nextjs-auth0/pull/2014) ([frederikprijck](https://github.com/frederikprijck))
-- rebase onto contributors commit [\#2021](https://github.com/auth0/nextjs-auth0/pull/2021) ([tusharpandey13](https://github.com/tusharpandey13))
+- fix: use NEXT_PUBLIC_PROFILE_ROUTE in Auth0Provider [\#2021](https://github.com/auth0/nextjs-auth0/pull/2021) ([tusharpandey13](https://github.com/tusharpandey13))
 - fix: Ensure to pass-through enableAccessTokenEndpoint [\#2015](https://github.com/auth0/nextjs-auth0/pull/2015) ([frederikprijck](https://github.com/frederikprijck))
 
 **Removed**
