@@ -166,6 +166,30 @@ describe("Chunked Cookie Utils", () => {
       );
     });
 
+    it("should clean up unused chunks when cookie shrinks", () => {
+      const name = "testCookie";
+      const options = { path: "/" } as CookieOptions;
+
+      const chunk0 = "chunk0 value";
+      const chunk1 = "chunk1 value";
+      const chunk2 = "chunk2 value";
+      const chunk3 = "chunk3 value";
+      const chunk4 = "chunk4 value";
+
+      cookieStore.set(`${name}__1`, chunk1);
+      cookieStore.set(`${name}__0`, chunk0);
+      cookieStore.set(`${name}__2`, chunk2);
+      cookieStore.set(`${name}__3`, chunk3);
+      cookieStore.set(`${name}__4`, chunk4);
+
+      const largeValue = "a".repeat(8000);
+      setChunkedCookie(name, largeValue, options, reqCookies, resCookies);
+
+      expect(reqCookies.delete).toHaveBeenCalledTimes(2); 
+      expect(reqCookies.delete).toHaveBeenCalledWith(`${name}__3`);
+      expect(reqCookies.delete).toHaveBeenCalledWith(`${name}__4`);
+    });
+
     it("should log a warning when cookie size exceeds warning threshold", () => {
       const name = "warningCookie";
       const options = { path: "/" } as CookieOptions;
