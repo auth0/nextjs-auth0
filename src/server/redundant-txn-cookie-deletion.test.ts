@@ -1,21 +1,21 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { NextRequest } from "next/server";
+import { NextRequest } from "next/server.js";
 import * as oauth from "oauth4webapi";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { InvalidStateError, MissingStateError } from "../errors";
-import { SessionData } from "../types";
-import { AuthClient, AuthClientOptions } from "./auth-client";
+import { InvalidStateError, MissingStateError } from "../errors/index.js";
+import { SessionData } from "../types/index.js";
+import { AuthClient, AuthClientOptions } from "./auth-client.js";
 import {
   ReadonlyRequestCookies,
   RequestCookies,
   ResponseCookies
-} from "./cookies";
+} from "./cookies.js";
 import {
   AbstractSessionStore,
   SessionStoreOptions
-} from "./session/abstract-session-store";
-import { TransactionStore } from "./transaction-store";
+} from "./session/abstract-session-store.js";
+import { TransactionStore } from "./transaction-store.js";
 
 vi.mock("./transaction-store");
 vi.mock("oauth4webapi");

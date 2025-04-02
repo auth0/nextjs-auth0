@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "next/server.js";
 import { describe, expect, it } from "vitest";
 
-import { generateSecret } from "../test/utils";
-import { addCacheControlHeadersForSession, decrypt, encrypt } from "./cookies";
+import { generateSecret } from "../test/utils.js";
+import { addCacheControlHeadersForSession, decrypt, encrypt } from "./cookies.js";
 
 describe("encrypt/decrypt", async () => {
   const secret = await generateSecret(32);
