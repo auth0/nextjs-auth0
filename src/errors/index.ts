@@ -185,7 +185,7 @@ export class ConfigurationError extends SdkError {
     // Add specific details for each missing option
     missingOptions.forEach((key) => {
       if (key === "clientAuthentication") {
-        errorMessage += `Missing: either 'clientSecret' (AUTH0_CLIENT_SECRET env var) or 'clientAssertionSigningKey' (AUTH0_CLIENT_ASSERTION_SIGNING_KEY env var)\n`;
+        errorMessage += `Missing: clientAuthentication: Set either AUTH0_CLIENT_SECRET env var or AUTH0_CLIENT_ASSERTION_SIGNING_KEY env var, or pass clientSecret or clientAssertionSigningKey in options\n`;
       } else if (envVarMapping[key]) {
         errorMessage += `Missing: ${key}: Set ${envVarMapping[key]} env var or pass ${key} in options\n`;
       } else {
