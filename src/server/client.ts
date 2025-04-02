@@ -184,12 +184,15 @@ export class Auth0Client {
 
   constructor(options: Auth0ClientOptions = {}) {
     // Extract and validate required options
-    const { domain, clientId, clientSecret, appBaseUrl, secret } =
-      this.validateAndExtractRequiredOptions(options);
+    const {
+      domain,
+      clientId,
+      clientSecret,
+      appBaseUrl,
+      secret,
+      clientAssertionSigningKey
+    } = this.validateAndExtractRequiredOptions(options);
 
-    const clientAssertionSigningKey =
-      options.clientAssertionSigningKey ||
-      process.env.AUTH0_CLIENT_ASSERTION_SIGNING_KEY;
     const clientAssertionSigningAlg =
       options.clientAssertionSigningAlg ||
       process.env.AUTH0_CLIENT_ASSERTION_SIGNING_ALG;
@@ -653,40 +656,73 @@ export class Auth0Client {
    * @throws ConfigurationError if any required option is missing
    */
   private validateAndExtractRequiredOptions(options: Auth0ClientOptions) {
+    // Base required options that are always needed
     const requiredOptions = {
       domain: options.domain ?? process.env.AUTH0_DOMAIN,
       clientId: options.clientId ?? process.env.AUTH0_CLIENT_ID,
-      clientSecret: options.clientSecret ?? process.env.AUTH0_CLIENT_SECRET,
       appBaseUrl: options.appBaseUrl ?? process.env.APP_BASE_URL,
       secret: options.secret ?? process.env.AUTH0_SECRET
     };
 
-    // Check for missing options and prepare error message in one operation
-    const missing: string[] = [];
-    let errorMsg = "";
+    // Check client authentication options - either clientSecret OR clientAssertionSigningKey must be provided
+    const clientSecret =
+      options.clientSecret ?? process.env.AUTH0_CLIENT_SECRET;
+    const clientAssertionSigningKey =
+      options.clientAssertionSigningKey ??
+      process.env.AUTH0_CLIENT_ASSERTION_SIGNING_KEY;
+    const hasClientAuthentication = !!(
+      clientSecret || clientAssertionSigningKey
+    );
 
-    for (const [key, value] of Object.entries(requiredOptions)) {
-      if (!value) {
-        missing.push(key);
-        errorMsg += `- ${key}: Set AUTH0_${key.toUpperCase()} env var or pass ${key} in options\n`;
-      }
+    const missing = Object.entries(requiredOptions)
+      .filter(([, value]) => !value)
+      .map(([key]) => key);
+
+    // Add client authentication error if neither option is provided
+    if (!hasClientAuthentication) {
+      missing.push("clientAuthentication");
     }
 
     if (missing.length) {
+      // Create the error message for all missing options
+      let errorMsg =
+        `Missing mandatory configuration: ${missing.join(", ")}\n` +
+        "Provide via constructor options or environment variables:\n";
+
+      // Map of option keys to their exact environment variable names
+      const envVarNames: Record<string, string> = {
+        domain: "AUTH0_DOMAIN",
+        clientId: "AUTH0_CLIENT_ID",
+        appBaseUrl: "APP_BASE_URL",
+        secret: "AUTH0_SECRET"
+      };
+
+      // Generate specific error messages for each missing option using the exact env var names
+      for (const key of missing) {
+        if (key === "clientAuthentication") {
+          errorMsg += `- Either provide 'clientSecret' (AUTH0_CLIENT_SECRET env var) or 'clientAssertionSigningKey' (AUTH0_CLIENT_ASSERTION_SIGNING_KEY env var)\n`;
+        } else {
+          errorMsg += `- ${key}: Set ${envVarNames[key]} env var or pass ${key} in options\n`;
+        }
+      }
+
       throw new ConfigurationError(
         ConfigurationErrorCode.MISSING_REQUIRED_OPTIONS,
-        `Missing mandatory configuration: ${missing.join(", ")}\n` +
-          "Provide via constructor options or environment variables:\n" +
-          errorMsg.trim(),
+        errorMsg.trim(),
         missing
       );
     }
 
+    // Prepare the result object with all validated options
+    const result = {
+      ...requiredOptions,
+      clientSecret,
+      clientAssertionSigningKey
+    };
+
     // Type-safe assignment after validation
-    return requiredOptions as {
-      [K in keyof typeof requiredOptions]: NonNullable<
-        (typeof requiredOptions)[K]
-      >;
+    return result as {
+      [K in keyof typeof result]: NonNullable<(typeof result)[K]>;
     };
   }
 }
