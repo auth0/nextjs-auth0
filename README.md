@@ -147,6 +147,21 @@ You can customize the client by using the options below:
 | httpTimeout                 | `number`                  | Integer value for the HTTP timeout in milliseconds for authentication requests. Defaults to `5000` milliseconds                                                                                                                        |
 | enableTelemetry             | `boolean`                 | Boolean value to opt-out of sending the library name and version to your authorization server via the `Auth0-Client` header. Defaults to `true`.                                                                                       |
 
+## Configuration Validation
+
+The SDK performs validation of required configuration options when initializing the `Auth0Client`. The following options are mandatory and must be provided either through constructor options or environment variables:
+
+- `domain` (or `AUTH0_DOMAIN` environment variable)
+- `clientId` (or `AUTH0_CLIENT_ID` environment variable)
+- `clientSecret` (or `AUTH0_CLIENT_SECRET` environment variable)
+- `appBaseUrl` (or `APP_BASE_URL` environment variable)
+- `secret` (or `AUTH0_SECRET` environment variable)
+
+If any of these required options are missing, the SDK will throw a `ConfigurationError` with the code `MISSING_REQUIRED_OPTIONS` and details about which specific options are missing. The error includes:
+
+- A list of missing options
+- Instructions on how to provide each missing option (via environment variable or constructor parameter)
+
 ## Routes
 
 The SDK mounts 6 routes:

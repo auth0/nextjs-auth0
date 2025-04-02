@@ -8,10 +8,12 @@ import {
   AccessTokenErrorCode,
   AccessTokenForConnectionError,
   AccessTokenForConnectionErrorCode,
+  ConfigurationError,
+  ConfigurationErrorCode
 } from "../errors";
 import {
-  AuthorizationParameters,
   AccessTokenForConnectionOptions,
+  AuthorizationParameters,
   SessionData,
   SessionDataStore,
   StartInteractiveLoginOptions
@@ -181,15 +183,9 @@ export class Auth0Client {
   private authClient: AuthClient;
 
   constructor(options: Auth0ClientOptions = {}) {
-    const domain = (options.domain || process.env.AUTH0_DOMAIN) as string;
-    const clientId = (options.clientId ||
-      process.env.AUTH0_CLIENT_ID) as string;
-    const clientSecret = (options.clientSecret ||
-      process.env.AUTH0_CLIENT_SECRET) as string;
-
-    const appBaseUrl = (options.appBaseUrl ||
-      process.env.APP_BASE_URL) as string;
-    const secret = (options.secret || process.env.AUTH0_SECRET) as string;
+    // Extract and validate required options
+    const { domain, clientId, clientSecret, appBaseUrl, secret } =
+      this.validateAndExtractRequiredOptions(options);
 
     const clientAssertionSigningKey =
       options.clientAssertionSigningKey ||
@@ -261,7 +257,7 @@ export class Auth0Client {
       allowInsecureRequests: options.allowInsecureRequests,
       httpTimeout: options.httpTimeout,
       enableTelemetry: options.enableTelemetry,
-      enableAccessTokenEndpoint: options.enableAccessTokenEndpoint,
+      enableAccessTokenEndpoint: options.enableAccessTokenEndpoint
     });
   }
 
@@ -473,10 +469,7 @@ export class Auth0Client {
             : tokenSet
         );
       } else {
-        tokenSets = [
-          ...(session.connectionTokenSets || []),
-          retrievedTokenSet
-        ];
+        tokenSets = [...(session.connectionTokenSets || []), retrievedTokenSet];
       }
 
       await this.saveToSession(
@@ -651,5 +644,49 @@ export class Auth0Client {
         }
       }
     }
+  }
+
+  /**
+   * Validates and extracts required configuration options.
+   * @param options The client options
+   * @returns The validated required options
+   * @throws ConfigurationError if any required option is missing
+   */
+  private validateAndExtractRequiredOptions(options: Auth0ClientOptions) {
+    const requiredOptions = {
+      domain: options.domain ?? process.env.AUTH0_DOMAIN,
+      clientId: options.clientId ?? process.env.AUTH0_CLIENT_ID,
+      clientSecret: options.clientSecret ?? process.env.AUTH0_CLIENT_SECRET,
+      appBaseUrl: options.appBaseUrl ?? process.env.APP_BASE_URL,
+      secret: options.secret ?? process.env.AUTH0_SECRET
+    };
+
+    // Check for missing options and prepare error message in one operation
+    const missing: string[] = [];
+    let errorMsg = "";
+
+    for (const [key, value] of Object.entries(requiredOptions)) {
+      if (!value) {
+        missing.push(key);
+        errorMsg += `- ${key}: Set AUTH0_${key.toUpperCase()} env var or pass ${key} in options\n`;
+      }
+    }
+
+    if (missing.length) {
+      throw new ConfigurationError(
+        ConfigurationErrorCode.MISSING_REQUIRED_OPTIONS,
+        `Missing mandatory configuration: ${missing.join(", ")}\n` +
+          "Provide via constructor options or environment variables:\n" +
+          errorMsg.trim(),
+        missing
+      );
+    }
+
+    // Type-safe assignment after validation
+    return requiredOptions as {
+      [K in keyof typeof requiredOptions]: NonNullable<
+        (typeof requiredOptions)[K]
+      >;
+    };
   }
 }

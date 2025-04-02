@@ -144,3 +144,39 @@ export class AccessTokenForConnectionError extends SdkError {
     this.cause = cause;
   }
 }
+
+/**
+ * Enum representing error codes related to configuration.
+ */
+export enum ConfigurationErrorCode {
+  /**
+   * Missing required configuration options.
+   */
+  MISSING_REQUIRED_OPTIONS = "missing_required_options"
+}
+
+/**
+ * Error class representing a configuration error.
+ * Extends the `SdkError` class.
+ */
+export class ConfigurationError extends SdkError {
+  /**
+   * The error code associated with the configuration error.
+   */
+  public code: string;
+  public missingOptions?: string[];
+
+  /**
+   * Constructs a new `ConfigurationError` instance.
+   *
+   * @param code - The error code.
+   * @param message - The error message.
+   * @param missingOptions - Optional array of missing configuration option names.
+   */
+  constructor(code: string, message: string, missingOptions?: string[]) {
+    super(message);
+    this.name = "ConfigurationError";
+    this.code = code;
+    this.missingOptions = missingOptions;
+  }
+}
