@@ -684,11 +684,6 @@ export class Auth0Client {
     }
 
     if (missing.length) {
-      // Create the error message for all missing options
-      let errorMsg =
-        `Missing mandatory configuration: ${missing.join(", ")}\n` +
-        "Provide via constructor options or environment variables:\n";
-
       // Map of option keys to their exact environment variable names
       const envVarNames: Record<string, string> = {
         domain: "AUTH0_DOMAIN",
@@ -697,19 +692,10 @@ export class Auth0Client {
         secret: "AUTH0_SECRET"
       };
 
-      // Generate specific error messages for each missing option using the exact env var names
-      for (const key of missing) {
-        if (key === "clientAuthentication") {
-          errorMsg += `- Either provide 'clientSecret' (AUTH0_CLIENT_SECRET env var) or 'clientAssertionSigningKey' (AUTH0_CLIENT_ASSERTION_SIGNING_KEY env var)\n`;
-        } else {
-          errorMsg += `- ${key}: Set ${envVarNames[key]} env var or pass ${key} in options\n`;
-        }
-      }
-
       throw new ConfigurationError(
         ConfigurationErrorCode.MISSING_REQUIRED_OPTIONS,
-        errorMsg.trim(),
-        missing
+        missing,
+        envVarNames
       );
     }
 

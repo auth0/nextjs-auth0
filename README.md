@@ -159,12 +159,7 @@ The SDK performs validation of required configuration options when initializing 
   - `clientSecret` (or `AUTH0_CLIENT_SECRET` environment variable), OR
   - `clientAssertionSigningKey` (or `AUTH0_CLIENT_ASSERTION_SIGNING_KEY` environment variable)
 
-If any of these required options are missing, the SDK will throw a `ConfigurationError` with the code `missing_required_options` and details about which specific options are missing. The error includes:
-
-- A list of missing options
-- Instructions on how to provide each missing option (via the correct environment variable or constructor parameter)
-
-Example of handling configuration errors:
+If any of these required options are missing, the SDK will throw a `ConfigurationError` with the code `MISSING_REQUIRED_OPTIONS` and a detailed error message explaining which options are missing and how to provide them.
 
 ## Routes
 

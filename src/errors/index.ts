@@ -170,11 +170,30 @@ export class ConfigurationError extends SdkError {
    * Constructs a new `ConfigurationError` instance.
    *
    * @param code - The error code.
-   * @param message - The error message.
-   * @param missingOptions - Optional array of missing configuration option names.
+   * @param missingOptions - Array of missing configuration option names.
+   * @param envVarMapping - Optional mapping of option names to their environment variable names.
    */
-  constructor(code: string, message: string, missingOptions?: string[]) {
-    super(message);
+  constructor(
+    code: string,
+    missingOptions: string[] = [],
+    envVarMapping: Record<string, string> = {}
+  ) {
+    // Standard intro message explaining the issue
+    let errorMessage =
+      "Not all required options where provided when creating an instance of Auth0Client. Ensure to provide all missing options, either by passing it to the Auth0Client constructor, or by setting the corresponding environment variable.\n\n";
+
+    // Add specific details for each missing option
+    missingOptions.forEach((key) => {
+      if (key === "clientAuthentication") {
+        errorMessage += `Missing: either 'clientSecret' (AUTH0_CLIENT_SECRET env var) or 'clientAssertionSigningKey' (AUTH0_CLIENT_ASSERTION_SIGNING_KEY env var)\n`;
+      } else if (envVarMapping[key]) {
+        errorMessage += `Missing: ${key}: Set ${envVarMapping[key]} env var or pass ${key} in options\n`;
+      } else {
+        errorMessage += `Missing: ${key}\n`;
+      }
+    });
+
+    super(errorMessage.trim());
     this.name = "ConfigurationError";
     this.code = code;
     this.missingOptions = missingOptions;

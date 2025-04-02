@@ -54,7 +54,10 @@ describe("Auth0Client", () => {
         expect(configError.missingOptions).toContain("appBaseUrl");
         expect(configError.missingOptions).toContain("secret");
 
-        // Check that error message contains correct environment variable names
+        // Check that error message contains specific text
+        expect(configError.message).toContain(
+          "Not all required options where provided"
+        );
         expect(configError.message).toContain(ENV_VARS.DOMAIN);
         expect(configError.message).toContain(ENV_VARS.CLIENT_ID);
         expect(configError.message).toContain(ENV_VARS.CLIENT_SECRET);
