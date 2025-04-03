@@ -8,10 +8,12 @@ import {
   AccessTokenErrorCode,
   AccessTokenForConnectionError,
   AccessTokenForConnectionErrorCode,
+  ConfigurationError,
+  ConfigurationErrorCode
 } from "../errors/index.js";
 import {
-  AuthorizationParameters,
   AccessTokenForConnectionOptions,
+  AuthorizationParameters,
   SessionData,
   SessionDataStore,
   StartInteractiveLoginOptions
@@ -98,7 +100,7 @@ export interface Auth0ClientOptions {
   /**
    * Configure the session timeouts and whether to use rolling sessions or not.
    *
-   * See [Session configuration](https://github.com/auth0/nextjs-auth0#session-configuration) for additional details.
+   * See [Session configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#session-configuration) for additional details.
    */
   session?: SessionConfiguration;
 
@@ -112,13 +114,13 @@ export interface Auth0ClientOptions {
   /**
    * A method to manipulate the session before persisting it.
    *
-   * See [beforeSessionSaved](https://github.com/auth0/nextjs-auth0#beforesessionsaved) for additional details
+   * See [beforeSessionSaved](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#beforesessionsaved) for additional details
    */
   beforeSessionSaved?: BeforeSessionSavedHook;
   /**
    * A method to handle errors or manage redirects after attempting to authenticate.
    *
-   * See [onCallback](https://github.com/auth0/nextjs-auth0#oncallback) for additional details
+   * See [onCallback](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#oncallback) for additional details
    */
   onCallback?: OnCallbackHook;
 
@@ -126,14 +128,14 @@ export interface Auth0ClientOptions {
   /**
    * A custom session store implementation used to persist sessions to a data store.
    *
-   * See [Database sessions](https://github.com/auth0/nextjs-auth0#database-sessions) for additional details.
+   * See [Database sessions](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#database-sessions) for additional details.
    */
   sessionStore?: SessionDataStore;
 
   /**
    * Configure the paths for the authentication routes.
    *
-   * See [Custom routes](https://github.com/auth0/nextjs-auth0#custom-routes) for additional details.
+   * See [Custom routes](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#custom-routes) for additional details.
    */
   routes?: RoutesOptions;
 
@@ -181,19 +183,16 @@ export class Auth0Client {
   private authClient: AuthClient;
 
   constructor(options: Auth0ClientOptions = {}) {
-    const domain = (options.domain || process.env.AUTH0_DOMAIN) as string;
-    const clientId = (options.clientId ||
-      process.env.AUTH0_CLIENT_ID) as string;
-    const clientSecret = (options.clientSecret ||
-      process.env.AUTH0_CLIENT_SECRET) as string;
+    // Extract and validate required options
+    const {
+      domain,
+      clientId,
+      clientSecret,
+      appBaseUrl,
+      secret,
+      clientAssertionSigningKey
+    } = this.validateAndExtractRequiredOptions(options);
 
-    const appBaseUrl = (options.appBaseUrl ||
-      process.env.APP_BASE_URL) as string;
-    const secret = (options.secret || process.env.AUTH0_SECRET) as string;
-
-    const clientAssertionSigningKey =
-      options.clientAssertionSigningKey ||
-      process.env.AUTH0_CLIENT_ASSERTION_SIGNING_KEY;
     const clientAssertionSigningAlg =
       options.clientAssertionSigningAlg ||
       process.env.AUTH0_CLIENT_ASSERTION_SIGNING_ALG;
@@ -261,7 +260,7 @@ export class Auth0Client {
       allowInsecureRequests: options.allowInsecureRequests,
       httpTimeout: options.httpTimeout,
       enableTelemetry: options.enableTelemetry,
-      enableAccessTokenEndpoint: options.enableAccessTokenEndpoint,
+      enableAccessTokenEndpoint: options.enableAccessTokenEndpoint
     });
   }
 
@@ -473,10 +472,7 @@ export class Auth0Client {
             : tokenSet
         );
       } else {
-        tokenSets = [
-          ...(session.connectionTokenSets || []),
-          retrievedTokenSet
-        ];
+        tokenSets = [...(session.connectionTokenSets || []), retrievedTokenSet];
       }
 
       await this.saveToSession(
@@ -651,5 +647,68 @@ export class Auth0Client {
         }
       }
     }
+  }
+
+  /**
+   * Validates and extracts required configuration options.
+   * @param options The client options
+   * @returns The validated required options
+   * @throws ConfigurationError if any required option is missing
+   */
+  private validateAndExtractRequiredOptions(options: Auth0ClientOptions) {
+    // Base required options that are always needed
+    const requiredOptions = {
+      domain: options.domain ?? process.env.AUTH0_DOMAIN,
+      clientId: options.clientId ?? process.env.AUTH0_CLIENT_ID,
+      appBaseUrl: options.appBaseUrl ?? process.env.APP_BASE_URL,
+      secret: options.secret ?? process.env.AUTH0_SECRET
+    };
+
+    // Check client authentication options - either clientSecret OR clientAssertionSigningKey must be provided
+    const clientSecret =
+      options.clientSecret ?? process.env.AUTH0_CLIENT_SECRET;
+    const clientAssertionSigningKey =
+      options.clientAssertionSigningKey ??
+      process.env.AUTH0_CLIENT_ASSERTION_SIGNING_KEY;
+    const hasClientAuthentication = !!(
+      clientSecret || clientAssertionSigningKey
+    );
+
+    const missing = Object.entries(requiredOptions)
+      .filter(([, value]) => !value)
+      .map(([key]) => key);
+
+    // Add client authentication error if neither option is provided
+    if (!hasClientAuthentication) {
+      missing.push("clientAuthentication");
+    }
+
+    if (missing.length) {
+      // Map of option keys to their exact environment variable names
+      const envVarNames: Record<string, string> = {
+        domain: "AUTH0_DOMAIN",
+        clientId: "AUTH0_CLIENT_ID",
+        appBaseUrl: "APP_BASE_URL",
+        secret: "AUTH0_SECRET"
+      };
+
+      throw new ConfigurationError(
+        ConfigurationErrorCode.MISSING_REQUIRED_OPTIONS,
+        missing,
+        envVarNames
+      );
+    }
+
+    // Prepare the result object with all validated options
+    const result = {
+      ...requiredOptions,
+      clientSecret,
+      clientAssertionSigningKey
+    };
+
+    // Type-safe assignment after validation
+    return result as {
+      [K in keyof typeof result]: NonNullable<(typeof result)[K]>;
+    };
   }
 }
