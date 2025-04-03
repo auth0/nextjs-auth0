@@ -1,13 +1,13 @@
-import { SessionData, SessionDataStore } from "../../types";
-import * as cookies from "../cookies";
+import { SessionData, SessionDataStore } from "../../types/index.js";
+import * as cookies from "../cookies.js";
 import {
   AbstractSessionStore,
   SessionCookieOptions
-} from "./abstract-session-store";
+} from "./abstract-session-store.js";
 import {
   LEGACY_COOKIE_NAME,
   normalizeStatefulSession
-} from "./normalize-session";
+} from "./normalize-session.js";
 
 // the value of the stateful session cookie containing a unique session ID to identify
 // the current session

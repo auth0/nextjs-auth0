@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { generateSecret } from "../test/utils";
-import { decrypt, encrypt } from "./cookies";
+import { generateSecret } from "../test/utils.js";
+import { decrypt, encrypt } from "./cookies.js";
 
 describe("encrypt/decrypt", async () => {
   const secret = await generateSecret(32);
