@@ -1,5 +1,13 @@
 # Change Log
 
+## [v4.4.1](https://github.com/auth0/nextjs-auth0/tree/v4.4.1) (2025-04-03)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.4.0...v4.4.1)
+
+**Fixed**
+- fix: Properly configure SDK to be distributed as ESM [\#2028](https://github.com/auth0/nextjs-auth0/pull/2028) ([frederikprijck](https://github.com/frederikprijck))
+- Fix broken links in jsdocs [\#2031](https://github.com/auth0/nextjs-auth0/pull/2031) ([frederikprijck](https://github.com/frederikprijck))
+- fix: Throw ConfigurationError when invalid Auth0Client configuration [\#2026](https://github.com/auth0/nextjs-auth0/pull/2026) ([tusharpandey13](https://github.com/tusharpandey13))
+
 ## [v4.4.0](https://github.com/auth0/nextjs-auth0/tree/v4.4.0) (2025-04-01)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.3.0...v4.4.0)
 
