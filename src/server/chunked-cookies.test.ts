@@ -7,7 +7,7 @@ import {
   RequestCookies,
   ResponseCookies,
   setChunkedCookie
-} from "./cookies";
+} from "./cookies.js";
 
 // Create mock implementation for RequestCookies and ResponseCookies
 const createMocks = () => {

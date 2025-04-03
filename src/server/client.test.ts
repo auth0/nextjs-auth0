@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ConfigurationError, ConfigurationErrorCode } from "../errors";
-import { Auth0Client } from "./client";
+import { ConfigurationError, ConfigurationErrorCode } from "../errors/index.js";
+import { Auth0Client } from "./client.js";
 
 describe("Auth0Client", () => {
   // Store original env vars
