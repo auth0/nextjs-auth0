@@ -7,9 +7,7 @@ import {
   AccessTokenError,
   AccessTokenErrorCode,
   AccessTokenForConnectionError,
-  AccessTokenForConnectionErrorCode,
-  ConfigurationError,
-  ConfigurationErrorCode
+  AccessTokenForConnectionErrorCode
 } from "../errors/index.js";
 import {
   AccessTokenForConnectionOptions,
@@ -692,11 +690,22 @@ export class Auth0Client {
         secret: "AUTH0_SECRET"
       };
 
-      throw new ConfigurationError(
-        ConfigurationErrorCode.MISSING_REQUIRED_OPTIONS,
-        missing,
-        envVarNames
-      );
+      // Standard intro message explaining the issue
+      let errorMessage =
+        "WARNING: Not all required options where provided when creating an instance of Auth0Client. Ensure to provide all missing options, either by passing it to the Auth0Client constructor, or by setting the corresponding environment variable.\n";
+
+      // Add specific details for each missing option
+      missing.forEach((key) => {
+        if (key === "clientAuthentication") {
+          errorMessage += `Missing: clientAuthentication: Set either AUTH0_CLIENT_SECRET env var or AUTH0_CLIENT_ASSERTION_SIGNING_KEY env var, or pass clientSecret or clientAssertionSigningKey in options\n`;
+        } else if (envVarNames[key]) {
+          errorMessage += `Missing: ${key}: Set ${envVarNames[key]} env var or pass ${key} in options\n`;
+        } else {
+          errorMessage += `Missing: ${key}\n`;
+        }
+      });
+
+      console.error(errorMessage.trim());
     }
 
     // Prepare the result object with all validated options
