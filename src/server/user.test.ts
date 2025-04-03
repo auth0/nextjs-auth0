@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { filterClaims } from "./user";
+import { filterClaims } from "./user.js";
 
 describe("filterClaims", async () => {
   it("should return only the allowed claims", () => {
