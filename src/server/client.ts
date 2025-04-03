@@ -98,7 +98,7 @@ export interface Auth0ClientOptions {
   /**
    * Configure the session timeouts and whether to use rolling sessions or not.
    *
-   * See [Session configuration](https://github.com/auth0/nextjs-auth0#session-configuration) for additional details.
+   * See [Session configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#session-configuration) for additional details.
    */
   session?: SessionConfiguration;
 
@@ -112,13 +112,13 @@ export interface Auth0ClientOptions {
   /**
    * A method to manipulate the session before persisting it.
    *
-   * See [beforeSessionSaved](https://github.com/auth0/nextjs-auth0#beforesessionsaved) for additional details
+   * See [beforeSessionSaved](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#beforesessionsaved) for additional details
    */
   beforeSessionSaved?: BeforeSessionSavedHook;
   /**
    * A method to handle errors or manage redirects after attempting to authenticate.
    *
-   * See [onCallback](https://github.com/auth0/nextjs-auth0#oncallback) for additional details
+   * See [onCallback](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#oncallback) for additional details
    */
   onCallback?: OnCallbackHook;
 
@@ -126,14 +126,14 @@ export interface Auth0ClientOptions {
   /**
    * A custom session store implementation used to persist sessions to a data store.
    *
-   * See [Database sessions](https://github.com/auth0/nextjs-auth0#database-sessions) for additional details.
+   * See [Database sessions](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#database-sessions) for additional details.
    */
   sessionStore?: SessionDataStore;
 
   /**
    * Configure the paths for the authentication routes.
    *
-   * See [Custom routes](https://github.com/auth0/nextjs-auth0#custom-routes) for additional details.
+   * See [Custom routes](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#custom-routes) for additional details.
    */
   routes?: RoutesOptions;
 
