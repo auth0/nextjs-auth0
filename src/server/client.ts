@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { cookies } from "next/headers";
-import { NextRequest, NextResponse } from "next/server";
-import { NextApiRequest, NextApiResponse } from "next/types";
+import { cookies } from "next/headers.js";
+import { NextRequest, NextResponse } from "next/server.js";
+import { NextApiRequest, NextApiResponse } from "next/types.js";
 
 import {
   AccessTokenError,
@@ -10,32 +10,32 @@ import {
   AccessTokenForConnectionErrorCode,
   ConfigurationError,
   ConfigurationErrorCode
-} from "../errors";
+} from "../errors/index.js";
 import {
   AccessTokenForConnectionOptions,
   AuthorizationParameters,
   SessionData,
   SessionDataStore,
   StartInteractiveLoginOptions
-} from "../types";
+} from "../types/index.js";
 import {
   AuthClient,
   BeforeSessionSavedHook,
   OnCallbackHook,
   RoutesOptions
-} from "./auth-client";
-import { RequestCookies, ResponseCookies } from "./cookies";
+} from "./auth-client.js";
+import { RequestCookies, ResponseCookies } from "./cookies.js";
 import {
   AbstractSessionStore,
   SessionConfiguration,
   SessionCookieOptions
-} from "./session/abstract-session-store";
-import { StatefulSessionStore } from "./session/stateful-session-store";
-import { StatelessSessionStore } from "./session/stateless-session-store";
+} from "./session/abstract-session-store.js";
+import { StatefulSessionStore } from "./session/stateful-session-store.js";
+import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import {
   TransactionCookieOptions,
   TransactionStore
-} from "./transaction-store";
+} from "./transaction-store.js";
 
 export interface Auth0ClientOptions {
   // authorization server configuration

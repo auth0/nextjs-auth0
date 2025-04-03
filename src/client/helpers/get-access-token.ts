@@ -1,4 +1,4 @@
-import { AccessTokenError } from "../../errors";
+import { AccessTokenError } from "../../errors/index.js";
 
 export async function getAccessToken() {
   const tokenRes = await fetch(

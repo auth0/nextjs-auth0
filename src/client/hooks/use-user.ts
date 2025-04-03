@@ -2,7 +2,7 @@
 
 import useSWR from "swr";
 
-import type { User } from "../../types";
+import type { User } from "../../types/index.js";
 
 export function useUser() {
   const { data, error, isLoading } = useSWR<User, Error, string>(
