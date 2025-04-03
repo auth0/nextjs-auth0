@@ -3,7 +3,7 @@ import {
   RequestCookies,
   ResponseCookies
 } from "@edge-runtime/cookies";
-import hkdf from "@panva/hkdf";
+import { hkdf } from "@panva/hkdf";
 import * as jose from "jose";
 
 const ENC = "A256GCM";
