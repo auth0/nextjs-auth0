@@ -1,6 +1,5 @@
-import React from "react";
 // Import the mocked SWR module
-import swr, { SWRConfig } from "swr";
+import swr from "swr";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { User } from "../../types/index.js";
