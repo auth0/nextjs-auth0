@@ -18,6 +18,7 @@ describe("Authentication Client", async () => {
     clientSecret: "client-secret",
     appBaseUrl: "https://example.com",
     sid: "auth0-sid",
+    idToken: "idt_123",
     accessToken: "at_123",
     refreshToken: "rt_123",
     sub: "user_123",
@@ -1827,6 +1828,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const session: SessionData = {
         user: { sub: DEFAULT.sub },
         tokenSet: {
+          idToken: DEFAULT.idToken,
           accessToken: DEFAULT.accessToken,
           refreshToken: DEFAULT.refreshToken,
           expiresAt: 123456
@@ -1863,6 +1865,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
       ).toEqual(`${DEFAULT.appBaseUrl}`);
       expect(authorizationUrl.searchParams.get("logout_hint")).toEqual(
         DEFAULT.sid
+      );
+      expect(authorizationUrl.searchParams.get("id_token_hint")).toEqual(
+        DEFAULT.idToken
       );
 
       // session cookie is cleared
@@ -1939,6 +1944,43 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const cookie = response.cookies.get("__session");
       expect(cookie?.value).toEqual("");
       expect(cookie?.expires).toEqual(new Date("1970-01-01T00:00:00.000Z"));
+    });
+
+    it("should not include the id_token_hint parameter if a session does not exist", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        fetch: getMockAuthorizationServer()
+      });
+
+      const request = new NextRequest(
+        new URL("/auth/logout", DEFAULT.appBaseUrl),
+        {
+          method: "GET"
+        }
+      );
+
+      const response = await authClient.handleLogout(request);
+      expect(response.status).toEqual(307);
+      expect(response.headers.get("Location")).not.toBeNull();
+
+      const authorizationUrl = new URL(response.headers.get("Location")!);
+      expect(authorizationUrl.searchParams.get("id_token_hint")).toBeNull();
     });
 
     it("should not include the logout_hint parameter if a session does not exist", async () => {
