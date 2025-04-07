@@ -1,6 +1,6 @@
 {
   "name": "@auth0/nextjs-auth0",
-  "version": "3.6.0",
+  "version": "3.7.0",
   "description": "Next.js SDK for signing in with Auth0",
   "exports": {
     ".": "./dist/index.js",
@@ -131,7 +131,7 @@
     "url-join": "^4.0.1"
   },
   "peerDependencies": {
-    "next": ">=10"
+    "next": "^10.0.0 || ^11.0.0 || ^12.3.5 || ^13.5.9 || ^14.2.25 || ^15.2.3"
   },
   "jest": {
     "collectCoverageFrom": [
