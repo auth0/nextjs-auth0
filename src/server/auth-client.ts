@@ -432,6 +432,10 @@ export class AuthClient {
       url.searchParams.set("logout_hint", session.internal.sid);
     }
 
+    if (session?.tokenSet.idToken) {
+      url.searchParams.set("id_token_hint", session?.tokenSet.idToken);
+    }
+
     const res = NextResponse.redirect(url);
     await this.sessionStore.delete(req.cookies, res.cookies);
 
