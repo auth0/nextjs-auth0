@@ -496,7 +496,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
             createdAt: Math.floor(Date.now() / 1000)
           }
         };
-        const sessionCookie = await encrypt(session, secret);
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
+        const sessionCookie = await encrypt(session, secret, expiration);
         const headers = new Headers();
         headers.append("cookie", `__session=${sessionCookie}`);
         const request = new NextRequest(
@@ -516,7 +518,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           updatedSessionCookie!.value,
           secret
         );
-        expect(updatedSessionCookieValue).toEqual({
+        expect(updatedSessionCookieValue).toEqual(expect.objectContaining({
           user: {
             sub: DEFAULT.sub
           },
@@ -529,7 +531,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             sid: DEFAULT.sid,
             createdAt: expect.any(Number)
           }
-        });
+        }));
 
         // assert that the session expiry has been extended by the inactivity duration
         expect(updatedSessionCookie?.maxAge).toEqual(1800);
@@ -868,13 +870,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
       );
       expect(transactionCookie).toBeDefined();
       expect((await decrypt(transactionCookie!.value, secret)).payload).toEqual(
-        {
+        expect.objectContaining({
           nonce: authorizationUrl.searchParams.get("nonce"),
           codeVerifier: expect.any(String),
           responseType: "code",
           state: authorizationUrl.searchParams.get("state"),
           returnTo: "/"
-        }
+        })
       );
     });
 
@@ -1023,13 +1025,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(transactionCookie).toBeDefined();
         expect(
           (await decrypt(transactionCookie!.value, secret)).payload
-        ).toEqual({
+        ).toEqual(expect.objectContaining({
           nonce: authorizationUrl.searchParams.get("nonce"),
           codeVerifier: expect.any(String),
           responseType: "code",
           state: authorizationUrl.searchParams.get("state"),
           returnTo: "/"
-        });
+        }));
       });
 
       it("should forward the configured authorization parameters to the authorization server", async () => {
@@ -1356,14 +1358,14 @@ ca/T0LLtgmbMmxSv/MmzIg==
       );
       expect(transactionCookie).toBeDefined();
       expect((await decrypt(transactionCookie!.value, secret)).payload).toEqual(
-        {
+        expect.objectContaining({
           nonce: authorizationUrl.searchParams.get("nonce"),
           maxAge: 3600,
           codeVerifier: expect.any(String),
           responseType: "code",
           state: authorizationUrl.searchParams.get("state"),
           returnTo: "/"
-        }
+        })
       );
     });
 
@@ -1403,13 +1405,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
       );
       expect(transactionCookie).toBeDefined();
       expect((await decrypt(transactionCookie!.value, secret)).payload).toEqual(
-        {
+        expect.objectContaining({
           nonce: authorizationUrl.searchParams.get("nonce"),
           codeVerifier: expect.any(String),
           responseType: "code",
           state: authorizationUrl.searchParams.get("state"),
           returnTo: "https://example.com/dashboard"
-        }
+        })
       );
     });
 
@@ -1449,13 +1451,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
       );
       expect(transactionCookie).toBeDefined();
       expect((await decrypt(transactionCookie!.value, secret)).payload).toEqual(
-        {
+        expect.objectContaining({
           nonce: authorizationUrl.searchParams.get("nonce"),
           codeVerifier: expect.any(String),
           responseType: "code",
           state: authorizationUrl.searchParams.get("state"),
           returnTo: "/"
-        }
+        })
       );
     });
 
@@ -1583,13 +1585,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(transactionCookie).toBeDefined();
         expect(
           (await decrypt(transactionCookie!.value, secret)).payload
-        ).toEqual({
+        ).toEqual(expect.objectContaining({
           nonce: expect.any(String),
           codeVerifier: expect.any(String),
           responseType: "code",
           state,
           returnTo: "/"
-        });
+        }));
       });
 
       describe("custom parameters to the authorization server", async () => {
@@ -1662,13 +1664,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           expect(transactionCookie).toBeDefined();
           expect(
             (await decrypt(transactionCookie!.value, secret)).payload
-          ).toEqual({
+          ).toEqual(expect.objectContaining({
             nonce: expect.any(String),
             codeVerifier: expect.any(String),
             responseType: "code",
             state,
             returnTo: "/"
-          });
+          }));
         });
 
         it("should forward custom parameters set in the configuration to the authorization server", async () => {
@@ -1742,13 +1744,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           expect(transactionCookie).toBeDefined();
           expect(
             (await decrypt(transactionCookie!.value, secret)).payload
-          ).toEqual({
+          ).toEqual(expect.objectContaining({
             nonce: expect.any(String),
             codeVerifier: expect.any(String),
             responseType: "code",
             state,
             returnTo: "/"
-          });
+          }));
         });
       });
     });
@@ -1838,7 +1840,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
           createdAt: Math.floor(Date.now() / 1000)
         }
       };
-      const sessionCookie = await encrypt(session, secret);
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const sessionCookie = await encrypt(session, secret, expiration);
       const headers = new Headers();
       headers.append("cookie", `__session=${sessionCookie}`);
       const request = new NextRequest(
@@ -1911,7 +1915,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
           createdAt: Math.floor(Date.now() / 1000)
         }
       };
-      const sessionCookie = await encrypt(session, secret);
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const sessionCookie = await encrypt(session, secret, expiration);
       const headers = new Headers();
       headers.append("cookie", `__session=${sessionCookie}`);
 
@@ -2173,7 +2179,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
           createdAt: Math.floor(Date.now() / 1000)
         }
       };
-      const sessionCookie = await encrypt(session, secret);
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const sessionCookie = await encrypt(session, secret, expiration);
       const headers = new Headers();
       headers.append("cookie", `__session=${sessionCookie}`);
       const request = new NextRequest(
@@ -2268,9 +2276,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         state: state,
         returnTo: "/dashboard"
       };
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
       headers.set(
         "cookie",
-        `__txn_${state}=${await encrypt(transactionState, secret)}`
+        `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
       );
       const request = new NextRequest(url, {
         method: "GET",
@@ -2288,7 +2298,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const sessionCookie = response.cookies.get("__session");
       expect(sessionCookie).toBeDefined();
       const { payload: session } = await decrypt(sessionCookie!.value, secret);
-      expect(session).toEqual({
+      expect(session).toEqual(expect.objectContaining({
         user: {
           sub: DEFAULT.sub
         },
@@ -2302,7 +2312,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           sid: expect.any(String),
           createdAt: expect.any(Number)
         }
-      });
+      }));
 
       // validate the transaction cookie has been removed
       const transactionCookie = response.cookies.get(`__txn_${state}`);
@@ -2377,9 +2387,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         state: state,
         returnTo: "/dashboard"
       };
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
       headers.set(
         "cookie",
-        `__txn_${state}=${await encrypt(transactionState, secret)}`
+        `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
       );
       const request = new NextRequest(url, {
         method: "GET",
@@ -2397,7 +2409,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const sessionCookie = response.cookies.get("__session");
       expect(sessionCookie).toBeDefined();
       const { payload: session } = await decrypt(sessionCookie!.value, secret);
-      expect(session).toEqual({
+      expect(session).toEqual(expect.objectContaining({
         user: {
           sub: DEFAULT.sub
         },
@@ -2411,7 +2423,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           sid: expect.any(String),
           createdAt: expect.any(Number)
         }
-      });
+      }));
 
       // validate the transaction cookie has been removed
       const transactionCookie = response.cookies.get(`__txn_${state}`);
@@ -2496,9 +2508,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         state: state,
         returnTo: "/dashboard"
       };
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
       headers.set(
         "cookie",
-        `__txn_does-not-exist=${await encrypt(transactionState, secret)}`
+        `__txn_does-not-exist=${await encrypt(transactionState, secret, expiration)}`
       );
       const request = new NextRequest(url, {
         method: "GET",
@@ -2548,9 +2562,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         state: state,
         returnTo: "/dashboard"
       };
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
       headers.set(
         "cookie",
-        `__txn_${state}=${await encrypt(transactionState, secret)}`
+        `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
       );
       const request = new NextRequest(url, {
         method: "GET",
@@ -2607,9 +2623,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         state: state,
         returnTo: "/dashboard"
       };
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
       headers.set(
         "cookie",
-        `__txn_${state}=${await encrypt(transactionState, secret)}`
+        `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
       );
       const request = new NextRequest(url, {
         method: "GET",
@@ -2663,9 +2681,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         state: state,
         returnTo: "/dashboard"
       };
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
       headers.set(
         "cookie",
-        `__txn_${state}=${await encrypt(transactionState, secret)}`
+        `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
       );
       const request = new NextRequest(url, {
         method: "GET",
@@ -2726,9 +2746,12 @@ ca/T0LLtgmbMmxSv/MmzIg==
           state: state,
           returnTo: "/dashboard"
         };
+        const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      
         headers.set(
           "cookie",
-          `__txn_${state}=${await encrypt(transactionState, secret)}`
+          `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
         );
         const request = new NextRequest(url, {
           method: "GET",
@@ -2773,7 +2796,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           sessionCookie!.value,
           secret
         );
-        expect(session).toEqual(expectedSession);
+        expect(session).toEqual(expect.objectContaining(expectedSession));
       });
 
       it("should be called with an error if the state parameter is missing", async () => {
@@ -2881,9 +2904,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
           state: state,
           returnTo: "/dashboard"
         };
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
         headers.set(
           "cookie",
-          `__txn_non-existent-state=${await encrypt(transactionState, secret)}`
+          `__txn_non-existent-state=${await encrypt(transactionState, secret, expiration)}`
         );
         const request = new NextRequest(url, {
           method: "GET",
@@ -2956,9 +2981,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
           state: state,
           returnTo: "/dashboard"
         };
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
         headers.set(
           "cookie",
-          `__txn_${state}=${await encrypt(transactionState, secret)}`
+          `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
         );
         const request = new NextRequest(url, {
           method: "GET",
@@ -3040,9 +3067,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
           state: state,
           returnTo: "/dashboard"
         };
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
         headers.set(
           "cookie",
-          `__txn_${state}=${await encrypt(transactionState, secret)}`
+          `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
         );
         const request = new NextRequest(url, {
           method: "GET",
@@ -3124,9 +3153,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
           state: state,
           returnTo: "/dashboard"
         };
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
         headers.set(
           "cookie",
-          `__txn_${state}=${await encrypt(transactionState, secret)}`
+          `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
         );
         const request = new NextRequest(url, {
           method: "GET",
@@ -3204,9 +3235,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
           state: state,
           returnTo: "/dashboard"
         };
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
         headers.set(
           "cookie",
-          `__txn_${state}=${await encrypt(transactionState, secret)}`
+          `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
         );
         const request = new NextRequest(url, {
           method: "GET",
@@ -3227,7 +3260,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           sessionCookie!.value,
           secret
         );
-        expect(session).toEqual({
+        expect(session).toEqual(expect.objectContaining({
           user: {
             sub: DEFAULT.sub,
             name: "John Doe",
@@ -3244,7 +3277,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             sid: expect.any(String),
             createdAt: expect.any(Number)
           }
-        });
+        }));
       });
 
       it("should not call the hook if the session is not established", async () => {
@@ -3334,9 +3367,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
           state: state,
           returnTo: "/dashboard"
         };
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
         headers.set(
           "cookie",
-          `__txn_${state}=${await encrypt(transactionState, secret)}`
+          `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
         );
         const request = new NextRequest(url, {
           method: "GET",
@@ -3357,7 +3392,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           sessionCookie!.value,
           secret
         );
-        expect(session).toEqual({
+        expect(session).toEqual(expect.objectContaining({
           user: {
             sub: DEFAULT.sub,
             name: "John Doe",
@@ -3374,7 +3409,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             sid: expect.any(String),
             createdAt: expect.any(Number)
           }
-        });
+        }));
       });
     });
   });
@@ -3432,7 +3467,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
           createdAt: Math.floor(Date.now() / 1000)
         }
       };
-      const sessionCookie = await encrypt(session, secret);
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const sessionCookie = await encrypt(session, secret, expiration);
       const headers = new Headers();
       headers.append("cookie", `__session=${sessionCookie}`);
       const request = new NextRequest(
@@ -3543,7 +3580,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
           createdAt: Math.floor(Date.now() / 1000)
         }
       };
-      const sessionCookie = await encrypt(session, secret);
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const sessionCookie = await encrypt(session, secret, expiration);
       const headers = new Headers();
       headers.append("cookie", `__session=${sessionCookie}`);
       const request = new NextRequest(
