@@ -4,7 +4,7 @@ import {
   ensureNoLeadingSlash,
   ensureTrailingSlash,
   removeTrailingSlash
-} from "./pathUtils.js";
+} from "./pathUtils";
 
 describe("pathUtils", () => {
   describe("ensureTrailingSlash", () => {

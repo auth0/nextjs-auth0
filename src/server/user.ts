@@ -1,4 +1,4 @@
-import type { User } from "../types/index.js";
+import type { User } from "../types";
 
 const DEFAULT_ALLOWED_CLAIMS = [
   "sub",

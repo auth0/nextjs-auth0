@@ -1,10 +1,10 @@
-import type { SessionData, SessionDataStore } from "../../types/index.js";
+import type { SessionData, SessionDataStore } from "../../types";
 import {
   CookieOptions,
   ReadonlyRequestCookies,
   RequestCookies,
   ResponseCookies
-} from "../cookies.js";
+} from "../cookies";
 
 export interface SessionCookieOptions {
   /**
