@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { generateSecret } from "../../test/utils.js";
-import { SessionData } from "../../types/index.js";
-import { decrypt, encrypt, RequestCookies, ResponseCookies } from "../cookies.js";
-import { LEGACY_COOKIE_NAME, LegacySession } from "./normalize-session.js";
-import { StatelessSessionStore } from "./stateless-session-store.js";
+import { generateSecret } from "../../test/utils";
+import { SessionData } from "../../types";
+import { decrypt, encrypt, RequestCookies, ResponseCookies } from "../cookies";
+import { LEGACY_COOKIE_NAME, LegacySession } from "./normalize-session";
+import { StatelessSessionStore } from "./stateless-session-store";
 
 describe("Stateless Session Store", async () => {
   describe("get", async () => {

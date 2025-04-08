@@ -1,9 +1,9 @@
 import * as oauth from "oauth4webapi";
 import { describe, expect, it } from "vitest";
 
-import { generateSecret } from "../test/utils.js";
-import { decrypt, encrypt, RequestCookies, ResponseCookies } from "./cookies.js";
-import { TransactionState, TransactionStore } from "./transaction-store.js";
+import { generateSecret } from "../test/utils";
+import { decrypt, encrypt, RequestCookies, ResponseCookies } from "./cookies";
+import { TransactionState, TransactionStore } from "./transaction-store";
 
 describe("Transaction Store", async () => {
   describe("get", async () => {

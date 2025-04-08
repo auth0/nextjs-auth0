@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import payloads from "../test/fixtures/open-redirect-payloads.json" with { type: "json" };
-import { toSafeRedirect } from "./url-helpers.js";
+import payloads from "../test/fixtures/open-redirect-payloads.json";
+import { toSafeRedirect } from "./url-helpers";
 
 describe("url-helpers", () => {
   const safeBaseUrl = new URL("http://www.example.com");
