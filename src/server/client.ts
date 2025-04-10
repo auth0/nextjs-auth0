@@ -198,13 +198,15 @@ export class Auth0Client {
     const sessionCookieOptions: SessionCookieOptions = {
       name: options.session?.cookie?.name ?? "__session",
       secure: options.session?.cookie?.secure ?? false,
-      sameSite: options.session?.cookie?.sameSite ?? "lax"
+      sameSite: options.session?.cookie?.sameSite ?? "lax",
+      path: options.session?.cookie?.path ?? "/"
     };
 
     const transactionCookieOptions: TransactionCookieOptions = {
       prefix: options.transactionCookie?.prefix ?? "__txn_",
       secure: options.transactionCookie?.secure ?? false,
-      sameSite: options.transactionCookie?.sameSite ?? "lax"
+      sameSite: options.transactionCookie?.sameSite ?? "lax",
+      path: options.transactionCookie?.path ?? "/"
     };
 
     if (appBaseUrl) {
