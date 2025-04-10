@@ -1,6 +1,6 @@
 import type * as jose from "jose";
 
-import * as cookies from "./cookies.js";
+import * as cookies from "./cookies";
 
 const TRANSACTION_COOKIE_PREFIX = "__txn_";
 
