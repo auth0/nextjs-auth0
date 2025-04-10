@@ -595,6 +595,50 @@ describe("Stateful Session Store", async () => {
         expect(cookie?.secure).toEqual(false);
       });
 
+      it("should apply the path to the cookie", async () => {
+        const currentTime = Date.now();
+        const createdAt = Math.floor(currentTime / 1000);
+        const secret = await generateSecret(32);
+        const session: SessionData = {
+          user: { sub: "user_123" },
+          tokenSet: {
+            accessToken: "at_123",
+            refreshToken: "rt_123",
+            expiresAt: 123456
+          },
+          internal: {
+            sid: "auth0-sid",
+            createdAt
+          }
+        };
+        const store = {
+          get: vi.fn().mockResolvedValue(session),
+          set: vi.fn(),
+          delete: vi.fn()
+        };
+
+        const requestCookies = new RequestCookies(new Headers());
+        const responseCookies = new ResponseCookies(new Headers());
+
+        const sessionStore = new StatefulSessionStore({
+          secret,
+          store,
+          rolling: true,
+          absoluteDuration: 3600,
+          inactivityDuration: 1800,
+
+          cookieOptions: {
+            path: "/custom-path"
+          }
+        });
+        await sessionStore.set(requestCookies, responseCookies, session);
+
+        const cookie = responseCookies.get("__session");
+
+        expect(cookie).toBeDefined();
+        expect(cookie?.path).toEqual("/custom-path");
+      });
+
       it("should apply the cookie name", async () => {
         const currentTime = Date.now();
         const createdAt = Math.floor(currentTime / 1000);

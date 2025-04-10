@@ -32,6 +32,10 @@ export interface TransactionCookieOptions {
    * Default: depends on the protocol of the application's base URL. If the protocol is `https`, then `true`, otherwise `false`.
    */
   secure?: boolean;
+  /**
+   * The path attribute of the transaction cookie. Will be set to '/' by default.
+   */
+  path?: string;
 }
 
 export interface TransactionStoreOptions {
@@ -57,7 +61,7 @@ export class TransactionStore {
       httpOnly: true,
       sameSite: cookieOptions?.sameSite ?? "lax", // required to allow the cookie to be sent on the callback request
       secure: cookieOptions?.secure ?? false,
-      path: "/",
+      path: cookieOptions?.path ?? "/",
       maxAge: 60 * 60 // 1 hour in seconds
     };
   }
