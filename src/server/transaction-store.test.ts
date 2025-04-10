@@ -199,6 +199,40 @@ describe("Transaction Store", async () => {
         expect(cookie?.secure).toEqual(false);
       });
 
+      it("should apply the path to the cookie", async () => {
+        const secret = await generateSecret(32);
+        const codeVerifier = oauth.generateRandomCodeVerifier();
+        const nonce = oauth.generateRandomNonce();
+        const state = oauth.generateRandomState();
+        const transactionState: TransactionState = {
+          nonce,
+          maxAge: 3600,
+          codeVerifier: codeVerifier,
+          responseType: "code",
+          state,
+          returnTo: "/dashboard"
+        };
+        const headers = new Headers();
+        const responseCookies = new ResponseCookies(headers);
+
+        const transactionStore = new TransactionStore({
+          secret,
+          cookieOptions: {
+            path: "/custom-path"
+          }
+        });
+        await transactionStore.save(responseCookies, transactionState);
+
+        const cookieName = `__txn_${state}`;
+        const cookie = responseCookies.get(cookieName);
+
+        expect(cookie).toBeDefined();
+        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
+          transactionState
+        );
+        expect(cookie?.path).toEqual("/custom-path");
+      });
+
       it("should apply the cookie prefix to the cookie name", async () => {
         const secret = await generateSecret(32);
         const codeVerifier = oauth.generateRandomCodeVerifier();
