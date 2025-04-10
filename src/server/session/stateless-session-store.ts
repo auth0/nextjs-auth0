@@ -1,17 +1,17 @@
-import { CookieOptions, ConnectionTokenSet, SessionData } from "../../types/index.js";
+import { CookieOptions, ConnectionTokenSet, SessionData } from "../../types";
 
 import type { JWTPayload } from "jose";
 
-import * as cookies from "../cookies.js";
+import * as cookies from "../cookies";
 import {
   AbstractSessionStore,
   SessionCookieOptions
-} from "./abstract-session-store.js";
+} from "./abstract-session-store";
 import {
   LEGACY_COOKIE_NAME,
   LegacySessionPayload,
   normalizeStatelessSession
-} from "./normalize-session.js";
+} from "./normalize-session";
 
 interface StatelessSessionStoreOptions {
   secret: string;
