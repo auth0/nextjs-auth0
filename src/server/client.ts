@@ -315,7 +315,9 @@ export class Auth0Client {
    * NOTE: Server Components cannot set cookies. Calling `getAccessToken()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not to be persisted.
    * It is recommended to call `getAccessToken(req, res)` in the middleware if you need to retrieve the access token in a Server Component to ensure the updated token set is persisted.
    */
-  async getAccessToken(): Promise<{ token: string; expiresAt: number }>;
+  async getAccessToken(
+    refresh?: boolean
+  ): Promise<{ token: string; expiresAt: number }>;
 
   /**
    * getAccessToken returns the access token.
@@ -324,19 +326,32 @@ export class Auth0Client {
    */
   async getAccessToken(
     req: PagesRouterRequest | NextRequest,
-    res: PagesRouterResponse | NextResponse
+    res: PagesRouterResponse | NextResponse,
+    refresh?: boolean
   ): Promise<{ token: string; expiresAt: number }>;
 
   /**
    * getAccessToken returns the access token.
-   *
-   * NOTE: Server Components cannot set cookies. Calling `getAccessToken()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not to be persisted.
-   * It is recommended to call `getAccessToken(req, res)` in the middleware if you need to retrieve the access token in a Server Component to ensure the updated token set is persisted.
    */
   async getAccessToken(
-    req?: PagesRouterRequest | NextRequest,
-    res?: PagesRouterResponse | NextResponse
+    reqOrRefresh?: PagesRouterRequest | NextRequest | boolean,
+    res?: PagesRouterResponse | NextResponse,
+    refresh?: boolean
   ): Promise<{ token: string; expiresAt: number; scope?: string }> {
+    // Parameter type handling
+    let req: PagesRouterRequest | NextRequest | undefined;
+    let actualForceRefresh: boolean | undefined;
+
+    // Check if the first parameter is a request object or a boolean
+    if (typeof reqOrRefresh === "boolean" || reqOrRefresh === undefined) {
+      // App Router case (forceRefresh as first param)
+      actualForceRefresh = reqOrRefresh as boolean | undefined;
+    } else {
+      // Pages Router case (req/res as first params)
+      req = reqOrRefresh;
+      actualForceRefresh = refresh;
+    }
+
     const session: SessionData | null = req
       ? await this.getSession(req)
       : await this.getSession();
@@ -349,26 +364,21 @@ export class Auth0Client {
     }
 
     const [error, tokenSet] = await this.authClient.getTokenSet(
-      session.tokenSet
+      session.tokenSet,
+      actualForceRefresh // Pass forceRefresh to token refresh logic
     );
+
     if (error) {
       throw error;
     }
 
-    // update the session with the new token set, if necessary
+    // Update session if token changed
     if (
       tokenSet.accessToken !== session.tokenSet.accessToken ||
       tokenSet.expiresAt !== session.tokenSet.expiresAt ||
       tokenSet.refreshToken !== session.tokenSet.refreshToken
     ) {
-      await this.saveToSession(
-        {
-          ...session,
-          tokenSet
-        },
-        req,
-        res
-      );
+      await this.saveToSession({ ...session, tokenSet }, req, res);
     }
 
     return {
