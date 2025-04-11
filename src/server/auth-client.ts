@@ -6,21 +6,21 @@ import packageJson from "../../package.json";
 import {
   AccessTokenError,
   AccessTokenErrorCode,
+  AccessTokenForConnectionError,
+  AccessTokenForConnectionErrorCode,
   AuthorizationCodeGrantError,
   AuthorizationError,
   BackchannelLogoutError,
   DiscoveryError,
-  AccessTokenForConnectionError,
-  AccessTokenForConnectionErrorCode,
   InvalidStateError,
   MissingStateError,
   OAuth2Error,
   SdkError
 } from "../errors";
 import {
+  AccessTokenForConnectionOptions,
   AuthorizationParameters,
   ConnectionTokenSet,
-  AccessTokenForConnectionOptions,
   LogoutToken,
   SessionData,
   StartInteractiveLoginOptions,
@@ -64,7 +64,6 @@ const INTERNAL_AUTHORIZE_PARAMS = [
 const DEFAULT_SCOPES = ["openid", "profile", "email", "offline_access"].join(
   " "
 );
-
 
 /**
  * A constant representing the grant type for federated connection access token exchange.
@@ -616,10 +615,16 @@ export class AuthClient {
       expires_at: updatedTokenSet.expiresAt
     });
 
-    await this.sessionStore.set(req.cookies, res.cookies, {
-      ...session,
-      tokenSet: updatedTokenSet
-    });
+    if (
+      updatedTokenSet.accessToken !== session.tokenSet.accessToken ||
+      updatedTokenSet.refreshToken !== session.tokenSet.refreshToken ||
+      updatedTokenSet.expiresAt !== session.tokenSet.expiresAt
+    ) {
+      await this.sessionStore.set(req.cookies, res.cookies, {
+        ...session,
+        tokenSet: updatedTokenSet
+      });
+    }
 
     return res;
   }
@@ -1016,19 +1021,20 @@ export class AuthClient {
     tokenSet: TokenSet,
     connectionTokenSet: ConnectionTokenSet | undefined,
     options: AccessTokenForConnectionOptions
-  ): Promise<[AccessTokenForConnectionError, null] | [null, ConnectionTokenSet]> {
+  ): Promise<
+    [AccessTokenForConnectionError, null] | [null, ConnectionTokenSet]
+  > {
     // If we do not have a refresh token
     // and we do not have a connection token set in the cache or the one we have is expired,
     // there is noting to retrieve and we return an error.
     if (
       !tokenSet.refreshToken &&
-      (!connectionTokenSet ||
-        connectionTokenSet.expiresAt <= Date.now() / 1000)
+      (!connectionTokenSet || connectionTokenSet.expiresAt <= Date.now() / 1000)
     ) {
       return [
         new AccessTokenForConnectionError(
           AccessTokenForConnectionErrorCode.MISSING_REFRESH_TOKEN,
-          "A refresh token was not present, Connection Access Token requires a refresh token. The user needs to re-authenticate.",
+          "A refresh token was not present, Connection Access Token requires a refresh token. The user needs to re-authenticate."
         ),
         null
       ];
@@ -1039,8 +1045,7 @@ export class AuthClient {
     // we need to exchange the refresh token for a connection access token.
     if (
       tokenSet.refreshToken &&
-      (!connectionTokenSet ||
-        connectionTokenSet.expiresAt <= Date.now() / 1000)
+      (!connectionTokenSet || connectionTokenSet.expiresAt <= Date.now() / 1000)
     ) {
       const params = new URLSearchParams();
 
@@ -1111,10 +1116,7 @@ export class AuthClient {
       ];
     }
 
-    return [null, connectionTokenSet] as [
-      null,
-      ConnectionTokenSet
-    ];
+    return [null, connectionTokenSet] as [null, ConnectionTokenSet];
   }
 }
 
