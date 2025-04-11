@@ -669,7 +669,8 @@ export class AuthClient {
    * refresh it using the refresh token, if available.
    */
   async getTokenSet(
-    tokenSet: TokenSet
+    tokenSet: TokenSet,
+    forceRefresh?: boolean | undefined
   ): Promise<[null, TokenSet] | [SdkError, null]> {
     // the access token has expired but we do not have a refresh token
     if (!tokenSet.refreshToken && tokenSet.expiresAt <= Date.now() / 1000) {
@@ -682,68 +683,82 @@ export class AuthClient {
       ];
     }
 
-    // the access token has expired and we have a refresh token
-    if (tokenSet.refreshToken && tokenSet.expiresAt <= Date.now() / 1000) {
-      const [discoveryError, authorizationServerMetadata] =
-        await this.discoverAuthorizationServerMetadata();
-
-      if (discoveryError) {
-        console.error(discoveryError);
-        return [discoveryError, null];
+    if (tokenSet.refreshToken) {
+      // either the access token has expired or we are forcing a refresh
+      if (forceRefresh || tokenSet.expiresAt <= Date.now() / 1000) {
+        return this.refreshTokenFlow({
+          ...tokenSet,
+          refreshToken: tokenSet.refreshToken
+        });
       }
-
-      const refreshTokenRes = await oauth.refreshTokenGrantRequest(
-        authorizationServerMetadata,
-        this.clientMetadata,
-        await this.getClientAuth(),
-        tokenSet.refreshToken,
-        {
-          ...this.httpOptions(),
-          [oauth.customFetch]: this.fetch,
-          [oauth.allowInsecureRequests]: this.allowInsecureRequests
-        }
-      );
-
-      let oauthRes: oauth.TokenEndpointResponse;
-      try {
-        oauthRes = await oauth.processRefreshTokenResponse(
-          authorizationServerMetadata,
-          this.clientMetadata,
-          refreshTokenRes
-        );
-      } catch (e: any) {
-        console.error(e);
-        return [
-          new AccessTokenError(
-            AccessTokenErrorCode.FAILED_TO_REFRESH_TOKEN,
-            "The access token has expired and there was an error while trying to refresh it. Check the server logs for more information."
-          ),
-          null
-        ];
-      }
-
-      const accessTokenExpiresAt =
-        Math.floor(Date.now() / 1000) + Number(oauthRes.expires_in);
-
-      const updatedTokenSet = {
-        ...tokenSet, // contains the existing `iat` claim to maintain the session lifetime
-        accessToken: oauthRes.access_token,
-        idToken: oauthRes.id_token,
-        expiresAt: accessTokenExpiresAt
-      };
-
-      if (oauthRes.refresh_token) {
-        // refresh token rotation is enabled, persist the new refresh token from the response
-        updatedTokenSet.refreshToken = oauthRes.refresh_token;
-      } else {
-        // we did not get a refresh token back, keep the current long-lived refresh token around
-        updatedTokenSet.refreshToken = tokenSet.refreshToken;
-      }
-
-      return [null, updatedTokenSet];
     }
 
     return [null, tokenSet];
+  }
+
+  // refreshTokenFlow refreshes the access token using the refresh token.
+  private async refreshTokenFlow(
+    tokenSet: TokenSet & {
+      refreshToken: string;
+    }
+  ): Promise<[null, TokenSet] | [SdkError, null]> {
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      console.error(discoveryError);
+      return [discoveryError, null];
+    }
+
+    const refreshTokenRes = await oauth.refreshTokenGrantRequest(
+      authorizationServerMetadata,
+      this.clientMetadata,
+      await this.getClientAuth(),
+      tokenSet.refreshToken,
+      {
+        ...this.httpOptions(),
+        [oauth.customFetch]: this.fetch,
+        [oauth.allowInsecureRequests]: this.allowInsecureRequests
+      }
+    );
+
+    let oauthRes: oauth.TokenEndpointResponse;
+    try {
+      oauthRes = await oauth.processRefreshTokenResponse(
+        authorizationServerMetadata,
+        this.clientMetadata,
+        refreshTokenRes
+      );
+    } catch (e: any) {
+      console.error(e);
+      return [
+        new AccessTokenError(
+          AccessTokenErrorCode.FAILED_TO_REFRESH_TOKEN,
+          "The access token has expired and there was an error while trying to refresh it. Check the server logs for more information."
+        ),
+        null
+      ];
+    }
+
+    const accessTokenExpiresAt =
+      Math.floor(Date.now() / 1000) + Number(oauthRes.expires_in);
+
+    const updatedTokenSet = {
+      ...tokenSet, // contains the existing `iat` claim to maintain the session lifetime
+      accessToken: oauthRes.access_token,
+      idToken: oauthRes.id_token,
+      expiresAt: accessTokenExpiresAt
+    };
+
+    if (oauthRes.refresh_token) {
+      // refresh token rotation is enabled, persist the new refresh token from the response
+      updatedTokenSet.refreshToken = oauthRes.refresh_token;
+    } else {
+      // we did not get a refresh token back, keep the current long-lived refresh token around
+      updatedTokenSet.refreshToken = tokenSet.refreshToken;
+    }
+
+    return [null, updatedTokenSet];
   }
 
   private async discoverAuthorizationServerMetadata(): Promise<
