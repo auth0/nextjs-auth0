@@ -79,7 +79,9 @@ export class TransactionStore {
     resCookies: cookies.ResponseCookies,
     transactionState: TransactionState
   ) {
-    const jwe = await cookies.encrypt(transactionState, this.secret);
+
+    const expiration = Math.floor(Date.now() / 1000 + this.cookieConfig.maxAge!);
+    const jwe = await cookies.encrypt(transactionState, this.secret, expiration);
 
     if (!transactionState.state) {
       throw new Error("Transaction state is required");
