@@ -1,7 +1,7 @@
-export { Auth0Client } from "./client.js";
+export { Auth0Client } from "./client";
 
-export { AuthClient } from "./auth-client.js";
+export { AuthClient } from "./auth-client";
 
-export { TransactionStore } from "./transaction-store.js";
+export { TransactionStore } from "./transaction-store";
 
-export { AbstractSessionStore } from "./session/abstract-session-store.js";
+export { AbstractSessionStore } from "./session/abstract-session-store";

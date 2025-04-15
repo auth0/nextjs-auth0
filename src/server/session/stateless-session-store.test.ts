@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { generateSecret } from "../../test/utils.js";
-import { SessionData } from "../../types/index.js";
-import { decrypt, encrypt, RequestCookies, ResponseCookies } from "../cookies.js";
-import { LEGACY_COOKIE_NAME, LegacySession } from "./normalize-session.js";
-import { StatelessSessionStore } from "./stateless-session-store.js";
+import { generateSecret } from "../../test/utils";
+import { SessionData } from "../../types";
+import { decrypt, encrypt, RequestCookies, ResponseCookies } from "../cookies";
+import { LEGACY_COOKIE_NAME, LegacySession } from "./normalize-session";
+import { StatelessSessionStore } from "./stateless-session-store";
 
 describe("Stateless Session Store", async () => {
   describe("get", async () => {
@@ -494,6 +494,38 @@ describe("Stateless Session Store", async () => {
         expect(cookie?.sameSite).toEqual("strict");
         expect(cookie?.maxAge).toEqual(3600);
         expect(cookie?.secure).toEqual(true);
+      });
+
+      it("should apply the path to the cookie", async () => {
+        const secret = await generateSecret(32);
+        const session: SessionData = {
+          user: { sub: "user_123" },
+          tokenSet: {
+            accessToken: "at_123",
+            refreshToken: "rt_123",
+            expiresAt: 123456
+          },
+          internal: {
+            sid: "auth0-sid",
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        const requestCookies = new RequestCookies(new Headers());
+        const responseCookies = new ResponseCookies(new Headers());
+
+        const sessionStore = new StatelessSessionStore({
+          secret,
+          cookieOptions: {
+            path: '/custom-path'
+          }
+        });
+        await sessionStore.set(requestCookies, responseCookies, session);
+
+        const cookie = responseCookies.get("__session");
+
+        expect(cookie).toBeDefined();
+        expect((await decrypt(cookie!.value, secret)).payload).toEqual(session);
+        expect(cookie?.path).toEqual("/custom-path");
       });
 
       it("should apply the cookie name", async () => {

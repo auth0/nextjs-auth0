@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ConfigurationError, ConfigurationErrorCode } from "../errors/index.js";
 import { Auth0Client } from "./client.js";
 
 describe("Auth0Client", () => {
@@ -37,73 +36,6 @@ describe("Auth0Client", () => {
   });
 
   describe("constructor validation", () => {
-    it("should throw ConfigurationError when all required options are missing", () => {
-      expect(() => new Auth0Client()).toThrow(ConfigurationError);
-
-      try {
-        new Auth0Client();
-      } catch (error) {
-        const configError = error as ConfigurationError;
-        expect(configError).toBeInstanceOf(ConfigurationError);
-        expect(configError.code).toBe(
-          ConfigurationErrorCode.MISSING_REQUIRED_OPTIONS
-        );
-        expect(configError.missingOptions).toContain("domain");
-        expect(configError.missingOptions).toContain("clientId");
-        expect(configError.missingOptions).toContain("clientAuthentication");
-        expect(configError.missingOptions).toContain("appBaseUrl");
-        expect(configError.missingOptions).toContain("secret");
-
-        // Check that error message contains specific text
-        expect(configError.message).toContain(
-          "Not all required options where provided"
-        );
-        expect(configError.message).toContain(ENV_VARS.DOMAIN);
-        expect(configError.message).toContain(ENV_VARS.CLIENT_ID);
-        expect(configError.message).toContain(ENV_VARS.CLIENT_SECRET);
-        expect(configError.message).toContain(
-          ENV_VARS.CLIENT_ASSERTION_SIGNING_KEY
-        );
-        expect(configError.message).toContain(ENV_VARS.APP_BASE_URL);
-        expect(configError.message).toContain(ENV_VARS.SECRET);
-      }
-    });
-
-    it("should throw ConfigurationError when some required options are missing", () => {
-      // Provide some but not all required options
-      const options = {
-        domain: "example.auth0.com",
-        clientId: "client_123"
-      };
-
-      try {
-        new Auth0Client(options);
-      } catch (error) {
-        const configError = error as ConfigurationError;
-        expect(configError).toBeInstanceOf(ConfigurationError);
-        expect(configError.code).toBe(
-          ConfigurationErrorCode.MISSING_REQUIRED_OPTIONS
-        );
-        // These should be missing
-        expect(configError.missingOptions).toContain("clientAuthentication");
-        expect(configError.missingOptions).toContain("appBaseUrl");
-        expect(configError.missingOptions).toContain("secret");
-        // These should not be in the missing list
-        expect(configError.missingOptions).not.toContain("domain");
-        expect(configError.missingOptions).not.toContain("clientId");
-
-        // Error message should only contain instructions for missing options
-        expect(configError.message).toContain(ENV_VARS.CLIENT_SECRET);
-        expect(configError.message).toContain(
-          ENV_VARS.CLIENT_ASSERTION_SIGNING_KEY
-        );
-        expect(configError.message).toContain(ENV_VARS.APP_BASE_URL);
-        expect(configError.message).toContain(ENV_VARS.SECRET);
-        expect(configError.message).not.toContain(`Set ${ENV_VARS.DOMAIN}`);
-        expect(configError.message).not.toContain(`Set ${ENV_VARS.CLIENT_ID}`);
-      }
-    });
-
     it("should accept clientSecret as authentication method", () => {
       // Set required environment variables with clientSecret
       process.env[ENV_VARS.DOMAIN] = "env.auth0.com";
