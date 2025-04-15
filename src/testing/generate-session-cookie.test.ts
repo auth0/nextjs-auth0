@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { decrypt } from "../server/cookies.js";
-import { generateSecret } from "../test/utils.js";
-import { SessionData } from "../types/index.js";
+import { decrypt } from "../server/cookies";
+import { generateSecret } from "../test/utils";
+import { SessionData } from "../types";
 import {
   generateSessionCookie,
   GenerateSessionCookieConfig
-} from "./generate-session-cookie.js";
+} from "./generate-session-cookie";
 
 describe("generateSessionCookie", async () => {
   it("should use the session data provided", async () => {

@@ -1,5 +1,14 @@
 # Change Log
 
+## [v4.4.2](https://github.com/auth0/nextjs-auth0/tree/v4.4.2) (2025-04-08)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.4.1...v4.4.2)
+
+**Revert**
+- revert: fix: Properly configure SDK to be distributed as ESM [\#2046](https://github.com/auth0/nextjs-auth0/pull/2046) ([frederikprijck](https://github.com/frederikprijck))
+
+**Fixed**
+- fix: Add id_token_hint on logout [\#2041](https://github.com/auth0/nextjs-auth0/pull/2041) ([frederikprijck](https://github.com/frederikprijck))
+
 ## [v4.4.1](https://github.com/auth0/nextjs-auth0/tree/v4.4.1) (2025-04-03)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.4.0...v4.4.1)
 

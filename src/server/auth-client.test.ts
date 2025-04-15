@@ -1,15 +1,15 @@
-import { NextRequest, NextResponse } from "next/server.js";
+import { NextRequest, NextResponse } from "next/server";
 import * as jose from "jose";
 import * as oauth from "oauth4webapi";
 import { describe, expect, it, vi } from "vitest";
 
-import { generateSecret } from "../test/utils.js";
-import { SessionData } from "../types/index.js";
-import { AuthClient } from "./auth-client.js";
-import { decrypt, encrypt } from "./cookies.js";
-import { StatefulSessionStore } from "./session/stateful-session-store.js";
-import { StatelessSessionStore } from "./session/stateless-session-store.js";
-import { TransactionState, TransactionStore } from "./transaction-store.js";
+import { generateSecret } from "../test/utils";
+import { SessionData } from "../types";
+import { AuthClient } from "./auth-client";
+import { decrypt, encrypt } from "./cookies";
+import { StatefulSessionStore } from "./session/stateful-session-store";
+import { StatelessSessionStore } from "./session/stateless-session-store";
+import { TransactionState, TransactionStore } from "./transaction-store";
 
 describe("Authentication Client", async () => {
   const DEFAULT = {
