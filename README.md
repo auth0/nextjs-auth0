@@ -159,7 +159,7 @@ The SDK performs validation of required configuration options when initializing 
   - `clientSecret` (or `AUTH0_CLIENT_SECRET` environment variable), OR
   - `clientAssertionSigningKey` (or `AUTH0_CLIENT_ASSERTION_SIGNING_KEY` environment variable)
 
-If any of these required options are missing, the SDK will throw a `ConfigurationError` with the code `MISSING_REQUIRED_OPTIONS` and a detailed error message explaining which options are missing and how to provide them.
+If any of these required options are missing, the SDK will issue a warning with a detailed message explaining which options are missing and how to provide them.
 
 ## Routes
 
@@ -173,7 +173,7 @@ The SDK mounts 6 routes:
 6. `/auth/backchannel-logout`: the route that will receive a `logout_token` when a configured Back-Channel Logout initiator occurs
 
 > [!IMPORTANT]  
-> The `/auth/access-token` route is enabled by default, but is only neccessary when the access token is needed in the client. If this isn't something you need, you can disable this endpoint by setting `enableAccessTokenEndpoint` to `false`.
+> The `/auth/access-token` route is enabled by default, but is only neccessary when the access token is needed on the client-side. If this isn't something you need, you can disable this endpoint by setting `enableAccessTokenEndpoint` to `false`.
 
 ## Feedback
 

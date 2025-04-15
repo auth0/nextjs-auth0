@@ -1,10 +1,10 @@
-import type { SessionData, SessionDataStore } from "../../types/index.js";
+import type { SessionData, SessionDataStore } from "../../types";
 import {
   CookieOptions,
   ReadonlyRequestCookies,
   RequestCookies,
   ResponseCookies
-} from "../cookies.js";
+} from "../cookies";
 
 export interface SessionCookieOptions {
   /**
@@ -25,6 +25,10 @@ export interface SessionCookieOptions {
    * Default: depends on the protocol of the application's base URL. If the protocol is `https`, then `true`, otherwise `false`.
    */
   secure?: boolean;
+  /**
+   * The path attribute of the session cookie. Will be set to '/' by default.
+   */
+  path?: string;
 }
 
 export interface SessionConfiguration {
@@ -103,7 +107,7 @@ export abstract class AbstractSessionStore {
       httpOnly: true,
       sameSite: cookieOptions?.sameSite ?? "lax",
       secure: cookieOptions?.secure ?? false,
-      path: "/"
+      path: cookieOptions?.path ?? "/"
     };
   }
 

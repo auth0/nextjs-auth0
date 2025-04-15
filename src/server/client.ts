@@ -1,41 +1,39 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { cookies } from "next/headers.js";
-import { NextRequest, NextResponse } from "next/server.js";
-import { NextApiRequest, NextApiResponse } from "next/types.js";
+import { cookies } from "next/headers";
+import { NextRequest, NextResponse } from "next/server";
+import { NextApiRequest, NextApiResponse } from "next/types";
 
 import {
   AccessTokenError,
   AccessTokenErrorCode,
   AccessTokenForConnectionError,
-  AccessTokenForConnectionErrorCode,
-  ConfigurationError,
-  ConfigurationErrorCode
-} from "../errors/index.js";
+  AccessTokenForConnectionErrorCode
+} from "../errors";
 import {
   AccessTokenForConnectionOptions,
   AuthorizationParameters,
   SessionData,
   SessionDataStore,
   StartInteractiveLoginOptions
-} from "../types/index.js";
+} from "../types";
 import {
   AuthClient,
   BeforeSessionSavedHook,
   OnCallbackHook,
   RoutesOptions
-} from "./auth-client.js";
-import { RequestCookies, ResponseCookies } from "./cookies.js";
+} from "./auth-client";
+import { RequestCookies, ResponseCookies } from "./cookies";
 import {
   AbstractSessionStore,
   SessionConfiguration,
   SessionCookieOptions
-} from "./session/abstract-session-store.js";
-import { StatefulSessionStore } from "./session/stateful-session-store.js";
-import { StatelessSessionStore } from "./session/stateless-session-store.js";
+} from "./session/abstract-session-store";
+import { StatefulSessionStore } from "./session/stateful-session-store";
+import { StatelessSessionStore } from "./session/stateless-session-store";
 import {
   TransactionCookieOptions,
   TransactionStore
-} from "./transaction-store.js";
+} from "./transaction-store";
 
 export interface Auth0ClientOptions {
   // authorization server configuration
@@ -200,13 +198,15 @@ export class Auth0Client {
     const sessionCookieOptions: SessionCookieOptions = {
       name: options.session?.cookie?.name ?? "__session",
       secure: options.session?.cookie?.secure ?? false,
-      sameSite: options.session?.cookie?.sameSite ?? "lax"
+      sameSite: options.session?.cookie?.sameSite ?? "lax",
+      path: options.session?.cookie?.path ?? "/"
     };
 
     const transactionCookieOptions: TransactionCookieOptions = {
       prefix: options.transactionCookie?.prefix ?? "__txn_",
       secure: options.transactionCookie?.secure ?? false,
-      sameSite: options.transactionCookie?.sameSite ?? "lax"
+      sameSite: options.transactionCookie?.sameSite ?? "lax",
+      path: options.transactionCookie?.path ?? "/"
     };
 
     if (appBaseUrl) {
@@ -692,11 +692,22 @@ export class Auth0Client {
         secret: "AUTH0_SECRET"
       };
 
-      throw new ConfigurationError(
-        ConfigurationErrorCode.MISSING_REQUIRED_OPTIONS,
-        missing,
-        envVarNames
-      );
+      // Standard intro message explaining the issue
+      let errorMessage =
+        "WARNING: Not all required options where provided when creating an instance of Auth0Client. Ensure to provide all missing options, either by passing it to the Auth0Client constructor, or by setting the corresponding environment variable.\n";
+
+      // Add specific details for each missing option
+      missing.forEach((key) => {
+        if (key === "clientAuthentication") {
+          errorMessage += `Missing: clientAuthentication: Set either AUTH0_CLIENT_SECRET env var or AUTH0_CLIENT_ASSERTION_SIGNING_KEY env var, or pass clientSecret or clientAssertionSigningKey in options\n`;
+        } else if (envVarNames[key]) {
+          errorMessage += `Missing: ${key}: Set ${envVarNames[key]} env var or pass ${key} in options\n`;
+        } else {
+          errorMessage += `Missing: ${key}\n`;
+        }
+      });
+
+      console.error(errorMessage.trim());
     }
 
     // Prepare the result object with all validated options

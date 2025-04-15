@@ -1,9 +1,9 @@
 import * as oauth from "oauth4webapi";
 import { describe, expect, it } from "vitest";
 
-import { generateSecret } from "../test/utils.js";
-import { decrypt, encrypt, RequestCookies, ResponseCookies } from "./cookies.js";
-import { TransactionState, TransactionStore } from "./transaction-store.js";
+import { generateSecret } from "../test/utils";
+import { decrypt, encrypt, RequestCookies, ResponseCookies } from "./cookies";
+import { TransactionState, TransactionStore } from "./transaction-store";
 
 describe("Transaction Store", async () => {
   describe("get", async () => {
@@ -197,6 +197,40 @@ describe("Transaction Store", async () => {
         expect(cookie?.sameSite).toEqual("strict");
         expect(cookie?.maxAge).toEqual(3600);
         expect(cookie?.secure).toEqual(false);
+      });
+
+      it("should apply the path to the cookie", async () => {
+        const secret = await generateSecret(32);
+        const codeVerifier = oauth.generateRandomCodeVerifier();
+        const nonce = oauth.generateRandomNonce();
+        const state = oauth.generateRandomState();
+        const transactionState: TransactionState = {
+          nonce,
+          maxAge: 3600,
+          codeVerifier: codeVerifier,
+          responseType: "code",
+          state,
+          returnTo: "/dashboard"
+        };
+        const headers = new Headers();
+        const responseCookies = new ResponseCookies(headers);
+
+        const transactionStore = new TransactionStore({
+          secret,
+          cookieOptions: {
+            path: "/custom-path"
+          }
+        });
+        await transactionStore.save(responseCookies, transactionState);
+
+        const cookieName = `__txn_${state}`;
+        const cookie = responseCookies.get(cookieName);
+
+        expect(cookie).toBeDefined();
+        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
+          transactionState
+        );
+        expect(cookie?.path).toEqual("/custom-path");
       });
 
       it("should apply the cookie prefix to the cookie name", async () => {

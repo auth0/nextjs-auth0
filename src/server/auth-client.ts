@@ -1,8 +1,8 @@
-import { NextResponse, type NextRequest } from "next/server.js";
+import { NextResponse, type NextRequest } from "next/server";
 import * as jose from "jose";
 import * as oauth from "oauth4webapi";
 
-import packageJson from "../../package.json" with { type: "json" };
+import packageJson from "../../package.json";
 import {
   AccessTokenError,
   AccessTokenErrorCode,
@@ -16,7 +16,7 @@ import {
   MissingStateError,
   OAuth2Error,
   SdkError
-} from "../errors/index.js";
+} from "../errors";
 import {
   AuthorizationParameters,
   ConnectionTokenSet,
@@ -25,16 +25,16 @@ import {
   SessionData,
   StartInteractiveLoginOptions,
   TokenSet
-} from "../types/index.js";
+} from "../types";
 import {
   ensureNoLeadingSlash,
   ensureTrailingSlash,
   removeTrailingSlash
-} from "../utils/pathUtils.js";
-import { toSafeRedirect } from "../utils/url-helpers.js";
-import { AbstractSessionStore } from "./session/abstract-session-store.js";
-import { TransactionState, TransactionStore } from "./transaction-store.js";
-import { filterClaims } from "./user.js";
+} from "../utils/pathUtils";
+import { toSafeRedirect } from "../utils/url-helpers";
+import { AbstractSessionStore } from "./session/abstract-session-store";
+import { TransactionState, TransactionStore } from "./transaction-store";
+import { filterClaims } from "./user";
 
 export type BeforeSessionSavedHook = (
   session: SessionData,
