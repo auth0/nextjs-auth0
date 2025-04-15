@@ -3,7 +3,7 @@
 import React from "react";
 import { SWRConfig } from "swr";
 
-import { User } from "../../types/index.js";
+import { User } from "../../types";
 
 export function Auth0Provider({
   user,
