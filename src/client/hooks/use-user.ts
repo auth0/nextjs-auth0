@@ -10,14 +10,21 @@ export function useUser() {
     (...args) =>
       fetch(...args).then((res) => {
         if (!res.ok) {
-          throw new Error("Unauthorized");
+          throw new Error(res.statusText || "Fetch error");
         }
-
         return res.json();
       })
   );
 
-  // if we have the user loaded via the provider, return it
+  if (error) {
+    return {
+      user: data,
+      isLoading: false,
+      error,
+      invalidate: () => mutate()
+    };
+  }
+
   if (data) {
     return {
       user: data,
@@ -27,19 +34,10 @@ export function useUser() {
     };
   }
 
-  if (error) {
-    return {
-      user: null,
-      isLoading: false,
-      error,
-      invalidate: () => mutate()
-    };
-  }
-
   return {
-    user: data,
+    user: null,
     isLoading,
-    error,
+    error: null,
     invalidate: () => mutate()
   };
 }
