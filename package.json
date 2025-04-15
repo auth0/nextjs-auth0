@@ -46,6 +46,7 @@
     "eslint-plugin-prettier": "^5.2.3",
     "eslint-plugin-react": "^7.37.4",
     "globals": "^15.14.0",
+    "jsdom": "^26.1.0",
     "next": "15.2.3",
     "prettier": "^3.3.3",
     "typedoc": "^0.27.7",
