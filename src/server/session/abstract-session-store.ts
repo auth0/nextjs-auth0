@@ -29,6 +29,20 @@ export interface SessionCookieOptions {
    * The path attribute of the session cookie. Will be set to '/' by default.
    */
   path?: string;
+  /**
+   * Specifies the value for the {@link https://tools.ietf.org/html/rfc6265#section-5.2.3|Domain Set-Cookie attribute}. By default, no
+   * domain is set, and most clients will consider the cookie to apply to only
+   * the current domain.
+   */
+  domain?: string;
+  /**
+   * The httpOnly attribute of the session cookie. When true, the cookie is not accessible via JavaScript.
+   */
+  httpOnly?: boolean;
+  /**
+   * The transient attribute of the session cookie. When true, the cookie will not persist beyond the current session.
+   */
+  transient?: boolean;
 }
 
 export interface SessionConfiguration {
@@ -107,7 +121,9 @@ export abstract class AbstractSessionStore {
       httpOnly: true,
       sameSite: cookieOptions?.sameSite ?? "lax",
       secure: cookieOptions?.secure ?? false,
-      path: cookieOptions?.path ?? "/"
+      path: cookieOptions?.path ?? "/",
+      domain: cookieOptions?.domain,
+      transient: cookieOptions?.transient
     };
   }
 
