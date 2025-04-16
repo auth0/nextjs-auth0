@@ -1,8 +1,3 @@
-/**
- * @vitest-environment jsdom
- */
-
-import React from "react";
 import * as swrModule from "swr";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
