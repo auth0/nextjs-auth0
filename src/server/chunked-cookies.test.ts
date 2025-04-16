@@ -231,7 +231,7 @@ describe("Chunked Cookie Utils", () => {
       // It is called 3 times.
       // 2 times for the chunks
       // 1 time for the non chunked cookie
-      expect(reqCookies.delete).toHaveBeenCalledTimes(3); 
+      expect(reqCookies.delete).toHaveBeenCalledTimes(3);
       expect(reqCookies.delete).toHaveBeenCalledWith(`${name}__3`);
       expect(reqCookies.delete).toHaveBeenCalledWith(`${name}__4`);
       expect(reqCookies.delete).toHaveBeenCalledWith(name);
