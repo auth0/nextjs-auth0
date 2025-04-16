@@ -10,7 +10,7 @@ export function useUser() {
     (...args) =>
       fetch(...args).then((res) => {
         if (!res.ok) {
-          throw new Error(res.statusText || "Fetch error");
+          throw new Error("Unauthorized");
         }
         return res.json();
       })
@@ -18,7 +18,7 @@ export function useUser() {
 
   if (error) {
     return {
-      user: data,
+      user: null,
       isLoading: false,
       error,
       invalidate: () => mutate()
@@ -35,9 +35,9 @@ export function useUser() {
   }
 
   return {
-    user: null,
+    user: data,
     isLoading,
-    error: null,
+    error,
     invalidate: () => mutate()
   };
 }
