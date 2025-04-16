@@ -1,4 +1,4 @@
-import type { IncomingMessage, ServerResponse } from "node:http";
+import { IncomingMessage, type ServerResponse } from "node:http";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { NextApiRequest, NextApiResponse } from "next/types";
@@ -175,6 +175,13 @@ export type PagesRouterResponse =
   | ServerResponse<IncomingMessage>
   | NextApiResponse;
 
+export type GetAccessTokenOptions = {
+  /**
+   * Force a refresh of the access token.
+   */
+  refresh?: boolean;
+};
+
 export class Auth0Client {
   private transactionStore: TransactionStore;
   private sessionStore: AbstractSessionStore;
@@ -316,8 +323,8 @@ export class Auth0Client {
    * It is recommended to call `getAccessToken(req, res)` in the middleware if you need to retrieve the access token in a Server Component to ensure the updated token set is persisted.
    */
   async getAccessToken(
-    refresh?: boolean
-  ): Promise<{ token: string; expiresAt: number }>;
+    options?: GetAccessTokenOptions
+  ): Promise<{ token: string; expiresAt: number; scope?: string }>;
 
   /**
    * getAccessToken returns the access token.
@@ -327,29 +334,32 @@ export class Auth0Client {
   async getAccessToken(
     req: PagesRouterRequest | NextRequest,
     res: PagesRouterResponse | NextResponse,
-    refresh?: boolean
-  ): Promise<{ token: string; expiresAt: number }>;
+    options?: GetAccessTokenOptions
+  ): Promise<{ token: string; expiresAt: number; scope?: string }>;
 
   /**
    * getAccessToken returns the access token.
    */
   async getAccessToken(
-    reqOrRefresh?: PagesRouterRequest | NextRequest | boolean,
+    reqOrOptions?: PagesRouterRequest | NextRequest | GetAccessTokenOptions,
     res?: PagesRouterResponse | NextResponse,
-    refresh?: boolean
+    options?: GetAccessTokenOptions
   ): Promise<{ token: string; expiresAt: number; scope?: string }> {
     // Parameter type handling
     let req: PagesRouterRequest | NextRequest | undefined;
     let actualForceRefresh: boolean | undefined;
 
-    // Check if the first parameter is a request object or a boolean
-    if (typeof reqOrRefresh === "boolean" || reqOrRefresh === undefined) {
-      // App Router case (forceRefresh as first param)
-      actualForceRefresh = reqOrRefresh as boolean | undefined;
-    } else {
+    // Check if the first parameter is a request object or an options object
+    if (
+      reqOrOptions instanceof IncomingMessage ||
+      reqOrOptions instanceof NextRequest
+    ) {
       // Pages Router case (req/res as first params)
-      req = reqOrRefresh;
-      actualForceRefresh = refresh;
+      req = reqOrOptions;
+      actualForceRefresh = options?.refresh;
+    } else {
+      // App Router case (options as first param)
+      actualForceRefresh = (reqOrOptions as GetAccessTokenOptions)?.refresh;
     }
 
     const session: SessionData | null = req
