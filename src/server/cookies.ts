@@ -187,7 +187,7 @@ export function setChunkedCookie(
     reqCookies.set(name, value);
 
     // When we are writing a non-chunked cookie, we should remove the chunked cookies
-    getAllChunkedCookies(reqCookies, name).forEach(cookieChunk => {
+    getAllChunkedCookies(reqCookies, name).forEach((cookieChunk) => {
       resCookies.delete(cookieChunk.name);
       reqCookies.delete(cookieChunk.name);
     });
@@ -223,9 +223,9 @@ export function setChunkedCookie(
     }
   }
 
-   // When we have written chunked cookies, we should remove the non-chunked cookie
-   resCookies.delete(name);
-   reqCookies.delete(name);
+  // When we have written chunked cookies, we should remove the non-chunked cookie
+  resCookies.delete(name);
+  reqCookies.delete(name);
 }
 
 /**
