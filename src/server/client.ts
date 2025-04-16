@@ -1,4 +1,4 @@
-import type { IncomingMessage, ServerResponse } from "node:http";
+import { IncomingMessage, type ServerResponse } from "node:http";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { NextApiRequest, NextApiResponse } from "next/types";
@@ -175,6 +175,13 @@ export type PagesRouterResponse =
   | ServerResponse<IncomingMessage>
   | NextApiResponse;
 
+export type GetAccessTokenOptions = {
+  /**
+   * Force a refresh of the access token.
+   */
+  refresh?: boolean;
+};
+
 export class Auth0Client {
   private transactionStore: TransactionStore;
   private sessionStore: AbstractSessionStore;
@@ -315,28 +322,55 @@ export class Auth0Client {
    * NOTE: Server Components cannot set cookies. Calling `getAccessToken()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not to be persisted.
    * It is recommended to call `getAccessToken(req, res)` in the middleware if you need to retrieve the access token in a Server Component to ensure the updated token set is persisted.
    */
-  async getAccessToken(): Promise<{ token: string; expiresAt: number }>;
+  /**
+   * @param options Optional configuration for getting the access token.
+   * @param options.refresh Force a refresh of the access token.
+   */
+  async getAccessToken(
+    options?: GetAccessTokenOptions
+  ): Promise<{ token: string; expiresAt: number; scope?: string }>;
 
   /**
    * getAccessToken returns the access token.
    *
    * This method can be used in middleware and `getServerSideProps`, API routes in the **Pages Router**.
+   *
+   * @param req The request object.
+   * @param res The response object.
+   * @param options Optional configuration for getting the access token.
+   * @param options.refresh Force a refresh of the access token.
    */
   async getAccessToken(
     req: PagesRouterRequest | NextRequest,
-    res: PagesRouterResponse | NextResponse
-  ): Promise<{ token: string; expiresAt: number }>;
+    res: PagesRouterResponse | NextResponse,
+    options?: GetAccessTokenOptions
+  ): Promise<{ token: string; expiresAt: number; scope?: string }>;
 
   /**
    * getAccessToken returns the access token.
-   *
-   * NOTE: Server Components cannot set cookies. Calling `getAccessToken()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not to be persisted.
-   * It is recommended to call `getAccessToken(req, res)` in the middleware if you need to retrieve the access token in a Server Component to ensure the updated token set is persisted.
    */
   async getAccessToken(
-    req?: PagesRouterRequest | NextRequest,
-    res?: PagesRouterResponse | NextResponse
+    reqOrOptions?: PagesRouterRequest | NextRequest | GetAccessTokenOptions,
+    res?: PagesRouterResponse | NextResponse,
+    options?: GetAccessTokenOptions
   ): Promise<{ token: string; expiresAt: number; scope?: string }> {
+    // Parameter type handling
+    let req: PagesRouterRequest | NextRequest | undefined;
+    let actualForceRefresh: boolean | undefined;
+
+    // Check if the first parameter is a request object or an options object
+    if (
+      reqOrOptions instanceof IncomingMessage ||
+      reqOrOptions instanceof NextRequest
+    ) {
+      // Pages Router case (req/res as first params)
+      req = reqOrOptions;
+      actualForceRefresh = options?.refresh;
+    } else {
+      // App Router case (options as first param)
+      actualForceRefresh = (reqOrOptions as GetAccessTokenOptions)?.refresh;
+    }
+
     const session: SessionData | null = req
       ? await this.getSession(req)
       : await this.getSession();
@@ -349,26 +383,21 @@ export class Auth0Client {
     }
 
     const [error, tokenSet] = await this.authClient.getTokenSet(
-      session.tokenSet
+      session.tokenSet,
+      actualForceRefresh // Pass forceRefresh to token refresh logic
     );
+
     if (error) {
       throw error;
     }
 
-    // update the session with the new token set, if necessary
+    // Update session if token changed
     if (
       tokenSet.accessToken !== session.tokenSet.accessToken ||
       tokenSet.expiresAt !== session.tokenSet.expiresAt ||
       tokenSet.refreshToken !== session.tokenSet.refreshToken
     ) {
-      await this.saveToSession(
-        {
-          ...session,
-          tokenSet
-        },
-        req,
-        res
-      );
+      await this.saveToSession({ ...session, tokenSet }, req, res);
     }
 
     return {

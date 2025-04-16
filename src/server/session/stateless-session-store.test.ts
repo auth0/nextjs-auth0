@@ -334,7 +334,7 @@ describe("Stateless Session Store", async () => {
         const responseCookies = new ResponseCookies(new Headers());
 
         const sessionStore = new StatelessSessionStore({
-          secret,
+          secret
         });
 
         vi.spyOn(responseCookies, "delete");
@@ -365,19 +365,23 @@ describe("Stateless Session Store", async () => {
         const responseCookies = new ResponseCookies(new Headers());
 
         const sessionStore = new StatelessSessionStore({
-          secret,
+          secret
         });
 
         vi.spyOn(responseCookies, "delete");
         vi.spyOn(requestCookies, "getAll").mockReturnValue([
-          { name: `${LEGACY_COOKIE_NAME}__0`, value: '' },
-          { name: `${LEGACY_COOKIE_NAME}__1`, value: '' }
+          { name: `${LEGACY_COOKIE_NAME}__0`, value: "" },
+          { name: `${LEGACY_COOKIE_NAME}__1`, value: "" }
         ]);
 
         await sessionStore.set(requestCookies, responseCookies, session);
 
-        expect(responseCookies.delete).toHaveBeenCalledWith(`${LEGACY_COOKIE_NAME}__0`);
-        expect(responseCookies.delete).toHaveBeenCalledWith(`${LEGACY_COOKIE_NAME}__1`);
+        expect(responseCookies.delete).toHaveBeenCalledWith(
+          `${LEGACY_COOKIE_NAME}__0`
+        );
+        expect(responseCookies.delete).toHaveBeenCalledWith(
+          `${LEGACY_COOKIE_NAME}__1`
+        );
       });
     });
 
@@ -516,7 +520,7 @@ describe("Stateless Session Store", async () => {
         const sessionStore = new StatelessSessionStore({
           secret,
           cookieOptions: {
-            path: '/custom-path'
+            path: "/custom-path"
           }
         });
         await sessionStore.set(requestCookies, responseCookies, session);
