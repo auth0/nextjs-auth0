@@ -1,4 +1,4 @@
-import { IncomingMessage, type ServerResponse } from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { NextApiRequest, NextApiResponse } from "next/types";
@@ -175,13 +175,6 @@ export type PagesRouterResponse =
   | ServerResponse<IncomingMessage>
   | NextApiResponse;
 
-export type GetAccessTokenOptions = {
-  /**
-   * Force a refresh of the access token.
-   */
-  refresh?: boolean;
-};
-
 export class Auth0Client {
   private transactionStore: TransactionStore;
   private sessionStore: AbstractSessionStore;
@@ -348,27 +341,51 @@ export class Auth0Client {
 
   /**
    * getAccessToken returns the access token.
+   *
+   * NOTE: Server Components cannot set cookies. Calling `getAccessToken()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not to be persisted.
+   * It is recommended to call `getAccessToken(req, res)` in the middleware if you need to retrieve the access token in a Server Component to ensure the updated token set is persisted.
    */
   async getAccessToken(
-    reqOrOptions?: PagesRouterRequest | NextRequest | GetAccessTokenOptions,
-    res?: PagesRouterResponse | NextResponse,
-    options?: GetAccessTokenOptions
+    arg1?: PagesRouterRequest | NextRequest | GetAccessTokenOptions,
+    arg2?: PagesRouterResponse | NextResponse,
+    arg3?: GetAccessTokenOptions
   ): Promise<{ token: string; expiresAt: number; scope?: string }> {
-    // Parameter type handling
-    let req: PagesRouterRequest | NextRequest | undefined;
-    let actualForceRefresh: boolean | undefined;
+    const defaultOptions: Required<GetAccessTokenOptions> = {
+      refresh: false
+    };
 
-    // Check if the first parameter is a request object or an options object
+    let req: PagesRouterRequest | NextRequest | undefined = undefined;
+    let res: PagesRouterResponse | NextResponse | undefined = undefined;
+    let options: GetAccessTokenOptions = {};
+
+    // Determine which overload was called based on arguments
     if (
-      reqOrOptions instanceof IncomingMessage ||
-      reqOrOptions instanceof NextRequest
+      arg1 &&
+      (arg1 instanceof Request || typeof (arg1 as any).headers === "object")
     ) {
-      // Pages Router case (req/res as first params)
-      req = reqOrOptions;
-      actualForceRefresh = options?.refresh;
+      // Case: getAccessToken(req, res, options?)
+      req = arg1 as PagesRouterRequest | NextRequest;
+      res = arg2; // arg2 must be Response if arg1 is Request
+      // Merge provided options (arg3) with defaults
+      options = { ...defaultOptions, ...(arg3 ?? {}) };
+      if (!res) {
+        throw new TypeError(
+          "getAccessToken(req, res): The 'res' argument is missing. Both 'req' and 'res' must be provided together for Pages Router or middleware usage."
+        );
+      }
     } else {
-      // App Router case (options as first param)
-      actualForceRefresh = (reqOrOptions as GetAccessTokenOptions)?.refresh;
+      // Case: getAccessToken(options?) or getAccessToken()
+      // arg1 (if present) must be options, arg2 and arg3 must be undefined.
+      if (arg2 !== undefined || arg3 !== undefined) {
+        throw new TypeError(
+          "getAccessToken: Invalid arguments. Valid signatures are getAccessToken(), getAccessToken(options), or getAccessToken(req, res, options)."
+        );
+      }
+      // Merge provided options (arg1) with defaults
+      options = {
+        ...defaultOptions,
+        ...((arg1 as GetAccessTokenOptions) ?? {})
+      };
     }
 
     const session: SessionData | null = req
@@ -384,20 +401,26 @@ export class Auth0Client {
 
     const [error, tokenSet] = await this.authClient.getTokenSet(
       session.tokenSet,
-      actualForceRefresh // Pass forceRefresh to token refresh logic
+      options.refresh
     );
-
     if (error) {
       throw error;
     }
 
-    // Update session if token changed
+    // update the session with the new token set, if necessary
     if (
       tokenSet.accessToken !== session.tokenSet.accessToken ||
       tokenSet.expiresAt !== session.tokenSet.expiresAt ||
       tokenSet.refreshToken !== session.tokenSet.refreshToken
     ) {
-      await this.saveToSession({ ...session, tokenSet }, req, res);
+      await this.saveToSession(
+        {
+          ...session,
+          tokenSet
+        },
+        req,
+        res
+      );
     }
 
     return {
@@ -752,3 +775,7 @@ export class Auth0Client {
     };
   }
 }
+
+export type GetAccessTokenOptions = {
+  refresh?: boolean;
+};
