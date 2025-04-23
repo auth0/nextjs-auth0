@@ -629,37 +629,64 @@ export const auth0 = new Auth0Client({
 
 ## Cookie Configuration
 
-You can configure session cookie attributes directly in the client options. These options take precedence over environment variables (`AUTH0_COOKIE_*`).
+You can configure the session cookie attributes either through environment variables or directly in the SDK initialization.
 
-```ts
+**1. Using Environment Variables:**
+
+Set the desired environment variables in your `.env.local` file or your deployment environment:
+
+```
+# .env.local
+# ... other variables ...
+
+# Cookie Options
+AUTH0_COOKIE_DOMAIN='.example.com' # Set cookie for subdomains
+AUTH0_COOKIE_PATH='/app'          # Limit cookie to /app path
+AUTH0_COOKIE_TRANSIENT=true       # Make cookie transient (session-only)
+AUTH0_COOKIE_SECURE=true          # Recommended for production
+AUTH0_COOKIE_SAME_SITE='Lax'
+```
+
+The SDK will automatically pick up these values. Note that `httpOnly` is always set to `true` for security reasons and cannot be configured.
+
+**2. Using `Auth0ClientOptions`:**
+
+Configure the options directly when initializing the client:
+
+```typescript
 import { Auth0Client } from "@auth0/nextjs-auth0/server"
 
 export const auth0 = new Auth0Client({
   session: {
     cookie: {
-      domain: ".example.com", // Set cookie for subdomains
-      path: "/app",           // Limit cookie to /app path
-      transient: true,        // Make cookie transient (session-only, ignores maxAge)
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "Lax",
+      domain: '.example.com',
+      path: '/app',
+      transient: true,
+      // httpOnly is always true and cannot be configured
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'Lax',
       // name: 'appSession', // Optional: custom cookie name, defaults to '__session'
     },
     // ... other session options like absoluteDuration ...
   },
   // ... other client options ...
-})
+});
 ```
 
-**Cookie Options:**
+**Session Cookie Options:**
 
 *   `domain` (String): Specifies the `Domain` attribute.
 *   `path` (String): Specifies the `Path` attribute. Defaults to `/`.
 *   `transient` (Boolean): If `true`, the `maxAge` attribute is omitted, making it a session cookie. Defaults to `false`.
-*   `httpOnly` (Boolean): Specifies the `HttpOnly` attribute. Defaults to `true`.
 *   `secure` (Boolean): Specifies the `Secure` attribute. Defaults to `false` (or `true` if `AUTH0_COOKIE_SECURE=true` is set).
 *   `sameSite` ('Lax' | 'Strict' | 'None'): Specifies the `SameSite` attribute. Defaults to `Lax` (or the value of `AUTH0_COOKIE_SAME_SITE`).
 *   `name` (String): The name of the session cookie. Defaults to `__session`.
+
+> [!INFO]
+> Options provided directly in `Auth0ClientOptions` take precedence over environment variables. The `httpOnly` attribute is always `true` regardless of configuration.
+
+> [!INFO]
+> The `httpOnly` attribute for the session cookie is always set to `true` for security reasons and cannot be configured via options or environment variables.
 
 ## Database sessions
 

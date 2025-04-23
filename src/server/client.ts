@@ -206,9 +206,6 @@ export class Auth0Client {
         "lax",
       path:
         options.session?.cookie?.path ?? process.env.AUTH0_COOKIE_PATH ?? "/",
-      httpOnly:
-        options.session?.cookie?.httpOnly ??
-        process.env.AUTH0_COOKIE_HTTP_ONLY !== "false",
       transient:
         options.session?.cookie?.transient ??
         process.env.AUTH0_COOKIE_TRANSIENT === "true",
