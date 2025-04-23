@@ -36,10 +36,6 @@ export interface SessionCookieOptions {
    */
   domain?: string;
   /**
-   * The httpOnly attribute of the session cookie. When true, the cookie is not accessible via JavaScript.
-   */
-  httpOnly?: boolean;
-  /**
    * The transient attribute of the session cookie. When true, the cookie will not persist beyond the current session.
    */
   transient?: boolean;
