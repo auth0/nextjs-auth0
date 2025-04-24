@@ -541,8 +541,6 @@ export async function GET() {
 
     // Use the refreshed token
     // ...
-
-    return Response.json({ token, expiresAt });
   } catch (error) {
     console.error('Error getting access token:', error);
     return Response.json({ error: 'Failed to get access token' }, { status: 500 });
@@ -571,8 +569,6 @@ export default withApiAuthRequired(async function handler(
 
     // Use the refreshed token
     // ...
-
-    res.status(200).json({ token, expiresAt });
   } catch (error: any) {
     console.error('Error getting access token:', error);
     res.status(error.status || 500).json({ error: error.message });
@@ -581,7 +577,7 @@ export default withApiAuthRequired(async function handler(
 ```
 
 By setting `{ refresh: true }`, you instruct the SDK to bypass the standard expiration check and request a new access token from the identity provider using the refresh token (if available and valid). The new token set (including the potentially updated access token, refresh token, and expiration time) will be saved back into the session automatically.
-This will in turn, also update the `id_token` field of `tokenset` in the session.
+This will in turn, update the `access_token`, `id_token` and `expires_at` fields of `tokenset` in the session.
 
 ## `<Auth0Provider />`
 
