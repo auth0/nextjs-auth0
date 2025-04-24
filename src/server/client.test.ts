@@ -1,21 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { AuthClient } from "./auth-client"; // Import the actual class for spyOn
 import { Auth0Client } from "./client.js";
+
+// Define ENV_VARS at the top level for broader scope
+const ENV_VARS = {
+  DOMAIN: "AUTH0_DOMAIN",
+  CLIENT_ID: "AUTH0_CLIENT_ID",
+  CLIENT_SECRET: "AUTH0_CLIENT_SECRET",
+  CLIENT_ASSERTION_SIGNING_KEY: "AUTH0_CLIENT_ASSERTION_SIGNING_KEY",
+  APP_BASE_URL: "APP_BASE_URL",
+  SECRET: "AUTH0_SECRET",
+  SCOPE: "AUTH0_SCOPE"
+};
 
 describe("Auth0Client", () => {
   // Store original env vars
   const originalEnv = { ...process.env };
-
-  // Define correct environment variable names
-  const ENV_VARS = {
-    DOMAIN: "AUTH0_DOMAIN",
-    CLIENT_ID: "AUTH0_CLIENT_ID",
-    CLIENT_SECRET: "AUTH0_CLIENT_SECRET",
-    CLIENT_ASSERTION_SIGNING_KEY: "AUTH0_CLIENT_ASSERTION_SIGNING_KEY",
-    APP_BASE_URL: "APP_BASE_URL",
-    SECRET: "AUTH0_SECRET",
-    SCOPE: "AUTH0_SCOPE"
-  };
 
   // Clear env vars before each test
   beforeEach(() => {
@@ -111,4 +112,81 @@ describe("Auth0Client", () => {
       }
     });
   });
+});
+
+describe("Auth0Client getAccessToken", () => {
+  const setupClient = () => {
+    // Set required environment variables
+    process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
+    process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
+    process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
+    process.env[ENV_VARS.APP_BASE_URL] = "https://myapp.test";
+    process.env[ENV_VARS.SECRET] = "test_secret_string_at_least_32_bytes";
+    return new Auth0Client();
+  };
+
+  beforeEach(() => {
+    // Reset mocks before each test
+    vi.clearAllMocks();
+    // Restore spyOn mocks
+    vi.restoreAllMocks();
+  });
+
+  it("should call getTokenSet with forceRefresh=true when refresh option is true", async () => {
+    const client = setupClient();
+
+    // Define mock session data first
+    const mockSession = {
+      user: { sub: "user123" },
+      tokenSet: {
+        accessToken: "initial_at",
+        idToken: "initial_idt",
+        refreshToken: "initial_rt",
+        scope: "openid profile",
+        expiresAt: Math.floor(Date.now() / 1000) + 3600 // Not expired
+      },
+      internal: { sid: "sid123", createdAt: Date.now() / 1000 }
+    };
+    const refreshedTokenSet = {
+      accessToken: "refreshed_at",
+      idToken: "refreshed_idt",
+      refreshToken: "rotated_rt",
+      scope: "openid profile",
+      expiresAt: Math.floor(Date.now() / 1000) + 7200
+    };
+
+    // Mock getSession directly on the Auth0Client prototype
+    vi.spyOn(Auth0Client.prototype, "getSession").mockResolvedValue(
+      mockSession
+    );
+
+    // Mock getTokenSet directly on the AuthClient prototype
+    const getTokenSetSpy = vi
+      .spyOn(AuthClient.prototype, "getTokenSet")
+      .mockResolvedValue([null, refreshedTokenSet]);
+
+    const result = await client.getAccessToken({ refresh: true });
+
+    // Verify session was checked (by checking our mock of getSession)
+    expect(Auth0Client.prototype.getSession).toHaveBeenCalledTimes(1);
+
+    // Verify the spy on getTokenSet was called
+    expect(getTokenSetSpy).toHaveBeenCalledTimes(1);
+    expect(getTokenSetSpy).toHaveBeenCalledWith(
+      mockSession.tokenSet, // The initial token set from session
+      true // forceRefresh flag
+    );
+
+    // Verify the refreshed token is returned
+    expect(result).toEqual({
+      token: refreshedTokenSet.accessToken,
+      scope: refreshedTokenSet.scope,
+      expiresAt: refreshedTokenSet.expiresAt
+    });
+
+    // Restore the spy after the test
+    getTokenSetSpy.mockRestore();
+  });
+
+  // Add other tests for getAccessToken: no session, no refresh token, expired token, etc.
 });
