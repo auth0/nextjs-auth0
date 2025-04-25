@@ -520,6 +520,65 @@ export async function middleware(request: NextRequest) {
 }
 ```
 
+### Forcing Access Token Refresh
+
+In some scenarios, you might need to explicitly force the refresh of an access token, even if it hasn't expired yet. This can be useful if, for example, the user's permissions or scopes have changed and you need to ensure the application has the latest token reflecting these changes.
+
+The `getAccessToken` method provides an option to force this refresh.
+
+**App Router (Server Components, Route Handlers, Server Actions):**
+
+When calling `getAccessToken` without request and response objects, you can pass an options object as the first argument. Set the `refresh` property to `true` to force a token refresh.
+
+```typescript
+// app/api/my-api/route.ts
+import { getAccessToken } from '@auth0/nextjs-auth0';
+
+export async function GET() {
+  try {
+    // Force a refresh of the access token
+    const { token, expiresAt } = await getAccessToken({ refresh: true });
+
+    // Use the refreshed token
+    // ...
+  } catch (error) {
+    console.error('Error getting access token:', error);
+    return Response.json({ error: 'Failed to get access token' }, { status: 500 });
+  }
+}
+```
+
+**Pages Router (getServerSideProps, API Routes):**
+
+When calling `getAccessToken` with request and response objects (from `getServerSideProps` context or an API route), the options object is passed as the third argument.
+
+```typescript
+// pages/api/my-pages-api.ts
+import { getAccessToken, withApiAuthRequired } from '@auth0/nextjs-auth0';
+import type { NextApiRequest, NextApiResponse } from 'next';
+
+export default withApiAuthRequired(async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  try {
+    // Force a refresh of the access token
+    const { token, expiresAt } = await getAccessToken(req, res, {
+      refresh: true
+    });
+
+    // Use the refreshed token
+    // ...
+  } catch (error: any) {
+    console.error('Error getting access token:', error);
+    res.status(error.status || 500).json({ error: error.message });
+  }
+});
+```
+
+By setting `{ refresh: true }`, you instruct the SDK to bypass the standard expiration check and request a new access token from the identity provider using the refresh token (if available and valid). The new token set (including the potentially updated access token, refresh token, and expiration time) will be saved back into the session automatically.
+This will in turn, update the `access_token`, `id_token` and `expires_at` fields of `tokenset` in the session.
+
 ## `<Auth0Provider />`
 
 ### Passing an initial user from the server
