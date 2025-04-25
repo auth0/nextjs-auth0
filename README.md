@@ -156,7 +156,7 @@ AUTH0_COOKIE_TRANSIENT=
 AUTH0_COOKIE_SECURE=
 AUTH0_COOKIE_SAME_SITE=
 ```
-Respsective counterparts are also available in the client configuration. See [Cookie Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#cookie-configuration) for more details.  
+Respective counterparts are also available in the client configuration. See [Cookie Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#cookie-configuration) for more details.  
 
 ## Configuration Validation
 
