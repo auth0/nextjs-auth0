@@ -1,5 +1,21 @@
 # Change Log
 
+## [v4.5.0](https://github.com/auth0/nextjs-auth0/tree/v4.5.0) (2025-04-25)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.4.2...v4.5.0)
+
+**Added**
+- Extensive Cookie Configuration [\#2059](https://github.com/auth0/nextjs-auth0/pull/2059) ([tusharpandey13](https://github.com/tusharpandey13))
+- Allow refresh: true in getAccessToken() [\#2055](https://github.com/auth0/nextjs-auth0/pull/2055) ([tusharpandey13](https://github.com/tusharpandey13))
+- Allow SWR mutation in useUser hook [\#2045](https://github.com/auth0/nextjs-auth0/pull/2045) ([tusharpandey13](https://github.com/tusharpandey13))
+
+**Changed**
+- Update README regarding access-token endpoint [\#2044](https://github.com/auth0/nextjs-auth0/pull/2044) ([frederikprijck](https://github.com/frederikprijck))
+
+**Fixed**
+- Update tests for getAccessToken refresh flow [\#2068](https://github.com/auth0/nextjs-auth0/pull/2068) ([tusharpandey13](https://github.com/tusharpandey13))
+- fix: make configuration validation not throw [\#2034](https://github.com/auth0/nextjs-auth0/pull/2034) ([tusharpandey13](https://github.com/tusharpandey13))
+- feat: ensure cookie path is configurable [\#2050](https://github.com/auth0/nextjs-auth0/pull/2050) ([frederikprijck](https://github.com/frederikprijck))
+
 ## [v4.4.2](https://github.com/auth0/nextjs-auth0/tree/v4.4.2) (2025-04-08)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.4.1...v4.4.2)
 
