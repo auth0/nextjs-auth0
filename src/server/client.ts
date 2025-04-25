@@ -197,9 +197,19 @@ export class Auth0Client {
 
     const sessionCookieOptions: SessionCookieOptions = {
       name: options.session?.cookie?.name ?? "__session",
-      secure: options.session?.cookie?.secure ?? false,
-      sameSite: options.session?.cookie?.sameSite ?? "lax",
-      path: options.session?.cookie?.path ?? "/"
+      secure:
+        options.session?.cookie?.secure ??
+        process.env.AUTH0_COOKIE_SECURE === "true",
+      sameSite:
+        options.session?.cookie?.sameSite ??
+        (process.env.AUTH0_COOKIE_SAME_SITE as "lax" | "strict" | "none") ??
+        "lax",
+      path:
+        options.session?.cookie?.path ?? process.env.AUTH0_COOKIE_PATH ?? "/",
+      transient:
+        options.session?.cookie?.transient ??
+        process.env.AUTH0_COOKIE_TRANSIENT === "true",
+      domain: options.session?.cookie?.domain ?? process.env.AUTH0_COOKIE_DOMAIN
     };
 
     const transactionCookieOptions: TransactionCookieOptions = {
