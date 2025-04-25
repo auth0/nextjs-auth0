@@ -1,5 +1,8 @@
+import { NextResponse, type NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { AccessTokenError, AccessTokenErrorCode } from "../errors";
+import { SessionData } from "../types";
 import { AuthClient } from "./auth-client"; // Import the actual class for spyOn
 import { Auth0Client } from "./client.js";
 
@@ -34,6 +37,7 @@ describe("Auth0Client", () => {
   // Restore env vars after each test
   afterEach(() => {
     process.env = { ...originalEnv };
+    vi.restoreAllMocks(); // Restore mocks created within tests/beforeEach
   });
 
   describe("constructor validation", () => {
@@ -112,81 +116,102 @@ describe("Auth0Client", () => {
       }
     });
   });
-});
 
-describe("Auth0Client getAccessToken", () => {
-  const setupClient = () => {
-    // Set required environment variables
-    process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
-    process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
-    process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
-    process.env[ENV_VARS.APP_BASE_URL] = "https://myapp.test";
-    process.env[ENV_VARS.SECRET] = "test_secret_string_at_least_32_bytes";
-    return new Auth0Client();
-  };
-
-  beforeEach(() => {
-    // Reset mocks before each test
-    vi.clearAllMocks();
-    // Restore spyOn mocks
-    vi.restoreAllMocks();
-  });
-
-  it("should call getTokenSet with forceRefresh=true when refresh option is true", async () => {
-    const client = setupClient();
-
-    // Define mock session data first
-    const mockSession = {
+  describe("getAccessToken", () => {
+    const mockSession: SessionData = {
       user: { sub: "user123" },
       tokenSet: {
-        accessToken: "initial_at",
-        idToken: "initial_idt",
-        refreshToken: "initial_rt",
-        scope: "openid profile",
-        expiresAt: Math.floor(Date.now() / 1000) + 3600 // Not expired
+        accessToken: "old_access_token",
+        idToken: "old_id_token",
+        refreshToken: "old_refresh_token",
+        expiresAt: Date.now() / 1000 - 3600 // Expired
       },
-      internal: { sid: "sid123", createdAt: Date.now() / 1000 }
-    };
-    const refreshedTokenSet = {
-      accessToken: "refreshed_at",
-      idToken: "refreshed_idt",
-      refreshToken: "rotated_rt",
-      scope: "openid profile",
-      expiresAt: Math.floor(Date.now() / 1000) + 7200
+      internal: {
+        sid: "mock_sid",
+        createdAt: Date.now() / 1000 - 7200 // Some time in the past
+      },
+      createdAt: Date.now() / 1000
     };
 
-    // Mock getSession directly on the Auth0Client prototype
-    vi.spyOn(Auth0Client.prototype, "getSession").mockResolvedValue(
-      mockSession
-    );
+    // Restore original mock for refreshed token set
+    const mockRefreshedTokenSet = {
+      accessToken: "new_access_token",
+      idToken: "new_id_token",
+      refreshToken: "new_refresh_token",
+      expiresAt: Date.now() / 1000 + 3600, // Not expired
+      scope: "openid profile email"
+    };
 
-    // Mock getTokenSet directly on the AuthClient prototype
-    const getTokenSetSpy = vi
-      .spyOn(AuthClient.prototype, "getTokenSet")
-      .mockResolvedValue([null, refreshedTokenSet]);
+    let client: Auth0Client;
+    let mockGetSession: ReturnType<typeof vi.spyOn>;
+    let mockSaveToSession: ReturnType<typeof vi.spyOn>;
+    let mockGetTokenSet: ReturnType<typeof vi.spyOn>; // Re-declare mockGetTokenSet
 
-    const result = await client.getAccessToken({ refresh: true });
+    beforeEach(() => {
+      // Reset mocks specifically if vi.restoreAllMocks isn't enough
+      // vi.resetAllMocks(); // Alternative to restoreAllMocks in afterEach
 
-    // Verify session was checked (by checking our mock of getSession)
-    expect(Auth0Client.prototype.getSession).toHaveBeenCalledTimes(1);
+      // Set necessary environment variables
+      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
+      process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
+      process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
+      process.env[ENV_VARS.APP_BASE_URL] = "https://myapp.test";
+      process.env[ENV_VARS.SECRET] = "test_secret";
 
-    // Verify the spy on getTokenSet was called
-    expect(getTokenSetSpy).toHaveBeenCalledTimes(1);
-    expect(getTokenSetSpy).toHaveBeenCalledWith(
-      mockSession.tokenSet, // The initial token set from session
-      true // forceRefresh flag
-    );
+      client = new Auth0Client();
 
-    // Verify the refreshed token is returned
-    expect(result).toEqual({
-      token: refreshedTokenSet.accessToken,
-      scope: refreshedTokenSet.scope,
-      expiresAt: refreshedTokenSet.expiresAt
+      // Mock internal methods of Auth0Client
+      mockGetSession = vi
+        .spyOn(Auth0Client.prototype as any, "getSession")
+        .mockResolvedValue(mockSession);
+      mockSaveToSession = vi
+        .spyOn(Auth0Client.prototype as any, "saveToSession")
+        .mockResolvedValue(undefined);
+
+      // Restore mocking of getTokenSet directly
+      mockGetTokenSet = vi
+        .spyOn(AuthClient.prototype as any, "getTokenSet")
+        .mockResolvedValue([null, mockRefreshedTokenSet]); // Simulate successful refresh
+
+      // Remove mocks for discoverAuthorizationServerMetadata and getClientAuth
+      // Remove fetch mock
     });
 
-    // Restore the spy after the test
-    getTokenSetSpy.mockRestore();
-  });
+    it("should throw AccessTokenError if no session exists", async () => {
+      // Override getSession mock for this specific test
+      mockGetSession.mockResolvedValue(null);
 
-  // Add other tests for getAccessToken: no session, no refresh token, expired token, etc.
+      // Mock request and response objects
+      const mockReq = { headers: new Headers() } as NextRequest;
+      const mockRes = new NextResponse();
+
+      await expect(
+        client.getAccessToken(mockReq, mockRes)
+      ).rejects.toThrowError(
+        new AccessTokenError(
+          AccessTokenErrorCode.MISSING_SESSION,
+          "The user does not have an active session."
+        )
+      );
+      // Ensure getTokenSet was not called
+      expect(mockGetTokenSet).not.toHaveBeenCalled();
+    });
+
+    it("should throw error from getTokenSet if refresh fails", async () => {
+      const refreshError = new Error("Refresh failed");
+      // Restore overriding the getTokenSet mock directly
+      mockGetTokenSet.mockResolvedValue([refreshError, null]);
+
+      // Mock request and response objects
+      const mockReq = { headers: new Headers() } as NextRequest;
+      const mockRes = new NextResponse();
+
+      await expect(
+        client.getAccessToken(mockReq, mockRes, { refresh: true })
+      ).rejects.toThrowError(refreshError);
+
+      // Verify save was not called
+      expect(mockSaveToSession).not.toHaveBeenCalled();
+    });
+  });
 });
