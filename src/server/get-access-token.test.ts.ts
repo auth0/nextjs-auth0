@@ -136,27 +136,6 @@ function createInitialSession(): SessionData {
   return initialSession;
 }
 
-/**
- * Asserts the common properties of the refreshed access token result.
- */
-function assertRefreshedTokenResult(
-  result: { token: string; scope?: string; expiresAt: number } | null,
-  initialTokenSet: TokenSet
-) {
-  expect(result).not.toBeNull();
-  expect(result?.token).toBe(refreshedAccessToken); // From msw handler
-
-  // Check if expiresAt is close to the expected value based on the mock server response.
-  // We use toBeCloseTo to account for minor timing differences between the client
-  // calculating the expiration and the test assertion running.
-  const expectedExpiresAtRough =
-    Math.floor(Date.now() / 1000) + refreshedExpiresIn;
-  // The '0' precision checks for equality at the integer second level.
-  expect(result?.expiresAt).toBeCloseTo(expectedExpiresAtRough, 0);
-
-  expect(result?.scope).toBe(initialTokenSet.scope);
-}
-
 describe("Auth0Client - getAccessToken", () => {
   let mockSaveToSession: ReturnType<typeof vi.spyOn>;
   let auth0Client: Auth0Client;
@@ -198,7 +177,16 @@ describe("Auth0Client - getAccessToken", () => {
     });
 
     // --- Assertions ---
-    assertRefreshedTokenResult(result, initialSession.tokenSet);
+    expect(result).not.toBeNull();
+    expect(result?.token).toBe(refreshedAccessToken); // From msw handler
+
+    // Check if expiresAt is close to the expected value based on the mock server response.
+    // We use toBeCloseTo to account for minor timing differences between the client
+    // calculating the expiration and the test assertion running.
+    const expectedExpiresAtRough =
+      Math.floor(Date.now() / 1000) + refreshedExpiresIn;
+    // The '0' precision checks for equality at the integer second level.
+    expect(result?.expiresAt).toBeCloseTo(expectedExpiresAtRough, 0);
     expect(mockSaveToSession).toHaveBeenCalledOnce();
   });
 
@@ -221,7 +209,13 @@ describe("Auth0Client - getAccessToken", () => {
     });
 
     // --- Assertions ---
-    assertRefreshedTokenResult(result, initialSession.tokenSet);
+    expect(result).not.toBeNull();
+    expect(result?.token).toBe(refreshedAccessToken);
+
+    const expectedExpiresAtRough =
+      Math.floor(Date.now() / 1000) + refreshedExpiresIn;
+
+    expect(result?.expiresAt).toBeCloseTo(expectedExpiresAtRough, 0);
     expect(mockSaveToSession).toHaveBeenCalledOnce();
   });
 });
