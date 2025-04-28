@@ -270,12 +270,16 @@ export function getChunkedCookie(
     return cookie.value;
   }
 
-  const chunks = getAllChunkedCookies(reqCookies, name, isLegacyCookie).sort(
+  const chunks = getAllChunkedCookies(
+    reqCookies,
+    name,
+    isLegacyCookie ?? false
+  ).sort(
     // Extract index from cookie name and sort numerically
     (first, second) => {
       return (
-        getChunkedCookieIndex(first.name, isLegacyCookie)! -
-        getChunkedCookieIndex(second.name, isLegacyCookie)!
+        getChunkedCookieIndex(first.name, isLegacyCookie ?? false)! -
+        getChunkedCookieIndex(second.name, isLegacyCookie ?? false)!
       );
     }
   );
@@ -287,7 +291,7 @@ export function getChunkedCookie(
   // Validate sequence integrity - check for missing chunks
   const highestIndex = getChunkedCookieIndex(
     chunks[chunks.length - 1].name,
-    isLegacyCookie
+    isLegacyCookie ?? false
   )!;
   if (chunks.length !== highestIndex + 1) {
     console.warn(
@@ -310,12 +314,15 @@ export function getChunkedCookie(
 export function deleteChunkedCookie(
   name: string,
   reqCookies: RequestCookies,
-  resCookies: ResponseCookies
+  resCookies: ResponseCookies,
+  isLegacyCookie?: boolean
 ): void {
   // Delete main cookie
   resCookies.delete(name);
 
-  getAllChunkedCookies(reqCookies, name, true).forEach((cookie) => {
-    resCookies.delete(cookie.name); // Delete each filtered cookie
-  });
+  getAllChunkedCookies(reqCookies, name, isLegacyCookie ?? false).forEach(
+    (cookie) => {
+      resCookies.delete(cookie.name); // Delete each filtered cookie
+    }
+  );
 }

@@ -431,7 +431,7 @@ describe("Chunked Cookie Utils", () => {
 
     describe("getChunkedCookie", () => {
       it("should return undefined if no cookie or chunks are found", () => {
-        const result = getChunkedCookie("nonexistent", reqCookies);
+        const result = getChunkedCookie("nonexistent", reqCookies, false);
         expect(result).toBeUndefined();
       });
 
@@ -440,7 +440,7 @@ describe("Chunked Cookie Utils", () => {
         const value = "single value";
         cookieStore.set(name, value);
 
-        const result = getChunkedCookie(name, reqCookies);
+        const result = getChunkedCookie(name, reqCookies, false);
 
         expect(result).toBe(value);
 
@@ -458,7 +458,7 @@ describe("Chunked Cookie Utils", () => {
         cookieStore.set(`${name}__0`, chunk0);
         cookieStore.set(`${name}__2`, chunk2);
 
-        expect(getChunkedCookie(name, reqCookies)).toBe(
+        expect(getChunkedCookie(name, reqCookies, false)).toBe(
           `${chunk0}${chunk1}${chunk2}`
         );
       });
@@ -472,7 +472,9 @@ describe("Chunked Cookie Utils", () => {
         cookieStore.set(`${name}.1`, chunk1);
         cookieStore.set(`${name}.0`, chunk0);
 
-        expect(getChunkedCookie(name, reqCookies)).toBe(`${chunk0}${chunk1}`);
+        expect(getChunkedCookie(name, reqCookies, true)).toBe(
+          `${chunk0}${chunk1}`
+        );
       });
 
       it("should return undefined when chunks are not in a complete sequence", () => {
@@ -482,7 +484,7 @@ describe("Chunked Cookie Utils", () => {
         cookieStore.set(`${name}__0`, "chunk0");
         cookieStore.set(`${name}__2`, "chunk2");
 
-        const result = getChunkedCookie(name, reqCookies);
+        const result = getChunkedCookie(name, reqCookies, false);
 
         expect(result).toBeUndefined();
         expect(console.warn).toHaveBeenCalled();

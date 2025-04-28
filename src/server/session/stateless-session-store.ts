@@ -120,7 +120,12 @@ export class StatelessSessionStore extends AbstractSessionStore {
 
     // Any existing v3 cookie can be deleted as soon as we have set a v4 cookie.
     // In stateless sessions, we do have to ensure we delete all chunks.
-    cookies.deleteChunkedCookie(LEGACY_COOKIE_NAME, reqCookies, resCookies);
+    cookies.deleteChunkedCookie(
+      LEGACY_COOKIE_NAME,
+      reqCookies,
+      resCookies,
+      true
+    );
   }
 
   async delete(
