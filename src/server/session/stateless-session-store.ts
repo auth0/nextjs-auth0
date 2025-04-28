@@ -44,7 +44,7 @@ export class StatelessSessionStore extends AbstractSessionStore {
   async get(reqCookies: cookies.RequestCookies) {
     const cookieValue =
       cookies.getChunkedCookie(this.sessionCookieName, reqCookies) ??
-      cookies.getChunkedCookie(LEGACY_COOKIE_NAME, reqCookies);
+      cookies.getChunkedCookie(LEGACY_COOKIE_NAME, reqCookies, true);
 
     if (!cookieValue) {
       return null;
