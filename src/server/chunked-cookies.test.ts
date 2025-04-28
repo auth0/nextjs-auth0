@@ -431,8 +431,8 @@ describe("Chunked Cookie Utils", () => {
 
     describe("getChunkedCookie", () => {
       it("should return undefined if no cookie or chunks are found", () => {
-        const name = "nonexistentCookie";
-        expect(getChunkedCookie(name, reqCookies)).toBeUndefined();
+        const result = getChunkedCookie("nonexistent", reqCookies);
+        expect(result).toBeUndefined();
       });
 
       it("should retrieve a single non-chunked cookie", () => {
@@ -440,7 +440,11 @@ describe("Chunked Cookie Utils", () => {
         const value = "single value";
         cookieStore.set(name, value);
 
-        expect(getChunkedCookie(name, reqCookies)).toBe(value);
+        const result = getChunkedCookie(name, reqCookies);
+
+        expect(result).toBe(value);
+
+        expect(reqCookies.get).toHaveBeenCalledWith(name);
       });
 
       it("should retrieve and combine chunked cookies", () => {
