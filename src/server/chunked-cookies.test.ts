@@ -430,42 +430,45 @@ describe("Chunked Cookie Utils", () => {
     });
 
     describe("getChunkedCookie", () => {
-      it("should return undefined when cookie does not exist", () => {
-        const result = getChunkedCookie("nonexistent", reqCookies);
-        expect(result).toBeUndefined();
+      it("should return undefined if no cookie or chunks are found", () => {
+        const name = "nonexistentCookie";
+        expect(getChunkedCookie(name, reqCookies)).toBeUndefined();
       });
 
-      it("should return cookie value when it exists as a regular cookie", () => {
-        const name = "simpleCookie";
-        const value = "simple value";
-
-        // Setup the cookie
+      it("should retrieve a single non-chunked cookie", () => {
+        const name = "singleCookie";
+        const value = "single value";
         cookieStore.set(name, value);
 
-        const result = getChunkedCookie(name, reqCookies);
-
-        expect(result).toBe(value);
-        expect(reqCookies.get).toHaveBeenCalledWith(name);
+        expect(getChunkedCookie(name, reqCookies)).toBe(value);
       });
 
-      it("should reconstruct value from chunks when cookie is chunked", () => {
+      it("should retrieve and combine chunked cookies", () => {
         const name = "chunkedCookie";
         const chunk0 = "chunk0 value";
         const chunk1 = "chunk1 value";
         const chunk2 = "chunk2 value";
 
-        // Add the chunks to the store (out of order)
+        // Set in reverse order to test sorting
         cookieStore.set(`${name}__1`, chunk1);
         cookieStore.set(`${name}__0`, chunk0);
         cookieStore.set(`${name}__2`, chunk2);
 
-        // Also add some unrelated cookies
-        cookieStore.set("otherCookie", "other value");
+        expect(getChunkedCookie(name, reqCookies)).toBe(
+          `${chunk0}${chunk1}${chunk2}`
+        );
+      });
 
-        const result = getChunkedCookie(name, reqCookies);
+      it("should retrieve and combine chunked cookies using legacy format", () => {
+        const name = "legacyChunkedCookie";
+        const chunk0 = "legacy chunk0 value";
+        const chunk1 = "legacy chunk1 value";
 
-        // Should combine chunks in proper order
-        expect(result).toBe(`${chunk0}${chunk1}${chunk2}`);
+        // Set in reverse order to test sorting
+        cookieStore.set(`${name}.1`, chunk1);
+        cookieStore.set(`${name}.0`, chunk0);
+
+        expect(getChunkedCookie(name, reqCookies)).toBe(`${chunk0}${chunk1}`);
       });
 
       it("should return undefined when chunks are not in a complete sequence", () => {

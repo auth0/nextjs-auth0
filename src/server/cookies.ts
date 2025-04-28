@@ -129,15 +129,18 @@ export { RequestCookies };
 const MAX_CHUNK_SIZE = 3500; // Slightly under 4KB
 const CHUNK_PREFIX = "__";
 const CHUNK_INDEX_REGEX = new RegExp(`${CHUNK_PREFIX}(\\d+)$`);
+const LEGACY_CHUNK_INDEX_REGEX = /\.(\d+)$/;
 
 /**
  * Retrieves the index of a cookie based on its name.
+ * Supports current format `{name}__{index}` and legacy format `{name}.{index}`.
  *
  * @param name - The name of the cookie.
  * @returns The index of the cookie. Returns undefined if no index is found.
  */
 const getChunkedCookieIndex = (name: string): number | undefined => {
-  const match = CHUNK_INDEX_REGEX.exec(name);
+  const match =
+    CHUNK_INDEX_REGEX.exec(name) ?? LEGACY_CHUNK_INDEX_REGEX.exec(name);
   if (!match) {
     return undefined;
   }
@@ -156,9 +159,16 @@ const getAllChunkedCookies = (
   name: string
 ): RequestCookie[] => {
   const chunkedCookieRegex = new RegExp(`^${name}${CHUNK_PREFIX}\\d+$`);
+  const legacyChunkedCookieRegex = new RegExp(
+    `^${name}${LEGACY_CHUNK_INDEX_REGEX.source}$`
+  );
   return reqCookies
     .getAll()
-    .filter((cookie) => chunkedCookieRegex.test(cookie.name));
+    .filter(
+      (cookie) =>
+        chunkedCookieRegex.test(cookie.name) ||
+        legacyChunkedCookieRegex.test(cookie.name)
+    );
 };
 
 /**
@@ -275,11 +285,6 @@ export function getChunkedCookie(
     console.warn(
       `Incomplete chunked cookie '${name}': Found ${chunks.length} chunks, expected ${highestIndex + 1}`
     );
-
-    // TODO: Invalid sequence, delete all chunks
-    // this cannot be done here rn because we don't have access to the response cookies
-    // deleteChunkedCookie(name, reqCookies, resCookies);
-
     return undefined;
   }
 
