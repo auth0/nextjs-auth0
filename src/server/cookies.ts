@@ -129,15 +129,22 @@ export { RequestCookies };
 const MAX_CHUNK_SIZE = 3500; // Slightly under 4KB
 const CHUNK_PREFIX = "__";
 const CHUNK_INDEX_REGEX = new RegExp(`${CHUNK_PREFIX}(\\d+)$`);
+const LEGACY_CHUNK_INDEX_REGEX = /\.(\d+)$/;
 
 /**
  * Retrieves the index of a cookie based on its name.
+ * Supports current format `{name}__{index}` and legacy format `{name}.{index}`.
  *
  * @param name - The name of the cookie.
  * @returns The index of the cookie. Returns undefined if no index is found.
  */
-const getChunkedCookieIndex = (name: string): number | undefined => {
-  const match = CHUNK_INDEX_REGEX.exec(name);
+const getChunkedCookieIndex = (
+  name: string,
+  isLegacyCookie?: boolean
+): number | undefined => {
+  const match = isLegacyCookie
+    ? LEGACY_CHUNK_INDEX_REGEX.exec(name)
+    : CHUNK_INDEX_REGEX.exec(name);
   if (!match) {
     return undefined;
   }
@@ -153,9 +160,14 @@ const getChunkedCookieIndex = (name: string): number | undefined => {
  */
 const getAllChunkedCookies = (
   reqCookies: RequestCookies,
-  name: string
+  name: string,
+  isLegacyCookie?: boolean
 ): RequestCookie[] => {
-  const chunkedCookieRegex = new RegExp(`^${name}${CHUNK_PREFIX}\\d+$`);
+  const chunkedCookieRegex = new RegExp(
+    isLegacyCookie
+      ? `^${name}${LEGACY_CHUNK_INDEX_REGEX.source}$`
+      : `^${name}${CHUNK_PREFIX}\\d+$`
+  );
   return reqCookies
     .getAll()
     .filter((cookie) => chunkedCookieRegex.test(cookie.name));
@@ -248,19 +260,26 @@ export function setChunkedCookie(
  */
 export function getChunkedCookie(
   name: string,
-  reqCookies: RequestCookies
+  reqCookies: RequestCookies,
+  isLegacyCookie?: boolean
 ): string | undefined {
   // Check if regular cookie exists
   const cookie = reqCookies.get(name);
   if (cookie?.value) {
+    // If the base cookie exists, return its value (handles non-chunked case)
     return cookie.value;
   }
 
-  const chunks = getAllChunkedCookies(reqCookies, name).sort(
+  const chunks = getAllChunkedCookies(
+    reqCookies,
+    name,
+    isLegacyCookie ?? false
+  ).sort(
     // Extract index from cookie name and sort numerically
     (first, second) => {
       return (
-        getChunkedCookieIndex(first.name)! - getChunkedCookieIndex(second.name)!
+        getChunkedCookieIndex(first.name, isLegacyCookie ?? false)! -
+        getChunkedCookieIndex(second.name, isLegacyCookie ?? false)!
       );
     }
   );
@@ -270,16 +289,14 @@ export function getChunkedCookie(
   }
 
   // Validate sequence integrity - check for missing chunks
-  const highestIndex = getChunkedCookieIndex(chunks[chunks.length - 1].name)!;
+  const highestIndex = getChunkedCookieIndex(
+    chunks[chunks.length - 1].name,
+    isLegacyCookie ?? false
+  )!;
   if (chunks.length !== highestIndex + 1) {
     console.warn(
       `Incomplete chunked cookie '${name}': Found ${chunks.length} chunks, expected ${highestIndex + 1}`
     );
-
-    // TODO: Invalid sequence, delete all chunks
-    // this cannot be done here rn because we don't have access to the response cookies
-    // deleteChunkedCookie(name, reqCookies, resCookies);
-
     return undefined;
   }
 
@@ -297,12 +314,15 @@ export function getChunkedCookie(
 export function deleteChunkedCookie(
   name: string,
   reqCookies: RequestCookies,
-  resCookies: ResponseCookies
+  resCookies: ResponseCookies,
+  isLegacyCookie?: boolean
 ): void {
   // Delete main cookie
   resCookies.delete(name);
 
-  getAllChunkedCookies(reqCookies, name).forEach((cookie) => {
-    resCookies.delete(cookie.name); // Delete each filtered cookie
-  });
+  getAllChunkedCookies(reqCookies, name, isLegacyCookie ?? false).forEach(
+    (cookie) => {
+      resCookies.delete(cookie.name); // Delete each filtered cookie
+    }
+  );
 }
