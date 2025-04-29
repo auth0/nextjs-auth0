@@ -698,7 +698,6 @@ describe("Stateful Session Store", async () => {
       });
     });
 
-
     it("should remove the legacy cookie if it exists", async () => {
       const currentTime = Date.now();
       const createdAt = Math.floor(currentTime / 1000);
@@ -726,7 +725,7 @@ describe("Stateful Session Store", async () => {
 
       const sessionStore = new StatefulSessionStore({
         secret,
-        store,
+        store
       });
 
       vi.spyOn(requestCookies, "has").mockReturnValue(true);
