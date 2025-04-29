@@ -15,6 +15,7 @@ const ENCRYPTION_INFO = "JWE CEK";
 export async function encrypt(
   payload: jose.JWTPayload,
   secret: string,
+  expiration: number,
   additionalHeaders?: {
     iat: number;
     uat: number;
@@ -31,6 +32,7 @@ export async function encrypt(
 
   const encryptedCookie = await new jose.EncryptJWT(payload)
     .setProtectedHeader({ enc: ENC, alg: ALG, ...additionalHeaders })
+    .setExpirationTime(expiration)
     .encrypt(encryptionSecret);
 
   return encryptedCookie.toString();
