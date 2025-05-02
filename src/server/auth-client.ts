@@ -422,12 +422,7 @@ export class AuthClient {
       await this.sessionStore.delete(req.cookies, res.cookies);
 
       // Clear any orphaned transaction cookies
-      const txnPrefix = this.transactionStore.getCookiePrefix();
-      req.cookies.getAll().forEach((cookie) => {
-        if (cookie.name.startsWith(txnPrefix)) {
-          res.cookies.delete(cookie.name);
-        }
-      });
+      await this.transactionStore.deleteAll(req.cookies, res.cookies);
 
       return res;
     }
@@ -448,12 +443,7 @@ export class AuthClient {
     await this.sessionStore.delete(req.cookies, res.cookies);
 
     // Clear any orphaned transaction cookies
-    const txnPrefix = this.transactionStore.getCookiePrefix();
-    req.cookies.getAll().forEach((cookie) => {
-      if (cookie.name.startsWith(txnPrefix)) {
-        res.cookies.delete(cookie.name);
-      }
-    });
+    await this.transactionStore.deleteAll(req.cookies, res.cookies);
 
     return res;
   }

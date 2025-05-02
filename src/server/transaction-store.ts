@@ -120,4 +120,19 @@ export class TransactionStore {
   async delete(resCookies: cookies.ResponseCookies, state: string) {
     await resCookies.delete(this.getTransactionCookieName(state));
   }
+
+  /**
+   * Deletes all transaction cookies based on the configured prefix.
+   */
+  async deleteAll(
+    reqCookies: cookies.RequestCookies,
+    resCookies: cookies.ResponseCookies
+  ) {
+    const txnPrefix = this.getCookiePrefix();
+    reqCookies.getAll().forEach((cookie) => {
+      if (cookie.name.startsWith(txnPrefix)) {
+        resCookies.delete(cookie.name);
+      }
+    });
+  }
 }

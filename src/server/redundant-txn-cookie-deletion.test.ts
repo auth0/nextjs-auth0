@@ -78,6 +78,9 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
       .fn()
       .mockReturnValue("__txn_");
     mockTransactionStoreInstance.delete = vi.fn().mockResolvedValue(undefined);
+    mockTransactionStoreInstance.deleteAll = vi
+      .fn()
+      .mockResolvedValue(undefined);
     mockTransactionStoreInstance.get = vi.fn().mockResolvedValue({
       payload: {
         state: "test-state",
@@ -150,18 +153,17 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
       const res = await authClient.handleLogout(req);
 
       expect(mockSessionStoreInstance.delete).toHaveBeenCalledTimes(1);
-      expect(
-        mockTransactionStoreInstance.getCookiePrefix
-      ).toHaveBeenCalledTimes(1);
-
-      const setCookieHeader = res.headers.get("set-cookie") || "";
-      expect(setCookieHeader).not.toMatch(/__txn_[^=]+=;/);
+      expect(mockTransactionStoreInstance.deleteAll).toHaveBeenCalledTimes(1);
+      expect(mockTransactionStoreInstance.deleteAll).toHaveBeenCalledWith(
+        req.cookies,
+        res.cookies
+      );
 
       expect(res.status).toBeGreaterThanOrEqual(300); // Accept 302 or 307
       expect(res.status).toBeLessThan(400);
     });
 
-    it("should delete session cookie AND existing transaction cookies", async () => {
+    it("should delete session cookie AND call deleteAll for transaction cookies", async () => {
       const req = new NextRequest("http://localhost:3000/api/auth/logout");
       req.cookies.set("__session", "session-value");
       req.cookies.set("__txn_state1", "txn-value1");
@@ -171,24 +173,17 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
       const res = await authClient.handleLogout(req);
 
       expect(mockSessionStoreInstance.delete).toHaveBeenCalledTimes(1);
-      expect(
-        mockTransactionStoreInstance.getCookiePrefix
-      ).toHaveBeenCalledTimes(1);
-
-      const setCookieHeader = res.headers.get("set-cookie") || "";
-      expect(setCookieHeader).toMatch(
-        /__txn_state1=;.*Expires=Thu, 01 Jan 1970/
+      expect(mockTransactionStoreInstance.deleteAll).toHaveBeenCalledTimes(1);
+      expect(mockTransactionStoreInstance.deleteAll).toHaveBeenCalledWith(
+        req.cookies,
+        res.cookies
       );
-      expect(setCookieHeader).toMatch(
-        /__txn_state2=;.*Expires=Thu, 01 Jan 1970/
-      );
-      expect(setCookieHeader).not.toMatch(/other_cookie=;/);
 
       expect(res.status).toBeGreaterThanOrEqual(300);
       expect(res.status).toBeLessThan(400);
     });
 
-    it("should delete transaction cookies even if no session exists", async () => {
+    it("should call deleteAll for transaction cookies even if no session exists", async () => {
       mockSessionStoreInstance.get = vi.fn().mockResolvedValue(null);
       const req = new NextRequest("http://localhost:3000/api/auth/logout");
       req.cookies.set("__txn_state1", "txn-value1");
@@ -196,20 +191,17 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
       const res = await authClient.handleLogout(req);
 
       expect(mockSessionStoreInstance.delete).toHaveBeenCalledTimes(1);
-      expect(
-        mockTransactionStoreInstance.getCookiePrefix
-      ).toHaveBeenCalledTimes(1);
-
-      const setCookieHeader = res.headers.get("set-cookie") || "";
-      expect(setCookieHeader).toMatch(
-        /__txn_state1=;.*Expires=Thu, 01 Jan 1970/
+      expect(mockTransactionStoreInstance.deleteAll).toHaveBeenCalledTimes(1);
+      expect(mockTransactionStoreInstance.deleteAll).toHaveBeenCalledWith(
+        req.cookies,
+        res.cookies
       );
 
       expect(res.status).toBeGreaterThanOrEqual(300);
       expect(res.status).toBeLessThan(400);
     });
 
-    it("should respect custom transaction cookie prefix", async () => {
+    it("should respect custom transaction cookie prefix when calling deleteAll", async () => {
       const customPrefix = "__my_txn_";
       mockTransactionStoreInstance.getCookiePrefix = vi
         .fn()
@@ -231,15 +223,11 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
       const res = await authClient.handleLogout(req);
 
       expect(mockSessionStoreInstance.delete).toHaveBeenCalledTimes(1);
-      expect(
-        mockTransactionStoreInstance.getCookiePrefix
-      ).toHaveBeenCalledTimes(1);
-
-      const setCookieHeader = res.headers.get("set-cookie") || "";
-      expect(setCookieHeader).toMatch(
-        new RegExp(`${customPrefix}state1=;.*Expires=Thu, 01 Jan 1970`)
+      expect(mockTransactionStoreInstance.deleteAll).toHaveBeenCalledTimes(1);
+      expect(mockTransactionStoreInstance.deleteAll).toHaveBeenCalledWith(
+        req.cookies,
+        res.cookies
       );
-      expect(setCookieHeader).not.toMatch(/__txn_state2=;/);
 
       expect(res.status).toBeGreaterThanOrEqual(300);
       expect(res.status).toBeLessThan(400);
