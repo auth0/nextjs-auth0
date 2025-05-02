@@ -179,7 +179,6 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
       expect(setCookieHeader).toMatch(
         /__txn_state1=;.*Expires=Thu, 01 Jan 1970/
       );
-      8;
       expect(setCookieHeader).toMatch(
         /__txn_state2=;.*Expires=Thu, 01 Jan 1970/
       );
