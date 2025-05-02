@@ -130,7 +130,7 @@ export class StatefulSessionStore extends AbstractSessionStore {
     if (!sessionId) {
       sessionId = generateId();
     }
-    
+
     const maxAge = this.calculateMaxAge(session.internal.createdAt);
     const expiration = Date.now() / 1000 + maxAge;
     const jwe = await cookies.encrypt(
@@ -138,9 +138,9 @@ export class StatefulSessionStore extends AbstractSessionStore {
         id: sessionId
       },
       this.secret,
-      expiration,
+      expiration
     );
-    
+
     resCookies.set(this.sessionCookieName, jwe.toString(), {
       ...this.cookieConfig,
       maxAge

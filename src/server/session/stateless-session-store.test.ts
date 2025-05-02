@@ -34,7 +34,9 @@ describe("Stateless Session Store", async () => {
         secret
       });
 
-      expect(await sessionStore.get(requestCookies)).toEqual(expect.objectContaining(session));
+      expect(await sessionStore.get(requestCookies)).toEqual(
+        expect.objectContaining(session)
+      );
     });
 
     it("should return null if no session cookie exists", async () => {
@@ -229,7 +231,9 @@ describe("Stateless Session Store", async () => {
         secret
       });
 
-      expect(await sessionStore.get(requestCookies)).toEqual(expect.objectContaining(session));
+      expect(await sessionStore.get(requestCookies)).toEqual(
+        expect.objectContaining(session)
+      );
     });
   });
 
@@ -277,7 +281,9 @@ describe("Stateless Session Store", async () => {
         const cookie = responseCookies.get("__session");
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(expect.objectContaining(session));
+        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
+          expect.objectContaining(session)
+        );
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("lax");
@@ -320,9 +326,9 @@ describe("Stateless Session Store", async () => {
 
         expect(cookie).toBeDefined();
 
-        await expect(
-          decrypt(cookie!.value, secret)
-        ).rejects.toThrow(`"exp" claim timestamp check failed`);
+        await expect(decrypt(cookie!.value, secret)).rejects.toThrow(
+          `"exp" claim timestamp check failed`
+        );
       });
 
       it("should delete the legacy cookie if it exists", async () => {
@@ -424,7 +430,9 @@ describe("Stateless Session Store", async () => {
         const cookie = responseCookies.get("__session");
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(expect.objectContaining(session));
+        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
+          expect.objectContaining(session)
+        );
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("lax");
@@ -464,7 +472,9 @@ describe("Stateless Session Store", async () => {
         const cookie = responseCookies.get("__session");
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(expect.objectContaining(session));
+        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
+          expect.objectContaining(session)
+        );
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("lax");
@@ -503,7 +513,9 @@ describe("Stateless Session Store", async () => {
         const cookie = responseCookies.get("__session");
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(expect.objectContaining(session));
+        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
+          expect.objectContaining(session)
+        );
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("strict");
@@ -539,7 +551,9 @@ describe("Stateless Session Store", async () => {
         const cookie = responseCookies.get("__session");
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(expect.objectContaining(session));
+        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
+          expect.objectContaining(session)
+        );
         expect(cookie?.path).toEqual("/custom-path");
       });
 
@@ -574,7 +588,9 @@ describe("Stateless Session Store", async () => {
         const cookie = responseCookies.get("custom-session");
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(expect.objectContaining(session));
+        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
+          expect.objectContaining(session)
+        );
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("lax");

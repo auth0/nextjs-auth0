@@ -420,6 +420,10 @@ export class AuthClient {
 
       const res = NextResponse.redirect(url);
       await this.sessionStore.delete(req.cookies, res.cookies);
+
+      // Clear any orphaned transaction cookies
+      await this.transactionStore.deleteAll(req.cookies, res.cookies);
+
       return res;
     }
 
@@ -437,6 +441,9 @@ export class AuthClient {
 
     const res = NextResponse.redirect(url);
     await this.sessionStore.delete(req.cookies, res.cookies);
+
+    // Clear any orphaned transaction cookies
+    await this.transactionStore.deleteAll(req.cookies, res.cookies);
 
     return res;
   }
