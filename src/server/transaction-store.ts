@@ -75,13 +75,25 @@ export class TransactionStore {
     return `${this.transactionCookiePrefix}${state}`;
   }
 
+  /**
+   * Returns the configured prefix for transaction cookies.
+   */
+  public getCookiePrefix(): string {
+    return this.transactionCookiePrefix;
+  }
+
   async save(
     resCookies: cookies.ResponseCookies,
     transactionState: TransactionState
   ) {
-
-    const expiration = Math.floor(Date.now() / 1000 + this.cookieConfig.maxAge!);
-    const jwe = await cookies.encrypt(transactionState, this.secret, expiration);
+    const expiration = Math.floor(
+      Date.now() / 1000 + this.cookieConfig.maxAge!
+    );
+    const jwe = await cookies.encrypt(
+      transactionState,
+      this.secret,
+      expiration
+    );
 
     if (!transactionState.state) {
       throw new Error("Transaction state is required");

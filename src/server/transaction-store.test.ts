@@ -22,7 +22,11 @@ describe("Transaction Store", async () => {
       };
       const maxAge = 60 * 60; // 1 hour in seconds
       const expiration = Math.floor(Date.now() / 1000 + maxAge);
-      const encryptedCookieValue = await encrypt(transactionState, secret, expiration);
+      const encryptedCookieValue = await encrypt(
+        transactionState,
+        secret,
+        expiration
+      );
 
       const headers = new Headers();
       headers.append("cookie", `__txn_${state}=${encryptedCookieValue}`);
@@ -52,7 +56,11 @@ describe("Transaction Store", async () => {
       };
       const maxAge = 60 * 60; // 1 hour in seconds
       const expiration = Math.floor(Date.now() / 1000 + maxAge);
-      const encryptedCookieValue = await encrypt(transactionState, secret, expiration);
+      const encryptedCookieValue = await encrypt(
+        transactionState,
+        secret,
+        expiration
+      );
 
       const headers = new Headers();
       headers.append("cookie", `__txn_incorrect-state=${encryptedCookieValue}`);
@@ -265,9 +273,9 @@ describe("Transaction Store", async () => {
         const cookie = responseCookies.get(cookieName);
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(expect.objectContaining(
-          transactionState
-        ));
+        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
+          expect.objectContaining(transactionState)
+        );
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("lax");

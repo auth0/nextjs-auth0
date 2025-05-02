@@ -420,6 +420,15 @@ export class AuthClient {
 
       const res = NextResponse.redirect(url);
       await this.sessionStore.delete(req.cookies, res.cookies);
+
+      // Clear any orphaned transaction cookies
+      const txnPrefix = this.transactionStore.getCookiePrefix();
+      req.cookies.getAll().forEach((cookie) => {
+        if (cookie.name.startsWith(txnPrefix)) {
+          res.cookies.delete(cookie.name);
+        }
+      });
+
       return res;
     }
 
@@ -437,6 +446,14 @@ export class AuthClient {
 
     const res = NextResponse.redirect(url);
     await this.sessionStore.delete(req.cookies, res.cookies);
+
+    // Clear any orphaned transaction cookies
+    const txnPrefix = this.transactionStore.getCookiePrefix();
+    req.cookies.getAll().forEach((cookie) => {
+      if (cookie.name.startsWith(txnPrefix)) {
+        res.cookies.delete(cookie.name);
+      }
+    });
 
     return res;
   }
