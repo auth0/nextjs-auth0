@@ -1,3 +1,4 @@
+import * as jose from "jose";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { generateSecret } from "../../test/utils";
@@ -332,7 +333,10 @@ describe("Stateful Session Store", async () => {
         await sessionStore.set(requestCookies, responseCookies, session);
 
         const cookie = responseCookies.get("__session");
-        const { payload: cookieValue } = await decrypt(cookie!.value, secret);
+        const { payload: cookieValue } = (await decrypt(
+          cookie!.value,
+          secret
+        )) as jose.JWTDecryptResult;
 
         expect(cookie).toBeDefined();
         expect(cookieValue).toHaveProperty("id");
@@ -386,7 +390,10 @@ describe("Stateful Session Store", async () => {
         await sessionStore.set(requestCookies, responseCookies, session);
 
         const cookie = responseCookies.get("__session");
-        const { payload: cookieValue } = await decrypt(cookie!.value, secret);
+        const { payload: cookieValue } = (await decrypt(
+          cookie!.value,
+          secret
+        )) as jose.JWTDecryptResult;
 
         expect(cookie).toBeDefined();
         expect(cookieValue).toHaveProperty("id");
@@ -434,7 +441,10 @@ describe("Stateful Session Store", async () => {
         await sessionStore.set(requestCookies, responseCookies, session);
 
         const cookie = responseCookies.get("__session");
-        const { payload: cookieValue } = await decrypt(cookie!.value, secret);
+        const { payload: cookieValue } = (await decrypt(
+          cookie!.value,
+          secret
+        )) as jose.JWTDecryptResult;
 
         expect(cookie).toBeDefined();
         expect(cookieValue).toHaveProperty("id");
@@ -493,7 +503,10 @@ describe("Stateful Session Store", async () => {
         await sessionStore.set(requestCookies, responseCookies, session, true);
 
         const cookie = responseCookies.get("__session");
-        const { payload: cookieValue } = await decrypt(cookie!.value, secret);
+        const { payload: cookieValue } = (await decrypt(
+          cookie!.value,
+          secret
+        )) as jose.JWTDecryptResult;
 
         expect(cookie).toBeDefined();
         expect(store.delete).toHaveBeenCalledWith(sessionId); // the old session should be deleted
@@ -542,7 +555,10 @@ describe("Stateful Session Store", async () => {
         await sessionStore.set(requestCookies, responseCookies, session);
 
         const cookie = responseCookies.get("__session");
-        const { payload: cookieValue } = await decrypt(cookie!.value, secret);
+        const { payload: cookieValue } = (await decrypt(
+          cookie!.value,
+          secret
+        )) as jose.JWTDecryptResult;
 
         expect(cookie).toBeDefined();
         expect(cookieValue).toHaveProperty("id");
@@ -592,7 +608,10 @@ describe("Stateful Session Store", async () => {
         await sessionStore.set(requestCookies, responseCookies, session);
 
         const cookie = responseCookies.get("__session");
-        const { payload: cookieValue } = await decrypt(cookie!.value, secret);
+        const { payload: cookieValue } = (await decrypt(
+          cookie!.value,
+          secret
+        )) as jose.JWTDecryptResult;
 
         expect(cookie).toBeDefined();
         expect(cookieValue).toHaveProperty("id");
@@ -686,7 +705,10 @@ describe("Stateful Session Store", async () => {
         await sessionStore.set(requestCookies, responseCookies, session);
 
         const cookie = responseCookies.get("my-session");
-        const { payload: cookieValue } = await decrypt(cookie!.value, secret);
+        const { payload: cookieValue } = (await decrypt(
+          cookie!.value,
+          secret
+        )) as jose.JWTDecryptResult;
 
         expect(cookie).toBeDefined();
         expect(cookieValue).toHaveProperty("id");

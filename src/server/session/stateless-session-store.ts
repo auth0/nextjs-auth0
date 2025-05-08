@@ -54,25 +54,37 @@ export class StatelessSessionStore extends AbstractSessionStore {
       SessionData | LegacySessionPayload
     >(cookieValue, this.secret);
 
+    if (!originalSession) {
+      return null;
+    }
+
     const normalizedStatelessSession =
       normalizeStatelessSession(originalSession);
 
     // As connection access tokens are stored in seperate cookies,
     // we need to get all cookies and only use those that are prefixed with `this.connectionTokenSetsCookieName`
-    const connectionTokenSets = await Promise.all(
-      this.getConnectionTokenSetsCookies(reqCookies).map((cookie) =>
-        cookies.decrypt<ConnectionTokenSet>(cookie.value, this.secret)
-      )
+    const connectionTokenSetsCookies = this.getConnectionTokenSetsCookies(
+      reqCookies
     );
+
+    const connectionTokenSets = [];
+    for (const cookie of connectionTokenSetsCookies) {
+      const decryptedCookie = await cookies.decrypt<ConnectionTokenSet>(
+        cookie.value,
+        this.secret
+      );
+
+      if (decryptedCookie) {
+        connectionTokenSets.push(decryptedCookie.payload);
+      }
+    }
 
     return {
       ...normalizedStatelessSession,
       // Ensure that when there are no connection token sets, we omit the property.
       ...(connectionTokenSets.length
         ? {
-            connectionTokenSets: connectionTokenSets.map(
-              (tokenSet) => tokenSet.payload
-            )
+            connectionTokenSets
           }
         : {})
     };
