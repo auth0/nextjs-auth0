@@ -39,17 +39,24 @@ export async function encrypt(
 }
 
 export async function decrypt<T>(cookieValue: string, secret: string) {
-  const encryptionSecret = await hkdf(
-    DIGEST,
-    secret,
-    "",
-    ENCRYPTION_INFO,
-    BYTE_LENGTH
-  );
+  try {
+    const encryptionSecret = await hkdf(
+      DIGEST,
+      secret,
+      "",
+      ENCRYPTION_INFO,
+      BYTE_LENGTH
+    );
 
-  const cookie = await jose.jwtDecrypt<T>(cookieValue, encryptionSecret, {});
+    const cookie = await jose.jwtDecrypt<T>(cookieValue, encryptionSecret, {});
 
-  return cookie;
+    return cookie;
+  } catch (e: any) {
+    if (e.code === "ERR_JWT_EXPIRED") {
+      return null;
+    }
+    throw e;
+  }
 }
 
 /**

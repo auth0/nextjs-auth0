@@ -1,3 +1,4 @@
+import * as jose from "jose";
 import { describe, expect, it } from "vitest";
 
 import { generateSecret } from "../test/utils";
@@ -12,7 +13,7 @@ describe("encrypt/decrypt", async () => {
     const maxAge = 60 * 60; // 1 hour in seconds
     const expiration = Math.floor(Date.now() / 1000 + maxAge);
     const encrypted = await encrypt(payload, secret, expiration);
-    const decrypted = await decrypt(encrypted, secret);
+    const decrypted = await decrypt(encrypted, secret) as jose.JWTDecryptResult;
 
     expect(decrypted.payload).toEqual(expect.objectContaining(payload));
   });
@@ -31,9 +32,8 @@ describe("encrypt/decrypt", async () => {
     const payload = { key: "value" };
     const expiration = Math.floor(Date.now() / 1000 - 60); // 60 seconds in the past
     const encrypted = await encrypt(payload, secret, expiration);
-    await expect(() =>
-      decrypt(encrypted, secret)
-    ).rejects.toThrowError(`"exp" claim timestamp check failed`);
+    const decrypted = await decrypt(encrypted, secret);
+    expect(decrypted).toBeNull();
   });
 
   it("should fail to encrypt if a secret is not provided", async () => {

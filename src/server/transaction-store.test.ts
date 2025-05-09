@@ -1,4 +1,5 @@
 import * as oauth from "oauth4webapi";
+import * as jose from "jose";
 import { describe, expect, it } from "vitest";
 
 import { generateSecret } from "../test/utils";
@@ -92,7 +93,7 @@ describe("Transaction Store", async () => {
       const cookie = responseCookies.get(cookieName);
 
       expect(cookie).toBeDefined();
-      expect((await decrypt(cookie!.value, secret)).payload).toEqual(
+      expect((await decrypt(cookie!.value, secret) as jose.JWTDecryptResult).payload).toEqual(
         expect.objectContaining(transactionState)
       );
       expect(cookie?.path).toEqual("/");
@@ -155,7 +156,7 @@ describe("Transaction Store", async () => {
         const cookie = responseCookies.get(cookieName);
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
+        expect((await decrypt(cookie!.value, secret) as jose.JWTDecryptResult).payload).toEqual(
           expect.objectContaining(transactionState)
         );
         expect(cookie?.path).toEqual("/");
@@ -193,7 +194,7 @@ describe("Transaction Store", async () => {
         const cookie = responseCookies.get(cookieName);
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
+        expect((await decrypt(cookie!.value, secret) as jose.JWTDecryptResult).payload).toEqual(
           expect.objectContaining(transactionState)
         );
         expect(cookie?.path).toEqual("/");
@@ -231,7 +232,7 @@ describe("Transaction Store", async () => {
         const cookie = responseCookies.get(cookieName);
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
+        expect((await decrypt(cookie!.value, secret) as jose.JWTDecryptResult).payload).toEqual(
           expect.objectContaining(transactionState)
         );
         expect(cookie?.path).toEqual("/custom-path");
@@ -265,7 +266,7 @@ describe("Transaction Store", async () => {
         const cookie = responseCookies.get(cookieName);
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(expect.objectContaining(
+        expect((await decrypt(cookie!.value, secret) as jose.JWTDecryptResult).payload).toEqual(expect.objectContaining(
           transactionState
         ));
         expect(cookie?.path).toEqual("/");

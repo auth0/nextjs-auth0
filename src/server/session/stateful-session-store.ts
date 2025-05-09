@@ -72,9 +72,16 @@ export class StatefulSessionStore extends AbstractSessionStore {
     // this ensures that v3 sessions are respected and can be transparently rolled over to v4+ sessions
     let sessionId: string | null = null;
     try {
-      const { payload: sessionCookie } =
-        await cookies.decrypt<SessionCookieValue>(cookie.value, this.secret);
-      sessionId = sessionCookie.id;
+      const sessionCookie = await cookies.decrypt<SessionCookieValue>(
+        cookie.value,
+        this.secret
+      );
+
+      if (sessionCookie === null) {
+        return null;
+      }
+
+      sessionId = sessionCookie.payload.id;
     } catch (e: any) {
       // the session cookie could not be decrypted, try to verify if it's a legacy session
       if (e.code === "ERR_JWE_INVALID") {
@@ -115,9 +122,12 @@ export class StatefulSessionStore extends AbstractSessionStore {
     let sessionId = null;
     const cookieValue = reqCookies.get(this.sessionCookieName)?.value;
     if (cookieValue) {
-      const { payload: sessionCookie } =
+      const sessionCookie =
         await cookies.decrypt<SessionCookieValue>(cookieValue, this.secret);
-      sessionId = sessionCookie.id;
+
+      if (sessionCookie) {
+        sessionId = sessionCookie.payload.id;
+      }
     }
 
     // if this is a new session created by a new login we need to remove the old session
@@ -130,7 +140,7 @@ export class StatefulSessionStore extends AbstractSessionStore {
     if (!sessionId) {
       sessionId = generateId();
     }
-    
+
     const maxAge = this.calculateMaxAge(session.internal.createdAt);
     const expiration = Date.now() / 1000 + maxAge;
     const jwe = await cookies.encrypt(
@@ -138,9 +148,9 @@ export class StatefulSessionStore extends AbstractSessionStore {
         id: sessionId
       },
       this.secret,
-      expiration,
+      expiration
     );
-    
+
     resCookies.set(this.sessionCookieName, jwe.toString(), {
       ...this.cookieConfig,
       maxAge
@@ -168,11 +178,13 @@ export class StatefulSessionStore extends AbstractSessionStore {
       return;
     }
 
-    const { payload: session } = await cookies.decrypt<SessionCookieValue>(
+    const session = await cookies.decrypt<SessionCookieValue>(
       cookieValue,
       this.secret
     );
 
-    await this.store.delete(session.id);
+    if (session) {
+      await this.store.delete(session.payload.id);
+    }
   }
 }
