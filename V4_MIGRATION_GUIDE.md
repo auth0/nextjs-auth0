@@ -230,14 +230,11 @@ In v4, by default, the only claims that are persisted in the `user` object of se
 - `email_verified`
 - `org_id`
 
-If you'd like to customize the `user` object to include additional custom claims from the ID token, you can use the `beforeSessionSaved` hook (see [beforeSessionSaved hook](https://github.com/guabu/nextjs-auth0/tree/main?tab=readme-ov-file#beforesessionsaved))
+If you'd like to customize the `user` object to include additional custom claims from the ID token, you can use the `beforeSessionSaved` hook (see [beforeSessionSaved hook](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#beforesessionsaved))
 
 ## Additional changes
 
 - By default, v4 is edge-compatible and as such there is no longer a `@auth0/nextjs-auth0/edge` export.
-- Cookie chunking has been removed
-  - If the cookie size exceeds the browser limit of 4096 bytes, a warning will be logged
-  - To store large session data, please use a [custom data store](https://github.com/auth0/nextjs-auth0/tree/main?tab=readme-ov-file#database-sessions) with a SessionStore implementation
 - All cookies set by the SDK default to `SameSite=Lax`
 - `touchSession` method was removed. The middleware enables rolling sessions by default and can be configured via the [session configuration](https://github.com/auth0/nextjs-auth0/tree/main?tab=readme-ov-file#session-configuration).
 - `getAccessToken` can now be called in React Server Components.

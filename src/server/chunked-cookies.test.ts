@@ -166,16 +166,267 @@ describe("Chunked Cookie Utils", () => {
       );
     });
 
-    it("should log a warning when cookie size exceeds warning threshold", () => {
-      const name = "warningCookie";
+    it("should clear existing chunked cookies when setting a single cookie", () => {
+      const name = "testCookie";
+      const value = "small value";
       const options = { path: "/" } as CookieOptions;
 
-      // Create a value that exceeds the warning threshold (4096 bytes)
-      const value = "a".repeat(4097);
+      const chunk0 = "chunk0 value";
+      const chunk1 = "chunk1 value";
+      const chunk2 = "chunk2 value";
+
+      cookieStore.set(`${name}__1`, chunk1);
+      cookieStore.set(`${name}__0`, chunk0);
+      cookieStore.set(`${name}__2`, chunk2);
 
       setChunkedCookie(name, value, options, reqCookies, resCookies);
 
-      expect(console.warn).toHaveBeenCalled();
+      expect(resCookies.set).toHaveBeenCalledTimes(1);
+      expect(resCookies.set).toHaveBeenCalledWith(name, value, options);
+      expect(reqCookies.set).toHaveBeenCalledTimes(1);
+      expect(reqCookies.set).toHaveBeenCalledWith(name, value);
+      expect(reqCookies.delete).toHaveBeenCalledTimes(3);
+      expect(reqCookies.delete).toHaveBeenCalledWith(`${name}__0`);
+      expect(reqCookies.delete).toHaveBeenCalledWith(`${name}__1`);
+      expect(reqCookies.delete).toHaveBeenCalledWith(`${name}__2`);
+    });
+
+    it("should clear existing single cookies when setting a chunked cookie", () => {
+      const name = "testCookie";
+      const value = "small value";
+
+      cookieStore.set(`${name}`, value);
+
+      // Create a large string (8000 bytes)
+      const largeValue = "a".repeat(8000);
+      const options = { path: "/" } as CookieOptions;
+
+      setChunkedCookie(name, largeValue, options, reqCookies, resCookies);
+
+      expect(reqCookies.delete).toHaveBeenCalledTimes(1);
+      expect(reqCookies.delete).toHaveBeenCalledWith(`${name}`);
+      expect(resCookies.set).toHaveBeenCalledTimes(3);
+      expect(reqCookies.set).toHaveBeenCalledTimes(3);
+    });
+
+    it("should clean up unused chunks when cookie shrinks", () => {
+      const name = "testCookie";
+      const options = { path: "/" } as CookieOptions;
+
+      const chunk0 = "chunk0 value";
+      const chunk1 = "chunk1 value";
+      const chunk2 = "chunk2 value";
+      const chunk3 = "chunk3 value";
+      const chunk4 = "chunk4 value";
+
+      cookieStore.set(`${name}__1`, chunk1);
+      cookieStore.set(`${name}__0`, chunk0);
+      cookieStore.set(`${name}__2`, chunk2);
+      cookieStore.set(`${name}__3`, chunk3);
+      cookieStore.set(`${name}__4`, chunk4);
+
+      const largeValue = "a".repeat(8000);
+      setChunkedCookie(name, largeValue, options, reqCookies, resCookies);
+
+      // It is called 3 times.
+      // 2 times for the chunks
+      // 1 time for the non chunked cookie
+      expect(reqCookies.delete).toHaveBeenCalledTimes(3);
+      expect(reqCookies.delete).toHaveBeenCalledWith(`${name}__3`);
+      expect(reqCookies.delete).toHaveBeenCalledWith(`${name}__4`);
+      expect(reqCookies.delete).toHaveBeenCalledWith(name);
+    });
+
+    // New tests for domain and transient options
+    it("should set the domain property for a single cookie", () => {
+      const name = "domainCookie";
+      const value = "small value";
+      const options: CookieOptions = {
+        path: "/",
+        domain: "example.com",
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax"
+      };
+
+      setChunkedCookie(name, value, options, reqCookies, resCookies);
+
+      expect(resCookies.set).toHaveBeenCalledTimes(1);
+      expect(resCookies.set).toHaveBeenCalledWith(
+        name,
+        value,
+        expect.objectContaining({ domain: "example.com" })
+      );
+    });
+
+    it("should set the domain property for chunked cookies", () => {
+      const name = "largeDomainCookie";
+      const largeValue = "a".repeat(8000);
+      const options: CookieOptions = {
+        path: "/",
+        domain: "example.com",
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax"
+      };
+
+      setChunkedCookie(name, largeValue, options, reqCookies, resCookies);
+
+      expect(resCookies.set).toHaveBeenCalledTimes(3); // 3 chunks
+      expect(resCookies.set).toHaveBeenNthCalledWith(
+        1,
+        `${name}__0`,
+        expect.any(String),
+        expect.objectContaining({ domain: "example.com" })
+      );
+      expect(resCookies.set).toHaveBeenNthCalledWith(
+        2,
+        `${name}__1`,
+        expect.any(String),
+        expect.objectContaining({ domain: "example.com" })
+      );
+      expect(resCookies.set).toHaveBeenNthCalledWith(
+        3,
+        `${name}__2`,
+        expect.any(String),
+        expect.objectContaining({ domain: "example.com" })
+      );
+    });
+
+    it("should omit maxAge for a single transient cookie", () => {
+      const name = "transientCookie";
+      const value = "small value";
+      const options: CookieOptions = {
+        path: "/",
+        maxAge: 3600,
+        transient: true,
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax"
+      };
+      const expectedOptions = { ...options };
+      delete expectedOptions.maxAge; // maxAge should be removed
+      delete expectedOptions.transient; // transient flag itself is not part of the cookie options
+
+      setChunkedCookie(name, value, options, reqCookies, resCookies);
+
+      expect(resCookies.set).toHaveBeenCalledTimes(1);
+      expect(resCookies.set).toHaveBeenCalledWith(name, value, expectedOptions);
+      expect(resCookies.set).not.toHaveBeenCalledWith(
+        name,
+        value,
+        expect.objectContaining({ maxAge: 3600 })
+      );
+    });
+
+    it("should omit maxAge for chunked transient cookies", () => {
+      const name = "largeTransientCookie";
+      const largeValue = "a".repeat(8000);
+      const options: CookieOptions = {
+        path: "/",
+        maxAge: 3600,
+        transient: true,
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax"
+      };
+      const expectedOptions = { ...options };
+      delete expectedOptions.maxAge; // maxAge should be removed
+      delete expectedOptions.transient; // transient flag itself is not part of the cookie options
+
+      setChunkedCookie(name, largeValue, options, reqCookies, resCookies);
+
+      expect(resCookies.set).toHaveBeenCalledTimes(3); // 3 chunks
+      expect(resCookies.set).toHaveBeenNthCalledWith(
+        1,
+        `${name}__0`,
+        expect.any(String),
+        expectedOptions
+      );
+      expect(resCookies.set).toHaveBeenNthCalledWith(
+        2,
+        `${name}__1`,
+        expect.any(String),
+        expectedOptions
+      );
+      expect(resCookies.set).toHaveBeenNthCalledWith(
+        3,
+        `${name}__2`,
+        expect.any(String),
+        expectedOptions
+      );
+      expect(resCookies.set).not.toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(String),
+        expect.objectContaining({ maxAge: 3600 })
+      );
+    });
+
+    it("should include maxAge for a single non-transient cookie", () => {
+      const name = "nonTransientCookie";
+      const value = "small value";
+      const options: CookieOptions = {
+        path: "/",
+        maxAge: 3600,
+        transient: false,
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax"
+      };
+      const expectedOptions = { ...options };
+      delete expectedOptions.transient; // transient flag itself is not part of the cookie options
+
+      setChunkedCookie(name, value, options, reqCookies, resCookies);
+
+      expect(resCookies.set).toHaveBeenCalledTimes(1);
+      expect(resCookies.set).toHaveBeenCalledWith(name, value, expectedOptions);
+      expect(resCookies.set).toHaveBeenCalledWith(
+        name,
+        value,
+        expect.objectContaining({ maxAge: 3600 })
+      );
+    });
+
+    it("should include maxAge for chunked non-transient cookies", () => {
+      const name = "largeNonTransientCookie";
+      const largeValue = "a".repeat(8000);
+      const options: CookieOptions = {
+        path: "/",
+        maxAge: 3600,
+        transient: false,
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax"
+      };
+      const expectedOptions = { ...options };
+      delete expectedOptions.transient; // transient flag itself is not part of the cookie options
+
+      setChunkedCookie(name, largeValue, options, reqCookies, resCookies);
+
+      expect(resCookies.set).toHaveBeenCalledTimes(3); // 3 chunks
+      expect(resCookies.set).toHaveBeenNthCalledWith(
+        1,
+        `${name}__0`,
+        expect.any(String),
+        expectedOptions
+      );
+      expect(resCookies.set).toHaveBeenNthCalledWith(
+        2,
+        `${name}__1`,
+        expect.any(String),
+        expectedOptions
+      );
+      expect(resCookies.set).toHaveBeenNthCalledWith(
+        3,
+        `${name}__2`,
+        expect.any(String),
+        expectedOptions
+      );
+      expect(resCookies.set).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(String),
+        expect.objectContaining({ maxAge: 3600 })
+      );
     });
 
     describe("getChunkedCookie", () => {
