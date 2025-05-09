@@ -34,11 +34,14 @@ describe("Stateful Session Store", async () => {
         set: vi.fn(),
         delete: vi.fn()
       };
+      const maxAge = 60 * 60; // 1 hour in seconds
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
       const encryptedCookieValue = await encrypt(
         {
           id: sessionId
         },
-        secret
+        secret,
+        expiration,
       );
 
       const headers = new Headers();
@@ -99,11 +102,14 @@ describe("Stateful Session Store", async () => {
         set: vi.fn(),
         delete: vi.fn()
       };
+      const maxAge = 60 * 60; // 1 hour in seconds
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
       const encryptedCookieValue = await encrypt(
         {
           id: sessionId
         },
-        secret
+        secret,
+        expiration,
       );
 
       const headers = new Headers();
@@ -464,12 +470,14 @@ describe("Stateful Session Store", async () => {
           set: vi.fn(),
           delete: vi.fn()
         };
-
+        const maxAge = 60 * 60; // 1 hour in seconds
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
         const encryptedCookieValue = await encrypt(
           {
             id: sessionId
           },
-          secret
+          secret,
+          expiration,
         );
         const headers = new Headers();
         headers.append("cookie", `__session=${encryptedCookieValue}`);
@@ -690,7 +698,6 @@ describe("Stateful Session Store", async () => {
       });
     });
 
-
     it("should remove the legacy cookie if it exists", async () => {
       const currentTime = Date.now();
       const createdAt = Math.floor(currentTime / 1000);
@@ -718,7 +725,7 @@ describe("Stateful Session Store", async () => {
 
       const sessionStore = new StatefulSessionStore({
         secret,
-        store,
+        store
       });
 
       vi.spyOn(requestCookies, "has").mockReturnValue(true);
@@ -751,11 +758,14 @@ describe("Stateful Session Store", async () => {
         set: vi.fn(),
         delete: vi.fn()
       };
+      const maxAge = 60 * 60; // 1 hour in seconds
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
       const encryptedCookieValue = await encrypt(
         {
           id: sessionId
         },
-        secret
+        secret,
+        expiration,
       );
       const headers = new Headers();
       headers.append("cookie", `__session=${encryptedCookieValue}`);

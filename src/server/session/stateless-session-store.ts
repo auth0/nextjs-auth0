@@ -1,7 +1,6 @@
-import { CookieOptions, ConnectionTokenSet, SessionData } from "../../types";
-
 import type { JWTPayload } from "jose";
 
+import { ConnectionTokenSet, CookieOptions, SessionData } from "../../types";
 import * as cookies from "../cookies";
 import {
   AbstractSessionStore,
@@ -55,17 +54,14 @@ export class StatelessSessionStore extends AbstractSessionStore {
       SessionData | LegacySessionPayload
     >(cookieValue, this.secret);
 
-    const normalizedStatelessSession = normalizeStatelessSession(originalSession);
+    const normalizedStatelessSession =
+      normalizeStatelessSession(originalSession);
 
     // As connection access tokens are stored in seperate cookies,
     // we need to get all cookies and only use those that are prefixed with `this.connectionTokenSetsCookieName`
     const connectionTokenSets = await Promise.all(
-      this.getConnectionTokenSetsCookies(reqCookies).map(
-        (cookie) =>
-          cookies.decrypt<ConnectionTokenSet>(
-            cookie.value,
-            this.secret
-          )
+      this.getConnectionTokenSetsCookies(reqCookies).map((cookie) =>
+        cookies.decrypt<ConnectionTokenSet>(cookie.value, this.secret)
       )
     );
 
@@ -73,7 +69,11 @@ export class StatelessSessionStore extends AbstractSessionStore {
       ...normalizedStatelessSession,
       // Ensure that when there are no connection token sets, we omit the property.
       ...(connectionTokenSets.length
-        ? { connectionTokenSets: connectionTokenSets.map(tokenSet => tokenSet.payload) }
+        ? {
+            connectionTokenSets: connectionTokenSets.map(
+              (tokenSet) => tokenSet.payload
+            )
+          }
         : {})
     };
   }
@@ -87,8 +87,9 @@ export class StatelessSessionStore extends AbstractSessionStore {
     session: SessionData
   ) {
     const { connectionTokenSets, ...originalSession } = session;
-    const jwe = await cookies.encrypt(originalSession, this.secret);
     const maxAge = this.calculateMaxAge(session.internal.createdAt);
+    const expiration = Math.floor(Date.now() / 1000 + maxAge);
+    const jwe = await cookies.encrypt(originalSession, this.secret, expiration);
     const cookieValue = jwe.toString();
     const options: CookieOptions = {
       ...this.cookieConfig,
@@ -117,7 +118,7 @@ export class StatelessSessionStore extends AbstractSessionStore {
         )
       );
     }
-    
+
     // Any existing v3 cookie can be deleted as soon as we have set a v4 cookie.
     // In stateless sessions, we do have to ensure we delete all chunks.
     cookies.deleteChunkedCookie(LEGACY_COOKIE_NAME, reqCookies, resCookies);
@@ -127,11 +128,7 @@ export class StatelessSessionStore extends AbstractSessionStore {
     reqCookies: cookies.RequestCookies,
     resCookies: cookies.ResponseCookies
   ) {
-    cookies.deleteChunkedCookie(
-      this.sessionCookieName,
-      reqCookies,
-      resCookies
-    );
+    cookies.deleteChunkedCookie(this.sessionCookieName, reqCookies, resCookies);
 
     this.getConnectionTokenSetsCookies(reqCookies).forEach((cookie) =>
       resCookies.delete(cookie.name)
@@ -145,7 +142,8 @@ export class StatelessSessionStore extends AbstractSessionStore {
     cookieName: string,
     maxAge: number
   ) {
-    const jwe = await cookies.encrypt(session, this.secret);
+    const expiration = Math.floor(Date.now() / 1000 + maxAge);
+    const jwe = await cookies.encrypt(session, this.secret, expiration);
 
     const cookieValue = jwe.toString();
 
@@ -177,7 +175,6 @@ export class StatelessSessionStore extends AbstractSessionStore {
             "You can use a stateful session implementation to store the session data in a data store."
         );
       }
-      
     }
   }
 
