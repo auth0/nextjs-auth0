@@ -765,7 +765,7 @@ export const auth0 = new Auth0Client({
     async delete(id) {
       // delete the session using its ID
     },
-    async deleteByLogoutToken({ sid, sub }: { sid: string; sub: string }) {
+    async deleteByLogoutToken({ sid, sub }: { sid?: string; sub?: string }) {
       // optional method to be implemented when using Back-Channel Logout
     },
   },
