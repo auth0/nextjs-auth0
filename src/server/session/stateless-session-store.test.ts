@@ -30,7 +30,9 @@ describe("Stateless Session Store", async () => {
           createdAt: Math.floor(Date.now() / 1000)
         }
       };
-      const encryptedCookieValue = await encrypt(session, secret);
+      const maxAge = 60 * 60; // 1 hour in seconds
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const encryptedCookieValue = await encrypt(session, secret, expiration);
 
       const headers = new Headers();
       headers.append("cookie", `__session=${encryptedCookieValue}`);
@@ -40,7 +42,9 @@ describe("Stateless Session Store", async () => {
         secret
       });
 
-      expect(await sessionStore.get(requestCookies)).toEqual(session);
+      expect(await sessionStore.get(requestCookies)).toEqual(
+        expect.objectContaining(session)
+      );
     });
 
     it("should return null if no session cookie exists", async () => {
@@ -73,9 +77,12 @@ describe("Stateless Session Store", async () => {
           uat: Math.floor(Date.now() / 1000),
           exp: Math.floor(Date.now() / 1000)
         };
+        const maxAge = 60 * 60; // 1 hour in seconds
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
         const encryptedCookieValue = await encrypt(
           legacySession,
           secret,
+          expiration,
           legacyHeader
         );
 
@@ -114,9 +121,12 @@ describe("Stateless Session Store", async () => {
           uat: Math.floor(Date.now() / 1000),
           exp: Math.floor(Date.now() / 1000)
         };
+        const maxAge = 60 * 60; // 1 hour in seconds
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
         const encryptedCookieValue = await encrypt(
           legacySession,
           secret,
+          expiration,
           legacyHeader
         );
 
@@ -161,9 +171,12 @@ describe("Stateless Session Store", async () => {
           uat: Math.floor(Date.now() / 1000),
           exp: Math.floor(Date.now() / 1000)
         };
+        const maxAge = 60 * 60; // 1 hour in seconds
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
         const encryptedCookieValue = await encrypt(
           legacySession,
           secret,
+          expiration,
           legacyHeader
         );
 
@@ -214,7 +227,9 @@ describe("Stateless Session Store", async () => {
           }
         ]
       };
-      const encryptedCookieValue = await encrypt(session, secret);
+      const maxAge = 60 * 60; // 1 hour in seconds
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const encryptedCookieValue = await encrypt(session, secret, expiration);
 
       const headers = new Headers();
       headers.append("cookie", `__session=${encryptedCookieValue}`);
@@ -224,7 +239,9 @@ describe("Stateless Session Store", async () => {
         secret
       });
 
-      expect(await sessionStore.get(requestCookies)).toEqual(session);
+      expect(await sessionStore.get(requestCookies)).toEqual(
+        expect.objectContaining(session)
+      );
     });
 
     it("should ignore legacy cookie and return new cookie if both exist (chunked)", async () => {
@@ -238,9 +255,15 @@ describe("Stateless Session Store", async () => {
         tokenSet: { accessToken: "new_at", expiresAt: 200 },
         internal: { sid: "new_sid", createdAt: Math.floor(Date.now() / 1000) }
       };
+      const maxAge = 300; // 5 minutes
+      const expiration = Math.floor(Date.now() / 1000) + maxAge;
 
-      const encryptedLegacyValue = await encrypt(legacySession, secret);
-      const encryptedNewValue = await encrypt(newSession, secret);
+      const encryptedLegacyValue = await encrypt(
+        legacySession,
+        secret,
+        expiration
+      );
+      const encryptedNewValue = await encrypt(newSession, secret, expiration);
 
       const tempResCookies = new ResponseCookies(new Headers());
       cookies.setChunkedCookie(
@@ -272,7 +295,7 @@ describe("Stateless Session Store", async () => {
       const sessionStore = new StatelessSessionStore({ secret });
 
       const result = await sessionStore.get(requestCookies);
-      expect(result).toEqual(newSession);
+      expect(result).toEqual(expect.objectContaining(newSession));
     });
   });
 
@@ -319,7 +342,9 @@ describe("Stateless Session Store", async () => {
         const cookie = responseCookies.get("__session");
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(session);
+        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
+          expect.objectContaining(session)
+        );
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("lax");
@@ -360,7 +385,9 @@ describe("Stateless Session Store", async () => {
         const cookie = responseCookies.get("__session");
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(session);
+        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
+          expect.objectContaining(session)
+        );
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("lax");
@@ -474,7 +501,9 @@ describe("Stateless Session Store", async () => {
         const cookie = responseCookies.get("__session");
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(session);
+        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
+          expect.objectContaining(session)
+        );
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("lax");
@@ -514,7 +543,9 @@ describe("Stateless Session Store", async () => {
         const cookie = responseCookies.get("__session");
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(session);
+        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
+          expect.objectContaining(session)
+        );
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("lax");
@@ -553,7 +584,9 @@ describe("Stateless Session Store", async () => {
         const cookie = responseCookies.get("__session");
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(session);
+        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
+          expect.objectContaining(session)
+        );
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("strict");
@@ -589,7 +622,9 @@ describe("Stateless Session Store", async () => {
         const cookie = responseCookies.get("__session");
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(session);
+        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
+          expect.objectContaining(session)
+        );
         expect(cookie?.path).toEqual("/custom-path");
       });
 
@@ -624,7 +659,9 @@ describe("Stateless Session Store", async () => {
         const cookie = responseCookies.get("custom-session");
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(session);
+        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
+          expect.objectContaining(session)
+        );
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("lax");
@@ -643,7 +680,13 @@ describe("Stateless Session Store", async () => {
       const dummyLegacySession: LegacySession = {
         user: { sub: "legacy_user_dummy" }
       };
-      const encryptedLegacyValue = await encrypt(dummyLegacySession, secret);
+      const maxAge = 300; // 5 minutes in seconds
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const encryptedLegacyValue = await encrypt(
+        dummyLegacySession,
+        secret,
+        expiration
+      );
 
       const tempResCookies = new ResponseCookies(new Headers());
       cookies.setChunkedCookie(
@@ -690,7 +733,7 @@ describe("Stateless Session Store", async () => {
         secret
       );
       const decryptedPayload = decryptedNewSession.payload;
-      expect(decryptedPayload).toEqual(sessionToSet);
+      expect(decryptedPayload).toEqual(expect.objectContaining(sessionToSet));
 
       expect(deleteSpy).toHaveBeenCalledTimes(legacyCookiesInSetup.length);
       legacyCookiesInSetup.forEach((legacyCookie) => {
