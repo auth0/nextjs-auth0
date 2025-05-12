@@ -633,7 +633,7 @@ describe("Stateless Session Store", async () => {
       });
     });
 
-    it("should set new cookie and delete legacy cookie if both exist (chunked)", async () => {
+    it("should set new cookie and delete legacy cookie when the legacy cookie exists (chunked)", async () => {
       const secret = await generateSecret(32);
       const sessionToSet: SessionData = {
         user: { sub: "user_to_set" },
