@@ -20,7 +20,13 @@ describe("Transaction Store", async () => {
         state,
         returnTo: "/dashboard"
       };
-      const encryptedCookieValue = await encrypt(transactionState, secret);
+      const maxAge = 60 * 60; // 1 hour in seconds
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const encryptedCookieValue = await encrypt(
+        transactionState,
+        secret,
+        expiration
+      );
 
       const headers = new Headers();
       headers.append("cookie", `__txn_${state}=${encryptedCookieValue}`);
@@ -32,7 +38,7 @@ describe("Transaction Store", async () => {
 
       expect(
         (await transactionStore.get(requestCookies, state))?.payload
-      ).toEqual(transactionState);
+      ).toEqual(expect.objectContaining(transactionState));
     });
 
     it("should return null if no transaction cookie with a matching state exists", async () => {
@@ -48,7 +54,13 @@ describe("Transaction Store", async () => {
         state,
         returnTo: "/dashboard"
       };
-      const encryptedCookieValue = await encrypt(transactionState, secret);
+      const maxAge = 60 * 60; // 1 hour in seconds
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const encryptedCookieValue = await encrypt(
+        transactionState,
+        secret,
+        expiration
+      );
 
       const headers = new Headers();
       headers.append("cookie", `__txn_incorrect-state=${encryptedCookieValue}`);
@@ -89,7 +101,7 @@ describe("Transaction Store", async () => {
 
       expect(cookie).toBeDefined();
       expect((await decrypt(cookie!.value, secret)).payload).toEqual(
-        transactionState
+        expect.objectContaining(transactionState)
       );
       expect(cookie?.path).toEqual("/");
       expect(cookie?.httpOnly).toEqual(true);
@@ -152,7 +164,7 @@ describe("Transaction Store", async () => {
 
         expect(cookie).toBeDefined();
         expect((await decrypt(cookie!.value, secret)).payload).toEqual(
-          transactionState
+          expect.objectContaining(transactionState)
         );
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
@@ -190,7 +202,7 @@ describe("Transaction Store", async () => {
 
         expect(cookie).toBeDefined();
         expect((await decrypt(cookie!.value, secret)).payload).toEqual(
-          transactionState
+          expect.objectContaining(transactionState)
         );
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
@@ -228,7 +240,7 @@ describe("Transaction Store", async () => {
 
         expect(cookie).toBeDefined();
         expect((await decrypt(cookie!.value, secret)).payload).toEqual(
-          transactionState
+          expect.objectContaining(transactionState)
         );
         expect(cookie?.path).toEqual("/custom-path");
       });
@@ -262,7 +274,7 @@ describe("Transaction Store", async () => {
 
         expect(cookie).toBeDefined();
         expect((await decrypt(cookie!.value, secret)).payload).toEqual(
-          transactionState
+          expect.objectContaining(transactionState)
         );
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
