@@ -1,5 +1,5 @@
-import { encrypt } from "../server/cookies.js";
-import { SessionData } from "../types/index.js";
+import { encrypt } from "../server/cookies";
+import { SessionData } from "../types";
 
 export type GenerateSessionCookieConfig = {
   /**
@@ -21,5 +21,8 @@ export const generateSessionCookie = async (
     };
   }
 
-  return encrypt(session, config.secret);
+  const maxAge = 60 * 60; // 1 hour in seconds
+  const expiration = Math.floor(Date.now() / 1000 + maxAge);
+
+  return encrypt(session, config.secret, expiration);
 };

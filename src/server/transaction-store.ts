@@ -1,6 +1,6 @@
 import type * as jose from "jose";
 
-import * as cookies from "./cookies.js";
+import * as cookies from "./cookies";
 
 const TRANSACTION_COOKIE_PREFIX = "__txn_";
 
@@ -32,6 +32,10 @@ export interface TransactionCookieOptions {
    * Default: depends on the protocol of the application's base URL. If the protocol is `https`, then `true`, otherwise `false`.
    */
   secure?: boolean;
+  /**
+   * The path attribute of the transaction cookie. Will be set to '/' by default.
+   */
+  path?: string;
 }
 
 export interface TransactionStoreOptions {
@@ -57,7 +61,7 @@ export class TransactionStore {
       httpOnly: true,
       sameSite: cookieOptions?.sameSite ?? "lax", // required to allow the cookie to be sent on the callback request
       secure: cookieOptions?.secure ?? false,
-      path: "/",
+      path: cookieOptions?.path ?? "/",
       maxAge: 60 * 60 // 1 hour in seconds
     };
   }
@@ -75,7 +79,9 @@ export class TransactionStore {
     resCookies: cookies.ResponseCookies,
     transactionState: TransactionState
   ) {
-    const jwe = await cookies.encrypt(transactionState, this.secret);
+
+    const expiration = Math.floor(Date.now() / 1000 + this.cookieConfig.maxAge!);
+    const jwe = await cookies.encrypt(transactionState, this.secret, expiration);
 
     if (!transactionState.state) {
       throw new Error("Transaction state is required");

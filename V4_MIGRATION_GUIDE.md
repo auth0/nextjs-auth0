@@ -230,7 +230,7 @@ In v4, by default, the only claims that are persisted in the `user` object of se
 - `email_verified`
 - `org_id`
 
-If you'd like to customize the `user` object to include additional custom claims from the ID token, you can use the `beforeSessionSaved` hook (see [beforeSessionSaved hook](https://github.com/guabu/nextjs-auth0/tree/main?tab=readme-ov-file#beforesessionsaved))
+If you'd like to customize the `user` object to include additional custom claims from the ID token, you can use the `beforeSessionSaved` hook (see [beforeSessionSaved hook](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#beforesessionsaved))
 
 ## Additional changes
 

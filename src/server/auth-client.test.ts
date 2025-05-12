@@ -1,15 +1,15 @@
-import { NextRequest, NextResponse } from "next/server.js";
+import { NextRequest, NextResponse } from "next/server";
 import * as jose from "jose";
 import * as oauth from "oauth4webapi";
 import { describe, expect, it, vi } from "vitest";
 
-import { generateSecret } from "../test/utils.js";
-import { SessionData } from "../types/index.js";
-import { AuthClient } from "./auth-client.js";
-import { decrypt, encrypt } from "./cookies.js";
-import { StatefulSessionStore } from "./session/stateful-session-store.js";
-import { StatelessSessionStore } from "./session/stateless-session-store.js";
-import { TransactionState, TransactionStore } from "./transaction-store.js";
+import { generateSecret } from "../test/utils";
+import { SessionData } from "../types";
+import { AuthClient } from "./auth-client";
+import { decrypt, encrypt } from "./cookies";
+import { StatefulSessionStore } from "./session/stateful-session-store";
+import { StatelessSessionStore } from "./session/stateless-session-store";
+import { TransactionState, TransactionStore } from "./transaction-store";
 
 describe("Authentication Client", async () => {
   const DEFAULT = {
@@ -18,6 +18,7 @@ describe("Authentication Client", async () => {
     clientSecret: "client-secret",
     appBaseUrl: "https://example.com",
     sid: "auth0-sid",
+    idToken: "idt_123",
     accessToken: "at_123",
     refreshToken: "rt_123",
     sub: "user_123",
@@ -393,7 +394,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       // When a route doesn't match, the handler returns a NextResponse.next() with status 200
       expect(response.status).toBe(200);
     });
-    
+
     it("should use the default value (true) for enableAccessTokenEndpoint when not explicitly provided", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({
@@ -495,7 +496,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
             createdAt: Math.floor(Date.now() / 1000)
           }
         };
-        const sessionCookie = await encrypt(session, secret);
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
+        const sessionCookie = await encrypt(session, secret, expiration);
         const headers = new Headers();
         headers.append("cookie", `__session=${sessionCookie}`);
         const request = new NextRequest(
@@ -515,7 +518,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           updatedSessionCookie!.value,
           secret
         );
-        expect(updatedSessionCookieValue).toEqual({
+        expect(updatedSessionCookieValue).toEqual(expect.objectContaining({
           user: {
             sub: DEFAULT.sub
           },
@@ -528,7 +531,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             sid: DEFAULT.sid,
             createdAt: expect.any(Number)
           }
-        });
+        }));
 
         // assert that the session expiry has been extended by the inactivity duration
         expect(updatedSessionCookie?.maxAge).toEqual(1800);
@@ -867,13 +870,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
       );
       expect(transactionCookie).toBeDefined();
       expect((await decrypt(transactionCookie!.value, secret)).payload).toEqual(
-        {
+        expect.objectContaining({
           nonce: authorizationUrl.searchParams.get("nonce"),
           codeVerifier: expect.any(String),
           responseType: "code",
           state: authorizationUrl.searchParams.get("state"),
           returnTo: "/"
-        }
+        })
       );
     });
 
@@ -1022,13 +1025,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(transactionCookie).toBeDefined();
         expect(
           (await decrypt(transactionCookie!.value, secret)).payload
-        ).toEqual({
+        ).toEqual(expect.objectContaining({
           nonce: authorizationUrl.searchParams.get("nonce"),
           codeVerifier: expect.any(String),
           responseType: "code",
           state: authorizationUrl.searchParams.get("state"),
           returnTo: "/"
-        });
+        }));
       });
 
       it("should forward the configured authorization parameters to the authorization server", async () => {
@@ -1355,14 +1358,14 @@ ca/T0LLtgmbMmxSv/MmzIg==
       );
       expect(transactionCookie).toBeDefined();
       expect((await decrypt(transactionCookie!.value, secret)).payload).toEqual(
-        {
+        expect.objectContaining({
           nonce: authorizationUrl.searchParams.get("nonce"),
           maxAge: 3600,
           codeVerifier: expect.any(String),
           responseType: "code",
           state: authorizationUrl.searchParams.get("state"),
           returnTo: "/"
-        }
+        })
       );
     });
 
@@ -1402,13 +1405,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
       );
       expect(transactionCookie).toBeDefined();
       expect((await decrypt(transactionCookie!.value, secret)).payload).toEqual(
-        {
+        expect.objectContaining({
           nonce: authorizationUrl.searchParams.get("nonce"),
           codeVerifier: expect.any(String),
           responseType: "code",
           state: authorizationUrl.searchParams.get("state"),
           returnTo: "https://example.com/dashboard"
-        }
+        })
       );
     });
 
@@ -1448,13 +1451,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
       );
       expect(transactionCookie).toBeDefined();
       expect((await decrypt(transactionCookie!.value, secret)).payload).toEqual(
-        {
+        expect.objectContaining({
           nonce: authorizationUrl.searchParams.get("nonce"),
           codeVerifier: expect.any(String),
           responseType: "code",
           state: authorizationUrl.searchParams.get("state"),
           returnTo: "/"
-        }
+        })
       );
     });
 
@@ -1582,13 +1585,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(transactionCookie).toBeDefined();
         expect(
           (await decrypt(transactionCookie!.value, secret)).payload
-        ).toEqual({
+        ).toEqual(expect.objectContaining({
           nonce: expect.any(String),
           codeVerifier: expect.any(String),
           responseType: "code",
           state,
           returnTo: "/"
-        });
+        }));
       });
 
       describe("custom parameters to the authorization server", async () => {
@@ -1661,13 +1664,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           expect(transactionCookie).toBeDefined();
           expect(
             (await decrypt(transactionCookie!.value, secret)).payload
-          ).toEqual({
+          ).toEqual(expect.objectContaining({
             nonce: expect.any(String),
             codeVerifier: expect.any(String),
             responseType: "code",
             state,
             returnTo: "/"
-          });
+          }));
         });
 
         it("should forward custom parameters set in the configuration to the authorization server", async () => {
@@ -1741,13 +1744,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           expect(transactionCookie).toBeDefined();
           expect(
             (await decrypt(transactionCookie!.value, secret)).payload
-          ).toEqual({
+          ).toEqual(expect.objectContaining({
             nonce: expect.any(String),
             codeVerifier: expect.any(String),
             responseType: "code",
             state,
             returnTo: "/"
-          });
+          }));
         });
       });
     });
@@ -1827,6 +1830,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const session: SessionData = {
         user: { sub: DEFAULT.sub },
         tokenSet: {
+          idToken: DEFAULT.idToken,
           accessToken: DEFAULT.accessToken,
           refreshToken: DEFAULT.refreshToken,
           expiresAt: 123456
@@ -1836,7 +1840,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
           createdAt: Math.floor(Date.now() / 1000)
         }
       };
-      const sessionCookie = await encrypt(session, secret);
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const sessionCookie = await encrypt(session, secret, expiration);
       const headers = new Headers();
       headers.append("cookie", `__session=${sessionCookie}`);
       const request = new NextRequest(
@@ -1863,6 +1869,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
       ).toEqual(`${DEFAULT.appBaseUrl}`);
       expect(authorizationUrl.searchParams.get("logout_hint")).toEqual(
         DEFAULT.sid
+      );
+      expect(authorizationUrl.searchParams.get("id_token_hint")).toEqual(
+        DEFAULT.idToken
       );
 
       // session cookie is cleared
@@ -1906,7 +1915,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
           createdAt: Math.floor(Date.now() / 1000)
         }
       };
-      const sessionCookie = await encrypt(session, secret);
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const sessionCookie = await encrypt(session, secret, expiration);
       const headers = new Headers();
       headers.append("cookie", `__session=${sessionCookie}`);
 
@@ -1939,6 +1950,43 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const cookie = response.cookies.get("__session");
       expect(cookie?.value).toEqual("");
       expect(cookie?.expires).toEqual(new Date("1970-01-01T00:00:00.000Z"));
+    });
+
+    it("should not include the id_token_hint parameter if a session does not exist", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        fetch: getMockAuthorizationServer()
+      });
+
+      const request = new NextRequest(
+        new URL("/auth/logout", DEFAULT.appBaseUrl),
+        {
+          method: "GET"
+        }
+      );
+
+      const response = await authClient.handleLogout(request);
+      expect(response.status).toEqual(307);
+      expect(response.headers.get("Location")).not.toBeNull();
+
+      const authorizationUrl = new URL(response.headers.get("Location")!);
+      expect(authorizationUrl.searchParams.get("id_token_hint")).toBeNull();
     });
 
     it("should not include the logout_hint parameter if a session does not exist", async () => {
@@ -2131,7 +2179,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
           createdAt: Math.floor(Date.now() / 1000)
         }
       };
-      const sessionCookie = await encrypt(session, secret);
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const sessionCookie = await encrypt(session, secret, expiration);
       const headers = new Headers();
       headers.append("cookie", `__session=${sessionCookie}`);
       const request = new NextRequest(
@@ -2226,9 +2276,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         state: state,
         returnTo: "/dashboard"
       };
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
       headers.set(
         "cookie",
-        `__txn_${state}=${await encrypt(transactionState, secret)}`
+        `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
       );
       const request = new NextRequest(url, {
         method: "GET",
@@ -2246,7 +2298,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const sessionCookie = response.cookies.get("__session");
       expect(sessionCookie).toBeDefined();
       const { payload: session } = await decrypt(sessionCookie!.value, secret);
-      expect(session).toEqual({
+      expect(session).toEqual(expect.objectContaining({
         user: {
           sub: DEFAULT.sub
         },
@@ -2260,7 +2312,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           sid: expect.any(String),
           createdAt: expect.any(Number)
         }
-      });
+      }));
 
       // validate the transaction cookie has been removed
       const transactionCookie = response.cookies.get(`__txn_${state}`);
@@ -2335,9 +2387,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         state: state,
         returnTo: "/dashboard"
       };
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
       headers.set(
         "cookie",
-        `__txn_${state}=${await encrypt(transactionState, secret)}`
+        `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
       );
       const request = new NextRequest(url, {
         method: "GET",
@@ -2355,7 +2409,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const sessionCookie = response.cookies.get("__session");
       expect(sessionCookie).toBeDefined();
       const { payload: session } = await decrypt(sessionCookie!.value, secret);
-      expect(session).toEqual({
+      expect(session).toEqual(expect.objectContaining({
         user: {
           sub: DEFAULT.sub
         },
@@ -2369,7 +2423,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           sid: expect.any(String),
           createdAt: expect.any(Number)
         }
-      });
+      }));
 
       // validate the transaction cookie has been removed
       const transactionCookie = response.cookies.get(`__txn_${state}`);
@@ -2454,9 +2508,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         state: state,
         returnTo: "/dashboard"
       };
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
       headers.set(
         "cookie",
-        `__txn_does-not-exist=${await encrypt(transactionState, secret)}`
+        `__txn_does-not-exist=${await encrypt(transactionState, secret, expiration)}`
       );
       const request = new NextRequest(url, {
         method: "GET",
@@ -2506,9 +2562,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         state: state,
         returnTo: "/dashboard"
       };
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
       headers.set(
         "cookie",
-        `__txn_${state}=${await encrypt(transactionState, secret)}`
+        `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
       );
       const request = new NextRequest(url, {
         method: "GET",
@@ -2565,9 +2623,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         state: state,
         returnTo: "/dashboard"
       };
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
       headers.set(
         "cookie",
-        `__txn_${state}=${await encrypt(transactionState, secret)}`
+        `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
       );
       const request = new NextRequest(url, {
         method: "GET",
@@ -2621,9 +2681,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         state: state,
         returnTo: "/dashboard"
       };
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
       headers.set(
         "cookie",
-        `__txn_${state}=${await encrypt(transactionState, secret)}`
+        `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
       );
       const request = new NextRequest(url, {
         method: "GET",
@@ -2684,9 +2746,12 @@ ca/T0LLtgmbMmxSv/MmzIg==
           state: state,
           returnTo: "/dashboard"
         };
+        const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      
         headers.set(
           "cookie",
-          `__txn_${state}=${await encrypt(transactionState, secret)}`
+          `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
         );
         const request = new NextRequest(url, {
           method: "GET",
@@ -2731,7 +2796,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           sessionCookie!.value,
           secret
         );
-        expect(session).toEqual(expectedSession);
+        expect(session).toEqual(expect.objectContaining(expectedSession));
       });
 
       it("should be called with an error if the state parameter is missing", async () => {
@@ -2839,9 +2904,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
           state: state,
           returnTo: "/dashboard"
         };
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
         headers.set(
           "cookie",
-          `__txn_non-existent-state=${await encrypt(transactionState, secret)}`
+          `__txn_non-existent-state=${await encrypt(transactionState, secret, expiration)}`
         );
         const request = new NextRequest(url, {
           method: "GET",
@@ -2914,9 +2981,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
           state: state,
           returnTo: "/dashboard"
         };
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
         headers.set(
           "cookie",
-          `__txn_${state}=${await encrypt(transactionState, secret)}`
+          `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
         );
         const request = new NextRequest(url, {
           method: "GET",
@@ -2998,9 +3067,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
           state: state,
           returnTo: "/dashboard"
         };
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
         headers.set(
           "cookie",
-          `__txn_${state}=${await encrypt(transactionState, secret)}`
+          `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
         );
         const request = new NextRequest(url, {
           method: "GET",
@@ -3082,9 +3153,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
           state: state,
           returnTo: "/dashboard"
         };
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
         headers.set(
           "cookie",
-          `__txn_${state}=${await encrypt(transactionState, secret)}`
+          `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
         );
         const request = new NextRequest(url, {
           method: "GET",
@@ -3162,9 +3235,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
           state: state,
           returnTo: "/dashboard"
         };
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
         headers.set(
           "cookie",
-          `__txn_${state}=${await encrypt(transactionState, secret)}`
+          `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
         );
         const request = new NextRequest(url, {
           method: "GET",
@@ -3185,7 +3260,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           sessionCookie!.value,
           secret
         );
-        expect(session).toEqual({
+        expect(session).toEqual(expect.objectContaining({
           user: {
             sub: DEFAULT.sub,
             name: "John Doe",
@@ -3202,7 +3277,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             sid: expect.any(String),
             createdAt: expect.any(Number)
           }
-        });
+        }));
       });
 
       it("should not call the hook if the session is not established", async () => {
@@ -3292,9 +3367,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
           state: state,
           returnTo: "/dashboard"
         };
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
         headers.set(
           "cookie",
-          `__txn_${state}=${await encrypt(transactionState, secret)}`
+          `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
         );
         const request = new NextRequest(url, {
           method: "GET",
@@ -3315,7 +3392,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           sessionCookie!.value,
           secret
         );
-        expect(session).toEqual({
+        expect(session).toEqual(expect.objectContaining({
           user: {
             sub: DEFAULT.sub,
             name: "John Doe",
@@ -3332,7 +3409,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             sid: expect.any(String),
             createdAt: expect.any(Number)
           }
-        });
+        }));
       });
     });
   });
@@ -3390,7 +3467,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
           createdAt: Math.floor(Date.now() / 1000)
         }
       };
-      const sessionCookie = await encrypt(session, secret);
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const sessionCookie = await encrypt(session, secret, expiration);
       const headers = new Headers();
       headers.append("cookie", `__session=${sessionCookie}`);
       const request = new NextRequest(
@@ -3501,7 +3580,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
           createdAt: Math.floor(Date.now() / 1000)
         }
       };
-      const sessionCookie = await encrypt(session, secret);
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const sessionCookie = await encrypt(session, secret, expiration);
       const headers = new Headers();
       headers.append("cookie", `__session=${sessionCookie}`);
       const request = new NextRequest(
@@ -4332,34 +4413,42 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const authClient = await createAuthClient({
         signInReturnToPath: defaultReturnTo
       });
-      
+
       // Mock the transactionStore.save method to verify the saved state
-      const originalSave = authClient['transactionStore'].save;
-      authClient['transactionStore'].save = vi.fn(async (cookies, state) => {
+      const originalSave = authClient["transactionStore"].save;
+      authClient["transactionStore"].save = vi.fn(async (cookies, state) => {
         expect(state.returnTo).toBe(defaultReturnTo);
-        return originalSave.call(authClient['transactionStore'], cookies, state);
+        return originalSave.call(
+          authClient["transactionStore"],
+          cookies,
+          state
+        );
       });
 
       await authClient.startInteractiveLogin();
-      
-      expect(authClient['transactionStore'].save).toHaveBeenCalled();
+
+      expect(authClient["transactionStore"].save).toHaveBeenCalled();
     });
 
     it("should sanitize and use the provided returnTo parameter", async () => {
       const authClient = await createAuthClient();
       const returnTo = "/custom-return-path";
-      
+
       // Mock the transactionStore.save method to verify the saved state
-      const originalSave = authClient['transactionStore'].save;
-      authClient['transactionStore'].save = vi.fn(async (cookies, state) => {
+      const originalSave = authClient["transactionStore"].save;
+      authClient["transactionStore"].save = vi.fn(async (cookies, state) => {
         // The full URL is saved, not just the path
         expect(state.returnTo).toBe("https://example.com/custom-return-path");
-        return originalSave.call(authClient['transactionStore'], cookies, state);
+        return originalSave.call(
+          authClient["transactionStore"],
+          cookies,
+          state
+        );
       });
 
       await authClient.startInteractiveLogin({ returnTo });
-      
-      expect(authClient['transactionStore'].save).toHaveBeenCalled();
+
+      expect(authClient["transactionStore"].save).toHaveBeenCalled();
     });
 
     it("should reject unsafe returnTo URLs", async () => {
@@ -4367,18 +4456,22 @@ ca/T0LLtgmbMmxSv/MmzIg==
         signInReturnToPath: "/safe-path"
       });
       const unsafeReturnTo = "https://malicious-site.com";
-      
+
       // Mock the transactionStore.save method to verify the saved state
-      const originalSave = authClient['transactionStore'].save;
-      authClient['transactionStore'].save = vi.fn(async (cookies, state) => {
+      const originalSave = authClient["transactionStore"].save;
+      authClient["transactionStore"].save = vi.fn(async (cookies, state) => {
         // Should use the default safe path instead of the malicious one
         expect(state.returnTo).toBe("/safe-path");
-        return originalSave.call(authClient['transactionStore'], cookies, state);
+        return originalSave.call(
+          authClient["transactionStore"],
+          cookies,
+          state
+        );
       });
 
       await authClient.startInteractiveLogin({ returnTo: unsafeReturnTo });
-      
-      expect(authClient['transactionStore'].save).toHaveBeenCalled();
+
+      expect(authClient["transactionStore"].save).toHaveBeenCalled();
     });
 
     it("should pass authorization parameters to the authorization URL", async () => {
@@ -4387,10 +4480,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
         audience: "https://api.example.com",
         scope: "openid profile email custom_scope"
       };
-      
+
       // Spy on the authorizationUrl method to verify the passed params
-      const originalAuthorizationUrl = authClient['authorizationUrl'];
-      authClient['authorizationUrl'] = vi.fn(async (params) => {
+      const originalAuthorizationUrl = authClient["authorizationUrl"];
+      authClient["authorizationUrl"] = vi.fn(async (params) => {
         // Verify the audience is set correctly
         expect(params.get("audience")).toBe(authorizationParameters.audience);
         // Verify the scope is set correctly
@@ -4399,8 +4492,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
       });
 
       await authClient.startInteractiveLogin({ authorizationParameters });
-      
-      expect(authClient['authorizationUrl']).toHaveBeenCalled();
+
+      expect(authClient["authorizationUrl"]).toHaveBeenCalled();
     });
 
     it("should handle pushed authorization requests (PAR) correctly", async () => {
@@ -4410,11 +4503,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
           parRequestCalled = true;
         }
       });
-      
+
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({ secret });
       const sessionStore = new StatelessSessionStore({ secret });
-      
+
       const authClient = new AuthClient({
         transactionStore,
         sessionStore,
@@ -4429,33 +4522,41 @@ ca/T0LLtgmbMmxSv/MmzIg==
         },
         fetch: mockFetch
       });
-      
+
       await authClient.startInteractiveLogin();
-      
+
       // Verify that PAR was used
       expect(parRequestCalled).toBe(true);
     });
-    
+
     it("should save the transaction state with correct values", async () => {
       const authClient = await createAuthClient();
       const returnTo = "/custom-path";
-      
+
       // Instead of mocking the oauth functions, we'll just check the structure of the transaction state
-      const originalSave = authClient['transactionStore'].save;
-      authClient['transactionStore'].save = vi.fn(async (cookies, transactionState) => {
-        expect(transactionState).toEqual(expect.objectContaining({
-          nonce: expect.any(String),
-          codeVerifier: expect.any(String),
-          responseType: "code",
-          state: expect.any(String),
-          returnTo: "https://example.com/custom-path"
-        }));
-        return originalSave.call(authClient['transactionStore'], cookies, transactionState);
-      });
+      const originalSave = authClient["transactionStore"].save;
+      authClient["transactionStore"].save = vi.fn(
+        async (cookies, transactionState) => {
+          expect(transactionState).toEqual(
+            expect.objectContaining({
+              nonce: expect.any(String),
+              codeVerifier: expect.any(String),
+              responseType: "code",
+              state: expect.any(String),
+              returnTo: "https://example.com/custom-path"
+            })
+          );
+          return originalSave.call(
+            authClient["transactionStore"],
+            cookies,
+            transactionState
+          );
+        }
+      );
 
       await authClient.startInteractiveLogin({ returnTo });
-      
-      expect(authClient['transactionStore'].save).toHaveBeenCalled();
+
+      expect(authClient["transactionStore"].save).toHaveBeenCalled();
     });
 
     it("should merge configuration authorizationParameters with method arguments", async () => {
@@ -4467,13 +4568,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           audience: configAudience
         }
       });
-      
+
       const methodScope = "openid profile email custom_scope";
       const methodAudience = "https://custom-api.example.com";
-      
+
       // Spy on the authorizationUrl method to verify the passed params
-      const originalAuthorizationUrl = authClient['authorizationUrl'];
-      authClient['authorizationUrl'] = vi.fn(async (params) => {
+      const originalAuthorizationUrl = authClient["authorizationUrl"];
+      authClient["authorizationUrl"] = vi.fn(async (params) => {
         // Method's authorization parameters should override config
         expect(params.get("audience")).toBe(methodAudience);
         expect(params.get("scope")).toBe(methodScope);
@@ -4486,14 +4587,14 @@ ca/T0LLtgmbMmxSv/MmzIg==
           audience: methodAudience
         }
       });
-      
-      expect(authClient['authorizationUrl']).toHaveBeenCalled();
+
+      expect(authClient["authorizationUrl"]).toHaveBeenCalled();
     });
 
     // Add tests for handleLogin method
     it("should create correct options in handleLogin with returnTo parameter", async () => {
       const authClient = await createAuthClient();
-      
+
       // Mock startInteractiveLogin to check what options are passed to it
       const originalStartInteractiveLogin = authClient.startInteractiveLogin;
       authClient.startInteractiveLogin = vi.fn(async (options) => {
@@ -4504,11 +4605,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         return originalStartInteractiveLogin.call(authClient, options);
       });
 
-      const reqUrl = new URL("https://example.com/auth/login?foo=bar&returnTo=custom-return");
+      const reqUrl = new URL(
+        "https://example.com/auth/login?foo=bar&returnTo=custom-return"
+      );
       const req = new NextRequest(reqUrl, { method: "GET" });
-      
+
       await authClient.handleLogin(req);
-      
+
       expect(authClient.startInteractiveLogin).toHaveBeenCalled();
     });
 
@@ -4516,7 +4619,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const authClient = await createAuthClient({
         pushedAuthorizationRequests: true
       });
-      
+
       // Mock startInteractiveLogin to check what options are passed to it
       const originalStartInteractiveLogin = authClient.startInteractiveLogin;
       authClient.startInteractiveLogin = vi.fn(async (options) => {
@@ -4527,11 +4630,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         return originalStartInteractiveLogin.call(authClient, options);
       });
 
-      const reqUrl = new URL("https://example.com/auth/login?foo=bar&returnTo=custom-return");
+      const reqUrl = new URL(
+        "https://example.com/auth/login?foo=bar&returnTo=custom-return"
+      );
       const req = new NextRequest(reqUrl, { method: "GET" });
-      
+
       await authClient.handleLogin(req);
-      
+
       expect(authClient.startInteractiveLogin).toHaveBeenCalled();
     });
   });

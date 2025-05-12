@@ -1,40 +1,40 @@
-import { NextResponse, type NextRequest } from "next/server.js";
+import { NextResponse, type NextRequest } from "next/server";
 import * as jose from "jose";
 import * as oauth from "oauth4webapi";
 
-import packageJson from "../../package.json" with { type: "json" };
+import packageJson from "../../package.json";
 import {
   AccessTokenError,
   AccessTokenErrorCode,
+  AccessTokenForConnectionError,
+  AccessTokenForConnectionErrorCode,
   AuthorizationCodeGrantError,
   AuthorizationError,
   BackchannelLogoutError,
   DiscoveryError,
-  AccessTokenForConnectionError,
-  AccessTokenForConnectionErrorCode,
   InvalidStateError,
   MissingStateError,
   OAuth2Error,
   SdkError
-} from "../errors/index.js";
+} from "../errors";
 import {
+  AccessTokenForConnectionOptions,
   AuthorizationParameters,
   ConnectionTokenSet,
-  AccessTokenForConnectionOptions,
   LogoutToken,
   SessionData,
   StartInteractiveLoginOptions,
   TokenSet
-} from "../types/index.js";
+} from "../types";
 import {
   ensureNoLeadingSlash,
   ensureTrailingSlash,
   removeTrailingSlash
-} from "../utils/pathUtils.js";
-import { toSafeRedirect } from "../utils/url-helpers.js";
-import { AbstractSessionStore } from "./session/abstract-session-store.js";
-import { TransactionState, TransactionStore } from "./transaction-store.js";
-import { filterClaims } from "./user.js";
+} from "../utils/pathUtils";
+import { toSafeRedirect } from "../utils/url-helpers";
+import { AbstractSessionStore } from "./session/abstract-session-store";
+import { TransactionState, TransactionStore } from "./transaction-store";
+import { filterClaims } from "./user";
 
 export type BeforeSessionSavedHook = (
   session: SessionData,
@@ -64,7 +64,6 @@ const INTERNAL_AUTHORIZE_PARAMS = [
 const DEFAULT_SCOPES = ["openid", "profile", "email", "offline_access"].join(
   " "
 );
-
 
 /**
  * A constant representing the grant type for federated connection access token exchange.
@@ -432,6 +431,10 @@ export class AuthClient {
       url.searchParams.set("logout_hint", session.internal.sid);
     }
 
+    if (session?.tokenSet.idToken) {
+      url.searchParams.set("id_token_hint", session?.tokenSet.idToken);
+    }
+
     const res = NextResponse.redirect(url);
     await this.sessionStore.delete(req.cookies, res.cookies);
 
@@ -665,7 +668,8 @@ export class AuthClient {
    * refresh it using the refresh token, if available.
    */
   async getTokenSet(
-    tokenSet: TokenSet
+    tokenSet: TokenSet,
+    forceRefresh?: boolean | undefined
   ): Promise<[null, TokenSet] | [SdkError, null]> {
     // the access token has expired but we do not have a refresh token
     if (!tokenSet.refreshToken && tokenSet.expiresAt <= Date.now() / 1000) {
@@ -678,65 +682,67 @@ export class AuthClient {
       ];
     }
 
-    // the access token has expired and we have a refresh token
-    if (tokenSet.refreshToken && tokenSet.expiresAt <= Date.now() / 1000) {
-      const [discoveryError, authorizationServerMetadata] =
-        await this.discoverAuthorizationServerMetadata();
+    if (tokenSet.refreshToken) {
+      // either the access token has expired or we are forcing a refresh
+      if (forceRefresh || tokenSet.expiresAt <= Date.now() / 1000) {
+        const [discoveryError, authorizationServerMetadata] =
+          await this.discoverAuthorizationServerMetadata();
 
-      if (discoveryError) {
-        console.error(discoveryError);
-        return [discoveryError, null];
-      }
-
-      const refreshTokenRes = await oauth.refreshTokenGrantRequest(
-        authorizationServerMetadata,
-        this.clientMetadata,
-        await this.getClientAuth(),
-        tokenSet.refreshToken,
-        {
-          ...this.httpOptions(),
-          [oauth.customFetch]: this.fetch,
-          [oauth.allowInsecureRequests]: this.allowInsecureRequests
+        if (discoveryError) {
+          console.error(discoveryError);
+          return [discoveryError, null];
         }
-      );
 
-      let oauthRes: oauth.TokenEndpointResponse;
-      try {
-        oauthRes = await oauth.processRefreshTokenResponse(
+        const refreshTokenRes = await oauth.refreshTokenGrantRequest(
           authorizationServerMetadata,
           this.clientMetadata,
-          refreshTokenRes
+          await this.getClientAuth(),
+          tokenSet.refreshToken,
+          {
+            ...this.httpOptions(),
+            [oauth.customFetch]: this.fetch,
+            [oauth.allowInsecureRequests]: this.allowInsecureRequests
+          }
         );
-      } catch (e: any) {
-        console.error(e);
-        return [
-          new AccessTokenError(
-            AccessTokenErrorCode.FAILED_TO_REFRESH_TOKEN,
-            "The access token has expired and there was an error while trying to refresh it. Check the server logs for more information."
-          ),
-          null
-        ];
+
+        let oauthRes: oauth.TokenEndpointResponse;
+        try {
+          oauthRes = await oauth.processRefreshTokenResponse(
+            authorizationServerMetadata,
+            this.clientMetadata,
+            refreshTokenRes
+          );
+        } catch (e: any) {
+          console.error(e);
+          return [
+            new AccessTokenError(
+              AccessTokenErrorCode.FAILED_TO_REFRESH_TOKEN,
+              "The access token has expired and there was an error while trying to refresh it. Check the server logs for more information."
+            ),
+            null
+          ];
+        }
+
+        const accessTokenExpiresAt =
+          Math.floor(Date.now() / 1000) + Number(oauthRes.expires_in);
+
+        const updatedTokenSet = {
+          ...tokenSet, // contains the existing `iat` claim to maintain the session lifetime
+          accessToken: oauthRes.access_token,
+          idToken: oauthRes.id_token,
+          expiresAt: accessTokenExpiresAt
+        };
+
+        if (oauthRes.refresh_token) {
+          // refresh token rotation is enabled, persist the new refresh token from the response
+          updatedTokenSet.refreshToken = oauthRes.refresh_token;
+        } else {
+          // we did not get a refresh token back, keep the current long-lived refresh token around
+          updatedTokenSet.refreshToken = tokenSet.refreshToken;
+        }
+
+        return [null, updatedTokenSet];
       }
-
-      const accessTokenExpiresAt =
-        Math.floor(Date.now() / 1000) + Number(oauthRes.expires_in);
-
-      const updatedTokenSet = {
-        ...tokenSet, // contains the existing `iat` claim to maintain the session lifetime
-        accessToken: oauthRes.access_token,
-        idToken: oauthRes.id_token,
-        expiresAt: accessTokenExpiresAt
-      };
-
-      if (oauthRes.refresh_token) {
-        // refresh token rotation is enabled, persist the new refresh token from the response
-        updatedTokenSet.refreshToken = oauthRes.refresh_token;
-      } else {
-        // we did not get a refresh token back, keep the current long-lived refresh token around
-        updatedTokenSet.refreshToken = tokenSet.refreshToken;
-      }
-
-      return [null, updatedTokenSet];
     }
 
     return [null, tokenSet];
@@ -1012,19 +1018,20 @@ export class AuthClient {
     tokenSet: TokenSet,
     connectionTokenSet: ConnectionTokenSet | undefined,
     options: AccessTokenForConnectionOptions
-  ): Promise<[AccessTokenForConnectionError, null] | [null, ConnectionTokenSet]> {
+  ): Promise<
+    [AccessTokenForConnectionError, null] | [null, ConnectionTokenSet]
+  > {
     // If we do not have a refresh token
     // and we do not have a connection token set in the cache or the one we have is expired,
     // there is noting to retrieve and we return an error.
     if (
       !tokenSet.refreshToken &&
-      (!connectionTokenSet ||
-        connectionTokenSet.expiresAt <= Date.now() / 1000)
+      (!connectionTokenSet || connectionTokenSet.expiresAt <= Date.now() / 1000)
     ) {
       return [
         new AccessTokenForConnectionError(
           AccessTokenForConnectionErrorCode.MISSING_REFRESH_TOKEN,
-          "A refresh token was not present, Connection Access Token requires a refresh token. The user needs to re-authenticate.",
+          "A refresh token was not present, Connection Access Token requires a refresh token. The user needs to re-authenticate."
         ),
         null
       ];
@@ -1035,8 +1042,7 @@ export class AuthClient {
     // we need to exchange the refresh token for a connection access token.
     if (
       tokenSet.refreshToken &&
-      (!connectionTokenSet ||
-        connectionTokenSet.expiresAt <= Date.now() / 1000)
+      (!connectionTokenSet || connectionTokenSet.expiresAt <= Date.now() / 1000)
     ) {
       const params = new URLSearchParams();
 
@@ -1107,10 +1113,7 @@ export class AuthClient {
       ];
     }
 
-    return [null, connectionTokenSet] as [
-      null,
-      ConnectionTokenSet
-    ];
+    return [null, connectionTokenSet] as [null, ConnectionTokenSet];
   }
 }
 

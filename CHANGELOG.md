@@ -1,5 +1,44 @@
 # Change Log
 
+## [v4.5.1](https://github.com/auth0/nextjs-auth0/tree/v4.5.1) (2025-04-29)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.5.0...v4.5.1)
+
+**Security**
+- fix: Ensure JWE expires as expected [\#2040](https://github.com/auth0/nextjs-auth0/pull/2040) ([frederikprijck](https://github.com/frederikprijck))
+
+## [v4.5.0](https://github.com/auth0/nextjs-auth0/tree/v4.5.0) (2025-04-25)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.4.2...v4.5.0)
+
+**Added**
+- Extensive Cookie Configuration [\#2059](https://github.com/auth0/nextjs-auth0/pull/2059) ([tusharpandey13](https://github.com/tusharpandey13))
+- Allow refresh: true in getAccessToken() [\#2055](https://github.com/auth0/nextjs-auth0/pull/2055) ([tusharpandey13](https://github.com/tusharpandey13))
+- Allow SWR mutation in useUser hook [\#2045](https://github.com/auth0/nextjs-auth0/pull/2045) ([tusharpandey13](https://github.com/tusharpandey13))
+
+**Changed**
+- Update README regarding access-token endpoint [\#2044](https://github.com/auth0/nextjs-auth0/pull/2044) ([frederikprijck](https://github.com/frederikprijck))
+
+**Fixed**
+- Update tests for getAccessToken refresh flow [\#2068](https://github.com/auth0/nextjs-auth0/pull/2068) ([tusharpandey13](https://github.com/tusharpandey13))
+- fix: make configuration validation not throw [\#2034](https://github.com/auth0/nextjs-auth0/pull/2034) ([tusharpandey13](https://github.com/tusharpandey13))
+- feat: ensure cookie path is configurable [\#2050](https://github.com/auth0/nextjs-auth0/pull/2050) ([frederikprijck](https://github.com/frederikprijck))
+
+## [v4.4.2](https://github.com/auth0/nextjs-auth0/tree/v4.4.2) (2025-04-08)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.4.1...v4.4.2)
+
+**Revert**
+- revert: fix: Properly configure SDK to be distributed as ESM [\#2046](https://github.com/auth0/nextjs-auth0/pull/2046) ([frederikprijck](https://github.com/frederikprijck))
+
+**Fixed**
+- fix: Add id_token_hint on logout [\#2041](https://github.com/auth0/nextjs-auth0/pull/2041) ([frederikprijck](https://github.com/frederikprijck))
+
+## [v4.4.1](https://github.com/auth0/nextjs-auth0/tree/v4.4.1) (2025-04-03)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.4.0...v4.4.1)
+
+**Fixed**
+- fix: Properly configure SDK to be distributed as ESM [\#2028](https://github.com/auth0/nextjs-auth0/pull/2028) ([frederikprijck](https://github.com/frederikprijck))
+- Fix broken links in jsdocs [\#2031](https://github.com/auth0/nextjs-auth0/pull/2031) ([frederikprijck](https://github.com/frederikprijck))
+- fix: Throw ConfigurationError when invalid Auth0Client configuration [\#2026](https://github.com/auth0/nextjs-auth0/pull/2026) ([tusharpandey13](https://github.com/tusharpandey13))
+
 ## [v4.4.0](https://github.com/auth0/nextjs-auth0/tree/v4.4.0) (2025-04-01)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.3.0...v4.4.0)
 

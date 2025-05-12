@@ -1,13 +1,13 @@
-import { SessionData, SessionDataStore } from "../../types/index.js";
-import * as cookies from "../cookies.js";
+import { SessionData, SessionDataStore } from "../../types";
+import * as cookies from "../cookies";
 import {
   AbstractSessionStore,
   SessionCookieOptions
-} from "./abstract-session-store.js";
+} from "./abstract-session-store";
 import {
   LEGACY_COOKIE_NAME,
   normalizeStatefulSession
-} from "./normalize-session.js";
+} from "./normalize-session";
 
 // the value of the stateful session cookie containing a unique session ID to identify
 // the current session
@@ -130,15 +130,17 @@ export class StatefulSessionStore extends AbstractSessionStore {
     if (!sessionId) {
       sessionId = generateId();
     }
-
+    
+    const maxAge = this.calculateMaxAge(session.internal.createdAt);
+    const expiration = Date.now() / 1000 + maxAge;
     const jwe = await cookies.encrypt(
       {
         id: sessionId
       },
-      this.secret
+      this.secret,
+      expiration,
     );
-    const maxAge = this.calculateMaxAge(session.internal.createdAt);
-
+    
     resCookies.set(this.sessionCookieName, jwe.toString(), {
       ...this.cookieConfig,
       maxAge

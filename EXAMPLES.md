@@ -24,6 +24,7 @@
   - [`beforeSessionSaved`](#beforesessionsaved)
   - [`onCallback`](#oncallback)
 - [Session configuration](#session-configuration)
+- [Cookie Configuration](#cookie-configuration)
 - [Database sessions](#database-sessions)
 - [Back-Channel Logout](#back-channel-logout)
 - [Combining middleware](#combining-middleware)
@@ -520,6 +521,65 @@ export async function middleware(request: NextRequest) {
 }
 ```
 
+### Forcing Access Token Refresh
+
+In some scenarios, you might need to explicitly force the refresh of an access token, even if it hasn't expired yet. This can be useful if, for example, the user's permissions or scopes have changed and you need to ensure the application has the latest token reflecting these changes.
+
+The `getAccessToken` method provides an option to force this refresh.
+
+**App Router (Server Components, Route Handlers, Server Actions):**
+
+When calling `getAccessToken` without request and response objects, you can pass an options object as the first argument. Set the `refresh` property to `true` to force a token refresh.
+
+```typescript
+// app/api/my-api/route.ts
+import { getAccessToken } from '@auth0/nextjs-auth0';
+
+export async function GET() {
+  try {
+    // Force a refresh of the access token
+    const { token, expiresAt } = await getAccessToken({ refresh: true });
+
+    // Use the refreshed token
+    // ...
+  } catch (error) {
+    console.error('Error getting access token:', error);
+    return Response.json({ error: 'Failed to get access token' }, { status: 500 });
+  }
+}
+```
+
+**Pages Router (getServerSideProps, API Routes):**
+
+When calling `getAccessToken` with request and response objects (from `getServerSideProps` context or an API route), the options object is passed as the third argument.
+
+```typescript
+// pages/api/my-pages-api.ts
+import { getAccessToken, withApiAuthRequired } from '@auth0/nextjs-auth0';
+import type { NextApiRequest, NextApiResponse } from 'next';
+
+export default withApiAuthRequired(async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  try {
+    // Force a refresh of the access token
+    const { token, expiresAt } = await getAccessToken(req, res, {
+      refresh: true
+    });
+
+    // Use the refreshed token
+    // ...
+  } catch (error: any) {
+    console.error('Error getting access token:', error);
+    res.status(error.status || 500).json({ error: error.message });
+  }
+});
+```
+
+By setting `{ refresh: true }`, you instruct the SDK to bypass the standard expiration check and request a new access token from the identity provider using the refresh token (if available and valid). The new token set (including the potentially updated access token, refresh token, and expiration time) will be saved back into the session automatically.
+This will in turn, update the `access_token`, `id_token` and `expires_at` fields of `tokenset` in the session.
+
 ## `<Auth0Provider />`
 
 ### Passing an initial user from the server
@@ -626,6 +686,67 @@ export const auth0 = new Auth0Client({
 | absoluteDuration   | `number`  | The absolute duration after which the session will expire. The value must be specified in seconds. Default: `3 days`.                                                                                                                         |
 | inactivityDuration | `number`  | The duration of inactivity after which the session will expire. The value must be specified in seconds. Default: `1 day`.                                                                                                                     |
 
+## Cookie Configuration
+
+You can configure the session cookie attributes either through environment variables or directly in the SDK initialization.
+
+**1. Using Environment Variables:**
+
+Set the desired environment variables in your `.env.local` file or your deployment environment:
+
+```
+# .env.local
+# ... other variables ...
+
+# Cookie Options
+AUTH0_COOKIE_DOMAIN='.example.com' # Set cookie for subdomains
+AUTH0_COOKIE_PATH='/app'          # Limit cookie to /app path
+AUTH0_COOKIE_TRANSIENT=true       # Make cookie transient (session-only)
+AUTH0_COOKIE_SECURE=true          # Recommended for production
+AUTH0_COOKIE_SAME_SITE='Lax'
+```
+
+The SDK will automatically pick up these values. Note that `httpOnly` is always set to `true` for security reasons and cannot be configured.
+
+**2. Using `Auth0ClientOptions`:**
+
+Configure the options directly when initializing the client:
+
+```typescript
+import { Auth0Client } from "@auth0/nextjs-auth0/server"
+
+export const auth0 = new Auth0Client({
+  session: {
+    cookie: {
+      domain: '.example.com',
+      path: '/app',
+      transient: true,
+      // httpOnly is always true and cannot be configured
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'Lax',
+      // name: 'appSession', // Optional: custom cookie name, defaults to '__session'
+    },
+    // ... other session options like absoluteDuration ...
+  },
+  // ... other client options ...
+});
+```
+
+**Session Cookie Options:**
+
+*   `domain` (String): Specifies the `Domain` attribute.
+*   `path` (String): Specifies the `Path` attribute. Defaults to `/`.
+*   `transient` (Boolean): If `true`, the `maxAge` attribute is omitted, making it a session cookie. Defaults to `false`.
+*   `secure` (Boolean): Specifies the `Secure` attribute. Defaults to `false` (or `true` if `AUTH0_COOKIE_SECURE=true` is set).
+*   `sameSite` ('Lax' | 'Strict' | 'None'): Specifies the `SameSite` attribute. Defaults to `Lax` (or the value of `AUTH0_COOKIE_SAME_SITE`).
+*   `name` (String): The name of the session cookie. Defaults to `__session`.
+
+> [!INFO]
+> Options provided directly in `Auth0ClientOptions` take precedence over environment variables. The `httpOnly` attribute is always `true` regardless of configuration.
+
+> [!INFO]
+> The `httpOnly` attribute for the session cookie is always set to `true` for security reasons and cannot be configured via options or environment variables.
+
 ## Database sessions
 
 By default, the user's sessions are stored in encrypted cookies. You may choose to persist the sessions in your data store of choice.
@@ -644,7 +765,7 @@ export const auth0 = new Auth0Client({
     async delete(id) {
       // delete the session using its ID
     },
-    async deleteByLogoutToken({ sid, sub }: { sid: string; sub: string }) {
+    async deleteByLogoutToken({ sid, sub }: { sid?: string; sub?: string }) {
       // optional method to be implemented when using Back-Channel Logout
     },
   },
