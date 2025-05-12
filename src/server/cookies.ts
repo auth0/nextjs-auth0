@@ -270,16 +270,12 @@ export function getChunkedCookie(
     return cookie.value;
   }
 
-  const chunks = getAllChunkedCookies(
-    reqCookies,
-    name,
-    isLegacyCookie ?? false
-  ).sort(
+  const chunks = getAllChunkedCookies(reqCookies, name, isLegacyCookie).sort(
     // Extract index from cookie name and sort numerically
     (first, second) => {
       return (
-        getChunkedCookieIndex(first.name, isLegacyCookie ?? false)! -
-        getChunkedCookieIndex(second.name, isLegacyCookie ?? false)!
+        getChunkedCookieIndex(first.name, isLegacyCookie)! -
+        getChunkedCookieIndex(second.name, isLegacyCookie)!
       );
     }
   );
@@ -291,7 +287,7 @@ export function getChunkedCookie(
   // Validate sequence integrity - check for missing chunks
   const highestIndex = getChunkedCookieIndex(
     chunks[chunks.length - 1].name,
-    isLegacyCookie ?? false
+    isLegacyCookie
   )!;
   if (chunks.length !== highestIndex + 1) {
     console.warn(
@@ -320,9 +316,7 @@ export function deleteChunkedCookie(
   // Delete main cookie
   resCookies.delete(name);
 
-  getAllChunkedCookies(reqCookies, name, isLegacyCookie ?? false).forEach(
-    (cookie) => {
-      resCookies.delete(cookie.name); // Delete each filtered cookie
-    }
-  );
+  getAllChunkedCookies(reqCookies, name, isLegacyCookie).forEach((cookie) => {
+    resCookies.delete(cookie.name); // Delete each filtered cookie
+  });
 }
