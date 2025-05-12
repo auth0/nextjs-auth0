@@ -517,7 +517,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const { payload: updatedSessionCookieValue } = await decrypt(
           updatedSessionCookie!.value,
           secret
-        );
+        ) as jose.JWTDecryptResult;
         expect(updatedSessionCookieValue).toEqual(expect.objectContaining({
           user: {
             sub: DEFAULT.sub
@@ -869,7 +869,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         `__txn_${authorizationUrl.searchParams.get("state")}`
       );
       expect(transactionCookie).toBeDefined();
-      expect((await decrypt(transactionCookie!.value, secret)).payload).toEqual(
+      expect((await decrypt(transactionCookie!.value, secret) as jose.JWTDecryptResult).payload).toEqual(
         expect.objectContaining({
           nonce: authorizationUrl.searchParams.get("nonce"),
           codeVerifier: expect.any(String),
@@ -1024,7 +1024,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         );
         expect(transactionCookie).toBeDefined();
         expect(
-          (await decrypt(transactionCookie!.value, secret)).payload
+          (await decrypt(transactionCookie!.value, secret) as jose.JWTDecryptResult).payload
         ).toEqual(expect.objectContaining({
           nonce: authorizationUrl.searchParams.get("nonce"),
           codeVerifier: expect.any(String),
@@ -1357,7 +1357,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         `__txn_${authorizationUrl.searchParams.get("state")}`
       );
       expect(transactionCookie).toBeDefined();
-      expect((await decrypt(transactionCookie!.value, secret)).payload).toEqual(
+      expect((await decrypt(transactionCookie!.value, secret) as jose.JWTDecryptResult).payload).toEqual(
         expect.objectContaining({
           nonce: authorizationUrl.searchParams.get("nonce"),
           maxAge: 3600,
@@ -1404,7 +1404,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         `__txn_${authorizationUrl.searchParams.get("state")}`
       );
       expect(transactionCookie).toBeDefined();
-      expect((await decrypt(transactionCookie!.value, secret)).payload).toEqual(
+      expect((await decrypt(transactionCookie!.value, secret) as jose.JWTDecryptResult).payload).toEqual(
         expect.objectContaining({
           nonce: authorizationUrl.searchParams.get("nonce"),
           codeVerifier: expect.any(String),
@@ -1450,7 +1450,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         `__txn_${authorizationUrl.searchParams.get("state")}`
       );
       expect(transactionCookie).toBeDefined();
-      expect((await decrypt(transactionCookie!.value, secret)).payload).toEqual(
+      expect((await decrypt(transactionCookie!.value, secret) as jose.JWTDecryptResult).payload).toEqual(
         expect.objectContaining({
           nonce: authorizationUrl.searchParams.get("nonce"),
           codeVerifier: expect.any(String),
@@ -1584,7 +1584,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const state = transactionCookie.name.replace("__txn_", "");
         expect(transactionCookie).toBeDefined();
         expect(
-          (await decrypt(transactionCookie!.value, secret)).payload
+          (await decrypt(transactionCookie.value, secret) as jose.JWTDecryptResult).payload
         ).toEqual(expect.objectContaining({
           nonce: expect.any(String),
           codeVerifier: expect.any(String),
@@ -1663,7 +1663,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           const state = transactionCookie.name.replace("__txn_", "");
           expect(transactionCookie).toBeDefined();
           expect(
-            (await decrypt(transactionCookie!.value, secret)).payload
+            (await decrypt(transactionCookie.value, secret) as jose.JWTDecryptResult).payload
           ).toEqual(expect.objectContaining({
             nonce: expect.any(String),
             codeVerifier: expect.any(String),
@@ -1743,7 +1743,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           const state = transactionCookie.name.replace("__txn_", "");
           expect(transactionCookie).toBeDefined();
           expect(
-            (await decrypt(transactionCookie!.value, secret)).payload
+            (await decrypt(transactionCookie.value, secret) as jose.JWTDecryptResult).payload
           ).toEqual(expect.objectContaining({
             nonce: expect.any(String),
             codeVerifier: expect.any(String),
@@ -2297,7 +2297,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       // validate the session cookie
       const sessionCookie = response.cookies.get("__session");
       expect(sessionCookie).toBeDefined();
-      const { payload: session } = await decrypt(sessionCookie!.value, secret);
+      const { payload: session } = await decrypt(sessionCookie!.value, secret) as jose.JWTDecryptResult;
       expect(session).toEqual(expect.objectContaining({
         user: {
           sub: DEFAULT.sub
@@ -2408,7 +2408,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       // validate the session cookie
       const sessionCookie = response.cookies.get("__session");
       expect(sessionCookie).toBeDefined();
-      const { payload: session } = await decrypt(sessionCookie!.value, secret);
+      const { payload: session } = await decrypt(sessionCookie!.value, secret) as jose.JWTDecryptResult;
       expect(session).toEqual(expect.objectContaining({
         user: {
           sub: DEFAULT.sub
@@ -2795,7 +2795,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const { payload: session } = await decrypt(
           sessionCookie!.value,
           secret
-        );
+        ) as jose.JWTDecryptResult;
         expect(session).toEqual(expect.objectContaining(expectedSession));
       });
 
@@ -3259,7 +3259,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const { payload: session } = await decrypt(
           sessionCookie!.value,
           secret
-        );
+        ) as jose.JWTDecryptResult;
         expect(session).toEqual(expect.objectContaining({
           user: {
             sub: DEFAULT.sub,
@@ -3391,7 +3391,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const { payload: session } = await decrypt(
           sessionCookie!.value,
           secret
-        );
+        ) as jose.JWTDecryptResult;
         expect(session).toEqual(expect.objectContaining({
           user: {
             sub: DEFAULT.sub,
@@ -3493,7 +3493,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const { payload: updatedSession } = await decrypt<SessionData>(
         updatedSessionCookie!.value,
         secret
-      );
+      ) as jose.JWTDecryptResult<SessionData>;
       expect(updatedSession.tokenSet.accessToken).toEqual(newAccessToken);
     });
 
