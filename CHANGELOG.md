@@ -1,5 +1,11 @@
 # Change Log
 
+## [v4.5.1](https://github.com/auth0/nextjs-auth0/tree/v4.5.1) (2025-04-29)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.5.0...v4.5.1)
+
+**Security**
+- fix: Ensure JWE expires as expected [\#2040](https://github.com/auth0/nextjs-auth0/pull/2040) ([frederikprijck](https://github.com/frederikprijck))
+
 ## [v4.5.0](https://github.com/auth0/nextjs-auth0/tree/v4.5.0) (2025-04-25)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.4.2...v4.5.0)
 
