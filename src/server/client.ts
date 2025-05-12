@@ -7,9 +7,7 @@ import {
   AccessTokenError,
   AccessTokenErrorCode,
   AccessTokenForConnectionError,
-  AccessTokenForConnectionErrorCode,
-  ConfigurationError,
-  ConfigurationErrorCode
+  AccessTokenForConnectionErrorCode
 } from "../errors";
 import {
   AccessTokenForConnectionOptions,
@@ -199,14 +197,26 @@ export class Auth0Client {
 
     const sessionCookieOptions: SessionCookieOptions = {
       name: options.session?.cookie?.name ?? "__session",
-      secure: options.session?.cookie?.secure ?? false,
-      sameSite: options.session?.cookie?.sameSite ?? "lax"
+      secure:
+        options.session?.cookie?.secure ??
+        process.env.AUTH0_COOKIE_SECURE === "true",
+      sameSite:
+        options.session?.cookie?.sameSite ??
+        (process.env.AUTH0_COOKIE_SAME_SITE as "lax" | "strict" | "none") ??
+        "lax",
+      path:
+        options.session?.cookie?.path ?? process.env.AUTH0_COOKIE_PATH ?? "/",
+      transient:
+        options.session?.cookie?.transient ??
+        process.env.AUTH0_COOKIE_TRANSIENT === "true",
+      domain: options.session?.cookie?.domain ?? process.env.AUTH0_COOKIE_DOMAIN
     };
 
     const transactionCookieOptions: TransactionCookieOptions = {
       prefix: options.transactionCookie?.prefix ?? "__txn_",
       secure: options.transactionCookie?.secure ?? false,
-      sameSite: options.transactionCookie?.sameSite ?? "lax"
+      sameSite: options.transactionCookie?.sameSite ?? "lax",
+      path: options.transactionCookie?.path ?? "/"
     };
 
     if (appBaseUrl) {
@@ -315,17 +325,29 @@ export class Auth0Client {
    * NOTE: Server Components cannot set cookies. Calling `getAccessToken()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not to be persisted.
    * It is recommended to call `getAccessToken(req, res)` in the middleware if you need to retrieve the access token in a Server Component to ensure the updated token set is persisted.
    */
-  async getAccessToken(): Promise<{ token: string; expiresAt: number }>;
+  /**
+   * @param options Optional configuration for getting the access token.
+   * @param options.refresh Force a refresh of the access token.
+   */
+  async getAccessToken(
+    options?: GetAccessTokenOptions
+  ): Promise<{ token: string; expiresAt: number; scope?: string }>;
 
   /**
    * getAccessToken returns the access token.
    *
    * This method can be used in middleware and `getServerSideProps`, API routes in the **Pages Router**.
+   *
+   * @param req The request object.
+   * @param res The response object.
+   * @param options Optional configuration for getting the access token.
+   * @param options.refresh Force a refresh of the access token.
    */
   async getAccessToken(
     req: PagesRouterRequest | NextRequest,
-    res: PagesRouterResponse | NextResponse
-  ): Promise<{ token: string; expiresAt: number }>;
+    res: PagesRouterResponse | NextResponse,
+    options?: GetAccessTokenOptions
+  ): Promise<{ token: string; expiresAt: number; scope?: string }>;
 
   /**
    * getAccessToken returns the access token.
@@ -334,9 +356,48 @@ export class Auth0Client {
    * It is recommended to call `getAccessToken(req, res)` in the middleware if you need to retrieve the access token in a Server Component to ensure the updated token set is persisted.
    */
   async getAccessToken(
-    req?: PagesRouterRequest | NextRequest,
-    res?: PagesRouterResponse | NextResponse
+    arg1?: PagesRouterRequest | NextRequest | GetAccessTokenOptions,
+    arg2?: PagesRouterResponse | NextResponse,
+    arg3?: GetAccessTokenOptions
   ): Promise<{ token: string; expiresAt: number; scope?: string }> {
+    const defaultOptions: Required<GetAccessTokenOptions> = {
+      refresh: false
+    };
+
+    let req: PagesRouterRequest | NextRequest | undefined = undefined;
+    let res: PagesRouterResponse | NextResponse | undefined = undefined;
+    let options: GetAccessTokenOptions = {};
+
+    // Determine which overload was called based on arguments
+    if (
+      arg1 &&
+      (arg1 instanceof Request || typeof (arg1 as any).headers === "object")
+    ) {
+      // Case: getAccessToken(req, res, options?)
+      req = arg1 as PagesRouterRequest | NextRequest;
+      res = arg2; // arg2 must be Response if arg1 is Request
+      // Merge provided options (arg3) with defaults
+      options = { ...defaultOptions, ...(arg3 ?? {}) };
+      if (!res) {
+        throw new TypeError(
+          "getAccessToken(req, res): The 'res' argument is missing. Both 'req' and 'res' must be provided together for Pages Router or middleware usage."
+        );
+      }
+    } else {
+      // Case: getAccessToken(options?) or getAccessToken()
+      // arg1 (if present) must be options, arg2 and arg3 must be undefined.
+      if (arg2 !== undefined || arg3 !== undefined) {
+        throw new TypeError(
+          "getAccessToken: Invalid arguments. Valid signatures are getAccessToken(), getAccessToken(options), or getAccessToken(req, res, options)."
+        );
+      }
+      // Merge provided options (arg1) with defaults
+      options = {
+        ...defaultOptions,
+        ...((arg1 as GetAccessTokenOptions) ?? {})
+      };
+    }
+
     const session: SessionData | null = req
       ? await this.getSession(req)
       : await this.getSession();
@@ -349,7 +410,8 @@ export class Auth0Client {
     }
 
     const [error, tokenSet] = await this.authClient.getTokenSet(
-      session.tokenSet
+      session.tokenSet,
+      options.refresh
     );
     if (error) {
       throw error;
@@ -692,11 +754,22 @@ export class Auth0Client {
         secret: "AUTH0_SECRET"
       };
 
-      throw new ConfigurationError(
-        ConfigurationErrorCode.MISSING_REQUIRED_OPTIONS,
-        missing,
-        envVarNames
-      );
+      // Standard intro message explaining the issue
+      let errorMessage =
+        "WARNING: Not all required options where provided when creating an instance of Auth0Client. Ensure to provide all missing options, either by passing it to the Auth0Client constructor, or by setting the corresponding environment variable.\n";
+
+      // Add specific details for each missing option
+      missing.forEach((key) => {
+        if (key === "clientAuthentication") {
+          errorMessage += `Missing: clientAuthentication: Set either AUTH0_CLIENT_SECRET env var or AUTH0_CLIENT_ASSERTION_SIGNING_KEY env var, or pass clientSecret or clientAssertionSigningKey in options\n`;
+        } else if (envVarNames[key]) {
+          errorMessage += `Missing: ${key}: Set ${envVarNames[key]} env var or pass ${key} in options\n`;
+        } else {
+          errorMessage += `Missing: ${key}\n`;
+        }
+      });
+
+      console.error(errorMessage.trim());
     }
 
     // Prepare the result object with all validated options
@@ -712,3 +785,7 @@ export class Auth0Client {
     };
   }
 }
+
+export type GetAccessTokenOptions = {
+  refresh?: boolean;
+};

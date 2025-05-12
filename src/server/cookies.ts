@@ -15,6 +15,7 @@ const ENCRYPTION_INFO = "JWE CEK";
 export async function encrypt(
   payload: jose.JWTPayload,
   secret: string,
+  expiration: number,
   additionalHeaders?: {
     iat: number;
     uat: number;
@@ -31,6 +32,7 @@ export async function encrypt(
 
   const encryptedCookie = await new jose.EncryptJWT(payload)
     .setProtectedHeader({ enc: ENC, alg: ALG, ...additionalHeaders })
+    .setExpirationTime(expiration)
     .encrypt(encryptionSecret);
 
   return encryptedCookie.toString();
@@ -113,6 +115,8 @@ export interface CookieOptions {
   secure: boolean;
   path: string;
   maxAge?: number;
+  domain?: string;
+  transient?: boolean;
 }
 
 export type ReadonlyRequestCookies = Omit<
@@ -178,16 +182,23 @@ export function setChunkedCookie(
   reqCookies: RequestCookies,
   resCookies: ResponseCookies
 ): void {
+  const { transient, ...restOptions } = options;
+  const finalOptions = { ...restOptions };
+
+  if (transient) {
+    delete finalOptions.maxAge;
+  }
+
   const valueBytes = new TextEncoder().encode(value).length;
 
   // If value fits in a single cookie, set it directly
   if (valueBytes <= MAX_CHUNK_SIZE) {
-    resCookies.set(name, value, options);
+    resCookies.set(name, value, finalOptions);
     // to enable read-after-write in the same request for middleware
     reqCookies.set(name, value);
 
     // When we are writing a non-chunked cookie, we should remove the chunked cookies
-    getAllChunkedCookies(reqCookies, name).forEach(cookieChunk => {
+    getAllChunkedCookies(reqCookies, name).forEach((cookieChunk) => {
       resCookies.delete(cookieChunk.name);
       reqCookies.delete(cookieChunk.name);
     });
@@ -203,7 +214,7 @@ export function setChunkedCookie(
     const chunk = value.slice(position, position + MAX_CHUNK_SIZE);
     const chunkName = `${name}${CHUNK_PREFIX}${chunkIndex}`;
 
-    resCookies.set(chunkName, chunk, options);
+    resCookies.set(chunkName, chunk, finalOptions);
     // to enable read-after-write in the same request for middleware
     reqCookies.set(chunkName, chunk);
     position += MAX_CHUNK_SIZE;
@@ -223,9 +234,9 @@ export function setChunkedCookie(
     }
   }
 
-   // When we have written chunked cookies, we should remove the non-chunked cookie
-   resCookies.delete(name);
-   reqCookies.delete(name);
+  // When we have written chunked cookies, we should remove the non-chunked cookie
+  resCookies.delete(name);
+  reqCookies.delete(name);
 }
 
 /**

@@ -137,7 +137,7 @@ You can customize the client by using the options below:
 | appBaseUrl                  | `string`                  | The URL of your application (e.g.: `http://localhost:3000`). If it's not specified, it will be loaded from the `APP_BASE_URL` environment variable.                                                                                    |
 | secret                      | `string`                  | A 32-byte, hex-encoded secret used for encrypting cookies. If it's not specified, it will be loaded from the `AUTH0_SECRET` environment variable.                                                                                      |
 | signInReturnToPath          | `string`                  | The path to redirect the user to after successfully authenticating. Defaults to `/`.                                                                                                                                                   |
-| session                     | `SessionConfiguration`    | Configure the session timeouts and whether to use rolling sessions or not. See [Session configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#session-configuration) for additional details.                                                                                 |
+| session                     | `SessionConfiguration`    | Configure the session timeouts and whether to use rolling sessions or not. See [Session configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#session-configuration) for additional details. Also allows configuration of cookie attributes like `domain`, `path`, `secure`, `sameSite`, and `transient`. If not specified, these can be configured using `AUTH0_COOKIE_*` environment variables. Note: `httpOnly` is always `true`. See [Cookie Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#cookie-configuration) for details.  |
 | beforeSessionSaved          | `BeforeSessionSavedHook`  | A method to manipulate the session before persisting it. See [beforeSessionSaved](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#beforesessionsaved) for additional details.                                                                                                         |
 | onCallback                  | `OnCallbackHook`          | A method to handle errors or manage redirects after attempting to authenticate. See [onCallback](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#oncallback) for additional details.                                                                                                  |
 | sessionStore                | `SessionStore`            | A custom session store implementation used to persist sessions to a data store. See [Database sessions](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#database-sessions) for additional details.                                                                                    |
@@ -146,6 +146,17 @@ You can customize the client by using the options below:
 | allowInsecureRequests       | `boolean`                 | Allow insecure requests to be made to the authorization server. This can be useful when testing with a mock OIDC provider that does not support TLS, locally. This option can only be used when `NODE_ENV` is not set to `production`. |
 | httpTimeout                 | `number`                  | Integer value for the HTTP timeout in milliseconds for authentication requests. Defaults to `5000` milliseconds                                                                                                                        |
 | enableTelemetry             | `boolean`                 | Boolean value to opt-out of sending the library name and version to your authorization server via the `Auth0-Client` header. Defaults to `true`.                                                                                       |
+
+## Session Cookie Configuration
+You can specify the following environment variables to configure the session cookie:
+```env
+AUTH0_COOKIE_DOMAIN=
+AUTH0_COOKIE_PATH=
+AUTH0_COOKIE_TRANSIENT=
+AUTH0_COOKIE_SECURE=
+AUTH0_COOKIE_SAME_SITE=
+```
+Respective counterparts are also available in the client configuration. See [Cookie Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#cookie-configuration) for more details.  
 
 ## Configuration Validation
 
@@ -159,7 +170,7 @@ The SDK performs validation of required configuration options when initializing 
   - `clientSecret` (or `AUTH0_CLIENT_SECRET` environment variable), OR
   - `clientAssertionSigningKey` (or `AUTH0_CLIENT_ASSERTION_SIGNING_KEY` environment variable)
 
-If any of these required options are missing, the SDK will throw a `ConfigurationError` with the code `MISSING_REQUIRED_OPTIONS` and a detailed error message explaining which options are missing and how to provide them.
+If any of these required options are missing, the SDK will issue a warning with a detailed message explaining which options are missing and how to provide them.
 
 ## Routes
 
@@ -173,7 +184,7 @@ The SDK mounts 6 routes:
 6. `/auth/backchannel-logout`: the route that will receive a `logout_token` when a configured Back-Channel Logout initiator occurs
 
 > [!IMPORTANT]  
-> The `/auth/access-token` route is enabled by default, but is only neccessary when the access token is needed in the client. If this isn't something you need, you can disable this endpoint by setting `enableAccessTokenEndpoint` to `false`.
+> The `/auth/access-token` route is enabled by default, but is only neccessary when the access token is needed on the client-side. If this isn't something you need, you can disable this endpoint by setting `enableAccessTokenEndpoint` to `false`.
 
 ## Feedback
 
