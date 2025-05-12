@@ -9,7 +9,7 @@ import {
   ResponseCookies,
   sign
 } from "../cookies";
-import { LegacySessionPayload } from "./normalize-session";
+import { LEGACY_COOKIE_NAME, LegacySessionPayload } from "./normalize-session";
 import { StatefulSessionStore } from "./stateful-session-store";
 
 describe("Stateful Session Store", async () => {
@@ -34,11 +34,14 @@ describe("Stateful Session Store", async () => {
         set: vi.fn(),
         delete: vi.fn()
       };
+      const maxAge = 60 * 60; // 1 hour in seconds
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
       const encryptedCookieValue = await encrypt(
         {
           id: sessionId
         },
-        secret
+        secret,
+        expiration,
       );
 
       const headers = new Headers();
@@ -99,11 +102,14 @@ describe("Stateful Session Store", async () => {
         set: vi.fn(),
         delete: vi.fn()
       };
+      const maxAge = 60 * 60; // 1 hour in seconds
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
       const encryptedCookieValue = await encrypt(
         {
           id: sessionId
         },
-        secret
+        secret,
+        expiration,
       );
 
       const headers = new Headers();
@@ -464,12 +470,14 @@ describe("Stateful Session Store", async () => {
           set: vi.fn(),
           delete: vi.fn()
         };
-
+        const maxAge = 60 * 60; // 1 hour in seconds
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
         const encryptedCookieValue = await encrypt(
           {
             id: sessionId
           },
-          secret
+          secret,
+          expiration,
         );
         const headers = new Headers();
         headers.append("cookie", `__session=${encryptedCookieValue}`);
@@ -595,6 +603,50 @@ describe("Stateful Session Store", async () => {
         expect(cookie?.secure).toEqual(false);
       });
 
+      it("should apply the path to the cookie", async () => {
+        const currentTime = Date.now();
+        const createdAt = Math.floor(currentTime / 1000);
+        const secret = await generateSecret(32);
+        const session: SessionData = {
+          user: { sub: "user_123" },
+          tokenSet: {
+            accessToken: "at_123",
+            refreshToken: "rt_123",
+            expiresAt: 123456
+          },
+          internal: {
+            sid: "auth0-sid",
+            createdAt
+          }
+        };
+        const store = {
+          get: vi.fn().mockResolvedValue(session),
+          set: vi.fn(),
+          delete: vi.fn()
+        };
+
+        const requestCookies = new RequestCookies(new Headers());
+        const responseCookies = new ResponseCookies(new Headers());
+
+        const sessionStore = new StatefulSessionStore({
+          secret,
+          store,
+          rolling: true,
+          absoluteDuration: 3600,
+          inactivityDuration: 1800,
+
+          cookieOptions: {
+            path: "/custom-path"
+          }
+        });
+        await sessionStore.set(requestCookies, responseCookies, session);
+
+        const cookie = responseCookies.get("__session");
+
+        expect(cookie).toBeDefined();
+        expect(cookie?.path).toEqual("/custom-path");
+      });
+
       it("should apply the cookie name", async () => {
         const currentTime = Date.now();
         const createdAt = Math.floor(currentTime / 1000);
@@ -645,6 +697,44 @@ describe("Stateful Session Store", async () => {
         expect(cookie?.secure).toEqual(false);
       });
     });
+
+    it("should remove the legacy cookie if it exists", async () => {
+      const currentTime = Date.now();
+      const createdAt = Math.floor(currentTime / 1000);
+      const secret = await generateSecret(32);
+      const session: SessionData = {
+        user: { sub: "user_123" },
+        tokenSet: {
+          accessToken: "at_123",
+          refreshToken: "rt_123",
+          expiresAt: 123456
+        },
+        internal: {
+          sid: "auth0-sid",
+          createdAt
+        }
+      };
+      const store = {
+        get: vi.fn(),
+        set: vi.fn(),
+        delete: vi.fn()
+      };
+
+      const requestCookies = new RequestCookies(new Headers());
+      const responseCookies = new ResponseCookies(new Headers());
+
+      const sessionStore = new StatefulSessionStore({
+        secret,
+        store
+      });
+
+      vi.spyOn(requestCookies, "has").mockReturnValue(true);
+      vi.spyOn(responseCookies, "delete");
+
+      await sessionStore.set(requestCookies, responseCookies, session);
+
+      expect(responseCookies.delete).toHaveBeenCalledWith(LEGACY_COOKIE_NAME);
+    });
   });
 
   describe("delete", async () => {
@@ -668,11 +758,14 @@ describe("Stateful Session Store", async () => {
         set: vi.fn(),
         delete: vi.fn()
       };
+      const maxAge = 60 * 60; // 1 hour in seconds
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
       const encryptedCookieValue = await encrypt(
         {
           id: sessionId
         },
-        secret
+        secret,
+        expiration,
       );
       const headers = new Headers();
       headers.append("cookie", `__session=${encryptedCookieValue}`);

@@ -6,6 +6,8 @@ import packageJson from "../../package.json";
 import {
   AccessTokenError,
   AccessTokenErrorCode,
+  AccessTokenForConnectionError,
+  AccessTokenForConnectionErrorCode,
   AuthorizationCodeGrantError,
   AuthorizationError,
   BackchannelLogoutError,
@@ -16,7 +18,9 @@ import {
   SdkError
 } from "../errors";
 import {
+  AccessTokenForConnectionOptions,
   AuthorizationParameters,
+  ConnectionTokenSet,
   LogoutToken,
   SessionData,
   StartInteractiveLoginOptions,
@@ -61,6 +65,35 @@ const DEFAULT_SCOPES = ["openid", "profile", "email", "offline_access"].join(
   " "
 );
 
+/**
+ * A constant representing the grant type for federated connection access token exchange.
+ *
+ * This grant type is used in OAuth token exchange scenarios where a federated connection
+ * access token is required. It is specific to Auth0's implementation and follows the
+ * "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token" format.
+ */
+const GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN =
+  "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token";
+
+/**
+ * Constant representing the subject type for a refresh token.
+ * This is used in OAuth 2.0 token exchange to specify that the token being exchanged is a refresh token.
+ *
+ * @see {@link https://tools.ietf.org/html/rfc8693#section-3.1 RFC 8693 Section 3.1}
+ */
+const SUBJECT_TYPE_REFRESH_TOKEN =
+  "urn:ietf:params:oauth:token-type:refresh_token";
+
+/**
+ * A constant representing the token type for federated connection access tokens.
+ * This is used to specify the type of token being requested from Auth0.
+ *
+ * @constant
+ * @type {string}
+ */
+const REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN =
+  "http://auth0.com/oauth/token-type/federated-connection-access-token";
+
 export interface Routes {
   login: string;
   logout: string;
@@ -100,6 +133,7 @@ export interface AuthClientOptions {
   allowInsecureRequests?: boolean;
   httpTimeout?: number;
   enableTelemetry?: boolean;
+  enableAccessTokenEndpoint?: boolean;
 }
 
 function createRouteUrl(url: string, base: string) {
@@ -132,6 +166,8 @@ export class AuthClient {
   private httpOptions: () => oauth.HttpRequestOptions<"GET" | "POST">;
 
   private authorizationServerMetadata?: oauth.AuthorizationServer;
+
+  private readonly enableAccessTokenEndpoint: boolean;
 
   constructor(options: AuthClientOptions) {
     // dependencies
@@ -219,6 +255,8 @@ export class AuthClient {
         process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
       ...options.routes
     };
+
+    this.enableAccessTokenEndpoint = options.enableAccessTokenEndpoint ?? true;
   }
 
   async handler(req: NextRequest): Promise<NextResponse> {
@@ -236,7 +274,8 @@ export class AuthClient {
       return this.handleProfile(req);
     } else if (
       method === "GET" &&
-      sanitizedPathname === this.routes.accessToken
+      sanitizedPathname === this.routes.accessToken &&
+      this.enableAccessTokenEndpoint
     ) {
       return this.handleAccessToken(req);
     } else if (
@@ -392,6 +431,10 @@ export class AuthClient {
       url.searchParams.set("logout_hint", session.internal.sid);
     }
 
+    if (session?.tokenSet.idToken) {
+      url.searchParams.set("id_token_hint", session?.tokenSet.idToken);
+    }
+
     const res = NextResponse.redirect(url);
     await this.sessionStore.delete(req.cookies, res.cookies);
 
@@ -490,6 +533,7 @@ export class AuthClient {
       user: idTokenClaims,
       tokenSet: {
         accessToken: oidcRes.access_token,
+        idToken: oidcRes.id_token,
         scope: oidcRes.scope,
         refreshToken: oidcRes.refresh_token,
         expiresAt: Math.floor(Date.now() / 1000) + Number(oidcRes.expires_in)
@@ -565,7 +609,6 @@ export class AuthClient {
         }
       );
     }
-
     const res = NextResponse.json({
       token: updatedTokenSet.accessToken,
       scope: updatedTokenSet.scope,
@@ -625,7 +668,8 @@ export class AuthClient {
    * refresh it using the refresh token, if available.
    */
   async getTokenSet(
-    tokenSet: TokenSet
+    tokenSet: TokenSet,
+    forceRefresh?: boolean | undefined
   ): Promise<[null, TokenSet] | [SdkError, null]> {
     // the access token has expired but we do not have a refresh token
     if (!tokenSet.refreshToken && tokenSet.expiresAt <= Date.now() / 1000) {
@@ -638,64 +682,67 @@ export class AuthClient {
       ];
     }
 
-    // the access token has expired and we have a refresh token
-    if (tokenSet.refreshToken && tokenSet.expiresAt <= Date.now() / 1000) {
-      const [discoveryError, authorizationServerMetadata] =
-        await this.discoverAuthorizationServerMetadata();
+    if (tokenSet.refreshToken) {
+      // either the access token has expired or we are forcing a refresh
+      if (forceRefresh || tokenSet.expiresAt <= Date.now() / 1000) {
+        const [discoveryError, authorizationServerMetadata] =
+          await this.discoverAuthorizationServerMetadata();
 
-      if (discoveryError) {
-        console.error(discoveryError);
-        return [discoveryError, null];
-      }
-
-      const refreshTokenRes = await oauth.refreshTokenGrantRequest(
-        authorizationServerMetadata,
-        this.clientMetadata,
-        await this.getClientAuth(),
-        tokenSet.refreshToken,
-        {
-          ...this.httpOptions(),
-          [oauth.customFetch]: this.fetch,
-          [oauth.allowInsecureRequests]: this.allowInsecureRequests
+        if (discoveryError) {
+          console.error(discoveryError);
+          return [discoveryError, null];
         }
-      );
 
-      let oauthRes: oauth.TokenEndpointResponse;
-      try {
-        oauthRes = await oauth.processRefreshTokenResponse(
+        const refreshTokenRes = await oauth.refreshTokenGrantRequest(
           authorizationServerMetadata,
           this.clientMetadata,
-          refreshTokenRes
+          await this.getClientAuth(),
+          tokenSet.refreshToken,
+          {
+            ...this.httpOptions(),
+            [oauth.customFetch]: this.fetch,
+            [oauth.allowInsecureRequests]: this.allowInsecureRequests
+          }
         );
-      } catch (e: any) {
-        console.error(e);
-        return [
-          new AccessTokenError(
-            AccessTokenErrorCode.FAILED_TO_REFRESH_TOKEN,
-            "The access token has expired and there was an error while trying to refresh it. Check the server logs for more information."
-          ),
-          null
-        ];
+
+        let oauthRes: oauth.TokenEndpointResponse;
+        try {
+          oauthRes = await oauth.processRefreshTokenResponse(
+            authorizationServerMetadata,
+            this.clientMetadata,
+            refreshTokenRes
+          );
+        } catch (e: any) {
+          console.error(e);
+          return [
+            new AccessTokenError(
+              AccessTokenErrorCode.FAILED_TO_REFRESH_TOKEN,
+              "The access token has expired and there was an error while trying to refresh it. Check the server logs for more information."
+            ),
+            null
+          ];
+        }
+
+        const accessTokenExpiresAt =
+          Math.floor(Date.now() / 1000) + Number(oauthRes.expires_in);
+
+        const updatedTokenSet = {
+          ...tokenSet, // contains the existing `iat` claim to maintain the session lifetime
+          accessToken: oauthRes.access_token,
+          idToken: oauthRes.id_token,
+          expiresAt: accessTokenExpiresAt
+        };
+
+        if (oauthRes.refresh_token) {
+          // refresh token rotation is enabled, persist the new refresh token from the response
+          updatedTokenSet.refreshToken = oauthRes.refresh_token;
+        } else {
+          // we did not get a refresh token back, keep the current long-lived refresh token around
+          updatedTokenSet.refreshToken = tokenSet.refreshToken;
+        }
+
+        return [null, updatedTokenSet];
       }
-
-      const accessTokenExpiresAt =
-        Math.floor(Date.now() / 1000) + Number(oauthRes.expires_in);
-
-      const updatedTokenSet = {
-        ...tokenSet, // contains the existing `iat` claim to maintain the session lifetime
-        accessToken: oauthRes.access_token,
-        expiresAt: accessTokenExpiresAt
-      };
-
-      if (oauthRes.refresh_token) {
-        // refresh token rotation is enabled, persist the new refresh token from the response
-        updatedTokenSet.refreshToken = oauthRes.refresh_token;
-      } else {
-        // we did not get a refresh token back, keep the current long-lived refresh token around
-        updatedTokenSet.refreshToken = tokenSet.refreshToken;
-      }
-
-      return [null, updatedTokenSet];
     }
 
     return [null, tokenSet];
@@ -950,6 +997,123 @@ export class AuthClient {
       this.domain.startsWith("https://")
       ? this.domain
       : `https://${this.domain}`;
+  }
+
+  /**
+   * Exchanges a refresh token for an access token for a connection.
+   *
+   * This method performs a token exchange using the provided refresh token and connection details.
+   * It first checks if the refresh token is present in the `tokenSet`. If not, it returns an error.
+   * Then, it constructs the necessary parameters for the token exchange request and performs
+   * the request to the authorization server's token endpoint.
+   *
+   * @returns {Promise<[AccessTokenForConnectionError, null] | [null, ConnectionTokenSet]>} A promise that resolves to a tuple.
+   *          The first element is either an `AccessTokenForConnectionError` if an error occurred, or `null` if the request was successful.
+   *          The second element is either `null` if an error occurred, or a `ConnectionTokenSet` object
+   *          containing the access token, expiration time, and scope if the request was successful.
+   *
+   * @throws {AccessTokenForConnectionError} If the refresh token is missing or if there is an error during the token exchange process.
+   */
+  async getConnectionTokenSet(
+    tokenSet: TokenSet,
+    connectionTokenSet: ConnectionTokenSet | undefined,
+    options: AccessTokenForConnectionOptions
+  ): Promise<
+    [AccessTokenForConnectionError, null] | [null, ConnectionTokenSet]
+  > {
+    // If we do not have a refresh token
+    // and we do not have a connection token set in the cache or the one we have is expired,
+    // there is noting to retrieve and we return an error.
+    if (
+      !tokenSet.refreshToken &&
+      (!connectionTokenSet || connectionTokenSet.expiresAt <= Date.now() / 1000)
+    ) {
+      return [
+        new AccessTokenForConnectionError(
+          AccessTokenForConnectionErrorCode.MISSING_REFRESH_TOKEN,
+          "A refresh token was not present, Connection Access Token requires a refresh token. The user needs to re-authenticate."
+        ),
+        null
+      ];
+    }
+
+    // If we do have a refresh token,
+    // and we do not have a connection token set in the cache or the one we have is expired,
+    // we need to exchange the refresh token for a connection access token.
+    if (
+      tokenSet.refreshToken &&
+      (!connectionTokenSet || connectionTokenSet.expiresAt <= Date.now() / 1000)
+    ) {
+      const params = new URLSearchParams();
+
+      params.append("connection", options.connection);
+      params.append("subject_token_type", SUBJECT_TYPE_REFRESH_TOKEN);
+      params.append("subject_token", tokenSet.refreshToken);
+      params.append(
+        "requested_token_type",
+        REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN
+      );
+
+      if (options.login_hint) {
+        params.append("login_hint", options.login_hint);
+      }
+
+      const [discoveryError, authorizationServerMetadata] =
+        await this.discoverAuthorizationServerMetadata();
+
+      if (discoveryError) {
+        console.error(discoveryError);
+        return [discoveryError, null];
+      }
+
+      const httpResponse = await oauth.genericTokenEndpointRequest(
+        authorizationServerMetadata,
+        this.clientMetadata,
+        await this.getClientAuth(),
+        GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN,
+        params,
+        {
+          [oauth.customFetch]: this.fetch,
+          [oauth.allowInsecureRequests]: this.allowInsecureRequests
+        }
+      );
+
+      let tokenEndpointResponse: oauth.TokenEndpointResponse;
+      try {
+        tokenEndpointResponse = await oauth.processGenericTokenEndpointResponse(
+          authorizationServerMetadata,
+          this.clientMetadata,
+          httpResponse
+        );
+      } catch (err: any) {
+        console.error(err);
+        return [
+          new AccessTokenForConnectionError(
+            AccessTokenForConnectionErrorCode.FAILED_TO_EXCHANGE,
+            "There was an error trying to exchange the refresh token for a connection access token. Check the server logs for more information.",
+            new OAuth2Error({
+              code: err.error,
+              message: err.error_description
+            })
+          ),
+          null
+        ];
+      }
+
+      return [
+        null,
+        {
+          accessToken: tokenEndpointResponse.access_token,
+          expiresAt:
+            Math.floor(Date.now() / 1000) +
+            Number(tokenEndpointResponse.expires_in),
+          scope: tokenEndpointResponse.scope,
+          connection: options.connection
+        }
+      ];
+    }
+
+    return [null, connectionTokenSet] as [null, ConnectionTokenSet];
   }
 }
 

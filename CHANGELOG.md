@@ -1,5 +1,73 @@
 # Change Log
 
+## [v4.5.1](https://github.com/auth0/nextjs-auth0/tree/v4.5.1) (2025-04-29)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.5.0...v4.5.1)
+
+**Security**
+- fix: Ensure JWE expires as expected [\#2040](https://github.com/auth0/nextjs-auth0/pull/2040) ([frederikprijck](https://github.com/frederikprijck))
+
+## [v4.5.0](https://github.com/auth0/nextjs-auth0/tree/v4.5.0) (2025-04-25)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.4.2...v4.5.0)
+
+**Added**
+- Extensive Cookie Configuration [\#2059](https://github.com/auth0/nextjs-auth0/pull/2059) ([tusharpandey13](https://github.com/tusharpandey13))
+- Allow refresh: true in getAccessToken() [\#2055](https://github.com/auth0/nextjs-auth0/pull/2055) ([tusharpandey13](https://github.com/tusharpandey13))
+- Allow SWR mutation in useUser hook [\#2045](https://github.com/auth0/nextjs-auth0/pull/2045) ([tusharpandey13](https://github.com/tusharpandey13))
+
+**Changed**
+- Update README regarding access-token endpoint [\#2044](https://github.com/auth0/nextjs-auth0/pull/2044) ([frederikprijck](https://github.com/frederikprijck))
+
+**Fixed**
+- Update tests for getAccessToken refresh flow [\#2068](https://github.com/auth0/nextjs-auth0/pull/2068) ([tusharpandey13](https://github.com/tusharpandey13))
+- fix: make configuration validation not throw [\#2034](https://github.com/auth0/nextjs-auth0/pull/2034) ([tusharpandey13](https://github.com/tusharpandey13))
+- feat: ensure cookie path is configurable [\#2050](https://github.com/auth0/nextjs-auth0/pull/2050) ([frederikprijck](https://github.com/frederikprijck))
+
+## [v4.4.2](https://github.com/auth0/nextjs-auth0/tree/v4.4.2) (2025-04-08)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.4.1...v4.4.2)
+
+**Revert**
+- revert: fix: Properly configure SDK to be distributed as ESM [\#2046](https://github.com/auth0/nextjs-auth0/pull/2046) ([frederikprijck](https://github.com/frederikprijck))
+
+**Fixed**
+- fix: Add id_token_hint on logout [\#2041](https://github.com/auth0/nextjs-auth0/pull/2041) ([frederikprijck](https://github.com/frederikprijck))
+
+## [v4.4.1](https://github.com/auth0/nextjs-auth0/tree/v4.4.1) (2025-04-03)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.4.0...v4.4.1)
+
+**Fixed**
+- fix: Properly configure SDK to be distributed as ESM [\#2028](https://github.com/auth0/nextjs-auth0/pull/2028) ([frederikprijck](https://github.com/frederikprijck))
+- Fix broken links in jsdocs [\#2031](https://github.com/auth0/nextjs-auth0/pull/2031) ([frederikprijck](https://github.com/frederikprijck))
+- fix: Throw ConfigurationError when invalid Auth0Client configuration [\#2026](https://github.com/auth0/nextjs-auth0/pull/2026) ([tusharpandey13](https://github.com/tusharpandey13))
+
+## [v4.4.0](https://github.com/auth0/nextjs-auth0/tree/v4.4.0) (2025-04-01)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.3.0...v4.4.0)
+
+**Added**
+- Add note about access-token endpoint to README [\#2020](https://github.com/auth0/nextjs-auth0/pull/2020) ([frederikprijck](https://github.com/frederikprijck))
+- Add support for Connection Access Token [\#2010](https://github.com/auth0/nextjs-auth0/pull/2010) ([frederikprijck](https://github.com/frederikprijck))
+
+**Fixed**
+- fix: Delete legacy cookie once v4 cookie is set [\#2019](https://github.com/auth0/nextjs-auth0/pull/2019) ([frederikprijck](https://github.com/frederikprijck))
+- fix: Ensure to delete cookies when switching from single to chunks and vica versa [\#2013](https://github.com/auth0/nextjs-auth0/pull/2013) ([frederikprijck](https://github.com/frederikprijck))
+- fix: Clean up cookie chunks when cookie size shrinks [\#2014](https://github.com/auth0/nextjs-auth0/pull/2014) ([frederikprijck](https://github.com/frederikprijck))
+- fix: use NEXT_PUBLIC_PROFILE_ROUTE in Auth0Provider [\#2021](https://github.com/auth0/nextjs-auth0/pull/2021) ([tusharpandey13](https://github.com/tusharpandey13))
+- fix: Ensure to pass-through enableAccessTokenEndpoint [\#2015](https://github.com/auth0/nextjs-auth0/pull/2015) ([frederikprijck](https://github.com/frederikprijck))
+- fix: Remove obsolete warning about cookie-size [\#2012](https://github.com/auth0/nextjs-auth0/pull/2012) ([frederikprijck](https://github.com/frederikprijck))
+
+## [v4.3.0](https://github.com/auth0/nextjs-auth0/tree/v4.3.0) (2025-03-28)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.2.1...v4.3.0)
+
+**Added**
+- Access Token Exposure Control [\#1979](https://github.com/auth0/nextjs-auth0/pull/1979) ([tusharpandey13](https://github.com/tusharpandey13))
+- Cookie chunking support [\#1975](https://github.com/auth0/nextjs-auth0/pull/1975) ([tusharpandey13](https://github.com/tusharpandey13))
+- Add idToken to TokenSet in SessionData [\#1978](https://github.com/auth0/nextjs-auth0/pull/1978) ([tusharpandey13](https://github.com/tusharpandey13))
+
+## [v4.2.1](https://github.com/auth0/nextjs-auth0/tree/v4.2.1) (2025-03-24)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.2.0...v4.2.1)
+
+**Changed**
+- Bump next in SDK as well as examples [\#1992](https://github.com/auth0/nextjs-auth0/pull/1992) ([frederikprijck](https://github.com/frederikprijck))
+
 ## [v4.2.0](https://github.com/auth0/nextjs-auth0/tree/v4.2.0) (2025-03-23)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.1.0...v4.2.0)
 

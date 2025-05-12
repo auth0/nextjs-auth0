@@ -1,8 +1,17 @@
 export interface TokenSet {
   accessToken: string;
+  idToken?: string;
   scope?: string;
   refreshToken?: string;
   expiresAt: number; // the time at which the access token expires in seconds since epoch
+}
+
+export interface ConnectionTokenSet {
+  accessToken: string;
+  scope?: string;
+  expiresAt: number; // the time at which the access token expires in seconds since epoch
+  connection: string;
+  [key: string]: unknown;
 }
 
 export interface SessionData {
@@ -14,6 +23,7 @@ export interface SessionData {
     // the time at which the session was created in seconds since epoch
     createdAt: number;
   };
+  connectionTokenSets?: ConnectionTokenSet[];
   [key: string]: unknown;
 }
 
@@ -118,4 +128,19 @@ export interface AuthorizationParameters {
    * Additional authorization parameters.
    */
   [key: string]: unknown;
+}
+
+/**
+ * Options for retrieving a connection access token.
+ */
+export interface AccessTokenForConnectionOptions {
+  /**
+   * The connection name for while you want to retrieve the access token.
+   */
+  connection: string;
+
+  /**
+   * An optional login hint to pass to the authorization server.
+   */
+  login_hint?: string;
 }

@@ -24,6 +24,7 @@
   - [`beforeSessionSaved`](#beforesessionsaved)
   - [`onCallback`](#oncallback)
 - [Session configuration](#session-configuration)
+- [Cookie Configuration](#cookie-configuration)
 - [Database sessions](#database-sessions)
 - [Back-Channel Logout](#back-channel-logout)
 - [Combining middleware](#combining-middleware)
@@ -36,6 +37,10 @@
   - [Passing authorization parameters](#passing-authorization-parameters-1)
   - [The `returnTo` parameter](#the-returnto-parameter-1)
     - [Redirecting the user after authentication](#redirecting-the-user-after-authentication-1)
+- [Getting access tokens for connections](#getting-access-tokens-for-connections)
+  - [On the server (App Router)](#on-the-server-app-router-3)
+  - [On the server (Pages Router)](#on-the-server-pages-router-3)
+  - [Middleware](#middleware-3)
 
 ## Passing authorization parameters
 
@@ -192,6 +197,15 @@ export async function middleware(request: NextRequest) {
 
 > [!IMPORTANT]  
 > The `request` object must be passed as a parameter to the `getSession(request)` method when called from a middleware to ensure that any updates to the session can be read within the same request.
+
+## Accessing the idToken
+`idToken` can be accessed from the session in the following way:
+
+```js
+const session = await auth0.getSession();
+const idToken = session.tokenSet.idToken;
+```
+
 
 ## Updating the session
 
@@ -507,6 +521,65 @@ export async function middleware(request: NextRequest) {
 }
 ```
 
+### Forcing Access Token Refresh
+
+In some scenarios, you might need to explicitly force the refresh of an access token, even if it hasn't expired yet. This can be useful if, for example, the user's permissions or scopes have changed and you need to ensure the application has the latest token reflecting these changes.
+
+The `getAccessToken` method provides an option to force this refresh.
+
+**App Router (Server Components, Route Handlers, Server Actions):**
+
+When calling `getAccessToken` without request and response objects, you can pass an options object as the first argument. Set the `refresh` property to `true` to force a token refresh.
+
+```typescript
+// app/api/my-api/route.ts
+import { getAccessToken } from '@auth0/nextjs-auth0';
+
+export async function GET() {
+  try {
+    // Force a refresh of the access token
+    const { token, expiresAt } = await getAccessToken({ refresh: true });
+
+    // Use the refreshed token
+    // ...
+  } catch (error) {
+    console.error('Error getting access token:', error);
+    return Response.json({ error: 'Failed to get access token' }, { status: 500 });
+  }
+}
+```
+
+**Pages Router (getServerSideProps, API Routes):**
+
+When calling `getAccessToken` with request and response objects (from `getServerSideProps` context or an API route), the options object is passed as the third argument.
+
+```typescript
+// pages/api/my-pages-api.ts
+import { getAccessToken, withApiAuthRequired } from '@auth0/nextjs-auth0';
+import type { NextApiRequest, NextApiResponse } from 'next';
+
+export default withApiAuthRequired(async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  try {
+    // Force a refresh of the access token
+    const { token, expiresAt } = await getAccessToken(req, res, {
+      refresh: true
+    });
+
+    // Use the refreshed token
+    // ...
+  } catch (error: any) {
+    console.error('Error getting access token:', error);
+    res.status(error.status || 500).json({ error: error.message });
+  }
+});
+```
+
+By setting `{ refresh: true }`, you instruct the SDK to bypass the standard expiration check and request a new access token from the identity provider using the refresh token (if available and valid). The new token set (including the potentially updated access token, refresh token, and expiration time) will be saved back into the session automatically.
+This will in turn, update the `access_token`, `id_token` and `expires_at` fields of `tokenset` in the session.
+
 ## `<Auth0Provider />`
 
 ### Passing an initial user from the server
@@ -613,6 +686,67 @@ export const auth0 = new Auth0Client({
 | absoluteDuration   | `number`  | The absolute duration after which the session will expire. The value must be specified in seconds. Default: `3 days`.                                                                                                                         |
 | inactivityDuration | `number`  | The duration of inactivity after which the session will expire. The value must be specified in seconds. Default: `1 day`.                                                                                                                     |
 
+## Cookie Configuration
+
+You can configure the session cookie attributes either through environment variables or directly in the SDK initialization.
+
+**1. Using Environment Variables:**
+
+Set the desired environment variables in your `.env.local` file or your deployment environment:
+
+```
+# .env.local
+# ... other variables ...
+
+# Cookie Options
+AUTH0_COOKIE_DOMAIN='.example.com' # Set cookie for subdomains
+AUTH0_COOKIE_PATH='/app'          # Limit cookie to /app path
+AUTH0_COOKIE_TRANSIENT=true       # Make cookie transient (session-only)
+AUTH0_COOKIE_SECURE=true          # Recommended for production
+AUTH0_COOKIE_SAME_SITE='Lax'
+```
+
+The SDK will automatically pick up these values. Note that `httpOnly` is always set to `true` for security reasons and cannot be configured.
+
+**2. Using `Auth0ClientOptions`:**
+
+Configure the options directly when initializing the client:
+
+```typescript
+import { Auth0Client } from "@auth0/nextjs-auth0/server"
+
+export const auth0 = new Auth0Client({
+  session: {
+    cookie: {
+      domain: '.example.com',
+      path: '/app',
+      transient: true,
+      // httpOnly is always true and cannot be configured
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'Lax',
+      // name: 'appSession', // Optional: custom cookie name, defaults to '__session'
+    },
+    // ... other session options like absoluteDuration ...
+  },
+  // ... other client options ...
+});
+```
+
+**Session Cookie Options:**
+
+*   `domain` (String): Specifies the `Domain` attribute.
+*   `path` (String): Specifies the `Path` attribute. Defaults to `/`.
+*   `transient` (Boolean): If `true`, the `maxAge` attribute is omitted, making it a session cookie. Defaults to `false`.
+*   `secure` (Boolean): Specifies the `Secure` attribute. Defaults to `false` (or `true` if `AUTH0_COOKIE_SECURE=true` is set).
+*   `sameSite` ('Lax' | 'Strict' | 'None'): Specifies the `SameSite` attribute. Defaults to `Lax` (or the value of `AUTH0_COOKIE_SAME_SITE`).
+*   `name` (String): The name of the session cookie. Defaults to `__session`.
+
+> [!INFO]
+> Options provided directly in `Auth0ClientOptions` take precedence over environment variables. The `httpOnly` attribute is always `true` regardless of configuration.
+
+> [!INFO]
+> The `httpOnly` attribute for the session cookie is always set to `true` for security reasons and cannot be configured via options or environment variables.
+
 ## Database sessions
 
 By default, the user's sessions are stored in encrypted cookies. You may choose to persist the sessions in your data store of choice.
@@ -631,7 +765,7 @@ export const auth0 = new Auth0Client({
     async delete(id) {
       // delete the session using its ID
     },
-    async deleteByLogoutToken({ sid, sub }: { sid: string; sub: string }) {
+    async deleteByLogoutToken({ sid, sub }: { sid?: string; sub?: string }) {
       // optional method to be implemented when using Back-Channel Logout
     },
   },
@@ -761,7 +895,6 @@ const sessionCookieValue = await generateSessionCookie(
 )
 ```
 
-
 ## Programmatically starting interactive login
 
 Additionally to the ability to initialize the interactive login process by redirecting the user to the built-in `auth/login` endpoint,
@@ -825,3 +958,137 @@ export const GET = async (req: NextRequest) => {
 
 > [!NOTE]  
 > The URLs specified as `returnTo` parameters must be registered in your client's **Allowed Callback URLs**.
+
+
+## Getting access tokens for connections
+You can retrieve an access token for a connection using the `getAccessTokenForConnection()` method, which accepts an object with the following properties:
+- `connection`: The federated connection for which an access token should be retrieved.
+- `login_hint`: The optional login_hint parameter to pass to the `/authorize` endpoint.
+
+### On the server (App Router)
+
+On the server, the `getAccessTokenForConnection()` helper can be used in Server Routes, Server Actions and Server Components to get an access token for a connection.
+
+> [!IMPORTANT]  
+> Server Components cannot set cookies. Calling `getAccessTokenForConnection()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not to be persisted.
+>
+> It is recommended to call `getAccessTokenForConnection(req, res)` in the middleware if you need to refresh the token in a Server Component as this will ensure the token is refreshed and correctly persisted.
+
+For example:
+
+```ts
+import { NextResponse } from "next/server"
+
+import { auth0 } from "@/lib/auth0"
+
+export async function GET() {
+  try {
+    const token = await auth0.getAccessTokenForConnection({ connection: 'google-oauth2' })
+    // call external API with token...
+  } catch (err) {
+    // err will be an instance of AccessTokenError if an access token could not be obtained
+  }
+
+  return NextResponse.json({
+    message: "Success!",
+  })
+}
+```
+
+Upon further calls for the same provider, the cached value will be used until it expires.
+
+### On the server (Pages Router)
+
+On the server, the `getAccessTokenForConnection({}, req, res)` helper can be used in `getServerSideProps` and API routes to get an access token for a connection, like so:
+
+```ts
+import type { NextApiRequest, NextApiResponse } from "next"
+
+import { auth0 } from "@/lib/auth0"
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse<{ message: string }>
+) {
+  try {
+    const token = await auth0.getAccessTokenForConnection({ connection: 'google-oauth2' }, req, res)
+  } catch (err) {
+    // err will be an instance of AccessTokenError if an access token could not be obtained
+  }
+
+  res.status(200).json({ message: "Success!" })
+}
+```
+
+### Middleware
+
+In middleware, the `getAccessTokenForConnection({}, req, res)` helper can be used to get an access token for a connection, like so:
+
+```tsx
+import { NextRequest, NextResponse } from "next/server"
+
+import { auth0 } from "@/lib/auth0"
+
+export async function middleware(request: NextRequest) {
+  const authRes = await auth0.middleware(request)
+
+  if (request.nextUrl.pathname.startsWith("/auth")) {
+    return authRes
+  }
+
+  const session = await auth0.getSession(request)
+
+  if (!session) {
+    // user is not authenticated, redirect to login page
+    return NextResponse.redirect(new URL("/auth/login", request.nextUrl.origin))
+  }
+
+  const accessToken = await auth0.getAccessTokenForConnection({ connection: 'google-oauth2' }, request, authRes)
+
+  // the headers from the auth middleware should always be returned
+  return authRes
+}
+```
+
+> [!IMPORTANT]  
+> The `request` and `response` objects must be passed as a parameters to the `getAccessTokenForConnection({}, request, response)` method when called from a middleware to ensure that the refreshed access token can be accessed within the same request.
+
+If you are using the Pages Router and are calling the `getAccessTokenForConnection` method in both the middleware and an API Route or `getServerSideProps`, it's recommended to propagate the headers from the middleware, as shown below. This will ensure that calling `getAccessTokenForConnection` in the API Route or `getServerSideProps` will not result in the access token being refreshed again.
+
+```ts
+import { NextRequest, NextResponse } from "next/server"
+
+import { auth0 } from "@/lib/auth0"
+
+export async function middleware(request: NextRequest) {
+  const authRes = await auth0.middleware(request)
+
+  if (request.nextUrl.pathname.startsWith("/auth")) {
+    return authRes
+  }
+
+  const session = await auth0.getSession(request)
+
+  if (!session) {
+    // user is not authenticated, redirect to login page
+    return NextResponse.redirect(new URL("/auth/login", request.nextUrl.origin))
+  }
+
+  const accessToken = await auth0.getAccessTokenForConnection({ connection: 'google-oauth2' }, request, authRes)
+
+  // create a new response with the updated request headers
+  const resWithCombinedHeaders = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  })
+
+  // set the response headers (set-cookie) from the auth response
+  authRes.headers.forEach((value, key) => {
+    resWithCombinedHeaders.headers.set(key, value)
+  })
+
+  // the headers from the auth middleware should always be returned
+  return resWithCombinedHeaders
+}
+```

@@ -98,3 +98,49 @@ export class AccessTokenError extends SdkError {
     this.code = code;
   }
 }
+
+/**
+ * Enum representing error codes related to access tokens for connections.
+ */
+export enum AccessTokenForConnectionErrorCode {
+  /**
+   * The session is missing.
+   */
+  MISSING_SESSION = "missing_session",
+
+  /**
+   * The refresh token is missing.
+   */
+  MISSING_REFRESH_TOKEN = "missing_refresh_token",
+
+  /**
+   * Failed to exchange the refresh token.
+   */
+  FAILED_TO_EXCHANGE = "failed_to_exchange_refresh_token"
+}
+
+/**
+ * Error class representing an access token for connection error.
+ * Extends the `SdkError` class.
+ */
+export class AccessTokenForConnectionError extends SdkError {
+  /**
+   * The error code associated with the access token error.
+   */
+  public code: string;
+  public cause?: OAuth2Error;
+
+  /**
+   * Constructs a new `AccessTokenForConnectionError` instance.
+   *
+   * @param code - The error code.
+   * @param message - The error message.
+   * @param cause - The OAuth2 cause of the error.
+   */
+  constructor(code: string, message: string, cause?: OAuth2Error) {
+    super(message);
+    this.name = "AccessTokenForConnectionError";
+    this.code = code;
+    this.cause = cause;
+  }
+}
