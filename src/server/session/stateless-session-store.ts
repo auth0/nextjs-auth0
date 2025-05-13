@@ -88,8 +88,7 @@ export class StatelessSessionStore extends AbstractSessionStore {
   ) {
     const { connectionTokenSets, ...originalSession } = session;
     const maxAge = this.calculateMaxAge(session.internal.createdAt);
-    // Ensure expiration is always at least 1 second in the future for jose
-    const expiration = Math.floor(Date.now() / 1000) + Math.max(maxAge, 1);
+    const expiration = Math.floor(Date.now() / 1000) + maxAge;
     const jwe = await cookies.encrypt(originalSession, this.secret, expiration);
     const cookieValue = jwe.toString();
     const options: CookieOptions = {
