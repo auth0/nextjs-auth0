@@ -71,7 +71,7 @@ import type { NextRequest } from "next/server"
 import { auth0 } from "./lib/auth0"
 
 export async function middleware(request: NextRequest) {
-  return await auth0.middleware(request)
+  return await auth0.middleware(request) // Returns a NextResponse object
 }
 
 export const config = {
@@ -94,23 +94,30 @@ See [the Getting Started section](https://github.com/auth0/nextjs-auth0/tree/mai
 By default, **the middleware does not protect any routes**. To protect a page, you can use the `getSession()` handler in the middleware, like so:
 
 ```ts
-export async function middleware(request: NextRequest) {
-  const authRes = await auth0.middleware(request)
+export async function middleware(request) {
+    const authRes = await auth0.middleware(request); //Returns a NextResponse object
 
-  // authentication routes — let the middleware handle it
-  if (request.nextUrl.pathname.startsWith("/auth")) {
+    // Let Auth0 handle authentication-specific routes (e.g. /auth/login, /auth/callback, etc.)
+    if (request.nextUrl.pathname.startsWith("/auth")) {
+        return authRes;
+    }
+
+    // Allow access to public routes without requiring a session
+    if (request.nextUrl.pathname === ("/")) {
+        return authRes;
+    }
+
+    const { origin } = new URL(request.url)
+    const session = await auth0.getSession()
+
+    // If the user does not have a session, redirect to login
+    if (!session) {
+        return NextResponse.redirect(`${origin}/auth/login`)
+    }
+
+    // If a valid session exists, continue with the response from Auth0 middleware
+    // You can also add custom logic here...
     return authRes
-  }
-
-  const { origin } = new URL(request.url)
-  const session = await auth0.getSession()
-
-  // user does not have a session — redirect to login
-  if (!session) {
-    return NextResponse.redirect(`${origin}/auth/login`)
-  }
-
-  return authRes
 }
 ```
 
@@ -231,6 +238,32 @@ In v4, by default, the only claims that are persisted in the `user` object of se
 - `org_id`
 
 If you'd like to customize the `user` object to include additional custom claims from the ID token, you can use the `beforeSessionSaved` hook (see [beforeSessionSaved hook](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#beforesessionsaved))
+
+## Handling Dynamic Base URLs (e.g. Vercel Preview Deployments)
+When deploying to platforms like Vercel with dynamic preview URLs, it’s important to set the correct appBaseUrl and redirect_uri at runtime — especially in preview environments where URLs change per deployment.
+1. Set `APP_BASE_URL` dynamically in `next.config.js`:
+```ts
+// next.config.js
+module.exports = {
+  env: {
+    APP_BASE_URL:
+      process.env.VERCEL_ENV === "preview"
+        ? `https://${process.env.VERCEL_BRANCH_URL}`
+        : process.env.APP_BASE_URL,
+  },
+};
+```
+2. Use the `APP_BASE_URL` in your Auth0 configuration:
+```ts
+export const auth0 = new Auth0Client({
+  appBaseUrl: process.env.APP_BASE_URL,
+  authorizationParameters: {
+    redirect_uri: `${process.env.APP_BASE_URL}/auth/callback`,
+    audience: "YOUR_API_AUDIENCE_HERE", // optional
+  },
+});
+```
+3. Ensure your Auth0 application settings include the dynamic URL in the **Allowed Callback URLs** and **Allowed Logout URLs** fields. For example, `https://*.vercel.app/auth/callback`.
 
 ## Additional changes
 
