@@ -10,6 +10,7 @@ on:
   push:
     branches:
       - main
+      - v3
   schedule:
     - cron: '30 0 1,15 * *'
 
