@@ -622,10 +622,16 @@ export class AuthClient {
       expires_at: updatedTokenSet.expiresAt
     });
 
-    await this.sessionStore.set(req.cookies, res.cookies, {
-      ...session,
-      tokenSet: updatedTokenSet
-    });
+    if (
+      updatedTokenSet.accessToken !== session.tokenSet.accessToken ||
+      updatedTokenSet.refreshToken !== session.tokenSet.refreshToken ||
+      updatedTokenSet.expiresAt !== session.tokenSet.expiresAt
+    ) {
+      await this.sessionStore.set(req.cookies, res.cookies, {
+        ...session,
+        tokenSet: updatedTokenSet
+      });
+    }
 
     return res;
   }
