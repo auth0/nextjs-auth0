@@ -791,12 +791,6 @@ You can combine multiple middleware, like so:
 > The `auth0.middleware` response (`authResponse`) might contain an `x-middleware-next` header. This header signals to Next.js that the request should be forwarded to the backend application, regardless of the status code of the response you construct.
 >
 > When combining middleware, **do not** copy the `x-middleware-next` header from `authResponse` to your final response if your custom middleware intends to block the request (e.g., by returning a `NextResponse.json` with a 401 status, or a `NextResponse.redirect`). Copying this header in such cases will cause Next.js to still execute the backend route handler despite your middleware attempting to block access. Only copy headers that are necessary, like `set-cookie`.
-> 
-> References:
-> - Okta Security Advisory: https://sec.okta.com/articles/nextjs-CVE-202529927/
-> - Datadog Security Labs: https://securitylabs.datadoghq.com/articles/nextjs-middleware-auth-bypass/
-> - ZeroPath Blog: https://zeropath.com/blog/nextjs-middleware-cve-2025-29927-auth-bypass
-> - Checkmarx Blog: https://checkmarx.com/zero-post/critical-cve-2025-29927-research-nextjs-middleware-authorization-bypass/
 
 
 ```ts
