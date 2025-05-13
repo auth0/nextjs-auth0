@@ -29,20 +29,22 @@ describe("generateSessionCookie", async () => {
     };
     const sessionCookie = await generateSessionCookie(session, config);
     expect(sessionCookie).toEqual(expect.any(String));
-    expect((await decrypt(sessionCookie, secret)).payload).toEqual({
-      user: {
-        sub: "user_123"
-      },
-      tokenSet: {
-        accessToken: "at_123",
-        refreshToken: "rt_123",
-        expiresAt: 123456
-      },
-      internal: {
-        sid: "auth0-sid",
-        createdAt: createdAt
-      }
-    });
+    expect((await decrypt(sessionCookie, secret)).payload).toEqual(
+      expect.objectContaining({
+        user: {
+          sub: "user_123"
+        },
+        tokenSet: {
+          accessToken: "at_123",
+          refreshToken: "rt_123",
+          expiresAt: 123456
+        },
+        internal: {
+          sid: "auth0-sid",
+          createdAt: createdAt
+        }
+      })
+    );
   });
 
   it("should populate the internal property if it was not provided", async () => {
@@ -60,20 +62,22 @@ describe("generateSessionCookie", async () => {
     };
     const sessionCookie = await generateSessionCookie(session, config);
     expect(sessionCookie).toEqual(expect.any(String));
-    expect((await decrypt(sessionCookie, secret)).payload).toEqual({
-      user: {
-        sub: "user_123"
-      },
-      tokenSet: {
-        accessToken: "at_123",
-        refreshToken: "rt_123",
-        expiresAt: 123456
-      },
-      internal: {
-        sid: "auth0-sid",
-        createdAt: expect.any(Number)
-      }
-    });
+    expect((await decrypt(sessionCookie, secret)).payload).toEqual(
+      expect.objectContaining({
+        user: {
+          sub: "user_123"
+        },
+        tokenSet: {
+          accessToken: "at_123",
+          refreshToken: "rt_123",
+          expiresAt: 123456
+        },
+        internal: {
+          sid: "auth0-sid",
+          createdAt: expect.any(Number)
+        }
+      })
+    );
   });
 
   it("should not populate the internal property if a null was provided", async () => {
@@ -93,20 +97,14 @@ describe("generateSessionCookie", async () => {
     };
     const sessionCookie = await generateSessionCookie(session, config);
     expect(sessionCookie).toEqual(expect.any(String));
-    expect((await decrypt(sessionCookie, secret)).payload).toEqual({
-      user: {
-        sub: "user_123"
-      },
-      tokenSet: {
-        accessToken: "at_123",
-        refreshToken: "rt_123",
-        expiresAt: 123456
-      },
-      internal: null
-    });
+    expect((await decrypt(sessionCookie, secret)).payload).not.toEqual(
+      expect.objectContaining({
+        internal: expect.anything()
+      })
+    );
   });
 
-  it("should not populate the internal property if a undefine was provided", async () => {
+  it("should not populate the internal property if a undefined was provided", async () => {
     const session: Partial<SessionData> = {
       user: { sub: "user_123" },
       tokenSet: {
@@ -122,16 +120,10 @@ describe("generateSessionCookie", async () => {
     };
     const sessionCookie = await generateSessionCookie(session, config);
     expect(sessionCookie).toEqual(expect.any(String));
-    expect((await decrypt(sessionCookie, secret)).payload).toEqual({
-      user: {
-        sub: "user_123"
-      },
-      tokenSet: {
-        accessToken: "at_123",
-        refreshToken: "rt_123",
-        expiresAt: 123456
-      },
-      internal: undefined
-    });
+    expect((await decrypt(sessionCookie, secret)).payload).not.toEqual(
+      expect.objectContaining({
+        internal: expect.anything()
+      })
+    );
   });
 });

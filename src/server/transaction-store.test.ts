@@ -20,7 +20,13 @@ describe("Transaction Store", async () => {
         state,
         returnTo: "/dashboard"
       };
-      const encryptedCookieValue = await encrypt(transactionState, secret);
+      const maxAge = 60 * 60; // 1 hour in seconds
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const encryptedCookieValue = await encrypt(
+        transactionState,
+        secret,
+        expiration
+      );
 
       const headers = new Headers();
       headers.append("cookie", `__txn_${state}=${encryptedCookieValue}`);
@@ -32,7 +38,7 @@ describe("Transaction Store", async () => {
 
       expect(
         (await transactionStore.get(requestCookies, state))?.payload
-      ).toEqual(transactionState);
+      ).toEqual(expect.objectContaining(transactionState));
     });
 
     it("should return null if no transaction cookie with a matching state exists", async () => {
@@ -48,7 +54,13 @@ describe("Transaction Store", async () => {
         state,
         returnTo: "/dashboard"
       };
-      const encryptedCookieValue = await encrypt(transactionState, secret);
+      const maxAge = 60 * 60; // 1 hour in seconds
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const encryptedCookieValue = await encrypt(
+        transactionState,
+        secret,
+        expiration
+      );
 
       const headers = new Headers();
       headers.append("cookie", `__txn_incorrect-state=${encryptedCookieValue}`);
@@ -89,7 +101,7 @@ describe("Transaction Store", async () => {
 
       expect(cookie).toBeDefined();
       expect((await decrypt(cookie!.value, secret)).payload).toEqual(
-        transactionState
+        expect.objectContaining(transactionState)
       );
       expect(cookie?.path).toEqual("/");
       expect(cookie?.httpOnly).toEqual(true);
@@ -152,7 +164,7 @@ describe("Transaction Store", async () => {
 
         expect(cookie).toBeDefined();
         expect((await decrypt(cookie!.value, secret)).payload).toEqual(
-          transactionState
+          expect.objectContaining(transactionState)
         );
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
@@ -190,7 +202,7 @@ describe("Transaction Store", async () => {
 
         expect(cookie).toBeDefined();
         expect((await decrypt(cookie!.value, secret)).payload).toEqual(
-          transactionState
+          expect.objectContaining(transactionState)
         );
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
@@ -228,7 +240,7 @@ describe("Transaction Store", async () => {
 
         expect(cookie).toBeDefined();
         expect((await decrypt(cookie!.value, secret)).payload).toEqual(
-          transactionState
+          expect.objectContaining(transactionState)
         );
         expect(cookie?.path).toEqual("/custom-path");
       });
@@ -262,7 +274,7 @@ describe("Transaction Store", async () => {
 
         expect(cookie).toBeDefined();
         expect((await decrypt(cookie!.value, secret)).payload).toEqual(
-          transactionState
+          expect.objectContaining(transactionState)
         );
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
@@ -320,6 +332,91 @@ describe("Transaction Store", async () => {
       await expect(
         transactionStore.delete(responseCookies, "non-existent-state")
       ).resolves.not.toThrow();
+    });
+  });
+
+  describe("deleteAll", async () => {
+    it("should delete all cookies starting with the prefix", async () => {
+      const secret = await generateSecret(32);
+      const headers = new Headers();
+      const requestCookies = new RequestCookies(headers);
+      const responseCookies = new ResponseCookies(headers);
+
+      // Set some cookies
+      requestCookies.set("__txn_state1", "value1");
+      requestCookies.set("__txn_state2", "value2");
+      requestCookies.set("other_cookie", "value3");
+      responseCookies.set("__txn_state1", "value1");
+      responseCookies.set("__txn_state2", "value2");
+      responseCookies.set("other_cookie", "value3");
+
+      const transactionStore = new TransactionStore({
+        secret
+      });
+
+      await transactionStore.deleteAll(requestCookies, responseCookies);
+
+      expect(responseCookies.get("__txn_state1")?.value).toEqual("");
+      expect(responseCookies.get("__txn_state1")?.expires).toEqual(
+        new Date("1970-01-01T00:00:00.000Z")
+      );
+      expect(responseCookies.get("__txn_state2")?.value).toEqual("");
+      expect(responseCookies.get("__txn_state2")?.expires).toEqual(
+        new Date("1970-01-01T00:00:00.000Z")
+      );
+      expect(responseCookies.get("other_cookie")?.value).toEqual("value3"); // Should not be deleted
+    });
+
+    it("should respect custom prefix when deleting cookies", async () => {
+      const secret = await generateSecret(32);
+      const headers = new Headers();
+      const requestCookies = new RequestCookies(headers);
+      const responseCookies = new ResponseCookies(headers);
+      const customPrefix = "custom_txn_";
+
+      // Set some cookies
+      requestCookies.set(`${customPrefix}state1`, "value1");
+      requestCookies.set("__txn_state2", "value2");
+      requestCookies.set("other_cookie", "value3");
+      responseCookies.set(`${customPrefix}state1`, "value1");
+      responseCookies.set("__txn_state2", "value2");
+      responseCookies.set("other_cookie", "value3");
+
+      const transactionStore = new TransactionStore({
+        secret,
+        cookieOptions: {
+          prefix: customPrefix
+        }
+      });
+
+      await transactionStore.deleteAll(requestCookies, responseCookies);
+
+      expect(responseCookies.get(`${customPrefix}state1`)?.value).toEqual("");
+      expect(responseCookies.get(`${customPrefix}state1`)?.expires).toEqual(
+        new Date("1970-01-01T00:00:00.000Z")
+      );
+      expect(responseCookies.get("__txn_state2")?.value).toEqual("value2"); // Should not be deleted
+      expect(responseCookies.get("other_cookie")?.value).toEqual("value3"); // Should not be deleted
+    });
+
+    it("should not fail if no transaction cookies exist", async () => {
+      const secret = await generateSecret(32);
+      const headers = new Headers();
+      const requestCookies = new RequestCookies(headers);
+      const responseCookies = new ResponseCookies(headers);
+
+      requestCookies.set("other_cookie", "value3");
+      responseCookies.set("other_cookie", "value3");
+
+      const transactionStore = new TransactionStore({
+        secret
+      });
+
+      await expect(
+        transactionStore.deleteAll(requestCookies, responseCookies)
+      ).resolves.not.toThrow();
+
+      expect(responseCookies.get("other_cookie")?.value).toEqual("value3"); // Should still exist
     });
   });
 });
