@@ -786,6 +786,13 @@ By default, the middleware does not protect any pages. It is used to mount the a
 
 You can combine multiple middleware, like so:
 
+> [!WARNING]
+> **Handling `x-middleware-next` Header**
+> The `auth0.middleware` response (`authResponse`) might contain an `x-middleware-next` header. This header signals to Next.js that the request should be forwarded to the backend application, regardless of the status code of the response you construct.
+>
+> When combining middleware, **do not** copy the `x-middleware-next` header from `authResponse` to your final response if your custom middleware intends to block the request (e.g., by returning a `NextResponse.json` with a 401 status, or a `NextResponse.redirect`). Copying this header in such cases will cause Next.js to still execute the backend route handler despite your middleware attempting to block access. Only copy headers that are necessary, like `set-cookie`.
+
+
 ```ts
 export async function middleware(request: NextRequest) {
   const authResponse = await auth0.middleware(request)
@@ -797,9 +804,14 @@ export async function middleware(request: NextRequest) {
 
   // call any other middleware here
   const someOtherResponse = await someOtherMiddleware(request)
+  const shouldProceed = someOtherResponse.headers.get('x-middleware-next');
 
   // add any headers from the auth middleware to the response
   for (const [key, value] of authResponse.headers) {
+    // Only copy 'x-middleware-next' if the custom middleware response intends to proceed.
+    if (key.toLowerCase() === 'x-middleware-next' && !shouldProceed) {
+      continue; // Skip copying this header if we are blocking/redirecting
+    }
     someOtherResponse.headers.set(key, value)
   }
 
