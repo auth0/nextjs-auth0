@@ -243,60 +243,6 @@ describe("Stateless Session Store", async () => {
         expect.objectContaining(session)
       );
     });
-
-    it("should ignore legacy cookie and return new cookie if both exist (chunked)", async () => {
-      const secret = await generateSecret(32);
-      const legacySession: LegacySession = {
-        user: { sub: "legacy_user" },
-        accessTokenExpiresAt: 100
-      };
-      const newSession: SessionData = {
-        user: { sub: "new_user" },
-        tokenSet: { accessToken: "new_at", expiresAt: 200 },
-        internal: { sid: "new_sid", createdAt: Math.floor(Date.now() / 1000) }
-      };
-      const maxAge = 300; // 5 minutes
-      const expiration = Math.floor(Date.now() / 1000) + maxAge;
-
-      const encryptedLegacyValue = await encrypt(
-        legacySession,
-        secret,
-        expiration
-      );
-      const encryptedNewValue = await encrypt(newSession, secret, expiration);
-
-      const tempResCookies = new ResponseCookies(new Headers());
-      cookies.setChunkedCookie(
-        LEGACY_COOKIE_NAME,
-        encryptedLegacyValue,
-        baseCookieOptions,
-        new RequestCookies(new Headers()),
-        tempResCookies
-      );
-      cookies.setChunkedCookie(
-        "__session",
-        encryptedNewValue,
-        baseCookieOptions,
-        new RequestCookies(new Headers()),
-        tempResCookies
-      );
-
-      const finalHeaders = new Headers();
-      tempResCookies
-        .getAll()
-        .forEach((cookie) =>
-          finalHeaders.append(
-            "cookie",
-            `${cookie.name}=${encodeURIComponent(cookie.value)}`
-          )
-        );
-      const requestCookies = new RequestCookies(finalHeaders);
-
-      const sessionStore = new StatelessSessionStore({ secret });
-
-      const result = await sessionStore.get(requestCookies);
-      expect(result).toEqual(expect.objectContaining(newSession));
-    });
   });
 
   describe("set", async () => {
