@@ -41,7 +41,7 @@ describe("Stateful Session Store", async () => {
           id: sessionId
         },
         secret,
-        expiration,
+        expiration
       );
 
       const headers = new Headers();
@@ -109,7 +109,7 @@ describe("Stateful Session Store", async () => {
           id: sessionId
         },
         secret,
-        expiration,
+        expiration
       );
 
       const headers = new Headers();
@@ -477,7 +477,7 @@ describe("Stateful Session Store", async () => {
             id: sessionId
           },
           secret,
-          expiration,
+          expiration
         );
         const headers = new Headers();
         headers.append("cookie", `__session=${encryptedCookieValue}`);
@@ -765,7 +765,7 @@ describe("Stateful Session Store", async () => {
           id: sessionId
         },
         secret,
-        expiration,
+        expiration
       );
       const headers = new Headers();
       headers.append("cookie", `__session=${encryptedCookieValue}`);
