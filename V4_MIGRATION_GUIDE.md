@@ -99,12 +99,12 @@ export async function middleware(request) {
 
     // Let Auth0 handle authentication-specific routes (e.g. /auth/login, /auth/callback, etc.)
     if (request.nextUrl.pathname.startsWith("/auth")) {
-        return authRes;
+      return authRes;
     }
 
     // Allow access to public routes without requiring a session
     if (request.nextUrl.pathname === ("/")) {
-        return authRes;
+      return authRes;
     }
 
     const { origin } = new URL(request.url)
@@ -112,7 +112,7 @@ export async function middleware(request) {
 
     // If the user does not have a session, redirect to login
     if (!session) {
-        return NextResponse.redirect(`${origin}/auth/login`)
+      return NextResponse.redirect(`${origin}/auth/login`)
     }
 
     // If a valid session exists, continue with the response from Auth0 middleware
