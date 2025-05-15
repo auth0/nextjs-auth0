@@ -51,11 +51,10 @@ export async function decrypt<T>(
     BYTE_LENGTH
   );
 
-  const cookie = await jose.jwtDecrypt<T>(
-    cookieValue,
-    encryptionSecret,
-    options
-  );
+  const cookie = await jose.jwtDecrypt<T>(cookieValue, encryptionSecret, {
+    ...options,
+    ...{ clockTolerance: 15 }
+  });
 
   return cookie;
 }
