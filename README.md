@@ -97,7 +97,7 @@ export const config = {
 You can now begin to authenticate your users by redirecting them to your application's `/auth/login` route:
 
 ```tsx
-import { auth0 } from "@/lib/auth0"
+import { auth0 } from "./lib/auth0" // Adjust path if your auth0 client is elsewhere
 
 export default async function Home() {
   const session = await auth0.getSession()
