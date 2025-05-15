@@ -126,6 +126,8 @@ export async function middleware(request) {
 > [!NOTE]  
 > We recommend keeping the security checks as close as possible to the data source you're accessing. This is also in-line with [the recommendations from the Next.js team](https://nextjs.org/docs/app/building-your-application/authentication#optimistic-checks-with-middleware-optional).
 
+For more examples on accessing user sessions in middleware, see [Accessing the authenticated user in Middleware in the Examples guide](./EXAMPLES.md#middleware).
+
 ### Combining with other middleware
 
 For scenarios where you need to combine the Auth0 middleware with other Next.js middleware, please refer to the [Combining middleware](../EXAMPLES.md#combining-middleware) guide for examples and best practices.
@@ -172,7 +174,7 @@ The `getSession()` method can be used in the App Router in Server Components, Se
 
 In the Pages Router, the `getSession(req)` method takes a request object and can be used in `getServerSideProps`, API routes, and middleware.
 
-Read more about [accessing the authenticated user here](https://github.com/guabu/nextjs-auth0/tree/main?tab=readme-ov-file#accessing-the-authenticated-user).
+Read more about [accessing the authenticated user in various contexts (browser, server, middleware) in the Examples guide](./EXAMPLES.md#accessing-the-authenticated-user).
 
 In the browser, you can rely on the `useUser()` hook to check if the user is authenticated. For example:
 
@@ -248,6 +250,7 @@ In v4, by default, the only claims that are persisted in the `user` object of se
 - `org_id`
 
 If you'd like to customize the `user` object to include additional custom claims from the ID token, you can use the `beforeSessionSaved` hook (see [beforeSessionSaved hook](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#beforesessionsaved))
+For a list of default claims included in the user object, refer to the [ID Token claims and the user object section in the Examples guide](./EXAMPLES.md#id-token-claims-and-the-user-object).
 
 ## Handling Dynamic Base URLs (e.g. Vercel Preview Deployments)
 When deploying to platforms like Vercel with dynamic preview URLs, it's important to set the correct appBaseUrl and redirect_uri at runtime — especially in preview environments where URLs change per deployment.
@@ -278,7 +281,7 @@ export const auth0 = new Auth0Client({
 ## Additional changes
 
 - By default, v4 is edge-compatible and as such there is no longer a `@auth0/nextjs-auth0/edge` export.
-- All cookies set by the SDK default to `SameSite=Lax`
-- `touchSession` method was removed. The middleware enables rolling sessions by default and can be configured via the [session configuration](https://github.com/auth0/nextjs-auth0/tree/main?tab=readme-ov-file#session-configuration).
-- `getAccessToken` can now be called in React Server Components.
+- All cookies set by the SDK default to `SameSite=Lax`. For details on how to customize cookie attributes, see the [Cookie Configuration section in the Examples guide](./EXAMPLES.md#cookie-configuration).
+- `touchSession` method was removed. The middleware enables rolling sessions by default and can be configured via the [Session configuration section in the Examples guide](./EXAMPLES.md#session-configuration).
+- `getAccessToken` can now be called in React Server Components. For examples on how to use `getAccessToken` in various environments (browser, App Router, Pages Router, Middleware), refer to the [Getting an access token section in the Examples guide](./EXAMPLES.md#getting-an-access-token).
 - By default, v4 will use [OpenID Connect's RP-Initiated Logout](https://auth0.com/docs/authenticate/login/logout/log-users-out-of-auth0) if it's enabled on the tenant. Otherwise, it will fallback to the `/v2/logout` endpoint.
