@@ -97,7 +97,7 @@ By default, **the middleware does not protect any routes**. To protect a page, y
 
 ```ts
 export async function middleware(request) {
-    const authRes = await auth0.middleware(request); //Returns a NextResponse object
+    const authRes = await auth0.middleware(request); // Returns a NextResponse object
 
     // Ensure our own middleware does not handle the `/auth` routes, auto-mounted and handled by the SDK
     if (request.nextUrl.pathname.startsWith("/auth")) {
@@ -155,7 +155,7 @@ On the server-side, the `getSession()` method can be used to check if the user i
 ```tsx
 // Example for an App Router Server Component
 import { redirect } from 'next/navigation'
-import { auth0 } from '@/lib/auth0' // Adjust path if your auth0 client is elsewhere
+import { auth0 } from './lib/auth0' // Adjust path if your auth0 client is elsewhere
 
 export default async function Page() {
   const session = await auth0.getSession()
