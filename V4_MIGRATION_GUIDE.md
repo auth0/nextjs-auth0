@@ -57,7 +57,7 @@ Additionally, in v4, the mounted routes drop the `/api` prefix. For example, the
 
 The complete list of routes mounted by the SDK can be found [here](https://github.com/auth0/nextjs-auth0/tree/main?tab=readme-ov-file#routes).
 
-## Auth0 middleware
+## The Auth0 middleware
 
 In v4, the Auth0 middleware is a central component of the SDK. It serves a number of core functions such as registering the required authentication endpoints, providing rolling sessions functionality, keeping access tokens fresh, etc.
 
@@ -86,6 +86,8 @@ export const config = {
   ],
 }
 ```
+> [!NOTE]  
+> The above middleware is a basic setup. Its primary function is to pass incoming requests to the Auth0 SDK's request handler, which in turn manages the [default auto-mounted authentication routes](../README.md#routes), user sessions, and the overall authentication flow.
 
 See [the Getting Started section](https://github.com/auth0/nextjs-auth0/tree/main?tab=readme-ov-file#getting-started) for details on how to configure the middleware.
 
@@ -97,7 +99,7 @@ By default, **the middleware does not protect any routes**. To protect a page, y
 export async function middleware(request) {
     const authRes = await auth0.middleware(request); //Returns a NextResponse object
 
-    // Let Auth0 handle authentication-specific routes (e.g. /auth/login, /auth/callback, etc.)
+    // Ensure our own middleware does not handle the `/auth` routes, auto-mounted and handled by the SDK
     if (request.nextUrl.pathname.startsWith("/auth")) {
       return authRes;
     }
@@ -124,7 +126,11 @@ export async function middleware(request) {
 > [!NOTE]  
 > We recommend keeping the security checks as close as possible to the data source you're accessing. This is also in-line with [the recommendations from the Next.js team](https://nextjs.org/docs/app/building-your-application/authentication#optimistic-checks-with-middleware-optional).
 
-## `<UserProvider />`
+### Combining with other middleware
+
+For scenarios where you need to combine the Auth0 middleware with other Next.js middleware, please refer to the [Combining middleware](../EXAMPLES.md#combining-middleware) guide for examples and best practices.
+
+## Changes to `<UserProvider />`
 
 The `<UserProvider />` has been renamed to `<Auth0Provider />`.
 
@@ -138,19 +144,23 @@ In v4, rolling sessions are enabled by default and are handled automatically by 
 
 See the [session configuration section](https://github.com/auth0/nextjs-auth0/tree/main?tab=readme-ov-file#session-configuration) for additional details on how to configure it.
 
-## `withPageAuthRequired` and `withApiAuthRequired`
+## Migrating from `withPageAuthRequired` and `withApiAuthRequired`
 
 `withPageAuthRequired` and `withApiAuthRequired` have been removed from v4 of the SDK. Instead, we recommend adding a `getSession()` check or relying on `useUser()` hook where you would have previously used the helpers.
 
 On the server-side, the `getSession()` method can be used to check if the user is authenticated:
 
 ```tsx
-function Page() {
-  const session = await getSession()
+// Example for an App Router Server Component
+import { redirect } from 'next/navigation'
+import { auth0 } from '@/lib/auth0' // Adjust path if your auth0 client is elsewhere
+
+export default async function Page() {
+  const session = await auth0.getSession()
 
   if (!session) {
-    // the user will be redirected to authenticate and then taken to the
-    // /dashboard route after successfully being authenticated
+    // The user will be redirected to authenticate and then taken to the
+    // /dashboard route after successfully being authenticated.
     return redirect('/auth/login?returnTo=/dashboard')
   }
 
@@ -240,7 +250,7 @@ In v4, by default, the only claims that are persisted in the `user` object of se
 If you'd like to customize the `user` object to include additional custom claims from the ID token, you can use the `beforeSessionSaved` hook (see [beforeSessionSaved hook](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#beforesessionsaved))
 
 ## Handling Dynamic Base URLs (e.g. Vercel Preview Deployments)
-When deploying to platforms like Vercel with dynamic preview URLs, it’s important to set the correct appBaseUrl and redirect_uri at runtime — especially in preview environments where URLs change per deployment.
+When deploying to platforms like Vercel with dynamic preview URLs, it's important to set the correct appBaseUrl and redirect_uri at runtime — especially in preview environments where URLs change per deployment.
 1. Set `APP_BASE_URL` dynamically in `next.config.js`:
 ```ts
 // next.config.js
