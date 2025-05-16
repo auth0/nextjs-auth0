@@ -41,7 +41,7 @@ In v4, the routes are now mounted automatically by the middleware:
 ```ts
 import type { NextRequest } from "next/server"
 
-import { auth0 } from "./lib/auth0"
+import { auth0 } from "./lib/auth0" // Adjust path if your auth0 client is elsewhere
 
 export async function middleware(request: NextRequest) {
   return await auth0.middleware(request)
@@ -68,7 +68,7 @@ When configuring your application to use v4 of the SDK, it is now **required** t
 
 import type { NextRequest } from "next/server"
 
-import { auth0 } from "./lib/auth0"
+import { auth0 } from "./lib/auth0" // Adjust path if your auth0 client is elsewhere
 
 export async function middleware(request: NextRequest) {
   return await auth0.middleware(request) // Returns a NextResponse object
@@ -87,7 +87,7 @@ export const config = {
 }
 ```
 > [!NOTE]  
-> The above middleware is a basic setup. Its primary function is to pass incoming requests to the Auth0 SDK's request handler, which in turn manages the [default auto-mounted authentication routes](../README.md#routes), user sessions, and the overall authentication flow.
+> The above middleware is a basic setup. It passes incoming requests to the Auth0 SDK's request handler, which in turn manages the [default auto-mounted authentication routes](https://github.com/auth0/nextjs-auth0/blob/main/README.md#routes), user sessions, and the overall authentication flow. It does **not** protect any routes by default, in order to protect routes from unauthenticated users, read the section below on [protecting routes](https://github.com/auth0/nextjs-auth0/blob/main/V4_MIGRATION_GUIDE.md#protecting-routes).
 
 See [the Getting Started section](https://github.com/auth0/nextjs-auth0/tree/main?tab=readme-ov-file#getting-started) for details on how to configure the middleware.
 
@@ -99,7 +99,7 @@ By default, **the middleware does not protect any routes**. To protect a page, y
 export async function middleware(request) {
     const authRes = await auth0.middleware(request); // Returns a NextResponse object
 
-    // Ensure our own middleware does not handle the `/auth` routes, auto-mounted and handled by the SDK
+    // Ensure your own middleware does not handle the `/auth` routes, auto-mounted and handled by the SDK
     if (request.nextUrl.pathname.startsWith("/auth")) {
       return authRes;
     }
@@ -109,6 +109,7 @@ export async function middleware(request) {
       return authRes;
     }
 
+    // Any route that gets to this point will be considered a protected route, and require the user to be logged-in to be able to access it
     const { origin } = new URL(request.url)
     const session = await auth0.getSession()
 
@@ -126,25 +127,25 @@ export async function middleware(request) {
 > [!NOTE]  
 > We recommend keeping the security checks as close as possible to the data source you're accessing. This is also in-line with [the recommendations from the Next.js team](https://nextjs.org/docs/app/building-your-application/authentication#optimistic-checks-with-middleware-optional).
 
-For more examples on accessing user sessions in middleware, see [Accessing the authenticated user in Middleware in the Examples guide](./EXAMPLES.md#middleware).
+For more examples on accessing user sessions in middleware, see [Accessing the authenticated user in Middleware in the Examples guide](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#middleware).
 
 ### Combining with other middleware
 
-For scenarios where you need to combine the Auth0 middleware with other Next.js middleware, please refer to the [Combining middleware](../EXAMPLES.md#combining-middleware) guide for examples and best practices.
+For scenarios where you need to combine the Auth0 middleware with other Next.js middleware, please refer to the [Combining middleware](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#combining-middleware) guide for examples and best practices.
 
-## Changes to `<UserProvider />`
+## Migrating `<UserProvider />` to `<Auth0Provider />`
 
 The `<UserProvider />` has been renamed to `<Auth0Provider />`.
 
 Previously, when setting up your application to use v3 of the SDK, it was required to wrap your layout in the `<UserProvider />`. **This is no longer required by default.**
 
-If you would like to pass an initial user during server rendering to be available to the `useUser()` hook, you can wrap your components with the new `<Auth0Provider />` ([see example](https://github.com/auth0/nextjs-auth0/tree/main?tab=readme-ov-file#auth0provider-)).
+If you would like to pass an initial user during server rendering to be available to the `useUser()` hook, you can wrap your components with the new `<Auth0Provider />` ([see example](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#auth0provider-)).
 
 ## Rolling sessions
 
 In v4, rolling sessions are enabled by default and are handled automatically by the middleware with no additional configuration required.
 
-See the [session configuration section](https://github.com/auth0/nextjs-auth0/tree/main?tab=readme-ov-file#session-configuration) for additional details on how to configure it.
+See the [session configuration section](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#session-configuration) for additional details on how to configure it.
 
 ## Migrating from `withPageAuthRequired` and `withApiAuthRequired`
 
@@ -174,7 +175,7 @@ The `getSession()` method can be used in the App Router in Server Components, Se
 
 In the Pages Router, the `getSession(req)` method takes a request object and can be used in `getServerSideProps`, API routes, and middleware.
 
-Read more about [accessing the authenticated user in various contexts (browser, server, middleware) in the Examples guide](./EXAMPLES.md#accessing-the-authenticated-user).
+Read more about [accessing the authenticated user in various contexts (browser, server, middleware) in the Examples guide](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#accessing-the-authenticated-user).
 
 In the browser, you can rely on the `useUser()` hook to check if the user is authenticated. For example:
 
@@ -231,7 +232,7 @@ export const auth0 = new Auth0Client({
 })
 ```
 
-Read more about [passing authorization parameters](https://github.com/auth0/nextjs-auth0/tree/main?tab=readme-ov-file#passing-authorization-parameters).
+Read more about [passing authorization parameters](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#passing-authorization-parameters).
 
 ## ID token claims
 
@@ -250,7 +251,7 @@ In v4, by default, the only claims that are persisted in the `user` object of se
 - `org_id`
 
 If you'd like to customize the `user` object to include additional custom claims from the ID token, you can use the `beforeSessionSaved` hook (see [beforeSessionSaved hook](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#beforesessionsaved))
-For a list of default claims included in the user object, refer to the [ID Token claims and the user object section in the Examples guide](./EXAMPLES.md#id-token-claims-and-the-user-object).
+For a list of default claims included in the user object, refer to the [ID Token claims and the user object section in the Examples guide](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#id-token-claims-and-the-user-object).
 
 ## Handling Dynamic Base URLs (e.g. Vercel Preview Deployments)
 When deploying to platforms like Vercel with dynamic preview URLs, it's important to set the correct appBaseUrl and redirect_uri at runtime — especially in preview environments where URLs change per deployment.
@@ -281,7 +282,7 @@ export const auth0 = new Auth0Client({
 ## Additional changes
 
 - By default, v4 is edge-compatible and as such there is no longer a `@auth0/nextjs-auth0/edge` export.
-- All cookies set by the SDK default to `SameSite=Lax`. For details on how to customize cookie attributes, see the [Cookie Configuration section in the Examples guide](./EXAMPLES.md#cookie-configuration).
-- `touchSession` method was removed. The middleware enables rolling sessions by default and can be configured via the [Session configuration section in the Examples guide](./EXAMPLES.md#session-configuration).
-- `getAccessToken` can now be called in React Server Components. For examples on how to use `getAccessToken` in various environments (browser, App Router, Pages Router, Middleware), refer to the [Getting an access token section in the Examples guide](./EXAMPLES.md#getting-an-access-token).
+- All cookies set by the SDK default to `SameSite=Lax`. For details on how to customize cookie attributes, see the [Cookie Configuration section in the Examples guide](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#cookie-configuration).
+- `touchSession` method was removed. The middleware enables rolling sessions by default and can be configured via the [Session configuration section in the Examples guide](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#session-configuration).
+- `getAccessToken` can now be called in React Server Components. For examples on how to use `getAccessToken` in various environments (browser, App Router, Pages Router, Middleware), refer to the [Getting an access token section in the Examples guide](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#getting-an-access-token).
 - By default, v4 will use [OpenID Connect's RP-Initiated Logout](https://auth0.com/docs/authenticate/login/logout/log-users-out-of-auth0) if it's enabled on the tenant. Otherwise, it will fallback to the `/v2/logout` endpoint.
