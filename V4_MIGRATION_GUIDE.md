@@ -127,7 +127,6 @@ export async function middleware(request) {
 > [!NOTE]  
 > We recommend keeping the security checks as close as possible to the data source you're accessing. This is also in-line with [the recommendations from the Next.js team](https://nextjs.org/docs/app/building-your-application/authentication#optimistic-checks-with-middleware-optional).
 
-For more examples on accessing user sessions in middleware, see [Accessing the authenticated user in Middleware in the Examples guide](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#middleware).
 
 ### Combining with other middleware
 
