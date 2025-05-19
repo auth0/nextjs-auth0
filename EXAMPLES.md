@@ -455,7 +455,7 @@ In middleware, the `getAccessToken(req, res)` helper can be used to get an acces
 ```tsx
 import { NextRequest, NextResponse } from "next/server"
 
-import { auth0 } from "@/lib/auth0"
+import { auth0 } from "./lib/auth0" // Adjust path if your auth0 client is elsewhere
 
 export async function middleware(request: NextRequest) {
   const authRes = await auth0.middleware(request)
@@ -486,7 +486,7 @@ If you are using the Pages Router and are calling the `getAccessToken` method in
 ```ts
 import { NextRequest, NextResponse } from "next/server"
 
-import { auth0 } from "@/lib/auth0"
+import { auth0 } from "./lib/auth0" // Adjust path if your auth0 client is elsewhere
 
 export async function middleware(request: NextRequest) {
   const authRes = await auth0.middleware(request)
@@ -589,7 +589,7 @@ You can wrap your components in an `<Auth0Provider />` and pass an initial user 
 ```tsx
 import { Auth0Provider } from "@auth0/nextjs-auth0"
 
-import { auth0 } from "@/lib/auth0"
+import { auth0 } from "./lib/auth0" // Adjust path if your auth0 client is elsewhere
 
 export default async function RootLayout({
   children,
@@ -913,7 +913,7 @@ Additionally to the ability to initialize the interactive login process by redir
 the `startInteractiveLogin` method can also be called programmatically.
 
 ```typescript
-import { auth0 } from "./lib/auth0";
+import { auth0 } from "./lib/auth0"; // Adjust path if your auth0 client is elsewhere
 import { NextRequest } from "next/server";
 
 export const GET = async (req: NextRequest) => {
@@ -937,7 +937,7 @@ export const auth0 = new Auth0Client({
 The second option is by configuring `authorizationParams` when calling `startInteractiveLogin`:
 
 ```ts
-import { auth0 } from "./lib/auth0";
+import { auth0 } from "./lib/auth0"; // Adjust path if your auth0 client is elsewhere
 import { NextRequest } from "next/server";
 
 export const GET = async (req: NextRequest) => {
@@ -958,7 +958,7 @@ export const GET = async (req: NextRequest) => {
 When calling `startInteractiveLogin`, the `returnTo` parameter can be configured to specify where you would like to redirect the user to after they have completed their authentication and have returned to your application.
 
 ```ts
-import { auth0 } from "./lib/auth0";
+import { auth0 } from "./lib/auth0"; // Adjust path if your auth0 client is elsewhere
 import { NextRequest } from "next/server";
 
 export const GET = async (req: NextRequest) => {
@@ -991,7 +991,7 @@ For example:
 ```ts
 import { NextResponse } from "next/server"
 
-import { auth0 } from "@/lib/auth0"
+import { auth0 } from "./lib/auth0" // Adjust path if your auth0 client is elsewhere
 
 export async function GET() {
   try {
@@ -1016,7 +1016,7 @@ On the server, the `getAccessTokenForConnection({}, req, res)` helper can be use
 ```ts
 import type { NextApiRequest, NextApiResponse } from "next"
 
-import { auth0 } from "@/lib/auth0"
+import { auth0 } from "./lib/auth0" // Adjust path if your auth0 client is elsewhere
 
 export default async function handler(
   req: NextApiRequest,
@@ -1039,7 +1039,7 @@ In middleware, the `getAccessTokenForConnection({}, req, res)` helper can be use
 ```tsx
 import { NextRequest, NextResponse } from "next/server"
 
-import { auth0 } from "@/lib/auth0"
+import { auth0 } from "./lib/auth0" // Adjust path if your auth0 client is elsewhere
 
 export async function middleware(request: NextRequest) {
   const authRes = await auth0.middleware(request)
@@ -1070,7 +1070,7 @@ If you are using the Pages Router and are calling the `getAccessTokenForConnecti
 ```ts
 import { NextRequest, NextResponse } from "next/server"
 
-import { auth0 } from "@/lib/auth0"
+import { auth0 } from "./lib/auth0" // Adjust path if your auth0 client is elsewhere
 
 export async function middleware(request: NextRequest) {
   const authRes = await auth0.middleware(request)
