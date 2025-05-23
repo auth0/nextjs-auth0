@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import {
   RequestCookie,
   RequestCookies,
@@ -328,4 +329,40 @@ export function deleteChunkedCookie(
   getAllChunkedCookies(reqCookies, name, isLegacyCookie).forEach((cookie) => {
     resCookies.delete(cookie.name); // Delete each filtered cookie
   });
+}
+
+/**
+ * Returns true if the cookie's `expires` field represents a future time.
+ * Handles both Date objects and numeric UNIX timestamps.
+ */
+function isValidFutureExpiry(expires: Date | number): boolean {
+  const now = Date.now();
+  return typeof expires === "number"
+    ? expires * 1000 > now
+    : expires instanceof Date && expires.getTime() > now;
+}
+
+/**
+ * Adds strict cache-control headers to prevent shared CDN caching of
+ * responses that contain a valid `Set-Cookie: __session`.
+ *
+ * Only applies headers if a future-expiring `__session` cookie is present
+ * in the response — avoiding overly aggressive cache disabling.
+ */
+export function addCacheControlHeadersForSession(res: NextResponse): void {
+  const sessionCookie = res.cookies.get("__session");
+
+  const isFreshCookie =
+    sessionCookie?.value &&
+    sessionCookie?.expires &&
+    isValidFutureExpiry(sessionCookie.expires);
+
+  if (isFreshCookie) {
+    res.headers.set(
+      "Cache-Control",
+      "private, no-cache, no-store, must-revalidate, max-age=0"
+    );
+    res.headers.set("Pragma", "no-cache");
+    res.headers.set("Expires", "0");
+  }
 }

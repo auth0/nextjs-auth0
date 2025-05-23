@@ -1,7 +1,8 @@
+import { NextResponse } from "next/server";
 import { describe, expect, it } from "vitest";
 
 import { generateSecret } from "../test/utils";
-import { decrypt, encrypt } from "./cookies";
+import { addCacheControlHeadersForSession, decrypt, encrypt } from "./cookies";
 
 describe("encrypt/decrypt", async () => {
   const secret = await generateSecret(32);
@@ -51,5 +52,60 @@ describe("encrypt/decrypt", async () => {
 
     const encrypted = await encrypt(payload, secret, expiration);
     await expect(() => decrypt(encrypted, "")).rejects.toThrowError();
+  });
+});
+
+describe("addCacheControlHeadersForSession", () => {
+  it("adds cache headers if __session cookie has a future Date expiry", () => {
+    const res = NextResponse.next();
+    const futureDate = new Date(Date.now() + 60_000); // 1 minute in the future
+
+    res.cookies.set("__session", "dummy", { expires: futureDate });
+    addCacheControlHeadersForSession(res);
+
+    expect(res.headers.get("Cache-Control")).toBe(
+      "private, no-cache, no-store, must-revalidate, max-age=0"
+    );
+    expect(res.headers.get("Pragma")).toBe("no-cache");
+    expect(res.headers.get("Expires")).toBe("0");
+  });
+
+  it("does NOT add headers if __session cookie is missing", () => {
+    const res = NextResponse.next();
+
+    addCacheControlHeadersForSession(res);
+    expect(res.headers.get("Cache-Control")).toBeNull();
+    expect(res.headers.get("Pragma")).toBeNull();
+    expect(res.headers.get("Expires")).toBeNull();
+  });
+
+  it("does NOT add headers if __session cookie is expired", () => {
+    const res = NextResponse.next();
+    const pastDate = new Date(Date.now() - 60_000); // 1 minute in the past
+
+    res.cookies.set("__session", "dummy", { expires: pastDate });
+    addCacheControlHeadersForSession(res);
+
+    expect(res.headers.get("Cache-Control")).toBeNull();
+  });
+
+  it("does NOT add headers if __session cookie has no value", () => {
+    const res = NextResponse.next();
+    const futureDate = new Date(Date.now() + 60_000);
+
+    // setting an empty value simulates a session cookie being cleared
+    res.cookies.set("__session", "", { expires: futureDate });
+    addCacheControlHeadersForSession(res);
+
+    expect(res.headers.get("Cache-Control")).toBeNull();
+  });
+
+  it("does NOT add headers if __session cookie has no expires field", () => {
+    const res = NextResponse.next();
+
+    res.cookies.set("__session", "dummy"); // no `expires`
+    addCacheControlHeadersForSession(res);
+
+    expect(res.headers.get("Cache-Control")).toBeNull();
   });
 });
