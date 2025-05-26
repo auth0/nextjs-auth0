@@ -12,7 +12,7 @@ const DEFAULT_ALLOWED_CLAIMS = [
   "org_id"
 ];
 
-export function filterClaims(claims: { [key: string]: any }) {
+export function filterDefaultIdTokenClaims(claims: { [key: string]: any }) {
   return Object.keys(claims).reduce((acc, key) => {
     if (DEFAULT_ALLOWED_CLAIMS.includes(key)) {
       acc[key] = claims[key];
