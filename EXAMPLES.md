@@ -621,18 +621,35 @@ The `beforeSessionSaved` hook is run right before the session is persisted. It p
 The hook recieves a `SessionData` object and an ID token. The function must return a Promise that resolves to a `SessionData` object: `(session: SessionData) => Promise<SessionData>`. For example:
 
 ```ts
+import { Auth0Client, filterDefaultIdTokenClaims } from "@auth0/nextjs-auth0/server"
+
 export const auth0 = new Auth0Client({
   async beforeSessionSaved(session, idToken) {
     return {
       ...session,
       user: {
-        ...session.user,
-        foo: "bar",
+        ...filterDefaultIdTokenClaims(session.user),
+        foo: session.user.foo, // keep the foo claim
       },
     }
   },
 })
 ```
+
+The `session.user` object passed to the `beforeSessionSaved` hook will contain every claim in the ID Token, including custom claims. You can use the `filterDefaultIdTokenClaims` utility to filter out the standard claims and only keep the custom claims you want to persist.
+
+Alternatively, you can use the entire `session.user` object if you would like to include every claim in the ID Token by just returning the `session` like so:
+
+```ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server"
+
+export const auth0 = new Auth0Client({
+  async beforeSessionSaved(session, idToken) {
+    return session
+  },
+})
+```
+Do realize that this has an impact on the size of the cookie being issued, so it's best to limit the claims to only those that are necessary for your application.
 
 ### `onCallback`
 
