@@ -123,6 +123,7 @@ function convertFromLegacy(
   return {
     user: userClaims,
     tokenSet: {
+      idToken: (session.idToken as string) ?? undefined,
       accessToken: (session.accessToken as string) ?? undefined,
       scope: session.accessTokenScope as string | undefined,
       refreshToken: session.refreshToken as string | undefined,
