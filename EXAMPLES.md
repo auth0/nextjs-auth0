@@ -77,7 +77,7 @@ For example: `/auth/login?returnTo=/dashboard` would redirect the user to the `/
 
 The `returnTo` parameter can be appended to the logout to specify where you would like to redirect the user after they have logged out.
 
-For example: `/auth/login?returnTo=https://example.com/some-page` would redirect the user to the `https://example.com/some-page` URL after they have logged out.
+For example: `/auth/logout?returnTo=https://example.com/some-page` would redirect the user to the `https://example.com/some-page` URL after they have logged out.
 
 > [!NOTE]  
 > The URL specified as `returnTo` parameters must be registered in your client's **Allowed Logout URLs**.
