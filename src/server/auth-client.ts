@@ -32,6 +32,20 @@ import {
   removeTrailingSlash
 } from "../utils/pathUtils";
 import { toSafeRedirect } from "../utils/url-helpers";
+import {
+  processAfterLoginHook,
+  processAfterLogoutHook,
+  processBeforeCallbackHook,
+  processBeforeLoginHook,
+  processBeforeLogoutHook,
+  type AfterLoginHook,
+  type AfterLogoutHook,
+  type BeforeCallbackHook,
+  type BeforeLoginHook,
+  type BeforeLogoutHook,
+  type LoginOptions,
+  type LogoutOptions
+} from "./auth-hooks";
 import { AbstractSessionStore } from "./session/abstract-session-store";
 import { TransactionState, TransactionStore } from "./transaction-store";
 import { filterClaims } from "./user";
@@ -127,6 +141,12 @@ export interface AuthClientOptions {
 
   routes?: RoutesOptions;
 
+  beforeLogin?: BeforeLoginHook;
+  afterLogin?: AfterLoginHook;
+  beforeLogout?: BeforeLogoutHook;
+  afterLogout?: AfterLogoutHook;
+  beforeCallback?: BeforeCallbackHook;
+
   // custom fetch implementation to allow for dependency injection
   fetch?: typeof fetch;
   jwksCache?: jose.JWKSCacheInput;
@@ -157,6 +177,13 @@ export class AuthClient {
 
   private beforeSessionSaved?: BeforeSessionSavedHook;
   private onCallback: OnCallbackHook;
+
+  // New hook members
+  private beforeLogin?: BeforeLoginHook;
+  private afterLogin?: AfterLoginHook;
+  private beforeLogout?: BeforeLogoutHook;
+  private afterLogout?: AfterLogoutHook;
+  private beforeCallback?: BeforeCallbackHook;
 
   private routes: Routes;
 
@@ -243,6 +270,13 @@ export class AuthClient {
     // hooks
     this.beforeSessionSaved = options.beforeSessionSaved;
     this.onCallback = options.onCallback || this.defaultOnCallback;
+
+    // Initialize new hooks
+    this.beforeLogin = options.beforeLogin;
+    this.afterLogin = options.afterLogin;
+    this.beforeLogout = options.beforeLogout;
+    this.afterLogout = options.afterLogout;
+    this.beforeCallback = options.beforeCallback;
 
     // routes
     this.routes = {
@@ -382,22 +416,52 @@ export class AuthClient {
 
   async handleLogin(req: NextRequest): Promise<NextResponse> {
     const searchParams = Object.fromEntries(req.nextUrl.searchParams.entries());
-    const options: StartInteractiveLoginOptions = {
-      // SECURITY CRITICAL: Only forward query params when PAR is disabled
+    const initialLoginOptions: LoginOptions = {
       authorizationParameters: !this.pushedAuthorizationRequests
         ? searchParams
         : {},
       returnTo: searchParams.returnTo
     };
-    return this.startInteractiveLogin(options);
+
+    const { finalOptions: loginOptions, shortCircuit: loginShortCircuit } =
+      await processBeforeLoginHook(this.beforeLogin, req, initialLoginOptions);
+    if (loginShortCircuit) {
+      return loginShortCircuit;
+    }
+
+    let response = await this.startInteractiveLogin(loginOptions);
+
+    response = await processAfterLoginHook(
+      this.afterLogin,
+      req,
+      response,
+      loginOptions
+    );
+    return response;
   }
 
   async handleLogout(req: NextRequest): Promise<NextResponse> {
     const session = await this.sessionStore.get(req.cookies);
+    const initialLogoutOptions: LogoutOptions = {
+      returnTo: req.nextUrl.searchParams.get("returnTo") || this.appBaseUrl
+    };
+
+    const { finalOptions: logoutOptions, shortCircuit: logoutShortCircuit } =
+      await processBeforeLogoutHook(
+        this.beforeLogout,
+        req,
+        initialLogoutOptions,
+        session
+      );
+    if (logoutShortCircuit) {
+      return logoutShortCircuit;
+    }
+
     const [discoveryError, authorizationServerMetadata] =
       await this.discoverAuthorizationServerMetadata();
 
     if (discoveryError) {
+      // Consider if a hook should be called here too, or if this is too low-level
       return new NextResponse(
         "An error occured while trying to initiate the logout request.",
         {
@@ -439,24 +503,51 @@ export class AuthClient {
       url.searchParams.set("id_token_hint", session?.tokenSet.idToken);
     }
 
-    const res = NextResponse.redirect(url);
+    let res = NextResponse.redirect(url);
     await this.sessionStore.delete(req.cookies, res.cookies);
 
     // Clear any orphaned transaction cookies
     await this.transactionStore.deleteAll(req.cookies, res.cookies);
 
+    res = await processAfterLogoutHook(
+      this.afterLogout,
+      req,
+      res,
+      logoutOptions
+    );
+
     return res;
   }
 
   async handleCallback(req: NextRequest): Promise<NextResponse> {
-    const state = req.nextUrl.searchParams.get("state");
-    if (!state) {
+    const stateParam = req.nextUrl.searchParams.get("state");
+    let initialTransactionState: TransactionState | null = null;
+    if (stateParam) {
+      const transactionStateCookie = await this.transactionStore.get(
+        req.cookies,
+        stateParam
+      );
+      if (transactionStateCookie) {
+        initialTransactionState = transactionStateCookie.payload;
+      }
+    }
+
+    const shortCircuitResponse = await processBeforeCallbackHook(
+      this.beforeCallback,
+      req,
+      initialTransactionState
+    );
+    if (shortCircuitResponse) {
+      return shortCircuitResponse;
+    }
+
+    if (!stateParam) {
       return this.onCallback(new MissingStateError(), {}, null);
     }
 
     const transactionStateCookie = await this.transactionStore.get(
       req.cookies,
-      state
+      stateParam
     );
     if (!transactionStateCookie) {
       return this.onCallback(new InvalidStateError(), {}, null);
@@ -567,7 +658,7 @@ export class AuthClient {
     }
 
     await this.sessionStore.set(req.cookies, res.cookies, session, true);
-    await this.transactionStore.delete(res.cookies, state);
+    await this.transactionStore.delete(res.cookies, stateParam);
 
     return res;
   }
