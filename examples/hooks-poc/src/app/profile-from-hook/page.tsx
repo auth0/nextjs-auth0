@@ -1,12 +1,10 @@
-import { Auth0Client } from '@auth0/nextjs-auth0/dist/edge';
 import { redirect } from 'next/navigation';
-
+import {client} from '@/lib/auth0'
 // Instantiate the client here. It should pick up config from environment variables.
 // For a real app, you might want a shared instance or a helper function.
-const auth0 = new Auth0Client();
 
 export default async function ProfilePageFromHook() {
-  const session = await auth0.getSession();
+  const session = await client.getSession();
 
   if (!session?.user) {
     // If no session, redirect to login. 

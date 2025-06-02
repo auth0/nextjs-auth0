@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {Auth0Client, LoginOptions, LogoutOptions, TransactionState } from '@auth0/nextjs-auth0/server' // Try dist/edge path
+import { Auth0Client, LoginOptions, LogoutOptions, TransactionState } from '@auth0/nextjs-auth0/server';
 
-const client = new Auth0Client({
+export const client = new Auth0Client({
   // Ensure these are set in your .env.local or environment variables
   domain: process.env.AUTH0_ISSUER_BASE_URL!,
   clientId: process.env.AUTH0_CLIENT_ID!,
@@ -22,12 +22,16 @@ const client = new Auth0Client({
     }
     return options;
   },
-  afterLogout: async (request: NextRequest, response: NextResponse, options: LogoutOptions): Promise<LogoutOptions | NextResponse | void> => {
+  afterLogout: async (request: NextRequest, response: NextResponse, options: LogoutOptions): Promise<NextResponse | void> => {
     console.log('afterLogout hook triggered.');
-    const returnToUrl = new URL(options.returnTo || '/', process.env.AUTH0_BASE_URL || 'http://localhost:3000');
-    returnToUrl.searchParams.set('logoutHook', 'true');
-    options.returnTo = returnToUrl.toString();
-    return options; 
+    const baseReturnTo = options.returnTo || '/';
+    const appBaseUrl = process.env.AUTH0_BASE_URL || 'http://localhost:3000';
+
+    const finalRedirectUrl = new URL(baseReturnTo, appBaseUrl);
+    finalRedirectUrl.searchParams.set('logoutHook', 'true');
+
+    // Return a new NextResponse that redirects to the modified URL
+    return NextResponse.redirect(finalRedirectUrl.toString());
   },
   beforeCallback: async (request: NextRequest, state: TransactionState | null): Promise<NextResponse | void> => {
     console.log('beforeCallback hook triggered.');
@@ -40,19 +44,10 @@ const client = new Auth0Client({
         console.log('Special returnTo detected in beforeCallback.');
       }
     }
-    const url = new URL(request.url!);
+    const url = new URL(request.url);
     if (url.searchParams.get('error') === 'access_denied') {
       console.log('Access denied error detected in beforeCallback.');
       return NextResponse.redirect(new URL('/access-denied', request.url));
     }
   },
-});
-
-export async function GET(req: NextRequest, { params }: { params: { auth0: string[] } }) {
-  return client.handler(req);
-}
-
-// If you need POST for backchannel logout (not explicitly requested, but good practice)
-// export async function POST(req: NextRequest, { params }: { params: { auth0: string[] } }) {
-//   return client.handler(req);
-// } 
+}); 
