@@ -22,6 +22,13 @@ import {
   OnCallbackHook,
   RoutesOptions
 } from "./auth-client";
+import {
+  AfterLoginHook,
+  AfterLogoutHook,
+  BeforeCallbackHook,
+  BeforeLoginHook,
+  BeforeLogoutHook
+} from "./auth-hooks";
 import { RequestCookies, ResponseCookies } from "./cookies";
 import {
   AbstractSessionStore,
@@ -168,6 +175,12 @@ export interface Auth0ClientOptions {
    * See: https://datatracker.ietf.org/doc/html/draft-ietf-oauth-browser-based-apps#name-token-mediating-backend
    */
   enableAccessTokenEndpoint?: boolean;
+
+  beforeLogin?: BeforeLoginHook;
+  afterLogin?: AfterLoginHook;
+  beforeLogout?: BeforeLogoutHook;
+  afterLogout?: AfterLogoutHook;
+  beforeCallback?: BeforeCallbackHook;
 }
 
 export type PagesRouterRequest = IncomingMessage | NextApiRequest;
@@ -247,30 +260,16 @@ export class Auth0Client {
         });
 
     this.authClient = new AuthClient({
+      ...options,
       transactionStore: this.transactionStore,
       sessionStore: this.sessionStore,
-
       domain,
       clientId,
       clientSecret,
       clientAssertionSigningKey,
       clientAssertionSigningAlg,
-      authorizationParameters: options.authorizationParameters,
-      pushedAuthorizationRequests: options.pushedAuthorizationRequests,
-
       appBaseUrl,
-      secret,
-      signInReturnToPath: options.signInReturnToPath,
-
-      beforeSessionSaved: options.beforeSessionSaved,
-      onCallback: options.onCallback,
-
-      routes: options.routes,
-
-      allowInsecureRequests: options.allowInsecureRequests,
-      httpTimeout: options.httpTimeout,
-      enableTelemetry: options.enableTelemetry,
-      enableAccessTokenEndpoint: options.enableAccessTokenEndpoint
+      secret
     });
   }
 
