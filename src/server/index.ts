@@ -15,8 +15,6 @@ export {
   AfterLogoutHook,
   BeforeCallbackHook,
   processBeforeLoginHook,
-  processAfterLoginHook,
   processBeforeLogoutHook,
-  processAfterLogoutHook,
   processBeforeCallbackHook
 } from "./auth-hooks";

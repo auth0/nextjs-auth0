@@ -3,70 +3,92 @@ import { NextRequest, NextResponse } from "next/server";
 import type { SessionData, StartInteractiveLoginOptions } from "../types";
 import type { TransactionState } from "./transaction-store";
 
-// New Hook-related type definitions
 export interface LoginOptions extends StartInteractiveLoginOptions {}
 
+/**
+ * Hook executed before the login process begins.
+ * It can short-circuit the login by returning a `NextResponse`.
+ * @param request The incoming Next.js request.
+ * @param options The initial login options.
+ * @returns A `Promise` that resolves to `NextResponse` to short-circuit, or `void` to continue.
+ */
 export type BeforeLoginHook = (
   request: NextRequest,
   options: LoginOptions
-) => Promise<LoginOptions | NextResponse | void>;
+) => Promise<NextResponse | void>;
 
+/**
+ * Hook executed after the login process completes.
+ * It can modify the `NextResponse` or return a new one.
+ * If it returns `void`, the (potentially mutated) response passed to it will be used.
+ * @param request The incoming Next.js request.
+ * @param response The `NextResponse` from the login process. This response object can be mutated by the hook if it returns `void`.
+ * @param options The login options used.
+ * @returns A `Promise` that resolves to `NextResponse` to replace the original, or `void` to use the (potentially modified) original response.
+ */
 export type AfterLoginHook = (
   request: NextRequest,
   response: NextResponse,
   options: LoginOptions
 ) => Promise<NextResponse | void>;
 
+/**
+ * Options for the logout process.
+ */
 export interface LogoutOptions {
+  /** The URL to return to after logout. */
   returnTo?: string;
-  // Potentially other logout-specific options in the future
 }
 
+/**
+ * Hook executed before the logout process begins.
+ * It can short-circuit the logout by returning a `NextResponse`.
+ * @param request The incoming Next.js request.
+ * @param options The initial logout options.
+ * @param session The current session data, or `null` if no session exists.
+ * @returns A `Promise` that resolves to `NextResponse` to short-circuit, or `void` to continue.
+ */
 export type BeforeLogoutHook = (
   request: NextRequest,
   options: LogoutOptions,
   session: SessionData | null
-) => Promise<LogoutOptions | NextResponse | void>;
+) => Promise<NextResponse | void>;
 
+/**
+ * Hook executed after the logout process completes.
+ * It can modify the `NextResponse` or return a new one.
+ * If it returns `void`, the (potentially mutated) response passed to it will be used.
+ * @param request The incoming Next.js request.
+ * @param response The `NextResponse` from the logout process. This response object can be mutated by the hook if it returns `void`.
+ * @param options The logout options used.
+ * @returns A `Promise` that resolves to `NextResponse` to replace the original, or `void` to use the (potentially modified) original response.
+ */
 export type AfterLogoutHook = (
   request: NextRequest,
   response: NextResponse,
   options: LogoutOptions
 ) => Promise<NextResponse | void>;
 
+/**
+ * Hook executed before the callback handling process begins.
+ * It can short-circuit the callback handling by returning a `NextResponse`.
+ * @param request The incoming Next.js request.
+ * @param transactionState The state associated with the transaction, or `null` if missing or invalid.
+ * @returns A `Promise` that resolves to `NextResponse` to short-circuit, or `void` to continue.
+ */
 export type BeforeCallbackHook = (
   request: NextRequest,
   transactionState: TransactionState | null // null if state is missing or invalid early on
 ) => Promise<NextResponse | void>;
 
-// Hook Processing Logic
+type GenericAfterHook<T_Options> = (
+  request: NextRequest,
+  response: NextResponse,
+  options: T_Options
+) => Promise<NextResponse | void>;
 
-// Private helper to process the result of a "before" hook
-function _processBeforeHookResult<T_Options>(
-  hookResult: T_Options | NextResponse | void, // The actual resolved result from the hook
-  initialOptions: T_Options
-): { finalOptions: T_Options; shortCircuit?: NextResponse } {
-  if (hookResult instanceof NextResponse) {
-    // Hook returned a NextResponse: short-circuit, use initial options as a fallback for finalOptions type consistency.
-    return { finalOptions: initialOptions, shortCircuit: hookResult };
-  }
-  if (hookResult) {
-    // Hook returned modified options (T_Options).
-    return { finalOptions: hookResult as T_Options, shortCircuit: undefined };
-  }
-  // Hook returned void or undefined: use initial options, no short-circuit.
-  return { finalOptions: initialOptions, shortCircuit: undefined };
-}
-
-// PRIVATE Generic helper for "after" hooks that can modify a response or short-circuit
-async function _processAfterHook<T_Options>(
-  hook:
-    | ((
-        request: NextRequest,
-        response: NextResponse,
-        options: T_Options
-      ) => Promise<NextResponse | void>)
-    | undefined,
+async function executeAfterHook<T_Options>(
+  hook: GenericAfterHook<T_Options> | undefined,
   request: NextRequest,
   response: NextResponse,
   options: T_Options
@@ -75,61 +97,110 @@ async function _processAfterHook<T_Options>(
     return response;
   }
   const result = await hook(request, response, options);
+  // mutations to `response` will be reflected even if void is returned
   return result instanceof NextResponse ? result : response;
 }
 
+/**
+ * Processes a `BeforeLoginHook`.
+ * @param hook The `BeforeLoginHook` to process, or undefined.
+ * @param request The incoming Next.js request.
+ * @param initialOptions The initial `LoginOptions`. These options can be mutated by the hook.
+ * @returns A `Promise` resolving to a `NextResponse` if the hook short-circuits, or `undefined` to proceed.
+ */
 export async function processBeforeLoginHook(
   hook: BeforeLoginHook | undefined,
   request: NextRequest,
-  initialOptions: LoginOptions
-): Promise<{ finalOptions: LoginOptions; shortCircuit?: NextResponse }> {
+  initialOptions: LoginOptions // This object is mutated by the hook if it returns void
+): Promise<NextResponse | undefined> {
   if (!hook) {
-    return { finalOptions: initialOptions, shortCircuit: undefined };
+    return undefined; // Proceed, no hook to run
   }
-  const result = await hook(request, initialOptions);
-  return _processBeforeHookResult(result, initialOptions);
+  const shortCircuitResponse = await hook(request, initialOptions);
+
+  if (shortCircuitResponse instanceof NextResponse) {
+    return shortCircuitResponse;
+  }
+  // If hook returned void, it means proceed with potentially mutated initialOptions.
+  return undefined;
 }
 
-export async function processAfterLoginHook(
-  hook: AfterLoginHook | undefined,
-  request: NextRequest,
-  response: NextResponse, // This response can be modified in-place by the hook
-  options: LoginOptions
-): Promise<NextResponse> {
-  return _processAfterHook(hook, request, response, options);
-}
-
+/**
+ * Processes a `BeforeLogoutHook`.
+ * @param hook The `BeforeLogoutHook` to process, or undefined.
+ * @param request The incoming Next.js request.
+ * @param initialOptions The initial `LogoutOptions`. These options can be mutated by the hook.
+ * @param session The current `SessionData`, or null.
+ * @returns A `Promise` resolving to a `NextResponse` if the hook short-circuits, or `undefined` to proceed.
+ */
 export async function processBeforeLogoutHook(
   hook: BeforeLogoutHook | undefined,
   request: NextRequest,
-  initialOptions: LogoutOptions,
+  initialOptions: LogoutOptions, // This object is mutated by the hook if it returns void
   session: SessionData | null
-): Promise<{ finalOptions: LogoutOptions; shortCircuit?: NextResponse }> {
+): Promise<NextResponse | undefined> {
   if (!hook) {
-    return { finalOptions: initialOptions, shortCircuit: undefined };
+    return undefined; // Proceed, no hook to run
   }
-  const result = await hook(request, initialOptions, session);
-  return _processBeforeHookResult(result, initialOptions);
+  const shortCircuitResponse = await hook(request, initialOptions, session);
+
+  if (shortCircuitResponse instanceof NextResponse) {
+    return shortCircuitResponse;
+  }
+  // If hook returned void, it means proceed with potentially mutated initialOptions.
+  return undefined;
 }
 
-export async function processAfterLogoutHook(
-  hook: AfterLogoutHook | undefined,
-  request: NextRequest,
-  response: NextResponse, // Can be modified in-place
-  options: LogoutOptions
-): Promise<NextResponse> {
-  return _processAfterHook(hook, request, response, options);
-}
-
+/**
+ * Processes a `BeforeCallbackHook`.
+ * @param hook The `BeforeCallbackHook` to process, or undefined.
+ * @param request The incoming Next.js request.
+ * @param transactionState The `TransactionState`, or null.
+ * @returns A `Promise` resolving to a `NextResponse` if the hook short-circuits, or `undefined` otherwise.
+ */
 export async function processBeforeCallbackHook(
   hook: BeforeCallbackHook | undefined,
   request: NextRequest,
   transactionState: TransactionState | null
 ): Promise<NextResponse | undefined> {
-  // Returns NextResponse if short-circuiting
   if (!hook) {
     return undefined;
   }
   const result = await hook(request, transactionState);
   return result instanceof NextResponse ? result : undefined;
+}
+
+/**
+ * Processes an `AfterLoginHook`.
+ * @param hook The `AfterLoginHook` to process, or undefined.
+ *
+ *   The incoming Next.js request.
+ * @param response The `NextResponse` from the login process.
+ * @param options The `LoginOptions` used.
+ * @returns A `Promise` resolving to the final `NextResponse`.
+ */
+export async function processAfterLoginHook(
+  hook: AfterLoginHook | undefined,
+  request: NextRequest,
+  response: NextResponse,
+  options: LoginOptions
+): Promise<NextResponse> {
+  return executeAfterHook(hook, request, response, options);
+}
+
+/**
+ * Processes an `AfterLogoutHook`.
+ * @param hook The `AfterLogoutHook` to process, or undefined.
+ * @param request The incoming Next.js request.
+ * @param response The `NextResponse` from the logout process.
+ * @param options The `LogoutOptions` used.
+ * @returns A `Promise` resolving to the final `NextResponse`.
+ */
+export async function processAfterLogoutHook(
+  hook: AfterLogoutHook | undefined,
+  request: NextRequest,
+  response: NextResponse,
+  options: LogoutOptions
+): Promise<NextResponse> {
+  return executeAfterHook(hook, request, response, options);
 }

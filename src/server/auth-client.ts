@@ -423,19 +423,22 @@ export class AuthClient {
       returnTo: searchParams.returnTo
     };
 
-    const { finalOptions: loginOptions, shortCircuit: loginShortCircuit } =
-      await processBeforeLoginHook(this.beforeLogin, req, initialLoginOptions);
+    const loginShortCircuit = await processBeforeLoginHook(
+      this.beforeLogin,
+      req,
+      initialLoginOptions
+    );
     if (loginShortCircuit) {
       return loginShortCircuit;
     }
 
-    let response = await this.startInteractiveLogin(loginOptions);
+    let response = await this.startInteractiveLogin(initialLoginOptions);
 
     response = await processAfterLoginHook(
       this.afterLogin,
       req,
       response,
-      loginOptions
+      initialLoginOptions
     );
     return response;
   }
@@ -446,13 +449,12 @@ export class AuthClient {
       returnTo: req.nextUrl.searchParams.get("returnTo") || this.appBaseUrl
     };
 
-    const { finalOptions: logoutOptions, shortCircuit: logoutShortCircuit } =
-      await processBeforeLogoutHook(
-        this.beforeLogout,
-        req,
-        initialLogoutOptions,
-        session
-      );
+    const logoutShortCircuit = await processBeforeLogoutHook(
+      this.beforeLogout,
+      req,
+      initialLogoutOptions,
+      session
+    );
     if (logoutShortCircuit) {
       return logoutShortCircuit;
     }
@@ -513,7 +515,7 @@ export class AuthClient {
       this.afterLogout,
       req,
       res,
-      logoutOptions
+      initialLogoutOptions
     );
 
     return res;

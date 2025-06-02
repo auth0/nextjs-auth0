@@ -13,14 +13,18 @@ export const client = new Auth0Client({
     logout: '/api/auth/logout',
     callback: '/api/auth/callback',
   },
-  beforeLogin: async (request: NextRequest, options: LoginOptions): Promise<LoginOptions | NextResponse | void> => {
+  beforeLogin: async (request: NextRequest, options: LoginOptions): Promise<NextResponse | void> => {
     console.log('beforeLogin hook triggered.');
+
+    // mutate options
     options.returnTo = '/profile-from-hook';
     const url = new URL(request.url!)
     if (url.searchParams.get('blockLogin') === 'true') {
       return NextResponse.redirect(new URL('/login-blocked', request.url));
     }
-    return options;
+
+    // proceed with the original returnTo (return undefined)
+    return undefined;
   },
   afterLogout: async (request: NextRequest, response: NextResponse, options: LogoutOptions): Promise<NextResponse | void> => {
     console.log('afterLogout hook triggered.');
