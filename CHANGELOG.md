@@ -1,5 +1,17 @@
 # Change Log
 
+## [v3.8.0](https://github.com/auth0/nextjs-auth0/tree/v3.8.0) (2025-06-04)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.7.0...v3.8.0)
+
+**Security**
+Upgrade jose and openid-client to fix security vulnerabilities #2104
+refactor: use a single client assertion audience #2024
+
+**Changed**
+Update JSDocs to mention idpLogout defaults to true #2083
+Update useUser example to use a tag instead of Link #2087
+Add storeIDToken to config params docs #2103
+
 ## [v3.7.0](https://github.com/auth0/nextjs-auth0/tree/v3.7.0) (2025-03-24)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v3.6.0...v3.7.0)
 
