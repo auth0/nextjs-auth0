@@ -1,7 +1,8 @@
+import { NextResponse } from "next/server";
 import { describe, expect, it } from "vitest";
 
 import { generateSecret } from "../test/utils";
-import { decrypt, encrypt } from "./cookies";
+import { addCacheControlHeadersForSession, decrypt, encrypt } from "./cookies";
 
 describe("encrypt/decrypt", async () => {
   const secret = await generateSecret(32);
@@ -51,5 +52,19 @@ describe("encrypt/decrypt", async () => {
 
     const encrypted = await encrypt(payload, secret, expiration);
     await expect(() => decrypt(encrypted, "")).rejects.toThrowError();
+  });
+});
+
+describe("addCacheControlHeadersForSession", () => {
+  it("unconditionally adds strict cache headers", () => {
+    const res = NextResponse.next();
+
+    addCacheControlHeadersForSession(res);
+
+    expect(res.headers.get("Cache-Control")).toBe(
+      "private, no-cache, no-store, must-revalidate, max-age=0"
+    );
+    expect(res.headers.get("Pragma")).toBe("no-cache");
+    expect(res.headers.get("Expires")).toBe("0");
   });
 });
