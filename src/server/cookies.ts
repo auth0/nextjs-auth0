@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import {
   RequestCookie,
   RequestCookies,
@@ -328,4 +329,23 @@ export function deleteChunkedCookie(
   getAllChunkedCookies(reqCookies, name, isLegacyCookie).forEach((cookie) => {
     resCookies.delete(cookie.name); // Delete each filtered cookie
   });
+}
+
+/**
+ * Unconditionally adds strict cache-control headers to the response.
+ *
+ * This ensures the response is not cached by CDNs or other shared caches.
+ * It is now the caller's responsibility to decide when to call this function.
+ *
+ * Usage:
+ * Call this function whenever a `Set-Cookie` header is being written
+ * for session management or any other sensitive data that must not be cached.
+ */
+export function addCacheControlHeadersForSession(res: NextResponse): void {
+  res.headers.set(
+    "Cache-Control",
+    "private, no-cache, no-store, must-revalidate, max-age=0"
+  );
+  res.headers.set("Pragma", "no-cache");
+  res.headers.set("Expires", "0");
 }
