@@ -67,6 +67,7 @@ describe("Stateless Session Store", async () => {
             sub: "user_123",
             sid: "auth0-sid"
           },
+          idToken: "idt_123",
           accessToken: "at_123",
           accessTokenScope: "openid profile email",
           refreshToken: "rt_123",
@@ -97,6 +98,7 @@ describe("Stateless Session Store", async () => {
         expect(await sessionStore.get(requestCookies)).toEqual({
           user: { sub: "user_123", sid: "auth0-sid" },
           tokenSet: {
+            idToken: "idt_123",
             accessToken: "at_123",
             refreshToken: "rt_123",
             expiresAt: 123456,
@@ -161,6 +163,7 @@ describe("Stateless Session Store", async () => {
             sub: "user_123",
             sid: "auth0-sid"
           },
+          idToken: "idt_123",
           accessToken: "at_123",
           accessTokenScope: "openid profile email",
           refreshToken: "rt_123",
@@ -194,6 +197,7 @@ describe("Stateless Session Store", async () => {
         expect(await sessionStore.get(requestCookies)).toEqual({
           user: { sub: "user_123", sid: "auth0-sid" },
           tokenSet: {
+            idToken: "idt_123",
             accessToken: "at_123",
             refreshToken: "rt_123",
             expiresAt: 123456,
