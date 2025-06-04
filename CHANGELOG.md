@@ -1,5 +1,17 @@
 # Change Log
 
+## [v4.6.1](https://github.com/auth0/nextjs-auth0/tree/v4.6.1) (2025-06-04)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.6.0...v4.6.1)
+
+**Changed**
+- Bump codecov/codecov-action from 5.4.2 to 5.4.3 [\#2102](https://github.com/auth0/nextjs-auth0/pull/2102) ([dependabot[bot]](https://github.com/apps/dependabot))
+
+**Fixed**
+- Fixes CVE-2025-48947
+- Fix Missing idToken during Session Migration from v3 to v4 #2116 [\#2120](https://github.com/auth0/nextjs-auth0/pull/2120) ([KentoMoriwaki](https://github.com/KentoMoriwaki))
+- fix(session): prevent accidental deletion of legacy-named session cookie [\#2114](https://github.com/auth0/nextjs-auth0/pull/2114) ([nandan-bhat](https://github.com/nandan-bhat))
+- fix(client): add type-safe return for getAccessToken [\#2115](https://github.com/auth0/nextjs-auth0/pull/2115) ([nandan-bhat](https://github.com/nandan-bhat))
+
 ## [v4.6.0](https://github.com/auth0/nextjs-auth0/tree/v4.6.0) (2025-05-21)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.5.1...v4.6.0)
 
