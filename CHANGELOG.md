@@ -18,10 +18,8 @@
 
 **Changed**
 - Update middleware combination example to prevent unintended backend execution [\#2076](https://github.com/auth0/nextjs-auth0/pull/2076) ([tusharpandey13](https://github.com/tusharpandey13))
-- Update deleteByLogoutToken arg type in EXAMPLES.md [\#2067](https://github.com/auth0/nextjs-auth0/pull/2067) ([ammubhave](https://github.com/ammubhave))
 
 **Fixed**
-- Usability upgrades to V4 Migration Guide [\#2095](https://github.com/auth0/nextjs-auth0/pull/2095) ([nandan-bhat](https://github.com/nandan-bhat))
 - Bugfix: Add clockTolerance to cookie decryption [\#2097](https://github.com/auth0/nextjs-auth0/pull/2097) ([tusharpandey13](https://github.com/tusharpandey13))
 - Fix stacking transaction cookies [\#2077](https://github.com/auth0/nextjs-auth0/pull/2077) ([tusharpandey13](https://github.com/tusharpandey13))
 
