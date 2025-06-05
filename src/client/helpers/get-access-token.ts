@@ -1,6 +1,12 @@
 import { AccessTokenError } from "../../errors";
 
-export async function getAccessToken() {
+type AccessTokenResponse = {
+  token: string;
+  scope?: string;
+  expires_at?: number;
+};
+
+export async function getAccessToken(): Promise<string> {
   const tokenRes = await fetch(
     process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token"
   );
@@ -23,6 +29,6 @@ export async function getAccessToken() {
     );
   }
 
-  const tokenSet = await tokenRes.json();
+  const tokenSet: AccessTokenResponse = await tokenRes.json();
   return tokenSet.token;
 }
