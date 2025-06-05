@@ -32,6 +32,7 @@ import {
   removeTrailingSlash
 } from "../utils/pathUtils";
 import { toSafeRedirect } from "../utils/url-helpers";
+import { addCacheControlHeadersForSession } from "./cookies";
 import { AbstractSessionStore } from "./session/abstract-session-store";
 import { TransactionState, TransactionStore } from "./transaction-store";
 import { filterDefaultIdTokenClaims } from "./user";
@@ -296,6 +297,7 @@ export class AuthClient {
         await this.sessionStore.set(req.cookies, res.cookies, {
           ...session
         });
+        addCacheControlHeadersForSession(res);
       }
 
       return res;
@@ -441,6 +443,7 @@ export class AuthClient {
 
     const res = NextResponse.redirect(url);
     await this.sessionStore.delete(req.cookies, res.cookies);
+    addCacheControlHeadersForSession(res);
 
     // Clear any orphaned transaction cookies
     await this.transactionStore.deleteAll(req.cookies, res.cookies);
@@ -567,6 +570,7 @@ export class AuthClient {
     }
 
     await this.sessionStore.set(req.cookies, res.cookies, session, true);
+    addCacheControlHeadersForSession(res);
     await this.transactionStore.delete(res.cookies, state);
 
     return res;
@@ -580,8 +584,9 @@ export class AuthClient {
         status: 401
       });
     }
-
-    return NextResponse.json(session?.user);
+    const res = NextResponse.json(session?.user);
+    addCacheControlHeadersForSession(res);
+    return res;
   }
 
   async handleAccessToken(req: NextRequest): Promise<NextResponse> {
@@ -631,6 +636,7 @@ export class AuthClient {
         ...session,
         tokenSet: updatedTokenSet
       });
+      addCacheControlHeadersForSession(res);
     }
 
     return res;

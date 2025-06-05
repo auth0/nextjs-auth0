@@ -1,5 +1,14 @@
 # Change Log
 
+## [v4.6.1](https://github.com/auth0/nextjs-auth0/tree/v4.6.1) (2025-06-04)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.6.0...v4.6.1)
+
+**Fixed**
+- Fixes CVE-2025-48947
+- Fix Missing idToken during Session Migration from v3 to v4 #2116 [\#2120](https://github.com/auth0/nextjs-auth0/pull/2120) ([KentoMoriwaki](https://github.com/KentoMoriwaki))
+- fix(session): prevent accidental deletion of legacy-named session cookie [\#2114](https://github.com/auth0/nextjs-auth0/pull/2114) ([nandan-bhat](https://github.com/nandan-bhat))
+- fix(client): add type-safe return for getAccessToken [\#2115](https://github.com/auth0/nextjs-auth0/pull/2115) ([nandan-bhat](https://github.com/nandan-bhat))
+
 ## [v4.6.0](https://github.com/auth0/nextjs-auth0/tree/v4.6.0) (2025-05-21)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.5.1...v4.6.0)
 
@@ -9,29 +18,8 @@
 
 **Changed**
 - Update middleware combination example to prevent unintended backend execution [\#2076](https://github.com/auth0/nextjs-auth0/pull/2076) ([tusharpandey13](https://github.com/tusharpandey13))
-- Bump eslint-plugin-react from 7.37.4 to 7.37.5 [\#2091](https://github.com/auth0/nextjs-auth0/pull/2091) ([dependabot[bot]](https://github.com/apps/dependabot))
-- Bump @playwright/test from 1.50.1 to 1.52.0 [\#2092](https://github.com/auth0/nextjs-auth0/pull/2092) ([dependabot[bot]](https://github.com/apps/dependabot))
-- Bump @vitest/coverage-v8 from 2.1.4 to 2.1.9 [\#2093](https://github.com/auth0/nextjs-auth0/pull/2093) ([dependabot[bot]](https://github.com/apps/dependabot))
-- Bump typescript-eslint from 8.32.0 to 8.32.1 [\#2094](https://github.com/auth0/nextjs-auth0/pull/2094) ([dependabot[bot]](https://github.com/apps/dependabot))
-- Bump eslint-config-prettier from 10.0.1 to 10.1.5 [\#2090](https://github.com/auth0/nextjs-auth0/pull/2090) ([dependabot[bot]](https://github.com/apps/dependabot))
-- Bump oauth4webapi from 3.1.4 to 3.5.1 [\#2085](https://github.com/auth0/nextjs-auth0/pull/2085) ([dependabot[bot]](https://github.com/apps/dependabot))
-- chore(deps): bump @eslint/plugin-kit from 0.2.2 to 0.2.7 in /examples/with-shadcn [\#1995](https://github.com/auth0/nextjs-auth0/pull/1995) ([dependabot[bot]](https://github.com/apps/dependabot))
-- build(deps): bump jose from 5.9.6 to 5.10.0 [\#1956](https://github.com/auth0/nextjs-auth0/pull/1956) ([dependabot[bot]](https://github.com/apps/dependabot))
-- Bump codecov/codecov-action from 5.3.1 to 5.4.2 [\#2058](https://github.com/auth0/nextjs-auth0/pull/2058) ([dependabot[bot]](https://github.com/apps/dependabot))
-- Bump swr from 2.3.2 to 2.3.3 [\#2086](https://github.com/auth0/nextjs-auth0/pull/2086) ([dependabot[bot]](https://github.com/apps/dependabot))
-- Bump typescript-eslint from 8.24.0 to 8.32.0 [\#2084](https://github.com/auth0/nextjs-auth0/pull/2084) ([dependabot[bot]](https://github.com/apps/dependabot))
-- chore(deps): bump next from 15.0.2 to 15.2.3 in /examples/with-shadcn [\#1986](https://github.com/auth0/nextjs-auth0/pull/1986) ([dependabot[bot]](https://github.com/apps/dependabot))
-- Bump next from 15.0.3 to 15.2.4 in /examples/with-next-intl [\#2029](https://github.com/auth0/nextjs-auth0/pull/2029) ([dependabot[bot]](https://github.com/apps/dependabot))
-- Update deleteByLogoutToken arg type in EXAMPLES.md [\#2067](https://github.com/auth0/nextjs-auth0/pull/2067) ([ammubhave](https://github.com/ammubhave))
-- Bump @auth0/nextjs-auth0 from 4.0.1 to 4.5.1 in /examples/with-shadcn [\#2073](https://github.com/auth0/nextjs-auth0/pull/2073) ([dependabot[bot]](https://github.com/apps/dependabot))
-- Bump @eslint/js from 9.20.0 to 9.26.0 [\#2078](https://github.com/auth0/nextjs-auth0/pull/2078) ([dependabot[bot]](https://github.com/apps/dependabot))
-- Bump vite from 5.4.14 to 5.4.19 [\#2075](https://github.com/auth0/nextjs-auth0/pull/2075) ([dependabot[bot]](https://github.com/apps/dependabot))
-- Bump typedoc from 0.27.7 to 0.28.4 [\#2079](https://github.com/auth0/nextjs-auth0/pull/2079) ([dependabot[bot]](https://github.com/apps/dependabot))
-- chore(deps-dev): bump globals from 15.14.0 to 15.15.0 [\#1969](https://github.com/auth0/nextjs-auth0/pull/1969) ([dependabot[bot]](https://github.com/apps/dependabot))
-- chore(deps-dev): bump prettier from 3.4.2 to 3.5.3 [\#1967](https://github.com/auth0/nextjs-auth0/pull/1967) ([dependabot[bot]](https://github.com/apps/dependabot))
 
 **Fixed**
-- Usability upgrades to V4 Migration Guide [\#2095](https://github.com/auth0/nextjs-auth0/pull/2095) ([nandan-bhat](https://github.com/nandan-bhat))
 - Bugfix: Add clockTolerance to cookie decryption [\#2097](https://github.com/auth0/nextjs-auth0/pull/2097) ([tusharpandey13](https://github.com/tusharpandey13))
 - Fix stacking transaction cookies [\#2077](https://github.com/auth0/nextjs-auth0/pull/2077) ([tusharpandey13](https://github.com/tusharpandey13))
 

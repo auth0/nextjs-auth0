@@ -735,6 +735,42 @@ describe("Stateful Session Store", async () => {
 
       expect(responseCookies.delete).toHaveBeenCalledWith(LEGACY_COOKIE_NAME);
     });
+
+    it("should not delete the legacy cookie if session cookie name matches LEGACY_COOKIE_NAME", async () => {
+      const secret = await generateSecret(32);
+      const session: SessionData = {
+        user: { sub: "user_123" },
+        tokenSet: {
+          accessToken: "at_123",
+          refreshToken: "rt_123",
+          expiresAt: 123456
+        },
+        internal: {
+          sid: "auth0-sid",
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
+      const store = {
+        get: vi.fn(),
+        set: vi.fn(),
+        delete: vi.fn()
+      };
+
+      const requestCookies = new RequestCookies(new Headers());
+      const responseCookies = new ResponseCookies(new Headers());
+
+      // Pretend the legacy cookie is already present
+      vi.spyOn(requestCookies, "has").mockReturnValue(true);
+      const deleteSpy = vi.spyOn(responseCookies, "delete");
+      const sessionStore = new StatefulSessionStore({
+        secret,
+        store,
+        cookieOptions: { name: LEGACY_COOKIE_NAME } // 👈 simulate legacy name
+      });
+
+      await sessionStore.set(requestCookies, responseCookies, session);
+      expect(deleteSpy).not.toHaveBeenCalled();
+    });
   });
 
   describe("delete", async () => {

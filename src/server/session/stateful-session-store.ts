@@ -152,7 +152,10 @@ export class StatefulSessionStore extends AbstractSessionStore {
 
     // Any existing v3 cookie can also be deleted once we have set a v4 cookie.
     // In stateful sessions, we do not have to worry about chunking.
-    if (reqCookies.has(LEGACY_COOKIE_NAME)) {
+    if (
+      this.sessionCookieName !== LEGACY_COOKIE_NAME &&
+      reqCookies.has(LEGACY_COOKIE_NAME)
+    ) {
       resCookies.delete(LEGACY_COOKIE_NAME);
     }
   }
