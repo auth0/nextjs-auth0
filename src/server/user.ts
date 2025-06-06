@@ -1,6 +1,9 @@
 import type { User } from "../types";
 
-const DEFAULT_ALLOWED_CLAIMS = [
+/**
+ * Default claims for the ID token.
+ */
+export const DEFAULT_ID_TOKEN_CLAIMS = [
   "sub",
   "name",
   "nickname",
@@ -12,9 +15,14 @@ const DEFAULT_ALLOWED_CLAIMS = [
   "org_id"
 ];
 
+/**
+ * Filters the claims to only include those that are considered default.
+ * @param claims The claims to filter.
+ * @returns The filtered claims containing only default ID token claims.
+ */
 export function filterDefaultIdTokenClaims(claims: { [key: string]: any }) {
   return Object.keys(claims).reduce((acc, key) => {
-    if (DEFAULT_ALLOWED_CLAIMS.includes(key)) {
+    if (DEFAULT_ID_TOKEN_CLAIMS.includes(key)) {
       acc[key] = claims[key];
     }
     return acc;
