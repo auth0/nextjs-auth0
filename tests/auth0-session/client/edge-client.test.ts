@@ -235,6 +235,24 @@ describe('edge client', function () {
     );
   });
 
+  it('should create custom logout for auth0 with id_token_hint', async function () {
+    nock('https://test.eu.auth0.com')
+      .get('/.well-known/openid-configuration')
+      .reply(200, { ...wellKnown, issuer: 'https://test.eu.auth0.com/', end_session_endpoint: undefined });
+    nock('https://test.eu.auth0.com').get('/.well-known/jwks.json').reply(200, jwks);
+
+    const client = await getClient({
+      issuerBaseURL: 'https://test.eu.auth0.com',
+      idpLogout: true,
+    });
+
+    const idToken = await makeIdToken()
+
+    await expect(client.endSessionUrl({ post_logout_redirect_uri: 'foo', id_token_hint: idToken })).resolves.toEqual(
+      `https://test.eu.auth0.com/v2/logout?returnTo=foo&client_id=__test_client_id__&id_token_hint=${idToken}`
+    );
+  });
+
   it('should remove null params from oidc logout endpoint', async function () {
     const client = await getClient({ ...defaultConfig, idpLogout: true });
     await expect(client.endSessionUrl({ foo: null } as any)).resolves.toEqual(
