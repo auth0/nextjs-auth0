@@ -638,6 +638,13 @@ export const auth0 = new Auth0Client({
 
 The `session.user` object passed to the `beforeSessionSaved` hook will contain every claim in the ID Token, including custom claims. You can use the `filterDefaultIdTokenClaims` utility to filter out the standard claims and only keep the custom claims you want to persist.
 
+> [!INFO]  
+> Incase you want to understand which claims are being considered the default Id Token Claims, you can refer to `DEFAULT_ID_TOKEN_CLAIMS`, which can be imported from the SDK from `@auth0/nextjs-auth0/server`:
+> 
+> ```ts
+> import { DEFAULT_ID_TOKEN_CLAIMS } from "@auth0/nextjs-auth0/server"
+> ```
+
 Alternatively, you can use the entire `session.user` object if you would like to include every claim in the ID Token by just returning the `session` like so:
 
 ```ts
