@@ -2,6 +2,7 @@
 
 import useSWR from "swr";
 
+import { FetchProfileError } from "../../errors";
 import type { User } from "../../types";
 
 export function useUser() {
@@ -10,8 +11,13 @@ export function useUser() {
     (...args) =>
       fetch(...args).then((res) => {
         if (!res.ok) {
-          throw new Error("Unauthorized");
+          throw new FetchProfileError(res.status);
         }
+
+        if (res.status === 204) {
+          return null;
+        }
+
         return res.json();
       })
   );

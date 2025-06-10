@@ -135,6 +135,7 @@ export interface AuthClientOptions {
   httpTimeout?: number;
   enableTelemetry?: boolean;
   enableAccessTokenEndpoint?: boolean;
+  emptyProfileResponseWhenUnauthenticated?: boolean;
 }
 
 function createRouteUrl(url: string, base: string) {
@@ -169,6 +170,7 @@ export class AuthClient {
   private authorizationServerMetadata?: oauth.AuthorizationServer;
 
   private readonly enableAccessTokenEndpoint: boolean;
+  private readonly emptyProfileResponseWhenUnauthenticated: boolean;
 
   constructor(options: AuthClientOptions) {
     // dependencies
@@ -258,6 +260,8 @@ export class AuthClient {
     };
 
     this.enableAccessTokenEndpoint = options.enableAccessTokenEndpoint ?? true;
+    this.emptyProfileResponseWhenUnauthenticated =
+      options.emptyProfileResponseWhenUnauthenticated ?? false;
   }
 
   async handler(req: NextRequest): Promise<NextResponse> {
@@ -580,6 +584,12 @@ export class AuthClient {
     const session = await this.sessionStore.get(req.cookies);
 
     if (!session) {
+      if (this.emptyProfileResponseWhenUnauthenticated) {
+        return new NextResponse(null, {
+          status: 204
+        });
+      }
+
       return new NextResponse(null, {
         status: 401
       });
