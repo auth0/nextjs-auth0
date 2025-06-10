@@ -144,14 +144,3 @@ export class AccessTokenForConnectionError extends SdkError {
     this.cause = cause;
   }
 }
-
-export class FetchProfileError extends SdkError {
-  public code: string = "fetch_profile_error";
-  public status: number;
-
-  constructor(status: number) {
-    super();
-    this.name = "FetchProfileError";
-    this.status = status;
-  }
-}
