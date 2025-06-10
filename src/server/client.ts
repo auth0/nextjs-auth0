@@ -175,7 +175,7 @@ export interface Auth0ClientOptions {
    *
    * Defaults to `false`.
    */
-  emptyProfileResponseWhenUnauthenticated?: boolean;
+  noContentProfileResponseWhenUnauthenticated?: boolean;
 }
 
 export type PagesRouterRequest = IncomingMessage | NextApiRequest;
@@ -279,8 +279,8 @@ export class Auth0Client {
       httpTimeout: options.httpTimeout,
       enableTelemetry: options.enableTelemetry,
       enableAccessTokenEndpoint: options.enableAccessTokenEndpoint,
-      emptyProfileResponseWhenUnauthenticated:
-        options.emptyProfileResponseWhenUnauthenticated
+      noContentProfileResponseWhenUnauthenticated:
+        options.noContentProfileResponseWhenUnauthenticated
     });
   }
 

@@ -2246,7 +2246,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(response.body).toBeNull();
     });
 
-    it("should return a 204 if the user is not authenticated and emptyProfileResponseWhenUnauthenticated is enabled", async () => {
+    it("should return a 204 if the user is not authenticated and noContentProfileResponseWhenUnauthenticated is enabled", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({
         secret
@@ -2267,7 +2267,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         fetch: getMockAuthorizationServer(),
 
-        emptyProfileResponseWhenUnauthenticated: true
+        noContentProfileResponseWhenUnauthenticated: true
       });
 
       const request = new NextRequest(
