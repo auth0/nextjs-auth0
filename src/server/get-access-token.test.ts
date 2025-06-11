@@ -16,6 +16,16 @@ import {
 import { SessionData, TokenSet } from "../types";
 import { Auth0Client } from "./client";
 
+// Mock jose.jwtVerify to prevent actual JWT verification during getAccessToken flow
+vi.mock("jose", async () => {
+  const actual = await vi.importActual("jose");
+  return {
+    ...actual,
+    jwtVerify: vi.fn(),
+    createRemoteJWKSet: vi.fn()
+  };
+});
+
 // Basic constants for testing
 const DEFAULT = {
   domain: "https://op.example.com",
@@ -27,13 +37,6 @@ const DEFAULT = {
   sub: "test-sub",
   sid: "test-sid",
   scope: "openid profile email offline_access"
-};
-
-const initialTokenSetBase = {
-  accessToken: "test-access-token",
-  refreshToken: "test-refresh-token",
-  idToken: "test-id-token",
-  scope: DEFAULT.scope
 };
 
 const authClientConfig = {
@@ -51,6 +54,27 @@ const refreshedRefreshToken = "msw-refreshed-refresh-token";
 const refreshedExpiresIn = 3600;
 const issuer = DEFAULT.domain;
 const audience = DEFAULT.clientId;
+
+const getIdToken = async () =>
+  await new jose.SignJWT({
+    sid: DEFAULT.sid,
+    sub: DEFAULT.sub,
+    auth_time: Math.floor(Date.now() / 1000),
+    nonce: "nonce-value" // Example nonce
+  })
+    .setProtectedHeader({ alg: DEFAULT.alg })
+    .setIssuer(issuer)
+    .setAudience(audience)
+    .setIssuedAt()
+    .setExpirationTime("1h")
+    .sign(keyPair.privateKey);
+
+const initialTokenSetBase = async () => ({
+  accessToken: "test-access-token",
+  refreshToken: "test-refresh-token",
+  idToken: await getIdToken(),
+  scope: DEFAULT.scope
+});
 
 const handlers = [
   // OIDC Discovery Endpoint
@@ -121,11 +145,11 @@ afterAll(() => server.close());
 /**
  * Creates initial session data for tests.
  */
-function createInitialSession(): SessionData {
+async function createInitialSession(): Promise<SessionData> {
   // Use a VALID (non-expired) initial token
   const initialExpiresAt = Math.floor(Date.now() / 1000) + 3600; // Expires in 1 hour
   const initialTokenSet: TokenSet = {
-    ...initialTokenSetBase, // Spread the base token set from the new constant
+    ...(await initialTokenSetBase()), // Spread the base token set from the new constant
     expiresAt: initialExpiresAt // Add the dynamic expiration time
   };
   const initialSession: SessionData = {
@@ -141,6 +165,34 @@ describe("Auth0Client - getAccessToken", () => {
   let auth0Client: Auth0Client;
 
   beforeEach(async () => {
+    // Clear all mocks before each test
+    vi.clearAllMocks();
+    server.resetHandlers();
+
+    // Set up jose.jwtVerify mock to prevent actual JWT verification
+    vi.mocked(jose.jwtVerify).mockResolvedValue({
+      payload: {
+        sub: DEFAULT.sub,
+        sid: DEFAULT.sid,
+        iat: Math.floor(Date.now() / 1000),
+        exp: Math.floor(Date.now() / 1000) + 3600,
+        aud: DEFAULT.clientId,
+        iss: DEFAULT.domain
+      },
+      protectedHeader: {
+        alg: "RS256"
+      },
+      key: {} as any
+    } as any);
+
+    // Mock createRemoteJWKSet to return a proper key lookup function
+    vi.mocked(jose.createRemoteJWKSet).mockReturnValue(
+      vi.fn().mockResolvedValue({
+        type: "public",
+        alg: "RS256"
+      }) as any
+    );
+
     // Instantiate Auth0Client normally, it will use intercepted fetch
     auth0Client = new Auth0Client(authClientConfig);
 
@@ -160,7 +212,7 @@ describe("Auth0Client - getAccessToken", () => {
    * it refreshes the token.
    */
   it("should refresh token and save session for pages-router overload when refresh is true (with valid token)", async () => {
-    const initialSession = createInitialSession();
+    const initialSession = await createInitialSession();
 
     // Mock getSession specifically for this test
     vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
@@ -188,6 +240,9 @@ describe("Auth0Client - getAccessToken", () => {
     // The '0' precision checks for equality at the integer second level.
     expect(result?.expiresAt).toBeCloseTo(expectedExpiresAtRough, 0);
     expect(mockSaveToSession).toHaveBeenCalledOnce();
+
+    // Verify that jose.jwtVerify was called (proving our mock is working)
+    expect(vi.mocked(jose.jwtVerify)).toHaveBeenCalled();
   });
 
   /**
@@ -196,7 +251,7 @@ describe("Auth0Client - getAccessToken", () => {
    * it refreshes the token.
    */
   it("should refresh token for app-router overload when refresh is true (with valid token)", async () => {
-    const initialSession = createInitialSession();
+    const initialSession = await createInitialSession();
 
     // Mock getSession specifically for this test
     vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
@@ -217,5 +272,45 @@ describe("Auth0Client - getAccessToken", () => {
 
     expect(result?.expiresAt).toBeCloseTo(expectedExpiresAtRough, 0);
     expect(mockSaveToSession).toHaveBeenCalledOnce();
+  });
+
+  it("should update session.user with new profile data from refreshed ID token", async () => {
+    // Initial session with stale user data
+    const initialSession = await createInitialSession();
+    initialSession.user = {
+      sub: DEFAULT.sub,
+      email_verified: false,
+      name: "Old Name"
+    };
+
+    // Mock new ID token with updated user claims
+    const updatedUserClaims = {
+      sub: DEFAULT.sub,
+      sid: DEFAULT.sid,
+      email_verified: true, // Updated
+      name: "Updated Name", // Updated
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      aud: DEFAULT.clientId,
+      iss: DEFAULT.domain
+    };
+
+    vi.mocked(jose.jwtVerify).mockResolvedValueOnce({
+      payload: updatedUserClaims,
+      protectedHeader: { alg: "RS256" },
+      key: {} as any
+    } as any);
+
+    vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
+      initialSession
+    );
+
+    // Execute token refresh
+    await auth0Client.getAccessToken({ refresh: true });
+
+    // Verify user profile data is updated in saved session
+    const savedSessionData = mockSaveToSession.mock.calls[0][0] as SessionData;
+    expect(savedSessionData.user.email_verified).toBe(true);
+    expect(savedSessionData.user.name).toBe("Updated Name");
   });
 });

@@ -14,7 +14,9 @@ import {
   AuthorizationParameters,
   SessionData,
   SessionDataStore,
-  StartInteractiveLoginOptions
+  StartInteractiveLoginOptions,
+  TokenSet,
+  User
 } from "../types";
 import {
   AuthClient,
@@ -317,6 +319,49 @@ export class Auth0Client {
     return this.sessionStore.get(await cookies());
   }
 
+  private async updateUserIfNeeded(
+    newTokenSet: TokenSet,
+    refresh: boolean | undefined,
+    session: SessionData
+  ): Promise<User> {
+    const idTokenStringChanged =
+      newTokenSet.idToken !== session.tokenSet.idToken;
+    const shouldAttemptProfileUpdate =
+      newTokenSet.idToken && (refresh || idTokenStringChanged);
+
+    if (shouldAttemptProfileUpdate) {
+      const [profileError, newProfile] =
+        await this.authClient.getUserFromIdToken(newTokenSet.idToken!);
+
+      if (profileError) {
+        throw profileError;
+      }
+      return newProfile;
+    }
+    return session.user;
+  }
+
+  private doesSessionRequireSaving(
+    tokenSet: TokenSet,
+    refresh: boolean | undefined,
+    session: SessionData
+  ): boolean {
+    const accessTokenChanged =
+      tokenSet.accessToken !== session.tokenSet.accessToken;
+    const idTokenStringChanged = tokenSet.idToken !== session.tokenSet.idToken;
+    const refreshTokenChanged =
+      tokenSet.refreshToken !== session.tokenSet.refreshToken;
+    const expiresAtChanged = tokenSet.expiresAt !== session.tokenSet.expiresAt;
+
+    return (
+      refresh ||
+      accessTokenChanged ||
+      idTokenStringChanged ||
+      refreshTokenChanged ||
+      expiresAtChanged
+    );
+  }
+
   /**
    * getAccessToken returns the access token.
    *
@@ -417,15 +462,23 @@ export class Auth0Client {
       throw error;
     }
 
-    // update the session with the new token set, if necessary
-    if (
-      tokenSet.accessToken !== session.tokenSet.accessToken ||
-      tokenSet.expiresAt !== session.tokenSet.expiresAt ||
-      tokenSet.refreshToken !== session.tokenSet.refreshToken
-    ) {
+    const updatedUser = await this.updateUserIfNeeded(
+      tokenSet,
+      options.refresh,
+      session
+    );
+
+    const sessionRequiresSaving = this.doesSessionRequireSaving(
+      tokenSet,
+      options.refresh,
+      session
+    );
+
+    if (sessionRequiresSaving) {
       await this.saveToSession(
         {
           ...session,
+          user: updatedUser,
           tokenSet
         },
         req,
