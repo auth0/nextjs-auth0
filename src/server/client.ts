@@ -418,7 +418,6 @@ export class Auth0Client {
     }
 
     const sessionRequiresSaving =
-      options.refresh ||
       tokenSet.accessToken !== session.tokenSet.accessToken ||
       tokenSet.idToken !== session.tokenSet.idToken ||
       tokenSet.refreshToken !== session.tokenSet.refreshToken ||
