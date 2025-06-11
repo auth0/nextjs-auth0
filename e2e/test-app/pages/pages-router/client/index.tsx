@@ -21,6 +21,12 @@ export default function Profile() {
     )
   }
 
+  const handleForceRefresh = async () => {
+    // TypeScript workaround: cast to any to use the overloaded signature
+    const token = await (getAccessToken as any)({ refresh: true })
+    setToken(token)
+  }
+
   return (
     <main>
       <h1>Welcome, {user?.email}!</h1>
@@ -36,6 +42,11 @@ export default function Profile() {
         }}
       >
         Get token
+      </button>
+      <button
+        onClick={handleForceRefresh}
+      >
+        Force refresh token
       </button>
     </main>
   )

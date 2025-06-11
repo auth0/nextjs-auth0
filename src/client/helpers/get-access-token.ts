@@ -6,10 +6,50 @@ type AccessTokenResponse = {
   expires_at?: number;
 };
 
-export async function getAccessToken(): Promise<string> {
-  const tokenRes = await fetch(
-    process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token"
-  );
+export type GetAccessTokenOptions = {
+  /**
+   * Force a refresh of the access token.
+   */
+  refresh?: boolean;
+};
+
+/**
+ * Retrieves an access token from the `/auth/access-token` endpoint.
+ *
+ * @returns The access token string.
+ * @throws {AccessTokenError} If there's an error retrieving the access token.
+ */
+export async function getAccessToken(): Promise<string>;
+
+/**
+ * Retrieves an access token from the `/auth/access-token` endpoint.
+ *
+ * @param options Configuration for getting the access token.
+ * @returns The access token string.
+ * @throws {AccessTokenError} If there's an error retrieving the access token.
+ */
+export async function getAccessToken(
+  options: GetAccessTokenOptions
+): Promise<string>;
+
+/**
+ * Retrieves an access token from the `/auth/access-token` endpoint.
+ *
+ * @param options Optional configuration for getting the access token.
+ * @returns The access token string.
+ * @throws {AccessTokenError} If there's an error retrieving the access token.
+ */
+export async function getAccessToken(
+  options?: GetAccessTokenOptions
+): Promise<string> {
+  const searchParams = new URLSearchParams();
+  if (options?.refresh) {
+    searchParams.set("refresh", "true");
+  }
+
+  const url = `${process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token"}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
+
+  const tokenRes = await fetch(url);
 
   if (!tokenRes.ok) {
     // try to parse it as JSON and throw the error from the API

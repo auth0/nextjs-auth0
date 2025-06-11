@@ -24,7 +24,8 @@ import {
   LogoutToken,
   SessionData,
   StartInteractiveLoginOptions,
-  TokenSet
+  TokenSet,
+  User
 } from "../types";
 import {
   ensureNoLeadingSlash,
@@ -606,7 +607,11 @@ export class AuthClient {
       );
     }
 
-    const [error, updatedTokenSet] = await this.getTokenSet(session.tokenSet);
+    const refresh = req.nextUrl.searchParams.get("refresh") === "true";
+    const [error, updatedTokenSet] = await this.getTokenSet(
+      session.tokenSet,
+      refresh
+    );
 
     if (error) {
       return NextResponse.json(
@@ -1133,6 +1138,55 @@ export class AuthClient {
     }
 
     return [null, connectionTokenSet] as [null, ConnectionTokenSet];
+  }
+
+  private async verifyIdToken(
+    idToken: string
+  ): Promise<[null, jose.JWTPayload] | [SdkError, null]> {
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+    if (discoveryError) {
+      return [discoveryError, null];
+    }
+    if (!authorizationServerMetadata.jwks_uri) {
+      return [new DiscoveryError("JWKS URI not found in metadata"), null];
+    }
+    if (!authorizationServerMetadata.issuer) {
+      return [new DiscoveryError("Issuer not found in metadata"), null];
+    }
+
+    const keyInput = jose.createRemoteJWKSet(
+      new URL(authorizationServerMetadata.jwks_uri)
+    );
+
+    const ID_TOKEN_SIGNING_ALG = "RS256";
+
+    try {
+      const { payload } = await jose.jwtVerify(idToken, keyInput, {
+        issuer: authorizationServerMetadata.issuer,
+        audience: this.clientMetadata.client_id,
+        algorithms: [ID_TOKEN_SIGNING_ALG]
+      });
+      return [null, payload];
+    } catch (e: any) {
+      return [
+        new OAuth2Error({
+          code: e.code || "ID_TOKEN_VERIFICATION_FAILED",
+          message: e.message || "ID token verification failed."
+        }),
+        null
+      ];
+    }
+  }
+
+  public async getUserFromIdToken(
+    idToken: string
+  ): Promise<[null, User] | [SdkError, null]> {
+    const [error, claims] = await this.verifyIdToken(idToken);
+    if (error) {
+      return [error, null];
+    }
+    return [null, filterClaims(claims)];
   }
 }
 
