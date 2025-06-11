@@ -590,6 +590,12 @@ export class AuthClient {
   }
 
   async handleAccessToken(req: NextRequest): Promise<NextResponse> {
+    if (!this.enableAccessTokenEndpoint) {
+      return new NextResponse("Not Found", {
+        status: 404
+      });
+    }
+
     const session = await this.sessionStore.get(req.cookies);
 
     if (!session) {
@@ -606,7 +612,11 @@ export class AuthClient {
       );
     }
 
-    const [error, updatedTokenSet] = await this.getTokenSet(session.tokenSet);
+    const refresh = req.nextUrl.searchParams.get("refresh") === "true";
+    const [error, updatedTokenSet] = await this.getTokenSet(
+      session.tokenSet,
+      refresh
+    );
 
     if (error) {
       return NextResponse.json(
