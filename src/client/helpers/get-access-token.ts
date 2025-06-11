@@ -47,7 +47,9 @@ export async function getAccessToken(
     searchParams.set("refresh", "true");
   }
 
-  const url = `${process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token"}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
+  const baseUrl = `${process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE}` || "/auth/access-token";
+  const queryParams = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  const url = `${baseUrl}${queryParams}`;
 
   const tokenRes = await fetch(url);
 
