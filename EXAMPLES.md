@@ -386,9 +386,20 @@ export default function Component() {
     }
   }
 
+  async function fetchDataWithForceRefresh() {
+    try {
+      // Force a refresh of the access token
+      const token = await getAccessToken({ refresh: true })
+      // call external API with refreshed token...
+    } catch (err) {
+      // err will be an instance of AccessTokenError if an access token could not be obtained
+    }
+  }
+
   return (
     <main>
       <button onClick={fetchData}>Fetch Data</button>
+      <button onClick={fetchDataWithForceRefresh}>Fetch Data with Force Refresh</button>
     </main>
   )
 }
@@ -525,7 +536,45 @@ export async function middleware(request: NextRequest) {
 
 In some scenarios, you might need to explicitly force the refresh of an access token, even if it hasn't expired yet. This can be useful if, for example, the user's permissions or scopes have changed and you need to ensure the application has the latest token reflecting these changes.
 
-The `getAccessToken` method provides an option to force this refresh.
+The force refresh capability is available across **all environments**: client-side (browser), App Router server-side, and Pages Router server-side.
+
+**Client-side (Browser):**
+
+When calling `getAccessToken()` from the browser, you can pass an options object to force a refresh:
+
+```tsx
+"use client"
+
+import { getAccessToken } from "@auth0/nextjs-auth0"
+
+export default function Component() {
+  async function fetchData() {
+    try {
+      const token = await getAccessToken()
+      // call external API with token...
+    } catch (err) {
+      // err will be an instance of AccessTokenError if an access token could not be obtained
+    }
+  }
+
+  async function fetchDataWithForceRefresh() {
+    try {
+      // Force a refresh of the access token
+      const token = await getAccessToken({ refresh: true })
+      // call external API with refreshed token...
+    } catch (err) {
+      // err will be an instance of AccessTokenError if an access token could not be obtained
+    }
+  }
+
+  return (
+    <main>
+      <button onClick={fetchData}>Fetch Data</button>
+      <button onClick={fetchDataWithForceRefresh}>Fetch Data with Force Refresh</button>
+    </main>
+  )
+}
+```
 
 **App Router (Server Components, Route Handlers, Server Actions):**
 
@@ -533,12 +582,12 @@ When calling `getAccessToken` without request and response objects, you can pass
 
 ```typescript
 // app/api/my-api/route.ts
-import { getAccessToken } from '@auth0/nextjs-auth0';
+import { auth0 } from '@/lib/auth0';
 
 export async function GET() {
   try {
     // Force a refresh of the access token
-    const { token, expiresAt } = await getAccessToken({ refresh: true });
+    const { token, expiresAt } = await auth0.getAccessToken({ refresh: true });
 
     // Use the refreshed token
     // ...
@@ -555,16 +604,16 @@ When calling `getAccessToken` with request and response objects (from `getServer
 
 ```typescript
 // pages/api/my-pages-api.ts
-import { getAccessToken, withApiAuthRequired } from '@auth0/nextjs-auth0';
+import { auth0 } from '@/lib/auth0';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
-export default withApiAuthRequired(async function handler(
+export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
   try {
     // Force a refresh of the access token
-    const { token, expiresAt } = await getAccessToken(req, res, {
+    const { token, expiresAt } = await auth0.getAccessToken(req, res, {
       refresh: true
     });
 
@@ -574,7 +623,7 @@ export default withApiAuthRequired(async function handler(
     console.error('Error getting access token:', error);
     res.status(error.status || 500).json({ error: error.message });
   }
-});
+}
 ```
 
 By setting `{ refresh: true }`, you instruct the SDK to bypass the standard expiration check and request a new access token from the identity provider using the refresh token (if available and valid). The new token set (including the potentially updated access token, refresh token, and expiration time) will be saved back into the session automatically.

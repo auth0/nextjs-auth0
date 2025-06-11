@@ -56,13 +56,33 @@ test("getAccessToken()", async ({ page }) => {
   await page.fill('input[id="password"]', process.env.TEST_USER_PASSWORD!);
   await page.getByText("Continue", { exact: true }).click();
 
-  // fetch a token
+  // request a token
   const requestPromise = page.waitForRequest("/auth/access-token");
-  await page.getByText("Get token").click();
+  await page.getByText("Get access token").click();
+  const request = await requestPromise;
+  const tokenRequest = await (await request?.response())?.json();
+  expect(tokenRequest).toHaveProperty("token");
+  expect(tokenRequest).toHaveProperty("expires_at");
+});
+
+test("getAccessToken() with force refresh", async ({ page }) => {
+  await page.goto("/auth/login?returnTo=/pages-router/client");
+
+  // fill out Auth0 form
+  await page.fill('input[id="username"]', "test@example.com");
+  await page.fill('input[id="password"]', process.env.TEST_USER_PASSWORD!);
+  await page.getByText("Continue", { exact: true }).click();
+
+  // force refresh a token
+  const requestPromise = page.waitForRequest("/auth/access-token?refresh=true");
+  await page.getByText("Force refresh token").click();
   const request = await requestPromise;
   const tokenRequest = await (await request.response())?.json();
   expect(tokenRequest).toHaveProperty("token");
   expect(tokenRequest).toHaveProperty("expires_at");
+
+  // Verify that the request URL contains the refresh parameter
+  expect(request.url()).toContain("refresh=true");
 });
 
 test("protected API route", async ({ page, request, context }) => {

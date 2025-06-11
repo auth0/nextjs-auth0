@@ -3624,6 +3624,88 @@ ca/T0LLtgmbMmxSv/MmzIg==
       // validate that the session cookie has not been set
       expect(response.cookies.get("__session")).toBeUndefined();
     });
+
+    it("should force refresh the access token when refresh=true query parameter is provided", async () => {
+      const currentAccessToken = DEFAULT.accessToken;
+      const newAccessToken = "at_refreshed_456";
+
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        fetch: getMockAuthorizationServer({
+          tokenEndpointResponse: {
+            token_type: "Bearer",
+            access_token: newAccessToken,
+            scope: "openid profile email",
+            expires_in: 86400 // expires in 1 day
+          } as oauth.TokenEndpointResponse
+        })
+      });
+
+      // we use a non-expired token to ensure force refresh works even with valid tokens
+      const expiresAt = Math.floor(Date.now() / 1000) + 10 * 24 * 60 * 60; // expires in 10 days
+      const session: SessionData = {
+        user: {
+          sub: DEFAULT.sub,
+          name: "John Doe",
+          email: "john@example.com",
+          picture: "https://example.com/john.jpg"
+        },
+        tokenSet: {
+          accessToken: currentAccessToken,
+          scope: "openid profile email",
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const sessionCookie = await encrypt(session, secret, expiration);
+      const headers = new Headers();
+      headers.append("cookie", `__session=${sessionCookie}`);
+      const request = new NextRequest(
+        new URL("/auth/access-token?refresh=true", DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers
+        }
+      );
+
+      const response = await authClient.handleAccessToken(request);
+      expect(response.status).toEqual(200);
+      expect(await response.json()).toEqual({
+        token: newAccessToken,
+        scope: "openid profile email",
+        expires_at: expect.any(Number)
+      });
+
+      // validate that the session cookie has been updated with the new token
+      const updatedSessionCookie = response.cookies.get("__session");
+      const { payload: updatedSession } = await decrypt<SessionData>(
+        updatedSessionCookie!.value,
+        secret
+      );
+      expect(updatedSession.tokenSet.accessToken).toEqual(newAccessToken);
+    });
   });
 
   describe("handleBackChannelLogout", async () => {
