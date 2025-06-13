@@ -533,12 +533,12 @@ When calling `getAccessToken` without request and response objects, you can pass
 
 ```typescript
 // app/api/my-api/route.ts
-import { getAccessToken } from '@auth0/nextjs-auth0';
+import { auth0 } from "@/lib/auth0"
 
 export async function GET() {
   try {
     // Force a refresh of the access token
-    const { token, expiresAt } = await getAccessToken({ refresh: true });
+    const { token, expiresAt } = await auth0.getAccessToken({ refresh: true });
 
     // Use the refreshed token
     // ...
