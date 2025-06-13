@@ -35,7 +35,7 @@ import { toSafeRedirect } from "../utils/url-helpers";
 import { addCacheControlHeadersForSession } from "./cookies";
 import { AbstractSessionStore } from "./session/abstract-session-store";
 import { TransactionState, TransactionStore } from "./transaction-store";
-import { filterClaims } from "./user";
+import { filterDefaultIdTokenClaims } from "./user";
 
 export type BeforeSessionSavedHook = (
   session: SessionData,
@@ -566,7 +566,7 @@ export class AuthClient {
         internal: session.internal
       };
     } else {
-      session.user = filterClaims(idTokenClaims);
+      session.user = filterDefaultIdTokenClaims(idTokenClaims);
     }
 
     await this.sessionStore.set(req.cookies, res.cookies, session, true);
