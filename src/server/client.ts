@@ -417,12 +417,21 @@ export class Auth0Client {
       throw error;
     }
 
-    // update the session with the new token set, if necessary
-    if (
+    const sessionRequiresSaving =
+      options.refresh ||
       tokenSet.accessToken !== session.tokenSet.accessToken ||
-      tokenSet.expiresAt !== session.tokenSet.expiresAt ||
-      tokenSet.refreshToken !== session.tokenSet.refreshToken
-    ) {
+      tokenSet.idToken !== session.tokenSet.idToken ||
+      tokenSet.refreshToken !== session.tokenSet.refreshToken ||
+      tokenSet.expiresAt !== session.tokenSet.expiresAt;
+
+    if (sessionRequiresSaving) {
+      const [profileError, newProfile] =
+        await this.authClient.getUserFromIdToken(tokenSet.idToken!);
+
+      if (profileError) {
+        throw profileError;
+      }
+      session.user = newProfile;
       await this.saveToSession(
         {
           ...session,
