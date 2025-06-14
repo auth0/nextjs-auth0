@@ -732,7 +732,7 @@ export class AuthClient {
             refreshTokenRes
           );
         } catch (e: any) {
-          console.error(e);
+          // console.error(e);
           return [
             new AccessTokenError(
               AccessTokenErrorCode.FAILED_TO_REFRESH_TOKEN,
