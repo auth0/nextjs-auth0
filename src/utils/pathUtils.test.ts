@@ -1,8 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  ensureLeadingSlash,
   ensureNoLeadingSlash,
   ensureTrailingSlash,
+  normailizeWithBasePath,
   removeTrailingSlash
 } from "./pathUtils";
 
@@ -48,6 +50,76 @@ describe("pathUtils", () => {
 
     it("should return the same string if it is empty", () => {
       expect(removeTrailingSlash("")).toBe("");
+    });
+  });
+
+  describe("ensureLeadingSlash", () => {
+    it("should add a leading slash if not present", () => {
+      expect(ensureLeadingSlash("example/path")).toBe("/example/path");
+    });
+
+    it("should not add a leading slash if already present", () => {
+      expect(ensureLeadingSlash("/example/path")).toBe("/example/path");
+    });
+
+    it("should return the same string if it is empty", () => {
+      expect(ensureLeadingSlash("")).toBe("");
+    });
+  });
+
+  describe("normailizeWithBasePath", () => {
+    afterEach(() => {
+      delete process.env.NEXT_PUBLIC_BASE_PATH;
+    });
+
+    describe("when the base path does not have a leading slash", () => {
+      it("should correctly prepend the base path", () => {
+        process.env.NEXT_PUBLIC_BASE_PATH = "docs";
+
+        expect(normailizeWithBasePath("/path/to/resource")).toBe(
+          "/docs/path/to/resource"
+        );
+      });
+    });
+
+    describe("when the base path has a leading slash", () => {
+      it("should correctly prepend the base path", () => {
+        process.env.NEXT_PUBLIC_BASE_PATH = "/docs";
+
+        expect(normailizeWithBasePath("/path/to/resource")).toBe(
+          "/docs/path/to/resource"
+        );
+      });
+    });
+
+    describe("when the base path has a trailing slash", () => {
+      it("should correctly join the paths", () => {
+        process.env.NEXT_PUBLIC_BASE_PATH = "/docs/";
+
+        expect(normailizeWithBasePath("/path/to/resource")).toBe(
+          "/docs/path/to/resource"
+        );
+      });
+    });
+
+    describe("when the base path is empty", () => {
+      it("should return the original path", () => {
+        process.env.NEXT_PUBLIC_BASE_PATH = "";
+
+        expect(normailizeWithBasePath("/path/to/resource")).toBe(
+          "/path/to/resource"
+        );
+      });
+    });
+
+    describe("when the base path is undefined", () => {
+      it("should return the same path if no base path is set", () => {
+        delete process.env.NEXT_PUBLIC_BASE_PATH;
+
+        expect(normailizeWithBasePath("/path/to/resource")).toBe(
+          "/path/to/resource"
+        );
+      });
     });
   });
 });
