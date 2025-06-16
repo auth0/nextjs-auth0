@@ -15,7 +15,7 @@ export function ensureNoLeadingSlash(value: string) {
 export const removeTrailingSlash = (path: string) =>
   path.endsWith("/") ? path.slice(0, -1) : path;
 
-export const normailizeWithBasePath = (path: string) => {
+export const normalizeWithBasePath = (path: string) => {
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
 
   if (!basePath) {

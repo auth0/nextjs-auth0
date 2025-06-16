@@ -4,7 +4,7 @@ import {
   ensureLeadingSlash,
   ensureNoLeadingSlash,
   ensureTrailingSlash,
-  normailizeWithBasePath,
+  normalizeWithBasePath,
   removeTrailingSlash
 } from "./pathUtils";
 
@@ -67,7 +67,7 @@ describe("pathUtils", () => {
     });
   });
 
-  describe("normailizeWithBasePath", () => {
+  describe("normalizeWithBasePath", () => {
     afterEach(() => {
       delete process.env.NEXT_PUBLIC_BASE_PATH;
     });
@@ -76,7 +76,7 @@ describe("pathUtils", () => {
       it("should correctly prepend the base path", () => {
         process.env.NEXT_PUBLIC_BASE_PATH = "docs";
 
-        expect(normailizeWithBasePath("/path/to/resource")).toBe(
+        expect(normalizeWithBasePath("/path/to/resource")).toBe(
           "/docs/path/to/resource"
         );
       });
@@ -86,7 +86,7 @@ describe("pathUtils", () => {
       it("should correctly prepend the base path", () => {
         process.env.NEXT_PUBLIC_BASE_PATH = "/docs";
 
-        expect(normailizeWithBasePath("/path/to/resource")).toBe(
+        expect(normalizeWithBasePath("/path/to/resource")).toBe(
           "/docs/path/to/resource"
         );
       });
@@ -96,7 +96,7 @@ describe("pathUtils", () => {
       it("should correctly join the paths", () => {
         process.env.NEXT_PUBLIC_BASE_PATH = "/docs/";
 
-        expect(normailizeWithBasePath("/path/to/resource")).toBe(
+        expect(normalizeWithBasePath("/path/to/resource")).toBe(
           "/docs/path/to/resource"
         );
       });
@@ -106,7 +106,7 @@ describe("pathUtils", () => {
       it("should return the original path", () => {
         process.env.NEXT_PUBLIC_BASE_PATH = "";
 
-        expect(normailizeWithBasePath("/path/to/resource")).toBe(
+        expect(normalizeWithBasePath("/path/to/resource")).toBe(
           "/path/to/resource"
         );
       });
@@ -116,7 +116,7 @@ describe("pathUtils", () => {
       it("should return the same path if no base path is set", () => {
         delete process.env.NEXT_PUBLIC_BASE_PATH;
 
-        expect(normailizeWithBasePath("/path/to/resource")).toBe(
+        expect(normalizeWithBasePath("/path/to/resource")).toBe(
           "/path/to/resource"
         );
       });
