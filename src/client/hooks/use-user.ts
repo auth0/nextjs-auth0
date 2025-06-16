@@ -3,10 +3,13 @@
 import useSWR from "swr";
 
 import type { User } from "../../types";
+import { normailizeWithBasePath } from "../../utils/pathUtils";
 
 export function useUser() {
   const { data, error, isLoading, mutate } = useSWR<User, Error, string>(
-    process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile",
+    normailizeWithBasePath(
+      process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile"
+    ),
     (...args) =>
       fetch(...args).then((res) => {
         if (!res.ok) {

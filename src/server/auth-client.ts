@@ -29,6 +29,7 @@ import {
 import {
   ensureNoLeadingSlash,
   ensureTrailingSlash,
+  normailizeWithBasePath,
   removeTrailingSlash
 } from "../utils/pathUtils";
 import { toSafeRedirect } from "../utils/url-helpers";
@@ -138,7 +139,10 @@ export interface AuthClientOptions {
 }
 
 function createRouteUrl(url: string, base: string) {
-  return new URL(ensureNoLeadingSlash(url), ensureTrailingSlash(base));
+  return new URL(
+    ensureNoLeadingSlash(normailizeWithBasePath(url)),
+    ensureTrailingSlash(base)
+  );
 }
 
 export class AuthClient {
