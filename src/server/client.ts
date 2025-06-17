@@ -756,7 +756,7 @@ export class Auth0Client {
 
       // Standard intro message explaining the issue
       let errorMessage =
-        "WARNING: Not all required options where provided when creating an instance of Auth0Client. Ensure to provide all missing options, either by passing it to the Auth0Client constructor, or by setting the corresponding environment variable.\n";
+        "WARNING: Not all required options were provided when creating an instance of Auth0Client. Ensure to provide all missing options, either by passing it to the Auth0Client constructor, or by setting the corresponding environment variable.\n";
 
       // Add specific details for each missing option
       missing.forEach((key) => {
