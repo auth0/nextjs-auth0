@@ -29,13 +29,14 @@ import {
 import {
   ensureNoLeadingSlash,
   ensureTrailingSlash,
+  normalizeWithBasePath,
   removeTrailingSlash
 } from "../utils/pathUtils";
 import { toSafeRedirect } from "../utils/url-helpers";
 import { addCacheControlHeadersForSession } from "./cookies";
 import { AbstractSessionStore } from "./session/abstract-session-store";
 import { TransactionState, TransactionStore } from "./transaction-store";
-import { filterClaims } from "./user";
+import { filterDefaultIdTokenClaims } from "./user";
 
 export type BeforeSessionSavedHook = (
   session: SessionData,
@@ -139,7 +140,10 @@ export interface AuthClientOptions {
 }
 
 function createRouteUrl(url: string, base: string) {
-  return new URL(ensureNoLeadingSlash(url), ensureTrailingSlash(base));
+  return new URL(
+    ensureNoLeadingSlash(normalizeWithBasePath(url)),
+    ensureTrailingSlash(base)
+  );
 }
 
 export class AuthClient {
@@ -570,7 +574,7 @@ export class AuthClient {
         internal: session.internal
       };
     } else {
-      session.user = filterClaims(idTokenClaims);
+      session.user = filterDefaultIdTokenClaims(idTokenClaims);
     }
 
     await this.sessionStore.set(req.cookies, res.cookies, session, true);
