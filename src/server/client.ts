@@ -169,6 +169,14 @@ export interface Auth0ClientOptions {
    * See: https://datatracker.ietf.org/doc/html/draft-ietf-oauth-browser-based-apps#name-token-mediating-backend
    */
   enableAccessTokenEndpoint?: boolean;
+
+  /**
+   * If true, the profile endpoint will return a 204 No Content response when the user is not authenticated
+   * instead of returning a 401 Unauthorized response.
+   *
+   * Defaults to `false`.
+   */
+  noContentProfileResponseWhenUnauthenticated?: boolean;
 }
 
 export type PagesRouterRequest = IncomingMessage | NextApiRequest;
@@ -271,7 +279,9 @@ export class Auth0Client {
       allowInsecureRequests: options.allowInsecureRequests,
       httpTimeout: options.httpTimeout,
       enableTelemetry: options.enableTelemetry,
-      enableAccessTokenEndpoint: options.enableAccessTokenEndpoint
+      enableAccessTokenEndpoint: options.enableAccessTokenEndpoint,
+      noContentProfileResponseWhenUnauthenticated:
+        options.noContentProfileResponseWhenUnauthenticated
     });
   }
 
