@@ -9,6 +9,7 @@ import {
   AccessTokenForConnectionError,
   AccessTokenForConnectionErrorCode,
   AuthorizationCodeGrantError,
+  AuthorizationCodeGrantRequestError,
   AuthorizationError,
   BackchannelLogoutError,
   DiscoveryError,
@@ -502,20 +503,29 @@ export class AuthClient {
       );
     }
 
-    const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registed with the authorization server
-    const codeGrantResponse = await oauth.authorizationCodeGrantRequest(
-      authorizationServerMetadata,
-      this.clientMetadata,
-      await this.getClientAuth(),
-      codeGrantParams,
-      redirectUri.toString(),
-      transactionState.codeVerifier,
-      {
-        ...this.httpOptions(),
-        [oauth.customFetch]: this.fetch,
-        [oauth.allowInsecureRequests]: this.allowInsecureRequests
-      }
-    );
+    let codeGrantResponse: Response;
+    try {
+      const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registed with the authorization server
+      codeGrantResponse = await oauth.authorizationCodeGrantRequest(
+        authorizationServerMetadata,
+        this.clientMetadata,
+        await this.getClientAuth(),
+        codeGrantParams,
+        redirectUri.toString(),
+        transactionState.codeVerifier,
+        {
+          ...this.httpOptions(),
+          [oauth.customFetch]: this.fetch,
+          [oauth.allowInsecureRequests]: this.allowInsecureRequests
+        }
+      );
+    } catch (e: any) {
+      return this.onCallback(
+        new AuthorizationCodeGrantRequestError(e.message),
+        onCallbackCtx,
+        null
+      );
+    }
 
     let oidcRes: oauth.TokenEndpointResponse;
     try {
