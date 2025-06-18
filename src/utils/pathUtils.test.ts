@@ -6,7 +6,7 @@ import {
   ensureTrailingSlash,
   normalizeWithBasePath,
   removeTrailingSlash
-} from "./pathUtils";
+} from "./pathUtils.js";
 
 describe("pathUtils", () => {
   describe("ensureTrailingSlash", () => {

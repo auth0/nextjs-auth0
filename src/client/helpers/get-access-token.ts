@@ -1,5 +1,5 @@
-import { AccessTokenError } from "../../errors";
-import { normalizeWithBasePath } from "../../utils/pathUtils";
+import { normalizeWithBasePath } from "../../utils/pathUtils.js";
+import { AccessTokenError } from "../../errors/index.js";
 
 type AccessTokenResponse = {
   token: string;
