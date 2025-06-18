@@ -58,6 +58,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
   function getMockAuthorizationServer({
     tokenEndpointResponse,
     tokenEndpointErrorResponse,
+    tokenEndpointFetchError,
     discoveryResponse,
     audience,
     nonce,
@@ -66,6 +67,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
   }: {
     tokenEndpointResponse?: oauth.TokenEndpointResponse | oauth.OAuth2Error;
     tokenEndpointErrorResponse?: oauth.OAuth2Error;
+    tokenEndpointFetchError?: Error;
     discoveryResponse?: Response;
     audience?: string;
     nonce?: string;
@@ -86,6 +88,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
 
         if (url.pathname === "/oauth/token") {
+          if (tokenEndpointFetchError) {
+            throw tokenEndpointFetchError;
+          }
+
           const jwt = await new jose.SignJWT({
             sid: DEFAULT.sid,
             auth_time: Date.now(),
@@ -3303,6 +3309,85 @@ ca/T0LLtgmbMmxSv/MmzIg==
         // validate the session cookie has not been set
         const sessionCookie = response.cookies.get("__session");
         expect(sessionCookie).toBeUndefined();
+      });
+
+      it("should be called with an error when there is an error performing the authorization code grant request", async () => {
+        const state = "transaction-state";
+        const code = "auth-code";
+
+        const mockOnCallback = vi
+          .fn()
+          .mockResolvedValue(
+            NextResponse.redirect(new URL("/error-page", DEFAULT.appBaseUrl))
+          );
+
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          fetch: getMockAuthorizationServer({
+            tokenEndpointFetchError: new Error("Timeout error")
+          }),
+
+          onCallback: mockOnCallback
+        });
+
+        const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
+        url.searchParams.set("code", code);
+        url.searchParams.set("state", state);
+
+        const headers = new Headers();
+        const transactionState: TransactionState = {
+          nonce: "nonce-value",
+          maxAge: 3600,
+          codeVerifier: "code-verifier",
+          responseType: "code",
+          state: state,
+          returnTo: "/dashboard"
+        };
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
+        headers.set(
+          "cookie",
+          `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
+        );
+        const request = new NextRequest(url, {
+          method: "GET",
+          headers
+        });
+
+        // validate the new response redirect
+        const response = await authClient.handleCallback(request);
+        expect(response.status).toEqual(307);
+        expect(response.headers.get("Location")).not.toBeNull();
+
+        const redirectUrl = new URL(response.headers.get("Location")!);
+        expect(redirectUrl.pathname).toEqual("/error-page");
+
+        expect(mockOnCallback).toHaveBeenCalledWith(
+          expect.any(Error),
+          {
+            returnTo: transactionState.returnTo
+          },
+          null
+        );
+        expect(mockOnCallback.mock.calls[0][0].code).toEqual(
+          "authorization_code_grant_request_error"
+        );
       });
 
       it("should be called with an error if there was an error during the code exchange", async () => {

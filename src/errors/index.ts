@@ -57,6 +57,18 @@ export class AuthorizationError extends SdkError {
   }
 }
 
+export class AuthorizationCodeGrantRequestError extends SdkError {
+  public code: string = "authorization_code_grant_request_error";
+
+  constructor(message?: string) {
+    super(
+      message ??
+        "An error occured while preparing or performing the authorization code grant request."
+    );
+    this.name = "AuthorizationCodeGrantRequestError";
+  }
+}
+
 export class AuthorizationCodeGrantError extends SdkError {
   public code: string = "authorization_code_grant_error";
   public cause: OAuth2Error;
