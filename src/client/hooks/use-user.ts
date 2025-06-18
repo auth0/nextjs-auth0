@@ -3,11 +3,11 @@
 import useSWR from "swr";
 
 import type { User } from "../../types";
-import { normailizeWithBasePath } from "../../utils/pathUtils";
+import { normalizeWithBasePath } from "../../utils/pathUtils";
 
 export function useUser() {
   const { data, error, isLoading, mutate } = useSWR<User, Error, string>(
-    normailizeWithBasePath(
+    normalizeWithBasePath(
       process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile"
     ),
     (...args) =>
