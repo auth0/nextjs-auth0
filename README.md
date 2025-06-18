@@ -1,3 +1,5 @@
+-- DONT MERGE - TESTING CI
+
 ![Auth0 Next.js SDK Banner](https://cdn.auth0.com/website/sdks/banners/nextjs-auth0-banner.png)
 
 The Auth0 Next.js SDK is a library for implementing user authentication in Next.js applications.
