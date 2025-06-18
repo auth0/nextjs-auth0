@@ -3385,8 +3385,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           },
           null
         );
-        expect(mockOnCallback.mock.calls[0][0].message).toEqual(
-          "Timeout error"
+        expect(mockOnCallback.mock.calls[0][0].code).toEqual(
+          "authorization_code_grant_request_error"
         );
       });
 

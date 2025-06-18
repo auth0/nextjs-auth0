@@ -9,6 +9,7 @@ import {
   AccessTokenForConnectionError,
   AccessTokenForConnectionErrorCode,
   AuthorizationCodeGrantError,
+  AuthorizationCodeGrantRequestError,
   AuthorizationError,
   BackchannelLogoutError,
   DiscoveryError,
@@ -519,7 +520,11 @@ export class AuthClient {
         }
       );
     } catch (e: any) {
-      return this.onCallback(e, onCallbackCtx, null);
+      return this.onCallback(
+        new AuthorizationCodeGrantRequestError(e.message),
+        onCallbackCtx,
+        null
+      );
     }
 
     let oidcRes: oauth.TokenEndpointResponse;
