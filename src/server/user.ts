@@ -1,4 +1,4 @@
-import type { User } from "../types";
+import type { User } from "../types/index.js";
 
 /**
  * Default claims for the ID token.
