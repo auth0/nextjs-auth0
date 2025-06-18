@@ -2456,6 +2456,42 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(response.status).toEqual(401);
       expect(response.body).toBeNull();
     });
+
+    it("should return a 204 if the user is not authenticated and noContentProfileResponseWhenUnauthenticated is enabled", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        fetch: getMockAuthorizationServer(),
+
+        noContentProfileResponseWhenUnauthenticated: true
+      });
+
+      const request = new NextRequest(
+        new URL("/auth/profile", DEFAULT.appBaseUrl),
+        {
+          method: "GET"
+        }
+      );
+
+      const response = await authClient.handleProfile(request);
+      expect(response.status).toEqual(204);
+      expect(response.body).toBeNull();
+    });
   });
 
   describe("handleCallback", async () => {

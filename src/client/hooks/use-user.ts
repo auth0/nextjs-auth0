@@ -15,6 +15,11 @@ export function useUser() {
         if (!res.ok) {
           throw new Error("Unauthorized");
         }
+
+        if (res.status === 204) {
+          return null;
+        }
+
         return res.json();
       })
   );
