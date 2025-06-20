@@ -39,7 +39,6 @@ import { AbstractSessionStore } from "./session/abstract-session-store.js";
 import { TransactionState, TransactionStore } from "./transaction-store.js";
 import { filterDefaultIdTokenClaims } from "./user.js";
 
-
 export type BeforeSessionSavedHook = (
   session: SessionData,
   idToken: string | null
@@ -733,7 +732,6 @@ export class AuthClient {
           await this.discoverAuthorizationServerMetadata();
 
         if (discoveryError) {
-          console.error(discoveryError);
           return [discoveryError, null];
         }
 
@@ -757,11 +755,14 @@ export class AuthClient {
             refreshTokenRes
           );
         } catch (e: any) {
-          console.error(e);
           return [
             new AccessTokenError(
               AccessTokenErrorCode.FAILED_TO_REFRESH_TOKEN,
-              "The access token has expired and there was an error while trying to refresh it. Check the server logs for more information."
+              "The access token has expired and there was an error while trying to refresh it.",
+              new OAuth2Error({
+                code: e.error,
+                message: e.error_description
+              })
             ),
             null
           ];
@@ -815,7 +816,7 @@ export class AuthClient {
       return [null, authorizationServerMetadata];
     } catch (e) {
       console.error(
-        `An error occured while performing the discovery request. Please make sure the AUTH0_DOMAIN environment variable is correctly configured — the format must be 'example.us.auth0.com'. issuer=${issuer.toString()}, error:`,
+        `An error occured while performing the discovery request. issuer=${issuer.toString()}, error:`,
         e
       );
       return [
@@ -1106,7 +1107,6 @@ export class AuthClient {
         await this.discoverAuthorizationServerMetadata();
 
       if (discoveryError) {
-        console.error(discoveryError);
         return [discoveryError, null];
       }
 
@@ -1130,11 +1130,10 @@ export class AuthClient {
           httpResponse
         );
       } catch (err: any) {
-        console.error(err);
         return [
           new AccessTokenForConnectionError(
             AccessTokenForConnectionErrorCode.FAILED_TO_EXCHANGE,
-            "There was an error trying to exchange the refresh token for a connection access token. Check the server logs for more information.",
+            "There was an error trying to exchange the refresh token for a connection access token.",
             new OAuth2Error({
               code: err.error,
               message: err.error_description
