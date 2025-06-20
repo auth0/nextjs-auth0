@@ -103,11 +103,13 @@ export enum AccessTokenErrorCode {
 
 export class AccessTokenError extends SdkError {
   public code: string;
+  public cause?: OAuth2Error;
 
-  constructor(code: string, message: string) {
+  constructor(code: string, message: string, cause?: OAuth2Error) {
     super(message);
     this.name = "AccessTokenError";
     this.code = code;
+    this.cause = cause;
   }
 }
 
