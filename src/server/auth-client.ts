@@ -140,10 +140,10 @@ export interface AuthClientOptions {
   noContentProfileResponseWhenUnauthenticated?: boolean;
 }
 
-function createRouteUrl(url: string, base: string) {
+function createRouteUrl(path: string, baseUrl: string) {
   return new URL(
-    ensureNoLeadingSlash(normalizeWithBasePath(url)),
-    ensureTrailingSlash(base)
+    ensureNoLeadingSlash(normalizeWithBasePath(path)),
+    ensureTrailingSlash(baseUrl)
   );
 }
 
@@ -328,7 +328,10 @@ export class AuthClient {
       const sanitizedReturnTo = toSafeRedirect(options.returnTo, safeBaseUrl);
 
       if (sanitizedReturnTo) {
-        returnTo = sanitizedReturnTo;
+        returnTo =
+          sanitizedReturnTo.pathname +
+          sanitizedReturnTo.search +
+          sanitizedReturnTo.hash;
       }
     }
 
