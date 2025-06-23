@@ -34,6 +34,7 @@ import {
   TransactionCookieOptions,
   TransactionStore
 } from "./transaction-store.js";
+import { filterDefaultIdTokenClaims } from "./user.js";
 
 export interface Auth0ClientOptions {
   // authorization server configuration
@@ -443,6 +444,8 @@ export class Auth0Client {
           ...updatedSession,
           internal: finalSession.internal
         };
+      } else {
+        finalSession.user = filterDefaultIdTokenClaims(finalSession.user);
       }
       await this.saveToSession(
         {

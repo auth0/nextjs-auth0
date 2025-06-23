@@ -676,7 +676,10 @@ export class AuthClient {
           ...updatedSession,
           internal: finalSession.internal
         };
+      } else {
+        finalSession.user = filterDefaultIdTokenClaims(finalSession.user);
       }
+
       await this.sessionStore.set(req.cookies, res.cookies, {
         ...finalSession,
         tokenSet: updatedTokenSet
@@ -790,8 +793,6 @@ export class AuthClient {
         }
 
         const idTokenClaims = oauth.getValidatedIdTokenClaims(oauthRes)!;
-        const filteredClaims = filterDefaultIdTokenClaims(idTokenClaims);
-
         const accessTokenExpiresAt =
           Math.floor(Date.now() / 1000) + Number(oauthRes.expires_in);
 
@@ -815,7 +816,7 @@ export class AuthClient {
           {
             tokenSet: updatedTokenSet,
             hasTokenSetChanged: true,
-            user: filteredClaims
+            user: idTokenClaims
           }
         ];
       }
