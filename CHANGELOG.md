@@ -169,7 +169,7 @@ We will continue to add features and security upgrades in V4 going further. Plea
 
 **⚠️ BREAKING CHANGES**.
 
-Significant updates have been introduced in this release. Please refer to the V3 → V4 [MIGRATION GUIDE](https://github.com/auth0/nextjs-auth0/blob/v4/V4_MIGRATION_GUIDE.md) for details on upgrading.
+Significant updates have been introduced in this release. Please refer to the V3 → V4 [MIGRATION GUIDE](./V4_MIGRATION_GUIDE.md) for details on upgrading.
 
 **Fixed**
 
