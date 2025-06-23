@@ -10,6 +10,7 @@
 - fix: typo in warning message [\#2169](https://github.com/auth0/nextjs-auth0/pull/2169) ([J-Amberg](https://github.com/J-Amberg))
 - fix: handle authorization code grant request errors [\#2175](https://github.com/auth0/nextjs-auth0/pull/2175) ([guabu](https://github.com/guabu))
 - fix: Properly configure SDK to be distributed as ESM [\#2171](https://github.com/auth0/nextjs-auth0/pull/2171) ([frederikprijck](https://github.com/frederikprijck))
+- fix: consistently treat returnTo parameter as an absolute path [\#2185](https://github.com/auth0/nextjs-auth0/pull/2185) ([guabu](https://github.com/guabu))
 
 **Changed**
 - Export filterDefaultIdTokenClaims and update beforeSessionSaved docs [\#2119](https://github.com/auth0/nextjs-auth0/pull/2119) ([frederikprijck](https://github.com/frederikprijck))
