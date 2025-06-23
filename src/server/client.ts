@@ -187,6 +187,7 @@ export class Auth0Client {
   private transactionStore: TransactionStore;
   private sessionStore: AbstractSessionStore;
   private authClient: AuthClient;
+  private readonly beforeSessionSaved?: BeforeSessionSavedHook;
 
   constructor(options: Auth0ClientOptions = {}) {
     // Extract and validate required options
@@ -253,6 +254,8 @@ export class Auth0Client {
           secret,
           cookieOptions: sessionCookieOptions
         });
+
+    this.beforeSessionSaved = options.beforeSessionSaved;
 
     this.authClient = new AuthClient({
       transactionStore: this.transactionStore,
@@ -426,13 +429,24 @@ export class Auth0Client {
     if (error) {
       throw error;
     }
-    const { tokenSet, user } = getTokenSetResponse;
+    const { tokenSet, hasTokenSetChanged, user } = getTokenSetResponse;
     // update the session with the new token set, if necessary
-    if (user) {
-      session.user = user;
+    if (hasTokenSetChanged) {
+      let finalSession = session;
+      finalSession.user = user!;
+      if (this.beforeSessionSaved) {
+        const updatedSession = await this.beforeSessionSaved(
+          finalSession,
+          tokenSet.idToken ?? null
+        );
+        finalSession = {
+          ...updatedSession,
+          internal: finalSession.internal
+        };
+      }
       await this.saveToSession(
         {
-          ...session,
+          ...finalSession,
           tokenSet
         },
         req,
