@@ -1552,7 +1552,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           codeVerifier: expect.any(String),
           responseType: "code",
           state: authorizationUrl.searchParams.get("state"),
-          returnTo: "https://example.com/dashboard"
+          returnTo: "/dashboard"
         })
       );
     });
@@ -4851,8 +4851,27 @@ ca/T0LLtgmbMmxSv/MmzIg==
       // Mock the transactionStore.save method to verify the saved state
       const originalSave = authClient["transactionStore"].save;
       authClient["transactionStore"].save = vi.fn(async (cookies, state) => {
-        // The full URL is saved, not just the path
-        expect(state.returnTo).toBe("https://example.com/custom-return-path");
+        expect(state.returnTo).toBe("/custom-return-path");
+        return originalSave.call(
+          authClient["transactionStore"],
+          cookies,
+          state
+        );
+      });
+
+      await authClient.startInteractiveLogin({ returnTo });
+
+      expect(authClient["transactionStore"].save).toHaveBeenCalled();
+    });
+
+    it("should sanitize and use the provided returnTo parameter — absolute URL", async () => {
+      const authClient = await createAuthClient();
+      const returnTo =
+        DEFAULT.appBaseUrl + "/custom-return-path?query=param#hash";
+
+      const originalSave = authClient["transactionStore"].save;
+      authClient["transactionStore"].save = vi.fn(async (cookies, state) => {
+        expect(state.returnTo).toBe("/custom-return-path?query=param#hash");
         return originalSave.call(
           authClient["transactionStore"],
           cookies,
@@ -4957,7 +4976,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
               codeVerifier: expect.any(String),
               responseType: "code",
               state: expect.any(String),
-              returnTo: "https://example.com/custom-path"
+              returnTo: "/custom-path"
             })
           );
           return originalSave.call(
