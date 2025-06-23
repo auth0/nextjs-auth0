@@ -57,6 +57,18 @@ export class AuthorizationError extends SdkError {
   }
 }
 
+export class AuthorizationCodeGrantRequestError extends SdkError {
+  public code: string = "authorization_code_grant_request_error";
+
+  constructor(message?: string) {
+    super(
+      message ??
+        "An error occured while preparing or performing the authorization code grant request."
+    );
+    this.name = "AuthorizationCodeGrantRequestError";
+  }
+}
+
 export class AuthorizationCodeGrantError extends SdkError {
   public code: string = "authorization_code_grant_error";
   public cause: OAuth2Error;
@@ -91,11 +103,13 @@ export enum AccessTokenErrorCode {
 
 export class AccessTokenError extends SdkError {
   public code: string;
+  public cause?: OAuth2Error;
 
-  constructor(code: string, message: string) {
+  constructor(code: string, message: string, cause?: OAuth2Error) {
     super(message);
     this.name = "AccessTokenError";
     this.code = code;
+    this.cause = cause;
   }
 }
 

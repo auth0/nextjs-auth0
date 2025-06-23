@@ -1,10 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "next/server.js";
 import {
   RequestCookie,
   RequestCookies,
   ResponseCookies
 } from "@edge-runtime/cookies";
-import hkdf from "@panva/hkdf";
+import { hkdf } from "@panva/hkdf";
 import * as jose from "jose";
 
 const ENC = "A256GCM";

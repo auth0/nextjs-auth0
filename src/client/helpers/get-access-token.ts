@@ -1,4 +1,5 @@
-import { AccessTokenError } from "../../errors";
+import { normalizeWithBasePath } from "../../utils/pathUtils.js";
+import { AccessTokenError } from "../../errors/index.js";
 
 type AccessTokenResponse = {
   token: string;
@@ -8,7 +9,9 @@ type AccessTokenResponse = {
 
 export async function getAccessToken(): Promise<string> {
   const tokenRes = await fetch(
-    process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token"
+    normalizeWithBasePath(
+      process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token"
+    )
   );
 
   if (!tokenRes.ok) {
