@@ -430,11 +430,17 @@ export class Auth0Client {
     if (error) {
       throw error;
     }
-    const { tokenSet, hasTokenSetChanged, user } = getTokenSetResponse;
+    const { tokenSet, user } = getTokenSetResponse;
     // update the session with the new token set, if necessary
-    if (hasTokenSetChanged) {
+    if (
+      tokenSet.accessToken !== session.tokenSet.accessToken ||
+      tokenSet.expiresAt !== session.tokenSet.expiresAt ||
+      tokenSet.refreshToken !== session.tokenSet.refreshToken
+    ) {
       let finalSession = session;
-      finalSession.user = user!;
+      if (user) {
+        finalSession.user = user!;
+      }
       if (this.beforeSessionSaved) {
         const updatedSession = await this.beforeSessionSaved(
           finalSession,

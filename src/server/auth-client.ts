@@ -652,11 +652,7 @@ export class AuthClient {
       );
     }
 
-    const {
-      tokenSet: updatedTokenSet,
-      hasTokenSetChanged,
-      user
-    } = getTokenSetResponse;
+    const { tokenSet: updatedTokenSet, user } = getTokenSetResponse;
 
     const res = NextResponse.json({
       token: updatedTokenSet.accessToken,
@@ -664,9 +660,15 @@ export class AuthClient {
       expires_at: updatedTokenSet.expiresAt
     });
 
-    if (hasTokenSetChanged) {
+    if (
+      updatedTokenSet.accessToken !== session.tokenSet.accessToken ||
+      updatedTokenSet.expiresAt !== session.tokenSet.expiresAt ||
+      updatedTokenSet.refreshToken !== session.tokenSet.refreshToken
+    ) {
       let finalSession = session;
-      finalSession.user = user!;
+      if (user) {
+        finalSession.user = user!;
+      }
       if (this.beforeSessionSaved) {
         const updatedSession = await this.beforeSessionSaved(
           finalSession,
@@ -815,14 +817,13 @@ export class AuthClient {
           null,
           {
             tokenSet: updatedTokenSet,
-            hasTokenSetChanged: true,
             user: idTokenClaims
           }
         ];
       }
     }
 
-    return [null, { tokenSet, hasTokenSetChanged: false }];
+    return [null, { tokenSet }];
   }
 
   private async discoverAuthorizationServerMetadata(): Promise<
@@ -1207,6 +1208,5 @@ const encodeBase64 = (input: string) => {
 
 export type GetTokenSetResponse = {
   tokenSet: TokenSet;
-  hasTokenSetChanged: boolean;
   user?: User;
 };
