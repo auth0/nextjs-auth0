@@ -409,32 +409,21 @@ export class Auth0Client {
       );
     }
 
-    const [error, tokenSet] = await this.authClient.getTokenSet(
+    const [error, getTokenSetResponse] = await this.authClient.getTokenSet(
       session.tokenSet,
       options.refresh
     );
     if (error) {
       throw error;
     }
+    const { tokenSet, user } = getTokenSetResponse;
 
-    const sessionRequiresSaving =
-      tokenSet.accessToken !== session.tokenSet.accessToken ||
-      tokenSet.idToken !== session.tokenSet.idToken ||
-      tokenSet.refreshToken !== session.tokenSet.refreshToken ||
-      tokenSet.expiresAt !== session.tokenSet.expiresAt;
-
-    if (sessionRequiresSaving) {
-      const [profileError, newProfile] =
-        await this.authClient.getUserFromIdToken(tokenSet.idToken!);
-
-      if (profileError) {
-        throw profileError;
-      }
-      session.user = newProfile;
+    if (user) {
+      session.user = user!;
       await this.saveToSession(
         {
           ...session,
-          tokenSet
+          tokenSet: tokenSet
         },
         req,
         res

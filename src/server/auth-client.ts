@@ -607,7 +607,9 @@ export class AuthClient {
       );
     }
 
-    const [error, updatedTokenSet] = await this.getTokenSet(session.tokenSet);
+    const [error, getTokenSetResponse] = await this.getTokenSet(
+      session.tokenSet
+    );
 
     if (error) {
       return NextResponse.json(
@@ -622,17 +624,17 @@ export class AuthClient {
         }
       );
     }
+
+    const { tokenSet: updatedTokenSet, user } = getTokenSetResponse;
+
     const res = NextResponse.json({
       token: updatedTokenSet.accessToken,
       scope: updatedTokenSet.scope,
       expires_at: updatedTokenSet.expiresAt
     });
 
-    if (
-      updatedTokenSet.accessToken !== session.tokenSet.accessToken ||
-      updatedTokenSet.refreshToken !== session.tokenSet.refreshToken ||
-      updatedTokenSet.expiresAt !== session.tokenSet.expiresAt
-    ) {
+    if (user) {
+      session.user = user!;
       await this.sessionStore.set(req.cookies, res.cookies, {
         ...session,
         tokenSet: updatedTokenSet
@@ -690,7 +692,7 @@ export class AuthClient {
   async getTokenSet(
     tokenSet: TokenSet,
     forceRefresh?: boolean | undefined
-  ): Promise<[null, TokenSet] | [SdkError, null]> {
+  ): Promise<[null, GetTokenSetResponse] | [SdkError, null]> {
     // the access token has expired but we do not have a refresh token
     if (!tokenSet.refreshToken && tokenSet.expiresAt <= Date.now() / 1000) {
       return [
@@ -702,70 +704,74 @@ export class AuthClient {
       ];
     }
 
-    if (tokenSet.refreshToken) {
-      // either the access token has expired or we are forcing a refresh
-      if (forceRefresh || tokenSet.expiresAt <= Date.now() / 1000) {
-        const [discoveryError, authorizationServerMetadata] =
-          await this.discoverAuthorizationServerMetadata();
+    // either the access token has expired or we are forcing a refresh
+    if (
+      tokenSet.refreshToken &&
+      (forceRefresh || tokenSet.expiresAt <= Date.now() / 1000)
+    ) {
+      const [discoveryError, authorizationServerMetadata] =
+        await this.discoverAuthorizationServerMetadata();
 
-        if (discoveryError) {
-          console.error(discoveryError);
-          return [discoveryError, null];
+      if (discoveryError) {
+        console.error(discoveryError);
+        return [discoveryError, null];
+      }
+
+      const refreshTokenRes = await oauth.refreshTokenGrantRequest(
+        authorizationServerMetadata,
+        this.clientMetadata,
+        await this.getClientAuth(),
+        tokenSet.refreshToken,
+        {
+          ...this.httpOptions(),
+          [oauth.customFetch]: this.fetch,
+          [oauth.allowInsecureRequests]: this.allowInsecureRequests
         }
+      );
 
-        const refreshTokenRes = await oauth.refreshTokenGrantRequest(
+      let oauthRes: oauth.TokenEndpointResponse;
+      try {
+        oauthRes = await oauth.processRefreshTokenResponse(
           authorizationServerMetadata,
           this.clientMetadata,
-          await this.getClientAuth(),
-          tokenSet.refreshToken,
-          {
-            ...this.httpOptions(),
-            [oauth.customFetch]: this.fetch,
-            [oauth.allowInsecureRequests]: this.allowInsecureRequests
-          }
+          refreshTokenRes
         );
-
-        let oauthRes: oauth.TokenEndpointResponse;
-        try {
-          oauthRes = await oauth.processRefreshTokenResponse(
-            authorizationServerMetadata,
-            this.clientMetadata,
-            refreshTokenRes
-          );
-        } catch (e: any) {
-          console.error(e);
-          return [
-            new AccessTokenError(
-              AccessTokenErrorCode.FAILED_TO_REFRESH_TOKEN,
-              "The access token has expired and there was an error while trying to refresh it. Check the server logs for more information."
-            ),
-            null
-          ];
-        }
-
-        const accessTokenExpiresAt =
-          Math.floor(Date.now() / 1000) + Number(oauthRes.expires_in);
-
-        const updatedTokenSet = {
-          ...tokenSet, // contains the existing `iat` claim to maintain the session lifetime
-          accessToken: oauthRes.access_token,
-          idToken: oauthRes.id_token,
-          expiresAt: accessTokenExpiresAt
-        };
-
-        if (oauthRes.refresh_token) {
-          // refresh token rotation is enabled, persist the new refresh token from the response
-          updatedTokenSet.refreshToken = oauthRes.refresh_token;
-        } else {
-          // we did not get a refresh token back, keep the current long-lived refresh token around
-          updatedTokenSet.refreshToken = tokenSet.refreshToken;
-        }
-
-        return [null, updatedTokenSet];
+      } catch (e: any) {
+        console.error(e);
+        return [
+          new AccessTokenError(
+            AccessTokenErrorCode.FAILED_TO_REFRESH_TOKEN,
+            "The access token has expired and there was an error while trying to refresh it. Check the server logs for more information."
+          ),
+          null
+        ];
       }
+
+      const idTokenClaims = oauth.getValidatedIdTokenClaims(oauthRes)!;
+      const filteredClaims = filterClaims(idTokenClaims);
+
+      const accessTokenExpiresAt =
+        Math.floor(Date.now() / 1000) + Number(oauthRes.expires_in);
+
+      const updatedTokenSet = {
+        ...tokenSet, // contains the existing `iat` claim to maintain the session lifetime
+        accessToken: oauthRes.access_token,
+        idToken: oauthRes.id_token,
+        expiresAt: accessTokenExpiresAt
+      };
+
+      if (oauthRes.refresh_token) {
+        // refresh token rotation is enabled, persist the new refresh token from the response
+        updatedTokenSet.refreshToken = oauthRes.refresh_token;
+      } else {
+        // we did not get a refresh token back, keep the current long-lived refresh token around
+        updatedTokenSet.refreshToken = tokenSet.refreshToken;
+      }
+
+      return [null, { tokenSet: updatedTokenSet, user: filteredClaims }];
     }
 
-    return [null, tokenSet];
+    return [null, { tokenSet }];
   }
 
   private async discoverAuthorizationServerMetadata(): Promise<
@@ -1135,55 +1141,6 @@ export class AuthClient {
 
     return [null, connectionTokenSet] as [null, ConnectionTokenSet];
   }
-
-  private async verifyIdToken(
-    idToken: string
-  ): Promise<[null, jose.JWTPayload] | [SdkError, null]> {
-    const [discoveryError, authorizationServerMetadata] =
-      await this.discoverAuthorizationServerMetadata();
-    if (discoveryError) {
-      return [discoveryError, null];
-    }
-    if (!authorizationServerMetadata.jwks_uri) {
-      return [new DiscoveryError("JWKS URI not found in metadata"), null];
-    }
-    if (!authorizationServerMetadata.issuer) {
-      return [new DiscoveryError("Issuer not found in metadata"), null];
-    }
-
-    const keyInput = jose.createRemoteJWKSet(
-      new URL(authorizationServerMetadata.jwks_uri)
-    );
-
-    const ID_TOKEN_SIGNING_ALG = "RS256";
-
-    try {
-      const { payload } = await jose.jwtVerify(idToken, keyInput, {
-        issuer: authorizationServerMetadata.issuer,
-        audience: this.clientMetadata.client_id,
-        algorithms: [ID_TOKEN_SIGNING_ALG]
-      });
-      return [null, payload];
-    } catch (e: any) {
-      return [
-        new OAuth2Error({
-          code: e.code || "ID_TOKEN_VERIFICATION_FAILED",
-          message: e.message || "ID token verification failed."
-        }),
-        null
-      ];
-    }
-  }
-
-  public async getUserFromIdToken(
-    idToken: string
-  ): Promise<[null, User] | [SdkError, null]> {
-    const [error, claims] = await this.verifyIdToken(idToken);
-    if (error) {
-      return [error, null];
-    }
-    return [null, filterClaims(claims)];
-  }
 }
 
 const encodeBase64 = (input: string) => {
@@ -1197,4 +1154,9 @@ const encodeBase64 = (input: string) => {
     );
   }
   return btoa(arr.join(""));
+};
+
+export type GetTokenSetResponse = {
+  tokenSet: TokenSet;
+  user?: User;
 };
