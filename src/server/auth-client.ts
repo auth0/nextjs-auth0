@@ -25,7 +25,8 @@ import {
   LogoutToken,
   SessionData,
   StartInteractiveLoginOptions,
-  TokenSet
+  TokenSet,
+  User
 } from "../types/index.js";
 import {
   ensureNoLeadingSlash,
@@ -633,7 +634,9 @@ export class AuthClient {
       );
     }
 
-    const [error, updatedTokenSet] = await this.getTokenSet(session.tokenSet);
+    const [error, getTokenSetResponse] = await this.getTokenSet(
+      session.tokenSet
+    );
 
     if (error) {
       return NextResponse.json(
@@ -648,17 +651,17 @@ export class AuthClient {
         }
       );
     }
+
+    const { tokenSet: updatedTokenSet, user } = getTokenSetResponse;
+
     const res = NextResponse.json({
       token: updatedTokenSet.accessToken,
       scope: updatedTokenSet.scope,
       expires_at: updatedTokenSet.expiresAt
     });
 
-    if (
-      updatedTokenSet.accessToken !== session.tokenSet.accessToken ||
-      updatedTokenSet.refreshToken !== session.tokenSet.refreshToken ||
-      updatedTokenSet.expiresAt !== session.tokenSet.expiresAt
-    ) {
+    if (user) {
+      session.user = user;
       await this.sessionStore.set(req.cookies, res.cookies, {
         ...session,
         tokenSet: updatedTokenSet
@@ -716,7 +719,7 @@ export class AuthClient {
   async getTokenSet(
     tokenSet: TokenSet,
     forceRefresh?: boolean | undefined
-  ): Promise<[null, TokenSet] | [SdkError, null]> {
+  ): Promise<[null, GetTokenSetResponse] | [SdkError, null]> {
     // the access token has expired but we do not have a refresh token
     if (!tokenSet.refreshToken && tokenSet.expiresAt <= Date.now() / 1000) {
       return [
@@ -771,6 +774,9 @@ export class AuthClient {
           ];
         }
 
+        const idTokenClaims = oauth.getValidatedIdTokenClaims(oauthRes)!;
+        const filteredClaims = filterDefaultIdTokenClaims(idTokenClaims);
+
         const accessTokenExpiresAt =
           Math.floor(Date.now() / 1000) + Number(oauthRes.expires_in);
 
@@ -789,11 +795,11 @@ export class AuthClient {
           updatedTokenSet.refreshToken = tokenSet.refreshToken;
         }
 
-        return [null, updatedTokenSet];
+        return [null, { tokenSet: updatedTokenSet, user: filteredClaims }];
       }
     }
 
-    return [null, tokenSet];
+    return [null, { tokenSet }];
   }
 
   private async discoverAuthorizationServerMetadata(): Promise<
@@ -1174,4 +1180,9 @@ const encodeBase64 = (input: string) => {
     );
   }
   return btoa(arr.join(""));
+};
+
+export type GetTokenSetResponse = {
+  tokenSet: TokenSet;
+  user?: User;
 };

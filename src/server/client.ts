@@ -7,9 +7,8 @@ import {
   AccessTokenError,
   AccessTokenErrorCode,
   AccessTokenForConnectionError,
-  AccessTokenForConnectionErrorCode,
+  AccessTokenForConnectionErrorCode
 } from "../errors/index.js";
-
 import {
   AccessTokenForConnectionOptions,
   AuthorizationParameters,
@@ -420,20 +419,17 @@ export class Auth0Client {
       );
     }
 
-    const [error, tokenSet] = await this.authClient.getTokenSet(
+    const [error, getTokenSetResponse] = await this.authClient.getTokenSet(
       session.tokenSet,
       options.refresh
     );
     if (error) {
       throw error;
     }
-
+    const { tokenSet, user } = getTokenSetResponse;
     // update the session with the new token set, if necessary
-    if (
-      tokenSet.accessToken !== session.tokenSet.accessToken ||
-      tokenSet.expiresAt !== session.tokenSet.expiresAt ||
-      tokenSet.refreshToken !== session.tokenSet.refreshToken
-    ) {
+    if (user) {
+      session.user = user;
       await this.saveToSession(
         {
           ...session,
