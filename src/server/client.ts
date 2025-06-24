@@ -34,7 +34,6 @@ import {
   TransactionCookieOptions,
   TransactionStore
 } from "./transaction-store.js";
-import { filterDefaultIdTokenClaims } from "./user.js";
 
 export interface Auth0ClientOptions {
   // authorization server configuration
@@ -188,7 +187,6 @@ export class Auth0Client {
   private transactionStore: TransactionStore;
   private sessionStore: AbstractSessionStore;
   private authClient: AuthClient;
-  private readonly beforeSessionSaved?: BeforeSessionSavedHook;
 
   constructor(options: Auth0ClientOptions = {}) {
     // Extract and validate required options
@@ -255,8 +253,6 @@ export class Auth0Client {
           secret,
           cookieOptions: sessionCookieOptions
         });
-
-    this.beforeSessionSaved = options.beforeSessionSaved;
 
     this.authClient = new AuthClient({
       transactionStore: this.transactionStore,
@@ -430,29 +426,22 @@ export class Auth0Client {
     if (error) {
       throw error;
     }
-    const { tokenSet, user } = getTokenSetResponse;
+    const { tokenSet, idTokenClaims: user } = getTokenSetResponse;
     // update the session with the new token set, if necessary
     if (
       tokenSet.accessToken !== session.tokenSet.accessToken ||
       tokenSet.expiresAt !== session.tokenSet.expiresAt ||
       tokenSet.refreshToken !== session.tokenSet.refreshToken
     ) {
-      let finalSession = session;
       if (user) {
-        finalSession.user = user!;
+        session.user = user!;
       }
-      if (this.beforeSessionSaved) {
-        const updatedSession = await this.beforeSessionSaved(
-          finalSession,
-          tokenSet.idToken ?? null
-        );
-        finalSession = {
-          ...updatedSession,
-          internal: finalSession.internal
-        };
-      } else {
-        finalSession.user = filterDefaultIdTokenClaims(finalSession.user);
-      }
+      // call beforeSessionSaved callback if present
+      // if not then filter id_token claims with default rules
+      const finalSession = await this.authClient.finalizeSession(
+        session,
+        tokenSet.idToken
+      );
       await this.saveToSession(
         {
           ...finalSession,

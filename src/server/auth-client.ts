@@ -578,18 +578,9 @@ export class AuthClient {
 
     const res = await this.onCallback(null, onCallbackCtx, session);
 
-    if (this.beforeSessionSaved) {
-      const updatedSession = await this.beforeSessionSaved(
-        session,
-        oidcRes.id_token ?? null
-      );
-      session = {
-        ...updatedSession,
-        internal: session.internal
-      };
-    } else {
-      session.user = filterDefaultIdTokenClaims(idTokenClaims);
-    }
+    // call beforeSessionSaved callback if present
+    // if not then filter id_token claims with default rules
+    session = await this.finalizeSession(session, oidcRes.id_token);
 
     await this.sessionStore.set(req.cookies, res.cookies, session, true);
     addCacheControlHeadersForSession(res);
@@ -652,7 +643,8 @@ export class AuthClient {
       );
     }
 
-    const { tokenSet: updatedTokenSet, user } = getTokenSetResponse;
+    const { tokenSet: updatedTokenSet, idTokenClaims: user } =
+      getTokenSetResponse;
 
     const res = NextResponse.json({
       token: updatedTokenSet.accessToken,
@@ -665,23 +657,15 @@ export class AuthClient {
       updatedTokenSet.expiresAt !== session.tokenSet.expiresAt ||
       updatedTokenSet.refreshToken !== session.tokenSet.refreshToken
     ) {
-      let finalSession = session;
       if (user) {
-        finalSession.user = user!;
+        session.user = user!;
       }
-      if (this.beforeSessionSaved) {
-        const updatedSession = await this.beforeSessionSaved(
-          finalSession,
-          updatedTokenSet.idToken ?? null
-        );
-        finalSession = {
-          ...updatedSession,
-          internal: finalSession.internal
-        };
-      } else {
-        finalSession.user = filterDefaultIdTokenClaims(finalSession.user);
-      }
-
+      // call beforeSessionSaved callback if present
+      // if not then filter id_token claims with default rules
+      const finalSession = await this.finalizeSession(
+        session,
+        updatedTokenSet.idToken
+      );
       await this.sessionStore.set(req.cookies, res.cookies, {
         ...finalSession,
         tokenSet: updatedTokenSet
@@ -733,8 +717,23 @@ export class AuthClient {
   }
 
   /**
-   * getTokenSet returns a valid token set. If the access token has expired, it will attempt to
-   * refresh it using the refresh token, if available.
+   * Retrieves OAuth token sets, handling token refresh when necessary or if forced.
+   * Returns TokenSet and ID token claims, if available.
+   *
+   * @param tokenSet - The current token set containing access token, refresh token, and expiration info
+   * @param forceRefresh - Optional flag to force token refresh even if the access token hasn't expired
+   *
+   * @returns A tuple containing either:
+   *   - `[SdkError, null]` if an error occurred (missing refresh token, discovery failure, or refresh failure)
+   *   - `[null, {tokenSet, idTokenClaims}]` if a new token was retrieved, containing the new token set ID token claims
+   *   - `[null, {tokenSet, }]` if token refresh was not done and existing token was returned
+   *
+   * @remarks
+   * - If the access token has expired and no refresh token is available, returns a MISSING_REFRESH_TOKEN error
+   * - If a refresh token is present and the token is expired (or forceRefresh is true), attempts to refresh
+   * - Retrieves and returns id_token claims in the case of RT flow.
+   * - Handles refresh token rotation by updating the refresh token if a new one is provided
+   * - Maintains session lifetime by preserving the original `iat` claim from the existing token set
    */
   async getTokenSet(
     tokenSet: TokenSet,
@@ -817,13 +816,13 @@ export class AuthClient {
           null,
           {
             tokenSet: updatedTokenSet,
-            user: idTokenClaims
+            idTokenClaims: idTokenClaims
           }
         ];
       }
     }
 
-    return [null, { tokenSet }];
+    return [null, { tokenSet, idTokenClaims: undefined }];
   }
 
   private async discoverAuthorizationServerMetadata(): Promise<
@@ -1191,6 +1190,41 @@ export class AuthClient {
 
     return [null, connectionTokenSet] as [null, ConnectionTokenSet];
   }
+
+  /**
+   * Filters and processes ID token claims for a session.
+   *
+   * If a `beforeSessionSaved` callback is configured, it will be invoked to allow
+   * custom processing of the session and ID token. Otherwise, default filtering
+   * will be applied to remove standard ID token claims from the user object.
+   *
+   * @param session - The session data object containing user information and internal metadata
+   * @param idToken - The raw ID token string from the authentication provider
+   * @returns Promise that resolves when the session has been processed and filtered
+   *
+   * @remarks
+   * This method modifies the session object in place. When using a custom
+   * `beforeSessionSaved` callback, the internal session metadata is preserved
+   * and merged with the updated session data.
+   */
+  async finalizeSession(
+    session: SessionData,
+    idToken?: string
+  ): Promise<SessionData> {
+    if (this.beforeSessionSaved) {
+      const updatedSession = await this.beforeSessionSaved(
+        session,
+        idToken ?? null
+      );
+      session = {
+        ...updatedSession,
+        internal: session.internal
+      };
+    } else {
+      session.user = filterDefaultIdTokenClaims(session.user);
+    }
+    return session;
+  }
 }
 
 const encodeBase64 = (input: string) => {
@@ -1206,7 +1240,7 @@ const encodeBase64 = (input: string) => {
   return btoa(arr.join(""));
 };
 
-export type GetTokenSetResponse = {
+type GetTokenSetResponse = {
   tokenSet: TokenSet;
-  user?: User;
+  idTokenClaims?: User;
 };
