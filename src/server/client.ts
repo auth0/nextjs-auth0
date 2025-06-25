@@ -14,7 +14,8 @@ import {
   AuthorizationParameters,
   SessionData,
   SessionDataStore,
-  StartInteractiveLoginOptions
+  StartInteractiveLoginOptions,
+  User
 } from "../types/index.js";
 import {
   AuthClient,
@@ -426,15 +427,15 @@ export class Auth0Client {
     if (error) {
       throw error;
     }
-    const { tokenSet, idTokenClaims: user } = getTokenSetResponse;
+    const { tokenSet, idTokenClaims } = getTokenSetResponse;
     // update the session with the new token set, if necessary
     if (
       tokenSet.accessToken !== session.tokenSet.accessToken ||
       tokenSet.expiresAt !== session.tokenSet.expiresAt ||
       tokenSet.refreshToken !== session.tokenSet.refreshToken
     ) {
-      if (user) {
-        session.user = user!;
+      if (idTokenClaims) {
+        session.user = idTokenClaims as User;
       }
       // call beforeSessionSaved callback if present
       // if not then filter id_token claims with default rules

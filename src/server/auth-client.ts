@@ -643,8 +643,7 @@ export class AuthClient {
       );
     }
 
-    const { tokenSet: updatedTokenSet, idTokenClaims: user } =
-      getTokenSetResponse;
+    const { tokenSet: updatedTokenSet, idTokenClaims } = getTokenSetResponse;
 
     const res = NextResponse.json({
       token: updatedTokenSet.accessToken,
@@ -657,8 +656,8 @@ export class AuthClient {
       updatedTokenSet.expiresAt !== session.tokenSet.expiresAt ||
       updatedTokenSet.refreshToken !== session.tokenSet.refreshToken
     ) {
-      if (user) {
-        session.user = user;
+      if (idTokenClaims) {
+        session.user = idTokenClaims as User;
       }
       // call beforeSessionSaved callback if present
       // if not then filter id_token claims with default rules
@@ -1222,5 +1221,5 @@ const encodeBase64 = (input: string) => {
 
 type GetTokenSetResponse = {
   tokenSet: TokenSet;
-  idTokenClaims?: User;
+  idTokenClaims?: { [key: string]: any };
 };
