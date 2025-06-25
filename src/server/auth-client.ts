@@ -658,7 +658,7 @@ export class AuthClient {
       updatedTokenSet.refreshToken !== session.tokenSet.refreshToken
     ) {
       if (user) {
-        session.user = user!;
+        session.user = user;
       }
       // call beforeSessionSaved callback if present
       // if not then filter id_token claims with default rules
@@ -718,22 +718,11 @@ export class AuthClient {
 
   /**
    * Retrieves OAuth token sets, handling token refresh when necessary or if forced.
-   * Returns TokenSet and ID token claims, if available.
-   *
-   * @param tokenSet - The current token set containing access token, refresh token, and expiration info
-   * @param forceRefresh - Optional flag to force token refresh even if the access token hasn't expired
    *
    * @returns A tuple containing either:
    *   - `[SdkError, null]` if an error occurred (missing refresh token, discovery failure, or refresh failure)
    *   - `[null, {tokenSet, idTokenClaims}]` if a new token was retrieved, containing the new token set ID token claims
    *   - `[null, {tokenSet, }]` if token refresh was not done and existing token was returned
-   *
-   * @remarks
-   * - If the access token has expired and no refresh token is available, returns a MISSING_REFRESH_TOKEN error
-   * - If a refresh token is present and the token is expired (or forceRefresh is true), attempts to refresh
-   * - Retrieves and returns id_token claims in the case of RT flow.
-   * - Handles refresh token rotation by updating the refresh token if a new one is provided
-   * - Maintains session lifetime by preserving the original `iat` claim from the existing token set
    */
   async getTokenSet(
     tokenSet: TokenSet,
@@ -1197,15 +1186,6 @@ export class AuthClient {
    * If a `beforeSessionSaved` callback is configured, it will be invoked to allow
    * custom processing of the session and ID token. Otherwise, default filtering
    * will be applied to remove standard ID token claims from the user object.
-   *
-   * @param session - The session data object containing user information and internal metadata
-   * @param idToken - The raw ID token string from the authentication provider
-   * @returns Promise that resolves when the session has been processed and filtered
-   *
-   * @remarks
-   * This method modifies the session object in place. When using a custom
-   * `beforeSessionSaved` callback, the internal session metadata is preserved
-   * and merged with the updated session data.
    */
   async finalizeSession(
     session: SessionData,
