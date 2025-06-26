@@ -254,7 +254,7 @@ export class AuthClient {
 
     // routes
     this.routes = {
-      login: "/auth/login",
+      login: process.env.NEXT_PUBLIC_LOGIN_ROUTE || "/auth/login",
       logout: "/auth/logout",
       callback: "/auth/callback",
       backChannelLogout: "/auth/backchannel-logout",
