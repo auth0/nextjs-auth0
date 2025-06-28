@@ -13,10 +13,10 @@ export const DEFAULT_ID_TOKEN_CLAIMS = [
   "email",
   "email_verified",
   "org_id",
-  ...(process.env.AUTH0_ID_TOKEN_CLAIMS_CUSTOM || '')
-      .split(',')
-      .map((c) => c.trim())
-      .filter(Boolean),
+  ...(process.env.AUTH0_ID_TOKEN_CLAIMS_CUSTOM || "")
+    .split(",")
+    .map((c) => c.trim())
+    .filter(Boolean)
 ];
 
 /**
