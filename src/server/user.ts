@@ -12,7 +12,11 @@ export const DEFAULT_ID_TOKEN_CLAIMS = [
   "picture",
   "email",
   "email_verified",
-  "org_id"
+  "org_id",
+  ...(process.env.AUTH0_ID_TOKEN_CLAIMS_CUSTOM || '')
+      .split(',')
+      .map((c) => c.trim())
+      .filter(Boolean),
 ];
 
 /**
