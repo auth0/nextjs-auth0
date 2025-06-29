@@ -156,7 +156,7 @@ export class StatefulSessionStore extends AbstractSessionStore {
       this.sessionCookieName !== LEGACY_COOKIE_NAME &&
       reqCookies.has(LEGACY_COOKIE_NAME)
     ) {
-      resCookies.delete(LEGACY_COOKIE_NAME);
+      cookies.deleteCookie(resCookies, LEGACY_COOKIE_NAME);
     }
   }
 
@@ -165,7 +165,7 @@ export class StatefulSessionStore extends AbstractSessionStore {
     resCookies: cookies.ResponseCookies
   ) {
     const cookieValue = reqCookies.get(this.sessionCookieName)?.value;
-    await resCookies.delete(this.sessionCookieName);
+    cookies.deleteCookie(resCookies, this.sessionCookieName);
 
     if (!cookieValue) {
       return;

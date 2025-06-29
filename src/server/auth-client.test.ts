@@ -2098,7 +2098,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       // session cookie is cleared
       const cookie = response.cookies.get("__session");
       expect(cookie?.value).toEqual("");
-      expect(cookie?.expires).toEqual(new Date("1970-01-01T00:00:00.000Z"));
+      expect(cookie?.maxAge).toEqual(0);
     });
 
     it("should use the returnTo URL as the post_logout_redirect_uri if provided", async () => {
@@ -2170,7 +2170,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       // session cookie is cleared
       const cookie = response.cookies.get("__session");
       expect(cookie?.value).toEqual("");
-      expect(cookie?.expires).toEqual(new Date("1970-01-01T00:00:00.000Z"));
+      expect(cookie?.maxAge).toEqual(0);
     });
 
     it("should not include the id_token_hint parameter if a session does not exist", async () => {
@@ -2258,7 +2258,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       // session cookie is cleared
       const cookie = response.cookies.get("__session");
       expect(cookie?.value).toEqual("");
-      expect(cookie?.expires).toEqual(new Date("1970-01-01T00:00:00.000Z"));
+      expect(cookie?.maxAge).toEqual(0);
     });
 
     it("should fallback to the /v2/logout endpoint if the client does not have RP-Initiated Logout enabled", async () => {
@@ -2317,7 +2317,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       // session cookie is cleared
       const cookie = response.cookies.get("__session");
       expect(cookie?.value).toEqual("");
-      expect(cookie?.expires).toEqual(new Date("1970-01-01T00:00:00.000Z"));
+      expect(cookie?.maxAge).toEqual(0);
     });
 
     it("should return an error if the discovery endpoint could not be fetched", async () => {
@@ -2577,9 +2577,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const transactionCookie = response.cookies.get(`__txn_${state}`);
       expect(transactionCookie).toBeDefined();
       expect(transactionCookie!.value).toEqual("");
-      expect(transactionCookie!.expires).toEqual(
-        new Date("1970-01-01T00:00:00.000Z")
-      );
+      expect(transactionCookie!.maxAge).toEqual(0);
     });
 
     describe("when a base path is defined", async () => {
@@ -2760,9 +2758,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const transactionCookie = response.cookies.get(`__txn_${state}`);
       expect(transactionCookie).toBeDefined();
       expect(transactionCookie!.value).toEqual("");
-      expect(transactionCookie!.expires).toEqual(
-        new Date("1970-01-01T00:00:00.000Z")
-      );
+      expect(transactionCookie!.maxAge).toEqual(0);
     });
 
     it("should return an error if the state parameter is missing", async () => {

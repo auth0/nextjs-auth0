@@ -219,7 +219,7 @@ export function setChunkedCookie(
 
     // When we are writing a non-chunked cookie, we should remove the chunked cookies
     getAllChunkedCookies(reqCookies, name).forEach((cookieChunk) => {
-      resCookies.delete(cookieChunk.name);
+      deleteCookie(resCookies, cookieChunk.name);
       reqCookies.delete(cookieChunk.name);
     });
 
@@ -249,13 +249,13 @@ export function setChunkedCookie(
     for (let i = 0; i < chunksToRemove; i++) {
       const chunkIndexToRemove = chunkIndex + i;
       const chunkName = `${name}${CHUNK_PREFIX}${chunkIndexToRemove}`;
-      resCookies.delete(chunkName);
+      deleteCookie(resCookies, chunkName);
       reqCookies.delete(chunkName);
     }
   }
 
   // When we have written chunked cookies, we should remove the non-chunked cookie
-  resCookies.delete(name);
+  deleteCookie(resCookies, name);
   reqCookies.delete(name);
 }
 
@@ -324,10 +324,10 @@ export function deleteChunkedCookie(
   isLegacyCookie?: boolean
 ): void {
   // Delete main cookie
-  resCookies.delete(name);
+  deleteCookie(resCookies, name);
 
   getAllChunkedCookies(reqCookies, name, isLegacyCookie).forEach((cookie) => {
-    resCookies.delete(cookie.name); // Delete each filtered cookie
+    deleteCookie(resCookies, cookie.name); // Delete each filtered cookie
   });
 }
 
@@ -348,4 +348,10 @@ export function addCacheControlHeadersForSession(res: NextResponse): void {
   );
   res.headers.set("Pragma", "no-cache");
   res.headers.set("Expires", "0");
+}
+
+export function deleteCookie(resCookies: ResponseCookies, name: string) {
+  resCookies.set(name, "", {
+    maxAge: 0 // Ensure the cookie is deleted immediately
+  });
 }
