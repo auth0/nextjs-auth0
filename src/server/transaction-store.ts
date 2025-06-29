@@ -118,7 +118,7 @@ export class TransactionStore {
   }
 
   async delete(resCookies: cookies.ResponseCookies, state: string) {
-    await resCookies.delete(this.getTransactionCookieName(state));
+    cookies.deleteCookie(resCookies, this.getTransactionCookieName(state));
   }
 
   /**
@@ -131,7 +131,7 @@ export class TransactionStore {
     const txnPrefix = this.getCookiePrefix();
     reqCookies.getAll().forEach((cookie) => {
       if (cookie.name.startsWith(txnPrefix)) {
-        resCookies.delete(cookie.name);
+        cookies.deleteCookie(resCookies, cookie.name);
       }
     });
   }
