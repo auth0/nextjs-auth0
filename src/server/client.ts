@@ -7,9 +7,8 @@ import {
   AccessTokenError,
   AccessTokenErrorCode,
   AccessTokenForConnectionError,
-  AccessTokenForConnectionErrorCode,
+  AccessTokenForConnectionErrorCode
 } from "../errors/index.js";
-
 import {
   AccessTokenForConnectionOptions,
   AuthorizationParameters,
@@ -24,6 +23,13 @@ import {
   RoutesOptions
 } from "./auth-client.js";
 import { RequestCookies, ResponseCookies } from "./cookies.js";
+import {
+  appRouteHandlerFactory,
+  AppRouterPageRoute,
+  pageRouteHandlerFactory,
+  WithPageAuthRequiredAppRouterOptions,
+  WithPageAuthRequiredPageRouterOptions
+} from "./helpers/with-page-auth-required.js";
 import {
   AbstractSessionStore,
   SessionConfiguration,
@@ -188,8 +194,12 @@ export class Auth0Client {
   private transactionStore: TransactionStore;
   private sessionStore: AbstractSessionStore;
   private authClient: AuthClient;
+  private options: Auth0ClientOptions;
 
   constructor(options: Auth0ClientOptions = {}) {
+    // TODO: temporary hack to figure out how to handle the case where a custom login route is specified
+    this.options = options;
+
     // Extract and validate required options
     const {
       domain,
@@ -681,6 +691,27 @@ export class Auth0Client {
     options: StartInteractiveLoginOptions
   ): Promise<NextResponse> {
     return this.authClient.startInteractiveLogin(options);
+  }
+
+  withPageAuthRequired(
+    fnOrOpts?: WithPageAuthRequiredPageRouterOptions | AppRouterPageRoute,
+    opts?: WithPageAuthRequiredAppRouterOptions
+  ) {
+    const config = {
+      // TODO: temporary hack to figure out how to handle the case where a custom login route is specified
+      loginUrl:
+        this.options.routes?.login ||
+        process.env.NEXT_PUBLIC_LOGIN_ROUTE ||
+        "/auth/login"
+    };
+    const appRouteHandler = appRouteHandlerFactory(this, config);
+    const pageRouteHandler = pageRouteHandlerFactory(this, config);
+
+    if (typeof fnOrOpts === "function") {
+      return appRouteHandler(fnOrOpts, opts);
+    }
+
+    return pageRouteHandler(fnOrOpts);
   }
 
   private async saveToSession(
