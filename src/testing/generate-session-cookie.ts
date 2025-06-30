@@ -1,5 +1,5 @@
-import { encrypt } from "../server/cookies";
-import { SessionData } from "../types";
+import { encrypt } from "../server/cookies.js";
+import { SessionData } from "../types/index.js";
 
 export type GenerateSessionCookieConfig = {
   /**

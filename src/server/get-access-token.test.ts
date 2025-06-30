@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server.js";
 import * as jose from "jose";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
@@ -13,8 +13,8 @@ import {
   vi
 } from "vitest";
 
-import { SessionData, TokenSet } from "../types";
-import { Auth0Client } from "./client";
+import { SessionData, TokenSet } from "../types/index.js";
+import { Auth0Client } from "./client.js";
 
 // Basic constants for testing
 const DEFAULT = {

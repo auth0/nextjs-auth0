@@ -574,12 +574,12 @@ When calling `getAccessToken` without request and response objects, you can pass
 
 ```typescript
 // app/api/my-api/route.ts
-import { getAccessToken } from '@auth0/nextjs-auth0';
+import { auth0 } from "@/lib/auth0"
 
 export async function GET() {
   try {
     // Force a refresh of the access token
-    const { token, expiresAt } = await getAccessToken({ refresh: true });
+    const { token, expiresAt } = await auth0.getAccessToken({ refresh: true });
 
     // Use the refreshed token
     // ...
@@ -662,18 +662,42 @@ The `beforeSessionSaved` hook is run right before the session is persisted. It p
 The hook recieves a `SessionData` object and an ID token. The function must return a Promise that resolves to a `SessionData` object: `(session: SessionData) => Promise<SessionData>`. For example:
 
 ```ts
+import { Auth0Client, filterDefaultIdTokenClaims } from "@auth0/nextjs-auth0/server"
+
 export const auth0 = new Auth0Client({
   async beforeSessionSaved(session, idToken) {
     return {
       ...session,
       user: {
-        ...session.user,
-        foo: "bar",
+        ...filterDefaultIdTokenClaims(session.user),
+        foo: session.user.foo, // keep the foo claim
       },
     }
   },
 })
 ```
+
+The `session.user` object passed to the `beforeSessionSaved` hook will contain every claim in the ID Token, including custom claims. You can use the `filterDefaultIdTokenClaims` utility to filter out the standard claims and only keep the custom claims you want to persist.
+
+> [!INFO]  
+> Incase you want to understand which claims are being considered the default Id Token Claims, you can refer to `DEFAULT_ID_TOKEN_CLAIMS`, which can be imported from the SDK from `@auth0/nextjs-auth0/server`:
+> 
+> ```ts
+> import { DEFAULT_ID_TOKEN_CLAIMS } from "@auth0/nextjs-auth0/server"
+> ```
+
+Alternatively, you can use the entire `session.user` object if you would like to include every claim in the ID Token by just returning the `session` like so:
+
+```ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server"
+
+export const auth0 = new Auth0Client({
+  async beforeSessionSaved(session, idToken) {
+    return session
+  },
+})
+```
+Do realize that this has an impact on the size of the cookie being issued, so it's best to limit the claims to only those that are necessary for your application.
 
 ### `onCallback`
 

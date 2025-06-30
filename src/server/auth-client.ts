@@ -1,14 +1,15 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server.js";
 import * as jose from "jose";
 import * as oauth from "oauth4webapi";
 
-import packageJson from "../../package.json";
+import packageJson from "../../package.json" with { type: "json" };
 import {
   AccessTokenError,
   AccessTokenErrorCode,
   AccessTokenForConnectionError,
   AccessTokenForConnectionErrorCode,
   AuthorizationCodeGrantError,
+  AuthorizationCodeGrantRequestError,
   AuthorizationError,
   BackchannelLogoutError,
   DiscoveryError,
@@ -16,7 +17,7 @@ import {
   MissingStateError,
   OAuth2Error,
   SdkError
-} from "../errors";
+} from "../errors/index.js";
 import {
   AccessTokenForConnectionOptions,
   AuthorizationParameters,
@@ -26,17 +27,18 @@ import {
   SessionData,
   StartInteractiveLoginOptions,
   TokenSet
-} from "../types";
+} from "../types/index.js";
 import {
   ensureNoLeadingSlash,
   ensureTrailingSlash,
+  normalizeWithBasePath,
   removeTrailingSlash
-} from "../utils/pathUtils";
-import { toSafeRedirect } from "../utils/url-helpers";
-import { addCacheControlHeadersForSession } from "./cookies";
-import { AbstractSessionStore } from "./session/abstract-session-store";
-import { TransactionState, TransactionStore } from "./transaction-store";
-import { filterClaims } from "./user";
+} from "../utils/pathUtils.js";
+import { toSafeRedirect } from "../utils/url-helpers.js";
+import { addCacheControlHeadersForSession } from "./cookies.js";
+import { AbstractSessionStore } from "./session/abstract-session-store.js";
+import { TransactionState, TransactionStore } from "./transaction-store.js";
+import { filterDefaultIdTokenClaims } from "./user.js";
 
 export type BeforeSessionSavedHook = (
   session: SessionData,
@@ -137,10 +139,14 @@ export interface AuthClientOptions {
   httpTimeout?: number;
   enableTelemetry?: boolean;
   enableAccessTokenEndpoint?: boolean;
+  noContentProfileResponseWhenUnauthenticated?: boolean;
 }
 
-function createRouteUrl(url: string, base: string) {
-  return new URL(ensureNoLeadingSlash(url), ensureTrailingSlash(base));
+function createRouteUrl(path: string, baseUrl: string) {
+  return new URL(
+    ensureNoLeadingSlash(normalizeWithBasePath(path)),
+    ensureTrailingSlash(baseUrl)
+  );
 }
 
 export class AuthClient {
@@ -172,6 +178,7 @@ export class AuthClient {
   private authorizationServerMetadata?: oauth.AuthorizationServer;
 
   private readonly enableAccessTokenEndpoint: boolean;
+  private readonly noContentProfileResponseWhenUnauthenticated: boolean;
 
   constructor(options: AuthClientOptions) {
     // dependencies
@@ -271,6 +278,8 @@ export class AuthClient {
     };
 
     this.enableAccessTokenEndpoint = options.enableAccessTokenEndpoint ?? true;
+    this.noContentProfileResponseWhenUnauthenticated =
+      options.noContentProfileResponseWhenUnauthenticated ?? false;
   }
 
   async handler(req: NextRequest): Promise<NextResponse> {
@@ -332,7 +341,10 @@ export class AuthClient {
       const sanitizedReturnTo = toSafeRedirect(options.returnTo, safeBaseUrl);
 
       if (sanitizedReturnTo) {
-        returnTo = sanitizedReturnTo;
+        returnTo =
+          sanitizedReturnTo.pathname +
+          sanitizedReturnTo.search +
+          sanitizedReturnTo.hash;
       }
     }
 
@@ -545,20 +557,29 @@ export class AuthClient {
       );
     }
 
-    const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registed with the authorization server
-    const codeGrantResponse = await oauth.authorizationCodeGrantRequest(
-      authorizationServerMetadata,
-      this.clientMetadata,
-      await this.getClientAuth(),
-      codeGrantParams,
-      redirectUri.toString(),
-      transactionState.codeVerifier,
-      {
-        ...this.httpOptions(),
-        [oauth.customFetch]: this.fetch,
-        [oauth.allowInsecureRequests]: this.allowInsecureRequests
-      }
-    );
+    let codeGrantResponse: Response;
+    try {
+      const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registed with the authorization server
+      codeGrantResponse = await oauth.authorizationCodeGrantRequest(
+        authorizationServerMetadata,
+        this.clientMetadata,
+        await this.getClientAuth(),
+        codeGrantParams,
+        redirectUri.toString(),
+        transactionState.codeVerifier,
+        {
+          ...this.httpOptions(),
+          [oauth.customFetch]: this.fetch,
+          [oauth.allowInsecureRequests]: this.allowInsecureRequests
+        }
+      );
+    } catch (e: any) {
+      return this.onCallback(
+        new AuthorizationCodeGrantRequestError(e.message),
+        onCallbackCtx,
+        null
+      );
+    }
 
     let oidcRes: oauth.TokenEndpointResponse;
     try {
@@ -613,7 +634,7 @@ export class AuthClient {
         internal: session.internal
       };
     } else {
-      session.user = filterClaims(idTokenClaims);
+      session.user = filterDefaultIdTokenClaims(idTokenClaims);
     }
 
     await this.sessionStore.set(req.cookies, res.cookies, session, true);
@@ -627,6 +648,12 @@ export class AuthClient {
     const session = await this.sessionStore.get(req.cookies);
 
     if (!session) {
+      if (this.noContentProfileResponseWhenUnauthenticated) {
+        return new NextResponse(null, {
+          status: 204
+        });
+      }
+
       return new NextResponse(null, {
         status: 401
       });
@@ -755,7 +782,6 @@ export class AuthClient {
           await this.discoverAuthorizationServerMetadata();
 
         if (discoveryError) {
-          console.error(discoveryError);
           return [discoveryError, null];
         }
 
@@ -779,11 +805,14 @@ export class AuthClient {
             refreshTokenRes
           );
         } catch (e: any) {
-          console.error(e);
           return [
             new AccessTokenError(
               AccessTokenErrorCode.FAILED_TO_REFRESH_TOKEN,
-              "The access token has expired and there was an error while trying to refresh it. Check the server logs for more information."
+              "The access token has expired and there was an error while trying to refresh it.",
+              new OAuth2Error({
+                code: e.error,
+                message: e.error_description
+              })
             ),
             null
           ];
@@ -837,7 +866,7 @@ export class AuthClient {
       return [null, authorizationServerMetadata];
     } catch (e) {
       console.error(
-        `An error occured while performing the discovery request. Please make sure the AUTH0_DOMAIN environment variable is correctly configured — the format must be 'example.us.auth0.com'. issuer=${issuer.toString()}, error:`,
+        `An error occured while performing the discovery request. issuer=${issuer.toString()}, error:`,
         e
       );
       return [
@@ -1128,7 +1157,6 @@ export class AuthClient {
         await this.discoverAuthorizationServerMetadata();
 
       if (discoveryError) {
-        console.error(discoveryError);
         return [discoveryError, null];
       }
 
@@ -1152,11 +1180,10 @@ export class AuthClient {
           httpResponse
         );
       } catch (err: any) {
-        console.error(err);
         return [
           new AccessTokenForConnectionError(
             AccessTokenForConnectionErrorCode.FAILED_TO_EXCHANGE,
-            "There was an error trying to exchange the refresh token for a connection access token. Check the server logs for more information.",
+            "There was an error trying to exchange the refresh token for a connection access token.",
             new OAuth2Error({
               code: err.error,
               message: err.error_description

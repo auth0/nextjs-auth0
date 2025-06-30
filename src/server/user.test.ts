@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { filterClaims } from "./user";
+import { filterDefaultIdTokenClaims } from "./user.js";
 
-describe("filterClaims", async () => {
+describe("filterDefaultIdTokenClaims", async () => {
   it("should return only the allowed claims", () => {
     const claims = {
       sub: "user_123",
@@ -20,7 +20,7 @@ describe("filterClaims", async () => {
       exp: 1234567890
     };
 
-    expect(filterClaims(claims)).toEqual({
+    expect(filterDefaultIdTokenClaims(claims)).toEqual({
       sub: "user_123",
       name: "John Doe",
       nickname: "johndoe",
@@ -34,6 +34,6 @@ describe("filterClaims", async () => {
   });
 
   it("should return an empty object if no claims are provided", () => {
-    expect(filterClaims({})).toEqual({});
+    expect(filterDefaultIdTokenClaims({})).toEqual({});
   });
 });

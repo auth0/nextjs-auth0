@@ -1,15 +1,15 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server.js";
 import * as jose from "jose";
 import * as oauth from "oauth4webapi";
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { generateSecret } from "../test/utils";
-import { SessionData } from "../types";
-import { AuthClient } from "./auth-client";
-import { decrypt, encrypt } from "./cookies";
-import { StatefulSessionStore } from "./session/stateful-session-store";
-import { StatelessSessionStore } from "./session/stateless-session-store";
-import { TransactionState, TransactionStore } from "./transaction-store";
+import { generateSecret } from "../test/utils.js";
+import { SessionData } from "../types/index.js";
+import { AuthClient } from "./auth-client.js";
+import { decrypt, encrypt } from "./cookies.js";
+import { StatefulSessionStore } from "./session/stateful-session-store.js";
+import { StatelessSessionStore } from "./session/stateless-session-store.js";
+import { TransactionState, TransactionStore } from "./transaction-store.js";
 
 describe("Authentication Client", async () => {
   const DEFAULT = {
@@ -58,6 +58,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
   function getMockAuthorizationServer({
     tokenEndpointResponse,
     tokenEndpointErrorResponse,
+    tokenEndpointFetchError,
     discoveryResponse,
     audience,
     nonce,
@@ -66,6 +67,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
   }: {
     tokenEndpointResponse?: oauth.TokenEndpointResponse | oauth.OAuth2Error;
     tokenEndpointErrorResponse?: oauth.OAuth2Error;
+    tokenEndpointFetchError?: Error;
     discoveryResponse?: Response;
     audience?: string;
     nonce?: string;
@@ -86,6 +88,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
 
         if (url.pathname === "/oauth/token") {
+          if (tokenEndpointFetchError) {
+            throw tokenEndpointFetchError;
+          }
+
           const jwt = await new jose.SignJWT({
             sid: DEFAULT.sid,
             auth_time: Date.now(),
@@ -806,6 +812,89 @@ ca/T0LLtgmbMmxSv/MmzIg==
         delete process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE;
       });
     });
+
+    describe("with a base path", async () => {
+      beforeAll(() => {
+        process.env.NEXT_PUBLIC_BASE_PATH = "/base-path";
+      });
+
+      afterAll(() => {
+        delete process.env.NEXT_PUBLIC_BASE_PATH;
+      });
+
+      it("should call the appropriate handlers when routes are called with base path", async () => {
+        const testCases = [
+          {
+            path: "/auth/login",
+            method: "GET",
+            handler: "handleLogin"
+          },
+          {
+            path: "/auth/logout",
+            method: "GET",
+            handler: "handleLogout"
+          },
+          {
+            path: "/auth/callback",
+            method: "GET",
+            handler: "handleCallback"
+          },
+          {
+            path: "/auth/backchannel-logout",
+            method: "POST",
+            handler: "handleBackChannelLogout"
+          },
+          {
+            path: "/auth/profile",
+            method: "GET",
+            handler: "handleProfile"
+          },
+          {
+            path: "/auth/access-token",
+            method: "GET",
+            handler: "handleAccessToken"
+          }
+        ];
+
+        for (const testCase of testCases) {
+          const secret = await generateSecret(32);
+          const transactionStore = new TransactionStore({
+            secret
+          });
+          const sessionStore = new StatelessSessionStore({
+            secret
+          });
+          const authClient = new AuthClient({
+            transactionStore,
+            sessionStore,
+
+            domain: DEFAULT.domain,
+            clientId: DEFAULT.clientId,
+            clientSecret: DEFAULT.clientSecret,
+
+            secret,
+            appBaseUrl: DEFAULT.appBaseUrl,
+
+            fetch: getMockAuthorizationServer()
+          });
+
+          const request = new NextRequest(
+            // Next.js will strip the base path from the URL
+            new URL(
+              testCase.path,
+              `${DEFAULT.appBaseUrl}/${process.env.NEXT_PUBLIC_BASE_PATH}`
+            ),
+            {
+              method: testCase.method
+            }
+          );
+
+          (authClient as any)[testCase.handler] = vi.fn();
+          await authClient.handler(request);
+          expect((authClient as any)[testCase.handler]).toHaveBeenCalled();
+        }
+      });
+    });
   });
 
   describe("handleLogin", async () => {
@@ -916,6 +1005,55 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(authorizationUrl.searchParams.get("redirect_uri")).toEqual(
         `${DEFAULT.appBaseUrl}/sub-path/auth/callback`
       );
+    });
+
+    describe("with a base path", async () => {
+      beforeAll(() => {
+        process.env.NEXT_PUBLIC_BASE_PATH = "/base-path";
+      });
+
+      afterAll(() => {
+        delete process.env.NEXT_PUBLIC_BASE_PATH;
+      });
+
+      it("should prepend the base path to the redirect_uri", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: `${DEFAULT.appBaseUrl}`,
+
+          fetch: getMockAuthorizationServer()
+        });
+        const request = new NextRequest(
+          new URL(
+            process.env.NEXT_PUBLIC_BASE_PATH + "/auth/login",
+            DEFAULT.appBaseUrl
+          ),
+          {
+            method: "GET"
+          }
+        );
+
+        const response = await authClient.handleLogin(request);
+        const authorizationUrl = new URL(response.headers.get("Location")!);
+
+        expect(authorizationUrl.searchParams.get("redirect_uri")).toEqual(
+          `${DEFAULT.appBaseUrl}/base-path/auth/callback`
+        );
+      });
     });
 
     it("should return an error if the discovery endpoint could not be fetched", async () => {
@@ -1414,7 +1552,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           codeVerifier: expect.any(String),
           responseType: "code",
           state: authorizationUrl.searchParams.get("state"),
-          returnTo: "https://example.com/dashboard"
+          returnTo: "/dashboard"
         })
       );
     });
@@ -1598,6 +1736,79 @@ ca/T0LLtgmbMmxSv/MmzIg==
             returnTo: "/"
           })
         );
+      });
+
+      describe("with a base path", async () => {
+        beforeAll(() => {
+          process.env.NEXT_PUBLIC_BASE_PATH = "/base-path";
+        });
+
+        afterAll(() => {
+          delete process.env.NEXT_PUBLIC_BASE_PATH;
+        });
+
+        it("should prepend the base path to the redirect_uri", async () => {
+          const secret = await generateSecret(32);
+          const transactionStore = new TransactionStore({
+            secret
+          });
+          const sessionStore = new StatelessSessionStore({
+            secret
+          });
+          const authClient = new AuthClient({
+            transactionStore,
+            sessionStore,
+            domain: DEFAULT.domain,
+            clientId: DEFAULT.clientId,
+            clientSecret: DEFAULT.clientSecret,
+            pushedAuthorizationRequests: true,
+            secret,
+            appBaseUrl: DEFAULT.appBaseUrl,
+            fetch: getMockAuthorizationServer({
+              onParRequest: async (request) => {
+                const params = new URLSearchParams(await request.text());
+                expect(params.get("client_id")).toEqual(DEFAULT.clientId);
+                expect(params.get("redirect_uri")).toEqual(
+                  `${DEFAULT.appBaseUrl}/base-path/auth/callback`
+                );
+                expect(params.get("response_type")).toEqual("code");
+                expect(params.get("code_challenge")).toEqual(
+                  expect.any(String)
+                );
+                expect(params.get("code_challenge_method")).toEqual("S256");
+                expect(params.get("state")).toEqual(expect.any(String));
+                expect(params.get("nonce")).toEqual(expect.any(String));
+                expect(params.get("scope")).toEqual(
+                  "openid profile email offline_access"
+                );
+              }
+            })
+          });
+
+          const request = new NextRequest(
+            new URL(
+              process.env.NEXT_PUBLIC_BASE_PATH + "/auth/login",
+              DEFAULT.appBaseUrl
+            ),
+            {
+              method: "GET"
+            }
+          );
+
+          const response = await authClient.handleLogin(request);
+          expect(response.status).toEqual(307);
+          expect(response.headers.get("Location")).not.toBeNull();
+
+          const authorizationUrl = new URL(response.headers.get("Location")!);
+          expect(authorizationUrl.origin).toEqual(`https://${DEFAULT.domain}`);
+          // query parameters should only include the `request_uri` and not the standard auth params
+          expect(authorizationUrl.searchParams.get("request_uri")).toEqual(
+            DEFAULT.requestUri
+          );
+          expect(authorizationUrl.searchParams.get("client_id")).toEqual(
+            DEFAULT.clientId
+          );
+        });
       });
 
       describe("custom parameters to the authorization server", async () => {
@@ -2245,6 +2456,42 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(response.status).toEqual(401);
       expect(response.body).toBeNull();
     });
+
+    it("should return a 204 if the user is not authenticated and noContentProfileResponseWhenUnauthenticated is enabled", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        fetch: getMockAuthorizationServer(),
+
+        noContentProfileResponseWhenUnauthenticated: true
+      });
+
+      const request = new NextRequest(
+        new URL("/auth/profile", DEFAULT.appBaseUrl),
+        {
+          method: "GET"
+        }
+      );
+
+      const response = await authClient.handleProfile(request);
+      expect(response.status).toEqual(204);
+      expect(response.body).toBeNull();
+    });
   });
 
   describe("handleCallback", async () => {
@@ -2333,6 +2580,76 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(transactionCookie!.expires).toEqual(
         new Date("1970-01-01T00:00:00.000Z")
       );
+    });
+
+    describe("when a base path is defined", async () => {
+      beforeAll(() => {
+        process.env.NEXT_PUBLIC_BASE_PATH = "/base-path";
+      });
+
+      afterAll(() => {
+        delete process.env.NEXT_PUBLIC_BASE_PATH;
+      });
+
+      it("should generate a callback URL with the base path", async () => {
+        const state = "transaction-state";
+        const code = "auth-code";
+
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          fetch: getMockAuthorizationServer()
+        });
+
+        const url = new URL(
+          process.env.NEXT_PUBLIC_BASE_PATH + "/auth/callback",
+          DEFAULT.appBaseUrl
+        );
+        url.searchParams.set("code", code);
+        url.searchParams.set("state", state);
+
+        const headers = new Headers();
+        const transactionState: TransactionState = {
+          nonce: "nonce-value",
+          maxAge: 3600,
+          codeVerifier: "code-verifier",
+          responseType: "code",
+          state: state,
+          returnTo: "/dashboard"
+        };
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
+        headers.set(
+          "cookie",
+          `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
+        );
+        const request = new NextRequest(url, {
+          method: "GET",
+          headers
+        });
+
+        const response = await authClient.handleCallback(request);
+        expect(response.status).toEqual(307);
+        expect(response.headers.get("Location")).not.toBeNull();
+
+        const redirectUrl = new URL(response.headers.get("Location")!);
+        expect(redirectUrl.pathname).toEqual("/base-path/dashboard");
+      });
     });
 
     it("must use private_key_jwt when a clientAssertionSigningKey is specified", async () => {
@@ -3028,6 +3345,85 @@ ca/T0LLtgmbMmxSv/MmzIg==
         // validate the session cookie has not been set
         const sessionCookie = response.cookies.get("__session");
         expect(sessionCookie).toBeUndefined();
+      });
+
+      it("should be called with an error when there is an error performing the authorization code grant request", async () => {
+        const state = "transaction-state";
+        const code = "auth-code";
+
+        const mockOnCallback = vi
+          .fn()
+          .mockResolvedValue(
+            NextResponse.redirect(new URL("/error-page", DEFAULT.appBaseUrl))
+          );
+
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          fetch: getMockAuthorizationServer({
+            tokenEndpointFetchError: new Error("Timeout error")
+          }),
+
+          onCallback: mockOnCallback
+        });
+
+        const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
+        url.searchParams.set("code", code);
+        url.searchParams.set("state", state);
+
+        const headers = new Headers();
+        const transactionState: TransactionState = {
+          nonce: "nonce-value",
+          maxAge: 3600,
+          codeVerifier: "code-verifier",
+          responseType: "code",
+          state: state,
+          returnTo: "/dashboard"
+        };
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
+        headers.set(
+          "cookie",
+          `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
+        );
+        const request = new NextRequest(url, {
+          method: "GET",
+          headers
+        });
+
+        // validate the new response redirect
+        const response = await authClient.handleCallback(request);
+        expect(response.status).toEqual(307);
+        expect(response.headers.get("Location")).not.toBeNull();
+
+        const redirectUrl = new URL(response.headers.get("Location")!);
+        expect(redirectUrl.pathname).toEqual("/error-page");
+
+        expect(mockOnCallback).toHaveBeenCalledWith(
+          expect.any(Error),
+          {
+            returnTo: transactionState.returnTo
+          },
+          null
+        );
+        expect(mockOnCallback.mock.calls[0][0].code).toEqual(
+          "authorization_code_grant_request_error"
+        );
       });
 
       it("should be called with an error if there was an error during the code exchange", async () => {
@@ -4455,8 +4851,27 @@ ca/T0LLtgmbMmxSv/MmzIg==
       // Mock the transactionStore.save method to verify the saved state
       const originalSave = authClient["transactionStore"].save;
       authClient["transactionStore"].save = vi.fn(async (cookies, state) => {
-        // The full URL is saved, not just the path
-        expect(state.returnTo).toBe("https://example.com/custom-return-path");
+        expect(state.returnTo).toBe("/custom-return-path");
+        return originalSave.call(
+          authClient["transactionStore"],
+          cookies,
+          state
+        );
+      });
+
+      await authClient.startInteractiveLogin({ returnTo });
+
+      expect(authClient["transactionStore"].save).toHaveBeenCalled();
+    });
+
+    it("should sanitize and use the provided returnTo parameter — absolute URL", async () => {
+      const authClient = await createAuthClient();
+      const returnTo =
+        DEFAULT.appBaseUrl + "/custom-return-path?query=param#hash";
+
+      const originalSave = authClient["transactionStore"].save;
+      authClient["transactionStore"].save = vi.fn(async (cookies, state) => {
+        expect(state.returnTo).toBe("/custom-return-path?query=param#hash");
         return originalSave.call(
           authClient["transactionStore"],
           cookies,
@@ -4561,7 +4976,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
               codeVerifier: expect.any(String),
               responseType: "code",
               state: expect.any(String),
-              returnTo: "https://example.com/custom-path"
+              returnTo: "/custom-path"
             })
           );
           return originalSave.call(

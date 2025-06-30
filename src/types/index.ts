@@ -69,7 +69,7 @@ export type {
   Auth0ClientOptions,
   PagesRouterRequest,
   PagesRouterResponse
-} from "../server/client";
+} from "../server/client.js";
 
 export type {
   BeforeSessionSavedHook,
@@ -78,22 +78,22 @@ export type {
   AuthClientOptions,
   OnCallbackContext,
   Routes
-} from "../server/auth-client";
+} from "../server/auth-client.js";
 
-export type { TransactionCookieOptions } from "../server/transaction-store";
+export type { TransactionCookieOptions } from "../server/transaction-store.js";
 
 export type {
   SessionConfiguration,
   SessionCookieOptions,
   SessionStoreOptions
-} from "../server/session/abstract-session-store";
+} from "../server/session/abstract-session-store.js";
 
-export type { CookieOptions, ReadonlyRequestCookies } from "../server/cookies";
+export type { CookieOptions, ReadonlyRequestCookies } from "../server/cookies.js";
 
 export type {
   TransactionStoreOptions,
   TransactionState
-} from "../server/transaction-store";
+} from "../server/transaction-store.js";
 
 export interface StartInteractiveLoginOptions {
   /**
