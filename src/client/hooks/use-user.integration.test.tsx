@@ -146,4 +146,28 @@ describe("useUser Integration with SWR Cache", () => {
     // Verify fetch was called twice
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
+
+  it("should handle unauthenticated requests to the profile endpoint", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(null, {
+        status: 204
+      })
+    );
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <swrModule.SWRConfig value={{ provider: () => new Map() }}>
+        {children}
+      </swrModule.SWRConfig>
+    );
+
+    const { result } = renderHook(() => useUser(), { wrapper });
+
+    // Wait for the initial data to load
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.user).toEqual(null);
+    expect(result.current.error).toBe(undefined);
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    expect(fetchSpy).toHaveBeenCalledWith("/auth/profile");
+  });
 });

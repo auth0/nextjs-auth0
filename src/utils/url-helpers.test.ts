@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import payloads from "../test/fixtures/open-redirect-payloads.json";
-import { toSafeRedirect } from "./url-helpers";
+import payloads from "../test/fixtures/open-redirect-payloads.json" with { type: "json" };
+import { toSafeRedirect } from "./url-helpers.js";
 
 describe("url-helpers", () => {
   const safeBaseUrl = new URL("http://www.example.com");
@@ -14,27 +14,34 @@ describe("url-helpers", () => {
     });
 
     it("should allow relative urls", () => {
-      expect(toSafeRedirect("/foo", safeBaseUrl)).toEqual(
+      expect(toSafeRedirect("/foo", safeBaseUrl)?.toString()).toEqual(
         "http://www.example.com/foo"
       );
-      expect(toSafeRedirect("foo", safeBaseUrl)).toEqual(
+      expect(toSafeRedirect("foo", safeBaseUrl)?.toString()).toEqual(
         "http://www.example.com/foo"
-      );
-      expect(toSafeRedirect("/foo?some=value", safeBaseUrl)).toEqual(
-        "http://www.example.com/foo?some=value"
       );
       expect(
-        toSafeRedirect("/foo?someUrl=https://www.google.com", safeBaseUrl)
+        toSafeRedirect("/foo?some=value", safeBaseUrl)?.toString()
+      ).toEqual("http://www.example.com/foo?some=value");
+      expect(
+        toSafeRedirect(
+          "/foo?someUrl=https://www.google.com",
+          safeBaseUrl
+        )?.toString()
       ).toEqual("http://www.example.com/foo?someUrl=https://www.google.com");
       expect(
-        toSafeRedirect("/foo", new URL("http://www.example.com:8888"))
+        toSafeRedirect(
+          "/foo",
+          new URL("http://www.example.com:8888")
+        )?.toString()
       ).toEqual("http://www.example.com:8888/foo");
     });
 
     it("should prevent open redirects", () => {
       for (const payload of payloads) {
         expect(
-          toSafeRedirect(payload, safeBaseUrl) || safeBaseUrl.toString()
+          toSafeRedirect(payload, safeBaseUrl)?.toString() ||
+            safeBaseUrl.toString()
         ).toMatch(/^http:\/\/www\.example\.com\//);
       }
     });

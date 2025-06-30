@@ -1,9 +1,9 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AccessTokenError, AccessTokenErrorCode } from "../errors";
-import { SessionData } from "../types";
-import { AuthClient } from "./auth-client"; // Import the actual class for spyOn
+import { AccessTokenError, AccessTokenErrorCode } from "../errors/index.js";
+import { SessionData } from "../types/index.js";
+import { AuthClient } from "./auth-client.js"; // Import the actual class for spyOn
 import { Auth0Client } from "./client.js";
 
 // Define ENV_VARS at the top level for broader scope

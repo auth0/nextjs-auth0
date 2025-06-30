@@ -60,9 +60,9 @@ Create an instance of the Auth0 client. This instance will be imported and used 
 Add the following contents to a file named `lib/auth0.ts`:
 
 ```ts
-import { Auth0Client } from "@auth0/nextjs-auth0/server"
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
 
-export const auth0 = new Auth0Client()
+export const auth0 = new Auth0Client();
 ```
 
 ### 4. Add the authentication middleware
@@ -70,12 +70,12 @@ export const auth0 = new Auth0Client()
 Create a `middleware.ts` file in the root of your project's directory:
 
 ```ts
-import type { NextRequest } from "next/server"
+import type { NextRequest } from "next/server";
 
-import { auth0 } from "./lib/auth0" // Adjust path if your auth0 client is elsewhere
+import { auth0 } from "./lib/auth0"; // Adjust path if your auth0 client is elsewhere
 
 export async function middleware(request: NextRequest) {
-  return await auth0.middleware(request)
+  return await auth0.middleware(request);
 }
 
 export const config = {
@@ -86,9 +86,9 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico, sitemap.xml, robots.txt (metadata files)
      */
-    "/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)",
-  ],
-}
+    "/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)"
+  ]
+};
 ```
 
 > [!NOTE]  
@@ -97,10 +97,10 @@ export const config = {
 You can now begin to authenticate your users by redirecting them to your application's `/auth/login` route:
 
 ```tsx
-import { auth0 } from "./lib/auth0" // Adjust path if your auth0 client is elsewhere
+import { auth0 } from "./lib/auth0"; // Adjust path if your auth0 client is elsewhere
 
 export default async function Home() {
-  const session = await auth0.getSession()
+  const session = await auth0.getSession();
 
   if (!session) {
     return (
@@ -108,14 +108,14 @@ export default async function Home() {
         <a href="/auth/login?screen_hint=signup">Sign up</a>
         <a href="/auth/login">Log in</a>
       </main>
-    )
+    );
   }
 
   return (
     <main>
       <h1>Welcome, {session.user.name}!</h1>
     </main>
-  )
+  );
 }
 ```
 
@@ -149,7 +149,9 @@ You can customize the client by using the options below:
 | enableTelemetry             | `boolean`                 | Boolean value to opt-out of sending the library name and version to your authorization server via the `Auth0-Client` header. Defaults to `true`.                                                                                       |
 
 ## Session Cookie Configuration
+
 You can specify the following environment variables to configure the session cookie:
+
 ```env
 AUTH0_COOKIE_DOMAIN=
 AUTH0_COOKIE_PATH=
@@ -157,7 +159,17 @@ AUTH0_COOKIE_TRANSIENT=
 AUTH0_COOKIE_SECURE=
 AUTH0_COOKIE_SAME_SITE=
 ```
-Respective counterparts are also available in the client configuration. See [Cookie Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#cookie-configuration) for more details.  
+
+Respective counterparts are also available in the client configuration. See [Cookie Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#cookie-configuration) for more details.
+
+## Base Path
+
+Your Next.js application may be configured to use a base path (e.g.: `/dashboard`) — this is usually done by setting the `basePath` option in the `next.config.js` file. To configure the SDK to use the base path, you will also need to set the `NEXT_PUBLIC_BASE_PATH` environment variable which will be used when mounting the authentication routes.
+
+For example, if the `NEXT_PUBLIC_BASE_PATH` environment variable is set to `/dashboard`, the SDK will mount the authentication routes on `/dashboard/auth/login`, `/dashboard/auth/callback`, `/dashboard/auth/profile`, etc.
+
+> [!NOTE]
+> We do not recommend using the `NEXT_PUBLIC_BASE_PATH` environment variable in conjunction with a `APP_BASE_URL` that contains a path component. If your application is configured to use a base path, you should set the `APP_BASE_URL` to the root URL of your application (e.g.: `https://example.com`) and use the `NEXT_PUBLIC_BASE_PATH` environment variable to specify the base path (e.g.: `/dashboard`).
 
 ## Configuration Validation
 
