@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest } from "next/server.js";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import {
@@ -11,12 +11,12 @@ import {
   it
 } from "vitest";
 
-import { generateSecret } from "../test/utils";
-import type { SessionData } from "../types";
-import { AuthClient } from "./auth-client";
-import { encrypt } from "./cookies";
-import { StatelessSessionStore } from "./session/stateless-session-store";
-import { TransactionStore } from "./transaction-store";
+import { generateSecret } from "../test/utils.js";
+import type { SessionData } from "../types/index.js";
+import { AuthClient } from "./auth-client.js";
+import { encrypt } from "./cookies.js";
+import { StatelessSessionStore } from "./session/stateless-session-store.js";
+import { TransactionStore } from "./transaction-store.js";
 
 // Test constants
 const DEFAULT = {
