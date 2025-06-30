@@ -441,7 +441,6 @@ export class AuthClient {
     const returnTo =
       req.nextUrl.searchParams.get("returnTo") || this.appBaseUrl;
 
-    // Lazy factory functions for logout responses - only create when needed
     const createV2LogoutResponse = (): NextResponse => {
       const url = new URL("/v2/logout", this.issuer);
       url.searchParams.set("returnTo", returnTo);
