@@ -12,6 +12,7 @@ import {
 import {
   AccessTokenForConnectionOptions,
   AuthorizationParameters,
+  LogoutStrategy,
   SessionData,
   SessionDataStore,
   StartInteractiveLoginOptions
@@ -107,6 +108,16 @@ export interface Auth0ClientOptions {
    * Configure the transaction cookie used to store the state of the authentication transaction.
    */
   transactionCookie?: TransactionCookieOptions;
+
+  // logout configuration
+  /**
+   * Configure the logout strategy to use.
+   *
+   * - `'auto'` (default): Attempts OIDC RP-Initiated Logout first, falls back to `/v2/logout` if not supported
+   * - `'oidc'`: Always uses OIDC RP-Initiated Logout (requires RP-Initiated Logout to be enabled)
+   * - `'v2'`: Always uses the Auth0 `/v2/logout` endpoint (supports wildcards in allowed logout URLs)
+   */
+  logoutStrategy?: LogoutStrategy;
 
   // hooks
   /**
@@ -261,6 +272,7 @@ export class Auth0Client {
       appBaseUrl,
       secret,
       signInReturnToPath: options.signInReturnToPath,
+      logoutStrategy: options.logoutStrategy,
 
       beforeSessionSaved: options.beforeSessionSaved,
       onCallback: options.onCallback,
