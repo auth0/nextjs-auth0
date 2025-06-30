@@ -253,11 +253,12 @@ export class AuthClient {
 
     // validate logout strategy
     const validStrategies = ["auto", "oidc", "v2"] as const;
-    const logoutStrategy = options.logoutStrategy || "auto";
+    let logoutStrategy = options.logoutStrategy || "auto";
     if (!validStrategies.includes(logoutStrategy)) {
-      throw new Error(
-        `Invalid logoutStrategy: ${logoutStrategy}. Must be one of: ${validStrategies.join(", ")}`
+      console.error(
+        `Invalid logoutStrategy: ${logoutStrategy}. Must be one of: ${validStrategies.join(", ")}. Defaulting to "auto"`
       );
+      logoutStrategy = "auto";
     }
     this.logoutStrategy = logoutStrategy;
 
