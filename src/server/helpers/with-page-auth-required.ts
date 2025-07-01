@@ -12,17 +12,17 @@ import { Auth0Client } from "../client.js";
 
 /**
  * If you wrap your `getServerSideProps` with {@link WithPageAuthRequired} your props object will be augmented with
- * the user property, which will be the user's {@link Claims}.
+ * the user property, which will be the {@link User} object.
  *
  * ```js
  * // pages/profile.js
- * import { withPageAuthRequired } from '@auth0/nextjs-auth0';
+ * import { auth0 } from "@/lib/auth0";
  *
  * export default function Profile({ user }) {
  *   return <div>Hello {user.name}</div>;
  * }
  *
- * export const getServerSideProps = withPageAuthRequired();
+ * export const getServerSideProps = auth0.withPageAuthRequired();
  * ```
  */
 export type GetServerSidePropsResultWithSession<P = any> =
@@ -36,7 +36,7 @@ export type PageRoute<P, Q extends ParsedUrlQuery = ParsedUrlQuery> = (
 ) => Promise<GetServerSidePropsResultWithSession<P>>;
 
 /**
- * Objects containing the route parameters and search parameters of th page.
+ * Objects containing the route parameters and search parameters of the page.
  */
 export type AppRouterPageRouteOpts = {
   params?: Promise<Record<string, string | string[]>>;
@@ -59,17 +59,17 @@ export type AppRouterPageRoute = (
  *
  * ```js
  * // pages/protected-page.js
- * import { getSession, withPageAuthRequired } from '@auth0/nextjs-auth0';
+ * import { auth0 } from "@/lib/auth0";
  *
  * export default function ProtectedPage({ user, customProp }) {
  *   return <div>Protected content</div>;
  * }
  *
- * export const getServerSideProps = withPageAuthRequired({
+ * export const getServerSideProps = auth0.withPageAuthRequired({
  *   // returnTo: '/unauthorized',
  *   async getServerSideProps(ctx) {
  *     // access the user session if needed
- *     // const session = await getSession(ctx.req, ctx.res);
+ *     // const session = await auth0.getSession(ctx.req);
  *     return {
  *       props: {
  *         // customProp: 'bar',
@@ -93,13 +93,13 @@ export type WithPageAuthRequiredPageRouterOptions<
  *
  * ```js
  * // pages/protected-page.js
- * import { withPageAuthRequired } from '@auth0/nextjs-auth0';
+ * import { auth0 } from "@/lib/auth0";
  *
  * export default function ProtectedPage() {
  *   return <div>Protected content</div>;
  * }
  *
- * export const getServerSideProps = withPageAuthRequired();
+ * export const getServerSideProps = auth0.withPageAuthRequired();
  * ```
  *
  * If the user visits `/protected-page` without a valid session, it will redirect the user to the
@@ -128,9 +128,9 @@ export type WithPageAuthRequiredAppRouterOptions = {
  *
  * ```js
  * // app/protected-page/page.js
- * import { withPageAuthRequired } from '@auth0/nextjs-auth0';
+ * import { auth0 } from "@/lib/auth0";
  *
- * const ProtectedPage = withPageAuthRequired(async function ProtectedPage() {
+ * const ProtectedPage = auth0.withPageAuthRequired(async function ProtectedPage() {
  *   return <div>Protected content</div>;
  * }, { returnTo: '/protected-page' });
  *
@@ -143,22 +143,24 @@ export type WithPageAuthRequiredAppRouterOptions = {
  * Note: Server Components are not aware of the req or the url of the page. So if you want the user to return to the
  * page after login, you must specify the `returnTo` option.
  *
- * You can specify a function to `returnTo` that accepts the `params` (An object containing the dynamic
- * route parameters) and `searchParams` (An object containing the search parameters of the current URL)
+ * You can specify a function to `returnTo` that accepts the `params` (A Promise that resolves to
+ * an object containing the dynamic route parameters) and `searchParams` (A Promise that resolves to an
+ * object containing the search parameters of the current URL)
  * argument from the page, to preserve dynamic routes and search params.
  *
  * ```js
  * // app/protected-page/[slug]/page.js
- * import { AppRouterPageRouteOpts, withPageAuthRequired } from '@auth0/nextjs-auth0';
+ * import { AppRouterPageRouteOpts } from '@auth0/nextjs-auth0/server';
+ * import { auth0 } from "@/lib/auth0";
  *
- * const ProtectedPage = withPageAuthRequired(async function ProtectedPage({
+ * const ProtectedPage = auth0.withPageAuthRequired(async function ProtectedPage({
  *   params, searchParams
  * }: AppRouterPageRouteOpts) {
- *   const slug = params?.slug as string;
+ *   const slug = (await params)?.slug as string;
  *   return <div>Protected content for {slug}</div>;
  * }, {
  *   returnTo({ params }) {
- *     return `/protected-page/${params?.slug}`;
+ *     return `/protected-page/${(await params)?.slug}`;
  *   }
  * });
  *
