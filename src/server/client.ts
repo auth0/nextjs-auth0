@@ -20,6 +20,7 @@ import {
   AuthClient,
   BeforeSessionSavedHook,
   OnCallbackHook,
+  Routes,
   RoutesOptions
 } from "./auth-client.js";
 import { RequestCookies, ResponseCookies } from "./cookies.js";
@@ -194,12 +195,9 @@ export class Auth0Client {
   private transactionStore: TransactionStore;
   private sessionStore: AbstractSessionStore;
   private authClient: AuthClient;
-  private options: Auth0ClientOptions;
+  private routes: Routes;
 
   constructor(options: Auth0ClientOptions = {}) {
-    // TODO: temporary hack to figure out how to handle the case where a custom login route is specified
-    this.options = options;
-
     // Extract and validate required options
     const {
       domain,
@@ -246,6 +244,17 @@ export class Auth0Client {
       }
     }
 
+    this.routes = {
+      login: process.env.NEXT_PUBLIC_LOGIN_ROUTE || "/auth/login",
+      logout: "/auth/logout",
+      callback: "/auth/callback",
+      backChannelLogout: "/auth/backchannel-logout",
+      profile: process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile",
+      accessToken:
+        process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
+      ...options.routes
+    };
+
     this.transactionStore = new TransactionStore({
       ...options.session,
       secret,
@@ -284,7 +293,7 @@ export class Auth0Client {
       beforeSessionSaved: options.beforeSessionSaved,
       onCallback: options.onCallback,
 
-      routes: options.routes,
+      routes: this.routes,
 
       allowInsecureRequests: options.allowInsecureRequests,
       httpTimeout: options.httpTimeout,
@@ -698,11 +707,7 @@ export class Auth0Client {
     opts?: WithPageAuthRequiredAppRouterOptions
   ) {
     const config = {
-      // TODO: temporary hack to figure out how to handle the case where a custom login route is specified
-      loginUrl:
-        this.options.routes?.login ||
-        process.env.NEXT_PUBLIC_LOGIN_ROUTE ||
-        "/auth/login"
+      loginUrl: this.routes.login
     };
     const appRouteHandler = appRouteHandlerFactory(this, config);
     const pageRouteHandler = pageRouteHandlerFactory(this, config);

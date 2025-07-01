@@ -5,6 +5,7 @@ import { redirect } from "next/navigation.js";
 import ReactDOMServer from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { getDefaultRoutes } from "../../test/defaults.js";
 import { generateSecret } from "../../test/utils.js";
 import { Auth0Client } from "../client.js";
 import { RequestCookies } from "../cookies.js";
@@ -151,8 +152,6 @@ describe("with-page-auth-required ssr", () => {
           clientSecret: constants.clientSecret,
           appBaseUrl: constants.appBaseUrl,
           secret: constants.secret
-          // TODO: need to fix this test
-          // routes: { login: "/api/auth/custom-login" }
         }),
         {
           loginUrl: "/api/auth/custom-login"
@@ -347,7 +346,6 @@ describe("with-page-auth-required ssr", () => {
     });
 
     it("should use a custom login url", async () => {
-      process.env.NEXT_PUBLIC_LOGIN_ROUTE = "/api/auth/custom-login";
       const auth0Client = new Auth0Client({
         domain: constants.domain,
         clientId: constants.clientId,
@@ -356,7 +354,6 @@ describe("with-page-auth-required ssr", () => {
         secret: constants.secret
       });
       const withPageAuthRequired = pageRouteHandlerFactory(auth0Client, {
-        // TODO: are we really testing this??
         loginUrl: "/api/auth/custom-login"
       });
       const handler = withPageAuthRequired();
@@ -369,7 +366,6 @@ describe("with-page-auth-required ssr", () => {
           permanent: false
         }
       });
-      delete process.env.NEXT_PUBLIC_LOGIN_ROUTE;
     });
 
     it("should preserve multiple query params in the returnTo URL", async () => {

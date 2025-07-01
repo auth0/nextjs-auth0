@@ -3,6 +3,7 @@ import * as jose from "jose";
 import * as oauth from "oauth4webapi";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { getDefaultRoutes } from "../test/defaults.js";
 import { generateSecret } from "../test/utils.js";
 import { SessionData } from "../types/index.js";
 import { AuthClient } from "./auth-client.js";
@@ -212,6 +213,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
             secret,
             appBaseUrl: DEFAULT.appBaseUrl,
 
+            routes: getDefaultRoutes(),
+
             authorizationParameters: {
               scope: "profile email"
             },
@@ -242,6 +245,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
       const request = new NextRequest("https://example.com/auth/login", {
@@ -270,6 +275,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer()
       });
@@ -300,6 +307,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
       const request = new NextRequest("https://example.com/auth/logout", {
@@ -329,6 +338,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
       const request = new NextRequest("https://example.com/auth/profile", {
@@ -357,6 +368,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
         enableAccessTokenEndpoint: true,
 
         fetch: getMockAuthorizationServer()
@@ -387,6 +400,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
         enableAccessTokenEndpoint: false,
 
         fetch: getMockAuthorizationServer()
@@ -419,6 +434,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
         // enableAccessTokenEndpoint not specified, should default to true
 
         fetch: getMockAuthorizationServer()
@@ -449,6 +466,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer()
       });
@@ -486,6 +505,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer()
         });
@@ -568,6 +589,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
+          routes: getDefaultRoutes(),
+
           fetch: getMockAuthorizationServer()
         });
 
@@ -612,6 +635,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           fetch: getMockAuthorizationServer(),
 
           routes: {
+            ...getDefaultRoutes(),
             login: "/custom-login"
           }
         });
@@ -649,6 +673,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           fetch: getMockAuthorizationServer(),
 
           routes: {
+            ...getDefaultRoutes(),
             logout: "/custom-logout"
           }
         });
@@ -686,6 +711,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           fetch: getMockAuthorizationServer(),
 
           routes: {
+            ...getDefaultRoutes(),
             callback: "/custom-callback"
           }
         });
@@ -723,6 +749,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           fetch: getMockAuthorizationServer(),
 
           routes: {
+            ...getDefaultRoutes(),
             backChannelLogout: "/custom-backchannel-logout"
           }
         });
@@ -758,6 +785,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer()
         });
@@ -795,6 +824,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer()
         });
@@ -875,6 +906,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
             secret,
             appBaseUrl: DEFAULT.appBaseUrl,
 
+            routes: getDefaultRoutes(),
+
             fetch: getMockAuthorizationServer()
           });
 
@@ -916,6 +949,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer()
       });
@@ -990,6 +1025,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: `${DEFAULT.appBaseUrl}/sub-path`,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
       const request = new NextRequest(
@@ -1035,6 +1072,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret,
           appBaseUrl: `${DEFAULT.appBaseUrl}`,
 
+          routes: getDefaultRoutes(),
+
           fetch: getMockAuthorizationServer()
         });
         const request = new NextRequest(
@@ -1075,6 +1114,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer({
           discoveryResponse: new Response(null, { status: 500 })
         })
@@ -1113,6 +1154,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer()
         });
@@ -1200,6 +1243,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
+          routes: getDefaultRoutes(),
+
           fetch: getMockAuthorizationServer()
         });
         const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
@@ -1265,6 +1310,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer()
         });
@@ -1343,6 +1390,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
+          routes: getDefaultRoutes(),
+
           fetch: getMockAuthorizationServer()
         });
         const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
@@ -1420,6 +1469,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
+          routes: getDefaultRoutes(),
+
           fetch: getMockAuthorizationServer()
         });
         const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
@@ -1482,6 +1533,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
       const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
@@ -1530,6 +1583,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
       const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
@@ -1576,6 +1631,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
       const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
@@ -1621,6 +1678,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           pushedAuthorizationRequests: true,
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
           fetch: getMockAuthorizationServer({
             discoveryResponse: Response.json(
               {
@@ -1668,6 +1727,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           pushedAuthorizationRequests: true,
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
           fetch: getMockAuthorizationServer({
             onParRequest: async (request) => {
               const params = new URLSearchParams(await request.text());
@@ -1764,6 +1825,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
             pushedAuthorizationRequests: true,
             secret,
             appBaseUrl: DEFAULT.appBaseUrl,
+
+            routes: getDefaultRoutes(),
             fetch: getMockAuthorizationServer({
               onParRequest: async (request) => {
                 const params = new URLSearchParams(await request.text());
@@ -1838,6 +1901,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
             pushedAuthorizationRequests: true,
             secret,
             appBaseUrl: DEFAULT.appBaseUrl,
+
+            routes: getDefaultRoutes(),
             fetch: getMockAuthorizationServer({
               onParRequest: async (request) => {
                 const params = new URLSearchParams(await request.text());
@@ -1916,6 +1981,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
             pushedAuthorizationRequests: true,
             secret,
             appBaseUrl: DEFAULT.appBaseUrl,
+
+            routes: getDefaultRoutes(),
             authorizationParameters: {
               "ext-custom_param": "custom_value",
               audience: "urn:mystore:api"
@@ -1999,6 +2066,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           fetch: getMockAuthorizationServer(),
 
           routes: {
+            ...getDefaultRoutes(),
             callback: "/custom-callback"
           }
         });
@@ -2043,6 +2111,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer()
       });
@@ -2120,6 +2190,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
 
@@ -2192,6 +2264,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
 
@@ -2228,6 +2302,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer()
       });
@@ -2279,6 +2355,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer({
           discoveryResponse: Response.json(
@@ -2339,6 +2417,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer({
           discoveryResponse: new Response(null, { status: 500 })
         })
@@ -2378,6 +2458,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer()
       });
@@ -2442,6 +2524,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
 
@@ -2475,6 +2559,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer(),
 
@@ -2516,6 +2602,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer()
       });
@@ -2613,6 +2701,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
+          routes: getDefaultRoutes(),
+
           fetch: getMockAuthorizationServer()
         });
 
@@ -2700,6 +2790,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
 
@@ -2786,6 +2878,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
 
@@ -2822,6 +2916,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer()
       });
@@ -2875,6 +2971,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer()
       });
@@ -2932,6 +3030,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer({
           tokenEndpointResponse: {
@@ -2993,6 +3093,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer({
           discoveryResponse: new Response(null, { status: 500 })
@@ -3058,6 +3160,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
 
@@ -3157,6 +3261,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
+          routes: getDefaultRoutes(),
+
           fetch: getMockAuthorizationServer(),
 
           onCallback: mockOnCallback
@@ -3216,6 +3322,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
 
@@ -3292,6 +3400,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
 
@@ -3375,6 +3485,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
+          routes: getDefaultRoutes(),
+
           fetch: getMockAuthorizationServer({
             tokenEndpointFetchError: new Error("Timeout error")
           }),
@@ -3453,6 +3565,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer({
             tokenEndpointResponse: {
@@ -3545,6 +3659,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
+          routes: getDefaultRoutes(),
+
           fetch: getMockAuthorizationServer(),
 
           beforeSessionSaved: mockBeforeSessionSaved
@@ -3616,6 +3732,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
 
@@ -3713,6 +3831,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
+          routes: getDefaultRoutes(),
+
           fetch: getMockAuthorizationServer(),
 
           beforeSessionSaved: mockBeforeSessionSaved
@@ -3748,6 +3868,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
 
@@ -3851,6 +3973,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer({
           tokenEndpointResponse: {
             token_type: "Bearer",
@@ -3930,6 +4054,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
 
@@ -3972,6 +4098,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer()
       });
@@ -4049,6 +4177,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer(),
         jwksCache: await getCachedJWKS()
       });
@@ -4092,6 +4222,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer(),
         jwksCache: await getCachedJWKS()
@@ -4137,6 +4269,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer(),
         jwksCache: await getCachedJWKS()
@@ -4185,6 +4319,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
           jwksCache: await getCachedJWKS()
@@ -4235,6 +4371,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
+          routes: getDefaultRoutes(),
+
           fetch: getMockAuthorizationServer(),
           jwksCache: await getCachedJWKS()
         });
@@ -4277,6 +4415,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
           jwksCache: await getCachedJWKS()
@@ -4328,6 +4468,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
+          routes: getDefaultRoutes(),
+
           fetch: getMockAuthorizationServer(),
           jwksCache: await getCachedJWKS()
         });
@@ -4376,6 +4518,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
           jwksCache: await getCachedJWKS()
@@ -4426,6 +4570,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
+          routes: getDefaultRoutes(),
+
           fetch: getMockAuthorizationServer(),
           jwksCache: await getCachedJWKS()
         });
@@ -4474,6 +4620,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
           jwksCache: await getCachedJWKS()
@@ -4524,6 +4672,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
+          routes: getDefaultRoutes(),
+
           fetch: getMockAuthorizationServer(),
           jwksCache: await getCachedJWKS()
         });
@@ -4572,6 +4722,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
 
@@ -4606,6 +4758,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
 
@@ -4638,6 +4792,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer({
           tokenEndpointResponse: {
@@ -4683,6 +4839,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer({
           tokenEndpointResponse: {
             error: "some-error-code",
@@ -4722,6 +4880,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer({
           discoveryResponse: new Response(null, { status: 500 })
         })
@@ -4758,6 +4918,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer({
             tokenEndpointResponse: {
@@ -4811,6 +4973,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
         signInReturnToPath,
         pushedAuthorizationRequests,
         authorizationParameters: {
@@ -4949,6 +5113,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         clientSecret: DEFAULT.clientSecret,
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
         pushedAuthorizationRequests: true,
         authorizationParameters: {
           scope: "openid profile email"
@@ -5102,6 +5268,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: fetchSpy
       });
 
@@ -5146,6 +5314,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: fetchSpy
       });
@@ -5202,6 +5372,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: fetchSpy
       });
 
@@ -5246,6 +5418,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer({
           discoveryResponse: new Response(null, { status: 500 })
         })
@@ -5285,6 +5459,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
 
@@ -5320,6 +5496,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer({
           tokenEndpointErrorResponse: {
