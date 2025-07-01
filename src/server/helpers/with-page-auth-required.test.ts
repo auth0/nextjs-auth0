@@ -5,7 +5,6 @@ import { redirect } from "next/navigation.js";
 import ReactDOMServer from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { getDefaultRoutes } from "../../test/defaults.js";
 import { generateSecret } from "../../test/utils.js";
 import { Auth0Client } from "../client.js";
 import { RequestCookies } from "../cookies.js";

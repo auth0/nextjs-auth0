@@ -5,7 +5,6 @@ import {
   GetServerSidePropsContext,
   GetServerSidePropsResult
 } from "next";
-import { redirect } from "next/navigation.js";
 
 import { User } from "../../types/index.js";
 import { Auth0Client } from "../client.js";
@@ -195,6 +194,7 @@ export const appRouteHandlerFactory =
         typeof opts.returnTo === "function"
           ? await opts.returnTo(params)
           : opts.returnTo;
+      const { redirect } = await import("next/navigation.js");
       redirect(
         `${config.loginUrl}${opts.returnTo ? `?returnTo=${returnTo}` : ""}`
       );
