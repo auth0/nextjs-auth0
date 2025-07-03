@@ -83,6 +83,47 @@ For example: `/auth/logout?returnTo=https://example.com/some-page` would redirec
 > [!NOTE]  
 > The URL specified as `returnTo` parameters must be registered in your client's **Allowed Logout URLs**.
 
+### Configuring logout strategy
+
+By default, the SDK uses OpenID Connect's RP-Initiated Logout when available, falling back to Auth0's `/v2/logout` endpoint. You can control this behavior using the `logoutStrategy` configuration option:
+
+```ts
+export const auth0 = new Auth0Client({
+  logoutStrategy: "auto", // default behavior
+  // ... other config
+})
+```
+
+Available strategies:
+
+- **`"auto"`** (default): Uses OIDC logout when `end_session_endpoint` is available, falls back to `/v2/logout`
+- **`"oidc"`**: Always uses OIDC RP-Initiated Logout. Returns an error if not supported by the authorization server
+- **`"v2"`**: Always uses Auth0's `/v2/logout` endpoint, which supports wildcard URLs and legacy configurations
+
+#### When to use `"v2"` strategy
+
+The `"v2"` strategy is useful for applications that:
+
+- Need wildcard URL support in logout redirects (e.g., `https://localhost:3000/*/about`)
+- Support multiple languages or environments with dynamic URLs
+- Were migrated from v3 and need to maintain existing logout URL patterns
+- Have complex logout URL requirements that aren't compatible with OIDC logout
+
+```ts
+// Example: Using v2 logout for wildcard URL support
+export const auth0 = new Auth0Client({
+  logoutStrategy: "v2",
+  // ... other config
+})
+
+// This allows logout URLs like:
+// /auth/logout?returnTo=https://localhost:3000/en/dashboard
+// /auth/logout?returnTo=https://localhost:3000/*/about
+```
+
+> [!NOTE]  
+> When using `"v2"` strategy, make sure your logout URLs are registered in your Auth0 application's **Allowed Logout URLs** settings. The v2 endpoint supports wildcards in URLs.
+
 ## Accessing the authenticated user
 
 ### In the browser
