@@ -11,7 +11,6 @@
 - Use `max-age=0` to delete cookie [\#2200](https://github.com/auth0/nextjs-auth0/pull/2200) ([guabu](https://github.com/guabu))
 - feat: update id_token when a new Access Token is fetched [\#2189](https://github.com/auth0/nextjs-auth0/pull/2189) ([tusharpandey13](https://github.com/tusharpandey13))
 - Pass down request when calling getSession in middleware [\#2210](https://github.com/auth0/nextjs-auth0/pull/2210) ([frederikprijck](https://github.com/frederikprijck))
-- docs: fix migration guide URL for v4 [\#2188](https://github.com/auth0/nextjs-auth0/pull/2188) ([frederikprijck](https://github.com/frederikprijck))
 
 ## [v4.7.0](https://github.com/auth0/nextjs-auth0/tree/v4.7.0) (2025-06-20)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.6.1...v4.7.0)
