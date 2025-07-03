@@ -26,7 +26,8 @@ import {
   LogoutToken,
   SessionData,
   StartInteractiveLoginOptions,
-  TokenSet
+  TokenSet,
+  User
 } from "../types/index.js";
 import {
   ensureNoLeadingSlash,
@@ -624,18 +625,9 @@ export class AuthClient {
 
     const res = await this.onCallback(null, onCallbackCtx, session);
 
-    if (this.beforeSessionSaved) {
-      const updatedSession = await this.beforeSessionSaved(
-        session,
-        oidcRes.id_token ?? null
-      );
-      session = {
-        ...updatedSession,
-        internal: session.internal
-      };
-    } else {
-      session.user = filterDefaultIdTokenClaims(idTokenClaims);
-    }
+    // call beforeSessionSaved callback if present
+    // if not then filter id_token claims with default rules
+    session = await this.finalizeSession(session, oidcRes.id_token);
 
     await this.sessionStore.set(req.cookies, res.cookies, session, true);
     addCacheControlHeadersForSession(res);
@@ -680,7 +672,9 @@ export class AuthClient {
       );
     }
 
-    const [error, updatedTokenSet] = await this.getTokenSet(session.tokenSet);
+    const [error, getTokenSetResponse] = await this.getTokenSet(
+      session.tokenSet
+    );
 
     if (error) {
       return NextResponse.json(
@@ -695,6 +689,9 @@ export class AuthClient {
         }
       );
     }
+
+    const { tokenSet: updatedTokenSet, idTokenClaims } = getTokenSetResponse;
+
     const res = NextResponse.json({
       token: updatedTokenSet.accessToken,
       scope: updatedTokenSet.scope,
@@ -703,11 +700,20 @@ export class AuthClient {
 
     if (
       updatedTokenSet.accessToken !== session.tokenSet.accessToken ||
-      updatedTokenSet.refreshToken !== session.tokenSet.refreshToken ||
-      updatedTokenSet.expiresAt !== session.tokenSet.expiresAt
+      updatedTokenSet.expiresAt !== session.tokenSet.expiresAt ||
+      updatedTokenSet.refreshToken !== session.tokenSet.refreshToken
     ) {
+      if (idTokenClaims) {
+        session.user = idTokenClaims as User;
+      }
+      // call beforeSessionSaved callback if present
+      // if not then filter id_token claims with default rules
+      const finalSession = await this.finalizeSession(
+        session,
+        updatedTokenSet.idToken
+      );
       await this.sessionStore.set(req.cookies, res.cookies, {
-        ...session,
+        ...finalSession,
         tokenSet: updatedTokenSet
       });
       addCacheControlHeadersForSession(res);
@@ -757,13 +763,17 @@ export class AuthClient {
   }
 
   /**
-   * getTokenSet returns a valid token set. If the access token has expired, it will attempt to
-   * refresh it using the refresh token, if available.
+   * Retrieves OAuth token sets, handling token refresh when necessary or if forced.
+   *
+   * @returns A tuple containing either:
+   *   - `[SdkError, null]` if an error occurred (missing refresh token, discovery failure, or refresh failure)
+   *   - `[null, {tokenSet, idTokenClaims}]` if a new token was retrieved, containing the new token set ID token claims
+   *   - `[null, {tokenSet, }]` if token refresh was not done and existing token was returned
    */
   async getTokenSet(
     tokenSet: TokenSet,
     forceRefresh?: boolean | undefined
-  ): Promise<[null, TokenSet] | [SdkError, null]> {
+  ): Promise<[null, GetTokenSetResponse] | [SdkError, null]> {
     // the access token has expired but we do not have a refresh token
     if (!tokenSet.refreshToken && tokenSet.expiresAt <= Date.now() / 1000) {
       return [
@@ -818,6 +828,7 @@ export class AuthClient {
           ];
         }
 
+        const idTokenClaims = oauth.getValidatedIdTokenClaims(oauthRes)!;
         const accessTokenExpiresAt =
           Math.floor(Date.now() / 1000) + Number(oauthRes.expires_in);
 
@@ -836,11 +847,17 @@ export class AuthClient {
           updatedTokenSet.refreshToken = tokenSet.refreshToken;
         }
 
-        return [null, updatedTokenSet];
+        return [
+          null,
+          {
+            tokenSet: updatedTokenSet,
+            idTokenClaims: idTokenClaims
+          }
+        ];
       }
     }
 
-    return [null, tokenSet];
+    return [null, { tokenSet, idTokenClaims: undefined }];
   }
 
   private async discoverAuthorizationServerMetadata(): Promise<
@@ -1208,6 +1225,32 @@ export class AuthClient {
 
     return [null, connectionTokenSet] as [null, ConnectionTokenSet];
   }
+
+  /**
+   * Filters and processes ID token claims for a session.
+   *
+   * If a `beforeSessionSaved` callback is configured, it will be invoked to allow
+   * custom processing of the session and ID token. Otherwise, default filtering
+   * will be applied to remove standard ID token claims from the user object.
+   */
+  async finalizeSession(
+    session: SessionData,
+    idToken?: string
+  ): Promise<SessionData> {
+    if (this.beforeSessionSaved) {
+      const updatedSession = await this.beforeSessionSaved(
+        session,
+        idToken ?? null
+      );
+      session = {
+        ...updatedSession,
+        internal: session.internal
+      };
+    } else {
+      session.user = filterDefaultIdTokenClaims(session.user);
+    }
+    return session;
+  }
 }
 
 const encodeBase64 = (input: string) => {
@@ -1221,4 +1264,9 @@ const encodeBase64 = (input: string) => {
     );
   }
   return btoa(arr.join(""));
+};
+
+type GetTokenSetResponse = {
+  tokenSet: TokenSet;
+  idTokenClaims?: { [key: string]: any };
 };
