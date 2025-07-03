@@ -464,7 +464,7 @@ describe("Logout Strategy Flow Tests", () => {
         // Session cookie should be cleared
         const cookie = response.cookies.get("__session");
         expect(cookie?.value).toBe("");
-        expect(cookie?.expires).toEqual(new Date("1970-01-01T00:00:00.000Z"));
+        expect(cookie?.maxAge).toBe(0);
 
         // Response should have cache control headers
         expect(response.headers.get("cache-control")).toContain("no-cache");
