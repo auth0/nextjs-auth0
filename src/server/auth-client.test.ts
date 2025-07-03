@@ -4584,7 +4584,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       const [error, updatedTokenSet] = await authClient.getTokenSet(tokenSet);
       expect(error).toBeNull();
-      expect(updatedTokenSet).toEqual(tokenSet);
+      expect(updatedTokenSet?.tokenSet).toEqual(tokenSet);
     });
 
     it("should return an error if the token set does not contain a refresh token and the access token has expired", async () => {
@@ -4657,7 +4657,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       const [error, updatedTokenSet] = await authClient.getTokenSet(tokenSet);
       expect(error).toBeNull();
-      expect(updatedTokenSet).toEqual({
+      expect(updatedTokenSet?.tokenSet).toEqual({
         accessToken: DEFAULT.accessToken,
         refreshToken: DEFAULT.refreshToken,
         expiresAt: expect.any(Number)
@@ -4778,7 +4778,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         const [error, updatedTokenSet] = await authClient.getTokenSet(tokenSet);
         expect(error).toBeNull();
-        expect(updatedTokenSet).toEqual({
+        expect(updatedTokenSet?.tokenSet).toEqual({
           accessToken: DEFAULT.accessToken,
           refreshToken: "rt_456",
           expiresAt: expect.any(Number)
