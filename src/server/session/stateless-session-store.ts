@@ -1,9 +1,11 @@
-import { ConnectionTokenSet, CookieOptions, SessionData } from "../../types/index.js";
-
 import type { JWTPayload } from "jose";
 
+import {
+  ConnectionTokenSet,
+  CookieOptions,
+  SessionData
+} from "../../types/index.js";
 import * as cookies from "../cookies.js";
-
 import {
   AbstractSessionStore,
   SessionCookieOptions
@@ -138,7 +140,7 @@ export class StatelessSessionStore extends AbstractSessionStore {
     cookies.deleteChunkedCookie(this.sessionCookieName, reqCookies, resCookies);
 
     this.getConnectionTokenSetsCookies(reqCookies).forEach((cookie) =>
-      resCookies.delete(cookie.name)
+      cookies.deleteCookie(resCookies, cookie.name)
     );
   }
 
