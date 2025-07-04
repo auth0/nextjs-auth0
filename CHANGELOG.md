@@ -8,10 +8,8 @@
 - feat: add `withPageAuthRequired` for protecting pages client side [\#2193](https://github.com/auth0/nextjs-auth0/pull/2193) ([guabu](https://github.com/guabu))
 
 **Fixed**
-- fix failing tests due to using cookie maxage 0 for deletion [\#2215](https://github.com/auth0/nextjs-auth0/pull/2215) ([tusharpandey13](https://github.com/tusharpandey13))
 - Use `max-age=0` to delete cookie [\#2200](https://github.com/auth0/nextjs-auth0/pull/2200) ([guabu](https://github.com/guabu))
 - feat: update id_token when a new Access Token is fetched [\#2189](https://github.com/auth0/nextjs-auth0/pull/2189) ([tusharpandey13](https://github.com/tusharpandey13))
-- Pass down request when calling getSession in middleware [\#2210](https://github.com/auth0/nextjs-auth0/pull/2210) ([frederikprijck](https://github.com/frederikprijck))
 
 ## [v4.7.0](https://github.com/auth0/nextjs-auth0/tree/v4.7.0) (2025-06-20)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.6.1...v4.7.0)
