@@ -150,13 +150,15 @@ You can customize the client by using the options below:
 
 ### Customizing Auth Handlers
 
-While the authentication routes are handled automatically by the middleware, you can still customize the authentication flow through hooks, middleware logic, and configuration options. Common customization patterns include:
+While the authentication routes are handled automatically by the middleware, you can still customize the authentication flow through two main approaches:
 
-- **Custom login parameters**: Use query parameters or static configuration to pass custom authorization parameters
-- **Custom logout behavior**: Add custom logic before logout or specify custom redirect URLs
-- **Custom callback handling**: Use the `onCallback` hook to add custom logic after authentication
-- **Session customization**: Use the `beforeSessionSaved` hook to modify session data
-- **Middleware-based customization**: Add custom logic in your middleware for specific auth routes
+- **Run custom code before auth handlers**: Intercept auth routes in your middleware to add custom logic before authentication actions
+- **Run code after authentication**: Use the `onCallback` hook to add custom logic after authentication completes
+
+Additional customization options include:
+- Login parameters via query parameters or static configuration
+- Session data modification using the `beforeSessionSaved` hook  
+- Logout redirects using query parameters
 
 > [!IMPORTANT]
 > When customizing auth handlers, always validate user inputs (especially redirect URLs) to prevent security vulnerabilities like open redirects. Use relative URLs when possible and implement proper input sanitization.
