@@ -1,5 +1,16 @@
 # Change Log
 
+## [v4.8.0](https://github.com/auth0/nextjs-auth0/tree/v4.8.0) (2025-07-03)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.7.0...v4.8.0)
+
+**Added**
+- feat: Add alternate logout strategy [\#2203](https://github.com/auth0/nextjs-auth0/pull/2203) ([tusharpandey13](https://github.com/tusharpandey13))
+- feat: add `withPageAuthRequired` for protecting pages client side [\#2193](https://github.com/auth0/nextjs-auth0/pull/2193) ([guabu](https://github.com/guabu))
+
+**Fixed**
+- Use `max-age=0` to delete cookie [\#2200](https://github.com/auth0/nextjs-auth0/pull/2200) ([guabu](https://github.com/guabu))
+- feat: update id_token when a new Access Token is fetched [\#2189](https://github.com/auth0/nextjs-auth0/pull/2189) ([tusharpandey13](https://github.com/tusharpandey13))
+
 ## [v4.7.0](https://github.com/auth0/nextjs-auth0/tree/v4.7.0) (2025-06-20)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.6.1...v4.7.0)
 
