@@ -285,3 +285,166 @@ export const auth0 = new Auth0Client({
 - `touchSession` method was removed. The middleware enables rolling sessions by default and can be configured via the [Session configuration section in the Examples guide](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#session-configuration).
 - `getAccessToken` can now be called in React Server Components. For examples on how to use `getAccessToken` in various environments (browser, App Router, Pages Router, Middleware), refer to the [Getting an access token section in the Examples guide](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#getting-an-access-token).
 - By default, v4 will use [OpenID Connect's RP-Initiated Logout](https://auth0.com/docs/authenticate/login/logout/log-users-out-of-auth0) if it's enabled on the tenant. Otherwise, it will fallback to the `/v2/logout` endpoint.
+
+## Customizing Auth Handlers
+
+In v3, you could customize individual auth handlers by providing custom implementations to the `handleAuth` function:
+
+```ts
+// v3 approach (no longer available in v4)
+export const GET = handleAuth({
+  async logout(req: NextApiRequest, res: NextApiResponse) {
+    // Custom logout logic
+    console.log('User is logging out');
+    
+    return await handleLogout(req, res);
+  },
+  async login(req: NextApiRequest, res: NextApiResponse) {
+    // Custom login logic
+    return await handleLogin(req, res, {
+      authorizationParams: {
+        audience: 'https://my-api.com'
+      }
+    });
+  }
+});
+```
+
+In v4, the auth routes are handled automatically by the middleware, but you can still customize the authentication flow through several approaches:
+
+### Customizing the login flow
+
+Use query parameters to pass custom authorization parameters:
+
+```html
+<!-- Custom login with audience -->
+<a href="/auth/login?audience=https://my-api.com">Login</a>
+
+<!-- Custom login with prompt -->
+<a href="/auth/login?prompt=consent">Login with consent</a>
+```
+
+Or configure them statically when initializing the client:
+
+```ts
+export const auth0 = new Auth0Client({
+  authorizationParameters: {
+    audience: 'https://my-api.com',
+    prompt: 'consent'
+  }
+});
+```
+
+### Customizing the logout flow
+
+Add custom logout parameters or redirect URLs:
+
+```html
+<!-- Custom logout with return URL -->
+<a href="/auth/logout?returnTo=https://example.com/goodbye">Logout</a>
+```
+
+### Customizing the callback flow
+
+Use the `onCallback` hook to add custom logic after authentication:
+
+```ts
+import { NextResponse } from 'next/server';
+import { Auth0Client } from '@auth0/nextjs-auth0/server';
+
+export const auth0 = new Auth0Client({
+  async onCallback(error, context, session) {
+    if (error) {
+      console.error('Authentication error:', error);
+      return NextResponse.redirect(
+        new URL(`/error?error=${error.message}`, process.env.APP_BASE_URL)
+      );
+    }
+
+    // Custom callback logic
+    console.log('User authenticated successfully');
+    
+    // Log user login
+    if (session) {
+      console.log(`User ${session.user.sub} logged in`);
+    }
+
+    // Security: Validate returnTo URL to prevent open redirects
+    const returnTo = context.returnTo || "/";
+    const validReturnTo = returnTo.startsWith('/') ? returnTo : "/";
+
+    return NextResponse.redirect(
+      new URL(validReturnTo, process.env.APP_BASE_URL)
+    );
+  }
+});
+```
+
+### Customizing the session
+
+Use the `beforeSessionSaved` hook to modify session data:
+
+```ts
+import { Auth0Client } from '@auth0/nextjs-auth0/server';
+
+export const auth0 = new Auth0Client({
+  async beforeSessionSaved(session, idToken) {
+    // Add custom session data
+    return {
+      ...session,
+      user: {
+        ...session.user,
+        loginTime: new Date().toISOString()
+      }
+    };
+  }
+});
+```
+
+### Adding custom logic to auth routes
+
+You can add custom logic in your middleware by intercepting requests to auth routes:
+
+> [!WARNING]
+> The middleware logic shown below runs on every request that matches your middleware configuration. Be mindful of performance implications, especially for expensive operations like database queries or external API calls.
+
+```ts
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
+import { auth0 } from './lib/auth0';
+
+export async function middleware(request: NextRequest) {
+  const authResponse = await auth0.middleware(request);
+  
+  // Add custom logic for specific auth routes
+  if (request.nextUrl.pathname === '/auth/logout') {
+    // Custom logout logic - this runs BEFORE the actual logout
+    const session = await auth0.getSession(request);
+    if (session) {
+      console.log(`User ${session.user.sub} is logging out`);
+    }
+  }
+  
+  if (request.nextUrl.pathname === '/auth/login') {
+    // Custom login logic - this runs BEFORE the actual login
+    console.log('User is attempting to login');
+  }
+  
+  return authResponse;
+}
+```
+
+### Customizing logout with security considerations
+
+Add custom logout parameters or redirect URLs:
+
+```html
+<!-- Custom logout with return URL -->
+<!-- WARNING: Ensure returnTo URLs are validated to prevent open redirects -->
+<a href="/auth/logout?returnTo=https://example.com/goodbye">Logout</a>
+```
+
+> [!IMPORTANT]
+> Always validate `returnTo` URLs to prevent open redirect attacks. The SDK does not automatically validate these URLs, so you should implement validation in your application code or use relative URLs when possible.
+
+For more advanced customization patterns, see the [Examples guide](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#hooks).

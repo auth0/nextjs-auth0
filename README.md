@@ -148,6 +148,21 @@ You can customize the client by using the options below:
 | httpTimeout                 | `number`                  | Integer value for the HTTP timeout in milliseconds for authentication requests. Defaults to `5000` milliseconds                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | enableTelemetry             | `boolean`                 | Boolean value to opt-out of sending the library name and version to your authorization server via the `Auth0-Client` header. Defaults to `true`.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
+### Customizing Auth Handlers
+
+While the authentication routes are handled automatically by the middleware, you can still customize the authentication flow through hooks, middleware logic, and configuration options. Common customization patterns include:
+
+- **Custom login parameters**: Use query parameters or static configuration to pass custom authorization parameters
+- **Custom logout behavior**: Add custom logic before logout or specify custom redirect URLs
+- **Custom callback handling**: Use the `onCallback` hook to add custom logic after authentication
+- **Session customization**: Use the `beforeSessionSaved` hook to modify session data
+- **Middleware-based customization**: Add custom logic in your middleware for specific auth routes
+
+> [!IMPORTANT]
+> When customizing auth handlers, always validate user inputs (especially redirect URLs) to prevent security vulnerabilities like open redirects. Use relative URLs when possible and implement proper input sanitization.
+
+**Quick Start**: For detailed examples and step-by-step migration patterns from v3, see [Customizing Auth Handlers](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#customizing-auth-handlers).
+
 ## Session Cookie Configuration
 
 You can specify the following environment variables to configure the session cookie:
