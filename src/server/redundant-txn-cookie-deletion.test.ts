@@ -4,6 +4,7 @@ import * as oauth from "oauth4webapi";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { InvalidStateError, MissingStateError } from "../errors/index.js";
+import { getDefaultRoutes } from "../test/defaults.js";
 import { SessionData } from "../types/index.js";
 import { AuthClient, AuthClientOptions } from "./auth-client.js";
 import {
@@ -50,11 +51,7 @@ const baseOptions: Partial<AuthClientOptions> = {
   clientSecret: "test-client-secret",
   appBaseUrl: "http://localhost:3000",
   secret: "a-sufficiently-long-secret-for-testing",
-  routes: {
-    login: "/api/auth/login",
-    logout: "/api/auth/logout",
-    callback: "/api/auth/callback"
-  }
+  routes: getDefaultRoutes()
 };
 
 describe("Ensure that redundant transaction cookies are deleted from auth-client methods", () => {

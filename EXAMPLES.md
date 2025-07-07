@@ -9,6 +9,9 @@
   - [On the server (App Router)](#on-the-server-app-router)
   - [On the server (Pages Router)](#on-the-server-pages-router)
   - [Middleware](#middleware)
+- [Protecting a Server-Side Rendered (SSR) Page](#protecting-a-server-side-rendered-ssr-page)
+  - [Page Router](#page-router)
+  - [App Router](#app-router)
 - [Protecting a Client-Side Rendered (CSR) Page](#protecting-a-client-side-rendered-csr-page)
 - [Accessing the idToken](#accessing-the-idtoken)
 - [Updating the session](#updating-the-session)
@@ -241,6 +244,43 @@ export async function middleware(request: NextRequest) {
 
 > [!IMPORTANT]  
 > The `request` object must be passed as a parameter to the `getSession(request)` method when called from a middleware to ensure that any updates to the session can be read within the same request.
+
+## Protecting a Server-Side Rendered (SSR) Page
+
+#### Page Router
+
+Requests to `/pages/profile` without a valid session cookie will be redirected to the login page.
+
+```jsx
+// pages/profile.js
+import { auth0 } from "@/lib/auth0";
+
+export default function Profile({ user }) {
+  return <div>Hello {user.name}</div>;
+}
+
+// You can optionally pass your own `getServerSideProps` function into
+// `withPageAuthRequired` and the props will be merged with the `user` prop
+export const getServerSideProps = auth0.withPageAuthRequired();
+```
+
+#### App Router
+
+Requests to `/profile` without a valid session cookie will be redirected to the login page.
+
+```jsx
+// app/profile/page.js
+import { auth0 } from "@/lib/auth0";
+
+export default auth0.withPageAuthRequired(
+  async function Profile() {
+    const { user } = await auth0.getSession();
+    return <div>Hello {user.name}</div>;
+  },
+  { returnTo: "/profile" }
+);
+// You need to provide a `returnTo` since Server Components aren't aware of the page's URL
+```
 
 ## Protecting a Client-Side Rendered (CSR) Page
 
