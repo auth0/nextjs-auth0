@@ -11,6 +11,7 @@ import {
   it
 } from "vitest";
 
+import { getDefaultRoutes } from "../test/defaults.js";
 import { generateSecret } from "../test/utils.js";
 import type { SessionData } from "../types/index.js";
 import { AuthClient } from "./auth-client.js";
@@ -108,7 +109,8 @@ describe("Logout Strategy Flow Tests", () => {
         secret,
         transactionStore,
         sessionStore,
-        logoutStrategy: "auto"
+        logoutStrategy: "auto",
+        routes: getDefaultRoutes()
       });
 
       const session: SessionData = {
@@ -166,7 +168,8 @@ describe("Logout Strategy Flow Tests", () => {
         secret,
         transactionStore,
         sessionStore,
-        logoutStrategy: "auto"
+        logoutStrategy: "auto",
+        routes: getDefaultRoutes()
       });
 
       const request = new NextRequest(
@@ -198,7 +201,8 @@ describe("Logout Strategy Flow Tests", () => {
         secret,
         transactionStore,
         sessionStore,
-        logoutStrategy: "auto"
+        logoutStrategy: "auto",
+        routes: getDefaultRoutes()
       });
 
       const returnToUrl = "http://localhost:3000/custom-page";
@@ -232,7 +236,8 @@ describe("Logout Strategy Flow Tests", () => {
         secret,
         transactionStore,
         sessionStore,
-        logoutStrategy: "oidc"
+        logoutStrategy: "oidc",
+        routes: getDefaultRoutes()
       });
 
       const session: SessionData = {
@@ -283,7 +288,8 @@ describe("Logout Strategy Flow Tests", () => {
         secret,
         transactionStore,
         sessionStore,
-        logoutStrategy: "oidc"
+        logoutStrategy: "oidc",
+        routes: getDefaultRoutes()
       });
 
       const request = new NextRequest(
@@ -312,7 +318,8 @@ describe("Logout Strategy Flow Tests", () => {
         secret,
         transactionStore,
         sessionStore,
-        logoutStrategy: "v2"
+        logoutStrategy: "v2",
+        routes: getDefaultRoutes()
       });
 
       const session: SessionData = {
@@ -362,7 +369,8 @@ describe("Logout Strategy Flow Tests", () => {
         secret,
         transactionStore,
         sessionStore,
-        logoutStrategy: "v2"
+        logoutStrategy: "v2",
+        routes: getDefaultRoutes()
       });
 
       const wildcardUrl = "http://localhost:3000/*/about";
@@ -393,7 +401,8 @@ describe("Logout Strategy Flow Tests", () => {
         secret,
         transactionStore,
         sessionStore,
-        logoutStrategy: "v2"
+        logoutStrategy: "v2",
+        routes: getDefaultRoutes()
       });
 
       const request = new NextRequest(
@@ -427,7 +436,8 @@ describe("Logout Strategy Flow Tests", () => {
           secret,
           transactionStore,
           sessionStore,
-          logoutStrategy: strategy
+          logoutStrategy: strategy,
+          routes: getDefaultRoutes()
         });
 
         const session: SessionData = {
@@ -480,7 +490,8 @@ describe("Logout Strategy Flow Tests", () => {
         secret,
         transactionStore,
         sessionStore,
-        logoutStrategy: "auto"
+        logoutStrategy: "auto",
+        routes: getDefaultRoutes()
       });
 
       const request = new NextRequest(
