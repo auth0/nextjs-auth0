@@ -349,7 +349,9 @@ export function addCacheControlHeadersForSession(res: NextResponse): void {
   res.headers.set("Pragma", "no-cache");
   res.headers.set("Expires", "0");
 }
-
+/**
+ * Mutates resCookies, to delete cookie by name from resCookies.cookies
+ */
 export function deleteCookie(resCookies: ResponseCookies, name: string) {
   resCookies.set(name, "", {
     maxAge: 0 // Ensure the cookie is deleted immediately
