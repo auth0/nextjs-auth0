@@ -1,7 +1,19 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { NextRequest } from "next/server.js";
+import { NextRequest, NextResponse } from "next/server.js";
+import * as jose from "jose";
+import { http, HttpResponse } from "msw";
+import { setupServer } from "msw/node";
 import * as oauth from "oauth4webapi";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi
+} from "vitest";
 
 import { InvalidStateError, MissingStateError } from "../errors/index.js";
 import { SessionData } from "../types/index.js";
@@ -18,8 +30,6 @@ import {
 import { TransactionStore } from "./transaction-store.js";
 
 vi.mock("./transaction-store");
-vi.mock("oauth4webapi");
-vi.mock("jose");
 
 const MockTransactionStore = TransactionStore;
 
@@ -45,7 +55,7 @@ class TestSessionStore extends AbstractSessionStore {
 }
 
 const baseOptions: Partial<AuthClientOptions> = {
-  domain: "test.auth0.com",
+  domain: "auth0.local",
   clientId: "test-client-id",
   clientSecret: "test-client-secret",
   appBaseUrl: "http://localhost:3000",
@@ -57,10 +67,77 @@ const baseOptions: Partial<AuthClientOptions> = {
   }
 };
 
+// Additional crypto constants for JWT signing
+const alg = "RS256";
+const kid = "Key";
+let keyPair: jose.GenerateKeyPairResult;
+
+async function generateIdToken() {
+  return new jose.SignJWT({
+    sub: "user123",
+    sid: "sid123",
+    nonce: "test-nonce",
+    aud: baseOptions.clientId!,
+    iss: "https://auth0.local/"
+  })
+    .setProtectedHeader({ alg, kid })
+    .setIssuedAt()
+    .setExpirationTime("1h")
+    .sign(keyPair.privateKey);
+}
+
+// MSW server setup
+const server = setupServer(
+  // OIDC Discovery endpoint
+  http.get("https://auth0.local/.well-known/openid-configuration", () => {
+    return HttpResponse.json({
+      issuer: "https://auth0.local/",
+      authorization_endpoint: "https://auth0.local/authorize",
+      token_endpoint: "https://auth0.local/oauth/token",
+      jwks_uri: "https://auth0.local/.well-known/jwks.json",
+      end_session_endpoint: "https://auth0.local/v2/logout"
+    });
+  }),
+
+  // Token endpoint
+  http.post("https://auth0.local/oauth/token", async () => {
+    return HttpResponse.json({
+      token_type: "Bearer",
+      access_token: "access_token_123",
+      id_token: await generateIdToken(),
+      refresh_token: "refresh_token_789",
+      expires_in: 3600,
+      scope: "openid profile email"
+    });
+  }),
+
+  // JWKS endpoint
+  http.get("https://auth0.local/.well-known/jwks.json", async () => {
+    const jwk = await jose.exportJWK(keyPair.publicKey);
+    (jwk as any).kid = kid;
+    return HttpResponse.json({ keys: [jwk] });
+  })
+);
+
 describe("Ensure that redundant transaction cookies are deleted from auth-client methods", () => {
   let authClient: AuthClient;
   let mockTransactionStoreInstance: TransactionStore;
   let mockSessionStoreInstance: TestSessionStore;
+  let mockOnCallback: ReturnType<typeof vi.fn>;
+  let mockFinalizeSession: ReturnType<typeof vi.fn>;
+
+  beforeAll(async () => {
+    keyPair = await jose.generateKeyPair(alg);
+    server.listen({ onUnhandledRequest: "warn" });
+  });
+
+  afterAll(() => {
+    server.close();
+  });
+
+  afterEach(() => {
+    server.resetHandlers();
+  });
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -85,7 +162,7 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
       payload: {
         state: "test-state",
         nonce: "test-nonce",
-        codeVerifier: "cv",
+        codeVerifier: "cv_test_code_verifier_123456789012345678901234567890",
         responseType: "code",
         returnTo: "/"
       }
@@ -105,43 +182,97 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
       transactionStore: mockTransactionStoreInstance
     } as AuthClientOptions);
 
+    // Mock the discovery method directly
     (authClient as any).discoverAuthorizationServerMetadata = vi
       .fn()
       .mockResolvedValue([
         null,
         {
-          issuer: "https://test.auth0.com/",
-          authorization_endpoint: "https://test.auth0.com/authorize",
-          token_endpoint: "https://test.auth0.com/oauth/token",
-          jwks_uri: "https://test.auth0.com/.well-known/jwks.json",
-          end_session_endpoint: "https://test.auth0.com/v2/logout" // Mock RP-Initiated Logout endpoint
+          issuer: "https://auth0.local/",
+          authorization_endpoint: "https://auth0.local/authorize",
+          token_endpoint: "https://auth0.local/oauth/token",
+          jwks_uri: "https://auth0.local/.well-known/jwks.json",
+          end_session_endpoint: "https://auth0.local/v2/logout"
         }
       ]);
 
-    vi.spyOn(oauth, "validateAuthResponse").mockReturnValue(
-      new URLSearchParams("code=auth_code")
-    );
-    vi.spyOn(oauth, "authorizationCodeGrantRequest").mockResolvedValue(
-      new Response()
-    );
-    vi.spyOn(oauth, "processAuthorizationCodeResponse").mockResolvedValue({
-      token_type: "Bearer",
-      access_token: "access_token_123",
-      id_token: "id_token_456",
-      refresh_token: "refresh_token_789",
-      expires_in: 3600,
-      scope: "openid profile email"
-    } as oauth.TokenEndpointResponse);
+    // Mock the finalizeSession method to avoid token processing complexity
+    mockFinalizeSession = vi
+      .fn()
+      .mockImplementation((session) => Promise.resolve(session));
+    (authClient as any).finalizeSession = mockFinalizeSession;
 
-    const clientId = baseOptions.clientId ?? "test-client-id";
-    vi.spyOn(oauth, "getValidatedIdTokenClaims").mockReturnValue({
-      sub: "user123",
-      sid: "sid123",
-      nonce: "test-nonce",
-      aud: clientId,
-      iss: `https://${baseOptions.domain}/`,
-      iat: Math.floor(Date.now() / 1000) - 60,
-      exp: Math.floor(Date.now() / 1000) + 3600
+    // Mock the onCallback method to avoid complex callback handling
+    mockOnCallback = vi.fn().mockImplementation((error, ctx, session) => {
+      if (error) {
+        return new Response(error.message, { status: 500 });
+      }
+      return NextResponse.redirect("http://localhost:3000/");
+    });
+    (authClient as any).onCallback = mockOnCallback;
+  });
+
+  describe("handleLogin", () => {
+    it("should call deleteAll to clean up stale transaction cookies", async () => {
+      const req = new NextRequest("http://localhost:3000/api/auth/login");
+      req.cookies.set("__txn_old1", "old-txn-value1");
+      req.cookies.set("__txn_old2", "old-txn-value2");
+      req.cookies.set("other_cookie", "other-value");
+
+      const res = await authClient.handleLogin(req);
+
+      expect(mockTransactionStoreInstance.deleteAll).toHaveBeenCalledTimes(1);
+      expect(mockTransactionStoreInstance.deleteAll).toHaveBeenCalledWith(
+        req.cookies,
+        res.cookies
+      );
+
+      expect(res.status).toBeGreaterThanOrEqual(300); // Accept redirects
+      expect(res.status).toBeLessThan(400);
+    });
+
+    it("should call deleteAll even when no stale transaction cookies exist", async () => {
+      const req = new NextRequest("http://localhost:3000/api/auth/login");
+      req.cookies.set("other_cookie", "other-value");
+
+      const res = await authClient.handleLogin(req);
+
+      expect(mockTransactionStoreInstance.deleteAll).toHaveBeenCalledTimes(1);
+      expect(mockTransactionStoreInstance.deleteAll).toHaveBeenCalledWith(
+        req.cookies,
+        res.cookies
+      );
+
+      expect(res.status).toBeGreaterThanOrEqual(300);
+      expect(res.status).toBeLessThan(400);
+    });
+
+    it("should call deleteAll with custom transaction cookie prefix", async () => {
+      const customPrefix = "__my_txn_";
+      mockTransactionStoreInstance.getCookiePrefix = vi
+        .fn()
+        .mockReturnValue(customPrefix);
+
+      const customAuthClient = new AuthClient({
+        ...baseOptions,
+        sessionStore: mockSessionStoreInstance as any,
+        transactionStore: mockTransactionStoreInstance
+      } as AuthClientOptions);
+
+      const req = new NextRequest("http://localhost:3000/api/auth/login");
+      req.cookies.set(`${customPrefix}old1`, "old-txn-value1");
+      req.cookies.set("__txn_default", "default-prefix-value");
+
+      const res = await customAuthClient.handleLogin(req);
+
+      expect(mockTransactionStoreInstance.deleteAll).toHaveBeenCalledTimes(1);
+      expect(mockTransactionStoreInstance.deleteAll).toHaveBeenCalledWith(
+        req.cookies,
+        res.cookies
+      );
+
+      expect(res.status).toBeGreaterThanOrEqual(300);
+      expect(res.status).toBeLessThan(400);
     });
   });
 
@@ -211,9 +342,20 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
         sessionStore: mockSessionStoreInstance as any,
         transactionStore: mockTransactionStoreInstance
       } as AuthClientOptions);
+
+      // Re-apply mocks for the new instance
       (authClient as any).discoverAuthorizationServerMetadata = vi
         .fn()
-        .mockResolvedValue([null, { end_session_endpoint: "http://..." }]);
+        .mockResolvedValue([
+          null,
+          {
+            issuer: "https://auth0.local/",
+            authorization_endpoint: "https://auth0.local/authorize",
+            token_endpoint: "https://auth0.local/oauth/token",
+            jwks_uri: "https://auth0.local/.well-known/jwks.json",
+            end_session_endpoint: "https://auth0.local/v2/logout"
+          }
+        ]);
 
       const req = new NextRequest("http://localhost:3000/api/auth/logout");
       req.cookies.set("__session", "session-value");
@@ -291,6 +433,145 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
       expect(res.status).toBe(500);
       const body = await res.text();
       expect(body).toContain(new MissingStateError().message);
+    });
+
+    it("should call delete on OAuth authorization errors", async () => {
+      const state = "test-state";
+      const req = new NextRequest(
+        `http://localhost:3000/api/auth/callback?error=access_denied&state=${state}`
+      );
+      req.cookies.set(`__txn_${state}`, "transaction-value");
+
+      // Mock onCallback to simulate error handling
+      mockOnCallback.mockImplementation(
+        async (error: Error | null, ctx: any, session: any) => {
+          if (error) {
+            return NextResponse.redirect("http://localhost:3000/error");
+          }
+          return NextResponse.redirect("http://localhost:3000/dashboard");
+        }
+      );
+
+      const res = await authClient.handleCallback(req);
+
+      expect(mockTransactionStoreInstance.delete).toHaveBeenCalledTimes(1);
+      expect(mockTransactionStoreInstance.delete).toHaveBeenCalledWith(
+        res.cookies,
+        state
+      );
+
+      expect(res.status).toBeGreaterThanOrEqual(300);
+      expect(res.status).toBeLessThan(400);
+    });
+
+    it("should call delete on OAuth token request errors", async () => {
+      const state = "test-state";
+      const req = new NextRequest(
+        `http://localhost:3000/api/auth/callback?code=auth-code&state=${state}`
+      );
+      req.cookies.set(`__txn_${state}`, "transaction-value");
+
+      // Mock token endpoint to return an error
+      server.use(
+        http.post("https://auth0.local/oauth/token", () => {
+          return new Response(
+            JSON.stringify({
+              error: "invalid_grant",
+              error_description: "Invalid authorization code"
+            }),
+            { status: 400 }
+          );
+        })
+      );
+
+      // Mock onCallback to handle the error
+      mockOnCallback.mockImplementation(
+        async (error: Error | null, ctx: any, session: any) => {
+          if (error) {
+            return NextResponse.redirect("http://localhost:3000/error");
+          }
+          return NextResponse.redirect("http://localhost:3000/dashboard");
+        }
+      );
+
+      const res = await authClient.handleCallback(req);
+
+      expect(mockTransactionStoreInstance.delete).toHaveBeenCalledWith(
+        res.cookies,
+        state
+      );
+
+      expect(res.status).toBeGreaterThanOrEqual(300);
+      expect(res.status).toBeLessThan(400);
+    });
+
+    it("should call delete on token processing errors", async () => {
+      const state = "test-state";
+      const req = new NextRequest(
+        `http://localhost:3000/api/auth/callback?code=auth-code&state=${state}`
+      );
+      req.cookies.set(`__txn_${state}`, "transaction-value");
+
+      // Mock finalizeSession to throw an error
+      mockFinalizeSession.mockRejectedValue(
+        new Error("Session finalization failed")
+      );
+
+      // Mock onCallback to handle the error
+      mockOnCallback.mockImplementation(
+        async (error: Error | null, ctx: any, session: any) => {
+          if (error) {
+            return NextResponse.redirect("http://localhost:3000/error");
+          }
+          return NextResponse.redirect("http://localhost:3000/dashboard");
+        }
+      );
+
+      const res = await authClient.handleCallback(req);
+
+      expect(mockTransactionStoreInstance.delete).toHaveBeenCalledTimes(1);
+      expect(mockTransactionStoreInstance.delete).toHaveBeenCalledWith(
+        res.cookies,
+        state
+      );
+
+      expect(res.status).toBeGreaterThanOrEqual(300);
+      expect(res.status).toBeLessThan(400);
+    });
+
+    it("should call delete on session store errors", async () => {
+      const state = "test-state";
+      const req = new NextRequest(
+        `http://localhost:3000/api/auth/callback?code=auth-code&state=${state}`
+      );
+      req.cookies.set(`__txn_${state}`, "transaction-value");
+
+      // Mock session store set to throw an error
+      const mockSetError = vi
+        .fn()
+        .mockRejectedValue(new Error("Session save failed"));
+      mockSessionStoreInstance.set = mockSetError;
+
+      // Mock onCallback to handle the error
+      mockOnCallback.mockImplementation(
+        async (error: Error | null, ctx: any, session: any) => {
+          if (error) {
+            return NextResponse.redirect("http://localhost:3000/error");
+          }
+          return NextResponse.redirect("http://localhost:3000/dashboard");
+        }
+      );
+
+      const res = await authClient.handleCallback(req);
+
+      expect(mockTransactionStoreInstance.delete).toHaveBeenCalledTimes(1);
+      expect(mockTransactionStoreInstance.delete).toHaveBeenCalledWith(
+        res.cookies,
+        state
+      );
+
+      expect(res.status).toBeGreaterThanOrEqual(300);
+      expect(res.status).toBeLessThan(400);
     });
   });
 });
