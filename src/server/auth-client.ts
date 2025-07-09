@@ -418,7 +418,10 @@ export class AuthClient {
         : {},
       returnTo: searchParams.returnTo
     };
-    return this.startInteractiveLogin(options);
+    const requestCookies = req.cookies;
+    const interactiveLoginResponse = await this.startInteractiveLogin(options);
+    this.transactionStore.deleteAll(requestCookies, interactiveLoginResponse);
+    return interactiveLoginResponse;
   }
 
   async handleLogout(req: NextRequest): Promise<NextResponse> {
@@ -501,7 +504,7 @@ export class AuthClient {
       }
     }
 
-    // Clean up session and transaction cookies
+    // Clean up session
     await this.sessionStore.delete(req.cookies, logoutResponse.cookies);
     addCacheControlHeadersForSession(logoutResponse);
 
@@ -524,7 +527,6 @@ export class AuthClient {
     if (!transactionStateCookie) {
       return this.onCallback(new InvalidStateError(), {}, null);
     }
-
     const transactionState = transactionStateCookie.payload;
     const onCallbackCtx: OnCallbackContext = {
       returnTo: transactionState.returnTo
@@ -606,34 +608,45 @@ export class AuthClient {
         null
       );
     }
+    try {
+      const idTokenClaims = oauth.getValidatedIdTokenClaims(oidcRes)!;
+      let session: SessionData = {
+        user: idTokenClaims,
+        tokenSet: {
+          accessToken: oidcRes.access_token,
+          idToken: oidcRes.id_token,
+          scope: oidcRes.scope,
+          refreshToken: oidcRes.refresh_token,
+          expiresAt: Math.floor(Date.now() / 1000) + Number(oidcRes.expires_in)
+        },
+        internal: {
+          sid: idTokenClaims.sid as string,
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
 
-    const idTokenClaims = oauth.getValidatedIdTokenClaims(oidcRes)!;
-    let session: SessionData = {
-      user: idTokenClaims,
-      tokenSet: {
-        accessToken: oidcRes.access_token,
-        idToken: oidcRes.id_token,
-        scope: oidcRes.scope,
-        refreshToken: oidcRes.refresh_token,
-        expiresAt: Math.floor(Date.now() / 1000) + Number(oidcRes.expires_in)
-      },
-      internal: {
-        sid: idTokenClaims.sid as string,
-        createdAt: Math.floor(Date.now() / 1000)
-      }
-    };
+      const res = await this.onCallback(null, onCallbackCtx, session);
 
-    const res = await this.onCallback(null, onCallbackCtx, session);
+      // call beforeSessionSaved callback if present
+      // if not then filter id_token claims with default rules
+      session = await this.finalizeSession(session, oidcRes.id_token);
 
-    // call beforeSessionSaved callback if present
-    // if not then filter id_token claims with default rules
-    session = await this.finalizeSession(session, oidcRes.id_token);
+      await this.sessionStore.set(req.cookies, res.cookies, session, true);
+      addCacheControlHeadersForSession(res);
 
-    await this.sessionStore.set(req.cookies, res.cookies, session, true);
-    addCacheControlHeadersForSession(res);
-    await this.transactionStore.delete(res.cookies, state);
-
-    return res;
+      // delete this txn cookie
+      await this.transactionStore.delete(res.cookies, state);
+      return res;
+    } catch (error) {
+      const errorResponse = await this.onCallback(
+        error as SdkError,
+        onCallbackCtx,
+        null
+      );
+      // delete this txn cookie
+      await this.transactionStore.delete(errorResponse.cookies, state);
+      return errorResponse;
+    }
   }
 
   async handleProfile(req: NextRequest): Promise<NextResponse> {
