@@ -36,6 +36,7 @@ import {
   TransactionCookieOptions,
   TransactionStore
 } from "./transaction-store.js";
+import { ensureLeadingSlash, normalizeWithBasePath } from "../utils/pathUtils.js";
 
 export interface Auth0ClientOptions {
   // authorization server configuration
@@ -215,6 +216,22 @@ export class Auth0Client {
       options.clientAssertionSigningAlg ||
       process.env.AUTH0_CLIENT_ASSERTION_SIGNING_ALG;
 
+    // Calculate the default cookie path, considering base path
+    const getDefaultCookiePath = (): string => {
+      // If explicitly set via environment variable or options, use that
+      if (options.session?.cookie?.path || process.env.AUTH0_COOKIE_PATH) {
+        return options.session?.cookie?.path ?? process.env.AUTH0_COOKIE_PATH ?? "/";
+      }
+      
+      // If base path is set, use that as the cookie path
+      if (process.env.NEXT_PUBLIC_BASE_PATH) {
+        return ensureLeadingSlash(process.env.NEXT_PUBLIC_BASE_PATH);
+      }
+      
+      // Default to root
+      return "/";
+    };
+
     const sessionCookieOptions: SessionCookieOptions = {
       name: options.session?.cookie?.name ?? "__session",
       secure:
@@ -224,8 +241,7 @@ export class Auth0Client {
         options.session?.cookie?.sameSite ??
         (process.env.AUTH0_COOKIE_SAME_SITE as "lax" | "strict" | "none") ??
         "lax",
-      path:
-        options.session?.cookie?.path ?? process.env.AUTH0_COOKIE_PATH ?? "/",
+      path: getDefaultCookiePath(),
       transient:
         options.session?.cookie?.transient ??
         process.env.AUTH0_COOKIE_TRANSIENT === "true",
@@ -236,7 +252,7 @@ export class Auth0Client {
       prefix: options.transactionCookie?.prefix ?? "__txn_",
       secure: options.transactionCookie?.secure ?? false,
       sameSite: options.transactionCookie?.sameSite ?? "lax",
-      path: options.transactionCookie?.path ?? "/"
+      path: options.transactionCookie?.path ?? getDefaultCookiePath()
     };
 
     if (appBaseUrl) {

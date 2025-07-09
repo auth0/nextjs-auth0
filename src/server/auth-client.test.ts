@@ -2357,6 +2357,154 @@ ca/T0LLtgmbMmxSv/MmzIg==
         "An error occured while trying to initiate the logout request."
       );
     });
+
+    it("should properly clear session cookies when base path is set", async () => {
+      // Set up base path
+      process.env.NEXT_PUBLIC_BASE_PATH = "/dashboard";
+      
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret,
+        cookieOptions: {
+          path: "/dashboard"
+        }
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret,
+        cookieOptions: {
+          path: "/dashboard"
+        }
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        fetch: getMockAuthorizationServer()
+      });
+
+      // set the session cookie with base path
+      const session: SessionData = {
+        user: { sub: DEFAULT.sub },
+        tokenSet: {
+          idToken: DEFAULT.idToken,
+          accessToken: DEFAULT.accessToken,
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt: 123456
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const sessionCookie = await encrypt(session, secret, expiration);
+      const headers = new Headers();
+      headers.append("cookie", `__session=${sessionCookie}`);
+      const request = new NextRequest(
+        new URL("/dashboard/auth/logout", DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers
+        }
+      );
+
+      const response = await authClient.handleLogout(request);
+      expect(response.status).toEqual(307);
+      expect(response.headers.get("Location")).not.toBeNull();
+
+      const authorizationUrl = new URL(response.headers.get("Location")!);
+      expect(authorizationUrl.origin).toEqual(`https://${DEFAULT.domain}`);
+
+      // session cookie should be cleared with the correct path
+      const cookie = response.cookies.get("__session");
+      expect(cookie?.value).toEqual("");
+      expect(cookie?.maxAge).toEqual(0);
+      expect(cookie?.path).toEqual("/dashboard");
+
+      // Clean up
+      delete process.env.NEXT_PUBLIC_BASE_PATH;
+    });
+
+    it("should handle logout with base path and transaction cookies", async () => {
+      // Set up base path
+      process.env.NEXT_PUBLIC_BASE_PATH = "/dashboard";
+      
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret,
+        cookieOptions: {
+          path: "/dashboard"
+        }
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret,
+        cookieOptions: {
+          path: "/dashboard"
+        }
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        fetch: getMockAuthorizationServer()
+      });
+
+      // Create request with session and transaction cookies
+      const session: SessionData = {
+        user: { sub: DEFAULT.sub },
+        tokenSet: {
+          idToken: DEFAULT.idToken,
+          accessToken: DEFAULT.accessToken,
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt: 123456
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const sessionCookie = await encrypt(session, secret, expiration);
+      const transactionCookie = await encrypt({ state: "test-state" }, secret, expiration);
+      
+      const headers = new Headers();
+      headers.append("cookie", `__session=${sessionCookie}; __txn_test-state=${transactionCookie}`);
+      const request = new NextRequest(
+        new URL("/dashboard/auth/logout", DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers
+        }
+      );
+
+      const response = await authClient.handleLogout(request);
+      expect(response.status).toEqual(307);
+
+      // Both session and transaction cookies should be cleared with correct path
+      const sessionCookieResponse = response.cookies.get("__session");
+      expect(sessionCookieResponse?.value).toEqual("");
+      expect(sessionCookieResponse?.maxAge).toEqual(0);
+      expect(sessionCookieResponse?.path).toEqual("/dashboard");
+
+      // Clean up
+      delete process.env.NEXT_PUBLIC_BASE_PATH;
+    });
   });
 
   describe("handleProfile", async () => {

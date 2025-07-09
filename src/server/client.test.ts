@@ -214,4 +214,128 @@ describe("Auth0Client", () => {
       expect(mockSaveToSession).not.toHaveBeenCalled();
     });
   });
+
+  describe("Auth0Client cookie path configuration", () => {
+    afterEach(() => {
+      delete process.env.NEXT_PUBLIC_BASE_PATH;
+      delete process.env.AUTH0_COOKIE_PATH;
+    });
+
+    it("should set cookie path to base path when NEXT_PUBLIC_BASE_PATH is set", () => {
+      process.env.NEXT_PUBLIC_BASE_PATH = "/dashboard";
+      
+      const client = new Auth0Client({
+        domain: "test.auth0.com",
+        clientId: "test-client-id",
+        clientSecret: "test-client-secret",
+        appBaseUrl: "http://localhost:3000",
+        secret: "a-very-long-secret-key-that-is-at-least-32-characters-long"
+      });
+
+      // Access the private sessionStore to check cookie config
+      const sessionStore = (client as any).sessionStore;
+      expect(sessionStore.cookieConfig.path).toBe("/dashboard");
+
+      // Also check transaction store
+      const transactionStore = (client as any).transactionStore;
+      expect(transactionStore.cookieConfig.path).toBe("/dashboard");
+    });
+
+    it("should set cookie path to base path with leading slash when NEXT_PUBLIC_BASE_PATH doesn't have one", () => {
+      process.env.NEXT_PUBLIC_BASE_PATH = "dashboard";
+      
+      const client = new Auth0Client({
+        domain: "test.auth0.com",
+        clientId: "test-client-id",
+        clientSecret: "test-client-secret",
+        appBaseUrl: "http://localhost:3000",
+        secret: "a-very-long-secret-key-that-is-at-least-32-characters-long"
+      });
+
+      const sessionStore = (client as any).sessionStore;
+      expect(sessionStore.cookieConfig.path).toBe("/dashboard");
+    });
+
+    it("should use AUTH0_COOKIE_PATH over base path when explicitly set", () => {
+      process.env.NEXT_PUBLIC_BASE_PATH = "/dashboard";
+      process.env.AUTH0_COOKIE_PATH = "/custom-path";
+      
+      const client = new Auth0Client({
+        domain: "test.auth0.com",
+        clientId: "test-client-id",
+        clientSecret: "test-client-secret",
+        appBaseUrl: "http://localhost:3000",
+        secret: "a-very-long-secret-key-that-is-at-least-32-characters-long"
+      });
+
+      const sessionStore = (client as any).sessionStore;
+      expect(sessionStore.cookieConfig.path).toBe("/custom-path");
+    });
+
+    it("should use option path over base path when explicitly set", () => {
+      process.env.NEXT_PUBLIC_BASE_PATH = "/dashboard";
+      
+      const client = new Auth0Client({
+        domain: "test.auth0.com",
+        clientId: "test-client-id",
+        clientSecret: "test-client-secret",
+        appBaseUrl: "http://localhost:3000",
+        secret: "a-very-long-secret-key-that-is-at-least-32-characters-long",
+        session: {
+          cookie: {
+            path: "/custom-option-path"
+          }
+        }
+      });
+
+      const sessionStore = (client as any).sessionStore;
+      expect(sessionStore.cookieConfig.path).toBe("/custom-option-path");
+    });
+
+    it("should default to root path when no base path is set", () => {
+      const client = new Auth0Client({
+        domain: "test.auth0.com",
+        clientId: "test-client-id",
+        clientSecret: "test-client-secret",
+        appBaseUrl: "http://localhost:3000",
+        secret: "a-very-long-secret-key-that-is-at-least-32-characters-long"
+      });
+
+      const sessionStore = (client as any).sessionStore;
+      expect(sessionStore.cookieConfig.path).toBe("/");
+    });
+
+    it("should apply base path to transaction cookies as well", () => {
+      process.env.NEXT_PUBLIC_BASE_PATH = "/dashboard";
+      
+      const client = new Auth0Client({
+        domain: "test.auth0.com",
+        clientId: "test-client-id",
+        clientSecret: "test-client-secret",
+        appBaseUrl: "http://localhost:3000",
+        secret: "a-very-long-secret-key-that-is-at-least-32-characters-long"
+      });
+
+      const transactionStore = (client as any).transactionStore;
+      expect(transactionStore.cookieConfig.path).toBe("/dashboard");
+    });
+
+    it("should allow overriding transaction cookie path explicitly", () => {
+      process.env.NEXT_PUBLIC_BASE_PATH = "/dashboard";
+      
+      const client = new Auth0Client({
+        domain: "test.auth0.com",
+        clientId: "test-client-id",
+        clientSecret: "test-client-secret",
+        appBaseUrl: "http://localhost:3000",
+        secret: "a-very-long-secret-key-that-is-at-least-32-characters-long",
+        transactionCookie: {
+          path: "/custom-transaction-path"
+        }
+      });
+
+      const transactionStore = (client as any).transactionStore;
+      expect(transactionStore.cookieConfig.path).toBe("/custom-transaction-path");
+    });
+  });
 });

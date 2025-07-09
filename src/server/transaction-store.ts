@@ -118,7 +118,7 @@ export class TransactionStore {
   }
 
   async delete(resCookies: cookies.ResponseCookies, state: string) {
-    cookies.deleteCookie(resCookies, this.getTransactionCookieName(state));
+    cookies.deleteCookie(resCookies, this.getTransactionCookieName(state), this.cookieConfig.path);
   }
 
   /**
