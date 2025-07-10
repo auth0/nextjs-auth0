@@ -382,7 +382,8 @@ describe("Stateless Session Store", async () => {
           LEGACY_COOKIE_NAME,
           "",
           {
-            maxAge: 0
+            maxAge: 0,
+            path: "/"
           }
         );
       });
@@ -429,19 +430,19 @@ describe("Stateless Session Store", async () => {
           2,
           LEGACY_COOKIE_NAME,
           "",
-          { maxAge: 0 }
+          { maxAge: 0, path: "/" }
         );
         expect(responseCookies.set).toHaveBeenNthCalledWith(
           3,
           `${LEGACY_COOKIE_NAME}.0`,
           "",
-          { maxAge: 0 }
+          { maxAge: 0, path: "/" }
         );
         expect(responseCookies.set).toHaveBeenNthCalledWith(
           4,
           `${LEGACY_COOKIE_NAME}.1`,
           "",
-          { maxAge: 0 }
+          { maxAge: 0, path: "/" }
         );
       });
     });
@@ -721,7 +722,8 @@ describe("Stateless Session Store", async () => {
         legacyCookiesInSetup[0].name,
         "",
         {
-          maxAge: 0
+          maxAge: 0,
+          path: "/"
         }
       );
     });
