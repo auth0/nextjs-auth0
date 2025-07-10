@@ -2361,7 +2361,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should properly clear session cookies when base path is set", async () => {
       // Set up base path
       process.env.NEXT_PUBLIC_BASE_PATH = "/dashboard";
-      
+
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({
         secret,
@@ -2436,7 +2436,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     it("should handle logout with base path and transaction cookies", async () => {
       // Set up base path
       process.env.NEXT_PUBLIC_BASE_PATH = "/dashboard";
-      
+
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({
         secret,
@@ -2481,10 +2481,16 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const maxAge = 60 * 60; // 1 hour
       const expiration = Math.floor(Date.now() / 1000 + maxAge);
       const sessionCookie = await encrypt(session, secret, expiration);
-      const transactionCookie = await encrypt({ state: "test-state" }, secret, expiration);
-      
+      const transactionCookie = await encrypt(
+        { state: "test-state" },
+        secret,
+        expiration
+
       const headers = new Headers();
-      headers.append("cookie", `__session=${sessionCookie}; __txn_test-state=${transactionCookie}`);
+      headers.append(
+        "cookie",
+        `__session=${sessionCookie}; __txn_test-state=${transactionCookie}`
+      );
       const request = new NextRequest(
         new URL("/dashboard/auth/logout", DEFAULT.appBaseUrl),
         {

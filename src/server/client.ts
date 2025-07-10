@@ -18,6 +18,7 @@ import {
   StartInteractiveLoginOptions,
   User
 } from "../types/index.js";
+import { ensureLeadingSlash } from "../utils/pathUtils.js";
 import {
   AuthClient,
   BeforeSessionSavedHook,
@@ -36,7 +37,6 @@ import {
   TransactionCookieOptions,
   TransactionStore
 } from "./transaction-store.js";
-import { ensureLeadingSlash, normalizeWithBasePath } from "../utils/pathUtils.js";
 
 export interface Auth0ClientOptions {
   // authorization server configuration
@@ -220,14 +220,16 @@ export class Auth0Client {
     const getDefaultCookiePath = (): string => {
       // If explicitly set via environment variable or options, use that
       if (options.session?.cookie?.path || process.env.AUTH0_COOKIE_PATH) {
-        return options.session?.cookie?.path ?? process.env.AUTH0_COOKIE_PATH ?? "/";
+        return (
+          options.session?.cookie?.path ?? process.env.AUTH0_COOKIE_PATH ?? "/"
+        );
       }
-      
+
       // If base path is set, use that as the cookie path
       if (process.env.NEXT_PUBLIC_BASE_PATH) {
         return ensureLeadingSlash(process.env.NEXT_PUBLIC_BASE_PATH);
       }
-      
+
       // Default to root
       return "/";
     };

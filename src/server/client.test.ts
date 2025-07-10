@@ -223,7 +223,7 @@ describe("Auth0Client", () => {
 
     it("should set cookie path to base path when NEXT_PUBLIC_BASE_PATH is set", () => {
       process.env.NEXT_PUBLIC_BASE_PATH = "/dashboard";
-      
+
       const client = new Auth0Client({
         domain: "test.auth0.com",
         clientId: "test-client-id",
@@ -243,7 +243,7 @@ describe("Auth0Client", () => {
 
     it("should set cookie path to base path with leading slash when NEXT_PUBLIC_BASE_PATH doesn't have one", () => {
       process.env.NEXT_PUBLIC_BASE_PATH = "dashboard";
-      
+
       const client = new Auth0Client({
         domain: "test.auth0.com",
         clientId: "test-client-id",
@@ -259,7 +259,7 @@ describe("Auth0Client", () => {
     it("should use AUTH0_COOKIE_PATH over base path when explicitly set", () => {
       process.env.NEXT_PUBLIC_BASE_PATH = "/dashboard";
       process.env.AUTH0_COOKIE_PATH = "/custom-path";
-      
+
       const client = new Auth0Client({
         domain: "test.auth0.com",
         clientId: "test-client-id",
@@ -274,7 +274,7 @@ describe("Auth0Client", () => {
 
     it("should use option path over base path when explicitly set", () => {
       process.env.NEXT_PUBLIC_BASE_PATH = "/dashboard";
-      
+
       const client = new Auth0Client({
         domain: "test.auth0.com",
         clientId: "test-client-id",
@@ -307,7 +307,7 @@ describe("Auth0Client", () => {
 
     it("should apply base path to transaction cookies as well", () => {
       process.env.NEXT_PUBLIC_BASE_PATH = "/dashboard";
-      
+
       const client = new Auth0Client({
         domain: "test.auth0.com",
         clientId: "test-client-id",
@@ -322,7 +322,7 @@ describe("Auth0Client", () => {
 
     it("should allow overriding transaction cookie path explicitly", () => {
       process.env.NEXT_PUBLIC_BASE_PATH = "/dashboard";
-      
+
       const client = new Auth0Client({
         domain: "test.auth0.com",
         clientId: "test-client-id",
@@ -335,7 +335,9 @@ describe("Auth0Client", () => {
       });
 
       const transactionStore = (client as any).transactionStore;
-      expect(transactionStore.cookieConfig.path).toBe("/custom-transaction-path");
+      expect(transactionStore.cookieConfig.path).toBe(
+        "/custom-transaction-path"
+      );
     });
   });
 });

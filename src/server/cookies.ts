@@ -351,7 +351,11 @@ export function addCacheControlHeadersForSession(res: NextResponse): void {
   res.headers.set("Expires", "0");
 }
 
-export function deleteCookie(resCookies: ResponseCookies, name: string, path?: string) {
+export function deleteCookie(
+  resCookies: ResponseCookies,
+  name: string,
+  path?: string
+) {
   resCookies.set(name, "", {
     maxAge: 0, // Ensure the cookie is deleted immediately
     path: path || "/" // Use the provided path or default to root
