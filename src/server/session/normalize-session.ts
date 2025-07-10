@@ -1,6 +1,6 @@
 import { JWTDecryptResult } from "jose";
 
-import { SessionData } from "../../types";
+import { SessionData } from "../../types/index.js";
 
 export const LEGACY_COOKIE_NAME = "appSession";
 

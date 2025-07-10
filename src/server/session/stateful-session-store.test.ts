@@ -1,17 +1,20 @@
 import * as jose from "jose";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { generateSecret } from "../../test/utils";
-import { SessionData } from "../../types";
+import { generateSecret } from "../../test/utils.js";
+import { SessionData } from "../../types/index.js";
 import {
   decrypt,
   encrypt,
   RequestCookies,
   ResponseCookies,
   sign
-} from "../cookies";
-import { LEGACY_COOKIE_NAME, LegacySessionPayload } from "./normalize-session";
-import { StatefulSessionStore } from "./stateful-session-store";
+} from "../cookies.js";
+import {
+  LEGACY_COOKIE_NAME,
+  LegacySessionPayload
+} from "./normalize-session.js";
+import { StatefulSessionStore } from "./stateful-session-store.js";
 
 describe("Stateful Session Store", async () => {
   describe("get", async () => {
@@ -751,11 +754,13 @@ describe("Stateful Session Store", async () => {
       });
 
       vi.spyOn(requestCookies, "has").mockReturnValue(true);
-      vi.spyOn(responseCookies, "delete");
+      vi.spyOn(responseCookies, "set");
 
       await sessionStore.set(requestCookies, responseCookies, session);
 
-      expect(responseCookies.delete).toHaveBeenCalledWith(LEGACY_COOKIE_NAME);
+      expect(responseCookies.set).toHaveBeenCalledWith(LEGACY_COOKIE_NAME, "", {
+        maxAge: 0
+      });
     });
 
     it("should not delete the legacy cookie if session cookie name matches LEGACY_COOKIE_NAME", async () => {
@@ -840,7 +845,7 @@ describe("Stateful Session Store", async () => {
       await sessionStore.delete(requestCookies, responseCookies);
       const cookie = responseCookies.get("__session");
       expect(cookie?.value).toEqual("");
-      expect(cookie?.expires).toEqual(new Date("1970-01-01T00:00:00.000Z"));
+      expect(cookie?.maxAge).toEqual(0);
       expect(store.delete).toHaveBeenCalledOnce();
       expect(store.delete).toHaveBeenCalledWith(sessionId);
     });
@@ -875,7 +880,7 @@ describe("Stateful Session Store", async () => {
       await sessionStore.delete(requestCookies, responseCookies);
       const cookie = responseCookies.get("__session");
       expect(cookie?.value).toEqual("");
-      expect(cookie?.expires).toEqual(new Date("1970-01-01T00:00:00.000Z"));
+      expect(cookie?.maxAge).toEqual(0);
       expect(store.delete).not.toHaveBeenCalled();
     });
   });

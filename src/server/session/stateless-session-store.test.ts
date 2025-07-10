@@ -1,12 +1,17 @@
 import * as jose from "jose";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { generateSecret } from "../../test/utils";
-import { CookieOptions, SessionData } from "../../types";
-import { decrypt, encrypt, RequestCookies, ResponseCookies } from "../cookies";
-import * as cookies from "../cookies";
-import { LEGACY_COOKIE_NAME, LegacySession } from "./normalize-session";
-import { StatelessSessionStore } from "./stateless-session-store";
+import { generateSecret } from "../../test/utils.js";
+import { CookieOptions, SessionData } from "../../types/index.js";
+import {
+  decrypt,
+  encrypt,
+  RequestCookies,
+  ResponseCookies
+} from "../cookies.js";
+import * as cookies from "../cookies.js";
+import { LEGACY_COOKIE_NAME, LegacySession } from "./normalize-session.js";
+import { StatelessSessionStore } from "./stateless-session-store.js";
 
 describe("Stateless Session Store", async () => {
   const baseCookieOptions: CookieOptions = {
@@ -433,12 +438,18 @@ describe("Stateless Session Store", async () => {
           secret
         });
 
-        vi.spyOn(responseCookies, "delete");
+        vi.spyOn(responseCookies, "set");
         vi.spyOn(requestCookies, "has").mockReturnValue(true);
 
         await sessionStore.set(requestCookies, responseCookies, session);
 
-        expect(responseCookies.delete).toHaveBeenCalledWith(LEGACY_COOKIE_NAME);
+        expect(responseCookies.set).toHaveBeenCalledWith(
+          LEGACY_COOKIE_NAME,
+          "",
+          {
+            maxAge: 0
+          }
+        );
       });
 
       it("should delete the legacy cookie chunks if they exists", async () => {
@@ -464,7 +475,7 @@ describe("Stateless Session Store", async () => {
           secret
         });
 
-        vi.spyOn(responseCookies, "delete");
+        vi.spyOn(responseCookies, "set");
         vi.spyOn(requestCookies, "getAll").mockReturnValue([
           { name: `${LEGACY_COOKIE_NAME}.0`, value: "" },
           { name: `${LEGACY_COOKIE_NAME}.1`, value: "" }
@@ -472,18 +483,30 @@ describe("Stateless Session Store", async () => {
 
         await sessionStore.set(requestCookies, responseCookies, session);
 
-        expect(responseCookies.delete).toHaveBeenCalledTimes(3);
-        expect(responseCookies.delete).toHaveBeenNthCalledWith(
+        expect(responseCookies.set).toHaveBeenCalledTimes(4);
+        expect(responseCookies.set).toHaveBeenNthCalledWith(
           1,
-          LEGACY_COOKIE_NAME
+          "__session",
+          expect.any(String),
+          expect.not.objectContaining({ maxAge: 0 })
         );
-        expect(responseCookies.delete).toHaveBeenNthCalledWith(
+        expect(responseCookies.set).toHaveBeenNthCalledWith(
           2,
-          `${LEGACY_COOKIE_NAME}.0`
+          LEGACY_COOKIE_NAME,
+          "",
+          { maxAge: 0 }
         );
-        expect(responseCookies.delete).toHaveBeenNthCalledWith(
+        expect(responseCookies.set).toHaveBeenNthCalledWith(
           3,
-          `${LEGACY_COOKIE_NAME}.1`
+          `${LEGACY_COOKIE_NAME}.0`,
+          "",
+          { maxAge: 0 }
+        );
+        expect(responseCookies.set).toHaveBeenNthCalledWith(
+          4,
+          `${LEGACY_COOKIE_NAME}.1`,
+          "",
+          { maxAge: 0 }
         );
       });
     });
@@ -727,7 +750,7 @@ describe("Stateless Session Store", async () => {
       const requestCookies = new RequestCookies(finalHeaders);
 
       const responseCookies = new ResponseCookies(new Headers());
-      const deleteSpy = vi.spyOn(responseCookies, "delete");
+      const setSpy = vi.spyOn(responseCookies, "set");
       const sessionStore = new StatelessSessionStore({ secret });
 
       await sessionStore.set(requestCookies, responseCookies, sessionToSet);
@@ -755,10 +778,22 @@ describe("Stateless Session Store", async () => {
       const decryptedPayload = decryptedNewSession!.payload;
       expect(decryptedPayload).toEqual(expect.objectContaining(sessionToSet));
 
-      expect(deleteSpy).toHaveBeenCalledTimes(legacyCookiesInSetup.length);
-      legacyCookiesInSetup.forEach((legacyCookie) => {
-        expect(deleteSpy).toHaveBeenCalledWith(legacyCookie.name);
-      });
+      // set should be called once for setting the new session cookie and once for deleting the legacy cookie
+      expect(setSpy).toHaveBeenCalledTimes(2);
+      expect(setSpy).toHaveBeenNthCalledWith(
+        1,
+        "__session",
+        expect.any(String),
+        expect.not.objectContaining({ maxAge: 0 })
+      );
+      expect(setSpy).toHaveBeenNthCalledWith(
+        2,
+        legacyCookiesInSetup[0].name,
+        "",
+        {
+          maxAge: 0
+        }
+      );
     });
   });
 
@@ -789,7 +824,7 @@ describe("Stateless Session Store", async () => {
       await sessionStore.delete(requestCookies, responseCookies);
       const cookie = responseCookies.get("__session");
       expect(cookie?.value).toEqual("");
-      expect(cookie?.expires).toEqual(new Date("1970-01-01T00:00:00.000Z"));
+      expect(cookie?.maxAge).toEqual(0);
     });
 
     it("should not throw an error if the cookie does not exist", async () => {

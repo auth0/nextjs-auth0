@@ -1,5 +1,37 @@
 # Change Log
 
+## [v4.8.0](https://github.com/auth0/nextjs-auth0/tree/v4.8.0) (2025-07-03)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.7.0...v4.8.0)
+
+**Added**
+- feat: Add alternate logout strategy [\#2203](https://github.com/auth0/nextjs-auth0/pull/2203) ([tusharpandey13](https://github.com/tusharpandey13))
+- feat: add `withPageAuthRequired` for protecting pages client side [\#2193](https://github.com/auth0/nextjs-auth0/pull/2193) ([guabu](https://github.com/guabu))
+
+**Fixed**
+- Use `max-age=0` to delete cookie [\#2200](https://github.com/auth0/nextjs-auth0/pull/2200) ([guabu](https://github.com/guabu))
+- feat: update id_token when a new Access Token is fetched [\#2189](https://github.com/auth0/nextjs-auth0/pull/2189) ([tusharpandey13](https://github.com/tusharpandey13))
+
+## [v4.7.0](https://github.com/auth0/nextjs-auth0/tree/v4.7.0) (2025-06-20)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.6.1...v4.7.0)
+
+**Added**
+- feat: support basePath configuration [\#2167](https://github.com/auth0/nextjs-auth0/pull/2167) ([guabu](https://github.com/guabu))
+
+**Fixed**
+- fix: typo in warning message [\#2169](https://github.com/auth0/nextjs-auth0/pull/2169) ([J-Amberg](https://github.com/J-Amberg))
+- fix: handle authorization code grant request errors [\#2175](https://github.com/auth0/nextjs-auth0/pull/2175) ([guabu](https://github.com/guabu))
+- fix: Properly configure SDK to be distributed as ESM [\#2171](https://github.com/auth0/nextjs-auth0/pull/2171) ([frederikprijck](https://github.com/frederikprijck))
+- fix: consistently treat returnTo parameter as an absolute path [\#2185](https://github.com/auth0/nextjs-auth0/pull/2185) ([guabu](https://github.com/guabu))
+
+**Changed**
+- Export filterDefaultIdTokenClaims and update beforeSessionSaved docs [\#2119](https://github.com/auth0/nextjs-auth0/pull/2119) ([frederikprijck](https://github.com/frederikprijck))
+- return a 204 from the profile endpoint when unauthenticated (opt-in) [\#2159](https://github.com/auth0/nextjs-auth0/pull/2159) ([guabu](https://github.com/guabu))
+- remove unnecessary error logs [\#2179](https://github.com/auth0/nextjs-auth0/pull/2179) ([guabu](https://github.com/guabu))
+- Bump msw from 2.7.5 to 2.9.0 [\#2139](https://github.com/auth0/nextjs-auth0/pull/2139) ([dependabot](https://github.com/dependabot))
+- Bump msw from 2.9.0 to 2.10.2 [\#2153](https://github.com/auth0/nextjs-auth0/pull/2153) ([dependabot](https://github.com/dependabot))
+- Bump oauth4webapi from 3.5.1 to 3.5.2 [\#2154](https://github.com/auth0/nextjs-auth0/pull/2154) ([dependabot](https://github.com/dependabot))
+- Bump oauth4webapi from 3.5.2 to 3.5.3 [\#2177](https://github.com/auth0/nextjs-auth0/pull/2177) ([dependabot](https://github.com/dependabot))
+
 ## [v4.6.1](https://github.com/auth0/nextjs-auth0/tree/v4.6.1) (2025-06-04)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.6.0...v4.6.1)
 
@@ -148,7 +180,7 @@ We will continue to add features and security upgrades in V4 going further. Plea
 
 **⚠️ BREAKING CHANGES**.
 
-Significant updates have been introduced in this release. Please refer to the V3 → V4 [MIGRATION GUIDE](https://github.com/auth0/nextjs-auth0/blob/v4/V4_MIGRATION_GUIDE.md) for details on upgrading.
+Significant updates have been introduced in this release. Please refer to the V3 → V4 [MIGRATION GUIDE](./V4_MIGRATION_GUIDE.md) for details on upgrading.
 
 **Fixed**
 

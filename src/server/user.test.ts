@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { filterDefaultIdTokenClaims } from "./user";
+import { filterDefaultIdTokenClaims } from "./user.js";
 
 describe("filterDefaultIdTokenClaims", async () => {
   it("should return only the allowed claims", () => {

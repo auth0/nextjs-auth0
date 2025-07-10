@@ -1,13 +1,13 @@
-import { SessionData, SessionDataStore } from "../../types";
-import * as cookies from "../cookies";
+import { SessionData, SessionDataStore } from "../../types/index.js";
+import * as cookies from "../cookies.js";
 import {
   AbstractSessionStore,
   SessionCookieOptions
-} from "./abstract-session-store";
+} from "./abstract-session-store.js";
 import {
   LEGACY_COOKIE_NAME,
   normalizeStatefulSession
-} from "./normalize-session";
+} from "./normalize-session.js";
 
 // the value of the stateful session cookie containing a unique session ID to identify
 // the current session
@@ -166,7 +166,7 @@ export class StatefulSessionStore extends AbstractSessionStore {
       this.sessionCookieName !== LEGACY_COOKIE_NAME &&
       reqCookies.has(LEGACY_COOKIE_NAME)
     ) {
-      resCookies.delete(LEGACY_COOKIE_NAME);
+      cookies.deleteCookie(resCookies, LEGACY_COOKIE_NAME);
     }
   }
 
@@ -175,7 +175,7 @@ export class StatefulSessionStore extends AbstractSessionStore {
     resCookies: cookies.ResponseCookies
   ) {
     const cookieValue = reqCookies.get(this.sessionCookieName)?.value;
-    await resCookies.delete(this.sessionCookieName);
+    cookies.deleteCookie(resCookies, this.sessionCookieName);
 
     if (!cookieValue) {
       return;

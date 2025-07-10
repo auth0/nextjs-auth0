@@ -1,7 +1,8 @@
 {
   "name": "@auth0/nextjs-auth0",
-  "version": "4.6.1",
+  "version": "4.8.0",
   "description": "Auth0 Next.js SDK",
+  "type": "module",
   "scripts": {
     "build": "tsc",
     "build:watch": "tsc -w",
@@ -63,19 +64,19 @@
   },
   "exports": {
     ".": {
-      "import": "./dist/client/index.js"
+      "default": "./dist/client/index.js"
     },
     "./server": {
-      "import": "./dist/server/index.js"
+      "default": "./dist/server/index.js"
     },
     "./errors": {
-      "import": "./dist/errors/index.js"
+      "default": "./dist/errors/index.js"
     },
     "./types": {
-      "import": "./dist/types/index.d.ts"
+      "default": "./dist/types/index.d.ts"
     },
     "./testing": {
-      "import": "./dist/testing/index.js"
+      "default": "./dist/testing/index.js"
     }
   },
   "dependencies": {

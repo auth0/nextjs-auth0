@@ -1,7 +1,7 @@
 export function toSafeRedirect(
   dangerousRedirect: string,
   safeBaseUrl: URL
-): string | undefined {
+): URL | undefined {
   let url: URL;
 
   try {
@@ -11,7 +11,7 @@ export function toSafeRedirect(
   }
 
   if (url.origin === safeBaseUrl.origin) {
-    return url.toString();
+    return url;
   }
 
   return undefined;

@@ -1,39 +1,41 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { cookies } from "next/headers";
-import { NextRequest, NextResponse } from "next/server";
-import { NextApiRequest, NextApiResponse } from "next/types";
+import { cookies } from "next/headers.js";
+import { NextRequest, NextResponse } from "next/server.js";
+import { NextApiRequest, NextApiResponse } from "next/types.js";
 
 import {
   AccessTokenError,
   AccessTokenErrorCode,
   AccessTokenForConnectionError,
   AccessTokenForConnectionErrorCode
-} from "../errors";
+} from "../errors/index.js";
 import {
   AccessTokenForConnectionOptions,
   AuthorizationParameters,
+  LogoutStrategy,
   SessionData,
   SessionDataStore,
-  StartInteractiveLoginOptions
-} from "../types";
+  StartInteractiveLoginOptions,
+  User
+} from "../types/index.js";
 import {
   AuthClient,
   BeforeSessionSavedHook,
   OnCallbackHook,
   RoutesOptions
-} from "./auth-client";
-import { RequestCookies, ResponseCookies } from "./cookies";
+} from "./auth-client.js";
+import { RequestCookies, ResponseCookies } from "./cookies.js";
 import {
   AbstractSessionStore,
   SessionConfiguration,
   SessionCookieOptions
-} from "./session/abstract-session-store";
-import { StatefulSessionStore } from "./session/stateful-session-store";
-import { StatelessSessionStore } from "./session/stateless-session-store";
+} from "./session/abstract-session-store.js";
+import { StatefulSessionStore } from "./session/stateful-session-store.js";
+import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import {
   TransactionCookieOptions,
   TransactionStore
-} from "./transaction-store";
+} from "./transaction-store.js";
 
 export interface Auth0ClientOptions {
   // authorization server configuration
@@ -108,6 +110,16 @@ export interface Auth0ClientOptions {
    */
   transactionCookie?: TransactionCookieOptions;
 
+  // logout configuration
+  /**
+   * Configure the logout strategy to use.
+   *
+   * - `'auto'` (default): Attempts OIDC RP-Initiated Logout first, falls back to `/v2/logout` if not supported
+   * - `'oidc'`: Always uses OIDC RP-Initiated Logout (requires RP-Initiated Logout to be enabled)
+   * - `'v2'`: Always uses the Auth0 `/v2/logout` endpoint (supports wildcards in allowed logout URLs)
+   */
+  logoutStrategy?: LogoutStrategy;
+
   // hooks
   /**
    * A method to manipulate the session before persisting it.
@@ -168,6 +180,14 @@ export interface Auth0ClientOptions {
    * See: https://datatracker.ietf.org/doc/html/draft-ietf-oauth-browser-based-apps#name-token-mediating-backend
    */
   enableAccessTokenEndpoint?: boolean;
+
+  /**
+   * If true, the profile endpoint will return a 204 No Content response when the user is not authenticated
+   * instead of returning a 401 Unauthorized response.
+   *
+   * Defaults to `false`.
+   */
+  noContentProfileResponseWhenUnauthenticated?: boolean;
 }
 
 export type PagesRouterRequest = IncomingMessage | NextApiRequest;
@@ -261,6 +281,7 @@ export class Auth0Client {
       appBaseUrl,
       secret,
       signInReturnToPath: options.signInReturnToPath,
+      logoutStrategy: options.logoutStrategy,
 
       beforeSessionSaved: options.beforeSessionSaved,
       onCallback: options.onCallback,
@@ -270,7 +291,9 @@ export class Auth0Client {
       allowInsecureRequests: options.allowInsecureRequests,
       httpTimeout: options.httpTimeout,
       enableTelemetry: options.enableTelemetry,
-      enableAccessTokenEndpoint: options.enableAccessTokenEndpoint
+      enableAccessTokenEndpoint: options.enableAccessTokenEndpoint,
+      noContentProfileResponseWhenUnauthenticated:
+        options.noContentProfileResponseWhenUnauthenticated
     });
   }
 
@@ -409,23 +432,32 @@ export class Auth0Client {
       );
     }
 
-    const [error, tokenSet] = await this.authClient.getTokenSet(
+    const [error, getTokenSetResponse] = await this.authClient.getTokenSet(
       session.tokenSet,
       options.refresh
     );
     if (error) {
       throw error;
     }
-
+    const { tokenSet, idTokenClaims } = getTokenSetResponse;
     // update the session with the new token set, if necessary
     if (
       tokenSet.accessToken !== session.tokenSet.accessToken ||
       tokenSet.expiresAt !== session.tokenSet.expiresAt ||
       tokenSet.refreshToken !== session.tokenSet.refreshToken
     ) {
+      if (idTokenClaims) {
+        session.user = idTokenClaims as User;
+      }
+      // call beforeSessionSaved callback if present
+      // if not then filter id_token claims with default rules
+      const finalSession = await this.authClient.finalizeSession(
+        session,
+        tokenSet.idToken
+      );
       await this.saveToSession(
         {
-          ...session,
+          ...finalSession,
           tokenSet
         },
         req,
@@ -756,7 +788,7 @@ export class Auth0Client {
 
       // Standard intro message explaining the issue
       let errorMessage =
-        "WARNING: Not all required options where provided when creating an instance of Auth0Client. Ensure to provide all missing options, either by passing it to the Auth0Client constructor, or by setting the corresponding environment variable.\n";
+        "WARNING: Not all required options were provided when creating an instance of Auth0Client. Ensure to provide all missing options, either by passing it to the Auth0Client constructor, or by setting the corresponding environment variable.\n";
 
       // Add specific details for each missing option
       missing.forEach((key) => {

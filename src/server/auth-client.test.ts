@@ -1,15 +1,15 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server.js";
 import * as jose from "jose";
 import * as oauth from "oauth4webapi";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { generateSecret } from "../test/utils";
-import { SessionData } from "../types";
-import { AuthClient } from "./auth-client";
-import { decrypt, encrypt } from "./cookies";
-import { StatefulSessionStore } from "./session/stateful-session-store";
-import { StatelessSessionStore } from "./session/stateless-session-store";
-import { TransactionState, TransactionStore } from "./transaction-store";
+import { generateSecret } from "../test/utils.js";
+import { SessionData } from "../types/index.js";
+import { AuthClient } from "./auth-client.js";
+import { decrypt, encrypt } from "./cookies.js";
+import { StatefulSessionStore } from "./session/stateful-session-store.js";
+import { StatelessSessionStore } from "./session/stateless-session-store.js";
+import { TransactionState, TransactionStore } from "./transaction-store.js";
 
 describe("Authentication Client", async () => {
   const DEFAULT = {
@@ -58,6 +58,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
   function getMockAuthorizationServer({
     tokenEndpointResponse,
     tokenEndpointErrorResponse,
+    tokenEndpointFetchError,
     discoveryResponse,
     audience,
     nonce,
@@ -66,6 +67,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
   }: {
     tokenEndpointResponse?: oauth.TokenEndpointResponse | oauth.OAuth2Error;
     tokenEndpointErrorResponse?: oauth.OAuth2Error;
+    tokenEndpointFetchError?: Error;
     discoveryResponse?: Response;
     audience?: string;
     nonce?: string;
@@ -86,6 +88,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
 
         if (url.pathname === "/oauth/token") {
+          if (tokenEndpointFetchError) {
+            throw tokenEndpointFetchError;
+          }
+
           const jwt = await new jose.SignJWT({
             sid: DEFAULT.sid,
             auth_time: Date.now(),
@@ -1572,7 +1578,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           codeVerifier: expect.any(String),
           responseType: "code",
           state: authorizationUrl.searchParams.get("state"),
-          returnTo: "https://example.com/dashboard"
+          returnTo: "/dashboard"
         })
       );
     });
@@ -2135,7 +2141,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       // session cookie is cleared
       const cookie = response.cookies.get("__session");
       expect(cookie?.value).toEqual("");
-      expect(cookie?.expires).toEqual(new Date("1970-01-01T00:00:00.000Z"));
+      expect(cookie?.maxAge).toEqual(0);
     });
 
     it("should use the returnTo URL as the post_logout_redirect_uri if provided", async () => {
@@ -2207,7 +2213,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       // session cookie is cleared
       const cookie = response.cookies.get("__session");
       expect(cookie?.value).toEqual("");
-      expect(cookie?.expires).toEqual(new Date("1970-01-01T00:00:00.000Z"));
+      expect(cookie?.maxAge).toEqual(0);
     });
 
     it("should not include the id_token_hint parameter if a session does not exist", async () => {
@@ -2295,7 +2301,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       // session cookie is cleared
       const cookie = response.cookies.get("__session");
       expect(cookie?.value).toEqual("");
-      expect(cookie?.expires).toEqual(new Date("1970-01-01T00:00:00.000Z"));
+      expect(cookie?.maxAge).toEqual(0);
     });
 
     it("should fallback to the /v2/logout endpoint if the client does not have RP-Initiated Logout enabled", async () => {
@@ -2354,7 +2360,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       // session cookie is cleared
       const cookie = response.cookies.get("__session");
       expect(cookie?.value).toEqual("");
-      expect(cookie?.expires).toEqual(new Date("1970-01-01T00:00:00.000Z"));
+      expect(cookie?.maxAge).toEqual(0);
     });
 
     it("should return an error if the discovery endpoint could not be fetched", async () => {
@@ -2493,6 +2499,42 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(response.status).toEqual(401);
       expect(response.body).toBeNull();
     });
+
+    it("should return a 204 if the user is not authenticated and noContentProfileResponseWhenUnauthenticated is enabled", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        fetch: getMockAuthorizationServer(),
+
+        noContentProfileResponseWhenUnauthenticated: true
+      });
+
+      const request = new NextRequest(
+        new URL("/auth/profile", DEFAULT.appBaseUrl),
+        {
+          method: "GET"
+        }
+      );
+
+      const response = await authClient.handleProfile(request);
+      expect(response.status).toEqual(204);
+      expect(response.body).toBeNull();
+    });
   });
 
   describe("handleCallback", async () => {
@@ -2581,9 +2623,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const transactionCookie = response.cookies.get(`__txn_${state}`);
       expect(transactionCookie).toBeDefined();
       expect(transactionCookie!.value).toEqual("");
-      expect(transactionCookie!.expires).toEqual(
-        new Date("1970-01-01T00:00:00.000Z")
-      );
+      expect(transactionCookie!.maxAge).toEqual(0);
     });
 
     describe("when a base path is defined", async () => {
@@ -2767,9 +2807,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const transactionCookie = response.cookies.get(`__txn_${state}`);
       expect(transactionCookie).toBeDefined();
       expect(transactionCookie!.value).toEqual("");
-      expect(transactionCookie!.expires).toEqual(
-        new Date("1970-01-01T00:00:00.000Z")
-      );
+      expect(transactionCookie!.maxAge).toEqual(0);
     });
 
     it("should return an error if the state parameter is missing", async () => {
@@ -3352,6 +3390,85 @@ ca/T0LLtgmbMmxSv/MmzIg==
         // validate the session cookie has not been set
         const sessionCookie = response.cookies.get("__session");
         expect(sessionCookie).toBeUndefined();
+      });
+
+      it("should be called with an error when there is an error performing the authorization code grant request", async () => {
+        const state = "transaction-state";
+        const code = "auth-code";
+
+        const mockOnCallback = vi
+          .fn()
+          .mockResolvedValue(
+            NextResponse.redirect(new URL("/error-page", DEFAULT.appBaseUrl))
+          );
+
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          fetch: getMockAuthorizationServer({
+            tokenEndpointFetchError: new Error("Timeout error")
+          }),
+
+          onCallback: mockOnCallback
+        });
+
+        const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
+        url.searchParams.set("code", code);
+        url.searchParams.set("state", state);
+
+        const headers = new Headers();
+        const transactionState: TransactionState = {
+          nonce: "nonce-value",
+          maxAge: 3600,
+          codeVerifier: "code-verifier",
+          responseType: "code",
+          state: state,
+          returnTo: "/dashboard"
+        };
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
+        headers.set(
+          "cookie",
+          `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
+        );
+        const request = new NextRequest(url, {
+          method: "GET",
+          headers
+        });
+
+        // validate the new response redirect
+        const response = await authClient.handleCallback(request);
+        expect(response.status).toEqual(307);
+        expect(response.headers.get("Location")).not.toBeNull();
+
+        const redirectUrl = new URL(response.headers.get("Location")!);
+        expect(redirectUrl.pathname).toEqual("/error-page");
+
+        expect(mockOnCallback).toHaveBeenCalledWith(
+          expect.any(Error),
+          {
+            returnTo: transactionState.returnTo
+          },
+          null
+        );
+        expect(mockOnCallback.mock.calls[0][0].code).toEqual(
+          "authorization_code_grant_request_error"
+        );
       });
 
       it("should be called with an error if there was an error during the code exchange", async () => {
@@ -4512,7 +4629,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       const [error, updatedTokenSet] = await authClient.getTokenSet(tokenSet);
       expect(error).toBeNull();
-      expect(updatedTokenSet).toEqual(tokenSet);
+      expect(updatedTokenSet?.tokenSet).toEqual(tokenSet);
     });
 
     it("should return an error if the token set does not contain a refresh token and the access token has expired", async () => {
@@ -4585,7 +4702,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       const [error, updatedTokenSet] = await authClient.getTokenSet(tokenSet);
       expect(error).toBeNull();
-      expect(updatedTokenSet).toEqual({
+      expect(updatedTokenSet?.tokenSet).toEqual({
         accessToken: DEFAULT.accessToken,
         refreshToken: DEFAULT.refreshToken,
         expiresAt: expect.any(Number)
@@ -4706,7 +4823,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         const [error, updatedTokenSet] = await authClient.getTokenSet(tokenSet);
         expect(error).toBeNull();
-        expect(updatedTokenSet).toEqual({
+        expect(updatedTokenSet?.tokenSet).toEqual({
           accessToken: DEFAULT.accessToken,
           refreshToken: "rt_456",
           expiresAt: expect.any(Number)
@@ -4779,8 +4896,27 @@ ca/T0LLtgmbMmxSv/MmzIg==
       // Mock the transactionStore.save method to verify the saved state
       const originalSave = authClient["transactionStore"].save;
       authClient["transactionStore"].save = vi.fn(async (cookies, state) => {
-        // The full URL is saved, not just the path
-        expect(state.returnTo).toBe("https://example.com/custom-return-path");
+        expect(state.returnTo).toBe("/custom-return-path");
+        return originalSave.call(
+          authClient["transactionStore"],
+          cookies,
+          state
+        );
+      });
+
+      await authClient.startInteractiveLogin({ returnTo });
+
+      expect(authClient["transactionStore"].save).toHaveBeenCalled();
+    });
+
+    it("should sanitize and use the provided returnTo parameter — absolute URL", async () => {
+      const authClient = await createAuthClient();
+      const returnTo =
+        DEFAULT.appBaseUrl + "/custom-return-path?query=param#hash";
+
+      const originalSave = authClient["transactionStore"].save;
+      authClient["transactionStore"].save = vi.fn(async (cookies, state) => {
+        expect(state.returnTo).toBe("/custom-return-path?query=param#hash");
         return originalSave.call(
           authClient["transactionStore"],
           cookies,
@@ -4885,7 +5021,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
               codeVerifier: expect.any(String),
               responseType: "code",
               state: expect.any(String),
-              returnTo: "https://example.com/custom-path"
+              returnTo: "/custom-path"
             })
           );
           return originalSave.call(
