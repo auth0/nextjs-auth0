@@ -682,17 +682,35 @@ export class Auth0Client {
     }
   }
 
+  /**
+   * createRequestCookies copies the incoming request's headers to a WHATWG
+   * `Headers` instance while ensuring we only include *actual* header values.
+   *
+   * In Node ≥ 20 the `req.headers` object is a proxy that also enumerates
+   * helper methods such as `append`, `delete`, `get`, etc.  Copying these
+   * function properties verbatim will cause the WHATWG `Headers` constructor
+   * to throw `TypeError: <fn> is an invalid header value`.
+   *
+   * We therefore iterate over `Object.entries(req.headers)` and copy only
+   * string or string[] values. This maintains backwards compatibility while
+   * fixing the runtime error reported in #2219.
+   */
   private createRequestCookies(req: PagesRouterRequest) {
     const headers = new Headers();
 
-    for (const key in req.headers) {
-      if (Array.isArray(req.headers[key])) {
-        for (const value of req.headers[key]) {
-          headers.append(key, value);
-        }
-      } else {
-        headers.append(key, req.headers[key] ?? "");
+    for (const [key, val] of Object.entries(req.headers)) {
+      if (val == null) {
+        continue; // skip undefined/null
       }
+
+      if (Array.isArray(val)) {
+        for (const v of val) {
+          headers.append(key, v);
+        }
+      } else if (typeof val === "string") {
+        headers.append(key, val);
+      }
+      // ignore functions or other non-string values
     }
 
     return new RequestCookies(headers);
