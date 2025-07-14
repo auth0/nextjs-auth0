@@ -72,7 +72,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     discoveryResponse?: Response;
     audience?: string;
     nonce?: string;
-    keyPair?: jose.GenerateKeyPairResult<jose.KeyLike>;
+    keyPair?: jose.GenerateKeyPairResult;
     onParRequest?: (request: Request) => Promise<void>;
   } = {}) {
     // this function acts as a mock authorization server
@@ -160,7 +160,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     audience?: string;
     issuer?: string;
     alg?: string;
-    privateKey?: jose.KeyLike;
+    privateKey?: CryptoKey;
   }): Promise<string> {
     return await new jose.SignJWT({
       events: {
