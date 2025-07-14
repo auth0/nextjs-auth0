@@ -92,9 +92,9 @@ By default, the SDK uses OpenID Connect's RP-Initiated Logout when available, fa
 
 ```ts
 export const auth0 = new Auth0Client({
-  logoutStrategy: "auto", // default behavior
+  logoutStrategy: "auto" // default behavior
   // ... other config
-})
+});
 ```
 
 Available strategies:
@@ -115,9 +115,9 @@ The `"v2"` strategy is useful for applications that:
 ```ts
 // Example: Using v2 logout for wildcard URL support
 export const auth0 = new Auth0Client({
-  logoutStrategy: "v2",
+  logoutStrategy: "v2"
   // ... other config
-})
+});
 
 // This allows logout URLs like:
 // /auth/logout?returnTo=https://localhost:3000/en/dashboard
@@ -294,6 +294,79 @@ import { withPageAuthRequired } from "@auth0/nextjs-auth0";
 
 export default withPageAuthRequired(function Page({ user }) {
   return <div>Hello, {user.name}!</div>;
+});
+```
+
+## Protect an API Route
+
+### Page Router
+
+Requests to `/api/protected` without a valid session cookie will fail with `401`.
+
+```js
+// pages/api/protected.js
+import { auth0 } from "@/lib/auth0";
+
+export default auth0.withApiAuthRequired(async function myApiRoute(req, res) {
+  const { user } = await auth0.getSession(req);
+  res.json({ protected: "My Secret", id: user.sub });
+});
+```
+
+Then you can access your API from the frontend with a valid session cookie.
+
+```jsx
+// pages/products
+import { withPageAuthRequired } from "@auth0/nextjs-auth0/client";
+import useSWR from "swr";
+
+const fetcher = async (uri) => {
+  const response = await fetch(uri);
+  return response.json();
+};
+
+export default withPageAuthRequired(function Products() {
+  const { data, error } = useSWR("/api/protected", fetcher);
+  if (error) return <div>oops... {error.message}</div>;
+  if (data === undefined) return <div>Loading...</div>;
+  return <div>{data.protected}</div>;
+});
+```
+
+### App Router
+
+Requests to `/api/protected` without a valid session cookie will fail with `401`.
+
+```js
+// app/api/protected/route.js
+import { auth0 } from "@/lib/auth0";
+
+export const GET = auth0.withApiAuthRequired(async function myApiRoute(req) {
+  const res = new NextResponse();
+  const { user } = await auth0.getSession(req);
+  return NextResponse.json({ protected: "My Secret", id: user.sub }, res);
+});
+```
+
+Then you can access your API from the frontend with a valid session cookie.
+
+```jsx
+// app/products/page.jsx
+"use client";
+
+import { withPageAuthRequired } from "@auth0/nextjs-auth0/client";
+import useSWR from "swr";
+
+const fetcher = async (uri) => {
+  const response = await fetch(uri);
+  return response.json();
+};
+
+export default withPageAuthRequired(function Products() {
+  const { data, error } = useSWR("/api/protected", fetcher);
+  if (error) return <div>oops... {error.message}</div>;
+  if (data === undefined) return <div>Loading...</div>;
+  return <div>{data.protected}</div>;
 });
 ```
 
