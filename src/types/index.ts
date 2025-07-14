@@ -144,3 +144,8 @@ export interface AccessTokenForConnectionOptions {
    */
   login_hint?: string;
 }
+
+/**
+ * Logout strategy options for controlling logout endpoint selection.
+ */
+export type LogoutStrategy = "auto" | "oidc" | "v2";

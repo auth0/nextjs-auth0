@@ -7,23 +7,32 @@ import {
   AccessTokenError,
   AccessTokenErrorCode,
   AccessTokenForConnectionError,
-  AccessTokenForConnectionErrorCode,
+  AccessTokenForConnectionErrorCode
 } from "../errors/index.js";
-
 import {
   AccessTokenForConnectionOptions,
   AuthorizationParameters,
+  LogoutStrategy,
   SessionData,
   SessionDataStore,
-  StartInteractiveLoginOptions
+  StartInteractiveLoginOptions,
+  User
 } from "../types/index.js";
 import {
   AuthClient,
   BeforeSessionSavedHook,
   OnCallbackHook,
+  Routes,
   RoutesOptions
 } from "./auth-client.js";
 import { RequestCookies, ResponseCookies } from "./cookies.js";
+import {
+  appRouteHandlerFactory,
+  AppRouterPageRoute,
+  pageRouteHandlerFactory,
+  WithPageAuthRequiredAppRouterOptions,
+  WithPageAuthRequiredPageRouterOptions
+} from "./helpers/with-page-auth-required.js";
 import {
   AbstractSessionStore,
   SessionConfiguration,
@@ -109,6 +118,16 @@ export interface Auth0ClientOptions {
    */
   transactionCookie?: TransactionCookieOptions;
 
+  // logout configuration
+  /**
+   * Configure the logout strategy to use.
+   *
+   * - `'auto'` (default): Attempts OIDC RP-Initiated Logout first, falls back to `/v2/logout` if not supported
+   * - `'oidc'`: Always uses OIDC RP-Initiated Logout (requires RP-Initiated Logout to be enabled)
+   * - `'v2'`: Always uses the Auth0 `/v2/logout` endpoint (supports wildcards in allowed logout URLs)
+   */
+  logoutStrategy?: LogoutStrategy;
+
   // hooks
   /**
    * A method to manipulate the session before persisting it.
@@ -188,6 +207,7 @@ export class Auth0Client {
   private transactionStore: TransactionStore;
   private sessionStore: AbstractSessionStore;
   private authClient: AuthClient;
+  private routes: Routes;
 
   constructor(options: Auth0ClientOptions = {}) {
     // Extract and validate required options
@@ -236,6 +256,17 @@ export class Auth0Client {
       }
     }
 
+    this.routes = {
+      login: process.env.NEXT_PUBLIC_LOGIN_ROUTE || "/auth/login",
+      logout: "/auth/logout",
+      callback: "/auth/callback",
+      backChannelLogout: "/auth/backchannel-logout",
+      profile: process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile",
+      accessToken:
+        process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
+      ...options.routes
+    };
+
     this.transactionStore = new TransactionStore({
       ...options.session,
       secret,
@@ -270,11 +301,12 @@ export class Auth0Client {
       appBaseUrl,
       secret,
       signInReturnToPath: options.signInReturnToPath,
+      logoutStrategy: options.logoutStrategy,
 
       beforeSessionSaved: options.beforeSessionSaved,
       onCallback: options.onCallback,
 
-      routes: options.routes,
+      routes: this.routes,
 
       allowInsecureRequests: options.allowInsecureRequests,
       httpTimeout: options.httpTimeout,
@@ -420,23 +452,32 @@ export class Auth0Client {
       );
     }
 
-    const [error, tokenSet] = await this.authClient.getTokenSet(
+    const [error, getTokenSetResponse] = await this.authClient.getTokenSet(
       session.tokenSet,
       options.refresh
     );
     if (error) {
       throw error;
     }
-
+    const { tokenSet, idTokenClaims } = getTokenSetResponse;
     // update the session with the new token set, if necessary
     if (
       tokenSet.accessToken !== session.tokenSet.accessToken ||
       tokenSet.expiresAt !== session.tokenSet.expiresAt ||
       tokenSet.refreshToken !== session.tokenSet.refreshToken
     ) {
+      if (idTokenClaims) {
+        session.user = idTokenClaims as User;
+      }
+      // call beforeSessionSaved callback if present
+      // if not then filter id_token claims with default rules
+      const finalSession = await this.authClient.finalizeSession(
+        session,
+        tokenSet.idToken
+      );
       await this.saveToSession(
         {
-          ...session,
+          ...finalSession,
           tokenSet
         },
         req,
@@ -681,6 +722,23 @@ export class Auth0Client {
     options: StartInteractiveLoginOptions
   ): Promise<NextResponse> {
     return this.authClient.startInteractiveLogin(options);
+  }
+
+  withPageAuthRequired(
+    fnOrOpts?: WithPageAuthRequiredPageRouterOptions | AppRouterPageRoute,
+    opts?: WithPageAuthRequiredAppRouterOptions
+  ) {
+    const config = {
+      loginUrl: this.routes.login
+    };
+    const appRouteHandler = appRouteHandlerFactory(this, config);
+    const pageRouteHandler = pageRouteHandlerFactory(this, config);
+
+    if (typeof fnOrOpts === "function") {
+      return appRouteHandler(fnOrOpts, opts);
+    }
+
+    return pageRouteHandler(fnOrOpts);
   }
 
   private async saveToSession(

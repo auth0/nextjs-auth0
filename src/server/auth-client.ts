@@ -22,10 +22,12 @@ import {
   AccessTokenForConnectionOptions,
   AuthorizationParameters,
   ConnectionTokenSet,
+  LogoutStrategy,
   LogoutToken,
   SessionData,
   StartInteractiveLoginOptions,
-  TokenSet
+  TokenSet,
+  User
 } from "../types/index.js";
 import {
   ensureNoLeadingSlash,
@@ -124,11 +126,12 @@ export interface AuthClientOptions {
   secret: string;
   appBaseUrl: string;
   signInReturnToPath?: string;
+  logoutStrategy?: LogoutStrategy;
 
   beforeSessionSaved?: BeforeSessionSavedHook;
   onCallback?: OnCallbackHook;
 
-  routes?: RoutesOptions;
+  routes: Routes;
 
   // custom fetch implementation to allow for dependency injection
   fetch?: typeof fetch;
@@ -161,6 +164,7 @@ export class AuthClient {
 
   private appBaseUrl: string;
   private signInReturnToPath: string;
+  private logoutStrategy: LogoutStrategy;
 
   private beforeSessionSaved?: BeforeSessionSavedHook;
   private onCallback: OnCallbackHook;
@@ -248,21 +252,23 @@ export class AuthClient {
     this.appBaseUrl = options.appBaseUrl;
     this.signInReturnToPath = options.signInReturnToPath || "/";
 
+    // validate logout strategy
+    const validStrategies = ["auto", "oidc", "v2"] as const;
+    let logoutStrategy = options.logoutStrategy || "auto";
+    if (!validStrategies.includes(logoutStrategy)) {
+      console.error(
+        `Invalid logoutStrategy: ${logoutStrategy}. Must be one of: ${validStrategies.join(", ")}. Defaulting to "auto"`
+      );
+      logoutStrategy = "auto";
+    }
+    this.logoutStrategy = logoutStrategy;
+
     // hooks
     this.beforeSessionSaved = options.beforeSessionSaved;
     this.onCallback = options.onCallback || this.defaultOnCallback;
 
     // routes
-    this.routes = {
-      login: "/auth/login",
-      logout: "/auth/logout",
-      callback: "/auth/callback",
-      backChannelLogout: "/auth/backchannel-logout",
-      profile: process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile",
-      accessToken:
-        process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
-      ...options.routes
-    };
+    this.routes = options.routes;
 
     this.enableAccessTokenEndpoint = options.enableAccessTokenEndpoint ?? true;
     this.noContentProfileResponseWhenUnauthenticated =
@@ -412,55 +418,88 @@ export class AuthClient {
       await this.discoverAuthorizationServerMetadata();
 
     if (discoveryError) {
-      return new NextResponse(
+      // Clean up session on discovery error
+      const errorResponse = new NextResponse(
         "An error occured while trying to initiate the logout request.",
         {
           status: 500
         }
       );
+      await this.sessionStore.delete(req.cookies, errorResponse.cookies);
+      await this.transactionStore.deleteAll(req.cookies, errorResponse.cookies);
+      return errorResponse;
     }
 
     const returnTo =
       req.nextUrl.searchParams.get("returnTo") || this.appBaseUrl;
 
-    if (!authorizationServerMetadata.end_session_endpoint) {
-      // the Auth0 client does not have RP-initiated logout enabled, redirect to the `/v2/logout` endpoint
-      console.warn(
-        "The Auth0 client does not have RP-initiated logout enabled, the user will be redirected to the `/v2/logout` endpoint instead. Learn how to enable it here: https://auth0.com/docs/authenticate/login/logout/log-users-out-of-auth0#enable-endpoint-discovery"
-      );
+    const createV2LogoutResponse = (): NextResponse => {
       const url = new URL("/v2/logout", this.issuer);
       url.searchParams.set("returnTo", returnTo);
       url.searchParams.set("client_id", this.clientMetadata.client_id);
+      return NextResponse.redirect(url);
+    };
 
-      const res = NextResponse.redirect(url);
-      await this.sessionStore.delete(req.cookies, res.cookies);
+    const createOIDCLogoutResponse = (): NextResponse => {
+      const url = new URL(authorizationServerMetadata.end_session_endpoint!);
+      url.searchParams.set("client_id", this.clientMetadata.client_id);
+      url.searchParams.set("post_logout_redirect_uri", returnTo);
 
-      // Clear any orphaned transaction cookies
-      await this.transactionStore.deleteAll(req.cookies, res.cookies);
+      if (session?.internal.sid) {
+        url.searchParams.set("logout_hint", session.internal.sid);
+      }
 
-      return res;
+      if (session?.tokenSet.idToken) {
+        url.searchParams.set("id_token_hint", session.tokenSet.idToken);
+      }
+
+      return NextResponse.redirect(url);
+    };
+
+    // Determine logout strategy and create appropriate response
+    let logoutResponse: NextResponse;
+
+    if (this.logoutStrategy === "v2") {
+      // Always use v2 logout endpoint
+      logoutResponse = createV2LogoutResponse();
+    } else if (this.logoutStrategy === "oidc") {
+      // Always use OIDC RP-Initiated Logout
+      if (!authorizationServerMetadata.end_session_endpoint) {
+        // Clean up session on OIDC error
+        const errorResponse = new NextResponse(
+          "OIDC RP-Initiated Logout is not supported by the authorization server. Enable it or use a different logout strategy.",
+          {
+            status: 500
+          }
+        );
+        await this.sessionStore.delete(req.cookies, errorResponse.cookies);
+        await this.transactionStore.deleteAll(
+          req.cookies,
+          errorResponse.cookies
+        );
+        return errorResponse;
+      }
+      logoutResponse = createOIDCLogoutResponse();
+    } else {
+      // Auto strategy (default): Try OIDC first, fallback to v2 if not available
+      if (!authorizationServerMetadata.end_session_endpoint) {
+        console.warn(
+          "The Auth0 client does not have RP-initiated logout enabled, the user will be redirected to the `/v2/logout` endpoint instead. Learn how to enable it here: https://auth0.com/docs/authenticate/login/logout/log-users-out-of-auth0#enable-endpoint-discovery"
+        );
+        logoutResponse = createV2LogoutResponse();
+      } else {
+        logoutResponse = createOIDCLogoutResponse();
+      }
     }
 
-    const url = new URL(authorizationServerMetadata.end_session_endpoint);
-    url.searchParams.set("client_id", this.clientMetadata.client_id);
-    url.searchParams.set("post_logout_redirect_uri", returnTo);
-
-    if (session?.internal.sid) {
-      url.searchParams.set("logout_hint", session.internal.sid);
-    }
-
-    if (session?.tokenSet.idToken) {
-      url.searchParams.set("id_token_hint", session?.tokenSet.idToken);
-    }
-
-    const res = NextResponse.redirect(url);
-    await this.sessionStore.delete(req.cookies, res.cookies);
-    addCacheControlHeadersForSession(res);
+    // Clean up session and transaction cookies
+    await this.sessionStore.delete(req.cookies, logoutResponse.cookies);
+    addCacheControlHeadersForSession(logoutResponse);
 
     // Clear any orphaned transaction cookies
-    await this.transactionStore.deleteAll(req.cookies, res.cookies);
+    await this.transactionStore.deleteAll(req.cookies, logoutResponse.cookies);
 
-    return res;
+    return logoutResponse;
   }
 
   async handleCallback(req: NextRequest): Promise<NextResponse> {
@@ -577,18 +616,9 @@ export class AuthClient {
 
     const res = await this.onCallback(null, onCallbackCtx, session);
 
-    if (this.beforeSessionSaved) {
-      const updatedSession = await this.beforeSessionSaved(
-        session,
-        oidcRes.id_token ?? null
-      );
-      session = {
-        ...updatedSession,
-        internal: session.internal
-      };
-    } else {
-      session.user = filterDefaultIdTokenClaims(idTokenClaims);
-    }
+    // call beforeSessionSaved callback if present
+    // if not then filter id_token claims with default rules
+    session = await this.finalizeSession(session, oidcRes.id_token);
 
     await this.sessionStore.set(req.cookies, res.cookies, session, true);
     addCacheControlHeadersForSession(res);
@@ -633,7 +663,9 @@ export class AuthClient {
       );
     }
 
-    const [error, updatedTokenSet] = await this.getTokenSet(session.tokenSet);
+    const [error, getTokenSetResponse] = await this.getTokenSet(
+      session.tokenSet
+    );
 
     if (error) {
       return NextResponse.json(
@@ -648,6 +680,9 @@ export class AuthClient {
         }
       );
     }
+
+    const { tokenSet: updatedTokenSet, idTokenClaims } = getTokenSetResponse;
+
     const res = NextResponse.json({
       token: updatedTokenSet.accessToken,
       scope: updatedTokenSet.scope,
@@ -656,11 +691,20 @@ export class AuthClient {
 
     if (
       updatedTokenSet.accessToken !== session.tokenSet.accessToken ||
-      updatedTokenSet.refreshToken !== session.tokenSet.refreshToken ||
-      updatedTokenSet.expiresAt !== session.tokenSet.expiresAt
+      updatedTokenSet.expiresAt !== session.tokenSet.expiresAt ||
+      updatedTokenSet.refreshToken !== session.tokenSet.refreshToken
     ) {
+      if (idTokenClaims) {
+        session.user = idTokenClaims as User;
+      }
+      // call beforeSessionSaved callback if present
+      // if not then filter id_token claims with default rules
+      const finalSession = await this.finalizeSession(
+        session,
+        updatedTokenSet.idToken
+      );
       await this.sessionStore.set(req.cookies, res.cookies, {
-        ...session,
+        ...finalSession,
         tokenSet: updatedTokenSet
       });
       addCacheControlHeadersForSession(res);
@@ -710,13 +754,17 @@ export class AuthClient {
   }
 
   /**
-   * getTokenSet returns a valid token set. If the access token has expired, it will attempt to
-   * refresh it using the refresh token, if available.
+   * Retrieves OAuth token sets, handling token refresh when necessary or if forced.
+   *
+   * @returns A tuple containing either:
+   *   - `[SdkError, null]` if an error occurred (missing refresh token, discovery failure, or refresh failure)
+   *   - `[null, {tokenSet, idTokenClaims}]` if a new token was retrieved, containing the new token set ID token claims
+   *   - `[null, {tokenSet, }]` if token refresh was not done and existing token was returned
    */
   async getTokenSet(
     tokenSet: TokenSet,
     forceRefresh?: boolean | undefined
-  ): Promise<[null, TokenSet] | [SdkError, null]> {
+  ): Promise<[null, GetTokenSetResponse] | [SdkError, null]> {
     // the access token has expired but we do not have a refresh token
     if (!tokenSet.refreshToken && tokenSet.expiresAt <= Date.now() / 1000) {
       return [
@@ -771,6 +819,7 @@ export class AuthClient {
           ];
         }
 
+        const idTokenClaims = oauth.getValidatedIdTokenClaims(oauthRes)!;
         const accessTokenExpiresAt =
           Math.floor(Date.now() / 1000) + Number(oauthRes.expires_in);
 
@@ -789,11 +838,17 @@ export class AuthClient {
           updatedTokenSet.refreshToken = tokenSet.refreshToken;
         }
 
-        return [null, updatedTokenSet];
+        return [
+          null,
+          {
+            tokenSet: updatedTokenSet,
+            idTokenClaims: idTokenClaims
+          }
+        ];
       }
     }
 
-    return [null, tokenSet];
+    return [null, { tokenSet, idTokenClaims: undefined }];
   }
 
   private async discoverAuthorizationServerMetadata(): Promise<
@@ -1161,6 +1216,32 @@ export class AuthClient {
 
     return [null, connectionTokenSet] as [null, ConnectionTokenSet];
   }
+
+  /**
+   * Filters and processes ID token claims for a session.
+   *
+   * If a `beforeSessionSaved` callback is configured, it will be invoked to allow
+   * custom processing of the session and ID token. Otherwise, default filtering
+   * will be applied to remove standard ID token claims from the user object.
+   */
+  async finalizeSession(
+    session: SessionData,
+    idToken?: string
+  ): Promise<SessionData> {
+    if (this.beforeSessionSaved) {
+      const updatedSession = await this.beforeSessionSaved(
+        session,
+        idToken ?? null
+      );
+      session = {
+        ...updatedSession,
+        internal: session.internal
+      };
+    } else {
+      session.user = filterDefaultIdTokenClaims(session.user);
+    }
+    return session;
+  }
 }
 
 const encodeBase64 = (input: string) => {
@@ -1174,4 +1255,9 @@ const encodeBase64 = (input: string) => {
     );
   }
   return btoa(arr.join(""));
+};
+
+type GetTokenSetResponse = {
+  tokenSet: TokenSet;
+  idTokenClaims?: { [key: string]: any };
 };

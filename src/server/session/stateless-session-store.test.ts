@@ -1,8 +1,14 @@
+import * as jose from "jose";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { generateSecret } from "../../test/utils.js";
 import { CookieOptions, SessionData } from "../../types/index.js";
-import { decrypt, encrypt, RequestCookies, ResponseCookies } from "../cookies.js";
+import {
+  decrypt,
+  encrypt,
+  RequestCookies,
+  ResponseCookies
+} from "../cookies.js";
 import * as cookies from "../cookies.js";
 import { LEGACY_COOKIE_NAME, LegacySession } from "./normalize-session.js";
 import { StatelessSessionStore } from "./stateless-session-store.js";
@@ -222,30 +228,98 @@ describe("Stateless Session Store", async () => {
         internal: {
           sid: "auth0-sid",
           createdAt: Math.floor(Date.now() / 1000)
-        },
-        federatedConnectionTokenSets: [
-          {
-            connection: "google-oauth",
-            accessToken: "google-at-123",
-            expiresAt: 123456
-          }
-        ]
+        }
+      };
+
+      const googleConnectionTokenSet = {
+        connection: "google-oauth",
+        accessToken: "google-at-123",
+        expiresAt: 123456
       };
       const maxAge = 60 * 60; // 1 hour in seconds
       const expiration = Math.floor(Date.now() / 1000 + maxAge);
       const encryptedCookieValue = await encrypt(session, secret, expiration);
+      const encryptedGoogleConnectionCookieValue = await encrypt(
+        googleConnectionTokenSet,
+        secret,
+        expiration
+      );
 
       const headers = new Headers();
-      headers.append("cookie", `__session=${encryptedCookieValue}`);
+      headers.append(
+        "cookie",
+        `__session=${encryptedCookieValue};__FC.0=${encryptedGoogleConnectionCookieValue}`
+      );
       const requestCookies = new RequestCookies(headers);
 
       const sessionStore = new StatelessSessionStore({
         secret
       });
 
-      expect(await sessionStore.get(requestCookies)).toEqual(
-        expect.objectContaining(session)
+      const result = await sessionStore.get(requestCookies);
+
+      expect(result).toEqual(expect.objectContaining(session));
+      expect(result?.connectionTokenSets).toEqual([
+        expect.objectContaining(googleConnectionTokenSet)
+      ]);
+    });
+
+    it("should return the decrypted session cookie if it exists and exclude a connection when the JWE is expired", async () => {
+      const secret = await generateSecret(32);
+      const session: SessionData = {
+        user: { sub: "user_123" },
+        tokenSet: {
+          accessToken: "at_123",
+          refreshToken: "rt_123",
+          expiresAt: 123456
+        },
+        internal: {
+          sid: "auth0-sid",
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
+
+      const googleConnectionTokenSet = {
+        connection: "google-oauth",
+        accessToken: "google-at-123",
+        expiresAt: 123456
+      };
+      const githubConnectionTokenSet = {
+        connection: "github",
+        accessToken: "github-at-123",
+        expiresAt: 123456
+      };
+      const maxAge = 60 * 60; // 1 hour in seconds
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const encryptedCookieValue = await encrypt(session, secret, expiration);
+      const encryptedGoogleConnectionCookieValue = await encrypt(
+        googleConnectionTokenSet,
+        secret,
+        Math.floor(Date.now() / 1000 - 20)
+      ); // expired
+      const encryptedGithubConnectionCookieValue = await encrypt(
+        githubConnectionTokenSet,
+        secret,
+        expiration
       );
+
+      const headers = new Headers();
+      headers.append(
+        "cookie",
+        `__session=${encryptedCookieValue};__FC.0=${encryptedGoogleConnectionCookieValue};__FC.1=${encryptedGithubConnectionCookieValue}`
+      );
+      const requestCookies = new RequestCookies(headers);
+
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+
+      const result = await sessionStore.get(requestCookies);
+
+      expect(result).toEqual(expect.objectContaining(session));
+      expect(result?.connectionTokenSets).toEqual([
+        expect.objectContaining(githubConnectionTokenSet)
+      ]);
     });
   });
 
@@ -292,9 +366,10 @@ describe("Stateless Session Store", async () => {
         const cookie = responseCookies.get("__session");
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
-          expect.objectContaining(session)
-        );
+        expect(
+          ((await decrypt(cookie!.value, secret)) as jose.JWTDecryptResult)
+            .payload
+        ).toEqual(expect.objectContaining(session));
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("lax");
@@ -328,21 +403,16 @@ describe("Stateless Session Store", async () => {
           inactivityDuration: 1800
         });
 
-        vi.setSystemTime(currentTime + 2 * 3600 * 1000);
-
         await sessionStore.set(requestCookies, responseCookies, session);
 
         const cookie = responseCookies.get("__session");
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
-          expect.objectContaining(session)
-        );
-        expect(cookie?.path).toEqual("/");
-        expect(cookie?.httpOnly).toEqual(true);
-        expect(cookie?.sameSite).toEqual("lax");
-        expect(cookie?.maxAge).toEqual(0);
-        expect(cookie?.secure).toEqual(false);
+
+        vi.setSystemTime(currentTime + 35 * 60 * 1000);
+
+        const decryptedSession = await decrypt(cookie!.value, secret);
+        expect(decryptedSession).toEqual(null);
       });
 
       it("should delete the legacy cookie if it exists", async () => {
@@ -368,12 +438,18 @@ describe("Stateless Session Store", async () => {
           secret
         });
 
-        vi.spyOn(responseCookies, "delete");
+        vi.spyOn(responseCookies, "set");
         vi.spyOn(requestCookies, "has").mockReturnValue(true);
 
         await sessionStore.set(requestCookies, responseCookies, session);
 
-        expect(responseCookies.delete).toHaveBeenCalledWith(LEGACY_COOKIE_NAME);
+        expect(responseCookies.set).toHaveBeenCalledWith(
+          LEGACY_COOKIE_NAME,
+          "",
+          {
+            maxAge: 0
+          }
+        );
       });
 
       it("should delete the legacy cookie chunks if they exists", async () => {
@@ -399,7 +475,7 @@ describe("Stateless Session Store", async () => {
           secret
         });
 
-        vi.spyOn(responseCookies, "delete");
+        vi.spyOn(responseCookies, "set");
         vi.spyOn(requestCookies, "getAll").mockReturnValue([
           { name: `${LEGACY_COOKIE_NAME}.0`, value: "" },
           { name: `${LEGACY_COOKIE_NAME}.1`, value: "" }
@@ -407,18 +483,30 @@ describe("Stateless Session Store", async () => {
 
         await sessionStore.set(requestCookies, responseCookies, session);
 
-        expect(responseCookies.delete).toHaveBeenCalledTimes(3);
-        expect(responseCookies.delete).toHaveBeenNthCalledWith(
+        expect(responseCookies.set).toHaveBeenCalledTimes(4);
+        expect(responseCookies.set).toHaveBeenNthCalledWith(
           1,
-          LEGACY_COOKIE_NAME
+          "__session",
+          expect.any(String),
+          expect.not.objectContaining({ maxAge: 0 })
         );
-        expect(responseCookies.delete).toHaveBeenNthCalledWith(
+        expect(responseCookies.set).toHaveBeenNthCalledWith(
           2,
-          `${LEGACY_COOKIE_NAME}.0`
+          LEGACY_COOKIE_NAME,
+          "",
+          { maxAge: 0 }
         );
-        expect(responseCookies.delete).toHaveBeenNthCalledWith(
+        expect(responseCookies.set).toHaveBeenNthCalledWith(
           3,
-          `${LEGACY_COOKIE_NAME}.1`
+          `${LEGACY_COOKIE_NAME}.0`,
+          "",
+          { maxAge: 0 }
+        );
+        expect(responseCookies.set).toHaveBeenNthCalledWith(
+          4,
+          `${LEGACY_COOKIE_NAME}.1`,
+          "",
+          { maxAge: 0 }
         );
       });
     });
@@ -451,9 +539,10 @@ describe("Stateless Session Store", async () => {
         const cookie = responseCookies.get("__session");
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
-          expect.objectContaining(session)
-        );
+        expect(
+          ((await decrypt(cookie!.value, secret)) as jose.JWTDecryptResult)
+            .payload
+        ).toEqual(expect.objectContaining(session));
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("lax");
@@ -493,9 +582,10 @@ describe("Stateless Session Store", async () => {
         const cookie = responseCookies.get("__session");
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
-          expect.objectContaining(session)
-        );
+        expect(
+          ((await decrypt(cookie!.value, secret)) as jose.JWTDecryptResult)
+            .payload
+        ).toEqual(expect.objectContaining(session));
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("lax");
@@ -534,9 +624,10 @@ describe("Stateless Session Store", async () => {
         const cookie = responseCookies.get("__session");
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
-          expect.objectContaining(session)
-        );
+        expect(
+          ((await decrypt(cookie!.value, secret)) as jose.JWTDecryptResult)
+            .payload
+        ).toEqual(expect.objectContaining(session));
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("strict");
@@ -572,9 +663,10 @@ describe("Stateless Session Store", async () => {
         const cookie = responseCookies.get("__session");
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
-          expect.objectContaining(session)
-        );
+        expect(
+          ((await decrypt(cookie!.value, secret)) as jose.JWTDecryptResult)
+            .payload
+        ).toEqual(expect.objectContaining(session));
         expect(cookie?.path).toEqual("/custom-path");
       });
 
@@ -609,9 +701,10 @@ describe("Stateless Session Store", async () => {
         const cookie = responseCookies.get("custom-session");
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
-          expect.objectContaining(session)
-        );
+        expect(
+          ((await decrypt(cookie!.value, secret)) as jose.JWTDecryptResult)
+            .payload
+        ).toEqual(expect.objectContaining(session));
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("lax");
@@ -657,7 +750,7 @@ describe("Stateless Session Store", async () => {
       const requestCookies = new RequestCookies(finalHeaders);
 
       const responseCookies = new ResponseCookies(new Headers());
-      const deleteSpy = vi.spyOn(responseCookies, "delete");
+      const setSpy = vi.spyOn(responseCookies, "set");
       const sessionStore = new StatelessSessionStore({ secret });
 
       await sessionStore.set(requestCookies, responseCookies, sessionToSet);
@@ -682,13 +775,25 @@ describe("Stateless Session Store", async () => {
         reconstructedValue!,
         secret
       );
-      const decryptedPayload = decryptedNewSession.payload;
+      const decryptedPayload = decryptedNewSession!.payload;
       expect(decryptedPayload).toEqual(expect.objectContaining(sessionToSet));
 
-      expect(deleteSpy).toHaveBeenCalledTimes(legacyCookiesInSetup.length);
-      legacyCookiesInSetup.forEach((legacyCookie) => {
-        expect(deleteSpy).toHaveBeenCalledWith(legacyCookie.name);
-      });
+      // set should be called once for setting the new session cookie and once for deleting the legacy cookie
+      expect(setSpy).toHaveBeenCalledTimes(2);
+      expect(setSpy).toHaveBeenNthCalledWith(
+        1,
+        "__session",
+        expect.any(String),
+        expect.not.objectContaining({ maxAge: 0 })
+      );
+      expect(setSpy).toHaveBeenNthCalledWith(
+        2,
+        legacyCookiesInSetup[0].name,
+        "",
+        {
+          maxAge: 0
+        }
+      );
     });
   });
 
@@ -719,7 +824,7 @@ describe("Stateless Session Store", async () => {
       await sessionStore.delete(requestCookies, responseCookies);
       const cookie = responseCookies.get("__session");
       expect(cookie?.value).toEqual("");
-      expect(cookie?.expires).toEqual(new Date("1970-01-01T00:00:00.000Z"));
+      expect(cookie?.maxAge).toEqual(0);
     });
 
     it("should not throw an error if the cookie does not exist", async () => {
