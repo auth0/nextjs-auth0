@@ -1029,7 +1029,7 @@ export class AuthClient {
       | undefined;
 
     if (clientPrivateKey && !(clientPrivateKey instanceof CryptoKey)) {
-      clientPrivateKey = await jose.importPKCS8<CryptoKey>(
+      clientPrivateKey = await jose.importPKCS8(
         clientPrivateKey,
         this.clientAssertionSigningAlg
       );
