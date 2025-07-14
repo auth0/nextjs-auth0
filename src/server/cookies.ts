@@ -219,7 +219,7 @@ export function setChunkedCookie(
 
     // When we are writing a non-chunked cookie, we should remove the chunked cookies
     getAllChunkedCookies(reqCookies, name).forEach((cookieChunk) => {
-      deleteCookie(resCookies, cookieChunk.name);
+      deleteCookie(resCookies, cookieChunk.name, finalOptions.path);
       reqCookies.delete(cookieChunk.name);
     });
 
@@ -249,13 +249,13 @@ export function setChunkedCookie(
     for (let i = 0; i < chunksToRemove; i++) {
       const chunkIndexToRemove = chunkIndex + i;
       const chunkName = `${name}${CHUNK_PREFIX}${chunkIndexToRemove}`;
-      deleteCookie(resCookies, chunkName);
+      deleteCookie(resCookies, chunkName, finalOptions.path);
       reqCookies.delete(chunkName);
     }
   }
 
   // When we have written chunked cookies, we should remove the non-chunked cookie
-  deleteCookie(resCookies, name);
+  deleteCookie(resCookies, name, finalOptions.path);
   reqCookies.delete(name);
 }
 
@@ -321,13 +321,14 @@ export function deleteChunkedCookie(
   name: string,
   reqCookies: RequestCookies,
   resCookies: ResponseCookies,
-  isLegacyCookie?: boolean
+  isLegacyCookie?: boolean,
+  path?: string
 ): void {
   // Delete main cookie
-  deleteCookie(resCookies, name);
+  deleteCookie(resCookies, name, path);
 
   getAllChunkedCookies(reqCookies, name, isLegacyCookie).forEach((cookie) => {
-    deleteCookie(resCookies, cookie.name); // Delete each filtered cookie
+    deleteCookie(resCookies, cookie.name, path); // Delete each filtered cookie
   });
 }
 
@@ -350,8 +351,13 @@ export function addCacheControlHeadersForSession(res: NextResponse): void {
   res.headers.set("Expires", "0");
 }
 
-export function deleteCookie(resCookies: ResponseCookies, name: string) {
+export function deleteCookie(
+  resCookies: ResponseCookies,
+  name: string,
+  path?: string
+) {
   resCookies.set(name, "", {
-    maxAge: 0 // Ensure the cookie is deleted immediately
+    maxAge: 0, // Ensure the cookie is deleted immediately
+    ...(path && { path })
   });
 }
