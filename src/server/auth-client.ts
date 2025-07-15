@@ -139,8 +139,11 @@ export interface AuthClientOptions {
   allowInsecureRequests?: boolean;
   httpTimeout?: number;
   enableTelemetry?: boolean;
+
   enableAccessTokenEndpoint?: boolean;
   noContentProfileResponseWhenUnauthenticated?: boolean;
+
+  accessTokenExpiryLeeway?: number;
 }
 
 function createRouteUrl(path: string, baseUrl: string) {
@@ -180,6 +183,8 @@ export class AuthClient {
 
   private readonly enableAccessTokenEndpoint: boolean;
   private readonly noContentProfileResponseWhenUnauthenticated: boolean;
+
+  private readonly accessTokenExpiryLeeway: number;
 
   constructor(options: AuthClientOptions) {
     // dependencies
@@ -273,6 +278,8 @@ export class AuthClient {
     this.enableAccessTokenEndpoint = options.enableAccessTokenEndpoint ?? true;
     this.noContentProfileResponseWhenUnauthenticated =
       options.noContentProfileResponseWhenUnauthenticated ?? false;
+
+    this.accessTokenExpiryLeeway = options.accessTokenExpiryLeeway ?? 0;
   }
 
   async handler(req: NextRequest): Promise<NextResponse> {
@@ -778,7 +785,10 @@ export class AuthClient {
 
     if (tokenSet.refreshToken) {
       // either the access token has expired or we are forcing a refresh
-      if (forceRefresh || tokenSet.expiresAt <= Date.now() / 1000) {
+      if (
+        forceRefresh ||
+        tokenSet.expiresAt <= Date.now() / 1000 + this.accessTokenExpiryLeeway
+      ) {
         const [discoveryError, authorizationServerMetadata] =
           await this.discoverAuthorizationServerMetadata();
 

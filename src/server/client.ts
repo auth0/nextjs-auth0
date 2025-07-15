@@ -196,6 +196,13 @@ export interface Auth0ClientOptions {
    * Defaults to `false`.
    */
   noContentProfileResponseWhenUnauthenticated?: boolean;
+
+  /**
+   * The amount of time in seconds to refresh the access token before it expires.
+   *
+   * Defaults to `0` seconds.
+   */
+  accessTokenExpiryLeeway?: number;
 }
 
 export type PagesRouterRequest = IncomingMessage | NextApiRequest;
@@ -311,9 +318,12 @@ export class Auth0Client {
       allowInsecureRequests: options.allowInsecureRequests,
       httpTimeout: options.httpTimeout,
       enableTelemetry: options.enableTelemetry,
+
       enableAccessTokenEndpoint: options.enableAccessTokenEndpoint,
       noContentProfileResponseWhenUnauthenticated:
-        options.noContentProfileResponseWhenUnauthenticated
+        options.noContentProfileResponseWhenUnauthenticated,
+
+      accessTokenExpiryLeeway: options.accessTokenExpiryLeeway ?? 0
     });
   }
 

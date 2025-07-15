@@ -4865,6 +4865,69 @@ ca/T0LLtgmbMmxSv/MmzIg==
       });
     });
 
+    it("should refresh the access token if it expired — with leeway", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: getMockAuthorizationServer({
+          tokenEndpointResponse: {
+            token_type: "Bearer",
+            access_token: "new-at",
+            expires_in: 3600 // expires in 1 hour
+          } as oauth.TokenEndpointResponse
+        }),
+
+        accessTokenExpiryLeeway: 30 * 60 // 30 minutes
+      });
+
+      // expires in 31 minutes, so it will not be refreshed because the leeway is 30 minutes
+      let tokenSet = {
+        accessToken: "old-at",
+        refreshToken: "old-rt",
+        expiresAt: Math.floor(Date.now() / 1000) + 31 * 60 // expires in 31 minutes
+      };
+
+      let [error, updatedTokenSet] = await authClient.getTokenSet(tokenSet);
+      expect(error).toBeNull();
+      expect(updatedTokenSet?.tokenSet).toEqual({
+        accessToken: "old-at",
+        refreshToken: "old-rt",
+        expiresAt: expect.any(Number)
+      });
+
+      // expires in 30 minutes, so it will be refreshed because the leeway is 30 minutes
+      tokenSet = {
+        accessToken: "old-at",
+        refreshToken: "old-rt",
+        expiresAt: Math.floor(Date.now() / 1000) + 30 * 60 // expires in 30 minutes
+      };
+
+      [error, updatedTokenSet] = await authClient.getTokenSet(tokenSet);
+      expect(error).toBeNull();
+      expect(updatedTokenSet?.tokenSet).toEqual({
+        accessToken: "new-at",
+        refreshToken: "old-rt",
+        expiresAt: expect.any(Number)
+      });
+    });
+
     it("should return an error if an error occurred during the refresh token exchange", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({
