@@ -358,6 +358,6 @@ export function deleteCookie(
 ) {
   resCookies.set(name, "", {
     maxAge: 0, // Ensure the cookie is deleted immediately
-    ...(path && { path })
+    path: path || "/"
   });
 }
