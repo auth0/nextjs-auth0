@@ -122,8 +122,10 @@ export class StatefulSessionStore extends AbstractSessionStore {
     let sessionId = null;
     const cookieValue = reqCookies.get(this.sessionCookieName)?.value;
     if (cookieValue) {
-      const sessionCookie =
-        await cookies.decrypt<SessionCookieValue>(cookieValue, this.secret);
+      const sessionCookie = await cookies.decrypt<SessionCookieValue>(
+        cookieValue,
+        this.secret
+      );
 
       if (sessionCookie) {
         sessionId = sessionCookie.payload.id;
