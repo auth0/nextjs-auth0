@@ -1271,7 +1271,7 @@ export async function middleware(request: NextRequest) {
 
 ## Customizing Auth Handlers
 
-In v4, authentication routes (`/auth/login`, `/auth/logout`, `/auth/callback`) are handled automatically by the middleware. While you can no longer customize individual route handlers directly like in v3, you can intercept these routes in your middleware to run custom logic before the auth handlers execute.
+Authentication routes (`/auth/login`, `/auth/logout`, `/auth/callback`) are handled automatically by the middleware. You can intercept these routes in your middleware to run custom logic before the auth handlers execute.
 
 This approach allows you to:
 - Run custom code before authentication actions (logging, analytics, validation)
@@ -1284,7 +1284,7 @@ The middleware-based approach provides the same level of control as v3's custom 
 
 ### Run custom code before Auth Handlers
 
-Following example shows how to run custom logic before the `logout` handler:
+Following example shows how to run custom logic before the response of `logout` handler is returned:
 ```ts
 export async function middleware(request) {
 
@@ -1295,8 +1295,8 @@ export async function middleware(request) {
     //    "/auth/login" : intercept login auth handler
     //    "/auth/logout" : intercept logout auth handler
     //    "/auth/callback" : intercept callback auth handler
-    //    "/your/login/returnTo/url" : intercept redirect after login
-    //    "/your/logout/returnTo/url" : intercept redirect after logout
+    //    "/your/login/returnTo/url" : intercept redirect after login, this is the login returnTo url
+    //    "/your/logout/returnTo/url" : intercept redirect after logout, this is the logout returnTo url
 
     const interceptUrl = "/auth/logout";
     
