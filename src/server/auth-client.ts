@@ -144,10 +144,7 @@ export interface AuthClientOptions {
 }
 
 function createRouteUrl(path: string, baseUrl: string) {
-  return new URL(
-    ensureNoLeadingSlash(normalizeWithBasePath(path)),
-    ensureTrailingSlash(baseUrl)
-  );
+  return new URL(ensureNoLeadingSlash(path), ensureTrailingSlash(baseUrl));
 }
 
 export class AuthClient {
@@ -277,7 +274,21 @@ export class AuthClient {
 
   async handler(req: NextRequest): Promise<NextResponse> {
     const { pathname } = req.nextUrl;
-    const sanitizedPathname = removeTrailingSlash(pathname);
+
+    // Strip base path from pathname if it exists
+    // This simulates what Next.js middleware does in a real application
+    let processedPathname = pathname;
+    const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
+    if (basePath) {
+      const normalizedBasePath = basePath.startsWith("/")
+        ? basePath
+        : `/${basePath}`;
+      if (pathname.startsWith(normalizedBasePath)) {
+        processedPathname = pathname.slice(normalizedBasePath.length) || "/";
+      }
+    }
+
+    const sanitizedPathname = removeTrailingSlash(processedPathname);
     const method = req.method;
 
     if (method === "GET" && sanitizedPathname === this.routes.login) {
@@ -322,7 +333,10 @@ export class AuthClient {
   async startInteractiveLogin(
     options: StartInteractiveLoginOptions = {}
   ): Promise<NextResponse> {
-    const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registed with the authorization server
+    const redirectUri = createRouteUrl(
+      normalizeWithBasePath(this.routes.callback),
+      this.appBaseUrl
+    ); // must be registed with the authorization server
     let returnTo = this.signInReturnToPath;
 
     // Validate returnTo parameter
@@ -551,7 +565,10 @@ export class AuthClient {
 
     let codeGrantResponse: Response;
     try {
-      const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registed with the authorization server
+      const redirectUri = createRouteUrl(
+        normalizeWithBasePath(this.routes.callback),
+        this.appBaseUrl
+      ); // must be registed with the authorization server
       codeGrantResponse = await oauth.authorizationCodeGrantRequest(
         authorizationServerMetadata,
         this.clientMetadata,
@@ -897,7 +914,10 @@ export class AuthClient {
     }
 
     const res = NextResponse.redirect(
-      createRouteUrl(ctx.returnTo || "/", this.appBaseUrl)
+      createRouteUrl(
+        normalizeWithBasePath(ctx.returnTo || "/"),
+        this.appBaseUrl
+      )
     );
 
     return res;
