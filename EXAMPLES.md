@@ -46,6 +46,9 @@
   - [On the server (App Router)](#on-the-server-app-router-3)
   - [On the server (Pages Router)](#on-the-server-pages-router-3)
   - [Middleware](#middleware-3)
+- [Customizing Auth Handlers](#customizing-auth-handlers)
+    - [Run custom code before Auth Handlers](#run-custom-code-before-auth-handlers)
+    - [Run code after callback](#run-code-after-callback)
 
 ## Passing authorization parameters
 
@@ -1265,3 +1268,65 @@ export async function middleware(request: NextRequest) {
   return resWithCombinedHeaders;
 }
 ```
+
+## Customizing Auth Handlers
+
+Authentication routes (`/auth/login`, `/auth/logout`, `/auth/callback`) are handled automatically by the middleware. You can intercept these routes in your middleware to run custom logic before the auth handlers execute.
+
+This approach allows you to:
+- Run custom code before authentication actions (logging, analytics, validation)
+- Modify the response (set cookies, headers, etc.)
+- Implement custom redirects or early returns when needed
+- Add business logic around authentication flows
+- Maintain compatibility with existing tracking and analytics systems
+
+The middleware-based approach provides the same level of control as v3's custom handlers while working seamlessly with v4's automatic route handling.
+
+### Run custom code before Auth Handlers
+
+Following example shows how to run custom logic before the response of `logout` handler is returned:
+```ts
+export async function middleware(request) {
+
+    // prepare NextResponse object from auth0 middleware
+    const authRes = await auth0.middleware(request);
+
+    // The following interceptUrls can be used:
+    //    "/auth/login" : intercept login auth handler
+    //    "/auth/logout" : intercept logout auth handler
+    //    "/auth/callback" : intercept callback auth handler
+    //    "/your/login/returnTo/url" : intercept redirect after login, this is the login returnTo url
+    //    "/your/logout/returnTo/url" : intercept redirect after logout, this is the logout returnTo url
+
+    const interceptUrl = "/auth/logout";
+    
+    // intercept auth handler
+    if (request.nextUrl.pathname === interceptUrl) {
+        // do custom stuff
+        console.log("Pre-logout code")
+
+        // Example: Set a cookie
+        authRes.cookies.set('myCustomCookie', 'cookieValue', { path: '/' });
+        // Example: Set another cookie with options
+        authRes.cookies.set({
+            name: 'anotherCookie',
+            value: 'anotherValue',
+            httpOnly: true,
+            path: '/',
+        });
+
+        // Example: Delete a cookie
+        // authRes.cookies.delete('cookieNameToDelete');
+
+        // you can also do an early return here with your own NextResponse object
+        // return NextResponse.redirect(new URL('/custom-logout-page'));
+    }
+
+    // return the original auth0-handled NextResponse object
+    return authRes
+}
+```
+
+### Run code after callback
+Please refer to [onCallback](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#oncallback) 
+for details on how to run code after callback.
