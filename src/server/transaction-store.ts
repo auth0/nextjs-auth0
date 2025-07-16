@@ -84,11 +84,11 @@ export class TransactionStore {
 
   async save(
     resCookies: cookies.ResponseCookies,
-    transactionState: TransactionState
+    transactionState: TransactionState,
+    customExpiration?: number
   ) {
-    const expiration = Math.floor(
-      Date.now() / 1000 + this.cookieConfig.maxAge!
-    );
+    const expirationSeconds = customExpiration ?? this.cookieConfig.maxAge!;
+    const expiration = Math.floor(Date.now() / 1000 + expirationSeconds);
     const jwe = await cookies.encrypt(
       transactionState,
       this.secret,
@@ -99,10 +99,16 @@ export class TransactionStore {
       throw new Error("Transaction state is required");
     }
 
+    // Create a copy of cookie config with the custom expiration
+    const cookieOptions = {
+      ...this.cookieConfig,
+      maxAge: expirationSeconds
+    };
+
     resCookies.set(
       this.getTransactionCookieName(transactionState.state),
       jwe.toString(),
-      this.cookieConfig
+      cookieOptions
     );
   }
 
