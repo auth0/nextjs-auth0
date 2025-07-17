@@ -759,7 +759,8 @@ describe("Stateful Session Store", async () => {
       await sessionStore.set(requestCookies, responseCookies, session);
 
       expect(responseCookies.set).toHaveBeenCalledWith(LEGACY_COOKIE_NAME, "", {
-        maxAge: 0
+        maxAge: 0,
+        path: "/"
       });
     });
 
