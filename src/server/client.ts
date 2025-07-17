@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { cookies } from "next/headers.js";
 import { NextRequest, NextResponse } from "next/server.js";
-import { NextApiRequest, NextApiResponse } from "next/types.js";
+import { NextApiHandler, NextApiRequest, NextApiResponse } from "next/types.js";
 
 import {
   AccessTokenError,
@@ -18,6 +18,7 @@ import {
   StartInteractiveLoginOptions,
   User
 } from "../types/index.js";
+import { isRequest } from "../utils/request.js";
 import {
   AuthClient,
   BeforeSessionSavedHook,
@@ -26,6 +27,7 @@ import {
   RoutesOptions
 } from "./auth-client.js";
 import { RequestCookies, ResponseCookies } from "./cookies.js";
+import * as withApiAuthRequired from "./helpers/with-api-auth-required.js";
 import {
   appRouteHandlerFactory,
   AppRouterPageRoute,
@@ -739,6 +741,36 @@ export class Auth0Client {
     }
 
     return pageRouteHandler(fnOrOpts);
+  }
+
+  withApiAuthRequired(
+    apiRoute: withApiAuthRequired.AppRouteHandlerFn | NextApiHandler
+  ) {
+    const pageRouteHandler = withApiAuthRequired.pageRouteHandlerFactory(this);
+    const appRouteHandler = withApiAuthRequired.appRouteHandlerFactory(this);
+
+    return (
+      req: NextRequest | NextApiRequest,
+      resOrParams:
+        | withApiAuthRequired.AppRouteHandlerFnContext
+        | NextApiResponse
+    ) => {
+      if (isRequest(req)) {
+        return appRouteHandler(
+          apiRoute as withApiAuthRequired.AppRouteHandlerFn
+        )(
+          req as NextRequest,
+          resOrParams as withApiAuthRequired.AppRouteHandlerFnContext
+        );
+      }
+
+      return (
+        pageRouteHandler as withApiAuthRequired.WithApiAuthRequiredPageRoute
+      )(apiRoute as NextApiHandler)(
+        req as NextApiRequest,
+        resOrParams as NextApiResponse
+      );
+    };
   }
 
   private async saveToSession(
