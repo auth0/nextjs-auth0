@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { cookies } from "next/headers.js";
 import { NextRequest, NextResponse } from "next/server.js";
-import { NextApiRequest, NextApiResponse } from "next/types.js";
+import { NextApiHandler, NextApiRequest, NextApiResponse } from "next/types.js";
 
 import {
   AccessTokenError,
@@ -18,13 +18,23 @@ import {
   StartInteractiveLoginOptions,
   User
 } from "../types/index.js";
+import { isRequest } from "../utils/request.js";
 import {
   AuthClient,
   BeforeSessionSavedHook,
   OnCallbackHook,
+  Routes,
   RoutesOptions
 } from "./auth-client.js";
 import { RequestCookies, ResponseCookies } from "./cookies.js";
+import * as withApiAuthRequired from "./helpers/with-api-auth-required.js";
+import {
+  appRouteHandlerFactory,
+  AppRouterPageRoute,
+  pageRouteHandlerFactory,
+  WithPageAuthRequiredAppRouterOptions,
+  WithPageAuthRequiredPageRouterOptions
+} from "./helpers/with-page-auth-required.js";
 import {
   AbstractSessionStore,
   SessionConfiguration,
@@ -199,6 +209,7 @@ export class Auth0Client {
   private transactionStore: TransactionStore;
   private sessionStore: AbstractSessionStore;
   private authClient: AuthClient;
+  private routes: Routes;
 
   constructor(options: Auth0ClientOptions = {}) {
     // Extract and validate required options
@@ -247,6 +258,17 @@ export class Auth0Client {
       }
     }
 
+    this.routes = {
+      login: process.env.NEXT_PUBLIC_LOGIN_ROUTE || "/auth/login",
+      logout: "/auth/logout",
+      callback: "/auth/callback",
+      backChannelLogout: "/auth/backchannel-logout",
+      profile: process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile",
+      accessToken:
+        process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
+      ...options.routes
+    };
+
     this.transactionStore = new TransactionStore({
       ...options.session,
       secret,
@@ -286,7 +308,7 @@ export class Auth0Client {
       beforeSessionSaved: options.beforeSessionSaved,
       onCallback: options.onCallback,
 
-      routes: options.routes,
+      routes: this.routes,
 
       allowInsecureRequests: options.allowInsecureRequests,
       httpTimeout: options.httpTimeout,
@@ -702,6 +724,53 @@ export class Auth0Client {
     options: StartInteractiveLoginOptions
   ): Promise<NextResponse> {
     return this.authClient.startInteractiveLogin(options);
+  }
+
+  withPageAuthRequired(
+    fnOrOpts?: WithPageAuthRequiredPageRouterOptions | AppRouterPageRoute,
+    opts?: WithPageAuthRequiredAppRouterOptions
+  ) {
+    const config = {
+      loginUrl: this.routes.login
+    };
+    const appRouteHandler = appRouteHandlerFactory(this, config);
+    const pageRouteHandler = pageRouteHandlerFactory(this, config);
+
+    if (typeof fnOrOpts === "function") {
+      return appRouteHandler(fnOrOpts, opts);
+    }
+
+    return pageRouteHandler(fnOrOpts);
+  }
+
+  withApiAuthRequired(
+    apiRoute: withApiAuthRequired.AppRouteHandlerFn | NextApiHandler
+  ) {
+    const pageRouteHandler = withApiAuthRequired.pageRouteHandlerFactory(this);
+    const appRouteHandler = withApiAuthRequired.appRouteHandlerFactory(this);
+
+    return (
+      req: NextRequest | NextApiRequest,
+      resOrParams:
+        | withApiAuthRequired.AppRouteHandlerFnContext
+        | NextApiResponse
+    ) => {
+      if (isRequest(req)) {
+        return appRouteHandler(
+          apiRoute as withApiAuthRequired.AppRouteHandlerFn
+        )(
+          req as NextRequest,
+          resOrParams as withApiAuthRequired.AppRouteHandlerFnContext
+        );
+      }
+
+      return (
+        pageRouteHandler as withApiAuthRequired.WithApiAuthRequiredPageRoute
+      )(apiRoute as NextApiHandler)(
+        req as NextApiRequest,
+        resOrParams as NextApiResponse
+      );
+    };
   }
 
   private async saveToSession(
