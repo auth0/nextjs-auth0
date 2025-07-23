@@ -36,11 +36,26 @@ export interface TransactionCookieOptions {
    * The path attribute of the transaction cookie. Will be set to '/' by default.
    */
   path?: string;
+  /**
+   * The expiration time for transaction cookies in seconds.
+   * If not provided, defaults to 1 hour (3600 seconds).
+   *
+   * @default 3600
+   */
+  maxAge?: number;
 }
 
 export interface TransactionStoreOptions {
   secret: string;
   cookieOptions?: TransactionCookieOptions;
+  /**
+   * Controls whether multiple parallel login transactions are allowed.
+   * When false, only one transaction cookie is maintained at a time.
+   * When true (default), multiple transaction cookies can coexist for multi-tab support.
+   *
+   * @default true
+   */
+  enableParallelTransactions?: boolean;
 }
 
 /**
@@ -49,21 +64,27 @@ export interface TransactionStoreOptions {
  * the transaction state.
  */
 export class TransactionStore {
-  private secret: string;
-  private transactionCookiePrefix: string;
-  private cookieConfig: cookies.CookieOptions;
+  private readonly secret: string;
+  private readonly transactionCookiePrefix: string;
+  private readonly cookieOptions: cookies.CookieOptions;
+  private readonly enableParallelTransactions: boolean;
 
-  constructor({ secret, cookieOptions }: TransactionStoreOptions) {
+  constructor({
+    secret,
+    cookieOptions,
+    enableParallelTransactions
+  }: TransactionStoreOptions) {
     this.secret = secret;
     this.transactionCookiePrefix =
       cookieOptions?.prefix ?? TRANSACTION_COOKIE_PREFIX;
-    this.cookieConfig = {
+    this.cookieOptions = {
       httpOnly: true,
       sameSite: cookieOptions?.sameSite ?? "lax", // required to allow the cookie to be sent on the callback request
       secure: cookieOptions?.secure ?? false,
       path: cookieOptions?.path ?? "/",
-      maxAge: 60 * 60 // 1 hour in seconds
+      maxAge: cookieOptions?.maxAge || 60 * 60 // 1 hour in seconds
     };
+    this.enableParallelTransactions = enableParallelTransactions ?? true;
   }
 
   /**
@@ -72,7 +93,9 @@ export class TransactionStore {
    * between different transactions.
    */
   private getTransactionCookieName(state: string) {
-    return `${this.transactionCookiePrefix}${state}`;
+    return this.enableParallelTransactions
+      ? `${this.transactionCookiePrefix}${state}`
+      : `${this.transactionCookiePrefix}`;
   }
 
   /**
@@ -82,12 +105,39 @@ export class TransactionStore {
     return this.transactionCookiePrefix;
   }
 
+  /**
+   * Saves the transaction state to an encrypted cookie.
+   *
+   * @param resCookies - The response cookies object to set the transaction cookie on
+   * @param transactionState - The transaction state to save
+   * @param reqCookies - Optional request cookies to check for existing transactions.
+   *                     When provided and `enableParallelTransactions` is false,
+   *                     will check for existing transaction cookies. When omitted,
+   *                     the existence check is skipped for performance optimization.
+   * @throws {Error} When transaction state is missing required state parameter
+   */
   async save(
     resCookies: cookies.ResponseCookies,
     transactionState: TransactionState,
-    customExpiration?: number
+    reqCookies?: cookies.RequestCookies
   ) {
-    const expirationSeconds = customExpiration ?? this.cookieConfig.maxAge!;
+    if (!transactionState.state) {
+      throw new Error("Transaction state is required");
+    }
+
+    // When parallel transactions are disabled, check if a transaction already exists
+    if (reqCookies && !this.enableParallelTransactions) {
+      const cookieName = this.getTransactionCookieName(transactionState.state);
+      const existingCookie = reqCookies.get(cookieName);
+      if (existingCookie) {
+        // TODO: make this not throw, simply exit with warning log
+        throw new Error(
+          "A transaction is already in progress. Only one transaction is allowed when parallel transactions are disabled."
+        );
+      }
+    }
+
+    const expirationSeconds = this.cookieOptions.maxAge!;
     const expiration = Math.floor(Date.now() / 1000 + expirationSeconds);
     const jwe = await cookies.encrypt(
       transactionState,
@@ -95,20 +145,10 @@ export class TransactionStore {
       expiration
     );
 
-    if (!transactionState.state) {
-      throw new Error("Transaction state is required");
-    }
-
-    // Create a copy of cookie config with the custom expiration
-    const cookieOptions = {
-      ...this.cookieConfig,
-      maxAge: expirationSeconds
-    };
-
     resCookies.set(
       this.getTransactionCookieName(transactionState.state),
       jwe.toString(),
-      cookieOptions
+      this.cookieOptions
     );
   }
 

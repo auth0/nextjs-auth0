@@ -4826,14 +4826,17 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       // Mock the transactionStore.save method to verify the saved state
       const originalSave = authClient["transactionStore"].save;
-      authClient["transactionStore"].save = vi.fn(async (cookies, state) => {
-        expect(state.returnTo).toBe(defaultReturnTo);
-        return originalSave.call(
-          authClient["transactionStore"],
-          cookies,
-          state
-        );
-      });
+      authClient["transactionStore"].save = vi.fn(
+        async (cookies, state, reqCookies) => {
+          expect(state.returnTo).toBe(defaultReturnTo);
+          return originalSave.call(
+            authClient["transactionStore"],
+            cookies,
+            state,
+            reqCookies
+          );
+        }
+      );
 
       await authClient.startInteractiveLogin();
 
@@ -4846,14 +4849,17 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       // Mock the transactionStore.save method to verify the saved state
       const originalSave = authClient["transactionStore"].save;
-      authClient["transactionStore"].save = vi.fn(async (cookies, state) => {
-        expect(state.returnTo).toBe("/custom-return-path");
-        return originalSave.call(
-          authClient["transactionStore"],
-          cookies,
-          state
-        );
-      });
+      authClient["transactionStore"].save = vi.fn(
+        async (cookies, state, reqCookies) => {
+          expect(state.returnTo).toBe("/custom-return-path");
+          return originalSave.call(
+            authClient["transactionStore"],
+            cookies,
+            state,
+            reqCookies
+          );
+        }
+      );
 
       await authClient.startInteractiveLogin({ returnTo });
 
@@ -4866,14 +4872,17 @@ ca/T0LLtgmbMmxSv/MmzIg==
         DEFAULT.appBaseUrl + "/custom-return-path?query=param#hash";
 
       const originalSave = authClient["transactionStore"].save;
-      authClient["transactionStore"].save = vi.fn(async (cookies, state) => {
-        expect(state.returnTo).toBe("/custom-return-path?query=param#hash");
-        return originalSave.call(
-          authClient["transactionStore"],
-          cookies,
-          state
-        );
-      });
+      authClient["transactionStore"].save = vi.fn(
+        async (cookies, state, reqCookies) => {
+          expect(state.returnTo).toBe("/custom-return-path?query=param#hash");
+          return originalSave.call(
+            authClient["transactionStore"],
+            cookies,
+            state,
+            reqCookies
+          );
+        }
+      );
 
       await authClient.startInteractiveLogin({ returnTo });
 
@@ -4888,15 +4897,18 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       // Mock the transactionStore.save method to verify the saved state
       const originalSave = authClient["transactionStore"].save;
-      authClient["transactionStore"].save = vi.fn(async (cookies, state) => {
-        // Should use the default safe path instead of the malicious one
-        expect(state.returnTo).toBe("/safe-path");
-        return originalSave.call(
-          authClient["transactionStore"],
-          cookies,
-          state
-        );
-      });
+      authClient["transactionStore"].save = vi.fn(
+        async (cookies, state, reqCookies) => {
+          // Should use the default safe path instead of the malicious one
+          expect(state.returnTo).toBe("/safe-path");
+          return originalSave.call(
+            authClient["transactionStore"],
+            cookies,
+            state,
+            reqCookies
+          );
+        }
+      );
 
       await authClient.startInteractiveLogin({ returnTo: unsafeReturnTo });
 

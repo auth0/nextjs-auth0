@@ -1,5 +1,4 @@
 import { NextResponse, type NextRequest } from "next/server.js";
-import type { RequestCookies, ResponseCookies } from "@edge-runtime/cookies";
 import * as jose from "jose";
 import * as oauth from "oauth4webapi";
 
@@ -142,33 +141,6 @@ export interface AuthClientOptions {
   enableTelemetry?: boolean;
   enableAccessTokenEndpoint?: boolean;
   noContentProfileResponseWhenUnauthenticated?: boolean;
-
-  // Transaction cookie management options
-  /**
-   * Controls whether multiple parallel login transactions are allowed.
-   * When false, only one transaction cookie is maintained at a time.
-   * When true (default), multiple transaction cookies can coexist for multi-tab support.
-   *
-   * @default true
-   */
-  enableParallelTransactions?: boolean;
-
-  /**
-   * The expiration time for transaction cookies in seconds.
-   * If not provided, defaults to 1 hour (3600 seconds).
-   *
-   * @default 3600
-   */
-  txnCookieExpiration?: number;
-
-  /**
-   * The maximum number of transaction cookies to maintain before cleanup.
-   * Only used when enableParallelTransactions is true.
-   * If not provided, defaults to 2 for basic multi-tab support.
-   *
-   * @default 2
-   */
-  maxTxnCookieCount?: number;
 }
 
 function createRouteUrl(path: string, baseUrl: string) {
@@ -208,11 +180,6 @@ export class AuthClient {
 
   private readonly enableAccessTokenEndpoint: boolean;
   private readonly noContentProfileResponseWhenUnauthenticated: boolean;
-
-  // Transaction cookie management configuration
-  private readonly enableParallelTransactions: boolean;
-  private readonly txnCookieExpiration: number;
-  private readonly maxTxnCookieCount: number;
 
   constructor(options: AuthClientOptions) {
     // dependencies
@@ -315,12 +282,6 @@ export class AuthClient {
     this.enableAccessTokenEndpoint = options.enableAccessTokenEndpoint ?? true;
     this.noContentProfileResponseWhenUnauthenticated =
       options.noContentProfileResponseWhenUnauthenticated ?? false;
-
-    // Transaction cookie management configuration
-    this.enableParallelTransactions =
-      options.enableParallelTransactions ?? true;
-    this.txnCookieExpiration = options.txnCookieExpiration ?? 3600; // 1 hour default
-    this.maxTxnCookieCount = options.maxTxnCookieCount ?? 2; // Default to 2 for basic multi-tab support
   }
 
   async handler(req: NextRequest): Promise<NextResponse> {
@@ -368,8 +329,7 @@ export class AuthClient {
   }
 
   async startInteractiveLogin(
-    options: StartInteractiveLoginOptions = {},
-    reqCookies?: RequestCookies
+    options: StartInteractiveLoginOptions = {}
   ): Promise<NextResponse> {
     const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registed with the authorization server
     let returnTo = this.signInReturnToPath;
@@ -445,23 +405,8 @@ export class AuthClient {
     // Set response and save transaction
     const res = NextResponse.redirect(authorizationUrl.toString());
 
-    // Apply transaction cookie management based on configuration
-    if (reqCookies) {
-      if (!this.enableParallelTransactions) {
-        // When parallel transactions are disabled, delete all existing transaction cookies
-        await this.transactionStore.deleteAll(reqCookies, res.cookies);
-      } else {
-        // When parallel transactions are enabled, cleanup excess cookies based on maxTxnCookieCount
-        await this.cleanupExcessTransactionCookies(reqCookies, res.cookies);
-      }
-    }
-
-    // Save transaction with custom expiration
-    await this.transactionStore.save(
-      res.cookies,
-      transactionState,
-      this.txnCookieExpiration
-    );
+    // Save transaction state
+    await this.transactionStore.save(res.cookies, transactionState);
 
     return res;
   }
@@ -475,7 +420,7 @@ export class AuthClient {
         : {},
       returnTo: searchParams.returnTo
     };
-    return this.startInteractiveLogin(options, req.cookies);
+    return this.startInteractiveLogin(options);
   }
 
   async handleLogout(req: NextRequest): Promise<NextResponse> {
@@ -696,6 +641,8 @@ export class AuthClient {
 
     await this.sessionStore.set(req.cookies, res.cookies, session, true);
     addCacheControlHeadersForSession(res);
+
+    // Clean up the current transaction cookie after successful authentication
     await this.transactionStore.delete(res.cookies, state);
 
     return res;
@@ -1334,37 +1281,6 @@ export class AuthClient {
       session.user = filterDefaultIdTokenClaims(session.user);
     }
     return session;
-  }
-
-  /**
-   * Cleans up excess transaction cookies to prevent infinite stacking
-   * while preserving multi-tab support by keeping recent cookies.
-   * This implements a threshold-based cleanup strategy using the configured maxTxnCookieCount.
-   */
-  private async cleanupExcessTransactionCookies(
-    reqCookies: RequestCookies,
-    resCookies: ResponseCookies
-  ): Promise<void> {
-    const txnPrefix = this.transactionStore.getCookiePrefix();
-    const transactionCookies = reqCookies
-      .getAll()
-      .filter((cookie) => cookie.name.startsWith(txnPrefix));
-
-    // Apply threshold-based cleanup using the configured maxTxnCookieCount
-    // This prevents infinite accumulation while supporting multi-tab scenarios
-    const threshold = this.maxTxnCookieCount;
-
-    if (transactionCookies.length > threshold) {
-      // Sort by name (which includes timestamp-based state) to get oldest first
-      // Since we can't reliably sort by creation time, we use count-based cleanup
-      const cookiesToDelete = transactionCookies.slice(0, -threshold);
-
-      for (const cookie of cookiesToDelete) {
-        // Extract state from cookie name to delete via transaction store
-        const state = cookie.name.substring(txnPrefix.length);
-        await this.transactionStore.delete(resCookies, state);
-      }
-    }
   }
 }
 

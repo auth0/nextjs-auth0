@@ -188,6 +188,8 @@ export interface Auth0ClientOptions {
    * Defaults to `false`.
    */
   noContentProfileResponseWhenUnauthenticated?: boolean;
+
+  enableParallelTransactions?: boolean;
 }
 
 export type PagesRouterRequest = IncomingMessage | NextApiRequest;
@@ -250,7 +252,8 @@ export class Auth0Client {
     this.transactionStore = new TransactionStore({
       ...options.session,
       secret,
-      cookieOptions: transactionCookieOptions
+      cookieOptions: transactionCookieOptions,
+      enableParallelTransactions: options.enableParallelTransactions || true
     });
 
     this.sessionStore = options.sessionStore

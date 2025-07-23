@@ -1,46 +1,164 @@
-import { NextRequest } from "next/server";
+import { NextRequest } from "next/server.js";
+import * as oauth from "oauth4webapi";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AuthClient } from "../src/server/auth-client.js";
+import { StatelessSessionStore } from "../src/server/session/stateless-session-store.js";
+import { TransactionStore } from "../src/server/transaction-store.js";
+import { generateSecret } from "../src/test/utils.js";
 
-// Mock dependencies
-vi.mock("../src/server/transaction-store.js");
-vi.mock("../src/server/session/abstract-session-store.js");
+// Mock oauth4webapi module
+vi.mock("oauth4webapi");
 
-describe("v4-infinitely-stacking-cookies - v4: Infinitely stacking cookies regression", () => {
+describe(`v4-infinitely-stacking-cookies - v4: Infinitely stacking cookies regression`, () => {
   let authClient: AuthClient;
-  let mockTransactionStore: any;
-  let mockSessionStore: any;
+  let transactionStore: TransactionStore;
+  let sessionStore: StatelessSessionStore;
+  let secret: string;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
     vi.resetModules();
 
-    // Create mocks
-    mockTransactionStore = {
-      save: vi.fn(),
-      get: vi.fn(),
-      delete: vi.fn(),
-      deleteAll: vi.fn(),
-      getCookiePrefix: vi.fn().mockReturnValue("__txn_")
-    };
+    secret = await generateSecret(32);
+    transactionStore = new TransactionStore({
+      secret,
+      enableParallelTransactions: true
+    });
+    sessionStore = new StatelessSessionStore({ secret });
 
-    mockSessionStore = {
-      get: vi.fn(),
-      set: vi.fn(),
-      delete: vi.fn()
-    };
-
-    // Create AuthClient instance with mocked dependencies
     authClient = new AuthClient({
+      transactionStore,
+      sessionStore,
       domain: "test.auth0.com",
       clientId: "test-client-id",
       clientSecret: "test-client-secret",
       appBaseUrl: "http://localhost:3000",
-      secret: "test-secret",
-      transactionStore: mockTransactionStore,
-      sessionStore: mockSessionStore
-    } as any);
+      secret,
+      fetch: vi.fn().mockImplementation((url) => {
+        // Mock the token endpoint
+        if (url.includes("/oauth/token")) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                access_token: "access_token_123",
+                id_token:
+                  "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ1c2VyMTIzIiwibm9uY2UiOiJ0ZXN0LW5vbmNlIiwiYXVkIjoidGVzdC1jbGllbnQtaWQiLCJpc3MiOiJodHRwczovL3Rlc3QuYXV0aDAuY29tLyIsImlhdCI6MTcwMDAwMDAwMCwiZXhwIjoxNzAwMDA3MjAwfQ.mock_signature",
+                refresh_token: "refresh_token_123",
+                token_type: "Bearer",
+                expires_in: 3600,
+                scope: "openid profile email"
+              }),
+              {
+                headers: { "Content-Type": "application/json" }
+              }
+            )
+          );
+        }
+
+        // Mock the JWKS endpoint
+        if (url.includes("/.well-known/jwks.json")) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                keys: [
+                  {
+                    kty: "RSA",
+                    kid: "test-key-id",
+                    use: "sig",
+                    n: "mock_n_value",
+                    e: "AQAB"
+                  }
+                ]
+              }),
+              {
+                headers: { "Content-Type": "application/json" }
+              }
+            )
+          );
+        }
+
+        // Mock the discovery endpoint
+        if (url.includes("/.well-known/openid_configuration")) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                issuer: "https://test.auth0.com/",
+                authorization_endpoint: "https://test.auth0.com/authorize",
+                token_endpoint: "https://test.auth0.com/oauth/token",
+                jwks_uri: "https://test.auth0.com/.well-known/jwks.json",
+                end_session_endpoint: "https://test.auth0.com/v2/logout"
+              }),
+              {
+                headers: { "Content-Type": "application/json" }
+              }
+            )
+          );
+        }
+
+        return Promise.resolve(new Response("Not Found", { status: 404 }));
+      })
+    });
+
+    // Mock oauth4webapi functions
+    const mockDiscoveryResponse = new Response(
+      JSON.stringify({
+        issuer: "https://test.auth0.com/",
+        authorization_endpoint: "https://test.auth0.com/authorize",
+        token_endpoint: "https://test.auth0.com/oauth/token",
+        jwks_uri: "https://test.auth0.com/.well-known/jwks.json",
+        end_session_endpoint: "https://test.auth0.com/v2/logout"
+      }),
+      {
+        headers: { "Content-Type": "application/json" }
+      }
+    );
+
+    const mockAuthServerMetadata = {
+      issuer: "https://test.auth0.com/",
+      authorization_endpoint: "https://test.auth0.com/authorize",
+      token_endpoint: "https://test.auth0.com/oauth/token",
+      jwks_uri: "https://test.auth0.com/.well-known/jwks.json",
+      end_session_endpoint: "https://test.auth0.com/v2/logout"
+    } as oauth.AuthorizationServer;
+
+    vi.mocked(oauth.discoveryRequest).mockResolvedValue(mockDiscoveryResponse);
+    vi.mocked(oauth.processDiscoveryResponse).mockResolvedValue(
+      mockAuthServerMetadata
+    );
+
+    // Mock PKCE and state generation functions
+    vi.mocked(oauth.generateRandomState).mockReturnValue("mock-state-123");
+    vi.mocked(oauth.generateRandomNonce).mockReturnValue("mock-nonce-123");
+    vi.mocked(oauth.generateRandomCodeVerifier).mockReturnValue(
+      "mock-code-verifier-123"
+    );
+    vi.mocked(oauth.calculatePKCECodeChallenge).mockResolvedValue(
+      "mock-code-challenge-123"
+    );
+
+    vi.mocked(oauth.validateAuthResponse).mockReturnValue(
+      new URLSearchParams("code=auth_code")
+    );
+    vi.mocked(oauth.authorizationCodeGrantRequest).mockResolvedValue(
+      new Response()
+    );
+    vi.mocked(oauth.processAuthorizationCodeResponse).mockResolvedValue({
+      token_type: "Bearer",
+      access_token: "access_token_123",
+      id_token: "mock_id_token",
+      refresh_token: "refresh_token_123",
+      expires_in: 3600,
+      scope: "openid profile email"
+    } as oauth.TokenEndpointResponse);
+    vi.mocked(oauth.getValidatedIdTokenClaims).mockReturnValue({
+      sub: "user123",
+      nonce: "test-nonce",
+      aud: "test-client-id",
+      iss: "https://test.auth0.com/",
+      iat: Math.floor(Date.now() / 1000) - 60,
+      exp: Math.floor(Date.now() / 1000) + 3600
+    });
   });
 
   afterEach(() => {
@@ -48,532 +166,176 @@ describe("v4-infinitely-stacking-cookies - v4: Infinitely stacking cookies regre
   });
 
   describe("Happy Path", () => {
-    it("should cleanup excess transaction cookies when starting interactive login", async () => {
-      // Arrange: Mock request with multiple existing transaction cookies
-      const mockCookies = {
-        getAll: vi.fn().mockReturnValue([
-          { name: "__txn_state1", value: "value1" },
-          { name: "__txn_state2", value: "value2" },
-          { name: "__txn_state3", value: "value3" },
-          { name: "other_cookie", value: "other_value" }
-        ])
-      };
+    it("should clean up all transaction cookies after successful authentication", async () => {
+      // Arrange: Create a login
+      const loginReq = new NextRequest("http://localhost:3000/api/auth/login");
+      const loginRes = await authClient.handleLogin(loginReq);
 
-      // Mock the authorization URL generation
-      vi.spyOn(authClient as any, "authorizationUrl").mockResolvedValue([
-        null,
-        new URL("https://test.auth0.com/authorize")
-      ]);
+      // Extract the state from the redirect URL
+      const redirectUrl = new URL(loginRes.headers.get("Location")!);
+      const state = redirectUrl.searchParams.get("state")!;
 
-      // Act: Start interactive login with request cookies
-      await authClient.startInteractiveLogin({}, mockCookies as any);
+      // Get the transaction cookie that was set
+      const newTxnCookie = loginRes.cookies.get(`__txn_${state}`);
+      expect(newTxnCookie).toBeDefined();
 
-      // Assert: Should have called delete for excess cookies (keeping threshold of 2)
-      expect(mockTransactionStore.delete).toHaveBeenCalledWith(
-        expect.anything(),
-        "state1"
-      );
-      expect(mockTransactionStore.delete).toHaveBeenCalledTimes(1); // Only 1 cookie should be deleted (3 total - 2 threshold = 1)
-      expect(mockTransactionStore.save).toHaveBeenCalledTimes(1);
-    });
-
-    it("should not cleanup when transaction cookies are below threshold", async () => {
-      // Arrange: Mock request with only 1 existing transaction cookie
-      const mockCookies = {
-        getAll: vi.fn().mockReturnValue([
-          { name: "__txn_state1", value: "value1" },
-          { name: "other_cookie", value: "other_value" }
-        ])
-      };
-
-      // Mock the authorization URL generation
-      vi.spyOn(authClient as any, "authorizationUrl").mockResolvedValue([
-        null,
-        new URL("https://test.auth0.com/authorize")
-      ]);
-
-      // Act: Start interactive login with request cookies
-      await authClient.startInteractiveLogin({}, mockCookies as any);
-
-      // Assert: Should not have called delete (only 1 cookie, below threshold of 2)
-      expect(mockTransactionStore.delete).not.toHaveBeenCalled();
-      expect(mockTransactionStore.save).toHaveBeenCalledTimes(1);
-    });
-
-    it("should cleanup transaction cookie on callback error", async () => {
-      // Arrange: Mock callback error scenario
-      const mockRequest = new NextRequest(
-        "http://localhost:3000/auth/callback?state=test-state&error=access_denied"
+      // Simulate callback request with multiple existing transaction cookies
+      const callbackReq = new NextRequest(
+        `http://localhost:3000/api/auth/callback?code=auth_code&state=${state}`
       );
 
-      mockTransactionStore.get.mockResolvedValue({
-        payload: {
-          state: "test-state",
-          returnTo: "/",
-          nonce: "test-nonce",
-          codeVerifier: "test-verifier",
-          responseType: "code"
-        }
-      });
+      // Add the stale cookies to the callback request
+      callbackReq.cookies.set("__txn_old_state_1", "old_value_1");
+      callbackReq.cookies.set("__txn_old_state_2", "old_value_2");
+      if (newTxnCookie) {
+        callbackReq.cookies.set(`__txn_${state}`, newTxnCookie.value);
+      }
 
-      // Mock discovery to return error
-      vi.spyOn(
-        authClient as any,
-        "discoverAuthorizationServerMetadata"
-      ).mockResolvedValue([new Error("Discovery failed"), null]);
+      // Act: Handle the callback
+      const callbackRes = await authClient.handleCallback(callbackReq);
 
-      // Act: Handle callback with error
-      const response = await authClient.handleCallback(mockRequest);
+      // Assert: Verify that ALL transaction cookies are cleaned up
+      expect(callbackRes.status).toBeGreaterThanOrEqual(300); // Should redirect
+      expect(callbackRes.status).toBeLessThan(400);
 
-      // Assert: Should cleanup the transaction cookie on error
-      expect(mockTransactionStore.delete).toHaveBeenCalledWith(
-        expect.anything(),
-        "test-state"
-      );
-      expect(response.status).toBe(500); // Default error response
+      // Check that all transaction cookies are being deleted (set to empty with maxAge 0)
+      const deletedCookies = callbackRes.cookies
+        .getAll()
+        .filter(
+          (cookie) =>
+            cookie.name.startsWith("__txn_") &&
+            cookie.value === "" &&
+            cookie.maxAge === 0
+        );
+
+      // Should have cleaned up all transaction cookies
+      expect(deletedCookies.length).toBeGreaterThan(0);
+
+      // Verify a session cookie was set
+      const sessionCookie = callbackRes.cookies.get("__session");
+      expect(sessionCookie).toBeDefined();
+      expect(sessionCookie?.value).not.toBe("");
     });
   });
 
   describe("Edge Cases", () => {
-    it("should handle cleanup when no request cookies provided", async () => {
-      // Arrange: Start login without request cookies
-      vi.spyOn(authClient as any, "authorizationUrl").mockResolvedValue([
-        null,
-        new URL("https://test.auth0.com/authorize")
-      ]);
+    it("should handle callback with no existing transaction cookies gracefully", async () => {
+      // Create a login and get the state
+      const loginReq = new NextRequest("http://localhost:3000/api/auth/login");
+      const loginRes = await authClient.handleLogin(loginReq);
 
-      // Act: Start interactive login without request cookies
-      await authClient.startInteractiveLogin({});
+      const redirectUrl = new URL(loginRes.headers.get("Location")!);
+      const state = redirectUrl.searchParams.get("state")!;
 
-      // Assert: Should not attempt cleanup but should still save transaction
-      expect(mockTransactionStore.delete).not.toHaveBeenCalled();
-      expect(mockTransactionStore.save).toHaveBeenCalledTimes(1);
+      // Handle callback with only the current transaction cookie
+      const callbackReq = new NextRequest(
+        `http://localhost:3000/api/auth/callback?code=auth_code&state=${state}`
+      );
+
+      const txnCookie = loginRes.cookies.get(`__txn_${state}`);
+      if (txnCookie) {
+        callbackReq.cookies.set(`__txn_${state}`, txnCookie.value);
+      }
+
+      const callbackRes = await authClient.handleCallback(callbackReq);
+
+      // Should still work normally
+      expect(callbackRes.status).toBeGreaterThanOrEqual(300);
+      expect(callbackRes.status).toBeLessThan(400);
     });
 
-    it("should extract state correctly from cookie names", async () => {
-      // Arrange: Mock cookies with specific state patterns
-      const mockCookies = {
-        getAll: vi.fn().mockReturnValue([
-          {
-            name: "__txn_RaYuKTZuJbZ-10NrYwmh8sE5Eb-rClUcD3Xr25ea4Jk",
-            value: "value1"
-          },
-          { name: "__txn_another-long-state-value", value: "value2" },
-          { name: "__txn_simple", value: "value3" }
-        ])
-      };
+    it("should not interfere with non-transaction cookies", async () => {
+      // Create a login
+      const loginReq = new NextRequest("http://localhost:3000/api/auth/login");
+      const loginRes = await authClient.handleLogin(loginReq);
 
-      vi.spyOn(authClient as any, "authorizationUrl").mockResolvedValue([
-        null,
-        new URL("https://test.auth0.com/authorize")
-      ]);
+      const redirectUrl = new URL(loginRes.headers.get("Location")!);
+      const state = redirectUrl.searchParams.get("state")!;
 
-      // Act
-      await authClient.startInteractiveLogin({}, mockCookies as any);
-
-      // Assert: Should extract state correctly (delete oldest which is first in array)
-      expect(mockTransactionStore.delete).toHaveBeenCalledWith(
-        expect.anything(),
-        "RaYuKTZuJbZ-10NrYwmh8sE5Eb-rClUcD3Xr25ea4Jk"
-      );
-    });
-
-    it("should handle multiple error scenarios in callback", async () => {
-      // Test missing state error
-      const requestMissingState = new NextRequest(
-        "http://localhost:3000/auth/callback"
+      // Handle callback with mixed cookies
+      const callbackReq = new NextRequest(
+        `http://localhost:3000/api/auth/callback?code=auth_code&state=${state}`
       );
 
-      const responseMissingState =
-        await authClient.handleCallback(requestMissingState);
-      expect(responseMissingState.status).toBe(500);
+      const txnCookie = loginRes.cookies.get(`__txn_${state}`);
+      if (txnCookie) {
+        callbackReq.cookies.set(`__txn_${state}`, txnCookie.value);
+      }
+      callbackReq.cookies.set("other_cookie", "should_not_be_deleted");
+      callbackReq.cookies.set("user_pref", "also_should_remain");
 
-      // Test invalid state error (transaction not found)
-      const requestInvalidState = new NextRequest(
-        "http://localhost:3000/auth/callback?state=invalid-state"
+      const callbackRes = await authClient.handleCallback(callbackReq);
+
+      // Check that only transaction cookies are deleted
+      const deletedCookies = callbackRes.cookies
+        .getAll()
+        .filter((cookie) => cookie.value === "" && cookie.maxAge === 0);
+
+      const deletedTxnCookies = deletedCookies.filter((cookie) =>
+        cookie.name.startsWith("__txn_")
       );
-      mockTransactionStore.get.mockResolvedValue(null);
+      const deletedOtherCookies = deletedCookies.filter(
+        (cookie) =>
+          !cookie.name.startsWith("__txn_") &&
+          !cookie.name.startsWith("__session") &&
+          cookie.name !== "appSession" // Ignore session-related cookies
+      );
 
-      const responseInvalidState =
-        await authClient.handleCallback(requestInvalidState);
-      expect(responseInvalidState.status).toBe(500);
-      // Note: Invalid state error does NOT delete cookie as it may not exist
-      // This is consistent with existing behavior and prevents double-deletion
+      expect(deletedTxnCookies.length).toBeGreaterThan(0);
+      expect(deletedOtherCookies.length).toBe(0);
     });
   });
 
-  describe("Configuration Options", () => {
-    describe("enableParallelTransactions option", () => {
-      it("should delete all transaction cookies when enableParallelTransactions is false", async () => {
-        // Create AuthClient with parallel transactions disabled
-        const authClientSingleTxn = new AuthClient({
-          domain: "test.auth0.com",
-          clientId: "test-client-id",
-          clientSecret: "test-client-secret",
-          appBaseUrl: "http://localhost:3000",
-          secret: "test-secret",
-          transactionStore: mockTransactionStore,
-          sessionStore: mockSessionStore,
-          enableParallelTransactions: false
-        } as any);
-
-        // Mock the authorization URL generation
-        vi.spyOn(
-          authClientSingleTxn as any,
-          "authorizationUrl"
-        ).mockResolvedValue([
-          null,
-          new URL("https://test.auth0.com/authorize")
-        ]);
-
-        // Mock request with multiple existing transaction cookies
-        const mockCookies = {
-          getAll: vi.fn().mockReturnValue([
-            { name: "__txn_state1", value: "txn1" },
-            { name: "__txn_state2", value: "txn2" },
-            { name: "__txn_state3", value: "txn3" }
-          ])
-        };
-
-        // Call startInteractiveLogin directly to avoid network calls
-        await authClientSingleTxn.startInteractiveLogin({}, mockCookies as any);
-
-        // Verify deleteAll was called (for single transaction mode)
-        expect(mockTransactionStore.deleteAll).toHaveBeenCalledTimes(1);
-
-        // Verify save was called with custom expiration (default 3600)
-        expect(mockTransactionStore.save).toHaveBeenCalledWith(
-          expect.anything(),
-          expect.any(Object),
-          3600
-        );
+  describe("enableParallelTransactions: false", () => {
+    it("should use single transaction cookie without state suffix", async () => {
+      // Arrange: Create auth client with parallel transactions disabled
+      const singleTxnTransactionStore = new TransactionStore({
+        secret,
+        enableParallelTransactions: false
       });
 
-      it("should use threshold-based cleanup when enableParallelTransactions is true", async () => {
-        // Create AuthClient with parallel transactions enabled (default)
-        const authClientParallelTxn = new AuthClient({
-          domain: "test.auth0.com",
-          clientId: "test-client-id",
-          clientSecret: "test-client-secret",
-          appBaseUrl: "http://localhost:3000",
-          secret: "test-secret",
-          transactionStore: mockTransactionStore,
-          sessionStore: mockSessionStore,
-          enableParallelTransactions: true,
-          maxTxnCookieCount: 2
-        } as any);
-
-        // Mock the authorization URL generation
-        vi.spyOn(
-          authClientParallelTxn as any,
-          "authorizationUrl"
-        ).mockResolvedValue([
-          null,
-          new URL("https://test.auth0.com/authorize")
-        ]);
-
-        // Mock 4 existing transaction cookies (above threshold of 2)
-        const mockCookies = {
-          getAll: vi.fn().mockReturnValue([
-            { name: "__txn_state1", value: "txn1" },
-            { name: "__txn_state2", value: "txn2" },
-            { name: "__txn_state3", value: "txn3" },
-            { name: "__txn_state4", value: "txn4" }
-          ])
-        };
-
-        // Call startInteractiveLogin directly to avoid network calls
-        await authClientParallelTxn.startInteractiveLogin(
-          {},
-          mockCookies as any
-        );
-
-        // Verify deleteAll was NOT called
-        expect(mockTransactionStore.deleteAll).not.toHaveBeenCalled();
-
-        // Verify individual delete was called for excess cookies (4 - 2 = 2 deletes)
-        expect(mockTransactionStore.delete).toHaveBeenCalledTimes(2);
-        expect(mockTransactionStore.delete).toHaveBeenCalledWith(
-          expect.anything(),
-          "state1"
-        );
-        expect(mockTransactionStore.delete).toHaveBeenCalledWith(
-          expect.anything(),
-          "state2"
-        );
+      const singleTxnAuthClient = new AuthClient({
+        transactionStore: singleTxnTransactionStore,
+        sessionStore,
+        domain: "test.auth0.com",
+        clientId: "test-client-id",
+        clientSecret: "test-client-secret",
+        appBaseUrl: "http://localhost:3000",
+        secret,
+        fetch: authClient["fetch"]
       });
+
+      // Act: Create a login
+      const loginReq = new NextRequest("http://localhost:3000/api/auth/login");
+      const loginRes = await singleTxnAuthClient.handleLogin(loginReq);
+
+      // Assert: Should use __txn_ without state suffix
+      const txnCookies = loginRes.cookies
+        .getAll()
+        .filter((cookie) => cookie.name.startsWith("__txn_"));
+
+      expect(txnCookies).toHaveLength(1);
+      expect(txnCookies[0].name).toBe("__txn_"); // No state suffix when parallel transactions disabled
     });
+  });
 
-    describe("txnCookieExpiration option", () => {
-      it("should use custom expiration when provided", async () => {
-        const customExpiration = 7200; // 2 hours
+  describe("Transaction Store Integration", () => {
+    it("should skip existence check when reqCookies is not provided in startInteractiveLogin", async () => {
+      // This is an integration test to verify that startInteractiveLogin
+      // calls save() without reqCookies, thus skipping the existence check
 
-        const authClientCustomExp = new AuthClient({
-          domain: "test.auth0.com",
-          clientId: "test-client-id",
-          clientSecret: "test-client-secret",
-          appBaseUrl: "http://localhost:3000",
-          secret: "test-secret",
-          transactionStore: mockTransactionStore,
-          sessionStore: mockSessionStore,
-          txnCookieExpiration: customExpiration
-        } as any);
+      // Arrange: Spy on the transaction store save method
+      const saveSpy = vi.spyOn(transactionStore, "save");
 
-        // Mock the authorization URL generation
-        vi.spyOn(
-          authClientCustomExp as any,
-          "authorizationUrl"
-        ).mockResolvedValue([
-          null,
-          new URL("https://test.auth0.com/authorize")
-        ]);
+      // Act: Call startInteractiveLogin
+      await authClient.startInteractiveLogin();
 
-        const mockCookies = {
-          getAll: vi.fn().mockReturnValue([])
-        };
-
-        await authClientCustomExp.startInteractiveLogin({}, mockCookies as any);
-
-        // Verify save was called with custom expiration
-        expect(mockTransactionStore.save).toHaveBeenCalledWith(
-          expect.anything(),
-          expect.any(Object),
-          customExpiration
-        );
-      });
-
-      it("should use default expiration (3600) when not provided", async () => {
-        const authClientDefaultExp = new AuthClient({
-          domain: "test.auth0.com",
-          clientId: "test-client-id",
-          clientSecret: "test-client-secret",
-          appBaseUrl: "http://localhost:3000",
-          secret: "test-secret",
-          transactionStore: mockTransactionStore,
-          sessionStore: mockSessionStore
-          // txnCookieExpiration not provided
-        } as any);
-
-        // Mock the authorization URL generation
-        vi.spyOn(
-          authClientDefaultExp as any,
-          "authorizationUrl"
-        ).mockResolvedValue([
-          null,
-          new URL("https://test.auth0.com/authorize")
-        ]);
-
-        const mockCookies = {
-          getAll: vi.fn().mockReturnValue([])
-        };
-
-        await authClientDefaultExp.startInteractiveLogin(
-          {},
-          mockCookies as any
-        );
-
-        // Verify save was called with default expiration
-        expect(mockTransactionStore.save).toHaveBeenCalledWith(
-          expect.anything(),
-          expect.any(Object),
-          3600
-        );
-      });
-    });
-
-    describe("maxTxnCookieCount option", () => {
-      it("should use custom maxTxnCookieCount for cleanup threshold", async () => {
-        const customMaxCount = 5;
-
-        const authClientCustomMax = new AuthClient({
-          domain: "test.auth0.com",
-          clientId: "test-client-id",
-          clientSecret: "test-client-secret",
-          appBaseUrl: "http://localhost:3000",
-          secret: "test-secret",
-          transactionStore: mockTransactionStore,
-          sessionStore: mockSessionStore,
-          enableParallelTransactions: true,
-          maxTxnCookieCount: customMaxCount
-        } as any);
-
-        // Mock the authorization URL generation
-        vi.spyOn(
-          authClientCustomMax as any,
-          "authorizationUrl"
-        ).mockResolvedValue([
-          null,
-          new URL("https://test.auth0.com/authorize")
-        ]);
-
-        // Mock 7 existing transaction cookies (above threshold of 5)
-        const mockCookies = {
-          getAll: vi.fn().mockReturnValue([
-            { name: "__txn_state1", value: "txn1" },
-            { name: "__txn_state2", value: "txn2" },
-            { name: "__txn_state3", value: "txn3" },
-            { name: "__txn_state4", value: "txn4" },
-            { name: "__txn_state5", value: "txn5" },
-            { name: "__txn_state6", value: "txn6" },
-            { name: "__txn_state7", value: "txn7" }
-          ])
-        };
-
-        await authClientCustomMax.startInteractiveLogin({}, mockCookies as any);
-
-        // Verify delete was called for excess cookies (7 - 5 = 2 deletes)
-        expect(mockTransactionStore.delete).toHaveBeenCalledTimes(2);
-        expect(mockTransactionStore.delete).toHaveBeenCalledWith(
-          expect.anything(),
-          "state1"
-        );
-        expect(mockTransactionStore.delete).toHaveBeenCalledWith(
-          expect.anything(),
-          "state2"
-        );
-      });
-
-      it("should use default maxTxnCookieCount (2) when not provided", async () => {
-        const authClientDefaultMax = new AuthClient({
-          domain: "test.auth0.com",
-          clientId: "test-client-id",
-          clientSecret: "test-client-secret",
-          appBaseUrl: "http://localhost:3000",
-          secret: "test-secret",
-          transactionStore: mockTransactionStore,
-          sessionStore: mockSessionStore,
-          enableParallelTransactions: true
-          // maxTxnCookieCount not provided (default should be 2)
-        } as any);
-
-        // Mock the authorization URL generation
-        vi.spyOn(
-          authClientDefaultMax as any,
-          "authorizationUrl"
-        ).mockResolvedValue([
-          null,
-          new URL("https://test.auth0.com/authorize")
-        ]);
-
-        // Mock 4 existing transaction cookies (above default threshold of 2)
-        const mockCookies = {
-          getAll: vi.fn().mockReturnValue([
-            { name: "__txn_state1", value: "txn1" },
-            { name: "__txn_state2", value: "txn2" },
-            { name: "__txn_state3", value: "txn3" },
-            { name: "__txn_state4", value: "txn4" }
-          ])
-        };
-
-        await authClientDefaultMax.startInteractiveLogin(
-          {},
-          mockCookies as any
-        );
-
-        // Verify delete was called for excess cookies (4 - 2 = 2 deletes)
-        expect(mockTransactionStore.delete).toHaveBeenCalledTimes(2);
-        expect(mockTransactionStore.delete).toHaveBeenCalledWith(
-          expect.anything(),
-          "state1"
-        );
-        expect(mockTransactionStore.delete).toHaveBeenCalledWith(
-          expect.anything(),
-          "state2"
-        );
-      });
-
-      it("should not cleanup when transaction count is below threshold", async () => {
-        const authClientBelowThreshold = new AuthClient({
-          domain: "test.auth0.com",
-          clientId: "test-client-id",
-          clientSecret: "test-client-secret",
-          appBaseUrl: "http://localhost:3000",
-          secret: "test-secret",
-          transactionStore: mockTransactionStore,
-          sessionStore: mockSessionStore,
-          enableParallelTransactions: true,
-          maxTxnCookieCount: 5
-        } as any);
-
-        // Mock the authorization URL generation
-        vi.spyOn(
-          authClientBelowThreshold as any,
-          "authorizationUrl"
-        ).mockResolvedValue([
-          null,
-          new URL("https://test.auth0.com/authorize")
-        ]);
-
-        // Mock 3 existing transaction cookies (below threshold of 5)
-        const mockCookies = {
-          getAll: vi.fn().mockReturnValue([
-            { name: "__txn_state1", value: "txn1" },
-            { name: "__txn_state2", value: "txn2" },
-            { name: "__txn_state3", value: "txn3" }
-          ])
-        };
-
-        await authClientBelowThreshold.startInteractiveLogin(
-          {},
-          mockCookies as any
-        );
-
-        // Verify no cleanup occurred
-        expect(mockTransactionStore.delete).not.toHaveBeenCalled();
-        expect(mockTransactionStore.deleteAll).not.toHaveBeenCalled();
-      });
-    });
-
-    describe("Combined options behavior", () => {
-      it("should respect all configuration options together", async () => {
-        const authClientCombined = new AuthClient({
-          domain: "test.auth0.com",
-          clientId: "test-client-id",
-          clientSecret: "test-client-secret",
-          appBaseUrl: "http://localhost:3000",
-          secret: "test-secret",
-          transactionStore: mockTransactionStore,
-          sessionStore: mockSessionStore,
-          enableParallelTransactions: true,
-          txnCookieExpiration: 1800, // 30 minutes
-          maxTxnCookieCount: 3
-        } as any);
-
-        // Mock the authorization URL generation
-        vi.spyOn(
-          authClientCombined as any,
-          "authorizationUrl"
-        ).mockResolvedValue([
-          null,
-          new URL("https://test.auth0.com/authorize")
-        ]);
-
-        // Mock 5 existing transaction cookies (above threshold of 3)
-        const mockCookies = {
-          getAll: vi.fn().mockReturnValue([
-            { name: "__txn_state1", value: "txn1" },
-            { name: "__txn_state2", value: "txn2" },
-            { name: "__txn_state3", value: "txn3" },
-            { name: "__txn_state4", value: "txn4" },
-            { name: "__txn_state5", value: "txn5" }
-          ])
-        };
-
-        await authClientCombined.startInteractiveLogin({}, mockCookies as any);
-
-        // Verify cleanup used custom threshold (5 - 3 = 2 deletes)
-        expect(mockTransactionStore.delete).toHaveBeenCalledTimes(2);
-
-        // Verify save used custom expiration
-        expect(mockTransactionStore.save).toHaveBeenCalledWith(
-          expect.anything(),
-          expect.any(Object),
-          1800
-        );
-
-        // Verify deleteAll was not called (parallel transactions enabled)
-        expect(mockTransactionStore.deleteAll).not.toHaveBeenCalled();
-      });
+      // Assert: Verify save was called with only 2 parameters (no reqCookies)
+      expect(saveSpy).toHaveBeenCalledTimes(1);
+      const [resCookies, transactionState, reqCookies] = saveSpy.mock.calls[0];
+      expect(resCookies).toBeDefined();
+      expect(transactionState).toBeDefined();
+      expect(reqCookies).toBeUndefined(); // Should be undefined for performance
     });
   });
 });
