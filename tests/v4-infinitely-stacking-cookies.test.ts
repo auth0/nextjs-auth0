@@ -35,6 +35,11 @@ describe(`v4-infinitely-stacking-cookies - v4: Infinitely stacking cookies regre
       clientSecret: "test-client-secret",
       appBaseUrl: "http://localhost:3000",
       secret,
+      routes: {
+        login: "/api/auth/login",
+        logout: "/api/auth/logout",
+        callback: "/api/auth/callback"
+      },
       fetch: vi.fn().mockImplementation((url) => {
         // Mock the token endpoint
         if (url.includes("/oauth/token")) {
