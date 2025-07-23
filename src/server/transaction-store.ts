@@ -130,10 +130,10 @@ export class TransactionStore {
       const cookieName = this.getTransactionCookieName(transactionState.state);
       const existingCookie = reqCookies.get(cookieName);
       if (existingCookie) {
-        // TODO: make this not throw, simply exit with warning log
-        throw new Error(
+        console.warn(
           "A transaction is already in progress. Only one transaction is allowed when parallel transactions are disabled."
         );
+        return;
       }
     }
 
