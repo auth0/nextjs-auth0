@@ -375,8 +375,45 @@ export const auth0 = new Auth0Client({
 - **Login parameters**: Use query parameters (`/auth/login?audience=...`) or static configuration
 - **Session data**: Use the `beforeSessionSaved` hook to modify session data
 - **Logout redirects**: Use query parameters (`/auth/logout?returnTo=...`)
+- **Transaction cookies**: Configure transaction cookie behavior with `TransactionStore` options. See [Transaction Cookie Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#transaction-cookie-configuration) for details.
 
 > [!IMPORTANT]
 > Always validate redirect URLs to prevent open redirect attacks. Use relative URLs when possible.
 
 For detailed examples and implementation patterns, see [Customizing Auth Handlers](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#customizing-auth-handlers) in the Examples guide.
+
+## Transaction Cookie Management in V4
+
+V4 introduces improved transaction cookie management to prevent cookie accumulation issues that could cause HTTP 413 errors. The `TransactionStore` now supports:
+
+- **Configurable parallel transactions**: Control whether multiple login flows can run simultaneously
+- **Automatic cookie cleanup**: Transaction cookies expire automatically after 1 hour by default
+- **Customizable expiration**: Configure transaction cookie `maxAge` to suit your application needs
+
+**Default Behavior (No Changes Required):**
+```ts
+// V4 automatically creates a TransactionStore with safe defaults
+export const auth0 = new Auth0Client({
+  // All existing V3 options work the same way
+});
+```
+
+**Custom Transaction Configuration:**
+```ts
+import { TransactionStore } from "@auth0/nextjs-auth0/server";
+
+const transactionStore = new TransactionStore({
+  secret: process.env.AUTH0_SECRET!,
+  enableParallelTransactions: false, // Single-transaction mode
+  cookieOptions: {
+    maxAge: 1800 // 30 minutes instead of default 1 hour
+  }
+});
+
+export const auth0 = new Auth0Client({
+  transactionStore,
+  // ... other options
+});
+```
+
+In contrast, V3 did not support parallel transactions.

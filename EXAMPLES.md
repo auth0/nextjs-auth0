@@ -30,6 +30,7 @@
   - [`onCallback`](#oncallback)
 - [Session configuration](#session-configuration)
 - [Cookie Configuration](#cookie-configuration)
+- [Transaction Cookie Configuration](#transaction-cookie-configuration)
 - [Database sessions](#database-sessions)
 - [Back-Channel Logout](#back-channel-logout)
 - [Combining middleware](#combining-middleware)
@@ -49,6 +50,7 @@
 - [Customizing Auth Handlers](#customizing-auth-handlers)
     - [Run custom code before Auth Handlers](#run-custom-code-before-auth-handlers)
     - [Run code after callback](#run-code-after-callback)
+- [Troubleshooting Cookie Issues](#troubleshooting-cookie-issues)
 
 ## Passing authorization parameters
 
@@ -880,6 +882,66 @@ export const auth0 = new Auth0Client({
 });
 ```
 
+## Troubleshooting Cookie Issues
+
+### HTTP 413 Request Entity Too Large Errors
+
+If you're experiencing HTTP 413 errors during authentication, this is likely due to transaction cookie accumulation. Transaction cookies (`__txn_*`) are created for each authentication attempt and can accumulate if not properly cleaned up.
+
+**Solution**: Configure single transaction mode to prevent cookie accumulation:
+
+```ts
+import { TransactionStore } from "@auth0/nextjs-auth0/server";
+
+const transactionStore = new TransactionStore({
+  secret: process.env.AUTH0_SECRET!,
+  enableParallelTransactions: false, // Prevents cookie accumulation
+  cookieOptions: {
+    maxAge: 1800 // 30 minutes
+  }
+});
+
+export const auth0 = new Auth0Client({
+  transactionStore,
+  // ... other options
+});
+```
+
+### Too Many Transaction Cookies
+
+If you see multiple `__txn_*` cookies in your browser's developer tools:
+
+1. **For parallel transactions (default)**: This is normal behavior that supports multi-tab login flows
+2. **To reduce cookie count**: Switch to single transaction mode as shown above
+3. **Automatic cleanup**: Cookies will be cleaned up automatically after successful authentication or when they expire
+
+### Cookie Expiration Issues
+
+Transaction cookies expire after 1 hour by default. If you need different expiration times:
+
+```ts
+const transactionStore = new TransactionStore({
+  secret: process.env.AUTH0_SECRET!,
+  cookieOptions: {
+    maxAge: 3600 // Customize expiration time in seconds
+  }
+});
+```
+
+### Development vs Production Cookie Settings
+
+Different cookie settings may be needed for development and production:
+
+```ts
+const transactionStore = new TransactionStore({
+  secret: process.env.AUTH0_SECRET!,
+  cookieOptions: {
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "lax" : "lax"
+  }
+});
+```
+
 ## Session configuration
 
 The session configuration can be managed by specifying a `session` object when configuring the Auth0 client, like so:
@@ -960,6 +1022,77 @@ export const auth0 = new Auth0Client({
 
 > [!INFO]
 > The `httpOnly` attribute for the session cookie is always set to `true` for security reasons and cannot be configured via options or environment variables.
+
+## Transaction Cookie Configuration
+
+Transaction cookies are used to maintain state during authentication flows. The SDK provides several configuration options to manage transaction cookie behavior and prevent cookie accumulation issues.
+
+You can configure transaction cookies by providing a custom `TransactionStore` when initializing the Auth0 client:
+
+```ts
+import { TransactionStore } from "@auth0/nextjs-auth0/server";
+
+const transactionStore = new TransactionStore({
+  secret: process.env.AUTH0_SECRET!,
+  enableParallelTransactions: false, // Single transaction mode
+  cookieOptions: {
+    maxAge: 1800, // 30 minutes (in seconds)
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/"
+  }
+});
+
+export const auth0 = new Auth0Client({
+  transactionStore,
+  // ... other options
+});
+```
+
+### Transaction Management Modes
+
+**Parallel Transactions (Default)**
+```ts
+const transactionStore = new TransactionStore({
+  secret: process.env.AUTH0_SECRET!,
+  enableParallelTransactions: true // Default: allows multiple concurrent logins
+});
+```
+
+**Single Transaction Mode**
+```ts
+const transactionStore = new TransactionStore({
+  secret: process.env.AUTH0_SECRET!,
+  enableParallelTransactions: false // Only one active transaction at a time
+});
+```
+
+### Transaction Cookie Options
+
+| Option                     | Type                              | Description                                                                                                                                                                                                     |
+| -------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| enableParallelTransactions | `boolean`                         | When `true` (default), allows multiple parallel login transactions for multi-tab support. When `false`, only one transaction cookie is maintained at a time.                                                  |
+| cookieOptions.maxAge       | `number`                          | The expiration time for transaction cookies in seconds. Defaults to `3600` (1 hour). After this time, abandoned transaction cookies will expire automatically.                                                 |
+| cookieOptions.prefix       | `string`                          | The prefix for transaction cookie names. Defaults to `__txn_`. In parallel mode, cookies are named `__txn_{state}`. In single mode, just `__txn_`.                                                           |
+| cookieOptions.sameSite     | `"strict" \| "lax" \| "none"`     | Controls when the cookie is sent with cross-site requests. Defaults to `"lax"`.                                                                                                                                |
+| cookieOptions.secure       | `boolean`                         | When `true`, the cookie will only be sent over HTTPS connections. Automatically determined based on your application's base URL protocol if not specified.                                                     |
+| cookieOptions.path         | `string`                          | Specifies the URL path for which the cookie is valid. Defaults to `"/"`.                                                                                                                                       |
+
+### When to Use Single vs Parallel Transactions
+
+**Use Parallel Transactions (Default) When:**
+- Users might open multiple tabs and attempt to log in simultaneously
+- You want maximum compatibility with typical user behavior
+- Your application supports multiple concurrent authentication flows
+
+**Use Single Transaction Mode When:**
+- You want to prevent cookie accumulation issues in applications with frequent login attempts
+- You prefer simpler transaction management
+- Users typically don't need multiple concurrent login flows
+- You're experiencing cookie header size limits due to abandoned transaction cookies
+
+> [!NOTE]
+> The SDK automatically cleans up transaction cookies after successful authentication or logout. The `maxAge` setting provides additional protection against abandoned cookies from incomplete authentication flows.
 
 ## Database sessions
 
