@@ -160,7 +160,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     audience?: string;
     issuer?: string;
     alg?: string;
-    privateKey?: CryptoKey;
+    privateKey?: jose.KeyLike;
   }): Promise<string> {
     return await new jose.SignJWT({
       events: {
