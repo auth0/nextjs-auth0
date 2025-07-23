@@ -1,3 +1,4 @@
+import * as jose from "jose";
 import { describe, expect, it } from "vitest";
 
 import { decrypt } from "../server/cookies.js";
@@ -29,7 +30,9 @@ describe("generateSessionCookie", async () => {
     };
     const sessionCookie = await generateSessionCookie(session, config);
     expect(sessionCookie).toEqual(expect.any(String));
-    expect((await decrypt(sessionCookie, secret)).payload).toEqual(
+    expect(
+      ((await decrypt(sessionCookie, secret)) as jose.JWTDecryptResult).payload
+    ).toEqual(
       expect.objectContaining({
         user: {
           sub: "user_123"
@@ -62,7 +65,9 @@ describe("generateSessionCookie", async () => {
     };
     const sessionCookie = await generateSessionCookie(session, config);
     expect(sessionCookie).toEqual(expect.any(String));
-    expect((await decrypt(sessionCookie, secret)).payload).toEqual(
+    expect(
+      ((await decrypt(sessionCookie, secret)) as jose.JWTDecryptResult).payload
+    ).toEqual(
       expect.objectContaining({
         user: {
           sub: "user_123"
@@ -97,7 +102,9 @@ describe("generateSessionCookie", async () => {
     };
     const sessionCookie = await generateSessionCookie(session, config);
     expect(sessionCookie).toEqual(expect.any(String));
-    expect((await decrypt(sessionCookie, secret)).payload).not.toEqual(
+    expect(
+      ((await decrypt(sessionCookie, secret)) as jose.JWTDecryptResult).payload
+    ).not.toEqual(
       expect.objectContaining({
         internal: expect.anything()
       })
@@ -120,7 +127,9 @@ describe("generateSessionCookie", async () => {
     };
     const sessionCookie = await generateSessionCookie(session, config);
     expect(sessionCookie).toEqual(expect.any(String));
-    expect((await decrypt(sessionCookie, secret)).payload).not.toEqual(
+    expect(
+      ((await decrypt(sessionCookie, secret)) as jose.JWTDecryptResult).payload
+    ).not.toEqual(
       expect.objectContaining({
         internal: expect.anything()
       })
