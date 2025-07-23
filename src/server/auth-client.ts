@@ -118,12 +118,7 @@ export interface AuthClientOptions {
   domain: string;
   clientId: string;
   clientSecret?: string;
-  clientAssertionSigningKey?:
-    | string
-    | jose.CryptoKey
-    | jose.KeyObject
-    | jose.JWK
-    | Uint8Array;
+  clientAssertionSigningKey?: string | jose.CryptoKey;
   clientAssertionSigningAlg?: string;
   authorizationParameters?: AuthorizationParameters;
   pushedAuthorizationRequests?: boolean;
@@ -161,12 +156,7 @@ export class AuthClient {
 
   private clientMetadata: oauth.Client;
   private clientSecret?: string;
-  private clientAssertionSigningKey?:
-    | string
-    | jose.CryptoKey
-    | jose.KeyObject
-    | jose.JWK
-    | Uint8Array;
+  private clientAssertionSigningKey?: string | jose.CryptoKey;
   private clientAssertionSigningAlg: string;
   private domain: string;
   private authorizationParameters: AuthorizationParameters;
@@ -1089,17 +1079,8 @@ export class AuthClient {
       );
     }
 
-    let clientPrivateKey:
-      | jose.CryptoKey
-      | jose.KeyObject
-      | jose.JWK
-      | Uint8Array
-      | undefined = this.clientAssertionSigningKey as
-      | jose.CryptoKey
-      | jose.KeyObject
-      | jose.JWK
-      | Uint8Array
-      | undefined;
+    let clientPrivateKey: jose.CryptoKey | undefined = this
+      .clientAssertionSigningKey as jose.CryptoKey | undefined;
 
     if (clientPrivateKey && typeof clientPrivateKey === "string") {
       clientPrivateKey = await jose.importPKCS8(
