@@ -2,8 +2,8 @@
 
 import useSWR from "swr";
 
-import { normalizeWithBasePath } from "../../utils/pathUtils.js";
 import type { User } from "../../types/index.js";
+import { normalizeWithBasePath } from "../../utils/pathUtils.js";
 
 export function useUser() {
   const { data, error, isLoading, mutate } = useSWR<User, Error, string>(

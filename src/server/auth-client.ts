@@ -131,7 +131,7 @@ export interface AuthClientOptions {
   beforeSessionSaved?: BeforeSessionSavedHook;
   onCallback?: OnCallbackHook;
 
-  routes?: RoutesOptions;
+  routes: Routes;
 
   // custom fetch implementation to allow for dependency injection
   fetch?: typeof fetch;
@@ -268,16 +268,7 @@ export class AuthClient {
     this.onCallback = options.onCallback || this.defaultOnCallback;
 
     // routes
-    this.routes = {
-      login: process.env.NEXT_PUBLIC_LOGIN_ROUTE || "/auth/login",
-      logout: "/auth/logout",
-      callback: "/auth/callback",
-      backChannelLogout: "/auth/backchannel-logout",
-      profile: process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile",
-      accessToken:
-        process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
-      ...options.routes
-    };
+    this.routes = options.routes;
 
     this.enableAccessTokenEndpoint = options.enableAccessTokenEndpoint ?? true;
     this.noContentProfileResponseWhenUnauthenticated =
@@ -1124,7 +1115,7 @@ export class AuthClient {
       | undefined;
 
     if (clientPrivateKey && !(clientPrivateKey instanceof CryptoKey)) {
-      clientPrivateKey = await jose.importPKCS8<CryptoKey>(
+      clientPrivateKey = await jose.importPKCS8(
         clientPrivateKey,
         this.clientAssertionSigningAlg
       );
