@@ -3,6 +3,7 @@ import * as jose from "jose";
 import * as oauth from "oauth4webapi";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { getDefaultRoutes } from "../test/defaults.js";
 import { generateSecret } from "../test/utils.js";
 import { SessionData } from "../types/index.js";
 import { AuthClient } from "./auth-client.js";
@@ -71,7 +72,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     discoveryResponse?: Response;
     audience?: string;
     nonce?: string;
-    keyPair?: jose.GenerateKeyPairResult<jose.KeyLike>;
+    keyPair?: jose.GenerateKeyPairResult;
     onParRequest?: (request: Request) => Promise<void>;
   } = {}) {
     // this function acts as a mock authorization server
@@ -159,7 +160,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     audience?: string;
     issuer?: string;
     alg?: string;
-    privateKey?: jose.KeyLike;
+    privateKey?: CryptoKey;
   }): Promise<string> {
     return await new jose.SignJWT({
       events: {
@@ -212,6 +213,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
             secret,
             appBaseUrl: DEFAULT.appBaseUrl,
 
+            routes: getDefaultRoutes(),
+
             authorizationParameters: {
               scope: "profile email"
             },
@@ -242,6 +245,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
       const request = new NextRequest("https://example.com/auth/login", {
@@ -270,6 +275,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer()
       });
@@ -300,6 +307,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
       const request = new NextRequest("https://example.com/auth/logout", {
@@ -329,6 +338,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
       const request = new NextRequest("https://example.com/auth/profile", {
@@ -357,6 +368,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
         enableAccessTokenEndpoint: true,
 
         fetch: getMockAuthorizationServer()
@@ -387,6 +400,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
         enableAccessTokenEndpoint: false,
 
         fetch: getMockAuthorizationServer()
@@ -419,6 +434,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
         // enableAccessTokenEndpoint not specified, should default to true
 
         fetch: getMockAuthorizationServer()
@@ -449,6 +466,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer()
       });
@@ -487,6 +506,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
+          routes: getDefaultRoutes(),
+
           fetch: getMockAuthorizationServer()
         });
 
@@ -520,10 +541,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
         // assert session has been updated
         const updatedSessionCookie = response.cookies.get("__session");
         expect(updatedSessionCookie).toBeDefined();
-        const { payload: updatedSessionCookieValue } = await decrypt(
+        const { payload: updatedSessionCookieValue } = (await decrypt(
           updatedSessionCookie!.value,
           secret
-        );
+        )) as jose.JWTDecryptResult;
         expect(updatedSessionCookieValue).toEqual(
           expect.objectContaining({
             user: {
@@ -567,6 +588,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer()
         });
@@ -612,6 +635,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           fetch: getMockAuthorizationServer(),
 
           routes: {
+            ...getDefaultRoutes(),
             login: "/custom-login"
           }
         });
@@ -649,6 +673,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           fetch: getMockAuthorizationServer(),
 
           routes: {
+            ...getDefaultRoutes(),
             logout: "/custom-logout"
           }
         });
@@ -686,6 +711,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           fetch: getMockAuthorizationServer(),
 
           routes: {
+            ...getDefaultRoutes(),
             callback: "/custom-callback"
           }
         });
@@ -723,6 +749,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           fetch: getMockAuthorizationServer(),
 
           routes: {
+            ...getDefaultRoutes(),
             backChannelLogout: "/custom-backchannel-logout"
           }
         });
@@ -758,6 +785,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer()
         });
@@ -795,6 +824,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer()
         });
@@ -875,6 +906,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
             secret,
             appBaseUrl: DEFAULT.appBaseUrl,
 
+            routes: getDefaultRoutes(),
+
             fetch: getMockAuthorizationServer()
           });
 
@@ -916,6 +949,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer()
       });
@@ -960,7 +995,14 @@ ca/T0LLtgmbMmxSv/MmzIg==
         `__txn_${authorizationUrl.searchParams.get("state")}`
       );
       expect(transactionCookie).toBeDefined();
-      expect((await decrypt(transactionCookie!.value, secret)).payload).toEqual(
+      expect(
+        (
+          (await decrypt(
+            transactionCookie!.value,
+            secret
+          )) as jose.JWTDecryptResult
+        ).payload
+      ).toEqual(
         expect.objectContaining({
           nonce: authorizationUrl.searchParams.get("nonce"),
           codeVerifier: expect.any(String),
@@ -989,6 +1031,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: `${DEFAULT.appBaseUrl}/sub-path`,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer()
       });
@@ -1035,6 +1079,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret,
           appBaseUrl: `${DEFAULT.appBaseUrl}`,
 
+          routes: getDefaultRoutes(),
+
           fetch: getMockAuthorizationServer()
         });
         const request = new NextRequest(
@@ -1075,6 +1121,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer({
           discoveryResponse: new Response(null, { status: 500 })
         })
@@ -1113,6 +1161,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer()
         });
@@ -1164,7 +1214,12 @@ ca/T0LLtgmbMmxSv/MmzIg==
         );
         expect(transactionCookie).toBeDefined();
         expect(
-          (await decrypt(transactionCookie!.value, secret)).payload
+          (
+            (await decrypt(
+              transactionCookie!.value,
+              secret
+            )) as jose.JWTDecryptResult
+          ).payload
         ).toEqual(
           expect.objectContaining({
             nonce: authorizationUrl.searchParams.get("nonce"),
@@ -1199,6 +1254,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer()
         });
@@ -1265,6 +1322,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer()
         });
@@ -1343,6 +1402,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
+          routes: getDefaultRoutes(),
+
           fetch: getMockAuthorizationServer()
         });
         const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
@@ -1420,6 +1481,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
+          routes: getDefaultRoutes(),
+
           fetch: getMockAuthorizationServer()
         });
         const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
@@ -1482,6 +1545,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
       const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
@@ -1499,7 +1564,14 @@ ca/T0LLtgmbMmxSv/MmzIg==
         `__txn_${authorizationUrl.searchParams.get("state")}`
       );
       expect(transactionCookie).toBeDefined();
-      expect((await decrypt(transactionCookie!.value, secret)).payload).toEqual(
+      expect(
+        (
+          (await decrypt(
+            transactionCookie!.value,
+            secret
+          )) as jose.JWTDecryptResult
+        ).payload
+      ).toEqual(
         expect.objectContaining({
           nonce: authorizationUrl.searchParams.get("nonce"),
           maxAge: 3600,
@@ -1530,6 +1602,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
       const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
@@ -1546,7 +1620,14 @@ ca/T0LLtgmbMmxSv/MmzIg==
         `__txn_${authorizationUrl.searchParams.get("state")}`
       );
       expect(transactionCookie).toBeDefined();
-      expect((await decrypt(transactionCookie!.value, secret)).payload).toEqual(
+      expect(
+        (
+          (await decrypt(
+            transactionCookie!.value,
+            secret
+          )) as jose.JWTDecryptResult
+        ).payload
+      ).toEqual(
         expect.objectContaining({
           nonce: authorizationUrl.searchParams.get("nonce"),
           codeVerifier: expect.any(String),
@@ -1576,6 +1657,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
       const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
@@ -1592,7 +1675,14 @@ ca/T0LLtgmbMmxSv/MmzIg==
         `__txn_${authorizationUrl.searchParams.get("state")}`
       );
       expect(transactionCookie).toBeDefined();
-      expect((await decrypt(transactionCookie!.value, secret)).payload).toEqual(
+      expect(
+        (
+          (await decrypt(
+            transactionCookie!.value,
+            secret
+          )) as jose.JWTDecryptResult
+        ).payload
+      ).toEqual(
         expect.objectContaining({
           nonce: authorizationUrl.searchParams.get("nonce"),
           codeVerifier: expect.any(String),
@@ -1621,6 +1711,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           pushedAuthorizationRequests: true,
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
           fetch: getMockAuthorizationServer({
             discoveryResponse: Response.json(
               {
@@ -1668,6 +1760,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           pushedAuthorizationRequests: true,
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
           fetch: getMockAuthorizationServer({
             onParRequest: async (request) => {
               const params = new URLSearchParams(await request.text());
@@ -1726,7 +1820,12 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const state = transactionCookie.name.replace("__txn_", "");
         expect(transactionCookie).toBeDefined();
         expect(
-          (await decrypt(transactionCookie!.value, secret)).payload
+          (
+            (await decrypt(
+              transactionCookie.value,
+              secret
+            )) as jose.JWTDecryptResult
+          ).payload
         ).toEqual(
           expect.objectContaining({
             nonce: expect.any(String),
@@ -1764,6 +1863,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
             pushedAuthorizationRequests: true,
             secret,
             appBaseUrl: DEFAULT.appBaseUrl,
+
+            routes: getDefaultRoutes(),
             fetch: getMockAuthorizationServer({
               onParRequest: async (request) => {
                 const params = new URLSearchParams(await request.text());
@@ -1838,6 +1939,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
             pushedAuthorizationRequests: true,
             secret,
             appBaseUrl: DEFAULT.appBaseUrl,
+
+            routes: getDefaultRoutes(),
             fetch: getMockAuthorizationServer({
               onParRequest: async (request) => {
                 const params = new URLSearchParams(await request.text());
@@ -1880,7 +1983,12 @@ ca/T0LLtgmbMmxSv/MmzIg==
           const state = transactionCookie.name.replace("__txn_", "");
           expect(transactionCookie).toBeDefined();
           expect(
-            (await decrypt(transactionCookie!.value, secret)).payload
+            (
+              (await decrypt(
+                transactionCookie.value,
+                secret
+              )) as jose.JWTDecryptResult
+            ).payload
           ).toEqual(
             expect.objectContaining({
               nonce: expect.any(String),
@@ -1916,6 +2024,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
             pushedAuthorizationRequests: true,
             secret,
             appBaseUrl: DEFAULT.appBaseUrl,
+
+            routes: getDefaultRoutes(),
             authorizationParameters: {
               "ext-custom_param": "custom_value",
               audience: "urn:mystore:api"
@@ -1962,7 +2072,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           const state = transactionCookie.name.replace("__txn_", "");
           expect(transactionCookie).toBeDefined();
           expect(
-            (await decrypt(transactionCookie!.value, secret)).payload
+            (await decrypt(transactionCookie!.value, secret))!.payload
           ).toEqual(
             expect.objectContaining({
               nonce: expect.any(String),
@@ -1999,6 +2109,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           fetch: getMockAuthorizationServer(),
 
           routes: {
+            ...getDefaultRoutes(),
             callback: "/custom-callback"
           }
         });
@@ -2043,6 +2154,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer()
       });
@@ -2120,6 +2233,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
 
@@ -2192,6 +2307,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
 
@@ -2228,6 +2345,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer()
       });
@@ -2279,6 +2398,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer({
           discoveryResponse: Response.json(
@@ -2339,6 +2460,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer({
           discoveryResponse: new Response(null, { status: 500 })
         })
@@ -2378,6 +2501,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer()
       });
@@ -2442,6 +2567,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
 
@@ -2475,6 +2602,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer(),
 
@@ -2517,6 +2646,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
 
@@ -2554,7 +2685,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
       // validate the session cookie
       const sessionCookie = response.cookies.get("__session");
       expect(sessionCookie).toBeDefined();
-      const { payload: session } = await decrypt(sessionCookie!.value, secret);
+      const { payload: session } = (await decrypt(
+        sessionCookie!.value,
+        secret
+      )) as jose.JWTDecryptResult;
       expect(session).toEqual(
         expect.objectContaining({
           user: {
@@ -2610,6 +2744,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer()
         });
@@ -2698,6 +2834,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
 
@@ -2735,7 +2873,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
       // validate the session cookie
       const sessionCookie = response.cookies.get("__session");
       expect(sessionCookie).toBeDefined();
-      const { payload: session } = await decrypt(sessionCookie!.value, secret);
+      const { payload: session } = (await decrypt(
+        sessionCookie!.value,
+        secret
+      )) as jose.JWTDecryptResult;
       expect(session).toEqual(
         expect.objectContaining({
           user: {
@@ -2782,6 +2923,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
 
@@ -2818,6 +2961,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer()
       });
@@ -2871,6 +3016,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer()
       });
@@ -2928,6 +3075,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer({
           tokenEndpointResponse: {
@@ -2989,6 +3138,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer({
           discoveryResponse: new Response(null, { status: 500 })
@@ -3055,6 +3206,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
+          routes: getDefaultRoutes(),
+
           fetch: getMockAuthorizationServer(),
 
           onCallback: mockOnCallback
@@ -3119,10 +3272,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
         // validate the session cookie
         const sessionCookie = response.cookies.get("__session");
         expect(sessionCookie).toBeDefined();
-        const { payload: session } = await decrypt(
+        const { payload: session } = (await decrypt(
           sessionCookie!.value,
           secret
-        );
+        )) as jose.JWTDecryptResult;
         expect(session).toEqual(expect.objectContaining(expectedSession));
       });
 
@@ -3152,6 +3305,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
 
@@ -3212,6 +3367,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
 
@@ -3288,6 +3445,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
 
@@ -3371,6 +3530,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
+          routes: getDefaultRoutes(),
+
           fetch: getMockAuthorizationServer({
             tokenEndpointFetchError: new Error("Timeout error")
           }),
@@ -3449,6 +3610,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer({
             tokenEndpointResponse: {
@@ -3541,6 +3704,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
+          routes: getDefaultRoutes(),
+
           fetch: getMockAuthorizationServer(),
 
           beforeSessionSaved: mockBeforeSessionSaved
@@ -3613,6 +3778,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
+          routes: getDefaultRoutes(),
+
           fetch: getMockAuthorizationServer(),
 
           beforeSessionSaved: async (session) => {
@@ -3662,10 +3829,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
         // validate the session cookie
         const sessionCookie = response.cookies.get("__session");
         expect(sessionCookie).toBeDefined();
-        const { payload: session } = await decrypt(
+        const { payload: session } = (await decrypt(
           sessionCookie!.value,
           secret
-        );
+        )) as jose.JWTDecryptResult;
         expect(session).toEqual(
           expect.objectContaining({
             user: {
@@ -3709,6 +3876,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
+          routes: getDefaultRoutes(),
+
           fetch: getMockAuthorizationServer(),
 
           beforeSessionSaved: mockBeforeSessionSaved
@@ -3744,6 +3913,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
 
@@ -3796,10 +3967,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
         // validate the session cookie
         const sessionCookie = response.cookies.get("__session");
         expect(sessionCookie).toBeDefined();
-        const { payload: session } = await decrypt(
+        const { payload: session } = (await decrypt(
           sessionCookie!.value,
           secret
-        );
+        )) as jose.JWTDecryptResult;
         expect(session).toEqual(
           expect.objectContaining({
             user: {
@@ -3846,6 +4017,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer({
           tokenEndpointResponse: {
@@ -3900,10 +4073,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       // validate that the session cookie has been updated
       const updatedSessionCookie = response.cookies.get("__session");
-      const { payload: updatedSession } = await decrypt<SessionData>(
+      const { payload: updatedSession } = (await decrypt<SessionData>(
         updatedSessionCookie!.value,
         secret
-      );
+      )) as jose.JWTDecryptResult<SessionData>;
       expect(updatedSession.tokenSet.accessToken).toEqual(newAccessToken);
     });
 
@@ -3925,6 +4098,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer()
       });
@@ -3968,6 +4143,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer()
       });
@@ -4045,6 +4222,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer(),
         jwksCache: await getCachedJWKS()
       });
@@ -4088,6 +4267,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer(),
         jwksCache: await getCachedJWKS()
@@ -4133,6 +4314,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer(),
         jwksCache: await getCachedJWKS()
@@ -4181,6 +4364,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
           jwksCache: await getCachedJWKS()
@@ -4231,6 +4416,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
+          routes: getDefaultRoutes(),
+
           fetch: getMockAuthorizationServer(),
           jwksCache: await getCachedJWKS()
         });
@@ -4273,6 +4460,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
           jwksCache: await getCachedJWKS()
@@ -4324,6 +4513,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
+          routes: getDefaultRoutes(),
+
           fetch: getMockAuthorizationServer(),
           jwksCache: await getCachedJWKS()
         });
@@ -4372,6 +4563,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
           jwksCache: await getCachedJWKS()
@@ -4422,6 +4615,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
+          routes: getDefaultRoutes(),
+
           fetch: getMockAuthorizationServer(),
           jwksCache: await getCachedJWKS()
         });
@@ -4470,6 +4665,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
           jwksCache: await getCachedJWKS()
@@ -4520,6 +4717,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
 
+          routes: getDefaultRoutes(),
+
           fetch: getMockAuthorizationServer(),
           jwksCache: await getCachedJWKS()
         });
@@ -4568,6 +4767,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
 
@@ -4602,6 +4803,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
 
@@ -4634,6 +4837,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer({
           tokenEndpointResponse: {
@@ -4679,6 +4884,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer({
           tokenEndpointResponse: {
             error: "some-error-code",
@@ -4718,6 +4925,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer({
           discoveryResponse: new Response(null, { status: 500 })
         })
@@ -4754,6 +4963,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           secret,
           appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer({
             tokenEndpointResponse: {
@@ -4807,6 +5018,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
         signInReturnToPath,
         pushedAuthorizationRequests,
         authorizationParameters: {
@@ -4957,6 +5170,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         clientSecret: DEFAULT.clientSecret,
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
         pushedAuthorizationRequests: true,
         authorizationParameters: {
           scope: "openid profile email"
@@ -5110,6 +5325,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: fetchSpy
       });
 
@@ -5154,6 +5371,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: fetchSpy
       });
@@ -5210,6 +5429,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: fetchSpy
       });
 
@@ -5254,6 +5475,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer({
           discoveryResponse: new Response(null, { status: 500 })
         })
@@ -5293,6 +5516,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
 
+        routes: getDefaultRoutes(),
+
         fetch: getMockAuthorizationServer()
       });
 
@@ -5328,6 +5553,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer({
           tokenEndpointErrorResponse: {
