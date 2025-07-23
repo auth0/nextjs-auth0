@@ -307,7 +307,76 @@ describe(`v4-infinitely-stacking-cookies - v4: Infinitely stacking cookies regre
         clientSecret: "test-client-secret",
         appBaseUrl: "http://localhost:3000",
         secret,
-        fetch: authClient["fetch"]
+        routes: {
+          login: "/api/auth/login",
+          logout: "/api/auth/logout",
+          callback: "/api/auth/callback"
+        },
+        fetch: vi.fn().mockImplementation((url) => {
+          // Mock the token endpoint
+          if (url.includes("/oauth/token")) {
+            return Promise.resolve(
+              new Response(
+                JSON.stringify({
+                  access_token: "access_token_123",
+                  id_token:
+                    "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ1c2VyMTIzIiwibm9uY2UiOiJ0ZXN0LW5vbmNlIiwiYXVkIjoidGVzdC1jbGllbnQtaWQiLCJpc3MiOiJodHRwczovL3Rlc3QuYXV0aDAuY29tLyIsImlhdCI6MTcwMDAwMDAwMCwiZXhwIjoxNzAwMDA3MjAwfQ.mock_signature",
+                  refresh_token: "refresh_token_123",
+                  token_type: "Bearer",
+                  expires_in: 3600,
+                  scope: "openid profile email"
+                }),
+                {
+                  headers: { "Content-Type": "application/json" }
+                }
+              )
+            );
+          }
+
+          // Mock discovery endpoint
+          if (url.includes("/.well-known/openid_configuration")) {
+            return Promise.resolve(
+              new Response(
+                JSON.stringify({
+                  issuer: "https://test.auth0.com/",
+                  authorization_endpoint: "https://test.auth0.com/authorize",
+                  token_endpoint: "https://test.auth0.com/oauth/token",
+                  userinfo_endpoint: "https://test.auth0.com/userinfo",
+                  jwks_uri: "https://test.auth0.com/.well-known/jwks.json",
+                  end_session_endpoint: "https://test.auth0.com/v2/logout"
+                }),
+                {
+                  headers: { "Content-Type": "application/json" }
+                }
+              )
+            );
+          }
+
+          // Mock the JWKS endpoint
+          if (url.includes("/.well-known/jwks.json")) {
+            return Promise.resolve(
+              new Response(
+                JSON.stringify({
+                  keys: [
+                    {
+                      kty: "RSA",
+                      kid: "test-key-id",
+                      use: "sig",
+                      n: "mock_n_value",
+                      e: "AQAB"
+                    }
+                  ]
+                }),
+                {
+                  headers: { "Content-Type": "application/json" }
+                }
+              )
+            );
+          }
+
+          // Default mock response
+          return Promise.resolve(new Response("Not Found", { status: 404 }));
+        })
       });
 
       // Act: Create a login
