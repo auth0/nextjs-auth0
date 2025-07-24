@@ -226,6 +226,9 @@ export class Auth0Client {
       options.clientAssertionSigningAlg ||
       process.env.AUTH0_CLIENT_ASSERTION_SIGNING_ALG;
 
+    // Auto-detect base path for cookie configuration
+    const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
+
     const sessionCookieOptions: SessionCookieOptions = {
       name: options.session?.cookie?.name ?? "__session",
       secure:
@@ -236,7 +239,10 @@ export class Auth0Client {
         (process.env.AUTH0_COOKIE_SAME_SITE as "lax" | "strict" | "none") ??
         "lax",
       path:
-        options.session?.cookie?.path ?? process.env.AUTH0_COOKIE_PATH ?? "/",
+        options.session?.cookie?.path ??
+        process.env.AUTH0_COOKIE_PATH ??
+        basePath ??
+        "/",
       transient:
         options.session?.cookie?.transient ??
         process.env.AUTH0_COOKIE_TRANSIENT === "true",
@@ -247,7 +253,7 @@ export class Auth0Client {
       prefix: options.transactionCookie?.prefix ?? "__txn_",
       secure: options.transactionCookie?.secure ?? false,
       sameSite: options.transactionCookie?.sameSite ?? "lax",
-      path: options.transactionCookie?.path ?? "/"
+      path: options.transactionCookie?.path ?? basePath ?? "/"
     };
 
     if (appBaseUrl) {
