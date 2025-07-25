@@ -447,7 +447,8 @@ describe("Stateless Session Store", async () => {
           LEGACY_COOKIE_NAME,
           "",
           {
-            maxAge: 0
+            maxAge: 0,
+            path: "/"
           }
         );
       });
@@ -488,25 +489,25 @@ describe("Stateless Session Store", async () => {
           1,
           "__session",
           expect.any(String),
-          expect.not.objectContaining({ maxAge: 0 })
+          expect.not.objectContaining({ maxAge: 0, path: "/" })
         );
         expect(responseCookies.set).toHaveBeenNthCalledWith(
           2,
           LEGACY_COOKIE_NAME,
           "",
-          { maxAge: 0 }
+          { maxAge: 0, path: "/" }
         );
         expect(responseCookies.set).toHaveBeenNthCalledWith(
           3,
           `${LEGACY_COOKIE_NAME}.0`,
           "",
-          { maxAge: 0 }
+          { maxAge: 0, path: "/" }
         );
         expect(responseCookies.set).toHaveBeenNthCalledWith(
           4,
           `${LEGACY_COOKIE_NAME}.1`,
           "",
-          { maxAge: 0 }
+          { maxAge: 0, path: "/" }
         );
       });
     });
@@ -784,14 +785,15 @@ describe("Stateless Session Store", async () => {
         1,
         "__session",
         expect.any(String),
-        expect.not.objectContaining({ maxAge: 0 })
+        expect.not.objectContaining({ maxAge: 0, path: "/" })
       );
       expect(setSpy).toHaveBeenNthCalledWith(
         2,
         legacyCookiesInSetup[0].name,
         "",
         {
-          maxAge: 0
+          maxAge: 0,
+          path: "/"
         }
       );
     });
