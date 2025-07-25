@@ -247,7 +247,8 @@ export class Auth0Client {
       prefix: options.transactionCookie?.prefix ?? "__txn_",
       secure: options.transactionCookie?.secure ?? false,
       sameSite: options.transactionCookie?.sameSite ?? "lax",
-      path: options.transactionCookie?.path ?? "/"
+      path: options.transactionCookie?.path ?? "/",
+      maxAge: options.transactionCookie?.maxAge ?? 3600
     };
 
     if (appBaseUrl) {

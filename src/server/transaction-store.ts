@@ -36,6 +36,13 @@ export interface TransactionCookieOptions {
    * The path attribute of the transaction cookie. Will be set to '/' by default.
    */
   path?: string;
+  /**
+   * The expiration time for transaction cookies in seconds.
+   * If not provided, defaults to 1 hour (3600 seconds).
+   *
+   * @default 3600
+   */
+  maxAge?: number;
 }
 
 export interface TransactionStoreOptions {
@@ -49,20 +56,20 @@ export interface TransactionStoreOptions {
  * the transaction state.
  */
 export class TransactionStore {
-  private secret: string;
-  private transactionCookiePrefix: string;
-  private cookieConfig: cookies.CookieOptions;
+  private readonly secret: string;
+  private readonly transactionCookiePrefix: string;
+  private readonly cookieOptions: cookies.CookieOptions;
 
   constructor({ secret, cookieOptions }: TransactionStoreOptions) {
     this.secret = secret;
     this.transactionCookiePrefix =
       cookieOptions?.prefix ?? TRANSACTION_COOKIE_PREFIX;
-    this.cookieConfig = {
+    this.cookieOptions = {
       httpOnly: true,
       sameSite: cookieOptions?.sameSite ?? "lax", // required to allow the cookie to be sent on the callback request
       secure: cookieOptions?.secure ?? false,
       path: cookieOptions?.path ?? "/",
-      maxAge: 60 * 60 // 1 hour in seconds
+      maxAge: cookieOptions?.maxAge || 60 * 60 // 1 hour in seconds
     };
   }
 
@@ -86,9 +93,8 @@ export class TransactionStore {
     resCookies: cookies.ResponseCookies,
     transactionState: TransactionState
   ) {
-    const expiration = Math.floor(
-      Date.now() / 1000 + this.cookieConfig.maxAge!
-    );
+    const expirationSeconds = this.cookieOptions.maxAge!;
+    const expiration = Math.floor(Date.now() / 1000 + expirationSeconds);
     const jwe = await cookies.encrypt(
       transactionState,
       this.secret,
@@ -102,7 +108,7 @@ export class TransactionStore {
     resCookies.set(
       this.getTransactionCookieName(transactionState.state),
       jwe.toString(),
-      this.cookieConfig
+      this.cookieOptions
     );
   }
 

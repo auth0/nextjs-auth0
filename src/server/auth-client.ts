@@ -118,7 +118,7 @@ export interface AuthClientOptions {
   domain: string;
   clientId: string;
   clientSecret?: string;
-  clientAssertionSigningKey?: string | CryptoKey;
+  clientAssertionSigningKey?: string | jose.CryptoKey;
   clientAssertionSigningAlg?: string;
   authorizationParameters?: AuthorizationParameters;
   pushedAuthorizationRequests?: boolean;
@@ -156,7 +156,7 @@ export class AuthClient {
 
   private clientMetadata: oauth.Client;
   private clientSecret?: string;
-  private clientAssertionSigningKey?: string | CryptoKey;
+  private clientAssertionSigningKey?: string | jose.CryptoKey;
   private clientAssertionSigningAlg: string;
   private domain: string;
   private authorizationParameters: AuthorizationParameters;
@@ -1079,11 +1079,10 @@ export class AuthClient {
       );
     }
 
-    let clientPrivateKey = this.clientAssertionSigningKey as
-      | CryptoKey
-      | undefined;
+    let clientPrivateKey: jose.CryptoKey | undefined = this
+      .clientAssertionSigningKey as jose.CryptoKey | undefined;
 
-    if (clientPrivateKey && !(clientPrivateKey instanceof CryptoKey)) {
+    if (clientPrivateKey && typeof clientPrivateKey === "string") {
       clientPrivateKey = await jose.importPKCS8(
         clientPrivateKey,
         this.clientAssertionSigningAlg
@@ -1091,7 +1090,7 @@ export class AuthClient {
     }
 
     return clientPrivateKey
-      ? oauth.PrivateKeyJwt(clientPrivateKey)
+      ? oauth.PrivateKeyJwt(clientPrivateKey as CryptoKey)
       : oauth.ClientSecretPost(this.clientSecret!);
   }
 
