@@ -200,7 +200,7 @@ describe("Base path and cookie configuration tests", () => {
         .transactionStore as TransactionStore;
 
       expect((sessionStore as any).cookieConfig.path).toBe("/dashboard");
-      expect((transactionStore as any).cookieConfig.path).toBe("/dashboard");
+      expect((transactionStore as any).cookieOptions.path).toBe("/dashboard");
     });
 
     it("should use explicit AUTH0_COOKIE_PATH over base path", () => {
@@ -244,7 +244,9 @@ describe("Base path and cookie configuration tests", () => {
         .transactionStore as TransactionStore;
 
       expect((sessionStore as any).cookieConfig.path).toBe("/explicit");
-      expect((transactionStore as any).cookieConfig.path).toBe("/txn-explicit");
+      expect((transactionStore as any).cookieOptions.path).toBe(
+        "/txn-explicit"
+      );
     });
 
     it("should default to root path when no base path is configured", () => {
@@ -261,7 +263,7 @@ describe("Base path and cookie configuration tests", () => {
         .transactionStore as TransactionStore;
 
       expect((sessionStore as any).cookieConfig.path).toBe("/");
-      expect((transactionStore as any).cookieConfig.path).toBe("/");
+      expect((transactionStore as any).cookieOptions.path).toBe("/");
     });
   });
 
@@ -394,7 +396,7 @@ describe("Base path and cookie configuration tests", () => {
 
       // Should default to root path as before
       expect((sessionStore as any).cookieConfig.path).toBe("/");
-      expect((transactionStore as any).cookieConfig.path).toBe("/");
+      expect((transactionStore as any).cookieOptions.path).toBe("/");
     });
 
     it("should not break existing explicit cookie configurations", () => {
