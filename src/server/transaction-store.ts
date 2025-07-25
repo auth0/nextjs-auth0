@@ -127,7 +127,7 @@ export class TransactionStore {
     cookies.deleteCookie(
       resCookies,
       this.getTransactionCookieName(state),
-      this.cookieConfig.path
+      this.cookieOptions.path
     );
   }
 
@@ -141,7 +141,7 @@ export class TransactionStore {
     const txnPrefix = this.getCookiePrefix();
     reqCookies.getAll().forEach((cookie) => {
       if (cookie.name.startsWith(txnPrefix)) {
-        cookies.deleteCookie(resCookies, cookie.name, this.cookieConfig.path);
+        cookies.deleteCookie(resCookies, cookie.name, this.cookieOptions.path);
       }
     });
   }
