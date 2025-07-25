@@ -30,6 +30,7 @@
   - [`onCallback`](#oncallback)
 - [Session configuration](#session-configuration)
 - [Cookie Configuration](#cookie-configuration)
+- [Transaction Cookie Configuration](#transaction-cookie-configuration)
 - [Database sessions](#database-sessions)
 - [Back-Channel Logout](#back-channel-logout)
 - [Combining middleware](#combining-middleware)
@@ -960,6 +961,39 @@ export const auth0 = new Auth0Client({
 
 > [!INFO]
 > The `httpOnly` attribute for the session cookie is always set to `true` for security reasons and cannot be configured via options or environment variables.
+
+## Transaction Cookie Configuration
+
+Transaction cookies are used to maintain state during authentication flows. The SDK provides several configuration options to manage transaction cookie behavior and prevent cookie accumulation issues.
+
+### Transaction Management Modes
+
+**Parallel Transactions (Default)**
+```ts
+const authClient = new Auth0Client({
+  enableParallelTransactions: true // Default: allows multiple concurrent logins
+  // ... other options
+});
+```
+
+**Single Transaction Mode**
+```ts
+const authClient = new Auth0Client({
+  enableParallelTransactions: false // Only one active transaction at a time
+  // ... other options
+});
+```
+
+**Use Parallel Transactions (Default) When:**
+- Users might open multiple tabs and attempt to log in simultaneously
+- You want maximum compatibility with typical user behavior
+- Your application supports multiple concurrent authentication flows
+
+**Use Single Transaction Mode When:**
+- You want to prevent cookie accumulation issues in applications with frequent login attempts
+- You prefer simpler transaction management
+- Users typically don't need multiple concurrent login flows
+- You're experiencing cookie header size limits due to abandoned transaction cookies edge cases
 
 ## Database sessions
 

@@ -214,4 +214,45 @@ describe("Auth0Client", () => {
       expect(mockSaveToSession).not.toHaveBeenCalled();
     });
   });
+
+  describe("constructor configuration", () => {
+    beforeEach(() => {
+      // Set necessary environment variables
+      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
+      process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
+      process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
+      process.env[ENV_VARS.APP_BASE_URL] = "https://myapp.test";
+      process.env[ENV_VARS.SECRET] = "test_secret";
+    });
+
+    it("should pass enableParallelTransactions to TransactionStore", () => {
+      const client = new Auth0Client({
+        enableParallelTransactions: false
+      });
+
+      // Verify that the TransactionStore was created with the correct enableParallelTransactions
+      const transactionStore = (client as any).transactionStore;
+      expect(transactionStore).toBeDefined();
+
+      const enableParallelTransactions = (transactionStore as any)
+        .enableParallelTransactions;
+      expect(enableParallelTransactions).toBe(false);
+    });
+
+    it("should default enableParallelTransactions to true when not specified", () => {
+      const client = new Auth0Client();
+
+      // Verify that the TransactionStore was created with the default enableParallelTransactions
+      const transactionStore = (client as any).transactionStore;
+      expect(transactionStore).toBeDefined();
+
+      const enableParallelTransactions = (transactionStore as any)
+        .enableParallelTransactions;
+      expect(enableParallelTransactions).toBe(true);
+    });
+  });
 });
+
+export type GetAccessTokenOptions = {
+  refresh?: boolean;
+};
