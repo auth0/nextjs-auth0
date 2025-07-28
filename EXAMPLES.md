@@ -964,6 +964,17 @@ export const auth0 = new Auth0Client({
 
 ## Transaction Cookie Configuration
 
+### Customizing Transaction Cookie Expiration
+You can configure transaction cookies expiration by providing a `maxAge` proeprty for `transactionCookie`.
+
+```ts
+export const auth0 = new Auth0Client({
+  transactionCookie: {
+    maxAge: 1800, // 30 minutes (in seconds)
+    // ... other options
+  },
+}
+```
 Transaction cookies are used to maintain state during authentication flows. The SDK provides several configuration options to manage transaction cookie behavior and prevent cookie accumulation issues.
 
 ### Transaction Management Modes
@@ -994,6 +1005,16 @@ const authClient = new Auth0Client({
 - You prefer simpler transaction management
 - Users typically don't need multiple concurrent login flows
 - You're experiencing cookie header size limits due to abandoned transaction cookies edge cases
+
+### Transaction Cookie Options
+
+| Option                     | Type                              | Description                                                                                                                                                                                                     |
+| -------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| cookieOptions.maxAge       | `number`                          | The expiration time for transaction cookies in seconds. Defaults to `3600` (1 hour). After this time, abandoned transaction cookies will expire automatically.                                                 |
+| cookieOptions.prefix       | `string`                          | The prefix for transaction cookie names. Defaults to `__txn_`. In parallel mode, cookies are named `__txn_{state}`. In single mode, just `__txn_`.                                                           |
+| cookieOptions.sameSite     | `"strict" \| "lax" \| "none"`     | Controls when the cookie is sent with cross-site requests. Defaults to `"lax"`.                                                                                                                                |
+| cookieOptions.secure       | `boolean`                         | When `true`, the cookie will only be sent over HTTPS connections. Automatically determined based on your application's base URL protocol if not specified.                                                     |
+| cookieOptions.path         | `string`                          | Specifies the URL path for which the cookie is valid. Defaults to `"/"`.                                                                                                                                       |
 
 ## Database sessions
 

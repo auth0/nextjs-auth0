@@ -225,6 +225,66 @@ describe("Auth0Client", () => {
       process.env[ENV_VARS.SECRET] = "test_secret";
     });
 
+    it("should pass transactionCookie.maxAge to TransactionStore", () => {
+      const customMaxAge = 1800; // 30 minutes
+
+      const client = new Auth0Client({
+        transactionCookie: {
+          maxAge: customMaxAge
+        }
+      });
+
+      // Verify that the TransactionStore was created with the correct maxAge
+      // We need to access the private property for testing
+      const transactionStore = (client as any).transactionStore;
+      expect(transactionStore).toBeDefined();
+
+      // Check the cookieOptions maxAge - we need to verify it was set correctly
+      const cookieOptions = (transactionStore as any).cookieOptions;
+      expect(cookieOptions.maxAge).toBe(customMaxAge);
+    });
+
+    it("should use default maxAge of 3600 when not specified", () => {
+      const client = new Auth0Client();
+
+      // Verify that the TransactionStore was created with the default maxAge
+      const transactionStore = (client as any).transactionStore;
+      expect(transactionStore).toBeDefined();
+
+      // Check the cookieOptions maxAge
+      const cookieOptions = (transactionStore as any).cookieOptions;
+      expect(cookieOptions.maxAge).toBe(3600);
+    });
+
+    it("should pass other transactionCookie options to TransactionStore", () => {
+      const customOptions = {
+        prefix: "__custom_txn_",
+        secure: true,
+        sameSite: "strict" as const,
+        path: "/auth",
+        maxAge: 2700
+      };
+
+      const client = new Auth0Client({
+        transactionCookie: customOptions
+      });
+
+      // Verify that the TransactionStore was created with the correct options
+      const transactionStore = (client as any).transactionStore;
+      expect(transactionStore).toBeDefined();
+
+      const cookieOptions = (transactionStore as any).cookieOptions;
+      expect(cookieOptions.maxAge).toBe(customOptions.maxAge);
+      expect((transactionStore as any).transactionCookiePrefix).toBe(
+        customOptions.prefix
+      );
+
+      // Note: secure and sameSite are stored in cookieOptions
+      expect(cookieOptions.secure).toBe(customOptions.secure);
+      expect(cookieOptions.sameSite).toBe(customOptions.sameSite);
+      expect(cookieOptions.path).toBe(customOptions.path);
+    });
+
     it("should pass enableParallelTransactions to TransactionStore", () => {
       const client = new Auth0Client({
         enableParallelTransactions: false
