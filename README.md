@@ -66,7 +66,7 @@ export const auth0 = new Auth0Client();
 ```
 
 > [!NOTE]
-> The Auth0Client automatically creates a `TransactionStore` with safe defaults to manage authentication cookies. For advanced use cases, you can customize transaction cookie behavior by providing your own `TransactionStore` configuration. See [Transaction Cookie Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#transaction-cookie-configuration) for details.
+> The Auth0Client automatically uses safe defaults to manage authentication cookies. For advanced use cases, you can customize transaction cookie behavior by providing your own configuration. See [Transaction Cookie Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#transaction-cookie-configuration) for details.
 
 ### 4. Add the authentication middleware
 

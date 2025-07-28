@@ -964,7 +964,6 @@ export const auth0 = new Auth0Client({
 
 ## Transaction Cookie Configuration
 
-<<<<<<< HEAD
 ### Customizing Transaction Cookie Expiration
 You can configure transaction cookies expiration by providing a `maxAge` proeprty for `transactionCookie`.
 
