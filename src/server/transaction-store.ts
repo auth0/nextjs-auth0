@@ -41,6 +41,14 @@ export interface TransactionCookieOptions {
 export interface TransactionStoreOptions {
   secret: string;
   cookieOptions?: TransactionCookieOptions;
+  /**
+   * Controls whether multiple parallel login transactions are allowed.
+   * When false, only one transaction cookie is maintained at a time.
+   * When true (default), multiple transaction cookies can coexist for multi-tab support.
+   *
+   * @default true
+   */
+  enableParallelTransactions?: boolean;
 }
 
 /**
@@ -52,8 +60,13 @@ export class TransactionStore {
   private secret: string;
   private transactionCookiePrefix: string;
   private cookieConfig: cookies.CookieOptions;
+  private readonly enableParallelTransactions: boolean;
 
-  constructor({ secret, cookieOptions }: TransactionStoreOptions) {
+  constructor({
+    secret,
+    cookieOptions,
+    enableParallelTransactions
+  }: TransactionStoreOptions) {
     this.secret = secret;
     this.transactionCookiePrefix =
       cookieOptions?.prefix ?? TRANSACTION_COOKIE_PREFIX;
@@ -64,6 +77,7 @@ export class TransactionStore {
       path: cookieOptions?.path ?? "/",
       maxAge: 60 * 60 // 1 hour in seconds
     };
+    this.enableParallelTransactions = enableParallelTransactions ?? true;
   }
 
   /**
@@ -72,7 +86,9 @@ export class TransactionStore {
    * between different transactions.
    */
   private getTransactionCookieName(state: string) {
-    return `${this.transactionCookiePrefix}${state}`;
+    return this.enableParallelTransactions
+      ? `${this.transactionCookiePrefix}${state}`
+      : `${this.transactionCookiePrefix}`;
   }
 
   /**
@@ -82,13 +98,40 @@ export class TransactionStore {
     return this.transactionCookiePrefix;
   }
 
+  /**
+   * Saves the transaction state to an encrypted cookie.
+   *
+   * @param resCookies - The response cookies object to set the transaction cookie on
+   * @param transactionState - The transaction state to save
+   * @param reqCookies - Optional request cookies to check for existing transactions.
+   *                     When provided and `enableParallelTransactions` is false,
+   *                     will check for existing transaction cookies. When omitted,
+   *                     the existence check is skipped for performance optimization.
+   * @throws {Error} When transaction state is missing required state parameter
+   */
   async save(
     resCookies: cookies.ResponseCookies,
-    transactionState: TransactionState
+    transactionState: TransactionState,
+    reqCookies?: cookies.RequestCookies
   ) {
     const expiration = Math.floor(
       Date.now() / 1000 + this.cookieConfig.maxAge!
     );
+    if (!transactionState.state) {
+      throw new Error("Transaction state is required");
+    }
+
+    // When parallel transactions are disabled, check if a transaction already exists
+    if (reqCookies && !this.enableParallelTransactions) {
+      const cookieName = this.getTransactionCookieName(transactionState.state);
+      const existingCookie = reqCookies.get(cookieName);
+      if (existingCookie) {
+        console.warn(
+          "A transaction is already in progress. Only one transaction is allowed when parallel transactions are disabled."
+        );
+        return;
+      }
+    }
     const jwe = await cookies.encrypt(
       transactionState,
       this.secret,
