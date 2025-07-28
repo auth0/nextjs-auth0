@@ -284,6 +284,32 @@ describe("Auth0Client", () => {
       expect(cookieOptions.sameSite).toBe(customOptions.sameSite);
       expect(cookieOptions.path).toBe(customOptions.path);
     });
+
+    it("should pass enableParallelTransactions to TransactionStore", () => {
+      const client = new Auth0Client({
+        enableParallelTransactions: false
+      });
+
+      // Verify that the TransactionStore was created with the correct enableParallelTransactions
+      const transactionStore = (client as any).transactionStore;
+      expect(transactionStore).toBeDefined();
+
+      const enableParallelTransactions = (transactionStore as any)
+        .enableParallelTransactions;
+      expect(enableParallelTransactions).toBe(false);
+    });
+
+    it("should default enableParallelTransactions to true when not specified", () => {
+      const client = new Auth0Client();
+
+      // Verify that the TransactionStore was created with the default enableParallelTransactions
+      const transactionStore = (client as any).transactionStore;
+      expect(transactionStore).toBeDefined();
+
+      const enableParallelTransactions = (transactionStore as any)
+        .enableParallelTransactions;
+      expect(enableParallelTransactions).toBe(true);
+    });
   });
 });
 

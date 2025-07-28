@@ -964,6 +964,7 @@ export const auth0 = new Auth0Client({
 
 ## Transaction Cookie Configuration
 
+<<<<<<< HEAD
 ### Customizing Transaction Cookie Expiration
 You can configure transaction cookies expiration by providing a `maxAge` proeprty for `transactionCookie`.
 
@@ -973,9 +974,37 @@ export const auth0 = new Auth0Client({
     maxAge: 1800, // 30 minutes (in seconds)
     // ... other options
   },
+=======
+Transaction cookies are used to maintain state during authentication flows. The SDK provides several configuration options to manage transaction cookie behavior and prevent cookie accumulation issues.
+
+### Transaction Management Modes
+
+**Parallel Transactions (Default)**
+```ts
+const authClient = new Auth0Client({
+  enableParallelTransactions: true // Default: allows multiple concurrent logins
   // ... other options
 });
 ```
+
+**Single Transaction Mode**
+```ts
+const authClient = new Auth0Client({
+  enableParallelTransactions: false // Only one active transaction at a time
+  // ... other options
+});
+```
+
+**Use Parallel Transactions (Default) When:**
+- Users might open multiple tabs and attempt to log in simultaneously
+- You want maximum compatibility with typical user behavior
+- Your application supports multiple concurrent authentication flows
+
+**Use Single Transaction Mode When:**
+- You want to prevent cookie accumulation issues in applications with frequent login attempts
+- You prefer simpler transaction management
+- Users typically don't need multiple concurrent login flows
+- You're experiencing cookie header size limits due to abandoned transaction cookies edge cases
 
 ### Transaction Cookie Options
 
