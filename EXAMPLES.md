@@ -973,7 +973,8 @@ export const auth0 = new Auth0Client({
     maxAge: 1800, // 30 minutes (in seconds)
     // ... other options
   },
-=======
+}
+```
 Transaction cookies are used to maintain state during authentication flows. The SDK provides several configuration options to manage transaction cookie behavior and prevent cookie accumulation issues.
 
 ### Transaction Management Modes
