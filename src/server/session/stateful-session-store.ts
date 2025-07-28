@@ -165,7 +165,10 @@ export class StatefulSessionStore extends AbstractSessionStore {
     resCookies: cookies.ResponseCookies
   ) {
     const cookieValue = reqCookies.get(this.sessionCookieName)?.value;
-    cookies.deleteCookie(resCookies, this.sessionCookieName);
+    cookies.deleteCookie(resCookies, this.sessionCookieName, {
+      domain: this.cookieConfig.domain,
+      path: this.cookieConfig.path
+    });
 
     if (!cookieValue) {
       return;

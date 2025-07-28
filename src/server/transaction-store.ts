@@ -36,6 +36,12 @@ export interface TransactionCookieOptions {
    * The path attribute of the transaction cookie. Will be set to '/' by default.
    */
   path?: string;
+  /**
+   * Specifies the value for the {@link https://tools.ietf.org/html/rfc6265#section-5.2.3|Domain Set-Cookie attribute}. By default, no
+   * domain is set, and most clients will consider the cookie to apply to only
+   * the current domain.
+   */
+  domain?: string;
 }
 
 export interface TransactionStoreOptions {
@@ -62,6 +68,7 @@ export class TransactionStore {
       sameSite: cookieOptions?.sameSite ?? "lax", // required to allow the cookie to be sent on the callback request
       secure: cookieOptions?.secure ?? false,
       path: cookieOptions?.path ?? "/",
+      domain: cookieOptions?.domain,
       maxAge: 60 * 60 // 1 hour in seconds
     };
   }
@@ -118,7 +125,10 @@ export class TransactionStore {
   }
 
   async delete(resCookies: cookies.ResponseCookies, state: string) {
-    cookies.deleteCookie(resCookies, this.getTransactionCookieName(state));
+    cookies.deleteCookie(resCookies, this.getTransactionCookieName(state), {
+      domain: this.cookieConfig.domain,
+      path: this.cookieConfig.path
+    });
   }
 
   /**
@@ -129,9 +139,14 @@ export class TransactionStore {
     resCookies: cookies.ResponseCookies
   ) {
     const txnPrefix = this.getCookiePrefix();
+    const deleteOptions = {
+      domain: this.cookieConfig.domain,
+      path: this.cookieConfig.path
+    };
+    
     reqCookies.getAll().forEach((cookie) => {
       if (cookie.name.startsWith(txnPrefix)) {
-        cookies.deleteCookie(resCookies, cookie.name);
+        cookies.deleteCookie(resCookies, cookie.name, deleteOptions);
       }
     });
   }

@@ -129,7 +129,11 @@ export class StatelessSessionStore extends AbstractSessionStore {
       LEGACY_COOKIE_NAME,
       reqCookies,
       resCookies,
-      true
+      true,
+      {
+        domain: this.cookieConfig.domain,
+        path: this.cookieConfig.path
+      }
     );
   }
 
@@ -137,10 +141,21 @@ export class StatelessSessionStore extends AbstractSessionStore {
     reqCookies: cookies.RequestCookies,
     resCookies: cookies.ResponseCookies
   ) {
-    cookies.deleteChunkedCookie(this.sessionCookieName, reqCookies, resCookies);
+    const deleteOptions = {
+      domain: this.cookieConfig.domain,
+      path: this.cookieConfig.path
+    };
+
+    cookies.deleteChunkedCookie(
+      this.sessionCookieName,
+      reqCookies,
+      resCookies,
+      false,
+      deleteOptions
+    );
 
     this.getConnectionTokenSetsCookies(reqCookies).forEach((cookie) =>
-      cookies.deleteCookie(resCookies, cookie.name)
+      cookies.deleteCookie(resCookies, cookie.name, deleteOptions)
     );
   }
 

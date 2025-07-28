@@ -218,6 +218,7 @@ export function setChunkedCookie(
     reqCookies.set(name, value);
 
     // When we are writing a non-chunked cookie, we should remove the chunked cookies
+    // Remove any previously stored chunks for this cookie name
     getAllChunkedCookies(reqCookies, name).forEach((cookieChunk) => {
       deleteCookie(resCookies, cookieChunk.name);
       reqCookies.delete(cookieChunk.name);
@@ -244,7 +245,6 @@ export function setChunkedCookie(
   // clear unused chunks
   const chunks = getAllChunkedCookies(reqCookies, name);
   const chunksToRemove = chunks.length - chunkIndex;
-
   if (chunksToRemove > 0) {
     for (let i = 0; i < chunksToRemove; i++) {
       const chunkIndexToRemove = chunkIndex + i;
@@ -316,18 +316,21 @@ export function getChunkedCookie(
  * @param name - The name of the main cookie to delete.
  * @param reqCookies - The request cookies object containing all cookies from the request.
  * @param resCookies - The response cookies object to manipulate the cookies in the response.
+ * @param isLegacyCookie - Whether to handle legacy cookie format.
+ * @param options - Options for cookie deletion including domain and path.
  */
 export function deleteChunkedCookie(
   name: string,
   reqCookies: RequestCookies,
   resCookies: ResponseCookies,
-  isLegacyCookie?: boolean
+  isLegacyCookie?: boolean,
+  options?: Pick<CookieOptions, "domain" | "path">
 ): void {
   // Delete main cookie
-  deleteCookie(resCookies, name);
+  deleteCookie(resCookies, name, options);
 
   getAllChunkedCookies(reqCookies, name, isLegacyCookie).forEach((cookie) => {
-    deleteCookie(resCookies, cookie.name); // Delete each filtered cookie
+    deleteCookie(resCookies, cookie.name, options); // Delete each filtered cookie
   });
 }
 
@@ -350,8 +353,20 @@ export function addCacheControlHeadersForSession(res: NextResponse): void {
   res.headers.set("Expires", "0");
 }
 
-export function deleteCookie(resCookies: ResponseCookies, name: string) {
-  resCookies.set(name, "", {
+export function deleteCookie(
+  resCookies: ResponseCookies,
+  name: string,
+  options?: Pick<CookieOptions, "domain" | "path">
+) {
+  const deleteOptions: { maxAge: number; domain?: string; path?: string } = {
     maxAge: 0 // Ensure the cookie is deleted immediately
-  });
+  };
+
+  if (options?.domain) {
+    deleteOptions.domain = options.domain;
+  }
+
+
+
+  resCookies.set(name, "", deleteOptions);
 }
