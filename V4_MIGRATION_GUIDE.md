@@ -375,8 +375,33 @@ export const auth0 = new Auth0Client({
 - **Login parameters**: Use query parameters (`/auth/login?audience=...`) or static configuration
 - **Session data**: Use the `beforeSessionSaved` hook to modify session data
 - **Logout redirects**: Use query parameters (`/auth/logout?returnTo=...`)
+- **Transaction cookies**: Configure transaction cookie behavior with `TransactionStore` options. See [Transaction Cookie Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#transaction-cookie-configuration) for details.
 
 > [!IMPORTANT]
 > Always validate redirect URLs to prevent open redirect attacks. Use relative URLs when possible.
 
 For detailed examples and implementation patterns, see [Customizing Auth Handlers](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#customizing-auth-handlers) in the Examples guide.
+
+## Transaction Cookie Management in V4
+
+V4 introduces improved transaction cookie management to prevent cookie accumulation issues that could cause HTTP 413 errors. 
+
+The `TransactionStore` now supports Configurable parallel transactions to control whether multiple login flows can run simultaneously
+
+**Default Behavior (No Changes Required):**
+```ts
+export const auth0 = new Auth0Client({
+  // enableParallelTransactions: true, // true by default
+  //  ... other options
+});
+```
+
+**Custom Transaction Configuration:**
+```ts
+export const auth0 = new Auth0Client({
+  enableParallelTransactions: false, // Single-transaction mode
+  // ... other options
+});
+```
+
+In contrast, V3 did not support parallel transactions.
