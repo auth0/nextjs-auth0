@@ -1188,7 +1188,7 @@ import { NextRequest } from "next/server";
 import { auth0 } from "./lib/auth0"; // Adjust path if your auth0 client is elsewhere
 
 export const GET = async (req: NextRequest) => {
-  return auth0.startInteractiveLogin();
+  return auth0.startInteractiveLogin({});
 };
 ```
 
