@@ -373,7 +373,9 @@ describe("Base path and cookie configuration tests", () => {
     });
 
     it("should handle empty path correctly", () => {
-      deleteCookie(new ResponseCookies(new Headers()), "test-cookie", { path: "" });
+      deleteCookie(new ResponseCookies(new Headers()), "test-cookie", {
+        path: ""
+      });
 
       // Should not throw and should create valid cookie deletion
       expect(true).toBe(true);
