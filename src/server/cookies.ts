@@ -353,6 +353,13 @@ export function addCacheControlHeadersForSession(res: NextResponse): void {
   res.headers.set("Expires", "0");
 }
 
+/**
+ * Deletes a cookie from the response with optional domain and path specifications.
+ *
+ * @param resCookies - The response cookies object to manipulate.
+ * @param name - The name of the cookie to delete.
+ * @param options - Optional domain and path settings for cookie deletion.
+ */
 export function deleteCookie(
   resCookies: ResponseCookies,
   name: string,
@@ -366,7 +373,9 @@ export function deleteCookie(
     deleteOptions.domain = options.domain;
   }
 
-
+  if (options?.path) {
+    deleteOptions.path = options.path;
+  }
 
   resCookies.set(name, "", deleteOptions);
 }

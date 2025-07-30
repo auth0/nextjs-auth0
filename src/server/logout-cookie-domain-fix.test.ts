@@ -1,6 +1,7 @@
-import { describe, it, expect } from "vitest";
-import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import { ResponseCookies } from "@edge-runtime/cookies";
+import { describe, expect, it } from "vitest";
+
+import { StatelessSessionStore } from "./session/stateless-session-store.js";
 
 describe("Session cookie domain deletion bug", () => {
   it("should delete session cookies with domain when AUTH0_COOKIE_DOMAIN is set", () => {
@@ -8,7 +9,7 @@ describe("Session cookie domain deletion bug", () => {
     const sessionStore = new StatelessSessionStore({
       secret: "a-very-long-secret-that-is-at-least-32-characters-long",
       cookieOptions: {
-        domain: "df.mydomain.com", // This simulates AUTH0_COOKIE_DOMAIN 
+        domain: "df.mydomain.com", // This simulates AUTH0_COOKIE_DOMAIN
         path: "/",
         secure: true,
         sameSite: "lax"
@@ -19,14 +20,18 @@ describe("Session cookie domain deletion bug", () => {
     const headers = new Headers();
     const reqCookies = new Headers();
     const resCookies = new ResponseCookies(headers);
-    
+
     // Add session cookie to request (simulate existing session)
     reqCookies.set("__session", "existing-session-value");
 
-    // Mock request cookies to include the get method
+    // Mock request cookies to properly simulate RequestCookies interface
     const mockReqCookies = {
       get: (name: string) => ({ value: reqCookies.get(name) }),
-      getAll: () => [],
+      getAll: () =>
+        Array.from(reqCookies.entries()).map(([name, value]) => ({
+          name,
+          value
+        })),
       set: (name: string, value: string) => reqCookies.set(name, value),
       delete: (name: string) => reqCookies.delete(name),
       has: (name: string) => reqCookies.has(name)
@@ -37,24 +42,21 @@ describe("Session cookie domain deletion bug", () => {
 
     // Check that cookies are deleted with domain
     const setCookieHeaders = headers.getSetCookie();
-    console.log("Session deletion Set-Cookie headers:", setCookieHeaders);
 
     // Should have at least one cookie deletion header
     expect(setCookieHeaders.length).toBeGreaterThan(0);
 
     // Find the session cookie deletion header
-    const sessionDeletionHeader = setCookieHeaders.find((header) =>
-      header.includes("__session=") && header.includes("Max-Age=0")
+    const sessionDeletionHeader = setCookieHeaders.find(
+      (header) => header.includes("__session=") && header.includes("Max-Age=0")
     );
 
     expect(sessionDeletionHeader).toBeDefined();
-    
+
     // This is the key assertion - cookie deletion should include domain
     expect(sessionDeletionHeader).toContain("Domain=df.mydomain.com");
     expect(sessionDeletionHeader).toContain("Max-Age=0");
     expect(sessionDeletionHeader).toContain("Path=/");
-
-    console.log("✅ Session cookie is being deleted with proper domain:", sessionDeletionHeader);
   });
 
   it("should work without domain when AUTH0_COOKIE_DOMAIN is not set", () => {
@@ -70,14 +72,18 @@ describe("Session cookie domain deletion bug", () => {
     });
 
     const headers = new Headers();
-    const reqCookies = new Headers();  
+    const reqCookies = new Headers();
     const resCookies = new ResponseCookies(headers);
-    
+
     reqCookies.set("__session", "existing-session-value");
 
     const mockReqCookies = {
       get: (name: string) => ({ value: reqCookies.get(name) }),
-      getAll: () => [],
+      getAll: () =>
+        Array.from(reqCookies.entries()).map(([name, value]) => ({
+          name,
+          value
+        })),
       set: (name: string, value: string) => reqCookies.set(name, value),
       delete: (name: string) => reqCookies.delete(name),
       has: (name: string) => reqCookies.has(name)
@@ -86,17 +92,15 @@ describe("Session cookie domain deletion bug", () => {
     sessionStore.delete(mockReqCookies as any, resCookies);
 
     const setCookieHeaders = headers.getSetCookie();
-    const sessionDeletionHeader = setCookieHeaders.find((header) =>
-      header.includes("__session=") && header.includes("Max-Age=0")
+    const sessionDeletionHeader = setCookieHeaders.find(
+      (header) => header.includes("__session=") && header.includes("Max-Age=0")
     );
 
     expect(sessionDeletionHeader).toBeDefined();
-    
+
     // Should not include domain when none is configured
     expect(sessionDeletionHeader).not.toContain("Domain=");
     expect(sessionDeletionHeader).toContain("Max-Age=0");
     expect(sessionDeletionHeader).toContain("Path=/");
-
-    console.log("✅ Session cookie deletion without domain:", sessionDeletionHeader);
   });
 });
