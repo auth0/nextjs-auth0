@@ -285,3 +285,123 @@ export const auth0 = new Auth0Client({
 - `touchSession` method was removed. The middleware enables rolling sessions by default and can be configured via the [Session configuration section in the Examples guide](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#session-configuration).
 - `getAccessToken` can now be called in React Server Components. For examples on how to use `getAccessToken` in various environments (browser, App Router, Pages Router, Middleware), refer to the [Getting an access token section in the Examples guide](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#getting-an-access-token).
 - By default, v4 will use [OpenID Connect's RP-Initiated Logout](https://auth0.com/docs/authenticate/login/logout/log-users-out-of-auth0) if it's enabled on the tenant. Otherwise, it will fallback to the `/v2/logout` endpoint.
+
+## Customizing Auth Handlers
+
+In v3, you could customize individual auth handlers by providing custom implementations to the `handleAuth` function:
+
+```ts
+// v3 approach (no longer available in v4)
+export const GET = handleAuth({
+  async logout(req: NextApiRequest, res: NextApiResponse) {
+    // Custom logout logic
+    console.log('User is logging out');
+    
+    return await handleLogout(req, res);
+  },
+  async login(req: NextApiRequest, res: NextApiResponse) {
+    // Custom login logic
+    return await handleLogin(req, res, {
+      authorizationParams: {
+        audience: 'https://my-api.com'
+      }
+    });
+  }
+});
+```
+
+In v4, the auth routes are handled automatically by the middleware, but you can achieve similar customization through two main approaches:
+
+### 1. Run custom code before auth handlers (Middleware Interception)
+
+You can intercept auth routes in your middleware to run custom logic before the auth handlers execute:
+
+```ts
+import type { NextRequest } from 'next/server';
+import { auth0 } from './lib/auth0';
+
+export async function middleware(request: NextRequest) {
+  const authRes = await auth0.middleware(request);
+  
+  // Intercept specific auth routes
+  if (request.nextUrl.pathname === '/auth/logout') {
+    // Custom logout logic runs BEFORE the actual logout
+    console.log('User is logging out');
+    
+    // Example: Set custom cookies
+    authRes.cookies.set('logoutTime', new Date().toISOString());
+  }
+  
+  if (request.nextUrl.pathname === '/auth/login') {
+    // Custom login logic runs BEFORE the actual login
+    console.log('User is attempting to login');
+  }
+  
+  return authRes;
+}
+```
+
+### 2. Run code after authentication (Callback Hook)
+
+Use the `onCallback` hook to add custom logic after authentication completes:
+
+```ts
+import { NextResponse } from 'next/server';
+import { Auth0Client } from '@auth0/nextjs-auth0/server';
+
+export const auth0 = new Auth0Client({
+  async onCallback(error, context, session) {
+    if (error) {
+      console.error('Authentication error:', error);
+      return NextResponse.redirect(
+        new URL('/error', process.env.APP_BASE_URL)
+      );
+    }
+
+    // Custom logic after successful authentication
+    if (session) {
+      console.log(`User ${session.user.sub} logged in successfully`);
+    }
+
+    return NextResponse.redirect(
+      new URL(context.returnTo || "/", process.env.APP_BASE_URL)
+    );
+  }
+});
+```
+
+### Additional Customization Options
+
+- **Login parameters**: Use query parameters (`/auth/login?audience=...`) or static configuration
+- **Session data**: Use the `beforeSessionSaved` hook to modify session data
+- **Logout redirects**: Use query parameters (`/auth/logout?returnTo=...`)
+- **Transaction cookies**: Configure transaction cookie behavior with `TransactionStore` options. See [Transaction Cookie Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#transaction-cookie-configuration) for details.
+
+> [!IMPORTANT]
+> Always validate redirect URLs to prevent open redirect attacks. Use relative URLs when possible.
+
+For detailed examples and implementation patterns, see [Customizing Auth Handlers](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#customizing-auth-handlers) in the Examples guide.
+
+## Transaction Cookie Management in V4
+
+V4 introduces improved transaction cookie management to prevent cookie accumulation issues that could cause HTTP 413 errors. 
+
+The `TransactionStore` now supports Configurable parallel transactions to control whether multiple login flows can run simultaneously
+
+**Default Behavior (No Changes Required):**
+```ts
+export const auth0 = new Auth0Client({
+  // enableParallelTransactions: true, // true by default
+  //  ... other options
+});
+```
+
+**Custom Transaction Configuration:**
+```ts
+export const auth0 = new Auth0Client({
+  enableParallelTransactions: false, // Single-transaction mode
+  // ... other options
+});
+```
+
+In contrast, V3 did not support parallel transactions.

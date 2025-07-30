@@ -118,7 +118,7 @@ export interface AuthClientOptions {
   domain: string;
   clientId: string;
   clientSecret?: string;
-  clientAssertionSigningKey?: string | CryptoKey;
+  clientAssertionSigningKey?: string | jose.CryptoKey;
   clientAssertionSigningAlg?: string;
   authorizationParameters?: AuthorizationParameters;
   pushedAuthorizationRequests?: boolean;
@@ -131,7 +131,7 @@ export interface AuthClientOptions {
   beforeSessionSaved?: BeforeSessionSavedHook;
   onCallback?: OnCallbackHook;
 
-  routes?: RoutesOptions;
+  routes: Routes;
 
   // custom fetch implementation to allow for dependency injection
   fetch?: typeof fetch;
@@ -156,7 +156,7 @@ export class AuthClient {
 
   private clientMetadata: oauth.Client;
   private clientSecret?: string;
-  private clientAssertionSigningKey?: string | CryptoKey;
+  private clientAssertionSigningKey?: string | jose.CryptoKey;
   private clientAssertionSigningAlg: string;
   private domain: string;
   private authorizationParameters: AuthorizationParameters;
@@ -268,16 +268,7 @@ export class AuthClient {
     this.onCallback = options.onCallback || this.defaultOnCallback;
 
     // routes
-    this.routes = {
-      login: process.env.NEXT_PUBLIC_LOGIN_ROUTE || "/auth/login",
-      logout: "/auth/logout",
-      callback: "/auth/callback",
-      backChannelLogout: "/auth/backchannel-logout",
-      profile: process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile",
-      accessToken:
-        process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
-      ...options.routes
-    };
+    this.routes = options.routes;
 
     this.enableAccessTokenEndpoint = options.enableAccessTokenEndpoint ?? true;
     this.noContentProfileResponseWhenUnauthenticated =
@@ -404,6 +395,8 @@ export class AuthClient {
 
     // Set response and save transaction
     const res = NextResponse.redirect(authorizationUrl.toString());
+
+    // Save transaction state
     await this.transactionStore.save(res.cookies, transactionState);
 
     return res;
@@ -514,7 +507,7 @@ export class AuthClient {
   async handleCallback(req: NextRequest): Promise<NextResponse> {
     const state = req.nextUrl.searchParams.get("state");
     if (!state) {
-      return this.onCallback(new MissingStateError(), {}, null);
+      return this.handleCallbackError(new MissingStateError(), {}, req);
     }
 
     const transactionStateCookie = await this.transactionStore.get(
@@ -534,7 +527,12 @@ export class AuthClient {
       await this.discoverAuthorizationServerMetadata();
 
     if (discoveryError) {
-      return this.onCallback(discoveryError, onCallbackCtx, null);
+      return this.handleCallbackError(
+        discoveryError,
+        onCallbackCtx,
+        req,
+        state
+      );
     }
 
     let codeGrantParams: URLSearchParams;
@@ -546,7 +544,7 @@ export class AuthClient {
         transactionState.state
       );
     } catch (e: any) {
-      return this.onCallback(
+      return this.handleCallbackError(
         new AuthorizationError({
           cause: new OAuth2Error({
             code: e.error,
@@ -554,7 +552,8 @@ export class AuthClient {
           })
         }),
         onCallbackCtx,
-        null
+        req,
+        state
       );
     }
 
@@ -575,10 +574,11 @@ export class AuthClient {
         }
       );
     } catch (e: any) {
-      return this.onCallback(
+      return this.handleCallbackError(
         new AuthorizationCodeGrantRequestError(e.message),
         onCallbackCtx,
-        null
+        req,
+        state
       );
     }
 
@@ -595,7 +595,7 @@ export class AuthClient {
         }
       );
     } catch (e: any) {
-      return this.onCallback(
+      return this.handleCallbackError(
         new AuthorizationCodeGrantError({
           cause: new OAuth2Error({
             code: e.error,
@@ -603,7 +603,8 @@ export class AuthClient {
           })
         }),
         onCallbackCtx,
-        null
+        req,
+        state
       );
     }
 
@@ -631,6 +632,8 @@ export class AuthClient {
 
     await this.sessionStore.set(req.cookies, res.cookies, session, true);
     addCacheControlHeadersForSession(res);
+
+    // Clean up the current transaction cookie after successful authentication
     await this.transactionStore.delete(res.cookies, state);
 
     return res;
@@ -912,6 +915,25 @@ export class AuthClient {
     return res;
   }
 
+  /**
+   * Handle callback errors with transaction cleanup
+   */
+  private async handleCallbackError(
+    error: SdkError,
+    ctx: OnCallbackContext,
+    req: NextRequest,
+    state?: string
+  ): Promise<NextResponse> {
+    const response = await this.onCallback(error, ctx, null);
+
+    // Clean up the transaction cookie on error to prevent accumulation
+    if (state) {
+      await this.transactionStore.delete(response.cookies, state);
+    }
+
+    return response;
+  }
+
   private async verifyLogoutToken(
     logoutToken: string
   ): Promise<[null, LogoutToken] | [SdkError, null]> {
@@ -1088,19 +1110,18 @@ export class AuthClient {
       );
     }
 
-    let clientPrivateKey = this.clientAssertionSigningKey as
-      | CryptoKey
-      | undefined;
+    let clientPrivateKey: jose.CryptoKey | undefined = this
+      .clientAssertionSigningKey as jose.CryptoKey | undefined;
 
-    if (clientPrivateKey && !(clientPrivateKey instanceof CryptoKey)) {
-      clientPrivateKey = await jose.importPKCS8<CryptoKey>(
+    if (clientPrivateKey && typeof clientPrivateKey === "string") {
+      clientPrivateKey = await jose.importPKCS8(
         clientPrivateKey,
         this.clientAssertionSigningAlg
       );
     }
 
     return clientPrivateKey
-      ? oauth.PrivateKeyJwt(clientPrivateKey)
+      ? oauth.PrivateKeyJwt(clientPrivateKey as CryptoKey)
       : oauth.ClientSecretPost(this.clientSecret!);
   }
 

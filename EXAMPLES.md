@@ -9,6 +9,9 @@
   - [On the server (App Router)](#on-the-server-app-router)
   - [On the server (Pages Router)](#on-the-server-pages-router)
   - [Middleware](#middleware)
+- [Protecting a Server-Side Rendered (SSR) Page](#protecting-a-server-side-rendered-ssr-page)
+  - [Page Router](#page-router)
+  - [App Router](#app-router)
 - [Protecting a Client-Side Rendered (CSR) Page](#protecting-a-client-side-rendered-csr-page)
 - [Accessing the idToken](#accessing-the-idtoken)
 - [Updating the session](#updating-the-session)
@@ -27,6 +30,7 @@
   - [`onCallback`](#oncallback)
 - [Session configuration](#session-configuration)
 - [Cookie Configuration](#cookie-configuration)
+- [Transaction Cookie Configuration](#transaction-cookie-configuration)
 - [Database sessions](#database-sessions)
 - [Back-Channel Logout](#back-channel-logout)
 - [Combining middleware](#combining-middleware)
@@ -43,6 +47,9 @@
   - [On the server (App Router)](#on-the-server-app-router-3)
   - [On the server (Pages Router)](#on-the-server-pages-router-3)
   - [Middleware](#middleware-3)
+- [Customizing Auth Handlers](#customizing-auth-handlers)
+    - [Run custom code before Auth Handlers](#run-custom-code-before-auth-handlers)
+    - [Run code after callback](#run-code-after-callback)
 
 ## Passing authorization parameters
 
@@ -89,9 +96,9 @@ By default, the SDK uses OpenID Connect's RP-Initiated Logout when available, fa
 
 ```ts
 export const auth0 = new Auth0Client({
-  logoutStrategy: "auto", // default behavior
+  logoutStrategy: "auto" // default behavior
   // ... other config
-})
+});
 ```
 
 Available strategies:
@@ -112,9 +119,9 @@ The `"v2"` strategy is useful for applications that:
 ```ts
 // Example: Using v2 logout for wildcard URL support
 export const auth0 = new Auth0Client({
-  logoutStrategy: "v2",
+  logoutStrategy: "v2"
   // ... other config
-})
+});
 
 // This allows logout URLs like:
 // /auth/logout?returnTo=https://localhost:3000/en/dashboard
@@ -242,6 +249,43 @@ export async function middleware(request: NextRequest) {
 > [!IMPORTANT]  
 > The `request` object must be passed as a parameter to the `getSession(request)` method when called from a middleware to ensure that any updates to the session can be read within the same request.
 
+## Protecting a Server-Side Rendered (SSR) Page
+
+#### Page Router
+
+Requests to `/pages/profile` without a valid session cookie will be redirected to the login page.
+
+```jsx
+// pages/profile.js
+import { auth0 } from "@/lib/auth0";
+
+export default function Profile({ user }) {
+  return <div>Hello {user.name}</div>;
+}
+
+// You can optionally pass your own `getServerSideProps` function into
+// `withPageAuthRequired` and the props will be merged with the `user` prop
+export const getServerSideProps = auth0.withPageAuthRequired();
+```
+
+#### App Router
+
+Requests to `/profile` without a valid session cookie will be redirected to the login page.
+
+```jsx
+// app/profile/page.js
+import { auth0 } from "@/lib/auth0";
+
+export default auth0.withPageAuthRequired(
+  async function Profile() {
+    const { user } = await auth0.getSession();
+    return <div>Hello {user.name}</div>;
+  },
+  { returnTo: "/profile" }
+);
+// You need to provide a `returnTo` since Server Components aren't aware of the page's URL
+```
+
 ## Protecting a Client-Side Rendered (CSR) Page
 
 To protect a Client-Side Rendered (CSR) page, you can use the `withPageAuthRequired` higher-order function. Requests to `/profile` without a valid session cookie will be redirected to the login page.
@@ -254,6 +298,79 @@ import { withPageAuthRequired } from "@auth0/nextjs-auth0";
 
 export default withPageAuthRequired(function Page({ user }) {
   return <div>Hello, {user.name}!</div>;
+});
+```
+
+## Protect an API Route
+
+### Page Router
+
+Requests to `/api/protected` without a valid session cookie will fail with `401`.
+
+```js
+// pages/api/protected.js
+import { auth0 } from "@/lib/auth0";
+
+export default auth0.withApiAuthRequired(async function myApiRoute(req, res) {
+  const { user } = await auth0.getSession(req);
+  res.json({ protected: "My Secret", id: user.sub });
+});
+```
+
+Then you can access your API from the frontend with a valid session cookie.
+
+```jsx
+// pages/products
+import { withPageAuthRequired } from "@auth0/nextjs-auth0/client";
+import useSWR from "swr";
+
+const fetcher = async (uri) => {
+  const response = await fetch(uri);
+  return response.json();
+};
+
+export default withPageAuthRequired(function Products() {
+  const { data, error } = useSWR("/api/protected", fetcher);
+  if (error) return <div>oops... {error.message}</div>;
+  if (data === undefined) return <div>Loading...</div>;
+  return <div>{data.protected}</div>;
+});
+```
+
+### App Router
+
+Requests to `/api/protected` without a valid session cookie will fail with `401`.
+
+```js
+// app/api/protected/route.js
+import { auth0 } from "@/lib/auth0";
+
+export const GET = auth0.withApiAuthRequired(async function myApiRoute(req) {
+  const res = new NextResponse();
+  const { user } = await auth0.getSession(req);
+  return NextResponse.json({ protected: "My Secret", id: user.sub }, res);
+});
+```
+
+Then you can access your API from the frontend with a valid session cookie.
+
+```jsx
+// app/products/page.jsx
+"use client";
+
+import { withPageAuthRequired } from "@auth0/nextjs-auth0/client";
+import useSWR from "swr";
+
+const fetcher = async (uri) => {
+  const response = await fetch(uri);
+  return response.json();
+};
+
+export default withPageAuthRequired(function Products() {
+  const { data, error } = useSWR("/api/protected", fetcher);
+  if (error) return <div>oops... {error.message}</div>;
+  if (data === undefined) return <div>Loading...</div>;
+  return <div>{data.protected}</div>;
 });
 ```
 
@@ -845,6 +962,60 @@ export const auth0 = new Auth0Client({
 > [!INFO]
 > The `httpOnly` attribute for the session cookie is always set to `true` for security reasons and cannot be configured via options or environment variables.
 
+## Transaction Cookie Configuration
+
+### Customizing Transaction Cookie Expiration
+You can configure transaction cookies expiration by providing a `maxAge` proeprty for `transactionCookie`.
+
+```ts
+export const auth0 = new Auth0Client({
+  transactionCookie: {
+    maxAge: 1800, // 30 minutes (in seconds)
+    // ... other options
+  },
+}
+```
+Transaction cookies are used to maintain state during authentication flows. The SDK provides several configuration options to manage transaction cookie behavior and prevent cookie accumulation issues.
+
+### Transaction Management Modes
+
+**Parallel Transactions (Default)**
+```ts
+const authClient = new Auth0Client({
+  enableParallelTransactions: true // Default: allows multiple concurrent logins
+  // ... other options
+});
+```
+
+**Single Transaction Mode**
+```ts
+const authClient = new Auth0Client({
+  enableParallelTransactions: false // Only one active transaction at a time
+  // ... other options
+});
+```
+
+**Use Parallel Transactions (Default) When:**
+- Users might open multiple tabs and attempt to log in simultaneously
+- You want maximum compatibility with typical user behavior
+- Your application supports multiple concurrent authentication flows
+
+**Use Single Transaction Mode When:**
+- You want to prevent cookie accumulation issues in applications with frequent login attempts
+- You prefer simpler transaction management
+- Users typically don't need multiple concurrent login flows
+- You're experiencing cookie header size limits due to abandoned transaction cookies edge cases
+
+### Transaction Cookie Options
+
+| Option                     | Type                              | Description                                                                                                                                                                                                     |
+| -------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| cookieOptions.maxAge       | `number`                          | The expiration time for transaction cookies in seconds. Defaults to `3600` (1 hour). After this time, abandoned transaction cookies will expire automatically.                                                 |
+| cookieOptions.prefix       | `string`                          | The prefix for transaction cookie names. Defaults to `__txn_`. In parallel mode, cookies are named `__txn_{state}`. In single mode, just `__txn_`.                                                           |
+| cookieOptions.sameSite     | `"strict" \| "lax" \| "none"`     | Controls when the cookie is sent with cross-site requests. Defaults to `"lax"`.                                                                                                                                |
+| cookieOptions.secure       | `boolean`                         | When `true`, the cookie will only be sent over HTTPS connections. Automatically determined based on your application's base URL protocol if not specified.                                                     |
+| cookieOptions.path         | `string`                          | Specifies the URL path for which the cookie is valid. Defaults to `"/"`.                                                                                                                                       |
+
 ## Database sessions
 
 By default, the user's sessions are stored in encrypted cookies. You may choose to persist the sessions in your data store of choice.
@@ -1225,3 +1396,65 @@ export async function middleware(request: NextRequest) {
   return resWithCombinedHeaders;
 }
 ```
+
+## Customizing Auth Handlers
+
+Authentication routes (`/auth/login`, `/auth/logout`, `/auth/callback`) are handled automatically by the middleware. You can intercept these routes in your middleware to run custom logic before the auth handlers execute.
+
+This approach allows you to:
+- Run custom code before authentication actions (logging, analytics, validation)
+- Modify the response (set cookies, headers, etc.)
+- Implement custom redirects or early returns when needed
+- Add business logic around authentication flows
+- Maintain compatibility with existing tracking and analytics systems
+
+The middleware-based approach provides the same level of control as v3's custom handlers while working seamlessly with v4's automatic route handling.
+
+### Run custom code before Auth Handlers
+
+Following example shows how to run custom logic before the response of `logout` handler is returned:
+```ts
+export async function middleware(request) {
+
+    // prepare NextResponse object from auth0 middleware
+    const authRes = await auth0.middleware(request);
+
+    // The following interceptUrls can be used:
+    //    "/auth/login" : intercept login auth handler
+    //    "/auth/logout" : intercept logout auth handler
+    //    "/auth/callback" : intercept callback auth handler
+    //    "/your/login/returnTo/url" : intercept redirect after login, this is the login returnTo url
+    //    "/your/logout/returnTo/url" : intercept redirect after logout, this is the logout returnTo url
+
+    const interceptUrl = "/auth/logout";
+    
+    // intercept auth handler
+    if (request.nextUrl.pathname === interceptUrl) {
+        // do custom stuff
+        console.log("Pre-logout code")
+
+        // Example: Set a cookie
+        authRes.cookies.set('myCustomCookie', 'cookieValue', { path: '/' });
+        // Example: Set another cookie with options
+        authRes.cookies.set({
+            name: 'anotherCookie',
+            value: 'anotherValue',
+            httpOnly: true,
+            path: '/',
+        });
+
+        // Example: Delete a cookie
+        // authRes.cookies.delete('cookieNameToDelete');
+
+        // you can also do an early return here with your own NextResponse object
+        // return NextResponse.redirect(new URL('/custom-logout-page'));
+    }
+
+    // return the original auth0-handled NextResponse object
+    return authRes
+}
+```
+
+### Run code after callback
+Please refer to [onCallback](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#oncallback) 
+for details on how to run code after callback.

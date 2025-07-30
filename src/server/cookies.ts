@@ -44,20 +44,27 @@ export async function decrypt<T>(
   secret: string,
   options?: jose.JWTDecryptOptions
 ) {
-  const encryptionSecret = await hkdf(
-    DIGEST,
-    secret,
-    "",
-    ENCRYPTION_INFO,
-    BYTE_LENGTH
-  );
+  try {
+    const encryptionSecret = await hkdf(
+      DIGEST,
+      secret,
+      "",
+      ENCRYPTION_INFO,
+      BYTE_LENGTH
+    );
 
-  const cookie = await jose.jwtDecrypt<T>(cookieValue, encryptionSecret, {
-    ...options,
-    ...{ clockTolerance: 15 }
-  });
+    const cookie = await jose.jwtDecrypt<T>(cookieValue, encryptionSecret, {
+      ...options,
+      ...{ clockTolerance: 15 }
+    });
 
-  return cookie;
+    return cookie;
+  } catch (e: any) {
+    if (e.code === "ERR_JWT_EXPIRED") {
+      return null;
+    }
+    throw e;
+  }
 }
 
 /**
@@ -220,7 +227,10 @@ export function setChunkedCookie(
     // When we are writing a non-chunked cookie, we should remove the chunked cookies
     // Remove any previously stored chunks for this cookie name
     getAllChunkedCookies(reqCookies, name).forEach((cookieChunk) => {
-      deleteCookie(resCookies, cookieChunk.name);
+      deleteCookie(resCookies, cookieChunk.name, {
+        path: finalOptions.path,
+        domain: finalOptions.domain
+      });
       reqCookies.delete(cookieChunk.name);
     });
 
@@ -249,13 +259,19 @@ export function setChunkedCookie(
     for (let i = 0; i < chunksToRemove; i++) {
       const chunkIndexToRemove = chunkIndex + i;
       const chunkName = `${name}${CHUNK_PREFIX}${chunkIndexToRemove}`;
-      deleteCookie(resCookies, chunkName);
+      deleteCookie(resCookies, chunkName, {
+        path: finalOptions.path,
+        domain: finalOptions.domain
+      });
       reqCookies.delete(chunkName);
     }
   }
 
   // When we have written chunked cookies, we should remove the non-chunked cookie
-  deleteCookie(resCookies, name);
+  deleteCookie(resCookies, name, {
+    path: finalOptions.path,
+    domain: finalOptions.domain
+  });
   reqCookies.delete(name);
 }
 

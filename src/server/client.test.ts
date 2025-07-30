@@ -214,4 +214,105 @@ describe("Auth0Client", () => {
       expect(mockSaveToSession).not.toHaveBeenCalled();
     });
   });
+
+  describe("constructor configuration", () => {
+    beforeEach(() => {
+      // Set necessary environment variables
+      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
+      process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
+      process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
+      process.env[ENV_VARS.APP_BASE_URL] = "https://myapp.test";
+      process.env[ENV_VARS.SECRET] = "test_secret";
+    });
+
+    it("should pass transactionCookie.maxAge to TransactionStore", () => {
+      const customMaxAge = 1800; // 30 minutes
+
+      const client = new Auth0Client({
+        transactionCookie: {
+          maxAge: customMaxAge
+        }
+      });
+
+      // Verify that the TransactionStore was created with the correct maxAge
+      // We need to access the private property for testing
+      const transactionStore = (client as any).transactionStore;
+      expect(transactionStore).toBeDefined();
+
+      // Check the cookieOptions maxAge - we need to verify it was set correctly
+      const cookieOptions = (transactionStore as any).cookieOptions;
+      expect(cookieOptions.maxAge).toBe(customMaxAge);
+    });
+
+    it("should use default maxAge of 3600 when not specified", () => {
+      const client = new Auth0Client();
+
+      // Verify that the TransactionStore was created with the default maxAge
+      const transactionStore = (client as any).transactionStore;
+      expect(transactionStore).toBeDefined();
+
+      // Check the cookieOptions maxAge
+      const cookieOptions = (transactionStore as any).cookieOptions;
+      expect(cookieOptions.maxAge).toBe(3600);
+    });
+
+    it("should pass other transactionCookie options to TransactionStore", () => {
+      const customOptions = {
+        prefix: "__custom_txn_",
+        secure: true,
+        sameSite: "strict" as const,
+        path: "/auth",
+        maxAge: 2700
+      };
+
+      const client = new Auth0Client({
+        transactionCookie: customOptions
+      });
+
+      // Verify that the TransactionStore was created with the correct options
+      const transactionStore = (client as any).transactionStore;
+      expect(transactionStore).toBeDefined();
+
+      const cookieOptions = (transactionStore as any).cookieOptions;
+      expect(cookieOptions.maxAge).toBe(customOptions.maxAge);
+      expect((transactionStore as any).transactionCookiePrefix).toBe(
+        customOptions.prefix
+      );
+
+      // Note: secure and sameSite are stored in cookieOptions
+      expect(cookieOptions.secure).toBe(customOptions.secure);
+      expect(cookieOptions.sameSite).toBe(customOptions.sameSite);
+      expect(cookieOptions.path).toBe(customOptions.path);
+    });
+
+    it("should pass enableParallelTransactions to TransactionStore", () => {
+      const client = new Auth0Client({
+        enableParallelTransactions: false
+      });
+
+      // Verify that the TransactionStore was created with the correct enableParallelTransactions
+      const transactionStore = (client as any).transactionStore;
+      expect(transactionStore).toBeDefined();
+
+      const enableParallelTransactions = (transactionStore as any)
+        .enableParallelTransactions;
+      expect(enableParallelTransactions).toBe(false);
+    });
+
+    it("should default enableParallelTransactions to true when not specified", () => {
+      const client = new Auth0Client();
+
+      // Verify that the TransactionStore was created with the default enableParallelTransactions
+      const transactionStore = (client as any).transactionStore;
+      expect(transactionStore).toBeDefined();
+
+      const enableParallelTransactions = (transactionStore as any)
+        .enableParallelTransactions;
+      expect(enableParallelTransactions).toBe(true);
+    });
+  });
 });
+
+export type GetAccessTokenOptions = {
+  refresh?: boolean;
+};
