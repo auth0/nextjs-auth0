@@ -1,5 +1,23 @@
 # Change Log
 
+## [v4.9.0](https://github.com/auth0/nextjs-auth0/tree/v4.9.0) (2025-08-01)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.8.0...v4.9.0)
+
+**Added**
+- feat: Allow configuring transaction cookie maxAge [\#2245](https://github.com/auth0/nextjs-auth0/pull/2245) ([tusharpandey13](https://github.com/tusharpandey13))
+- feat: Add flag to control parallel transactions [\#2244](https://github.com/auth0/nextjs-auth0/pull/2244) ([tusharpandey13](https://github.com/tusharpandey13))
+- feat: add support for `withApiAuthRequired` helper [\#2230](https://github.com/auth0/nextjs-auth0/pull/2230) ([guabu](https://github.com/guabu))
+- feat: add `withPageAuthRequired` for server [\#2207](https://github.com/auth0/nextjs-auth0/pull/2207) ([guabu](https://github.com/guabu))
+
+**Fixed**
+- bugfix: respect path configuration when deleting cookies [\#2250](https://github.com/auth0/nextjs-auth0/pull/2250) ([tusharpandey13](https://github.com/tusharpandey13))
+- bugfix: Clear cookies with the correct path when basePath is used [\#2232](https://github.com/auth0/nextjs-auth0/pull/2232) ([tusharpandey13](https://github.com/tusharpandey13))
+- bugfix: Fix `clientAssertionSigningKey` type mismatch [\#2243](https://github.com/auth0/nextjs-auth0/pull/2243) ([tusharpandey13](https://github.com/tusharpandey13))
+- fix: correctly handle expired JWE's in cookies [\#2082](https://github.com/auth0/nextjs-auth0/pull/2082) ([frederikprijck](https://github.com/frederikprijck))
+
+**Security**
+- chore: pin eslint-config-prettier and eslint-plugin-prettier versions to prevent malicious package installation [\#2239](https://github.com/auth0/nextjs-auth0/pull/2239) ([tusharpandey13](https://github.com/tusharpandey13))
+
 ## [v4.8.0](https://github.com/auth0/nextjs-auth0/tree/v4.8.0) (2025-07-03)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.7.0...v4.8.0)
 
