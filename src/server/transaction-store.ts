@@ -37,6 +37,12 @@ export interface TransactionCookieOptions {
    */
   path?: string;
   /**
+   * Specifies the value for the {@link https://tools.ietf.org/html/rfc6265#section-5.2.3|Domain Set-Cookie attribute}. By default, no
+   * domain is set, and most clients will consider the cookie to apply to only
+   * the current domain.
+   */
+  domain?: string;
+  /**
    * The expiration time for transaction cookies in seconds.
    * If not provided, defaults to 1 hour (3600 seconds).
    *
@@ -82,6 +88,7 @@ export class TransactionStore {
       sameSite: cookieOptions?.sameSite ?? "lax", // required to allow the cookie to be sent on the callback request
       secure: cookieOptions?.secure ?? false,
       path: cookieOptions?.path ?? "/",
+      domain: cookieOptions?.domain,
       maxAge: cookieOptions?.maxAge || 60 * 60 // 1 hour in seconds
     };
     this.enableParallelTransactions = enableParallelTransactions ?? true;
@@ -164,11 +171,10 @@ export class TransactionStore {
   }
 
   async delete(resCookies: cookies.ResponseCookies, state: string) {
-    cookies.deleteCookie(
-      resCookies,
-      this.getTransactionCookieName(state),
-      this.cookieOptions.path
-    );
+    cookies.deleteCookie(resCookies, this.getTransactionCookieName(state), {
+      domain: this.cookieOptions.domain,
+      path: this.cookieOptions.path
+    });
   }
 
   /**
@@ -179,9 +185,14 @@ export class TransactionStore {
     resCookies: cookies.ResponseCookies
   ) {
     const txnPrefix = this.getCookiePrefix();
+    const deleteOptions = {
+      domain: this.cookieOptions.domain,
+      path: this.cookieOptions.path
+    };
+
     reqCookies.getAll().forEach((cookie) => {
       if (cookie.name.startsWith(txnPrefix)) {
-        cookies.deleteCookie(resCookies, cookie.name, this.cookieOptions.path);
+        cookies.deleteCookie(resCookies, cookie.name, deleteOptions);
       }
     });
   }

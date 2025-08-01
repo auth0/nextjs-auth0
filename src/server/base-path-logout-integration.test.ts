@@ -141,7 +141,7 @@ describe("Base path and cookie configuration tests", () => {
     });
 
     it("should delete cookie with specified path", () => {
-      deleteCookie(mockResCookies, "test-cookie", "/dashboard");
+      deleteCookie(mockResCookies, "test-cookie", { path: "/dashboard" });
 
       const cookieHeader = mockResCookies.toString();
       expect(cookieHeader).toContain("test-cookie=");
@@ -150,7 +150,7 @@ describe("Base path and cookie configuration tests", () => {
     });
 
     it("should delete cookie with root path explicitly", () => {
-      deleteCookie(mockResCookies, "test-cookie", "/");
+      deleteCookie(mockResCookies, "test-cookie", { path: "/" });
 
       const cookieHeader = mockResCookies.toString();
       expect(cookieHeader).toContain("test-cookie=");
@@ -171,7 +171,7 @@ describe("Base path and cookie configuration tests", () => {
         mockReqCookies,
         mockResCookies,
         false,
-        "/dashboard"
+        { path: "/dashboard" }
       );
 
       const cookieHeader = mockResCookies.toString();
@@ -373,7 +373,9 @@ describe("Base path and cookie configuration tests", () => {
     });
 
     it("should handle empty path correctly", () => {
-      deleteCookie(new ResponseCookies(new Headers()), "test-cookie", "");
+      deleteCookie(new ResponseCookies(new Headers()), "test-cookie", {
+        path: ""
+      });
 
       // Should not throw and should create valid cookie deletion
       expect(true).toBe(true);
