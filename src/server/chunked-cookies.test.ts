@@ -340,6 +340,7 @@ describe("Chunked Cookie Utils", () => {
         expect.objectContaining({ domain: "example.com" })
       );
       expect(resCookies.set).toHaveBeenNthCalledWith(4, name, "", {
+        domain: "example.com",
         maxAge: 0,
         path: "/"
       });
@@ -560,8 +561,7 @@ describe("Chunked Cookie Utils", () => {
         deleteChunkedCookie(name, reqCookies, resCookies);
 
         expect(resCookies.set).toHaveBeenCalledWith(name, "", {
-          maxAge: 0,
-          path: "/"
+          maxAge: 0
         });
       });
 
@@ -581,25 +581,20 @@ describe("Chunked Cookie Utils", () => {
         // Should delete main cookie and 3 chunks
         expect(resCookies.set).toHaveBeenCalledTimes(4);
         expect(resCookies.set).toHaveBeenCalledWith(name, "", {
-          maxAge: 0,
-          path: "/"
+          maxAge: 0
         });
         expect(resCookies.set).toHaveBeenCalledWith(`${name}__0`, "", {
-          maxAge: 0,
-          path: "/"
+          maxAge: 0
         });
         expect(resCookies.set).toHaveBeenCalledWith(`${name}__1`, "", {
-          maxAge: 0,
-          path: "/"
+          maxAge: 0
         });
         expect(resCookies.set).toHaveBeenCalledWith(`${name}__2`, "", {
-          maxAge: 0,
-          path: "/"
+          maxAge: 0
         });
         // Should not delete unrelated cookies
         expect(resCookies.set).not.toHaveBeenCalledWith("otherCookie", "", {
-          maxAge: 0,
-          path: "/"
+          maxAge: 0
         });
       });
     });

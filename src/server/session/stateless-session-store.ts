@@ -141,7 +141,10 @@ export class StatelessSessionStore extends AbstractSessionStore {
       reqCookies,
       resCookies,
       true,
-      this.cookieConfig.path
+      {
+        domain: this.cookieConfig.domain,
+        path: this.cookieConfig.path
+      }
     );
   }
 
@@ -149,16 +152,21 @@ export class StatelessSessionStore extends AbstractSessionStore {
     reqCookies: cookies.RequestCookies,
     resCookies: cookies.ResponseCookies
   ) {
+    const deleteOptions = {
+      domain: this.cookieConfig.domain,
+      path: this.cookieConfig.path
+    };
+
     cookies.deleteChunkedCookie(
       this.sessionCookieName,
       reqCookies,
       resCookies,
       false,
-      this.cookieConfig.path
+      deleteOptions
     );
 
     this.getConnectionTokenSetsCookies(reqCookies).forEach((cookie) =>
-      cookies.deleteCookie(resCookies, cookie.name, this.cookieConfig.path)
+      cookies.deleteCookie(resCookies, cookie.name, deleteOptions)
     );
   }
 
