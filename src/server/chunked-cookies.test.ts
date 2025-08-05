@@ -170,7 +170,8 @@ describe("Chunked Cookie Utils", () => {
 
       // Check removal of non-chunked cookie
       expect(resCookies.set).toHaveBeenCalledWith(name, "", {
-        maxAge: 0
+        maxAge: 0,
+        path: "/"
       });
     });
 
@@ -193,13 +194,16 @@ describe("Chunked Cookie Utils", () => {
       expect(resCookies.set).toHaveBeenCalledTimes(4);
       expect(resCookies.set).toHaveBeenNthCalledWith(1, name, value, options);
       expect(resCookies.set).toHaveBeenNthCalledWith(2, `${name}__1`, "", {
-        maxAge: 0
+        maxAge: 0,
+        path: "/"
       });
       expect(resCookies.set).toHaveBeenNthCalledWith(3, `${name}__0`, "", {
-        maxAge: 0
+        maxAge: 0,
+        path: "/"
       });
       expect(resCookies.set).toHaveBeenNthCalledWith(4, `${name}__2`, "", {
-        maxAge: 0
+        maxAge: 0,
+        path: "/"
       });
       expect(reqCookies.set).toHaveBeenCalledTimes(1);
       expect(reqCookies.set).toHaveBeenCalledWith(name, value);
@@ -244,7 +248,8 @@ describe("Chunked Cookie Utils", () => {
         options
       );
       expect(resCookies.set).toHaveBeenNthCalledWith(4, name, "", {
-        maxAge: 0
+        maxAge: 0,
+        path: "/"
       });
       expect(reqCookies.set).toHaveBeenCalledTimes(3);
     });
@@ -335,7 +340,9 @@ describe("Chunked Cookie Utils", () => {
         expect.objectContaining({ domain: "example.com" })
       );
       expect(resCookies.set).toHaveBeenNthCalledWith(4, name, "", {
-        maxAge: 0
+        domain: "example.com",
+        maxAge: 0,
+        path: "/"
       });
     });
 
@@ -405,7 +412,8 @@ describe("Chunked Cookie Utils", () => {
         expectedOptions
       );
       expect(resCookies.set).toHaveBeenNthCalledWith(4, name, "", {
-        maxAge: 0
+        maxAge: 0,
+        path: "/"
       });
       expect(resCookies.set).not.toHaveBeenCalledWith(
         expect.any(String),
@@ -478,7 +486,8 @@ describe("Chunked Cookie Utils", () => {
         expectedOptions
       );
       expect(resCookies.set).toHaveBeenNthCalledWith(4, name, "", {
-        maxAge: 0
+        maxAge: 0,
+        path: "/"
       });
     });
 
