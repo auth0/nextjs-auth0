@@ -20,6 +20,9 @@ importers:
       oauth4webapi:
         specifier: ^3.1.2
         version: 3.5.3
+      openid-client:
+        specifier: ^6.6.2
+        version: 6.6.2
       react:
         specifier: ^18.0.0 || ^19.0.0 || ^19.0.0-0
         version: 19.0.0
@@ -1864,6 +1867,9 @@ packages:
   oauth4webapi@3.5.3:
     resolution: {integrity: sha512-2bnHosmBLAQpXNBLOvaJMyMkr4Yya5ohE5Q9jqyxiN+aa7GFCzvDN1RRRMrp0NkfqRR2MTaQNkcSUCCjILD9oQ==}
 
+  oauth4webapi@3.6.1:
+    resolution: {integrity: sha512-b39+drVyA4aNUptFOhkkmGWnG/BE7dT29SW/8PVYElqp7j/DBqzm5SS1G+MUD07XlTcBOAG+6Cb/35Cx2kHIuQ==}
+
   object-assign@4.1.1:
     resolution: {integrity: sha512-rJgTQnkUnH1sFw8yT6VSU3zD3sWmu6sZhIseY8VX+GRu3P6F7Fu+JNDoXfklElbLJSnc3FUQHVe4cU5hj+BcUg==}
     engines: {node: '>=0.10.0'}
@@ -1891,6 +1897,9 @@ packages:
   object.values@1.2.1:
     resolution: {integrity: sha512-gXah6aZrcUxjWg2zR2MwouP2eHlCBzdV4pygudehaKXSGW4v2AsRQUK+lwwXhii6KFZcunEnmSUoYp5CXibxtA==}
     engines: {node: '>= 0.4'}
+
+  openid-client@6.6.2:
+    resolution: {integrity: sha512-Xya5TNMnnZuTM6DbHdB4q0S3ig2NTAELnii/ASie1xDEr8iiB8zZbO871OWBdrw++sd3hW6bqWjgcmSy1RTWHA==}
 
   optionator@0.9.4:
     resolution: {integrity: sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g==}
@@ -4385,6 +4394,8 @@ snapshots:
 
   oauth4webapi@3.5.3: {}
 
+  oauth4webapi@3.6.1: {}
+
   object-assign@4.1.1: {}
 
   object-inspect@1.13.4: {}
@@ -4420,6 +4431,11 @@ snapshots:
       call-bound: 1.0.4
       define-properties: 1.2.1
       es-object-atoms: 1.1.1
+
+  openid-client@6.6.2:
+    dependencies:
+      jose: 6.0.11
+      oauth4webapi: 3.6.1
 
   optionator@0.9.4:
     dependencies:

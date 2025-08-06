@@ -152,3 +152,35 @@ export interface AccessTokenForConnectionOptions {
  * Logout strategy options for controlling logout endpoint selection.
  */
 export type LogoutStrategy = "auto" | "oidc" | "v2";
+
+export interface BackchannelAuthenticationOptions {
+  /**
+   * Human-readable message to be displayed at the consumption device and authentication device.
+   * This allows the user to ensure the transaction initiated by the consumption device is the same that triggers the action on the authentication device.
+   */
+  bindingMessage: string;
+  /**
+   * The login hint to inform which user to use.
+   */
+  loginHint: {
+    /**
+     * The `sub` claim of the user that is trying to login using Client-Initiated Backchannel Authentication, and to which a push notification to authorize the login will be sent.
+     */
+    sub: string;
+  };
+  /**
+   * Authorization Parameters to be sent with the authorization request.
+   */
+  authorizationParams?: AuthorizationParameters;
+}
+
+export interface BackchannelAuthenticationResponse {
+  tokenSet: TokenSet;
+  idTokenClaims?: { [key: string]: any };
+  authorizationDetails?: AuthorizationDetails[];
+}
+
+export interface AuthorizationDetails {
+  readonly type: string;
+  readonly [parameter: string]: unknown;
+}
