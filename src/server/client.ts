@@ -744,7 +744,7 @@ export class Auth0Client {
    * Using Client-Initiated Backchannel Authentication requires the feature to be enabled in the Auth0 dashboard.
    * @see https://auth0.com/docs/get-started/authentication-and-authorization-flow/client-initiated-backchannel-authentication-flow
    */
-  async backchannelLogin(options: BackchannelAuthenticationOptions) {
+  async backchannelAuthentication(options: BackchannelAuthenticationOptions) {
     const [error, response] =
       await this.authClient.backchannelAuthentication(options);
 
