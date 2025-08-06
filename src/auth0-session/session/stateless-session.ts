@@ -1,10 +1,10 @@
 import * as jose from 'jose';
-import { CookieSerializeOptions, serialize } from 'cookie';
+import { serialize } from 'cookie';
 import createDebug from '../utils/debug';
 import { Config } from '../config';
 import { Cookies } from '../utils/cookies';
 import { encryption } from '../utils/hkdf';
-import { AbstractSession, Header, SessionPayload } from './abstract-session';
+import { AbstractSession, Header, SessionPayload, ExtendedCookieOptions } from './abstract-session';
 
 const debug = createDebug('stateless-session');
 
@@ -28,8 +28,9 @@ export class StatelessSession<
       cookie: { transient, ...cookieConfig },
       name: sessionName
     } = this.config.session;
-    const cookieOptions: CookieSerializeOptions = {
-      ...cookieConfig
+    const cookieOptions: ExtendedCookieOptions = {
+      ...cookieConfig,
+      partitioned: true
     };
     if (!transient) {
       cookieOptions.expires = new Date();
@@ -112,7 +113,8 @@ export class StatelessSession<
     uat: number,
     iat: number,
     exp: number,
-    cookieOptions: CookieSerializeOptions
+    cookieOptions: ExtendedCookieOptions,
+    _isNewSession: boolean
   ): Promise<void> {
     const { name: sessionName } = this.config.session;
     const cookieSetter = new this.Cookies();
@@ -146,7 +148,7 @@ export class StatelessSession<
     cookieSetter.commit(res, this.config.session.name);
   }
 
-  async deleteSession(req: Req, res: Res, cookieOptions: CookieSerializeOptions): Promise<void> {
+  async deleteSession(req: Req, res: Res, cookieOptions: ExtendedCookieOptions): Promise<void> {
     const { name: sessionName } = this.config.session;
     const cookieSetter = new this.Cookies();
     const cookies = cookieSetter.getAll(req);
