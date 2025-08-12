@@ -1,3 +1,5 @@
+import { SUBJECT_TOKEN_TYPES } from "../server/constants.js";
+
 export interface TokenSet {
   accessToken: string;
   idToken?: string;
@@ -146,6 +148,11 @@ export interface AccessTokenForConnectionOptions {
    * An optional login hint to pass to the authorization server.
    */
   login_hint?: string;
+
+  /**
+   * An optional subject token type parameter to pass to the authorization server.
+   */
+  subject_token_type?: SUBJECT_TOKEN_TYPES;
 }
 
 /**

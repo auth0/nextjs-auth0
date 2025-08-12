@@ -36,6 +36,11 @@ import {
   removeTrailingSlash
 } from "../utils/pathUtils.js";
 import { toSafeRedirect } from "../utils/url-helpers.js";
+import {
+  GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN,
+  REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN,
+  SUBJECT_TOKEN_TYPES
+} from "./constants.js";
 import { addCacheControlHeadersForSession } from "./cookies.js";
 import { AbstractSessionStore } from "./session/abstract-session-store.js";
 import { TransactionState, TransactionStore } from "./transaction-store.js";
@@ -69,35 +74,6 @@ const INTERNAL_AUTHORIZE_PARAMS = [
 const DEFAULT_SCOPES = ["openid", "profile", "email", "offline_access"].join(
   " "
 );
-
-/**
- * A constant representing the grant type for federated connection access token exchange.
- *
- * This grant type is used in OAuth token exchange scenarios where a federated connection
- * access token is required. It is specific to Auth0's implementation and follows the
- * "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token" format.
- */
-const GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN =
-  "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token";
-
-/**
- * Constant representing the subject type for a refresh token.
- * This is used in OAuth 2.0 token exchange to specify that the token being exchanged is a refresh token.
- *
- * @see {@link https://tools.ietf.org/html/rfc8693#section-3.1 RFC 8693 Section 3.1}
- */
-const SUBJECT_TYPE_REFRESH_TOKEN =
-  "urn:ietf:params:oauth:token-type:refresh_token";
-
-/**
- * A constant representing the token type for federated connection access tokens.
- * This is used to specify the type of token being requested from Auth0.
- *
- * @constant
- * @type {string}
- */
-const REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN =
-  "http://auth0.com/oauth/token-type/federated-connection-access-token";
 
 export interface Routes {
   login: string;
@@ -1154,11 +1130,25 @@ export class AuthClient {
   ): Promise<
     [AccessTokenForConnectionError, null] | [null, ConnectionTokenSet]
   > {
+    const subjectTokenType =
+      options.subject_token_type ??
+      SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_REFRESH_TOKEN;
+    let token = null;
+
+    if (subjectTokenType === SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_REFRESH_TOKEN) {
+      token = tokenSet.refreshToken;
+    } else if (
+      subjectTokenType === SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_ACCESS_TOKEN
+    ) {
+      token = tokenSet.accessToken;
+    }
+
     // If we do not have a refresh token
     // and we do not have a connection token set in the cache or the one we have is expired,
     // there is noting to retrieve and we return an error.
     if (
       !tokenSet.refreshToken &&
+      subjectTokenType === SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_REFRESH_TOKEN &&
       (!connectionTokenSet || connectionTokenSet.expiresAt <= Date.now() / 1000)
     ) {
       return [
@@ -1170,18 +1160,35 @@ export class AuthClient {
       ];
     }
 
-    // If we do have a refresh token,
+    // If we do not have an access token
+    // and we do not have a connection token set in the cache or the one we have is expired,
+    // there is noting to retrieve and we return an error.
+    if (
+      !tokenSet.accessToken &&
+      subjectTokenType === SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_ACCESS_TOKEN &&
+      (!connectionTokenSet || connectionTokenSet.expiresAt <= Date.now() / 1000)
+    ) {
+      return [
+        new AccessTokenForConnectionError(
+          AccessTokenForConnectionErrorCode.MISSING_ACCESS_TOKEN,
+          "An access token was not present, Token Vault requires either a refresh or access token. The user needs to re-authenticate."
+        ),
+        null
+      ];
+    }
+
+    // If we do have a subject token,
     // and we do not have a connection token set in the cache or the one we have is expired,
     // we need to exchange the refresh token for a connection access token.
     if (
-      tokenSet.refreshToken &&
+      token &&
       (!connectionTokenSet || connectionTokenSet.expiresAt <= Date.now() / 1000)
     ) {
       const params = new URLSearchParams();
 
       params.append("connection", options.connection);
-      params.append("subject_token_type", SUBJECT_TYPE_REFRESH_TOKEN);
-      params.append("subject_token", tokenSet.refreshToken);
+      params.append("subject_token_type", subjectTokenType);
+      params.append("subject_token", token);
       params.append(
         "requested_token_type",
         REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN
@@ -1218,10 +1225,28 @@ export class AuthClient {
           httpResponse
         );
       } catch (err: any) {
+        // to maintain backwards compatability, we need to return the FAILED_TO_EXCHANGE error code
+        // when the subject token type is a refresh token
+        if (
+          subjectTokenType === SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_ACCESS_TOKEN
+        ) {
+          return [
+            new AccessTokenForConnectionError(
+              AccessTokenForConnectionErrorCode.FAILED_TO_EXCHANGE_ACCESS_TOKEN,
+              "There was an error trying to exchange the subject token for a connection access token.",
+              new OAuth2Error({
+                code: err.error,
+                message: err.error_description
+              })
+            ),
+            null
+          ];
+        }
+
         return [
           new AccessTokenForConnectionError(
             AccessTokenForConnectionErrorCode.FAILED_TO_EXCHANGE,
-            "There was an error trying to exchange the refresh token for a connection access token.",
+            "There was an error trying to exchange the subject token for a connection access token.",
             new OAuth2Error({
               code: err.error,
               message: err.error_description

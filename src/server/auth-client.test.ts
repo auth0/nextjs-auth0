@@ -5,8 +5,13 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { getDefaultRoutes } from "../test/defaults.js";
 import { generateSecret } from "../test/utils.js";
-import { SessionData } from "../types/index.js";
+import { SessionData, TokenSet } from "../types/index.js";
 import { AuthClient } from "./auth-client.js";
+import {
+  GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN,
+  REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN,
+  SUBJECT_TOKEN_TYPES
+} from "./constants.js";
 import { decrypt, encrypt } from "./cookies.js";
 import { StatefulSessionStore } from "./session/stateful-session-store.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
@@ -60,6 +65,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     tokenEndpointResponse,
     tokenEndpointErrorResponse,
     tokenEndpointFetchError,
+    onTokenEndpointRequest,
     discoveryResponse,
     audience,
     nonce,
@@ -69,6 +75,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     tokenEndpointResponse?: oauth.TokenEndpointResponse | oauth.OAuth2Error;
     tokenEndpointErrorResponse?: oauth.OAuth2Error;
     tokenEndpointFetchError?: Error;
+    onTokenEndpointRequest?: (request: Request) => Promise<void>;
     discoveryResponse?: Response;
     audience?: string;
     nonce?: string;
@@ -89,6 +96,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
 
         if (url.pathname === "/oauth/token") {
+          if (onTokenEndpointRequest) {
+            await onTokenEndpointRequest(new Request(input, init));
+          }
+
           if (tokenEndpointFetchError) {
             throw tokenEndpointFetchError;
           }
@@ -5403,7 +5414,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(fetchSpy).not.toHaveBeenCalled();
     });
 
-    it("should call for an access token when connection token set in the session is expired", async () => {
+    it("should use the refresh token to request a connection access token when connection token set in the session is expired", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({
         secret
@@ -5416,7 +5427,25 @@ ca/T0LLtgmbMmxSv/MmzIg==
           token_type: "Bearer",
           access_token: DEFAULT.accessToken,
           expires_in: 86400 // expires in 10 days
-        } as oauth.TokenEndpointResponse
+        } as oauth.TokenEndpointResponse,
+        async onTokenEndpointRequest(req) {
+          const body = await req.formData();
+          console.log(body);
+
+          expect(body.get("connection")).toEqual("google-oauth2");
+          expect(body.get("subject_token_type")).toEqual(
+            SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_REFRESH_TOKEN
+          );
+          expect(body.get("subject_token")).toEqual(DEFAULT.refreshToken);
+          expect(body.get("requested_token_type")).toEqual(
+            REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN
+          );
+          expect(body.get("grant_type")).toEqual(
+            GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN
+          );
+          expect(body.get("client_id")).toEqual(DEFAULT.clientId);
+          expect(body.get("client_secret")).toEqual(DEFAULT.clientSecret);
+        }
       });
       const authClient = new AuthClient({
         transactionStore,
@@ -5445,6 +5474,81 @@ ca/T0LLtgmbMmxSv/MmzIg==
         tokenSet,
         { connection: "google-oauth2", accessToken: "fc_at", expiresAt },
         { connection: "google-oauth2", login_hint: "000100123" }
+      );
+      const [error, connectionTokenSet] = response;
+      expect(error).toBe(null);
+      expect(connectionTokenSet).toEqual({
+        accessToken: DEFAULT.accessToken,
+        connection: "google-oauth2",
+        expiresAt: expect.any(Number)
+      });
+      expect(fetchSpy).toHaveBeenCalled();
+    });
+
+    it("should use the access token to request a connection access token when connection token set in the session is expired", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const fetchSpy = getMockAuthorizationServer({
+        tokenEndpointResponse: {
+          token_type: "Bearer",
+          access_token: DEFAULT.accessToken,
+          expires_in: 86400 // expires in 10 days
+        } as oauth.TokenEndpointResponse,
+        async onTokenEndpointRequest(req) {
+          const body = await req.formData();
+          console.log(body);
+
+          expect(body.get("connection")).toEqual("google-oauth2");
+          expect(body.get("subject_token_type")).toEqual(
+            SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_ACCESS_TOKEN
+          );
+          expect(body.get("subject_token")).toEqual(DEFAULT.accessToken);
+          expect(body.get("requested_token_type")).toEqual(
+            REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN
+          );
+          expect(body.get("grant_type")).toEqual(
+            GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN
+          );
+          expect(body.get("client_id")).toEqual(DEFAULT.clientId);
+          expect(body.get("client_secret")).toEqual(DEFAULT.clientSecret);
+        }
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: fetchSpy
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) - 10 * 24 * 60 * 60; // expired 10 days ago
+      const tokenSet = {
+        accessToken: DEFAULT.accessToken,
+        refreshToken: DEFAULT.refreshToken,
+        expiresAt
+      };
+
+      const response = await authClient.getConnectionTokenSet(
+        tokenSet,
+        { connection: "google-oauth2", accessToken: "fc_at", expiresAt },
+        {
+          connection: "google-oauth2",
+          login_hint: "000100123",
+          subject_token_type: SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_ACCESS_TOKEN
+        }
       );
       const [error, connectionTokenSet] = response;
       expect(error).toBe(null);
@@ -5532,6 +5636,45 @@ ca/T0LLtgmbMmxSv/MmzIg==
           connection: "google-oauth2"
         });
       expect(error?.code).toEqual("missing_refresh_token");
+      expect(connectionTokenSet).toBeNull();
+    });
+
+    it("should return an error if the token set does not contain an access token", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: getMockAuthorizationServer()
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) - 10 * 24 * 60 * 60; // expired 10 days ago
+      const tokenSet = {
+        refreshToken: DEFAULT.refreshToken,
+        expiresAt
+      } as TokenSet;
+
+      const [error, connectionTokenSet] =
+        await authClient.getConnectionTokenSet(tokenSet, undefined, {
+          connection: "google-oauth2",
+          subject_token_type: SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_ACCESS_TOKEN
+        });
+      expect(error?.code).toEqual("missing_access_token");
       expect(connectionTokenSet).toBeNull();
     });
 
