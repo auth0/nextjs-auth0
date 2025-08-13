@@ -30,6 +30,7 @@
   - [`onCallback`](#oncallback)
 - [Session configuration](#session-configuration)
 - [Cookie Configuration](#cookie-configuration)
+- [Transaction Cookie Configuration](#transaction-cookie-configuration)
 - [Database sessions](#database-sessions)
 - [Back-Channel Logout](#back-channel-logout)
 - [Combining middleware](#combining-middleware)
@@ -960,6 +961,60 @@ export const auth0 = new Auth0Client({
 
 > [!INFO]
 > The `httpOnly` attribute for the session cookie is always set to `true` for security reasons and cannot be configured via options or environment variables.
+
+## Transaction Cookie Configuration
+
+### Customizing Transaction Cookie Expiration
+You can configure transaction cookies expiration by providing a `maxAge` proeprty for `transactionCookie`.
+
+```ts
+export const auth0 = new Auth0Client({
+  transactionCookie: {
+    maxAge: 1800, // 30 minutes (in seconds)
+    // ... other options
+  },
+}
+```
+Transaction cookies are used to maintain state during authentication flows. The SDK provides several configuration options to manage transaction cookie behavior and prevent cookie accumulation issues.
+
+### Transaction Management Modes
+
+**Parallel Transactions (Default)**
+```ts
+const authClient = new Auth0Client({
+  enableParallelTransactions: true // Default: allows multiple concurrent logins
+  // ... other options
+});
+```
+
+**Single Transaction Mode**
+```ts
+const authClient = new Auth0Client({
+  enableParallelTransactions: false // Only one active transaction at a time
+  // ... other options
+});
+```
+
+**Use Parallel Transactions (Default) When:**
+- Users might open multiple tabs and attempt to log in simultaneously
+- You want maximum compatibility with typical user behavior
+- Your application supports multiple concurrent authentication flows
+
+**Use Single Transaction Mode When:**
+- You want to prevent cookie accumulation issues in applications with frequent login attempts
+- You prefer simpler transaction management
+- Users typically don't need multiple concurrent login flows
+- You're experiencing cookie header size limits due to abandoned transaction cookies edge cases
+
+### Transaction Cookie Options
+
+| Option                     | Type                              | Description                                                                                                                                                                                                     |
+| -------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| cookieOptions.maxAge       | `number`                          | The expiration time for transaction cookies in seconds. Defaults to `3600` (1 hour). After this time, abandoned transaction cookies will expire automatically.                                                 |
+| cookieOptions.prefix       | `string`                          | The prefix for transaction cookie names. Defaults to `__txn_`. In parallel mode, cookies are named `__txn_{state}`. In single mode, just `__txn_`.                                                           |
+| cookieOptions.sameSite     | `"strict" \| "lax" \| "none"`     | Controls when the cookie is sent with cross-site requests. Defaults to `"lax"`.                                                                                                                                |
+| cookieOptions.secure       | `boolean`                         | When `true`, the cookie will only be sent over HTTPS connections. Automatically determined based on your application's base URL protocol if not specified.                                                     |
+| cookieOptions.path         | `string`                          | Specifies the URL path for which the cookie is valid. Defaults to `"/"`.                                                                                                                                       |
 
 ## Database sessions
 
