@@ -19,7 +19,7 @@ importers:
         version: 6.0.11
       oauth4webapi:
         specifier: ^3.1.2
-        version: 3.5.3
+        version: 3.7.0
       react:
         specifier: ^18.0.0 || ^19.0.0 || ^19.0.0-0
         version: 19.0.0
@@ -1879,8 +1879,8 @@ packages:
   nwsapi@2.2.20:
     resolution: {integrity: sha512-/ieB+mDe4MrrKMT8z+mQL8klXydZWGR5Dowt4RAGKbJ3kIGEx3X4ljUo+6V73IXtUPWgfOlU5B9MlGxFO5T+cA==}
 
-  oauth4webapi@3.5.3:
-    resolution: {integrity: sha512-2bnHosmBLAQpXNBLOvaJMyMkr4Yya5ohE5Q9jqyxiN+aa7GFCzvDN1RRRMrp0NkfqRR2MTaQNkcSUCCjILD9oQ==}
+  oauth4webapi@3.7.0:
+    resolution: {integrity: sha512-Q52wTPUWPsVLVVmTViXPQFMW2h2xv2jnDGxypjpelCFKaOjLsm7AxYuOk1oQgFm95VNDbuggasu9htXrz6XwKw==}
 
   object-assign@4.1.1:
     resolution: {integrity: sha512-rJgTQnkUnH1sFw8yT6VSU3zD3sWmu6sZhIseY8VX+GRu3P6F7Fu+JNDoXfklElbLJSnc3FUQHVe4cU5hj+BcUg==}
@@ -4414,7 +4414,7 @@ snapshots:
 
   nwsapi@2.2.20: {}
 
-  oauth4webapi@3.5.3: {}
+  oauth4webapi@3.7.0: {}
 
   object-assign@4.1.1: {}
 
