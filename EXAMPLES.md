@@ -162,6 +162,9 @@ export default function Profile() {
 
 On the server, the `getSession()` helper can be used in Server Components, Server Routes, and Server Actions to get the session of the currently authenticated user and to protect resources, like so:
 
+> [!NOTE]  
+> The `getSession()` method is perfect for applications that only need user identity information without calling external APIs. It provides access to the user's profile data from the ID token without requiring access tokens, making it ideal for session-only authentication patterns.
+
 ```tsx
 import { auth0 } from "@/lib/auth0";
 
@@ -321,7 +324,7 @@ Then you can access your API from the frontend with a valid session cookie.
 
 ```jsx
 // pages/products
-import { withPageAuthRequired } from "@auth0/nextjs-auth0/client";
+import { withPageAuthRequired } from "@auth0/nextjs-auth0";
 import useSWR from "swr";
 
 const fetcher = async (uri) => {
@@ -358,7 +361,7 @@ Then you can access your API from the frontend with a valid session cookie.
 // app/products/page.jsx
 "use client";
 
-import { withPageAuthRequired } from "@auth0/nextjs-auth0/client";
+import { withPageAuthRequired } from "@auth0/nextjs-auth0";
 import useSWR from "swr";
 
 const fetcher = async (uri) => {
@@ -546,6 +549,9 @@ export async function middleware(request: NextRequest) {
 ## Getting an access token
 
 The `getAccessToken()` helper can be used both in the browser and on the server to obtain the access token to call external APIs. If the access token has expired and a refresh token is available, it will automatically be refreshed and persisted.
+
+> [!IMPORTANT]  
+> **Refresh Token Rotation**: If your Auth0 application uses Refresh Token Rotation, configure an overlap period to prevent race conditions when multiple requests attempt to refresh tokens simultaneously. This can be configured in your Auth0 Dashboard under Applications > Advanced Settings > OAuth, or disable rotation entirely for server-side applications that don't require it.
 
 ### In the browser
 
@@ -766,6 +772,58 @@ export default withApiAuthRequired(async function handler(
 
 By setting `{ refresh: true }`, you instruct the SDK to bypass the standard expiration check and request a new access token from the identity provider using the refresh token (if available and valid). The new token set (including the potentially updated access token, refresh token, and expiration time) will be saved back into the session automatically.
 This will in turn, update the `access_token`, `id_token` and `expires_at` fields of `tokenset` in the session.
+
+### Proactive Token Refresh for Latency-Sensitive Operations
+
+For applications that need to prevent token expiration during API calls or long operations, you can create utility functions that proactively refresh tokens before they expire:
+
+```ts
+// utils/token-buffer.ts
+import { auth0 } from "@/lib/auth0";
+
+export async function getAccessTokenWithBuffer(
+  request: Request, 
+  bufferSeconds = 30
+): Promise<string | null> {
+  const session = await auth0.getSession(request);
+  if (!session?.tokenSet) return null;
+  
+  const { tokenSet } = session;
+  const now = Math.floor(Date.now() / 1000);
+  const shouldRefresh = tokenSet.expiresAt <= (now + bufferSeconds);
+  
+  if (shouldRefresh) {
+    const { accessToken } = await auth0.getAccessToken(request, { refresh: true });
+    return accessToken;
+  }
+  
+  return tokenSet.accessToken;
+}
+```
+
+Usage in API routes:
+
+```ts
+export async function GET(request: Request) {
+  const token = await getAccessTokenWithBuffer(request, 30);
+  if (!token) {
+    return new Response('Unauthorized', { status: 401 });
+  }
+  
+  // Token is guaranteed valid for at least 30 seconds
+  const apiResponse = await fetch('https://api.example.com/data', {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  
+  return Response.json(await apiResponse.json());
+}
+```
+
+**Buffer Guidelines:**
+- **Web apps**: 30 seconds for interactive requests
+- **Background jobs**: 300 seconds (5 minutes) for long operations  
+- **Real-time apps**: 15 seconds for minimal delay
+- **Cross-region**: 90 seconds for network latency tolerance
 
 ## `<Auth0Provider />`
 
@@ -1458,3 +1516,4 @@ export async function middleware(request) {
 ### Run code after callback
 Please refer to [onCallback](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#oncallback) 
 for details on how to run code after callback.
+```
