@@ -29,7 +29,7 @@ This library requires Node.js 20 LTS and newer LTS versions.
 
 Add the following environment variables to your `.env.local` file:
 
-```
+```env
 AUTH0_DOMAIN=
 AUTH0_CLIENT_ID=
 AUTH0_CLIENT_SECRET=
@@ -48,14 +48,14 @@ openssl rand -hex 32
 The `APP_BASE_URL` is the URL that your application is running on. When developing locally, this is most commonly `http://localhost:3000`.
 
 > [!IMPORTANT]  
-> You will need to register the follwing URLs in your Auth0 Application via the [Auth0 Dashboard](https://manage.auth0.com):
+> You will need to register the following URLs in your Auth0 Application via the [Auth0 Dashboard](https://manage.auth0.com):
 >
 > - Add `http://localhost:3000/auth/callback` to the list of **Allowed Callback URLs**
 > - Add `http://localhost:3000` to the list of **Allowed Logout URLs**
 
 ### 3. Create the Auth0 SDK client
 
-Create an instance of the Auth0 client. This instance will be imported and used in anywhere we need access to the authentication methods on the server.
+Create an instance of the Auth0 client. This instance will be imported and used in anywhere you need access to the authentication methods on the server.
 
 Add the following contents to a file named `lib/auth0.ts`:
 
@@ -219,7 +219,7 @@ The SDK mounts 6 routes:
 6. `/auth/backchannel-logout`: the route that will receive a `logout_token` when a configured Back-Channel Logout initiator occurs
 
 > [!IMPORTANT]  
-> The `/auth/access-token` route is enabled by default, but is only neccessary when the access token is needed on the client-side. If this isn't something you need, you can disable this endpoint by setting `enableAccessTokenEndpoint` to `false`.
+> The `/auth/access-token` route is enabled by default, but is only necessary when the access token is needed on the client-side. If this isn't something you need, you can disable this endpoint by setting `enableAccessTokenEndpoint` to `false`.
 
 ## Feedback
 
