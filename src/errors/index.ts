@@ -128,9 +128,19 @@ export enum AccessTokenForConnectionErrorCode {
   MISSING_REFRESH_TOKEN = "missing_refresh_token",
 
   /**
+   * The access token is missing.
+   */
+  MISSING_ACCESS_TOKEN = "missing_access_token",
+
+  /**
    * Failed to exchange the refresh token.
    */
-  FAILED_TO_EXCHANGE = "failed_to_exchange_refresh_token"
+  FAILED_TO_EXCHANGE = "failed_to_exchange_refresh_token",
+
+  /**
+   * Failed to exchange the refresh token.
+   */
+  FAILED_TO_EXCHANGE_ACCESS_TOKEN = "failed_to_exchange_access_token"
 }
 
 /**
