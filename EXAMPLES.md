@@ -773,57 +773,20 @@ export default withApiAuthRequired(async function handler(
 By setting `{ refresh: true }`, you instruct the SDK to bypass the standard expiration check and request a new access token from the identity provider using the refresh token (if available and valid). The new token set (including the potentially updated access token, refresh token, and expiration time) will be saved back into the session automatically.
 This will in turn, update the `access_token`, `id_token` and `expires_at` fields of `tokenset` in the session.
 
-### Proactive Token Refresh for Latency-Sensitive Operations
+### Mitigating Token Expiration Race Conditions in Latency-Sensitive Operations
 
-For applications that need to prevent token expiration during API calls or long operations, you can create utility functions that proactively refresh tokens before they expire:
+For applications where an API call might be made very close to the token's expiration time, network latency can cause the token to expire before the API receives it. To prevent this race condition, you can implement a strategy to refresh the token proactively when it's within a certain buffer period of its expiration.
 
-```ts
-// utils/token-buffer.ts
-import { auth0 } from "@/lib/auth0";
+The general approach is as follows:
+1. Before making a sensitive API call, get the session and check the `expiresAt` timestamp from the `tokenSet`.
+2. Determine if the token is within your desired buffer period (e.g., 30-90 seconds) of expiring.
+3. If it is, force a token refresh by calling `auth0.getAccessToken({ refresh: true })`.
+4. Use the newly acquired access token for your API call.
 
-export async function getAccessTokenWithBuffer(
-  request: Request, 
-  bufferSeconds = 30
-): Promise<string | null> {
-  const session = await auth0.getSession(request);
-  if (!session?.tokenSet) return null;
-  
-  const { tokenSet } = session;
-  const now = Math.floor(Date.now() / 1000);
-  const shouldRefresh = tokenSet.expiresAt <= (now + bufferSeconds);
-  
-  if (shouldRefresh) {
-    const { accessToken } = await auth0.getAccessToken(request, { refresh: true });
-    return accessToken;
-  }
-  
-  return tokenSet.accessToken;
-}
-```
+This ensures that the token you send is guaranteed to be valid for at least the duration of the buffer, accounting for potential network delays.
 
-Usage in API routes:
-
-```ts
-export async function GET(request: Request) {
-  const token = await getAccessTokenWithBuffer(request, 30);
-  if (!token) {
-    return new Response('Unauthorized', { status: 401 });
-  }
-  
-  // Token is guaranteed valid for at least 30 seconds
-  const apiResponse = await fetch('https://api.example.com/data', {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  
-  return Response.json(await apiResponse.json());
-}
-```
-
-**Buffer Guidelines:**
-- **Web apps**: 30 seconds for interactive requests
-- **Background jobs**: 300 seconds (5 minutes) for long operations  
-- **Real-time apps**: 15 seconds for minimal delay
-- **Cross-region**: 90 seconds for network latency tolerance
+> [!IMPORTANT]
+> This strategy is **not** a solution for long-running operations that take longer than the token's total validity period (e.g., 10 minutes). In those cases, the token will still expire mid-operation. The correct approach for long-running tasks is to call `getAccessToken()` immediately before the operation that requires it, ensuring you have a fresh token. The buffer is only for mitigating latency-related failures in short-lived requests.
 
 ## `<Auth0Provider />`
 
