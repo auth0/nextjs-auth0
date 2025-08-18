@@ -163,7 +163,8 @@ export default function Profile() {
 On the server, the `getSession()` helper can be used in Server Components, Server Routes, and Server Actions to get the session of the currently authenticated user and to protect resources, like so:
 
 > [!NOTE]  
-> The `getSession()` method is perfect for applications that only need user identity information without calling external APIs. It provides access to the user's profile data from the ID token without requiring access tokens, making it ideal for session-only authentication patterns.
+> The `getSession()` method returns a complete session object containing the user profile and all available tokens (access token, ID token, and refresh token when present). Use this method for applications that only need user identity information without calling external APIs, as it provides access to the user's profile data from the ID token without requiring additional API calls. This approach is suitable for session-only authentication patterns.
+For API access, use `getAccessToken()` to get an access token, this handles automatic token refresh.
 
 ```tsx
 import { auth0 } from "@/lib/auth0";
