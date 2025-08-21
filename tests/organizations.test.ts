@@ -140,7 +140,7 @@ describe("Organizations Feature", () => {
       );
     });
 
-    it("should reject organization parameter with invalid characters", async () => {
+    it("should pass through organization parameter with spaces (Auth0 server validates)", async () => {
       const request = new NextRequest(
         "https://example.com/auth/login?organization=org%20space",
         {
@@ -150,11 +150,12 @@ describe("Organizations Feature", () => {
 
       const response = await authClient.handleLogin(request);
 
-      expect(response.status).toBe(400);
-      expect(await response.text()).toBe("Invalid organization parameter");
+      expect(response.status).toBe(307); // Redirect to Auth0
+      const location = response.headers.get("location");
+      expect(location).toContain("organization=org+space");
     });
 
-    it("should reject organization parameter with special characters", async () => {
+    it("should pass through organization parameter with special characters (Auth0 server validates)", async () => {
       const request = new NextRequest(
         "https://example.com/auth/login?organization=org<script>",
         {
@@ -164,11 +165,12 @@ describe("Organizations Feature", () => {
 
       const response = await authClient.handleLogin(request);
 
-      expect(response.status).toBe(400);
-      expect(await response.text()).toBe("Invalid organization parameter");
+      expect(response.status).toBe(307); // Redirect to Auth0
+      const location = response.headers.get("location");
+      expect(location).toContain("organization=");
     });
 
-    it("should reject organization parameter that is too long", async () => {
+    it("should pass through long organization parameter (Auth0 server validates)", async () => {
       const longOrg = "org_" + "a".repeat(300);
       const request = new NextRequest(
         `https://example.com/auth/login?organization=${longOrg}`,
@@ -179,8 +181,9 @@ describe("Organizations Feature", () => {
 
       const response = await authClient.handleLogin(request);
 
-      expect(response.status).toBe(400);
-      expect(await response.text()).toBe("Organization parameter too long");
+      expect(response.status).toBe(307); // Redirect to Auth0
+      const location = response.headers.get("location");
+      expect(location).toContain("organization=");
     });
 
     it("should work without organization parameter", async () => {
