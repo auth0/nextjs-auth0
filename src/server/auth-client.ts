@@ -405,23 +405,6 @@ export class AuthClient {
   async handleLogin(req: NextRequest): Promise<NextResponse> {
     const searchParams = Object.fromEntries(req.nextUrl.searchParams.entries());
 
-    // Validate organization parameter if present
-    if (searchParams.organization) {
-      // Organization should be alphanumeric with underscores, hyphens, and dots
-      const orgPattern = /^[a-zA-Z0-9_.-]+$/;
-      if (!orgPattern.test(searchParams.organization)) {
-        return new NextResponse("Invalid organization parameter", {
-          status: 400
-        });
-      }
-      // Limit organization length to prevent abuse
-      if (searchParams.organization.length > 256) {
-        return new NextResponse("Organization parameter too long", {
-          status: 400
-        });
-      }
-    }
-
     const options: StartInteractiveLoginOptions = {
       // SECURITY CRITICAL: Only forward query params when PAR is disabled
       authorizationParameters: !this.pushedAuthorizationRequests
