@@ -60,6 +60,10 @@ export interface User {
   picture?: string;
   email?: string;
   email_verified?: boolean;
+  /**
+   * The organization ID that the user belongs to.
+   * This field is populated when the user logs in through an organization.
+   */
   org_id?: string;
 
   [key: string]: any;
@@ -127,6 +131,12 @@ export interface AuthorizationParameters {
    * The maximum amount of time, in seconds, after which a user must reauthenticate.
    */
   max_age?: number;
+  /**
+   * The unique identifier of the organization that the user should be logged into.
+   * When specified, the user will be prompted to log in to this specific organization.
+   * The organization ID will be included in the user's session after successful authentication.
+   */
+  organization?: string;
   /**
    * Additional authorization parameters.
    */
