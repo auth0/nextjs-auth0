@@ -162,6 +162,10 @@ export default function Profile() {
 
 On the server, the `getSession()` helper can be used in Server Components, Server Routes, and Server Actions to get the session of the currently authenticated user and to protect resources, like so:
 
+> [!NOTE]  
+> The `getSession()` method returns a complete session object containing the user profile and all available tokens (access token, ID token, and refresh token when present). Use this method for applications that only need user identity information without calling external APIs, as it provides access to the user's profile data from the ID token without requiring additional API calls. This approach is suitable for session-only authentication patterns.
+For API access, use `getAccessToken()` to get an access token, this handles automatic token refresh.
+
 ```tsx
 import { auth0 } from "@/lib/auth0";
 
@@ -321,7 +325,7 @@ Then you can access your API from the frontend with a valid session cookie.
 
 ```jsx
 // pages/products
-import { withPageAuthRequired } from "@auth0/nextjs-auth0/client";
+import { withPageAuthRequired } from "@auth0/nextjs-auth0";
 import useSWR from "swr";
 
 const fetcher = async (uri) => {
@@ -358,7 +362,7 @@ Then you can access your API from the frontend with a valid session cookie.
 // app/products/page.jsx
 "use client";
 
-import { withPageAuthRequired } from "@auth0/nextjs-auth0/client";
+import { withPageAuthRequired } from "@auth0/nextjs-auth0";
 import useSWR from "swr";
 
 const fetcher = async (uri) => {
@@ -546,6 +550,9 @@ export async function middleware(request: NextRequest) {
 ## Getting an access token
 
 The `getAccessToken()` helper can be used both in the browser and on the server to obtain the access token to call external APIs. If the access token has expired and a refresh token is available, it will automatically be refreshed and persisted.
+
+> [!IMPORTANT]  
+> **Refresh Token Rotation**: If your Auth0 application uses Refresh Token Rotation, configure an overlap period to prevent race conditions when multiple requests attempt to refresh tokens simultaneously. This can be configured in your Auth0 Dashboard under Applications > Advanced Settings > OAuth, or disable rotation entirely for server-side applications that don't require it.
 
 ### In the browser
 
@@ -766,6 +773,21 @@ export default withApiAuthRequired(async function handler(
 
 By setting `{ refresh: true }`, you instruct the SDK to bypass the standard expiration check and request a new access token from the identity provider using the refresh token (if available and valid). The new token set (including the potentially updated access token, refresh token, and expiration time) will be saved back into the session automatically.
 This will in turn, update the `access_token`, `id_token` and `expires_at` fields of `tokenset` in the session.
+
+### Mitigating Token Expiration Race Conditions in Latency-Sensitive Operations
+
+For applications where an API call might be made very close to the token's expiration time, network latency can cause the token to expire before the API receives it. To prevent this race condition, you can implement a strategy to refresh the token proactively when it's within a certain buffer period of its expiration.
+
+The general approach is as follows:
+1. Before making a sensitive API call, get the session and check the `expiresAt` timestamp from the `tokenSet`.
+2. Determine if the token is within your desired buffer period (e.g., 30-90 seconds) of expiring.
+3. If it is, force a token refresh by calling `auth0.getAccessToken({ refresh: true })`.
+4. Use the newly acquired access token for your API call.
+
+This ensures that the token you send is guaranteed to be valid for at least the duration of the buffer, accounting for potential network delays.
+
+> [!IMPORTANT]
+> This strategy is **not** a solution for long-running operations that take longer than the token's total validity period (e.g., 10 minutes). In those cases, the token will still expire mid-operation. The correct approach for long-running tasks is to call `getAccessToken()` immediately before the operation that requires it, ensuring you have a fresh token. The buffer is only for mitigating latency-related failures in short-lived requests.
 
 ## `<Auth0Provider />`
 
@@ -1458,3 +1480,4 @@ export async function middleware(request) {
 ### Run code after callback
 Please refer to [onCallback](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#oncallback) 
 for details on how to run code after callback.
+```
