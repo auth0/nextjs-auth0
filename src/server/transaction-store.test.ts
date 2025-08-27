@@ -1,8 +1,14 @@
+import * as jose from "jose";
 import * as oauth from "oauth4webapi";
 import { describe, expect, it } from "vitest";
 
 import { generateSecret } from "../test/utils.js";
-import { decrypt, encrypt, RequestCookies, ResponseCookies } from "./cookies.js";
+import {
+  decrypt,
+  encrypt,
+  RequestCookies,
+  ResponseCookies
+} from "./cookies.js";
 import { TransactionState, TransactionStore } from "./transaction-store.js";
 
 describe("Transaction Store", async () => {
@@ -100,9 +106,10 @@ describe("Transaction Store", async () => {
       const cookie = responseCookies.get(cookieName);
 
       expect(cookie).toBeDefined();
-      expect((await decrypt(cookie!.value, secret)).payload).toEqual(
-        expect.objectContaining(transactionState)
-      );
+      expect(
+        ((await decrypt(cookie!.value, secret)) as jose.JWTDecryptResult)
+          .payload
+      ).toEqual(expect.objectContaining(transactionState));
       expect(cookie?.path).toEqual("/");
       expect(cookie?.httpOnly).toEqual(true);
       expect(cookie?.sameSite).toEqual("lax");
@@ -163,9 +170,10 @@ describe("Transaction Store", async () => {
         const cookie = responseCookies.get(cookieName);
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
-          expect.objectContaining(transactionState)
-        );
+        expect(
+          ((await decrypt(cookie!.value, secret)) as jose.JWTDecryptResult)
+            .payload
+        ).toEqual(expect.objectContaining(transactionState));
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("lax");
@@ -201,9 +209,10 @@ describe("Transaction Store", async () => {
         const cookie = responseCookies.get(cookieName);
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
-          expect.objectContaining(transactionState)
-        );
+        expect(
+          ((await decrypt(cookie!.value, secret)) as jose.JWTDecryptResult)
+            .payload
+        ).toEqual(expect.objectContaining(transactionState));
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("strict");
@@ -239,9 +248,10 @@ describe("Transaction Store", async () => {
         const cookie = responseCookies.get(cookieName);
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
-          expect.objectContaining(transactionState)
-        );
+        expect(
+          ((await decrypt(cookie!.value, secret)) as jose.JWTDecryptResult)
+            .payload
+        ).toEqual(expect.objectContaining(transactionState));
         expect(cookie?.path).toEqual("/custom-path");
       });
 
@@ -273,13 +283,54 @@ describe("Transaction Store", async () => {
         const cookie = responseCookies.get(cookieName);
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
-          expect.objectContaining(transactionState)
-        );
+        expect(
+          ((await decrypt(cookie!.value, secret)) as jose.JWTDecryptResult)
+            .payload
+        ).toEqual(expect.objectContaining(transactionState));
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("lax");
         expect(cookie?.maxAge).toEqual(3600);
+        expect(cookie?.secure).toEqual(false);
+      });
+
+      it("should apply custom maxAge to the cookie", async () => {
+        const secret = await generateSecret(32);
+        const codeVerifier = oauth.generateRandomCodeVerifier();
+        const nonce = oauth.generateRandomNonce();
+        const state = oauth.generateRandomState();
+        const transactionState: TransactionState = {
+          nonce,
+          maxAge: 3600,
+          codeVerifier: codeVerifier,
+          responseType: "code",
+          state,
+          returnTo: "/dashboard"
+        };
+        const headers = new Headers();
+        const responseCookies = new ResponseCookies(headers);
+
+        const customMaxAge = 1800; // 30 minutes
+        const transactionStore = new TransactionStore({
+          secret,
+          cookieOptions: {
+            maxAge: customMaxAge
+          }
+        });
+        await transactionStore.save(responseCookies, transactionState);
+
+        const cookieName = `__txn_${state}`;
+        const cookie = responseCookies.get(cookieName);
+
+        expect(cookie).toBeDefined();
+        expect(
+          ((await decrypt(cookie!.value, secret)) as jose.JWTDecryptResult)
+            .payload
+        ).toEqual(expect.objectContaining(transactionState));
+        expect(cookie?.path).toEqual("/");
+        expect(cookie?.httpOnly).toEqual(true);
+        expect(cookie?.sameSite).toEqual("lax");
+        expect(cookie?.maxAge).toEqual(customMaxAge);
         expect(cookie?.secure).toEqual(false);
       });
     });
@@ -315,9 +366,7 @@ describe("Transaction Store", async () => {
       await transactionStore.delete(responseCookies, state);
 
       expect(responseCookies.get(cookieName)?.value).toEqual("");
-      expect(responseCookies.get(cookieName)?.expires).toEqual(
-        new Date("1970-01-01T00:00:00.000Z")
-      );
+      expect(responseCookies.get(cookieName)?.maxAge).toEqual(0);
     });
 
     it("should not throw an error if the cookie does not exist", async () => {
@@ -357,13 +406,9 @@ describe("Transaction Store", async () => {
       await transactionStore.deleteAll(requestCookies, responseCookies);
 
       expect(responseCookies.get("__txn_state1")?.value).toEqual("");
-      expect(responseCookies.get("__txn_state1")?.expires).toEqual(
-        new Date("1970-01-01T00:00:00.000Z")
-      );
+      expect(responseCookies.get("__txn_state1")?.maxAge).toEqual(0);
       expect(responseCookies.get("__txn_state2")?.value).toEqual("");
-      expect(responseCookies.get("__txn_state2")?.expires).toEqual(
-        new Date("1970-01-01T00:00:00.000Z")
-      );
+      expect(responseCookies.get("__txn_state2")?.maxAge).toEqual(0);
       expect(responseCookies.get("other_cookie")?.value).toEqual("value3"); // Should not be deleted
     });
 
@@ -392,9 +437,7 @@ describe("Transaction Store", async () => {
       await transactionStore.deleteAll(requestCookies, responseCookies);
 
       expect(responseCookies.get(`${customPrefix}state1`)?.value).toEqual("");
-      expect(responseCookies.get(`${customPrefix}state1`)?.expires).toEqual(
-        new Date("1970-01-01T00:00:00.000Z")
-      );
+      expect(responseCookies.get(`${customPrefix}state1`)?.maxAge).toEqual(0);
       expect(responseCookies.get("__txn_state2")?.value).toEqual("value2"); // Should not be deleted
       expect(responseCookies.get("other_cookie")?.value).toEqual("value3"); // Should not be deleted
     });

@@ -88,7 +88,10 @@ export type {
   SessionStoreOptions
 } from "../server/session/abstract-session-store.js";
 
-export type { CookieOptions, ReadonlyRequestCookies } from "../server/cookies.js";
+export type {
+  CookieOptions,
+  ReadonlyRequestCookies
+} from "../server/cookies.js";
 
 export type {
   TransactionStoreOptions,
@@ -144,3 +147,8 @@ export interface AccessTokenForConnectionOptions {
    */
   login_hint?: string;
 }
+
+/**
+ * Logout strategy options for controlling logout endpoint selection.
+ */
+export type LogoutStrategy = "auto" | "oidc" | "v2";
