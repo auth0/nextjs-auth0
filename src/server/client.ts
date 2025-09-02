@@ -731,7 +731,7 @@ export class Auth0Client {
   }
 
   async startInteractiveLogin(
-    options: StartInteractiveLoginOptions
+    options: StartInteractiveLoginOptions = {}
   ): Promise<NextResponse> {
     return this.authClient.startInteractiveLogin(options);
   }
