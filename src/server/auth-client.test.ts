@@ -1913,7 +1913,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       });
 
       describe("custom parameters to the authorization server", async () => {
-        it("should not forward any custom parameters sent via the query parameters to /auth/login", async () => {
+        it("should forward all custom parameters sent via the query parameters to PAR", async () => {
           const secret = await generateSecret(32);
           const transactionStore = new TransactionStore({
             secret
@@ -1944,8 +1944,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
             fetch: getMockAuthorizationServer({
               onParRequest: async (request) => {
                 const params = new URLSearchParams(await request.text());
-                expect(params.get("ext-custom_param")).toBeNull();
-                expect(params.get("audience")).toBeNull();
+                // With simplified approach, all custom parameters are now forwarded to PAR
+                expect(params.get("ext-custom_param")).toEqual("custom_value");
+                expect(params.get("audience")).toEqual("urn:mystore:api");
               }
             })
           });
@@ -2186,10 +2187,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         // But screen_hint should be sent in the PAR request (safe parameter)
         expect(parRequestParams!.get("screen_hint")).toEqual("signup");
-        // The scope parameter should contain default scopes (not the malicious query param)
-        expect(parRequestParams!.get("scope")).toEqual(
-          "openid profile email offline_access"
-        );
+        // With simplified approach, all parameters including scope are forwarded to PAR
+        // The scope parameter should contain the query param value (not filtered)
+        expect(parRequestParams!.get("scope")).toEqual("malicious");
       });
 
       it("should forward multiple safe parameters when PAR is enabled", async () => {
@@ -2241,7 +2241,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(parRequestParams!.get("ui_locales")).toEqual("en");
       });
 
-      it("should not forward security-sensitive parameters when PAR is enabled", async () => {
+      it("should forward custom parameters but protect internal security parameters", async () => {
         const secret = await generateSecret(32);
         const transactionStore = new TransactionStore({
           secret
@@ -2283,17 +2283,14 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         await authClient.handleLogin(request);
 
-        // Security-sensitive parameters from query should not override configured values
-        expect(parRequestParams!.get("scope")).toEqual(
-          "openid profile email offline_access"
-        ); // Should use default scope, not query param
-        expect(parRequestParams!.get("audience")).toBeNull(); // Should not include malicious audience
+        // With simplified approach, custom parameters are forwarded to PAR
+        expect(parRequestParams!.get("scope")).toEqual("read:users"); // Query param forwarded
+        expect(parRequestParams!.get("audience")).toEqual("https://api.example.com"); // Query param forwarded
+        // redirect_uri should NOT be overridden as it's a security-sensitive internal parameter
         expect(parRequestParams!.get("redirect_uri")).toEqual(
           `${DEFAULT.appBaseUrl}/auth/callback`
-        ); // Should use configured value, not query param
-
-        // But safe parameters should still be forwarded
-        expect(parRequestParams!.get("screen_hint")).toEqual("signup");
+        ); // Should use configured value, not malicious query param
+        expect(parRequestParams!.get("screen_hint")).toEqual("signup"); // Query param forwarded
       });
     });
   });
@@ -5434,7 +5431,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(authClient.startInteractiveLogin).toHaveBeenCalled();
     });
 
-    it("should handle PAR correctly in handleLogin by not forwarding params", async () => {
+    it("should handle PAR correctly in handleLogin by forwarding all params", async () => {
       const authClient = await createAuthClient({
         pushedAuthorizationRequests: true
       });
@@ -5443,7 +5440,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const originalStartInteractiveLogin = authClient.startInteractiveLogin;
       authClient.startInteractiveLogin = vi.fn(async (options) => {
         expect(options).toEqual({
-          authorizationParameters: {},
+          authorizationParameters: {
+            foo: "bar",
+            returnTo: "custom-return"
+          },
           returnTo: "custom-return"
         });
         return originalStartInteractiveLogin.call(authClient, options);

@@ -405,31 +405,10 @@ export class AuthClient {
   async handleLogin(req: NextRequest): Promise<NextResponse> {
     const searchParams = Object.fromEntries(req.nextUrl.searchParams.entries());
 
-    // Parameters that are safe to forward even with PAR enabled
-    // These are UI/UX parameters that don't affect security-sensitive authorization logic
-    const SAFE_PAR_PARAMETERS = [
-      "screen_hint", // Controls login vs signup screen display
-      "login_hint", // Pre-populate username/email field
-      "prompt", // Controls authentication flow behavior
-      "display", // Controls how the auth page is displayed
-      "ui_locales", // Language preferences
-      "max_age", // Force re-authentication timing
-      "acr_values" // Authentication context class reference
-    ];
-
-    let authorizationParameters: Record<string, unknown> = {};
-
-    if (!this.pushedAuthorizationRequests) {
-      // PAR disabled: forward all parameters as before
-      authorizationParameters = searchParams;
-    } else {
-      // PAR enabled: only forward safe UI/UX parameters
-      for (const param of SAFE_PAR_PARAMETERS) {
-        if (param in searchParams) {
-          authorizationParameters[param] = searchParams[param];
-        }
-      }
-    }
+    // Always forward all parameters
+    // When PAR is disabled, parameters go to authorization URL as before
+    // When PAR is enabled, all parameters are sent securely in the PAR request body
+    const authorizationParameters = searchParams;
 
     const options: StartInteractiveLoginOptions = {
       authorizationParameters,
