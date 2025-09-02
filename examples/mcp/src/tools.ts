@@ -7,6 +7,9 @@ const greetToolInputSchema = {
   name: z.string().optional().describe("The name to greet")
 } as const;
 
+/**
+ * MCP tools with scope-based authorization.
+ */
 export function registerTools(server: McpServer) {
   server.registerTool(
     "greet",

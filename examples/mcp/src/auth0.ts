@@ -28,6 +28,13 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
 }
 
+/**
+ * Creates a JWT token verifier for Auth0-issued access tokens.
+ *
+ * This function returns a reusable `verify` function that validates JWT signatures,
+ * token claims, and extracts user identity information for MCP integration using
+ * the official @auth0/auth0-api-js library.
+ */
 function createTokenVerifier() {
   const apiClient = new ApiClient({
     domain: AUTH0_DOMAIN,
@@ -84,7 +91,18 @@ function createTokenVerifier() {
   };
 }
 
+/**
+ * Wraps an MCP tool handler to enforce required OAuth scopes.
+ *
+ * This is a higher-order function that adds scope-based authorization to MCP tools.
+ * It validates that the authenticated user's JWT token contains all required scopes
+ * before allowing access to the wrapped tool.
+ */
 function createScopeValidator() {
+  /**
+   * Wraps a tool handler with scope validation.
+   * This function ensures that the tool can only be executed if the user has the required OAuth scopes.
+   */
   return function requireScopes<T extends ZodRawShape>(
     requiredScopes: readonly string[],
     handler: (args: T, extra: { authInfo: Auth }) => Promise<CallToolResult>

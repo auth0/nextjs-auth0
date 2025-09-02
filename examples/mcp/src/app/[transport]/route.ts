@@ -1,3 +1,10 @@
+/**
+ * MCP Protocol Handler with Auth0 Authentication
+ *
+ * This Next.js route handler implements the core Model Context Protocol (MCP) server
+ * functionality with Auth0 JWT token authentication. It serves as the main entry point
+ * for MCP clients to communicate with our server and invoke registered tools.
+ */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { createMcpHandler, withMcpAuth } from "mcp-handler";
 
