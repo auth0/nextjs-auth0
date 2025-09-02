@@ -1073,12 +1073,12 @@ export const auth0 = new Auth0Client({
 
 ## Using Client-Initiated Backchannel Authentication
 
-Using Client-Initiated Backchannel Authentication can be done by calling `backchannelAuthentication()`:
+Using Client-Initiated Backchannel Authentication can be done by calling `getTokenByBackchannelAuth()`:
 
 ```ts
 import { auth0 } from "@/lib/auth0";
 
-const tokenResponse = await auth0.backchannelAuthentication({
+const tokenResponse = await auth0.getTokenByBackchannelAuth({
   bindingMessage: "",
   loginHint: {
     sub: "auth0|123456789"
