@@ -2133,6 +2133,169 @@ ca/T0LLtgmbMmxSv/MmzIg==
         );
       });
     });
+
+    describe("with PAR enabled", async () => {
+      it("should forward safe UI parameters like screen_hint even when PAR is enabled", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+
+        // Mock PAR request to verify that safe parameters are sent
+        let parRequestParams: URLSearchParams;
+        const mockFetch = getMockAuthorizationServer({
+          onParRequest: async (request) => {
+            // Extract form data from PAR request body
+            const formData = await request.text();
+            parRequestParams = new URLSearchParams(formData);
+          }
+        });
+
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          pushedAuthorizationRequests: true,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: mockFetch
+        });
+
+        const loginUrl = new URL(
+          "/auth/login?screen_hint=signup&scope=malicious",
+          DEFAULT.appBaseUrl
+        );
+        const request = new NextRequest(loginUrl, {
+          method: "GET"
+        });
+
+        const response = await authClient.handleLogin(request);
+        const authorizationUrl = new URL(response.headers.get("Location")!);
+
+        // With PAR, the authorization URL should only contain request_uri and client_id
+        expect(authorizationUrl.searchParams.get("request_uri")).toBeTruthy();
+        expect(authorizationUrl.searchParams.get("client_id")).toEqual(
+          DEFAULT.clientId
+        );
+
+        // But screen_hint should be sent in the PAR request (safe parameter)
+        expect(parRequestParams!.get("screen_hint")).toEqual("signup");
+        // The scope parameter should contain default scopes (not the malicious query param)
+        expect(parRequestParams!.get("scope")).toEqual(
+          "openid profile email offline_access"
+        );
+      });
+
+      it("should forward multiple safe parameters when PAR is enabled", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+
+        // Mock PAR request to verify that safe parameters are sent
+        let parRequestParams: URLSearchParams;
+        const mockFetch = getMockAuthorizationServer({
+          onParRequest: async (request) => {
+            // Extract form data from PAR request body
+            const formData = await request.text();
+            parRequestParams = new URLSearchParams(formData);
+          }
+        });
+
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          pushedAuthorizationRequests: true,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: mockFetch
+        });
+
+        const loginUrl = new URL(
+          "/auth/login?screen_hint=signup&login_hint=user@example.com&prompt=login&ui_locales=en",
+          DEFAULT.appBaseUrl
+        );
+        const request = new NextRequest(loginUrl, {
+          method: "GET"
+        });
+
+        await authClient.handleLogin(request);
+
+        // All safe parameters should be sent in the PAR request
+        expect(parRequestParams!.get("screen_hint")).toEqual("signup");
+        expect(parRequestParams!.get("login_hint")).toEqual("user@example.com");
+        expect(parRequestParams!.get("prompt")).toEqual("login");
+        expect(parRequestParams!.get("ui_locales")).toEqual("en");
+      });
+
+      it("should not forward security-sensitive parameters when PAR is enabled", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+
+        // Mock PAR request to verify that security parameters are not sent
+        let parRequestParams: URLSearchParams;
+        const mockFetch = getMockAuthorizationServer({
+          onParRequest: async (request) => {
+            // Extract form data from PAR request body
+            const formData = await request.text();
+            parRequestParams = new URLSearchParams(formData);
+          }
+        });
+
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          pushedAuthorizationRequests: true,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: mockFetch
+        });
+
+        const loginUrl = new URL(
+          "/auth/login?scope=read:users&audience=https://api.example.com&redirect_uri=https://malicious.com&screen_hint=signup",
+          DEFAULT.appBaseUrl
+        );
+        const request = new NextRequest(loginUrl, {
+          method: "GET"
+        });
+
+        await authClient.handleLogin(request);
+
+        // Security-sensitive parameters from query should not override configured values
+        expect(parRequestParams!.get("scope")).toEqual(
+          "openid profile email offline_access"
+        ); // Should use default scope, not query param
+        expect(parRequestParams!.get("audience")).toBeNull(); // Should not include malicious audience
+        expect(parRequestParams!.get("redirect_uri")).toEqual(
+          `${DEFAULT.appBaseUrl}/auth/callback`
+        ); // Should use configured value, not query param
+
+        // But safe parameters should still be forwarded
+        expect(parRequestParams!.get("screen_hint")).toEqual("signup");
+      });
+    });
   });
 
   describe("handleLogout", async () => {
