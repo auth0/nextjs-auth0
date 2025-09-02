@@ -7,10 +7,15 @@ import { ZodRawShape } from "zod";
 import { AUTH0_AUDIENCE, AUTH0_DOMAIN } from "./config";
 import { Auth } from "./types";
 
+interface Auth0McpInstance {
+  verifyToken: ReturnType<typeof createTokenVerifier>;
+  requireScopes: ReturnType<typeof createScopeValidator>;
+}
+
 const auth0Mcp = createAuth0Mcp();
 export default auth0Mcp;
 
-export function createAuth0Mcp() {
+export function createAuth0Mcp(): Auth0McpInstance {
   const verifyToken = createTokenVerifier();
   const requireScopes = createScopeValidator();
   return {
@@ -81,7 +86,7 @@ function createTokenVerifier() {
 
 function createScopeValidator() {
   return function requireScopes<T extends ZodRawShape>(
-    requiredScopes: string[],
+    requiredScopes: readonly string[],
     handler: (args: T, extra: { authInfo: Auth }) => Promise<CallToolResult>
   ): ToolCallback<T> {
     return (async (args, extra) => {
