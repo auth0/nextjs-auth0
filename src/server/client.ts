@@ -130,6 +130,16 @@ export interface Auth0ClientOptions {
    */
   logoutStrategy?: LogoutStrategy;
 
+  /**
+   * Configure whether to include id_token_hint in OIDC logout URLs.
+   *
+   * When false, only logout_hint (session ID) and client_id are sent,
+   * which prevents PII exposure in server logs and browser history.
+   *
+   * @default true (for backwards compatibility)
+   */
+  includeIdTokenHintInOIDCLogoutUrl?: boolean;
+
   // hooks
   /**
    * A method to manipulate the session before persisting it.
@@ -313,6 +323,8 @@ export class Auth0Client {
       secret,
       signInReturnToPath: options.signInReturnToPath,
       logoutStrategy: options.logoutStrategy,
+      includeIdTokenHintInOIDCLogoutUrl:
+        options.includeIdTokenHintInOIDCLogoutUrl,
 
       beforeSessionSaved: options.beforeSessionSaved,
       onCallback: options.onCallback,
