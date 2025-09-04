@@ -883,9 +883,21 @@ export class AuthClient {
     }
 
     const authorizationParams = new URLSearchParams();
+    authorizationParams.set("scope", DEFAULT_SCOPES);
+
+    const mergedAuthorizationParams: AuthorizationParameters = {
+      // any custom params to forward to /authorize defined as configuration
+      ...this.authorizationParameters,
+      // custom parameters passed in via the query params to ensure only the confidential client can set them
+      ...options.authorizationParams
+    };
+
+    Object.entries(mergedAuthorizationParams).forEach(([key, val]) =>
+      authorizationParams.set(key, String(val))
+    );
+
     authorizationParams.set("client_id", this.clientMetadata.client_id);
     authorizationParams.set("binding_message", options.bindingMessage);
-    authorizationParams.set("scope", DEFAULT_SCOPES);
     authorizationParams.set(
       "login_hint",
       JSON.stringify({
@@ -895,21 +907,19 @@ export class AuthClient {
       })
     );
 
-    const mergedAuthorizationParams: AuthorizationParameters = {
-      // any custom params to forward to /authorize defined as configuration
-      ...this.authorizationParameters,
-      // custom parameters passed in via the query params to ensure only the confidential client can set them
-      ...options.authorizationParams
-    };
+    if (options.requestExpiry) {
+      authorizationParams.append(
+        "request_expiry",
+        options.requestExpiry.toString()
+      );
+    }
 
-    Object.entries(mergedAuthorizationParams).forEach(([key, val]) => {
-      if (
-        !["client_id", "binding_message", "login_hint"].includes(key) &&
-        val != null
-      ) {
-        authorizationParams.set(key, String(val));
-      }
-    });
+    if (options.authorizationDetails) {
+      authorizationParams.append(
+        "authorization_details",
+        JSON.stringify(options.authorizationDetails)
+      );
+    }
 
     const [openIdClientConfigError, openidClientConfig] =
       await this.getOpenIdClientConfig();
