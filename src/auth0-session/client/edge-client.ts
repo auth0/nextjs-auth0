@@ -96,7 +96,25 @@ export class EdgeClient extends AbstractClient {
     const [as, client] = await this.getClient();
 
     if (this.config.pushedAuthorizationRequests) {
-      const response = await oauth.pushedAuthorizationRequest(as, client, parameters as Record<string, string>);
+      const { clientAssertionSigningKey, clientAssertionSigningAlg } = this.config;
+
+      let clientPrivateKey = clientAssertionSigningKey as CryptoKey | undefined;
+      /* c8 ignore next 3 */
+      if (clientPrivateKey && !(clientPrivateKey instanceof CryptoKey)) {
+        clientPrivateKey = await jose.importPKCS8<CryptoKey>(clientPrivateKey, clientAssertionSigningAlg || 'RS256');
+      }
+
+      const response = await oauth.pushedAuthorizationRequest(as, client, parameters as Record<string, string>, {
+        ...(clientPrivateKey && {
+          clientPrivateKey,
+          [oauth.modifyAssertion](_header: Record<string, oauth.JsonValue>, payload: Record<string, oauth.JsonValue>) {
+            if (Array.isArray(payload.aud)) {
+              payload.aud = as.issuer;
+            }
+          }
+        }),
+        ...this.httpOptions()
+      });
       const result = await oauth.processPushedAuthorizationResponse(as, client, response);
       if (oauth.isOAuth2Error(result)) {
         throw new IdentityProviderError({
@@ -163,7 +181,14 @@ export class EdgeClient extends AbstractClient {
       checks.code_verifier as string,
       {
         additionalParameters: extras.exchangeBody,
-        ...(clientPrivateKey && { clientPrivateKey }),
+        ...(clientPrivateKey && {
+          clientPrivateKey,
+          [oauth.modifyAssertion](_header: Record<string, oauth.JsonValue>, payload: Record<string, oauth.JsonValue>) {
+            if (Array.isArray(payload.aud)) {
+              payload.aud = as.issuer;
+            }
+          }
+        }),
         ...this.httpOptions()
       }
     );
@@ -193,7 +218,7 @@ export class EdgeClient extends AbstractClient {
       this.config.idpLogout &&
       (this.config.auth0Logout || (issuerUrl.hostname.match('\\.auth0\\.com$') && this.config.auth0Logout !== false))
     ) {
-      const { id_token_hint, post_logout_redirect_uri, ...extraParams } = parameters;
+      const { post_logout_redirect_uri, ...extraParams } = parameters;
       const auth0LogoutUrl: URL = new URL(urlJoin(as.issuer, '/v2/logout'));
       post_logout_redirect_uri && auth0LogoutUrl.searchParams.set('returnTo', post_logout_redirect_uri);
       auth0LogoutUrl.searchParams.set('client_id', this.config.clientID);
@@ -233,8 +258,25 @@ export class EdgeClient extends AbstractClient {
 
   async refresh(refreshToken: string, extras: { exchangeBody: Record<string, any> }): Promise<TokenEndpointResponse> {
     const [as, client] = await this.getClient();
+
+    const { clientAssertionSigningKey, clientAssertionSigningAlg } = this.config;
+
+    let clientPrivateKey = clientAssertionSigningKey as CryptoKey | undefined;
+    /* c8 ignore next 3 */
+    if (clientPrivateKey && !(clientPrivateKey instanceof CryptoKey)) {
+      clientPrivateKey = await jose.importPKCS8<CryptoKey>(clientPrivateKey, clientAssertionSigningAlg || 'RS256');
+    }
+
     const res = await oauth.refreshTokenGrantRequest(as, client, refreshToken, {
       additionalParameters: extras.exchangeBody,
+      ...(clientPrivateKey && {
+        clientPrivateKey,
+        [oauth.modifyAssertion](_header: Record<string, oauth.JsonValue>, payload: Record<string, oauth.JsonValue>) {
+          if (Array.isArray(payload.aud)) {
+            payload.aud = as.issuer;
+          }
+        }
+      }),
       ...this.httpOptions()
     });
     const result = await oauth.processRefreshTokenResponse(as, client, res);
