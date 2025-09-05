@@ -12,6 +12,7 @@ import {
 import {
   AccessTokenForConnectionOptions,
   AuthorizationParameters,
+  BackchannelAuthenticationOptions,
   LogoutStrategy,
   SessionData,
   SessionDataStore,
@@ -733,6 +734,25 @@ export class Auth0Client {
     options: StartInteractiveLoginOptions = {}
   ): Promise<NextResponse> {
     return this.authClient.startInteractiveLogin(options);
+  }
+
+  /**
+   * Authenticates using Client-Initiated Backchannel Authentication and returns the token set and optionally the ID token claims and authorization details.
+   *
+   * This method will initialize the backchannel authentication process with Auth0, and poll the token endpoint until the authentication is complete.
+   *
+   * Using Client-Initiated Backchannel Authentication requires the feature to be enabled in the Auth0 dashboard.
+   * @see https://auth0.com/docs/get-started/authentication-and-authorization-flow/client-initiated-backchannel-authentication-flow
+   */
+  async getTokenByBackchannelAuth(options: BackchannelAuthenticationOptions) {
+    const [error, response] =
+      await this.authClient.backchannelAuthentication(options);
+
+    if (error) {
+      throw error;
+    }
+
+    return response;
   }
 
   withPageAuthRequired(
