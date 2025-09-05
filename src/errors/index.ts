@@ -95,6 +95,30 @@ export class BackchannelLogoutError extends SdkError {
   }
 }
 
+export class BackchannelAuthenticationNotSupportedError extends SdkError {
+  public code: string = "backchannel_authentication_not_supported_error";
+
+  constructor() {
+    super(
+      "The authorization server does not support backchannel authentication. Learn how to enable it here: https://auth0.com/docs/get-started/applications/configure-client-initiated-backchannel-authentication"
+    );
+    this.name = "BackchannelAuthenticationNotSupportedError";
+  }
+}
+
+export class BackchannelAuthenticationError extends SdkError {
+  public code: string = "backchannel_authentication_error";
+  public cause?: OAuth2Error;
+
+  constructor({ cause }: { cause?: OAuth2Error }) {
+    super(
+      "There was an error when trying to use Client-Initiated Backchannel Authentication."
+    );
+    this.cause = cause;
+    this.name = "BackchannelAuthenticationError";
+  }
+}
+
 export enum AccessTokenErrorCode {
   MISSING_SESSION = "missing_session",
   MISSING_REFRESH_TOKEN = "missing_refresh_token",
