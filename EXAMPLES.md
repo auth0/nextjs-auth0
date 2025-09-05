@@ -32,6 +32,7 @@
 - [Cookie Configuration](#cookie-configuration)
 - [Transaction Cookie Configuration](#transaction-cookie-configuration)
 - [Database sessions](#database-sessions)
+- [Back-Channel Authentication](#back-channel-authentication)
 - [Back-Channel Logout](#back-channel-logout)
 - [Combining middleware](#combining-middleware)
 - [ID Token claims and the user object](#id-token-claims-and-the-user-object)
@@ -48,8 +49,8 @@
   - [On the server (Pages Router)](#on-the-server-pages-router-3)
   - [Middleware](#middleware-3)
 - [Customizing Auth Handlers](#customizing-auth-handlers)
-    - [Run custom code before Auth Handlers](#run-custom-code-before-auth-handlers)
-    - [Run code after callback](#run-code-after-callback)
+  - [Run custom code before Auth Handlers](#run-custom-code-before-auth-handlers)
+  - [Run code after callback](#run-code-after-callback)
 
 ## Passing authorization parameters
 
@@ -164,7 +165,7 @@ On the server, the `getSession()` helper can be used in Server Components, Serve
 
 > [!NOTE]  
 > The `getSession()` method returns a complete session object containing the user profile and all available tokens (access token, ID token, and refresh token when present). Use this method for applications that only need user identity information without calling external APIs, as it provides access to the user's profile data from the ID token without requiring additional API calls. This approach is suitable for session-only authentication patterns.
-For API access, use `getAccessToken()` to get an access token, this handles automatic token refresh.
+> For API access, use `getAccessToken()` to get an access token, this handles automatic token refresh.
 
 ```tsx
 import { auth0 } from "@/lib/auth0";
@@ -779,6 +780,7 @@ This will in turn, update the `access_token`, `id_token` and `expires_at` fields
 For applications where an API call might be made very close to the token's expiration time, network latency can cause the token to expire before the API receives it. To prevent this race condition, you can implement a strategy to refresh the token proactively when it's within a certain buffer period of its expiration.
 
 The general approach is as follows:
+
 1. Before making a sensitive API call, get the session and check the `expiresAt` timestamp from the `tokenSet`.
 2. Determine if the token is within your desired buffer period (e.g., 30-90 seconds) of expiring.
 3. If it is, force a token refresh by calling `auth0.getAccessToken({ refresh: true })`.
@@ -987,6 +989,7 @@ export const auth0 = new Auth0Client({
 ## Transaction Cookie Configuration
 
 ### Customizing Transaction Cookie Expiration
+
 You can configure transaction cookies expiration by providing a `maxAge` proeprty for `transactionCookie`.
 
 ```ts
@@ -997,11 +1000,13 @@ export const auth0 = new Auth0Client({
   },
 }
 ```
+
 Transaction cookies are used to maintain state during authentication flows. The SDK provides several configuration options to manage transaction cookie behavior and prevent cookie accumulation issues.
 
 ### Transaction Management Modes
 
 **Parallel Transactions (Default)**
+
 ```ts
 const authClient = new Auth0Client({
   enableParallelTransactions: true // Default: allows multiple concurrent logins
@@ -1010,6 +1015,7 @@ const authClient = new Auth0Client({
 ```
 
 **Single Transaction Mode**
+
 ```ts
 const authClient = new Auth0Client({
   enableParallelTransactions: false // Only one active transaction at a time
@@ -1018,11 +1024,13 @@ const authClient = new Auth0Client({
 ```
 
 **Use Parallel Transactions (Default) When:**
+
 - Users might open multiple tabs and attempt to log in simultaneously
 - You want maximum compatibility with typical user behavior
 - Your application supports multiple concurrent authentication flows
 
 **Use Single Transaction Mode When:**
+
 - You want to prevent cookie accumulation issues in applications with frequent login attempts
 - You prefer simpler transaction management
 - Users typically don't need multiple concurrent login flows
@@ -1030,13 +1038,13 @@ const authClient = new Auth0Client({
 
 ### Transaction Cookie Options
 
-| Option                     | Type                              | Description                                                                                                                                                                                                     |
-| -------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| cookieOptions.maxAge       | `number`                          | The expiration time for transaction cookies in seconds. Defaults to `3600` (1 hour). After this time, abandoned transaction cookies will expire automatically.                                                 |
-| cookieOptions.prefix       | `string`                          | The prefix for transaction cookie names. Defaults to `__txn_`. In parallel mode, cookies are named `__txn_{state}`. In single mode, just `__txn_`.                                                           |
-| cookieOptions.sameSite     | `"strict" \| "lax" \| "none"`     | Controls when the cookie is sent with cross-site requests. Defaults to `"lax"`.                                                                                                                                |
-| cookieOptions.secure       | `boolean`                         | When `true`, the cookie will only be sent over HTTPS connections. Automatically determined based on your application's base URL protocol if not specified.                                                     |
-| cookieOptions.path         | `string`                          | Specifies the URL path for which the cookie is valid. Defaults to `"/"`.                                                                                                                                       |
+| Option                 | Type                          | Description                                                                                                                                                    |
+| ---------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| cookieOptions.maxAge   | `number`                      | The expiration time for transaction cookies in seconds. Defaults to `3600` (1 hour). After this time, abandoned transaction cookies will expire automatically. |
+| cookieOptions.prefix   | `string`                      | The prefix for transaction cookie names. Defaults to `__txn_`. In parallel mode, cookies are named `__txn_{state}`. In single mode, just `__txn_`.             |
+| cookieOptions.sameSite | `"strict" \| "lax" \| "none"` | Controls when the cookie is sent with cross-site requests. Defaults to `"lax"`.                                                                                |
+| cookieOptions.secure   | `boolean`                     | When `true`, the cookie will only be sent over HTTPS connections. Automatically determined based on your application's base URL protocol if not specified.     |
+| cookieOptions.path     | `string`                      | Specifies the URL path for which the cookie is valid. Defaults to `"/"`.                                                                                       |
 
 ## Database sessions
 
@@ -1062,6 +1070,28 @@ export const auth0 = new Auth0Client({
   }
 });
 ```
+
+## Using Client-Initiated Backchannel Authentication
+
+Using Client-Initiated Backchannel Authentication can be done by calling `getTokenByBackchannelAuth()`:
+
+```ts
+import { auth0 } from "@/lib/auth0";
+
+const tokenResponse = await auth0.getTokenByBackchannelAuth({
+  bindingMessage: "",
+  loginHint: {
+    sub: "auth0|123456789"
+  }
+});
+```
+
+- `bindingMessage`: A human-readable message to be displayed at the consumption device and authentication device. This allows the user to ensure the transaction initiated by the consumption device is the same that triggers the action on the authentication device.
+- `loginHint.sub`: The `sub` claim of the user that is trying to login using Client-Initiated Backchannel Authentication, and to which a push notification to authorize the login will be sent.
+
+> [!IMPORTANT]  
+> Using Client-Initiated Backchannel Authentication requires the feature to be enabled in the Auth0 dashboard.
+> Read [the Auth0 docs](https://auth0.com/docs/get-started/authentication-and-authorization-flow/client-initiated-backchannel-authentication-flow) to learn more about Client-Initiated Backchannel Authentication.
 
 ## Back-Channel Logout
 
@@ -1424,6 +1454,7 @@ export async function middleware(request: NextRequest) {
 Authentication routes (`/auth/login`, `/auth/logout`, `/auth/callback`) are handled automatically by the middleware. You can intercept these routes in your middleware to run custom logic before the auth handlers execute.
 
 This approach allows you to:
+
 - Run custom code before authentication actions (logging, analytics, validation)
 - Modify the response (set cookies, headers, etc.)
 - Implement custom redirects or early returns when needed
@@ -1435,49 +1466,48 @@ The middleware-based approach provides the same level of control as v3's custom 
 ### Run custom code before Auth Handlers
 
 Following example shows how to run custom logic before the response of `logout` handler is returned:
+
 ```ts
 export async function middleware(request) {
+  // prepare NextResponse object from auth0 middleware
+  const authRes = await auth0.middleware(request);
 
-    // prepare NextResponse object from auth0 middleware
-    const authRes = await auth0.middleware(request);
+  // The following interceptUrls can be used:
+  //    "/auth/login" : intercept login auth handler
+  //    "/auth/logout" : intercept logout auth handler
+  //    "/auth/callback" : intercept callback auth handler
+  //    "/your/login/returnTo/url" : intercept redirect after login, this is the login returnTo url
+  //    "/your/logout/returnTo/url" : intercept redirect after logout, this is the logout returnTo url
 
-    // The following interceptUrls can be used:
-    //    "/auth/login" : intercept login auth handler
-    //    "/auth/logout" : intercept logout auth handler
-    //    "/auth/callback" : intercept callback auth handler
-    //    "/your/login/returnTo/url" : intercept redirect after login, this is the login returnTo url
-    //    "/your/logout/returnTo/url" : intercept redirect after logout, this is the logout returnTo url
+  const interceptUrl = "/auth/logout";
 
-    const interceptUrl = "/auth/logout";
-    
-    // intercept auth handler
-    if (request.nextUrl.pathname === interceptUrl) {
-        // do custom stuff
-        console.log("Pre-logout code")
+  // intercept auth handler
+  if (request.nextUrl.pathname === interceptUrl) {
+    // do custom stuff
+    console.log("Pre-logout code");
 
-        // Example: Set a cookie
-        authRes.cookies.set('myCustomCookie', 'cookieValue', { path: '/' });
-        // Example: Set another cookie with options
-        authRes.cookies.set({
-            name: 'anotherCookie',
-            value: 'anotherValue',
-            httpOnly: true,
-            path: '/',
-        });
+    // Example: Set a cookie
+    authRes.cookies.set("myCustomCookie", "cookieValue", { path: "/" });
+    // Example: Set another cookie with options
+    authRes.cookies.set({
+      name: "anotherCookie",
+      value: "anotherValue",
+      httpOnly: true,
+      path: "/"
+    });
 
-        // Example: Delete a cookie
-        // authRes.cookies.delete('cookieNameToDelete');
+    // Example: Delete a cookie
+    // authRes.cookies.delete('cookieNameToDelete');
 
-        // you can also do an early return here with your own NextResponse object
-        // return NextResponse.redirect(new URL('/custom-logout-page'));
-    }
+    // you can also do an early return here with your own NextResponse object
+    // return NextResponse.redirect(new URL('/custom-logout-page'));
+  }
 
-    // return the original auth0-handled NextResponse object
-    return authRes
+  // return the original auth0-handled NextResponse object
+  return authRes;
 }
 ```
 
 ### Run code after callback
-Please refer to [onCallback](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#oncallback) 
-for details on how to run code after callback.
-```
+
+Please refer to [onCallback](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#oncallback) for details on how to run code after callback.
