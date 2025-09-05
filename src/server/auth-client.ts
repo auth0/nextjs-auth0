@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server.js";
 import * as jose from "jose";
 import * as oauth from "oauth4webapi";
+import * as client from "openid-client";
 
 import packageJson from "../../package.json" with { type: "json" };
 import {
@@ -11,6 +12,8 @@ import {
   AuthorizationCodeGrantError,
   AuthorizationCodeGrantRequestError,
   AuthorizationError,
+  BackchannelAuthenticationError,
+  BackchannelAuthenticationNotSupportedError,
   BackchannelLogoutError,
   DiscoveryError,
   InvalidStateError,
@@ -21,6 +24,8 @@ import {
 import {
   AccessTokenForConnectionOptions,
   AuthorizationParameters,
+  BackchannelAuthenticationOptions,
+  BackchannelAuthenticationResponse,
   ConnectionTokenSet,
   LogoutStrategy,
   LogoutToken,
@@ -174,6 +179,7 @@ export class AuthClient {
   private fetch: typeof fetch;
   private jwksCache: jose.JWKSCacheInput;
   private allowInsecureRequests: boolean;
+  private httpTimeout: number;
   private httpOptions: () => oauth.HttpRequestOptions<"GET" | "POST">;
 
   private authorizationServerMetadata?: oauth.AuthorizationServer;
@@ -186,10 +192,10 @@ export class AuthClient {
     this.fetch = options.fetch || fetch;
     this.jwksCache = options.jwksCache || {};
     this.allowInsecureRequests = options.allowInsecureRequests ?? false;
+    this.httpTimeout = options.httpTimeout ?? 5000;
     this.httpOptions = () => {
       const headers = new Headers();
       const enableTelemetry = options.enableTelemetry ?? true;
-      const timeout = options.httpTimeout ?? 5000;
       if (enableTelemetry) {
         const name = "nextjs-auth0";
         const version = packageJson.version;
@@ -207,7 +213,7 @@ export class AuthClient {
       }
 
       return {
-        signal: AbortSignal.timeout(timeout),
+        signal: AbortSignal.timeout(this.httpTimeout),
         headers
       };
     };
@@ -864,6 +870,109 @@ export class AuthClient {
     return [null, { tokenSet, idTokenClaims: undefined }];
   }
 
+  async backchannelAuthentication(
+    options: BackchannelAuthenticationOptions
+  ): Promise<[null, BackchannelAuthenticationResponse] | [SdkError, null]> {
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+    if (discoveryError) {
+      return [discoveryError, null];
+    }
+
+    if (!authorizationServerMetadata.backchannel_authentication_endpoint) {
+      return [new BackchannelAuthenticationNotSupportedError(), null];
+    }
+
+    const authorizationParams = new URLSearchParams();
+    authorizationParams.set("scope", DEFAULT_SCOPES);
+
+    const mergedAuthorizationParams: AuthorizationParameters = {
+      // any custom params to forward to /authorize defined as configuration
+      ...this.authorizationParameters,
+      // custom parameters passed in via the query params to ensure only the confidential client can set them
+      ...options.authorizationParams
+    };
+
+    Object.entries(mergedAuthorizationParams).forEach(([key, val]) =>
+      authorizationParams.set(key, String(val))
+    );
+
+    authorizationParams.set("client_id", this.clientMetadata.client_id);
+    authorizationParams.set("binding_message", options.bindingMessage);
+    authorizationParams.set(
+      "login_hint",
+      JSON.stringify({
+        format: "iss_sub",
+        iss: authorizationServerMetadata.issuer,
+        sub: options.loginHint.sub
+      })
+    );
+
+    if (options.requestedExpiry) {
+      authorizationParams.append(
+        "requested_expiry",
+        options.requestedExpiry.toString()
+      );
+    }
+
+    if (options.authorizationDetails) {
+      authorizationParams.append(
+        "authorization_details",
+        JSON.stringify(options.authorizationDetails)
+      );
+    }
+
+    const [openIdClientConfigError, openidClientConfig] =
+      await this.getOpenIdClientConfig();
+
+    if (openIdClientConfigError) {
+      return [openIdClientConfigError, null];
+    }
+
+    try {
+      const backchannelAuthenticationResponse =
+        await client.initiateBackchannelAuthentication(
+          openidClientConfig,
+          authorizationParams
+        );
+
+      const tokenEndpointResponse =
+        await client.pollBackchannelAuthenticationGrant(
+          openidClientConfig,
+          backchannelAuthenticationResponse
+        );
+
+      const accessTokenExpiresAt =
+        Math.floor(Date.now() / 1000) +
+        Number(tokenEndpointResponse.expires_in);
+
+      return [
+        null,
+        {
+          tokenSet: {
+            accessToken: tokenEndpointResponse.access_token,
+            idToken: tokenEndpointResponse.id_token,
+            scope: tokenEndpointResponse.scope,
+            refreshToken: tokenEndpointResponse.refresh_token,
+            expiresAt: accessTokenExpiresAt
+          },
+          idTokenClaims: tokenEndpointResponse.claims(),
+          authorizationDetails: tokenEndpointResponse.authorization_details
+        }
+      ];
+    } catch (e: any) {
+      return [
+        new BackchannelAuthenticationError({
+          cause: new OAuth2Error({
+            code: e.error,
+            message: e.error_description
+          })
+        }),
+        null
+      ];
+    }
+  }
+
   private async discoverAuthorizationServerMetadata(): Promise<
     [null, oauth.AuthorizationServer] | [SdkError, null]
   > {
@@ -1272,6 +1381,42 @@ export class AuthClient {
       session.user = filterDefaultIdTokenClaims(session.user);
     }
     return session;
+  }
+
+  private async getOpenIdClientConfig(): Promise<
+    [null, client.Configuration] | [SdkError, null]
+  > {
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      return [discoveryError, null];
+    }
+
+    const openidClientConfig = new client.Configuration(
+      authorizationServerMetadata,
+      this.clientMetadata.client_id,
+      {},
+      await this.getClientAuth()
+    );
+    const httpOpts = this.httpOptions();
+    const telemetryHeaders = new Headers(httpOpts.headers);
+
+    openidClientConfig[client.customFetch] = (...args) => {
+      const headers = new Headers(args[1].headers);
+      return this.fetch(args[0], {
+        ...args[1],
+        headers: new Headers([...telemetryHeaders, ...headers])
+      });
+    };
+
+    openidClientConfig.timeout = this.httpTimeout;
+
+    if (this.allowInsecureRequests) {
+      client.allowInsecureRequests(openidClientConfig);
+    }
+
+    return [null, openidClientConfig];
   }
 }
 
