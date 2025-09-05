@@ -43,7 +43,7 @@ jobs:
           version: 10
 
       - name: Setup Node.js with pnpm caching
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: ${{ inputs.node-version }}
           cache: "pnpm"
