@@ -132,6 +132,7 @@ export interface AuthClientOptions {
   appBaseUrl: string;
   signInReturnToPath?: string;
   logoutStrategy?: LogoutStrategy;
+  includeIdTokenHintInOIDCLogoutUrl?: boolean;
 
   beforeSessionSaved?: BeforeSessionSavedHook;
   onCallback?: OnCallbackHook;
@@ -170,6 +171,7 @@ export class AuthClient {
   private appBaseUrl: string;
   private signInReturnToPath: string;
   private logoutStrategy: LogoutStrategy;
+  private includeIdTokenHintInOIDCLogoutUrl: boolean;
 
   private beforeSessionSaved?: BeforeSessionSavedHook;
   private onCallback: OnCallbackHook;
@@ -268,6 +270,8 @@ export class AuthClient {
       logoutStrategy = "auto";
     }
     this.logoutStrategy = logoutStrategy;
+    this.includeIdTokenHintInOIDCLogoutUrl =
+      options.includeIdTokenHintInOIDCLogoutUrl ?? true;
 
     // hooks
     this.beforeSessionSaved = options.beforeSessionSaved;
@@ -457,7 +461,7 @@ export class AuthClient {
         url.searchParams.set("logout_hint", session.internal.sid);
       }
 
-      if (session?.tokenSet.idToken) {
+      if (this.includeIdTokenHintInOIDCLogoutUrl && session?.tokenSet.idToken) {
         url.searchParams.set("id_token_hint", session.tokenSet.idToken);
       }
 

@@ -514,4 +514,163 @@ describe("Logout Strategy Flow Tests", () => {
       expect(logoutUrl.searchParams.get("id_token_hint")).toBeNull();
     });
   });
+
+  describe("includeIdTokenHintInOIDCLogoutUrl option with different logout strategies", () => {
+    it("should exclude id_token_hint from OIDC logout URL when includeIdTokenHintInOIDCLogoutUrl is false with auto strategy", async () => {
+      const authClient = new AuthClient({
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        secret,
+        transactionStore,
+        sessionStore,
+        logoutStrategy: "auto",
+        includeIdTokenHintInOIDCLogoutUrl: false,
+        routes: getDefaultRoutes()
+      });
+
+      const session: SessionData = {
+        user: { sub: DEFAULT.sub },
+        tokenSet: {
+          idToken: DEFAULT.idToken,
+          accessToken: DEFAULT.accessToken,
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt: 123456
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
+
+      const sessionCookie = await createSessionCookie(session, secret);
+      const headers = new Headers();
+      headers.append("cookie", `__session=${sessionCookie}`);
+
+      const request = new NextRequest(
+        new URL("/auth/logout", DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers
+        }
+      );
+
+      const response = await authClient.handleLogout(request);
+
+      expect(response.status).toBe(307);
+      const location = response.headers.get("Location");
+      expect(location).toBeTruthy();
+
+      const logoutUrl = new URL(location!);
+      expect(logoutUrl.pathname).toBe("/oidc/logout");
+      expect(logoutUrl.searchParams.get("logout_hint")).toBe(DEFAULT.sid);
+      expect(logoutUrl.searchParams.get("id_token_hint")).toBeNull();
+    });
+
+    it("should exclude id_token_hint from OIDC logout URL when includeIdTokenHintInOIDCLogoutUrl is false with oidc strategy", async () => {
+      const authClient = new AuthClient({
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        secret,
+        transactionStore,
+        sessionStore,
+        logoutStrategy: "oidc",
+        includeIdTokenHintInOIDCLogoutUrl: false,
+        routes: getDefaultRoutes()
+      });
+
+      const session: SessionData = {
+        user: { sub: DEFAULT.sub },
+        tokenSet: {
+          idToken: DEFAULT.idToken,
+          accessToken: DEFAULT.accessToken,
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt: 123456
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
+
+      const sessionCookie = await createSessionCookie(session, secret);
+      const headers = new Headers();
+      headers.append("cookie", `__session=${sessionCookie}`);
+
+      const request = new NextRequest(
+        new URL("/auth/logout", DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers
+        }
+      );
+
+      const response = await authClient.handleLogout(request);
+
+      expect(response.status).toBe(307);
+      const location = response.headers.get("Location");
+      expect(location).toBeTruthy();
+
+      const logoutUrl = new URL(location!);
+      expect(logoutUrl.pathname).toBe("/oidc/logout");
+      expect(logoutUrl.searchParams.get("logout_hint")).toBe(DEFAULT.sid);
+      expect(logoutUrl.searchParams.get("id_token_hint")).toBeNull();
+    });
+
+    it("should not affect v2 logout strategy (includeIdTokenHintInOIDCLogoutUrl option has no effect)", async () => {
+      const authClient = new AuthClient({
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        secret,
+        transactionStore,
+        sessionStore,
+        logoutStrategy: "v2",
+        includeIdTokenHintInOIDCLogoutUrl: false, // should have no effect on v2 logout
+        routes: getDefaultRoutes()
+      });
+
+      const session: SessionData = {
+        user: { sub: DEFAULT.sub },
+        tokenSet: {
+          idToken: DEFAULT.idToken,
+          accessToken: DEFAULT.accessToken,
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt: 123456
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
+
+      const sessionCookie = await createSessionCookie(session, secret);
+      const headers = new Headers();
+      headers.append("cookie", `__session=${sessionCookie}`);
+
+      const request = new NextRequest(
+        new URL("/auth/logout", DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers
+        }
+      );
+
+      const response = await authClient.handleLogout(request);
+
+      expect(response.status).toBe(307);
+      const location = response.headers.get("Location");
+      expect(location).toBeTruthy();
+
+      const logoutUrl = new URL(location!);
+      expect(logoutUrl.pathname).toBe("/v2/logout");
+      // v2 logout doesn't use these parameters anyway
+      expect(logoutUrl.searchParams.get("logout_hint")).toBeNull();
+      expect(logoutUrl.searchParams.get("id_token_hint")).toBeNull();
+    });
+  });
 });
