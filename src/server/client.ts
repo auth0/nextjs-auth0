@@ -133,10 +133,17 @@ export interface Auth0ClientOptions {
   /**
    * Configure whether to include id_token_hint in OIDC logout URLs.
    *
-   * When false, only logout_hint (session ID) and client_id are sent,
-   * which prevents PII exposure in server logs and browser history.
+   * **Recommended (default)**: Set to `true` to include `id_token_hint` parameter.
+   * Auth0 recommends using `id_token_hint` for secure logout as per the
+   * OIDC specification.
    *
-   * @default true (for backwards compatibility)
+   * **Alternative approach**: Set to `false` if your application cannot securely
+   * store ID tokens. When disabled, only `logout_hint` (session ID), `client_id`,
+   * and `post_logout_redirect_uri` are sent.
+   *
+   *
+   * @see https://auth0.com/docs/authenticate/login/logout/log-users-out-of-auth0#oidc-logout-endpoint-parameters
+   * @default true (recommended and backwards compatible)
    */
   includeIdTokenHintInOIDCLogoutUrl?: boolean;
 
