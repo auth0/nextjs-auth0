@@ -171,7 +171,7 @@ export interface BackchannelAuthenticationOptions {
   /**
    * Set a custom expiry time for the CIBA flow in seconds. Defaults to 300 seconds (5 minutes) if not set.
    */
-  requestExpiry?: number;
+  requestedExpiry?: number;
   /**
    * Optional authorization details to use Rich Authorization Requests (RAR).
    * @see https://auth0.com/docs/get-started/apis/configure-rich-authorization-requests
