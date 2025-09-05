@@ -907,10 +907,10 @@ export class AuthClient {
       })
     );
 
-    if (options.requestExpiry) {
+    if (options.requestedExpiry) {
       authorizationParams.append(
-        "request_expiry",
-        options.requestExpiry.toString()
+        "requested_expiry",
+        options.requestedExpiry.toString()
       );
     }
 
