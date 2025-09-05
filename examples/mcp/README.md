@@ -24,8 +24,19 @@ AUTH0_AUDIENCE=http://localhost:3000
 
 With the configuration in place, the example can be started by running:
 
+## Running the Server
+
+For development with hot reload:
+
 ```bash
-npm run start
+pnpm dev
+```
+
+Or build and run in production mode:
+
+```bash
+pnpm build
+pnpm start
 ```
 
 ## Testing
