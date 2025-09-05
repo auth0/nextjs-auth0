@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server.js";
 import * as jose from "jose";
 import * as oauth from "oauth4webapi";
+import * as client from "openid-client";
 
 import packageJson from "../../package.json" with { type: "json" };
 import {
@@ -11,6 +12,8 @@ import {
   AuthorizationCodeGrantError,
   AuthorizationCodeGrantRequestError,
   AuthorizationError,
+  BackchannelAuthenticationError,
+  BackchannelAuthenticationNotSupportedError,
   BackchannelLogoutError,
   DiscoveryError,
   InvalidStateError,
@@ -21,6 +24,8 @@ import {
 import {
   AccessTokenForConnectionOptions,
   AuthorizationParameters,
+  BackchannelAuthenticationOptions,
+  BackchannelAuthenticationResponse,
   ConnectionTokenSet,
   LogoutStrategy,
   LogoutToken,
@@ -110,7 +115,7 @@ export interface AuthClientOptions {
   domain: string;
   clientId: string;
   clientSecret?: string;
-  clientAssertionSigningKey?: string | CryptoKey;
+  clientAssertionSigningKey?: string | jose.CryptoKey;
   clientAssertionSigningAlg?: string;
   authorizationParameters?: AuthorizationParameters;
   pushedAuthorizationRequests?: boolean;
@@ -123,7 +128,7 @@ export interface AuthClientOptions {
   beforeSessionSaved?: BeforeSessionSavedHook;
   onCallback?: OnCallbackHook;
 
-  routes?: RoutesOptions;
+  routes: Routes;
 
   // custom fetch implementation to allow for dependency injection
   fetch?: typeof fetch;
@@ -148,7 +153,7 @@ export class AuthClient {
 
   private clientMetadata: oauth.Client;
   private clientSecret?: string;
-  private clientAssertionSigningKey?: string | CryptoKey;
+  private clientAssertionSigningKey?: string | jose.CryptoKey;
   private clientAssertionSigningAlg: string;
   private domain: string;
   private authorizationParameters: AuthorizationParameters;
@@ -166,6 +171,7 @@ export class AuthClient {
   private fetch: typeof fetch;
   private jwksCache: jose.JWKSCacheInput;
   private allowInsecureRequests: boolean;
+  private httpTimeout: number;
   private httpOptions: () => oauth.HttpRequestOptions<"GET" | "POST">;
 
   private authorizationServerMetadata?: oauth.AuthorizationServer;
@@ -178,10 +184,10 @@ export class AuthClient {
     this.fetch = options.fetch || fetch;
     this.jwksCache = options.jwksCache || {};
     this.allowInsecureRequests = options.allowInsecureRequests ?? false;
+    this.httpTimeout = options.httpTimeout ?? 5000;
     this.httpOptions = () => {
       const headers = new Headers();
       const enableTelemetry = options.enableTelemetry ?? true;
-      const timeout = options.httpTimeout ?? 5000;
       if (enableTelemetry) {
         const name = "nextjs-auth0";
         const version = packageJson.version;
@@ -199,7 +205,7 @@ export class AuthClient {
       }
 
       return {
-        signal: AbortSignal.timeout(timeout),
+        signal: AbortSignal.timeout(this.httpTimeout),
         headers
       };
     };
@@ -260,16 +266,7 @@ export class AuthClient {
     this.onCallback = options.onCallback || this.defaultOnCallback;
 
     // routes
-    this.routes = {
-      login: process.env.NEXT_PUBLIC_LOGIN_ROUTE || "/auth/login",
-      logout: "/auth/logout",
-      callback: "/auth/callback",
-      backChannelLogout: "/auth/backchannel-logout",
-      profile: process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile",
-      accessToken:
-        process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
-      ...options.routes
-    };
+    this.routes = options.routes;
 
     this.enableAccessTokenEndpoint = options.enableAccessTokenEndpoint ?? true;
     this.noContentProfileResponseWhenUnauthenticated =
@@ -396,6 +393,8 @@ export class AuthClient {
 
     // Set response and save transaction
     const res = NextResponse.redirect(authorizationUrl.toString());
+
+    // Save transaction state
     await this.transactionStore.save(res.cookies, transactionState);
 
     return res;
@@ -506,7 +505,7 @@ export class AuthClient {
   async handleCallback(req: NextRequest): Promise<NextResponse> {
     const state = req.nextUrl.searchParams.get("state");
     if (!state) {
-      return this.onCallback(new MissingStateError(), {}, null);
+      return this.handleCallbackError(new MissingStateError(), {}, req);
     }
 
     const transactionStateCookie = await this.transactionStore.get(
@@ -526,7 +525,12 @@ export class AuthClient {
       await this.discoverAuthorizationServerMetadata();
 
     if (discoveryError) {
-      return this.onCallback(discoveryError, onCallbackCtx, null);
+      return this.handleCallbackError(
+        discoveryError,
+        onCallbackCtx,
+        req,
+        state
+      );
     }
 
     let codeGrantParams: URLSearchParams;
@@ -538,7 +542,7 @@ export class AuthClient {
         transactionState.state
       );
     } catch (e: any) {
-      return this.onCallback(
+      return this.handleCallbackError(
         new AuthorizationError({
           cause: new OAuth2Error({
             code: e.error,
@@ -546,7 +550,8 @@ export class AuthClient {
           })
         }),
         onCallbackCtx,
-        null
+        req,
+        state
       );
     }
 
@@ -567,10 +572,11 @@ export class AuthClient {
         }
       );
     } catch (e: any) {
-      return this.onCallback(
+      return this.handleCallbackError(
         new AuthorizationCodeGrantRequestError(e.message),
         onCallbackCtx,
-        null
+        req,
+        state
       );
     }
 
@@ -587,7 +593,7 @@ export class AuthClient {
         }
       );
     } catch (e: any) {
-      return this.onCallback(
+      return this.handleCallbackError(
         new AuthorizationCodeGrantError({
           cause: new OAuth2Error({
             code: e.error,
@@ -595,7 +601,8 @@ export class AuthClient {
           })
         }),
         onCallbackCtx,
-        null
+        req,
+        state
       );
     }
 
@@ -623,6 +630,8 @@ export class AuthClient {
 
     await this.sessionStore.set(req.cookies, res.cookies, session, true);
     addCacheControlHeadersForSession(res);
+
+    // Clean up the current transaction cookie after successful authentication
     await this.transactionStore.delete(res.cookies, state);
 
     return res;
@@ -852,6 +861,109 @@ export class AuthClient {
     return [null, { tokenSet, idTokenClaims: undefined }];
   }
 
+  async backchannelAuthentication(
+    options: BackchannelAuthenticationOptions
+  ): Promise<[null, BackchannelAuthenticationResponse] | [SdkError, null]> {
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+    if (discoveryError) {
+      return [discoveryError, null];
+    }
+
+    if (!authorizationServerMetadata.backchannel_authentication_endpoint) {
+      return [new BackchannelAuthenticationNotSupportedError(), null];
+    }
+
+    const authorizationParams = new URLSearchParams();
+    authorizationParams.set("scope", DEFAULT_SCOPES);
+
+    const mergedAuthorizationParams: AuthorizationParameters = {
+      // any custom params to forward to /authorize defined as configuration
+      ...this.authorizationParameters,
+      // custom parameters passed in via the query params to ensure only the confidential client can set them
+      ...options.authorizationParams
+    };
+
+    Object.entries(mergedAuthorizationParams).forEach(([key, val]) =>
+      authorizationParams.set(key, String(val))
+    );
+
+    authorizationParams.set("client_id", this.clientMetadata.client_id);
+    authorizationParams.set("binding_message", options.bindingMessage);
+    authorizationParams.set(
+      "login_hint",
+      JSON.stringify({
+        format: "iss_sub",
+        iss: authorizationServerMetadata.issuer,
+        sub: options.loginHint.sub
+      })
+    );
+
+    if (options.requestedExpiry) {
+      authorizationParams.append(
+        "requested_expiry",
+        options.requestedExpiry.toString()
+      );
+    }
+
+    if (options.authorizationDetails) {
+      authorizationParams.append(
+        "authorization_details",
+        JSON.stringify(options.authorizationDetails)
+      );
+    }
+
+    const [openIdClientConfigError, openidClientConfig] =
+      await this.getOpenIdClientConfig();
+
+    if (openIdClientConfigError) {
+      return [openIdClientConfigError, null];
+    }
+
+    try {
+      const backchannelAuthenticationResponse =
+        await client.initiateBackchannelAuthentication(
+          openidClientConfig,
+          authorizationParams
+        );
+
+      const tokenEndpointResponse =
+        await client.pollBackchannelAuthenticationGrant(
+          openidClientConfig,
+          backchannelAuthenticationResponse
+        );
+
+      const accessTokenExpiresAt =
+        Math.floor(Date.now() / 1000) +
+        Number(tokenEndpointResponse.expires_in);
+
+      return [
+        null,
+        {
+          tokenSet: {
+            accessToken: tokenEndpointResponse.access_token,
+            idToken: tokenEndpointResponse.id_token,
+            scope: tokenEndpointResponse.scope,
+            refreshToken: tokenEndpointResponse.refresh_token,
+            expiresAt: accessTokenExpiresAt
+          },
+          idTokenClaims: tokenEndpointResponse.claims(),
+          authorizationDetails: tokenEndpointResponse.authorization_details
+        }
+      ];
+    } catch (e: any) {
+      return [
+        new BackchannelAuthenticationError({
+          cause: new OAuth2Error({
+            code: e.error,
+            message: e.error_description
+          })
+        }),
+        null
+      ];
+    }
+  }
+
   private async discoverAuthorizationServerMetadata(): Promise<
     [null, oauth.AuthorizationServer] | [SdkError, null]
   > {
@@ -902,6 +1014,25 @@ export class AuthClient {
     );
 
     return res;
+  }
+
+  /**
+   * Handle callback errors with transaction cleanup
+   */
+  private async handleCallbackError(
+    error: SdkError,
+    ctx: OnCallbackContext,
+    req: NextRequest,
+    state?: string
+  ): Promise<NextResponse> {
+    const response = await this.onCallback(error, ctx, null);
+
+    // Clean up the transaction cookie on error to prevent accumulation
+    if (state) {
+      await this.transactionStore.delete(response.cookies, state);
+    }
+
+    return response;
   }
 
   private async verifyLogoutToken(
@@ -1080,19 +1211,18 @@ export class AuthClient {
       );
     }
 
-    let clientPrivateKey = this.clientAssertionSigningKey as
-      | CryptoKey
-      | undefined;
+    let clientPrivateKey: jose.CryptoKey | undefined = this
+      .clientAssertionSigningKey as jose.CryptoKey | undefined;
 
-    if (clientPrivateKey && !(clientPrivateKey instanceof CryptoKey)) {
-      clientPrivateKey = await jose.importPKCS8<CryptoKey>(
+    if (clientPrivateKey && typeof clientPrivateKey === "string") {
+      clientPrivateKey = await jose.importPKCS8(
         clientPrivateKey,
         this.clientAssertionSigningAlg
       );
     }
 
     return clientPrivateKey
-      ? oauth.PrivateKeyJwt(clientPrivateKey)
+      ? oauth.PrivateKeyJwt(clientPrivateKey as CryptoKey)
       : oauth.ClientSecretPost(this.clientSecret!);
   }
 
@@ -1246,6 +1376,42 @@ export class AuthClient {
       session.user = filterDefaultIdTokenClaims(session.user);
     }
     return session;
+  }
+
+  private async getOpenIdClientConfig(): Promise<
+    [null, client.Configuration] | [SdkError, null]
+  > {
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      return [discoveryError, null];
+    }
+
+    const openidClientConfig = new client.Configuration(
+      authorizationServerMetadata,
+      this.clientMetadata.client_id,
+      {},
+      await this.getClientAuth()
+    );
+    const httpOpts = this.httpOptions();
+    const telemetryHeaders = new Headers(httpOpts.headers);
+
+    openidClientConfig[client.customFetch] = (...args) => {
+      const headers = new Headers(args[1].headers);
+      return this.fetch(args[0], {
+        ...args[1],
+        headers: new Headers([...telemetryHeaders, ...headers])
+      });
+    };
+
+    openidClientConfig.timeout = this.httpTimeout;
+
+    if (this.allowInsecureRequests) {
+      client.allowInsecureRequests(openidClientConfig);
+    }
+
+    return [null, openidClientConfig];
   }
 }
 

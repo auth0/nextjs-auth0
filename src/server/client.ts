@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { cookies } from "next/headers.js";
 import { NextRequest, NextResponse } from "next/server.js";
-import { NextApiRequest, NextApiResponse } from "next/types.js";
+import { NextApiHandler, NextApiRequest, NextApiResponse } from "next/types.js";
 
 import {
   AccessTokenError,
@@ -12,19 +12,30 @@ import {
 import {
   AccessTokenForConnectionOptions,
   AuthorizationParameters,
+  BackchannelAuthenticationOptions,
   LogoutStrategy,
   SessionData,
   SessionDataStore,
   StartInteractiveLoginOptions,
   User
 } from "../types/index.js";
+import { isRequest } from "../utils/request.js";
 import {
   AuthClient,
   BeforeSessionSavedHook,
   OnCallbackHook,
+  Routes,
   RoutesOptions
 } from "./auth-client.js";
 import { RequestCookies, ResponseCookies } from "./cookies.js";
+import * as withApiAuthRequired from "./helpers/with-api-auth-required.js";
+import {
+  appRouteHandlerFactory,
+  AppRouterPageRoute,
+  pageRouteHandlerFactory,
+  WithPageAuthRequiredAppRouterOptions,
+  WithPageAuthRequiredPageRouterOptions
+} from "./helpers/with-page-auth-required.js";
 import {
   AbstractSessionStore,
   SessionConfiguration,
@@ -188,6 +199,8 @@ export interface Auth0ClientOptions {
    * Defaults to `false`.
    */
   noContentProfileResponseWhenUnauthenticated?: boolean;
+
+  enableParallelTransactions?: boolean;
 }
 
 export type PagesRouterRequest = IncomingMessage | NextApiRequest;
@@ -199,6 +212,7 @@ export class Auth0Client {
   private transactionStore: TransactionStore;
   private sessionStore: AbstractSessionStore;
   private authClient: AuthClient;
+  private routes: Routes;
 
   constructor(options: Auth0ClientOptions = {}) {
     // Extract and validate required options
@@ -215,6 +229,9 @@ export class Auth0Client {
       options.clientAssertionSigningAlg ||
       process.env.AUTH0_CLIENT_ASSERTION_SIGNING_ALG;
 
+    // Auto-detect base path for cookie configuration
+    const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
+
     const sessionCookieOptions: SessionCookieOptions = {
       name: options.session?.cookie?.name ?? "__session",
       secure:
@@ -225,7 +242,10 @@ export class Auth0Client {
         (process.env.AUTH0_COOKIE_SAME_SITE as "lax" | "strict" | "none") ??
         "lax",
       path:
-        options.session?.cookie?.path ?? process.env.AUTH0_COOKIE_PATH ?? "/",
+        options.session?.cookie?.path ??
+        process.env.AUTH0_COOKIE_PATH ??
+        basePath ??
+        "/",
       transient:
         options.session?.cookie?.transient ??
         process.env.AUTH0_COOKIE_TRANSIENT === "true",
@@ -236,7 +256,8 @@ export class Auth0Client {
       prefix: options.transactionCookie?.prefix ?? "__txn_",
       secure: options.transactionCookie?.secure ?? false,
       sameSite: options.transactionCookie?.sameSite ?? "lax",
-      path: options.transactionCookie?.path ?? "/"
+      path: options.transactionCookie?.path ?? basePath ?? "/",
+      maxAge: options.transactionCookie?.maxAge ?? 3600
     };
 
     if (appBaseUrl) {
@@ -247,10 +268,21 @@ export class Auth0Client {
       }
     }
 
+    this.routes = {
+      login: process.env.NEXT_PUBLIC_LOGIN_ROUTE || "/auth/login",
+      logout: "/auth/logout",
+      callback: "/auth/callback",
+      backChannelLogout: "/auth/backchannel-logout",
+      profile: process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile",
+      accessToken:
+        process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
+      ...options.routes
+    };
+
     this.transactionStore = new TransactionStore({
-      ...options.session,
       secret,
-      cookieOptions: transactionCookieOptions
+      cookieOptions: transactionCookieOptions,
+      enableParallelTransactions: options.enableParallelTransactions ?? true
     });
 
     this.sessionStore = options.sessionStore
@@ -286,7 +318,7 @@ export class Auth0Client {
       beforeSessionSaved: options.beforeSessionSaved,
       onCallback: options.onCallback,
 
-      routes: options.routes,
+      routes: this.routes,
 
       allowInsecureRequests: options.allowInsecureRequests,
       httpTimeout: options.httpTimeout,
@@ -699,9 +731,75 @@ export class Auth0Client {
   }
 
   async startInteractiveLogin(
-    options: StartInteractiveLoginOptions
+    options: StartInteractiveLoginOptions = {}
   ): Promise<NextResponse> {
     return this.authClient.startInteractiveLogin(options);
+  }
+
+  /**
+   * Authenticates using Client-Initiated Backchannel Authentication and returns the token set and optionally the ID token claims and authorization details.
+   *
+   * This method will initialize the backchannel authentication process with Auth0, and poll the token endpoint until the authentication is complete.
+   *
+   * Using Client-Initiated Backchannel Authentication requires the feature to be enabled in the Auth0 dashboard.
+   * @see https://auth0.com/docs/get-started/authentication-and-authorization-flow/client-initiated-backchannel-authentication-flow
+   */
+  async getTokenByBackchannelAuth(options: BackchannelAuthenticationOptions) {
+    const [error, response] =
+      await this.authClient.backchannelAuthentication(options);
+
+    if (error) {
+      throw error;
+    }
+
+    return response;
+  }
+
+  withPageAuthRequired(
+    fnOrOpts?: WithPageAuthRequiredPageRouterOptions | AppRouterPageRoute,
+    opts?: WithPageAuthRequiredAppRouterOptions
+  ) {
+    const config = {
+      loginUrl: this.routes.login
+    };
+    const appRouteHandler = appRouteHandlerFactory(this, config);
+    const pageRouteHandler = pageRouteHandlerFactory(this, config);
+
+    if (typeof fnOrOpts === "function") {
+      return appRouteHandler(fnOrOpts, opts);
+    }
+
+    return pageRouteHandler(fnOrOpts);
+  }
+
+  withApiAuthRequired(
+    apiRoute: withApiAuthRequired.AppRouteHandlerFn | NextApiHandler
+  ) {
+    const pageRouteHandler = withApiAuthRequired.pageRouteHandlerFactory(this);
+    const appRouteHandler = withApiAuthRequired.appRouteHandlerFactory(this);
+
+    return (
+      req: NextRequest | NextApiRequest,
+      resOrParams:
+        | withApiAuthRequired.AppRouteHandlerFnContext
+        | NextApiResponse
+    ) => {
+      if (isRequest(req)) {
+        return appRouteHandler(
+          apiRoute as withApiAuthRequired.AppRouteHandlerFn
+        )(
+          req as NextRequest,
+          resOrParams as withApiAuthRequired.AppRouteHandlerFnContext
+        );
+      }
+
+      return (
+        pageRouteHandler as withApiAuthRequired.WithApiAuthRequiredPageRoute
+      )(apiRoute as NextApiHandler)(
+        req as NextApiRequest,
+        resOrParams as NextApiResponse
+      );
+    };
   }
 
   private async saveToSession(

@@ -1,3 +1,4 @@
+import * as jose from "jose";
 import * as oauth from "oauth4webapi";
 import { describe, expect, it } from "vitest";
 
@@ -105,9 +106,10 @@ describe("Transaction Store", async () => {
       const cookie = responseCookies.get(cookieName);
 
       expect(cookie).toBeDefined();
-      expect((await decrypt(cookie!.value, secret)).payload).toEqual(
-        expect.objectContaining(transactionState)
-      );
+      expect(
+        ((await decrypt(cookie!.value, secret)) as jose.JWTDecryptResult)
+          .payload
+      ).toEqual(expect.objectContaining(transactionState));
       expect(cookie?.path).toEqual("/");
       expect(cookie?.httpOnly).toEqual(true);
       expect(cookie?.sameSite).toEqual("lax");
@@ -168,9 +170,10 @@ describe("Transaction Store", async () => {
         const cookie = responseCookies.get(cookieName);
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
-          expect.objectContaining(transactionState)
-        );
+        expect(
+          ((await decrypt(cookie!.value, secret)) as jose.JWTDecryptResult)
+            .payload
+        ).toEqual(expect.objectContaining(transactionState));
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("lax");
@@ -206,9 +209,10 @@ describe("Transaction Store", async () => {
         const cookie = responseCookies.get(cookieName);
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
-          expect.objectContaining(transactionState)
-        );
+        expect(
+          ((await decrypt(cookie!.value, secret)) as jose.JWTDecryptResult)
+            .payload
+        ).toEqual(expect.objectContaining(transactionState));
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("strict");
@@ -244,9 +248,10 @@ describe("Transaction Store", async () => {
         const cookie = responseCookies.get(cookieName);
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
-          expect.objectContaining(transactionState)
-        );
+        expect(
+          ((await decrypt(cookie!.value, secret)) as jose.JWTDecryptResult)
+            .payload
+        ).toEqual(expect.objectContaining(transactionState));
         expect(cookie?.path).toEqual("/custom-path");
       });
 
@@ -278,13 +283,54 @@ describe("Transaction Store", async () => {
         const cookie = responseCookies.get(cookieName);
 
         expect(cookie).toBeDefined();
-        expect((await decrypt(cookie!.value, secret)).payload).toEqual(
-          expect.objectContaining(transactionState)
-        );
+        expect(
+          ((await decrypt(cookie!.value, secret)) as jose.JWTDecryptResult)
+            .payload
+        ).toEqual(expect.objectContaining(transactionState));
         expect(cookie?.path).toEqual("/");
         expect(cookie?.httpOnly).toEqual(true);
         expect(cookie?.sameSite).toEqual("lax");
         expect(cookie?.maxAge).toEqual(3600);
+        expect(cookie?.secure).toEqual(false);
+      });
+
+      it("should apply custom maxAge to the cookie", async () => {
+        const secret = await generateSecret(32);
+        const codeVerifier = oauth.generateRandomCodeVerifier();
+        const nonce = oauth.generateRandomNonce();
+        const state = oauth.generateRandomState();
+        const transactionState: TransactionState = {
+          nonce,
+          maxAge: 3600,
+          codeVerifier: codeVerifier,
+          responseType: "code",
+          state,
+          returnTo: "/dashboard"
+        };
+        const headers = new Headers();
+        const responseCookies = new ResponseCookies(headers);
+
+        const customMaxAge = 1800; // 30 minutes
+        const transactionStore = new TransactionStore({
+          secret,
+          cookieOptions: {
+            maxAge: customMaxAge
+          }
+        });
+        await transactionStore.save(responseCookies, transactionState);
+
+        const cookieName = `__txn_${state}`;
+        const cookie = responseCookies.get(cookieName);
+
+        expect(cookie).toBeDefined();
+        expect(
+          ((await decrypt(cookie!.value, secret)) as jose.JWTDecryptResult)
+            .payload
+        ).toEqual(expect.objectContaining(transactionState));
+        expect(cookie?.path).toEqual("/");
+        expect(cookie?.httpOnly).toEqual(true);
+        expect(cookie?.sameSite).toEqual("lax");
+        expect(cookie?.maxAge).toEqual(customMaxAge);
         expect(cookie?.secure).toEqual(false);
       });
     });
