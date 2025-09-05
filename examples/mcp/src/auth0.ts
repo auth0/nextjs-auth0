@@ -7,7 +7,7 @@ import { ZodRawShape } from "zod";
 import { AUTH0_AUDIENCE, AUTH0_DOMAIN } from "./config";
 import { Auth } from "./types";
 
-interface Auth0McpInstance {
+interface Auth0Mcp {
   verifyToken: ReturnType<typeof createTokenVerifier>;
   requireScopes: ReturnType<typeof createScopeValidator>;
 }
@@ -15,7 +15,7 @@ interface Auth0McpInstance {
 const auth0Mcp = createAuth0Mcp();
 export default auth0Mcp;
 
-export function createAuth0Mcp(): Auth0McpInstance {
+export function createAuth0Mcp(): Auth0Mcp {
   const verifyToken = createTokenVerifier();
   const requireScopes = createScopeValidator();
   return {
@@ -115,7 +115,7 @@ function createScopeValidator() {
         context = args as Parameters<ToolCallback<T>>[1];
       }
 
-      if (!context?.authInfo) {
+      if (!context.authInfo) {
         throw new Error("Authentication info is required to execute this tool");
       }
 

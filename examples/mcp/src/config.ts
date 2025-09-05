@@ -9,6 +9,6 @@ export const AUTH0_AUDIENCE =
  * Configure appropriately for production
  */
 export const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "*", // Adjust as needed for production
   "Access-Control-Allow-Methods": "GET, OPTIONS"
 };
