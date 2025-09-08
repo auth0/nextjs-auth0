@@ -1286,7 +1286,13 @@ export class AuthClient {
         options.subject_token_type ||
           SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_REFRESH_TOKEN
       );
-      params.append("subject_token", options.subject_token_type === SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_ACCESS_TOKEN ? tokenSet.accessToken : tokenSet.refreshToken);
+      params.append(
+        "subject_token",
+        options.subject_token_type ===
+          SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_ACCESS_TOKEN
+          ? tokenSet.accessToken
+          : tokenSet.refreshToken
+      );
       params.append(
         "requested_token_type",
         REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN
