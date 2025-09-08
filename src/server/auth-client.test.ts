@@ -2285,7 +2285,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         // With simplified approach, custom parameters are forwarded to PAR
         expect(parRequestParams!.get("scope")).toEqual("read:users"); // Query param forwarded
-        expect(parRequestParams!.get("audience")).toEqual("https://api.example.com"); // Query param forwarded
+        expect(parRequestParams!.get("audience")).toEqual(
+          "https://api.example.com"
+        ); // Query param forwarded
         // redirect_uri should NOT be overridden as it's a security-sensitive internal parameter
         expect(parRequestParams!.get("redirect_uri")).toEqual(
           `${DEFAULT.appBaseUrl}/auth/callback`
