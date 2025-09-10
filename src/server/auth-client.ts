@@ -440,11 +440,17 @@ export class AuthClient {
 
     const returnTo =
       req.nextUrl.searchParams.get("returnTo") || this.appBaseUrl;
+    const federated = req.nextUrl.searchParams.has("federated");
 
     const createV2LogoutResponse = (): NextResponse => {
       const url = new URL("/v2/logout", this.issuer);
       url.searchParams.set("returnTo", returnTo);
       url.searchParams.set("client_id", this.clientMetadata.client_id);
+
+      if (federated) {
+        url.searchParams.set("federated", "");
+      }
+
       return NextResponse.redirect(url);
     };
 
@@ -459,6 +465,10 @@ export class AuthClient {
 
       if (session?.tokenSet.idToken) {
         url.searchParams.set("id_token_hint", session.tokenSet.idToken);
+      }
+
+      if (federated) {
+        url.searchParams.set("federated", "");
       }
 
       return NextResponse.redirect(url);
