@@ -104,7 +104,7 @@ export const withPageAuthRequired: WithPageAuthRequired = (
       const componentProps = {
         ...props,
         user
-      } as Omit<React.ComponentProps<typeof Component>, 'user'> & UserProps;
+      } as React.ComponentProps<typeof Component> & UserProps;
       return <Component {...componentProps} />;
     }
 
