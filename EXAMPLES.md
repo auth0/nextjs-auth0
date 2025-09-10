@@ -4,6 +4,8 @@
 - [The `returnTo` parameter](#the-returnto-parameter)
   - [Redirecting the user after authentication](#redirecting-the-user-after-authentication)
   - [Redirecting the user after logging out](#redirecting-the-user-after-logging-out)
+  - [Configuring logout strategy](#configuring-logout-strategy)
+  - [Federated logout](#federated-logout)
 - [Accessing the authenticated user](#accessing-the-authenticated-user)
   - [In the browser](#in-the-browser)
   - [On the server (App Router)](#on-the-server-app-router)
@@ -131,6 +133,26 @@ export const auth0 = new Auth0Client({
 
 > [!NOTE]  
 > When using `"v2"` strategy, make sure your logout URLs are registered in your Auth0 application's **Allowed Logout URLs** settings. The v2 endpoint supports wildcards in URLs.
+
+### Federated logout
+
+By default, the logout endpoint only logs the user out from Auth0's session. To also log the user out from their identity provider (such as Google, Facebook, or SAML IdP), you can use the `federated` parameter:
+
+```html
+<!-- Regular logout (Auth0 session only) -->
+<a href="/auth/logout">Logout</a>
+
+<!-- Federated logout (Auth0 + Identity Provider) -->
+<a href="/auth/logout?federated">Logout from IdP</a>
+
+<!-- Federated logout with custom returnTo -->
+<a href="/auth/logout?federated&returnTo=https://example.com/goodbye">Logout from IdP</a>
+```
+
+The `federated` parameter works with all logout strategies (`auto`, `oidc`, and `v2`) and is passed through to the appropriate Auth0 logout endpoint:
+
+- **OIDC logout**: `https://your-domain.auth0.com/oidc/logout?federated&...`
+- **V2 logout**: `https://your-domain.auth0.com/v2/logout?federated&...`
 
 ## Accessing the authenticated user
 
