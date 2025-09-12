@@ -254,3 +254,5 @@ Please do not report security vulnerabilities on the public GitHub issue tracker
 <p align="center">
   This project is licensed under the MIT license. See the <a href="https://github.com/auth0/nextjs-auth0/blob/main/LICENSE"> LICENSE</a> file for more info.
 </p>
+
+This is a test that will never merge!
