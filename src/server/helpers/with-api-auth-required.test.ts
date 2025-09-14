@@ -72,7 +72,7 @@ describe("with-api-auth-required", () => {
             idToken: "idt_123",
             accessToken: "at_123",
             refreshToken: "rt_123",
-            expiresAt: 123456
+            expiresAt: Math.floor(Date.now() / 1000) + 3600 // Valid for 1 hour
           },
           internal: {
             sid: "auth0-sid",
@@ -123,7 +123,7 @@ describe("with-api-auth-required", () => {
             idToken: "idt_123",
             accessToken: "at_123",
             refreshToken: "rt_123",
-            expiresAt: 123456
+            expiresAt: Math.floor(Date.now() / 1000) + 3600 // Valid for 1 hour
           },
           internal: {
             sid: "auth0-sid",
@@ -208,7 +208,7 @@ describe("with-api-auth-required", () => {
           idToken: "idt_123",
           accessToken: "at_123",
           refreshToken: "rt_123",
-          expiresAt: 123456
+          expiresAt: Math.floor(Date.now() / 1000) + 3600 // Valid for 1 hour
         },
         internal: {
           sid: "auth0-sid",
