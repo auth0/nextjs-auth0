@@ -1281,18 +1281,19 @@ export class AuthClient {
       const params = new URLSearchParams();
 
       params.append("connection", options.connection);
-      params.append(
-        "subject_token_type",
-        options.subject_token_type ||
-          SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_REFRESH_TOKEN
-      );
-      params.append(
-        "subject_token",
-        options.subject_token_type ===
-          SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_ACCESS_TOKEN
+
+      const subjectTokenType =
+        options.subject_token_type ??
+        SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_REFRESH_TOKEN;
+
+      const subjectToken =
+        subjectTokenType === SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_ACCESS_TOKEN
           ? tokenSet.accessToken
-          : tokenSet.refreshToken
-      );
+          : tokenSet.refreshToken;
+
+      params.append("subject_token_type", subjectTokenType);
+      params.append("subject_token", subjectToken);
+
       params.append(
         "requested_token_type",
         REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN
