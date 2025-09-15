@@ -5429,14 +5429,14 @@ ca/T0LLtgmbMmxSv/MmzIg==
     });
 
     // Add tests for handleLogin method
-    it("should create correct options in handleLogin with returnTo parameter", async () => {
+    it("should create correct options in handleLogin with returnTo parameter excluded", async () => {
       const authClient = await createAuthClient();
 
       // Mock startInteractiveLogin to check what options are passed to it
       const originalStartInteractiveLogin = authClient.startInteractiveLogin;
       authClient.startInteractiveLogin = vi.fn(async (options) => {
         expect(options).toEqual({
-          authorizationParameters: { foo: "bar", returnTo: "custom-return" },
+          authorizationParameters: { foo: "bar" },
           returnTo: "custom-return"
         });
         return originalStartInteractiveLogin.call(authClient, options);
@@ -5452,7 +5452,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(authClient.startInteractiveLogin).toHaveBeenCalled();
     });
 
-    it("should handle PAR correctly in handleLogin by forwarding all params", async () => {
+    it("should handle PAR correctly in handleLogin by forwarding all params except returnTo", async () => {
       const authClient = await createAuthClient({
         pushedAuthorizationRequests: true
       });
@@ -5462,8 +5462,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       authClient.startInteractiveLogin = vi.fn(async (options) => {
         expect(options).toEqual({
           authorizationParameters: {
-            foo: "bar",
-            returnTo: "custom-return"
+            foo: "bar"
           },
           returnTo: "custom-return"
         });
