@@ -402,6 +402,7 @@ export class AuthClient {
 
   async handleLogin(req: NextRequest): Promise<NextResponse> {
     const searchParams = Object.fromEntries(req.nextUrl.searchParams.entries());
+
     const options: StartInteractiveLoginOptions = {
       // SECURITY CRITICAL: Only forward query params when PAR is disabled
       authorizationParameters: !this.pushedAuthorizationRequests
