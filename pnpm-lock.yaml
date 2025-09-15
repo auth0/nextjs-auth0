@@ -19,7 +19,7 @@ importers:
         version: 6.1.0
       oauth4webapi:
         specifier: ^3.1.2
-        version: 3.7.0
+        version: 3.8.1
       openid-client:
         specifier: ^6.8.0
         version: 6.8.0
@@ -1875,9 +1875,6 @@ packages:
 
   nwsapi@2.2.20:
     resolution: {integrity: sha512-/ieB+mDe4MrrKMT8z+mQL8klXydZWGR5Dowt4RAGKbJ3kIGEx3X4ljUo+6V73IXtUPWgfOlU5B9MlGxFO5T+cA==}
-
-  oauth4webapi@3.7.0:
-    resolution: {integrity: sha512-Q52wTPUWPsVLVVmTViXPQFMW2h2xv2jnDGxypjpelCFKaOjLsm7AxYuOk1oQgFm95VNDbuggasu9htXrz6XwKw==}
 
   oauth4webapi@3.8.1:
     resolution: {integrity: sha512-olkZDELNycOWQf9LrsELFq8n05LwJgV8UkrS0cburk6FOwf8GvLam+YB+Uj5Qvryee+vwWOfQVeI5Vm0MVg7SA==}
@@ -4404,8 +4401,6 @@ snapshots:
       - babel-plugin-macros
 
   nwsapi@2.2.20: {}
-
-  oauth4webapi@3.7.0: {}
 
   oauth4webapi@3.8.1: {}
 
