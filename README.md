@@ -99,6 +99,9 @@ export const config = {
 > [!NOTE]  
 > If you're using a `src/` directory, the `middleware.ts` file must be created inside the `src/` directory.
 
+> [!IMPORTANT]
+> This broad middleware matcher is essential for rolling sessions and security features. For scenarios when rolling sessions are disabled, see [Session Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#session-configuration) for alternative approaches.
+
 You can now begin to authenticate your users by redirecting them to your application's `/auth/login` route:
 
 ```tsx
