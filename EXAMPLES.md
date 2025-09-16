@@ -154,6 +154,43 @@ The `federated` parameter works with all logout strategies (`auto`, `oidc`, and 
 - **OIDC logout**: `https://your-domain.auth0.com/oidc/logout?federated&...`
 - **V2 logout**: `https://your-domain.auth0.com/v2/logout?federated&...`
 
+### OIDC logout privacy configuration
+
+The SDK provides control over whether to include the `id_token_hint` parameter in OIDC logout URLs through the `includeIdTokenHintInOIDCLogoutUrl` configuration option. This setting allows you to balance security and privacy based on your application's requirements.
+
+#### Default behavior (recommended)
+
+By default, the SDK includes `id_token_hint` in OIDC logout URLs for enhanced security:
+
+```ts
+export const auth0 = new Auth0Client({
+  logoutStrategy: "auto", // or "oidc"
+  includeIdTokenHintInOIDCLogoutUrl: true // default value
+  // ... other config
+});
+```
+
+#### Privacy-focused configuration
+
+The default approach might include user information (PII) encoded in the ID token within logout URLs.
+PII may appear in server logs, browser history, and referrer headers.
+For applications where this is not acceptable, you can exclude `id_token_hint` from logout URLs:
+
+```ts
+export const auth0 = new Auth0Client({
+  logoutStrategy: "auto", // or "oidc"
+  includeIdTokenHintInOIDCLogoutUrl: false // exclude id_token_hint for privacy
+  // ... other config
+});
+```
+
+This will still send the `logout_hint` and `client_id` parameters.
+This flag is only effective with the `oidc` or `auto` (uses `oidc` when possible) logout strategy.
+This has no effect with v2 strategy (v2 doesn't use `id_token_hint`).
+
+> [!WARNING]  
+> When `includeIdTokenHintInOIDCLogoutUrl: false`, logout requests lose cryptographic verification. The [OpenID Connect specification](https://openid.net/specs/openid-connect-rpinitiated-1_0.html#Security) warns that "logout requests without a valid `id_token_hint` value are a potential means of denial of service." Use this setting only when privacy requirements outweigh DoS protection concerns.
+
 ## Accessing the authenticated user
 
 ### In the browser
@@ -181,6 +218,13 @@ export default function Profile() {
 }
 ```
 
+#### Understanding `useUser()` Behavior
+
+The `useUser()` hook uses SWR (Stale-While-Revalidate) under the hood, which provides smart caching and revalidation behavior. By default:
+
+- **Event-driven revalidation**: Data automatically revalidates when you focus the browser tab, reconnect to the internet, or mount the component
+- **No background polling**: The hook does **not** make continuous background requests unless explicitly configured
+- **Cache-first approach**: Returns cached data immediately, then revalidates if needed
 ### On the server (App Router)
 
 On the server, the `getSession()` helper can be used in Server Components, Server Routes, and Server Actions to get the session of the currently authenticated user and to protect resources, like so:
@@ -946,6 +990,39 @@ export const auth0 = new Auth0Client({
 | rolling            | `boolean` | When enabled, the session will continue to be extended as long as it is used within the inactivity duration. Once the upper bound, set via the `absoluteDuration`, has been reached, the session will no longer be extended. Default: `true`. |
 | absoluteDuration   | `number`  | The absolute duration after which the session will expire. The value must be specified in seconds. Default: `3 days`.                                                                                                                         |
 | inactivityDuration | `number`  | The duration of inactivity after which the session will expire. The value must be specified in seconds. Default: `1 day`.                                                                                                                     |
+
+### Understanding Rolling Sessions
+
+Rolling sessions provide a seamless user experience by automatically extending session lifetime as users actively use your application. Here's how they work:
+
+**How rolling sessions work:**
+- Each request to your application extends the session by the `inactivityDuration`
+- Sessions are only extended if used within the inactivity window
+- Once the `absoluteDuration` is reached, sessions expire regardless of activity
+- Session extension happens transparently without user intervention
+
+**Middleware requirement:**
+Rolling sessions **require** the authentication middleware to run on all requests. This is why the recommended middleware matcher is broad:
+
+```ts
+// ✅ CORRECT: Broad matcher enables rolling sessions
+export const config = {
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)]
+};
+
+// ❌ INCORRECT: Narrow matcher breaks rolling sessions  
+export const config = {
+  matcher: ["/dashboard/:path*", "/profile/:path*"]
+};
+```
+
+**Why broad middleware is necessary:**
+- **Session extension**: Each page request extends the session lifetime
+- **Consistent auth state**: Ensures authentication status is up-to-date across all pages
+- **Security headers**: Applies no-cache headers to prevent caching of authenticated content
+
+> [!WARNING]
+> Disabling rolling sessions changes the user experience significantly. Users will be logged out after the absolute duration regardless of their activity level, requiring manual re-authentication.
 
 ## Cookie Configuration
 
