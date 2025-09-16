@@ -358,27 +358,18 @@ export class Auth0Client {
   async getSession(
     req?: PagesRouterRequest | NextRequest
   ): Promise<SessionData | null> {
-    let session: SessionData | null;
-
     if (req) {
       // middleware usage
       if (req instanceof NextRequest) {
-        session = await this.sessionStore.get(req.cookies);
-      } else {
-        // pages router usage
-        session = await this.sessionStore.get(this.createRequestCookies(req));
+        return this.sessionStore.get(req.cookies);
       }
-    } else {
-      // app router usage: Server Components, Server Actions, Route Handlers
-      session = await this.sessionStore.get(await cookies());
+
+      // pages router usage
+      return this.sessionStore.get(this.createRequestCookies(req));
     }
 
-    // Return null if the session is expired (same validation as getTokenSet)
-    if (session && session.tokenSet.expiresAt <= Date.now() / 1000) {
-      return null;
-    }
-
-    return session;
+    // app router usage: Server Components, Server Actions, Route Handlers
+    return this.sessionStore.get(await cookies());
   }
 
   /**
