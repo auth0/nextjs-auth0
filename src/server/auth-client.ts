@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server.js";
 import * as jose from "jose";
 import * as oauth from "oauth4webapi";
+import * as client from "openid-client";
 
 import packageJson from "../../package.json" with { type: "json" };
 import {
@@ -11,6 +12,8 @@ import {
   AuthorizationCodeGrantError,
   AuthorizationCodeGrantRequestError,
   AuthorizationError,
+  BackchannelAuthenticationError,
+  BackchannelAuthenticationNotSupportedError,
   BackchannelLogoutError,
   DiscoveryError,
   InvalidStateError,
@@ -21,11 +24,14 @@ import {
 import {
   AccessTokenForConnectionOptions,
   AuthorizationParameters,
+  BackchannelAuthenticationOptions,
+  BackchannelAuthenticationResponse,
   ConnectionTokenSet,
   LogoutStrategy,
   LogoutToken,
   SessionData,
   StartInteractiveLoginOptions,
+  SUBJECT_TOKEN_TYPES,
   TokenSet,
   User
 } from "../types/index.js";
@@ -79,15 +85,6 @@ const DEFAULT_SCOPES = ["openid", "profile", "email", "offline_access"].join(
  */
 const GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN =
   "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token";
-
-/**
- * Constant representing the subject type for a refresh token.
- * This is used in OAuth 2.0 token exchange to specify that the token being exchanged is a refresh token.
- *
- * @see {@link https://tools.ietf.org/html/rfc8693#section-3.1 RFC 8693 Section 3.1}
- */
-const SUBJECT_TYPE_REFRESH_TOKEN =
-  "urn:ietf:params:oauth:token-type:refresh_token";
 
 /**
  * A constant representing the token type for federated connection access tokens.
@@ -176,6 +173,7 @@ export class AuthClient {
   private fetch: typeof fetch;
   private jwksCache: jose.JWKSCacheInput;
   private allowInsecureRequests: boolean;
+  private httpTimeout: number;
   private httpOptions: () => oauth.HttpRequestOptions<"GET" | "POST">;
 
   private authorizationServerMetadata?: oauth.AuthorizationServer;
@@ -188,10 +186,10 @@ export class AuthClient {
     this.fetch = options.fetch || fetch;
     this.jwksCache = options.jwksCache || {};
     this.allowInsecureRequests = options.allowInsecureRequests ?? false;
+    this.httpTimeout = options.httpTimeout ?? 5000;
     this.httpOptions = () => {
       const headers = new Headers();
       const enableTelemetry = options.enableTelemetry ?? true;
-      const timeout = options.httpTimeout ?? 5000;
       if (enableTelemetry) {
         const name = "nextjs-auth0";
         const version = packageJson.version;
@@ -209,7 +207,7 @@ export class AuthClient {
       }
 
       return {
-        signal: AbortSignal.timeout(timeout),
+        signal: AbortSignal.timeout(this.httpTimeout),
         headers
       };
     };
@@ -408,12 +406,18 @@ export class AuthClient {
 
   async handleLogin(req: NextRequest): Promise<NextResponse> {
     const searchParams = Object.fromEntries(req.nextUrl.searchParams.entries());
+
+    // Always forward all parameters
+    // When PAR is disabled, parameters go to authorization URL as before
+    // When PAR is enabled, all parameters are sent securely in the PAR request body
+
+    // do not pass returnTo as part of authorizationParameters
+    // returnTo should only be used in txn state
+    const { returnTo, ...authorizationParameters } = searchParams;
+
     const options: StartInteractiveLoginOptions = {
-      // SECURITY CRITICAL: Only forward query params when PAR is disabled
-      authorizationParameters: !this.pushedAuthorizationRequests
-        ? searchParams
-        : {},
-      returnTo: searchParams.returnTo
+      authorizationParameters,
+      returnTo: returnTo
     };
     return this.startInteractiveLogin(options);
   }
@@ -438,11 +442,17 @@ export class AuthClient {
 
     const returnTo =
       req.nextUrl.searchParams.get("returnTo") || this.appBaseUrl;
+    const federated = req.nextUrl.searchParams.has("federated");
 
     const createV2LogoutResponse = (): NextResponse => {
       const url = new URL("/v2/logout", this.issuer);
       url.searchParams.set("returnTo", returnTo);
       url.searchParams.set("client_id", this.clientMetadata.client_id);
+
+      if (federated) {
+        url.searchParams.set("federated", "");
+      }
+
       return NextResponse.redirect(url);
     };
 
@@ -457,6 +467,10 @@ export class AuthClient {
 
       if (this.includeIdTokenHintInOIDCLogoutUrl && session?.tokenSet.idToken) {
         url.searchParams.set("id_token_hint", session.tokenSet.idToken);
+      }
+
+      if (federated) {
+        url.searchParams.set("federated", "");
       }
 
       return NextResponse.redirect(url);
@@ -867,6 +881,109 @@ export class AuthClient {
     return [null, { tokenSet, idTokenClaims: undefined }];
   }
 
+  async backchannelAuthentication(
+    options: BackchannelAuthenticationOptions
+  ): Promise<[null, BackchannelAuthenticationResponse] | [SdkError, null]> {
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+    if (discoveryError) {
+      return [discoveryError, null];
+    }
+
+    if (!authorizationServerMetadata.backchannel_authentication_endpoint) {
+      return [new BackchannelAuthenticationNotSupportedError(), null];
+    }
+
+    const authorizationParams = new URLSearchParams();
+    authorizationParams.set("scope", DEFAULT_SCOPES);
+
+    const mergedAuthorizationParams: AuthorizationParameters = {
+      // any custom params to forward to /authorize defined as configuration
+      ...this.authorizationParameters,
+      // custom parameters passed in via the query params to ensure only the confidential client can set them
+      ...options.authorizationParams
+    };
+
+    Object.entries(mergedAuthorizationParams).forEach(([key, val]) =>
+      authorizationParams.set(key, String(val))
+    );
+
+    authorizationParams.set("client_id", this.clientMetadata.client_id);
+    authorizationParams.set("binding_message", options.bindingMessage);
+    authorizationParams.set(
+      "login_hint",
+      JSON.stringify({
+        format: "iss_sub",
+        iss: authorizationServerMetadata.issuer,
+        sub: options.loginHint.sub
+      })
+    );
+
+    if (options.requestedExpiry) {
+      authorizationParams.append(
+        "requested_expiry",
+        options.requestedExpiry.toString()
+      );
+    }
+
+    if (options.authorizationDetails) {
+      authorizationParams.append(
+        "authorization_details",
+        JSON.stringify(options.authorizationDetails)
+      );
+    }
+
+    const [openIdClientConfigError, openidClientConfig] =
+      await this.getOpenIdClientConfig();
+
+    if (openIdClientConfigError) {
+      return [openIdClientConfigError, null];
+    }
+
+    try {
+      const backchannelAuthenticationResponse =
+        await client.initiateBackchannelAuthentication(
+          openidClientConfig,
+          authorizationParams
+        );
+
+      const tokenEndpointResponse =
+        await client.pollBackchannelAuthenticationGrant(
+          openidClientConfig,
+          backchannelAuthenticationResponse
+        );
+
+      const accessTokenExpiresAt =
+        Math.floor(Date.now() / 1000) +
+        Number(tokenEndpointResponse.expires_in);
+
+      return [
+        null,
+        {
+          tokenSet: {
+            accessToken: tokenEndpointResponse.access_token,
+            idToken: tokenEndpointResponse.id_token,
+            scope: tokenEndpointResponse.scope,
+            refreshToken: tokenEndpointResponse.refresh_token,
+            expiresAt: accessTokenExpiresAt
+          },
+          idTokenClaims: tokenEndpointResponse.claims(),
+          authorizationDetails: tokenEndpointResponse.authorization_details
+        }
+      ];
+    } catch (e: any) {
+      return [
+        new BackchannelAuthenticationError({
+          cause: new OAuth2Error({
+            code: e.error,
+            message: e.error_description
+          })
+        }),
+        null
+      ];
+    }
+  }
+
   private async discoverAuthorizationServerMetadata(): Promise<
     [null, oauth.AuthorizationServer] | [SdkError, null]
   > {
@@ -1184,8 +1301,19 @@ export class AuthClient {
       const params = new URLSearchParams();
 
       params.append("connection", options.connection);
-      params.append("subject_token_type", SUBJECT_TYPE_REFRESH_TOKEN);
-      params.append("subject_token", tokenSet.refreshToken);
+
+      const subjectTokenType =
+        options.subject_token_type ??
+        SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_REFRESH_TOKEN;
+
+      const subjectToken =
+        subjectTokenType === SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_ACCESS_TOKEN
+          ? tokenSet.accessToken
+          : tokenSet.refreshToken;
+
+      params.append("subject_token_type", subjectTokenType);
+      params.append("subject_token", subjectToken);
+
       params.append(
         "requested_token_type",
         REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN
@@ -1275,6 +1403,42 @@ export class AuthClient {
       session.user = filterDefaultIdTokenClaims(session.user);
     }
     return session;
+  }
+
+  private async getOpenIdClientConfig(): Promise<
+    [null, client.Configuration] | [SdkError, null]
+  > {
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      return [discoveryError, null];
+    }
+
+    const openidClientConfig = new client.Configuration(
+      authorizationServerMetadata,
+      this.clientMetadata.client_id,
+      {},
+      await this.getClientAuth()
+    );
+    const httpOpts = this.httpOptions();
+    const telemetryHeaders = new Headers(httpOpts.headers);
+
+    openidClientConfig[client.customFetch] = (...args) => {
+      const headers = new Headers(args[1].headers);
+      return this.fetch(args[0], {
+        ...args[1],
+        headers: new Headers([...telemetryHeaders, ...headers])
+      });
+    };
+
+    openidClientConfig.timeout = this.httpTimeout;
+
+    if (this.allowInsecureRequests) {
+      client.allowInsecureRequests(openidClientConfig);
+    }
+
+    return [null, openidClientConfig];
   }
 }
 

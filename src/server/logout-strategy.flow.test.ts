@@ -673,4 +673,260 @@ describe("Logout Strategy Flow Tests", () => {
       expect(logoutUrl.searchParams.get("id_token_hint")).toBeNull();
     });
   });
+
+  describe("Federated logout support", () => {
+    it("should add federated parameter to OIDC logout URL when federated is present in query", async () => {
+      const authClient = new AuthClient({
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        secret,
+        transactionStore,
+        sessionStore,
+        logoutStrategy: "oidc",
+        routes: getDefaultRoutes()
+      });
+
+      const session: SessionData = {
+        user: { sub: DEFAULT.sub },
+        tokenSet: {
+          idToken: DEFAULT.idToken,
+          accessToken: DEFAULT.accessToken,
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt: 123456
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
+
+      const sessionCookie = await createSessionCookie(session, secret);
+      const headers = new Headers();
+      headers.append("cookie", `__session=${sessionCookie}`);
+
+      const request = new NextRequest(
+        new URL("/auth/logout?federated", DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers
+        }
+      );
+
+      const response = await authClient.handleLogout(request);
+
+      expect(response.status).toBe(307);
+      const location = response.headers.get("Location");
+      expect(location).toBeTruthy();
+
+      const logoutUrl = new URL(location!);
+      expect(logoutUrl.origin).toBe(`https://${DEFAULT.domain}`);
+      expect(logoutUrl.pathname).toBe("/oidc/logout");
+      expect(logoutUrl.searchParams.get("client_id")).toBe(DEFAULT.clientId);
+      expect(logoutUrl.searchParams.get("post_logout_redirect_uri")).toBe(
+        DEFAULT.appBaseUrl
+      );
+      expect(logoutUrl.searchParams.get("logout_hint")).toBe(DEFAULT.sid);
+      expect(logoutUrl.searchParams.get("id_token_hint")).toBe(DEFAULT.idToken);
+      expect(logoutUrl.searchParams.has("federated")).toBe(true);
+      expect(logoutUrl.searchParams.get("federated")).toBe("");
+    });
+
+    it("should add federated parameter to v2 logout URL when federated is present in query", async () => {
+      const authClient = new AuthClient({
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        secret,
+        transactionStore,
+        sessionStore,
+        logoutStrategy: "v2",
+        routes: getDefaultRoutes()
+      });
+
+      const request = new NextRequest(
+        new URL("/auth/logout?federated", DEFAULT.appBaseUrl),
+        {
+          method: "GET"
+        }
+      );
+
+      const response = await authClient.handleLogout(request);
+
+      expect(response.status).toBe(307);
+      const location = response.headers.get("Location");
+      expect(location).toBeTruthy();
+
+      const logoutUrl = new URL(location!);
+      expect(logoutUrl.origin).toBe(`https://${DEFAULT.domain}`);
+      expect(logoutUrl.pathname).toBe("/v2/logout");
+      expect(logoutUrl.searchParams.get("client_id")).toBe(DEFAULT.clientId);
+      expect(logoutUrl.searchParams.get("returnTo")).toBe(DEFAULT.appBaseUrl);
+      expect(logoutUrl.searchParams.has("federated")).toBe(true);
+      expect(logoutUrl.searchParams.get("federated")).toBe("");
+    });
+
+    it("should work with federated parameter and custom returnTo", async () => {
+      const customReturnTo = "https://example.com/custom-logout";
+      const authClient = new AuthClient({
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        secret,
+        transactionStore,
+        sessionStore,
+        logoutStrategy: "v2",
+        routes: getDefaultRoutes()
+      });
+
+      const request = new NextRequest(
+        new URL(
+          `/auth/logout?federated&returnTo=${encodeURIComponent(customReturnTo)}`,
+          DEFAULT.appBaseUrl
+        ),
+        {
+          method: "GET"
+        }
+      );
+
+      const response = await authClient.handleLogout(request);
+
+      expect(response.status).toBe(307);
+      const location = response.headers.get("Location");
+      expect(location).toBeTruthy();
+
+      const logoutUrl = new URL(location!);
+      expect(logoutUrl.searchParams.get("returnTo")).toBe(customReturnTo);
+      expect(logoutUrl.searchParams.has("federated")).toBe(true);
+    });
+
+    it("should work with auto strategy and federated parameter when OIDC is available", async () => {
+      const authClient = new AuthClient({
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        secret,
+        transactionStore,
+        sessionStore,
+        logoutStrategy: "auto",
+        routes: getDefaultRoutes()
+      });
+
+      const request = new NextRequest(
+        new URL("/auth/logout?federated", DEFAULT.appBaseUrl),
+        {
+          method: "GET"
+        }
+      );
+
+      const response = await authClient.handleLogout(request);
+
+      expect(response.status).toBe(307);
+      const location = response.headers.get("Location");
+      expect(location).toBeTruthy();
+
+      const logoutUrl = new URL(location!);
+      expect(logoutUrl.pathname).toBe("/oidc/logout");
+      expect(logoutUrl.searchParams.has("federated")).toBe(true);
+    });
+
+    it("should work with auto strategy and federated parameter when OIDC is not available", async () => {
+      // Switch to handlers without end_session_endpoint
+      server.use(...handlersWithoutEndSession);
+
+      const authClient = new AuthClient({
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        secret,
+        transactionStore,
+        sessionStore,
+        logoutStrategy: "auto",
+        routes: getDefaultRoutes()
+      });
+
+      const request = new NextRequest(
+        new URL("/auth/logout?federated", DEFAULT.appBaseUrl),
+        {
+          method: "GET"
+        }
+      );
+
+      const response = await authClient.handleLogout(request);
+
+      expect(response.status).toBe(307);
+      const location = response.headers.get("Location");
+      expect(location).toBeTruthy();
+
+      const logoutUrl = new URL(location!);
+      expect(logoutUrl.pathname).toBe("/v2/logout");
+      expect(logoutUrl.searchParams.has("federated")).toBe(true);
+    });
+
+    it("should not add federated parameter when not present in query", async () => {
+      const authClient = new AuthClient({
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        secret,
+        transactionStore,
+        sessionStore,
+        logoutStrategy: "v2",
+        routes: getDefaultRoutes()
+      });
+
+      const request = new NextRequest(
+        new URL("/auth/logout", DEFAULT.appBaseUrl),
+        {
+          method: "GET"
+        }
+      );
+
+      const response = await authClient.handleLogout(request);
+
+      expect(response.status).toBe(307);
+      const location = response.headers.get("Location");
+      expect(location).toBeTruthy();
+
+      const logoutUrl = new URL(location!);
+      expect(logoutUrl.searchParams.has("federated")).toBe(false);
+    });
+
+    it("should handle federated parameter with value (federated=true)", async () => {
+      const authClient = new AuthClient({
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        secret,
+        transactionStore,
+        sessionStore,
+        logoutStrategy: "v2",
+        routes: getDefaultRoutes()
+      });
+
+      const request = new NextRequest(
+        new URL("/auth/logout?federated=true", DEFAULT.appBaseUrl),
+        {
+          method: "GET"
+        }
+      );
+
+      const response = await authClient.handleLogout(request);
+
+      expect(response.status).toBe(307);
+      const location = response.headers.get("Location");
+      expect(location).toBeTruthy();
+
+      const logoutUrl = new URL(location!);
+      expect(logoutUrl.searchParams.has("federated")).toBe(true);
+      expect(logoutUrl.searchParams.get("federated")).toBe("");
+    });
+  });
 });
