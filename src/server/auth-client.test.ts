@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { BackchannelAuthenticationError } from "../errors/index.js";
 import { getDefaultRoutes } from "../test/defaults.js";
 import { generateSecret } from "../test/utils.js";
-import { SessionData } from "../types/index.js";
+import { SessionData, SUBJECT_TOKEN_TYPES } from "../types/index.js";
 import { AuthClient } from "./auth-client.js";
 import { decrypt, encrypt } from "./cookies.js";
 import { StatefulSessionStore } from "./session/stateful-session-store.js";
@@ -5761,6 +5761,321 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(error?.code).toEqual("failed_to_exchange_refresh_token");
       expect(error?.cause?.code).toEqual("some-error-code");
       expect(error?.cause?.message).toEqual("some-error-description");
+      expect(connectionTokenSet).toBeNull();
+    });
+
+    it("should use access token as subject token when subject_token_type is SUBJECT_TYPE_ACCESS_TOKEN", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+
+      let capturedRequestBody: any = null;
+      const mockFetch = vi.fn(
+        async (
+          input: RequestInfo | URL,
+          init?: RequestInit
+        ): Promise<Response> => {
+          const url = new URL(input instanceof Request ? input.url : input);
+
+          if (url.pathname === "/oauth/token") {
+            // Capture the request body for validation
+            if (init?.body) {
+              capturedRequestBody = init.body;
+            }
+
+            return Response.json({
+              access_token: "federated-access-token",
+              token_type: "Bearer",
+              expires_in: 3600
+            });
+          }
+
+          // discovery URL
+          if (url.pathname === "/.well-known/openid-configuration") {
+            return Response.json(_authorizationServerMetadata);
+          }
+
+          return new Response("Not found", { status: 404 });
+        }
+      );
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: mockFetch
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) + 3600;
+      const tokenSet = {
+        accessToken: "existing-access-token",
+        refreshToken: "existing-refresh-token",
+        expiresAt
+      };
+
+      const [error, connectionTokenSet] =
+        await authClient.getConnectionTokenSet(tokenSet, undefined, {
+          connection: "google-oauth2",
+          subject_token_type: SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_ACCESS_TOKEN
+        });
+
+      expect(error).toBeNull();
+      expect(connectionTokenSet).toEqual({
+        accessToken: "federated-access-token",
+        connection: "google-oauth2",
+        expiresAt: expect.any(Number)
+      });
+
+      // Verify the request was made with correct parameters
+      expect(capturedRequestBody).toBeTruthy();
+      const urlParams = new URLSearchParams(capturedRequestBody);
+      expect(urlParams.get("subject_token_type")).toBe(
+        "urn:ietf:params:oauth:token-type:access_token"
+      );
+      expect(urlParams.get("subject_token")).toBe("existing-access-token");
+      expect(urlParams.get("grant_type")).toBe(
+        "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token"
+      );
+      expect(urlParams.get("connection")).toBe("google-oauth2");
+    });
+
+    it("should use refresh token as subject token when subject_token_type is SUBJECT_TYPE_REFRESH_TOKEN", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+
+      let capturedRequestBody: any = null;
+      const mockFetch = vi.fn(
+        async (
+          input: RequestInfo | URL,
+          init?: RequestInit
+        ): Promise<Response> => {
+          const url = new URL(input instanceof Request ? input.url : input);
+
+          if (url.pathname === "/oauth/token") {
+            // Capture the request body for validation
+            if (init?.body) {
+              capturedRequestBody = init.body;
+            }
+
+            return Response.json({
+              access_token: "federated-access-token",
+              token_type: "Bearer",
+              expires_in: 3600
+            });
+          }
+
+          // discovery URL
+          if (url.pathname === "/.well-known/openid-configuration") {
+            return Response.json(_authorizationServerMetadata);
+          }
+
+          return new Response("Not found", { status: 404 });
+        }
+      );
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: mockFetch
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) + 3600;
+      const tokenSet = {
+        accessToken: "existing-access-token",
+        refreshToken: "existing-refresh-token",
+        expiresAt
+      };
+
+      const [error, connectionTokenSet] =
+        await authClient.getConnectionTokenSet(tokenSet, undefined, {
+          connection: "google-oauth2",
+          subject_token_type: SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_REFRESH_TOKEN
+        });
+
+      expect(error).toBeNull();
+      expect(connectionTokenSet).toEqual({
+        accessToken: "federated-access-token",
+        connection: "google-oauth2",
+        expiresAt: expect.any(Number)
+      });
+
+      // Verify the request was made with correct parameters
+      expect(capturedRequestBody).toBeTruthy();
+      const urlParams = new URLSearchParams(capturedRequestBody);
+      expect(urlParams.get("subject_token_type")).toBe(
+        "urn:ietf:params:oauth:token-type:refresh_token"
+      );
+      expect(urlParams.get("subject_token")).toBe("existing-refresh-token");
+      expect(urlParams.get("grant_type")).toBe(
+        "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token"
+      );
+      expect(urlParams.get("connection")).toBe("google-oauth2");
+    });
+
+    it("should default to refresh token when no subject_token_type is specified", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+
+      let capturedRequestBody: any = null;
+      const mockFetch = vi.fn(
+        async (
+          input: RequestInfo | URL,
+          init?: RequestInit
+        ): Promise<Response> => {
+          const url = new URL(input instanceof Request ? input.url : input);
+
+          if (url.pathname === "/oauth/token") {
+            // Capture the request body for validation
+            if (init?.body) {
+              capturedRequestBody = init.body;
+            }
+
+            return Response.json({
+              access_token: "federated-access-token",
+              token_type: "Bearer",
+              expires_in: 3600
+            });
+          }
+
+          // discovery URL
+          if (url.pathname === "/.well-known/openid-configuration") {
+            return Response.json(_authorizationServerMetadata);
+          }
+
+          return new Response("Not found", { status: 404 });
+        }
+      );
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: mockFetch
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) + 3600;
+      const tokenSet = {
+        accessToken: "existing-access-token",
+        refreshToken: "existing-refresh-token",
+        expiresAt
+      };
+
+      const [error, connectionTokenSet] =
+        await authClient.getConnectionTokenSet(tokenSet, undefined, {
+          connection: "google-oauth2"
+          // No subject_token_type specified - should default to refresh token
+        });
+
+      expect(error).toBeNull();
+      expect(connectionTokenSet).toEqual({
+        accessToken: "federated-access-token",
+        connection: "google-oauth2",
+        expiresAt: expect.any(Number)
+      });
+
+      // Verify the request defaults to refresh token parameters
+      expect(capturedRequestBody).toBeTruthy();
+      const urlParams = new URLSearchParams(capturedRequestBody);
+      expect(urlParams.get("subject_token_type")).toBe(
+        "urn:ietf:params:oauth:token-type:refresh_token"
+      );
+      expect(urlParams.get("subject_token")).toBe("existing-refresh-token");
+      expect(urlParams.get("grant_type")).toBe(
+        "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token"
+      );
+      expect(urlParams.get("connection")).toBe("google-oauth2");
+    });
+
+    it("should return error when access token is requested but not available", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: getMockAuthorizationServer({
+          tokenEndpointErrorResponse: {
+            error: "invalid_request",
+            error_description:
+              "The request is missing a required parameter or is otherwise malformed."
+          }
+        })
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) + 3600;
+      const tokenSet = {
+        // Empty access token means unavailable
+        accessToken: "",
+        refreshToken: "existing-refresh-token",
+        expiresAt
+      };
+
+      const [error, connectionTokenSet] =
+        await authClient.getConnectionTokenSet(tokenSet, undefined, {
+          connection: "google-oauth2",
+          subject_token_type: SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_ACCESS_TOKEN
+        });
+
+      // Should get an error when trying to use an empty access token
+      expect(error).toBeTruthy();
+      expect(error?.code).toBe("failed_to_exchange_refresh_token");
       expect(connectionTokenSet).toBeNull();
     });
   });
