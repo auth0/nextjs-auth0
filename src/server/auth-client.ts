@@ -31,6 +31,7 @@ import {
   LogoutToken,
   SessionData,
   StartInteractiveLoginOptions,
+  SUBJECT_TOKEN_TYPES,
   TokenSet,
   User
 } from "../types/index.js";
@@ -84,15 +85,6 @@ const DEFAULT_SCOPES = ["openid", "profile", "email", "offline_access"].join(
  */
 const GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN =
   "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token";
-
-/**
- * Constant representing the subject type for a refresh token.
- * This is used in OAuth 2.0 token exchange to specify that the token being exchanged is a refresh token.
- *
- * @see {@link https://tools.ietf.org/html/rfc8693#section-3.1 RFC 8693 Section 3.1}
- */
-const SUBJECT_TYPE_REFRESH_TOKEN =
-  "urn:ietf:params:oauth:token-type:refresh_token";
 
 /**
  * A constant representing the token type for federated connection access tokens.
@@ -1305,8 +1297,19 @@ export class AuthClient {
       const params = new URLSearchParams();
 
       params.append("connection", options.connection);
-      params.append("subject_token_type", SUBJECT_TYPE_REFRESH_TOKEN);
-      params.append("subject_token", tokenSet.refreshToken);
+
+      const subjectTokenType =
+        options.subject_token_type ??
+        SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_REFRESH_TOKEN;
+
+      const subjectToken =
+        subjectTokenType === SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_ACCESS_TOKEN
+          ? tokenSet.accessToken
+          : tokenSet.refreshToken;
+
+      params.append("subject_token_type", subjectTokenType);
+      params.append("subject_token", subjectToken);
+
       params.append(
         "requested_token_type",
         REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN
