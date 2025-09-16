@@ -1932,7 +1932,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       });
 
       describe("custom parameters to the authorization server", async () => {
-        it("should not forward any custom parameters sent via the query parameters to /auth/login", async () => {
+        it("should forward all custom parameters sent via the query parameters to PAR", async () => {
           const secret = await generateSecret(32);
           const transactionStore = new TransactionStore({
             secret
@@ -1963,8 +1963,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
             fetch: getMockAuthorizationServer({
               onParRequest: async (request) => {
                 const params = new URLSearchParams(await request.text());
-                expect(params.get("ext-custom_param")).toBeNull();
-                expect(params.get("audience")).toBeNull();
+                // With simplified approach, all custom parameters are now forwarded to PAR
+                expect(params.get("ext-custom_param")).toEqual("custom_value");
+                expect(params.get("audience")).toEqual("urn:mystore:api");
               }
             })
           });
@@ -2150,6 +2151,167 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(authorizationUrl.searchParams.get("redirect_uri")).toEqual(
           `${DEFAULT.appBaseUrl}/custom-callback`
         );
+      });
+    });
+
+    describe("with PAR enabled", async () => {
+      it("should forward safe UI parameters like screen_hint even when PAR is enabled", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+
+        // Mock PAR request to verify that safe parameters are sent
+        let parRequestParams: URLSearchParams;
+        const mockFetch = getMockAuthorizationServer({
+          onParRequest: async (request) => {
+            // Extract form data from PAR request body
+            const formData = await request.text();
+            parRequestParams = new URLSearchParams(formData);
+          }
+        });
+
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          pushedAuthorizationRequests: true,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: mockFetch
+        });
+
+        const loginUrl = new URL(
+          "/auth/login?screen_hint=signup&scope=malicious",
+          DEFAULT.appBaseUrl
+        );
+        const request = new NextRequest(loginUrl, {
+          method: "GET"
+        });
+
+        const response = await authClient.handleLogin(request);
+        const authorizationUrl = new URL(response.headers.get("Location")!);
+
+        // With PAR, the authorization URL should only contain request_uri and client_id
+        expect(authorizationUrl.searchParams.get("request_uri")).toBeTruthy();
+        expect(authorizationUrl.searchParams.get("client_id")).toEqual(
+          DEFAULT.clientId
+        );
+
+        // But screen_hint should be sent in the PAR request (safe parameter)
+        expect(parRequestParams!.get("screen_hint")).toEqual("signup");
+        // With simplified approach, all parameters including scope are forwarded to PAR
+        // The scope parameter should contain the query param value (not filtered)
+        expect(parRequestParams!.get("scope")).toEqual("malicious");
+      });
+
+      it("should forward multiple safe parameters when PAR is enabled", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+
+        // Mock PAR request to verify that safe parameters are sent
+        let parRequestParams: URLSearchParams;
+        const mockFetch = getMockAuthorizationServer({
+          onParRequest: async (request) => {
+            // Extract form data from PAR request body
+            const formData = await request.text();
+            parRequestParams = new URLSearchParams(formData);
+          }
+        });
+
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          pushedAuthorizationRequests: true,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: mockFetch
+        });
+
+        const loginUrl = new URL(
+          "/auth/login?screen_hint=signup&login_hint=user@example.com&prompt=login&ui_locales=en",
+          DEFAULT.appBaseUrl
+        );
+        const request = new NextRequest(loginUrl, {
+          method: "GET"
+        });
+
+        await authClient.handleLogin(request);
+
+        // All safe parameters should be sent in the PAR request
+        expect(parRequestParams!.get("screen_hint")).toEqual("signup");
+        expect(parRequestParams!.get("login_hint")).toEqual("user@example.com");
+        expect(parRequestParams!.get("prompt")).toEqual("login");
+        expect(parRequestParams!.get("ui_locales")).toEqual("en");
+      });
+
+      it("should forward custom parameters but protect internal security parameters", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+
+        // Mock PAR request to verify that security parameters are not sent
+        let parRequestParams: URLSearchParams;
+        const mockFetch = getMockAuthorizationServer({
+          onParRequest: async (request) => {
+            // Extract form data from PAR request body
+            const formData = await request.text();
+            parRequestParams = new URLSearchParams(formData);
+          }
+        });
+
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          pushedAuthorizationRequests: true,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: mockFetch
+        });
+
+        const loginUrl = new URL(
+          "/auth/login?scope=read:users&audience=https://api.example.com&redirect_uri=https://malicious.com&screen_hint=signup",
+          DEFAULT.appBaseUrl
+        );
+        const request = new NextRequest(loginUrl, {
+          method: "GET"
+        });
+
+        await authClient.handleLogin(request);
+
+        // With simplified approach, custom parameters are forwarded to PAR
+        expect(parRequestParams!.get("scope")).toEqual("read:users"); // Query param forwarded
+        expect(parRequestParams!.get("audience")).toEqual(
+          "https://api.example.com"
+        ); // Query param forwarded
+        // redirect_uri should NOT be overridden as it's a security-sensitive internal parameter
+        expect(parRequestParams!.get("redirect_uri")).toEqual(
+          `${DEFAULT.appBaseUrl}/auth/callback`
+        ); // Should use configured value, not malicious query param
+        expect(parRequestParams!.get("screen_hint")).toEqual("signup"); // Query param forwarded
       });
     });
   });
@@ -5267,14 +5429,14 @@ ca/T0LLtgmbMmxSv/MmzIg==
     });
 
     // Add tests for handleLogin method
-    it("should create correct options in handleLogin with returnTo parameter", async () => {
+    it("should create correct options in handleLogin with returnTo parameter excluded", async () => {
       const authClient = await createAuthClient();
 
       // Mock startInteractiveLogin to check what options are passed to it
       const originalStartInteractiveLogin = authClient.startInteractiveLogin;
       authClient.startInteractiveLogin = vi.fn(async (options) => {
         expect(options).toEqual({
-          authorizationParameters: { foo: "bar", returnTo: "custom-return" },
+          authorizationParameters: { foo: "bar" },
           returnTo: "custom-return"
         });
         return originalStartInteractiveLogin.call(authClient, options);
@@ -5290,7 +5452,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(authClient.startInteractiveLogin).toHaveBeenCalled();
     });
 
-    it("should handle PAR correctly in handleLogin by not forwarding params", async () => {
+    it("should handle PAR correctly in handleLogin by forwarding all params except returnTo", async () => {
       const authClient = await createAuthClient({
         pushedAuthorizationRequests: true
       });
@@ -5299,7 +5461,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const originalStartInteractiveLogin = authClient.startInteractiveLogin;
       authClient.startInteractiveLogin = vi.fn(async (options) => {
         expect(options).toEqual({
-          authorizationParameters: {},
+          authorizationParameters: {
+            foo: "bar"
+          },
           returnTo: "custom-return"
         });
         return originalStartInteractiveLogin.call(authClient, options);
