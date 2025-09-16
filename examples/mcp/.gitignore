@@ -1,0 +1,9 @@
+# MCP Example specific ignores
+
+# Keep the .env.example file for this example
+!.env.example
+
+# vercel
+.vercel
+
+next-env.d.ts
