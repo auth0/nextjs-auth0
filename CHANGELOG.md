@@ -1,5 +1,23 @@
 # Change Log
 
+## [v4.10.0](https://github.com/auth0/nextjs-auth0/tree/v4.10.0) (2025-09-16)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.9.0...v4.10.0)
+
+**Added**
+- feat: control sending `id_token_hint` in OIDC logout URL [\#2300](https://github.com/auth0/nextjs-auth0/pull/2300) ([tusharpandey13](https://github.com/tusharpandey13))
+- feat: Allow access token grant type for federated connections [\#2240](https://github.com/auth0/nextjs-auth0/pull/2240) ([tusharpandey13](https://github.com/tusharpandey13))
+- feat: add federated logout [\#2313](https://github.com/auth0/nextjs-auth0/pull/2313) ([tusharpandey13](https://github.com/tusharpandey13))
+- feat: Add organizations [\#2282](https://github.com/auth0/nextjs-auth0/pull/2282) ([tusharpandey13](https://github.com/tusharpandey13))
+- feat: add support for backchannel authentication [\#2261](https://github.com/auth0/nextjs-auth0/pull/2261) ([guabu](https://github.com/guabu))
+
+**Changed**
+- feat: simplify PAR parameter handling by removing redundant filtering [\#2298](https://github.com/auth0/nextjs-auth0/pull/2298) ([tusharpandey13](https://github.com/tusharpandey13))
+
+**Fixed**
+- fix: Remove unsafe type assertion in withPageAuthRequired HOC [\#2305](https://github.com/auth0/nextjs-auth0/pull/2305) ([tusharpandey13](https://github.com/tusharpandey13))
+- fix: parameter name of requested_expiry [\#2304](https://github.com/auth0/nextjs-auth0/pull/2304) ([guabu](https://github.com/guabu))
+- fix: ensure to mark StartInteractiveLoginOptions as optional [\#2272](https://github.com/auth0/nextjs-auth0/pull/2272) ([frederikprijck](https://github.com/frederikprijck))
+
 ## [v4.9.0](https://github.com/auth0/nextjs-auth0/tree/v4.9.0) (2025-08-01)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.8.0...v4.9.0)
 
