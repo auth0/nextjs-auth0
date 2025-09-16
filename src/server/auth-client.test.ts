@@ -2661,6 +2661,269 @@ ca/T0LLtgmbMmxSv/MmzIg==
         "An error occured while trying to initiate the logout request."
       );
     });
+
+    describe("includeIdTokenHintInOIDCLogoutUrl option", async () => {
+      it("should include id_token_hint in OIDC logout URL when includeIdTokenHintInOIDCLogoutUrl is true (default)", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          includeIdTokenHintInOIDCLogoutUrl: true, // explicit true
+
+          routes: getDefaultRoutes(),
+
+          fetch: getMockAuthorizationServer()
+        });
+
+        // set the session cookie with id token
+        const session: SessionData = {
+          user: { sub: DEFAULT.sub },
+          tokenSet: {
+            idToken: DEFAULT.idToken,
+            accessToken: DEFAULT.accessToken,
+            refreshToken: DEFAULT.refreshToken,
+            expiresAt: 123456
+          },
+          internal: {
+            sid: DEFAULT.sid,
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
+        const sessionCookie = await encrypt(session, secret, expiration);
+        const headers = new Headers();
+        headers.append("cookie", `__session=${sessionCookie}`);
+
+        const request = new NextRequest(
+          new URL("/auth/logout", DEFAULT.appBaseUrl),
+          {
+            method: "GET",
+            headers
+          }
+        );
+
+        const response = await authClient.handleLogout(request);
+        expect(response.status).toEqual(307);
+        expect(response.headers.get("Location")).not.toBeNull();
+
+        const authorizationUrl = new URL(response.headers.get("Location")!);
+        expect(authorizationUrl.searchParams.get("id_token_hint")).toEqual(
+          DEFAULT.idToken
+        );
+        expect(authorizationUrl.searchParams.get("logout_hint")).toEqual(
+          DEFAULT.sid
+        );
+      });
+
+      it("should exclude id_token_hint from OIDC logout URL when includeIdTokenHintInOIDCLogoutUrl is false", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          includeIdTokenHintInOIDCLogoutUrl: false, // explicit false
+
+          routes: getDefaultRoutes(),
+
+          fetch: getMockAuthorizationServer()
+        });
+
+        // set the session cookie with id token
+        const session: SessionData = {
+          user: { sub: DEFAULT.sub },
+          tokenSet: {
+            idToken: DEFAULT.idToken,
+            accessToken: DEFAULT.accessToken,
+            refreshToken: DEFAULT.refreshToken,
+            expiresAt: 123456
+          },
+          internal: {
+            sid: DEFAULT.sid,
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
+        const sessionCookie = await encrypt(session, secret, expiration);
+        const headers = new Headers();
+        headers.append("cookie", `__session=${sessionCookie}`);
+
+        const request = new NextRequest(
+          new URL("/auth/logout", DEFAULT.appBaseUrl),
+          {
+            method: "GET",
+            headers
+          }
+        );
+
+        const response = await authClient.handleLogout(request);
+        expect(response.status).toEqual(307);
+        expect(response.headers.get("Location")).not.toBeNull();
+
+        const authorizationUrl = new URL(response.headers.get("Location")!);
+        expect(authorizationUrl.searchParams.get("id_token_hint")).toBeNull();
+        expect(authorizationUrl.searchParams.get("logout_hint")).toEqual(
+          DEFAULT.sid
+        );
+      });
+
+      it("should include id_token_hint by default when includeIdTokenHintInOIDCLogoutUrl is not specified", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          // includeIdTokenHintInOIDCLogoutUrl not specified, should default to true
+
+          routes: getDefaultRoutes(),
+
+          fetch: getMockAuthorizationServer()
+        });
+
+        // set the session cookie with id token
+        const session: SessionData = {
+          user: { sub: DEFAULT.sub },
+          tokenSet: {
+            idToken: DEFAULT.idToken,
+            accessToken: DEFAULT.accessToken,
+            refreshToken: DEFAULT.refreshToken,
+            expiresAt: 123456
+          },
+          internal: {
+            sid: DEFAULT.sid,
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
+        const sessionCookie = await encrypt(session, secret, expiration);
+        const headers = new Headers();
+        headers.append("cookie", `__session=${sessionCookie}`);
+
+        const request = new NextRequest(
+          new URL("/auth/logout", DEFAULT.appBaseUrl),
+          {
+            method: "GET",
+            headers
+          }
+        );
+
+        const response = await authClient.handleLogout(request);
+        expect(response.status).toEqual(307);
+        expect(response.headers.get("Location")).not.toBeNull();
+
+        const authorizationUrl = new URL(response.headers.get("Location")!);
+        expect(authorizationUrl.searchParams.get("id_token_hint")).toEqual(
+          DEFAULT.idToken
+        );
+      });
+
+      it("should not include id_token_hint when session has no idToken, regardless of includeIdTokenHintInOIDCLogoutUrl setting", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          includeIdTokenHintInOIDCLogoutUrl: true, // even with true, no idToken means no hint
+
+          routes: getDefaultRoutes(),
+
+          fetch: getMockAuthorizationServer()
+        });
+
+        // set the session cookie without id token
+        const session: SessionData = {
+          user: { sub: DEFAULT.sub },
+          tokenSet: {
+            // idToken: undefined, // no idToken
+            accessToken: DEFAULT.accessToken,
+            refreshToken: DEFAULT.refreshToken,
+            expiresAt: 123456
+          },
+          internal: {
+            sid: DEFAULT.sid,
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
+        const sessionCookie = await encrypt(session, secret, expiration);
+        const headers = new Headers();
+        headers.append("cookie", `__session=${sessionCookie}`);
+
+        const request = new NextRequest(
+          new URL("/auth/logout", DEFAULT.appBaseUrl),
+          {
+            method: "GET",
+            headers
+          }
+        );
+
+        const response = await authClient.handleLogout(request);
+        expect(response.status).toEqual(307);
+        expect(response.headers.get("Location")).not.toBeNull();
+
+        const authorizationUrl = new URL(response.headers.get("Location")!);
+        expect(authorizationUrl.searchParams.get("id_token_hint")).toBeNull();
+        expect(authorizationUrl.searchParams.get("logout_hint")).toEqual(
+          DEFAULT.sid
+        );
+      });
+    });
   });
 
   describe("handleProfile", async () => {
