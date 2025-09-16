@@ -154,6 +154,43 @@ The `federated` parameter works with all logout strategies (`auto`, `oidc`, and 
 - **OIDC logout**: `https://your-domain.auth0.com/oidc/logout?federated&...`
 - **V2 logout**: `https://your-domain.auth0.com/v2/logout?federated&...`
 
+### OIDC logout privacy configuration
+
+The SDK provides control over whether to include the `id_token_hint` parameter in OIDC logout URLs through the `includeIdTokenHintInOIDCLogoutUrl` configuration option. This setting allows you to balance security and privacy based on your application's requirements.
+
+#### Default behavior (recommended)
+
+By default, the SDK includes `id_token_hint` in OIDC logout URLs for enhanced security:
+
+```ts
+export const auth0 = new Auth0Client({
+  logoutStrategy: "auto", // or "oidc"
+  includeIdTokenHintInOIDCLogoutUrl: true // default value
+  // ... other config
+});
+```
+
+#### Privacy-focused configuration
+
+The default approach might include user information (PII) encoded in the ID token within logout URLs.
+PII may appear in server logs, browser history, and referrer headers.
+For applications where this is not acceptable, you can exclude `id_token_hint` from logout URLs:
+
+```ts
+export const auth0 = new Auth0Client({
+  logoutStrategy: "auto", // or "oidc"
+  includeIdTokenHintInOIDCLogoutUrl: false // exclude id_token_hint for privacy
+  // ... other config
+});
+```
+
+This will still send the `logout_hint` and `client_id` parameters.
+This flag is only effective with the `oidc` or `auto` (uses `oidc` when possible) logout strategy.
+This has no effect with v2 strategy (v2 doesn't use `id_token_hint`).
+
+> [!WARNING]  
+> When `includeIdTokenHintInOIDCLogoutUrl: false`, logout requests lose cryptographic verification. The [OpenID Connect specification](https://openid.net/specs/openid-connect-rpinitiated-1_0.html#Security) warns that "logout requests without a valid `id_token_hint` value are a potential means of denial of service." Use this setting only when privacy requirements outweigh DoS protection concerns.
+
 ## Accessing the authenticated user
 
 ### In the browser
