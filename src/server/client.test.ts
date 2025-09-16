@@ -311,6 +311,161 @@ describe("Auth0Client", () => {
       expect(enableParallelTransactions).toBe(true);
     });
   });
+
+  describe("getSession", () => {
+    it("should return null for expired sessions", async () => {
+      // Set required environment variables
+      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
+      process.env[ENV_VARS.CLIENT_ID] = "test-client-id";
+      process.env[ENV_VARS.CLIENT_SECRET] = "test-client-secret";
+      process.env[ENV_VARS.APP_BASE_URL] = "http://localhost:3000";
+      process.env[ENV_VARS.SECRET] =
+        "test-secret-12345678901234567890123456789012";
+
+      // Create an Auth0 client
+      const auth0 = new Auth0Client();
+
+      // Mock a session with an expired token
+      const expiredSession = {
+        user: { sub: "user123" },
+        tokenSet: {
+          accessToken: "expired-access-token",
+          expiresAt: Math.floor(Date.now() / 1000) - 3600, // Expired 1 hour ago
+          refreshToken: undefined // No refresh token available
+        },
+        internal: {
+          sid: "session-id",
+          createdAt: Math.floor(Date.now() / 1000) - 3600
+        }
+      };
+
+      // Mock the session store to return the expired session
+      const mockSessionStore = {
+        get: vi.fn().mockResolvedValue(expiredSession),
+        set: vi.fn(),
+        delete: vi.fn()
+      };
+
+      // Replace the session store on the auth0 client
+      (auth0 as any).sessionStore = mockSessionStore;
+
+      // Create a mock NextRequest with empty cookies
+      const request = { cookies: { get: vi.fn() } } as any as NextRequest;
+
+      // Call getSession - this should return null for expired session
+      const session = await auth0.getSession(request);
+
+      // Expected behavior: null for expired session (Issue #2312 fix)
+      expect(session).toBeNull();
+    });
+
+    it("should return valid session for non-expired tokens", async () => {
+      // Set required environment variables
+      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
+      process.env[ENV_VARS.CLIENT_ID] = "test-client-id";
+      process.env[ENV_VARS.CLIENT_SECRET] = "test-client-secret";
+      process.env[ENV_VARS.APP_BASE_URL] = "http://localhost:3000";
+      process.env[ENV_VARS.SECRET] =
+        "test-secret-12345678901234567890123456789012";
+
+      const auth0 = new Auth0Client();
+
+      // Mock a session with a valid (non-expired) token
+      const validSession = {
+        user: { sub: "user123" },
+        tokenSet: {
+          accessToken: "valid-access-token",
+          expiresAt: Math.floor(Date.now() / 1000) + 3600, // Expires in 1 hour
+          refreshToken: "refresh-token"
+        },
+        internal: {
+          sid: "session-id",
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
+
+      const mockSessionStore = {
+        get: vi.fn().mockResolvedValue(validSession),
+        set: vi.fn(),
+        delete: vi.fn()
+      };
+
+      (auth0 as any).sessionStore = mockSessionStore;
+
+      const request = { cookies: { get: vi.fn() } } as any as NextRequest;
+      const session = await auth0.getSession(request);
+
+      // This should work correctly - return the valid session
+      expect(session).not.toBeNull();
+      expect(session?.tokenSet.expiresAt).toBeGreaterThan(Date.now() / 1000);
+    });
+
+    it("should return null when no session exists", async () => {
+      // Set required environment variables
+      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
+      process.env[ENV_VARS.CLIENT_ID] = "test-client-id";
+      process.env[ENV_VARS.CLIENT_SECRET] = "test-client-secret";
+      process.env[ENV_VARS.APP_BASE_URL] = "http://localhost:3000";
+      process.env[ENV_VARS.SECRET] =
+        "test-secret-12345678901234567890123456789012";
+
+      const auth0 = new Auth0Client();
+
+      // Mock the session store to return null (no session)
+      const mockSessionStore = {
+        get: vi.fn().mockResolvedValue(null),
+        set: vi.fn(),
+        delete: vi.fn()
+      };
+
+      (auth0 as any).sessionStore = mockSessionStore;
+
+      const request = { cookies: { get: vi.fn() } } as any as NextRequest;
+      const session = await auth0.getSession(request);
+
+      // Should return null when no session exists
+      expect(session).toBeNull();
+    });
+
+    it("should handle session without expiration gracefully", async () => {
+      // Set required environment variables
+      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
+      process.env[ENV_VARS.CLIENT_ID] = "test-client-id";
+      process.env[ENV_VARS.CLIENT_SECRET] = "test-client-secret";
+      process.env[ENV_VARS.APP_BASE_URL] = "http://localhost:3000";
+      process.env[ENV_VARS.SECRET] =
+        "test-secret-12345678901234567890123456789012";
+
+      const auth0 = new Auth0Client();
+
+      // Mock a session without expiration timestamp (edge case)
+      const sessionWithoutExpiration = {
+        user: { sub: "user123" },
+        tokenSet: {
+          accessToken: "access-token-without-expiration",
+          // No expiresAt property
+          refreshToken: "refresh-token"
+        },
+        internal: {
+          sid: "session-id",
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      } as any;
+
+      const mockSessionStore = {
+        get: vi.fn().mockResolvedValue(sessionWithoutExpiration),
+        set: vi.fn(),
+        delete: vi.fn()
+      };
+
+      (auth0 as any).sessionStore = mockSessionStore;
+
+      const request = { cookies: { get: vi.fn() } } as any as NextRequest;
+
+      // This should not throw an error, but handle the missing expiration gracefully
+      await expect(auth0.getSession(request)).resolves.not.toThrow();
+    });
+  });
 });
 
 export type GetAccessTokenOptions = {
