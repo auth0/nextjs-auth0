@@ -3,9 +3,10 @@ import * as jose from "jose";
 import * as oauth from "oauth4webapi";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { BackchannelAuthenticationError } from "../errors/index.js";
 import { getDefaultRoutes } from "../test/defaults.js";
 import { generateSecret } from "../test/utils.js";
-import { SessionData } from "../types/index.js";
+import { SessionData, SUBJECT_TOKEN_TYPES } from "../types/index.js";
 import { AuthClient } from "./auth-client.js";
 import { decrypt, encrypt } from "./cookies.js";
 import { StatefulSessionStore } from "./session/stateful-session-store.js";
@@ -64,7 +65,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
     audience,
     nonce,
     keyPair = DEFAULT.keyPair,
-    onParRequest
+    onParRequest,
+    onBackchannelAuthRequest
   }: {
     tokenEndpointResponse?: oauth.TokenEndpointResponse | oauth.OAuth2Error;
     tokenEndpointErrorResponse?: oauth.OAuth2Error;
@@ -74,6 +76,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     nonce?: string;
     keyPair?: jose.GenerateKeyPairResult;
     onParRequest?: (request: Request) => Promise<void>;
+    onBackchannelAuthRequest?: (request: Request) => Promise<void>;
   } = {}) {
     // this function acts as a mock authorization server
     return vi.fn(
@@ -131,7 +134,6 @@ ca/T0LLtgmbMmxSv/MmzIg==
         // PAR endpoint
         if (url.pathname === "/oauth/par") {
           if (onParRequest) {
-            // TODO: for some reason the input here is a URL and not a request
             await onParRequest(new Request(input, init));
           }
 
@@ -139,6 +141,23 @@ ca/T0LLtgmbMmxSv/MmzIg==
             { request_uri: DEFAULT.requestUri, expires_in: 30 },
             {
               status: 201
+            }
+          );
+        }
+        // Backchannel Authorize endpoint
+        if (url.pathname === "/bc-authorize") {
+          if (onBackchannelAuthRequest) {
+            await onBackchannelAuthRequest(new Request(input, init));
+          }
+
+          return Response.json(
+            {
+              auth_req_id: "auth-req-id",
+              expires_in: 30,
+              interval: 0.01
+            },
+            {
+              status: 200
             }
           );
         }
@@ -1913,7 +1932,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       });
 
       describe("custom parameters to the authorization server", async () => {
-        it("should not forward any custom parameters sent via the query parameters to /auth/login", async () => {
+        it("should forward all custom parameters sent via the query parameters to PAR", async () => {
           const secret = await generateSecret(32);
           const transactionStore = new TransactionStore({
             secret
@@ -1944,8 +1963,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
             fetch: getMockAuthorizationServer({
               onParRequest: async (request) => {
                 const params = new URLSearchParams(await request.text());
-                expect(params.get("ext-custom_param")).toBeNull();
-                expect(params.get("audience")).toBeNull();
+                // With simplified approach, all custom parameters are now forwarded to PAR
+                expect(params.get("ext-custom_param")).toEqual("custom_value");
+                expect(params.get("audience")).toEqual("urn:mystore:api");
               }
             })
           });
@@ -2131,6 +2151,167 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(authorizationUrl.searchParams.get("redirect_uri")).toEqual(
           `${DEFAULT.appBaseUrl}/custom-callback`
         );
+      });
+    });
+
+    describe("with PAR enabled", async () => {
+      it("should forward safe UI parameters like screen_hint even when PAR is enabled", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+
+        // Mock PAR request to verify that safe parameters are sent
+        let parRequestParams: URLSearchParams;
+        const mockFetch = getMockAuthorizationServer({
+          onParRequest: async (request) => {
+            // Extract form data from PAR request body
+            const formData = await request.text();
+            parRequestParams = new URLSearchParams(formData);
+          }
+        });
+
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          pushedAuthorizationRequests: true,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: mockFetch
+        });
+
+        const loginUrl = new URL(
+          "/auth/login?screen_hint=signup&scope=malicious",
+          DEFAULT.appBaseUrl
+        );
+        const request = new NextRequest(loginUrl, {
+          method: "GET"
+        });
+
+        const response = await authClient.handleLogin(request);
+        const authorizationUrl = new URL(response.headers.get("Location")!);
+
+        // With PAR, the authorization URL should only contain request_uri and client_id
+        expect(authorizationUrl.searchParams.get("request_uri")).toBeTruthy();
+        expect(authorizationUrl.searchParams.get("client_id")).toEqual(
+          DEFAULT.clientId
+        );
+
+        // But screen_hint should be sent in the PAR request (safe parameter)
+        expect(parRequestParams!.get("screen_hint")).toEqual("signup");
+        // With simplified approach, all parameters including scope are forwarded to PAR
+        // The scope parameter should contain the query param value (not filtered)
+        expect(parRequestParams!.get("scope")).toEqual("malicious");
+      });
+
+      it("should forward multiple safe parameters when PAR is enabled", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+
+        // Mock PAR request to verify that safe parameters are sent
+        let parRequestParams: URLSearchParams;
+        const mockFetch = getMockAuthorizationServer({
+          onParRequest: async (request) => {
+            // Extract form data from PAR request body
+            const formData = await request.text();
+            parRequestParams = new URLSearchParams(formData);
+          }
+        });
+
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          pushedAuthorizationRequests: true,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: mockFetch
+        });
+
+        const loginUrl = new URL(
+          "/auth/login?screen_hint=signup&login_hint=user@example.com&prompt=login&ui_locales=en",
+          DEFAULT.appBaseUrl
+        );
+        const request = new NextRequest(loginUrl, {
+          method: "GET"
+        });
+
+        await authClient.handleLogin(request);
+
+        // All safe parameters should be sent in the PAR request
+        expect(parRequestParams!.get("screen_hint")).toEqual("signup");
+        expect(parRequestParams!.get("login_hint")).toEqual("user@example.com");
+        expect(parRequestParams!.get("prompt")).toEqual("login");
+        expect(parRequestParams!.get("ui_locales")).toEqual("en");
+      });
+
+      it("should forward custom parameters but protect internal security parameters", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+
+        // Mock PAR request to verify that security parameters are not sent
+        let parRequestParams: URLSearchParams;
+        const mockFetch = getMockAuthorizationServer({
+          onParRequest: async (request) => {
+            // Extract form data from PAR request body
+            const formData = await request.text();
+            parRequestParams = new URLSearchParams(formData);
+          }
+        });
+
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          pushedAuthorizationRequests: true,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: mockFetch
+        });
+
+        const loginUrl = new URL(
+          "/auth/login?scope=read:users&audience=https://api.example.com&redirect_uri=https://malicious.com&screen_hint=signup",
+          DEFAULT.appBaseUrl
+        );
+        const request = new NextRequest(loginUrl, {
+          method: "GET"
+        });
+
+        await authClient.handleLogin(request);
+
+        // With simplified approach, custom parameters are forwarded to PAR
+        expect(parRequestParams!.get("scope")).toEqual("read:users"); // Query param forwarded
+        expect(parRequestParams!.get("audience")).toEqual(
+          "https://api.example.com"
+        ); // Query param forwarded
+        // redirect_uri should NOT be overridden as it's a security-sensitive internal parameter
+        expect(parRequestParams!.get("redirect_uri")).toEqual(
+          `${DEFAULT.appBaseUrl}/auth/callback`
+        ); // Should use configured value, not malicious query param
+        expect(parRequestParams!.get("screen_hint")).toEqual("signup"); // Query param forwarded
       });
     });
   });
@@ -5511,14 +5692,14 @@ ca/T0LLtgmbMmxSv/MmzIg==
     });
 
     // Add tests for handleLogin method
-    it("should create correct options in handleLogin with returnTo parameter", async () => {
+    it("should create correct options in handleLogin with returnTo parameter excluded", async () => {
       const authClient = await createAuthClient();
 
       // Mock startInteractiveLogin to check what options are passed to it
       const originalStartInteractiveLogin = authClient.startInteractiveLogin;
       authClient.startInteractiveLogin = vi.fn(async (options) => {
         expect(options).toEqual({
-          authorizationParameters: { foo: "bar", returnTo: "custom-return" },
+          authorizationParameters: { foo: "bar" },
           returnTo: "custom-return"
         });
         return originalStartInteractiveLogin.call(authClient, options);
@@ -5534,7 +5715,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(authClient.startInteractiveLogin).toHaveBeenCalled();
     });
 
-    it("should handle PAR correctly in handleLogin by not forwarding params", async () => {
+    it("should handle PAR correctly in handleLogin by forwarding all params except returnTo", async () => {
       const authClient = await createAuthClient({
         pushedAuthorizationRequests: true
       });
@@ -5543,7 +5724,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const originalStartInteractiveLogin = authClient.startInteractiveLogin;
       authClient.startInteractiveLogin = vi.fn(async (options) => {
         expect(options).toEqual({
-          authorizationParameters: {},
+          authorizationParameters: {
+            foo: "bar"
+          },
           returnTo: "custom-return"
         });
         return originalStartInteractiveLogin.call(authClient, options);
@@ -5843,6 +6026,619 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(error?.cause?.message).toEqual("some-error-description");
       expect(connectionTokenSet).toBeNull();
     });
+
+    it("should use access token as subject token when subject_token_type is SUBJECT_TYPE_ACCESS_TOKEN", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+
+      let capturedRequestBody: any = null;
+      const mockFetch = vi.fn(
+        async (
+          input: RequestInfo | URL,
+          init?: RequestInit
+        ): Promise<Response> => {
+          const url = new URL(input instanceof Request ? input.url : input);
+
+          if (url.pathname === "/oauth/token") {
+            // Capture the request body for validation
+            if (init?.body) {
+              capturedRequestBody = init.body;
+            }
+
+            return Response.json({
+              access_token: "federated-access-token",
+              token_type: "Bearer",
+              expires_in: 3600
+            });
+          }
+
+          // discovery URL
+          if (url.pathname === "/.well-known/openid-configuration") {
+            return Response.json(_authorizationServerMetadata);
+          }
+
+          return new Response("Not found", { status: 404 });
+        }
+      );
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: mockFetch
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) + 3600;
+      const tokenSet = {
+        accessToken: "existing-access-token",
+        refreshToken: "existing-refresh-token",
+        expiresAt
+      };
+
+      const [error, connectionTokenSet] =
+        await authClient.getConnectionTokenSet(tokenSet, undefined, {
+          connection: "google-oauth2",
+          subject_token_type: SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_ACCESS_TOKEN
+        });
+
+      expect(error).toBeNull();
+      expect(connectionTokenSet).toEqual({
+        accessToken: "federated-access-token",
+        connection: "google-oauth2",
+        expiresAt: expect.any(Number)
+      });
+
+      // Verify the request was made with correct parameters
+      expect(capturedRequestBody).toBeTruthy();
+      const urlParams = new URLSearchParams(capturedRequestBody);
+      expect(urlParams.get("subject_token_type")).toBe(
+        "urn:ietf:params:oauth:token-type:access_token"
+      );
+      expect(urlParams.get("subject_token")).toBe("existing-access-token");
+      expect(urlParams.get("grant_type")).toBe(
+        "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token"
+      );
+      expect(urlParams.get("connection")).toBe("google-oauth2");
+    });
+
+    it("should use refresh token as subject token when subject_token_type is SUBJECT_TYPE_REFRESH_TOKEN", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+
+      let capturedRequestBody: any = null;
+      const mockFetch = vi.fn(
+        async (
+          input: RequestInfo | URL,
+          init?: RequestInit
+        ): Promise<Response> => {
+          const url = new URL(input instanceof Request ? input.url : input);
+
+          if (url.pathname === "/oauth/token") {
+            // Capture the request body for validation
+            if (init?.body) {
+              capturedRequestBody = init.body;
+            }
+
+            return Response.json({
+              access_token: "federated-access-token",
+              token_type: "Bearer",
+              expires_in: 3600
+            });
+          }
+
+          // discovery URL
+          if (url.pathname === "/.well-known/openid-configuration") {
+            return Response.json(_authorizationServerMetadata);
+          }
+
+          return new Response("Not found", { status: 404 });
+        }
+      );
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: mockFetch
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) + 3600;
+      const tokenSet = {
+        accessToken: "existing-access-token",
+        refreshToken: "existing-refresh-token",
+        expiresAt
+      };
+
+      const [error, connectionTokenSet] =
+        await authClient.getConnectionTokenSet(tokenSet, undefined, {
+          connection: "google-oauth2",
+          subject_token_type: SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_REFRESH_TOKEN
+        });
+
+      expect(error).toBeNull();
+      expect(connectionTokenSet).toEqual({
+        accessToken: "federated-access-token",
+        connection: "google-oauth2",
+        expiresAt: expect.any(Number)
+      });
+
+      // Verify the request was made with correct parameters
+      expect(capturedRequestBody).toBeTruthy();
+      const urlParams = new URLSearchParams(capturedRequestBody);
+      expect(urlParams.get("subject_token_type")).toBe(
+        "urn:ietf:params:oauth:token-type:refresh_token"
+      );
+      expect(urlParams.get("subject_token")).toBe("existing-refresh-token");
+      expect(urlParams.get("grant_type")).toBe(
+        "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token"
+      );
+      expect(urlParams.get("connection")).toBe("google-oauth2");
+    });
+
+    it("should default to refresh token when no subject_token_type is specified", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+
+      let capturedRequestBody: any = null;
+      const mockFetch = vi.fn(
+        async (
+          input: RequestInfo | URL,
+          init?: RequestInit
+        ): Promise<Response> => {
+          const url = new URL(input instanceof Request ? input.url : input);
+
+          if (url.pathname === "/oauth/token") {
+            // Capture the request body for validation
+            if (init?.body) {
+              capturedRequestBody = init.body;
+            }
+
+            return Response.json({
+              access_token: "federated-access-token",
+              token_type: "Bearer",
+              expires_in: 3600
+            });
+          }
+
+          // discovery URL
+          if (url.pathname === "/.well-known/openid-configuration") {
+            return Response.json(_authorizationServerMetadata);
+          }
+
+          return new Response("Not found", { status: 404 });
+        }
+      );
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: mockFetch
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) + 3600;
+      const tokenSet = {
+        accessToken: "existing-access-token",
+        refreshToken: "existing-refresh-token",
+        expiresAt
+      };
+
+      const [error, connectionTokenSet] =
+        await authClient.getConnectionTokenSet(tokenSet, undefined, {
+          connection: "google-oauth2"
+          // No subject_token_type specified - should default to refresh token
+        });
+
+      expect(error).toBeNull();
+      expect(connectionTokenSet).toEqual({
+        accessToken: "federated-access-token",
+        connection: "google-oauth2",
+        expiresAt: expect.any(Number)
+      });
+
+      // Verify the request defaults to refresh token parameters
+      expect(capturedRequestBody).toBeTruthy();
+      const urlParams = new URLSearchParams(capturedRequestBody);
+      expect(urlParams.get("subject_token_type")).toBe(
+        "urn:ietf:params:oauth:token-type:refresh_token"
+      );
+      expect(urlParams.get("subject_token")).toBe("existing-refresh-token");
+      expect(urlParams.get("grant_type")).toBe(
+        "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token"
+      );
+      expect(urlParams.get("connection")).toBe("google-oauth2");
+    });
+
+    it("should return error when access token is requested but not available", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: getMockAuthorizationServer({
+          tokenEndpointErrorResponse: {
+            error: "invalid_request",
+            error_description:
+              "The request is missing a required parameter or is otherwise malformed."
+          }
+        })
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) + 3600;
+      const tokenSet = {
+        // Empty access token means unavailable
+        accessToken: "",
+        refreshToken: "existing-refresh-token",
+        expiresAt
+      };
+
+      const [error, connectionTokenSet] =
+        await authClient.getConnectionTokenSet(tokenSet, undefined, {
+          connection: "google-oauth2",
+          subject_token_type: SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_ACCESS_TOKEN
+        });
+
+      // Should get an error when trying to use an empty access token
+      expect(error).toBeTruthy();
+      expect(error?.code).toBe("failed_to_exchange_refresh_token");
+      expect(connectionTokenSet).toBeNull();
+    });
+  });
+
+  describe("backchannelAuthentication", async () => {
+    it("should return an error if backchannel authentication is not enabled", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: getMockAuthorizationServer({
+          discoveryResponse: Response.json(
+            {
+              ..._authorizationServerMetadata,
+              backchannel_authentication_endpoint: null,
+              backchannel_token_delivery_modes_supported: null
+            },
+            {
+              status: 200,
+              headers: {
+                "content-type": "application/json"
+              }
+            }
+          )
+        })
+      });
+
+      const [error, _] = await authClient.backchannelAuthentication({
+        bindingMessage: "test-message",
+        loginHint: {
+          sub: DEFAULT.sub
+        }
+      });
+      expect(error?.code).toEqual(
+        "backchannel_authentication_not_supported_error"
+      );
+    });
+
+    it("should return the token set when successfully authenticated", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: getMockAuthorizationServer()
+      });
+
+      const [error, res] = await authClient.backchannelAuthentication({
+        bindingMessage: "test-message",
+        loginHint: {
+          sub: DEFAULT.sub
+        }
+      });
+      expect(error).toBeNull();
+      expect(res).toEqual({
+        idTokenClaims: {
+          aud: DEFAULT.clientId,
+          auth_time: expect.any(Number),
+          exp: expect.any(Number),
+          "https://example.com/custom_claim": "value",
+          iat: expect.any(Number),
+          iss: `https://${DEFAULT.domain}/`,
+          nonce: expect.any(String),
+          sid: DEFAULT.sid,
+          sub: DEFAULT.sub
+        },
+        tokenSet: {
+          accessToken: DEFAULT.accessToken,
+          expiresAt: expect.any(Number),
+          idToken: expect.any(String),
+          refreshToken: DEFAULT.refreshToken
+        }
+      });
+    });
+
+    it("should return an error when the user rejects the authorization request", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: getMockAuthorizationServer({
+          tokenEndpointErrorResponse: {
+            error: "access_denied",
+            error_description:
+              "The end-user denied the authorization request or it has been expired"
+          }
+        })
+      });
+
+      const [error, res] = await authClient.backchannelAuthentication({
+        bindingMessage: "test-message",
+        loginHint: {
+          sub: DEFAULT.sub
+        }
+      });
+      expect((error as BackchannelAuthenticationError)?.cause?.code).toEqual(
+        "access_denied"
+      );
+      expect(res).toBeNull();
+    });
+
+    it("should forward any statically configured authorization parameters", async () => {
+      const customScope = "openid profile email offline_access custom_scope";
+      const customAudience = "urn:mystore:api";
+      const customParamValue = "custom_value";
+
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+        authorizationParameters: {
+          scope: customScope,
+          audience: customAudience,
+          custom_param: customParamValue
+        },
+        fetch: getMockAuthorizationServer({
+          onBackchannelAuthRequest: async (req) => {
+            const formBody = await req.formData();
+            expect(formBody.get("scope")).toEqual(customScope);
+            expect(formBody.get("audience")).toEqual(customAudience);
+            expect(formBody.get("custom_param")).toEqual(customParamValue);
+          }
+        })
+      });
+
+      const [error, _] = await authClient.backchannelAuthentication({
+        bindingMessage: "test-message",
+        loginHint: {
+          sub: DEFAULT.sub
+        }
+      });
+
+      expect(error).toBeNull();
+    });
+
+    it("should forward any dynamically specified authorization parameters", async () => {
+      const customScope = "openid profile email offline_access custom_scope";
+      const customAudience = "urn:mystore:api";
+      const customParamValue = "custom_value";
+
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer({
+          onBackchannelAuthRequest: async (req) => {
+            const formBody = await req.formData();
+            expect(formBody.get("scope")).toEqual(customScope);
+            expect(formBody.get("audience")).toEqual(customAudience);
+            expect(formBody.get("custom_param")).toEqual(customParamValue);
+          }
+        })
+      });
+
+      const [error, _] = await authClient.backchannelAuthentication({
+        bindingMessage: "test-message",
+        loginHint: {
+          sub: DEFAULT.sub
+        },
+        authorizationParams: {
+          scope: customScope,
+          audience: customAudience,
+          custom_param: customParamValue
+        }
+      });
+
+      expect(error).toBeNull();
+    });
+
+    it("should give precedence to dynamically provided authorization parameters over statically configured ones", async () => {
+      const customScope = "openid profile email offline_access custom_scope";
+      const customParamValue = "custom_value";
+
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+        authorizationParameters: {
+          scope: customScope,
+          audience: "static-config-aud",
+          custom_param: customParamValue
+        },
+        fetch: getMockAuthorizationServer({
+          onBackchannelAuthRequest: async (req) => {
+            const formBody = await req.formData();
+            expect(formBody.get("scope")).toEqual(customScope);
+            expect(formBody.get("audience")).toEqual(
+              "dynamically-specific-aud"
+            );
+            expect(formBody.get("custom_param")).toEqual(customParamValue);
+          }
+        })
+      });
+
+      const [error, _] = await authClient.backchannelAuthentication({
+        bindingMessage: "test-message",
+        loginHint: {
+          sub: DEFAULT.sub
+        },
+        authorizationParams: {
+          scope: customScope,
+          audience: "dynamically-specific-aud",
+          custom_param: customParamValue
+        }
+      });
+
+      expect(error).toBeNull();
+    });
   });
 });
 
@@ -5914,5 +6710,8 @@ const _authorizationServerMetadata = {
   backchannel_logout_supported: true,
   backchannel_logout_session_supported: true,
   end_session_endpoint: "https://guabu.us.auth0.com/oidc/logout",
-  pushed_authorization_request_endpoint: "https://guabu.us.auth0.com/oauth/par"
+  pushed_authorization_request_endpoint: "https://guabu.us.auth0.com/oauth/par",
+  backchannel_authentication_endpoint:
+    "https://guabu.us.auth0.com/bc-authorize",
+  backchannel_token_delivery_modes_supported: ["poll"]
 };
