@@ -411,12 +411,17 @@ export class AuthClient {
   async handleLogin(req: NextRequest): Promise<NextResponse> {
     const searchParams = Object.fromEntries(req.nextUrl.searchParams.entries());
 
+    // Always forward all parameters
+    // When PAR is disabled, parameters go to authorization URL as before
+    // When PAR is enabled, all parameters are sent securely in the PAR request body
+
+    // do not pass returnTo as part of authorizationParameters
+    // returnTo should only be used in txn state
+    const { returnTo, ...authorizationParameters } = searchParams;
+
     const options: StartInteractiveLoginOptions = {
-      // SECURITY CRITICAL: Only forward query params when PAR is disabled
-      authorizationParameters: !this.pushedAuthorizationRequests
-        ? searchParams
-        : {},
-      returnTo: searchParams.returnTo
+      authorizationParameters,
+      returnTo: returnTo
     };
     return this.startInteractiveLogin(options);
   }
