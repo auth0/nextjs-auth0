@@ -2,7 +2,7 @@
 
 The Auth0 Next.js SDK is a library for implementing user authentication in Next.js applications.
 
-![Auth0 Next.js SDK Release](https://img.shields.io/npm/v/@auth0/nextjs-auth0)
+[![Auth0 Next.js SDK Release](https://img.shields.io/npm/v/@auth0/nextjs-auth0)](https://www.npmjs.com/package/@auth0/nextjs-auth0)
 ![Auth0 Next.js SDK Downloads](https://img.shields.io/npm/dw/@auth0/nextjs-auth0)
 [![Auth0 Next.js SDK License](https://img.shields.io/:license-mit-blue.svg?style=flat)](https://opensource.org/licenses/MIT)
 
@@ -97,6 +97,9 @@ export const config = {
 > [!NOTE]  
 > If you're using a `src/` directory, the `middleware.ts` file must be created inside the `src/` directory.
 
+> [!IMPORTANT]
+> This broad middleware matcher is essential for rolling sessions and security features. For scenarios when rolling sessions are disabled, see [Session Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#session-configuration) for alternative approaches.
+
 You can now begin to authenticate your users by redirecting them to your application's `/auth/login` route:
 
 ```tsx
@@ -139,6 +142,7 @@ You can customize the client by using the options below:
 | clientAssertionSigningAlg   | `string`                  | The algorithm used to sign the client assertion JWT. This can also be provided via the `AUTH0_CLIENT_ASSERTION_SIGNING_ALG` environment variable.                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | appBaseUrl                  | `string`                  | The URL of your application (e.g.: `http://localhost:3000`). If it's not specified, it will be loaded from the `APP_BASE_URL` environment variable.                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | logoutStrategy              | `"auto" \| "oidc" \| "v2"` | Strategy for logout endpoint selection. `"auto"` (default) uses OIDC logout when available, falls back to `/v2/logout`. `"oidc"` always uses OIDC logout. `"v2"` always uses `/v2/logout` endpoint which supports wildcard URLs. See [Configuring logout strategy](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#configuring-logout-strategy) for details. |
+| includeIdTokenHintInOIDCLogoutUrl | `boolean`            | Configure whether to include `id_token_hint` in OIDC logout URLs for privacy. Defaults to `true` (recommended). When `false`, excludes PII from logout URLs but reduces DoS protection. See [OIDC logout privacy configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#oidc-logout-privacy-configuration) for details. |
 | secret                      | `string`                  | A 32-byte, hex-encoded secret used for encrypting cookies. If it's not specified, it will be loaded from the `AUTH0_SECRET` environment variable.                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | signInReturnToPath          | `string`                  | The path to redirect the user to after successfully authenticating. Defaults to `/`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | session                     | `SessionConfiguration`    | Configure the session timeouts and whether to use rolling sessions or not. See [Session configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#session-configuration) for additional details. Also allows configuration of cookie attributes like `domain`, `path`, `secure`, `sameSite`, and `transient`. If not specified, these can be configured using `AUTH0_COOKIE_*` environment variables. Note: `httpOnly` is always `true`. See [Cookie Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#cookie-configuration) for details. |

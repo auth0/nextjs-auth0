@@ -60,6 +60,10 @@ export interface User {
   picture?: string;
   email?: string;
   email_verified?: boolean;
+  /**
+   * The organization ID that the user belongs to.
+   * This field is populated when the user logs in through an organization.
+   */
   org_id?: string;
 
   [key: string]: any;
@@ -128,9 +132,31 @@ export interface AuthorizationParameters {
    */
   max_age?: number;
   /**
+   * The unique identifier of the organization that the user should be logged into.
+   * When specified, the user will be prompted to log in to this specific organization.
+   * The organization ID will be included in the user's session after successful authentication.
+   */
+  organization?: string;
+  /**
    * Additional authorization parameters.
    */
   [key: string]: unknown;
+}
+
+export enum SUBJECT_TOKEN_TYPES {
+  /**
+   * Indicates that the token is an OAuth 2.0 refresh token issued by the given authorization server.
+   *
+   * @see {@link https://datatracker.ietf.org/doc/html/rfc8693#section-3-3.4 RFC 8693 Section 3-3.4}
+   */
+  SUBJECT_TYPE_REFRESH_TOKEN = "urn:ietf:params:oauth:token-type:refresh_token",
+
+  /**
+   * Indicates that the token is an OAuth 2.0 access token issued by the given authorization server.
+   *
+   * @see {@link https://datatracker.ietf.org/doc/html/rfc8693#section-3-3.2 RFC 8693 Section 3-3.2}
+   */
+  SUBJECT_TYPE_ACCESS_TOKEN = "urn:ietf:params:oauth:token-type:access_token"
 }
 
 /**
@@ -146,6 +172,17 @@ export interface AccessTokenForConnectionOptions {
    * An optional login hint to pass to the authorization server.
    */
   login_hint?: string;
+
+  /**
+   * The type of token that is being exchanged.
+   *
+   * Uses the {@link SUBJECT_TOKEN_TYPES} enum with the following allowed values:
+   * - `SUBJECT_TYPE_REFRESH_TOKEN`: `"urn:ietf:params:oauth:token-type:refresh_token"`
+   * - `SUBJECT_TYPE_ACCESS_TOKEN`: `"urn:ietf:params:oauth:token-type:access_token"`
+   *
+   * Defaults to `SUBJECT_TYPE_REFRESH_TOKEN`.
+   */
+  subject_token_type?: SUBJECT_TOKEN_TYPES;
 }
 
 /**
