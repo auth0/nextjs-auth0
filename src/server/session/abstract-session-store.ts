@@ -163,7 +163,8 @@ export abstract class AbstractSessionStore {
       updatedAt + this.inactivityDuration,
       createdAt + this.absoluteDuration
     );
-    const maxAge = expiresAt - this.epoch();
+    // Fix race condition: use the same updatedAt timestamp for consistency
+    const maxAge = expiresAt - updatedAt;
 
     return maxAge > 0 ? maxAge : 0;
   }
