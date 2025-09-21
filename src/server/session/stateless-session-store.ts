@@ -103,7 +103,9 @@ export class StatelessSessionStore extends AbstractSessionStore {
   ) {
     const { connectionTokenSets, ...originalSession } = session;
     const maxAge = this.calculateMaxAge(session.internal.createdAt);
-    const expiration = Math.floor(Date.now() / 1000) + maxAge;
+    // Use consistent timestamp to avoid race condition - align with calculateMaxAge logic
+    const now = this.epoch();
+    const expiration = now + maxAge;
     const jwe = await cookies.encrypt(originalSession, this.secret, expiration);
     const cookieValue = jwe.toString();
     const options: CookieOptions = {
@@ -136,16 +138,19 @@ export class StatelessSessionStore extends AbstractSessionStore {
 
     // Any existing v3 cookie can be deleted as soon as we have set a v4 cookie.
     // In stateless sessions, we do have to ensure we delete all chunks.
-    cookies.deleteChunkedCookie(
-      LEGACY_COOKIE_NAME,
-      reqCookies,
-      resCookies,
-      true,
-      {
-        domain: this.cookieConfig.domain,
-        path: this.cookieConfig.path
-      }
-    );
+    // Only delete legacy cookies if they actually exist in the request.
+    if (cookies.getChunkedCookie(LEGACY_COOKIE_NAME, reqCookies, true)) {
+      cookies.deleteChunkedCookie(
+        LEGACY_COOKIE_NAME,
+        reqCookies,
+        resCookies,
+        true,
+        {
+          domain: this.cookieConfig.domain,
+          path: this.cookieConfig.path
+        }
+      );
+    }
   }
 
   async delete(
