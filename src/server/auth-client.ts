@@ -41,6 +41,7 @@ import {
   normalizeWithBasePath,
   removeTrailingSlash
 } from "../utils/pathUtils.js";
+import { findAccessTokenSet } from "../utils/token-set-helpers.js";
 import { toSafeRedirect } from "../utils/url-helpers.js";
 import { addCacheControlHeadersForSession } from "./cookies.js";
 import { AbstractSessionStore } from "./session/abstract-session-store.js";
@@ -693,9 +694,7 @@ export class AuthClient {
       );
     }
 
-    const [error, getTokenSetResponse] = await this.getTokenSet(
-      session.tokenSet
-    );
+    const [error, getTokenSetResponse] = await this.getTokenSet(session);
 
     if (error) {
       return NextResponse.json(
@@ -784,6 +783,59 @@ export class AuthClient {
   }
 
   /**
+   * Retrieves the token set from the session data, considering optional audience and scope parameters.
+   * When audience and scope are provided, it checks if they match the global ones defined in the authorization parameters.
+   * If they match, it returns the top-level token set from the session data.
+   * If they don't match, it searches for a corresponding access token in the session's `accessTokens` array.
+   * @param sessionData The session data containing the token sets.
+   * @param options Optional parameters for audience and scope to filter the token set.
+   * @returns A partial token set that matches the provided audience and scope, or the top-level token set if they match the global ones.
+   */
+  #getTokenSetFromSession(
+    session: SessionData,
+    options: { scope?: string | null; audience?: string | null }
+  ): Partial<TokenSet> {
+    let tokenSet: Partial<TokenSet> = session.tokenSet;
+
+    // When audience and scope are provided, we need to compare them with the original ones provided in the Auth0Client constructor.
+    // When they are identical, we should read from the top-level `SessionData.tokenSet`.
+    // If not, we should look for the corresponding access token in `SessionData.accessTokens`
+    const isAudienceTheGlobalAudience =
+      !options.audience ||
+      options.audience === this.authorizationParameters.audience;
+    const isScopeTheGlobalScope =
+      !options.scope || options.scope === this.authorizationParameters.scope;
+
+
+    if (isAudienceTheGlobalAudience && isScopeTheGlobalScope) {
+      return tokenSet;
+    }
+
+    const audience = options.audience ?? this.authorizationParameters.audience;
+    const scope =
+      options.scope ?? this.authorizationParameters.scope ?? undefined;
+
+    // If there is no audience, we cannot find the correct access token in the array
+    if (!audience) {
+      return {
+        ...tokenSet,
+        accessToken: undefined,
+        expiresAt: undefined,
+        scope: undefined
+      };
+    }
+
+    const accessTokenSet = findAccessTokenSet(session, { scope, audience });
+
+    return {
+      ...tokenSet,
+      accessToken: accessTokenSet?.accessToken,
+      expiresAt: accessTokenSet?.expiresAt,
+      scope: accessTokenSet?.scope,
+      audience: accessTokenSet?.audience
+    };
+  }
+  /**
    * Retrieves OAuth token sets, handling token refresh when necessary or if forced.
    *
    * @returns A tuple containing either:
@@ -792,11 +844,39 @@ export class AuthClient {
    *   - `[null, {tokenSet, }]` if token refresh was not done and existing token was returned
    */
   async getTokenSet(
-    tokenSet: TokenSet,
-    forceRefresh?: boolean | undefined
+    sessionData: SessionData,
+    options: {
+      refresh?: boolean | undefined;
+      scope?: string;
+      audience?: string;
+    } = {}
   ): Promise<[null, GetTokenSetResponse] | [SdkError, null]> {
-    // the access token has expired but we do not have a refresh token
-    if (!tokenSet.refreshToken && tokenSet.expiresAt <= Date.now() / 1000) {
+    const tokenSet: Partial<TokenSet> = this.#getTokenSetFromSession(
+      sessionData,
+      {
+        scope: options.scope,
+        audience: options.audience
+      }
+    );
+
+    // no access token was found that matches the, optional, provided audience and scope
+    if (!tokenSet.refreshToken && !tokenSet.accessToken) {
+      return [
+        new AccessTokenError(
+          AccessTokenErrorCode.MISSING_REFRESH_TOKEN,
+          "No access token found and a refresh token was not provided. The user needs to re-authenticate."
+        ),
+        null
+      ];
+    }
+
+    // the access token was found, but it has expired and we do not have a refresh token
+    if (
+      !tokenSet.refreshToken &&
+      tokenSet.accessToken &&
+      tokenSet.expiresAt &&
+      tokenSet.expiresAt <= Date.now() / 1000
+    ) {
       return [
         new AccessTokenError(
           AccessTokenErrorCode.MISSING_REFRESH_TOKEN,
@@ -808,12 +888,26 @@ export class AuthClient {
 
     if (tokenSet.refreshToken) {
       // either the access token has expired or we are forcing a refresh
-      if (forceRefresh || tokenSet.expiresAt <= Date.now() / 1000) {
+      if (
+        options.refresh ||
+        !tokenSet.expiresAt ||
+        tokenSet.expiresAt <= Date.now() / 1000
+      ) {
         const [discoveryError, authorizationServerMetadata] =
           await this.discoverAuthorizationServerMetadata();
 
         if (discoveryError) {
           return [discoveryError, null];
+        }
+
+        const additionalParameters = new URLSearchParams();
+
+        if (options.scope) {
+          additionalParameters.append("scope", options.scope);
+        }
+
+        if (options.audience) {
+          additionalParameters.append("audience", options.audience);
         }
 
         const refreshTokenRes = await oauth.refreshTokenGrantRequest(
@@ -824,7 +918,8 @@ export class AuthClient {
           {
             ...this.httpOptions(),
             [oauth.customFetch]: this.fetch,
-            [oauth.allowInsecureRequests]: this.allowInsecureRequests
+            [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+            additionalParameters
           }
         );
 
@@ -878,7 +973,7 @@ export class AuthClient {
       }
     }
 
-    return [null, { tokenSet, idTokenClaims: undefined }];
+    return [null, { tokenSet: tokenSet as TokenSet, idTokenClaims: undefined }];
   }
 
   async backchannelAuthentication(

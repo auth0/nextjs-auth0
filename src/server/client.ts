@@ -17,9 +17,14 @@ import {
   SessionData,
   SessionDataStore,
   StartInteractiveLoginOptions,
+  TokenSet,
   User
 } from "../types/index.js";
 import { isRequest } from "../utils/request.js";
+import {
+  accessTokenSetFromTokenSet,
+  findAccessTokenSet
+} from "../utils/token-set-helpers.js";
 import {
   AuthClient,
   BeforeSessionSavedHook,
@@ -230,8 +235,10 @@ export class Auth0Client {
   private sessionStore: AbstractSessionStore;
   private authClient: AuthClient;
   private routes: Routes;
+  #options: Auth0ClientOptions;
 
   constructor(options: Auth0ClientOptions = {}) {
+    this.#options = options;
     // Extract and validate required options
     const {
       domain,
@@ -434,7 +441,7 @@ export class Auth0Client {
     arg2?: PagesRouterResponse | NextResponse,
     arg3?: GetAccessTokenOptions
   ): Promise<{ token: string; expiresAt: number; scope?: string }> {
-    const defaultOptions: Required<GetAccessTokenOptions> = {
+    const defaultOptions: GetAccessTokenOptions = {
       refresh: false
     };
 
@@ -484,19 +491,21 @@ export class Auth0Client {
     }
 
     const [error, getTokenSetResponse] = await this.authClient.getTokenSet(
-      session.tokenSet,
-      options.refresh
+      session,
+      options
     );
     if (error) {
       throw error;
     }
     const { tokenSet, idTokenClaims } = getTokenSetResponse;
     // update the session with the new token set, if necessary
-    if (
-      tokenSet.accessToken !== session.tokenSet.accessToken ||
-      tokenSet.expiresAt !== session.tokenSet.expiresAt ||
-      tokenSet.refreshToken !== session.tokenSet.refreshToken
-    ) {
+    const sessionChanges = this.#getSessionChangesAfterGetAccessToken(
+      session,
+      tokenSet,
+      { scope: options.scope, audience: options.audience }
+    );
+
+    if (sessionChanges) {
       if (idTokenClaims) {
         session.user = idTokenClaims as User;
       }
@@ -509,7 +518,7 @@ export class Auth0Client {
       await this.saveToSession(
         {
           ...finalSession,
-          tokenSet
+          ...sessionChanges
         },
         req,
         res
@@ -521,6 +530,91 @@ export class Auth0Client {
       scope: tokenSet.scope,
       expiresAt: tokenSet.expiresAt
     };
+  }
+
+  #getSessionChangesAfterGetAccessToken(
+    session: SessionData,
+    tokenSet: TokenSet,
+    options: { scope?: string; audience?: string }
+  ): Partial<SessionData> | undefined {
+    const isAudienceTheGlobalAudience =
+      !options.audience ||
+      options.audience === this.#options.authorizationParameters?.audience;
+    const isScopeTheGlobalScope =
+      !options.scope ||
+      options.scope === this.#options.authorizationParameters?.scope;
+
+    // If we are using the global audience and scope, we need to check if the access token or refresh token changed in `SessionData.tokenSet`.
+    // We do not have to change anything to the `accessTokens` array inside `SessionData` in this case, so we can just return.
+    if (isAudienceTheGlobalAudience && isScopeTheGlobalScope) {
+      if (
+        tokenSet.accessToken !== session.tokenSet.accessToken ||
+        tokenSet.expiresAt !== session.tokenSet.expiresAt ||
+        tokenSet.refreshToken !== session.tokenSet.refreshToken
+      ) {
+        return {
+          tokenSet
+        };
+      }
+
+      // When we use the global audience and scope, and nothing changed, we can exit early.
+      return;
+    }
+
+    // If we aren't using the global audience and scope, 
+    // we need to check if the corresponding access token changed in `SessionData.accessTokens`.
+    // We will also have to update the refreshToken and idToken as needed
+    const audience =
+      options.audience ?? this.#options.authorizationParameters?.audience;
+    const scope =
+      options.scope ??
+      this.#options.authorizationParameters?.scope ??
+      undefined;
+
+    // If there is no audience, we cannot find the correct access token in the array
+    if (!audience) {
+      return;
+    }
+
+    const existingAccessTokenSet = findAccessTokenSet(session, { scope, audience });
+
+    let sessionChanges: Pick<SessionData, "accessTokens"> | undefined = undefined;
+
+    if (!existingAccessTokenSet) {
+      // There is no access token found matches the provided `audience` and `scope`.
+      // We need to add a new entry to the array.
+      sessionChanges = {
+        accessTokens: [
+          ...(session.accessTokens || []),
+          accessTokenSetFromTokenSet(tokenSet, { scope, audience }),
+        ]
+      };
+    } else {
+      if (
+        tokenSet.accessToken !== existingAccessTokenSet.accessToken ||
+        tokenSet.expiresAt !== existingAccessTokenSet.expiresAt ||
+        tokenSet.refreshToken !== session.tokenSet.refreshToken
+      ) {
+        sessionChanges = {
+          accessTokens: session.accessTokens?.map((accessToken) =>
+            accessToken === existingAccessTokenSet
+              ? accessTokenSetFromTokenSet(tokenSet, { scope, audience })
+              : accessToken
+          )
+        };
+      }
+    }
+
+    if (sessionChanges) {
+      return {
+        accessTokens: sessionChanges.accessTokens,
+        tokenSet: {
+          ...session.tokenSet,
+          idToken: tokenSet.idToken,
+          refreshToken: tokenSet.refreshToken
+        }
+      };
+    }
   }
 
   /**
@@ -937,4 +1031,6 @@ export class Auth0Client {
 
 export type GetAccessTokenOptions = {
   refresh?: boolean;
+  scope?: string;
+  audience?: string;
 };
