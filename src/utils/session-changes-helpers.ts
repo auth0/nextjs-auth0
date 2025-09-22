@@ -21,7 +21,7 @@ import {
 export function getSessionChangesAfterGetAccessToken(
   session: SessionData,
   tokenSet: TokenSet,
-  options: { scope?: string; audience?: string },
+  options: { scope?: string | null; audience?: string | null },
   globalOptions: {
     scope?: string | null | undefined;
     audience?: string | null | undefined;

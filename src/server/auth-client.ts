@@ -41,6 +41,7 @@ import {
   normalizeWithBasePath,
   removeTrailingSlash
 } from "../utils/pathUtils.js";
+import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
 import { findAccessTokenSet } from "../utils/token-set-helpers.js";
 import { toSafeRedirect } from "../utils/url-helpers.js";
 import { addCacheControlHeadersForSession } from "./cookies.js";
@@ -679,6 +680,8 @@ export class AuthClient {
 
   async handleAccessToken(req: NextRequest): Promise<NextResponse> {
     const session = await this.sessionStore.get(req.cookies);
+    const audience = req.nextUrl.searchParams.get("audience");
+    const scope = req.nextUrl.searchParams.get("scope");
 
     if (!session) {
       return NextResponse.json(
@@ -694,7 +697,10 @@ export class AuthClient {
       );
     }
 
-    const [error, getTokenSetResponse] = await this.getTokenSet(session);
+    const [error, getTokenSetResponse] = await this.getTokenSet(session, {
+      scope,
+      audience
+    });
 
     if (error) {
       return NextResponse.json(
@@ -718,11 +724,17 @@ export class AuthClient {
       expires_at: updatedTokenSet.expiresAt
     });
 
-    if (
-      updatedTokenSet.accessToken !== session.tokenSet.accessToken ||
-      updatedTokenSet.expiresAt !== session.tokenSet.expiresAt ||
-      updatedTokenSet.refreshToken !== session.tokenSet.refreshToken
-    ) {
+    const sessionChanges = getSessionChangesAfterGetAccessToken(
+      session,
+      updatedTokenSet,
+      { scope: scope, audience },
+      {
+        scope: this.authorizationParameters?.scope,
+        audience: this.authorizationParameters?.audience
+      }
+    );
+
+    if (sessionChanges) {
       if (idTokenClaims) {
         session.user = idTokenClaims as User;
       }
@@ -734,7 +746,7 @@ export class AuthClient {
       );
       await this.sessionStore.set(req.cookies, res.cookies, {
         ...finalSession,
-        tokenSet: updatedTokenSet
+        ...sessionChanges
       });
       addCacheControlHeadersForSession(res);
     }
@@ -847,8 +859,8 @@ export class AuthClient {
     sessionData: SessionData,
     options: {
       refresh?: boolean | undefined;
-      scope?: string;
-      audience?: string;
+      scope?: string | null;
+      audience?: string | null;
     } = {}
   ): Promise<[null, GetTokenSetResponse] | [SdkError, null]> {
     const tokenSet: Partial<TokenSet> = this.#getTokenSetFromSession(
