@@ -42,7 +42,7 @@ import {
   removeTrailingSlash
 } from "../utils/pathUtils.js";
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
-import { findAccessTokenSet } from "../utils/token-set-helpers.js";
+import { findAccessTokenSet, mergeScopes } from "../utils/token-set-helpers.js";
 import { toSafeRedirect } from "../utils/url-helpers.js";
 import { addCacheControlHeadersForSession } from "./cookies.js";
 import { AbstractSessionStore } from "./session/abstract-session-store.js";
@@ -862,10 +862,12 @@ export class AuthClient {
       audience?: string | null;
     } = {}
   ): Promise<[null, GetTokenSetResponse] | [SdkError, null]> {
+    const scope = mergeScopes(this.authorizationParameters.scope, options.scope);
+    
     const tokenSet: Partial<TokenSet> = this.#getTokenSetFromSession(
       sessionData,
       {
-        scope: options.scope,
+        scope: scope,
         audience: options.audience
       }
     );
@@ -914,7 +916,7 @@ export class AuthClient {
         const additionalParameters = new URLSearchParams();
 
         if (options.scope) {
-          additionalParameters.append("scope", options.scope);
+          additionalParameters.append("scope", scope);
         }
 
         if (options.audience) {
@@ -965,6 +967,11 @@ export class AuthClient {
           idToken: oauthRes.id_token,
           expiresAt: accessTokenExpiresAt
         };
+
+        // TODO: Should we always set the scope?
+        if (options.audience) {
+          updatedTokenSet.scope = scope;
+        }
 
         if (oauthRes.refresh_token) {
           // refresh token rotation is enabled, persist the new refresh token from the response

@@ -5503,13 +5503,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
             accessToken: "<access_token_1",
             expiresAt,
             audience: "https://api.example.com",
-            scope: "read:messages"
+            scope: "openid profile email offline_access read:messages"
           },
           {
             accessToken: "access_token_2",
             expiresAt,
             audience: "https://api.example.com",
-            scope: "write:messages"
+            scope: "openid profile email offline_access write:messages"
           }
         ];
 
@@ -5522,7 +5522,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           accessToken: "access_token_2",
           expiresAt,
           audience: "https://api.example.com",
-          scope: "write:messages",
+          scope: "openid profile email offline_access write:messages",
           refreshToken: DEFAULT.refreshToken
         });
       });
@@ -5653,7 +5653,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
             tokenEndpointResponse: {
               token_type: "Bearer",
               access_token: DEFAULT.accessToken,
-              expires_in: 86400 // expires in 10 days
+              expires_in: 86400, // expires in 10 days
+              scope: 'write:messages',
             } as oauth.TokenEndpointResponse
           })
         });
@@ -5662,7 +5663,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const tokenSet = {
           accessToken: DEFAULT.accessToken,
           refreshToken: DEFAULT.refreshToken,
-          expiresAt: Math.floor(Date.now() / 1000) + 10 * 24 * 60 * 60
+          expiresAt: Math.floor(Date.now() / 1000) + 10 * 24 * 60 * 60,
+          scope: 'write:messages',
         };
 
         const accessTokens: AccessTokenSet[] = [
@@ -5670,13 +5672,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
             accessToken: "<access_token_1",
             expiresAt: Math.floor(Date.now() / 1000) + 10 * 24 * 60 * 60,
             audience: "https://api.example.com",
-            scope: "read:messages"
+            scope: "read:messages openid profile email offline_access"
           },
           {
             accessToken: "access_token_2",
             expiresAt,
             audience: "https://api.example.com",
-            scope: "write:messages"
+            scope: "openid profile email offline_access write:messages "
           }
         ];
 
@@ -5689,7 +5691,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           accessToken: DEFAULT.accessToken,
           refreshToken: DEFAULT.refreshToken,
           expiresAt: expect.any(Number),
-          scope: "write:messages",
+          scope: "openid profile email offline_access write:messages",
           audience: "https://api.example.com"
         });
       });

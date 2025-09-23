@@ -3,18 +3,18 @@ import { AccessTokenSet, SessionData, TokenSet } from "../types/index.js";
 /**
  * Converts a TokenSet to an AccessTokenSet, including optional audience and scope.
  * @param tokenSet the TokenSet to convert
- * @param options object containing optional audience and scope
+ * @param options object containing optional audience
  * @returns AccessTokenSet
  */
 export function accessTokenSetFromTokenSet(
   tokenSet: TokenSet,
-  options: { audience: string; scope?: string }
+  options: { audience: string }
 ): AccessTokenSet {
   return {
     accessToken: tokenSet.accessToken,
     expiresAt: tokenSet.expiresAt,
     audience: options.audience,
-    scope: options.scope
+    scope: tokenSet.scope
   };
 }
 
@@ -53,6 +53,21 @@ export const compareScopes = (
 
   return requiredScopesArray.every((scope) => scopesSet.has(scope));
 };
+
+/**
+ * Merges two space-separated scope strings into one, removing duplicates.
+ * @param scopes1 The first scope string
+ * @param scopes2 The second scope string
+ * @returns Merged scope string with unique scopes
+ */
+export function mergeScopes(scopes1: string | undefined | null, scopes2: string | undefined | null): string {
+  return [
+    ...(scopes1 ? scopes1.split(" ") : []),
+    ...(scopes2 ? scopes2.split(" ") : [])
+  ]
+    .filter((v, i, a) => v && a.indexOf(v) === i) // remove duplicates and empty strings
+    .join(" "); // join back to string;
+}
 
 /**
  * Finds the best matching AccessTokenSet in the session by audience and scope.

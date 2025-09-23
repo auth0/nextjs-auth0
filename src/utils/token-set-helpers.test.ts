@@ -26,7 +26,6 @@ describe("token-set-helpers", () => {
     it("should create an AccessTokenSet from a TokenSet", () => {
       const session = createSessionData();
       const options = {
-        scope: "a",
         audience: "<my_audience>"
       };
 
@@ -34,7 +33,7 @@ describe("token-set-helpers", () => {
         accessToken: session.tokenSet.accessToken,
         expiresAt: session.tokenSet.expiresAt,
         audience: options.audience,
-        scope: options.scope
+        scope: session.tokenSet.scope
       });
     });
   });

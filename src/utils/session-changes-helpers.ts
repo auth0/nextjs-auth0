@@ -73,19 +73,15 @@ export function getSessionChangesAfterGetAccessToken(
     sessionChanges = {
       accessTokens: [
         ...(session.accessTokens || []),
-        accessTokenSetFromTokenSet(tokenSet, { scope, audience })
+        accessTokenSetFromTokenSet(tokenSet, { audience })
       ]
     };
   } else {
-    if (
-      tokenSet.accessToken !== existingAccessTokenSet.accessToken ||
-      tokenSet.expiresAt !== existingAccessTokenSet.expiresAt ||
-      tokenSet.refreshToken !== session.tokenSet.refreshToken
-    ) {
+    if (tokenSet.accessToken !== existingAccessTokenSet.accessToken) {
       sessionChanges = {
         accessTokens: session.accessTokens?.map((accessToken) =>
           accessToken === existingAccessTokenSet
-            ? accessTokenSetFromTokenSet(tokenSet, { scope, audience })
+            ? accessTokenSetFromTokenSet(tokenSet, { audience })
             : accessToken
         )
       };

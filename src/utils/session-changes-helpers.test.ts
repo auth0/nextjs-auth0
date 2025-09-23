@@ -87,7 +87,8 @@ describe("session-changes-helpers", () => {
         accessToken: "<my_new_access_token>",
         idToken: "<my_new_id_token>",
         refreshToken: "<my_new_refresh_token>",
-        expiresAt: Date.now() / 1000 + 7200
+        expiresAt: Date.now() / 1000 + 7200,
+        scope: 'write:messages'
       };
       const options = {
         scope: "write:messages",
@@ -115,7 +116,7 @@ describe("session-changes-helpers", () => {
           {
             accessToken: tokenSet.accessToken,
             expiresAt: tokenSet.expiresAt,
-            scope: options.scope,
+            scope: tokenSet.scope,
             audience: options.audience
           }
         ]
@@ -127,7 +128,8 @@ describe("session-changes-helpers", () => {
         accessToken: "<my_new_access_token>",
         idToken: "<my_new_id_token>",
         refreshToken: "<my_new_refresh_token>",
-        expiresAt: Date.now() / 1000 + 7200
+        expiresAt: Date.now() / 1000 + 7200,
+        scope: 'write:messages'
       };
       const options = {
         scope: "write:messages",
@@ -140,6 +142,12 @@ describe("session-changes-helpers", () => {
             expiresAt: Date.now() / 1000 + 7200,
             scope: options.scope,
             audience: options.audience
+          },
+          {
+            accessToken: "<my_access_token>",
+            expiresAt: Date.now() / 1000 + 7200,
+            scope: 'scope-a',
+            audience: '<another_audience>'
           }
         ]
       });
@@ -166,8 +174,14 @@ describe("session-changes-helpers", () => {
           {
             accessToken: tokenSet.accessToken,
             expiresAt: tokenSet.expiresAt,
-            scope: options.scope,
+            scope: tokenSet.scope,
             audience: options.audience
+          },
+          {
+            accessToken: "<my_access_token>",
+            expiresAt: Date.now() / 1000 + 7200,
+            scope: 'scope-a',
+            audience: '<another_audience>'
           }
         ]
       });
