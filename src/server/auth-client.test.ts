@@ -5581,6 +5581,54 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(updatedTokenSet).toBeNull();
       });
 
+      it("should return an error if the token set does not contain a refresh token and the access token can not be found", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
+
+          fetch: getMockAuthorizationServer()
+        });
+
+        const expiresAt = Math.floor(Date.now() / 1000) - 10 * 24 * 60 * 60; // expired 10 days ago
+        const tokenSet = {
+          accessToken: DEFAULT.accessToken,
+          expiresAt: Math.floor(Date.now() / 1000) + 10 * 24 * 60 * 60
+        };
+
+        const accessTokens: AccessTokenSet[] = [
+          {
+            accessToken: "<access_token_1",
+            expiresAt: Math.floor(Date.now() / 1000) + 10 * 24 * 60 * 60,
+            audience: "https://api.example.com",
+            scope: "read:messages"
+          },
+        ];
+
+        const [error, updatedTokenSet] = await authClient.getTokenSet(
+          createSessionData({ tokenSet, accessTokens }),
+          { scope: "write:messages", audience: "https://api.example.com" }
+        );
+
+        expect(error?.code).toEqual("missing_refresh_token");
+        expect(updatedTokenSet).toBeNull();
+      });
+
       it("should refresh the access token if it expired", async () => {
         const secret = await generateSecret(32);
         const transactionStore = new TransactionStore({
@@ -5644,6 +5692,70 @@ ca/T0LLtgmbMmxSv/MmzIg==
           expiresAt: expect.any(Number),
           scope: "write:messages",
           audience: "https://api.example.com"
+        });
+      });
+
+      it("should request the access token if no audience provided", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
+
+          fetch: getMockAuthorizationServer({
+            tokenEndpointResponse: {
+              token_type: "Bearer",
+              access_token: '<access_token_3>',
+              expires_in: 86400 // expires in 10 days
+            } as oauth.TokenEndpointResponse
+          })
+        });
+
+        const expiresAt = Math.floor(Date.now() / 1000) - 10 * 24 * 60 * 60; // expired 10 days ago
+        const tokenSet = {
+          accessToken: DEFAULT.accessToken,
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt: Math.floor(Date.now() / 1000) + 10 * 24 * 60 * 60
+        };
+
+        const accessTokens: AccessTokenSet[] = [
+          {
+            accessToken: "<access_token_1",
+            expiresAt: Math.floor(Date.now() / 1000) + 10 * 24 * 60 * 60,
+            audience: "https://api.example.com",
+            scope: "read:messages"
+          },
+          {
+            accessToken: "access_token_2",
+            expiresAt,
+            audience: "https://api.example.com",
+            scope: "write:messages"
+          }
+        ];
+
+        const [error, updatedTokenSet] = await authClient.getTokenSet(
+          createSessionData({ tokenSet, accessTokens }),
+          { scope: "write:messages" }
+        );
+        expect(error).toBeNull();
+        expect(updatedTokenSet?.tokenSet).toEqual({
+          accessToken: '<access_token_3>',
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt: expect.any(Number),
         });
       });
 
