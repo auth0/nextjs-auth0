@@ -5605,7 +5605,6 @@ ca/T0LLtgmbMmxSv/MmzIg==
           fetch: getMockAuthorizationServer()
         });
 
-        const expiresAt = Math.floor(Date.now() / 1000) - 10 * 24 * 60 * 60; // expired 10 days ago
         const tokenSet = {
           accessToken: DEFAULT.accessToken,
           expiresAt: Math.floor(Date.now() / 1000) + 10 * 24 * 60 * 60
@@ -5617,7 +5616,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             expiresAt: Math.floor(Date.now() / 1000) + 10 * 24 * 60 * 60,
             audience: "https://api.example.com",
             scope: "read:messages"
-          },
+          }
         ];
 
         const [error, updatedTokenSet] = await authClient.getTokenSet(
@@ -5719,7 +5718,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           fetch: getMockAuthorizationServer({
             tokenEndpointResponse: {
               token_type: "Bearer",
-              access_token: '<access_token_3>',
+              access_token: "<access_token_3>",
               expires_in: 86400 // expires in 10 days
             } as oauth.TokenEndpointResponse
           })
@@ -5753,9 +5752,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
         );
         expect(error).toBeNull();
         expect(updatedTokenSet?.tokenSet).toEqual({
-          accessToken: '<access_token_3>',
+          accessToken: "<access_token_3>",
           refreshToken: DEFAULT.refreshToken,
-          expiresAt: expect.any(Number),
+          expiresAt: expect.any(Number)
         });
       });
 

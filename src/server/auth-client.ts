@@ -807,7 +807,7 @@ export class AuthClient {
     session: SessionData,
     options: { scope?: string | null; audience?: string | null }
   ): Partial<TokenSet> {
-    let tokenSet: Partial<TokenSet> = session.tokenSet;
+    const tokenSet: Partial<TokenSet> = session.tokenSet;
 
     // When audience and scope are provided, we need to compare them with the original ones provided in the Auth0Client constructor.
     // When they are identical, we should read from the top-level `SessionData.tokenSet`.
@@ -817,7 +817,6 @@ export class AuthClient {
       options.audience === this.authorizationParameters.audience;
     const isScopeTheGlobalScope =
       !options.scope || options.scope === this.authorizationParameters.scope;
-
 
     if (isAudienceTheGlobalAudience && isScopeTheGlobalScope) {
       return tokenSet;

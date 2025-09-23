@@ -14,7 +14,7 @@ export function accessTokenSetFromTokenSet(
     accessToken: tokenSet.accessToken,
     expiresAt: tokenSet.expiresAt,
     audience: options.audience,
-    scope: options.scope,
+    scope: options.scope
   };
 }
 
@@ -25,7 +25,7 @@ export function accessTokenSetFromTokenSet(
  */
 function parseScopesToArray(scopes: string | undefined): string[] {
   if (!scopes) return [];
-  return scopes.trim().split(' ').filter(Boolean);
+  return scopes.trim().split(" ").filter(Boolean);
 }
 
 /**
@@ -50,7 +50,7 @@ export const compareScopes = (
 
   const scopesSet = new Set(parseScopesToArray(scopes));
   const requiredScopesArray = parseScopesToArray(requiredScopes);
-  
+
   return requiredScopesArray.every((scope) => scopesSet.has(scope));
 };
 
@@ -86,7 +86,7 @@ export function findAccessTokenSet(
   }
 
   // 2. Filter the list to find all AccessTokenSet's that are valid matches.
-  // A valid match's audience must match the provided `options.audience`, 
+  // A valid match's audience must match the provided `options.audience`,
   // and its scope must contain all items from `options.scope`.
   const allMatches = accessTokenSets.filter((accessTokenSet) => {
     return (

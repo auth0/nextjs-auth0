@@ -38,7 +38,7 @@ export async function getAccessToken(
   if (urlParams.size > 0) {
     url = url + `?${urlParams.toString()}`;
   }
-  
+
   const tokenRes = await fetch(url);
 
   if (!tokenRes.ok) {

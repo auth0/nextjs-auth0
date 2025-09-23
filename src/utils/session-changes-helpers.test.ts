@@ -51,7 +51,6 @@ describe("session-changes-helpers", () => {
       ).toBeUndefined();
     });
 
-
     it("should get the sessionChanges when scope and audience is provided but are the global values", () => {
       const session = createSessionData();
       const tokenSet = {
@@ -60,10 +59,18 @@ describe("session-changes-helpers", () => {
         refreshToken: "<my_new_refresh_token>",
         expiresAt: Date.now() / 1000 + 7200
       };
-      const options = { scope: "read:messages", audience: "https://api.example.com" };
+      const options = {
+        scope: "read:messages",
+        audience: "https://api.example.com"
+      };
 
       expect(
-        getSessionChangesAfterGetAccessToken(session, tokenSet, options, options)
+        getSessionChangesAfterGetAccessToken(
+          session,
+          tokenSet,
+          options,
+          options
+        )
       ).toEqual({
         tokenSet: {
           accessToken: tokenSet.accessToken,
@@ -82,11 +89,22 @@ describe("session-changes-helpers", () => {
         refreshToken: "<my_new_refresh_token>",
         expiresAt: Date.now() / 1000 + 7200
       };
-      const options = { scope: "write:messages", audience: "https://api.example.com" };
-      const globalOptions = { scope: "read:messages", audience: "https://read-api.example.com" };
+      const options = {
+        scope: "write:messages",
+        audience: "https://api.example.com"
+      };
+      const globalOptions = {
+        scope: "read:messages",
+        audience: "https://read-api.example.com"
+      };
 
       expect(
-        getSessionChangesAfterGetAccessToken(session, tokenSet, options, globalOptions)
+        getSessionChangesAfterGetAccessToken(
+          session,
+          tokenSet,
+          options,
+          globalOptions
+        )
       ).toEqual({
         tokenSet: {
           ...session.tokenSet,
@@ -111,22 +129,33 @@ describe("session-changes-helpers", () => {
         refreshToken: "<my_new_refresh_token>",
         expiresAt: Date.now() / 1000 + 7200
       };
-      const options = { scope: "write:messages", audience: "https://api.example.com" };
+      const options = {
+        scope: "write:messages",
+        audience: "https://api.example.com"
+      };
       const session = createSessionData({
         accessTokens: [
           {
-            accessToken: '<my_old_access_token>',
+            accessToken: "<my_old_access_token>",
             expiresAt: Date.now() / 1000 + 7200,
             scope: options.scope,
             audience: options.audience
           }
         ]
       });
-      
-      const globalOptions = { scope: "read:messages", audience: "https://read-api.example.com" };
+
+      const globalOptions = {
+        scope: "read:messages",
+        audience: "https://read-api.example.com"
+      };
 
       expect(
-        getSessionChangesAfterGetAccessToken(session, tokenSet, options, globalOptions)
+        getSessionChangesAfterGetAccessToken(
+          session,
+          tokenSet,
+          options,
+          globalOptions
+        )
       ).toEqual({
         tokenSet: {
           ...session.tokenSet,

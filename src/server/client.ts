@@ -20,6 +20,7 @@ import {
   User
 } from "../types/index.js";
 import { isRequest } from "../utils/request.js";
+import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
 import {
   AuthClient,
   BeforeSessionSavedHook,
@@ -47,7 +48,6 @@ import {
   TransactionCookieOptions,
   TransactionStore
 } from "./transaction-store.js";
-import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
 
 export interface Auth0ClientOptions {
   // authorization server configuration
@@ -499,7 +499,10 @@ export class Auth0Client {
       session,
       tokenSet,
       { scope: options.scope, audience: options.audience },
-      { scope: this.#options.authorizationParameters?.scope, audience: this.#options.authorizationParameters?.audience }
+      {
+        scope: this.#options.authorizationParameters?.scope,
+        audience: this.#options.authorizationParameters?.audience
+      }
     );
 
     if (sessionChanges) {
