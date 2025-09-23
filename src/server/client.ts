@@ -17,14 +17,9 @@ import {
   SessionData,
   SessionDataStore,
   StartInteractiveLoginOptions,
-  TokenSet,
   User
 } from "../types/index.js";
 import { isRequest } from "../utils/request.js";
-import {
-  accessTokenSetFromTokenSet,
-  findAccessTokenSet
-} from "../utils/token-set-helpers.js";
 import {
   AuthClient,
   BeforeSessionSavedHook,
