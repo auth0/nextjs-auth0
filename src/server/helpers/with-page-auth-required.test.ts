@@ -139,7 +139,9 @@ describe("with-page-auth-required ssr", () => {
         Promise.resolve(React.createElement("div", {}, "foo"))
       );
       const res = await handler({});
-      expect(ReactDOMServer.renderToString(res)).toBe("<div>foo</div>");
+      expect(ReactDOMServer.renderToString(res as React.ReactElement)).toBe(
+        "<div>foo</div>"
+      );
       expect(auth0Client.getSession).toHaveBeenCalledTimes(1);
     });
 
