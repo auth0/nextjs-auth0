@@ -19,7 +19,7 @@ function createSessionData(
 
 describe("session-changes-helpers", () => {
   describe("getSessionChangesAfterGetAccessToken", () => {
-    it("should get the sessionChangs when no scope and audience is provided", () => {
+    it("should get the sessionChanges when no scope and audience is provided", () => {
       const session = createSessionData();
       const tokenSet = {
         accessToken: "<my_new_access_token>",
@@ -88,7 +88,7 @@ describe("session-changes-helpers", () => {
         idToken: "<my_new_id_token>",
         refreshToken: "<my_new_refresh_token>",
         expiresAt: Date.now() / 1000 + 7200,
-        scope: 'write:messages'
+        scope: "write:messages"
       };
       const options = {
         scope: "write:messages",
@@ -129,7 +129,7 @@ describe("session-changes-helpers", () => {
         idToken: "<my_new_id_token>",
         refreshToken: "<my_new_refresh_token>",
         expiresAt: Date.now() / 1000 + 7200,
-        scope: 'write:messages'
+        scope: "write:messages"
       };
       const options = {
         scope: "write:messages",
@@ -146,8 +146,8 @@ describe("session-changes-helpers", () => {
           {
             accessToken: "<my_access_token>",
             expiresAt: Date.now() / 1000 + 7200,
-            scope: 'scope-a',
-            audience: '<another_audience>'
+            scope: "scope-a",
+            audience: "<another_audience>"
           }
         ]
       });
@@ -180,10 +180,127 @@ describe("session-changes-helpers", () => {
           {
             accessToken: "<my_access_token>",
             expiresAt: Date.now() / 1000 + 7200,
-            scope: 'scope-a',
-            audience: '<another_audience>'
+            scope: "scope-a",
+            audience: "<another_audience>"
           }
         ]
+      });
+    });
+
+    it("should get the sessionChanges when scope and no audience is provided", () => {
+      const session = createSessionData();
+      const tokenSet = {
+        accessToken: "<my_new_access_token>",
+        idToken: "<my_new_id_token>",
+        refreshToken: "<my_new_refresh_token>",
+        expiresAt: Date.now() / 1000 + 7200
+      };
+
+      expect(
+        getSessionChangesAfterGetAccessToken(
+          session,
+          tokenSet,
+          { scope: "a" },
+          {}
+        )
+      ).toBeUndefined();
+    });
+
+    it("should get the sessionChanges when audience is provided, but no scope is provided and global scope is used", () => {
+      const session = createSessionData();
+      const tokenSet = {
+        accessToken: "<my_new_access_token>",
+        idToken: "<my_new_id_token>",
+        refreshToken: "<my_new_refresh_token>",
+        expiresAt: Date.now() / 1000 + 7200,
+        scope: 'default-scope'
+      };
+
+      const options = {
+        audience: "https://api.example.com"
+      };
+
+      expect(
+        getSessionChangesAfterGetAccessToken(session, tokenSet, options, {
+          scope: "default-scope"
+        })
+      ).toEqual({
+        tokenSet: {
+          ...session.tokenSet,
+          idToken: tokenSet.idToken,
+          refreshToken: tokenSet.refreshToken
+        },
+        accessTokens: [
+          {
+            accessToken: tokenSet.accessToken,
+            audience: "https://api.example.com",
+            scope: "default-scope",
+            expiresAt: tokenSet.expiresAt
+          }
+        ]
+      });
+    });
+
+    it("should get the sessionChanges when audience is provided, but no scope is provided and no global scope is available", () => {
+      const session = createSessionData();
+      const tokenSet = {
+        accessToken: "<my_new_access_token>",
+        idToken: "<my_new_id_token>",
+        refreshToken: "<my_new_refresh_token>",
+        expiresAt: Date.now() / 1000 + 7200
+      };
+
+      const options = {
+        audience: "https://api.example.com"
+      };
+
+      expect(
+        getSessionChangesAfterGetAccessToken(session, tokenSet, options, { })
+      ).toEqual({
+        tokenSet: {
+          ...session.tokenSet,
+          idToken: tokenSet.idToken,
+          refreshToken: tokenSet.refreshToken
+        },
+        accessTokens: [
+          {
+            accessToken: tokenSet.accessToken,
+            audience: "https://api.example.com",
+            scope: undefined,
+            expiresAt: tokenSet.expiresAt
+          }
+        ]
+      });
+    });
+
+    it("should get the sessionChanges when scope and audience are not provided but available as global", () => {
+      const session = createSessionData();
+      const tokenSet = {
+        accessToken: "<my_new_access_token>",
+        idToken: "<my_new_id_token>",
+        refreshToken: "<my_new_refresh_token>",
+        expiresAt: Date.now() / 1000 + 7200
+      };
+
+      const globalOptions = {
+        scope: "read:messages",
+        audience: "https://api.example.com"
+      };
+
+      expect(
+        getSessionChangesAfterGetAccessToken(
+          session,
+          tokenSet,
+          {},
+          globalOptions
+        )
+      ).toEqual({
+        tokenSet: {
+          accessToken: tokenSet.accessToken,
+          expiresAt: tokenSet.expiresAt,
+          idToken: tokenSet.idToken,
+          refreshToken: tokenSet.refreshToken
+        }
       });
     });
   });
