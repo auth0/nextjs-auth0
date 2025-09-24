@@ -23,6 +23,7 @@ import {
 } from "../errors/index.js";
 import {
   AccessTokenForConnectionOptions,
+  AccessTokenSet,
   AuthorizationParameters,
   BackchannelAuthenticationOptions,
   BackchannelAuthenticationResponse,
@@ -42,7 +43,11 @@ import {
   removeTrailingSlash
 } from "../utils/pathUtils.js";
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
-import { findAccessTokenSet, mergeScopes } from "../utils/token-set-helpers.js";
+import {
+  findAccessTokenSet,
+  mergeScopes,
+  tokenSetFromAccessTokenSet
+} from "../utils/token-set-helpers.js";
 import { toSafeRedirect } from "../utils/url-helpers.js";
 import { addCacheControlHeadersForSession } from "./cookies.js";
 import { AbstractSessionStore } from "./session/abstract-session-store.js";
@@ -826,25 +831,18 @@ export class AuthClient {
     const scope =
       options.scope ?? this.authorizationParameters.scope ?? undefined;
 
+    let accessTokenSet: AccessTokenSet | undefined;
+
+    // If there is an audience, we can search for the correct access token in the array
     // If there is no audience, we cannot find the correct access token in the array
-    if (!audience) {
-      return {
-        ...tokenSet,
-        accessToken: undefined,
-        expiresAt: undefined,
-        scope: undefined
-      };
+    if (audience) {
+      accessTokenSet = findAccessTokenSet(session, { scope, audience });
     }
 
-    const accessTokenSet = findAccessTokenSet(session, { scope, audience });
-
-    return {
-      ...tokenSet,
-      accessToken: accessTokenSet?.accessToken,
-      expiresAt: accessTokenSet?.expiresAt,
-      scope: accessTokenSet?.scope,
-      audience: accessTokenSet?.audience
-    };
+    // Convert the Access Token Set to a Token Set, which mostly ensures the Id Token and RefreshToken are also available,
+    // But the access token, expiresAt, audience and scope are taken from the Access Token Set.
+    // When no audience was found, we will return an empty Token Set with only the Id Token and Refresh Token
+    return tokenSetFromAccessTokenSet(accessTokenSet, tokenSet);
   }
   /**
    * Retrieves OAuth token sets, handling token refresh when necessary or if forced.

@@ -23,10 +23,12 @@ export async function getAccessToken(
 ): Promise<string> {
   const urlParams = new URLSearchParams();
 
+  // We only want to add the audience if it's explicitly provided
   if (options.audience) {
     urlParams.append("audience", options.audience);
   }
 
+  // We only want to add the scope if it's explicitly provided
   if (options.scope) {
     urlParams.append("scope", options.scope);
   }
@@ -35,6 +37,7 @@ export async function getAccessToken(
     process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token"
   );
 
+  // Only append the query string if we have any url parameters to add
   if (urlParams.size > 0) {
     url = url + `?${urlParams.toString()}`;
   }

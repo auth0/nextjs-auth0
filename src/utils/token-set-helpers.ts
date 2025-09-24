@@ -19,6 +19,27 @@ export function accessTokenSetFromTokenSet(
 }
 
 /**
+ * Converts an AccessTokenSet and a partial TokenSet into a partial TokenSet.
+ * This is useful for merging an AccessTokenSet back into a TokenSet structure,
+ * while preserving other properties of the TokenSet.
+ * @param accessTokenSet the AccessTokenSet to convert
+ * @param tokenSet the partial TokenSet to merge with
+ * @returns The merged partial TokenSet
+ */
+export function tokenSetFromAccessTokenSet(
+  accessTokenSet: AccessTokenSet | undefined,
+  tokenSet: Partial<TokenSet>
+): Partial<TokenSet> {
+  return {
+    ...tokenSet,
+    accessToken: accessTokenSet?.accessToken,
+    expiresAt: accessTokenSet?.expiresAt,
+    scope: accessTokenSet?.scope,
+    audience: accessTokenSet?.audience
+  };
+}
+
+/**
  * Parses a scope string into an array of individual scopes, filtering out empty strings.
  * @param scopes Space-separated scope string
  * @returns Array of scope strings
