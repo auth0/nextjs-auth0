@@ -5654,7 +5654,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
               token_type: "Bearer",
               access_token: DEFAULT.accessToken,
               expires_in: 86400, // expires in 10 days
-              scope: 'write:messages',
+              scope: "write:messages"
             } as oauth.TokenEndpointResponse
           })
         });
@@ -5664,7 +5664,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           accessToken: DEFAULT.accessToken,
           refreshToken: DEFAULT.refreshToken,
           expiresAt: Math.floor(Date.now() / 1000) + 10 * 24 * 60 * 60,
-          scope: 'write:messages',
+          scope: "write:messages"
         };
 
         const accessTokens: AccessTokenSet[] = [

@@ -862,8 +862,11 @@ export class AuthClient {
       audience?: string | null;
     } = {}
   ): Promise<[null, GetTokenSetResponse] | [SdkError, null]> {
-    const scope = mergeScopes(this.authorizationParameters.scope, options.scope);
-    
+    const scope = mergeScopes(
+      this.authorizationParameters.scope,
+      options.scope
+    );
+
     const tokenSet: Partial<TokenSet> = this.#getTokenSetFromSession(
       sessionData,
       {

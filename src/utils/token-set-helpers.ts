@@ -60,7 +60,10 @@ export const compareScopes = (
  * @param scopes2 The second scope string
  * @returns Merged scope string with unique scopes
  */
-export function mergeScopes(scopes1: string | undefined | null, scopes2: string | undefined | null): string {
+export function mergeScopes(
+  scopes1: string | undefined | null,
+  scopes2: string | undefined | null
+): string {
   return [
     ...(scopes1 ? scopes1.split(" ") : []),
     ...(scopes2 ? scopes2.split(" ") : [])

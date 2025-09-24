@@ -213,7 +213,7 @@ describe("session-changes-helpers", () => {
         idToken: "<my_new_id_token>",
         refreshToken: "<my_new_refresh_token>",
         expiresAt: Date.now() / 1000 + 7200,
-        scope: 'default-scope'
+        scope: "default-scope"
       };
 
       const options = {
@@ -255,7 +255,7 @@ describe("session-changes-helpers", () => {
       };
 
       expect(
-        getSessionChangesAfterGetAccessToken(session, tokenSet, options, { })
+        getSessionChangesAfterGetAccessToken(session, tokenSet, options, {})
       ).toEqual({
         tokenSet: {
           ...session.tokenSet,
