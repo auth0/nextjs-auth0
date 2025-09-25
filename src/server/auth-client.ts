@@ -982,13 +982,17 @@ export class AuthClient {
           ...tokenSet, // contains the existing `iat` claim to maintain the session lifetime
           accessToken: oauthRes.access_token,
           idToken: oauthRes.id_token,
+          // We store the requested scopes on the tokenSet, so we know what scopes were requested.
+          // We do not store the returned scopes from the `oauthRes` object.
+          // The server may return less scopes than requested.
+          // This ensures we can return the same token again when a token for the same or less scopes is requested.
+          //
+          // E.g. When requesting a token with scope `a b`, and we return one for scope `a` only,
+          // - If we store the returned scopes, we cannot return this token when the user requests a token for scope `a b` again.
+          // - If we store the requested scopes, we can return this token when the user requests a token for scope `a` or `a b` again.
+          scope: tokenSet.scope ?? scope,
           expiresAt: accessTokenExpiresAt
         };
-
-        // TODO: Should we always set the scope?
-        if (options.audience) {
-          updatedTokenSet.scope = scope;
-        }
 
         if (oauthRes.refresh_token) {
           // refresh token rotation is enabled, persist the new refresh token from the response

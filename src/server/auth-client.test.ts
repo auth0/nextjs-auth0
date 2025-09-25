@@ -5401,7 +5401,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(updatedTokenSet?.tokenSet).toEqual({
         accessToken: DEFAULT.accessToken,
         refreshToken: DEFAULT.refreshToken,
-        expiresAt: expect.any(Number)
+        expiresAt: expect.any(Number),
+        scope: 'openid profile email offline_access'
       });
     });
 
@@ -5534,7 +5535,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(updatedTokenSet?.tokenSet).toEqual({
           accessToken: DEFAULT.accessToken,
           refreshToken: "rt_456",
-          expiresAt: expect.any(Number)
+          expiresAt: expect.any(Number),
+          scope: 'openid profile email offline_access'
         });
       });
     });
@@ -5814,7 +5816,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             accessToken: "access_token_2",
             expiresAt,
             audience: "https://api.example.com",
-            scope: "openid profile email offline_access write:messages "
+            scope: "openid profile email offline_access write:messages"
           }
         ];
 
@@ -5857,7 +5859,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
             tokenEndpointResponse: {
               token_type: "Bearer",
               access_token: "<access_token_3>",
-              expires_in: 86400 // expires in 10 days
+              expires_in: 86400, // expires in 10 days,
+              //scope: "write:messages"
             } as oauth.TokenEndpointResponse
           })
         });
@@ -5892,7 +5895,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(updatedTokenSet?.tokenSet).toEqual({
           accessToken: "<access_token_3>",
           refreshToken: DEFAULT.refreshToken,
-          expiresAt: expect.any(Number)
+          expiresAt: expect.any(Number),
+          scope: 'openid profile email offline_access write:messages'
         });
       });
 
