@@ -104,6 +104,9 @@ export function mergeScopes(
  *    order does not matter).
  * 2. If no exact match is found, the "best partial match" is chosen. This is the
  *    matching AccessTokenSet whose scope has the fewest additional items.
+ * 3. If multiple matches with the exact same scopes are found, we take the first one.
+ *    However, this should not happen in practice as the session should not contain
+ *    duplicate AccessTokenSet's.
  *
  * @param sessionData The session data containing accessTokens array.
  * @param options Object containing the scope and audience to match against.
