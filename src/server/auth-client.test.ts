@@ -260,6 +260,78 @@ ca/T0LLtgmbMmxSv/MmzIg==
           })
       ).toThrowError();
     });
+
+    it("should throw an error if the openid scope is not included when using a map", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+
+      expect(
+        () =>
+          new AuthClient({
+            transactionStore,
+            sessionStore,
+
+            domain: DEFAULT.domain,
+            clientId: DEFAULT.clientId,
+            clientSecret: DEFAULT.clientSecret,
+
+            secret,
+            appBaseUrl: DEFAULT.appBaseUrl,
+
+            routes: getDefaultRoutes(),
+
+            authorizationParameters: {
+              audience: 'test-1',
+              scope: {
+                'test-1': 'profile email'
+              },
+            },
+
+            fetch: getMockAuthorizationServer()
+          })
+      ).toThrowError();
+    });
+
+    it("should not throw an error if the scope is not provided for the default audience when using a map", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+
+      expect(
+        () =>
+          new AuthClient({
+            transactionStore,
+            sessionStore,
+
+            domain: DEFAULT.domain,
+            clientId: DEFAULT.clientId,
+            clientSecret: DEFAULT.clientSecret,
+
+            secret,
+            appBaseUrl: DEFAULT.appBaseUrl,
+
+            routes: getDefaultRoutes(),
+
+            authorizationParameters: {
+              audience: 'test-1',
+              scope: {
+                'test-2': 'profile email'
+              },
+            },
+
+            fetch: getMockAuthorizationServer()
+          })
+      ).not.toThrowError();
+    });
   });
 
   describe("handler", async () => {
@@ -5523,6 +5595,70 @@ ca/T0LLtgmbMmxSv/MmzIg==
           expiresAt,
           audience: "https://api.example.com",
           scope: "openid profile email offline_access write:messages",
+          refreshToken: DEFAULT.refreshToken
+        });
+      });
+
+      it("should return the access token when using map-based scope configuration and the access token has not expired", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
+
+          fetch: getMockAuthorizationServer(),
+          authorizationParameters: {
+            scope: {
+              'custom:default_scope': 'custom:default_scope'
+            }
+          }
+        });
+
+        const expiresAt = Math.floor(Date.now() / 1000) + 10 * 24 * 60 * 60; // expires in 10 days
+        const tokenSet = {
+          accessToken: DEFAULT.accessToken,
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt
+        };
+        const accessTokens: AccessTokenSet[] = [
+          {
+            accessToken: "<access_token_1",
+            expiresAt,
+            audience: "https://api.example.com",
+            scope: "custom:default_scope read:messages"
+          },
+          {
+            accessToken: "access_token_2",
+            expiresAt,
+            audience: "https://api.example.com",
+            scope: "custom:default_scope write:messages"
+          }
+        ];
+
+        const [error, updatedTokenSet] = await authClient.getTokenSet(
+          createSessionData({ tokenSet, accessTokens }),
+          { scope: 'write:messages', audience: "https://api.example.com" }
+        );
+        expect(error).toBeNull();
+        expect(updatedTokenSet?.tokenSet).toEqual({
+          accessToken: "access_token_2",
+          expiresAt,
+          audience: "https://api.example.com",
+          scope: "custom:default_scope write:messages",
           refreshToken: DEFAULT.refreshToken
         });
       });

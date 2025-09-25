@@ -83,6 +83,32 @@ describe("token-set-helpers", () => {
       expect(findAccessTokenSet(session, options)).toBe(accessTokenSet);
     });
 
+    it("should find the AccessTokenSet when it is not the only exact match entry and requested scope is empty", () => {
+      const accessTokenSet: AccessTokenSet = {
+        accessToken: "<my_custom_access_token>",
+        expiresAt: Date.now() / 1000 + 3600,
+        scope: "",
+        audience: "<my_audience>"
+      };
+
+      const accessTokenSet2: AccessTokenSet = {
+        accessToken: "<my_custom_access_token_2>",
+        expiresAt: Date.now() / 1000 + 3600,
+        scope: "",
+        audience: "<my_audience>"
+      };
+
+      const session = createSessionData({
+        accessTokens: [accessTokenSet, accessTokenSet2]
+      });
+      const options = {
+        scope: "",
+        audience: "<my_audience>"
+      };
+
+      expect(findAccessTokenSet(session, options)).toBe(accessTokenSet);
+    });
+
     it("should find the AccessTokenSet when the scope match partial", () => {
       const accessTokenSet: AccessTokenSet = {
         accessToken: "<my_custom_access_token>",
@@ -279,6 +305,13 @@ describe("token-set-helpers", () => {
     it("should match when both empty", () => {
       const scopes = "";
       const requiredScopes = "";
+
+      expect(compareScopes(scopes, requiredScopes)).toBe(true);
+    });
+
+    it("should match when both undefined", () => {
+      const scopes = undefined;
+      const requiredScopes = undefined;
 
       expect(compareScopes(scopes, requiredScopes)).toBe(true);
     });

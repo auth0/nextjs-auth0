@@ -127,7 +127,7 @@ export interface AuthorizationParameters {
    * The scope of the access request, expressed as a list of space-delimited, case-sensitive strings.
    * Defaults to `"openid profile email offline_access"`.
    */
-  scope?: string | null;
+  scope?: string | null | { [key: string]: string };
   /**
    * The unique identifier of the target API you want to access.
    */

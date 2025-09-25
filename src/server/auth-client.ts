@@ -53,6 +53,8 @@ import { addCacheControlHeadersForSession } from "./cookies.js";
 import { AbstractSessionStore } from "./session/abstract-session-store.js";
 import { TransactionState, TransactionStore } from "./transaction-store.js";
 import { filterDefaultIdTokenClaims } from "./user.js";
+import { ensureDefaultScope, getScopeForAudience } from "../utils/scope-helpers.js";
+import { DEFAULT_SCOPES } from "../utils/constants.js";
 
 export type BeforeSessionSavedHook = (
   session: SessionData,
@@ -78,10 +80,6 @@ const INTERNAL_AUTHORIZE_PARAMS = [
   "state",
   "nonce"
 ];
-
-const DEFAULT_SCOPES = ["openid", "profile", "email", "offline_access"].join(
-  " "
-);
 
 /**
  * A constant representing the grant type for federated connection access token exchange.
@@ -242,14 +240,18 @@ export class AuthClient {
     this.clientAssertionSigningAlg =
       options.clientAssertionSigningAlg || "RS256";
 
-    if (!this.authorizationParameters.scope) {
-      this.authorizationParameters.scope = DEFAULT_SCOPES;
-    }
+    this.authorizationParameters.scope = ensureDefaultScope(
+      this.authorizationParameters
+    );
 
-    const scope = this.authorizationParameters.scope
-      .split(" ")
+    const scope = getScopeForAudience(
+      this.authorizationParameters.scope,
+      this.authorizationParameters.audience
+    )
+      ?.split(" ")
       .map((s) => s.trim());
-    if (!scope.includes("openid")) {
+
+    if (!scope || !scope.includes("openid")) {
       throw new Error(
         "The 'openid' scope must be included in the set of scopes. See https://auth0.com/docs"
       );
@@ -734,7 +736,10 @@ export class AuthClient {
       updatedTokenSet,
       { scope: scope, audience },
       {
-        scope: this.authorizationParameters?.scope,
+        scope: getScopeForAudience(
+          this.authorizationParameters?.scope,
+          audience ?? this.authorizationParameters?.audience
+        ),
         audience: this.authorizationParameters?.audience
       }
     );
@@ -821,7 +826,12 @@ export class AuthClient {
       !options.audience ||
       options.audience === this.authorizationParameters.audience;
     const isScopeTheGlobalScope =
-      !options.scope || options.scope === this.authorizationParameters.scope;
+      !options.scope ||
+      options.scope ===
+        getScopeForAudience(
+          this.authorizationParameters.scope,
+          options.audience ?? this.authorizationParameters.audience
+        );
 
     if (isAudienceTheGlobalAudience && isScopeTheGlobalScope) {
       return tokenSet;
@@ -829,7 +839,8 @@ export class AuthClient {
 
     const audience = options.audience ?? this.authorizationParameters.audience;
     const scope =
-      options.scope ?? this.authorizationParameters.scope ?? undefined;
+      options.scope ??
+      getScopeForAudience(this.authorizationParameters.scope, audience);
 
     let accessTokenSet: AccessTokenSet | undefined;
 
@@ -861,7 +872,10 @@ export class AuthClient {
     } = {}
   ): Promise<[null, GetTokenSetResponse] | [SdkError, null]> {
     const scope = mergeScopes(
-      this.authorizationParameters.scope,
+      getScopeForAudience(
+        this.authorizationParameters.scope,
+        options.audience ?? this.authorizationParameters.audience
+      ),
       options.scope
     );
 
