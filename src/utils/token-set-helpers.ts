@@ -60,7 +60,6 @@ export const compareScopes = (
   requiredScopes: string | undefined
 ): boolean => {
   // When the scopes and requiredScopes are exactly the same, return true
-  // This handles cases where both are empty or undefined or both are the same string
   if (scopes === requiredScopes) {
     return true;
   }
