@@ -36,12 +36,17 @@ import {
   TokenSet,
   User
 } from "../types/index.js";
+import { DEFAULT_SCOPES } from "../utils/constants.js";
 import {
   ensureNoLeadingSlash,
   ensureTrailingSlash,
   normalizeWithBasePath,
   removeTrailingSlash
 } from "../utils/pathUtils.js";
+import {
+  ensureDefaultScope,
+  getScopeForAudience
+} from "../utils/scope-helpers.js";
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
 import {
   findAccessTokenSet,
@@ -53,8 +58,6 @@ import { addCacheControlHeadersForSession } from "./cookies.js";
 import { AbstractSessionStore } from "./session/abstract-session-store.js";
 import { TransactionState, TransactionStore } from "./transaction-store.js";
 import { filterDefaultIdTokenClaims } from "./user.js";
-import { ensureDefaultScope, getScopeForAudience } from "../utils/scope-helpers.js";
-import { DEFAULT_SCOPES } from "../utils/constants.js";
 
 export type BeforeSessionSavedHook = (
   session: SessionData,
@@ -250,7 +253,6 @@ export class AuthClient {
     )
       ?.split(" ")
       .map((s) => s.trim());
-
     if (!scope || !scope.includes("openid")) {
       throw new Error(
         "The 'openid' scope must be included in the set of scopes. See https://auth0.com/docs"

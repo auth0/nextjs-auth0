@@ -181,7 +181,7 @@ describe("session-changes-helpers", () => {
             accessToken: session.accessTokens![1].accessToken,
             expiresAt: session.accessTokens![1].expiresAt,
             scope: session.accessTokens![1].scope,
-            audience: session.accessTokens![1].audience,
+            audience: session.accessTokens![1].audience
           }
         ]
       });

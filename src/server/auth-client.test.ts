@@ -286,10 +286,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
             routes: getDefaultRoutes(),
 
             authorizationParameters: {
-              audience: 'test-1',
+              audience: "test-1",
               scope: {
-                'test-1': 'profile email'
-              },
+                "test-1": "profile email"
+              }
             },
 
             fetch: getMockAuthorizationServer()
@@ -322,10 +322,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
             routes: getDefaultRoutes(),
 
             authorizationParameters: {
-              audience: 'test-1',
+              audience: "test-1",
               scope: {
-                'test-2': 'profile email'
-              },
+                "test-2": "profile email"
+              }
             },
 
             fetch: getMockAuthorizationServer()
@@ -5623,7 +5623,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           fetch: getMockAuthorizationServer(),
           authorizationParameters: {
             scope: {
-              'custom:default_scope': 'custom:default_scope'
+              "custom:default_scope": "custom:default_scope"
             }
           }
         });
@@ -5651,7 +5651,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         const [error, updatedTokenSet] = await authClient.getTokenSet(
           createSessionData({ tokenSet, accessTokens }),
-          { scope: 'write:messages', audience: "https://api.example.com" }
+          { scope: "write:messages", audience: "https://api.example.com" }
         );
         expect(error).toBeNull();
         expect(updatedTokenSet?.tokenSet).toEqual({
