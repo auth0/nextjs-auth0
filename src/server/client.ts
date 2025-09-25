@@ -20,6 +20,8 @@ import {
   User
 } from "../types/index.js";
 import { isRequest } from "../utils/request.js";
+import { getScopeForAudience } from "../utils/scope-helpers.js";
+import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
 import {
   AuthClient,
   BeforeSessionSavedHook,
@@ -230,8 +232,10 @@ export class Auth0Client {
   private sessionStore: AbstractSessionStore;
   private authClient: AuthClient;
   private routes: Routes;
+  #options: Auth0ClientOptions;
 
   constructor(options: Auth0ClientOptions = {}) {
+    this.#options = options;
     // Extract and validate required options
     const {
       domain,
@@ -434,7 +438,7 @@ export class Auth0Client {
     arg2?: PagesRouterResponse | NextResponse,
     arg3?: GetAccessTokenOptions
   ): Promise<{ token: string; expiresAt: number; scope?: string }> {
-    const defaultOptions: Required<GetAccessTokenOptions> = {
+    const defaultOptions: GetAccessTokenOptions = {
       refresh: false
     };
 
@@ -484,19 +488,28 @@ export class Auth0Client {
     }
 
     const [error, getTokenSetResponse] = await this.authClient.getTokenSet(
-      session.tokenSet,
-      options.refresh
+      session,
+      options
     );
     if (error) {
       throw error;
     }
     const { tokenSet, idTokenClaims } = getTokenSetResponse;
     // update the session with the new token set, if necessary
-    if (
-      tokenSet.accessToken !== session.tokenSet.accessToken ||
-      tokenSet.expiresAt !== session.tokenSet.expiresAt ||
-      tokenSet.refreshToken !== session.tokenSet.refreshToken
-    ) {
+    const sessionChanges = getSessionChangesAfterGetAccessToken(
+      session,
+      tokenSet,
+      { scope: options.scope, audience: options.audience },
+      {
+        scope: getScopeForAudience(
+          this.#options.authorizationParameters?.scope,
+          this.#options.authorizationParameters?.audience
+        ),
+        audience: this.#options.authorizationParameters?.audience
+      }
+    );
+
+    if (sessionChanges) {
       if (idTokenClaims) {
         session.user = idTokenClaims as User;
       }
@@ -509,7 +522,7 @@ export class Auth0Client {
       await this.saveToSession(
         {
           ...finalSession,
-          tokenSet
+          ...sessionChanges
         },
         req,
         res
@@ -937,4 +950,6 @@ export class Auth0Client {
 
 export type GetAccessTokenOptions = {
   refresh?: boolean;
+  scope?: string;
+  audience?: string;
 };

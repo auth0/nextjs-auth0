@@ -23,6 +23,7 @@ import {
 } from "../errors/index.js";
 import {
   AccessTokenForConnectionOptions,
+  AccessTokenSet,
   AuthorizationParameters,
   BackchannelAuthenticationOptions,
   BackchannelAuthenticationResponse,
@@ -35,12 +36,23 @@ import {
   TokenSet,
   User
 } from "../types/index.js";
+import { DEFAULT_SCOPES } from "../utils/constants.js";
 import {
   ensureNoLeadingSlash,
   ensureTrailingSlash,
   normalizeWithBasePath,
   removeTrailingSlash
 } from "../utils/pathUtils.js";
+import {
+  ensureDefaultScope,
+  getScopeForAudience
+} from "../utils/scope-helpers.js";
+import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
+import {
+  findAccessTokenSet,
+  mergeScopes,
+  tokenSetFromAccessTokenSet
+} from "../utils/token-set-helpers.js";
 import { toSafeRedirect } from "../utils/url-helpers.js";
 import { addCacheControlHeadersForSession } from "./cookies.js";
 import { AbstractSessionStore } from "./session/abstract-session-store.js";
@@ -71,10 +83,6 @@ const INTERNAL_AUTHORIZE_PARAMS = [
   "state",
   "nonce"
 ];
-
-const DEFAULT_SCOPES = ["openid", "profile", "email", "offline_access"].join(
-  " "
-);
 
 /**
  * A constant representing the grant type for federated connection access token exchange.
@@ -235,14 +243,17 @@ export class AuthClient {
     this.clientAssertionSigningAlg =
       options.clientAssertionSigningAlg || "RS256";
 
-    if (!this.authorizationParameters.scope) {
-      this.authorizationParameters.scope = DEFAULT_SCOPES;
-    }
+    this.authorizationParameters.scope = ensureDefaultScope(
+      this.authorizationParameters
+    );
 
-    const scope = this.authorizationParameters.scope
-      .split(" ")
+    const scope = getScopeForAudience(
+      this.authorizationParameters.scope,
+      this.authorizationParameters.audience
+    )
+      ?.split(" ")
       .map((s) => s.trim());
-    if (!scope.includes("openid")) {
+    if (!scope || !scope.includes("openid")) {
       throw new Error(
         "The 'openid' scope must be included in the set of scopes. See https://auth0.com/docs"
       );
@@ -678,6 +689,8 @@ export class AuthClient {
 
   async handleAccessToken(req: NextRequest): Promise<NextResponse> {
     const session = await this.sessionStore.get(req.cookies);
+    const audience = req.nextUrl.searchParams.get("audience");
+    const scope = req.nextUrl.searchParams.get("scope");
 
     if (!session) {
       return NextResponse.json(
@@ -693,9 +706,10 @@ export class AuthClient {
       );
     }
 
-    const [error, getTokenSetResponse] = await this.getTokenSet(
-      session.tokenSet
-    );
+    const [error, getTokenSetResponse] = await this.getTokenSet(session, {
+      scope,
+      audience
+    });
 
     if (error) {
       return NextResponse.json(
@@ -719,11 +733,20 @@ export class AuthClient {
       expires_at: updatedTokenSet.expiresAt
     });
 
-    if (
-      updatedTokenSet.accessToken !== session.tokenSet.accessToken ||
-      updatedTokenSet.expiresAt !== session.tokenSet.expiresAt ||
-      updatedTokenSet.refreshToken !== session.tokenSet.refreshToken
-    ) {
+    const sessionChanges = getSessionChangesAfterGetAccessToken(
+      session,
+      updatedTokenSet,
+      { scope: scope, audience },
+      {
+        scope: getScopeForAudience(
+          this.authorizationParameters?.scope,
+          audience ?? this.authorizationParameters?.audience
+        ),
+        audience: this.authorizationParameters?.audience
+      }
+    );
+
+    if (sessionChanges) {
       if (idTokenClaims) {
         session.user = idTokenClaims as User;
       }
@@ -735,7 +758,7 @@ export class AuthClient {
       );
       await this.sessionStore.set(req.cookies, res.cookies, {
         ...finalSession,
-        tokenSet: updatedTokenSet
+        ...sessionChanges
       });
       addCacheControlHeadersForSession(res);
     }
@@ -784,6 +807,57 @@ export class AuthClient {
   }
 
   /**
+   * Retrieves the token set from the session data, considering optional audience and scope parameters.
+   * When audience and scope are provided, it checks if they match the global ones defined in the authorization parameters.
+   * If they match, it returns the top-level token set from the session data.
+   * If they don't match, it searches for a corresponding access token in the session's `accessTokens` array.
+   * @param sessionData The session data containing the token sets.
+   * @param options Optional parameters for audience and scope to filter the token set.
+   * @returns A partial token set that matches the provided audience and scope, or the top-level token set if they match the global ones.
+   */
+  #getTokenSetFromSession(
+    session: SessionData,
+    options: { scope?: string | null; audience?: string | null }
+  ): Partial<TokenSet> {
+    const tokenSet: Partial<TokenSet> = session.tokenSet;
+
+    // When audience and scope are provided, we need to compare them with the original ones provided in the Auth0Client constructor.
+    // When they are identical, we should read from the top-level `SessionData.tokenSet`.
+    // If not, we should look for the corresponding access token in `SessionData.accessTokens`
+    const isAudienceTheGlobalAudience =
+      !options.audience ||
+      options.audience === this.authorizationParameters.audience;
+    const isScopeTheGlobalScope =
+      !options.scope ||
+      options.scope ===
+        getScopeForAudience(
+          this.authorizationParameters.scope,
+          options.audience ?? this.authorizationParameters.audience
+        );
+
+    if (isAudienceTheGlobalAudience && isScopeTheGlobalScope) {
+      return tokenSet;
+    }
+
+    const audience = options.audience ?? this.authorizationParameters.audience;
+    const scope =
+      options.scope ??
+      getScopeForAudience(this.authorizationParameters.scope, audience);
+
+    let accessTokenSet: AccessTokenSet | undefined;
+
+    // If there is an audience, we can search for the correct access token in the array
+    // If there is no audience, we cannot find the correct access token in the array
+    if (audience) {
+      accessTokenSet = findAccessTokenSet(session, { scope, audience });
+    }
+
+    // Convert the Access Token Set to a Token Set, which mostly ensures the Id Token and RefreshToken are also available,
+    // But the access token, expiresAt, audience and scope are taken from the Access Token Set.
+    // When no audience was found, we will return an empty Token Set with only the Id Token and Refresh Token
+    return tokenSetFromAccessTokenSet(accessTokenSet, tokenSet);
+  }
+  /**
    * Retrieves OAuth token sets, handling token refresh when necessary or if forced.
    *
    * @returns A tuple containing either:
@@ -792,11 +866,47 @@ export class AuthClient {
    *   - `[null, {tokenSet, }]` if token refresh was not done and existing token was returned
    */
   async getTokenSet(
-    tokenSet: TokenSet,
-    forceRefresh?: boolean | undefined
+    sessionData: SessionData,
+    options: {
+      refresh?: boolean | undefined;
+      scope?: string | null;
+      audience?: string | null;
+    } = {}
   ): Promise<[null, GetTokenSetResponse] | [SdkError, null]> {
-    // the access token has expired but we do not have a refresh token
-    if (!tokenSet.refreshToken && tokenSet.expiresAt <= Date.now() / 1000) {
+    const scope = mergeScopes(
+      getScopeForAudience(
+        this.authorizationParameters.scope,
+        options.audience ?? this.authorizationParameters.audience
+      ),
+      options.scope
+    );
+
+    const tokenSet: Partial<TokenSet> = this.#getTokenSetFromSession(
+      sessionData,
+      {
+        scope: scope,
+        audience: options.audience
+      }
+    );
+
+    // no access token was found that matches the, optional, provided audience and scope
+    if (!tokenSet.refreshToken && !tokenSet.accessToken) {
+      return [
+        new AccessTokenError(
+          AccessTokenErrorCode.MISSING_REFRESH_TOKEN,
+          "No access token found and a refresh token was not provided. The user needs to re-authenticate."
+        ),
+        null
+      ];
+    }
+
+    // the access token was found, but it has expired and we do not have a refresh token
+    if (
+      !tokenSet.refreshToken &&
+      tokenSet.accessToken &&
+      tokenSet.expiresAt &&
+      tokenSet.expiresAt <= Date.now() / 1000
+    ) {
       return [
         new AccessTokenError(
           AccessTokenErrorCode.MISSING_REFRESH_TOKEN,
@@ -808,12 +918,26 @@ export class AuthClient {
 
     if (tokenSet.refreshToken) {
       // either the access token has expired or we are forcing a refresh
-      if (forceRefresh || tokenSet.expiresAt <= Date.now() / 1000) {
+      if (
+        options.refresh ||
+        !tokenSet.expiresAt ||
+        tokenSet.expiresAt <= Date.now() / 1000
+      ) {
         const [discoveryError, authorizationServerMetadata] =
           await this.discoverAuthorizationServerMetadata();
 
         if (discoveryError) {
           return [discoveryError, null];
+        }
+
+        const additionalParameters = new URLSearchParams();
+
+        if (options.scope) {
+          additionalParameters.append("scope", scope);
+        }
+
+        if (options.audience) {
+          additionalParameters.append("audience", options.audience);
         }
 
         const refreshTokenRes = await oauth.refreshTokenGrantRequest(
@@ -824,7 +948,8 @@ export class AuthClient {
           {
             ...this.httpOptions(),
             [oauth.customFetch]: this.fetch,
-            [oauth.allowInsecureRequests]: this.allowInsecureRequests
+            [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+            additionalParameters
           }
         );
 
@@ -857,6 +982,15 @@ export class AuthClient {
           ...tokenSet, // contains the existing `iat` claim to maintain the session lifetime
           accessToken: oauthRes.access_token,
           idToken: oauthRes.id_token,
+          // We store the requested scopes on the tokenSet, so we know what scopes were requested.
+          // We do not store the returned scopes from the `oauthRes` object.
+          // The server may return less scopes than requested.
+          // This ensures we can return the same token again when a token for the same or less scopes is requested.
+          //
+          // E.g. When requesting a token with scope `a b`, and we return one for scope `a` only,
+          // - If we store the returned scopes, we cannot return this token when the user requests a token for scope `a b` again.
+          // - If we store the requested scopes, we can return this token when the user requests a token for scope `a` or `a b` again.
+          scope: tokenSet.scope ?? scope,
           expiresAt: accessTokenExpiresAt
         };
 
@@ -878,7 +1012,7 @@ export class AuthClient {
       }
     }
 
-    return [null, { tokenSet, idTokenClaims: undefined }];
+    return [null, { tokenSet: tokenSet as TokenSet, idTokenClaims: undefined }];
   }
 
   async backchannelAuthentication(
