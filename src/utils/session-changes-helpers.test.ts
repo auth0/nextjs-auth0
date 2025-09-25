@@ -178,10 +178,10 @@ describe("session-changes-helpers", () => {
             audience: options.audience
           },
           {
-            accessToken: "<my_access_token>",
-            expiresAt: Date.now() / 1000 + 7200,
-            scope: "scope-a",
-            audience: "<another_audience>"
+            accessToken: session.accessTokens![1].accessToken,
+            expiresAt: session.accessTokens![1].expiresAt,
+            scope: session.accessTokens![1].scope,
+            audience: session.accessTokens![1].audience,
           }
         ]
       });
