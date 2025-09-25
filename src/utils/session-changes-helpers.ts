@@ -77,6 +77,8 @@ export function getSessionChangesAfterGetAccessToken(
       ]
     };
   } else {
+    // There is an existing access token for the provided `audience` and `scope`.
+    // We need to check if the access token changed, and if so, update it in the array.
     if (tokenSet.accessToken !== existingAccessTokenSet.accessToken) {
       sessionChanges = {
         accessTokens: session.accessTokens?.map((accessToken) =>
@@ -88,6 +90,7 @@ export function getSessionChangesAfterGetAccessToken(
     }
   }
 
+  // If there are no session changes, we can exit early.
   if (sessionChanges) {
     return {
       accessTokens: sessionChanges.accessTokens,
