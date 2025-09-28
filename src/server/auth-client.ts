@@ -825,7 +825,9 @@ export class AuthClient {
             ...this.httpOptions(),
             [oauth.customFetch]: this.fetch,
             [oauth.allowInsecureRequests]: this.allowInsecureRequests,
-            ...(tokenSet.scope && { additionalParameters: { scope: tokenSet.scope } })
+            ...(tokenSet.scope && {
+              additionalParameters: { scope: tokenSet.scope }
+            })
           }
         );
 

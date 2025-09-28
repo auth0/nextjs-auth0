@@ -5546,31 +5546,36 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const sessionStore = new StatelessSessionStore({
           secret
         });
-        
+
         let refreshTokenRequestBody: string;
-        const mockFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-          let url: URL;
-          if (input instanceof Request) {
-            url = new URL(input.url);
-          } else {
-            url = new URL(input);
-          }
+        const mockFetch = vi.fn(
+          async (
+            input: RequestInfo | URL,
+            init?: RequestInit
+          ): Promise<Response> => {
+            let url: URL;
+            if (input instanceof Request) {
+              url = new URL(input.url);
+            } else {
+              url = new URL(input);
+            }
 
-          if (url.pathname === "/oauth/token" && init?.body) {
-            refreshTokenRequestBody = init.body as string;
-          }
+            if (url.pathname === "/oauth/token" && init?.body) {
+              refreshTokenRequestBody = init.body as string;
+            }
 
-          // Use the default mock behavior
-          return getMockAuthorizationServer({
-            tokenEndpointResponse: {
-              token_type: "Bearer",
-              access_token: "new_at_123",
-              refresh_token: "new_rt_123",
-              scope: "openid profile email custom_scope",
-              expires_in: 86400
-            } as oauth.TokenEndpointResponse
-          })(input, init);
-        });
+            // Use the default mock behavior
+            return getMockAuthorizationServer({
+              tokenEndpointResponse: {
+                token_type: "Bearer",
+                access_token: "new_at_123",
+                refresh_token: "new_rt_123",
+                scope: "openid profile email custom_scope",
+                expires_in: 86400
+              } as oauth.TokenEndpointResponse
+            })(input, init);
+          }
+        );
 
         const authClient = new AuthClient({
           transactionStore,
@@ -5618,30 +5623,35 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const sessionStore = new StatelessSessionStore({
           secret
         });
-        
+
         let refreshTokenRequestBody: string;
-        const mockFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-          let url: URL;
-          if (input instanceof Request) {
-            url = new URL(input.url);
-          } else {
-            url = new URL(input);
-          }
+        const mockFetch = vi.fn(
+          async (
+            input: RequestInfo | URL,
+            init?: RequestInit
+          ): Promise<Response> => {
+            let url: URL;
+            if (input instanceof Request) {
+              url = new URL(input.url);
+            } else {
+              url = new URL(input);
+            }
 
-          if (url.pathname === "/oauth/token" && init?.body) {
-            refreshTokenRequestBody = init.body as string;
-          }
+            if (url.pathname === "/oauth/token" && init?.body) {
+              refreshTokenRequestBody = init.body as string;
+            }
 
-          // Use the default mock behavior
-          return getMockAuthorizationServer({
-            tokenEndpointResponse: {
-              token_type: "Bearer",
-              access_token: "new_at_123",
-              refresh_token: "new_rt_123",
-              expires_in: 86400
-            } as oauth.TokenEndpointResponse
-          })(input, init);
-        });
+            // Use the default mock behavior
+            return getMockAuthorizationServer({
+              tokenEndpointResponse: {
+                token_type: "Bearer",
+                access_token: "new_at_123",
+                refresh_token: "new_rt_123",
+                expires_in: 86400
+              } as oauth.TokenEndpointResponse
+            })(input, init);
+          }
+        );
 
         const authClient = new AuthClient({
           transactionStore,
