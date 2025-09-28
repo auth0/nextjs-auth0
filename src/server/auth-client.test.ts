@@ -5436,6 +5436,250 @@ ca/T0LLtgmbMmxSv/MmzIg==
         });
       });
     });
+
+    describe("scope preservation", async () => {
+      it("should preserve the original scope when refreshing access token", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
+
+          fetch: getMockAuthorizationServer({
+            tokenEndpointResponse: {
+              token_type: "Bearer",
+              access_token: "new_at_123",
+              refresh_token: "new_rt_123",
+              scope: "openid profile email custom_scope",
+              expires_in: 86400
+            } as oauth.TokenEndpointResponse
+          })
+        });
+
+        const expiresAt = Math.floor(Date.now() / 1000) - 10; // expired 10 seconds ago
+        const tokenSet = {
+          accessToken: DEFAULT.accessToken,
+          refreshToken: DEFAULT.refreshToken,
+          scope: "openid profile email custom_scope",
+          expiresAt
+        };
+
+        const [error, updatedTokenSet] = await authClient.getTokenSet(tokenSet);
+        expect(error).toBeNull();
+        expect(updatedTokenSet?.tokenSet).toEqual({
+          accessToken: "new_at_123",
+          refreshToken: "new_rt_123",
+          scope: "openid profile email custom_scope", // Scope preserved from response
+          expiresAt: expect.any(Number)
+        });
+      });
+
+      it("should fallback to original scope when response does not include scope", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
+
+          fetch: getMockAuthorizationServer({
+            tokenEndpointResponse: {
+              token_type: "Bearer",
+              access_token: "new_at_123",
+              refresh_token: "new_rt_123",
+              // No scope in response
+              expires_in: 86400
+            } as oauth.TokenEndpointResponse
+          })
+        });
+
+        const expiresAt = Math.floor(Date.now() / 1000) - 10; // expired 10 seconds ago
+        const tokenSet = {
+          accessToken: DEFAULT.accessToken,
+          refreshToken: DEFAULT.refreshToken,
+          scope: "openid profile email custom_scope",
+          expiresAt
+        };
+
+        const [error, updatedTokenSet] = await authClient.getTokenSet(tokenSet);
+        expect(error).toBeNull();
+        expect(updatedTokenSet?.tokenSet).toEqual({
+          accessToken: "new_at_123",
+          refreshToken: "new_rt_123",
+          scope: "openid profile email custom_scope", // Fallback to original scope
+          expiresAt: expect.any(Number)
+        });
+      });
+
+      it("should include scope parameter in refresh token request when scope exists", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+        
+        let refreshTokenRequestBody: string;
+        const mockFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+          let url: URL;
+          if (input instanceof Request) {
+            url = new URL(input.url);
+          } else {
+            url = new URL(input);
+          }
+
+          if (url.pathname === "/oauth/token" && init?.body) {
+            refreshTokenRequestBody = init.body as string;
+          }
+
+          // Use the default mock behavior
+          return getMockAuthorizationServer({
+            tokenEndpointResponse: {
+              token_type: "Bearer",
+              access_token: "new_at_123",
+              refresh_token: "new_rt_123",
+              scope: "openid profile email custom_scope",
+              expires_in: 86400
+            } as oauth.TokenEndpointResponse
+          })(input, init);
+        });
+
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
+
+          fetch: mockFetch
+        });
+
+        const expiresAt = Math.floor(Date.now() / 1000) - 10; // expired 10 seconds ago
+        const tokenSet = {
+          accessToken: DEFAULT.accessToken,
+          refreshToken: DEFAULT.refreshToken,
+          scope: "openid profile email custom_scope",
+          expiresAt
+        };
+
+        const [error, updatedTokenSet] = await authClient.getTokenSet(tokenSet);
+        expect(error).toBeNull();
+        expect(updatedTokenSet?.tokenSet).toEqual({
+          accessToken: "new_at_123",
+          refreshToken: "new_rt_123",
+          scope: "openid profile email custom_scope",
+          expiresAt: expect.any(Number)
+        });
+
+        // Verify that scope parameter was included in the refresh token request
+        const params = new URLSearchParams(refreshTokenRequestBody!);
+        expect(params.get("scope")).toBe("openid profile email custom_scope");
+      });
+
+      it("should not include scope parameter when tokenSet has no scope", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+        
+        let refreshTokenRequestBody: string;
+        const mockFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+          let url: URL;
+          if (input instanceof Request) {
+            url = new URL(input.url);
+          } else {
+            url = new URL(input);
+          }
+
+          if (url.pathname === "/oauth/token" && init?.body) {
+            refreshTokenRequestBody = init.body as string;
+          }
+
+          // Use the default mock behavior
+          return getMockAuthorizationServer({
+            tokenEndpointResponse: {
+              token_type: "Bearer",
+              access_token: "new_at_123",
+              refresh_token: "new_rt_123",
+              expires_in: 86400
+            } as oauth.TokenEndpointResponse
+          })(input, init);
+        });
+
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
+
+          fetch: mockFetch
+        });
+
+        const expiresAt = Math.floor(Date.now() / 1000) - 10; // expired 10 seconds ago
+        const tokenSet = {
+          accessToken: DEFAULT.accessToken,
+          refreshToken: DEFAULT.refreshToken,
+          // No scope in tokenSet
+          expiresAt
+        };
+
+        const [error, updatedTokenSet] = await authClient.getTokenSet(tokenSet);
+        expect(error).toBeNull();
+        expect(updatedTokenSet?.tokenSet).toEqual({
+          accessToken: "new_at_123",
+          refreshToken: "new_rt_123",
+          expiresAt: expect.any(Number)
+        });
+
+        // Verify that scope parameter was NOT included in the refresh token request
+        const params = new URLSearchParams(refreshTokenRequestBody!);
+        expect(params.get("scope")).toBeNull();
+      });
+    });
   });
 
   describe("startInteractiveLogin", async () => {
