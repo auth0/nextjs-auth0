@@ -5624,8 +5624,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           fetch: getMockAuthorizationServer(),
           authorizationParameters: {
+            audience: "custom_audience",
             scope: {
-              "custom:default_scope": "custom:default_scope"
+              custom_audience: "openid custom:default_scope"
             }
           }
         });

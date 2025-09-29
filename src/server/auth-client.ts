@@ -836,7 +836,7 @@ export class AuthClient {
           options.audience ?? this.authorizationParameters.audience
         ),
         options.scope
-        );
+      );
 
     if (isAudienceTheGlobalAudience && isScopeTheGlobalScope) {
       return tokenSet;

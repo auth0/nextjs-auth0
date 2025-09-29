@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_AUDIENCE, DEFAULT_SCOPES } from "./constants.js";
+import { DEFAULT_SCOPES } from "./constants.js";
 import { ensureDefaultScope, getScopeForAudience } from "./scope-helpers.js";
 
 describe("scope-helpers", () => {
@@ -10,9 +10,9 @@ describe("scope-helpers", () => {
     });
 
     it("should return the DEFAULT_SCOPES in a map string when scope defined as map", () => {
-      expect(ensureDefaultScope({ scope: {} })).toEqual({
-        [DEFAULT_AUDIENCE]: DEFAULT_SCOPES
-      });
+      expect(() => ensureDefaultScope({ scope: {} })).toThrow(
+        "When defining scope as a Map, an audience is required to look up the correct scope"
+      );
     });
 
     it("should return the DEFAULT_SCOPES in a map string when scope defined as map", () => {
@@ -55,12 +55,12 @@ describe("scope-helpers", () => {
       expect(getScopeForAudience(scope, "my-audience")).toEqual(scope);
     });
 
-    it("should return the scope for the default audience as a string when scope is defined with a map but audience is not defined", () => {
+    it("should throw when scope is defined with a map but audience is not defined", () => {
       const scope = {
-        [DEFAULT_AUDIENCE]: "read:messages write:messages"
+        "audience-1": "read:messages write:messages"
       };
-      expect(getScopeForAudience(scope, undefined)).toEqual(
-        "read:messages write:messages"
+      expect(() => getScopeForAudience(scope, undefined)).toThrow(
+        "When defining scope as a Map, an audience is required to look up the correct scope."
       );
     });
 
@@ -75,7 +75,7 @@ describe("scope-helpers", () => {
 
     it("should return undefined when scope is defined with a map and audience is not defined", () => {
       const scope = {
-        [DEFAULT_AUDIENCE]: "read:messages write:messages"
+        "other-audience": "read:messages write:messages"
       };
       expect(getScopeForAudience(scope, "my-audience")).toBeUndefined();
     });

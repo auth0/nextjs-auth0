@@ -1,5 +1,5 @@
 import { AuthorizationParameters } from "../types/index.js";
-import { DEFAULT_AUDIENCE, DEFAULT_SCOPES } from "./constants.js";
+import { DEFAULT_SCOPES } from "./constants.js";
 
 /**
  * Determines the default scope based on the provided authorization parameters.
@@ -27,9 +27,8 @@ export function ensureDefaultScope(
       authorizationParameters.audience
     )
   ) {
-    // When the user provided authorizationParameters.audience, we use that as the key to set the default scopes against.
-    // When the user did not provide an audience, we default to the 'default' audience.
-    const audience = authorizationParameters.audience ?? DEFAULT_AUDIENCE;
+    const audience = authorizationParameters.audience!;
+
     return {
       ...authorizationParameters.scope,
       [audience]: DEFAULT_SCOPES
@@ -62,7 +61,16 @@ export function getScopeForAudience(
     return scope;
   }
 
+  // When no audience is provided, we cannot look up the scope in the Map
+  // We throw an error to inform the user that an audience is required
+  // Which is required to use MRRT altogether.
+  if (!audience) {
+    throw new Error(
+      "When defining scope as a Map, an audience is required to look up the correct scope."
+    );
+  }
+
   // When the scope is a Map, we return the scope for the provided audience
   // When no audience is provided, we default to the 'default' audience.
-  return scope[audience ?? DEFAULT_AUDIENCE];
+  return scope[audience];
 }
