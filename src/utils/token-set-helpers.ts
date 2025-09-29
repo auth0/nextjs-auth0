@@ -146,10 +146,13 @@ export function findAccessTokenSet(
   // extra permissions. An exact match will naturally be sorted first.
   // This also works for null/undefined scopes, as they would have been matched
   // against a null/undefined `options.scope` and will all be equally valid.
+  // Note: This sorting algorithm also takes care of duplicate scopes, as they will
+  // be converted to a Set and thus have the same size as a non-duplicate scope array.
   allMatches.sort((a, b) => {
-    const aScopeCount = parseScopesToArray(a.scope).length;
-    const bScopeCount = parseScopesToArray(b.scope).length;
-    return aScopeCount - bScopeCount;
+    const aScopesUnique = new Set(parseScopesToArray(a.scope));
+    const bScopesUnique = new Set(parseScopesToArray(b.scope));
+
+    return aScopesUnique.size - bScopesUnique.size;
   });
 
   // The first item in the sorted list is the best possible match.

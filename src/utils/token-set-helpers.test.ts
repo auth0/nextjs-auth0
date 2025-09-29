@@ -194,6 +194,39 @@ describe("token-set-helpers", () => {
       expect(findAccessTokenSet(session, options)).toBe(accessTokenSet2);
     });
 
+    it("should find the AccessTokenSet with the best match without exact match and ignore duplicates", () => {
+      const accessTokenSet: AccessTokenSet = {
+        accessToken: "<my_custom_access_token>",
+        expiresAt: Date.now() / 1000 + 3600,
+        scope: "a a a a a b",
+        audience: "<my_audience>"
+      };
+
+      const accessTokenSet2: AccessTokenSet = {
+        accessToken: "<my_custom_access_token_2>",
+        expiresAt: Date.now() / 1000 + 3600,
+        scope: "a b c d",
+        audience: "<my_audience>"
+      };
+
+      const accessTokenSet3: AccessTokenSet = {
+        accessToken: "<my_custom_access_token>",
+        expiresAt: Date.now() / 1000 + 3600,
+        scope: "a b c",
+        audience: "<my_audience>"
+      };
+
+      const session = createSessionData({
+        accessTokens: [accessTokenSet, accessTokenSet3, accessTokenSet2]
+      });
+      const options = {
+        scope: "a",
+        audience: "<my_audience>"
+      };
+
+      expect(findAccessTokenSet(session, options)).toBe(accessTokenSet);
+    });
+
     it("should not find the AccessTokenSet when accessTokens is undefined", () => {
       const session = createSessionData({
         accessTokens: undefined
