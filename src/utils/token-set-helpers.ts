@@ -69,7 +69,8 @@ export const compareScopes = (
   }
 
   const scopesSet = new Set(parseScopesToArray(scopes));
-  const requiredScopesArray = parseScopesToArray(requiredScopes);
+  const requiredScopesSet = new Set(parseScopesToArray(requiredScopes));
+  const requiredScopesArray = Array.from(requiredScopesSet);
 
   return requiredScopesArray.every((scope) => scopesSet.has(scope));
 };
