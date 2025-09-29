@@ -49,6 +49,7 @@ import {
 } from "../utils/scope-helpers.js";
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
 import {
+  compareScopes,
   findAccessTokenSet,
   mergeScopes,
   tokenSetFromAccessTokenSet
@@ -829,10 +830,12 @@ export class AuthClient {
       options.audience === this.authorizationParameters.audience;
     const isScopeTheGlobalScope =
       !options.scope ||
-      options.scope ===
+      compareScopes(
         getScopeForAudience(
           this.authorizationParameters.scope,
           options.audience ?? this.authorizationParameters.audience
+        ),
+        options.scope
         );
 
     if (isAudienceTheGlobalAudience && isScopeTheGlobalScope) {

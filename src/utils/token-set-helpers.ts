@@ -56,7 +56,7 @@ function parseScopesToArray(scopes: string | undefined): string[] {
  * @returns True if all required scopes are present in the scopes, false otherwise
  */
 export const compareScopes = (
-  scopes: string | undefined,
+  scopes: string | null | undefined,
   requiredScopes: string | undefined
 ): boolean => {
   // When the scopes and requiredScopes are exactly the same, return true
@@ -72,7 +72,11 @@ export const compareScopes = (
   const requiredScopesSet = new Set(parseScopesToArray(requiredScopes));
   const requiredScopesArray = Array.from(requiredScopesSet);
 
-  return requiredScopesArray.every((scope) => scopesSet.has(scope));
+  const hasAllRequiredScopes = requiredScopesArray.every((scope) =>
+    scopesSet.has(scope)
+  );
+
+  return hasAllRequiredScopes;
 };
 
 /**

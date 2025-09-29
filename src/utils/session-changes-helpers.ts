@@ -1,6 +1,7 @@
 import { SessionData, TokenSet } from "../types/index.js";
 import {
   accessTokenSetFromTokenSet,
+  compareScopes,
   findAccessTokenSet
 } from "./token-set-helpers.js";
 
@@ -30,7 +31,7 @@ export function getSessionChangesAfterGetAccessToken(
   const isAudienceTheGlobalAudience =
     !options.audience || options.audience === globalOptions.audience;
   const isScopeTheGlobalScope =
-    !options.scope || options.scope === globalOptions.scope;
+    !options.scope || compareScopes(globalOptions.scope, options.scope);
 
   // If we are using the global audience and scope, we need to check if the access token or refresh token changed in `SessionData.tokenSet`.
   // We do not have to change anything to the `accessTokens` array inside `SessionData` in this case, so we can just return.
