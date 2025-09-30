@@ -20,7 +20,6 @@ import {
   User
 } from "../types/index.js";
 import { isRequest } from "../utils/request.js";
-import { getScopeForAudience } from "../utils/scope-helpers.js";
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
 import {
   AuthClient,
@@ -501,10 +500,7 @@ export class Auth0Client {
       tokenSet,
       { scope: options.scope, audience: options.audience },
       {
-        scope: getScopeForAudience(
-          this.#options.authorizationParameters?.scope,
-          this.#options.authorizationParameters?.audience
-        ),
+        scope: this.#options.authorizationParameters?.scope,
         audience: this.#options.authorizationParameters?.audience
       }
     );

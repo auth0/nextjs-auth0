@@ -1,4 +1,5 @@
 import { SessionData, TokenSet } from "../types/index.js";
+import { getScopeForAudience } from "./scope-helpers.js";
 import {
   accessTokenSetFromTokenSet,
   compareScopes,
@@ -24,14 +25,19 @@ export function getSessionChangesAfterGetAccessToken(
   tokenSet: TokenSet,
   options: { scope?: string | null; audience?: string | null },
   globalOptions: {
-    scope?: string | null | undefined;
+    scope?: string | null | undefined | { [key: string]: string };
     audience?: string | null | undefined;
   }
 ): Partial<SessionData> | undefined {
+  // Since globalOptions.scope can be a map of audience to scopes, we need to get the correct scope for the current audience.
+  const globalScope = getScopeForAudience(
+    globalOptions.scope,
+    options.audience ?? globalOptions.audience
+  );
   const isAudienceTheGlobalAudience =
     !options.audience || options.audience === globalOptions.audience;
   const isScopeTheGlobalScope =
-    !options.scope || compareScopes(globalOptions.scope, options.scope);
+    !options.scope || compareScopes(globalScope, options.scope);
 
   // If we are using the global audience and scope, we need to check if the access token or refresh token changed in `SessionData.tokenSet`.
   // We do not have to change anything to the `accessTokens` array inside `SessionData` in this case, so we can just return.
@@ -54,7 +60,7 @@ export function getSessionChangesAfterGetAccessToken(
   // we need to check if the corresponding access token changed in `SessionData.accessTokens`.
   // We will also have to update the refreshToken and idToken as needed
   const audience = options.audience ?? globalOptions.audience;
-  const scope = options.scope ?? globalOptions.scope ?? undefined;
+  const scope = options.scope ?? globalScope ?? undefined;
 
   // If there is no audience, we cannot find the correct access token in the array
   if (!audience) {

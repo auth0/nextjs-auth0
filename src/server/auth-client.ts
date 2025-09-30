@@ -739,10 +739,7 @@ export class AuthClient {
       updatedTokenSet,
       { scope: scope, audience },
       {
-        scope: getScopeForAudience(
-          this.authorizationParameters?.scope,
-          audience ?? this.authorizationParameters?.audience
-        ),
+        scope: this.authorizationParameters?.scope,
         audience: this.authorizationParameters?.audience
       }
     );
