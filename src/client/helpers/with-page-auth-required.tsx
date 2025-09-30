@@ -100,7 +100,13 @@ export const withPageAuthRequired: WithPageAuthRequired = (
     }, [user, error, isLoading]);
 
     if (error) return onError(error);
-    if (user) return <Component user={user} {...(props as any)} />;
+    if (user) {
+      const componentProps = {
+        ...props,
+        user
+      } as React.ComponentProps<typeof Component> & UserProps;
+      return <Component {...componentProps} />;
+    }
 
     return onRedirecting();
   };
