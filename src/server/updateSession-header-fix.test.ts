@@ -79,10 +79,11 @@ describe("UpdateSession Header Copying Fix", () => {
     // Mock session store to definitely include legacy cookie deletion
     vi.spyOn(client.sessionStore, "set").mockImplementation(
       async (reqCookies, resCookies, session) => {
-        resCookies.set("appSession", "new_session_value");
-        resCookies.set("appSession.1", "chunk_1");
-        resCookies.set("appSession.2", "chunk_2");
-        resCookies.set("__session", "", { maxAge: 0 }); // Legacy cookie deletion
+        // All cookies should have consistent path from cookieConfig (default: "/")
+        resCookies.set("appSession", "new_session_value", { path: "/" });
+        resCookies.set("appSession.1", "chunk_1", { path: "/" });
+        resCookies.set("appSession.2", "chunk_2", { path: "/" });
+        resCookies.set("__session", "", { maxAge: 0, path: "/" }); // Legacy cookie deletion
       }
     );
 
@@ -96,10 +97,12 @@ describe("UpdateSession Header Copying Fix", () => {
 
     // Verify specific cookies
     const cookieString = setCookieHeader.join(" | ");
-    expect(cookieString).toContain("appSession=new_session_value");
-    expect(cookieString).toContain("appSession.1=chunk_1");
-    expect(cookieString).toContain("appSession.2=chunk_2");
-    expect(cookieString).toContain("__session=; Max-Age=0"); // Legacy deletion
+    console.log(cookieString)
+    expect(cookieString).toContain("appSession=new_session_value; Path=/");
+    expect(cookieString).toContain("appSession.1=chunk_1; Path=/");
+    expect(cookieString).toContain("appSession.2=chunk_2; Path=/");
+    // __session=; Path=/; Max-Age=0
+    expect(cookieString).toContain("__session=; Path=/; Max-Age=0"); // Legacy deletion
   });
 
   it("should not call setHeader for set-cookie if no cookies are set", async () => {
