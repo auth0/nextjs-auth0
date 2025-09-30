@@ -36,6 +36,7 @@ import {
   TokenSet,
   User
 } from "../types/index.js";
+import { mergeAuthorizationParamsIntoSearchParams } from "../utils/authorization-params-helpers.js";
 import { DEFAULT_SCOPES } from "../utils/constants.js";
 import {
   ensureNoLeadingSlash,
@@ -363,7 +364,14 @@ export class AuthClient {
     const nonce = oauth.generateRandomNonce();
 
     // Construct base authorization parameters
-    const authorizationParams = new URLSearchParams();
+    // If provided on both sides, this does not merge the scope property,
+    // instead, the scope from the right side (options) fully overrides the left side.
+    // This is done to avoid breaking existing behavior.
+    const authorizationParams = mergeAuthorizationParamsIntoSearchParams(
+      this.authorizationParameters,
+      options.authorizationParameters,
+      INTERNAL_AUTHORIZE_PARAMS
+    );
     authorizationParams.set("client_id", this.clientMetadata.client_id);
     authorizationParams.set("redirect_uri", redirectUri.toString());
     authorizationParams.set("response_type", "code");
@@ -371,19 +379,6 @@ export class AuthClient {
     authorizationParams.set("code_challenge_method", codeChallengeMethod);
     authorizationParams.set("state", state);
     authorizationParams.set("nonce", nonce);
-
-    const mergedAuthorizationParams: AuthorizationParameters = {
-      // any custom params to forward to /authorize defined as configuration
-      ...this.authorizationParameters,
-      // custom parameters passed in via the query params to ensure only the confidential client can set them
-      ...options.authorizationParameters
-    };
-
-    Object.entries(mergedAuthorizationParams).forEach(([key, val]) => {
-      if (!INTERNAL_AUTHORIZE_PARAMS.includes(key) && val != null) {
-        authorizationParams.set(key, String(val));
-      }
-    });
 
     // Prepare transaction state
     const transactionState: TransactionState = {
@@ -873,6 +868,9 @@ export class AuthClient {
       audience?: string | null;
     } = {}
   ): Promise<[null, GetTokenSetResponse] | [SdkError, null]> {
+    // This will merge the scopes from the authorization parameters and the options.
+    // The scope from the options will be added to the scopes from the authorization parameters.
+    // If there are duplicate scopes, they will be removed.
     const scope = mergeScopes(
       getScopeForAudience(
         this.authorizationParameters.scope,
@@ -1028,19 +1026,18 @@ export class AuthClient {
       return [new BackchannelAuthenticationNotSupportedError(), null];
     }
 
-    const authorizationParams = new URLSearchParams();
-    authorizationParams.set("scope", DEFAULT_SCOPES);
-
-    const mergedAuthorizationParams: AuthorizationParameters = {
-      // any custom params to forward to /authorize defined as configuration
-      ...this.authorizationParameters,
-      // custom parameters passed in via the query params to ensure only the confidential client can set them
-      ...options.authorizationParams
-    };
-
-    Object.entries(mergedAuthorizationParams).forEach(([key, val]) =>
-      authorizationParams.set(key, String(val))
+    // If provided on both sides, this does not merge the scope property,
+    // instead, the scope from the right side (options) fully overrides the left side.
+    // This is done to avoid breaking existing behavior.
+    const authorizationParams = mergeAuthorizationParamsIntoSearchParams(
+      this.authorizationParameters,
+      options.authorizationParams,
+      INTERNAL_AUTHORIZE_PARAMS
     );
+
+    if (!authorizationParams.has("scope")) {
+      authorizationParams.set("scope", DEFAULT_SCOPES);
+    }
 
     authorizationParams.set("client_id", this.clientMetadata.client_id);
     authorizationParams.set("binding_message", options.bindingMessage);
