@@ -6,8 +6,19 @@ describe("UpdateSession Header Copying Fix", () => {
   let client: Auth0Client;
   let mockPagesRouterReq: any;
   let mockPagesRouterRes: any;
+  let mockSession: any;
 
   beforeEach(() => {
+    // Create a mock session that matches SessionData structure
+    mockSession = {
+      user: { sub: "test_user", nickname: "test" },
+      tokenSet: {
+        accessToken: "test_token",
+        expiresAt: Date.now() / 1000 + 3600
+      },
+      internal: { sid: "test_session_id", createdAt: Date.now() / 1000 }
+    };
+
     client = new Auth0Client({
       domain: "test.auth0.com",
       clientId: "test_client_id",
@@ -31,14 +42,11 @@ describe("UpdateSession Header Copying Fix", () => {
     };
 
     // Mock the session store to return a valid session
-    vi.spyOn(client.sessionStore, "get").mockResolvedValue({
-      user: { sub: "test_user", nickname: "test" },
-      internal: { iat: Date.now() / 1000, exp: Date.now() / 1000 + 3600 }
-    });
+    vi.spyOn(client["sessionStore"], "get").mockResolvedValue(mockSession);
 
     // Mock the session store to simulate setting multiple cookies
-    vi.spyOn(client.sessionStore, "set").mockImplementation(
-      async (reqCookies, resCookies, session) => {
+    vi.spyOn(client["sessionStore"], "set").mockImplementation(
+      async (_reqCookies, resCookies) => {
         // Simulate StatelessSessionStore setting multiple cookies
         resCookies.set("appSession", "updated_session_value");
         resCookies.set("appSession.1", "chunk_data_here");
@@ -54,7 +62,8 @@ describe("UpdateSession Header Copying Fix", () => {
 
   it("should handle multiple set-cookie headers correctly in Pages Router", async () => {
     await client.updateSession(mockPagesRouterReq, mockPagesRouterRes, {
-      nickname: "updated_user",
+      ...mockSession,
+      user: { ...mockSession.user, nickname: "updated_user" },
       test_data: "updated_value"
     });
 
@@ -77,8 +86,8 @@ describe("UpdateSession Header Copying Fix", () => {
 
   it("should preserve all cookies including legacy deletion cookies", async () => {
     // Mock session store to definitely include legacy cookie deletion
-    vi.spyOn(client.sessionStore, "set").mockImplementation(
-      async (reqCookies, resCookies, session) => {
+    vi.spyOn(client["sessionStore"], "set").mockImplementation(
+      async (_reqCookies, resCookies) => {
         // All cookies should have consistent path from cookieConfig (default: "/")
         resCookies.set("appSession", "new_session_value", { path: "/" });
         resCookies.set("appSession.1", "chunk_1", { path: "/" });
@@ -88,7 +97,8 @@ describe("UpdateSession Header Copying Fix", () => {
     );
 
     await client.updateSession(mockPagesRouterReq, mockPagesRouterRes, {
-      nickname: "test_user_updated"
+      ...mockSession,
+      user: { ...mockSession.user, nickname: "test_user_updated" }
     });
 
     const setCookieHeader = mockPagesRouterRes.headers["set-cookie"];
@@ -97,7 +107,6 @@ describe("UpdateSession Header Copying Fix", () => {
 
     // Verify specific cookies
     const cookieString = setCookieHeader.join(" | ");
-    console.log(cookieString)
     expect(cookieString).toContain("appSession=new_session_value; Path=/");
     expect(cookieString).toContain("appSession.1=chunk_1; Path=/");
     expect(cookieString).toContain("appSession.2=chunk_2; Path=/");
@@ -107,12 +116,13 @@ describe("UpdateSession Header Copying Fix", () => {
 
   it("should not call setHeader for set-cookie if no cookies are set", async () => {
     // Mock session store to set no cookies
-    vi.spyOn(client.sessionStore, "set").mockImplementation(async () => {
+    vi.spyOn(client["sessionStore"], "set").mockImplementation(async () => {
       // Don't set any cookies
     });
 
     await client.updateSession(mockPagesRouterReq, mockPagesRouterRes, {
-      nickname: "test_user"
+      ...mockSession,
+      user: { ...mockSession.user, nickname: "test_user" }
     });
 
     // Should not have set any set-cookie header
@@ -121,8 +131,8 @@ describe("UpdateSession Header Copying Fix", () => {
 
   it("should handle non-cookie headers normally", async () => {
     // Mock session store to set both cookies and other headers
-    vi.spyOn(client.sessionStore, "set").mockImplementation(
-      async (reqCookies, resCookies, session) => {
+    vi.spyOn(client["sessionStore"], "set").mockImplementation(
+      async (_reqCookies, resCookies) => {
         resCookies.set("appSession", "test_value");
         // Simulate setting a custom header (this wouldn't normally happen in StatelessSessionStore, but test the logic)
         const headers = (resCookies as any).headers || new Headers();
@@ -131,7 +141,8 @@ describe("UpdateSession Header Copying Fix", () => {
     );
 
     await client.updateSession(mockPagesRouterReq, mockPagesRouterRes, {
-      nickname: "test_user"
+      ...mockSession,
+      user: { ...mockSession.user, nickname: "test_user" }
     });
 
     // Should have both the cookie array and the custom header
