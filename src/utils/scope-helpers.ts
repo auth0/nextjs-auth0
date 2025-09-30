@@ -1,3 +1,4 @@
+import { InvalidConfigurationError } from "../errors/index.js";
 import { AuthorizationParameters } from "../types/index.js";
 import { DEFAULT_SCOPES } from "./constants.js";
 
@@ -45,7 +46,8 @@ export function ensureDefaultScope(
  * If the scope is null or undefined, undefined is returned.
  * @param scope The scope, either as a string, null/undefined, or a Map of audience to scope.
  * @param audience The audience to look up in the scope map
- * @returns
+ * @returns The scope string for the given audience, or undefined if not found or if scope is null/undefined.
+ * @throws {InvalidConfigurationError} If scope is defined as a map but no audience is provided.
  */
 export function getScopeForAudience(
   scope: string | null | undefined | { [key: string]: string },
@@ -65,7 +67,7 @@ export function getScopeForAudience(
   // We throw an error to inform the user that an audience is required
   // Which is required to use MRRT altogether.
   if (!audience) {
-    throw new Error(
+    throw new InvalidConfigurationError(
       "When defining scope as a Map, an audience is required to look up the correct scope."
     );
   }
