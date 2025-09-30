@@ -45,6 +45,7 @@ import {
 } from "./session/abstract-session-store.js";
 import { StatefulSessionStore } from "./session/stateful-session-store.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
+import { TokenRequestCache } from "./token-request-cache.js";
 import {
   TransactionCookieOptions,
   TransactionStore
@@ -233,6 +234,9 @@ export class Auth0Client {
   private authClient: AuthClient;
   private routes: Routes;
   #options: Auth0ClientOptions;
+
+  // Cache for in-flight token requests to prevent race conditions
+  #tokenRequestCache = new TokenRequestCache();
 
   constructor(options: Auth0ClientOptions = {}) {
     this.#options = options;
@@ -476,6 +480,25 @@ export class Auth0Client {
       };
     }
 
+    // Execute the token request with caching to avoid duplicate in-flight requests
+    return this.#tokenRequestCache.execute(
+      () => this.executeGetAccessToken(req, res, options),
+      {
+        options,
+        authorizationParameters: this.#options.authorizationParameters
+      }
+    );
+  }
+
+  /**
+   * Core implementation of getAccessToken that performs the actual token retrieval.
+   * This is separated to enable request coalescing via the cache.
+   */
+  private async executeGetAccessToken(
+    req: PagesRouterRequest | NextRequest | undefined,
+    res: PagesRouterResponse | NextResponse | undefined,
+    options: GetAccessTokenOptions
+  ): Promise<{ token: string; expiresAt: number; scope?: string }> {
     const session: SessionData | null = req
       ? await this.getSession(req)
       : await this.getSession();
