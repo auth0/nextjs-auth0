@@ -92,14 +92,11 @@ export function getSessionChangesAfterGetAccessToken(
     //
     // This avoids having multiple entries for the same provided scope, which would lead to unnecessary token requests.
     // This also ensure, next time around when we request a token of scope "a b" or "a c", we will find the same existing entry in the cache, with provided scope set to "a".
-    existingAccessTokenSet = findAccessTokenSet(
-      session,
-      {
-        scope: tokenSet.scope,
-        audience,
-        matchMode: "scope"
-      }
-    );
+    existingAccessTokenSet = findAccessTokenSet(session, {
+      scope: tokenSet.scope,
+      audience,
+      matchMode: "scope"
+    });
 
     if (existingAccessTokenSet) {
       // We need to update the requestedScope to be a combination of both matches
@@ -138,7 +135,7 @@ export function getSessionChangesAfterGetAccessToken(
           accessToken === existingAccessTokenSet
             ? accessTokenSetFromTokenSet(
                 {
-                  ...tokenSet,
+                  ...tokenSet
                 },
                 { audience }
               )

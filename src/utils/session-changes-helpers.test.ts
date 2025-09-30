@@ -68,11 +68,7 @@ describe("session-changes-helpers", () => {
       };
 
       expect(
-        getSessionChangesAfterGetAccessToken(
-          session,
-          tokenSet,
-          globalOptions
-        )
+        getSessionChangesAfterGetAccessToken(session, tokenSet, globalOptions)
       ).toEqual({
         tokenSet: {
           accessToken: tokenSet.accessToken,
@@ -104,11 +100,7 @@ describe("session-changes-helpers", () => {
       };
 
       expect(
-        getSessionChangesAfterGetAccessToken(
-          session,
-          tokenSet,
-          globalOptions
-        )
+        getSessionChangesAfterGetAccessToken(session, tokenSet, globalOptions)
       ).toEqual({
         tokenSet: {
           ...session.tokenSet,
@@ -160,11 +152,7 @@ describe("session-changes-helpers", () => {
       };
 
       expect(
-        getSessionChangesAfterGetAccessToken(
-          session,
-          tokenSet,
-          globalOptions
-        )
+        getSessionChangesAfterGetAccessToken(session, tokenSet, globalOptions)
       ).toEqual({
         tokenSet: {
           ...session.tokenSet,
@@ -273,11 +261,7 @@ describe("session-changes-helpers", () => {
       const session = createSessionData({ accessTokens });
 
       expect(
-        getSessionChangesAfterGetAccessToken(
-          session,
-          tokenSet,
-          globalOptions
-        )
+        getSessionChangesAfterGetAccessToken(session, tokenSet, globalOptions)
       ).toEqual({
         tokenSet: {
           ...session.tokenSet,
@@ -341,11 +325,7 @@ describe("session-changes-helpers", () => {
       };
 
       expect(
-        getSessionChangesAfterGetAccessToken(
-          session,
-          tokenSet,
-          globalOptions
-        )
+        getSessionChangesAfterGetAccessToken(session, tokenSet, globalOptions)
       ).toEqual({
         tokenSet: {
           accessToken: tokenSet.accessToken,
@@ -392,11 +372,7 @@ describe("session-changes-helpers", () => {
       const session = createSessionData({ accessTokens });
 
       expect(
-        getSessionChangesAfterGetAccessToken(
-          session,
-          tokenSet,
-          globalOptions
-        )
+        getSessionChangesAfterGetAccessToken(session, tokenSet, globalOptions)
       ).toEqual({
         tokenSet: {
           accessToken: session.tokenSet.accessToken,

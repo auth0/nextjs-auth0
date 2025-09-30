@@ -283,7 +283,9 @@ describe("token-set-helpers", () => {
       const scopes = "a b";
       const requiredScopes = "a";
 
-      expect(compareScopes(scopes, requiredScopes, { strict: true })).toBe(false);
+      expect(compareScopes(scopes, requiredScopes, { strict: true })).toBe(
+        false
+      );
     });
 
     it("should match exact scopes", () => {
