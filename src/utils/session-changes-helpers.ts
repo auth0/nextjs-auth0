@@ -1,4 +1,4 @@
-import { SessionData, TokenSet, AccessTokenSet } from "../types/index.js";
+import { AccessTokenSet, SessionData, TokenSet } from "../types/index.js";
 import { getScopeForAudience } from "./scope-helpers.js";
 import {
   accessTokenSetFromTokenSet,
@@ -26,7 +26,7 @@ function isGlobalAudienceAndScope(
   const isAudienceTheGlobalAudience =
     !tokenSet.audience ||
     tokenSet.audience === (session.tokenSet.audience ?? globalOptions.audience);
-  
+
   const isScopeTheGlobalScope =
     !tokenSet.requestedScope ||
     // Compare against either the initially requested scope, or the global scope if no requested scope is set.
@@ -180,18 +180,32 @@ function handleSpecificAccessTokenUpdate(
 
     if (existingAccessTokenSet) {
       // We need to update the requestedScope to be a combination of both matches
-      const accessTokenChanges = updateExistingAccessTokenWithMergedScopes(session, tokenSet, existingAccessTokenSet, audience);
+      const accessTokenChanges = updateExistingAccessTokenWithMergedScopes(
+        session,
+        tokenSet,
+        existingAccessTokenSet,
+        audience
+      );
       return buildSessionChanges(session, tokenSet, accessTokenChanges);
     } else {
       // There is no access token found that matches the provided `audience` and `scope`.
       // We need to add a new entry to the array.
-      const accessTokenChanges = addNewAccessTokenSet(session, tokenSet, audience);
+      const accessTokenChanges = addNewAccessTokenSet(
+        session,
+        tokenSet,
+        audience
+      );
       return buildSessionChanges(session, tokenSet, accessTokenChanges);
     }
   } else {
     // There is an existing access token for the provided `audience` and `scope`.
     // We need to check if the access token changed, and if so, update it in the array.
-    const accessTokenChanges = updateExistingAccessTokenSet(session, tokenSet, existingAccessTokenSet, audience);
+    const accessTokenChanges = updateExistingAccessTokenSet(
+      session,
+      tokenSet,
+      existingAccessTokenSet,
+      audience
+    );
     return buildSessionChanges(session, tokenSet, accessTokenChanges);
   }
 }
