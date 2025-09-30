@@ -31,6 +31,7 @@ import {
   LogoutToken,
   SessionData,
   StartInteractiveLoginOptions,
+  SUBJECT_TOKEN_TYPES,
   TokenSet,
   User
 } from "../types/index.js";
@@ -86,15 +87,6 @@ const GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN =
   "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token";
 
 /**
- * Constant representing the subject type for a refresh token.
- * This is used in OAuth 2.0 token exchange to specify that the token being exchanged is a refresh token.
- *
- * @see {@link https://tools.ietf.org/html/rfc8693#section-3.1 RFC 8693 Section 3.1}
- */
-const SUBJECT_TYPE_REFRESH_TOKEN =
-  "urn:ietf:params:oauth:token-type:refresh_token";
-
-/**
  * A constant representing the token type for federated connection access tokens.
  * This is used to specify the type of token being requested from Auth0.
  *
@@ -132,6 +124,7 @@ export interface AuthClientOptions {
   appBaseUrl: string;
   signInReturnToPath?: string;
   logoutStrategy?: LogoutStrategy;
+  includeIdTokenHintInOIDCLogoutUrl?: boolean;
 
   beforeSessionSaved?: BeforeSessionSavedHook;
   onCallback?: OnCallbackHook;
@@ -170,6 +163,7 @@ export class AuthClient {
   private appBaseUrl: string;
   private signInReturnToPath: string;
   private logoutStrategy: LogoutStrategy;
+  private includeIdTokenHintInOIDCLogoutUrl: boolean;
 
   private beforeSessionSaved?: BeforeSessionSavedHook;
   private onCallback: OnCallbackHook;
@@ -268,6 +262,8 @@ export class AuthClient {
       logoutStrategy = "auto";
     }
     this.logoutStrategy = logoutStrategy;
+    this.includeIdTokenHintInOIDCLogoutUrl =
+      options.includeIdTokenHintInOIDCLogoutUrl ?? true;
 
     // hooks
     this.beforeSessionSaved = options.beforeSessionSaved;
@@ -410,12 +406,18 @@ export class AuthClient {
 
   async handleLogin(req: NextRequest): Promise<NextResponse> {
     const searchParams = Object.fromEntries(req.nextUrl.searchParams.entries());
+
+    // Always forward all parameters
+    // When PAR is disabled, parameters go to authorization URL as before
+    // When PAR is enabled, all parameters are sent securely in the PAR request body
+
+    // do not pass returnTo as part of authorizationParameters
+    // returnTo should only be used in txn state
+    const { returnTo, ...authorizationParameters } = searchParams;
+
     const options: StartInteractiveLoginOptions = {
-      // SECURITY CRITICAL: Only forward query params when PAR is disabled
-      authorizationParameters: !this.pushedAuthorizationRequests
-        ? searchParams
-        : {},
-      returnTo: searchParams.returnTo
+      authorizationParameters,
+      returnTo: returnTo
     };
     return this.startInteractiveLogin(options);
   }
@@ -440,11 +442,17 @@ export class AuthClient {
 
     const returnTo =
       req.nextUrl.searchParams.get("returnTo") || this.appBaseUrl;
+    const federated = req.nextUrl.searchParams.has("federated");
 
     const createV2LogoutResponse = (): NextResponse => {
       const url = new URL("/v2/logout", this.issuer);
       url.searchParams.set("returnTo", returnTo);
       url.searchParams.set("client_id", this.clientMetadata.client_id);
+
+      if (federated) {
+        url.searchParams.set("federated", "");
+      }
+
       return NextResponse.redirect(url);
     };
 
@@ -457,8 +465,12 @@ export class AuthClient {
         url.searchParams.set("logout_hint", session.internal.sid);
       }
 
-      if (session?.tokenSet.idToken) {
+      if (this.includeIdTokenHintInOIDCLogoutUrl && session?.tokenSet.idToken) {
         url.searchParams.set("id_token_hint", session.tokenSet.idToken);
+      }
+
+      if (federated) {
+        url.searchParams.set("federated", "");
       }
 
       return NextResponse.redirect(url);
@@ -1289,8 +1301,19 @@ export class AuthClient {
       const params = new URLSearchParams();
 
       params.append("connection", options.connection);
-      params.append("subject_token_type", SUBJECT_TYPE_REFRESH_TOKEN);
-      params.append("subject_token", tokenSet.refreshToken);
+
+      const subjectTokenType =
+        options.subject_token_type ??
+        SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_REFRESH_TOKEN;
+
+      const subjectToken =
+        subjectTokenType === SUBJECT_TOKEN_TYPES.SUBJECT_TYPE_ACCESS_TOKEN
+          ? tokenSet.accessToken
+          : tokenSet.refreshToken;
+
+      params.append("subject_token_type", subjectTokenType);
+      params.append("subject_token", subjectToken);
+
       params.append(
         "requested_token_type",
         REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN
