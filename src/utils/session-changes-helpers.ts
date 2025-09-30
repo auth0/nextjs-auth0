@@ -3,7 +3,8 @@ import { getScopeForAudience } from "./scope-helpers.js";
 import {
   accessTokenSetFromTokenSet,
   compareScopes,
-  findAccessTokenSet
+  findAccessTokenSet,
+  mergeScopes
 } from "./token-set-helpers.js";
 
 /**
@@ -16,14 +17,12 @@ import {
  * If no changes are needed, it returns undefined.
  * @param session The original session data
  * @param tokenSet The, potentially, new TokenSet obtained
- * @param options Options containing the audience and scope for which the tokenSet was obtained
  * @param globalOptions The global audience and scope configured for the Auth0Client
  * @returns Partial session changes or undefined if no changes are needed
  */
 export function getSessionChangesAfterGetAccessToken(
   session: SessionData,
   tokenSet: TokenSet,
-  options: { scope?: string | null; audience?: string | null },
   globalOptions: {
     scope?: string | null | undefined | { [key: string]: string };
     audience?: string | null | undefined;
@@ -32,12 +31,20 @@ export function getSessionChangesAfterGetAccessToken(
   // Since globalOptions.scope can be a map of audience to scopes, we need to get the correct scope for the current audience.
   const globalScope = getScopeForAudience(
     globalOptions.scope,
-    options.audience ?? globalOptions.audience
+    tokenSet.audience ?? globalOptions.audience
   );
   const isAudienceTheGlobalAudience =
-    !options.audience || options.audience === globalOptions.audience;
+    !tokenSet.audience ||
+    tokenSet.audience === (session.tokenSet.audience ?? globalOptions.audience);
   const isScopeTheGlobalScope =
-    !options.scope || compareScopes(globalScope, options.scope);
+    !tokenSet.requestedScope ||
+    // Compare against either the initially requested scope, or the global scope if no requested scope is set.
+    // Typically, the requestedScope should always be set, but in case of legacy sessions it might not be so we need to fall-back
+    // to the global scope if that is the case.
+    compareScopes(
+      session.tokenSet.requestedScope ?? globalScope,
+      tokenSet.requestedScope
+    );
 
   // If we are using the global audience and scope, we need to check if the access token or refresh token changed in `SessionData.tokenSet`.
   // We do not have to change anything to the `accessTokens` array inside `SessionData` in this case, so we can just return.
@@ -59,30 +66,69 @@ export function getSessionChangesAfterGetAccessToken(
   // If we aren't using the global audience and scope,
   // we need to check if the corresponding access token changed in `SessionData.accessTokens`.
   // We will also have to update the refreshToken and idToken as needed
-  const audience = options.audience ?? globalOptions.audience;
-  const scope = options.scope ?? globalScope ?? undefined;
+  const audience = tokenSet.audience ?? globalOptions.audience;
+  const scope = tokenSet.requestedScope ?? globalScope ?? undefined;
 
   // If there is no audience, we cannot find the correct access token in the array
   if (!audience) {
     return;
   }
 
-  const existingAccessTokenSet = findAccessTokenSet(session, {
+  // This finds the entry where we have a match based on the requestedScope.
+  let existingAccessTokenSet = findAccessTokenSet(session, {
     scope,
-    audience
+    audience,
+    matchMode: "requestedScope"
   });
 
   let sessionChanges: Pick<SessionData, "accessTokens"> | undefined = undefined;
 
   if (!existingAccessTokenSet) {
-    // There is no access token found matches the provided `audience` and `scope`.
-    // We need to add a new entry to the array.
-    sessionChanges = {
-      accessTokens: [
-        ...(session.accessTokens || []),
-        accessTokenSetFromTokenSet(tokenSet, { audience })
-      ]
-    };
+    // If there is no specific match based on the requestedScope, we may want to see if there is a match based on the actual scope retrieved.
+    // If that is the case, we need to store them together:
+    // - When the cache has an entry with scope "a" and requestedScope "a b"
+    // - and we request a new token with requestedScope "a c" for the same audience, resulting in scope "a"
+    // - we want to update the existing entry to have a requested scope of "a b c".
+    //
+    // This avoids having multiple entries for the same provided scope, which would lead to unnecessary token requests.
+    // This also ensure, next time around when we request a token of scope "a b" or "a c", we will find the same existing entry in the cache, with provided scope set to "a".
+    existingAccessTokenSet = findAccessTokenSet(
+      session,
+      {
+        scope: tokenSet.scope,
+        audience,
+        matchMode: "scope"
+      }
+    );
+
+    if (existingAccessTokenSet) {
+      // We need to update the requestedScope to be a combination of both matches
+      sessionChanges = {
+        accessTokens: session.accessTokens?.map((accessToken) =>
+          accessToken === existingAccessTokenSet
+            ? accessTokenSetFromTokenSet(
+                {
+                  ...tokenSet,
+                  requestedScope: mergeScopes(
+                    accessToken.requestedScope,
+                    tokenSet.requestedScope
+                  )
+                },
+                { audience }
+              )
+            : accessToken
+        )
+      };
+    } else {
+      // There is no access token found matches the provided `audience` and `scope`.
+      // We need to add a new entry to the array.
+      sessionChanges = {
+        accessTokens: [
+          ...(session.accessTokens || []),
+          accessTokenSetFromTokenSet(tokenSet, { audience })
+        ]
+      };
+    }
   } else {
     // There is an existing access token for the provided `audience` and `scope`.
     // We need to check if the access token changed, and if so, update it in the array.
@@ -90,7 +136,12 @@ export function getSessionChangesAfterGetAccessToken(
       sessionChanges = {
         accessTokens: session.accessTokens?.map((accessToken) =>
           accessToken === existingAccessTokenSet
-            ? accessTokenSetFromTokenSet(tokenSet, { audience })
+            ? accessTokenSetFromTokenSet(
+                {
+                  ...tokenSet,
+                },
+                { audience }
+              )
             : accessToken
         )
       };

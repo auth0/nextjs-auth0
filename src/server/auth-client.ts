@@ -387,7 +387,9 @@ export class AuthClient {
       codeVerifier,
       responseType: "code",
       state,
-      returnTo
+      returnTo,
+      scope: authorizationParams.get("scope") || undefined,
+      audience: authorizationParams.get("audience") || undefined
     };
 
     // Generate authorization URL with PAR handling
@@ -640,6 +642,8 @@ export class AuthClient {
         accessToken: oidcRes.access_token,
         idToken: oidcRes.id_token,
         scope: oidcRes.scope,
+        requestedScope: transactionState.scope,
+        audience: transactionState.audience,
         refreshToken: oidcRes.refresh_token,
         expiresAt: Math.floor(Date.now() / 1000) + Number(oidcRes.expires_in)
       },
@@ -732,7 +736,6 @@ export class AuthClient {
     const sessionChanges = getSessionChangesAfterGetAccessToken(
       session,
       updatedTokenSet,
-      { scope: scope, audience },
       {
         scope: this.authorizationParameters?.scope,
         audience: this.authorizationParameters?.audience
@@ -818,15 +821,18 @@ export class AuthClient {
       options.scope ??
       getScopeForAudience(this.authorizationParameters.scope, audience);
 
-    // When audience and scope are provided, we need to compare them with the original ones provided in the Auth0Client constructor.
+    // When audience and scope are provided, we need to compare them with the original ones provided in either the `SessionData.tokenSet` itself, or the Auth0Client constructor.
     // When they are identical, we should read from the top-level `SessionData.tokenSet`.
     // If not, we should look for the corresponding access token in `SessionData.accessTokens`
     const isAudienceTheGlobalAudience =
-      !audience || audience === this.authorizationParameters.audience;
+      !audience ||
+      audience === (tokenSet.audience ?? this.authorizationParameters.audience);
+
     const isScopeTheGlobalScope =
       !scope ||
       compareScopes(
-        getScopeForAudience(this.authorizationParameters.scope, audience),
+        tokenSet.requestedScope ??
+          getScopeForAudience(this.authorizationParameters.scope, audience),
         scope
       );
 
@@ -975,16 +981,22 @@ export class AuthClient {
           ...tokenSet, // contains the existing `iat` claim to maintain the session lifetime
           accessToken: oauthRes.access_token,
           idToken: oauthRes.id_token,
-          // We store the requested scopes on the tokenSet, so we know what scopes were requested.
-          // We do not store the returned scopes from the `oauthRes` object.
+          // We store the bot requested and granted scopes on the tokenSet, so we know what scopes were requested.
           // The server may return less scopes than requested.
-          // This ensures we can return the same token again when a token for the same or less scopes is requested.
+          // This ensures we can return the same token again when a token for the same or less scopes is requested by using `requestedScope` during look-up.
           //
           // E.g. When requesting a token with scope `a b`, and we return one for scope `a` only,
-          // - If we store the returned scopes, we cannot return this token when the user requests a token for scope `a b` again.
-          // - If we store the requested scopes, we can return this token when the user requests a token for scope `a` or `a b` again.
-          scope: tokenSet.scope ?? scope,
-          expiresAt: accessTokenExpiresAt
+          // - If we only store the returned scopes, we cannot return this token when the user requests a token for scope `a b` again.
+          // - If we only store the requested scopes, we lose track of the actual scopes granted.
+          //
+          // Scopes actually granted by the server
+          scope: oauthRes.scope,
+          // Scopes requested by the client
+          requestedScope: scope,
+          expiresAt: accessTokenExpiresAt,
+          // Keep the audience if it exists, otherwise use the one from the options.
+          // If not provided, use `undefined`.
+          audience: tokenSet.audience ?? options.audience ?? undefined
         };
 
         if (oauthRes.refresh_token) {

@@ -29,7 +29,7 @@ describe("session-changes-helpers", () => {
       };
 
       expect(
-        getSessionChangesAfterGetAccessToken(session, tokenSet, {}, {})
+        getSessionChangesAfterGetAccessToken(session, tokenSet, {})
       ).toEqual({
         tokenSet: {
           accessToken: tokenSet.accessToken,
@@ -47,7 +47,7 @@ describe("session-changes-helpers", () => {
       };
 
       expect(
-        getSessionChangesAfterGetAccessToken(session, tokenSet, {}, {})
+        getSessionChangesAfterGetAccessToken(session, tokenSet, {})
       ).toBeUndefined();
     });
 
@@ -57,9 +57,12 @@ describe("session-changes-helpers", () => {
         accessToken: "<my_new_access_token>",
         idToken: "<my_new_id_token>",
         refreshToken: "<my_new_refresh_token>",
-        expiresAt: Date.now() / 1000 + 7200
+        expiresAt: Date.now() / 1000 + 7200,
+        requestedScope: "read:messages",
+        scope: "read:messages",
+        audience: "https://api.example.com"
       };
-      const options = {
+      const globalOptions = {
         scope: "read:messages",
         audience: "https://api.example.com"
       };
@@ -68,15 +71,18 @@ describe("session-changes-helpers", () => {
         getSessionChangesAfterGetAccessToken(
           session,
           tokenSet,
-          options,
-          options
+          globalOptions
         )
       ).toEqual({
         tokenSet: {
           accessToken: tokenSet.accessToken,
           expiresAt: tokenSet.expiresAt,
           idToken: tokenSet.idToken,
-          refreshToken: tokenSet.refreshToken
+          refreshToken: tokenSet.refreshToken,
+          // TODO: Do we want to add these to the main tokenSet?
+          requestedScope: "read:messages",
+          scope: "read:messages",
+          audience: "https://api.example.com"
         }
       });
     });
@@ -88,12 +94,10 @@ describe("session-changes-helpers", () => {
         idToken: "<my_new_id_token>",
         refreshToken: "<my_new_refresh_token>",
         expiresAt: Date.now() / 1000 + 7200,
-        scope: "write:messages"
-      };
-      const options = {
         scope: "write:messages",
         audience: "https://api.example.com"
       };
+
       const globalOptions = {
         scope: "read:messages",
         audience: "https://read-api.example.com"
@@ -103,7 +107,6 @@ describe("session-changes-helpers", () => {
         getSessionChangesAfterGetAccessToken(
           session,
           tokenSet,
-          options,
           globalOptions
         )
       ).toEqual({
@@ -117,7 +120,7 @@ describe("session-changes-helpers", () => {
             accessToken: tokenSet.accessToken,
             expiresAt: tokenSet.expiresAt,
             scope: tokenSet.scope,
-            audience: options.audience
+            audience: tokenSet.audience
           }
         ]
       });
@@ -129,9 +132,6 @@ describe("session-changes-helpers", () => {
         idToken: "<my_new_id_token>",
         refreshToken: "<my_new_refresh_token>",
         expiresAt: Date.now() / 1000 + 7200,
-        scope: "write:messages"
-      };
-      const options = {
         scope: "write:messages",
         audience: "https://api.example.com"
       };
@@ -140,12 +140,14 @@ describe("session-changes-helpers", () => {
           {
             accessToken: "<my_old_access_token>",
             expiresAt: Date.now() / 1000 + 7200,
-            scope: options.scope,
-            audience: options.audience
+            requestedScope: tokenSet.scope,
+            scope: tokenSet.scope,
+            audience: tokenSet.audience
           },
           {
             accessToken: "<my_access_token>",
             expiresAt: Date.now() / 1000 + 7200,
+            requestedScope: "scope-a",
             scope: "scope-a",
             audience: "<another_audience>"
           }
@@ -161,7 +163,6 @@ describe("session-changes-helpers", () => {
         getSessionChangesAfterGetAccessToken(
           session,
           tokenSet,
-          options,
           globalOptions
         )
       ).toEqual({
@@ -175,12 +176,14 @@ describe("session-changes-helpers", () => {
             accessToken: tokenSet.accessToken,
             expiresAt: tokenSet.expiresAt,
             scope: tokenSet.scope,
-            audience: options.audience
+            requestedScope: tokenSet.scope,
+            audience: tokenSet.audience
           },
           {
             accessToken: session.accessTokens![1].accessToken,
             expiresAt: session.accessTokens![1].expiresAt,
             scope: session.accessTokens![1].scope,
+            requestedScope: session.accessTokens![1].requestedScope,
             audience: session.accessTokens![1].audience
           }
         ]
@@ -193,16 +196,13 @@ describe("session-changes-helpers", () => {
         accessToken: "<my_new_access_token>",
         idToken: "<my_new_id_token>",
         refreshToken: "<my_new_refresh_token>",
-        expiresAt: Date.now() / 1000 + 7200
+        expiresAt: Date.now() / 1000 + 7200,
+        scope: "a",
+        requestedScope: "a"
       };
 
       expect(
-        getSessionChangesAfterGetAccessToken(
-          session,
-          tokenSet,
-          { scope: "a" },
-          {}
-        )
+        getSessionChangesAfterGetAccessToken(session, tokenSet, {})
       ).toBeUndefined();
     });
 
@@ -213,15 +213,12 @@ describe("session-changes-helpers", () => {
         idToken: "<my_new_id_token>",
         refreshToken: "<my_new_refresh_token>",
         expiresAt: Date.now() / 1000 + 7200,
-        scope: "default-scope"
-      };
-
-      const options = {
+        scope: "default-scope",
         audience: "https://api.example.com"
       };
 
       expect(
-        getSessionChangesAfterGetAccessToken(session, tokenSet, options, {
+        getSessionChangesAfterGetAccessToken(session, tokenSet, {
           scope: "default-scope"
         })
       ).toEqual({
@@ -241,21 +238,77 @@ describe("session-changes-helpers", () => {
       });
     });
 
+    it("should get the sessionChanges when scope and audience is provided and are not the global values and requested scope differ, but provided scope are identical", () => {
+      const tokenSet = {
+        accessToken: "<my_new_access_token>",
+        idToken: "<my_new_id_token>",
+        refreshToken: "<my_new_refresh_token>",
+        expiresAt: Date.now() / 1000 + 7200,
+        scope: "a",
+        requestedScope: "a c",
+        audience: "https://api.example.com"
+      };
+
+      const globalOptions = {
+        scope: "read:messages",
+        audience: "https://read-api.example.com"
+      };
+
+      const accessTokens = [
+        {
+          accessToken: "<my_access_token_1>",
+          expiresAt: Date.now() / 1000 + 7200,
+          scope: "a",
+          requestedScope: "a b",
+          audience: "https://api.example.com"
+        },
+        {
+          accessToken: "<my_access_token_2>",
+          expiresAt: Date.now() / 1000 + 7200,
+          scope: "scope-1",
+          audience: "https://api.example.com"
+        }
+      ];
+
+      const session = createSessionData({ accessTokens });
+
+      expect(
+        getSessionChangesAfterGetAccessToken(
+          session,
+          tokenSet,
+          globalOptions
+        )
+      ).toEqual({
+        tokenSet: {
+          ...session.tokenSet,
+          idToken: tokenSet.idToken,
+          refreshToken: tokenSet.refreshToken
+        },
+        accessTokens: [
+          {
+            accessToken: tokenSet.accessToken,
+            expiresAt: tokenSet.expiresAt,
+            scope: "a",
+            requestedScope: "a b c",
+            audience: "https://api.example.com"
+          },
+          accessTokens[1]
+        ]
+      });
+    });
+
     it("should get the sessionChanges when audience is provided, but no scope is provided and no global scope is available", () => {
       const session = createSessionData();
       const tokenSet = {
         accessToken: "<my_new_access_token>",
         idToken: "<my_new_id_token>",
         refreshToken: "<my_new_refresh_token>",
-        expiresAt: Date.now() / 1000 + 7200
-      };
-
-      const options = {
+        expiresAt: Date.now() / 1000 + 7200,
         audience: "https://api.example.com"
       };
 
       expect(
-        getSessionChangesAfterGetAccessToken(session, tokenSet, options, {})
+        getSessionChangesAfterGetAccessToken(session, tokenSet, {})
       ).toEqual({
         tokenSet: {
           ...session.tokenSet,
@@ -291,7 +344,6 @@ describe("session-changes-helpers", () => {
         getSessionChangesAfterGetAccessToken(
           session,
           tokenSet,
-          {},
           globalOptions
         )
       ).toEqual({
@@ -301,6 +353,67 @@ describe("session-changes-helpers", () => {
           idToken: tokenSet.idToken,
           refreshToken: tokenSet.refreshToken
         }
+      });
+    });
+
+    it("should get the sessionChanges when access token entry found but access token is different", () => {
+      const tokenSet = {
+        accessToken: "<my_new_access_token>",
+        idToken: "<my_new_id_token>",
+        refreshToken: "<my_new_refresh_token>",
+        expiresAt: Date.now() / 1000 + 7200,
+        scope: "read:messages write:messages",
+        requestedScope: "read:messages write:messages",
+        audience: "https://api.example.com"
+      };
+
+      const globalOptions = {
+        scope: "read:messages",
+        audience: "https://api.example.com"
+      };
+
+      const accessTokens = [
+        {
+          accessToken: "<my_access_token>",
+          scope: "read:messages write:messages",
+          requestedScope: "read:messages write:messages",
+          expiresAt: Date.now() / 1000 + 3600,
+          audience: "https://api.example.com"
+        },
+        {
+          accessToken: "<my_other_access_token>",
+          scope: "read:projects",
+          requestedScope: "read:projects",
+          expiresAt: Date.now() / 1000 + 3600,
+          audience: "https://api.example.com"
+        }
+      ];
+
+      const session = createSessionData({ accessTokens });
+
+      expect(
+        getSessionChangesAfterGetAccessToken(
+          session,
+          tokenSet,
+          globalOptions
+        )
+      ).toEqual({
+        tokenSet: {
+          accessToken: session.tokenSet.accessToken,
+          expiresAt: session.tokenSet.expiresAt,
+          idToken: tokenSet.idToken,
+          refreshToken: tokenSet.refreshToken
+        },
+        accessTokens: [
+          {
+            accessToken: tokenSet.accessToken,
+            scope: tokenSet.scope,
+            requestedScope: tokenSet.requestedScope,
+            expiresAt: tokenSet.expiresAt,
+            audience: "https://api.example.com"
+          },
+          accessTokens[1]
+        ]
       });
     });
   });

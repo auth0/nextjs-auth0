@@ -5382,7 +5382,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           tokenEndpointResponse: {
             token_type: "Bearer",
             access_token: DEFAULT.accessToken,
-            expires_in: 86400 // expires in 10 days
+            expires_in: 86400, // expires in 10 days
+            scope: "openid profile email offline_access"
           } as oauth.TokenEndpointResponse
         })
       });
@@ -5402,7 +5403,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         accessToken: DEFAULT.accessToken,
         refreshToken: DEFAULT.refreshToken,
         expiresAt: expect.any(Number),
-        scope: "openid profile email offline_access"
+        scope: "openid profile email offline_access",
+        requestedScope: "openid profile email offline_access"
       });
     });
 
@@ -5516,7 +5518,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
               token_type: "Bearer",
               access_token: DEFAULT.accessToken,
               refresh_token: "rt_456",
-              expires_in: 86400 // expires in 10 days
+              expires_in: 86400, // expires in 10 days,
+              scope: "openid profile email offline_access"
             } as oauth.TokenEndpointResponse
           })
         });
@@ -5536,6 +5539,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           accessToken: DEFAULT.accessToken,
           refreshToken: "rt_456",
           expiresAt: expect.any(Number),
+          requestedScope: "openid profile email offline_access",
           scope: "openid profile email offline_access"
         });
       });
@@ -5830,7 +5834,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           accessToken: DEFAULT.accessToken,
           refreshToken: DEFAULT.refreshToken,
           expiresAt: expect.any(Number),
-          scope: "openid profile email offline_access write:messages",
+          scope: "write:messages",
+          requestedScope: "openid profile email offline_access write:messages",
           audience: "https://api.example.com"
         });
       });
@@ -5860,8 +5865,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
             tokenEndpointResponse: {
               token_type: "Bearer",
               access_token: "<access_token_3>",
-              expires_in: 86400 // expires in 10 days,
-              //scope: "write:messages"
+              expires_in: 86400, // expires in 10 days,
+              scope: "write:messages"
             } as oauth.TokenEndpointResponse
           })
         });
@@ -5897,7 +5902,78 @@ ca/T0LLtgmbMmxSv/MmzIg==
           accessToken: "<access_token_3>",
           refreshToken: DEFAULT.refreshToken,
           expiresAt: expect.any(Number),
-          scope: "openid profile email offline_access write:messages"
+          scope: "write:messages",
+          requestedScope: "openid profile email offline_access write:messages"
+        });
+      });
+
+      it("should request the access token if no audience provided", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
+
+          authorizationParameters: {
+            audience: "audience",
+            scope: {
+              audience: "openid profile email offline_access"
+            }
+          },
+
+          fetch: getMockAuthorizationServer({
+            tokenEndpointResponse: {
+              token_type: "Bearer",
+              access_token: "<access_token_3>",
+              expires_in: 86400, // expires in 10 days,
+              scope: "write:messages"
+            } as oauth.TokenEndpointResponse
+          })
+        });
+
+        const tokenSet = {
+          accessToken: DEFAULT.accessToken,
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt: Math.floor(Date.now() / 1000) + 10 * 24 * 60 * 60
+        };
+
+        const accessTokens: AccessTokenSet[] = [
+          {
+            accessToken: "access_token_2",
+            expiresAt: Math.floor(Date.now() / 1000) + 10 * 24 * 60 * 60,
+            audience: "audience-1",
+            scope: "write:messages",
+            requestedScope: ""
+          }
+        ];
+
+        const [error, updatedTokenSet] = await authClient.getTokenSet(
+          createSessionData({ tokenSet, accessTokens }),
+          { audience: "audience-1" }
+        );
+        expect(error).toBeNull();
+        expect(updatedTokenSet?.tokenSet).toEqual({
+          accessToken: "access_token_2",
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt: expect.any(Number),
+          scope: "write:messages",
+          requestedScope: "",
+          audience: "audience-1"
+          //requestedScope: "openid profile email offline_access write:messages"
         });
       });
 

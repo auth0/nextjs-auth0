@@ -2,6 +2,7 @@ export interface TokenSet {
   accessToken: string;
   idToken?: string;
   scope?: string;
+  requestedScope?: string;
   refreshToken?: string;
   expiresAt: number; // the time at which the access token expires in seconds since epoch
   audience?: string;
@@ -18,6 +19,7 @@ export interface ConnectionTokenSet {
 export interface AccessTokenSet {
   accessToken: string;
   scope?: string;
+  requestedScope?: string;
   audience: string;
   expiresAt: number; // the time at which the access token expires in seconds since epoch
 }

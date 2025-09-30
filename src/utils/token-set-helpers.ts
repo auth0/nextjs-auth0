@@ -14,7 +14,8 @@ export function accessTokenSetFromTokenSet(
     accessToken: tokenSet.accessToken,
     expiresAt: tokenSet.expiresAt,
     audience: options.audience,
-    scope: tokenSet.scope
+    scope: tokenSet.scope,
+    requestedScope: tokenSet.requestedScope
   };
 }
 
@@ -35,6 +36,7 @@ export function tokenSetFromAccessTokenSet(
     accessToken: accessTokenSet?.accessToken,
     expiresAt: accessTokenSet?.expiresAt,
     scope: accessTokenSet?.scope,
+    requestedScope: accessTokenSet?.requestedScope,
     audience: accessTokenSet?.audience
   };
 }
@@ -53,11 +55,14 @@ function parseScopesToArray(scopes: string | undefined): string[] {
  * Compares two sets of scopes to determine if all required scopes are present in the provided scopes.
  * @param scopes Scopes to compare (space-separated string)
  * @param requiredScopes Scopes required to be present in the scopes (space-separated string)
+ * @param options Optional settings for comparison
+ * @param options.strict If true, requires an exact match of scopes (no extra scopes allowed)
  * @returns True if all required scopes are present in the scopes, false otherwise
  */
 export const compareScopes = (
   scopes: string | null | undefined,
-  requiredScopes: string | undefined
+  requiredScopes: string | undefined,
+  options: { strict?: boolean } = {}
 ): boolean => {
   // When the scopes and requiredScopes are exactly the same, return true
   if (scopes === requiredScopes) {
@@ -75,6 +80,10 @@ export const compareScopes = (
   const hasAllRequiredScopes = requiredScopesArray.every((scope) =>
     scopesSet.has(scope)
   );
+
+  if (options.strict) {
+    return hasAllRequiredScopes && scopesSet.size === requiredScopesSet.size;
+  }
 
   return hasAllRequiredScopes;
 };
@@ -114,7 +123,10 @@ export function mergeScopes(
  *    duplicate AccessTokenSet's.
  *
  * @param sessionData The session data containing accessTokens array.
- * @param options Object containing the scope and audience to match against.
+ * @param {Object} options
+ * @param {number} options.scope - The scope to match against (space-separated string).
+ * @param {string} options.audience - The audience to match against.
+ * @param {"requestedScope" | "scope"} [options.matchMode="requestedScope"] - The mode to use for matching scopes.
  * @returns The best matching AccessTokenSet, or undefined if no match is found.
  */
 export function findAccessTokenSet(
@@ -122,8 +134,10 @@ export function findAccessTokenSet(
   options: {
     scope?: string;
     audience: string;
+    matchMode?: "requestedScope" | "scope";
   }
 ): AccessTokenSet | undefined {
+  const matchMode = options.matchMode ?? "requestedScope";
   const accessTokenSets = sessionData?.accessTokens;
 
   // 1. When there are no access tokens, we can exit early.
@@ -137,7 +151,13 @@ export function findAccessTokenSet(
   const allMatches = accessTokenSets.filter((accessTokenSet) => {
     return (
       accessTokenSet.audience === options.audience &&
-      compareScopes(accessTokenSet.scope, options.scope)
+      compareScopes(
+        matchMode === "scope"
+          ? accessTokenSet.scope
+          : (accessTokenSet.requestedScope ?? accessTokenSet.scope),
+        options.scope,
+        { strict: matchMode === "scope" }
+      )
     );
   });
 

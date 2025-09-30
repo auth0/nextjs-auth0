@@ -19,6 +19,7 @@ import {
   StartInteractiveLoginOptions,
   User
 } from "../types/index.js";
+import { DEFAULT_SCOPES } from "../utils/constants.js";
 import { isRequest } from "../utils/request.js";
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
 import {
@@ -498,9 +499,8 @@ export class Auth0Client {
     const sessionChanges = getSessionChangesAfterGetAccessToken(
       session,
       tokenSet,
-      { scope: options.scope, audience: options.audience },
       {
-        scope: this.#options.authorizationParameters?.scope,
+        scope: this.#options.authorizationParameters?.scope ?? DEFAULT_SCOPES,
         audience: this.#options.authorizationParameters?.audience
       }
     );
