@@ -392,5 +392,188 @@ describe("session-changes-helpers", () => {
         ]
       });
     });
+
+    describe("no session changes cases", () => {
+      it("should return undefined when global audience/scope tokenSet has no changes", () => {
+        const expiresAt = Date.now() / 1000 + 3600;
+        const session = createSessionData({
+          tokenSet: {
+            accessToken: "<my_access_token>",
+            expiresAt,
+            refreshToken: "<my_refresh_token>",
+            idToken: "<my_id_token>"
+          }
+        });
+
+        const tokenSet = {
+          accessToken: "<my_access_token>",
+          expiresAt,
+          refreshToken: "<my_refresh_token>",
+          idToken: "<my_id_token>"
+        };
+
+        const globalOptions = {
+          scope: "read:messages",
+          audience: "https://api.example.com"
+        };
+
+        expect(
+          getSessionChangesAfterGetAccessToken(session, tokenSet, globalOptions)
+        ).toBeUndefined();
+      });
+
+      it("should return undefined when existing access token is the same", () => {
+        const tokenSet = {
+          accessToken: "<my_access_token>",
+          idToken: "<my_new_id_token>",
+          refreshToken: "<my_new_refresh_token>",
+          expiresAt: Date.now() / 1000 + 7200,
+          scope: "write:messages",
+          requestedScope: "write:messages",
+          audience: "https://api.example.com"
+        };
+
+        const globalOptions = {
+          scope: "read:messages",
+          audience: "https://read-api.example.com"
+        };
+
+        const accessTokens = [
+          {
+            accessToken: "<my_access_token>", // Same access token
+            scope: "write:messages",
+            requestedScope: "write:messages",
+            expiresAt: Date.now() / 1000 + 3600,
+            audience: "https://api.example.com"
+          }
+        ];
+
+        const session = createSessionData({ accessTokens });
+
+        expect(
+          getSessionChangesAfterGetAccessToken(session, tokenSet, globalOptions)
+        ).toBeUndefined();
+      });
+
+      it("should return undefined when there is no audience for specific access token", () => {
+        const session = createSessionData();
+        const tokenSet = {
+          accessToken: "<my_new_access_token>",
+          idToken: "<my_new_id_token>",
+          refreshToken: "<my_new_refresh_token>",
+          expiresAt: Date.now() / 1000 + 7200,
+          scope: "write:messages",
+          requestedScope: "write:messages"
+          // No audience
+        };
+
+        const globalOptions = {
+          scope: "read:messages"
+          // No audience
+        };
+
+        expect(
+          getSessionChangesAfterGetAccessToken(session, tokenSet, globalOptions)
+        ).toBeUndefined();
+      });
+
+      it("should return undefined when tokenSet matches global scope from session", () => {
+        const expiresAt = Date.now() / 1000 + 3600;
+        const session = createSessionData({
+          tokenSet: {
+            accessToken: "<my_access_token>",
+            expiresAt,
+            refreshToken: "<my_refresh_token>",
+            scope: "read:messages",
+            requestedScope: "read:messages"
+          }
+        });
+
+        const tokenSet = {
+          accessToken: "<my_access_token>",
+          expiresAt,
+          refreshToken: "<my_refresh_token>",
+          scope: "read:messages",
+          requestedScope: "read:messages"
+        };
+
+        const globalOptions = {
+          scope: "read:messages"
+        };
+
+        expect(
+          getSessionChangesAfterGetAccessToken(session, tokenSet, globalOptions)
+        ).toBeUndefined();
+      });
+
+      it("should return undefined when access token in accessTokens array is identical", () => {
+        const accessToken = "<my_access_token>";
+        const expiresAt = Date.now() / 1000 + 7200;
+
+        const accessTokens = [
+          {
+            accessToken,
+            scope: "write:messages delete:messages",
+            requestedScope: "write:messages delete:messages",
+            expiresAt,
+            audience: "https://api.example.com"
+          },
+          {
+            accessToken: "<other_access_token>",
+            scope: "read:projects",
+            requestedScope: "read:projects",
+            expiresAt,
+            audience: "https://other-api.example.com"
+          }
+        ];
+
+        const session = createSessionData({ accessTokens });
+
+        const tokenSet = {
+          accessToken, // Same token
+          idToken: "<my_id_token>",
+          refreshToken: "<my_refresh_token>",
+          expiresAt,
+          scope: "write:messages delete:messages",
+          requestedScope: "write:messages delete:messages",
+          audience: "https://api.example.com"
+        };
+
+        const globalOptions = {
+          scope: "read:messages",
+          audience: "https://global-api.example.com"
+        };
+
+        expect(
+          getSessionChangesAfterGetAccessToken(session, tokenSet, globalOptions)
+        ).toBeUndefined();
+      });
+
+      it("should return undefined when no audience and scope provided with no global options", () => {
+        const accessToken = "<my_access_token>";
+        const expiresAt = Date.now() / 1000 + 3600;
+
+        const session = createSessionData({
+          tokenSet: {
+            accessToken,
+            expiresAt,
+            refreshToken: "<my_refresh_token>"
+          }
+        });
+
+        const tokenSet = {
+          accessToken, // Same token
+          expiresAt,
+          refreshToken: "<my_refresh_token>"
+          // No idToken, so no changes
+        };
+
+        const globalOptions = {};
+
+        expect(
+          getSessionChangesAfterGetAccessToken(session, tokenSet, globalOptions)
+        ).toBeUndefined();
+      });
+    });
   });
 });

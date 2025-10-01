@@ -90,20 +90,23 @@ export const compareScopes = (
 
 /**
  * Merges two space-separated scope strings into one, removing duplicates.
+ * Properly handles whitespace by trimming and normalizing scope values.
  * @param scopes1 The first scope string
  * @param scopes2 The second scope string
- * @returns Merged scope string with unique scopes
+ * @returns Merged scope string with unique scopes, sorted alphabetically for consistency
  */
 export function mergeScopes(
   scopes1: string | undefined | null,
   scopes2: string | undefined | null
 ): string {
-  return [
-    ...(scopes1 ? scopes1.split(" ") : []),
-    ...(scopes2 ? scopes2.split(" ") : [])
-  ]
-    .filter((v, i, a) => v && a.indexOf(v) === i) // remove duplicates and empty strings
-    .join(" "); // join back to string;
+  const scopes1Array = scopes1 ? parseScopesToArray(scopes1) : [];
+  const scopes2Array = scopes2 ? parseScopesToArray(scopes2) : [];
+
+  // Use a Set to remove duplicates
+  const uniqueScopes = new Set([...scopes1Array, ...scopes2Array]);
+
+  // Convert back to array and join as a space-separated string
+  return Array.from(uniqueScopes).join(" ");
 }
 
 /**
