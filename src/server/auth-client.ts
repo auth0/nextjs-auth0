@@ -826,12 +826,12 @@ export class AuthClient {
     // If not, we should look for the corresponding access token in `SessionData.accessTokens`
     const isAudienceTheGlobalAudience =
       !audience ||
-      audience === (tokenSet.audience ?? this.authorizationParameters.audience);
+      audience === (tokenSet.audience || this.authorizationParameters.audience);
 
     const isScopeTheGlobalScope =
       !scope ||
       compareScopes(
-        tokenSet.requestedScope ??
+        tokenSet.requestedScope ||
           getScopeForAudience(this.authorizationParameters.scope, audience),
         scope
       );
@@ -996,7 +996,7 @@ export class AuthClient {
           expiresAt: accessTokenExpiresAt,
           // Keep the audience if it exists, otherwise use the one from the options.
           // If not provided, use `undefined`.
-          audience: tokenSet.audience ?? options.audience ?? undefined
+          audience: tokenSet.audience || options.audience || undefined
         };
 
         if (oauthRes.refresh_token) {
