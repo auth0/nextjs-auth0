@@ -85,7 +85,7 @@ function handleGlobalTokenSetUpdate(
  * @param audience The audience for the access token
  * @returns Updated session data with merged requested scopes but actual granted scopes from tokenSet
  */
-function updateExistingAccessTokenWithMergedScopes(
+function updateExistingAccessTokenWithMergedRequestedScopes(
   session: SessionData,
   tokenSet: TokenSet,
   existingAccessTokenSet: AccessTokenSet,
@@ -196,7 +196,7 @@ function handleSpecificAccessTokenUpdate(
 
     if (existingAccessTokenSet) {
       // We need to update the requestedScope to be a combination of both matches
-      const accessTokenChanges = updateExistingAccessTokenWithMergedScopes(
+      const accessTokenChanges = updateExistingAccessTokenWithMergedRequestedScopes(
         session,
         tokenSet,
         existingAccessTokenSet,
