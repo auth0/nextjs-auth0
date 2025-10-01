@@ -414,4 +414,56 @@ describe("Auth0Client - getAccessToken (MRRT)", () => {
     expect(sessionAccessTokenForAudience2).toBeDefined();
     expect(sessionAccessTokenForAudience2!.accessToken).toBe(token2);
   });
+
+  it("should get the matching access token with the least possible amount of granted scopes", async () => {
+    const audience1 = "https://api1.example.com";
+    const scope1 = "read:api1";
+    const scope2 = "read:api2";
+
+    const existingAcessToken1 = await createTestToken(audience1, scope1);
+    const existingAcessToken2 = await createTestToken(audience, scope2);
+
+    const session = {
+      user: { sub },
+      tokenSet: {
+        accessToken: "expired-access-token",
+        refreshToken: "test-refresh-token",
+        idToken: await createTestToken(testAuth0ClientConfig.clientId),
+        expiresAt: Math.floor(Date.now() / 1000) - 100 // Expired
+      },
+      accessTokens: [
+        {
+          audience: audience1,
+          scope: `${DEFAULT_SCOPES} A C`,
+          requestedScope: `${DEFAULT_SCOPES} A C`,
+          accessToken: existingAcessToken1,
+          // Not expired
+          expiresAt: Math.floor(Date.now() / 1000) + 3600
+        },
+        {
+          audience: audience1,
+          scope: `${DEFAULT_SCOPES} A`,
+          requestedScope: `${DEFAULT_SCOPES} A B`,
+          accessToken: existingAcessToken2,
+          // Expired!
+          expiresAt: Math.floor(Date.now() / 1000) + 3600
+        }
+      ],
+      internal: { sid, createdAt: Date.now() / 1000 }
+    };
+
+    vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
+      session
+    );
+
+    // Get token for audience 1
+    const result1 = await auth0Client.getAccessToken({
+      audience: audience1,
+      scope: "A"
+    });
+
+    // Verify tokens for each audience
+    const token1 = result1.token;
+    expect(token1).toBe(existingAcessToken2);
+  });
 });
