@@ -66,11 +66,24 @@ function handleGlobalTokenSetUpdate(
 
 /**
  * Updates an existing access token set with merged requested scopes.
+ *
+ * IMPORTANT: This function merges the requestedScope fields from both the existing
+ * and new token sets. The actual granted scopes (tokenSet.scope) come from the
+ * authorization server and represent what was actually granted for this specific request.
+ * We track both values to:
+ * 1. Know what scopes were originally requested (requestedScope)
+ * 2. Know what scopes were actually granted (scope)
+ *
+ * The merged requestedScope should never grant more permissions than what the
+ * authorization server would allow - it only tracks what has been requested across
+ * multiple token requests for the same audience. The actual permissions are always
+ * determined by the authorization server's response (tokenSet.scope).
+ *
  * @param session The current session data
- * @param tokenSet The new token set with updated scopes
+ * @param tokenSet The new token set with updated scopes from the authorization server
  * @param existingAccessTokenSet The existing access token set to update
  * @param audience The audience for the access token
- * @returns Updated session data with merged scopes
+ * @returns Updated session data with merged requested scopes but actual granted scopes from tokenSet
  */
 function updateExistingAccessTokenWithMergedScopes(
   session: SessionData,
@@ -84,10 +97,13 @@ function updateExistingAccessTokenWithMergedScopes(
         ? accessTokenSetFromTokenSet(
             {
               ...tokenSet,
+              // Use the merged requested scopes (of both existing and new entry) for lookup purposes
               requestedScope: mergeScopes(
                 accessToken.requestedScope,
                 tokenSet.requestedScope
-              )
+              ),
+              // Use the actual granted scope from the authorization server
+              scope: tokenSet.scope
             },
             { audience }
           )
