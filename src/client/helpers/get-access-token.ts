@@ -1,10 +1,17 @@
 import { AccessTokenError } from "../../errors/index.js";
 import { normalizeWithBasePath } from "../../utils/pathUtils.js";
 
-type AccessTokenOptions = {
+export type AccessTokenOptions = {
   scope?: string;
+  /**
+   * If you are passing audience, ensure that the used audiences and scopes are
+   * part of the Application's Refresh Token Policies in Auth0 when configuring Multi-Resource Refresh Tokens (MRRT).
+   * {@link https://auth0.com/docs/secure/tokens/refresh-tokens/multi-resource-refresh-token|See Auth0 Documentation on Multi-resource Refresh Tokens}
+   *
+   */
   audience?: string;
 };
+
 type AccessTokenResponse = {
   token: string;
   scope?: string;

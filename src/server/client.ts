@@ -434,6 +434,10 @@ export class Auth0Client {
   /**
    * getAccessToken returns the access token.
    *
+   * Please note: If you are passing audience, ensure that the used audiences and scopes are
+   * part of the Application's Refresh Token Policies in Auth0 when configuring Multi-Resource Refresh Tokens (MRRT).
+   * {@link https://auth0.com/docs/secure/tokens/refresh-tokens/multi-resource-refresh-token|See Auth0 Documentation on Multi-resource Refresh Tokens}
+   *
    * NOTE: Server Components cannot set cookies. Calling `getAccessToken()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not to be persisted.
    * It is recommended to call `getAccessToken(req, res)` in the middleware if you need to retrieve the access token in a Server Component to ensure the updated token set is persisted.
    */
@@ -970,5 +974,10 @@ export class Auth0Client {
 export type GetAccessTokenOptions = {
   refresh?: boolean;
   scope?: string;
+  /**
+   * Please note: If you are passing audience, ensure that the used audiences and scopes are
+   * part of the Application's Refresh Token Policies in Auth0 when configuring Multi-Resource Refresh Tokens (MRRT).
+   * {@link https://auth0.com/docs/secure/tokens/refresh-tokens/multi-resource-refresh-token|See Auth0 Documentation on Multi-resource Refresh Tokens}
+   */
   audience?: string;
 };
