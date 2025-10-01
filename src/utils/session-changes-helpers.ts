@@ -196,12 +196,13 @@ function handleSpecificAccessTokenUpdate(
 
     if (existingAccessTokenSet) {
       // We need to update the requestedScope to be a combination of both matches
-      const accessTokenChanges = updateExistingAccessTokenWithMergedRequestedScopes(
-        session,
-        tokenSet,
-        existingAccessTokenSet,
-        audience
-      );
+      const accessTokenChanges =
+        updateExistingAccessTokenWithMergedRequestedScopes(
+          session,
+          tokenSet,
+          existingAccessTokenSet,
+          audience
+        );
       return buildSessionChanges(session, tokenSet, accessTokenChanges);
     } else {
       // There is no access token found that matches the provided `audience` and `scope`.
