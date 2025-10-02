@@ -1,5 +1,4 @@
 import type { ParsedUrlQuery } from "querystring";
-import type React from "react";
 import {
   GetServerSideProps,
   GetServerSidePropsContext,
@@ -44,10 +43,11 @@ export type AppRouterPageRouteOpts = {
 
 /**
  * An app route that has been augmented with {@link WithPageAuthRequired}.
+ * Returns unknown to avoid React dependency while maintaining type safety.
  */
 export type AppRouterPageRoute = (
   obj: AppRouterPageRouteOpts
-) => Promise<React.JSX.Element>;
+) => Promise<unknown>;
 
 /**
  * If you have a custom returnTo url you should specify it in `returnTo`.
