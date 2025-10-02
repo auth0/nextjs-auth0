@@ -7273,9 +7273,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
         clientSecret: DEFAULT.clientSecret,
 
         authorizationParameters: {
-          audience: 'default-audience',
+          audience: "default-audience",
           scope: {
-            'default-audience': 'openid default-scope',
+            "default-audience": "openid default-scope"
           }
         },
 
@@ -7286,11 +7286,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
         fetch: getMockAuthorizationServer({
           onBackchannelAuthRequest: async (req) => {
             const formBody = await req.formData();
-            expect(formBody.get("scope")).toEqual('openid default-scope');
+            expect(formBody.get("scope")).toEqual("openid default-scope");
           }
         })
       });
-
 
       const [error, _] = await authClient.backchannelAuthentication({
         bindingMessage: "test-message",
@@ -7362,9 +7361,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
         clientSecret: DEFAULT.clientSecret,
 
         authorizationParameters: {
-          audience: 'default-audience',
+          audience: "default-audience",
           scope: {
-            'default-audience': 'openid default-scope',
+            "default-audience": "openid default-scope"
           }
         },
 
@@ -7386,7 +7385,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           sub: DEFAULT.sub
         },
         authorizationParams: {
-          audience: 'some-other-audience',
+          audience: "some-other-audience"
         }
       });
 
