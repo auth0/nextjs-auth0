@@ -11,6 +11,7 @@ import {
   SessionData,
   SUBJECT_TOKEN_TYPES
 } from "../types/index.js";
+import { DEFAULT_SCOPES } from "../utils/constants.js";
 import { AuthClient } from "./auth-client.js";
 import { decrypt, encrypt } from "./cookies.js";
 import { StatefulSessionStore } from "./session/stateful-session-store.js";
@@ -5545,7 +5546,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       });
     });
 
-    describe("when audience and scope are provided", () => {
+    describe("when audience or scope are provided", () => {
       it("should return the access token if it has not expired", async () => {
         const secret = await generateSecret(32);
         const transactionStore = new TransactionStore({
@@ -6035,6 +6036,75 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         expect(error?.code).toEqual("failed_to_refresh_token");
         expect(updatedTokenSet).toBeNull();
+      });
+
+      it("should return the access token if it has not expired when only the audience is specified", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          authorizationParameters: {
+            audience: "https://default.example.com",
+            scope: {
+              "https://default.example.com": DEFAULT_SCOPES
+            }
+          },
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
+
+          fetch: getMockAuthorizationServer()
+        });
+
+        const expiresAt = Math.floor(Date.now() / 1000) + 10 * 24 * 60 * 60; // expires in 10 days
+        const tokenSet = {
+          accessToken: DEFAULT.accessToken,
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt
+        };
+        const accessTokens: AccessTokenSet[] = [
+          {
+            accessToken: "<access_token_1>",
+            expiresAt,
+            audience: "https://api.example.com",
+            // The default scope for this audience is empty
+            requestedScope: "",
+            scope: "read:messages"
+          },
+          {
+            accessToken: "<access_token_2>",
+            expiresAt,
+            audience: "https://api.example.com",
+            scope: "openid profile email offline_access write:messages"
+          }
+        ];
+
+        const [error, updatedTokenSet] = await authClient.getTokenSet(
+          createSessionData({ tokenSet, accessTokens }),
+          { audience: "https://api.example.com" }
+        );
+        expect(error).toBeNull();
+        expect(updatedTokenSet?.tokenSet).toEqual({
+          accessToken: "<access_token_1>",
+          expiresAt,
+          audience: "https://api.example.com",
+          refreshToken: DEFAULT.refreshToken,
+          requestedScope: "",
+          scope: "read:messages"
+        });
       });
     });
   });
@@ -7180,6 +7250,143 @@ ca/T0LLtgmbMmxSv/MmzIg==
           scope: customScope,
           audience: customAudience,
           custom_param: customParamValue
+        }
+      });
+
+      expect(error).toBeNull();
+    });
+
+    it("should forward scope when scope defined as a map for the default audience", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        authorizationParameters: {
+          audience: 'default-audience',
+          scope: {
+            'default-audience': 'openid default-scope',
+          }
+        },
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer({
+          onBackchannelAuthRequest: async (req) => {
+            const formBody = await req.formData();
+            expect(formBody.get("scope")).toEqual('openid default-scope');
+          }
+        })
+      });
+
+
+      const [error, _] = await authClient.backchannelAuthentication({
+        bindingMessage: "test-message",
+        loginHint: {
+          sub: DEFAULT.sub
+        }
+      });
+
+      expect(error).toBeNull();
+    });
+
+    it("should forward DEFAULT_SCOPES when no scope defined", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer({
+          onBackchannelAuthRequest: async (req) => {
+            const formBody = await req.formData();
+            expect(formBody.get("scope")).toEqual(DEFAULT_SCOPES);
+          }
+        })
+      });
+
+      // Unset the scope
+      // This is not a real scenario, as scope is always defined on the authorization parameters
+      // because of the defaulting in the constructor and merge function.
+      (authClient as any).authorizationParameters.scope = undefined;
+
+      const [error, _] = await authClient.backchannelAuthentication({
+        bindingMessage: "test-message",
+        loginHint: {
+          sub: DEFAULT.sub
+        }
+      });
+
+      expect(error).toBeNull();
+    });
+
+    it("should forward DEFAULT_SCOPES when scope defined as a map with no entry for the audience", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        authorizationParameters: {
+          audience: 'default-audience',
+          scope: {
+            'default-audience': 'openid default-scope',
+          }
+        },
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer({
+          onBackchannelAuthRequest: async (req) => {
+            const formBody = await req.formData();
+            expect(formBody.get("scope")).toEqual(DEFAULT_SCOPES);
+          }
+        })
+      });
+
+      const [error, _] = await authClient.backchannelAuthentication({
+        bindingMessage: "test-message",
+        loginHint: {
+          sub: DEFAULT.sub
+        },
+        authorizationParams: {
+          audience: 'some-other-audience',
         }
       });
 
