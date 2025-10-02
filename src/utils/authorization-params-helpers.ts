@@ -43,7 +43,11 @@ export function mergeAuthorizationParamsIntoSearchParams(
           mergedAuthorizationParams.audience
         );
       }
-      authorizationParams.set(key, String(val));
+
+      // Only when there is a defined value, we set it.
+      if (val) {
+        authorizationParams.set(key, String(val));
+      }
     }
   });
 
