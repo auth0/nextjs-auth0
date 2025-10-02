@@ -2,8 +2,10 @@ export interface TokenSet {
   accessToken: string;
   idToken?: string;
   scope?: string;
+  requestedScope?: string;
   refreshToken?: string;
   expiresAt: number; // the time at which the access token expires in seconds since epoch
+  audience?: string;
 }
 
 export interface ConnectionTokenSet {
@@ -14,9 +16,18 @@ export interface ConnectionTokenSet {
   [key: string]: unknown;
 }
 
+export interface AccessTokenSet {
+  accessToken: string;
+  scope?: string;
+  requestedScope?: string;
+  audience: string;
+  expiresAt: number; // the time at which the access token expires in seconds since epoch
+}
+
 export interface SessionData {
   user: User;
   tokenSet: TokenSet;
+  accessTokens?: AccessTokenSet[];
   internal: {
     // the session ID from the authorization server
     sid: string;
@@ -118,7 +129,7 @@ export interface AuthorizationParameters {
    * The scope of the access request, expressed as a list of space-delimited, case-sensitive strings.
    * Defaults to `"openid profile email offline_access"`.
    */
-  scope?: string | null;
+  scope?: string | null | { [key: string]: string };
   /**
    * The unique identifier of the target API you want to access.
    */
