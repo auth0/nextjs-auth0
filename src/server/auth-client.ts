@@ -813,13 +813,11 @@ export class AuthClient {
    */
   #getTokenSetFromSession(
     session: SessionData,
-    options: { scope?: string | null; audience?: string | null }
+    options: { scope: string; audience?: string | null }
   ): Partial<TokenSet> {
     const tokenSet: Partial<TokenSet> = session.tokenSet;
-    const audience = options.audience ?? this.authorizationParameters.audience;
-    const scope =
-      options.scope ??
-      getScopeForAudience(this.authorizationParameters.scope, audience);
+    const audience = options.audience;
+    const scope = options.scope;
 
     // When audience and scope are provided, we need to compare them with the original ones provided in either the `SessionData.tokenSet` itself, or the Auth0Client constructor.
     // When they are identical, we should read from the top-level `SessionData.tokenSet`.
@@ -884,7 +882,7 @@ export class AuthClient {
       sessionData,
       {
         scope: scope,
-        audience: options.audience
+        audience: options.audience ?? this.authorizationParameters.audience
       }
     );
 
@@ -1042,7 +1040,7 @@ export class AuthClient {
       INTERNAL_AUTHORIZE_PARAMS
     );
 
-    if (!authorizationParams.has("scope")) {
+    if (!authorizationParams.get("scope")) {
       authorizationParams.set("scope", DEFAULT_SCOPES);
     }
 
