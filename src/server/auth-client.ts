@@ -15,12 +15,22 @@ import {
   BackchannelAuthenticationError,
   BackchannelAuthenticationNotSupportedError,
   BackchannelLogoutError,
+  ConnectAccountError,
+  ConnectAccountErrorCodes,
   DiscoveryError,
   InvalidStateError,
   MissingStateError,
+  MyAccountApiError,
   OAuth2Error,
   SdkError
 } from "../errors/index.js";
+import {
+  CompleteConnectAccountRequest,
+  CompleteConnectAccountResponse,
+  ConnectAccountOptions,
+  ConnectAccountRequest,
+  ConnectAccountResponse
+} from "../types/connected-accounts.js";
 import {
   AccessTokenForConnectionOptions,
   AccessTokenSet,
@@ -30,6 +40,7 @@ import {
   ConnectionTokenSet,
   LogoutStrategy,
   LogoutToken,
+  RESPONSE_TYPES,
   SessionData,
   StartInteractiveLoginOptions,
   SUBJECT_TOKEN_TYPES,
@@ -67,7 +78,19 @@ export type BeforeSessionSavedHook = (
 ) => Promise<SessionData>;
 
 export type OnCallbackContext = {
+  /**
+   * The type of response expected from the authorization server.
+   * One of {@link RESPONSE_TYPES}
+   */
+  responseType?: RESPONSE_TYPES;
+  /**
+   * The URL or path the user should be redirected to after completing the transaction.
+   */
   returnTo?: string;
+  /**
+   * The connected account information when the responseType is {@link RESPONSE_TYPES.CONNECT_CODE}
+   */
+  connectedAccount?: CompleteConnectAccountResponse;
 };
 export type OnCallbackHook = (
   error: SdkError | null,
@@ -113,9 +136,13 @@ export interface Routes {
   profile: string;
   accessToken: string;
   backChannelLogout: string;
+  connectAccount: string;
 }
 export type RoutesOptions = Partial<
-  Pick<Routes, "login" | "callback" | "logout" | "backChannelLogout">
+  Pick<
+    Routes,
+    "login" | "callback" | "logout" | "backChannelLogout" | "connectAccount"
+  >
 >;
 
 export interface AuthClientOptions {
@@ -149,6 +176,7 @@ export interface AuthClientOptions {
   enableTelemetry?: boolean;
   enableAccessTokenEndpoint?: boolean;
   noContentProfileResponseWhenUnauthenticated?: boolean;
+  enableConnectAccountEndpoint?: boolean;
 }
 
 function createRouteUrl(path: string, baseUrl: string) {
@@ -184,12 +212,13 @@ export class AuthClient {
   private jwksCache: jose.JWKSCacheInput;
   private allowInsecureRequests: boolean;
   private httpTimeout: number;
-  private httpOptions: () => oauth.HttpRequestOptions<"GET" | "POST">;
+  private httpOptions: () => { signal: AbortSignal; headers: Headers };
 
   private authorizationServerMetadata?: oauth.AuthorizationServer;
 
   private readonly enableAccessTokenEndpoint: boolean;
   private readonly noContentProfileResponseWhenUnauthenticated: boolean;
+  private readonly enableConnectAccountEndpoint: boolean;
 
   constructor(options: AuthClientOptions) {
     // dependencies
@@ -288,6 +317,8 @@ export class AuthClient {
     this.enableAccessTokenEndpoint = options.enableAccessTokenEndpoint ?? true;
     this.noContentProfileResponseWhenUnauthenticated =
       options.noContentProfileResponseWhenUnauthenticated ?? false;
+    this.enableConnectAccountEndpoint =
+      options.enableConnectAccountEndpoint ?? false;
   }
 
   async handler(req: NextRequest): Promise<NextResponse> {
@@ -314,6 +345,12 @@ export class AuthClient {
       sanitizedPathname === this.routes.backChannelLogout
     ) {
       return this.handleBackChannelLogout(req);
+    } else if (
+      method === "GET" &&
+      sanitizedPathname === this.routes.connectAccount &&
+      this.enableConnectAccountEndpoint
+    ) {
+      return this.handleConnectAccount(req);
     } else {
       // no auth handler found, simply touch the sessions
       // TODO: this should only happen if rolling sessions are enabled. Also, we should
@@ -374,7 +411,7 @@ export class AuthClient {
     );
     authorizationParams.set("client_id", this.clientMetadata.client_id);
     authorizationParams.set("redirect_uri", redirectUri.toString());
-    authorizationParams.set("response_type", "code");
+    authorizationParams.set("response_type", RESPONSE_TYPES.CODE);
     authorizationParams.set("code_challenge", codeChallenge);
     authorizationParams.set("code_challenge_method", codeChallengeMethod);
     authorizationParams.set("state", state);
@@ -385,7 +422,7 @@ export class AuthClient {
       nonce,
       maxAge: this.authorizationParameters.max_age,
       codeVerifier,
-      responseType: "code",
+      responseType: RESPONSE_TYPES.CODE,
       state,
       returnTo,
       scope: authorizationParams.get("scope") || undefined,
@@ -547,8 +584,77 @@ export class AuthClient {
 
     const transactionState = transactionStateCookie.payload;
     const onCallbackCtx: OnCallbackContext = {
+      responseType: transactionState.responseType,
       returnTo: transactionState.returnTo
     };
+
+    if (transactionState.responseType === RESPONSE_TYPES.CONNECT_CODE) {
+      const session = await this.sessionStore.get(req.cookies);
+
+      if (!session) {
+        return this.handleCallbackError(
+          new ConnectAccountError({
+            code: ConnectAccountErrorCodes.MISSING_SESSION,
+            message: "The user does not have an active session."
+          }),
+          onCallbackCtx,
+          req,
+          state
+        );
+      }
+
+      // get an access token for connected accounts
+      const [tokenSetError, tokenSetResponse] = await this.getTokenSet(
+        session,
+        {
+          audience: `${this.issuer}/me/`,
+          scope: "create:me:connected_accounts"
+        }
+      );
+
+      if (tokenSetError) {
+        return this.handleCallbackError(
+          tokenSetError,
+          onCallbackCtx,
+          req,
+          state
+        );
+      }
+
+      const [completeConnectAccountError, connectedAccount] =
+        await this.completeConnectAccount({
+          accessToken: tokenSetResponse.tokenSet.accessToken,
+          authSession: transactionState.authSession!,
+          connectCode: req.nextUrl.searchParams.get("connect_code")!,
+          redirectUri: createRouteUrl(
+            this.routes.callback,
+            this.appBaseUrl
+          ).toString(),
+          codeVerifier: transactionState.codeVerifier
+        });
+
+      if (completeConnectAccountError) {
+        return this.handleCallbackError(
+          completeConnectAccountError,
+          onCallbackCtx,
+          req,
+          state
+        );
+      }
+
+      const res = await this.onCallback(
+        null,
+        {
+          ...onCallbackCtx,
+          connectedAccount
+        },
+        session
+      );
+
+      await this.transactionStore.delete(res.cookies, state);
+
+      return res;
+    }
 
     const [discoveryError, authorizationServerMetadata] =
       await this.discoverAuthorizationServerMetadata();
@@ -800,6 +906,94 @@ export class AuthClient {
     return new NextResponse(null, {
       status: 204
     });
+  }
+
+  async handleConnectAccount(req: NextRequest): Promise<NextResponse> {
+    const session = await this.sessionStore.get(req.cookies);
+    const audience = `${this.issuer}/me/`;
+    const scope = "create:me:connected_accounts";
+
+    // pass all query params except `connection` and `returnTo` as authorization params
+    const connection = req.nextUrl.searchParams.get("connection");
+    const returnTo = req.nextUrl.searchParams.get("returnTo") ?? undefined;
+    const authorizationParams = Object.fromEntries(
+      [...req.nextUrl.searchParams.entries()].filter(
+        ([key]) => key !== "connection" && key !== "returnTo"
+      )
+    );
+
+    if (!connection) {
+      return new NextResponse("A connection is required.", {
+        status: 400
+      });
+    }
+
+    if (!session) {
+      return new NextResponse("The user does not have an active session.", {
+        status: 401
+      });
+    }
+
+    const [getTokenSetError, getTokenSetResponse] = await this.getTokenSet(
+      session,
+      {
+        scope: "create:me:connected_accounts",
+        audience: `${this.issuer}/me/`
+      }
+    );
+
+    if (getTokenSetError) {
+      return new NextResponse(
+        "Failed to retrieve a connected account access token.",
+        {
+          status: 401
+        }
+      );
+    }
+
+    const { tokenSet, idTokenClaims } = getTokenSetResponse;
+    const [connectAccountError, connectAccountResponse] =
+      await this.connectAccount({
+        accessToken: tokenSet.accessToken,
+        connection,
+        authorizationParams,
+        returnTo
+      });
+
+    if (connectAccountError) {
+      return new NextResponse(connectAccountError.message, {
+        status: connectAccountError.cause?.status ?? 500
+      });
+    }
+
+    // update the session with the new token set, if necessary
+    const sessionChanges = getSessionChangesAfterGetAccessToken(
+      session,
+      tokenSet,
+      {
+        scope: this.authorizationParameters?.scope ?? DEFAULT_SCOPES,
+        audience: this.authorizationParameters?.audience
+      }
+    );
+
+    if (sessionChanges) {
+      if (idTokenClaims) {
+        session.user = idTokenClaims as User;
+      }
+      // call beforeSessionSaved callback if present
+      // if not then filter id_token claims with default rules
+      const finalSession = await this.finalizeSession(
+        session,
+        tokenSet.idToken
+      );
+      await this.sessionStore.set(req.cookies, connectAccountResponse.cookies, {
+        ...finalSession,
+        ...sessionChanges
+      });
+      addCacheControlHeadersForSession(connectAccountResponse);
+    }
+
+    return connectAccountResponse;
   }
 
   /**
@@ -1539,6 +1733,230 @@ export class AuthClient {
       session.user = filterDefaultIdTokenClaims(session.user);
     }
     return session;
+  }
+
+  /**
+   * Initiates the connect account flow for linking a third-party account to the user's profile.
+   * The user will be redirected to authorize the connection.
+   */
+  async connectAccount(
+    options: ConnectAccountOptions & { accessToken: string }
+  ): Promise<[ConnectAccountError, null] | [null, NextResponse]> {
+    const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl);
+    let returnTo = this.signInReturnToPath;
+
+    // Validate returnTo parameter
+    if (options.returnTo) {
+      const safeBaseUrl = new URL(
+        (this.authorizationParameters.redirect_uri as string | undefined) ||
+          this.appBaseUrl
+      );
+      const sanitizedReturnTo = toSafeRedirect(options.returnTo, safeBaseUrl);
+
+      if (sanitizedReturnTo) {
+        returnTo =
+          sanitizedReturnTo.pathname +
+          sanitizedReturnTo.search +
+          sanitizedReturnTo.hash;
+      }
+    }
+
+    // Generate PKCE challenges
+    const codeChallengeMethod = "S256";
+    const codeVerifier = oauth.generateRandomCodeVerifier();
+    const codeChallenge = await oauth.calculatePKCECodeChallenge(codeVerifier);
+    const state = oauth.generateRandomState();
+
+    const [error, connectAccountResponse] =
+      await this.createConnectAccountTicket({
+        accessToken: options.accessToken,
+        connection: options.connection,
+        redirectUri: redirectUri.toString(),
+        state,
+        codeChallenge,
+        codeChallengeMethod,
+        authorizationParams: options.authorizationParams
+      });
+
+    if (error) {
+      return [error, null];
+    }
+
+    const transactionState: TransactionState = {
+      codeVerifier,
+      responseType: RESPONSE_TYPES.CONNECT_CODE,
+      state,
+      returnTo,
+      authSession: connectAccountResponse.authSession
+    };
+
+    const res = NextResponse.redirect(
+      `${connectAccountResponse.connectUri}?ticket=${connectAccountResponse.connectParams.ticket}`
+    );
+
+    await this.transactionStore.save(res.cookies, transactionState);
+
+    return [null, res];
+  }
+
+  private async createConnectAccountTicket(
+    options: ConnectAccountRequest
+  ): Promise<[null, ConnectAccountResponse] | [ConnectAccountError, null]> {
+    try {
+      const connectAccountUrl = new URL(
+        "/me/v1/connected-accounts/connect",
+        this.issuer
+      );
+
+      const httpOptions = this.httpOptions();
+      const headers = new Headers(httpOptions.headers);
+      headers.set("Content-Type", "application/json");
+      headers.set("Authorization", `Bearer ${options.accessToken}`);
+
+      const res = await this.fetch(connectAccountUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          connection: options.connection,
+          redirect_uri: options.redirectUri,
+          state: options.state,
+          code_challenge: options.codeChallenge,
+          code_challenge_method: options.codeChallengeMethod,
+          authorization_params: options.authorizationParams
+        }),
+        signal: httpOptions.signal
+      });
+
+      if (!res.ok) {
+        try {
+          const errorBody = await res.json();
+          return [
+            new ConnectAccountError({
+              code: ConnectAccountErrorCodes.FAILED_TO_INITIATE,
+              message: `The request to initiate the connect account flow failed with status ${res.status}.`,
+              cause: new MyAccountApiError({
+                type: errorBody.type,
+                title: errorBody.title,
+                detail: errorBody.detail,
+                status: res.status,
+                validationErrors: errorBody.validation_errors
+              })
+            }),
+            null
+          ];
+        } catch (e) {
+          return [
+            new ConnectAccountError({
+              code: ConnectAccountErrorCodes.FAILED_TO_INITIATE,
+              message: `The request to initiate the connect account flow failed with status ${res.status}.`
+            }),
+            null
+          ];
+        }
+      }
+
+      const { connect_uri, connect_params, auth_session, expires_in } =
+        await res.json();
+
+      return [
+        null,
+        {
+          connectUri: connect_uri,
+          connectParams: connect_params,
+          authSession: auth_session,
+          expiresIn: expires_in
+        }
+      ];
+    } catch (e: any) {
+      return [
+        new ConnectAccountError({
+          code: ConnectAccountErrorCodes.FAILED_TO_INITIATE,
+          message:
+            "An unexpected error occured while trying to initiate the connect account flow."
+        }),
+        null
+      ];
+    }
+  }
+
+  private async completeConnectAccount(
+    options: CompleteConnectAccountRequest
+  ): Promise<[null, CompleteConnectAccountResponse] | [SdkError, null]> {
+    const completeConnectAccountUrl = new URL(
+      "/me/v1/connected-accounts/complete",
+      this.issuer
+    );
+
+    try {
+      const httpOptions = this.httpOptions();
+      const headers = new Headers(httpOptions.headers);
+      headers.set("Content-Type", "application/json");
+      headers.set("Authorization", `Bearer ${options.accessToken}`);
+
+      const res = await this.fetch(completeConnectAccountUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          auth_session: options.authSession,
+          connect_code: options.connectCode,
+          redirect_uri: options.redirectUri,
+          code_verifier: options.codeVerifier
+        }),
+        signal: httpOptions.signal
+      });
+
+      if (!res.ok) {
+        try {
+          const errorBody = await res.json();
+          return [
+            new ConnectAccountError({
+              code: ConnectAccountErrorCodes.FAILED_TO_COMPLETE,
+              message: `The request to complete the connect account flow failed with status ${res.status}.`,
+              cause: new MyAccountApiError({
+                type: errorBody.type,
+                title: errorBody.title,
+                detail: errorBody.detail,
+                status: res.status,
+                validationErrors: errorBody.validation_errors
+              })
+            }),
+            null
+          ];
+        } catch (e) {
+          return [
+            new ConnectAccountError({
+              code: ConnectAccountErrorCodes.FAILED_TO_COMPLETE,
+              message: `The request to complete the connect account flow failed with status ${res.status}.`
+            }),
+            null
+          ];
+        }
+      }
+
+      const { id, connection, access_type, scopes, created_at, expires_at } =
+        await res.json();
+
+      return [
+        null,
+        {
+          id,
+          connection,
+          accessType: access_type,
+          scopes,
+          createdAt: created_at,
+          expiresAt: expires_at
+        }
+      ];
+    } catch (e: any) {
+      return [
+        new ConnectAccountError({
+          code: ConnectAccountErrorCodes.FAILED_TO_COMPLETE,
+          message:
+            "An unexpected error occured while trying to complete the connect account flow."
+        }),
+        null
+      ];
+    }
   }
 
   private async getOpenIdClientConfig(): Promise<

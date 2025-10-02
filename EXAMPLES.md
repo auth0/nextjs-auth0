@@ -40,6 +40,7 @@
 - [Transaction Cookie Configuration](#transaction-cookie-configuration)
 - [Database sessions](#database-sessions)
 - [Back-Channel Authentication](#back-channel-authentication)
+- [Connected Accounts](#connected-accounts)
 - [Back-Channel Logout](#back-channel-logout)
 - [Combining middleware](#combining-middleware)
 - [ID Token claims and the user object](#id-token-claims-and-the-user-object)
@@ -1330,6 +1331,84 @@ const tokenResponse = await auth0.getTokenByBackchannelAuth({
 > [!IMPORTANT]  
 > Using Client-Initiated Backchannel Authentication requires the feature to be enabled in the Auth0 dashboard.
 > Read [the Auth0 docs](https://auth0.com/docs/get-started/authentication-and-authorization-flow/client-initiated-backchannel-authentication-flow) to learn more about Client-Initiated Backchannel Authentication.
+
+## Connected Accounts
+
+The SDK can be configured to mount an endpoint to facilitate the connected accounts flow. To mount this route, set the `enableConnectAccountEndpoint` option to `true` when instantiating the Auth0 client, like so:
+
+```ts
+// ./lib/auth0.ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+export const auth0 = new Auth0Client({
+  enableConnectAccountEndpoint: true
+});
+```
+
+By default, the route will be mounted at `/auth/connect`. You can customize this path by specifying a `routes.connectAccount` option, like so:
+
+```ts
+// ./lib/auth0.ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+export const auth0 = new Auth0Client({
+  enableConnectAccountEndpoint: true,
+  routes: {
+    connectAccount: "/auth/connect"
+  }
+});
+```
+
+The connect endpoint (`/auth/connect` or your custom path) accepts the following query parameters:
+
+- `connection`: (required) the name of the connection to use for linking the account
+- `returnTo`: (optional) the URL to redirect the user to after they have completed the connection flow.
+- Any additional parameters will be passed as the `authorizationParams` in the call to `/me/v1/connected-accounts/connect`.
+
+### `onCallback` hook
+
+When a user is redirected back to your application after completing the connected accounts flow, the `onCallback` hook will be called. You can use this hook to run custom logic after the user has connected their account, like so:
+
+```ts
+import { NextResponse } from "next/server";
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+export const auth0 = new Auth0Client({
+  async onCallback(err, ctx, session) {
+    // `ctx` will contain the following properties when handling a connected account callback:
+    // - `connectedAccount`: the connected account object (`CompleteConnectAccountResponse`) if the connection was successful
+    // - `responseType`: will be set to `connect_code` when handling a connected accounts callback (`RESPONSE_TYPES.ConnectCode`)
+    // - `returnTo`: the returnTo URL specified when calling the connect endpoint (if any)
+
+    return NextResponse.redirect(
+      new URL(ctx.returnTo ?? "/", process.env.APP_BASE_URL)
+    );
+  },
+  enableConnectAccountEndpoint: true
+});
+```
+
+### `connectAccount` method
+
+In case you'd like to have more control over the connected accounts flow, a `connectAccount` method is also available on the Auth0 client instance. For example, you could mount a custom route to start the connected accounts flow, like so:
+
+```ts
+import { auth0 } from "@/lib/auth0";
+
+export async function GET() {
+  const res = await auth0.connectAccount({
+    connection: "my-connection",
+    authorizationParams: {
+      scope: "openid profile offline_access read:something",
+      prompt: "consent",
+      audience: "https://myapi.com"
+    },
+    returnTo: "/connected"
+  });
+
+  return res;
+}
+```
 
 ## Back-Channel Logout
 
