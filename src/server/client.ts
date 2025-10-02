@@ -19,7 +19,9 @@ import {
   StartInteractiveLoginOptions,
   User
 } from "../types/index.js";
+import { DEFAULT_SCOPES } from "../utils/constants.js";
 import { isRequest } from "../utils/request.js";
+import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
 import {
   AuthClient,
   BeforeSessionSavedHook,
@@ -43,6 +45,7 @@ import {
 } from "./session/abstract-session-store.js";
 import { StatefulSessionStore } from "./session/stateful-session-store.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
+import { TokenRequestCache } from "./token-request-cache.js";
 import {
   TransactionCookieOptions,
   TransactionStore
@@ -230,8 +233,13 @@ export class Auth0Client {
   private sessionStore: AbstractSessionStore;
   private authClient: AuthClient;
   private routes: Routes;
+  #options: Auth0ClientOptions;
+
+  // Cache for in-flight token requests to prevent race conditions
+  #tokenRequestCache = new TokenRequestCache();
 
   constructor(options: Auth0ClientOptions = {}) {
+    this.#options = options;
     // Extract and validate required options
     const {
       domain,
@@ -426,6 +434,10 @@ export class Auth0Client {
   /**
    * getAccessToken returns the access token.
    *
+   * Please note: If you are passing audience, ensure that the used audiences and scopes are
+   * part of the Application's Refresh Token Policies in Auth0 when configuring Multi-Resource Refresh Tokens (MRRT).
+   * {@link https://auth0.com/docs/secure/tokens/refresh-tokens/multi-resource-refresh-token|See Auth0 Documentation on Multi-resource Refresh Tokens}
+   *
    * NOTE: Server Components cannot set cookies. Calling `getAccessToken()` in a Server Component will cause the access token to be refreshed, if it is expired, and the updated token set will not to be persisted.
    * It is recommended to call `getAccessToken(req, res)` in the middleware if you need to retrieve the access token in a Server Component to ensure the updated token set is persisted.
    */
@@ -434,7 +446,7 @@ export class Auth0Client {
     arg2?: PagesRouterResponse | NextResponse,
     arg3?: GetAccessTokenOptions
   ): Promise<{ token: string; expiresAt: number; scope?: string }> {
-    const defaultOptions: Required<GetAccessTokenOptions> = {
+    const defaultOptions: GetAccessTokenOptions = {
       refresh: false
     };
 
@@ -472,6 +484,25 @@ export class Auth0Client {
       };
     }
 
+    // Execute the token request with caching to avoid duplicate in-flight requests
+    return this.#tokenRequestCache.execute(
+      () => this.executeGetAccessToken(req, res, options),
+      {
+        options,
+        authorizationParameters: this.#options.authorizationParameters
+      }
+    );
+  }
+
+  /**
+   * Core implementation of getAccessToken that performs the actual token retrieval.
+   * This is separated to enable request coalescing via the cache.
+   */
+  private async executeGetAccessToken(
+    req: PagesRouterRequest | NextRequest | undefined,
+    res: PagesRouterResponse | NextResponse | undefined,
+    options: GetAccessTokenOptions
+  ): Promise<{ token: string; expiresAt: number; scope?: string }> {
     const session: SessionData | null = req
       ? await this.getSession(req)
       : await this.getSession();
@@ -484,19 +515,24 @@ export class Auth0Client {
     }
 
     const [error, getTokenSetResponse] = await this.authClient.getTokenSet(
-      session.tokenSet,
-      options.refresh
+      session,
+      options
     );
     if (error) {
       throw error;
     }
     const { tokenSet, idTokenClaims } = getTokenSetResponse;
     // update the session with the new token set, if necessary
-    if (
-      tokenSet.accessToken !== session.tokenSet.accessToken ||
-      tokenSet.expiresAt !== session.tokenSet.expiresAt ||
-      tokenSet.refreshToken !== session.tokenSet.refreshToken
-    ) {
+    const sessionChanges = getSessionChangesAfterGetAccessToken(
+      session,
+      tokenSet,
+      {
+        scope: this.#options.authorizationParameters?.scope ?? DEFAULT_SCOPES,
+        audience: this.#options.authorizationParameters?.audience
+      }
+    );
+
+    if (sessionChanges) {
       if (idTokenClaims) {
         session.user = idTokenClaims as User;
       }
@@ -509,7 +545,7 @@ export class Auth0Client {
       await this.saveToSession(
         {
           ...finalSession,
-          tokenSet
+          ...sessionChanges
         },
         req,
         res
@@ -937,4 +973,11 @@ export class Auth0Client {
 
 export type GetAccessTokenOptions = {
   refresh?: boolean;
+  scope?: string;
+  /**
+   * Please note: If you are passing audience, ensure that the used audiences and scopes are
+   * part of the Application's Refresh Token Policies in Auth0 when configuring Multi-Resource Refresh Tokens (MRRT).
+   * {@link https://auth0.com/docs/secure/tokens/refresh-tokens/multi-resource-refresh-token|See Auth0 Documentation on Multi-resource Refresh Tokens}
+   */
+  audience?: string;
 };
