@@ -53,6 +53,7 @@
 - [Customizing Auth Handlers](#customizing-auth-handlers)
   - [Run custom code before Auth Handlers](#run-custom-code-before-auth-handlers)
   - [Run code after callback](#run-code-after-callback)
+- [Multi-Resource Refresh Tokens (MRRT)](#multi-resource-refresh-tokens-mrrt)
 
 ## Passing authorization parameters
 
@@ -1547,6 +1548,138 @@ export async function middleware(request: NextRequest) {
   return resWithCombinedHeaders;
 }
 ```
+
+## Multi-Resource Refresh Tokens (MRRT)
+
+Multi-Resource Refresh Tokens allow using a single refresh token to obtain access tokens for multiple audiences, simplifying token management in applications that interact with multiple backend services.
+
+Read more about [Multi-Resource Refresh Tokens in the Auth0 documentation](https://auth0.com/docs/secure/tokens/refresh-tokens/multi-resource-refresh-token).
+
+
+> [!WARNING]
+> When using Multi-Resource Refresh Token Configuration (MRRT), **Refresh Token Policies** on your Application need to be configured with the audiences you want to support. See the [Auth0 MRRT documentation](https://auth0.com/docs/secure/tokens/refresh-tokens/multi-resource-refresh-token) for setup instructions.
+>
+> **Tokens requested for audiences outside your configured policies will be ignored by Auth0, which will return a token for the default audience instead!**
+
+### Basic Configuration
+
+Configure a default audience in your Auth0 client initialization:
+
+```typescript
+// lib/auth0.ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+export const auth0 = new Auth0Client({
+  authorizationParameters: {
+    audience: "https://api.example.com", // Your default audience
+    scope: "openid profile email offline_access read:products read:orders"
+  }
+});
+```
+
+#### Configuring Scopes Per Audience
+
+When working with multiple APIs, you can define different default scopes for each audience by passing an object instead of a string. This is particularly useful when different APIs require different default scopes:
+
+```typescript
+// lib/auth0.ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+export const auth0 = new Auth0Client({
+  authorizationParameters: {
+    audience: "https://api.example.com", // Default audience
+    scope: {
+      "https://api.example.com": "openid profile email offline_access read:products read:orders",
+      "https://analytics.example.com": "openid profile email offline_access read:analytics write:analytics",
+      "https://admin.example.com": "openid profile email offline_access read:admin write:admin delete:admin"
+    }
+  }
+});
+```
+
+**How it works:**
+
+- Each key in the `scope` object is an `audience` identifier
+- The corresponding value is the scope string for that audience
+- When calling `getAccessToken({ audience: "..." })`, the SDK automatically uses the configured scopes for that audience. When scopes are also passed in the method call, they are be merged with the default scopes for that audience.
+
+> [!NOTE]
+> When using scope as an object, and no entry for the default audience is provided, the SDK defaults to `DEFAULT_SCOPE` (only for the default audience). This is the default audience used during authentication and determines which scope from the map is used for the initial login.
+
+### Usage Example
+
+To retrieve access tokens for different audiences, use the `getAccessToken()` method with an `audience` (and optionally also the `scope`) parameter. Here's an example for an API Route:
+
+```typescript
+// app/api/data/route.ts
+import { NextResponse } from "next/server";
+import { auth0 } from "@/lib/auth0";
+
+export async function GET() {
+  try {
+    // Get token for default audience
+    const defaultToken = await auth0.getAccessToken();
+
+    // Get token for different audience
+    const dataToken = await auth0.getAccessToken({
+      audience: "https://data-api.example.com"
+    });
+
+    // Get token with additional scopes
+    const adminToken = await auth0.getAccessToken({
+      audience: "https://admin.example.com",
+      scope: "write:admin"
+    });
+
+    // Call external API with token
+    const response = await fetch("https://data-api.example.com/data", {
+      headers: { Authorization: `Bearer ${dataToken.token}` }
+    });
+
+    const data = await response.json();
+    return NextResponse.json(data);
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Failed to fetch data" },
+      { status: 500 }
+    );
+  }
+}
+```
+
+> [!NOTE]
+> The syntax for calling `getAccessToken()` may vary slightly depending on where it's being used. See the [Getting an access token](#getting-an-access-token) section for specific syntax examples for App Router (Server Components, API Routes, Server Actions), Pages Router (API Routes, `getServerSideProps`), Middleware, and client-side usage.
+
+### Token Management Best Practices
+
+**Configure Broad Default Scopes**: Define comprehensive scopes in your `Auth0Client` constructor for common use cases. This minimizes the need to request additional scopes dynamically, reducing the amount of tokens that need to be stored.
+
+```typescript
+export const auth0 = new Auth0Client({
+  authorizationParameters: {
+    audience: "https://api.example.com",
+    // Configure broad default scopes for most common operations
+    scope: "openid profile email offline_access read:products read:orders read:users"
+  }
+});
+```
+
+**Minimize Dynamic Scope Requests**: Avoid passing `scope` when calling `getAccessToken()` unless absolutely necessary. Each `audience` + `scope` combination results in a token to store in the session, increasing session size.
+
+```typescript
+// Preferred: Use default scopes
+const token = await auth0.getAccessToken({
+  audience: "https://api.example.com"
+});
+
+// Avoid unless necessary: Dynamic scopes increase session size
+const token = await auth0.getAccessToken({
+  audience: "https://api.example.com",
+  scope: "openid profile email read:products write:products admin:all"
+});
+```
+
+**Consider Stateful Session Storage**: If your application requires strict least privilege with many dynamic scope requests, we recommend to use a [stateful session storage](#database-sessions) instead of cookie-based to avoid session size limitations.
 
 ## Customizing Auth Handlers
 
