@@ -824,7 +824,10 @@ export class AuthClient {
           {
             ...this.httpOptions(),
             [oauth.customFetch]: this.fetch,
-            [oauth.allowInsecureRequests]: this.allowInsecureRequests
+            [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+            ...(tokenSet.scope && {
+              additionalParameters: { scope: tokenSet.scope }
+            })
           }
         );
 
@@ -857,6 +860,7 @@ export class AuthClient {
           ...tokenSet, // contains the existing `iat` claim to maintain the session lifetime
           accessToken: oauthRes.access_token,
           idToken: oauthRes.id_token,
+          scope: oauthRes.scope || tokenSet.scope, // Preserve original scope as fallback
           expiresAt: accessTokenExpiresAt
         };
 
