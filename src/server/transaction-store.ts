@@ -11,6 +11,15 @@ export interface TransactionState extends jose.JWTPayload {
   state: string; // the state parameter passed to the authorization server
   returnTo: string; // the URL to redirect to after login
   maxAge?: number; // the maximum age of the authentication session
+  /**
+   * The scope requested for this transaction.
+   */
+  scope?: string;
+
+  /**
+   * The audience used for this transaction.
+   */
+  audience?: string;
 }
 
 export interface TransactionCookieOptions {
