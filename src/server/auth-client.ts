@@ -910,8 +910,6 @@ export class AuthClient {
 
   async handleConnectAccount(req: NextRequest): Promise<NextResponse> {
     const session = await this.sessionStore.get(req.cookies);
-    const audience = `${this.issuer}/me/`;
-    const scope = "create:me:connected_accounts";
 
     // pass all query params except `connection` and `returnTo` as authorization params
     const connection = req.nextUrl.searchParams.get("connection");
