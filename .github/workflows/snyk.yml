@@ -43,6 +43,6 @@ jobs:
       - shell: bash
         run: pnpm i
 
-      - uses: snyk/actions/node@b98d498629f1c368650224d6d212bf7dfa89e4bf # pin@0.4.0
+      - uses: snyk/actions/node@de2dda699bf7276d103ed6a72a5bc5a1871ad658 # pin@0.5.0
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
