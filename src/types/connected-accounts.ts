@@ -83,6 +83,9 @@ export interface ConnectAccountResponse {
 }
 
 export interface CompleteConnectAccountRequest {
+  /**
+   * The access token with the `create:me:connected_accounts` scope.
+   */
   accessToken: string;
   /**
    * The authentication session identifier.
