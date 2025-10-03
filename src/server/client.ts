@@ -7,12 +7,15 @@ import {
   AccessTokenError,
   AccessTokenErrorCode,
   AccessTokenForConnectionError,
-  AccessTokenForConnectionErrorCode
+  AccessTokenForConnectionErrorCode,
+  ConnectAccountError,
+  ConnectAccountErrorCodes
 } from "../errors/index.js";
 import {
   AccessTokenForConnectionOptions,
   AuthorizationParameters,
   BackchannelAuthenticationOptions,
+  ConnectAccountOptions,
   LogoutStrategy,
   SessionData,
   SessionDataStore,
@@ -221,6 +224,11 @@ export interface Auth0ClientOptions {
   noContentProfileResponseWhenUnauthenticated?: boolean;
 
   enableParallelTransactions?: boolean;
+
+  /**
+   * If true, the `/auth/connect` endpoint will be mounted to enable users to connect additional accounts.
+   */
+  enableConnectAccountEndpoint?: boolean;
 }
 
 export type PagesRouterRequest = IncomingMessage | NextApiRequest;
@@ -233,6 +241,7 @@ export class Auth0Client {
   private sessionStore: AbstractSessionStore;
   private authClient: AuthClient;
   private routes: Routes;
+  private domain: string;
   #options: Auth0ClientOptions;
 
   // Cache for in-flight token requests to prevent race conditions
@@ -249,6 +258,7 @@ export class Auth0Client {
       secret,
       clientAssertionSigningKey
     } = this.validateAndExtractRequiredOptions(options);
+    this.domain = domain;
 
     const clientAssertionSigningAlg =
       options.clientAssertionSigningAlg ||
@@ -301,6 +311,7 @@ export class Auth0Client {
       profile: process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile",
       accessToken:
         process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
+      connectAccount: "/auth/connect",
       ...options.routes
     };
 
@@ -352,7 +363,8 @@ export class Auth0Client {
       enableTelemetry: options.enableTelemetry,
       enableAccessTokenEndpoint: options.enableAccessTokenEndpoint,
       noContentProfileResponseWhenUnauthenticated:
-        options.noContentProfileResponseWhenUnauthenticated
+        options.noContentProfileResponseWhenUnauthenticated,
+      enableConnectAccountEndpoint: options.enableConnectAccountEndpoint
     });
   }
 
@@ -810,6 +822,45 @@ export class Auth0Client {
     return response;
   }
 
+  /**
+   * Initiates the Connect Account flow to connect a third-party account to the user's profile.
+   * If the user does not have an active session, a `ConnectAccountError` is thrown.
+   *
+   * This method first attempts to obtain an access token with the `create:me:connected_accounts` scope
+   * for the My Account API to create a connected account for the user.
+   *
+   * The user will then be redirected to authorize the connection with the third-party provider.
+   */
+  async connectAccount(options: ConnectAccountOptions): Promise<NextResponse> {
+    const session = await this.getSession();
+
+    if (!session) {
+      throw new ConnectAccountError({
+        code: ConnectAccountErrorCodes.MISSING_SESSION,
+        message: "The user does not have an active session."
+      });
+    }
+
+    const getMyAccountTokenOpts = {
+      audience: `${this.issuer}/me/`,
+      scope: "create:me:connected_accounts"
+    };
+
+    const accessToken = await this.getAccessToken(getMyAccountTokenOpts);
+
+    const [error, connectAccountResponse] =
+      await this.authClient.connectAccount({
+        ...options,
+        accessToken: accessToken.token
+      });
+
+    if (error) {
+      throw error;
+    }
+
+    return connectAccountResponse;
+  }
+
   withPageAuthRequired(
     fnOrOpts?: WithPageAuthRequiredPageRouterOptions | AppRouterPageRoute,
     opts?: WithPageAuthRequiredAppRouterOptions
@@ -968,6 +1019,13 @@ export class Auth0Client {
     return result as {
       [K in keyof typeof result]: NonNullable<(typeof result)[K]>;
     };
+  }
+
+  private get issuer(): string {
+    return this.domain.startsWith("http://") ||
+      this.domain.startsWith("https://")
+      ? this.domain
+      : `https://${this.domain}`;
   }
 }
 
