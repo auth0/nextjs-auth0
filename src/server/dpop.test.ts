@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server.js";
+import { NextRequest } from "next/server.js";
 import * as oauth from "oauth4webapi";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -17,7 +17,7 @@ vi.mock("oauth4webapi", () => ({
   protectedResourceRequest: vi.fn(),
   isDPoPNonceError: vi.fn(),
   DPoP: vi.fn((client, keyPair) => ({ client, keyPair })), // Simple mock DPoP handle
-  generateKeyPair: vi.fn(async (alg: string) => ({
+  generateKeyPair: vi.fn(async () => ({
     privateKey: {} as CryptoKey,
     publicKey: {} as CryptoKey
   })),
@@ -265,7 +265,7 @@ describe("DPoP Tests", () => {
       expect(response.status).toBe(200);
       expect(oauth.protectedResourceRequest).toHaveBeenCalledTimes(1);
 
-      const [accessToken, method] = vi.mocked(oauth.protectedResourceRequest)
+      const [_accessToken, method] = vi.mocked(oauth.protectedResourceRequest)
         .mock.calls[0];
       expect(method).toBe("GET");
     });
@@ -295,7 +295,7 @@ describe("DPoP Tests", () => {
       expect(oauth.protectedResourceRequest).toHaveBeenCalledTimes(1);
 
       // Verify protectedResourceRequest was called with correct parameters
-      const [accessToken, method, url, headers, body, options] = vi.mocked(
+      const [accessToken, method, url, _headers, _body, options] = vi.mocked(
         oauth.protectedResourceRequest
       ).mock.calls[0];
       expect(accessToken).toBe(DEFAULT.accessToken);
@@ -330,7 +330,7 @@ describe("DPoP Tests", () => {
       expect(response.status).toBe(201);
       expect(oauth.protectedResourceRequest).toHaveBeenCalledTimes(1);
 
-      const [accessToken, method, url, headers, body, options] = vi.mocked(
+      const [_accessToken, method, _url, _headers, body, options] = vi.mocked(
         oauth.protectedResourceRequest
       ).mock.calls[0];
       expect(method).toBe("POST");
@@ -454,7 +454,7 @@ describe("DPoP Tests", () => {
       expect(response.status).toBe(200);
       expect(oauth.protectedResourceRequest).toHaveBeenCalledTimes(1);
 
-      const [accessToken, method, url, headers, body, options] = vi.mocked(
+      const [_accessToken, _method, _url, _headers, _body, options] = vi.mocked(
         oauth.protectedResourceRequest
       ).mock.calls[0];
       expect(options).toBeDefined();
@@ -493,7 +493,7 @@ describe("DPoP Tests", () => {
       expect(response.status).toBe(200);
       expect(oauth.protectedResourceRequest).toHaveBeenCalledTimes(1);
 
-      const [accessToken, method, url, headers, body, options] = vi.mocked(
+      const [_accessToken, _method, _url, _headers, _body, options] = vi.mocked(
         oauth.protectedResourceRequest
       ).mock.calls[0];
       expect(options?.DPoP).toBeUndefined(); // No DPoP handle

@@ -284,7 +284,7 @@ export class AuthClient {
     this.noContentProfileResponseWhenUnauthenticated =
       options.noContentProfileResponseWhenUnauthenticated ?? false;
 
-    if (options.dpopKeyPair && (options.useDpop ?? true)) {
+    if (options.dpopKeyPair && (options.useDpop ?? false)) {
       this.dpopHandle = oauth.DPoP(this.clientMetadata, options.dpopKeyPair);
     }
   }
@@ -1551,13 +1551,61 @@ export class AuthClient {
       );
     }
 
+    // Validate and sanitize HTTP method
+    const validMethods = [
+      "GET",
+      "POST",
+      "PUT",
+      "PATCH",
+      "DELETE",
+      "HEAD",
+      "OPTIONS"
+    ];
+    const sanitizedMethod = (method || "GET").toUpperCase();
+    if (!validMethods.includes(sanitizedMethod)) {
+      return NextResponse.json(
+        {
+          error: {
+            message: `Invalid HTTP method: ${method}. Allowed methods: ${validMethods.join(", ")}`,
+            code: "INVALID_METHOD"
+          }
+        },
+        {
+          status: 400
+        }
+      );
+    }
+
+    // Sanitize headers - remove potentially dangerous headers
+    let sanitizedHeaders: any = headers;
+    if (headers && typeof headers === "object") {
+      const dangerousHeaders = [
+        "host",
+        "connection",
+        "authorization",
+        "cookie",
+        "x-forwarded-for",
+        "x-real-ip"
+      ];
+      const headerEntries =
+        headers instanceof Headers
+          ? Array.from(headers.entries())
+          : Object.entries(headers);
+
+      sanitizedHeaders = Object.fromEntries(
+        headerEntries.filter(
+          ([key]) => !dangerousHeaders.includes(key.toLowerCase())
+        )
+      );
+    }
+
     // Make (DPoP)-authenticated request with retry logic for nonce errors
     const protectedResourceRequestCall = () =>
       oauth.protectedResourceRequest(
         session.tokenSet.accessToken,
-        method || "GET",
+        sanitizedMethod,
         validatedUrl,
-        headers,
+        sanitizedHeaders,
         body,
         {
           ...this.httpOptions(),

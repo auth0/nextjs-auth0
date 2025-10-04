@@ -1,4 +1,9 @@
-import { createPrivateKey, createPublicKey } from "node:crypto";
+import {
+  createPrivateKey,
+  createPublicKey,
+  createSign,
+  createVerify
+} from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { cookies } from "next/headers.js";
 import { NextRequest, NextResponse } from "next/server.js";
@@ -222,7 +227,7 @@ export interface Auth0ClientOptions {
   enableParallelTransactions?: boolean;
 
   useDpop?: boolean;
-  dpopKeypair?: DpopKeyPair;
+  dpopKeyPair?: DpopKeyPair;
 }
 
 export type PagesRouterRequest = IncomingMessage | NextApiRequest;
@@ -252,7 +257,7 @@ export class Auth0Client {
       process.env.AUTH0_CLIENT_ASSERTION_SIGNING_ALG;
 
     // Validate DPoP configuration and resolve from environment variables if needed
-    const resolvedDpopKeypair = this.validateDpopConfiguration(options);
+    const resolvedDpopKeyPair = this.validateDpopConfiguration(options);
 
     // Auto-detect base path for cookie configuration
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
@@ -357,7 +362,7 @@ export class Auth0Client {
       noContentProfileResponseWhenUnauthenticated:
         options.noContentProfileResponseWhenUnauthenticated,
       useDpop: options.useDpop || false,
-      dpopKeyPair: options.dpopKeypair || resolvedDpopKeypair
+      dpopKeyPair: options.dpopKeyPair || resolvedDpopKeyPair
     });
   }
 
@@ -959,8 +964,8 @@ export class Auth0Client {
     const useDpop = options.useDpop || false;
 
     // If we already have a keypair, return it
-    if (options.dpopKeypair) {
-      return options.dpopKeypair;
+    if (options.dpopKeyPair) {
+      return options.dpopKeyPair;
     }
 
     // If DPoP is enabled but no keypair provided, check if environment variables exist
@@ -974,6 +979,22 @@ export class Auth0Client {
           const privateKeyNodeJS = createPrivateKey(privateKeyPem);
           const publicKeyNodeJS = createPublicKey(publicKeyPem);
 
+          // Validate algorithm compatibility for ES256
+          if (privateKeyNodeJS.asymmetricKeyType !== "ec") {
+            throw new Error(
+              "DPoP private key must be an Elliptic Curve (EC) key for ES256 algorithm"
+            );
+          }
+
+          if (publicKeyNodeJS.asymmetricKeyType !== "ec") {
+            throw new Error(
+              "DPoP public key must be an Elliptic Curve (EC) key for ES256 algorithm"
+            );
+          }
+
+          // Validate key pair compatibility
+          this.validateKeyPairCompatibility(privateKeyNodeJS, publicKeyNodeJS);
+
           // Convert NodeJS KeyObjects to CryptoKeys synchronously
           const privateKey = privateKeyNodeJS.toCryptoKey("ES256", false, [
             "sign"
@@ -981,6 +1002,7 @@ export class Auth0Client {
           const publicKey = publicKeyNodeJS.toCryptoKey("ES256", false, [
             "verify"
           ]);
+
           return { privateKey, publicKey };
         } catch (error) {
           console.warn(
@@ -994,15 +1016,55 @@ export class Auth0Client {
       if (!privateKeyPem || !publicKeyPem) {
         // Issue warning if no keypair is available
         console.warn(
-          "WARNING: useDpop is set to true but dpopKeypair is not provided. " +
+          "WARNING: useDpop is set to true but dpopKeyPair is not provided. " +
             "DPoP will not be used and protected requests will use bearer authentication instead. " +
-            "To enable DPoP, provide a dpopKeypair in the Auth0Client options or set " +
+            "To enable DPoP, provide a dpopKeyPair in the Auth0Client options or set " +
             "AUTH0_DPOP_PUBLIC_KEY and AUTH0_DPOP_PRIVATE_KEY environment variables."
         );
       }
     }
 
     return undefined;
+  }
+
+  /**
+   * Validates that a private and public key form a compatible key pair
+   * by attempting to sign and verify a test message.
+   */
+  private validateKeyPairCompatibility(
+    privateKey: CryptoKey | any,
+    publicKey: CryptoKey | any
+  ): void {
+    try {
+      // Create test data
+      const testData = "test-data-for-key-pair-validation";
+
+      // Sign with private key
+      const sign = createSign("sha256");
+      sign.update(testData);
+      const signature = sign.sign(privateKey);
+
+      // Verify with public key
+      const verify = createVerify("sha256");
+      verify.update(testData);
+      const isValid = verify.verify(publicKey, signature);
+
+      if (!isValid) {
+        throw new Error(
+          "Private and public keys do not form a valid key pair - signature verification failed"
+        );
+      }
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message.includes("do not form a valid key pair")
+      ) {
+        throw error;
+      }
+      throw new Error(
+        `Failed to validate key pair compatibility: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
   }
 }
 
