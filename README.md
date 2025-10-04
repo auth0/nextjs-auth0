@@ -1,6 +1,10 @@
 ![Auth0 Next.js SDK Banner](https://cdn.auth0.com/website/sdks/banners/nextjs-auth0-banner.png)
 
-The Auth0 Next.js SDK is a library for implementing user authentication in Next.js applications.
+The Auth0 Next.js SDK is a library for implementing user aut| enableTelemetry             | `boolean`                 | Boolean value to opt-out of sending the library name and version to your authorization server via the `Auth0-Client` header. Defaults to `true`.                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| useDpop                     | `boolean`                 | Enable DPoP (Demonstration of Proof-of-Possession) for enhanced security. When enabled, the client will generate DPoP proofs for token requests and protected resource requests. Defaults to `false`.                                                                                                                                                                                                                                                                                                                                                                                               |
+| dpopKeyPair                 | `DpopKeyPair`            | ES256 key pair for DPoP proof generation. If not provided, the SDK will attempt to load keys from `AUTH0_DPOP_PUBLIC_KEY` and `AUTH0_DPOP_PRIVATE_KEY` environment variables. Keys must be in PEM format.                                                                                                                                                                                                                                                                                                                                                                                           |
+
+### Customizing Auth Handlerstication in Next.js applications.
 
 [![Auth0 Next.js SDK Release](https://img.shields.io/npm/v/@auth0/nextjs-auth0)](https://www.npmjs.com/package/@auth0/nextjs-auth0)
 ![Auth0 Next.js SDK Downloads](https://img.shields.io/npm/dw/@auth0/nextjs-auth0)
@@ -184,6 +188,35 @@ AUTH0_COOKIE_PATH=
 AUTH0_COOKIE_TRANSIENT=
 AUTH0_COOKIE_SECURE=
 AUTH0_COOKIE_SAME_SITE=
+AUTH0_DPOP_PUBLIC_KEY=
+AUTH0_DPOP_PRIVATE_KEY=
+```
+
+### DPoP Configuration
+
+For enhanced security with DPoP (Demonstration of Proof-of-Possession), you can configure ES256 key pairs:
+
+```env
+AUTH0_DPOP_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE...
+-----END PUBLIC KEY-----"
+AUTH0_DPOP_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQ...
+-----END PRIVATE KEY-----"
+```
+
+Alternatively, you can provide the key pair programmatically:
+
+```ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+import { generateKeyPair } from "oauth4webapi";
+
+const dpopKeyPair = await generateKeyPair("ES256");
+
+export const auth0 = new Auth0Client({
+  useDpop: true,
+  dpopKeyPair
+});
 ```
 
 Respective counterparts are also available in the client configuration. See [Cookie Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#cookie-configuration) for more details.

@@ -6,6 +6,10 @@
   - [Redirecting the user after logging out](#redirecting-the-user-after-logging-out)
   - [Configuring logout strategy](#configuring-logout-strategy)
   - [Federated logout](#federated-logout)
+- [DPoP (Demonstration of Proof-of-Possession)](#dpop-demonstration-of-proof-of-possession)
+  - [Enabling DPoP](#enabling-dpop)
+  - [DPoP Key Generation](#dpop-key-generation)
+  - [Making DPoP-protected requests](#making-dpop-protected-requests)
 - [Accessing the authenticated user](#accessing-the-authenticated-user)
   - [In the browser](#in-the-browser)
   - [On the server (App Router)](#on-the-server-app-router)
@@ -190,6 +194,168 @@ This has no effect with v2 strategy (v2 doesn't use `id_token_hint`).
 
 > [!WARNING]  
 > When `includeIdTokenHintInOIDCLogoutUrl: false`, logout requests lose cryptographic verification. The [OpenID Connect specification](https://openid.net/specs/openid-connect-rpinitiated-1_0.html#Security) warns that "logout requests without a valid `id_token_hint` value are a potential means of denial of service." Use this setting only when privacy requirements outweigh DoS protection concerns.
+
+## DPoP (Demonstration of Proof-of-Possession)
+
+DPoP (Demonstration of Proof-of-Possession) is a security feature for OAuth 2.0 that helps protect against token theft and replay attacks by cryptographically binding access tokens to a particular client. This means that only the party holding the correct private key can use a given token to access protected APIs.
+
+### How DPoP Works in nextjs-auth0
+
+In this SDK,  all DPoP operations are handled **server-side only**. The client (browser) never touches the DPoP keys or tokens. This approach avoids many potential security pitfalls while keeping your frontend integration clean and easy.
+
+- When the server exchanges a code for an access token, it generates a DPoP proof (a signed JWT showing key possession) using its private key.
+- The resulting access token is cryptographically bound to that key and is stored server-side.
+- When your app needs to call a protected API, the server generates a new DPoP proof for each outgoing request and attaches both the proof and the access token.
+- The browser never receives the private key or access token directly—it only communicates with your server's internal API routes, which then proxy to backend APIs as needed.
+
+This design preserves DPoP’s strongest security promise: stolen tokens are useless without the private key, and the private key never leaves your secure server.
+
+### Why Server-Only DPoP?
+
+- DPoP **requires** the entity that receives the token to also be the one that presents it when calling APIs.
+- If the browser needed to present a DPoP proof, it would also need the private key, meaning the key must travel from server to browser—which breaks DPoP’s security goals.
+- Keeping all DPoP logic in the backend solves this, lets your API requests be highly secure, and is simple to maintain.
+
+### Enabling DPoP
+
+To turn on DPoP in nextjs-auth0:
+
+#### Using Environment Variables
+
+```env
+AUTH0_DPOP_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----
+...
+-----END PUBLIC KEY-----"
+AUTH0_DPOP_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----
+...
+-----END PRIVATE KEY-----"
+```
+
+```ts
+export const auth0 = new Auth0Client({
+  useDpop: true
+  // Keys auto-loaded from env
+});
+```
+
+#### Programmatic Configuration
+
+You can also generate or load the key programmatically:
+
+```ts
+import { Auth0Client } from "@auth0/nextjs-auth0";
+import * as oauth from "oauth4webapi";
+
+// Generate a DPoP ES256 key pair
+const dpopKeyPair = await oauth.generateKeyPair("ES256");
+
+export const auth0 = new Auth0Client({
+  useDpop: true,
+  dpopKeyPair
+});
+```
+
+#### Key Management
+
+For most secure use, keep your DPoP key pair secret and only on the server. In a typical Next.js production app, a single long-lived key pair is often appropriate and can be loaded from a secure secret store or environment variables.
+
+### How to Make DPoP-Protected Requests
+
+All requests to backend APIs needing DPoP are automatically handled for you when using the SDK’s fetch helpers from server-side code.
+You can use `fetchWithAuth` to automatically add DPoP or normal bearer authentication headers to your api calls:
+
+#### Example (API Route)
+
+```ts
+import { auth0 } from "./lib/auth0";
+
+export default async function handler(req, res) {
+  const session = await auth0.getSession(req, res);
+  
+  if (!session) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+
+  // Server fetch: includes DPoP proof under the hood!
+  const response = await auth0.fetchWithAuth(session, "https://api.example.com/data");
+  const data = await response.json();
+  res.json(data);
+}
+```
+
+If `useDpop` is `false`, `fetchWithAuth` will add the `bearer ACCESS_TOKEN` value to `authentication` header of your api call.
+
+#### Example (App Router)
+
+```ts
+import { auth0 } from "./lib/auth0";
+
+export async function GET() {
+  const session = await auth0.getSession();
+  
+  if (!session) {
+    return Response.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
+  // DPoP proof generation is handled for you
+  const response = await auth0.fetch(session, "https://api.example.com/data");
+  const data = await response.json();
+  return Response.json(data);
+}
+```
+
+### DPoP Key Generation
+
+You’ll need an ES256 (P-256 curve) key pair. Here are a few ways to make one:
+
+- With [oauth4webapi](https://github.com/panva/oauth4webapi):
+
+  ```ts
+  import * as oauth from "oauth4webapi";
+  const keyPair = await oauth.generateKeyPair("ES256");
+  ```
+
+- With OpenSSL:
+
+  ```bash
+  openssl ecparam -genkey -name prime256v1 -noout -out dpop-private-key.pem
+  openssl ec -in dpop-private-key.pem -pubout -out dpop-public-key.pem
+  ```
+
+- With Node.js native crypto:
+
+  ```ts
+  import { generateKeyPair } from "node:crypto";
+  import { promisify } from "node:util";
+  const generateKeyPairAsync = promisify(generateKeyPair);
+
+  const { publicKey, privateKey } = await generateKeyPairAsync("ec", {
+    namedCurve: "prime256v1",
+    publicKeyEncoding: { type: "spki", format: "pem" },
+    privateKeyEncoding: { type: "pkcs8", format: "pem" }
+  });
+  ```
+
+### Error Handling
+
+DPoP requests might trigger nonce errors if the authorization server asks for a fresh proof. The SDK handles retries for you automatically.
+
+```ts
+try {
+  const response = await auth0.fetch(session, "https://api.example.com/data");
+  if (!response.ok) throw new Error("API request failed");
+  const data = await response.json();
+  return Response.json(data);
+} catch (error) {
+  return Response.json({ error: "API request failed" }, { status: 500 });
+}
+```
+
+> [!NOTE]
+> DPoP proofs and tokens never leave the server; the browser only fetches data through internal API routes.
+
+> [!IMPORTANT]
+> For most secure deployments, generate key pairs per application and hold them in server-only secrets. Don’t share individual user session keys with the frontend or across untrusted boundaries.
 
 ## Accessing the authenticated user
 
