@@ -1,3 +1,4 @@
+import { createPrivateKey, createPublicKey } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { cookies } from "next/headers.js";
 import { NextRequest, NextResponse } from "next/server.js";
@@ -9,6 +10,7 @@ import {
   AccessTokenForConnectionError,
   AccessTokenForConnectionErrorCode
 } from "../errors/index.js";
+import { DpopKeyPair } from "../types/dpop.js";
 import {
   AccessTokenForConnectionOptions,
   AuthorizationParameters,
@@ -218,6 +220,9 @@ export interface Auth0ClientOptions {
   noContentProfileResponseWhenUnauthenticated?: boolean;
 
   enableParallelTransactions?: boolean;
+
+  useDpop?: boolean;
+  dpopKeypair?: DpopKeyPair;
 }
 
 export type PagesRouterRequest = IncomingMessage | NextApiRequest;
@@ -245,6 +250,9 @@ export class Auth0Client {
     const clientAssertionSigningAlg =
       options.clientAssertionSigningAlg ||
       process.env.AUTH0_CLIENT_ASSERTION_SIGNING_ALG;
+
+    // Validate DPoP configuration and resolve from environment variables if needed
+    const resolvedDpopKeypair = this.validateDpopConfiguration(options);
 
     // Auto-detect base path for cookie configuration
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
@@ -293,7 +301,10 @@ export class Auth0Client {
       profile: process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile",
       accessToken:
         process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
-      ...options.routes
+      ...options.routes,
+      protectedRequest:
+        process.env.NEXT_PUBLIC_PROTECTED_REQUEST_ROUTE ||
+        "/auth/protected-request"
     };
 
     this.transactionStore = new TransactionStore({
@@ -344,7 +355,9 @@ export class Auth0Client {
       enableTelemetry: options.enableTelemetry,
       enableAccessTokenEndpoint: options.enableAccessTokenEndpoint,
       noContentProfileResponseWhenUnauthenticated:
-        options.noContentProfileResponseWhenUnauthenticated
+        options.noContentProfileResponseWhenUnauthenticated,
+      useDpop: options.useDpop || false,
+      dpopKeyPair: options.dpopKeypair || resolvedDpopKeypair
     });
   }
 
@@ -932,6 +945,64 @@ export class Auth0Client {
     return result as {
       [K in keyof typeof result]: NonNullable<(typeof result)[K]>;
     };
+  }
+
+  /**
+   * Validates DPoP configuration and returns keypair if available.
+   * Attempts to load from environment variables if not provided in options.
+   * @param options The client options
+   * @returns DpopKeyPair if available, undefined otherwise
+   */
+  private validateDpopConfiguration(
+    options: Auth0ClientOptions
+  ): DpopKeyPair | undefined {
+    const useDpop = options.useDpop || false;
+
+    // If we already have a keypair, return it
+    if (options.dpopKeypair) {
+      return options.dpopKeypair;
+    }
+
+    // If DPoP is enabled but no keypair provided, check if environment variables exist
+    if (useDpop) {
+      const privateKeyPem = process.env.AUTH0_DPOP_PRIVATE_KEY;
+      const publicKeyPem = process.env.AUTH0_DPOP_PUBLIC_KEY;
+
+      if (privateKeyPem && publicKeyPem) {
+        try {
+          // Load and convert keys synchronously
+          const privateKeyNodeJS = createPrivateKey(privateKeyPem);
+          const publicKeyNodeJS = createPublicKey(publicKeyPem);
+
+          // Convert NodeJS KeyObjects to CryptoKeys synchronously
+          const privateKey = privateKeyNodeJS.toCryptoKey("ES256", false, [
+            "sign"
+          ]);
+          const publicKey = publicKeyNodeJS.toCryptoKey("ES256", false, [
+            "verify"
+          ]);
+          return { privateKey, publicKey };
+        } catch (error) {
+          console.warn(
+            "WARNING: Failed to load DPoP keypair from environment variables. " +
+              "Please ensure AUTH0_DPOP_PUBLIC_KEY and AUTH0_DPOP_PRIVATE_KEY contain valid ES256 keys in PEM format. " +
+              `Error: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
+      }
+
+      if (!privateKeyPem || !publicKeyPem) {
+        // Issue warning if no keypair is available
+        console.warn(
+          "WARNING: useDpop is set to true but dpopKeypair is not provided. " +
+            "DPoP will not be used and protected requests will use bearer authentication instead. " +
+            "To enable DPoP, provide a dpopKeypair in the Auth0Client options or set " +
+            "AUTH0_DPOP_PUBLIC_KEY and AUTH0_DPOP_PRIVATE_KEY environment variables."
+        );
+      }
+    }
+
+    return undefined;
   }
 }
 

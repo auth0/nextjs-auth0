@@ -8,6 +8,9 @@ export function getDefaultRoutes(): Routes {
     backChannelLogout: "/auth/backchannel-logout",
     profile: process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile",
     accessToken:
-      process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token"
+      process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
+    protectedRequest:
+      process.env.NEXT_PUBLIC_PROTECTED_REQUEST_ROUTE ||
+      "/auth/protected-request"
   };
 }

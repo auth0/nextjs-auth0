@@ -21,6 +21,7 @@ import {
   OAuth2Error,
   SdkError
 } from "../errors/index.js";
+import { DpopKeyPair, ProtectedRequestBody } from "../types/dpop.js";
 import {
   AccessTokenForConnectionOptions,
   AuthorizationParameters,
@@ -103,6 +104,7 @@ export interface Routes {
   profile: string;
   accessToken: string;
   backChannelLogout: string;
+  protectedRequest: string;
 }
 export type RoutesOptions = Partial<
   Pick<Routes, "login" | "callback" | "logout" | "backChannelLogout">
@@ -139,6 +141,9 @@ export interface AuthClientOptions {
   enableTelemetry?: boolean;
   enableAccessTokenEndpoint?: boolean;
   noContentProfileResponseWhenUnauthenticated?: boolean;
+
+  useDpop?: boolean;
+  dpopKeyPair?: DpopKeyPair;
 }
 
 function createRouteUrl(path: string, baseUrl: string) {
@@ -180,6 +185,9 @@ export class AuthClient {
 
   private readonly enableAccessTokenEndpoint: boolean;
   private readonly noContentProfileResponseWhenUnauthenticated: boolean;
+
+  // TODO: should this be optional?
+  private dpopHandle?: oauth.DPoPHandle;
 
   constructor(options: AuthClientOptions) {
     // dependencies
@@ -275,6 +283,10 @@ export class AuthClient {
     this.enableAccessTokenEndpoint = options.enableAccessTokenEndpoint ?? true;
     this.noContentProfileResponseWhenUnauthenticated =
       options.noContentProfileResponseWhenUnauthenticated ?? false;
+
+    if (options.dpopKeyPair && (options.useDpop ?? true)) {
+      this.dpopHandle = oauth.DPoP(this.clientMetadata, options.dpopKeyPair);
+    }
   }
 
   async handler(req: NextRequest): Promise<NextResponse> {
@@ -301,6 +313,11 @@ export class AuthClient {
       sanitizedPathname === this.routes.backChannelLogout
     ) {
       return this.handleBackChannelLogout(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.protectedRequest
+    ) {
+      return this.handleProtectedRequest(req);
     } else {
       // no auth handler found, simply touch the sessions
       // TODO: this should only happen if rolling sessions are enabled. Also, we should
@@ -576,21 +593,27 @@ export class AuthClient {
     }
 
     let codeGrantResponse: Response;
+    let redirectUri: URL;
+    let authorizationCodeGrantRequestCall: () => Promise<Response>;
+
     try {
-      const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registed with the authorization server
-      codeGrantResponse = await oauth.authorizationCodeGrantRequest(
-        authorizationServerMetadata,
-        this.clientMetadata,
-        await this.getClientAuth(),
-        codeGrantParams,
-        redirectUri.toString(),
-        transactionState.codeVerifier,
-        {
-          ...this.httpOptions(),
-          [oauth.customFetch]: this.fetch,
-          [oauth.allowInsecureRequests]: this.allowInsecureRequests
-        }
-      );
+      redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registed with the authorization server
+      authorizationCodeGrantRequestCall = async () =>
+        oauth.authorizationCodeGrantRequest(
+          authorizationServerMetadata,
+          this.clientMetadata,
+          await this.getClientAuth(),
+          codeGrantParams,
+          redirectUri.toString(),
+          transactionState.codeVerifier,
+          {
+            ...this.httpOptions(),
+            [oauth.customFetch]: this.fetch,
+            [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+            DPoP: this.dpopHandle
+          }
+        );
+      codeGrantResponse = await authorizationCodeGrantRequestCall();
     } catch (e: any) {
       return this.handleCallbackError(
         new AuthorizationCodeGrantRequestError(e.message),
@@ -599,10 +622,8 @@ export class AuthClient {
         state
       );
     }
-
-    let oidcRes: oauth.TokenEndpointResponse;
-    try {
-      oidcRes = await oauth.processAuthorizationCodeResponse(
+    const processAuthorizationCodeResponseCall = async () =>
+      oauth.processAuthorizationCodeResponse(
         authorizationServerMetadata,
         this.clientMetadata,
         codeGrantResponse,
@@ -612,18 +633,26 @@ export class AuthClient {
           requireIdToken: true
         }
       );
+    let oidcRes: oauth.TokenEndpointResponse;
+    try {
+      oidcRes = await processAuthorizationCodeResponseCall();
     } catch (e: any) {
-      return this.handleCallbackError(
-        new AuthorizationCodeGrantError({
-          cause: new OAuth2Error({
-            code: e.error,
-            message: e.error_description
-          })
-        }),
-        onCallbackCtx,
-        req,
-        state
-      );
+      if (oauth.isDPoPNonceError(e)) {
+        codeGrantResponse = await authorizationCodeGrantRequestCall();
+        oidcRes = await processAuthorizationCodeResponseCall();
+      } else {
+        return this.handleCallbackError(
+          new AuthorizationCodeGrantError({
+            cause: new OAuth2Error({
+              code: e.error,
+              message: e.error_description
+            })
+          }),
+          onCallbackCtx,
+          req,
+          state
+        );
+      }
     }
 
     const idTokenClaims = oauth.getValidatedIdTokenClaims(oidcRes)!;
@@ -816,37 +845,49 @@ export class AuthClient {
           return [discoveryError, null];
         }
 
-        const refreshTokenRes = await oauth.refreshTokenGrantRequest(
-          authorizationServerMetadata,
-          this.clientMetadata,
-          await this.getClientAuth(),
-          tokenSet.refreshToken,
-          {
-            ...this.httpOptions(),
-            [oauth.customFetch]: this.fetch,
-            [oauth.allowInsecureRequests]: this.allowInsecureRequests
-          }
-        );
+        const refreshTokenGrantRequestCall = async () =>
+          oauth.refreshTokenGrantRequest(
+            authorizationServerMetadata,
+            this.clientMetadata,
+            await this.getClientAuth(),
+            tokenSet.refreshToken!,
+            {
+              ...this.httpOptions(),
+              [oauth.customFetch]: this.fetch,
+              [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+              DPoP: this.dpopHandle
+            }
+          );
 
-        let oauthRes: oauth.TokenEndpointResponse;
-        try {
-          oauthRes = await oauth.processRefreshTokenResponse(
+        let refreshTokenRes = await refreshTokenGrantRequestCall();
+
+        const processRefreshTokenResponseCall = () =>
+          oauth.processRefreshTokenResponse(
             authorizationServerMetadata,
             this.clientMetadata,
             refreshTokenRes
           );
+
+        let oauthRes: oauth.TokenEndpointResponse;
+        try {
+          oauthRes = await processRefreshTokenResponseCall();
         } catch (e: any) {
-          return [
-            new AccessTokenError(
-              AccessTokenErrorCode.FAILED_TO_REFRESH_TOKEN,
-              "The access token has expired and there was an error while trying to refresh it.",
-              new OAuth2Error({
-                code: e.error,
-                message: e.error_description
-              })
-            ),
-            null
-          ];
+          if (oauth.isDPoPNonceError(e)) {
+            refreshTokenRes = await refreshTokenGrantRequestCall();
+            oauthRes = await processRefreshTokenResponseCall();
+          } else {
+            return [
+              new AccessTokenError(
+                AccessTokenErrorCode.FAILED_TO_REFRESH_TOKEN,
+                "The access token has expired and there was an error while trying to refresh it.",
+                new OAuth2Error({
+                  code: e.error,
+                  message: e.error_description
+                })
+              ),
+              null
+            ];
+          }
         }
 
         const idTokenClaims = oauth.getValidatedIdTokenClaims(oauthRes)!;
@@ -1330,37 +1371,50 @@ export class AuthClient {
         return [discoveryError, null];
       }
 
-      const httpResponse = await oauth.genericTokenEndpointRequest(
-        authorizationServerMetadata,
-        this.clientMetadata,
-        await this.getClientAuth(),
-        GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN,
-        params,
-        {
-          [oauth.customFetch]: this.fetch,
-          [oauth.allowInsecureRequests]: this.allowInsecureRequests
-        }
-      );
+      const genericTokenEndpointRequestCall = async () =>
+        oauth.genericTokenEndpointRequest(
+          authorizationServerMetadata,
+          this.clientMetadata,
+          await this.getClientAuth(),
+          GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN,
+          params,
+          {
+            [oauth.customFetch]: this.fetch,
+            [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+            DPoP: this.dpopHandle
+          }
+        );
 
-      let tokenEndpointResponse: oauth.TokenEndpointResponse;
-      try {
-        tokenEndpointResponse = await oauth.processGenericTokenEndpointResponse(
+      let httpResponse = await genericTokenEndpointRequestCall();
+
+      const processGenericTokenEndpointResponseCall = () =>
+        oauth.processGenericTokenEndpointResponse(
           authorizationServerMetadata,
           this.clientMetadata,
           httpResponse
         );
+
+      let tokenEndpointResponse: oauth.TokenEndpointResponse;
+      try {
+        tokenEndpointResponse = await processGenericTokenEndpointResponseCall();
       } catch (err: any) {
-        return [
-          new AccessTokenForConnectionError(
-            AccessTokenForConnectionErrorCode.FAILED_TO_EXCHANGE,
-            "There was an error trying to exchange the refresh token for a connection access token.",
-            new OAuth2Error({
-              code: err.error,
-              message: err.error_description
-            })
-          ),
-          null
-        ];
+        if (oauth.isDPoPNonceError(err)) {
+          httpResponse = await genericTokenEndpointRequestCall();
+          tokenEndpointResponse =
+            await processGenericTokenEndpointResponseCall();
+        } else {
+          return [
+            new AccessTokenForConnectionError(
+              AccessTokenForConnectionErrorCode.FAILED_TO_EXCHANGE,
+              "There was an error trying to exchange the refresh token for a connection access token.",
+              new OAuth2Error({
+                code: err.error,
+                message: err.error_description
+              })
+            ),
+            null
+          ];
+        }
       }
 
       return [
@@ -1428,6 +1482,7 @@ export class AuthClient {
       const headers = new Headers(args[1].headers);
       return this.fetch(args[0], {
         ...args[1],
+        body: args[1].body as BodyInit | null | undefined,
         headers: new Headers([...telemetryHeaders, ...headers])
       });
     };
@@ -1439,6 +1494,97 @@ export class AuthClient {
     }
 
     return [null, openidClientConfig];
+  }
+
+  private async handleProtectedRequest(
+    req: NextRequest
+  ): Promise<NextResponse> {
+    // session check
+    const session = await this.sessionStore.get(req.cookies);
+    if (!session) {
+      return NextResponse.json(
+        {
+          error: {
+            message: "The user does not have an active session.",
+            code: AccessTokenErrorCode.MISSING_SESSION
+          }
+        },
+        {
+          status: 401
+        }
+      );
+    }
+
+    // Extract request details
+    const { url, method, headers, body } =
+      (await req.json()) as ProtectedRequestBody;
+
+    // Validate URL before making request
+    if (!url || typeof url !== "string") {
+      return NextResponse.json(
+        {
+          error: {
+            message: "URL is required and must be a string",
+            code: "INVALID_REQUEST"
+          }
+        },
+        {
+          status: 400
+        }
+      );
+    }
+
+    let validatedUrl: URL;
+    try {
+      validatedUrl = new URL(url);
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error: {
+            message: `Invalid URL: ${url}`,
+            code: "INVALID_URL"
+          }
+        },
+        {
+          status: 400
+        }
+      );
+    }
+
+    // Make (DPoP)-authenticated request with retry logic for nonce errors
+    const protectedResourceRequestCall = () =>
+      oauth.protectedResourceRequest(
+        session.tokenSet.accessToken,
+        method || "GET",
+        validatedUrl,
+        headers,
+        body,
+        {
+          ...this.httpOptions(),
+          [oauth.customFetch]: (url: string, options: any) =>
+            this.fetch(url, options),
+          [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+          DPoP: this.dpopHandle
+        }
+      );
+
+    let response: Response;
+    try {
+      response = await protectedResourceRequestCall();
+    } catch (e: any) {
+      if (oauth.isDPoPNonceError(e)) {
+        // the RS-signalled nonce is now cached, retrying
+        response = await protectedResourceRequestCall();
+      } else {
+        throw e;
+      }
+    }
+
+    // Return proxied response
+    return new NextResponse(response.body, {
+      status: response.status,
+      headers: response.headers
+    });
   }
 }
 
