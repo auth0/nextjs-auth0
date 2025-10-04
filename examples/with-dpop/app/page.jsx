@@ -15,8 +15,7 @@ export default function Index() {
       </h1>
 
       <p className="lead" data-testid="hero-lead">
-        This example demonstrates DPoP integration with{' '}
-        <a href="https://nextjs.org">Next.js</a> and Auth0
+        This example demonstrates DPoP integration with <a href="https://nextjs.org">Next.js</a> and Auth0
       </p>
 
       {user ? (
