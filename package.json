@@ -67,6 +67,9 @@
     ".": {
       "default": "./dist/client/index.js"
     },
+    "./client": {
+      "default": "./dist/client/index.js"
+    },
     "./server": {
       "default": "./dist/server/index.js"
     },

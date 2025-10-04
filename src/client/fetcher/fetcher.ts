@@ -203,9 +203,9 @@ export function createFetcher<
 const defaultFetcher = new Fetcher<Response>({});
 
 /**
- * Convenience function to make DPoP-protected requests using the default fetcher.
+ * Convenience function to make DPoP/bearer protected requests using the default fetcher.
  * This function provides a native fetch()-like API while automatically handling
- * DPoP authentication through the Auth0 NextJS SDK.
+ * DPoP/bearer authentication through the Auth0 NextJS SDK.
  *
  * @param info The URL or Request object for the request
  * @param init Optional request initialization options
