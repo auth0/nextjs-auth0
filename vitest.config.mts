@@ -4,7 +4,7 @@ import { configDefaults } from "vitest/config"
 
 export default defineConfig({
   test: {
-    exclude: [...configDefaults.exclude, "e2e/*", "examples/*"],
+    exclude: [...configDefaults.exclude, "e2e/*", "examples/**/*", "examples/**/*.test.*"],
     coverage: {
       include: ["src/**/*"],
     },
