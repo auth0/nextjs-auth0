@@ -21,7 +21,11 @@ import {
   OAuth2Error,
   SdkError
 } from "../errors/index.js";
-import { DpopKeyPair, ProtectedRequestBody } from "../types/dpop.js";
+import {
+  DpopKeyPair,
+  DpopOptions,
+  ProtectedRequestBody
+} from "../types/dpop.js";
 import {
   AccessTokenForConnectionOptions,
   AuthorizationParameters,
@@ -144,6 +148,7 @@ export interface AuthClientOptions {
 
   useDpop?: boolean;
   dpopKeyPair?: DpopKeyPair;
+  dpopOptions?: DpopOptions;
 }
 
 function createRouteUrl(path: string, baseUrl: string) {
@@ -233,6 +238,17 @@ export class AuthClient {
     // authorization server
     this.domain = options.domain;
     this.clientMetadata = { client_id: options.clientId };
+
+    // Apply DPoP timing validation options to client metadata
+    if (options.dpopOptions) {
+      if (options.dpopOptions.clockSkew !== undefined) {
+        this.clientMetadata[oauth.clockSkew] = options.dpopOptions.clockSkew;
+      }
+      if (options.dpopOptions.clockTolerance !== undefined) {
+        this.clientMetadata[oauth.clockTolerance] =
+          options.dpopOptions.clockTolerance;
+      }
+    }
     this.clientSecret = options.clientSecret;
     this.authorizationParameters = options.authorizationParameters || {
       scope: DEFAULT_SCOPES

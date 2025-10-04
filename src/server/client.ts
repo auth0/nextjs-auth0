@@ -3,8 +3,8 @@ import {
   createPublicKey,
   createSign,
   createVerify
-} from "node:crypto";
-import type { IncomingMessage, ServerResponse } from "node:http";
+} from "crypto";
+import type { IncomingMessage, ServerResponse } from "http";
 import { cookies } from "next/headers.js";
 import { NextRequest, NextResponse } from "next/server.js";
 import { NextApiHandler, NextApiRequest, NextApiResponse } from "next/types.js";
@@ -15,7 +15,7 @@ import {
   AccessTokenForConnectionError,
   AccessTokenForConnectionErrorCode
 } from "../errors/index.js";
-import { DpopKeyPair } from "../types/dpop.js";
+import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
 import {
   AccessTokenForConnectionOptions,
   AuthorizationParameters,
@@ -226,8 +226,22 @@ export interface Auth0ClientOptions {
 
   enableParallelTransactions?: boolean;
 
+  /**
+   * If true, enables DPoP (Demonstrating Proof-of-Possession) for OAuth 2.0 token requests.
+   * DPoP provides sender-constraining for access tokens to prevent unauthorized token usage.
+   */
   useDpop?: boolean;
+
+  /**
+   * The public/private key pair used for DPoP proof generation.
+   * If not provided and useDpop is true, keys will be loaded from environment variables.
+   */
   dpopKeyPair?: DpopKeyPair;
+
+  /**
+   * Configuration options for DPoP validation and behavior.
+   */
+  dpopOptions?: DpopOptions;
 }
 
 export type PagesRouterRequest = IncomingMessage | NextApiRequest;
@@ -257,7 +271,10 @@ export class Auth0Client {
       process.env.AUTH0_CLIENT_ASSERTION_SIGNING_ALG;
 
     // Validate DPoP configuration and resolve from environment variables if needed
-    const resolvedDpopKeyPair = this.validateDpopConfiguration(options);
+    const {
+      dpopKeyPair: resolvedDpopKeyPair,
+      dpopOptions: resolvedDpopOptions
+    } = this.validateDpopConfiguration(options);
 
     // Auto-detect base path for cookie configuration
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
@@ -362,7 +379,8 @@ export class Auth0Client {
       noContentProfileResponseWhenUnauthenticated:
         options.noContentProfileResponseWhenUnauthenticated,
       useDpop: options.useDpop || false,
-      dpopKeyPair: options.dpopKeyPair || resolvedDpopKeyPair
+      dpopKeyPair: options.dpopKeyPair || resolvedDpopKeyPair,
+      dpopOptions: options.dpopOptions || resolvedDpopOptions
     });
   }
 
@@ -953,19 +971,37 @@ export class Auth0Client {
   }
 
   /**
-   * Validates DPoP configuration and returns keypair if available.
+   * Validates DPoP configuration and returns keypair and options if available.
    * Attempts to load from environment variables if not provided in options.
    * @param options The client options
-   * @returns DpopKeyPair if available, undefined otherwise
+   * @returns Object containing DpopKeyPair and DpopOptions if available
    */
-  private validateDpopConfiguration(
-    options: Auth0ClientOptions
-  ): DpopKeyPair | undefined {
+  private validateDpopConfiguration(options: Auth0ClientOptions): {
+    dpopKeyPair?: DpopKeyPair;
+    dpopOptions?: DpopOptions;
+  } {
     const useDpop = options.useDpop || false;
 
-    // If we already have a keypair, return it
+    // Build DPoP options with defaults from environment variables or provided options
+    const dpopOptions: DpopOptions = {
+      clockSkew:
+        options.dpopOptions?.clockSkew ??
+        (process.env.AUTH0_DPOP_CLOCK_SKEW
+          ? parseInt(process.env.AUTH0_DPOP_CLOCK_SKEW, 10)
+          : 0),
+      clockTolerance:
+        options.dpopOptions?.clockTolerance ??
+        (process.env.AUTH0_DPOP_CLOCK_TOLERANCE
+          ? parseInt(process.env.AUTH0_DPOP_CLOCK_TOLERANCE, 10)
+          : 30)
+    };
+
+    // If we already have a keypair, return it with options
     if (options.dpopKeyPair) {
-      return options.dpopKeyPair;
+      return {
+        dpopKeyPair: options.dpopKeyPair,
+        dpopOptions
+      };
     }
 
     // If DPoP is enabled but no keypair provided, check if environment variables exist
@@ -1003,7 +1039,10 @@ export class Auth0Client {
             "verify"
           ]);
 
-          return { privateKey, publicKey };
+          return {
+            dpopKeyPair: { privateKey, publicKey },
+            dpopOptions
+          };
         } catch (error) {
           console.warn(
             "WARNING: Failed to load DPoP keypair from environment variables. " +
@@ -1024,7 +1063,7 @@ export class Auth0Client {
       }
     }
 
-    return undefined;
+    return { dpopOptions };
   }
 
   /**

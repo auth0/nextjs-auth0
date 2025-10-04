@@ -1,10 +1,6 @@
 ![Auth0 Next.js SDK Banner](https://cdn.auth0.com/website/sdks/banners/nextjs-auth0-banner.png)
 
-The Auth0 Next.js SDK is a library for implementing user aut| enableTelemetry             | `boolean`                 | Boolean value to opt-out of sending the library name and version to your authorization server via the `Auth0-Client` header. Defaults to `true`.                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| useDpop                     | `boolean`                 | Enable DPoP (Demonstration of Proof-of-Possession) for enhanced security. When enabled, the client will generate DPoP proofs for token requests and protected resource requests. Defaults to `false`.                                                                                                                                                                                                                                                                                                                                                                                               |
-| dpopKeyPair                 | `DpopKeyPair`            | ES256 key pair for DPoP proof generation. If not provided, the SDK will attempt to load keys from `AUTH0_DPOP_PUBLIC_KEY` and `AUTH0_DPOP_PRIVATE_KEY` environment variables. Keys must be in PEM format.                                                                                                                                                                                                                                                                                                                                                                                           |
-
-### Customizing Auth Handlerstication in Next.js applications.
+The Auth0 Next.js SDK is a library for implementing user authentication in Next.js applications.
 
 [![Auth0 Next.js SDK Release](https://img.shields.io/npm/v/@auth0/nextjs-auth0)](https://www.npmjs.com/package/@auth0/nextjs-auth0)
 ![Auth0 Next.js SDK Downloads](https://img.shields.io/npm/dw/@auth0/nextjs-auth0)
@@ -160,6 +156,9 @@ You can customize the client by using the options below:
 | allowInsecureRequests       | `boolean`                 | Allow insecure requests to be made to the authorization server. This can be useful when testing with a mock OIDC provider that does not support TLS, locally. This option can only be used when `NODE_ENV` is not set to `production`.                                                                                                                                                                                                                                                                                                                                              |
 | httpTimeout                 | `number`                  | Integer value for the HTTP timeout in milliseconds for authentication requests. Defaults to `5000` milliseconds                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | enableTelemetry             | `boolean`                 | Boolean value to opt-out of sending the library name and version to your authorization server via the `Auth0-Client` header. Defaults to `true`.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| useDpop                     | `boolean`                 | Enable DPoP (Demonstration of Proof-of-Possession) for enhanced security. When enabled, the client will generate DPoP proofs for token requests and protected resource requests. Defaults to `false`.                                                                                                                                                                                                                                                                                                                                                                               |
+| dpopKeyPair                 | `DpopKeyPair`            | ES256 key pair for DPoP proof generation. If not provided, the SDK will attempt to load keys from `AUTH0_DPOP_PUBLIC_KEY` and `AUTH0_DPOP_PRIVATE_KEY` environment variables. Keys must be in PEM format.                                                                                                                                                                                                                                                                                                                                                                           |
+| dpopOptions                 | `DpopOptions`            | Configure DPoP timing validation. Supports `clockSkew` (adjust assumed current time) and `clockTolerance` (validation tolerance). Can also be configured via `AUTH0_DPOP_CLOCK_SKEW` and `AUTH0_DPOP_CLOCK_TOLERANCE` environment variables. See [DPoP Clock Validation](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#dpop-clock-validation) for details.           |
 
 ### Customizing Auth Handlers
 
@@ -190,6 +189,8 @@ AUTH0_COOKIE_SECURE=
 AUTH0_COOKIE_SAME_SITE=
 AUTH0_DPOP_PUBLIC_KEY=
 AUTH0_DPOP_PRIVATE_KEY=
+AUTH0_DPOP_CLOCK_SKEW=
+AUTH0_DPOP_CLOCK_TOLERANCE=
 ```
 
 ### DPoP Configuration
@@ -217,6 +218,28 @@ export const auth0 = new Auth0Client({
   useDpop: true,
   dpopKeyPair
 });
+```
+
+#### Advanced: Clock Validation Configuration
+
+Configure timing validation for DPoP proofs to handle clock differences between client and server:
+
+```ts
+export const auth0 = new Auth0Client({
+  useDpop: true,
+  dpopKeyPair: await generateKeyPair("ES256"),
+  dpopOptions: {
+    clockSkew: 120,      // Adjust for local clock being 2 minutes behind
+    clockTolerance: 45   // Allow 45 seconds tolerance for validation
+  }
+});
+```
+
+Or configure via environment variables:
+
+```env
+AUTH0_DPOP_CLOCK_SKEW=300        # Clock adjustment in seconds
+AUTH0_DPOP_CLOCK_TOLERANCE=90    # Tolerance in seconds
 ```
 
 Respective counterparts are also available in the client configuration. See [Cookie Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#cookie-configuration) for more details.

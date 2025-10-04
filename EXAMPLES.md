@@ -10,6 +10,11 @@
   - [Enabling DPoP](#enabling-dpop)
   - [DPoP Key Generation](#dpop-key-generation)
   - [Making DPoP-protected requests](#making-dpop-protected-requests)
+- [DPoP Clock Validation](#dpop-clock-validation)
+  - [Configuration Options](#configuration-options)
+  - [Environment Variable Configuration](#environment-variable-configuration)
+  - [When to Use Clock Validation](#when-to-use-clock-validation)
+  - [Troubleshooting](#troubleshooting)
 - [Accessing the authenticated user](#accessing-the-authenticated-user)
   - [In the browser](#in-the-browser)
   - [On the server (App Router)](#on-the-server-app-router)
@@ -356,6 +361,67 @@ try {
 
 > [!IMPORTANT]
 > For most secure deployments, generate key pairs per application and hold them in server-only secrets. Don’t share individual user session keys with the frontend or across untrusted boundaries.
+
+## DPoP Clock Validation
+
+Configure timing validation for DPoP proofs to handle clock differences between client and server. DPoP proofs include timing claims (like `iat` - issued at) that need validation to prevent replay attacks.
+
+### Configuration Options
+
+The SDK supports configurable timing validation through integration with oauth4webapi's built-in clock handling:
+
+```ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+import { generateKeyPair } from "oauth4webapi";
+
+export const auth0 = new Auth0Client({
+  useDpop: true,
+  dpopKeyPair: await generateKeyPair("ES256"),
+  dpopOptions: {
+    /**
+     * Clock skew adjustment in seconds. Use to adjust the assumed current time.
+     * Positive values if local clock is behind, negative if ahead.
+     * @default 0
+     */
+    clockSkew: 120,
+
+    /**
+     * Clock tolerance in seconds for DateTime JWT claims validation.
+     * Allows for clock differences between client and server.
+     * @default 30
+     */
+    clockTolerance: 45
+  }
+});
+```
+
+### Environment Variable Configuration
+
+You can also configure via environment variables:
+
+```env
+# Clock adjustment (positive if local clock is behind)
+AUTH0_DPOP_CLOCK_SKEW=300
+
+# Tolerance for timing validation
+AUTH0_DPOP_CLOCK_TOLERANCE=90
+```
+
+### When to Use Clock Validation
+
+- **Network Latency**: When requests take significant time to reach the server
+- **Clock Differences**: When client and server clocks are not perfectly synchronized
+- **Distributed Systems**: When working across multiple time zones or data centers
+- **Testing Environments**: When using mock servers with different system times
+
+### Troubleshooting
+
+If you encounter timing-related DPoP validation errors:
+
+1. **Check clock synchronization**: Ensure client and server clocks are reasonably synchronized
+2. **Increase tolerance**: Start with `clockTolerance: 60` (60 seconds) for testing
+3. **Adjust for network latency**: Use `clockSkew` to account for consistent network delays
+4. **Monitor logs**: Look for "invalid_dpop_proof" errors related to timing claims
 
 ## Accessing the authenticated user
 
