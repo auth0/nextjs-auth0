@@ -439,7 +439,14 @@ describe("Stateless Session Store", async () => {
         });
 
         vi.spyOn(responseCookies, "set");
-        vi.spyOn(requestCookies, "has").mockReturnValue(true);
+
+        // Mock getChunkedCookie to simulate existing legacy cookie
+        vi.spyOn(cookies, "getChunkedCookie").mockImplementation((name) => {
+          if (name === LEGACY_COOKIE_NAME) {
+            return "legacy_session_data"; // Simulate existing legacy cookie
+          }
+          return undefined;
+        });
 
         await sessionStore.set(requestCookies, responseCookies, session);
 
@@ -477,6 +484,15 @@ describe("Stateless Session Store", async () => {
         });
 
         vi.spyOn(responseCookies, "set");
+
+        // Mock getChunkedCookie to simulate existing legacy cookie
+        vi.spyOn(cookies, "getChunkedCookie").mockImplementation((name) => {
+          if (name === LEGACY_COOKIE_NAME) {
+            return "legacy_chunked_session_data"; // Simulate existing legacy cookie
+          }
+          return undefined;
+        });
+
         vi.spyOn(requestCookies, "getAll").mockReturnValue([
           { name: `${LEGACY_COOKIE_NAME}.0`, value: "" },
           { name: `${LEGACY_COOKIE_NAME}.1`, value: "" }
