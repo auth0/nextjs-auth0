@@ -1,16 +1,18 @@
 import type * as jose from "jose";
 
+import { RESPONSE_TYPES } from "../types/index.js";
 import * as cookies from "./cookies.js";
 
 const TRANSACTION_COOKIE_PREFIX = "__txn_";
 
 export interface TransactionState extends jose.JWTPayload {
-  nonce: string;
   codeVerifier: string;
-  responseType: string;
+  responseType: RESPONSE_TYPES;
   state: string; // the state parameter passed to the authorization server
   returnTo: string; // the URL to redirect to after login
+  nonce?: string; // A string value used to associate a client session with an ID Token, and to mitigate replay attacks.  codeVerifier: string;
   maxAge?: number; // the maximum age of the authentication session
+  authSession?: string; // the auth session ID for connect accounts
   /**
    * The scope requested for this transaction.
    */
