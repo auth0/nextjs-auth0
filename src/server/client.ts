@@ -1065,7 +1065,16 @@ export class Auth0Client {
           }
 
           // Validate key pair compatibility
-          this.validateKeyPairCompatibility(privateKeyNodeJS, publicKeyNodeJS);
+          const isKeyPairValid = this.validateKeyPairCompatibility(
+            privateKeyNodeJS,
+            publicKeyNodeJS
+          );
+
+          if (!isKeyPairValid) {
+            // Key pair validation failed, disable DPoP keypair but keep options for potential future use
+            // Return dpopOptions but explicitly no keypair to fallback to bearer auth
+            return { dpopKeyPair: undefined, dpopOptions };
+          }
 
           // Convert NodeJS KeyObjects to CryptoKeys synchronously
           const privateKey = privateKeyNodeJS.toCryptoKey("ES256", false, [
@@ -1099,17 +1108,19 @@ export class Auth0Client {
       }
     }
 
-    return { dpopOptions };
+    // No DPoP keypair available or DPoP disabled, return only options
+    return { dpopKeyPair: undefined, dpopOptions };
   }
 
   /**
    * Validates that a private and public key form a compatible key pair
    * by attempting to sign and verify a test message.
+   * @returns true if keys are compatible, false otherwise
    */
   private validateKeyPairCompatibility(
     privateKey: CryptoKey | any,
     publicKey: CryptoKey | any
-  ): void {
+  ): boolean {
     try {
       // Create test data
       const testData = "test-data-for-key-pair-validation";
@@ -1125,20 +1136,21 @@ export class Auth0Client {
       const isValid = verify.verify(publicKey, signature);
 
       if (!isValid) {
-        throw new Error(
-          "Private and public keys do not form a valid key pair - signature verification failed"
+        console.warn(
+          "WARNING: Private and public keys do not form a valid key pair - signature verification failed. " +
+            "DPoP will be disabled and bearer authentication will be used instead."
         );
+        return false;
       }
+
+      return true;
     } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message.includes("do not form a valid key pair")
-      ) {
-        throw error;
-      }
-      throw new Error(
-        `Failed to validate key pair compatibility: ${error instanceof Error ? error.message : String(error)}`
+      console.warn(
+        "WARNING: Failed to validate key pair compatibility. " +
+          "DPoP will be disabled and bearer authentication will be used instead. " +
+          `Error: ${error instanceof Error ? error.message : String(error)}`
       );
+      return false;
     }
   }
 }

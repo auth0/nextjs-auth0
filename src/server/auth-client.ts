@@ -1671,7 +1671,6 @@ export class AuthClient {
     const { url, method, headers, body } =
       (await req.json()) as ProtectedRequestBody;
 
-
     // Make (DPoP)-authenticated request with retry logic for nonce errors
     const protectedResourceRequestCall = () =>
       oauth.protectedResourceRequest(
