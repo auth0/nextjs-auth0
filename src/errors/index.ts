@@ -46,6 +46,15 @@ export class InvalidStateError extends SdkError {
   }
 }
 
+export class InvalidConfigurationError extends SdkError {
+  public code: string = "invalid_configuration";
+
+  constructor(message?: string) {
+    super(message ?? "The configuration is invalid.");
+    this.name = "InvalidConfigurationError";
+  }
+}
+
 export class AuthorizationError extends SdkError {
   public code: string = "authorization_error";
   public cause: OAuth2Error;
