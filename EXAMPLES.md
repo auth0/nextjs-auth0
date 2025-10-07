@@ -1033,7 +1033,7 @@ import { auth0 } from "@/lib/auth0";
 export async function GET() {
   try {
     // Force a refresh of the access token
-    const { token, expiresAt } = await auth0.getAccessToken({ refresh: true });
+    const { token, expiresAt, scope } = await auth0.getAccessToken({ refresh: true });
 
     // Use the refreshed token
     // ...
@@ -1062,7 +1062,7 @@ export default withApiAuthRequired(async function handler(
 ) {
   try {
     // Force a refresh of the access token
-    const { token, expiresAt } = await getAccessToken(req, res, {
+    const { token, expiresAt, scope } = await getAccessToken(req, res, {
       refresh: true
     });
 
