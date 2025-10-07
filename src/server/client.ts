@@ -631,7 +631,7 @@ export class Auth0Client {
       throw error;
     }
 
-    // If we didnt have a corresponding connection token set in the session
+    // If we didn't have a corresponding connection token set in the session
     // or if the one we have in the session does not match the one we received
     // We want to update the store incase we retrieved a token set.
     if (
