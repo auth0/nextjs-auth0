@@ -6,6 +6,7 @@ export interface TokenSet {
   refreshToken?: string;
   expiresAt: number; // the time at which the access token expires in seconds since epoch
   audience?: string;
+  token_type?: string; // the type of the access token (e.g., "Bearer", "DPoP")
 }
 
 export interface ConnectionTokenSet {
@@ -22,6 +23,7 @@ export interface AccessTokenSet {
   requestedScope?: string;
   audience: string;
   expiresAt: number; // the time at which the access token expires in seconds since epoch
+  token_type?: string; // the type of the access token (e.g., "Bearer", "DPoP")
 }
 
 export interface SessionData {

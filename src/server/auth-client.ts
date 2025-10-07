@@ -201,8 +201,8 @@ export class AuthClient {
   private readonly enableAccessTokenEndpoint: boolean;
   private readonly noContentProfileResponseWhenUnauthenticated: boolean;
 
-  // TODO: should this be optional?
   private dpopHandle?: oauth.DPoPHandle;
+  private dpopKeyPair?: DpopKeyPair;
 
   constructor(options: AuthClientOptions) {
     // dependencies
@@ -315,6 +315,7 @@ export class AuthClient {
 
     if (options.dpopKeyPair && (options.useDpop ?? false)) {
       this.dpopHandle = oauth.DPoP(this.clientMetadata, options.dpopKeyPair);
+      this.dpopKeyPair = options.dpopKeyPair;
     }
   }
 
@@ -412,6 +413,17 @@ export class AuthClient {
     authorizationParams.set("code_challenge_method", codeChallengeMethod);
     authorizationParams.set("state", state);
     authorizationParams.set("nonce", nonce);
+
+    // Add dpop_jkt parameter if DPoP is enabled
+    if (this.dpopHandle && this.dpopKeyPair) {
+      try {
+        const publicKeyJwk = await jose.exportJWK(this.dpopKeyPair.publicKey);
+        const dpopJkt = await jose.calculateJwkThumbprint(publicKeyJwk);
+        authorizationParams.set("dpop_jkt", dpopJkt);
+      } catch (error) {
+        console.warn("Failed to calculate dpop_jkt parameter:", error);
+      }
+    }
 
     // Prepare transaction state
     const transactionState: TransactionState = {
@@ -775,7 +787,8 @@ export class AuthClient {
     const res = NextResponse.json({
       token: updatedTokenSet.accessToken,
       scope: updatedTokenSet.scope,
-      expires_at: updatedTokenSet.expiresAt
+      expires_at: updatedTokenSet.expiresAt,
+      ...(updatedTokenSet.token_type && { token_type: updatedTokenSet.token_type })
     });
 
     const sessionChanges = getSessionChangesAfterGetAccessToken(
@@ -1051,7 +1064,9 @@ export class AuthClient {
           expiresAt: accessTokenExpiresAt,
           // Keep the audience if it exists, otherwise use the one from the options.
           // If not provided, use `undefined`.
-          audience: tokenSet.audience || options.audience || undefined
+          audience: tokenSet.audience || options.audience || undefined,
+          // Store the token type from the OAuth response (e.g., "Bearer", "DPoP")
+          ...(oauthRes.token_type && {token_type:oauthRes.token_type })
         };
 
         if (oauthRes.refresh_token) {
