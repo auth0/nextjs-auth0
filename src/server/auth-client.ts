@@ -337,7 +337,7 @@ export class AuthClient {
   async startInteractiveLogin(
     options: StartInteractiveLoginOptions = {}
   ): Promise<NextResponse> {
-    const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registed with the authorization server
+    const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registered with the authorization server
     let returnTo = this.signInReturnToPath;
 
     // Validate returnTo parameter
@@ -586,7 +586,7 @@ export class AuthClient {
 
     let codeGrantResponse: Response;
     try {
-      const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registed with the authorization server
+      const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registered with the authorization server
       codeGrantResponse = await oauth.authorizationCodeGrantRequest(
         authorizationServerMetadata,
         this.clientMetadata,
@@ -979,7 +979,7 @@ export class AuthClient {
           ...tokenSet, // contains the existing `iat` claim to maintain the session lifetime
           accessToken: oauthRes.access_token,
           idToken: oauthRes.id_token,
-          // We store the bot requested and granted scopes on the tokenSet, so we know what scopes were requested.
+          // We store the both requested and granted scopes on the tokenSet, so we know what scopes were requested.
           // The server may return less scopes than requested.
           // This ensures we can return the same token again when a token for the same or less scopes is requested by using `requestedScope` during look-up.
           //
@@ -1413,7 +1413,7 @@ export class AuthClient {
   > {
     // If we do not have a refresh token
     // and we do not have a connection token set in the cache or the one we have is expired,
-    // there is noting to retrieve and we return an error.
+    // there is nothing to retrieve and we return an error.
     if (
       !tokenSet.refreshToken &&
       (!connectionTokenSet || connectionTokenSet.expiresAt <= Date.now() / 1000)

@@ -1228,7 +1228,7 @@ export const auth0 = new Auth0Client({
 
 ### Customizing Transaction Cookie Expiration
 
-You can configure transaction cookies expiration by providing a `maxAge` proeprty for `transactionCookie`.
+You can configure transaction cookies expiration by providing a `maxAge` property for `transactionCookie`.
 
 ```ts
 export const auth0 = new Auth0Client({
@@ -1402,8 +1402,8 @@ If you'd like to customize the `user` object to include additional custom claims
 The SDK mounts 6 routes:
 
 1. `/auth/login`: the login route that the user will be redirected to to start a initiate an authentication transaction
-2. `/auth/logout`: the logout route that must be addedto your Auth0 application's Allowed Logout URLs
-3. `/auth/callback`: the callback route that must be addedto your Auth0 application's Allowed Callback URLs
+2. `/auth/logout`: the logout route that must be added to your Auth0 application's Allowed Logout URLs
+3. `/auth/callback`: the callback route that must be added to your Auth0 application's Allowed Callback URLs
 4. `/auth/profile`: the route to check the user's session and return their attributes
 5. `/auth/access-token`: the route to check the user's session and return an access token (which will be automatically refreshed if a refresh token is available)
 6. `/auth/backchannel-logout`: the route that will receive a `logout_token` when a configured Back-Channel Logout initiator occurs
