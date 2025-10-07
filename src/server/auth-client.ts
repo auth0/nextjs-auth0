@@ -1671,93 +1671,14 @@ export class AuthClient {
     const { url, method, headers, body } =
       (await req.json()) as ProtectedRequestBody;
 
-    // Validate URL before making request
-    if (!url || typeof url !== "string") {
-      return NextResponse.json(
-        {
-          error: {
-            message: "URL is required and must be a string",
-            code: "INVALID_REQUEST"
-          }
-        },
-        {
-          status: 400
-        }
-      );
-    }
-
-    let validatedUrl: URL;
-    try {
-      validatedUrl = new URL(url);
-    } catch (error) {
-      return NextResponse.json(
-        {
-          error: {
-            message: `Invalid URL: ${url}`,
-            code: "INVALID_URL"
-          }
-        },
-        {
-          status: 400
-        }
-      );
-    }
-
-    // Validate and sanitize HTTP method
-    const validMethods = [
-      "GET",
-      "POST",
-      "PUT",
-      "PATCH",
-      "DELETE",
-      "HEAD",
-      "OPTIONS"
-    ];
-    const sanitizedMethod = (method || "GET").toUpperCase();
-    if (!validMethods.includes(sanitizedMethod)) {
-      return NextResponse.json(
-        {
-          error: {
-            message: `Invalid HTTP method: ${method}. Allowed methods: ${validMethods.join(", ")}`,
-            code: "INVALID_METHOD"
-          }
-        },
-        {
-          status: 400
-        }
-      );
-    }
-
-    // Sanitize headers - remove potentially dangerous headers
-    let sanitizedHeaders: any = headers;
-    if (headers && typeof headers === "object") {
-      const dangerousHeaders = [
-        "host",
-        "connection",
-        "authorization",
-        "cookie",
-        "x-forwarded-for",
-        "x-real-ip"
-      ];
-      const headerEntries =
-        headers instanceof Headers
-          ? Array.from(headers.entries())
-          : Object.entries(headers);
-
-      sanitizedHeaders = Object.fromEntries(
-        headerEntries.filter(
-          ([key]) => !dangerousHeaders.includes(key.toLowerCase())
-        )
-      );
-    }
 
     // Make (DPoP)-authenticated request with retry logic for nonce errors
     const protectedResourceRequestCall = () =>
       oauth.protectedResourceRequest(
         session.tokenSet.accessToken,
-        sanitizedMethod,
-        validatedUrl,
-        sanitizedHeaders,
+        method,
+        new URL(url),
+        headers,
         body,
         {
           ...this.httpOptions(),
