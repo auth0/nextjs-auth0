@@ -16,7 +16,7 @@ export function accessTokenSetFromTokenSet(
     audience: options.audience,
     scope: tokenSet.scope,
     requestedScope: tokenSet.requestedScope,
-    ...(tokenSet.token_type && {token_type: tokenSet.token_type})
+    ...(tokenSet.token_type && { token_type: tokenSet.token_type })
   };
 }
 

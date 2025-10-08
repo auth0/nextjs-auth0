@@ -788,7 +788,9 @@ export class AuthClient {
       token: updatedTokenSet.accessToken,
       scope: updatedTokenSet.scope,
       expires_at: updatedTokenSet.expiresAt,
-      ...(updatedTokenSet.token_type && { token_type: updatedTokenSet.token_type })
+      ...(updatedTokenSet.token_type && {
+        token_type: updatedTokenSet.token_type
+      })
     });
 
     const sessionChanges = getSessionChangesAfterGetAccessToken(
@@ -1066,7 +1068,7 @@ export class AuthClient {
           // If not provided, use `undefined`.
           audience: tokenSet.audience || options.audience || undefined,
           // Store the token type from the OAuth response (e.g., "Bearer", "DPoP")
-          ...(oauthRes.token_type && {token_type:oauthRes.token_type })
+          ...(oauthRes.token_type && { token_type: oauthRes.token_type })
         };
 
         if (oauthRes.refresh_token) {
