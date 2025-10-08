@@ -31,7 +31,7 @@ export default function Index() {
       ) : (
         <div className="mt-4">
           <p>Please log in to test DPoP functionality.</p>
-          <a href="/api/auth/login" className="btn btn-primary">
+          <a href="/auth/login" className="btn btn-primary">
             Log In
           </a>
         </div>

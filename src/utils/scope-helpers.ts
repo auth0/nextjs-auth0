@@ -41,7 +41,7 @@ export function ensureDefaultScope(
 
 /**
  * Retrieves the appropriate scope for a given audience from a scope map.
- * Only consideres the audience when the scope is of type Map<string, string>.
+ * Only considers the audience when the scope is of type Map<string, string>.
  * If the scope is a string, it is returned as-is.
  * If the scope is null or undefined, undefined is returned.
  * @param scope The scope, either as a string, null/undefined, or a Map of audience to scope.

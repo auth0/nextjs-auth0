@@ -65,7 +65,7 @@ export class StatelessSessionStore extends AbstractSessionStore {
     const normalizedStatelessSession =
       normalizeStatelessSession(originalSession);
 
-    // As connection access tokens are stored in seperate cookies,
+    // As connection access tokens are stored in separate cookies,
     // we need to get all cookies and only use those that are prefixed with `this.connectionTokenSetsCookieName`
     const connectionTokenSetsCookies =
       this.getConnectionTokenSetsCookies(reqCookies);

@@ -48,7 +48,7 @@ const NavBar = () => {
               {!isLoading && !user && (
                 <NavItem id="qsLoginBtn">
                   <a
-                    href="/api/auth/login"
+                    href="/auth/login"
                     className="btn btn-primary btn-margin"
                     data-testid="navbar-login-desktop">
                     Log in
@@ -73,7 +73,7 @@ const NavBar = () => {
                       {user.name}
                     </DropdownItem>
                     <DropdownItem id="qsLogoutBtn">
-                      <a href="/api/auth/logout" data-testid="navbar-logout-desktop">
+                      <a href="/auth/logout" data-testid="navbar-logout-desktop">
                         Log out
                       </a>
                     </DropdownItem>
@@ -84,7 +84,7 @@ const NavBar = () => {
             {!isLoading && !user && (
               <Nav className="d-md-none" navbar>
                 <a
-                  href="/api/auth/login"
+                  href="/auth/login"
                   className="btn btn-primary btn-block"
                   data-testid="navbar-login-mobile">
                   Log in
@@ -115,7 +115,7 @@ const NavBar = () => {
                 </NavItem>
                 <NavItem id="qsLogoutBtn">
                   <a
-                    href="/api/auth/logout"
+                    href="/auth/logout"
                     className="btn btn-link p-0"
                     data-testid="navbar-logout-mobile">
                     Log out

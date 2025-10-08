@@ -9,12 +9,6 @@
     "build": "next build",
     "start": "concurrently \"next start\" \"node api-server\"",
     "start:api": "node api-server",
-    "test": "vitest run",
-    "test:watch": "vitest watch",
-    "test:integration": "start-server-and-test start http-get://localhost:3000 cypress:run",
-    "test:integration:watch": "start-server-and-test start http-get://localhost:3000 cypress:open",
-    "cypress:run": "cypress run --browser chrome",
-    "cypress:open": "cypress open --browser chrome",
     "generate-dpop-keys": "node utils/generate-dpop-keys.js"
   },
   "dependencies": {
