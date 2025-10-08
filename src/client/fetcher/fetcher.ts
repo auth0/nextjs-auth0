@@ -71,7 +71,8 @@ export class Fetcher<TOutput extends CustomFetchMinimalOutput> {
 
   protected buildProtectedRequest(
     info: RequestInfo | URL,
-    init: RequestInit | undefined
+    init: RequestInit | undefined,
+    sessionData?: any
   ): { url: string; options: RequestInit } {
     // First, determine the final URL and method
     let finalUrl: string;
@@ -107,16 +108,22 @@ export class Fetcher<TOutput extends CustomFetchMinimalOutput> {
       url: finalUrl,
       method: method,
       headers: headers,
-      body: body
-    } as ProtectedRequestBody;
+      body: body,
+      ...(sessionData && { sessionData })
+    } as ProtectedRequestBody & { sessionData?: any };
 
     const protectedRequestPath =
       process.env.NEXT_PUBLIC_PROTECTED_REQUEST_ROUTE ||
       "/auth/protected-request";
 
+    // Build the full URL for the protected request using baseUrl if available
+    const protectedRequestUrl = this.config.baseUrl
+      ? this.buildUrl(this.config.baseUrl, protectedRequestPath)
+      : protectedRequestPath;
+
     // Return the URL and options for the protected request
     return {
-      url: protectedRequestPath,
+      url: protectedRequestUrl,
       options: {
         method: "POST",
         headers: {
@@ -130,10 +137,15 @@ export class Fetcher<TOutput extends CustomFetchMinimalOutput> {
 
   protected async internalFetchWithAuth(
     info: RequestInfo | URL,
-    init: RequestInit | undefined
+    init: RequestInit | undefined,
+    sessionData?: any
   ): Promise<TOutput> {
     // encapsulate original request in protectedRequest
-    const { url, options } = this.buildProtectedRequest(info, init);
+    const { url, options } = this.buildProtectedRequest(
+      info,
+      init,
+      sessionData
+    );
 
     // send to next server
     const fetchFn = this.getFetch();

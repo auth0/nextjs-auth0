@@ -1668,8 +1668,25 @@ export class AuthClient {
   private async handleProtectedRequest(
     req: NextRequest
   ): Promise<NextResponse> {
-    // session check
+    let protectedRequestBody;
+    try {
+      protectedRequestBody = await req.json();
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error: {
+            message: "Invalid request body",
+            code: "invalid_request"
+          }
+        },
+        {
+          status: 400
+        }
+      );
+    }
+
     const session = await this.sessionStore.get(req.cookies);
+
     if (!session) {
       return NextResponse.json(
         {
@@ -1690,42 +1707,147 @@ export class AuthClient {
       method = "GET",
       headers,
       body
-    } = (await req.json()) as ProtectedRequestBody;
+    } = protectedRequestBody as ProtectedRequestBody;
+
+    try {
+      const response = await this.executeProtectedRequest({
+        url,
+        method,
+        headers,
+        body,
+        session
+      });
+
+      // Return proxied response
+      return new NextResponse(response.body, {
+        status: response.status,
+        headers: response.headers
+      });
+    } catch (error: any) {
+      // Check if this is a validation error (invalid URL, etc.)
+      if (error.message && error.message.includes("Invalid URL")) {
+        return NextResponse.json(
+          {
+            error: {
+              message: error.message,
+              code: "invalid_request"
+            }
+          },
+          {
+            status: 400
+          }
+        );
+      }
+
+      // Other errors are internal server errors
+      return NextResponse.json(
+        {
+          error: {
+            message: error.message || "Failed to execute protected request",
+            code: "protected_request_failed"
+          }
+        },
+        {
+          status: 500
+        }
+      );
+    }
+  }
+
+  /**
+   * Execute a DPoP-authenticated request directly without HTTP overhead.
+   * This method is used internally by both handleProtectedRequest and Auth0Client.fetchWithAuth.
+   *
+   * @param params The request parameters including session
+   * @returns Promise resolving to the response from the protected resource
+   */
+  async executeProtectedRequest(params: {
+    url: string;
+    method?: string;
+    headers?: HeadersInit;
+    body?:
+      | import("oauth4webapi").ProtectedResourceRequestBody
+      | BodyInit
+      | null;
+    session: SessionData;
+  }): Promise<Response> {
+    const { url, method = "GET", headers, body, session } = params;
 
     // Validate URL
     let parsedUrl: URL;
     try {
       parsedUrl = new URL(url);
     } catch (error) {
-      return NextResponse.json(
-        {
-          error: {
-            message: `Invalid URL: ${url}`,
-            code: "invalid_request"
+      throw new Error(`Invalid URL: ${url}`);
+    }
+
+    // Ensure authorization server metadata is available for oauth4webapi
+    const [discoveryError, _authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      throw discoveryError;
+    }
+
+    // Convert HeadersInit to Headers if needed
+    let requestHeaders: Headers | undefined;
+    if (headers) {
+      requestHeaders =
+        headers instanceof Headers ? headers : new Headers(headers);
+    }
+
+    // Convert body to oauth4webapi compatible type
+    let requestBody:
+      | import("oauth4webapi").ProtectedResourceRequestBody
+      | undefined;
+    if (body !== null && body !== undefined) {
+      // If it's already a ProtectedResourceRequestBody type, use it directly
+      if (
+        typeof body === "string" ||
+        body instanceof ArrayBuffer ||
+        body instanceof Uint8Array ||
+        body instanceof URLSearchParams ||
+        body instanceof ReadableStream
+      ) {
+        requestBody = body;
+      } else if (body instanceof FormData) {
+        // FormData is not directly supported by oauth4webapi, so we need to convert it
+        // to URLSearchParams
+        const params = new URLSearchParams();
+        for (const [key, value] of body.entries()) {
+          if (typeof value === "string") {
+            params.append(key, value);
+          } else {
+            // For File objects, we'll convert to string representation
+            // In a real scenario, you might want to handle this differently
+            params.append(key, value.toString());
           }
-        },
-        {
-          status: 400
         }
-      );
+        requestBody = params;
+      } else {
+        // For other BodyInit types, convert to string
+        requestBody = String(body);
+      }
     }
 
     // Make (DPoP)-authenticated request with retry logic for nonce errors
-    const protectedResourceRequestCall = () =>
-      oauth.protectedResourceRequest(
+    const protectedResourceRequestCall = () => {
+      return oauth.protectedResourceRequest(
         session.tokenSet.accessToken,
         method,
         parsedUrl,
-        headers,
-        body,
+        requestHeaders,
+        requestBody,
         {
           ...this.httpOptions(),
-          [oauth.customFetch]: (url: string, options: any) =>
-            this.fetch(url, options),
+          [oauth.customFetch]: (url: string, options: any) => {
+            return this.fetch(url, options);
+          },
           [oauth.allowInsecureRequests]: this.allowInsecureRequests,
           DPoP: this.dpopHandle
         }
       );
+    };
 
     let response: Response;
     try {
@@ -1739,11 +1861,7 @@ export class AuthClient {
       }
     }
 
-    // Return proxied response
-    return new NextResponse(response.body, {
-      status: response.status,
-      headers: response.headers
-    });
+    return response;
   }
 }
 

@@ -53,6 +53,9 @@ importers:
       reactstrap:
         specifier: ^9.1.5
         version: 9.2.3(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+      undici:
+        specifier: ^7.16.0
+        version: 7.16.0
     devDependencies:
       '@babel/core':
         specifier: ^7.23.0
@@ -3945,6 +3948,10 @@ packages:
 
   undici-types@7.13.0:
     resolution: {integrity: sha512-Ov2Rr9Sx+fRgagJ5AX0qvItZG/JKKoBRAVITs1zk7IqZGTJUwgUr7qoYBpWwakpWilTZFM98rG/AFRocu10iIQ==}
+
+  undici@7.16.0:
+    resolution: {integrity: sha512-QEg3HPMll0o3t2ourKwOeUAZ159Kn9mx5pnzHRQO8+Wixmh88YdZRiIwat0iNzNNXn0yoEtXJqFpyW7eM8BV7g==}
+    engines: {node: '>=20.18.1'}
 
   universalify@0.2.0:
     resolution: {integrity: sha512-CJ1QgKmNg3CwvAv/kOFmtnEN05f0D/cn9QntgNOQlQF9dgvVTHj3t+8JPdjqawCHk7V/KA+fbUqzZ9XWhcqPUg==}
@@ -8672,6 +8679,8 @@ snapshots:
   undefsafe@2.0.5: {}
 
   undici-types@7.13.0: {}
+
+  undici@7.16.0: {}
 
   universalify@0.2.0: {}
 

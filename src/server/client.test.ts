@@ -514,6 +514,197 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       );
     });
   });
+
+  describe("createFetcher", () => {
+    let auth0Client: Auth0Client;
+
+    beforeEach(() => {
+      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
+      process.env[ENV_VARS.CLIENT_ID] = "test-client-id";
+      process.env[ENV_VARS.CLIENT_SECRET] = "test-client-secret";
+      process.env[ENV_VARS.APP_BASE_URL] = "https://test.com";
+      process.env[ENV_VARS.SECRET] = "test_secret";
+
+      auth0Client = new Auth0Client();
+    });
+
+    it("should create a fetcher with no configuration", () => {
+      const fetcher = auth0Client.createFetcher();
+
+      expect(fetcher).toBeDefined();
+      expect(typeof fetcher.fetchWithAuth).toBe("function");
+    });
+
+    it("should create a fetcher with base URL configuration", () => {
+      const fetcher = auth0Client.createFetcher({
+        baseUrl: "https://api.example.com"
+      });
+
+      expect(fetcher).toBeDefined();
+      expect(typeof fetcher.fetchWithAuth).toBe("function");
+    });
+
+    it("should resolve relative URLs with base URL", async () => {
+      const mockFetchWithAuth = vi
+        .spyOn(auth0Client, "fetchWithAuth")
+        .mockResolvedValue(new Response("test", { status: 200 }));
+
+      const fetcher = auth0Client.createFetcher({
+        baseUrl: "https://api.example.com"
+      });
+      await fetcher.fetchWithAuth("/users");
+
+      expect(mockFetchWithAuth).toHaveBeenCalledWith(
+        "https://api.example.com/users",
+        undefined
+      );
+    });
+
+    it("should not modify absolute URLs", async () => {
+      const mockFetchWithAuth = vi
+        .spyOn(auth0Client, "fetchWithAuth")
+        .mockResolvedValue(new Response("test", { status: 200 }));
+
+      const fetcher = auth0Client.createFetcher({
+        baseUrl: "https://api.example.com"
+      });
+      await fetcher.fetchWithAuth("https://other-api.com/data");
+
+      expect(mockFetchWithAuth).toHaveBeenCalledWith(
+        "https://other-api.com/data",
+        undefined
+      );
+    });
+
+    it("should handle protocol-relative URLs as absolute", async () => {
+      const mockFetchWithAuth = vi
+        .spyOn(auth0Client, "fetchWithAuth")
+        .mockResolvedValue(new Response("test", { status: 200 }));
+
+      const fetcher = auth0Client.createFetcher({
+        baseUrl: "https://api.example.com"
+      });
+      await fetcher.fetchWithAuth("//cdn.example.com/data");
+
+      expect(mockFetchWithAuth).toHaveBeenCalledWith(
+        "//cdn.example.com/data",
+        undefined
+      );
+    });
+
+    it("should handle URL objects properly", async () => {
+      const mockFetchWithAuth = vi
+        .spyOn(auth0Client, "fetchWithAuth")
+        .mockResolvedValue(new Response("test", { status: 200 }));
+
+      const fetcher = auth0Client.createFetcher({
+        baseUrl: "https://api.example.com"
+      });
+      const url = new URL("https://other-api.com/data");
+      await fetcher.fetchWithAuth(url);
+
+      expect(mockFetchWithAuth).toHaveBeenCalledWith(url, undefined);
+    });
+
+    it("should handle Request objects with relative URLs", async () => {
+      const mockFetchWithAuth = vi
+        .spyOn(auth0Client, "fetchWithAuth")
+        .mockResolvedValue(new Response("test", { status: 200 }));
+
+      const fetcher = auth0Client.createFetcher({
+        baseUrl: "https://api.example.com"
+      });
+      // Note: Request constructor requires absolute URLs, so we test the resolution logic differently
+      // We'll create the request with a base URL and then verify the URL gets resolved correctly
+      const request = new Request("https://api.example.com/users", {
+        method: "POST",
+        body: "test"
+      });
+
+      // Mock the resolveUrl method to simulate relative URL resolution
+      const originalResolveUrl = (auth0Client as any).resolveUrl;
+      const mockResolveUrl = vi.fn().mockReturnValue(request);
+      (auth0Client as any).resolveUrl = mockResolveUrl;
+
+      // Test with relative URL string (which gets converted by resolveUrl)
+      await fetcher.fetchWithAuth("/users");
+
+      expect(mockResolveUrl).toHaveBeenCalledWith(
+        "/users",
+        "https://api.example.com"
+      );
+      expect(mockFetchWithAuth).toHaveBeenCalled();
+
+      // Restore original method
+      (auth0Client as any).resolveUrl = originalResolveUrl;
+    });
+
+    it("should handle Request objects with absolute URLs", async () => {
+      const mockFetchWithAuth = vi
+        .spyOn(auth0Client, "fetchWithAuth")
+        .mockResolvedValue(new Response("test", { status: 200 }));
+
+      const fetcher = auth0Client.createFetcher({
+        baseUrl: "https://api.example.com"
+      });
+      const request = new Request("https://other-api.com/data", {
+        method: "GET"
+      });
+      await fetcher.fetchWithAuth(request);
+
+      expect(mockFetchWithAuth).toHaveBeenCalledWith(request, undefined);
+    });
+
+    it("should pass through RequestInit options", async () => {
+      const mockFetchWithAuth = vi
+        .spyOn(auth0Client, "fetchWithAuth")
+        .mockResolvedValue(new Response("test", { status: 200 }));
+
+      const fetcher = auth0Client.createFetcher({
+        baseUrl: "https://api.example.com"
+      });
+      const init = {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      };
+      await fetcher.fetchWithAuth("/users", init);
+
+      expect(mockFetchWithAuth).toHaveBeenCalledWith(
+        "https://api.example.com/users",
+        init
+      );
+    });
+
+    it("should properly build URLs with trailing/leading slashes", async () => {
+      const mockFetchWithAuth = vi
+        .spyOn(auth0Client, "fetchWithAuth")
+        .mockResolvedValue(new Response("test", { status: 200 }));
+
+      const fetcher = auth0Client.createFetcher({
+        baseUrl: "https://api.example.com/"
+      });
+      await fetcher.fetchWithAuth("/users");
+
+      expect(mockFetchWithAuth).toHaveBeenCalledWith(
+        "https://api.example.com/users",
+        undefined
+      );
+    });
+
+    it("should work without base URL", async () => {
+      const mockFetchWithAuth = vi
+        .spyOn(auth0Client, "fetchWithAuth")
+        .mockResolvedValue(new Response("test", { status: 200 }));
+
+      const fetcher = auth0Client.createFetcher();
+      await fetcher.fetchWithAuth("https://api.example.com/users");
+
+      expect(mockFetchWithAuth).toHaveBeenCalledWith(
+        "https://api.example.com/users",
+        undefined
+      );
+    });
+  });
 });
 
 export type GetAccessTokenOptions = {

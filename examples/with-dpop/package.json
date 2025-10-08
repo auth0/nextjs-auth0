@@ -1,15 +1,28 @@
 {
   "name": "auth0-nextjs-dpop-example",
   "version": "0.1.0",
-  "description": "Auth0 Next.js SDK DPoP (Demonstrating Proof-of-Possession) Example",
+  "description": "Auth0 Next.js SDK DPoP Example",
   "private": true,
   "scripts": {
     "dev": "concurrently \"next dev\" \"node api-server\"",
+    "dev:debug": "concurrently \"next dev\" \"node --inspect api-server\"",
     "dev:api": "nodemon api-server",
+    "dev:api:debug": "nodemon --inspect api-server",
+    "debug:api": "node --inspect api-server",
     "build": "next build",
     "start": "concurrently \"next start\" \"node api-server\"",
     "start:api": "node api-server",
-    "generate-dpop-keys": "node utils/generate-dpop-keys.js"
+    "generate-dpop-keys": "node utils/generate-dpop-keys.js",
+    "test": "pnpm exec vitest",
+    "test:unit": "pnpm exec vitest --run",
+    "test:e2e": "CYPRESS_USER_EMAIL=\"${CYPRESS_USER_EMAIL}\" CYPRESS_USER_PASSWORD=\"${CYPRESS_USER_PASSWORD}\" pnpm exec start-server-and-test 'pnpm run dev' http://localhost:3000 'pnpm exec cypress run'",
+    "test:e2e:open": "CYPRESS_USER_EMAIL=\"${CYPRESS_USER_EMAIL}\" CYPRESS_USER_PASSWORD=\"${CYPRESS_USER_PASSWORD}\" pnpm exec start-server-and-test 'pnpm run dev' http://localhost:3000 'pnpm exec cypress open'",
+    "test:e2e:debug": "CYPRESS_USER_EMAIL=\"${CYPRESS_USER_EMAIL}\" CYPRESS_USER_PASSWORD=\"${CYPRESS_USER_PASSWORD}\" pnpm exec start-server-and-test 'pnpm run dev' http://localhost:3000 'pnpm exec cypress run --spec=\"cypress/e2e/debug-login.cy.js\"'",
+    "test:integration": "pnpm exec start-server-and-test 'pnpm run dev' http://localhost:3000 'pnpm run test:unit'",
+    "test:all": "pnpm run test:unit && pnpm run test:e2e",
+    "test:ci": "pnpm run test:unit && pnpm exec start-server-and-test 'pnpm run dev' http://localhost:3000 'pnpm exec cypress run --headless'",
+    "cypress:run": "pnpm exec cypress run",
+    "cypress:open": "pnpm exec cypress open"
   },
   "dependencies": {
     "@auth0/nextjs-auth0": "file:../../",
@@ -26,7 +39,8 @@
     "oauth4webapi": "^3.8.2",
     "react": "19.0.0",
     "react-dom": "19.0.0",
-    "reactstrap": "^9.1.5"
+    "reactstrap": "^9.1.5",
+    "undici": "^7.16.0"
   },
   "devDependencies": {
     "@babel/core": "^7.23.0",

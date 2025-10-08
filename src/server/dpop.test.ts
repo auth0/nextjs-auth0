@@ -13,17 +13,24 @@ import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import { TransactionStore } from "./transaction-store.js";
 
 // Mock oauth4webapi for integration tests
-vi.mock("oauth4webapi", () => ({
-  protectedResourceRequest: vi.fn(),
-  isDPoPNonceError: vi.fn(),
-  DPoP: vi.fn((client, keyPair) => ({ client, keyPair })), // Simple mock DPoP handle
-  generateKeyPair: vi.fn(async () => ({
-    privateKey: {} as CryptoKey,
-    publicKey: {} as CryptoKey
-  })),
-  customFetch: Symbol("customFetch"),
-  allowInsecureRequests: Symbol("allowInsecureRequests")
-}));
+vi.mock("oauth4webapi", async () => {
+  const actual = await vi.importActual<typeof oauth>("oauth4webapi");
+  return {
+    ...actual,
+    protectedResourceRequest: vi.fn(),
+    isDPoPNonceError: vi.fn(),
+    DPoP: vi.fn((client, keyPair) => ({ client, keyPair })), // Simple mock DPoP handle
+    generateKeyPair: vi.fn(async () => ({
+      privateKey: {} as CryptoKey,
+      publicKey: {} as CryptoKey
+    })),
+    // Mock discovery functions for proper discovery flow
+    discoveryRequest: vi.fn(),
+    processDiscoveryResponse: vi.fn(),
+    customFetch: Symbol("customFetch"),
+    allowInsecureRequests: Symbol("allowInsecureRequests")
+  };
+});
 
 describe("DPoP Tests", () => {
   let authClient: AuthClient;
@@ -64,6 +71,16 @@ describe("DPoP Tests", () => {
     // Reset mocks
     vi.mocked(oauth.protectedResourceRequest).mockReset();
     vi.mocked(oauth.isDPoPNonceError).mockReset();
+
+    // Setup discovery mocks
+    vi.mocked(oauth.discoveryRequest).mockResolvedValue(new Response());
+    vi.mocked(oauth.processDiscoveryResponse).mockResolvedValue({
+      issuer: `https://${DEFAULT.domain}/`,
+      authorization_endpoint: `https://${DEFAULT.domain}/authorize`,
+      token_endpoint: `https://${DEFAULT.domain}/oauth/token`,
+      jwks_uri: `https://${DEFAULT.domain}/.well-known/jwks.json`,
+      end_session_endpoint: `https://${DEFAULT.domain}/v2/logout`
+    } as any);
   });
 
   afterEach(() => {
@@ -216,7 +233,10 @@ describe("DPoP Tests", () => {
         }
       );
 
-      await expect(authClient.handler(request)).rejects.toThrow();
+      const response = await authClient.handler(request);
+      expect(response.status).toBe(400);
+      const responseBody = await response.json();
+      expect(responseBody.error).toBeDefined();
     });
 
     it("should handle malformed JSON in request body", async () => {
@@ -234,7 +254,10 @@ describe("DPoP Tests", () => {
         }
       );
 
-      await expect(authClient.handler(request)).rejects.toThrow();
+      const response = await authClient.handler(request);
+      expect(response.status).toBe(400);
+      const responseBody = await response.json();
+      expect(responseBody.error).toBeDefined();
     });
 
     it("should validate request structure", async () => {
@@ -431,9 +454,10 @@ describe("DPoP Tests", () => {
         method: "GET"
       });
 
-      await expect(authClient.handler(request)).rejects.toThrow(
-        "Network error"
-      );
+      const response = await authClient.handler(request);
+      expect(response.status).toBe(500);
+      const responseBody = await response.json();
+      expect(responseBody.error).toBeDefined();
       expect(oauth.protectedResourceRequest).toHaveBeenCalledTimes(1); // No retry
       expect(oauth.isDPoPNonceError).toHaveBeenCalledWith(networkError);
     });

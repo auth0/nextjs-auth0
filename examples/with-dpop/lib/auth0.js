@@ -10,7 +10,8 @@ export const auth0 = new Auth0Client({
     audience: process.env.AUTH0_AUDIENCE
   },
   useDpop: true,
-  dpopKeyPair
+  dpopKeyPair,
+  allowInsecureRequests: process.env.NODE_ENV === 'development'
 });
 
 // Export the key pair for use in API server validation

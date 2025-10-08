@@ -893,6 +893,83 @@ export class Auth0Client {
     };
   }
 
+  /**
+   * Server-side equivalent of client fetchWithAuth - makes DPoP-authenticated requests directly
+   * without HTTP overhead. This method bypasses the /auth/protected-request endpoint by calling
+   * the protected request logic directly.
+   *
+   * **Important**: This method must be called within a Next.js API route, Server Component,
+   * or Server Action where session context is available.
+   *
+   * @param info The URL or Request object for the request
+   * @param init Optional request initialization options
+   * @returns Promise resolving to the response from the protected resource
+   *
+   * @example
+   * ```typescript
+   * // In an API route
+   * export const GET = async function() {
+   *   const response = await auth0.fetchWithAuth('http://localhost:3001/api/data');
+   *   const data = await response.json();
+   *   return NextResponse.json(data);
+   * };
+   *
+   * // In a Server Component
+   * export default async function Page() {
+   *   const response = await auth0.fetchWithAuth('https://api.example.com/profile');
+   *   const profile = await response.json();
+   *   return <div>{profile.name}</div>;
+   * }
+   * ```
+   */
+  async fetchWithAuth(
+    info: RequestInfo | URL,
+    init?: RequestInit
+  ): Promise<Response> {
+    // Get session from current Next.js context
+    const session = await this.getSession();
+
+    if (!session) {
+      throw new Error(
+        "No active session found. User must be authenticated to use fetchWithAuth."
+      );
+    }
+
+    // Extract request details from info and init
+    let url: string;
+    let method = "GET";
+    let headers: HeadersInit = {};
+    let body: BodyInit | null = null;
+
+    if (typeof info === "string") {
+      url = info;
+    } else if (info instanceof URL) {
+      url = info.toString();
+    } else {
+      // info is a Request object
+      url = info.url;
+      method = info.method;
+      headers = info.headers;
+      body = info.body;
+    }
+
+    // Override with init values if provided
+    if (init) {
+      if (init.method) method = init.method;
+      if (init.headers) headers = init.headers;
+      if (init.body !== undefined) body = init.body;
+    }
+
+    // Call the protected request logic directly (bypassing HTTP)
+    return this.authClient.executeProtectedRequest({
+      url,
+      method,
+      headers,
+      body,
+      session
+    });
+  }
+
   private async saveToSession(
     data: SessionData,
     req?: PagesRouterRequest | NextRequest,
@@ -1152,6 +1229,99 @@ export class Auth0Client {
       );
       return false;
     }
+  }
+
+  /**
+   * Creates a configured server-side fetcher instance with support for base URLs.
+   *
+   * This provides a clean way to configure fetchWithAuth behavior with base URL resolution
+   * while maintaining access to the Auth0Client's session context and DPoP functionality.
+   *
+   * @param config Configuration options for the fetcher
+   * @returns A configured fetcher instance with fetchWithAuth method
+   *
+   * @example
+   * ```typescript
+   * import { auth0 } from '@/lib/auth0';
+   *
+   * // Basic usage
+   * const fetcher = auth0.createFetcher();
+   * const response = await fetcher.fetchWithAuth('/api/data');
+   *
+   * // With base URL
+   * const apiFetcher = auth0.createFetcher({
+   *   baseUrl: 'https://api.example.com'
+   * });
+   * const response = await apiFetcher.fetchWithAuth('/users/profile');
+   * ```
+   */
+  createFetcher(config: { baseUrl?: string } = {}) {
+    return {
+      fetchWithAuth: async (
+        info: RequestInfo | URL,
+        init?: RequestInit
+      ): Promise<Response> => {
+        const resolvedInfo = this.resolveUrl(info, config.baseUrl);
+        return this.fetchWithAuth(resolvedInfo, init);
+      }
+    };
+  }
+
+  /**
+   * Resolve URL by applying base URL if the URL is relative
+   */
+  private resolveUrl(
+    info: RequestInfo | URL,
+    baseUrl?: string
+  ): RequestInfo | URL {
+    if (!baseUrl) {
+      return info;
+    }
+
+    if (typeof info === "string") {
+      return this.isAbsoluteUrl(info) ? info : this.buildUrl(baseUrl, info);
+    } else if (info instanceof URL) {
+      return info; // URL objects are always absolute
+    } else {
+      // info is a Request object
+      if (this.isAbsoluteUrl(info.url)) {
+        return info;
+      }
+
+      // Create a new Request with resolved URL
+      const resolvedUrl = this.buildUrl(baseUrl, info.url);
+      return new Request(resolvedUrl, {
+        method: info.method,
+        headers: info.headers,
+        body: info.body,
+        mode: info.mode,
+        credentials: info.credentials,
+        cache: info.cache,
+        redirect: info.redirect,
+        referrer: info.referrer,
+        integrity: info.integrity,
+        // Add duplex option if body is present
+        ...(info.body && { duplex: "half" as any })
+      });
+    }
+  }
+
+  /**
+   * Check if a URL is absolute (has protocol)
+   */
+  private isAbsoluteUrl(url: string): boolean {
+    return /^(https?:)?\/\//i.test(url);
+  }
+
+  /**
+   * Build a complete URL from base URL and path
+   */
+  private buildUrl(baseUrl: string, path: string): string {
+    // Remove trailing slash from baseUrl and leading slash from path
+    const cleanBaseUrl = baseUrl.replace(/\/$/, "");
+    const cleanPath = path.replace(/^\//, "");
+
+    return `${cleanBaseUrl}/${cleanPath}`;
   }
 }
 

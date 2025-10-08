@@ -220,6 +220,43 @@ export const auth0 = new Auth0Client({
 });
 ```
 
+### Making DPoP-Protected Requests
+
+When DPoP is enabled, use the `fetchWithAuth` method to make authenticated requests to your APIs. The SDK automatically handles DPoP proof generation and attachment:
+
+```ts
+// In API routes (App Router)
+export async function GET() {
+  const session = await auth0.getSession();
+  
+  if (!session) {
+    return Response.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
+  // Automatically includes DPoP proof when enabled
+  const response = await auth0.fetchWithAuth("https://api.example.com/data");
+  const data = await response.json();
+  return Response.json(data);
+}
+```
+
+```ts
+// In API routes (Pages Router)
+export default async function handler(req, res) {
+  const session = await auth0.getSession(req, res);
+  
+  if (!session) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+
+  const response = await auth0.fetchWithAuth("https://api.example.com/data");
+  const data = await response.json();
+  res.json(data);
+}
+```
+
+For more detailed examples and configuration options, see the [DPoP section in EXAMPLES.md](./EXAMPLES.md#dpop-demonstration-of-proof-of-possession).
+
 #### Advanced: Clock Validation Configuration
 
 Configure timing validation for DPoP proofs to handle clock differences between client and server:

@@ -2,6 +2,22 @@
 
 This example demonstrates **DPoP (Demonstrating Proof-of-Possession)** integration with [Auth0 Next.js SDK](https://github.com/auth0/nextjs-auth0). DPoP is an OAuth 2.0 extension that enhances security by binding access tokens to the client's cryptographic key pair.
 
+## Overview
+
+This comprehensive example provides both **manual usage** and **automated testing** capabilities for DPoP functionality:
+
+**🖱️ Interactive Demo:**
+- Web interface for testing DPoP-bound authentication
+- Real-time API calls with visual feedback
+- Server-side and client-side DPoP implementations
+- Dual button testing pattern for comprehensive coverage
+
+**🤖 Automated Testing:**
+- Unit tests with Vitest for fast API validation
+- E2E tests with Cypress for full browser automation
+- Integration testing with live Auth0 and API servers
+- Session caching to eliminate repeated manual logins
+
 ## What is DPoP?
 
 DPoP (Demonstrating Proof-of-Possession) is a security extension for OAuth 2.0 that binds access tokens to a cryptographic key pair held by the client. This prevents token theft and misuse by requiring the client to prove possession of the private key when making requests.
@@ -13,13 +29,71 @@ DPoP (Demonstrating Proof-of-Possession) is a security extension for OAuth 2.0 t
 
 ## Features Demonstrated
 
-This streamlined example shows:
+This example shows:
 
 - ✅ **DPoP Configuration**: Setting up ES256 key pairs for DPoP
 - ✅ **Authentication Flow**: Login/logout with DPoP-bound tokens
 - ✅ **Protected API Calls**: Making DPoP-secured requests to external APIs
 - ✅ **Key Generation Utility**: Tool for generating DPoP key pairs
 - ✅ **Error Handling**: Proper handling of DPoP nonce errors and retries
+- ✅ **Automated Testing**: Comprehensive test suite for validation
+- ✅ **Server-Side Implementation**: Direct server-side DPoP requests with `fetchWithAuth()`
+- ✅ **Client-Side Implementation**: Browser-based DPoP requests for comparison
+
+## Test Architecture
+
+### 1. Unit Tests (Vitest)
+- **Location**: `tests/api-shows.test.js`
+- **Purpose**: Fast API route testing with mocked dependencies
+- **Coverage**: Authentication, DPoP headers, error handling, edge cases
+
+### 2. E2E Tests (Cypress)
+- **Location**: `cypress/e2e/`
+- **Purpose**: Full browser automation with Auth0 integration
+- **Features**: Session caching, UI interaction, response validation
+
+### 3. Integration Tests
+- **Purpose**: End-to-end validation with live servers
+- **Implementation**: `start-server-and-test` automation
+
+## Quick Start
+
+### Manual Testing
+
+1. **Setup:**
+   ```bash
+   cd nextjs-auth0/examples/with-dpop
+   npm install
+   ```
+
+2. **Configure environment** (see Configuration section below)
+
+3. **Run the application:**
+   ```bash
+   npm run dev
+   ```
+
+4. **Test DPoP functionality:**
+   - Navigate to http://localhost:3000
+   - Login with Auth0
+   - Click "Test Server-Side DPoP API" or "Test Client-Side DPoP API"
+   - View DPoP validation results
+
+### Automated Testing
+
+1. **Configure test user:**
+   ```bash
+   export CYPRESS_USER_EMAIL=test@example.com
+   export CYPRESS_USER_PASSWORD=testpass123
+   ```
+
+2. **Run all tests:**
+   ```bash
+   npm test                    # All tests
+   npm run test:unit           # Unit tests only
+   npm run test:e2e            # E2E tests only
+   npm run test:integration    # Integration tests only
+   ```
 
 ## Project setup
 
@@ -99,71 +173,91 @@ When DPoP is enabled:
 1. The Next.js application will use DPoP-bound access tokens
 2. The API server (`api-server.js`) will validate DPoP proofs
 3. The `/api/shows` endpoint response will indicate if DPoP validation was successful
-4. Run tests with: `npm test tests/dpop.test.js`
+4. Run automated tests with: `npm test`
 
 ### DPoP vs Bearer Token Comparison
 
-| Feature | Bearer Token | DPoP Token |
-|---------|-------------|------------|
-| Security | Token can be replayed if stolen | Token bound to cryptographic proof |
-| Validation | Simple signature validation | Requires DPoP proof validation |
-| Response | `"msg": "Your access token was successfully validated!"` | `"msg": "Your DPoP access token was successfully validated!"` |
+This example allows you to test both DPoP and traditional Bearer token approaches:
 
-**Note**: Make sure you replace `AUTH0_SECRET` with your own secret (you can generate a suitable string using `openssl rand -hex 32` on the command line).
+- **Server-Side DPoP**: Uses `auth0.fetchWithAuth()` for direct server-side DPoP requests
+- **Client-Side DPoP**: Uses browser-based `fetchWithAuth` from the client SDK
+- **Bearer Token Fallback**: When DPoP is disabled, falls back to standard Bearer token authentication
 
 ## Run the sample
 
-### Compile and hot-reload for development
-
-This compiles and serves the Next.js app and starts the API server on port 3001.
+### Development Mode
 
 ```bash
 npm run dev
 ```
 
-## Deployment
+The app will be served at `http://localhost:3000`.
 
-### Compiles and minifies for production
+### Production Mode
 
 ```bash
 npm run build
+npm start
 ```
 
-### Docker build
+## Testing
 
-To build and run the Docker image, run `exec.sh`, or `exec.ps1` on Windows.
-
-### Run the unit tests
+### Available Test Commands
 
 ```bash
-npm run test
+npm test                    # Run all tests (unit + E2E + integration)
+npm run test:unit           # Fast unit tests with Vitest
+npm run test:e2e            # Browser automation with Cypress
+npm run test:integration    # End-to-end server testing
+npm run test:debug          # Debug mode with detailed logging
 ```
 
-### Run the integration tests
+### Test Configuration
+
+For automated testing, configure these environment variables:
 
 ```bash
-npm run test:integration
+# Test user credentials
+export CYPRESS_USER_EMAIL=test@example.com
+export CYPRESS_USER_PASSWORD=testpass123
+
+# Optional: Test configuration
+export CYPRESS_baseUrl=http://localhost:3000
+export API_PORT=3001
 ```
+
+### Continuous Integration
+
+The example includes GitHub Actions workflow for automated testing:
+
+- **Location**: `.github/workflows/test.yml`
+- **Features**: Automated unit tests, E2E tests, and integration validation
+- **Triggers**: Pull requests, main branch pushes
+
+## Deployment
+
+You can deploy this app anywhere Next.js applications can be deployed.
+Check out the [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
 
 ## What is Auth0?
 
 Auth0 helps you to:
 
-* Add authentication with [multiple sources](https://auth0.com/docs/identityproviders), either social identity providers such as **Google, Facebook, Microsoft Account, LinkedIn, GitHub, Twitter, Box, Salesforce** (amongst others), or enterprise identity systems like **Windows Azure AD, Google Apps, Active Directory, ADFS, or any SAML Identity Provider**.
-* Add authentication through more traditional **[username/password databases](https://auth0.com/docs/connections/database/custom-db)**.
-* Add support for **[linking different user accounts](https://auth0.com/docs/users/user-account-linking)** with the same user.
-* Support for generating signed [JSON Web Tokens](https://auth0.com/docs/tokens/json-web-tokens) to call your APIs and **flow the user identity** securely.
-* Analytics of how, when, and where users are logging in.
-* Pull data from other sources and add it to the user profile through [JavaScript rules](https://auth0.com/docs/rules).
+* Add authentication with [multiple authentication sources](https://docs.auth0.com/identityproviders), either social like **Google, Facebook, Microsoft Account, LinkedIn, GitHub, Twitter, Box, Salesforce, among others**, or enterprise identity systems like **Windows Azure AD, Google Apps, Active Directory, ADFS or any SAML Identity Provider**.
+* Add authentication through more traditional **[username/password databases](https://docs.auth0.com/mysql-connection-tutorial)**.
+* Add support for **[linking different user accounts](https://docs.auth0.com/link-accounts)** with the same user.
+* Support for generating signed [Json Web Tokens](https://docs.auth0.com/jwt) to call your APIs and **flow the user identity** securely.
+* Analytics of how, when and where users are logging in.
+* Pull data from other sources and add it to the user profile, through [JavaScript rules](https://docs.auth0.com/rules).
 
 ## Create a Free Auth0 Account
 
-1. Go to [Auth0](https://auth0.com) and click **Sign Up**.
-2. Use Google, GitHub, or Microsoft Account to login.
+1. Go to [Auth0](https://auth0.com/signup) and click Sign Up.
+2. Use Google, GitHub or Microsoft Account to login.
 
 ## Issue Reporting
 
-If you have found a bug or if you have a feature request, please report them at this repository issues section. Please do not report security vulnerabilities on the public GitHub issue tracker. The [Responsible Disclosure Program](https://auth0.com/responsible-disclosure-policy) details the procedure for disclosing security issues.
+If you have found a bug or if you have a feature request, please report them at this repository issues section. Please do not report security vulnerabilities on the public GitHub issue tracker. The [Responsible Disclosure Program](https://auth0.com/whitehat) details the procedure for disclosing security issues.
 
 ## Author
 
