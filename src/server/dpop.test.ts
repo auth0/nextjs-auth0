@@ -527,10 +527,12 @@ describe("DPoP Tests", () => {
         method: "GET"
       });
 
-      // Should handle malformed URLs
-      await expect(async () => {
-        await authClient.handler(request);
-      }).not.toThrow("Invalid URL");
+      const response = await authClient.handler(request);
+
+      expect(response.status).toBe(400);
+      const responseBody = await response.json();
+      expect(responseBody.error.message).toContain("Invalid URL");
+      expect(responseBody.error.code).toBe("invalid_request");
     });
 
     it("should handle empty URL", async () => {
@@ -539,10 +541,12 @@ describe("DPoP Tests", () => {
         method: "GET"
       });
 
-      // Should handle empty URLs
-      await expect(async () => {
-        await authClient.handler(request);
-      }).not.toThrow("URL cannot be empty");
+      const response = await authClient.handler(request);
+
+      expect(response.status).toBe(400);
+      const responseBody = await response.json();
+      expect(responseBody.error.message).toContain("Invalid URL");
+      expect(responseBody.error.code).toBe("invalid_request");
     });
   });
 });

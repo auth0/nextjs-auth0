@@ -1685,15 +1685,37 @@ export class AuthClient {
     }
 
     // Extract request details
-    const { url, method, headers, body } =
-      (await req.json()) as ProtectedRequestBody;
+    const {
+      url,
+      method = "GET",
+      headers,
+      body
+    } = (await req.json()) as ProtectedRequestBody;
+
+    // Validate URL
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(url);
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error: {
+            message: `Invalid URL: ${url}`,
+            code: "invalid_request"
+          }
+        },
+        {
+          status: 400
+        }
+      );
+    }
 
     // Make (DPoP)-authenticated request with retry logic for nonce errors
     const protectedResourceRequestCall = () =>
       oauth.protectedResourceRequest(
         session.tokenSet.accessToken,
         method,
-        new URL(url),
+        parsedUrl,
         headers,
         body,
         {
