@@ -1,15 +1,12 @@
 /**
- * Server-side and client-side fetcher utilities for DPoP authentication
- *
- * This demonstrates the server-side createFetcher functionality for advanced
- * configuration scenarios including custom base URLs and enhanced logging.
+ * Server-side fetcher utilities for DPoP authentication with advanced configuration examples
  */
 
 import { auth0 } from './auth0';
 import { createFetcher } from '@auth0/nextjs-auth0/server';
 
 /**
- * Custom fetch implementation with enhanced logging for demonstration
+ * Custom fetch with enhanced logging for demonstration
  */
 const customFetchWithLogging = async (url, options) => {
   const start = Date.now();
@@ -41,8 +38,7 @@ const customFetchWithLogging = async (url, options) => {
 };
 
 /**
- * Create a basic server-side fetcher with base URL configuration
- * This demonstrates the simplest server-side createFetcher usage
+ * Basic server-side fetcher with base URL configuration
  */
 export const createApiServerFetcher = () => {
   const apiPort = process.env.API_PORT || 3001;
@@ -52,8 +48,7 @@ export const createApiServerFetcher = () => {
 };
 
 /**
- * Create an enhanced server-side fetcher with custom fetch implementation
- * This demonstrates advanced configuration with logging and metrics
+ * Enhanced server-side fetcher with custom fetch implementation
  */
 export const createEnhancedApiServerFetcher = () => {
   const apiPort = process.env.API_PORT || 3001;
@@ -64,8 +59,7 @@ export const createEnhancedApiServerFetcher = () => {
 };
 
 /**
- * Create a production-ready server-side fetcher
- * This demonstrates environment-specific configuration
+ * Production-ready server-side fetcher with environment-specific configuration
  */
 export const createProductionApiServerFetcher = () => {
   const apiPort = process.env.API_PORT || 3001;
@@ -73,7 +67,7 @@ export const createProductionApiServerFetcher = () => {
 
   return createFetcher(auth0, {
     baseUrl: `http://localhost:${apiPort}`,
-    // Use enhanced logging only in development
+    // Enhanced logging only in development
     fetch: isDevelopment ? customFetchWithLogging : undefined
   });
 };

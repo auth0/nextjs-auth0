@@ -27,7 +27,6 @@ async function findAvailablePort(startPort) {
     
     server.listen(startPort, (err) => {
       if (err) {
-        // Port is in use, try next port
         server.close();
         findAvailablePort(startPort + 1).then(resolve).catch(reject);
       } else {
@@ -38,7 +37,6 @@ async function findAvailablePort(startPort) {
     
     server.on('error', (err) => {
       if (err.code === 'EADDRINUSE') {
-        // Port is in use, try next port
         findAvailablePort(startPort + 1).then(resolve).catch(reject);
       } else {
         reject(err);
@@ -61,7 +59,6 @@ app.use(helmet());
 app.use(cors({ origin: baseUrl }));
 app.use(express.json());
 
-// Use dynamic discovery for proper AuthorizationServer metadata
 let authorizationServer;
 
 async function initializeAuthorizationServer() {
@@ -69,7 +66,6 @@ async function initializeAuthorizationServer() {
     console.log('[API] Discovering authorization server metadata...');
     console.log('[API] Issuer URL:', issuerBaseUrl);
     
-    // Use oauth4webapi's discovery mechanism for proper metadata
     const issuer = new URL(issuerBaseUrl);
     const discoveryResponse = await oauth.discoveryRequest(issuer, {
       [oauth.allowInsecureRequests]: process.env.NODE_ENV === 'development'
@@ -85,7 +81,6 @@ async function initializeAuthorizationServer() {
   } catch (error) {
     console.error('[API] Failed to discover authorization server metadata:', error);
     
-    // Fallback to manual configuration with proper structure
     console.log('[API] Using fallback authorization server configuration...');
     authorizationServer = {
       issuer: issuerBaseUrl,
