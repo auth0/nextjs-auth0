@@ -9,8 +9,8 @@ This comprehensive example provides both **manual usage** and **automated testin
 **🖱️ Interactive Demo:**
 - Web interface for testing DPoP-bound authentication
 - Real-time API calls with visual feedback
-- Server-side and client-side DPoP implementations
-- Dual button testing pattern for comprehensive coverage
+- Server-side DPoP implementation
+- Comprehensive testing pattern for production validation
 
 **🤖 Automated Testing:**
 - Unit tests with Vitest for fast API validation
@@ -38,7 +38,6 @@ This example shows:
 - ✅ **Error Handling**: Proper handling of DPoP nonce errors and retries
 - ✅ **Automated Testing**: Comprehensive test suite for validation
 - ✅ **Server-Side Implementation**: Direct server-side DPoP requests with `fetchWithAuth()`
-- ✅ **Client-Side Implementation**: Browser-based DPoP requests for comparison
 
 ## Test Architecture
 
@@ -76,7 +75,7 @@ This example shows:
 4. **Test DPoP functionality:**
    - Navigate to http://localhost:3000
    - Login with Auth0
-   - Click "Test Server-Side DPoP API" or "Test Client-Side DPoP API"
+   - Click "Test Server-Side DPoP API"
    - View DPoP validation results
 
 ### Automated Testing
@@ -177,10 +176,9 @@ When DPoP is enabled:
 
 ### DPoP vs Bearer Token Comparison
 
-This example allows you to test both DPoP and traditional Bearer token approaches:
+This example demonstrates server-side DPoP implementation:
 
 - **Server-Side DPoP**: Uses `auth0.fetchWithAuth()` for direct server-side DPoP requests
-- **Client-Side DPoP**: Uses browser-based `fetchWithAuth` from the client SDK
 - **Bearer Token Fallback**: When DPoP is disabled, falls back to standard Bearer token authentication
 
 ## Run the sample
