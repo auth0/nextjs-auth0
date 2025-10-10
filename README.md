@@ -257,6 +257,73 @@ export default async function handler(req, res) {
 
 For more detailed examples and configuration options, see the [DPoP section in EXAMPLES.md](./EXAMPLES.md#dpop-demonstration-of-proof-of-possession).
 
+### Using fetchWithAuth() with Multiple APIs
+
+When your application needs to call multiple APIs with different audiences, you must use the `accessTokenOptions` parameter to specify which API you're calling. This ensures the correct access token is retrieved for each API.
+
+**⚠️ Important**: Without specifying the `audience` parameter, the SDK will use the default access token from the session, which may be intended for a different API, leading to authorization errors.
+
+```ts
+// Example: Application calling multiple APIs
+export default async function Dashboard() {
+  // Call Profile API - specify its audience
+  const profileRes = await auth0.fetchWithAuth(
+    'https://profile-api.example.com/me',
+    { method: 'GET' },
+    { audience: 'https://profile-api.example.com' }
+  );
+  const profile = await profileRes.json();
+
+  // Call Orders API - different audience
+  const ordersRes = await auth0.fetchWithAuth(
+    'https://orders-api.example.com/my-orders',
+    { method: 'GET' },
+    { audience: 'https://orders-api.example.com' }
+  );
+  const orders = await ordersRes.json();
+
+  return (
+    <div>
+      <h1>{profile.name}</h1>
+      <OrdersList orders={orders} />
+    </div>
+  );
+}
+```
+
+**Configuration Requirements**:
+- Configure each API in your Auth0 Dashboard with its own audience identifier
+- Enable Multi-Resource Refresh Tokens (MRRT) in your Auth0 Application settings
+- Include all required audiences and scopes in your Application's Refresh Token Policies
+
+**Additional Options**:
+
+```ts
+// Request additional scopes
+const response = await auth0.fetchWithAuth(
+  'https://api.example.com/admin',
+  { method: 'GET' },
+  {
+    audience: 'https://api.example.com',
+    scope: 'read:users admin:users'  // Additional permissions
+  }
+);
+
+// Force token refresh for sensitive operations
+const response = await auth0.fetchWithAuth(
+  'https://api.example.com/sensitive',
+  { method: 'GET' },
+  {
+    audience: 'https://api.example.com',
+    refresh: true  // Get fresh token even if current one is valid
+  }
+);
+```
+
+**Development Warning**: In development mode, the SDK will warn you if `fetchWithAuth()` is called without specifying an `audience`, helping you identify potential token mismatch issues early.
+
+For comprehensive API documentation and more examples, see the [fetchWithAuth() API reference](https://auth0.github.io/nextjs-auth0/).
+
 #### Advanced: Clock Validation Configuration
 
 Configure timing validation for DPoP proofs to handle clock differences between client and server:

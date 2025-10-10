@@ -8,8 +8,8 @@ import type { IncomingMessage, ServerResponse } from "http";
 import { cookies } from "next/headers.js";
 import { NextRequest, NextResponse } from "next/server.js";
 import { NextApiHandler, NextApiRequest, NextApiResponse } from "next/types.js";
+import { ProtectedResourceRequestBody } from "oauth4webapi";
 
-import { AccessTokenOptions } from "../client/helpers/get-access-token.js";
 import {
   AccessTokenError,
   AccessTokenErrorCode,
@@ -21,13 +21,19 @@ import {
   AccessTokenForConnectionOptions,
   AuthorizationParameters,
   BackchannelAuthenticationOptions,
+  GetAccessTokenOptions,
   LogoutStrategy,
   SessionData,
   SessionDataStore,
   StartInteractiveLoginOptions,
   User
 } from "../types/index.js";
-import { DEFAULT_SCOPES } from "../utils/constants.js";
+import {
+  DEFAULT_DPOP_CLOCK_SKEW,
+  DEFAULT_DPOP_CLOCK_TOLERANCE,
+  DEFAULT_SCOPES,
+  MAX_RECOMMENDED_DPOP_CLOCK_TOLERANCE
+} from "../utils/constants.js";
 import { isRequest } from "../utils/request.js";
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
 import {
@@ -892,19 +898,32 @@ export class Auth0Client {
   }
 
   /**
-   * Server-side equivalent of client fetchWithAuth - makes DPoP-authenticated requests directly
-   * without HTTP overhead. This method bypasses the /auth/protected-request endpoint by calling
-   * the protected request logic directly.
+   * Makes authenticated requests to protected resources using either DPoP or Bearer token authentication.
+   * The authentication method is automatically selected based on the SDK configuration (DPoP if configured, Bearer otherwise).
+   *
+   * This method can be used in Server Components, Server Actions, and Route Handlers in the **App Router**.
+   *
+   * When calling protected APIs, the SDK will:
+   * - Use DPoP authentication if configured (via `useDpop` and `dpopKeyPair` options)
+   * - Fall back to Bearer token authentication if DPoP is not configured
+   * - Automatically handle token refresh if the access token is expired
    *
    * **Important**: This method must be called within a Next.js API route, Server Component,
    * or Server Action where session context is available.
+   *
+   * ## Multi-API Token Selection
+   *
+   * When your application calls multiple APIs, you **must** specify the `accessTokenOptions.audience`
+   * parameter to ensure the correct access token is used. Without specifying the audience, the SDK
+   * will use the access token from the session, which may be intended for a different API.
+   *
    *
    * @param info The URL or Request object for the request
    * @returns Promise resolving to the response from the protected resource
    *
    * @example
    * ```typescript
-   * // In an API route
+   * // Simple usage - uses session access token
    * export const GET = async function() {
    *   const response = await auth0.fetchWithAuth('http://localhost:3001/api/data');
    *   const data = await response.json();
@@ -915,30 +934,48 @@ export class Auth0Client {
   async fetchWithAuth(info: RequestInfo | URL): Promise<Response>;
 
   /**
-   * Server-side equivalent of client fetchWithAuth - makes DPoP-authenticated requests directly
-   * without HTTP overhead.
+   * Makes authenticated requests to protected resources using either DPoP or Bearer token authentication.
+   * The authentication method is automatically selected based on the SDK configuration (DPoP if configured, Bearer otherwise).
    *
    * @param info The URL or Request object for the request
-   * @param init Request initialization options
-   * @returns Promise resolving to the response from the protected resource
-   */
-  async fetchWithAuth(
-    info: RequestInfo | URL,
-    init: RequestInit
-  ): Promise<Response>;
-
-  /**
-   * Server-side equivalent of client fetchWithAuth - makes DPoP-authenticated requests directly
-   * without HTTP overhead.
-   *
-   * @param info The URL or Request object for the request
-   * @param init Request initialization options
-   * @param accessTokenOptions Options for fetching the access token, including optional audience and scope
+   * @param init Request initialization options (method, headers, body, etc.)
    * @returns Promise resolving to the response from the protected resource
    *
    * @example
    * ```typescript
-   * // In a Server Component with custom token options
+   * // POST request with body
+   * export const POST = async function() {
+   *   const response = await auth0.fetchWithAuth(
+   *     'https://api.example.com/items',
+   *     {
+   *       method: 'POST',
+   *       headers: { 'Content-Type': 'application/json' },
+   *       body: JSON.stringify({ name: 'New Item' })
+   *     }
+   *   );
+   *   const result = await response.json();
+   *   return NextResponse.json(result);
+   * };
+   * ```
+   */
+  async fetchWithAuth(
+    info: RequestInfo | URL,
+    init: FetchWithAuthInit
+  ): Promise<Response>;
+
+  /**
+   * Makes authenticated requests to protected resources using either DPoP or Bearer token authentication.
+   * The authentication method is automatically selected based on the SDK configuration (DPoP if configured, Bearer otherwise).
+   *
+   * @param info The URL or Request object for the request
+   * @param init Request initialization options (method, headers, body, etc.)
+   * @param accessTokenOptions Options for fetching the access token, including audience and scope.
+   *                           **Required when calling multiple APIs** to ensure correct token selection.
+   * @returns Promise resolving to the response from the protected resource
+   *
+   * @example
+   * ```typescript
+   * // Multi-API: Specify audience for correct token
    * export default async function Page() {
    *   const response = await auth0.fetchWithAuth(
    *     'https://api.example.com/profile',
@@ -949,22 +986,83 @@ export class Auth0Client {
    *   return <div>{profile.name}</div>;
    * }
    * ```
+   *
+   * @example
+   * ```typescript
+   * // Request additional scopes beyond what was granted at login
+   * export const GET = async function() {
+   *   const response = await auth0.fetchWithAuth(
+   *     'https://api.example.com/admin/users',
+   *     { method: 'GET' },
+   *     {
+   *       audience: 'https://api.example.com',
+   *       scope: 'read:users admin:users' // More scopes than initially granted
+   *     }
+   *   );
+   *   const users = await response.json();
+   *   return NextResponse.json(users);
+   * };
+   * ```
+   *
+   * @example
+   * ```typescript
+   * // Force token refresh to get fresh access token
+   * export const GET = async function() {
+   *   const response = await auth0.fetchWithAuth(
+   *     'https://api.example.com/sensitive-data',
+   *     { method: 'GET' },
+   *     {
+   *       audience: 'https://api.example.com',
+   *       refresh: true // Force refresh even if current token is valid
+   *     }
+   *   );
+   *   const data = await response.json();
+   *   return NextResponse.json(data);
+   * };
+   * ```
+   *
+   * @example
+   * ```typescript
+   * // Application calling multiple APIs with different audiences
+   * export default async function Dashboard() {
+   *   // Get user profile from Profile API
+   *   const profileRes = await auth0.fetchWithAuth(
+   *     'https://profile-api.example.com/me',
+   *     { method: 'GET' },
+   *     { audience: 'https://profile-api.example.com' }
+   *   );
+   *   const profile = await profileRes.json();
+   *
+   *   // Get orders from Orders API (different audience)
+   *   const ordersRes = await auth0.fetchWithAuth(
+   *     'https://orders-api.example.com/my-orders',
+   *     { method: 'GET' },
+   *     { audience: 'https://orders-api.example.com' }
+   *   );
+   *   const orders = await ordersRes.json();
+   *
+   *   return (
+   *     <div>
+   *       <h1>{profile.name}</h1>
+   *       <OrdersList orders={orders} />
+   *     </div>
+   *   );
+   * }
+   * ```
    */
   async fetchWithAuth(
     info: RequestInfo | URL,
-    init: RequestInit,
-    accessTokenOptions: AccessTokenOptions
+    init: FetchWithAuthInit,
+    accessTokenOptions: GetAccessTokenOptions
   ): Promise<Response>;
 
   /**
-   * Server-side equivalent of client fetchWithAuth - makes DPoP-authenticated requests directly
-   * without HTTP overhead. This method bypasses the /auth/protected-request endpoint by calling
-   * the protected request logic directly.
+   * Makes authenticated requests to protected resources.
    */
   async fetchWithAuth(
     info: RequestInfo | URL,
-    init?: RequestInit,
-    accessTokenOptions?: AccessTokenOptions
+    init?: FetchWithAuthInit,
+    accessTokenOptions?: GetAccessTokenOptions
   ): Promise<Response> {
     // Get session from current Next.js context
     const session = await this.getSession();
@@ -976,14 +1074,14 @@ export class Auth0Client {
     }
 
     // Provide default options if not specified
-    const finalAccessTokenOptions: AccessTokenOptions =
+    const finalAccessTokenOptions: GetAccessTokenOptions =
       accessTokenOptions ?? {};
 
     // Extract request details from info and init
     let url: string;
     let method = "GET";
     let headers: HeadersInit = {};
-    let body: BodyInit | null = null;
+    let body: ProtectedResourceRequestBody | undefined;
 
     if (typeof info === "string") {
       url = info;
@@ -1004,7 +1102,7 @@ export class Auth0Client {
       if (init.body !== undefined) body = init.body;
     }
 
-    // Call the protected request logic directly (bypassing HTTP)
+    // Make the protected request
     return this.authClient.executeProtectedRequest({
       url,
       method,
@@ -1131,6 +1229,23 @@ export class Auth0Client {
   /**
    * Validates DPoP configuration and returns keypair and options if available.
    * Attempts to load from environment variables if not provided in options.
+   *
+   * **Performance Note - Synchronous Key Loading:**
+   * Key loading and validation are performed synchronously during client initialization.
+   * This happens in the constructor and blocks the event loop. For production deployments:
+   *
+   * - **Best Practice**: Pre-load keys and pass them via `dpopKeyPair` option
+   * - **Alternative**: Load keys at module initialization (outside request handlers)
+   * - **Impact**: Typically occurs once at startup, but can affect cold starts
+   *
+   * **Security-sensitive configuration:**
+   * - `clockSkew`: Difference between client and server clocks (default: {@link DEFAULT_DPOP_CLOCK_SKEW})
+   * - `clockTolerance`: Acceptable time drift for DPoP proof validation (default: {@link DEFAULT_DPOP_CLOCK_TOLERANCE}, max recommended: {@link MAX_RECOMMENDED_DPOP_CLOCK_TOLERANCE})
+   *
+   * Values exceeding {@link MAX_RECOMMENDED_DPOP_CLOCK_TOLERANCE} will trigger a warning but are not enforced.
+   * Excessively large clock tolerance values may weaken DPoP security by allowing replay attacks within a
+   * wider time window. Prefer synchronizing server clocks using NTP instead of increasing tolerance.
+   *
    * @param options The client options
    * @returns Object containing DpopKeyPair and DpopOptions if available
    */
@@ -1141,17 +1256,28 @@ export class Auth0Client {
     const useDpop = options.useDpop || false;
 
     // Build DPoP options with defaults from environment variables or provided options
+    const clockTolerance =
+      options.dpopOptions?.clockTolerance ??
+      (process.env.AUTH0_DPOP_CLOCK_TOLERANCE
+        ? parseInt(process.env.AUTH0_DPOP_CLOCK_TOLERANCE, 10)
+        : DEFAULT_DPOP_CLOCK_TOLERANCE);
+
+    // Warn if clock tolerance exceeds recommended maximum (but don't enforce)
+    if (clockTolerance > MAX_RECOMMENDED_DPOP_CLOCK_TOLERANCE) {
+      console.warn(
+        `WARNING: clockTolerance of ${clockTolerance}s exceeds recommended maximum of ${MAX_RECOMMENDED_DPOP_CLOCK_TOLERANCE}s. ` +
+          "This may weaken DPoP security by allowing replay attacks within a wider time window. " +
+          "Consider synchronizing server clocks using NTP instead of increasing tolerance."
+      );
+    }
+
     const dpopOptions: DpopOptions = {
       clockSkew:
         options.dpopOptions?.clockSkew ??
         (process.env.AUTH0_DPOP_CLOCK_SKEW
           ? parseInt(process.env.AUTH0_DPOP_CLOCK_SKEW, 10)
-          : 0),
-      clockTolerance:
-        options.dpopOptions?.clockTolerance ??
-        (process.env.AUTH0_DPOP_CLOCK_TOLERANCE
-          ? parseInt(process.env.AUTH0_DPOP_CLOCK_TOLERANCE, 10)
-          : 30)
+          : DEFAULT_DPOP_CLOCK_SKEW),
+      clockTolerance
     };
 
     // If we already have a keypair, return it with options
@@ -1169,7 +1295,8 @@ export class Auth0Client {
 
       if (privateKeyPem && publicKeyPem) {
         try {
-          // Load and convert keys synchronously
+          // Note: Key loading is performed synchronously during initialization.
+          // Ensure keys are pre-loaded or cached to avoid blocking the event loop.
           const privateKeyNodeJS = createPrivateKey(privateKeyPem);
           const publicKeyNodeJS = createPublicKey(publicKeyPem);
 
@@ -1260,6 +1387,7 @@ export class Auth0Client {
       if (!isValid) {
         console.warn(
           "WARNING: Private and public keys do not form a valid key pair - signature verification failed. " +
+            "Please ensure the keys are properly paired and in the correct format. " +
             "DPoP will be disabled and bearer authentication will be used instead."
         );
         return false;
@@ -1269,6 +1397,7 @@ export class Auth0Client {
     } catch (error) {
       console.warn(
         "WARNING: Failed to validate key pair compatibility. " +
+          "This may indicate invalid key format, mismatched algorithms, or corrupted key data. " +
           "DPoP will be disabled and bearer authentication will be used instead. " +
           `Error: ${error instanceof Error ? error.message : String(error)}`
       );
@@ -1304,7 +1433,7 @@ export class Auth0Client {
     return {
       fetchWithAuth: async (
         info: RequestInfo | URL,
-        init?: RequestInit
+        init?: FetchWithAuthInit
       ): Promise<Response> => {
         const resolvedInfo = this.resolveUrl(info, config.baseUrl);
         // Match test expectations by explicitly calling with undefined when needed
@@ -1375,13 +1504,20 @@ export class Auth0Client {
   }
 }
 
-export type GetAccessTokenOptions = {
-  refresh?: boolean;
-  scope?: string;
+/**
+ * Request initialization options for fetchWithAuth.
+ * Similar to RequestInit but uses ProtectedResourceRequestBody for the body type.
+ */
+export type FetchWithAuthInit = {
+  method?: string;
+  headers?: HeadersInit;
   /**
-   * Please note: If you are passing audience, ensure that the used audiences and scopes are
-   * part of the Application's Refresh Token Policies in Auth0 when configuring Multi-Resource Refresh Tokens (MRRT).
-   * {@link https://auth0.com/docs/secure/tokens/refresh-tokens/multi-resource-refresh-token|See Auth0 Documentation on Multi-resource Refresh Tokens}
+   * Request body compatible with oauth4webapi's ProtectedResourceRequestBody.
+   * Supported types: string, URLSearchParams, ArrayBuffer, Uint8Array, ReadableStream<Uint8Array>
+   *
+   * Note: Blob and FormData are not supported. Convert them to supported types before use:
+   * - Blob: Use `await blob.arrayBuffer()`
+   * - FormData: Convert to URLSearchParams (loses file data) or use a different approach
    */
-  audience?: string;
+  body?: ProtectedResourceRequestBody;
 };

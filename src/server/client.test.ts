@@ -752,7 +752,7 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
         url: "https://api.example.com/data",
         method: "GET",
         headers: {},
-        body: null,
+        body: undefined,
         session: expect.any(Object),
         accessTokenOptions: {}
       });
@@ -774,7 +774,7 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
         url: "https://api.example.com/data",
         method: "POST",
         headers: {},
-        body: null,
+        body: undefined,
         session: expect.any(Object),
         accessTokenOptions
       });
@@ -818,7 +818,7 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
         url: "https://api.example.com/data",
         method: "GET",
         headers: {},
-        body: null,
+        body: undefined,
         session: expect.any(Object),
         accessTokenOptions: {}
       });
@@ -840,7 +840,7 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
         url: "https://api.example.com/data",
         method: "GET",
         headers: {},
-        body: null,
+        body: undefined,
         session: expect.any(Object),
         accessTokenOptions
       });

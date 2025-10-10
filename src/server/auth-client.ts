@@ -4,7 +4,6 @@ import * as oauth from "oauth4webapi";
 import * as client from "openid-client";
 
 import packageJson from "../../package.json" with { type: "json" };
-import { AccessTokenOptions } from "../client/helpers/get-access-token.js";
 import {
   AccessTokenError,
   AccessTokenErrorCode,
@@ -17,6 +16,8 @@ import {
   BackchannelAuthenticationNotSupportedError,
   BackchannelLogoutError,
   DiscoveryError,
+  DPoPError,
+  DPoPErrorCode,
   InvalidStateError,
   MissingStateError,
   OAuth2Error,
@@ -30,6 +31,7 @@ import {
   BackchannelAuthenticationOptions,
   BackchannelAuthenticationResponse,
   ConnectionTokenSet,
+  GetAccessTokenOptions,
   LogoutStrategy,
   LogoutToken,
   SessionData,
@@ -107,6 +109,28 @@ const GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN =
  */
 const REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN =
   "http://auth0.com/oauth/token-type/federated-connection-access-token";
+
+/**
+ * Executes a function with retry logic for DPoP nonce errors.
+ * Implements a small delay (100ms) before retrying to avoid rapid successive requests.
+ *
+ * @param fn - The async function to execute
+ * @returns The result of the function execution
+ * @throws The original error if it's not a DPoP nonce error or if retry fails
+ */
+async function withDPoPNonceRetry<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (e: any) {
+    if (oauth.isDPoPNonceError(e)) {
+      // Small delay before retry to avoid rapid successive requests
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      // The RS-signalled nonce is now cached, retrying
+      return await fn();
+    }
+    throw e;
+  }
+}
 
 export interface Routes {
   login: string;
@@ -245,12 +269,12 @@ export class AuthClient {
     this.domain = options.domain;
     this.clientMetadata = { client_id: options.clientId };
 
-    // Apply DPoP timing validation options to client metadata
+    // Apply DPoP timing validation options to client metadata if provided
     if (options.dpopOptions) {
-      if (options.dpopOptions.clockSkew !== undefined) {
+      if (typeof options.dpopOptions.clockSkew === "number") {
         this.clientMetadata[oauth.clockSkew] = options.dpopOptions.clockSkew;
       }
-      if (options.dpopOptions.clockTolerance !== undefined) {
+      if (typeof options.dpopOptions.clockTolerance === "number") {
         this.clientMetadata[oauth.clockTolerance] =
           options.dpopOptions.clockTolerance;
       }
@@ -309,7 +333,8 @@ export class AuthClient {
     this.noContentProfileResponseWhenUnauthenticated =
       options.noContentProfileResponseWhenUnauthenticated ?? false;
 
-    if (options.dpopKeyPair && (options.useDpop ?? false)) {
+    // Initialize DPoP if enabled. Check useDpop flag first to avoid timing attacks.
+    if ((options.useDpop ?? false) && options.dpopKeyPair) {
       this.dpopHandle = oauth.DPoP(this.clientMetadata, options.dpopKeyPair);
       this.dpopKeyPair = options.dpopKeyPair;
     }
@@ -412,7 +437,12 @@ export class AuthClient {
         const dpopJkt = await jose.calculateJwkThumbprint(publicKeyJwk);
         authorizationParams.set("dpop_jkt", dpopJkt);
       } catch (error) {
-        console.warn("Failed to calculate dpop_jkt parameter:", error);
+        throw new DPoPError(
+          DPoPErrorCode.DPOP_JKT_CALCULATION_FAILED,
+          "DPoP is enabled but failed to calculate key thumbprint (dpop_jkt). " +
+            "This is required for secure DPoP binding. Please check your key configuration.",
+          error instanceof Error ? error : undefined
+        );
       }
     }
 
@@ -663,24 +693,22 @@ export class AuthClient {
       );
     let oidcRes: oauth.TokenEndpointResponse;
     try {
-      oidcRes = await processAuthorizationCodeResponseCall();
-    } catch (e: any) {
-      if (oauth.isDPoPNonceError(e)) {
+      oidcRes = await withDPoPNonceRetry(async () => {
         codeGrantResponse = await authorizationCodeGrantRequestCall();
-        oidcRes = await processAuthorizationCodeResponseCall();
-      } else {
-        return this.handleCallbackError(
-          new AuthorizationCodeGrantError({
-            cause: new OAuth2Error({
-              code: e.error,
-              message: e.error_description
-            })
-          }),
-          onCallbackCtx,
-          req,
-          state
-        );
-      }
+        return await processAuthorizationCodeResponseCall();
+      });
+    } catch (e: any) {
+      return this.handleCallbackError(
+        new AuthorizationCodeGrantError({
+          cause: new OAuth2Error({
+            code: e.error,
+            message: e.error_description
+          })
+        }),
+        onCallbackCtx,
+        req,
+        state
+      );
     }
 
     const idTokenClaims = oauth.getValidatedIdTokenClaims(oidcRes)!;
@@ -912,11 +940,7 @@ export class AuthClient {
    */
   async getTokenSet(
     sessionData: SessionData,
-    options: {
-      refresh?: boolean | undefined;
-      scope?: string | null;
-      audience?: string | null;
-    } = {}
+    options: GetAccessTokenOptions = {}
   ): Promise<[null, GetTokenSetResponse] | [SdkError, null]> {
     // This will merge the scopes from the authorization parameters and the options.
     // The scope from the options will be added to the scopes from the authorization parameters.
@@ -1003,35 +1027,31 @@ export class AuthClient {
             }
           );
 
-        let refreshTokenRes = await refreshTokenGrantRequestCall();
-
-        const processRefreshTokenResponseCall = () =>
+        const processRefreshTokenResponseCall = (response: Response) =>
           oauth.processRefreshTokenResponse(
             authorizationServerMetadata,
             this.clientMetadata,
-            refreshTokenRes
+            response
           );
 
         let oauthRes: oauth.TokenEndpointResponse;
         try {
-          oauthRes = await processRefreshTokenResponseCall();
+          oauthRes = await withDPoPNonceRetry(async () => {
+            const refreshTokenRes = await refreshTokenGrantRequestCall();
+            return await processRefreshTokenResponseCall(refreshTokenRes);
+          });
         } catch (e: any) {
-          if (oauth.isDPoPNonceError(e)) {
-            refreshTokenRes = await refreshTokenGrantRequestCall();
-            oauthRes = await processRefreshTokenResponseCall();
-          } else {
-            return [
-              new AccessTokenError(
-                AccessTokenErrorCode.FAILED_TO_REFRESH_TOKEN,
-                "The access token has expired and there was an error while trying to refresh it.",
-                new OAuth2Error({
-                  code: e.error,
-                  message: e.error_description
-                })
-              ),
-              null
-            ];
-          }
+          return [
+            new AccessTokenError(
+              AccessTokenErrorCode.FAILED_TO_REFRESH_TOKEN,
+              "The access token has expired and there was an error while trying to refresh it.",
+              new OAuth2Error({
+                code: e.error,
+                message: e.error_description
+              })
+            ),
+            null
+          ];
         }
 
         const idTokenClaims = oauth.getValidatedIdTokenClaims(oauthRes)!;
@@ -1545,36 +1565,31 @@ export class AuthClient {
           }
         );
 
-      let httpResponse = await genericTokenEndpointRequestCall();
-
-      const processGenericTokenEndpointResponseCall = () =>
+      const processGenericTokenEndpointResponseCall = (response: Response) =>
         oauth.processGenericTokenEndpointResponse(
           authorizationServerMetadata,
           this.clientMetadata,
-          httpResponse
+          response
         );
 
       let tokenEndpointResponse: oauth.TokenEndpointResponse;
       try {
-        tokenEndpointResponse = await processGenericTokenEndpointResponseCall();
+        tokenEndpointResponse = await withDPoPNonceRetry(async () => {
+          const httpResponse = await genericTokenEndpointRequestCall();
+          return await processGenericTokenEndpointResponseCall(httpResponse);
+        });
       } catch (err: any) {
-        if (oauth.isDPoPNonceError(err)) {
-          httpResponse = await genericTokenEndpointRequestCall();
-          tokenEndpointResponse =
-            await processGenericTokenEndpointResponseCall();
-        } else {
-          return [
-            new AccessTokenForConnectionError(
-              AccessTokenForConnectionErrorCode.FAILED_TO_EXCHANGE,
-              "There was an error trying to exchange the refresh token for a connection access token.",
-              new OAuth2Error({
-                code: err.error,
-                message: err.error_description
-              })
-            ),
-            null
-          ];
-        }
+        return [
+          new AccessTokenForConnectionError(
+            AccessTokenForConnectionErrorCode.FAILED_TO_EXCHANGE,
+            "There was an error trying to exchange the refresh token for a connection access token.",
+            new OAuth2Error({
+              code: err.error,
+              message: err.error_description
+            })
+          ),
+          null
+        ];
       }
 
       return [
@@ -1657,8 +1672,9 @@ export class AuthClient {
   }
 
   /**
-   * Execute a DPoP-authenticated request directly without HTTP overhead.
-   * This method is used internally by both handleProtectedRequest and Auth0Client.fetchWithAuth.
+   * Execute an authenticated request to a protected resource using DPoP or Bearer token authentication.
+   * The authentication method is automatically determined by the presence of the DPoP handle.
+   * This method is used internally by Auth0Client.fetchWithAuth.
    *
    * @param params The request parameters including session
    * @returns Promise resolving to the response from the protected resource
@@ -1667,12 +1683,9 @@ export class AuthClient {
     url: string;
     method?: string;
     headers?: HeadersInit;
-    body?:
-      | import("oauth4webapi").ProtectedResourceRequestBody
-      | BodyInit
-      | null;
+    body?: import("oauth4webapi").ProtectedResourceRequestBody;
     session: SessionData;
-    accessTokenOptions: AccessTokenOptions;
+    accessTokenOptions: GetAccessTokenOptions;
   }): Promise<Response> {
     const { url, method = "GET", headers, body, session } = params;
 
@@ -1699,39 +1712,8 @@ export class AuthClient {
         headers instanceof Headers ? headers : new Headers(headers);
     }
 
-    // Convert body to oauth4webapi compatible type
-    let requestBody:
-      | import("oauth4webapi").ProtectedResourceRequestBody
-      | undefined;
-    if (body !== null && body !== undefined) {
-      // If it's already a ProtectedResourceRequestBody type, use it directly
-      if (
-        typeof body === "string" ||
-        body instanceof ArrayBuffer ||
-        body instanceof Uint8Array ||
-        body instanceof URLSearchParams ||
-        body instanceof ReadableStream
-      ) {
-        requestBody = body;
-      } else if (body instanceof FormData) {
-        // FormData is not directly supported by oauth4webapi, so we need to convert it
-        // to URLSearchParams
-        const params = new URLSearchParams();
-        for (const [key, value] of body.entries()) {
-          if (typeof value === "string") {
-            params.append(key, value);
-          } else {
-            // For File objects, we'll convert to string representation
-            // In a real scenario, you might want to handle this differently
-            params.append(key, value.toString());
-          }
-        }
-        requestBody = params;
-      } else {
-        // For other BodyInit types, convert to string
-        requestBody = String(body);
-      }
-    }
+    // Body is already ProtectedResourceRequestBody - no conversion needed
+    const requestBody = body;
 
     const [error, getTokenSetResponse] = await this.getTokenSet(
       session,
@@ -1753,7 +1735,7 @@ export class AuthClient {
     }
 
     // Make (DPoP)-authenticated request with retry logic for nonce errors
-    const protectedResourceRequestCall = () => {
+    const response = await withDPoPNonceRetry(() => {
       return oauth.protectedResourceRequest(
         getTokenSetResponse.tokenSet.accessToken,
         method,
@@ -1769,19 +1751,7 @@ export class AuthClient {
           DPoP: this.dpopHandle
         }
       );
-    };
-
-    let response: Response;
-    try {
-      response = await protectedResourceRequestCall();
-    } catch (e: any) {
-      if (oauth.isDPoPNonceError(e)) {
-        // the RS-signalled nonce is now cached, retrying
-        response = await protectedResourceRequestCall();
-      } else {
-        throw e;
-      }
-    }
+    });
 
     return response;
   }

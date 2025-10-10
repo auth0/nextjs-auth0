@@ -1,13 +1,33 @@
+/**
+ * ⚠️ EXAMPLE ONLY - NOT FOR PRODUCTION USE ⚠️
+ * 
+ * This is a demonstration API server for testing DPoP functionality.
+ * 
+ * SECURITY WARNINGS:
+ * - This code is for development/testing purposes only
+ * - CodeQL security scanner correctly flags several issues that are acceptable for examples:
+ *   * User-controlled security bypass (USE_DPOP env var) - intentional for demo switching
+ *   * Log injection from headers - acceptable for debugging in non-production
+ *   * Missing rate limiting on some routes - should be added for production
+ * - DO NOT deploy this code to production without proper hardening
+ * - For production use, implement proper:
+ *   * Input validation and sanitization
+ *   * Rate limiting on all endpoints
+ *   * Structured logging (not console.log)
+ *   * Environment variable validation
+ *   * Error handling without information leakage
+ */
+
 require('dotenv').config({ path: './.env.local' });
 
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const { expressjwt: jwt } = require('express-jwt');
 const jwksRsa = require('jwks-rsa');
 const oauth = require('oauth4webapi');
-const util = require('util');
 const crypto = require('crypto');
 const jose = require('jose');
 
@@ -58,6 +78,15 @@ app.use(morgan('dev'));
 app.use(helmet());
 app.use(cors({ origin: baseUrl }));
 app.use(express.json());
+
+// Rate limiting configuration
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 let authorizationServer;
 
@@ -111,23 +140,18 @@ const checkJwt = jwt({
   algorithms: ['RS256']
 });
 
-// Enhanced middleware for DPoP validation using hybrid approach
+// DPoP validation middleware
+// This middleware validates DPoP proofs according to RFC 9449
 const checkDpop = async (req, res, next) => {
   console.log('[API] DPoP validation middleware called');
   console.log('[API] Request headers:', {
-    authorization: req.headers.authorization ? req.headers.authorization.substring(0, 20) + '...' : 'N/A',
+    authorization: req.headers.authorization ? 'Present' : 'Missing',
     dpop: req.headers.dpop ? 'Present' : 'Missing',
     contentType: req.headers['content-type'] || 'N/A',
     userAgent: req.headers['user-agent'] || 'N/A'
   });
   
-  // Only validate DPoP if USE_DPOP is enabled
-  if (process.env.USE_DPOP !== 'true') {
-    console.log('[API] DPoP not enabled, skipping validation');
-    return next();
-  }
-
-  console.log('[API] DPoP enabled, starting validation process');
+  console.log('[API] Starting DPoP validation process');
 
   try {
     // Step 1: Validate request has proper headers
@@ -140,7 +164,7 @@ const checkDpop = async (req, res, next) => {
 
     // Check if using DPoP scheme
     if (!authHeader.toLowerCase().startsWith('dpop ')) {
-      console.log('[API] Invalid authorization scheme, expected DPoP but got:', authHeader.substring(0, 10));
+      console.log('[API] Invalid authorization scheme, expected DPoP');
       return res.status(401).json({ error: 'Expected DPoP authorization scheme' });
     }
 
@@ -151,19 +175,23 @@ const checkDpop = async (req, res, next) => {
     }
 
     const accessToken = authHeader.slice(5); // Remove 'DPoP ' prefix
-    console.log('[API] Headers validated successfully, access token length:', accessToken.length);
+    console.log('[API] Headers validated successfully');
 
     // Step 2: Validate JWT access token using jose (Auth0 compatible)
     console.log('[API] Step 2: Validating JWT access token');
-    const jwks = jose.createRemoteJWKSet(new URL(`${issuerBaseUrl}/.well-known/jwks.json`));
+    
+    // Use discovered JWKS URI from authorization server metadata
+    const jwksUri = authorizationServer?.jwks_uri || `${issuerBaseUrl}/.well-known/jwks.json`;
+    const jwks = jose.createRemoteJWKSet(new URL(jwksUri));
 
-    // Verify JWT access token using jose
+    // Verify JWT access token using jose with discovered issuer
+    const expectedIssuer = authorizationServer?.issuer || `${issuerBaseUrl}/`;
     const { payload: jwtClaims } = await jose.jwtVerify(accessToken, jwks, {
       audience: audience,
-      issuer: `${issuerBaseUrl}/`,
+      issuer: expectedIssuer,
       algorithms: ['RS256']
     });
-    console.log('[API] JWT access token validated successfully, subject:', jwtClaims.sub);
+    console.log('[API] JWT access token validated successfully');
 
     // Step 3: Validate DPoP proof
     console.log('[API] Step 3: Validating DPoP proof');
@@ -172,8 +200,7 @@ const checkDpop = async (req, res, next) => {
     const dpopProofHeader = jose.decodeProtectedHeader(dpopHeader);
     const dpopProofPayload = jose.decodeJwt(dpopHeader);
     
-    console.log('[API] DPoP proof header:', dpopProofHeader);
-    console.log('[API] DPoP proof payload:', dpopProofPayload);
+    console.log('[API] DPoP proof parsed successfully');
     
     if (!dpopProofHeader || !dpopProofPayload) {
       console.log('[API] Invalid DPoP proof format');
@@ -182,7 +209,7 @@ const checkDpop = async (req, res, next) => {
     
     // Check required DPoP proof headers
     if (dpopProofHeader.typ !== 'dpop+jwt') {
-      console.log('[API] Invalid DPoP proof typ:', dpopProofHeader.typ);
+      console.log('[API] Invalid DPoP proof typ');
       return res.status(401).json({ error: 'DPoP proof must have typ: dpop+jwt' });
     }
 
@@ -199,12 +226,12 @@ const checkDpop = async (req, res, next) => {
     // Check required DPoP proof claims
     console.log('[API] Validating DPoP proof claims');
     if (dpopProofPayload.htm !== req.method) {
-      console.log('[API] Method mismatch - expected:', req.method, 'got:', dpopProofPayload.htm);
+      console.log('[API] DPoP proof htm mismatch');
       return res.status(401).json({ error: 'DPoP proof htm mismatch' });
     }
 
     const expectedHtu = `${req.protocol}://${req.get('host')}${req.originalUrl.split('?')[0]}`;
-    console.log('[API] Expected HTU:', expectedHtu, 'Got:', dpopProofPayload.htu);
+    console.log('[API] Validating HTU claim');
     if (dpopProofPayload.htu !== expectedHtu) {
       console.log('[API] URL mismatch in DPoP proof');
       return res.status(401).json({ error: 'DPoP proof htu mismatch' });
@@ -212,7 +239,7 @@ const checkDpop = async (req, res, next) => {
 
     // Validate access token hash (ath) claim
     const expectedAth = crypto.createHash('sha256').update(accessToken).digest('base64url');
-    console.log('[API] Expected ATH:', expectedAth, 'Got:', dpopProofPayload.ath);
+    console.log('[API] Validating access token hash');
     if (dpopProofPayload.ath !== expectedAth) {
       console.log('[API] Access token hash mismatch');
       return res.status(401).json({ error: 'DPoP proof ath mismatch' });
@@ -221,9 +248,9 @@ const checkDpop = async (req, res, next) => {
     // Validate timestamp - DPoP proofs should be recent (within 5 minutes)
     const now = Math.floor(Date.now() / 1000);
     const timeDiff = Math.abs(now - dpopProofPayload.iat);
-    console.log('[API] Time validation - now:', now, 'iat:', dpopProofPayload.iat, 'diff:', timeDiff);
+    console.log('[API] Validating DPoP proof timestamp');
     if (timeDiff > 300) {
-      console.log('[API] DPoP proof too old:', timeDiff, 'seconds');
+      console.log('[API] DPoP proof timestamp validation failed');
       return res.status(401).json({ error: 'DPoP proof is not recent enough' });
     }
 
@@ -240,19 +267,19 @@ const checkDpop = async (req, res, next) => {
         } else if (jwk.kty === 'RSA') {
           alg = 'RS256';
         } else {
-          console.error('[API] Unable to determine JWK algorithm for DPoP proof', { jwk });
+          console.error('[API] Unable to determine JWK algorithm for DPoP proof');
           return res.status(401).json({ error: 'Unable to determine JWK algorithm for DPoP proof' });
         }
       }
       console.log('[API] Using algorithm:', alg);
       const publicKey = await jose.importJWK(dpopProofHeader.jwk, alg);
-      const { payload: verifiedPayload } = await jose.jwtVerify(dpopHeader, publicKey, {
+      await jose.jwtVerify(dpopHeader, publicKey, {
         typ: 'dpop+jwt'
       });
       console.log('[API] DPoP proof signature successfully verified');
     } catch (err) {
-      console.error('[API] DPoP signature validation error:', err);
-      return res.status(401).json({ error: 'DPoP proof signature validation failed', details: err.message });
+      console.error('[API] DPoP signature validation error');
+      return res.status(401).json({ error: 'DPoP proof signature validation failed' });
     }
 
     // Attach validated claims to request for use in route handlers
@@ -261,24 +288,18 @@ const checkDpop = async (req, res, next) => {
     console.log('[API] DPoP validation completed successfully');
     next();
   } catch (error) {
-    console.error('[API] DPoP validation failed:', error);
+    console.error('[API] DPoP validation failed');
     return res.status(401).json({
-      error: 'DPoP validation failed',
-      message: error.message
+      error: 'DPoP validation failed'
     });  
   }
 };
 
 // Apply middleware based on DPoP configuration
+// Routes are protected with rate limiting and authentication
 if (process.env.USE_DPOP === 'true') {
-  app.get('/api/shows', checkDpop, (req, res) => {
-    console.log('[API] DPoP endpoint hit successfully, sending response');
-    console.log('[API] Claims attached:', {
-      subject: req.auth?.sub,
-      issuer: req.auth?.iss,
-      audience: req.auth?.aud,
-      scope: req.auth?.scope
-    });
+  app.get('/api/shows', apiLimiter, checkDpop, (req, res) => {
+    console.log('[API] DPoP endpoint hit successfully');
     res.send({
       msg: 'Your DPoP access token was successfully validated!',
       dpopEnabled: true,
@@ -286,8 +307,8 @@ if (process.env.USE_DPOP === 'true') {
     });
   });
 } else {
-  app.get('/api/shows', checkJwt, (req, res) => {
-    console.log('[API] Bearer token endpoint hit successfully, sending response');
+  app.get('/api/shows', apiLimiter, checkJwt, (req, res) => {
+    console.log('[API] Bearer token endpoint hit successfully');
     res.send({
       msg: 'Your access token was successfully validated!',
       dpopEnabled: false

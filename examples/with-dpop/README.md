@@ -1,5 +1,15 @@
 # Auth0 Next.js SDK DPoP Example
 
+> **⚠️ IMPORTANT: Example Code Only**
+> 
+> This is a demonstration example for development and testing purposes. The included `api-server.js` contains intentional simplifications for clarity and is **NOT production-ready**. Before deploying to production:
+> - Implement comprehensive input validation and sanitization
+> - Add rate limiting to all API endpoints
+> - Use structured logging instead of console.log
+> - Properly handle and sanitize error messages
+> - Review and address all security scanner warnings
+> - Follow your organization's security best practices
+
 This example demonstrates **DPoP (Demonstrating Proof-of-Possession)** integration with [Auth0 Next.js SDK](https://github.com/auth0/nextjs-auth0). DPoP is an OAuth 2.0 extension that enhances security by binding access tokens to the client's cryptographic key pair.
 
 ## Overview
