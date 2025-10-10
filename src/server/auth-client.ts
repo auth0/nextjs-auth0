@@ -4,6 +4,7 @@ import * as oauth from "oauth4webapi";
 import * as client from "openid-client";
 
 import packageJson from "../../package.json" with { type: "json" };
+import { AccessTokenOptions } from "../client/helpers/get-access-token.js";
 import {
   AccessTokenError,
   AccessTokenErrorCode,
@@ -23,8 +24,7 @@ import {
 } from "../errors/index.js";
 import {
   DpopKeyPair,
-  DpopOptions,
-  ProtectedRequestBody
+  DpopOptions
 } from "../types/dpop.js";
 import {
   AccessTokenForConnectionOptions,
@@ -118,7 +118,6 @@ export interface Routes {
   profile: string;
   accessToken: string;
   backChannelLogout: string;
-  protectedRequest: string;
 }
 export type RoutesOptions = Partial<
   Pick<Routes, "login" | "callback" | "logout" | "backChannelLogout">
@@ -343,11 +342,6 @@ export class AuthClient {
       sanitizedPathname === this.routes.backChannelLogout
     ) {
       return this.handleBackChannelLogout(req);
-    } else if (
-      method === "POST" &&
-      sanitizedPathname === this.routes.protectedRequest
-    ) {
-      return this.handleProtectedRequest(req);
     } else {
       // no auth handler found, simply touch the sessions
       // TODO: this should only happen if rolling sessions are enabled. Also, we should
@@ -1665,95 +1659,6 @@ export class AuthClient {
     return [null, openidClientConfig];
   }
 
-  private async handleProtectedRequest(
-    req: NextRequest
-  ): Promise<NextResponse> {
-    let protectedRequestBody;
-    try {
-      protectedRequestBody = await req.json();
-    } catch (error) {
-      return NextResponse.json(
-        {
-          error: {
-            message: "Invalid request body",
-            code: "invalid_request"
-          }
-        },
-        {
-          status: 400
-        }
-      );
-    }
-
-    const session = await this.sessionStore.get(req.cookies);
-
-    if (!session) {
-      return NextResponse.json(
-        {
-          error: {
-            message: "The user does not have an active session.",
-            code: AccessTokenErrorCode.MISSING_SESSION
-          }
-        },
-        {
-          status: 401
-        }
-      );
-    }
-
-    // Extract request details
-    const {
-      url,
-      method = "GET",
-      headers,
-      body
-    } = protectedRequestBody as ProtectedRequestBody;
-
-    try {
-      const response = await this.executeProtectedRequest({
-        url,
-        method,
-        headers,
-        body,
-        session
-      });
-
-      // Return proxied response
-      return new NextResponse(response.body, {
-        status: response.status,
-        headers: response.headers
-      });
-    } catch (error: any) {
-      // Check if this is a validation error (invalid URL, etc.)
-      if (error.message && error.message.includes("Invalid URL")) {
-        return NextResponse.json(
-          {
-            error: {
-              message: error.message,
-              code: "invalid_request"
-            }
-          },
-          {
-            status: 400
-          }
-        );
-      }
-
-      // Other errors are internal server errors
-      return NextResponse.json(
-        {
-          error: {
-            message: error.message || "Failed to execute protected request",
-            code: "protected_request_failed"
-          }
-        },
-        {
-          status: 500
-        }
-      );
-    }
-  }
-
   /**
    * Execute a DPoP-authenticated request directly without HTTP overhead.
    * This method is used internally by both handleProtectedRequest and Auth0Client.fetchWithAuth.
@@ -1770,6 +1675,7 @@ export class AuthClient {
       | BodyInit
       | null;
     session: SessionData;
+    accessTokenOptions: AccessTokenOptions;
   }): Promise<Response> {
     const { url, method = "GET", headers, body, session } = params;
 
@@ -1830,10 +1736,29 @@ export class AuthClient {
       }
     }
 
+    const [error, getTokenSetResponse] = await this.getTokenSet(
+      session,
+      params.accessTokenOptions
+    );
+
+    if (error) {
+      return NextResponse.json(
+        {
+          error: {
+            message: error.message,
+            code: error.code
+          }
+        },
+        {
+          status: 401
+        }
+      );
+    }
+
     // Make (DPoP)-authenticated request with retry logic for nonce errors
     const protectedResourceRequestCall = () => {
       return oauth.protectedResourceRequest(
-        session.tokenSet.accessToken,
+        getTokenSetResponse.tokenSet.accessToken,
         method,
         parsedUrl,
         requestHeaders,

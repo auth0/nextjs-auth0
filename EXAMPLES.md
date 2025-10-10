@@ -219,8 +219,6 @@ In this SDK,  all DPoP operations are handled **server-side only**. The client (
 - When your app needs to call a protected API, the server generates a new DPoP proof for each outgoing request and attaches both the proof and the access token.
 - The browser never receives the private key or access token directly—it only communicates with your server's internal API routes, which then proxy to backend APIs as needed.
 
-This design preserves DPoP’s strongest security promise: stolen tokens are useless without the private key, and the private key never leaves your secure server.
-
 ### Why Server-Only DPoP?
 
 - DPoP **requires** the entity that receives the token to also be the one that presents it when calling APIs.
@@ -270,26 +268,12 @@ export const auth0 = new Auth0Client({
 
 For most secure use, keep your DPoP key pair secret and only on the server. In a typical Next.js production app, a single long-lived key pair is often appropriate and can be loaded from a secure secret store or environment variables.
 
-### DPoP Architecture: Server-Side Only
-
-The DPoP implementation follows a **server-side only** architecture where:
-
-- All DPoP operations are handled on the server (Next.js backend)
-- Private keys never leave the secure server environment
-- The browser only communicates with internal API routes
-- Server-side code generates DPoP proofs for each protected API request
-
-This design preserves DPoP's security benefits while maintaining a clean, secure client-side implementation.
-
 ### Making DPoP-Protected Requests
 
-There are two distinct usage patterns for `fetchWithAuth` depending on where you're calling it from:
+#### Server-Side Usage
 
-#### Server-Side Usage: Direct External API Calls
+When calling `fetchWithAuth` from server-side code (API routes, Server Components, Server Actions), you can use `auth0.fetchWithAuth`. The SDK automatically generates DPoP proofs and attaches them to requests with this approach.
 
-When calling `fetchWithAuth` from server-side code (API routes, Server Components, Server Actions), you can call external APIs directly. The SDK automatically generates DPoP proofs and attaches them to requests.
-
-**API Routes (Pages Router)**:
 ```ts
 import { auth0 } from "@/lib/auth0";
 
@@ -307,284 +291,10 @@ export default async function handler(req, res) {
 }
 ```
 
-**API Routes (App Router)**:
-
-```ts
-import { auth0 } from "@/lib/auth0";
-
-export async function GET() {
-  const session = await auth0.getSession();
-  
-  if (!session) {
-    return Response.json({ error: "Not authenticated" }, { status: 401 });
-  }
-
-  // Server-side: Direct external API call with DPoP proof
-  const response = await auth0.fetchWithAuth("https://api.example.com/protected-data");
-  const data = await response.json();
-  return Response.json(data);
-}
-```
-
-**Server Components**:
-
-```ts
-import { auth0 } from "@/lib/auth0";
-
-export default async function ProtectedServerComponent() {
-  const session = await auth0.getSession();
-  
-  if (!session) {
-    return <div>Not authenticated</div>;
-  }
-
-  // Server-side: Direct external API call with DPoP proof
-  const response = await auth0.fetchWithAuth("https://api.example.com/protected-data");
-  const data = await response.json();
-  
-  return <div>Data: {JSON.stringify(data)}</div>;
-}
-```
-
-#### Client-Side Usage: Internal API Route Proxy
-
-When calling `fetchWithAuth` from client-side code (Client Components, browser JavaScript), it routes through your app's internal API routes, which then make the actual DPoP-protected requests to external APIs.
-
-**Client Components**:
-
-```tsx
-'use client';
-import { fetchWithAuth } from '@auth0/nextjs-auth0/client';
-
-export default function ClientComponent() {
-  const handleApiCall = async () => {
-    // Client-side: Routes through your app's API layer (/api/shows)
-    // Your API route then uses auth0.fetchWithAuth() to call external APIs with DPoP
-    const response = await fetchWithAuth('/api/shows');
-    const data = await response.json();
-    console.log(data);
-  };
-
-  return <button onClick={handleApiCall}>Fetch Data</button>;
-}
-```
-
-This client-side call would typically correspond to an API route like:
-
-```ts
-// /api/shows/route.ts or /pages/api/shows.ts
-import { auth0 } from "@/lib/auth0";
-
-export async function GET() {
-  const session = await auth0.getSession();
-  
-  if (!session) {
-    return Response.json({ error: "Not authenticated" }, { status: 401 });
-  }
-
-  // This is where the actual DPoP-protected external API call happens
-  const response = await auth0.fetchWithAuth("https://external-api.example.com/shows");
-  const data = await response.json();
-  return Response.json(data);
-}
-```
 
 ### Advanced fetch Configuration with `createFetcher`
 
-The `createFetcher` function provides advanced configuration options for both client-side and server-side scenarios. This section covers both implementations and when to use each.
-
-#### Client-Side fetch Configuration with `createFetcher`
-
-For client-side scenarios where you need custom configuration (like base URLs, custom fetch implementations, or request transformation), you can use the client-side `createFetcher` factory function. Client-side fetchers route through your app's internal API routes for security.
-
-```tsx
-'use client';
-import { createFetcher } from '@auth0/nextjs-auth0/client';
-
-// Create a fetcher with a base URL for convenience
-const apiFetcher = createFetcher({
-  baseUrl: 'https://api.example.com'
-});
-
-// Create a fetcher with a custom fetch implementation
-const customFetcher = createFetcher({
-  fetch: async (url, init) => {
-    console.log('Making request to:', url);
-    const response = await fetch(url, init);
-    console.log('Response status:', response.status);
-    return response;
-  }
-});
-
-export default function AdvancedClientComponent() {
-  const handleApiCall = async () => {
-    // With base URL - automatically prepends base URL to relative paths
-    const response1 = await apiFetcher.fetchWithAuth('/api/shows');
-    
-    // With custom fetch - includes logging behavior
-    const response2 = await customFetcher.fetchWithAuth('/api/users');
-    
-    // Both still route through your app's internal API layer
-    const data1 = await response1.json();
-    const data2 = await response2.json();
-  };
-
-  return <button onClick={handleApiCall}>Fetch with Custom Config</button>;
-}
-```
-
-**Client-Side Configuration Options:**
-
-- `baseUrl` (optional): A base URL that will be prepended to relative paths in `fetchWithAuth` calls
-- `fetch` (optional): A custom fetch implementation for advanced logging, request/response transformation, or testing
-
-**Advanced Client-Side Examples:**
-
-```tsx
-'use client';
-import { createFetcher } from '@auth0/nextjs-auth0/client';
-
-// Error handling and retry logic
-const resilientFetcher = createFetcher({
-  baseUrl: '/api',
-  fetch: async (url, init) => {
-    let retries = 2;
-    while (retries >= 0) {
-      try {
-        const response = await fetch(url, init);
-        if (response.ok) return response;
-        
-        // Don't retry 4xx errors
-        if (response.status >= 400 && response.status < 500) {
-          return response;
-        }
-        
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      } catch (error) {
-        if (retries === 0) throw error;
-        retries--;
-        await new Promise(resolve => setTimeout(resolve, 1000 * (3 - retries)));
-      }
-    }
-  }
-});
-
-// Request/response transformation
-const transformingFetcher = createFetcher({
-  baseUrl: '/api/v2',
-  fetch: async (url, init) => {
-    // Add custom headers to all requests
-    const customInit = {
-      ...init,
-      headers: {
-        ...init?.headers,
-        'X-Client-Version': '2.1.0',
-        'X-Request-ID': crypto.randomUUID()
-      }
-    };
-    
-    const response = await fetch(url, customInit);
-    
-    // Log all API responses for debugging
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`API Call: ${url}`, {
-        status: response.status,
-        headers: Object.fromEntries(response.headers.entries())
-      });
-    }
-    
-    return response;
-  }
-});
-
-export default function AdvancedClientFetching() {
-  const handleResilientFetch = async () => {
-    try {
-      const response = await resilientFetcher.fetchWithAuth('/data');
-      const data = await response.json();
-      console.log('Fetched with retry logic:', data);
-    } catch (error) {
-      console.error('Failed after retries:', error);
-    }
-  };
-
-  const handleTransformingFetch = async () => {
-    const response = await transformingFetcher.fetchWithAuth('/users');
-    const users = await response.json();
-    console.log('Fetched with transformations:', users);
-  };
-
-  return (
-    <div>
-      <button onClick={handleResilientFetch}>Resilient Fetch</button>
-      <button onClick={handleTransformingFetch}>Transforming Fetch</button>
-    </div>
-  );
-}
-```
-
-**Multiple Client-Side Fetcher Instances:**
-
-You can create multiple fetcher instances for different APIs or configurations:
-
-```tsx
-'use client';
-import { createFetcher } from '@auth0/nextjs-auth0/client';
-
-// Specialized fetchers for different API endpoints
-const usersFetcher = createFetcher({ 
-  baseUrl: '/api/users',
-  fetch: (url, init) => fetch(url, {
-    ...init,
-    headers: { ...init?.headers, 'X-Service': 'users' }
-  })
-});
-
-const reportsFetcher = createFetcher({ 
-  baseUrl: '/api/reports',
-  fetch: (url, init) => fetch(url, {
-    ...init,
-    headers: { ...init?.headers, 'X-Service': 'reports' }
-  })
-});
-
-export default function MultiApiFetcher() {
-  const handleUserFetch = async () => {
-    // Calls /api/users/profile with X-Service: users header
-    const response = await usersFetcher.fetchWithAuth('/profile');
-    return response.json();
-  };
-
-  const handleReportFetch = async () => {
-    // Calls /api/reports/monthly with X-Service: reports header
-    const response = await reportsFetcher.fetchWithAuth('/monthly');
-    return response.json();
-  };
-
-  return (
-    <div>
-      <button onClick={handleUserFetch}>Get User Profile</button>
-      <button onClick={handleReportFetch}>Get Monthly Report</button>
-    </div>
-  );
-}
-```
-
-**When to Use Client-Side `createFetcher` vs `fetchWithAuth`:**
-
-- **Use `fetchWithAuth()`** when you need simple API calls to your internal routes without custom configuration
-- **Use `createFetcher(config)`** when you need:
-  - Base URL configuration for cleaner relative paths
-  - Custom fetch implementation for logging, error handling, or request transformation
-  - Multiple fetcher instances for different internal API endpoints
-  - Request/response transformation or custom headers
-
-> [!NOTE]
-> Client-side `createFetcher` still routes through your app's internal API routes for security. This is different from server-side `createFetcher`, which enables direct external API calls.
-
-#### Server-Side fetch Configuration with `createFetcher`
-
-For server-side scenarios where you need advanced configuration (like base URLs), you can use the server-side `createFetcher` functionality. Unlike the client-side version, server-side `createFetcher` enables direct external API calls and provides two ways to configure fetchers.
+For scenarios where you need advanced configuration (like base URLs), you can use the server-side `createFetcher` functionality.
 
 ```ts
 // API Routes (App Router)
@@ -602,12 +312,6 @@ export async function GET() {
     baseUrl: 'https://api.example.com'
   });
 
-  // Method 2: Using standalone createFetcher function
-  import { createFetcher } from '@auth0/nextjs-auth0/server';
-  const alternativeFetcher = createFetcher(auth0, {
-    baseUrl: 'https://api.example.com'
-  });
-
   // Direct external API calls with configuration
   const userResponse = await apiFetcher.fetchWithAuth('/users/profile');
   const analyticsResponse = await alternativeFetcher.fetchWithAuth('/analytics/dashboard');
@@ -619,11 +323,11 @@ export async function GET() {
 }
 ```
 
-**Server-Side Configuration Options:**
+**Configuration Options:**
 
 - `baseUrl` (optional): A base URL that will be prepended to relative paths in `fetchWithAuth` calls
 
-**Advanced Server-Side Examples:**
+**Advanced Examples:**
 
 ```ts
 // Server Component with environment-specific configuration
@@ -636,9 +340,9 @@ export default async function DashboardPage() {
     return <div>Please log in</div>;
   }
 
-  // Environment-specific fetcher
+  // Environment-specific fetcher with retry logic
   const apiFetcher = auth0.createFetcher({
-    baseUrl: process.env.API_BASE_URL
+    baseUrl: process.env.API_BASE_URL,
     fetch: async (url, init) => {
       let retries = 3;
       while (retries > 0) {
@@ -662,45 +366,6 @@ export default async function DashboardPage() {
 }
 ```
 
-```ts
-// Multiple API integrations with different configurations
-import { auth0 } from '@/lib/auth0';
-
-export async function POST(request: Request) {
-  const session = await auth0.getSession();
-  
-  if (!session) {
-    return Response.json({ error: "Not authenticated" }, { status: 401 });
-  }
-
-  // Different fetchers for different APIs
-  const crmFetcher = auth0.createFetcher({
-    baseUrl: 'https://crm-api.example.com'
-  });
-
-  const analyticsFetcher = auth0.createFetcher({
-    baseUrl: 'https://analytics-api.example.com'
-  });
-
-  // Parallel API calls with different configurations
-  const [crmData, analyticsData] = await Promise.all([
-    crmFetcher.fetchWithAuth('/customers/recent').then(r => r.json()),
-    analyticsFetcher.fetchWithAuth('/metrics/daily').then(r => r.json())
-  ]);
-  
-  return Response.json({ crm: crmData, analytics: analyticsData });
-}
-```
-
-**When to Use Server-Side `createFetcher` vs `fetchWithAuth`:**
-
-- **Use `auth0.fetchWithAuth()`** when you need simple, direct API calls without custom configuration
-- **Use `auth0.createFetcher(config)`** or **`createFetcher(auth0, config)`** when you need:
-  - Base URL configuration for cleaner relative paths
-  - Multiple fetcher instances for different APIs or environments
-
-> [!NOTE]
-> Server-side `createFetcher` enables direct external API calls with DPoP authentication. This is different from client-side `createFetcher`, which still routes through your app's internal API layer.
 
 ### DPoP Key Generation
 

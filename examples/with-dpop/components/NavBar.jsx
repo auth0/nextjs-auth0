@@ -47,10 +47,7 @@ const NavBar = () => {
             <Nav className="d-none d-md-block" navbar>
               {!isLoading && !user && (
                 <NavItem id="qsLoginBtn">
-                  <a
-                    href="/auth/login"
-                    className="btn btn-primary btn-margin"
-                    data-testid="navbar-login-desktop">
+                  <a href="/auth/login" className="btn btn-primary btn-margin" data-testid="navbar-login-desktop">
                     Log in
                   </a>
                 </NavItem>
@@ -64,7 +61,7 @@ const NavBar = () => {
                       className="nav-user-profile rounded-circle"
                       width="50"
                       height="50"
-                      decode="async"
+                      decoding="async"
                       data-testid="navbar-picture-desktop"
                     />
                   </DropdownToggle>
@@ -83,10 +80,7 @@ const NavBar = () => {
             </Nav>
             {!isLoading && !user && (
               <Nav className="d-md-none" navbar>
-                <a
-                  href="/auth/login"
-                  className="btn btn-primary btn-block"
-                  data-testid="navbar-login-mobile">
+                <a href="/auth/login" className="btn btn-primary btn-block" data-testid="navbar-login-mobile">
                   Log in
                 </a>
               </Nav>
@@ -105,7 +99,7 @@ const NavBar = () => {
                       className="nav-user-profile d-inline-block rounded-circle mr-3"
                       width="50"
                       height="50"
-                      decode="async"
+                      decoding="async"
                       data-testid="navbar-picture-mobile"
                     />
                     <h6 className="d-inline-block" data-testid="navbar-user-mobile">
@@ -114,10 +108,7 @@ const NavBar = () => {
                   </span>
                 </NavItem>
                 <NavItem id="qsLogoutBtn">
-                  <a
-                    href="/auth/logout"
-                    className="btn btn-link p-0"
-                    data-testid="navbar-logout-mobile">
+                  <a href="/auth/logout" className="btn btn-link p-0" data-testid="navbar-logout-mobile">
                     Log out
                   </a>
                 </NavItem>

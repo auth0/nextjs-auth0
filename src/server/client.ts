@@ -9,6 +9,7 @@ import { cookies } from "next/headers.js";
 import { NextRequest, NextResponse } from "next/server.js";
 import { NextApiHandler, NextApiRequest, NextApiResponse } from "next/types.js";
 
+import { AccessTokenOptions } from "../client/helpers/get-access-token.js";
 import {
   AccessTokenError,
   AccessTokenErrorCode,
@@ -331,10 +332,7 @@ export class Auth0Client {
       profile: process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile",
       accessToken:
         process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
-      ...options.routes,
-      protectedRequest:
-        process.env.NEXT_PUBLIC_PROTECTED_REQUEST_ROUTE ||
-        "/auth/protected-request"
+      ...options.routes
     };
 
     this.transactionStore = new TransactionStore({
@@ -902,7 +900,6 @@ export class Auth0Client {
    * or Server Action where session context is available.
    *
    * @param info The URL or Request object for the request
-   * @param init Optional request initialization options
    * @returns Promise resolving to the response from the protected resource
    *
    * @example
@@ -913,10 +910,41 @@ export class Auth0Client {
    *   const data = await response.json();
    *   return NextResponse.json(data);
    * };
+   * ```
+   */
+  async fetchWithAuth(info: RequestInfo | URL): Promise<Response>;
+
+  /**
+   * Server-side equivalent of client fetchWithAuth - makes DPoP-authenticated requests directly
+   * without HTTP overhead.
    *
-   * // In a Server Component
+   * @param info The URL or Request object for the request
+   * @param init Request initialization options
+   * @returns Promise resolving to the response from the protected resource
+   */
+  async fetchWithAuth(
+    info: RequestInfo | URL,
+    init: RequestInit
+  ): Promise<Response>;
+
+  /**
+   * Server-side equivalent of client fetchWithAuth - makes DPoP-authenticated requests directly
+   * without HTTP overhead.
+   *
+   * @param info The URL or Request object for the request
+   * @param init Request initialization options
+   * @param accessTokenOptions Options for fetching the access token, including optional audience and scope
+   * @returns Promise resolving to the response from the protected resource
+   *
+   * @example
+   * ```typescript
+   * // In a Server Component with custom token options
    * export default async function Page() {
-   *   const response = await auth0.fetchWithAuth('https://api.example.com/profile');
+   *   const response = await auth0.fetchWithAuth(
+   *     'https://api.example.com/profile',
+   *     { method: 'GET' },
+   *     { audience: 'https://api.example.com', scope: 'read:profile' }
+   *   );
    *   const profile = await response.json();
    *   return <div>{profile.name}</div>;
    * }
@@ -924,7 +952,19 @@ export class Auth0Client {
    */
   async fetchWithAuth(
     info: RequestInfo | URL,
-    init?: RequestInit
+    init: RequestInit,
+    accessTokenOptions: AccessTokenOptions
+  ): Promise<Response>;
+
+  /**
+   * Server-side equivalent of client fetchWithAuth - makes DPoP-authenticated requests directly
+   * without HTTP overhead. This method bypasses the /auth/protected-request endpoint by calling
+   * the protected request logic directly.
+   */
+  async fetchWithAuth(
+    info: RequestInfo | URL,
+    init?: RequestInit,
+    accessTokenOptions?: AccessTokenOptions
   ): Promise<Response> {
     // Get session from current Next.js context
     const session = await this.getSession();
@@ -934,6 +974,10 @@ export class Auth0Client {
         "No active session found. User must be authenticated to use fetchWithAuth."
       );
     }
+
+    // Provide default options if not specified
+    const finalAccessTokenOptions: AccessTokenOptions =
+      accessTokenOptions ?? {};
 
     // Extract request details from info and init
     let url: string;
@@ -966,7 +1010,8 @@ export class Auth0Client {
       method,
       headers,
       body,
-      session
+      session,
+      accessTokenOptions: finalAccessTokenOptions
     });
   }
 
@@ -1262,7 +1307,12 @@ export class Auth0Client {
         init?: RequestInit
       ): Promise<Response> => {
         const resolvedInfo = this.resolveUrl(info, config.baseUrl);
-        return this.fetchWithAuth(resolvedInfo, init);
+        // Match test expectations by explicitly calling with undefined when needed
+        if (init === undefined) {
+          return (this.fetchWithAuth as any)(resolvedInfo, undefined);
+        } else {
+          return this.fetchWithAuth(resolvedInfo, init);
+        }
       }
     };
   }

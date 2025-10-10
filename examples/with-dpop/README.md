@@ -33,11 +33,13 @@ This example shows:
 
 - ✅ **DPoP Configuration**: Setting up ES256 key pairs for DPoP
 - ✅ **Authentication Flow**: Login/logout with DPoP-bound tokens
-- ✅ **Protected API Calls**: Making DPoP-secured requests to external APIs
+- ✅ **Server-Side Protected API Calls**: Making DPoP-secured requests via Next.js API routes
 - ✅ **Key Generation Utility**: Tool for generating DPoP key pairs
 - ✅ **Error Handling**: Proper handling of DPoP nonce errors and retries
 - ✅ **Automated Testing**: Comprehensive test suite for validation
-- ✅ **Server-Side Implementation**: Direct server-side DPoP requests with `fetchWithAuth()`
+- ✅ **Server-Side Implementation**: Server-side only DPoP requests with `auth0.fetchWithAuth()`
+
+**Note**: This example demonstrates **server-side only** DPoP implementation. All DPoP-protected API calls are made through Next.js API routes using the server-side Auth0 client.
 
 ## Test Architecture
 
@@ -76,7 +78,7 @@ This example shows:
    - Navigate to http://localhost:3000
    - Login with Auth0
    - Click "Test Server-Side DPoP API"
-   - View DPoP validation results
+   - View DPoP validation results (API calls are made server-side via Next.js API routes)
 
 ### Automated Testing
 
@@ -169,17 +171,18 @@ This will output:
 
 When DPoP is enabled:
 
-1. The Next.js application will use DPoP-bound access tokens
+1. The Next.js application will use DPoP-bound access tokens server-side
 2. The API server (`api-server.js`) will validate DPoP proofs
-3. The `/api/shows` endpoint response will indicate if DPoP validation was successful
+3. The `/api/shows` endpoint (Next.js API route) makes server-side DPoP requests and returns validation results
 4. Run automated tests with: `npm test`
 
-### DPoP vs Bearer Token Comparison
+### Server-Side DPoP Implementation
 
-This example demonstrates server-side DPoP implementation:
+This example demonstrates **server-side only** DPoP implementation:
 
-- **Server-Side DPoP**: Uses `auth0.fetchWithAuth()` for direct server-side DPoP requests
+- **Server-Side DPoP**: Uses `auth0.fetchWithAuth()` in Next.js API routes for DPoP-protected requests
 - **Bearer Token Fallback**: When DPoP is disabled, falls back to standard Bearer token authentication
+- **No Client-Side DPoP**: All DPoP operations are performed server-side for enhanced security
 
 ## Run the sample
 

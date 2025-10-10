@@ -17,7 +17,7 @@ export default function Index() {
     try {
       const response = await fetch('/api/shows');
       const data = await response.json();
-      
+
       if (response.ok) {
         setApiResponse(data);
       } else {
@@ -46,7 +46,7 @@ export default function Index() {
         <div className="mt-4" data-testid="content">
           <h3>Welcome, {user.name}!</h3>
           <p>This application demonstrates server-side DPoP for enhanced token security.</p>
-          
+
           <div className="row mt-4 justify-content-center">
             <div className="col-md-8">
               <div className="card">
@@ -55,13 +55,14 @@ export default function Index() {
                   <small className="text-muted">Via Next.js API route using auth0.fetchWithAuth()</small>
                 </div>
                 <div className="card-body">
-                  <p>Tests DPoP through a Next.js API route that uses the server-side Auth0Client.fetchWithAuth method.</p>
-                  <button 
+                  <p>
+                    Tests DPoP through a Next.js API route that uses the server-side Auth0Client.fetchWithAuth method.
+                  </p>
+                  <button
                     onClick={testDPopAPI}
                     disabled={isLoadingApi}
                     className="btn btn-primary w-100"
-                    data-testid="test-dpop-button"
-                  >
+                    data-testid="test-dpop-button">
                     {isLoadingApi ? 'Testing Server DPoP API...' : 'Test Server-Side DPoP API'}
                   </button>
                 </div>
@@ -77,18 +78,37 @@ export default function Index() {
                   <h4 className="text-success">✅ Server-Side DPoP API Test Successful!</h4>
                   <div className="text-start">
                     <h5>Response:</h5>
-                    <p><strong>Message:</strong> {apiResponse.msg}</p>
-                    <p><strong>DPoP Enabled:</strong> {apiResponse.dpopEnabled ? 'Yes' : 'No'}</p>
+                    <p>
+                      <strong>Message:</strong> {apiResponse.msg}
+                    </p>
+                    <p>
+                      <strong>DPoP Enabled:</strong> {apiResponse.dpopEnabled ? 'Yes' : 'No'}
+                    </p>
                     {apiResponse.claims && (
                       <div>
                         <h6>Token Claims:</h6>
                         <ul className="list-unstyled">
-                          <li><strong>Issuer:</strong> {apiResponse.claims.iss}</li>
-                          <li><strong>Subject:</strong> {apiResponse.claims.sub}</li>
-                          <li><strong>Audience:</strong> {Array.isArray(apiResponse.claims.aud) ? apiResponse.claims.aud.join(', ') : apiResponse.claims.aud}</li>
-                          <li><strong>Scope:</strong> {apiResponse.claims.scope}</li>
-                          <li><strong>Issued At:</strong> {new Date(apiResponse.claims.iat * 1000).toLocaleString()}</li>
-                          <li><strong>Expires At:</strong> {new Date(apiResponse.claims.exp * 1000).toLocaleString()}</li>
+                          <li>
+                            <strong>Issuer:</strong> {apiResponse.claims.iss}
+                          </li>
+                          <li>
+                            <strong>Subject:</strong> {apiResponse.claims.sub}
+                          </li>
+                          <li>
+                            <strong>Audience:</strong>{' '}
+                            {Array.isArray(apiResponse.claims.aud)
+                              ? apiResponse.claims.aud.join(', ')
+                              : apiResponse.claims.aud}
+                          </li>
+                          <li>
+                            <strong>Scope:</strong> {apiResponse.claims.scope}
+                          </li>
+                          <li>
+                            <strong>Issued At:</strong> {new Date(apiResponse.claims.iat * 1000).toLocaleString()}
+                          </li>
+                          <li>
+                            <strong>Expires At:</strong> {new Date(apiResponse.claims.exp * 1000).toLocaleString()}
+                          </li>
                         </ul>
                       </div>
                     )}
@@ -100,9 +120,19 @@ export default function Index() {
                 <div className="p-4 bg-danger text-white border rounded" data-testid="api-error">
                   <h4>❌ Server-Side DPoP API Test Failed</h4>
                   <div className="text-start">
-                    <p><strong>Error:</strong> {apiError.error}</p>
-                    {apiError.details && <p><strong>Details:</strong> {apiError.details}</p>}
-                    {apiError.errorType && <p><strong>Type:</strong> {apiError.errorType}</p>}
+                    <p>
+                      <strong>Error:</strong> {apiError.error}
+                    </p>
+                    {apiError.details && (
+                      <p>
+                        <strong>Details:</strong> {apiError.details}
+                      </p>
+                    )}
+                    {apiError.errorType && (
+                      <p>
+                        <strong>Type:</strong> {apiError.errorType}
+                      </p>
+                    )}
                   </div>
                 </div>
               )}

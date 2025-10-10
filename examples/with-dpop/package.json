@@ -21,6 +21,8 @@
     "test:integration": "pnpm exec start-server-and-test 'pnpm run dev' http://localhost:3000 'pnpm run test:unit'",
     "test:all": "pnpm run test:unit && pnpm run test:e2e",
     "test:ci": "pnpm run test:unit && pnpm exec start-server-and-test 'pnpm run dev' http://localhost:3000 'pnpm exec cypress run --headless'",
+    "lint": "next lint",
+    "lint:fix": "next lint --fix",
     "cypress:run": "pnpm exec cypress run",
     "cypress:open": "pnpm exec cypress open"
   },
@@ -37,6 +39,7 @@
     "next": "15.2.4",
     "nodemon": "^3.0.0",
     "oauth4webapi": "^3.8.2",
+    "prop-types": "^15.8.1",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "reactstrap": "^9.1.5",

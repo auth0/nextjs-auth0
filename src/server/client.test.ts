@@ -705,6 +705,191 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       );
     });
   });
+
+  describe("fetchWithAuth", () => {
+    let auth0Client: Auth0Client;
+    let mockGetSession: ReturnType<typeof vi.spyOn>;
+    let mockExecuteProtectedRequest: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
+      process.env[ENV_VARS.CLIENT_ID] = "test-client-id";
+      process.env[ENV_VARS.CLIENT_SECRET] = "test-client-secret";
+      process.env[ENV_VARS.APP_BASE_URL] = "https://test.com";
+      process.env[ENV_VARS.SECRET] = "test_secret";
+
+      auth0Client = new Auth0Client();
+
+      mockGetSession = vi.spyOn(auth0Client, "getSession").mockResolvedValue({
+        user: { sub: "user_123" },
+        idToken: "test_id_token",
+        accessToken: "test_access_token",
+        tokenSet: {
+          accessToken: "test_access_token",
+          expiresAt: Date.now() / 1000 + 3600
+        },
+        internal: {
+          sid: "test_sid",
+          createdAt: Date.now() / 1000 - 3600
+        },
+        createdAt: Date.now() / 1000
+      });
+
+      mockExecuteProtectedRequest = vi
+        .spyOn((auth0Client as any).authClient, "executeProtectedRequest")
+        .mockResolvedValue(new Response("test response", { status: 200 }));
+    });
+
+    afterEach(() => {
+      mockGetSession.mockRestore();
+      mockExecuteProtectedRequest.mockRestore();
+    });
+
+    it("should call executeProtectedRequest with correct parameters", async () => {
+      await auth0Client.fetchWithAuth("https://api.example.com/data");
+
+      expect(mockExecuteProtectedRequest).toHaveBeenCalledWith({
+        url: "https://api.example.com/data",
+        method: "GET",
+        headers: {},
+        body: null,
+        session: expect.any(Object),
+        accessTokenOptions: {}
+      });
+    });
+
+    it("should pass accessTokenOptions to executeProtectedRequest", async () => {
+      const accessTokenOptions = {
+        audience: "https://api.example.com",
+        scope: "read:data"
+      };
+
+      await auth0Client.fetchWithAuth(
+        "https://api.example.com/data",
+        { method: "POST" },
+        accessTokenOptions
+      );
+
+      expect(mockExecuteProtectedRequest).toHaveBeenCalledWith({
+        url: "https://api.example.com/data",
+        method: "POST",
+        headers: {},
+        body: null,
+        session: expect.any(Object),
+        accessTokenOptions
+      });
+    });
+
+    it("should throw error when no session exists", async () => {
+      mockGetSession.mockResolvedValue(null);
+
+      await expect(
+        auth0Client.fetchWithAuth("https://api.example.com/data")
+      ).rejects.toThrow(
+        "No active session found. User must be authenticated to use fetchWithAuth."
+      );
+    });
+
+    it("should handle Request objects", async () => {
+      const request = new Request("https://api.example.com/data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ test: "data" })
+      });
+
+      await auth0Client.fetchWithAuth(request);
+
+      expect(mockExecuteProtectedRequest).toHaveBeenCalledWith({
+        url: "https://api.example.com/data",
+        method: "POST",
+        headers: expect.any(Headers),
+        body: expect.any(ReadableStream),
+        session: expect.any(Object),
+        accessTokenOptions: {}
+      });
+    });
+
+    it("should handle URL objects", async () => {
+      const url = new URL("https://api.example.com/data");
+
+      await auth0Client.fetchWithAuth(url);
+
+      expect(mockExecuteProtectedRequest).toHaveBeenCalledWith({
+        url: "https://api.example.com/data",
+        method: "GET",
+        headers: {},
+        body: null,
+        session: expect.any(Object),
+        accessTokenOptions: {}
+      });
+    });
+
+    it("should pass accessTokenOptions with scope and audience", async () => {
+      const accessTokenOptions = {
+        scope: "read:data write:data",
+        audience: "https://api.example.com"
+      };
+
+      await auth0Client.fetchWithAuth(
+        "https://api.example.com/data",
+        { method: "GET" },
+        accessTokenOptions
+      );
+
+      expect(mockExecuteProtectedRequest).toHaveBeenCalledWith({
+        url: "https://api.example.com/data",
+        method: "GET",
+        headers: {},
+        body: null,
+        session: expect.any(Object),
+        accessTokenOptions
+      });
+    });
+
+    it("should handle Request objects with accessTokenOptions", async () => {
+      const request = new Request("https://api.example.com/resource", {
+        method: "POST",
+        body: JSON.stringify({ test: "data" }),
+        headers: { "content-type": "application/json" }
+      });
+
+      const accessTokenOptions = {
+        audience: "https://api.example.com",
+        scope: "write:data"
+      };
+
+      await auth0Client.fetchWithAuth(request, {}, accessTokenOptions);
+
+      expect(mockExecuteProtectedRequest).toHaveBeenCalledWith({
+        url: "https://api.example.com/resource",
+        method: "POST",
+        headers: expect.any(Headers),
+        body: expect.any(ReadableStream),
+        session: expect.any(Object),
+        accessTokenOptions
+      });
+    });
+
+    it("should handle URL objects with accessTokenOptions", async () => {
+      const url = new URL("https://api.example.com/endpoint");
+      const accessTokenOptions = { scope: "admin" };
+
+      await auth0Client.fetchWithAuth(
+        url,
+        { method: "PUT", body: "test data" },
+        accessTokenOptions
+      );
+
+      expect(mockExecuteProtectedRequest).toHaveBeenCalledWith({
+        url: "https://api.example.com/endpoint",
+        method: "PUT",
+        headers: {},
+        body: "test data",
+        session: expect.any(Object),
+        accessTokenOptions
+      });
+    });
+  });
 });
 
 export type GetAccessTokenOptions = {

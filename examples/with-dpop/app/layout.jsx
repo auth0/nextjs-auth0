@@ -3,8 +3,8 @@
 import './globals.css';
 import NavBar from '../components/NavBar';
 import { Container } from 'reactstrap';
-import React from 'react';
 import { Auth0Provider } from '@auth0/nextjs-auth0';
+import PropTypes from 'prop-types';
 
 export default function RootLayout({ children }) {
   return (
@@ -29,3 +29,7 @@ export default function RootLayout({ children }) {
     </html>
   );
 }
+
+RootLayout.propTypes = {
+  children: PropTypes.node.isRequired
+};
