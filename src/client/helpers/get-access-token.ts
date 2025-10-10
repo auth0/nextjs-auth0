@@ -1,13 +1,52 @@
 import { AccessTokenError } from "../../errors/index.js";
 import { normalizeWithBasePath } from "../../utils/pathUtils.js";
 
+/**
+ * Options for fetching an access token.
+ *
+ * **Important for Multi-API Applications**: When your application calls multiple APIs with different
+ * audiences, you **must** specify the `audience` parameter to ensure the correct access token is retrieved.
+ * Without specifying the audience, the default access token from the session will be used, which may be
+ * intended for a different API.
+ *
+ * @example
+ * ```typescript
+ * // Single API - no audience needed (uses session token)
+ * const token = await getAccessToken();
+ *
+ * // Multi-API - specify audience for correct token
+ * const profileToken = await getAccessToken({
+ *   audience: 'https://profile-api.example.com'
+ * });
+ * const ordersToken = await getAccessToken({
+ *   audience: 'https://orders-api.example.com'
+ * });
+ * ```
+ */
 export type AccessTokenOptions = {
-  scope?: string;
   /**
-   * If you are passing audience, ensure that the used audiences and scopes are
-   * part of the Application's Refresh Token Policies in Auth0 when configuring Multi-Resource Refresh Tokens (MRRT).
-   * {@link https://auth0.com/docs/secure/tokens/refresh-tokens/multi-resource-refresh-token|See Auth0 Documentation on Multi-resource Refresh Tokens}
+   * Additional scopes to request beyond those granted during login.
+   * Requires the Auth0 Application to be configured for Multi-Resource Refresh Tokens (MRRT).
    *
+   * @example 'read:profile write:profile'
+   */
+  scope?: string;
+
+  /**
+   * The unique identifier of the target API. This should match the API identifier configured in Auth0.
+   *
+   * **Critical for Multi-API Applications**: If your application calls multiple APIs, you must specify
+   * this parameter to ensure the correct access token is used for each API. Each API requires its own
+   * access token with the appropriate audience.
+   *
+   * **Configuration Requirement**: When using `audience` or `scope`, ensure that the audiences and scopes
+   * are part of your Auth0 Application's Refresh Token Policies. This requires configuring
+   * Multi-Resource Refresh Tokens (MRRT) in your Auth0 Application settings.
+   *
+   * @see https://auth0.com/docs/secure/tokens/refresh-tokens/multi-resource-refresh-token - Multi-Resource Refresh Tokens documentation
+   *
+   * @example 'https://api.example.com'
+   * @example 'https://orders-api.mycompany.com'
    */
   audience?: string;
 };
@@ -16,6 +55,7 @@ type AccessTokenResponse = {
   token: string;
   scope?: string;
   expires_at?: number;
+  token_type?: string;
 };
 
 /**

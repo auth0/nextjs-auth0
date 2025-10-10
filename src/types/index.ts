@@ -6,6 +6,7 @@ export interface TokenSet {
   refreshToken?: string;
   expiresAt: number; // the time at which the access token expires in seconds since epoch
   audience?: string;
+  token_type?: string; // the type of the access token (e.g., "Bearer", "DPoP")
 }
 
 export interface ConnectionTokenSet {
@@ -22,6 +23,7 @@ export interface AccessTokenSet {
   requestedScope?: string;
   audience: string;
   expiresAt: number; // the time at which the access token expires in seconds since epoch
+  token_type?: string; // the type of the access token (e.g., "Bearer", "DPoP")
 }
 
 export interface SessionData {
@@ -241,3 +243,14 @@ export interface AuthorizationDetails {
   readonly type: string;
   readonly [parameter: string]: unknown;
 }
+
+export type GetAccessTokenOptions = {
+  refresh?: boolean | null;
+  scope?: string | null;
+  /**
+   * Please note: If you are passing audience, ensure that the used audiences and scopes are
+   * part of the Application's Refresh Token Policies in Auth0 when configuring Multi-Resource Refresh Tokens (MRRT).
+   * {@link https://auth0.com/docs/secure/tokens/refresh-tokens/multi-resource-refresh-token|See Auth0 Documentation on Multi-resource Refresh Tokens}
+   */
+  audience?: string | null;
+};

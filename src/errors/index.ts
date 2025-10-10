@@ -191,3 +191,50 @@ export class AccessTokenForConnectionError extends SdkError {
     this.cause = cause;
   }
 }
+
+/**
+ * Error codes for DPoP-related errors.
+ */
+export enum DPoPErrorCode {
+  /** Failed to calculate dpop_jkt (JWK thumbprint) parameter */
+  DPOP_JKT_CALCULATION_FAILED = "dpop_jkt_calculation_failed",
+  /** Failed to export DPoP public key to JWK format */
+  DPOP_KEY_EXPORT_FAILED = "dpop_key_export_failed",
+  /** DPoP configuration is invalid or incomplete */
+  DPOP_CONFIGURATION_ERROR = "dpop_configuration_error"
+}
+
+/**
+ * Represents an error that occurred during DPoP (Demonstrating Proof-of-Possession) operations.
+ *
+ * DPoP is an OAuth 2.0 extension that provides application-level proof-of-possession security.
+ * This error is thrown when DPoP-related operations fail, such as key pair operations or
+ * proof generation.
+ *
+ * @example
+ * ```typescript
+ * throw new DPoPError(
+ *   DPoPErrorCode.DPOP_JKT_CALCULATION_FAILED,
+ *   "Failed to calculate dpop_jkt parameter",
+ *   originalError
+ * );
+ * ```
+ */
+export class DPoPError extends SdkError {
+  public code: DPoPErrorCode;
+  public cause?: Error;
+
+  /**
+   * Constructs a new `DPoPError` instance.
+   *
+   * @param code - The DPoP error code.
+   * @param message - The error message describing what went wrong.
+   * @param cause - The underlying error that caused this DPoP error (optional).
+   */
+  constructor(code: DPoPErrorCode, message: string, cause?: Error) {
+    super(message);
+    this.name = "DPoPError";
+    this.code = code;
+    this.cause = cause;
+  }
+}

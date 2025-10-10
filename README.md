@@ -156,6 +156,9 @@ You can customize the client by using the options below:
 | allowInsecureRequests       | `boolean`                 | Allow insecure requests to be made to the authorization server. This can be useful when testing with a mock OIDC provider that does not support TLS, locally. This option can only be used when `NODE_ENV` is not set to `production`.                                                                                                                                                                                                                                                                                                                                              |
 | httpTimeout                 | `number`                  | Integer value for the HTTP timeout in milliseconds for authentication requests. Defaults to `5000` milliseconds                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | enableTelemetry             | `boolean`                 | Boolean value to opt-out of sending the library name and version to your authorization server via the `Auth0-Client` header. Defaults to `true`.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| useDpop                     | `boolean`                 | Enable DPoP (Demonstration of Proof-of-Possession) for enhanced security. When enabled, the client will generate DPoP proofs for token requests and protected resource requests. Defaults to `false`.                                                                                                                                                                                                                                                                                                                                                                               |
+| dpopKeyPair                 | `DpopKeyPair`            | ES256 key pair for DPoP proof generation. If not provided, the SDK will attempt to load keys from `AUTH0_DPOP_PUBLIC_KEY` and `AUTH0_DPOP_PRIVATE_KEY` environment variables. Keys must be in PEM format.                                                                                                                                                                                                                                                                                                                                                                           |
+| dpopOptions                 | `DpopOptions`            | Configure DPoP timing validation. Supports `clockSkew` (adjust assumed current time) and `clockTolerance` (validation tolerance). Can also be configured via `AUTH0_DPOP_CLOCK_SKEW` and `AUTH0_DPOP_CLOCK_TOLERANCE` environment variables. See [DPoP Clock Validation](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#dpop-clock-validation) for details.           |
 
 ### Customizing Auth Handlers
 
@@ -184,6 +187,163 @@ AUTH0_COOKIE_PATH=
 AUTH0_COOKIE_TRANSIENT=
 AUTH0_COOKIE_SECURE=
 AUTH0_COOKIE_SAME_SITE=
+AUTH0_DPOP_PUBLIC_KEY=
+AUTH0_DPOP_PRIVATE_KEY=
+AUTH0_DPOP_CLOCK_SKEW=
+AUTH0_DPOP_CLOCK_TOLERANCE=
+```
+
+### DPoP Configuration
+
+For enhanced security with DPoP (Demonstration of Proof-of-Possession), you can configure ES256 key pairs:
+
+```env
+AUTH0_DPOP_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE...
+-----END PUBLIC KEY-----"
+AUTH0_DPOP_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQ...
+-----END PRIVATE KEY-----"
+```
+
+Alternatively, you can provide the key pair programmatically:
+
+```ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+import { generateKeyPair } from "oauth4webapi";
+
+const dpopKeyPair = await generateKeyPair("ES256");
+
+export const auth0 = new Auth0Client({
+  useDpop: true,
+  dpopKeyPair
+});
+```
+
+### Making DPoP-Protected Requests
+
+When DPoP is enabled, use the `fetchWithAuth` method to make authenticated requests to your APIs. The SDK automatically handles DPoP proof generation and attachment:
+
+```ts
+// In API routes (App Router)
+export async function GET() {
+  const session = await auth0.getSession();
+  
+  if (!session) {
+    return Response.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
+  // Automatically includes DPoP proof when enabled
+  const response = await auth0.fetchWithAuth("https://api.example.com/data");
+  const data = await response.json();
+  return Response.json(data);
+}
+```
+
+```ts
+// In API routes (Pages Router)
+export default async function handler(req, res) {
+  const session = await auth0.getSession(req, res);
+  
+  if (!session) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+
+  const response = await auth0.fetchWithAuth("https://api.example.com/data");
+  const data = await response.json();
+  res.json(data);
+}
+```
+
+For more detailed examples and configuration options, see the [DPoP section in EXAMPLES.md](./EXAMPLES.md#dpop-demonstration-of-proof-of-possession).
+
+### Using fetchWithAuth() with Multiple APIs
+
+When your application needs to call multiple APIs with different audiences, you must use the `accessTokenOptions` parameter to specify which API you're calling. This ensures the correct access token is retrieved for each API.
+
+**⚠️ Important**: Without specifying the `audience` parameter, the SDK will use the default access token from the session, which may be intended for a different API, leading to authorization errors.
+
+```ts
+// Example: Application calling multiple APIs
+export default async function Dashboard() {
+  // Call Profile API - specify its audience
+  const profileRes = await auth0.fetchWithAuth(
+    'https://profile-api.example.com/me',
+    { method: 'GET' },
+    { audience: 'https://profile-api.example.com' }
+  );
+  const profile = await profileRes.json();
+
+  // Call Orders API - different audience
+  const ordersRes = await auth0.fetchWithAuth(
+    'https://orders-api.example.com/my-orders',
+    { method: 'GET' },
+    { audience: 'https://orders-api.example.com' }
+  );
+  const orders = await ordersRes.json();
+
+  return (
+    <div>
+      <h1>{profile.name}</h1>
+      <OrdersList orders={orders} />
+    </div>
+  );
+}
+```
+
+**Configuration Requirements**:
+- Configure each API in your Auth0 Dashboard with its own audience identifier
+- Enable Multi-Resource Refresh Tokens (MRRT) in your Auth0 Application settings
+- Include all required audiences and scopes in your Application's Refresh Token Policies
+
+**Additional Options**:
+
+```ts
+// Request additional scopes
+const response = await auth0.fetchWithAuth(
+  'https://api.example.com/admin',
+  { method: 'GET' },
+  {
+    audience: 'https://api.example.com',
+    scope: 'read:users admin:users'  // Additional permissions
+  }
+);
+
+// Force token refresh for sensitive operations
+const response = await auth0.fetchWithAuth(
+  'https://api.example.com/sensitive',
+  { method: 'GET' },
+  {
+    audience: 'https://api.example.com',
+    refresh: true  // Get fresh token even if current one is valid
+  }
+);
+```
+
+**Development Warning**: In development mode, the SDK will warn you if `fetchWithAuth()` is called without specifying an `audience`, helping you identify potential token mismatch issues early.
+
+For comprehensive API documentation and more examples, see the [fetchWithAuth() API reference](https://auth0.github.io/nextjs-auth0/).
+
+#### Advanced: Clock Validation Configuration
+
+Configure timing validation for DPoP proofs to handle clock differences between client and server:
+
+```ts
+export const auth0 = new Auth0Client({
+  useDpop: true,
+  dpopKeyPair: await generateKeyPair("ES256"),
+  dpopOptions: {
+    clockSkew: 120,      // Adjust for local clock being 2 minutes behind
+    clockTolerance: 45   // Allow 45 seconds tolerance for validation
+  }
+});
+```
+
+Or configure via environment variables:
+
+```env
+AUTH0_DPOP_CLOCK_SKEW=300        # Clock adjustment in seconds
+AUTH0_DPOP_CLOCK_TOLERANCE=90    # Tolerance in seconds
 ```
 
 Respective counterparts are also available in the client configuration. See [Cookie Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#cookie-configuration) for more details.

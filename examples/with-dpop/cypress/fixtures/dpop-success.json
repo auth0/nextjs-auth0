@@ -1,0 +1,12 @@
+{
+  "msg": "This is a DPoP-protected API!",
+  "dpopEnabled": true,
+  "claims": {
+    "iss": "https://test-domain.auth0.com/",
+    "sub": "test-user-123",
+    "aud": "https://test-domain.auth0.com/api/v2/",
+    "scope": "openid profile email",
+    "iat": 1633024800,
+    "exp": 1633028400
+  }
+}
