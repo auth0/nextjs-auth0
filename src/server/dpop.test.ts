@@ -121,7 +121,7 @@ describe("DPoP Tests", () => {
     it("should handle DPoP nonce retry logic", async () => {
       // This test validates that the DPoP nonce retry logic works correctly
       // by testing the oauth.protectedResourceRequest call behavior
-      
+
       // First call fails with nonce error
       const nonceError = new Error("DPoP nonce error");
       vi.mocked(oauth.isDPoPNonceError).mockReturnValue(true);
@@ -146,13 +146,10 @@ describe("DPoP Tests", () => {
       // This test validates that DPoP handle is properly created and available
       // when DPoP is enabled
       expect(authClient).toBeDefined();
-      
-      // Verify that the auth client has DPoP enabled 
+
+      // Verify that the auth client has DPoP enabled
       // (this tests the dpopHandle initialization in the constructor)
-      expect(oauth.DPoP).toHaveBeenCalledWith(
-        expect.any(Object),
-        dpopKeyPair
-      );
+      expect(oauth.DPoP).toHaveBeenCalledWith(expect.any(Object), dpopKeyPair);
     });
   });
 
@@ -160,7 +157,7 @@ describe("DPoP Tests", () => {
     it("should create auth client with DPoP properly configured", async () => {
       // Test that DPoP-enabled client is properly configured
       expect(authClient).toBeDefined();
-      
+
       // Verify DPoP handle was created
       expect(oauth.DPoP).toHaveBeenCalledWith(
         expect.objectContaining({

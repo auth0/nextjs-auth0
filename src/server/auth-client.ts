@@ -22,10 +22,7 @@ import {
   OAuth2Error,
   SdkError
 } from "../errors/index.js";
-import {
-  DpopKeyPair,
-  DpopOptions
-} from "../types/dpop.js";
+import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
 import {
   AccessTokenForConnectionOptions,
   AccessTokenSet,
