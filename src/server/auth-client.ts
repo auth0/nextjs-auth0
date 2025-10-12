@@ -42,11 +42,7 @@ import {
 } from "../types/index.js";
 import { mergeAuthorizationParamsIntoSearchParams } from "../utils/authorization-params-helpers.js";
 import { DEFAULT_SCOPES } from "../utils/constants.js";
-import {
-  executeProtectedRequest,
-  withDPoPNonceRetry,
-  type ExecuteProtectedRequestOptions
-} from "../utils/dpopUtils.js";
+import { withDPoPNonceRetry } from "../utils/dpopUtils.js";
 import {
   ensureNoLeadingSlash,
   ensureTrailingSlash,
@@ -67,8 +63,8 @@ import {
 import { toSafeRedirect } from "../utils/url-helpers.js";
 import { addCacheControlHeadersForSession } from "./cookies.js";
 import {
-  AccessTokenFactory,
-  CustomFetchImpl,
+  _AccessTokenFactory,
+  _CustomFetchImpl,
   Fetcher,
   FetcherConfig,
   FetcherHooks,
@@ -212,6 +208,8 @@ export class AuthClient {
   private readonly enableAccessTokenEndpoint: boolean;
   private readonly noContentProfileResponseWhenUnauthenticated: boolean;
 
+  private dpopOptions?: DpopOptions;
+
   private dpopKeyPair?: DpopKeyPair;
   private readonly useDPoP: boolean;
 
@@ -270,6 +268,9 @@ export class AuthClient {
           options.dpopOptions.clockTolerance;
       }
     }
+
+    // Store dpopOptions for use in retry logic
+    this.dpopOptions = options.dpopOptions;
     this.clientSecret = options.clientSecret;
     this.authorizationParameters = options.authorizationParameters || {
       scope: DEFAULT_SCOPES
@@ -666,18 +667,8 @@ export class AuthClient {
           }
         );
 
-      // Add debug logging
-      console.log("DPoP enabled:", !!this.dpopKeyPair);
-      console.log("Authorization code params:", codeGrantParams.toString());
-      console.log("Redirect URI:", redirectUri.toString());
-      console.log(
-        "Code verifier length:",
-        transactionState.codeVerifier.length
-      );
-
       codeGrantResponse = await authorizationCodeGrantRequestCall();
     } catch (e: any) {
-      console.log("Authorization code grant request error:", JSON.stringify(e));
       return this.handleCallbackError(
         new AuthorizationCodeGrantRequestError(e.message),
         onCallbackCtx,
@@ -701,7 +692,6 @@ export class AuthClient {
         }
       );
     } catch (e: any) {
-      console.log(JSON.stringify(e));
       return this.handleCallbackError(
         new AuthorizationCodeGrantError({
           cause: new OAuth2Error({
@@ -1045,7 +1035,7 @@ export class AuthClient {
           oauthRes = await withDPoPNonceRetry(async () => {
             const refreshTokenRes = await refreshTokenGrantRequestCall();
             return await processRefreshTokenResponseCall(refreshTokenRes);
-          });
+          }, this.dpopOptions?.retry);
         } catch (e: any) {
           return [
             new AccessTokenError(
@@ -1585,7 +1575,7 @@ export class AuthClient {
         tokenEndpointResponse = await withDPoPNonceRetry(async () => {
           const httpResponse = await genericTokenEndpointRequestCall();
           return await processGenericTokenEndpointResponseCall(httpResponse);
-        });
+        }, this.dpopOptions?.retry);
       } catch (err: any) {
         return [
           new AccessTokenForConnectionError(
@@ -1718,6 +1708,7 @@ export class AuthClient {
           : undefined,
       httpOptions: this.httpOptions,
       allowInsecureRequests: this.allowInsecureRequests,
+      retryConfig: this.dpopOptions?.retry,
       fetch: options.fetch,
       getAccessToken: options.getAccessToken,
       baseUrl: options.baseUrl

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import {
   Collapse,
   Container,
@@ -32,9 +33,9 @@ const NavBar = () => {
           <Collapse isOpen={isOpen} navbar>
             <Nav className="mr-auto" navbar data-testid="navbar-items">
               <NavItem>
-                <a href="/" className="nav-link" data-testid="navbar-home">
+                <Link href="/" className="nav-link" data-testid="navbar-home">
                   Home
-                </a>
+                </Link>
               </NavItem>
               {user && (
                 <NavItem>

@@ -2,14 +2,14 @@ import {
   createPrivateKey,
   createPublicKey,
   createSign,
-  createVerify
+  createVerify,
+  KeyObject
 } from "crypto";
 import type { IncomingMessage, ServerResponse } from "http";
 import { cookies } from "next/headers.js";
 import { NextRequest, NextResponse } from "next/server.js";
 import { NextApiHandler, NextApiRequest, NextApiResponse } from "next/types.js";
 import { ProtectedResourceRequestBody } from "oauth4webapi";
-import * as oauth from "oauth4webapi";
 
 import {
   AccessTokenError,
@@ -32,6 +32,8 @@ import {
 import {
   DEFAULT_DPOP_CLOCK_SKEW,
   DEFAULT_DPOP_CLOCK_TOLERANCE,
+  DEFAULT_RETRY_DELAY,
+  DEFAULT_RETRY_JITTER,
   DEFAULT_SCOPES,
   MAX_RECOMMENDED_DPOP_CLOCK_TOLERANCE
 } from "../utils/constants.js";
@@ -40,7 +42,6 @@ import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-h
 import {
   AuthClient,
   BeforeSessionSavedHook,
-  FetcherFactoryOptions,
   OnCallbackHook,
   Routes,
   RoutesOptions
@@ -1051,6 +1052,22 @@ export class Auth0Client {
 
     // Warn if clock tolerance exceeds recommended maximum (but don't enforce)
     if (clockTolerance > MAX_RECOMMENDED_DPOP_CLOCK_TOLERANCE) {
+      const productionMaxTolerance = process.env
+        .AUTH0_DPOP_CLOCK_TOLERANCE_MAX_PROD
+        ? parseInt(process.env.AUTH0_DPOP_CLOCK_TOLERANCE_MAX_PROD, 10)
+        : MAX_RECOMMENDED_DPOP_CLOCK_TOLERANCE;
+
+      if (
+        process.env.NODE_ENV === "production" &&
+        clockTolerance > productionMaxTolerance
+      ) {
+        throw new Error(
+          `clockTolerance of ${clockTolerance}s exceeds maximum allowed ${productionMaxTolerance}s in production. ` +
+            "This could significantly weaken DPoP replay attack protection. " +
+            "Set AUTH0_DPOP_CLOCK_TOLERANCE_MAX_PROD environment variable to override this limit in production."
+        );
+      }
+
       console.warn(
         `WARNING: clockTolerance of ${clockTolerance}s exceeds recommended maximum of ${MAX_RECOMMENDED_DPOP_CLOCK_TOLERANCE}s. ` +
           "This may weaken DPoP security by allowing replay attacks within a wider time window. " +
@@ -1064,8 +1081,25 @@ export class Auth0Client {
         (process.env.AUTH0_DPOP_CLOCK_SKEW
           ? parseInt(process.env.AUTH0_DPOP_CLOCK_SKEW, 10)
           : DEFAULT_DPOP_CLOCK_SKEW),
-      clockTolerance
+      clockTolerance,
+      retry: {
+        delay:
+          options.dpopOptions?.retry?.delay ??
+          (process.env.AUTH0_RETRY_DELAY
+            ? parseInt(process.env.AUTH0_RETRY_DELAY, 10)
+            : DEFAULT_RETRY_DELAY),
+        jitter:
+          options.dpopOptions?.retry?.jitter ??
+          (process.env.AUTH0_RETRY_JITTER
+            ? process.env.AUTH0_RETRY_JITTER === "true"
+            : DEFAULT_RETRY_JITTER)
+      }
     };
+
+    // Validate retry configuration
+    if (dpopOptions.retry!.delay! < 0) {
+      throw new Error("Retry delay must be non-negative");
+    }
 
     // If we already have a keypair, return it with options
     if (options.dpopKeyPair) {
@@ -1087,16 +1121,18 @@ export class Auth0Client {
           const privateKeyNodeJS = createPrivateKey(privateKeyPem);
           const publicKeyNodeJS = createPublicKey(publicKeyPem);
 
-          // Validate algorithm compatibility for ES256
-          if (privateKeyNodeJS.asymmetricKeyType !== "ec") {
+          const privateKeyDetails = privateKeyNodeJS.asymmetricKeyDetails;
+          const publicKeyDetails = publicKeyNodeJS.asymmetricKeyDetails;
+
+          if (privateKeyDetails?.namedCurve !== "prime256v1") {
             throw new Error(
-              "DPoP private key must be an Elliptic Curve (EC) key for ES256 algorithm"
+              `DPoP private key must use P-256 curve (prime256v1), got: ${privateKeyDetails?.namedCurve}`
             );
           }
 
-          if (publicKeyNodeJS.asymmetricKeyType !== "ec") {
+          if (publicKeyDetails?.namedCurve !== "prime256v1") {
             throw new Error(
-              "DPoP public key must be an Elliptic Curve (EC) key for ES256 algorithm"
+              `DPoP public key must use P-256 curve (prime256v1), got: ${publicKeyDetails?.namedCurve}`
             );
           }
 
@@ -1154,8 +1190,8 @@ export class Auth0Client {
    * @returns true if keys are compatible, false otherwise
    */
   private validateKeyPairCompatibility(
-    privateKey: CryptoKey | any,
-    publicKey: CryptoKey | any
+    privateKey: KeyObject,
+    publicKey: KeyObject
   ): boolean {
     try {
       // Create test data

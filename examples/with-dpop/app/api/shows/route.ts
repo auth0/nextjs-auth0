@@ -20,8 +20,8 @@ export const GET = async function shows() {
     const fetcher = await auth0.createFetcher<Response>(undefined, {
       baseUrl: 'http://localhost:3001',
       getAccessToken: async(getAccessTokenOptions) => {
-        console.log("This is a custom getAccessToken factory method")
-        console.log(JSON.stringify(getAccessTokenOptions));
+        console.info("This is a custom getAccessToken factory method")
+        console.info(JSON.stringify(getAccessTokenOptions));
         const at = await auth0.getAccessToken(getAccessTokenOptions);
         return at.token;
       }

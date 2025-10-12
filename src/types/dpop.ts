@@ -25,11 +25,28 @@ export interface DpopOptions {
    * @default 30
    */
   clockTolerance?: number;
+
+  /**
+   * Configuration for DPoP nonce error retry behavior.
+   */
+  retry?: RetryConfig;
 }
 
-export type ProtectedRequestBody = {
-  url: string;
-  method: string;
-  headers?: Headers;
-  body?: import("oauth4webapi").ProtectedResourceRequestBody;
-};
+/**
+ * Configuration options for DPoP nonce error retry behavior.
+ * Since DPoP nonce errors are retried only once, this is a simple delay configuration.
+ */
+export interface RetryConfig {
+  /**
+   * Delay in milliseconds before retrying on DPoP nonce error.
+   * @default 100
+   */
+  delay?: number;
+
+  /**
+   * Whether to add jitter (randomness) to retry delay to prevent thundering herd.
+   * When enabled, actual delay will be 50-100% of the configured delay.
+   * @default true
+   */
+  jitter?: boolean;
+}

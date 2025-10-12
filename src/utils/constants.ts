@@ -26,3 +26,13 @@ export const DEFAULT_DPOP_CLOCK_TOLERANCE = 30;
  * replay attacks within a wider time window.
  */
 export const MAX_RECOMMENDED_DPOP_CLOCK_TOLERANCE = 300;
+
+/**
+ * Default retry delay in milliseconds for DPoP nonce error.
+ */
+export const DEFAULT_RETRY_DELAY = 100;
+
+/**
+ * Default jitter setting for retry delay - adds randomness to prevent thundering herd.
+ */
+export const DEFAULT_RETRY_JITTER = true;
