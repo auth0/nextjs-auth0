@@ -1,6 +1,8 @@
-import { AuthorizationParameters } from "../types/index.js";
+import {
+  AuthorizationParameters,
+  GetAccessTokenOptions
+} from "../types/index.js";
 import { getScopeForAudience } from "../utils/scope-helpers.js";
-import type { GetAccessTokenOptions } from "./client.js";
 
 /**
  * A generic cache to manage in-flight requests to prevent duplicate requests.
