@@ -220,6 +220,132 @@ export const auth0 = new Auth0Client({
 });
 ```
 
+### Making DPoP-Protected Requests
+
+When DPoP is enabled, use the `fetchWithAuth` method to make authenticated requests to your APIs. The SDK automatically handles DPoP proof generation and attachment:
+
+```ts
+// In API routes (App Router)
+export async function GET() {
+  const session = await auth0.getSession();
+  
+  if (!session) {
+    return Response.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
+  // Automatically includes DPoP proof when enabled
+  const response = await auth0.fetchWithAuth("https://api.example.com/data");
+  const data = await response.json();
+  return Response.json(data);
+}
+```
+
+```ts
+// In API routes (Pages Router)
+export default async function handler(req, res) {
+  const session = await auth0.getSession(req, res);
+  
+  if (!session) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+
+  const response = await auth0.fetchWithAuth("https://api.example.com/data");
+  const data = await response.json();
+  res.json(data);
+}
+```
+
+For more detailed examples and configuration options, see the [DPoP section in EXAMPLES.md](./EXAMPLES.md#dpop-demonstration-of-proof-of-possession).
+
+#### Advanced DPoP Features
+
+The SDK supports advanced DPoP features for complex multi-API applications:
+
+- **Per-API Nonce Management**: Use `createFetcher` with `dpopNonceId` to maintain isolated DPoP nonce state for different APIs
+- **Token Type Selection**: Override the global DPoP setting per API using the `useDpop` option in `createFetcher`
+
+```ts
+// Per-API nonce management for multiple APIs
+const mainApiFetcher = auth0.createFetcher({
+  baseUrl: 'https://api.company.com',
+  dpopNonceId: 'main_api'  // Isolated nonce cache
+});
+
+const legacyApiFetcher = auth0.createFetcher({
+  baseUrl: 'https://legacy-api.company.com', 
+  useDpop: false  // Force Bearer token for legacy API
+});
+```
+
+See [Best Practices for Per-API DPoP Management](./EXAMPLES.md#best-practices-for-per-api-dpop-management) for detailed guidance.
+
+### Using fetchWithAuth() with Multiple APIs
+
+When your application needs to call multiple APIs with different audiences, you must use the `accessTokenOptions` parameter to specify which API you're calling. This ensures the correct access token is retrieved for each API.
+
+**⚠️ Important**: Without specifying the `audience` parameter, the SDK will use the default access token from the session, which may be intended for a different API, leading to authorization errors.
+
+```ts
+// Example: Application calling multiple APIs
+export default async function Dashboard() {
+  // Call Profile API - specify its audience
+  const profileRes = await auth0.fetchWithAuth(
+    'https://profile-api.example.com/me',
+    { method: 'GET' },
+    { audience: 'https://profile-api.example.com' }
+  );
+  const profile = await profileRes.json();
+
+  // Call Orders API - different audience
+  const ordersRes = await auth0.fetchWithAuth(
+    'https://orders-api.example.com/my-orders',
+    { method: 'GET' },
+    { audience: 'https://orders-api.example.com' }
+  );
+  const orders = await ordersRes.json();
+
+  return (
+    <div>
+      <h1>{profile.name}</h1>
+      <OrdersList orders={orders} />
+    </div>
+  );
+}
+```
+
+**Configuration Requirements**:
+- Configure each API in your Auth0 Dashboard with its own audience identifier
+- Enable Multi-Resource Refresh Tokens (MRRT) in your Auth0 Application settings
+- Include all required audiences and scopes in your Application's Refresh Token Policies
+
+**Additional Options**:
+
+```ts
+// Request additional scopes
+const response = await auth0.fetchWithAuth(
+  'https://api.example.com/admin',
+  { method: 'GET' },
+  {
+    audience: 'https://api.example.com',
+    scope: 'read:users admin:users'  // Additional permissions
+  }
+);
+
+// Force token refresh for sensitive operations
+const response = await auth0.fetchWithAuth(
+  'https://api.example.com/sensitive',
+  { method: 'GET' },
+  {
+    audience: 'https://api.example.com',
+    refresh: true  // Get fresh token even if current one is valid
+  }
+);
+```
+
+**Development Warning**: In development mode, the SDK will warn you if `fetchWithAuth()` is called without specifying an `audience`, helping you identify potential token mismatch issues early.
+
+For comprehensive API documentation and more examples, see the [fetchWithAuth() API reference](https://auth0.github.io/nextjs-auth0/).
+
 #### Advanced: Clock Validation Configuration
 
 Configure timing validation for DPoP proofs to handle clock differences between client and server:

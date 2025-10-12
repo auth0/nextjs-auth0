@@ -43,6 +43,11 @@ import {
 import { mergeAuthorizationParamsIntoSearchParams } from "../utils/authorization-params-helpers.js";
 import { DEFAULT_SCOPES } from "../utils/constants.js";
 import {
+  executeProtectedRequest,
+  withDPoPNonceRetry,
+  type ExecuteProtectedRequestOptions
+} from "../utils/dpopUtils.js";
+import {
   ensureNoLeadingSlash,
   ensureTrailingSlash,
   normalizeWithBasePath,
@@ -61,6 +66,14 @@ import {
 } from "../utils/token-set-helpers.js";
 import { toSafeRedirect } from "../utils/url-helpers.js";
 import { addCacheControlHeadersForSession } from "./cookies.js";
+import {
+  AccessTokenFactory,
+  CustomFetchImpl,
+  Fetcher,
+  FetcherConfig,
+  FetcherHooks,
+  FetcherMinimalConfig
+} from "./fetcher.js";
 import { AbstractSessionStore } from "./session/abstract-session-store.js";
 import { TransactionState, TransactionStore } from "./transaction-store.js";
 import { filterDefaultIdTokenClaims } from "./user.js";
@@ -109,28 +122,6 @@ const GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN =
  */
 const REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN =
   "http://auth0.com/oauth/token-type/federated-connection-access-token";
-
-/**
- * Executes a function with retry logic for DPoP nonce errors.
- * Implements a small delay (100ms) before retrying to avoid rapid successive requests.
- *
- * @param fn - The async function to execute
- * @returns The result of the function execution
- * @throws The original error if it's not a DPoP nonce error or if retry fails
- */
-async function withDPoPNonceRetry<T>(fn: () => Promise<T>): Promise<T> {
-  try {
-    return await fn();
-  } catch (e: any) {
-    if (oauth.isDPoPNonceError(e)) {
-      // Small delay before retry to avoid rapid successive requests
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      // The RS-signalled nonce is now cached, retrying
-      return await fn();
-    }
-    throw e;
-  }
-}
 
 export interface Routes {
   login: string;
@@ -221,8 +212,8 @@ export class AuthClient {
   private readonly enableAccessTokenEndpoint: boolean;
   private readonly noContentProfileResponseWhenUnauthenticated: boolean;
 
-  private dpopHandle?: oauth.DPoPHandle;
   private dpopKeyPair?: DpopKeyPair;
+  private readonly useDPoP: boolean;
 
   constructor(options: AuthClientOptions) {
     // dependencies
@@ -333,9 +324,10 @@ export class AuthClient {
     this.noContentProfileResponseWhenUnauthenticated =
       options.noContentProfileResponseWhenUnauthenticated ?? false;
 
+    this.useDPoP = options.useDpop ?? false;
+
     // Initialize DPoP if enabled. Check useDpop flag first to avoid timing attacks.
     if ((options.useDpop ?? false) && options.dpopKeyPair) {
-      this.dpopHandle = oauth.DPoP(this.clientMetadata, options.dpopKeyPair);
       this.dpopKeyPair = options.dpopKeyPair;
     }
   }
@@ -431,7 +423,7 @@ export class AuthClient {
     authorizationParams.set("nonce", nonce);
 
     // Add dpop_jkt parameter if DPoP is enabled
-    if (this.dpopHandle && this.dpopKeyPair) {
+    if (this.dpopKeyPair) {
       try {
         const publicKeyJwk = await jose.exportJWK(this.dpopKeyPair.publicKey);
         const dpopJkt = await jose.calculateJwkThumbprint(publicKeyJwk);
@@ -668,11 +660,24 @@ export class AuthClient {
             ...this.httpOptions(),
             [oauth.customFetch]: this.fetch,
             [oauth.allowInsecureRequests]: this.allowInsecureRequests,
-            DPoP: this.dpopHandle
+            ...(this.dpopKeyPair && {
+              DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
+            })
           }
         );
+
+      // Add debug logging
+      console.log("DPoP enabled:", !!this.dpopKeyPair);
+      console.log("Authorization code params:", codeGrantParams.toString());
+      console.log("Redirect URI:", redirectUri.toString());
+      console.log(
+        "Code verifier length:",
+        transactionState.codeVerifier.length
+      );
+
       codeGrantResponse = await authorizationCodeGrantRequestCall();
     } catch (e: any) {
+      console.log("Authorization code grant request error:", JSON.stringify(e));
       return this.handleCallbackError(
         new AuthorizationCodeGrantRequestError(e.message),
         onCallbackCtx,
@@ -680,8 +685,12 @@ export class AuthClient {
         state
       );
     }
-    const processAuthorizationCodeResponseCall = async () =>
-      oauth.processAuthorizationCodeResponse(
+    let oidcRes: oauth.TokenEndpointResponse;
+    try {
+      // Process the authorization code response
+      // For authorization code flows, oauth4webapi handles DPoP nonce management internally
+      // No need for manual retry since authorization codes are single-use
+      oidcRes = await oauth.processAuthorizationCodeResponse(
         authorizationServerMetadata,
         this.clientMetadata,
         codeGrantResponse,
@@ -691,13 +700,8 @@ export class AuthClient {
           requireIdToken: true
         }
       );
-    let oidcRes: oauth.TokenEndpointResponse;
-    try {
-      oidcRes = await withDPoPNonceRetry(async () => {
-        codeGrantResponse = await authorizationCodeGrantRequestCall();
-        return await processAuthorizationCodeResponseCall();
-      });
     } catch (e: any) {
+      console.log(JSON.stringify(e));
       return this.handleCallbackError(
         new AuthorizationCodeGrantError({
           cause: new OAuth2Error({
@@ -1023,7 +1027,9 @@ export class AuthClient {
               [oauth.customFetch]: this.fetch,
               [oauth.allowInsecureRequests]: this.allowInsecureRequests,
               additionalParameters,
-              DPoP: this.dpopHandle
+              ...(this.dpopKeyPair && {
+                DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
+              })
             }
           );
 
@@ -1561,7 +1567,9 @@ export class AuthClient {
           {
             [oauth.customFetch]: this.fetch,
             [oauth.allowInsecureRequests]: this.allowInsecureRequests,
-            DPoP: this.dpopHandle
+            ...(this.dpopKeyPair && {
+              DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
+            })
           }
         );
 
@@ -1671,30 +1679,14 @@ export class AuthClient {
     return [null, openidClientConfig];
   }
 
-  /**
-   * Execute an authenticated request to a protected resource using DPoP or Bearer token authentication.
-   * The authentication method is automatically determined by the presence of the DPoP handle.
-   * This method is used internally by Auth0Client.fetchWithAuth.
-   *
-   * @param params The request parameters including session
-   * @returns Promise resolving to the response from the protected resource
-   */
-  async executeProtectedRequest(params: {
-    url: string;
-    method?: string;
-    headers?: HeadersInit;
-    body?: import("oauth4webapi").ProtectedResourceRequestBody;
-    session: SessionData;
-    accessTokenOptions: GetAccessTokenOptions;
-  }): Promise<Response> {
-    const { url, method = "GET", headers, body, session } = params;
-
-    // Validate URL
-    let parsedUrl: URL;
-    try {
-      parsedUrl = new URL(url);
-    } catch (error) {
-      throw new Error(`Invalid URL: ${url}`);
+  async fetcherFactory<TOutput extends Response>(
+    options: FetcherFactoryOptions<TOutput>
+  ): Promise<Fetcher<TOutput>> {
+    if (!this.dpopKeyPair) {
+      throw new DPoPError(
+        DPoPErrorCode.DPOP_CONFIGURATION_ERROR,
+        "Invalid DPoP Keypair configuration."
+      );
     }
 
     // Ensure authorization server metadata is available for oauth4webapi
@@ -1705,55 +1697,38 @@ export class AuthClient {
       throw discoveryError;
     }
 
-    // Convert HeadersInit to Headers if needed
-    let requestHeaders: Headers | undefined;
-    if (headers) {
-      requestHeaders =
-        headers instanceof Headers ? headers : new Headers(headers);
-    }
-
-    // Body is already ProtectedResourceRequestBody - no conversion needed
-    const requestBody = body;
-
-    const [error, getTokenSetResponse] = await this.getTokenSet(
-      session,
-      params.accessTokenOptions
-    );
-
-    if (error) {
-      return NextResponse.json(
-        {
-          error: {
-            message: error.message,
-            code: error.code
-          }
-        },
-        {
-          status: 401
-        }
+    const defaultAccessTokenFactory = async (
+      getAccessTokenOptions: GetAccessTokenOptions
+    ) => {
+      const [error, getTokenSetResponse] = await this.getTokenSet(
+        options.session,
+        getAccessTokenOptions || {}
       );
-    }
+      if (error) {
+        throw new OAuth2Error({ code: error.code, message: error.message });
+      }
+      return getTokenSetResponse.tokenSet.accessToken;
+    };
 
-    // Make (DPoP)-authenticated request with retry logic for nonce errors
-    const response = await withDPoPNonceRetry(() => {
-      return oauth.protectedResourceRequest(
-        getTokenSetResponse.tokenSet.accessToken,
-        method,
-        parsedUrl,
-        requestHeaders,
-        requestBody,
-        {
-          ...this.httpOptions(),
-          [oauth.customFetch]: (url: string, options: any) => {
-            return this.fetch(url, options);
-          },
-          [oauth.allowInsecureRequests]: this.allowInsecureRequests,
-          DPoP: this.dpopHandle
-        }
-      );
-    });
+    const fetcherConfig: FetcherConfig<TOutput> = {
+      // fetcher-scoped DPoP handle and nonce maangement
+      dpopHandle:
+        this.useDPoP && (options.useDPoP ?? true)
+          ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
+          : undefined,
+      httpOptions: this.httpOptions,
+      allowInsecureRequests: this.allowInsecureRequests,
+      fetch: options.fetch,
+      getAccessToken: options.getAccessToken,
+      baseUrl: options.baseUrl
+    };
 
-    return response;
+    const fetcherHooks: FetcherHooks = {
+      getAccessToken: defaultAccessTokenFactory,
+      isDpopEnabled: () => options.useDPoP ?? false
+    };
+
+    return new Fetcher<TOutput>(fetcherConfig, fetcherHooks);
   }
 }
 
@@ -1774,3 +1749,8 @@ type GetTokenSetResponse = {
   tokenSet: TokenSet;
   idTokenClaims?: { [key: string]: any };
 };
+
+export type FetcherFactoryOptions<TOutput extends Response> = {
+  useDPoP?: boolean;
+  session: SessionData;
+} & FetcherMinimalConfig<TOutput>;

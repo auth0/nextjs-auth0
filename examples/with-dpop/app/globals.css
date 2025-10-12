@@ -37,3 +37,7 @@ p code {
 .result-block-container .result-block {
   opacity: 1;
 }
+
+.hero {
+  max-width: 100% !important;
+}

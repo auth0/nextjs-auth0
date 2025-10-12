@@ -1,4 +1,4 @@
-import { Auth0Client } from '@auth0/nextjs-auth0';
+import { Auth0Client } from '@auth0/nextjs-auth0/server';
 import * as oauth from 'oauth4webapi';
 
 const dpopKeyPair = await oauth.generateKeyPair('ES256');
