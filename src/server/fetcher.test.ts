@@ -168,6 +168,251 @@ describe("Fetcher", () => {
     });
   });
 
+  describe("parameter disambiguation", () => {
+    it("should handle fetchWithAuth(url, getAccessTokenOptions) - 2 argument form", async () => {
+      const getAccessTokenOptions = {
+        refresh: true,
+        scope: "read:data"
+      };
+
+      await fetcher.fetchWithAuth(
+        "https://api.example.com/data",
+        getAccessTokenOptions
+      );
+
+      expect(oauth.protectedResourceRequest).toHaveBeenCalledTimes(1);
+      const callArgs = (oauth.protectedResourceRequest as any).mock.calls[0];
+      expect(callArgs[1]).toBe("GET"); // should default to GET when no RequestInit provided
+    });
+
+    it("should handle fetchWithAuth(url, requestInit) - 2 argument form", async () => {
+      const requestInit: RequestInit = {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" }
+      };
+
+      await fetcher.fetchWithAuth("https://api.example.com/data", requestInit);
+
+      expect(oauth.protectedResourceRequest).toHaveBeenCalledTimes(1);
+      const callArgs = (oauth.protectedResourceRequest as any).mock.calls[0];
+      expect(callArgs[1]).toBe("PUT"); // should use method from RequestInit
+    });
+
+    it("should handle fetchWithAuth(url, requestInit, getAccessTokenOptions) - 3 argument form", async () => {
+      const requestInit: RequestInit = { method: "PATCH" };
+      const getAccessTokenOptions = { scope: "write:data" };
+
+      await fetcher.fetchWithAuth(
+        "https://api.example.com/data",
+        requestInit,
+        getAccessTokenOptions
+      );
+
+      expect(oauth.protectedResourceRequest).toHaveBeenCalledTimes(1);
+      const callArgs = (oauth.protectedResourceRequest as any).mock.calls[0];
+      expect(callArgs[1]).toBe("PATCH");
+    });
+  });
+
+  describe("DPoP nonce error retry", () => {
+    it("should retry on DPoP nonce error", async () => {
+      // Mock isDPoPNonceError to return true for first call, false for retry
+      let callCount = 0;
+      (oauth.isDPoPNonceError as any).mockImplementation(() => {
+        callCount++;
+        return callCount === 1; // Return true only for first call
+      });
+
+      // Mock protectedResourceRequest to fail first, succeed on retry
+      (oauth.protectedResourceRequest as any)
+        .mockRejectedValueOnce(new Error("DPoP nonce error"))
+        .mockResolvedValueOnce(new Response("OK"));
+
+      const result = await fetcher.fetchWithAuth(
+        "https://api.example.com/data"
+      );
+
+      expect(oauth.protectedResourceRequest).toHaveBeenCalledTimes(2);
+      expect(result).toBeInstanceOf(Response);
+    });
+
+    it("should respect retry configuration with custom delay", async () => {
+      const customRetryConfig = {
+        delay: 50,
+        jitter: false
+      };
+
+      const configWithRetry = {
+        authClient,
+        baseUrl: "https://api.example.com",
+        fetch: mockFetch,
+        httpOptions: () => ({}),
+        retryConfig: customRetryConfig
+      };
+
+      const retryFetcher = new Fetcher(configWithRetry, {
+        getAccessToken: vi.fn().mockResolvedValue("test-token"),
+        isDpopEnabled: vi.fn().mockReturnValue(false)
+      });
+
+      // Mock DPoP nonce error
+      let callCount = 0;
+      (oauth.isDPoPNonceError as any).mockImplementation(() => {
+        callCount++;
+        return callCount === 1;
+      });
+
+      (oauth.protectedResourceRequest as any)
+        .mockRejectedValueOnce(new Error("DPoP nonce error"))
+        .mockResolvedValueOnce(new Response("OK"));
+
+      const startTime = Date.now();
+      await retryFetcher.fetchWithAuth("https://api.example.com/data");
+      const endTime = Date.now();
+
+      // Should have taken at least the delay time (accounting for test timing variance)
+      expect(endTime - startTime).toBeGreaterThanOrEqual(40);
+      expect(oauth.protectedResourceRequest).toHaveBeenCalledTimes(2);
+    });
+
+    it("should not retry twice on DPoP nonce error", async () => {
+      // Mock to always return true for isDPoPNonceError
+      (oauth.isDPoPNonceError as any).mockReturnValue(true);
+      (oauth.protectedResourceRequest as any).mockRejectedValue(
+        new Error("DPoP nonce error")
+      );
+
+      await expect(
+        fetcher.fetchWithAuth("https://api.example.com/data")
+      ).rejects.toThrow("DPoP nonce error");
+
+      // Should be called exactly twice - original + one retry
+      expect(oauth.protectedResourceRequest).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("URL handling", () => {
+    it("should handle URL objects", async () => {
+      const url = new URL("https://api.example.com/data");
+      await fetcher.fetchWithAuth(url);
+
+      const callArgs = (oauth.protectedResourceRequest as any).mock.calls[0];
+      expect(callArgs[2].href).toBe("https://api.example.com/data");
+    });
+
+    it("should throw error for relative URL without baseUrl", async () => {
+      const configWithoutBase = {
+        authClient,
+        fetch: mockFetch,
+        httpOptions: () => ({})
+        // No baseUrl
+      };
+
+      const noBaseFetcher = new Fetcher(configWithoutBase, {
+        getAccessToken: vi.fn().mockResolvedValue("test-token"),
+        isDpopEnabled: vi.fn().mockReturnValue(false)
+      });
+
+      await expect(
+        noBaseFetcher.fetchWithAuth("/relative-path")
+      ).rejects.toThrow("Failed to parse URL from /relative-path");
+    });
+
+    it("should handle Request objects as input", async () => {
+      const request = new Request("https://api.example.com/data", {
+        method: "POST",
+        body: "test data"
+      });
+
+      await fetcher.fetchWithAuth(request);
+
+      const callArgs = (oauth.protectedResourceRequest as any).mock.calls[0];
+      expect(callArgs[1]).toBe("GET"); // Default method used by fetcher
+      expect(callArgs[2].href).toBe("https://api.example.com/data"); // URL from Request
+    });
+  });
+
+  describe("DPoP handle integration", () => {
+    it("should pass DPoP handle to protectedResourceRequest when available", async () => {
+      const mockDpopHandle = {
+        privateKey: "test",
+        publicKey: "test",
+        calculateThumbprint: vi.fn().mockResolvedValue("thumbprint")
+      };
+
+      const configWithDpopHandle = {
+        authClient,
+        baseUrl: "https://api.example.com",
+        fetch: mockFetch,
+        httpOptions: () => ({}),
+        dpopHandle: mockDpopHandle
+      };
+
+      const dpopFetcher = new Fetcher(configWithDpopHandle, {
+        getAccessToken: vi.fn().mockResolvedValue("test-token"),
+        isDpopEnabled: vi.fn().mockReturnValue(true)
+      });
+
+      await dpopFetcher.fetchWithAuth("https://api.example.com/data");
+
+      // Verify that DPoP handle was passed in options
+      const callArgs = (oauth.protectedResourceRequest as any).mock.calls[0];
+      const options = callArgs[5]; // 6th parameter is options
+      expect(options.DPoP).toBe(mockDpopHandle);
+    });
+
+    it("should pass allowInsecureRequests when configured", async () => {
+      const configWithInsecure = {
+        authClient,
+        baseUrl: "https://api.example.com",
+        fetch: mockFetch,
+        httpOptions: () => ({}),
+        allowInsecureRequests: true
+      };
+
+      const insecureFetcher = new Fetcher(configWithInsecure, {
+        getAccessToken: vi.fn().mockResolvedValue("test-token"),
+        isDpopEnabled: vi.fn().mockReturnValue(false)
+      });
+
+      await insecureFetcher.fetchWithAuth("https://api.example.com/data");
+
+      // Verify protectedResourceRequest was called with correct parameters
+      const callArgs = (oauth.protectedResourceRequest as any).mock.calls[0];
+      expect(callArgs[0]).toBe("test-token"); // access token
+      expect(callArgs[1]).toBe("GET"); // method
+      expect(callArgs[2].href).toBe("https://api.example.com/data"); // URL
+      expect(callArgs[3]).toBeInstanceOf(Headers); // headers
+      expect(callArgs[4]).toBeNull(); // DPoP handle
+      expect(typeof callArgs[5]).toBe("object"); // options
+    });
+  });
+
+  describe("access token sources", () => {
+    it("should use config.getAccessToken when available", async () => {
+      const configAccessToken = vi.fn().mockResolvedValue("config-token");
+
+      const configWithAccessToken = {
+        authClient,
+        baseUrl: "https://api.example.com",
+        fetch: mockFetch,
+        httpOptions: () => ({}),
+        getAccessToken: configAccessToken
+      };
+
+      const configTokenFetcher = new Fetcher(configWithAccessToken, {
+        getAccessToken: vi.fn().mockResolvedValue("hooks-token"),
+        isDpopEnabled: vi.fn().mockReturnValue(false)
+      });
+
+      await configTokenFetcher.fetchWithAuth("https://api.example.com/data");
+
+      expect(configAccessToken).toHaveBeenCalled();
+      const callArgs = (oauth.protectedResourceRequest as any).mock.calls[0];
+      expect(callArgs[0]).toBe("config-token"); // Should use config token, not hooks token
+    });
+  });
+
   describe("error handling", () => {
     it("should handle oauth errors", async () => {
       (oauth.protectedResourceRequest as any).mockRejectedValue(
