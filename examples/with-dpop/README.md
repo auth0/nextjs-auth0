@@ -154,45 +154,95 @@ USE_DPOP=false
 
 ## DPoP (Demonstration of Proof-of-Possession)
 
-This sample includes support for DPoP, a security extension that provides cryptographic proof that the client making a request is in possession of a private key. This helps prevent token theft and replay attacks.
+This example demonstrates DPoP integration with the [Auth0 Next.js SDK](https://github.com/auth0/nextjs-auth0). DPoP is a security extension that provides cryptographic proof that the client making a request is in possession of a private key. This helps prevent token theft and replay attacks.
 
-### Enabling DPoP
+> **📚 Complete Documentation**: For comprehensive DPoP documentation, configuration options, and advanced usage patterns, see the [DPoP Examples](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#dpop-demonstrating-proof-of-possession) in the main SDK documentation.
 
-To enable DPoP in this sample:
+### Quick Start
 
-1. Set `USE_DPOP=true` in your `.env.local` file
-2. Optionally generate DPoP keys using: `npm run generate-dpop-keys`
-3. If you don't provide keys, the sample will automatically generate them at startup
+**1. Enable DPoP in your environment:**
+```bash
+# .env.local
+USE_DPOP=true
+```
 
-### DPoP Key Generation
-
-You can generate ES256 key pairs for DPoP using the included utility:
-
+**2. Generate DPoP keys (optional):**
 ```bash
 npm run generate-dpop-keys
 ```
 
-This will output:
-- Key pairs in PEM format for environment variables
-- Security notes and best practices
-- Instructions for adding keys to your `.env.local` file
+**3. Start the application:**
+```bash
+npm run dev
+```
+
+**4. Test DPoP functionality:**
+- Navigate to http://localhost:3000
+- Login and test the `/api/shows` endpoint
+- View DPoP validation results
+
+### Key Features Demonstrated
+
+✅ **Server-Side DPoP**: Uses `auth0.createFetcher()` with DPoP enabled  
+✅ **Automatic Key Generation**: Generates ES256 keys if not provided  
+✅ **Nonce Error Handling**: Automatic retry on DPoP nonce errors  
+✅ **Bearer Fallback**: Falls back to Bearer tokens when DPoP is disabled  
+✅ **Comprehensive Testing**: Unit and E2E tests with live Auth0 integration  
+
+### DPoP Configuration
+
+This example supports multiple configuration methods:
+
+**Environment Variables:**
+```bash
+# Enable DPoP
+USE_DPOP=true
+
+# Optional: Provide your own keys
+AUTH0_DPOP_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----..."
+AUTH0_DPOP_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----..."
+
+# Optional: Configure timing
+AUTH0_DPOP_CLOCK_TOLERANCE=30
+AUTH0_RETRY_DELAY=100
+```
+
+**Key Generation Utility:**
+```bash
+npm run generate-dpop-keys
+```
+This outputs ES256 key pairs in PEM format ready for environment variables.
 
 ### Testing DPoP
 
-When DPoP is enabled:
+**Manual Testing:**
+1. Set `USE_DPOP=true` in `.env.local`
+2. Start the application: `npm run dev`
+3. Login and navigate to the protected API endpoints
+4. Observe DPoP proof generation and validation
 
-1. The Next.js application will use DPoP-bound access tokens server-side
-2. The API server (`api-server.js`) will validate DPoP proofs
-3. The `/api/shows` endpoint (Next.js API route) makes server-side DPoP requests and returns validation results
-4. Run automated tests with: `npm test`
+**Automated Testing:**
+```bash
+# Run all tests (unit + E2E)
+npm test
 
-### Server-Side DPoP Implementation
+# Run only unit tests
+npm run test:unit
+
+# Run only E2E tests
+npm run test:e2e
+```
+
+### Architecture
 
 This example demonstrates **server-side only** DPoP implementation:
 
-- **Server-Side DPoP**: Uses `auth0.fetchWithAuth()` in Next.js API routes for DPoP-protected requests
-- **Bearer Token Fallback**: When DPoP is disabled, falls back to standard Bearer token authentication
-- **No Client-Side DPoP**: All DPoP operations are performed server-side for enhanced security
+- **Server-Side DPoP**: All DPoP operations happen in Next.js API routes using `auth0.createFetcher()`
+- **No Client-Side DPoP**: Enhanced security by keeping private keys server-side
+- **Automatic Fallback**: Gracefully falls back to Bearer authentication when DPoP is disabled
+- **Real-World Patterns**: Shows production-ready error handling and retry logic
+
+For more advanced usage patterns, production considerations, and troubleshooting, see the [SDK DPoP Documentation](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#dpop-demonstrating-proof-of-possession).
 
 ## Run the sample
 

@@ -240,20 +240,121 @@ export interface Auth0ClientOptions {
 
   enableParallelTransactions?: boolean;
 
+  // DPoP Configuration
   /**
-   * If true, enables DPoP (Demonstrating Proof-of-Possession) for OAuth 2.0 token requests.
-   * DPoP provides sender-constraining for access tokens to prevent unauthorized token usage.
+   * Enable DPoP (Demonstrating Proof-of-Possession) for enhanced OAuth 2.0 security.
+   *
+   * When enabled, the SDK will:
+   * - Generate DPoP proofs for token requests and protected resource requests
+   * - Bind access tokens cryptographically to the client's key pair
+   * - Prevent token theft and replay attacks
+   * - Handle DPoP nonce errors with automatic retry logic
+   *
+   * DPoP requires an ES256 key pair that can be provided via `dpopKeyPair` option
+   * or loaded from environment variables `AUTH0_DPOP_PUBLIC_KEY` and `AUTH0_DPOP_PRIVATE_KEY`.
+   *
+   * @default false
+   *
+   * @example Enable DPoP with generated keys
+   * ```typescript
+   * import { generateKeyPair } from "oauth4webapi";
+   *
+   * const dpopKeyPair = await generateKeyPair("ES256");
+   *
+   * const auth0 = new Auth0Client({
+   *   useDpop: true,
+   *   dpopKeyPair
+   * });
+   * ```
+   *
+   * @example Enable DPoP with environment variables
+   * ```typescript
+   * // .env.local
+   * // AUTH0_DPOP_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----..."
+   * // AUTH0_DPOP_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----..."
+   *
+   * const auth0 = new Auth0Client({
+   *   useDpop: true
+   *   // Keys loaded automatically from environment
+   * });
+   * ```
+   *
+   * @see {@link https://datatracker.ietf.org/doc/html/rfc9449 | RFC 9449: OAuth 2.0 Demonstrating Proof-of-Possession at the Application Layer (DPoP)}
    */
   useDpop?: boolean;
 
   /**
-   * The public/private key pair used for DPoP proof generation.
-   * If not provided and useDpop is true, keys will be loaded from environment variables.
+   * ES256 key pair for DPoP proof generation.
+   *
+   * If not provided when `useDpop` is true, the SDK will attempt to load keys from
+   * environment variables `AUTH0_DPOP_PUBLIC_KEY` and `AUTH0_DPOP_PRIVATE_KEY`.
+   * Keys must be in PEM format and use the P-256 elliptic curve.
+   *
+   * @example Provide key pair directly
+   * ```typescript
+   * import { generateKeyPair } from "oauth4webapi";
+   *
+   * const keyPair = await generateKeyPair("ES256");
+   *
+   * const auth0 = new Auth0Client({
+   *   useDpop: true,
+   *   dpopKeyPair: keyPair
+   * });
+   * ```
+   *
+   * @example Load from files
+   * ```typescript
+   * import { importSPKI, importPKCS8 } from "jose";
+   * import { readFileSync } from "fs";
+   *
+   * const publicKeyPem = readFileSync("dpop-public.pem", "utf8");
+   * const privateKeyPem = readFileSync("dpop-private.pem", "utf8");
+   *
+   * const auth0 = new Auth0Client({
+   *   useDpop: true,
+   *   dpopKeyPair: {
+   *     publicKey: await importSPKI(publicKeyPem, "ES256"),
+   *     privateKey: await importPKCS8(privateKeyPem, "ES256")
+   *   }
+   * });
+   * ```
+   *
+   * @see {@link DpopKeyPair} for the key pair interface
+   * @see {@link generateDpopKeyPair} for generating new key pairs
    */
   dpopKeyPair?: DpopKeyPair;
 
   /**
-   * Configuration options for DPoP validation and behavior.
+   * Configuration options for DPoP timing validation and retry behavior.
+   *
+   * These options control how the SDK validates DPoP proof timing and handles
+   * nonce errors. Proper configuration is important for both security and reliability.
+   *
+   * @example Basic configuration
+   * ```typescript
+   * const auth0 = new Auth0Client({
+   *   useDpop: true,
+   *   dpopOptions: {
+   *     clockTolerance: 60,    // Allow 60 seconds clock difference
+   *     clockSkew: 0,          // No clock adjustment needed
+   *     retry: {
+   *       delay: 200,          // 200ms delay before retry
+   *       jitter: true         // Add randomness to prevent thundering herd
+   *     }
+   *   }
+   * });
+   * ```
+   *
+   * @example Environment variable configuration
+   * ```bash
+   * # .env.local
+   * AUTH0_DPOP_CLOCK_SKEW=0
+   * AUTH0_DPOP_CLOCK_TOLERANCE=30
+   * AUTH0_RETRY_DELAY=100
+   * AUTH0_RETRY_JITTER=true
+   * ```
+   *
+   * @see {@link DpopOptions} for detailed option descriptions
    */
   dpopOptions?: DpopOptions;
 }
@@ -1228,6 +1329,45 @@ export class Auth0Client {
     }
   }
 
+  /**
+   * Creates a configured Fetcher instance for making authenticated API requests.
+   *
+   * This method creates a specialized HTTP client that handles:
+   * - Automatic access token retrieval and injection
+   * - DPoP (Demonstrating Proof-of-Possession) proof generation when enabled
+   * - Token refresh and session management
+   * - Error handling and retry logic for DPoP nonce errors
+   * - Base URL resolution for relative requests
+   *
+   * The fetcher provides a high-level interface for making requests to protected resources
+   * without manually handling authentication details.
+   *
+   * @template TOutput - Response type that extends the standard Response interface
+   * @param req - Request object for session context (required for Pages Router, optional for App Router)
+   * @param options - Configuration options for the fetcher
+   * @param options.useDPoP - Enable DPoP for this fetcher instance (overrides global setting)
+   * @param options.baseUrl - Base URL for resolving relative requests
+   * @param options.getAccessToken - Custom access token factory function
+   * @param options.fetch - Custom fetch implementation
+   * @returns Promise that resolves to a configured Fetcher instance
+   * @throws AccessTokenError when no active session exists
+   *
+   * @example
+   * ```typescript
+   * import { auth0 } from "@/lib/auth0";
+   *
+   * const fetcher = await auth0.createFetcher(undefined, {
+   *   baseUrl: "https://api.example.com",
+   *   useDPoP: true
+   * });
+   *
+   * const response = await fetcher.fetchWithAuth("/users");
+   * const users = await response.json();
+   * ```
+   *
+   * @see {@link Fetcher} for details on using the returned fetcher instance
+   * @see {@link FetcherMinimalConfig} for available configuration options
+   */
   public async createFetcher<TOutput extends Response = Response>(
     req: PagesRouterRequest | NextRequest | undefined,
     options: {

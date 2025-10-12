@@ -195,9 +195,13 @@ AUTH0_DPOP_CLOCK_TOLERANCE=
 
 ### DPoP Configuration
 
-For enhanced security with DPoP (Demonstration of Proof-of-Possession), you can configure ES256 key pairs:
+The Auth0 Next.js SDK supports **DPoP (Demonstrating Proof-of-Possession)** for enhanced OAuth 2.0 security. DPoP binds access tokens to cryptographic key pairs, preventing token theft and replay attacks.
 
+#### Quick Start
+
+**Option 1: Environment Variables**
 ```env
+# Enable DPoP and provide ES256 key pair
 AUTH0_DPOP_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----
 MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE...
 -----END PUBLIC KEY-----"
@@ -206,8 +210,16 @@ MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQ...
 -----END PRIVATE KEY-----"
 ```
 
-Alternatively, you can provide the key pair programmatically:
+```ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
 
+export const auth0 = new Auth0Client({
+  useDpop: true
+  // Keys loaded automatically from environment variables
+});
+```
+
+**Option 2: Programmatic Configuration**
 ```ts
 import { Auth0Client } from "@auth0/nextjs-auth0/server";
 import { generateKeyPair } from "oauth4webapi";
@@ -216,9 +228,35 @@ const dpopKeyPair = await generateKeyPair("ES256");
 
 export const auth0 = new Auth0Client({
   useDpop: true,
-  dpopKeyPair
+  dpopKeyPair,
+  dpopOptions: {
+    clockTolerance: 30,  // Allow 30s clock difference
+    retry: {
+      delay: 100,        // 100ms retry delay
+      jitter: true       // Add randomness
+    }
+  }
 });
 ```
+
+#### Making DPoP-Protected Requests
+
+```ts
+// Create a DPoP-enabled fetcher
+const fetcher = await auth0.createFetcher(req, {
+  baseUrl: "https://api.example.com",
+  useDPoP: true
+});
+
+// Make authenticated requests with automatic DPoP proof generation
+const response = await fetcher.fetchWithAuth("/protected-resource", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ data: "example" })
+});
+```
+
+For complete DPoP documentation, examples, and best practices, see [DPoP Examples](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#dpop-demonstrating-proof-of-possession).
 
 #### Advanced: Clock Validation Configuration
 
