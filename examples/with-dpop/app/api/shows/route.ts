@@ -11,15 +11,25 @@ export const GET = async function shows() {
     // Use relative URL with fetcher's baseUrl configuration
     const relativePath = '/api/shows';
 
-    const response = await fetcher.fetchWithAuth(relativePath);
+    const configuredOptions = {
+      audience: 'https://dev-10whndm3tf8jetu5.us.auth0.com/api/v2/',
+      scope: 'openid profile email offline_access',
+      refresh: true
+    };
 
-    console.info('[Route] Response received:', {
-      status: response.status,
-      statusText: response.statusText,
-      hasHeaders: !!response.headers,
-      contentType: response.headers.get('content-type') || 'N/A',
-      responseType: typeof response
+    const fetcher = await auth0.createFetcher<Response>(undefined, {
+      baseUrl: 'http://localhost:3001',
+      getAccessToken: async(getAccessTokenOptions) => {
+        console.log("This is a custom getAccessToken factory method")
+        console.log(JSON.stringify(getAccessTokenOptions));
+        const at = await auth0.getAccessToken(getAccessTokenOptions);
+        return at.token;
+      }
     });
+
+    const response = await fetcher.fetchWithAuth(relativePath, configuredOptions);
+
+    console.info('[Route] Response received:', response.status, response.statusText);
 
     if (!response.ok) {
       try {
@@ -51,8 +61,10 @@ export const GET = async function shows() {
       }
     }
 
-    console.info('[Route] Returning successful response');
-    return NextResponse.json(shows);
+    // Extract JSON data from successful response
+    const responseData = await response.json();
+    console.info('[Route] Returning successful response with data:', responseData);
+    return NextResponse.json(responseData);
   } catch (error) {
     console.error('[Route] Error in shows route:', {
       errorName: error.name,

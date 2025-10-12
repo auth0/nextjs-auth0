@@ -9,6 +9,7 @@ import { cookies } from "next/headers.js";
 import { NextRequest, NextResponse } from "next/server.js";
 import { NextApiHandler, NextApiRequest, NextApiResponse } from "next/types.js";
 import { ProtectedResourceRequestBody } from "oauth4webapi";
+import * as oauth from "oauth4webapi";
 
 import {
   AccessTokenError,
@@ -39,11 +40,13 @@ import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-h
 import {
   AuthClient,
   BeforeSessionSavedHook,
+  FetcherFactoryOptions,
   OnCallbackHook,
   Routes,
   RoutesOptions
 } from "./auth-client.js";
 import { RequestCookies, ResponseCookies } from "./cookies.js";
+import { Fetcher, FetcherMinimalConfig } from "./fetcher.js";
 import * as withApiAuthRequired from "./helpers/with-api-auth-required.js";
 import {
   appRouteHandlerFactory,
@@ -897,222 +900,6 @@ export class Auth0Client {
     };
   }
 
-  /**
-   * Makes authenticated requests to protected resources using either DPoP or Bearer token authentication.
-   * The authentication method is automatically selected based on the SDK configuration (DPoP if configured, Bearer otherwise).
-   *
-   * This method can be used in Server Components, Server Actions, and Route Handlers in the **App Router**.
-   *
-   * When calling protected APIs, the SDK will:
-   * - Use DPoP authentication if configured (via `useDpop` and `dpopKeyPair` options)
-   * - Fall back to Bearer token authentication if DPoP is not configured
-   * - Automatically handle token refresh if the access token is expired
-   *
-   * **Important**: This method must be called within a Next.js API route, Server Component,
-   * or Server Action where session context is available.
-   *
-   * ## Multi-API Token Selection
-   *
-   * When your application calls multiple APIs, you **must** specify the `accessTokenOptions.audience`
-   * parameter to ensure the correct access token is used. Without specifying the audience, the SDK
-   * will use the access token from the session, which may be intended for a different API.
-   *
-   *
-   * @param info The URL or Request object for the request
-   * @returns Promise resolving to the response from the protected resource
-   *
-   * @example
-   * ```typescript
-   * // Simple usage - uses session access token
-   * export const GET = async function() {
-   *   const response = await auth0.fetchWithAuth('http://localhost:3001/api/data');
-   *   const data = await response.json();
-   *   return NextResponse.json(data);
-   * };
-   * ```
-   */
-  async fetchWithAuth(info: RequestInfo | URL): Promise<Response>;
-
-  /**
-   * Makes authenticated requests to protected resources using either DPoP or Bearer token authentication.
-   * The authentication method is automatically selected based on the SDK configuration (DPoP if configured, Bearer otherwise).
-   *
-   * @param info The URL or Request object for the request
-   * @param init Request initialization options (method, headers, body, etc.)
-   * @returns Promise resolving to the response from the protected resource
-   *
-   * @example
-   * ```typescript
-   * // POST request with body
-   * export const POST = async function() {
-   *   const response = await auth0.fetchWithAuth(
-   *     'https://api.example.com/items',
-   *     {
-   *       method: 'POST',
-   *       headers: { 'Content-Type': 'application/json' },
-   *       body: JSON.stringify({ name: 'New Item' })
-   *     }
-   *   );
-   *   const result = await response.json();
-   *   return NextResponse.json(result);
-   * };
-   * ```
-   */
-  async fetchWithAuth(
-    info: RequestInfo | URL,
-    init: FetchWithAuthInit
-  ): Promise<Response>;
-
-  /**
-   * Makes authenticated requests to protected resources using either DPoP or Bearer token authentication.
-   * The authentication method is automatically selected based on the SDK configuration (DPoP if configured, Bearer otherwise).
-   *
-   * @param info The URL or Request object for the request
-   * @param init Request initialization options (method, headers, body, etc.)
-   * @param accessTokenOptions Options for fetching the access token, including audience and scope.
-   *                           **Required when calling multiple APIs** to ensure correct token selection.
-   * @returns Promise resolving to the response from the protected resource
-   *
-   * @example
-   * ```typescript
-   * // Multi-API: Specify audience for correct token
-   * export default async function Page() {
-   *   const response = await auth0.fetchWithAuth(
-   *     'https://api.example.com/profile',
-   *     { method: 'GET' },
-   *     { audience: 'https://api.example.com', scope: 'read:profile' }
-   *   );
-   *   const profile = await response.json();
-   *   return <div>{profile.name}</div>;
-   * }
-   * ```
-   *
-   * @example
-   * ```typescript
-   * // Request additional scopes beyond what was granted at login
-   * export const GET = async function() {
-   *   const response = await auth0.fetchWithAuth(
-   *     'https://api.example.com/admin/users',
-   *     { method: 'GET' },
-   *     {
-   *       audience: 'https://api.example.com',
-   *       scope: 'read:users admin:users' // More scopes than initially granted
-   *     }
-   *   );
-   *   const users = await response.json();
-   *   return NextResponse.json(users);
-   * };
-   * ```
-   *
-   * @example
-   * ```typescript
-   * // Force token refresh to get fresh access token
-   * export const GET = async function() {
-   *   const response = await auth0.fetchWithAuth(
-   *     'https://api.example.com/sensitive-data',
-   *     { method: 'GET' },
-   *     {
-   *       audience: 'https://api.example.com',
-   *       refresh: true // Force refresh even if current token is valid
-   *     }
-   *   );
-   *   const data = await response.json();
-   *   return NextResponse.json(data);
-   * };
-   * ```
-   *
-   * @example
-   * ```typescript
-   * // Application calling multiple APIs with different audiences
-   * export default async function Dashboard() {
-   *   // Get user profile from Profile API
-   *   const profileRes = await auth0.fetchWithAuth(
-   *     'https://profile-api.example.com/me',
-   *     { method: 'GET' },
-   *     { audience: 'https://profile-api.example.com' }
-   *   );
-   *   const profile = await profileRes.json();
-   *
-   *   // Get orders from Orders API (different audience)
-   *   const ordersRes = await auth0.fetchWithAuth(
-   *     'https://orders-api.example.com/my-orders',
-   *     { method: 'GET' },
-   *     { audience: 'https://orders-api.example.com' }
-   *   );
-   *   const orders = await ordersRes.json();
-   *
-   *   return (
-   *     <div>
-   *       <h1>{profile.name}</h1>
-   *       <OrdersList orders={orders} />
-   *     </div>
-   *   );
-   * }
-   * ```
-   */
-  async fetchWithAuth(
-    info: RequestInfo | URL,
-    init: FetchWithAuthInit,
-    accessTokenOptions: GetAccessTokenOptions
-  ): Promise<Response>;
-
-  /**
-   * Makes authenticated requests to protected resources.
-   */
-  async fetchWithAuth(
-    info: RequestInfo | URL,
-    init?: FetchWithAuthInit,
-    accessTokenOptions?: GetAccessTokenOptions
-  ): Promise<Response> {
-    // Get session from current Next.js context
-    const session = await this.getSession();
-
-    if (!session) {
-      throw new Error(
-        "No active session found. User must be authenticated to use fetchWithAuth."
-      );
-    }
-
-    // Provide default options if not specified
-    const finalAccessTokenOptions: GetAccessTokenOptions =
-      accessTokenOptions ?? {};
-
-    // Extract request details from info and init
-    let url: string;
-    let method = "GET";
-    let headers: HeadersInit = {};
-    let body: ProtectedResourceRequestBody | undefined;
-
-    if (typeof info === "string") {
-      url = info;
-    } else if (info instanceof URL) {
-      url = info.toString();
-    } else {
-      // info is a Request object
-      url = info.url;
-      method = info.method;
-      headers = info.headers;
-      body = info.body;
-    }
-
-    // Override with init values if provided
-    if (init) {
-      if (init.method) method = init.method;
-      if (init.headers) headers = init.headers;
-      if (init.body !== undefined) body = init.body;
-    }
-
-    // Make the protected request
-    return this.authClient.executeProtectedRequest({
-      url,
-      method,
-      headers,
-      body,
-      session,
-      accessTokenOptions: finalAccessTokenOptions
-    });
-  }
-
   private async saveToSession(
     data: SessionData,
     req?: PagesRouterRequest | NextRequest,
@@ -1405,102 +1192,29 @@ export class Auth0Client {
     }
   }
 
-  /**
-   * Creates a configured server-side fetcher instance with support for base URLs.
-   *
-   * This provides a clean way to configure fetchWithAuth behavior with base URL resolution
-   * while maintaining access to the Auth0Client's session context and DPoP functionality.
-   *
-   * @param config Configuration options for the fetcher
-   * @returns A configured fetcher instance with fetchWithAuth method
-   *
-   * @example
-   * ```typescript
-   * import { auth0 } from '@/lib/auth0';
-   *
-   * // Basic usage
-   * const fetcher = auth0.createFetcher();
-   * const response = await fetcher.fetchWithAuth('/api/data');
-   *
-   * // With base URL
-   * const apiFetcher = auth0.createFetcher({
-   *   baseUrl: 'https://api.example.com'
-   * });
-   * const response = await apiFetcher.fetchWithAuth('/users/profile');
-   * ```
-   */
-  createFetcher(config: { baseUrl?: string } = {}) {
-    return {
-      fetchWithAuth: async (
-        info: RequestInfo | URL,
-        init?: FetchWithAuthInit
-      ): Promise<Response> => {
-        const resolvedInfo = this.resolveUrl(info, config.baseUrl);
-        // Match test expectations by explicitly calling with undefined when needed
-        if (init === undefined) {
-          return (this.fetchWithAuth as any)(resolvedInfo, undefined);
-        } else {
-          return this.fetchWithAuth(resolvedInfo, init);
-        }
-      }
-    };
-  }
+  public async createFetcher<TOutput extends Response = Response>(
+    req: PagesRouterRequest | NextRequest | undefined,
+    options: {
+      useDPoP?: boolean;
+    } & FetcherMinimalConfig<TOutput>
+  ) {
+    const session: SessionData | null = req
+      ? await this.getSession(req)
+      : await this.getSession();
 
-  /**
-   * Resolve URL by applying base URL if the URL is relative
-   */
-  private resolveUrl(
-    info: RequestInfo | URL,
-    baseUrl?: string
-  ): RequestInfo | URL {
-    if (!baseUrl) {
-      return info;
+    if (!session) {
+      throw new AccessTokenError(
+        AccessTokenErrorCode.MISSING_SESSION,
+        "The user does not have an active session."
+      );
     }
 
-    if (typeof info === "string") {
-      return this.isAbsoluteUrl(info) ? info : this.buildUrl(baseUrl, info);
-    } else if (info instanceof URL) {
-      return info; // URL objects are always absolute
-    } else {
-      // info is a Request object
-      if (this.isAbsoluteUrl(info.url)) {
-        return info;
-      }
+    const fetcher: Fetcher<TOutput> = await this.authClient.fetcherFactory({
+      ...options,
+      session
+    });
 
-      // Create a new Request with resolved URL
-      const resolvedUrl = this.buildUrl(baseUrl, info.url);
-      return new Request(resolvedUrl, {
-        method: info.method,
-        headers: info.headers,
-        body: info.body,
-        mode: info.mode,
-        credentials: info.credentials,
-        cache: info.cache,
-        redirect: info.redirect,
-        referrer: info.referrer,
-        integrity: info.integrity,
-        // Add duplex option if body is present
-        ...(info.body && { duplex: "half" as any })
-      });
-    }
-  }
-
-  /**
-   * Check if a URL is absolute (has protocol)
-   */
-  private isAbsoluteUrl(url: string): boolean {
-    return /^(https?:)?\/\//i.test(url);
-  }
-
-  /**
-   * Build a complete URL from base URL and path
-   */
-  private buildUrl(baseUrl: string, path: string): string {
-    // Remove trailing slash from baseUrl and leading slash from path
-    const cleanBaseUrl = baseUrl.replace(/\/$/, "");
-    const cleanPath = path.replace(/^\//, "");
-
-    return `${cleanBaseUrl}/${cleanPath}`;
+    return fetcher;
   }
 }
 
