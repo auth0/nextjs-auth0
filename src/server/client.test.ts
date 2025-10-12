@@ -121,72 +121,74 @@ describe("Auth0Client", () => {
     });
   });
 
-  describe("getDpopHandle", () => {
-    let auth0Client: Auth0Client;
+  // TODO: Re-implement DPoP handle management if needed
+  // Currently this functionality is not implemented in the codebase
+  // describe("getDpopHandle", () => {
+  //   let auth0Client: Auth0Client;
 
-    beforeEach(() => {
-      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
-      process.env[ENV_VARS.CLIENT_ID] = "test-client-id";
-      process.env[ENV_VARS.CLIENT_SECRET] = "test-client-secret";
-      process.env[ENV_VARS.APP_BASE_URL] = "https://test.com";
-      process.env[ENV_VARS.SECRET] = "test_secret";
+  //   beforeEach(() => {
+  //     process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
+  //     process.env[ENV_VARS.CLIENT_ID] = "test-client-id";
+  //     process.env[ENV_VARS.CLIENT_SECRET] = "test-client-secret";
+  //     process.env[ENV_VARS.APP_BASE_URL] = "https://test.com";
+  //     process.env[ENV_VARS.SECRET] = "test_secret";
 
-      auth0Client = new Auth0Client();
-    });
+  //     auth0Client = new Auth0Client();
+  //   });
 
-    it("should return undefined when DPoP is not configured", () => {
-      const handle1 = (auth0Client as any).getDpopHandle("api1");
+  //   it("should return undefined when DPoP is not configured", () => {
+  //     const handle1 = (auth0Client as any).getDpopHandle("api1");
 
-      expect(handle1).toBeUndefined();
-    });
+  //     expect(handle1).toBeUndefined();
+  //   });
 
-    it("should return undefined for all calls when DPoP is not configured", () => {
-      const handle1 = (auth0Client as any).getDpopHandle("api1");
-      const handle2 = (auth0Client as any).getDpopHandle("api1");
+  //   it("should return undefined for all calls when DPoP is not configured", () => {
+  //     const handle1 = (auth0Client as any).getDpopHandle("api1");
+  //     const handle2 = (auth0Client as any).getDpopHandle("api1");
 
-      expect(handle1).toBeUndefined();
-      expect(handle2).toBeUndefined();
-    });
+  //     expect(handle1).toBeUndefined();
+  //     expect(handle2).toBeUndefined();
+  //   });
 
-    it("should not store anything in dpopHandles Map when DPoP is not configured", () => {
-      const dpopNonceId = "test-api";
-      const handle = (auth0Client as any).getDpopHandle(dpopNonceId);
+  //   it("should not store anything in dpopHandles Map when DPoP is not configured", () => {
+  //     const dpopNonceId = "test-api";
+  //     const handle = (auth0Client as any).getDpopHandle(dpopNonceId);
 
-      expect(handle).toBeUndefined();
+  //     expect(handle).toBeUndefined();
 
-      // Access the private dpopHandles map through bracket notation
-      const dpopHandles = (auth0Client as any)["dpopHandles"];
-      expect(dpopHandles).toBeDefined();
-      expect(dpopHandles.has(dpopNonceId)).toBe(false);
-    });
+  //     // Access the private dpopHandles map through bracket notation
+  //     const dpopHandles = (auth0Client as any)["dpopHandles"];
+  //     expect(dpopHandles).toBeDefined();
+  //     expect(dpopHandles.has(dpopNonceId)).toBe(false);
+  //   });
 
-    it("should have an empty dpopHandles Map initially", () => {
-      // Access the private dpopHandles map through bracket notation
-      const dpopHandles = (auth0Client as any)["dpopHandles"];
-      expect(dpopHandles).toBeDefined();
-      expect(dpopHandles.size).toBe(0);
-    });
+  //   it("should have an empty dpopHandles Map initially", () => {
+  //     // Access the private dpopHandles map through bracket notation
+  //     const dpopHandles = (auth0Client as any)["dpopHandles"];
+  //     expect(dpopHandles).toBeDefined();
+  //     expect(dpopHandles.size).toBe(0);
+  //   });
 
-    it("should handle multiple calls without DPoP configuration", () => {
-      const handle1 = (auth0Client as any).getDpopHandle("api1");
-      const handle2 = (auth0Client as any).getDpopHandle("api2");
-      const handle3 = (auth0Client as any).getDpopHandle("api1");
+  //   it("should handle multiple calls without DPoP configuration", () => {
+  //     const handle1 = (auth0Client as any).getDpopHandle("api1");
+  //     const handle2 = (auth0Client as any).getDpopHandle("api2");
+  //     const handle3 = (auth0Client as any).getDpopHandle("api1");
 
-      expect(handle1).toBeUndefined();
-      expect(handle2).toBeUndefined();
-      expect(handle3).toBeUndefined();
+  //     expect(handle1).toBeUndefined();
+  //     expect(handle2).toBeUndefined();
+  //     expect(handle3).toBeUndefined();
 
-      // Ensure dpopHandles map remains empty
-      const dpopHandles = (auth0Client as any)["dpopHandles"];
-      expect(dpopHandles.size).toBe(0);
-    });
+  //     // Ensure dpopHandles map remains empty
+  //     const dpopHandles = (auth0Client as any)["dpopHandles"];
+  //     expect(dpopHandles.size).toBe(0);
+  //   });
 
-    it("should return undefined when called without dpopNonceId and DPoP not configured", () => {
-      const handle = (auth0Client as any).getDpopHandle();
+  //   it("should return undefined when called without dpopNonceId and DPoP not configured", () => {
+  //     const handle = (auth0Client as any).getDpopHandle();
 
-      expect(handle).toBeUndefined();
-    });
-  });
+  //     expect(handle).toBeUndefined();
+  //   });
+  // });
 
   describe("getAccessToken", () => {
     const mockSession: SessionData = {

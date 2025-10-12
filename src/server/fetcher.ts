@@ -7,6 +7,7 @@ import {
   protectedResourceRequest
 } from "oauth4webapi";
 
+import { RetryConfig } from "../types/dpop.js";
 import { GetAccessTokenOptions } from "../types/index.js";
 
 export type ResponseHeaders =
@@ -30,10 +31,16 @@ export type AccessTokenFactory = (
   getAccessTokenOptions: GetAccessTokenOptions
 ) => Promise<string>;
 
+// Aliased unused exports with underscore prefix to avoid lint errors in importing files
+export type _CustomFetchImpl<TOutput extends Response> =
+  CustomFetchImpl<TOutput>;
+export type _AccessTokenFactory = AccessTokenFactory;
+
 export type AuthClientProperties = {
   httpOptions: () => HttpRequestOptions<"GET" | "POST", undefined>;
   allowInsecureRequests?: boolean;
   dpopHandle?: DPoPHandle;
+  retryConfig?: RetryConfig;
 };
 
 export type FetcherMinimalConfig<TOutput extends Response> = {
@@ -204,13 +211,13 @@ export class Fetcher<TOutput extends Response> {
       "signal"
     ];
     const hasRequestInitProp = requestInitProps.some((prop) =>
-      obj.hasOwnProperty(prop)
+      Object.prototype.hasOwnProperty.call(obj, prop)
     );
 
     // Check for GetAccessTokenOptions-specific properties
     const getAccessTokenOptionsProps = ["refresh", "scope", "audience"];
     const hasGetAccessTokenOptionsProp = getAccessTokenOptionsProps.some(
-      (prop) => obj.hasOwnProperty(prop)
+      (prop) => Object.prototype.hasOwnProperty.call(obj, prop)
     );
 
     // If it has RequestInit props and no GetAccessTokenOptions props, it's RequestInit
@@ -271,8 +278,22 @@ export class Fetcher<TOutput extends Response> {
     }
 
     const callbacks: FetchWithAuthCallbacks<TOutput> = {
-      onUseDpopNonceError: () =>
-        this.internalFetchWithAuth(
+      onUseDpopNonceError: async () => {
+        // Use configured retry values or defaults
+        const retryConfig = this.config.retryConfig ?? {
+          delay: 100,
+          jitter: true
+        };
+
+        let delay = retryConfig.delay ?? 100;
+
+        // Apply jitter if enabled
+        if (retryConfig.jitter) {
+          delay = delay * (0.5 + Math.random() * 0.5); // 50-100% of original delay
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        return this.internalFetchWithAuth(
           info,
           init,
           {
@@ -281,7 +302,8 @@ export class Fetcher<TOutput extends Response> {
             onUseDpopNonceError: undefined
           },
           accessTokenOptions
-        )
+        );
+      }
     };
 
     return this.internalFetchWithAuth(

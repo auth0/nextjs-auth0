@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { useUser } from '@auth0/nextjs-auth0/client';
 
 export default function Index() {
@@ -65,6 +66,74 @@ export default function Index() {
                     data-testid="test-dpop-button">
                     {isLoadingApi ? 'Testing Server DPoP API...' : 'Test Server-Side DPoP API'}
                   </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Server Context Examples */}
+          <div className="row mt-4 justify-content-center">
+            <div className="col-md-8">
+              <h4 className="mb-3 text-center">DPoP in Different Server Contexts</h4>
+              <p className="text-center text-muted mb-4">
+                Test DPoP authentication across various Next.js server environments
+              </p>
+              
+              <div className="row g-3">
+                <div className="col-md-6">
+                  <div className="card h-100">
+                    <div className="card-body">
+                      <h6 className="card-title">🏗️ Server Component</h6>
+                      <p className="card-text small">
+                        DPoP in App Router Server Components during SSR
+                      </p>
+                      <a href="/server-component" className="btn btn-outline-primary btn-sm w-100">
+                        View Server Component Demo
+                      </a>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="col-md-6">
+                  <div className="card h-100">
+                    <div className="card-body">
+                      <h6 className="card-title">📄 SSR Page</h6>
+                      <p className="card-text small">
+                        DPoP with getServerSideProps (Pages Router pattern)
+                      </p>
+                      <Link href="/ssr-example" className="btn btn-outline-warning btn-sm w-100">
+                        View SSR Demo
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="col-md-6">
+                  <div className="card h-100">
+                    <div className="card-body">
+                      <h6 className="card-title">🛡️ Middleware</h6>
+                      <p className="card-text small">
+                        DPoP authentication in Next.js middleware
+                      </p>
+                      <a href="/middleware-dpop-demo" className="btn btn-outline-primary btn-sm w-100">
+                        View Middleware Demo
+                      </a>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="col-md-6">
+                  <div className="card h-100">
+                    <div className="card-body">
+                      <h6 className="card-title">⚡ Server Action</h6>
+                      <p className="card-text small">
+                        DPoP in Next.js Server Actions for form handling
+                      </p>
+                      <a href="/server-action-demo" className="btn btn-outline-success btn-sm w-100">
+                        View Server Action Demo
+                      </a>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
