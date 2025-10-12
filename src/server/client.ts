@@ -1,7 +1,14 @@
-import type { IncomingMessage, ServerResponse } from "node:http";
+import {
+  createPrivateKey,
+  createPublicKey,
+  createSign,
+  createVerify
+} from "crypto";
+import type { IncomingMessage, ServerResponse } from "http";
 import { cookies } from "next/headers.js";
 import { NextRequest, NextResponse } from "next/server.js";
 import { NextApiHandler, NextApiRequest, NextApiResponse } from "next/types.js";
+import { ProtectedResourceRequestBody } from "oauth4webapi";
 
 import {
   AccessTokenError,
@@ -9,17 +16,24 @@ import {
   AccessTokenForConnectionError,
   AccessTokenForConnectionErrorCode
 } from "../errors/index.js";
+import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
 import {
   AccessTokenForConnectionOptions,
   AuthorizationParameters,
   BackchannelAuthenticationOptions,
+  GetAccessTokenOptions,
   LogoutStrategy,
   SessionData,
   SessionDataStore,
   StartInteractiveLoginOptions,
   User
 } from "../types/index.js";
-import { DEFAULT_SCOPES } from "../utils/constants.js";
+import {
+  DEFAULT_DPOP_CLOCK_SKEW,
+  DEFAULT_DPOP_CLOCK_TOLERANCE,
+  DEFAULT_SCOPES,
+  MAX_RECOMMENDED_DPOP_CLOCK_TOLERANCE
+} from "../utils/constants.js";
 import { isRequest } from "../utils/request.js";
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
 import {
@@ -221,6 +235,23 @@ export interface Auth0ClientOptions {
   noContentProfileResponseWhenUnauthenticated?: boolean;
 
   enableParallelTransactions?: boolean;
+
+  /**
+   * If true, enables DPoP (Demonstrating Proof-of-Possession) for OAuth 2.0 token requests.
+   * DPoP provides sender-constraining for access tokens to prevent unauthorized token usage.
+   */
+  useDpop?: boolean;
+
+  /**
+   * The public/private key pair used for DPoP proof generation.
+   * If not provided and useDpop is true, keys will be loaded from environment variables.
+   */
+  dpopKeyPair?: DpopKeyPair;
+
+  /**
+   * Configuration options for DPoP validation and behavior.
+   */
+  dpopOptions?: DpopOptions;
 }
 
 export type PagesRouterRequest = IncomingMessage | NextApiRequest;
@@ -253,6 +284,12 @@ export class Auth0Client {
     const clientAssertionSigningAlg =
       options.clientAssertionSigningAlg ||
       process.env.AUTH0_CLIENT_ASSERTION_SIGNING_ALG;
+
+    // Validate DPoP configuration and resolve from environment variables if needed
+    const {
+      dpopKeyPair: resolvedDpopKeyPair,
+      dpopOptions: resolvedDpopOptions
+    } = this.validateDpopConfiguration(options);
 
     // Auto-detect base path for cookie configuration
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
@@ -352,7 +389,10 @@ export class Auth0Client {
       enableTelemetry: options.enableTelemetry,
       enableAccessTokenEndpoint: options.enableAccessTokenEndpoint,
       noContentProfileResponseWhenUnauthenticated:
-        options.noContentProfileResponseWhenUnauthenticated
+        options.noContentProfileResponseWhenUnauthenticated,
+      useDpop: options.useDpop || false,
+      dpopKeyPair: options.dpopKeyPair || resolvedDpopKeyPair,
+      dpopOptions: options.dpopOptions || resolvedDpopOptions
     });
   }
 
@@ -857,6 +897,222 @@ export class Auth0Client {
     };
   }
 
+  /**
+   * Makes authenticated requests to protected resources using either DPoP or Bearer token authentication.
+   * The authentication method is automatically selected based on the SDK configuration (DPoP if configured, Bearer otherwise).
+   *
+   * This method can be used in Server Components, Server Actions, and Route Handlers in the **App Router**.
+   *
+   * When calling protected APIs, the SDK will:
+   * - Use DPoP authentication if configured (via `useDpop` and `dpopKeyPair` options)
+   * - Fall back to Bearer token authentication if DPoP is not configured
+   * - Automatically handle token refresh if the access token is expired
+   *
+   * **Important**: This method must be called within a Next.js API route, Server Component,
+   * or Server Action where session context is available.
+   *
+   * ## Multi-API Token Selection
+   *
+   * When your application calls multiple APIs, you **must** specify the `accessTokenOptions.audience`
+   * parameter to ensure the correct access token is used. Without specifying the audience, the SDK
+   * will use the access token from the session, which may be intended for a different API.
+   *
+   *
+   * @param info The URL or Request object for the request
+   * @returns Promise resolving to the response from the protected resource
+   *
+   * @example
+   * ```typescript
+   * // Simple usage - uses session access token
+   * export const GET = async function() {
+   *   const response = await auth0.fetchWithAuth('http://localhost:3001/api/data');
+   *   const data = await response.json();
+   *   return NextResponse.json(data);
+   * };
+   * ```
+   */
+  async fetchWithAuth(info: RequestInfo | URL): Promise<Response>;
+
+  /**
+   * Makes authenticated requests to protected resources using either DPoP or Bearer token authentication.
+   * The authentication method is automatically selected based on the SDK configuration (DPoP if configured, Bearer otherwise).
+   *
+   * @param info The URL or Request object for the request
+   * @param init Request initialization options (method, headers, body, etc.)
+   * @returns Promise resolving to the response from the protected resource
+   *
+   * @example
+   * ```typescript
+   * // POST request with body
+   * export const POST = async function() {
+   *   const response = await auth0.fetchWithAuth(
+   *     'https://api.example.com/items',
+   *     {
+   *       method: 'POST',
+   *       headers: { 'Content-Type': 'application/json' },
+   *       body: JSON.stringify({ name: 'New Item' })
+   *     }
+   *   );
+   *   const result = await response.json();
+   *   return NextResponse.json(result);
+   * };
+   * ```
+   */
+  async fetchWithAuth(
+    info: RequestInfo | URL,
+    init: FetchWithAuthInit
+  ): Promise<Response>;
+
+  /**
+   * Makes authenticated requests to protected resources using either DPoP or Bearer token authentication.
+   * The authentication method is automatically selected based on the SDK configuration (DPoP if configured, Bearer otherwise).
+   *
+   * @param info The URL or Request object for the request
+   * @param init Request initialization options (method, headers, body, etc.)
+   * @param accessTokenOptions Options for fetching the access token, including audience and scope.
+   *                           **Required when calling multiple APIs** to ensure correct token selection.
+   * @returns Promise resolving to the response from the protected resource
+   *
+   * @example
+   * ```typescript
+   * // Multi-API: Specify audience for correct token
+   * export default async function Page() {
+   *   const response = await auth0.fetchWithAuth(
+   *     'https://api.example.com/profile',
+   *     { method: 'GET' },
+   *     { audience: 'https://api.example.com', scope: 'read:profile' }
+   *   );
+   *   const profile = await response.json();
+   *   return <div>{profile.name}</div>;
+   * }
+   * ```
+   *
+   * @example
+   * ```typescript
+   * // Request additional scopes beyond what was granted at login
+   * export const GET = async function() {
+   *   const response = await auth0.fetchWithAuth(
+   *     'https://api.example.com/admin/users',
+   *     { method: 'GET' },
+   *     {
+   *       audience: 'https://api.example.com',
+   *       scope: 'read:users admin:users' // More scopes than initially granted
+   *     }
+   *   );
+   *   const users = await response.json();
+   *   return NextResponse.json(users);
+   * };
+   * ```
+   *
+   * @example
+   * ```typescript
+   * // Force token refresh to get fresh access token
+   * export const GET = async function() {
+   *   const response = await auth0.fetchWithAuth(
+   *     'https://api.example.com/sensitive-data',
+   *     { method: 'GET' },
+   *     {
+   *       audience: 'https://api.example.com',
+   *       refresh: true // Force refresh even if current token is valid
+   *     }
+   *   );
+   *   const data = await response.json();
+   *   return NextResponse.json(data);
+   * };
+   * ```
+   *
+   * @example
+   * ```typescript
+   * // Application calling multiple APIs with different audiences
+   * export default async function Dashboard() {
+   *   // Get user profile from Profile API
+   *   const profileRes = await auth0.fetchWithAuth(
+   *     'https://profile-api.example.com/me',
+   *     { method: 'GET' },
+   *     { audience: 'https://profile-api.example.com' }
+   *   );
+   *   const profile = await profileRes.json();
+   *
+   *   // Get orders from Orders API (different audience)
+   *   const ordersRes = await auth0.fetchWithAuth(
+   *     'https://orders-api.example.com/my-orders',
+   *     { method: 'GET' },
+   *     { audience: 'https://orders-api.example.com' }
+   *   );
+   *   const orders = await ordersRes.json();
+   *
+   *   return (
+   *     <div>
+   *       <h1>{profile.name}</h1>
+   *       <OrdersList orders={orders} />
+   *     </div>
+   *   );
+   * }
+   * ```
+   */
+  async fetchWithAuth(
+    info: RequestInfo | URL,
+    init: FetchWithAuthInit,
+    accessTokenOptions: GetAccessTokenOptions
+  ): Promise<Response>;
+
+  /**
+   * Makes authenticated requests to protected resources.
+   */
+  async fetchWithAuth(
+    info: RequestInfo | URL,
+    init?: FetchWithAuthInit,
+    accessTokenOptions?: GetAccessTokenOptions
+  ): Promise<Response> {
+    // Get session from current Next.js context
+    const session = await this.getSession();
+
+    if (!session) {
+      throw new Error(
+        "No active session found. User must be authenticated to use fetchWithAuth."
+      );
+    }
+
+    // Provide default options if not specified
+    const finalAccessTokenOptions: GetAccessTokenOptions =
+      accessTokenOptions ?? {};
+
+    // Extract request details from info and init
+    let url: string;
+    let method = "GET";
+    let headers: HeadersInit = {};
+    let body: ProtectedResourceRequestBody | undefined;
+
+    if (typeof info === "string") {
+      url = info;
+    } else if (info instanceof URL) {
+      url = info.toString();
+    } else {
+      // info is a Request object
+      url = info.url;
+      method = info.method;
+      headers = info.headers;
+      body = info.body;
+    }
+
+    // Override with init values if provided
+    if (init) {
+      if (init.method) method = init.method;
+      if (init.headers) headers = init.headers;
+      if (init.body !== undefined) body = init.body;
+    }
+
+    // Make the protected request
+    return this.authClient.executeProtectedRequest({
+      url,
+      method,
+      headers,
+      body,
+      session,
+      accessTokenOptions: finalAccessTokenOptions
+    });
+  }
+
   private async saveToSession(
     data: SessionData,
     req?: PagesRouterRequest | NextRequest,
@@ -969,15 +1225,299 @@ export class Auth0Client {
       [K in keyof typeof result]: NonNullable<(typeof result)[K]>;
     };
   }
+
+  /**
+   * Validates DPoP configuration and returns keypair and options if available.
+   * Attempts to load from environment variables if not provided in options.
+   *
+   * **Performance Note - Synchronous Key Loading:**
+   * Key loading and validation are performed synchronously during client initialization.
+   * This happens in the constructor and blocks the event loop. For production deployments:
+   *
+   * - **Best Practice**: Pre-load keys and pass them via `dpopKeyPair` option
+   * - **Alternative**: Load keys at module initialization (outside request handlers)
+   * - **Impact**: Typically occurs once at startup, but can affect cold starts
+   *
+   * **Security-sensitive configuration:**
+   * - `clockSkew`: Difference between client and server clocks (default: {@link DEFAULT_DPOP_CLOCK_SKEW})
+   * - `clockTolerance`: Acceptable time drift for DPoP proof validation (default: {@link DEFAULT_DPOP_CLOCK_TOLERANCE}, max recommended: {@link MAX_RECOMMENDED_DPOP_CLOCK_TOLERANCE})
+   *
+   * Values exceeding {@link MAX_RECOMMENDED_DPOP_CLOCK_TOLERANCE} will trigger a warning but are not enforced.
+   * Excessively large clock tolerance values may weaken DPoP security by allowing replay attacks within a
+   * wider time window. Prefer synchronizing server clocks using NTP instead of increasing tolerance.
+   *
+   * @param options The client options
+   * @returns Object containing DpopKeyPair and DpopOptions if available
+   */
+  private validateDpopConfiguration(options: Auth0ClientOptions): {
+    dpopKeyPair?: DpopKeyPair;
+    dpopOptions?: DpopOptions;
+  } {
+    const useDpop = options.useDpop || false;
+
+    // Build DPoP options with defaults from environment variables or provided options
+    const clockTolerance =
+      options.dpopOptions?.clockTolerance ??
+      (process.env.AUTH0_DPOP_CLOCK_TOLERANCE
+        ? parseInt(process.env.AUTH0_DPOP_CLOCK_TOLERANCE, 10)
+        : DEFAULT_DPOP_CLOCK_TOLERANCE);
+
+    // Warn if clock tolerance exceeds recommended maximum (but don't enforce)
+    if (clockTolerance > MAX_RECOMMENDED_DPOP_CLOCK_TOLERANCE) {
+      console.warn(
+        `WARNING: clockTolerance of ${clockTolerance}s exceeds recommended maximum of ${MAX_RECOMMENDED_DPOP_CLOCK_TOLERANCE}s. ` +
+          "This may weaken DPoP security by allowing replay attacks within a wider time window. " +
+          "Consider synchronizing server clocks using NTP instead of increasing tolerance."
+      );
+    }
+
+    const dpopOptions: DpopOptions = {
+      clockSkew:
+        options.dpopOptions?.clockSkew ??
+        (process.env.AUTH0_DPOP_CLOCK_SKEW
+          ? parseInt(process.env.AUTH0_DPOP_CLOCK_SKEW, 10)
+          : DEFAULT_DPOP_CLOCK_SKEW),
+      clockTolerance
+    };
+
+    // If we already have a keypair, return it with options
+    if (options.dpopKeyPair) {
+      return {
+        dpopKeyPair: options.dpopKeyPair,
+        dpopOptions
+      };
+    }
+
+    // If DPoP is enabled but no keypair provided, check if environment variables exist
+    if (useDpop) {
+      const privateKeyPem = process.env.AUTH0_DPOP_PRIVATE_KEY;
+      const publicKeyPem = process.env.AUTH0_DPOP_PUBLIC_KEY;
+
+      if (privateKeyPem && publicKeyPem) {
+        try {
+          // Note: Key loading is performed synchronously during initialization.
+          // Ensure keys are pre-loaded or cached to avoid blocking the event loop.
+          const privateKeyNodeJS = createPrivateKey(privateKeyPem);
+          const publicKeyNodeJS = createPublicKey(publicKeyPem);
+
+          // Validate algorithm compatibility for ES256
+          if (privateKeyNodeJS.asymmetricKeyType !== "ec") {
+            throw new Error(
+              "DPoP private key must be an Elliptic Curve (EC) key for ES256 algorithm"
+            );
+          }
+
+          if (publicKeyNodeJS.asymmetricKeyType !== "ec") {
+            throw new Error(
+              "DPoP public key must be an Elliptic Curve (EC) key for ES256 algorithm"
+            );
+          }
+
+          // Validate key pair compatibility
+          const isKeyPairValid = this.validateKeyPairCompatibility(
+            privateKeyNodeJS,
+            publicKeyNodeJS
+          );
+
+          if (!isKeyPairValid) {
+            // Key pair validation failed, disable DPoP keypair but keep options for potential future use
+            // Return dpopOptions but explicitly no keypair to fallback to bearer auth
+            return { dpopKeyPair: undefined, dpopOptions };
+          }
+
+          // Convert NodeJS KeyObjects to CryptoKeys synchronously
+          const privateKey = privateKeyNodeJS.toCryptoKey("ES256", false, [
+            "sign"
+          ]);
+          const publicKey = publicKeyNodeJS.toCryptoKey("ES256", false, [
+            "verify"
+          ]);
+
+          return {
+            dpopKeyPair: { privateKey, publicKey },
+            dpopOptions
+          };
+        } catch (error) {
+          console.warn(
+            "WARNING: Failed to load DPoP keypair from environment variables. " +
+              "Please ensure AUTH0_DPOP_PUBLIC_KEY and AUTH0_DPOP_PRIVATE_KEY contain valid ES256 keys in PEM format. " +
+              `Error: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
+      }
+
+      if (!privateKeyPem || !publicKeyPem) {
+        // Issue warning if no keypair is available
+        console.warn(
+          "WARNING: useDpop is set to true but dpopKeyPair is not provided. " +
+            "DPoP will not be used and protected requests will use bearer authentication instead. " +
+            "To enable DPoP, provide a dpopKeyPair in the Auth0Client options or set " +
+            "AUTH0_DPOP_PUBLIC_KEY and AUTH0_DPOP_PRIVATE_KEY environment variables."
+        );
+      }
+    }
+
+    // No DPoP keypair available or DPoP disabled, return only options
+    return { dpopKeyPair: undefined, dpopOptions };
+  }
+
+  /**
+   * Validates that a private and public key form a compatible key pair
+   * by attempting to sign and verify a test message.
+   * @returns true if keys are compatible, false otherwise
+   */
+  private validateKeyPairCompatibility(
+    privateKey: CryptoKey | any,
+    publicKey: CryptoKey | any
+  ): boolean {
+    try {
+      // Create test data
+      const testData = "test-data-for-key-pair-validation";
+
+      // Sign with private key
+      const sign = createSign("sha256");
+      sign.update(testData);
+      const signature = sign.sign(privateKey);
+
+      // Verify with public key
+      const verify = createVerify("sha256");
+      verify.update(testData);
+      const isValid = verify.verify(publicKey, signature);
+
+      if (!isValid) {
+        console.warn(
+          "WARNING: Private and public keys do not form a valid key pair - signature verification failed. " +
+            "Please ensure the keys are properly paired and in the correct format. " +
+            "DPoP will be disabled and bearer authentication will be used instead."
+        );
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.warn(
+        "WARNING: Failed to validate key pair compatibility. " +
+          "This may indicate invalid key format, mismatched algorithms, or corrupted key data. " +
+          "DPoP will be disabled and bearer authentication will be used instead. " +
+          `Error: ${error instanceof Error ? error.message : String(error)}`
+      );
+      return false;
+    }
+  }
+
+  /**
+   * Creates a configured server-side fetcher instance with support for base URLs.
+   *
+   * This provides a clean way to configure fetchWithAuth behavior with base URL resolution
+   * while maintaining access to the Auth0Client's session context and DPoP functionality.
+   *
+   * @param config Configuration options for the fetcher
+   * @returns A configured fetcher instance with fetchWithAuth method
+   *
+   * @example
+   * ```typescript
+   * import { auth0 } from '@/lib/auth0';
+   *
+   * // Basic usage
+   * const fetcher = auth0.createFetcher();
+   * const response = await fetcher.fetchWithAuth('/api/data');
+   *
+   * // With base URL
+   * const apiFetcher = auth0.createFetcher({
+   *   baseUrl: 'https://api.example.com'
+   * });
+   * const response = await apiFetcher.fetchWithAuth('/users/profile');
+   * ```
+   */
+  createFetcher(config: { baseUrl?: string } = {}) {
+    return {
+      fetchWithAuth: async (
+        info: RequestInfo | URL,
+        init?: FetchWithAuthInit
+      ): Promise<Response> => {
+        const resolvedInfo = this.resolveUrl(info, config.baseUrl);
+        // Match test expectations by explicitly calling with undefined when needed
+        if (init === undefined) {
+          return (this.fetchWithAuth as any)(resolvedInfo, undefined);
+        } else {
+          return this.fetchWithAuth(resolvedInfo, init);
+        }
+      }
+    };
+  }
+
+  /**
+   * Resolve URL by applying base URL if the URL is relative
+   */
+  private resolveUrl(
+    info: RequestInfo | URL,
+    baseUrl?: string
+  ): RequestInfo | URL {
+    if (!baseUrl) {
+      return info;
+    }
+
+    if (typeof info === "string") {
+      return this.isAbsoluteUrl(info) ? info : this.buildUrl(baseUrl, info);
+    } else if (info instanceof URL) {
+      return info; // URL objects are always absolute
+    } else {
+      // info is a Request object
+      if (this.isAbsoluteUrl(info.url)) {
+        return info;
+      }
+
+      // Create a new Request with resolved URL
+      const resolvedUrl = this.buildUrl(baseUrl, info.url);
+      return new Request(resolvedUrl, {
+        method: info.method,
+        headers: info.headers,
+        body: info.body,
+        mode: info.mode,
+        credentials: info.credentials,
+        cache: info.cache,
+        redirect: info.redirect,
+        referrer: info.referrer,
+        integrity: info.integrity,
+        // Add duplex option if body is present
+        ...(info.body && { duplex: "half" as any })
+      });
+    }
+  }
+
+  /**
+   * Check if a URL is absolute (has protocol)
+   */
+  private isAbsoluteUrl(url: string): boolean {
+    return /^(https?:)?\/\//i.test(url);
+  }
+
+  /**
+   * Build a complete URL from base URL and path
+   */
+  private buildUrl(baseUrl: string, path: string): string {
+    // Remove trailing slash from baseUrl and leading slash from path
+    const cleanBaseUrl = baseUrl.replace(/\/$/, "");
+    const cleanPath = path.replace(/^\//, "");
+
+    return `${cleanBaseUrl}/${cleanPath}`;
+  }
 }
 
-export type GetAccessTokenOptions = {
-  refresh?: boolean;
-  scope?: string;
+/**
+ * Request initialization options for fetchWithAuth.
+ * Similar to RequestInit but uses ProtectedResourceRequestBody for the body type.
+ */
+export type FetchWithAuthInit = {
+  method?: string;
+  headers?: HeadersInit;
   /**
-   * Please note: If you are passing audience, ensure that the used audiences and scopes are
-   * part of the Application's Refresh Token Policies in Auth0 when configuring Multi-Resource Refresh Tokens (MRRT).
-   * {@link https://auth0.com/docs/secure/tokens/refresh-tokens/multi-resource-refresh-token|See Auth0 Documentation on Multi-resource Refresh Tokens}
+   * Request body compatible with oauth4webapi's ProtectedResourceRequestBody.
+   * Supported types: string, URLSearchParams, ArrayBuffer, Uint8Array, ReadableStream<Uint8Array>
+   *
+   * Note: Blob and FormData are not supported. Convert them to supported types before use:
+   * - Blob: Use `await blob.arrayBuffer()`
+   * - FormData: Convert to URLSearchParams (loses file data) or use a different approach
    */
-  audience?: string;
+  body?: ProtectedResourceRequestBody;
 };

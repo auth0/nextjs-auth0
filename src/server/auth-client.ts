@@ -16,11 +16,14 @@ import {
   BackchannelAuthenticationNotSupportedError,
   BackchannelLogoutError,
   DiscoveryError,
+  DPoPError,
+  DPoPErrorCode,
   InvalidStateError,
   MissingStateError,
   OAuth2Error,
   SdkError
 } from "../errors/index.js";
+import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
 import {
   AccessTokenForConnectionOptions,
   AccessTokenSet,
@@ -28,6 +31,7 @@ import {
   BackchannelAuthenticationOptions,
   BackchannelAuthenticationResponse,
   ConnectionTokenSet,
+  GetAccessTokenOptions,
   LogoutStrategy,
   LogoutToken,
   SessionData,
@@ -106,6 +110,28 @@ const GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN =
 const REQUESTED_TOKEN_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN =
   "http://auth0.com/oauth/token-type/federated-connection-access-token";
 
+/**
+ * Executes a function with retry logic for DPoP nonce errors.
+ * Implements a small delay (100ms) before retrying to avoid rapid successive requests.
+ *
+ * @param fn - The async function to execute
+ * @returns The result of the function execution
+ * @throws The original error if it's not a DPoP nonce error or if retry fails
+ */
+async function withDPoPNonceRetry<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (e: any) {
+    if (oauth.isDPoPNonceError(e)) {
+      // Small delay before retry to avoid rapid successive requests
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      // The RS-signalled nonce is now cached, retrying
+      return await fn();
+    }
+    throw e;
+  }
+}
+
 export interface Routes {
   login: string;
   logout: string;
@@ -149,6 +175,10 @@ export interface AuthClientOptions {
   enableTelemetry?: boolean;
   enableAccessTokenEndpoint?: boolean;
   noContentProfileResponseWhenUnauthenticated?: boolean;
+
+  useDpop?: boolean;
+  dpopKeyPair?: DpopKeyPair;
+  dpopOptions?: DpopOptions;
 }
 
 function createRouteUrl(path: string, baseUrl: string) {
@@ -190,6 +220,9 @@ export class AuthClient {
 
   private readonly enableAccessTokenEndpoint: boolean;
   private readonly noContentProfileResponseWhenUnauthenticated: boolean;
+
+  private dpopHandle?: oauth.DPoPHandle;
+  private dpopKeyPair?: DpopKeyPair;
 
   constructor(options: AuthClientOptions) {
     // dependencies
@@ -235,6 +268,17 @@ export class AuthClient {
     // authorization server
     this.domain = options.domain;
     this.clientMetadata = { client_id: options.clientId };
+
+    // Apply DPoP timing validation options to client metadata if provided
+    if (options.dpopOptions) {
+      if (typeof options.dpopOptions.clockSkew === "number") {
+        this.clientMetadata[oauth.clockSkew] = options.dpopOptions.clockSkew;
+      }
+      if (typeof options.dpopOptions.clockTolerance === "number") {
+        this.clientMetadata[oauth.clockTolerance] =
+          options.dpopOptions.clockTolerance;
+      }
+    }
     this.clientSecret = options.clientSecret;
     this.authorizationParameters = options.authorizationParameters || {
       scope: DEFAULT_SCOPES
@@ -288,6 +332,12 @@ export class AuthClient {
     this.enableAccessTokenEndpoint = options.enableAccessTokenEndpoint ?? true;
     this.noContentProfileResponseWhenUnauthenticated =
       options.noContentProfileResponseWhenUnauthenticated ?? false;
+
+    // Initialize DPoP if enabled. Check useDpop flag first to avoid timing attacks.
+    if ((options.useDpop ?? false) && options.dpopKeyPair) {
+      this.dpopHandle = oauth.DPoP(this.clientMetadata, options.dpopKeyPair);
+      this.dpopKeyPair = options.dpopKeyPair;
+    }
   }
 
   async handler(req: NextRequest): Promise<NextResponse> {
@@ -379,6 +429,22 @@ export class AuthClient {
     authorizationParams.set("code_challenge_method", codeChallengeMethod);
     authorizationParams.set("state", state);
     authorizationParams.set("nonce", nonce);
+
+    // Add dpop_jkt parameter if DPoP is enabled
+    if (this.dpopHandle && this.dpopKeyPair) {
+      try {
+        const publicKeyJwk = await jose.exportJWK(this.dpopKeyPair.publicKey);
+        const dpopJkt = await jose.calculateJwkThumbprint(publicKeyJwk);
+        authorizationParams.set("dpop_jkt", dpopJkt);
+      } catch (error) {
+        throw new DPoPError(
+          DPoPErrorCode.DPOP_JKT_CALCULATION_FAILED,
+          "DPoP is enabled but failed to calculate key thumbprint (dpop_jkt). " +
+            "This is required for secure DPoP binding. Please check your key configuration.",
+          error instanceof Error ? error : undefined
+        );
+      }
+    }
 
     // Prepare transaction state
     const transactionState: TransactionState = {
@@ -585,21 +651,27 @@ export class AuthClient {
     }
 
     let codeGrantResponse: Response;
+    let redirectUri: URL;
+    let authorizationCodeGrantRequestCall: () => Promise<Response>;
+
     try {
-      const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registered with the authorization server
-      codeGrantResponse = await oauth.authorizationCodeGrantRequest(
-        authorizationServerMetadata,
-        this.clientMetadata,
-        await this.getClientAuth(),
-        codeGrantParams,
-        redirectUri.toString(),
-        transactionState.codeVerifier,
-        {
-          ...this.httpOptions(),
-          [oauth.customFetch]: this.fetch,
-          [oauth.allowInsecureRequests]: this.allowInsecureRequests
-        }
-      );
+      redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registered with the authorization server
+      authorizationCodeGrantRequestCall = async () =>
+        oauth.authorizationCodeGrantRequest(
+          authorizationServerMetadata,
+          this.clientMetadata,
+          await this.getClientAuth(),
+          codeGrantParams,
+          redirectUri.toString(),
+          transactionState.codeVerifier,
+          {
+            ...this.httpOptions(),
+            [oauth.customFetch]: this.fetch,
+            [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+            DPoP: this.dpopHandle
+          }
+        );
+      codeGrantResponse = await authorizationCodeGrantRequestCall();
     } catch (e: any) {
       return this.handleCallbackError(
         new AuthorizationCodeGrantRequestError(e.message),
@@ -608,10 +680,8 @@ export class AuthClient {
         state
       );
     }
-
-    let oidcRes: oauth.TokenEndpointResponse;
-    try {
-      oidcRes = await oauth.processAuthorizationCodeResponse(
+    const processAuthorizationCodeResponseCall = async () =>
+      oauth.processAuthorizationCodeResponse(
         authorizationServerMetadata,
         this.clientMetadata,
         codeGrantResponse,
@@ -621,6 +691,12 @@ export class AuthClient {
           requireIdToken: true
         }
       );
+    let oidcRes: oauth.TokenEndpointResponse;
+    try {
+      oidcRes = await withDPoPNonceRetry(async () => {
+        codeGrantResponse = await authorizationCodeGrantRequestCall();
+        return await processAuthorizationCodeResponseCall();
+      });
     } catch (e: any) {
       return this.handleCallbackError(
         new AuthorizationCodeGrantError({
@@ -730,7 +806,10 @@ export class AuthClient {
     const res = NextResponse.json({
       token: updatedTokenSet.accessToken,
       scope: updatedTokenSet.scope,
-      expires_at: updatedTokenSet.expiresAt
+      expires_at: updatedTokenSet.expiresAt,
+      ...(updatedTokenSet.token_type && {
+        token_type: updatedTokenSet.token_type
+      })
     });
 
     const sessionChanges = getSessionChangesAfterGetAccessToken(
@@ -861,11 +940,7 @@ export class AuthClient {
    */
   async getTokenSet(
     sessionData: SessionData,
-    options: {
-      refresh?: boolean | undefined;
-      scope?: string | null;
-      audience?: string | null;
-    } = {}
+    options: GetAccessTokenOptions = {}
   ): Promise<[null, GetTokenSetResponse] | [SdkError, null]> {
     // This will merge the scopes from the authorization parameters and the options.
     // The scope from the options will be added to the scopes from the authorization parameters.
@@ -937,26 +1012,34 @@ export class AuthClient {
           additionalParameters.append("audience", options.audience);
         }
 
-        const refreshTokenRes = await oauth.refreshTokenGrantRequest(
-          authorizationServerMetadata,
-          this.clientMetadata,
-          await this.getClientAuth(),
-          tokenSet.refreshToken,
-          {
-            ...this.httpOptions(),
-            [oauth.customFetch]: this.fetch,
-            [oauth.allowInsecureRequests]: this.allowInsecureRequests,
-            additionalParameters
-          }
-        );
+        const refreshTokenGrantRequestCall = async () =>
+          oauth.refreshTokenGrantRequest(
+            authorizationServerMetadata,
+            this.clientMetadata,
+            await this.getClientAuth(),
+            tokenSet.refreshToken!,
+            {
+              ...this.httpOptions(),
+              [oauth.customFetch]: this.fetch,
+              [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+              additionalParameters,
+              DPoP: this.dpopHandle
+            }
+          );
+
+        const processRefreshTokenResponseCall = (response: Response) =>
+          oauth.processRefreshTokenResponse(
+            authorizationServerMetadata,
+            this.clientMetadata,
+            response
+          );
 
         let oauthRes: oauth.TokenEndpointResponse;
         try {
-          oauthRes = await oauth.processRefreshTokenResponse(
-            authorizationServerMetadata,
-            this.clientMetadata,
-            refreshTokenRes
-          );
+          oauthRes = await withDPoPNonceRetry(async () => {
+            const refreshTokenRes = await refreshTokenGrantRequestCall();
+            return await processRefreshTokenResponseCall(refreshTokenRes);
+          });
         } catch (e: any) {
           return [
             new AccessTokenError(
@@ -994,7 +1077,9 @@ export class AuthClient {
           expiresAt: accessTokenExpiresAt,
           // Keep the audience if it exists, otherwise use the one from the options.
           // If not provided, use `undefined`.
-          audience: tokenSet.audience || options.audience || undefined
+          audience: tokenSet.audience || options.audience || undefined,
+          // Store the token type from the OAuth response (e.g., "Bearer", "DPoP")
+          ...(oauthRes.token_type && { token_type: oauthRes.token_type })
         };
 
         if (oauthRes.refresh_token) {
@@ -1466,25 +1551,33 @@ export class AuthClient {
         return [discoveryError, null];
       }
 
-      const httpResponse = await oauth.genericTokenEndpointRequest(
-        authorizationServerMetadata,
-        this.clientMetadata,
-        await this.getClientAuth(),
-        GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN,
-        params,
-        {
-          [oauth.customFetch]: this.fetch,
-          [oauth.allowInsecureRequests]: this.allowInsecureRequests
-        }
-      );
+      const genericTokenEndpointRequestCall = async () =>
+        oauth.genericTokenEndpointRequest(
+          authorizationServerMetadata,
+          this.clientMetadata,
+          await this.getClientAuth(),
+          GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN,
+          params,
+          {
+            [oauth.customFetch]: this.fetch,
+            [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+            DPoP: this.dpopHandle
+          }
+        );
+
+      const processGenericTokenEndpointResponseCall = (response: Response) =>
+        oauth.processGenericTokenEndpointResponse(
+          authorizationServerMetadata,
+          this.clientMetadata,
+          response
+        );
 
       let tokenEndpointResponse: oauth.TokenEndpointResponse;
       try {
-        tokenEndpointResponse = await oauth.processGenericTokenEndpointResponse(
-          authorizationServerMetadata,
-          this.clientMetadata,
-          httpResponse
-        );
+        tokenEndpointResponse = await withDPoPNonceRetry(async () => {
+          const httpResponse = await genericTokenEndpointRequestCall();
+          return await processGenericTokenEndpointResponseCall(httpResponse);
+        });
       } catch (err: any) {
         return [
           new AccessTokenForConnectionError(
@@ -1564,6 +1657,7 @@ export class AuthClient {
       const headers = new Headers(args[1].headers);
       return this.fetch(args[0], {
         ...args[1],
+        body: args[1].body as BodyInit | null | undefined,
         headers: new Headers([...telemetryHeaders, ...headers])
       });
     };
@@ -1575,6 +1669,91 @@ export class AuthClient {
     }
 
     return [null, openidClientConfig];
+  }
+
+  /**
+   * Execute an authenticated request to a protected resource using DPoP or Bearer token authentication.
+   * The authentication method is automatically determined by the presence of the DPoP handle.
+   * This method is used internally by Auth0Client.fetchWithAuth.
+   *
+   * @param params The request parameters including session
+   * @returns Promise resolving to the response from the protected resource
+   */
+  async executeProtectedRequest(params: {
+    url: string;
+    method?: string;
+    headers?: HeadersInit;
+    body?: import("oauth4webapi").ProtectedResourceRequestBody;
+    session: SessionData;
+    accessTokenOptions: GetAccessTokenOptions;
+  }): Promise<Response> {
+    const { url, method = "GET", headers, body, session } = params;
+
+    // Validate URL
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(url);
+    } catch (error) {
+      throw new Error(`Invalid URL: ${url}`);
+    }
+
+    // Ensure authorization server metadata is available for oauth4webapi
+    const [discoveryError, _authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      throw discoveryError;
+    }
+
+    // Convert HeadersInit to Headers if needed
+    let requestHeaders: Headers | undefined;
+    if (headers) {
+      requestHeaders =
+        headers instanceof Headers ? headers : new Headers(headers);
+    }
+
+    // Body is already ProtectedResourceRequestBody - no conversion needed
+    const requestBody = body;
+
+    const [error, getTokenSetResponse] = await this.getTokenSet(
+      session,
+      params.accessTokenOptions
+    );
+
+    if (error) {
+      return NextResponse.json(
+        {
+          error: {
+            message: error.message,
+            code: error.code
+          }
+        },
+        {
+          status: 401
+        }
+      );
+    }
+
+    // Make (DPoP)-authenticated request with retry logic for nonce errors
+    const response = await withDPoPNonceRetry(() => {
+      return oauth.protectedResourceRequest(
+        getTokenSetResponse.tokenSet.accessToken,
+        method,
+        parsedUrl,
+        requestHeaders,
+        requestBody,
+        {
+          ...this.httpOptions(),
+          [oauth.customFetch]: (url: string, options: any) => {
+            return this.fetch(url, options);
+          },
+          [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+          DPoP: this.dpopHandle
+        }
+      );
+    });
+
+    return response;
   }
 }
 
