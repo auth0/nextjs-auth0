@@ -1,10 +1,3 @@
-import {
-  createPrivateKey,
-  createPublicKey,
-  createSign,
-  createVerify,
-  KeyObject
-} from "crypto";
 import type { IncomingMessage, ServerResponse } from "http";
 import { cookies } from "next/headers.js";
 import { NextRequest, NextResponse } from "next/server.js";
@@ -29,14 +22,8 @@ import {
   StartInteractiveLoginOptions,
   User
 } from "../types/index.js";
-import {
-  DEFAULT_DPOP_CLOCK_SKEW,
-  DEFAULT_DPOP_CLOCK_TOLERANCE,
-  DEFAULT_RETRY_DELAY,
-  DEFAULT_RETRY_JITTER,
-  DEFAULT_SCOPES,
-  MAX_RECOMMENDED_DPOP_CLOCK_TOLERANCE
-} from "../utils/constants.js";
+import { DEFAULT_SCOPES } from "../utils/constants.js";
+import { validateDpopConfiguration } from "../utils/dpopUtils.js";
 import { isRequest } from "../utils/request.js";
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
 import {
@@ -394,7 +381,7 @@ export class Auth0Client {
     const {
       dpopKeyPair: resolvedDpopKeyPair,
       dpopOptions: resolvedDpopOptions
-    } = this.validateDpopConfiguration(options);
+    } = validateDpopConfiguration(options);
 
     // Auto-detect base path for cookie configuration
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
@@ -1113,220 +1100,6 @@ export class Auth0Client {
     return result as {
       [K in keyof typeof result]: NonNullable<(typeof result)[K]>;
     };
-  }
-
-  /**
-   * Validates DPoP configuration and returns keypair and options if available.
-   * Attempts to load from environment variables if not provided in options.
-   *
-   * **Performance Note - Synchronous Key Loading:**
-   * Key loading and validation are performed synchronously during client initialization.
-   * This happens in the constructor and blocks the event loop. For production deployments:
-   *
-   * - **Best Practice**: Pre-load keys and pass them via `dpopKeyPair` option
-   * - **Alternative**: Load keys at module initialization (outside request handlers)
-   * - **Impact**: Typically occurs once at startup, but can affect cold starts
-   *
-   * **Security-sensitive configuration:**
-   * - `clockSkew`: Difference between client and server clocks (default: {@link DEFAULT_DPOP_CLOCK_SKEW})
-   * - `clockTolerance`: Acceptable time drift for DPoP proof validation (default: {@link DEFAULT_DPOP_CLOCK_TOLERANCE}, max recommended: {@link MAX_RECOMMENDED_DPOP_CLOCK_TOLERANCE})
-   *
-   * Values exceeding {@link MAX_RECOMMENDED_DPOP_CLOCK_TOLERANCE} will trigger a warning but are not enforced.
-   * Excessively large clock tolerance values may weaken DPoP security by allowing replay attacks within a
-   * wider time window. Prefer synchronizing server clocks using NTP instead of increasing tolerance.
-   *
-   * @param options The client options
-   * @returns Object containing DpopKeyPair and DpopOptions if available
-   */
-  private validateDpopConfiguration(options: Auth0ClientOptions): {
-    dpopKeyPair?: DpopKeyPair;
-    dpopOptions?: DpopOptions;
-  } {
-    const useDpop = options.useDpop || false;
-
-    // Build DPoP options with defaults from environment variables or provided options
-    const clockTolerance =
-      options.dpopOptions?.clockTolerance ??
-      (process.env.AUTH0_DPOP_CLOCK_TOLERANCE
-        ? parseInt(process.env.AUTH0_DPOP_CLOCK_TOLERANCE, 10)
-        : DEFAULT_DPOP_CLOCK_TOLERANCE);
-
-    // Warn if clock tolerance exceeds recommended maximum (but don't enforce)
-    if (clockTolerance > MAX_RECOMMENDED_DPOP_CLOCK_TOLERANCE) {
-      const productionMaxTolerance = process.env
-        .AUTH0_DPOP_CLOCK_TOLERANCE_MAX_PROD
-        ? parseInt(process.env.AUTH0_DPOP_CLOCK_TOLERANCE_MAX_PROD, 10)
-        : MAX_RECOMMENDED_DPOP_CLOCK_TOLERANCE;
-
-      if (
-        process.env.NODE_ENV === "production" &&
-        clockTolerance > productionMaxTolerance
-      ) {
-        throw new Error(
-          `clockTolerance of ${clockTolerance}s exceeds maximum allowed ${productionMaxTolerance}s in production. ` +
-            "This could significantly weaken DPoP replay attack protection. " +
-            "Set AUTH0_DPOP_CLOCK_TOLERANCE_MAX_PROD environment variable to override this limit in production."
-        );
-      }
-
-      console.warn(
-        `WARNING: clockTolerance of ${clockTolerance}s exceeds recommended maximum of ${MAX_RECOMMENDED_DPOP_CLOCK_TOLERANCE}s. ` +
-          "This may weaken DPoP security by allowing replay attacks within a wider time window. " +
-          "Consider synchronizing server clocks using NTP instead of increasing tolerance."
-      );
-    }
-
-    const dpopOptions: DpopOptions = {
-      clockSkew:
-        options.dpopOptions?.clockSkew ??
-        (process.env.AUTH0_DPOP_CLOCK_SKEW
-          ? parseInt(process.env.AUTH0_DPOP_CLOCK_SKEW, 10)
-          : DEFAULT_DPOP_CLOCK_SKEW),
-      clockTolerance,
-      retry: {
-        delay:
-          options.dpopOptions?.retry?.delay ??
-          (process.env.AUTH0_RETRY_DELAY
-            ? parseInt(process.env.AUTH0_RETRY_DELAY, 10)
-            : DEFAULT_RETRY_DELAY),
-        jitter:
-          options.dpopOptions?.retry?.jitter ??
-          (process.env.AUTH0_RETRY_JITTER
-            ? process.env.AUTH0_RETRY_JITTER === "true"
-            : DEFAULT_RETRY_JITTER)
-      }
-    };
-
-    // Validate retry configuration
-    if (dpopOptions.retry!.delay! < 0) {
-      throw new Error("Retry delay must be non-negative");
-    }
-
-    // If we already have a keypair, return it with options
-    if (options.dpopKeyPair) {
-      return {
-        dpopKeyPair: options.dpopKeyPair,
-        dpopOptions
-      };
-    }
-
-    // If DPoP is enabled but no keypair provided, check if environment variables exist
-    if (useDpop) {
-      const privateKeyPem = process.env.AUTH0_DPOP_PRIVATE_KEY;
-      const publicKeyPem = process.env.AUTH0_DPOP_PUBLIC_KEY;
-
-      if (privateKeyPem && publicKeyPem) {
-        try {
-          // Note: Key loading is performed synchronously during initialization.
-          // Ensure keys are pre-loaded or cached to avoid blocking the event loop.
-          const privateKeyNodeJS = createPrivateKey(privateKeyPem);
-          const publicKeyNodeJS = createPublicKey(publicKeyPem);
-
-          const privateKeyDetails = privateKeyNodeJS.asymmetricKeyDetails;
-          const publicKeyDetails = publicKeyNodeJS.asymmetricKeyDetails;
-
-          if (privateKeyDetails?.namedCurve !== "prime256v1") {
-            throw new Error(
-              `DPoP private key must use P-256 curve (prime256v1), got: ${privateKeyDetails?.namedCurve}`
-            );
-          }
-
-          if (publicKeyDetails?.namedCurve !== "prime256v1") {
-            throw new Error(
-              `DPoP public key must use P-256 curve (prime256v1), got: ${publicKeyDetails?.namedCurve}`
-            );
-          }
-
-          // Validate key pair compatibility
-          const isKeyPairValid = this.validateKeyPairCompatibility(
-            privateKeyNodeJS,
-            publicKeyNodeJS
-          );
-
-          if (!isKeyPairValid) {
-            // Key pair validation failed, disable DPoP keypair but keep options for potential future use
-            // Return dpopOptions but explicitly no keypair to fallback to bearer auth
-            return { dpopKeyPair: undefined, dpopOptions };
-          }
-
-          // Convert NodeJS KeyObjects to CryptoKeys synchronously
-          const privateKey = privateKeyNodeJS.toCryptoKey("ES256", false, [
-            "sign"
-          ]);
-          const publicKey = publicKeyNodeJS.toCryptoKey("ES256", false, [
-            "verify"
-          ]);
-
-          return {
-            dpopKeyPair: { privateKey, publicKey },
-            dpopOptions
-          };
-        } catch (error) {
-          console.warn(
-            "WARNING: Failed to load DPoP keypair from environment variables. " +
-              "Please ensure AUTH0_DPOP_PUBLIC_KEY and AUTH0_DPOP_PRIVATE_KEY contain valid ES256 keys in PEM format. " +
-              `Error: ${error instanceof Error ? error.message : String(error)}`
-          );
-        }
-      }
-
-      if (!privateKeyPem || !publicKeyPem) {
-        // Issue warning if no keypair is available
-        console.warn(
-          "WARNING: useDpop is set to true but dpopKeyPair is not provided. " +
-            "DPoP will not be used and protected requests will use bearer authentication instead. " +
-            "To enable DPoP, provide a dpopKeyPair in the Auth0Client options or set " +
-            "AUTH0_DPOP_PUBLIC_KEY and AUTH0_DPOP_PRIVATE_KEY environment variables."
-        );
-      }
-    }
-
-    // No DPoP keypair available or DPoP disabled, return only options
-    return { dpopKeyPair: undefined, dpopOptions };
-  }
-
-  /**
-   * Validates that a private and public key form a compatible key pair
-   * by attempting to sign and verify a test message.
-   * @returns true if keys are compatible, false otherwise
-   */
-  private validateKeyPairCompatibility(
-    privateKey: KeyObject,
-    publicKey: KeyObject
-  ): boolean {
-    try {
-      // Create test data
-      const testData = "test-data-for-key-pair-validation";
-
-      // Sign with private key
-      const sign = createSign("sha256");
-      sign.update(testData);
-      const signature = sign.sign(privateKey);
-
-      // Verify with public key
-      const verify = createVerify("sha256");
-      verify.update(testData);
-      const isValid = verify.verify(publicKey, signature);
-
-      if (!isValid) {
-        console.warn(
-          "WARNING: Private and public keys do not form a valid key pair - signature verification failed. " +
-            "Please ensure the keys are properly paired and in the correct format. " +
-            "DPoP will be disabled and bearer authentication will be used instead."
-        );
-        return false;
-      }
-
-      return true;
-    } catch (error) {
-      console.warn(
-        "WARNING: Failed to validate key pair compatibility. " +
-          "This may indicate invalid key format, mismatched algorithms, or corrupted key data. " +
-          "DPoP will be disabled and bearer authentication will be used instead. " +
-          `Error: ${error instanceof Error ? error.message : String(error)}`
-      );
-      return false;
-    }
   }
 
   /**
