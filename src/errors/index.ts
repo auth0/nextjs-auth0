@@ -12,7 +12,7 @@ export class OAuth2Error extends SdkError {
   constructor({ code, message }: { code: string; message?: string }) {
     super(
       message ??
-        "An error occured while interacting with the authorization server."
+        "An error occurred while interacting with the authorization server."
     );
     this.name = "OAuth2Error";
     this.code = code;
@@ -60,7 +60,7 @@ export class AuthorizationError extends SdkError {
   public cause: OAuth2Error;
 
   constructor({ cause, message }: { cause: OAuth2Error; message?: string }) {
-    super(message ?? "An error occured during the authorization flow.");
+    super(message ?? "An error occurred during the authorization flow.");
     this.cause = cause;
     this.name = "AuthorizationError";
   }
@@ -72,7 +72,7 @@ export class AuthorizationCodeGrantRequestError extends SdkError {
   constructor(message?: string) {
     super(
       message ??
-        "An error occured while preparing or performing the authorization code grant request."
+        "An error occurred while preparing or performing the authorization code grant request."
     );
     this.name = "AuthorizationCodeGrantRequestError";
   }
@@ -85,7 +85,7 @@ export class AuthorizationCodeGrantError extends SdkError {
   constructor({ cause, message }: { cause: OAuth2Error; message?: string }) {
     super(
       message ??
-        "An error occured while trying to exchange the authorization code."
+        "An error occurred while trying to exchange the authorization code."
     );
     this.cause = cause;
     this.name = "AuthorizationCodeGrantError";
@@ -98,7 +98,7 @@ export class BackchannelLogoutError extends SdkError {
   constructor(message?: string) {
     super(
       message ??
-        "An error occured while completing the backchannel logout request."
+        "An error occurred while completing the backchannel logout request."
     );
     this.name = "BackchannelLogoutError";
   }
@@ -187,6 +187,108 @@ export class AccessTokenForConnectionError extends SdkError {
   constructor(code: string, message: string, cause?: OAuth2Error) {
     super(message);
     this.name = "AccessTokenForConnectionError";
+    this.code = code;
+    this.cause = cause;
+  }
+}
+
+/**
+ * Error class representing a connect account request error.
+ */
+export class MyAccountApiError extends SdkError {
+  public name: string = "MyAccountApiError";
+  public code: string = "my_account_api_error";
+  public type: string;
+  public title: string;
+  public detail: string;
+  public status: number;
+  public validationErrors?: Array<{
+    /**
+     * A human-readable description of the specific error. Required.
+     */
+    detail: string;
+    /**
+     * The name of the invalid parameter. Optional.
+     */
+    field?: string;
+    /**
+     * A JSON Pointer that points to the exact location of the error in a JSON document being validated. Optional.
+     */
+    pointer?: string;
+    /**
+     *  Specifies the source of the error (e.g., body, query, or header in an HTML message). Optional.
+     */
+    source?: string;
+  }>;
+
+  constructor({
+    type,
+    title,
+    detail,
+    status,
+    validationErrors
+  }: {
+    type: string;
+    title: string;
+    detail: string;
+    status: number;
+    validationErrors?: Array<{
+      detail: string;
+      field?: string;
+      pointer?: string;
+      source?: string;
+    }>;
+  }) {
+    super(`${title}: ${detail}`);
+    this.type = type;
+    this.title = title;
+    this.detail = detail;
+    this.status = status;
+    this.validationErrors = validationErrors;
+  }
+}
+
+/**
+ * Enum representing error codes related to the connect account flow.
+ */
+export enum ConnectAccountErrorCodes {
+  /**
+   * The session is missing.
+   */
+  MISSING_SESSION = "missing_session",
+
+  /**
+   * Failed to initiate the connect account flow.
+   */
+  FAILED_TO_INITIATE = "failed_to_initiate",
+
+  /**
+   * Failed to complete the connect account flow.
+   */
+  FAILED_TO_COMPLETE = "failed_to_complete"
+}
+
+/**
+ * Error class representing a connect account error.
+ */
+export class ConnectAccountError extends SdkError {
+  /**
+   * The error code associated with the connect account error.
+   */
+  public code: string;
+  public cause?: MyAccountApiError;
+
+  constructor({
+    code,
+    message,
+    cause
+  }: {
+    code: string;
+    message: string;
+    cause?: MyAccountApiError;
+  }) {
+    super(message);
+    this.name = "ConnectAccountError";
     this.code = code;
     this.cause = cause;
   }
