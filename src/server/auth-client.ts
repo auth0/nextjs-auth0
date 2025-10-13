@@ -164,6 +164,12 @@ export interface AuthClientOptions {
   useDpop?: boolean;
   dpopKeyPair?: DpopKeyPair;
   dpopOptions?: DpopOptions;
+
+  /**
+   * @future This option is reserved for future implementation.
+   * Currently not used - placeholder for upcoming nonce persistence feature.
+   */
+  // dpopHandleStorage?: DPoPHandleStorageInterface; // Commented out until implementation
 }
 
 function createRouteUrl(path: string, baseUrl: string) {
@@ -1767,6 +1773,12 @@ type GetTokenSetResponse = {
   idTokenClaims?: { [key: string]: any };
 };
 
+/**
+ * Options for creating a Fetcher instance via the factory method.
+ *
+ * Includes all FetcherMinimalConfig options plus internal session data.
+ * The `nonceStorageId` from FetcherMinimalConfig is included but currently ignored.
+ */
 export type FetcherFactoryOptions<TOutput extends Response> = {
   useDPoP?: boolean;
   session: SessionData;
