@@ -178,8 +178,12 @@ export class Fetcher<TOutput extends Response> {
    * ```
    */
   protected isAbsoluteUrl(url: string): boolean {
-    // `http://example.com`, `https://example.com` or `//example.com`
-    return /^(https?:)?\/\//i.test(url);
+    try {
+      new URL(url);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -320,42 +324,17 @@ export class Fetcher<TOutput extends Response> {
   private isRequestInit(obj: any): obj is RequestInit {
     if (!obj || typeof obj !== "object") return false;
 
-    // Check for RequestInit-specific properties
-    const requestInitProps = [
-      "method",
-      "headers",
-      "body",
-      "mode",
-      "credentials",
-      "cache",
-      "redirect",
-      "referrer",
-      "referrerPolicy",
-      "integrity",
-      "keepalive",
-      "signal"
-    ];
-    const hasRequestInitProp = requestInitProps.some((prop) =>
-      Object.prototype.hasOwnProperty.call(obj, prop)
-    );
-
     // Check for GetAccessTokenOptions-specific properties
+    // Since RequestInit and GetAccessTokenOptions have no common properties,
+    // if any GetAccessTokenOptions property is present, it's GetAccessTokenOptions
     const getAccessTokenOptionsProps = ["refresh", "scope", "audience"];
     const hasGetAccessTokenOptionsProp = getAccessTokenOptionsProps.some(
       (prop) => Object.prototype.hasOwnProperty.call(obj, prop)
     );
 
-    // If it has RequestInit props and no GetAccessTokenOptions props, it's RequestInit
-    // If it has GetAccessTokenOptions props and no RequestInit props, it's GetAccessTokenOptions
-    // If it has both or neither, default to RequestInit (backwards compatibility)
-    if (hasRequestInitProp && !hasGetAccessTokenOptionsProp) {
-      return true;
-    } else if (!hasRequestInitProp && hasGetAccessTokenOptionsProp) {
-      return false;
-    } else {
-      // Ambiguous case - default to RequestInit for backwards compatibility
-      return true;
-    }
+    // If it has GetAccessTokenOptions props, it's NOT RequestInit
+    // Otherwise, default to RequestInit (backwards compatibility)
+    return !hasGetAccessTokenOptionsProp;
   }
 
   /**
@@ -412,7 +391,7 @@ export class Fetcher<TOutput extends Response> {
     let init: RequestInit | undefined;
     let accessTokenOptions: GetAccessTokenOptions | undefined;
 
-    if (arguments.length === 2) {
+    if (arguments.length === 2 && initOrOptions !== undefined) {
       // Determine if second argument is RequestInit or GetAccessTokenOptions
       if (this.isRequestInit(initOrOptions)) {
         init = initOrOptions as RequestInit;

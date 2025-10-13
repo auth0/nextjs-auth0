@@ -63,8 +63,6 @@ import {
 import { toSafeRedirect } from "../utils/url-helpers.js";
 import { addCacheControlHeadersForSession } from "./cookies.js";
 import {
-  _AccessTokenFactory,
-  _CustomFetchImpl,
   Fetcher,
   FetcherConfig,
   FetcherHooks,
@@ -1701,7 +1699,7 @@ export class AuthClient {
     };
 
     const fetcherConfig: FetcherConfig<TOutput> = {
-      // fetcher-scoped DPoP handle and nonce maangement
+      // fetcher-scoped DPoP handle and nonce management
       dpopHandle:
         this.useDPoP && (options.useDPoP ?? true)
           ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
