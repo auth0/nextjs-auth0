@@ -3,11 +3,19 @@ import * as jose from "jose";
 import * as oauth from "oauth4webapi";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { BackchannelAuthenticationError } from "../errors/index.js";
+import {
+  AccessTokenError,
+  AccessTokenErrorCode,
+  BackchannelAuthenticationError,
+  ConnectAccountError,
+  ConnectAccountErrorCodes,
+  MyAccountApiError
+} from "../errors/index.js";
 import { getDefaultRoutes } from "../test/defaults.js";
 import { generateSecret } from "../test/utils.js";
 import {
   AccessTokenSet,
+  RESPONSE_TYPES,
   SessionData,
   SUBJECT_TOKEN_TYPES
 } from "../types/index.js";
@@ -73,7 +81,14 @@ ukIdiJtMNPwePfsT/2KqrbnftQnAKNnhsgcYGo8NAvntX4FokOAEdunyYmm85mLp
 BGKYgVXJqnm6+TJyCRac1ro3noG898P/LZ8MOBoaYQtWeWRpDc46jPrA0FqUJy+i
 ca/T0LLtgmbMmxSv/MmzIg==
 -----END PRIVATE KEY-----`,
-    requestUri: "urn:ietf:params:oauth:request_uri:6esc_11ACC5bwc014ltc14eY22c"
+    requestUri: "urn:ietf:params:oauth:request_uri:6esc_11ACC5bwc014ltc14eY22c",
+    connectAccount: {
+      ticket: "5ea12747-406c-4945-abc7-232086d9a3f0",
+      authSession:
+        "gcPQw7YPOD0mHiSVxOSbmZmMfTckA9o3CZQyeAf1C6guAiZzXiSnU2tEws9IQNUi",
+      expiresIn: 300,
+      connection: "google-oauth2"
+    }
   };
 
   function getMockAuthorizationServer({
@@ -85,7 +100,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
     nonce,
     keyPair = DEFAULT.keyPair,
     onParRequest,
-    onBackchannelAuthRequest
+    onBackchannelAuthRequest,
+    onConnectAccountRequest,
+    onCompleteConnectAccountRequest,
+    completeConnectAccountErrorResponse
   }: {
     tokenEndpointResponse?: oauth.TokenEndpointResponse | oauth.OAuth2Error;
     tokenEndpointErrorResponse?: oauth.OAuth2Error;
@@ -96,6 +114,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
     keyPair?: jose.GenerateKeyPairResult;
     onParRequest?: (request: Request) => Promise<void>;
     onBackchannelAuthRequest?: (request: Request) => Promise<void>;
+    onConnectAccountRequest?: (request: Request) => Promise<void>;
+    onCompleteConnectAccountRequest?: (request: Request) => Promise<void>;
+    completeConnectAccountErrorResponse?: Response;
   } = {}) {
     // this function acts as a mock authorization server
     return vi.fn(
@@ -177,6 +198,52 @@ ca/T0LLtgmbMmxSv/MmzIg==
             },
             {
               status: 200
+            }
+          );
+        }
+        // Connect Account
+        if (url.pathname === "/me/v1/connected-accounts/connect") {
+          if (onConnectAccountRequest) {
+            await onConnectAccountRequest(new Request(input, init));
+          }
+
+          return Response.json(
+            {
+              connect_uri: `https://${DEFAULT.domain}/connect`,
+              auth_session: DEFAULT.connectAccount.authSession,
+              connect_params: {
+                ticket: DEFAULT.connectAccount.ticket
+              },
+              expires_in: 300
+            },
+            {
+              status: 201
+            }
+          );
+        }
+        // Connect Account complete
+        if (url.pathname === "/me/v1/connected-accounts/complete") {
+          if (onCompleteConnectAccountRequest) {
+            await onCompleteConnectAccountRequest(new Request(input, init));
+          }
+
+          if (completeConnectAccountErrorResponse) {
+            return completeConnectAccountErrorResponse;
+          }
+
+          return Response.json(
+            {
+              id: "cac_abc123",
+              connection: DEFAULT.connectAccount.connection,
+              access_type: "offline",
+              scopes: ["openid", "profile", "email"],
+              created_at: new Date().toISOString(),
+              expires_at: new Date(
+                Date.now() + 1000 * 60 * 60 * 24 * 30
+              ).toISOString() // 30 days
+            },
+            {
+              status: 201
             }
           );
         }
@@ -1116,7 +1183,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect.objectContaining({
           nonce: authorizationUrl.searchParams.get("nonce"),
           codeVerifier: expect.any(String),
-          responseType: "code",
+          responseType: RESPONSE_TYPES.CODE,
           state: authorizationUrl.searchParams.get("state"),
           returnTo: "/"
         })
@@ -1248,7 +1315,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const response = await authClient.handleLogin(request);
       expect(response.status).toEqual(500);
       expect(await response.text()).toContain(
-        "An error occured while trying to initiate the login request."
+        "An error occurred while trying to initiate the login request."
       );
     });
 
@@ -1334,7 +1401,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           expect.objectContaining({
             nonce: authorizationUrl.searchParams.get("nonce"),
             codeVerifier: expect.any(String),
-            responseType: "code",
+            responseType: RESPONSE_TYPES.CODE,
             state: authorizationUrl.searchParams.get("state"),
             returnTo: "/"
           })
@@ -1686,7 +1753,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           nonce: authorizationUrl.searchParams.get("nonce"),
           maxAge: 3600,
           codeVerifier: expect.any(String),
-          responseType: "code",
+          responseType: RESPONSE_TYPES.CODE,
           state: authorizationUrl.searchParams.get("state"),
           returnTo: "/"
         })
@@ -1741,7 +1808,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect.objectContaining({
           nonce: authorizationUrl.searchParams.get("nonce"),
           codeVerifier: expect.any(String),
-          responseType: "code",
+          responseType: RESPONSE_TYPES.CODE,
           state: authorizationUrl.searchParams.get("state"),
           returnTo: "/dashboard"
         })
@@ -1796,7 +1863,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect.objectContaining({
           nonce: authorizationUrl.searchParams.get("nonce"),
           codeVerifier: expect.any(String),
-          responseType: "code",
+          responseType: RESPONSE_TYPES.CODE,
           state: authorizationUrl.searchParams.get("state"),
           returnTo: "/"
         })
@@ -1849,7 +1916,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         expect(response.status).toEqual(500);
         expect(await response.text()).toEqual(
-          "An error occured while trying to initiate the login request."
+          "An error occurred while trying to initiate the login request."
         );
       });
 
@@ -1940,7 +2007,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           expect.objectContaining({
             nonce: expect.any(String),
             codeVerifier: expect.any(String),
-            responseType: "code",
+            responseType: RESPONSE_TYPES.CODE,
             state,
             returnTo: "/"
           })
@@ -2104,7 +2171,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             expect.objectContaining({
               nonce: expect.any(String),
               codeVerifier: expect.any(String),
-              responseType: "code",
+              responseType: RESPONSE_TYPES.CODE,
               state,
               returnTo: "/"
             })
@@ -2188,7 +2255,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             expect.objectContaining({
               nonce: expect.any(String),
               codeVerifier: expect.any(String),
-              responseType: "code",
+              responseType: RESPONSE_TYPES.CODE,
               state,
               returnTo: "/"
             })
@@ -2749,7 +2816,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const response = await authClient.handleLogout(request);
       expect(response.status).toEqual(500);
       expect(await response.text()).toEqual(
-        "An error occured while trying to initiate the logout request."
+        "An error occurred while trying to initiate the logout request."
       );
     });
 
@@ -3195,7 +3262,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         nonce: "nonce-value",
         maxAge: 3600,
         codeVerifier: "code-verifier",
-        responseType: "code",
+        responseType: RESPONSE_TYPES.CODE,
         state: state,
         returnTo: "/dashboard"
       };
@@ -3297,7 +3364,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           nonce: "nonce-value",
           maxAge: 3600,
           codeVerifier: "code-verifier",
-          responseType: "code",
+          responseType: RESPONSE_TYPES.CODE,
           state: state,
           returnTo: "/dashboard"
         };
@@ -3383,7 +3450,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         nonce: "nonce-value",
         maxAge: 3600,
         codeVerifier: "code-verifier",
-        responseType: "code",
+        responseType: RESPONSE_TYPES.CODE,
         state: state,
         returnTo: "/dashboard"
       };
@@ -3511,7 +3578,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         nonce: "nonce-value",
         maxAge: 3600,
         codeVerifier: "code-verifier",
-        responseType: "code",
+        responseType: RESPONSE_TYPES.CODE,
         state: state,
         returnTo: "/dashboard"
       };
@@ -3567,7 +3634,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         nonce: "nonce-value",
         maxAge: 3600,
         codeVerifier: "code-verifier",
-        responseType: "code",
+        responseType: RESPONSE_TYPES.CODE,
         state: state,
         returnTo: "/dashboard"
       };
@@ -3585,7 +3652,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const response = await authClient.handleCallback(request);
       expect(response.status).toEqual(500);
       expect(await response.text()).toEqual(
-        "An error occured during the authorization flow."
+        "An error occurred during the authorization flow."
       );
     });
 
@@ -3630,7 +3697,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         nonce: "nonce-value",
         maxAge: 3600,
         codeVerifier: "code-verifier",
-        responseType: "code",
+        responseType: RESPONSE_TYPES.CODE,
         state: state,
         returnTo: "/dashboard"
       };
@@ -3648,7 +3715,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const response = await authClient.handleCallback(request);
       expect(response.status).toEqual(500);
       expect(await response.text()).toEqual(
-        "An error occured while trying to exchange the authorization code."
+        "An error occurred while trying to exchange the authorization code."
       );
     });
 
@@ -3690,7 +3757,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         nonce: "nonce-value",
         maxAge: 3600,
         codeVerifier: "code-verifier",
-        responseType: "code",
+        responseType: RESPONSE_TYPES.CODE,
         state: state,
         returnTo: "/dashboard"
       };
@@ -3757,7 +3824,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           nonce: "nonce-value",
           maxAge: 3600,
           codeVerifier: "code-verifier",
-          responseType: "code",
+          responseType: RESPONSE_TYPES.CODE,
           state: state,
           returnTo: "/dashboard"
         };
@@ -3795,6 +3862,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         };
         const expectedContext = {
+          responseType: RESPONSE_TYPES.CODE,
           returnTo: transactionState.returnTo
         };
 
@@ -3919,7 +3987,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           nonce: "nonce-value",
           maxAge: 3600,
           codeVerifier: "code-verifier",
-          responseType: "code",
+          responseType: RESPONSE_TYPES.CODE,
           state: state,
           returnTo: "/dashboard"
         };
@@ -3998,7 +4066,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           nonce: "nonce-value",
           maxAge: 3600,
           codeVerifier: "code-verifier",
-          responseType: "code",
+          responseType: RESPONSE_TYPES.CODE,
           state: state,
           returnTo: "/dashboard"
         };
@@ -4024,6 +4092,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(mockOnCallback).toHaveBeenCalledWith(
           expect.any(Error),
           {
+            responseType: RESPONSE_TYPES.CODE,
             returnTo: transactionState.returnTo
           },
           null
@@ -4083,7 +4152,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           nonce: "nonce-value",
           maxAge: 3600,
           codeVerifier: "code-verifier",
-          responseType: "code",
+          responseType: RESPONSE_TYPES.CODE,
           state: state,
           returnTo: "/dashboard"
         };
@@ -4109,6 +4178,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(mockOnCallback).toHaveBeenCalledWith(
           expect.any(Error),
           {
+            responseType: RESPONSE_TYPES.CODE,
             returnTo: transactionState.returnTo
           },
           null
@@ -4167,7 +4237,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           nonce: "nonce-value",
           maxAge: 3600,
           codeVerifier: "code-verifier",
-          responseType: "code",
+          responseType: RESPONSE_TYPES.CODE,
           state: state,
           returnTo: "/dashboard"
         };
@@ -4193,6 +4263,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(mockOnCallback).toHaveBeenCalledWith(
           expect.any(Error),
           {
+            responseType: RESPONSE_TYPES.CODE,
             returnTo: transactionState.returnTo
           },
           null
@@ -4255,7 +4326,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           nonce: "nonce-value",
           maxAge: 3600,
           codeVerifier: "code-verifier",
-          responseType: "code",
+          responseType: RESPONSE_TYPES.CODE,
           state: state,
           returnTo: "/dashboard"
         };
@@ -4339,7 +4410,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           nonce: "nonce-value",
           maxAge: 3600,
           codeVerifier: "code-verifier",
-          responseType: "code",
+          responseType: RESPONSE_TYPES.CODE,
           state: state,
           returnTo: "/dashboard"
         };
@@ -4477,7 +4548,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           nonce: "nonce-value",
           maxAge: 3600,
           codeVerifier: "code-verifier",
-          responseType: "code",
+          responseType: RESPONSE_TYPES.CODE,
           state: state,
           returnTo: "/dashboard"
         };
@@ -4525,6 +4596,462 @@ ca/T0LLtgmbMmxSv/MmzIg==
               createdAt: expect.any(Number)
             }
           })
+        );
+      });
+    });
+
+    describe("connect account callback", async () => {
+      it("should complete the connect account flow and call onCallback hook", async () => {
+        const state = "transaction-state";
+        const connectCode = "connect-code";
+
+        const mockOnCallback = vi
+          .fn()
+          .mockResolvedValue(
+            NextResponse.redirect(new URL("/dashboard", DEFAULT.appBaseUrl))
+          );
+
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
+
+          fetch: getMockAuthorizationServer({
+            onCompleteConnectAccountRequest: async (req) => {
+              const completeConnectAccountRequestBody = await req.json();
+              expect(completeConnectAccountRequestBody).toEqual(
+                expect.objectContaining({
+                  auth_session: DEFAULT.connectAccount.authSession,
+                  connect_code: connectCode,
+                  redirect_uri: `${DEFAULT.appBaseUrl}/auth/callback`,
+                  code_verifier: "code-verifier"
+                })
+              );
+            }
+          }),
+
+          onCallback: mockOnCallback
+        });
+
+        const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
+        url.searchParams.set("connect_code", connectCode);
+        url.searchParams.set("state", state);
+
+        const headers = new Headers();
+        const transactionState: TransactionState = {
+          maxAge: 3600,
+          codeVerifier: "code-verifier",
+          responseType: RESPONSE_TYPES.CONNECT_CODE,
+          state: state,
+          returnTo: "/dashboard",
+          authSession: DEFAULT.connectAccount.authSession
+        };
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
+        headers.set(
+          "cookie",
+          `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
+        );
+        const session: SessionData = {
+          user: {
+            sub: DEFAULT.sub,
+            name: "John Doe",
+            email: "john@example.com",
+            picture: "https://example.com/john.jpg"
+          },
+          tokenSet: {
+            accessToken: DEFAULT.accessToken,
+            scope: "openid profile email",
+            refreshToken: DEFAULT.refreshToken,
+            expiresAt: Math.floor(Date.now() / 1000) + 10 * 24 * 60 * 60 // expires in 10 days
+          },
+          internal: {
+            sid: DEFAULT.sid,
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        const sessionCookie = await encrypt(session, secret, expiration);
+        headers.append("cookie", `__session=${sessionCookie}`);
+
+        const request = new NextRequest(url, {
+          method: "GET",
+          headers
+        });
+
+        const response = await authClient.handleCallback(request);
+        expect(response.status).toEqual(307);
+        expect(response.headers.get("Location")).not.toBeNull();
+
+        const redirectUrl = new URL(response.headers.get("Location")!);
+        expect(redirectUrl.pathname).toEqual("/dashboard");
+
+        // validate the transaction cookie has been removed
+        const transactionCookie = response.cookies.get(`__txn_${state}`);
+        expect(transactionCookie).toBeDefined();
+        expect(transactionCookie!.value).toEqual("");
+        expect(transactionCookie!.maxAge).toEqual(0);
+
+        // validate that onCallback has been called with the connected account
+        const expectedSession = expect.objectContaining({
+          user: {
+            sub: DEFAULT.sub,
+            name: "John Doe",
+            email: "john@example.com",
+            picture: "https://example.com/john.jpg"
+          },
+          tokenSet: {
+            accessToken: DEFAULT.accessToken,
+            refreshToken: DEFAULT.refreshToken,
+            expiresAt: expect.any(Number),
+            scope: "openid profile email"
+          },
+          internal: {
+            sid: expect.any(String),
+            createdAt: expect.any(Number)
+          }
+        });
+        const expectedContext = expect.objectContaining({
+          responseType: RESPONSE_TYPES.CONNECT_CODE,
+          returnTo: transactionState.returnTo,
+          connectedAccount: {
+            accessType: "offline",
+            connection: "google-oauth2",
+            createdAt: expect.any(String),
+            expiresAt: expect.any(String),
+            id: "cac_abc123",
+            scopes: ["openid", "profile", "email"]
+          }
+        });
+
+        expect(mockOnCallback).toHaveBeenCalledWith(
+          null,
+          expectedContext,
+          expectedSession
+        );
+      });
+
+      it("should call handleCallbackError with an error if the user does not have a session", async () => {
+        const state = "transaction-state";
+        const connectCode = "connect-code";
+
+        const mockOnCallback = vi
+          .fn()
+          .mockResolvedValue(
+            NextResponse.redirect(new URL("/dashboard", DEFAULT.appBaseUrl))
+          );
+
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
+
+          fetch: getMockAuthorizationServer(),
+
+          onCallback: mockOnCallback
+        });
+
+        const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
+        url.searchParams.set("connect_code", connectCode);
+        url.searchParams.set("state", state);
+
+        const headers = new Headers();
+        const transactionState: TransactionState = {
+          maxAge: 3600,
+          codeVerifier: "code-verifier",
+          responseType: RESPONSE_TYPES.CONNECT_CODE,
+          state: state,
+          returnTo: "/dashboard",
+          authSession: DEFAULT.connectAccount.authSession
+        };
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
+        headers.set(
+          "cookie",
+          `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
+        );
+
+        const request = new NextRequest(url, {
+          method: "GET",
+          headers
+        });
+
+        const response = await authClient.handleCallback(request);
+        expect(response.status).toEqual(307);
+        expect(response.headers.get("Location")).not.toBeNull();
+
+        expect(mockOnCallback).toHaveBeenCalledWith(
+          expect.any(Error),
+          {
+            responseType: RESPONSE_TYPES.CONNECT_CODE,
+            returnTo: transactionState.returnTo
+          },
+          null
+        );
+        expect(mockOnCallback.mock.calls[0][0].code).toEqual(
+          ConnectAccountErrorCodes.MISSING_SESSION
+        );
+      });
+
+      it("should call handleCallbackError with an error if there was an error fetching the token set", async () => {
+        const state = "transaction-state";
+        const connectCode = "connect-code";
+
+        const mockOnCallback = vi
+          .fn()
+          .mockResolvedValue(
+            NextResponse.redirect(new URL("/dashboard", DEFAULT.appBaseUrl))
+          );
+
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
+
+          fetch: getMockAuthorizationServer(),
+
+          onCallback: mockOnCallback
+        });
+
+        const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
+        url.searchParams.set("connect_code", connectCode);
+        url.searchParams.set("state", state);
+
+        const headers = new Headers();
+        const transactionState: TransactionState = {
+          maxAge: 3600,
+          codeVerifier: "code-verifier",
+          responseType: RESPONSE_TYPES.CONNECT_CODE,
+          state: state,
+          returnTo: "/dashboard",
+          authSession: DEFAULT.connectAccount.authSession
+        };
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
+        headers.set(
+          "cookie",
+          `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
+        );
+        const session: SessionData = {
+          user: {
+            sub: DEFAULT.sub,
+            name: "John Doe",
+            email: "john@example.com",
+            picture: "https://example.com/john.jpg"
+          },
+          tokenSet: {
+            accessToken: DEFAULT.accessToken,
+            scope: "openid profile email",
+            refreshToken: DEFAULT.refreshToken,
+            expiresAt: Math.floor(Date.now() / 1000) + 10 * 24 * 60 * 60 // expires in 10 days
+          },
+          internal: {
+            sid: DEFAULT.sid,
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        const sessionCookie = await encrypt(session, secret, expiration);
+        headers.append("cookie", `__session=${sessionCookie}`);
+
+        const request = new NextRequest(url, {
+          method: "GET",
+          headers
+        });
+
+        authClient.getTokenSet = vi
+          .fn()
+          .mockResolvedValue([
+            new AccessTokenError(
+              AccessTokenErrorCode.MISSING_REFRESH_TOKEN,
+              "No access token found and a refresh token was not provided. The user needs to re-authenticate."
+            )
+          ]);
+
+        const response = await authClient.handleCallback(request);
+        expect(response.status).toEqual(307);
+        expect(response.headers.get("Location")).not.toBeNull();
+
+        const redirectUrl = new URL(response.headers.get("Location")!);
+        expect(redirectUrl.pathname).toEqual("/dashboard");
+
+        // validate the transaction cookie has been removed
+        const transactionCookie = response.cookies.get(`__txn_${state}`);
+        expect(transactionCookie).toBeDefined();
+        expect(transactionCookie!.value).toEqual("");
+        expect(transactionCookie!.maxAge).toEqual(0);
+
+        expect(mockOnCallback).toHaveBeenCalledWith(
+          expect.any(Error),
+          {
+            responseType: RESPONSE_TYPES.CONNECT_CODE,
+            returnTo: transactionState.returnTo
+          },
+          null
+        );
+        expect(mockOnCallback.mock.calls[0][0].code).toEqual(
+          AccessTokenErrorCode.MISSING_REFRESH_TOKEN
+        );
+      });
+
+      it("should call handleCallbackError with an error if there was an error while calling the complete connect account endpoint", async () => {
+        const state = "transaction-state";
+        const connectCode = "connect-code";
+
+        const mockOnCallback = vi
+          .fn()
+          .mockResolvedValue(
+            NextResponse.redirect(new URL("/dashboard", DEFAULT.appBaseUrl))
+          );
+
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
+
+          fetch: getMockAuthorizationServer({
+            completeConnectAccountErrorResponse: Response.json(
+              {
+                title: "Not Found",
+                type: "https://auth0.com/api-errors/A0E-404-0001",
+                detail: "Invalid or expired session",
+                status: 404
+              },
+              {
+                status: 404
+              }
+            )
+          }),
+
+          onCallback: mockOnCallback
+        });
+
+        const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
+        url.searchParams.set("connect_code", connectCode);
+        url.searchParams.set("state", state);
+
+        const headers = new Headers();
+        const transactionState: TransactionState = {
+          maxAge: 3600,
+          codeVerifier: "code-verifier",
+          responseType: RESPONSE_TYPES.CONNECT_CODE,
+          state: state,
+          returnTo: "/dashboard",
+          authSession: DEFAULT.connectAccount.authSession
+        };
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
+        headers.set(
+          "cookie",
+          `__txn_${state}=${await encrypt(transactionState, secret, expiration)}`
+        );
+        const session: SessionData = {
+          user: {
+            sub: DEFAULT.sub,
+            name: "John Doe",
+            email: "john@example.com",
+            picture: "https://example.com/john.jpg"
+          },
+          tokenSet: {
+            accessToken: DEFAULT.accessToken,
+            scope: "openid profile email",
+            refreshToken: DEFAULT.refreshToken,
+            expiresAt: Math.floor(Date.now() / 1000) + 10 * 24 * 60 * 60 // expires in 10 days
+          },
+          internal: {
+            sid: DEFAULT.sid,
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        const sessionCookie = await encrypt(session, secret, expiration);
+        headers.append("cookie", `__session=${sessionCookie}`);
+
+        const request = new NextRequest(url, {
+          method: "GET",
+          headers
+        });
+
+        const response = await authClient.handleCallback(request);
+        expect(response.status).toEqual(307);
+        expect(response.headers.get("Location")).not.toBeNull();
+
+        const redirectUrl = new URL(response.headers.get("Location")!);
+        expect(redirectUrl.pathname).toEqual("/dashboard");
+
+        // validate the transaction cookie has been removed
+        const transactionCookie = response.cookies.get(`__txn_${state}`);
+        expect(transactionCookie).toBeDefined();
+        expect(transactionCookie!.value).toEqual("");
+        expect(transactionCookie!.maxAge).toEqual(0);
+
+        expect(mockOnCallback).toHaveBeenCalledWith(
+          expect.any(Error),
+          {
+            responseType: RESPONSE_TYPES.CONNECT_CODE,
+            returnTo: transactionState.returnTo
+          },
+          null
+        );
+        expect(mockOnCallback.mock.calls[0][0].code).toEqual(
+          ConnectAccountErrorCodes.FAILED_TO_COMPLETE
         );
       });
     });
@@ -5280,6 +5807,604 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(response.status).toEqual(400);
         expect(deleteByLogoutTokenSpy).not.toHaveBeenCalled();
       });
+    });
+  });
+
+  describe("handleConnectAccount", async () => {
+    it("should create a connected account request, persist the transaction state, and redirect the user", async () => {
+      const currentAccessToken = DEFAULT.accessToken;
+      const newAccessToken = "at_456";
+      const secret = await generateSecret(32);
+      let connectAccountRequestBody: any;
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: getMockAuthorizationServer({
+          tokenEndpointResponse: {
+            token_type: "Bearer",
+            access_token: newAccessToken,
+            scope:
+              "openid profile email offline_access create:me:connected_accounts",
+            expires_in: 86400 // expires in 10 days
+          } as oauth.TokenEndpointResponse,
+          onConnectAccountRequest: async (req) => {
+            connectAccountRequestBody = await req.json();
+            expect(connectAccountRequestBody).toEqual(
+              expect.objectContaining({
+                connection: DEFAULT.connectAccount.connection,
+                redirect_uri: `${DEFAULT.appBaseUrl}/auth/callback`,
+                state: expect.any(String),
+                code_challenge: expect.any(String),
+                code_challenge_method: "S256",
+                authorization_params: expect.objectContaining({
+                  audience: "urn:some-audience",
+                  scope: "openid profile email offline_access read:messages"
+                })
+              })
+            );
+          }
+        }),
+
+        enableConnectAccountEndpoint: true
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) + 10 * 24 * 60 * 60; // expires in 10 days
+      const session: SessionData = {
+        user: {
+          sub: DEFAULT.sub,
+          name: "John Doe",
+          email: "john@example.com",
+          picture: "https://example.com/john.jpg"
+        },
+        tokenSet: {
+          accessToken: currentAccessToken,
+          scope: "openid profile email",
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const sessionCookie = await encrypt(session, secret, expiration);
+      const headers = new Headers();
+      headers.append("cookie", `__session=${sessionCookie}`);
+      const url = new URL("/auth/connect", DEFAULT.appBaseUrl);
+      url.searchParams.append("connection", DEFAULT.connectAccount.connection);
+      url.searchParams.append("returnTo", "/some-url");
+      url.searchParams.append("audience", "urn:some-audience");
+      url.searchParams.append(
+        "scope",
+        "openid profile email offline_access read:messages"
+      );
+
+      const request = new NextRequest(url, {
+        method: "GET",
+        headers
+      });
+
+      const response = await authClient.handler(request);
+      expect(response.status).toEqual(307);
+      const connectUrl = new URL(response.headers.get("location")!);
+      expect(connectUrl.origin).toEqual(`https://${DEFAULT.domain}`);
+      expect(connectUrl.pathname).toEqual("/connect");
+      expect(connectUrl.searchParams.get("ticket")).toEqual(
+        DEFAULT.connectAccount.ticket
+      );
+
+      // transaction state
+      const transactionCookie = response.cookies.get(
+        `__txn_${connectAccountRequestBody.state}`
+      );
+      expect(transactionCookie).toBeDefined();
+      expect(
+        (
+          (await decrypt(
+            transactionCookie!.value,
+            secret
+          )) as jose.JWTDecryptResult
+        ).payload
+      ).toEqual(
+        expect.objectContaining({
+          responseType: RESPONSE_TYPES.CONNECT_CODE,
+          state: connectAccountRequestBody?.state,
+          returnTo: "/some-url",
+          codeVerifier: expect.any(String),
+          authSession: DEFAULT.connectAccount.authSession
+        })
+      );
+
+      // validate that the session cookie has been updated
+      const updatedSessionCookie = response.cookies.get("__session");
+      const { payload: updatedSession } = (await decrypt<SessionData>(
+        updatedSessionCookie!.value,
+        secret
+      )) as jose.JWTDecryptResult<SessionData>;
+      const mrrtTokenSet = updatedSession.accessTokens?.find(
+        (at) => at.audience === `https://${DEFAULT.domain}/me/`
+      );
+      expect(mrrtTokenSet).toBeDefined();
+      expect(mrrtTokenSet?.accessToken).toEqual(newAccessToken);
+      expect(mrrtTokenSet?.requestedScope).toEqual(
+        "openid profile email offline_access create:me:connected_accounts"
+      );
+      expect(mrrtTokenSet?.scope).toEqual(
+        "openid profile email offline_access create:me:connected_accounts"
+      );
+    });
+
+    it("should sanitize the returnTo URL", async () => {
+      const currentAccessToken = DEFAULT.accessToken;
+      const newAccessToken = "at_456";
+      const secret = await generateSecret(32);
+      let connectAccountRequestBody: any;
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: getMockAuthorizationServer({
+          tokenEndpointResponse: {
+            token_type: "Bearer",
+            access_token: newAccessToken,
+            scope: "openid profile email",
+            expires_in: 86400 // expires in 10 days
+          } as oauth.TokenEndpointResponse,
+          onConnectAccountRequest: async (req) => {
+            connectAccountRequestBody = await req.json();
+            expect(connectAccountRequestBody).toEqual(
+              expect.objectContaining({
+                connection: "some-connection",
+                redirect_uri: `${DEFAULT.appBaseUrl}/auth/callback`,
+                state: expect.any(String),
+                code_challenge: expect.any(String),
+                code_challenge_method: "S256",
+                authorization_params: expect.objectContaining({
+                  audience: "urn:some-audience",
+                  scope: "openid profile email offline_access read:messages"
+                })
+              })
+            );
+          }
+        }),
+
+        enableConnectAccountEndpoint: true
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) + 10 * 24 * 60 * 60; // expires in 10 days
+      const session: SessionData = {
+        user: {
+          sub: DEFAULT.sub,
+          name: "John Doe",
+          email: "john@example.com",
+          picture: "https://example.com/john.jpg"
+        },
+        tokenSet: {
+          accessToken: currentAccessToken,
+          scope: "openid profile email",
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const sessionCookie = await encrypt(session, secret, expiration);
+      const headers = new Headers();
+      headers.append("cookie", `__session=${sessionCookie}`);
+      const url = new URL("/auth/connect", DEFAULT.appBaseUrl);
+      url.searchParams.append("connection", "some-connection");
+      url.searchParams.append("returnTo", "https://google.com/some-url");
+      url.searchParams.append("audience", "urn:some-audience");
+      url.searchParams.append(
+        "scope",
+        "openid profile email offline_access read:messages"
+      );
+
+      const request = new NextRequest(url, {
+        method: "GET",
+        headers
+      });
+
+      const response = await authClient.handler(request);
+      expect(response.status).toEqual(307);
+      const connectUrl = new URL(response.headers.get("location")!);
+      expect(connectUrl.origin).toEqual(`https://${DEFAULT.domain}`);
+      expect(connectUrl.pathname).toEqual("/connect");
+      expect(connectUrl.searchParams.get("ticket")).toEqual(
+        DEFAULT.connectAccount.ticket
+      );
+
+      // transaction state
+      const transactionCookie = response.cookies.get(
+        `__txn_${connectAccountRequestBody.state}`
+      );
+      expect(transactionCookie).toBeDefined();
+      expect(
+        (
+          (await decrypt(
+            transactionCookie!.value,
+            secret
+          )) as jose.JWTDecryptResult
+        ).payload
+      ).toEqual(
+        expect.objectContaining({
+          responseType: RESPONSE_TYPES.CONNECT_CODE,
+          state: connectAccountRequestBody?.state,
+          returnTo: "/",
+          codeVerifier: expect.any(String),
+          authSession: DEFAULT.connectAccount.authSession
+        })
+      );
+    });
+
+    it("should not call the connect account handler if the endpoint is not enabled", async () => {
+      const currentAccessToken = DEFAULT.accessToken;
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: getMockAuthorizationServer(),
+
+        enableConnectAccountEndpoint: false
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) - 10 * 24 * 60 * 60; // expired 10 days ago
+      const session: SessionData = {
+        user: {
+          sub: DEFAULT.sub,
+          name: "John Doe",
+          email: "john@example.com",
+          picture: "https://example.com/john.jpg"
+        },
+        tokenSet: {
+          accessToken: currentAccessToken,
+          scope: "openid profile email",
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const sessionCookie = await encrypt(session, secret, expiration);
+      const headers = new Headers();
+      headers.append("cookie", `__session=${sessionCookie}`);
+      const url = new URL("/auth/connect", DEFAULT.appBaseUrl);
+      url.searchParams.append("connection", "some-connection");
+      url.searchParams.append("returnTo", "/some-url");
+      url.searchParams.append("audience", "urn:some-audience");
+      url.searchParams.append(
+        "scope",
+        "openid profile email offline_access read:messages"
+      );
+
+      authClient.handleConnectAccount = vi.fn();
+      expect(authClient.handleConnectAccount).not.toHaveBeenCalled();
+    });
+
+    it("should return a 401 if the user does not have a session", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: getMockAuthorizationServer(),
+
+        enableConnectAccountEndpoint: true
+      });
+
+      const headers = new Headers();
+      const url = new URL("/auth/connect", DEFAULT.appBaseUrl);
+      url.searchParams.append("connection", "some-connection");
+      url.searchParams.append("returnTo", "/some-url");
+      url.searchParams.append("audience", "urn:some-audience");
+      url.searchParams.append(
+        "scope",
+        "openid profile email offline_access read:messages"
+      );
+
+      const request = new NextRequest(url, {
+        method: "GET",
+        headers
+      });
+
+      const response = await authClient.handler(request);
+      expect(response.status).toEqual(401);
+    });
+
+    it("should return a 400 if the connection query parameter is missing", async () => {
+      const currentAccessToken = DEFAULT.accessToken;
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: getMockAuthorizationServer(),
+
+        enableConnectAccountEndpoint: true
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) + 10 * 24 * 60 * 60; // expires in 10 days
+      const session: SessionData = {
+        user: {
+          sub: DEFAULT.sub,
+          name: "John Doe",
+          email: "john@example.com",
+          picture: "https://example.com/john.jpg"
+        },
+        tokenSet: {
+          accessToken: currentAccessToken,
+          scope: "openid profile email",
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const sessionCookie = await encrypt(session, secret, expiration);
+      const headers = new Headers();
+      headers.append("cookie", `__session=${sessionCookie}`);
+      const url = new URL("/auth/connect", DEFAULT.appBaseUrl);
+
+      const request = new NextRequest(url, {
+        method: "GET",
+        headers
+      });
+
+      const response = await authClient.handler(request);
+      expect(response.status).toEqual(400);
+    });
+
+    it("should return a 401 if obtaining a token set failed", async () => {
+      const currentAccessToken = DEFAULT.accessToken;
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: getMockAuthorizationServer(),
+
+        enableConnectAccountEndpoint: true
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) + 10 * 24 * 60 * 60; // expires in 10 days
+      const session: SessionData = {
+        user: {
+          sub: DEFAULT.sub,
+          name: "John Doe",
+          email: "john@example.com",
+          picture: "https://example.com/john.jpg"
+        },
+        tokenSet: {
+          accessToken: currentAccessToken,
+          scope: "openid profile email",
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const sessionCookie = await encrypt(session, secret, expiration);
+      const headers = new Headers();
+      headers.append("cookie", `__session=${sessionCookie}`);
+      const url = new URL("/auth/connect", DEFAULT.appBaseUrl);
+      url.searchParams.append("connection", "some-connection");
+      url.searchParams.append("returnTo", "/some-url");
+      url.searchParams.append("audience", "urn:some-audience");
+      url.searchParams.append(
+        "scope",
+        "openid profile email offline_access read:messages"
+      );
+
+      const request = new NextRequest(url, {
+        method: "GET",
+        headers
+      });
+
+      authClient.getTokenSet = vi
+        .fn()
+        .mockResolvedValue([new Error("some error"), null]);
+
+      const response = await authClient.handler(request);
+      expect(response.status).toEqual(401);
+    });
+
+    it("should forward the My Account API status code if an error occurs calling connectAccount", async () => {
+      const currentAccessToken = DEFAULT.accessToken;
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: getMockAuthorizationServer(),
+
+        enableConnectAccountEndpoint: true
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) + 10 * 24 * 60 * 60; // expires in 10 days
+      const session: SessionData = {
+        user: {
+          sub: DEFAULT.sub,
+          name: "John Doe",
+          email: "john@example.com",
+          picture: "https://example.com/john.jpg"
+        },
+        tokenSet: {
+          accessToken: currentAccessToken,
+          scope: "openid profile email",
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const sessionCookie = await encrypt(session, secret, expiration);
+      const headers = new Headers();
+      headers.append("cookie", `__session=${sessionCookie}`);
+      const url = new URL("/auth/connect", DEFAULT.appBaseUrl);
+      url.searchParams.append("connection", "some-connection");
+      url.searchParams.append("returnTo", "/some-url");
+      url.searchParams.append("audience", "urn:some-audience");
+      url.searchParams.append(
+        "scope",
+        "openid profile email offline_access read:messages"
+      );
+
+      const request = new NextRequest(url, {
+        method: "GET",
+        headers
+      });
+
+      authClient.connectAccount = vi.fn().mockResolvedValue([
+        new ConnectAccountError({
+          code: ConnectAccountErrorCodes.FAILED_TO_INITIATE,
+          message: "some message",
+          cause: new MyAccountApiError({
+            title: "Validation Error",
+            type: "https://auth0.com/api-errors/A0E-400-0003",
+            detail: "Invalid request payload input",
+            status: 400,
+            validationErrors: [
+              {
+                pointer: "",
+                detail: "data must have required property 'connection'"
+              }
+            ]
+          })
+        }),
+        null
+      ]);
+
+      const response = await authClient.handler(request);
+      expect(response.status).toEqual(400);
     });
   });
 
@@ -6324,7 +7449,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             expect.objectContaining({
               nonce: expect.any(String),
               codeVerifier: expect.any(String),
-              responseType: "code",
+              responseType: RESPONSE_TYPES.CODE,
               state: expect.any(String),
               returnTo: "/custom-path"
             })
