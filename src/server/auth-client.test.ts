@@ -5912,7 +5912,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       // transaction state
       const transactionCookie = response.cookies.get(
-        `__txn_${connectAccountRequestBody?.state!}`
+        `__txn_${connectAccountRequestBody.state}`
       );
       expect(transactionCookie).toBeDefined();
       expect(
@@ -6052,7 +6052,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       // transaction state
       const transactionCookie = response.cookies.get(
-        `__txn_${connectAccountRequestBody?.state!}`
+        `__txn_${connectAccountRequestBody.state}`
       );
       expect(transactionCookie).toBeDefined();
       expect(
