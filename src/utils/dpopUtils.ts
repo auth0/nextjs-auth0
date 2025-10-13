@@ -17,6 +17,14 @@ import {
 } from "./constants.js";
 
 /**
+ * Detects if the current environment is Edge Runtime.
+ * Edge Runtime environments have limited Node.js API support.
+ */
+function isEdgeRuntime(): boolean {
+  return typeof (globalThis as any).EdgeRuntime === "string";
+}
+
+/**
  * Generates a new ES256 key pair for DPoP (Demonstrating Proof-of-Possession) operations.
  *
  * This function creates a cryptographically secure ES256 key pair suitable for DPoP proof
@@ -140,6 +148,12 @@ export function validateKeyPairCompatibility(
   privateKey: KeyObject,
   publicKey: KeyObject
 ): boolean {
+  // Skip key pair validation in Edge Runtime environments
+  // Edge Runtime doesn't have access to Node.js crypto APIs needed for validation
+  if (isEdgeRuntime()) {
+    return true;
+  }
+
   try {
     // Create test data
     const testData = "test-data-for-key-pair-validation";
@@ -189,13 +203,28 @@ export interface DpopConfigurationOptions {
  * Validates DPoP configuration and returns keypair and options if available.
  * Attempts to load from environment variables if not provided in options.
  *
- * **Performance Note - Synchronous Key Loading:**
- * Key loading and validation are performed synchronously during client initialization.
- * This happens in the constructor and blocks the event loop. For production deployments:
+ * **Validation Behavior:**
+ * - **Success**: Returns both `dpopKeyPair` and `dpopOptions`
+ * - **Validation Failure**: Returns `{ dpopKeyPair: undefined, dpopOptions: undefined }`
  *
- * - **Best Practice**: Pre-load keys and pass them via `dpopKeyPair` option
- * - **Alternative**: Load keys at module initialization (outside request handlers)
- * - **Impact**: Typically occurs once at startup, but can affect cold starts
+ * When DPoP cannot be properly configured, the system falls back to bearer authentication.
+ *
+ * **Performance Characteristics - Synchronous Key Loading:**
+ *
+ * Key loading and validation are performed synchronously during Auth0Client constructor execution.
+ *
+ * **Optimization Strategies:**
+ * - **Recommended**: Pre-generate keys and pass via `dpopKeyPair` option to avoid env var parsing
+ * - **Module-Level**: Instantiate Auth0Client at module level (lib/auth0.ts) for one-time cost
+ * - **High-Throughput**: Consider pre-loading keys outside constructor for serverless environments
+ *
+ * @example Performance-optimized initialization
+ * ```typescript
+ * // Optimal: Pre-generated keys (no env var parsing)
+ * import { generateKeyPair } from "oauth4webapi";
+ * const dpopKeyPair = await generateKeyPair("ES256");
+ * export const auth0 = new Auth0Client({ useDpop: true, dpopKeyPair });
+ * ```
  *
  * **Security-sensitive configuration:**
  * - `clockSkew`: Difference between client and server clocks (default: {@link DEFAULT_DPOP_CLOCK_SKEW})
@@ -206,29 +235,18 @@ export interface DpopConfigurationOptions {
  * wider time window. Prefer synchronizing server clocks using NTP instead of increasing tolerance.
  *
  * @param options The configuration options containing DPoP settings
- * @returns Object containing DpopKeyPair and DpopOptions if available
- *
- * @example
- * ```typescript
- * import { validateDpopConfiguration } from "@auth0/nextjs-auth0/server";
- *
- * const config = validateDpopConfiguration({
- *   useDpop: true,
- *   dpopOptions: {
- *     clockTolerance: 60
- *   }
- * });
- *
- * if (config.dpopKeyPair) {
- *   console.log("DPoP is configured and ready");
- * }
- * ```
+ * @returns Object containing DpopKeyPair and DpopOptions if validation succeeds, or both undefined if validation fails
  */
 export function validateDpopConfiguration(options: DpopConfigurationOptions): {
   dpopKeyPair?: DpopKeyPair;
   dpopOptions?: DpopOptions;
 } {
   const useDpop = options.useDpop || false;
+
+  // If DPoP is not enabled, return early with undefined values
+  if (!useDpop) {
+    return { dpopKeyPair: undefined, dpopOptions: undefined };
+  }
 
   // Build DPoP options with defaults from environment variables or provided options
   const clockTolerance =
@@ -305,6 +323,16 @@ export function validateDpopConfiguration(options: DpopConfigurationOptions): {
     const privateKeyPem = process.env.AUTH0_DPOP_PRIVATE_KEY;
     const publicKeyPem = process.env.AUTH0_DPOP_PUBLIC_KEY;
 
+    // In Edge Runtime, we can't use Node.js crypto APIs to load keys from environment variables
+    if (isEdgeRuntime() && (privateKeyPem || publicKeyPem)) {
+      console.warn(
+        "WARNING: Running in Edge Runtime environment. DPoP keypair loading from environment variables " +
+          "is not supported due to limited Node.js crypto API access. DPoP has been disabled. " +
+          "To use DPoP in Edge Runtime, provide a pre-generated keypair via the dpopKeyPair option."
+      );
+      return { dpopKeyPair: undefined, dpopOptions: undefined };
+    }
+
     if (privateKeyPem && publicKeyPem) {
       try {
         // Note: Key loading is performed synchronously during initialization.
@@ -312,18 +340,32 @@ export function validateDpopConfiguration(options: DpopConfigurationOptions): {
         const privateKeyNodeJS = createPrivateKey(privateKeyPem);
         const publicKeyNodeJS = createPublicKey(publicKeyPem);
 
+        // Validate algorithm - DPoP requires ES256 (ECDSA using P-256 and SHA-256)
+        if (privateKeyNodeJS.asymmetricKeyType !== "ec") {
+          throw new Error(
+            `DPoP private key must be an Elliptic Curve key for ES256 algorithm, got: ${privateKeyNodeJS.asymmetricKeyType}`
+          );
+        }
+
+        if (publicKeyNodeJS.asymmetricKeyType !== "ec") {
+          throw new Error(
+            `DPoP public key must be an Elliptic Curve key for ES256 algorithm, got: ${publicKeyNodeJS.asymmetricKeyType}`
+          );
+        }
+
         const privateKeyDetails = privateKeyNodeJS.asymmetricKeyDetails;
         const publicKeyDetails = publicKeyNodeJS.asymmetricKeyDetails;
 
+        // Validate P-256 curve requirement for ES256 algorithm
         if (privateKeyDetails?.namedCurve !== "prime256v1") {
           throw new Error(
-            `DPoP private key must use P-256 curve (prime256v1), got: ${privateKeyDetails?.namedCurve}`
+            `DPoP private key must use P-256 curve (prime256v1) for ES256 algorithm, got: ${privateKeyDetails?.namedCurve}`
           );
         }
 
         if (publicKeyDetails?.namedCurve !== "prime256v1") {
           throw new Error(
-            `DPoP public key must use P-256 curve (prime256v1), got: ${publicKeyDetails?.namedCurve}`
+            `DPoP public key must use P-256 curve (prime256v1) for ES256 algorithm, got: ${publicKeyDetails?.namedCurve}`
           );
         }
 
@@ -334,9 +376,13 @@ export function validateDpopConfiguration(options: DpopConfigurationOptions): {
         );
 
         if (!isKeyPairValid) {
-          // Key pair validation failed, disable DPoP keypair but keep options for potential future use
-          // Return dpopOptions but explicitly no keypair to fallback to bearer auth
-          return { dpopKeyPair: undefined, dpopOptions };
+          // Key pair validation failed, completely disable DPoP to ensure consistent state
+          // When validation fails, we should not use DPoP at all and fallback to bearer auth
+          console.warn(
+            "WARNING: DPoP key pair validation failed. DPoP has been completely disabled. " +
+              "Falling back to bearer authentication. Please verify your key pair configuration."
+          );
+          return { dpopKeyPair: undefined, dpopOptions: undefined };
         }
 
         // Convert NodeJS KeyObjects to CryptoKeys synchronously
@@ -371,6 +417,6 @@ export function validateDpopConfiguration(options: DpopConfigurationOptions): {
     }
   }
 
-  // No DPoP keypair available or DPoP disabled, return only options
+  // No DPoP keypair available, but DPoP is enabled, return options without keypair
   return { dpopKeyPair: undefined, dpopOptions };
 }

@@ -422,16 +422,31 @@ export class Fetcher<TOutput extends Response> {
         }
 
         await new Promise((resolve) => setTimeout(resolve, delay));
-        return this.internalFetchWithAuth(
-          info,
-          init,
-          {
-            ...callbacks,
-            // Retry on a `use_dpop_nonce` error, but just once.
-            onUseDpopNonceError: undefined
-          },
-          accessTokenOptions
-        );
+
+        try {
+          return await this.internalFetchWithAuth(
+            info,
+            init,
+            {
+              ...callbacks,
+              // Retry on a `use_dpop_nonce` error, but just once.
+              onUseDpopNonceError: undefined
+            },
+            accessTokenOptions
+          );
+        } catch (retryError: any) {
+          // If the retry also fails, enhance the error with context
+          if (isDPoPNonceError(retryError)) {
+            const enhancedError = new Error(
+              `DPoP nonce error persisted after retry: ${retryError.message}`
+            );
+            (enhancedError as any).code =
+              retryError.code || "dpop_nonce_retry_failed";
+            throw enhancedError;
+          }
+          // For non-DPoP errors, just re-throw
+          throw retryError;
+        }
       }
     };
 

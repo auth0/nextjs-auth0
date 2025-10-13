@@ -4,6 +4,7 @@
  * DPoP requires an ES256 (ECDSA using P-256 and SHA-256) key pair to generate
  * cryptographic proofs that bind access tokens to the client's private key.
  * This prevents token theft and replay attacks.
+ * Generate keys outside constructor for better performance
  *
  * @example Generating a key pair
  * ```typescript
@@ -98,7 +99,8 @@ export interface DpopOptions {
    * Maps to oauth4webapi's clockTolerance symbol.
    *
    * @default 30
-   * @example
+   *
+   * @example Basic configuration
    * ```typescript
    * dpopOptions: {
    *   clockTolerance: 60  // Allow 60 seconds difference
