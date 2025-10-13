@@ -203,9 +203,21 @@ export class MyAccountApiError extends SdkError {
   public detail: string;
   public status: number;
   public validationErrors?: Array<{
+    /**
+     * A human-readable description of the specific error. Required.
+     */
     detail: string;
+    /**
+     * The name of the invalid parameter. Optional.
+     */
     field?: string;
+    /**
+     * A JSON Pointer that points to the exact location of the error in a JSON document being validated. Optional.
+     */
     pointer?: string;
+    /**
+     *  Specifies the source of the error (e.g., body, query, or header in an HTML message). Optional.
+     */
     source?: string;
   }>;
 
