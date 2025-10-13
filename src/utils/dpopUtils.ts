@@ -94,9 +94,9 @@ export async function withDPoPNonceRetry<T>(
 
       let actualDelay = delay;
 
-      // Apply jitter if enabled (adds randomness to prevent thundering herd)
+      // Apply jitter if enabled (50-100% of original delay to prevent thundering herd)
       if (jitter) {
-        actualDelay = delay * (0.5 + Math.random() * 0.5); // 50-100% of original delay
+        actualDelay = delay * (0.5 + Math.random() * 0.5);
       }
 
       // Delay before retry to avoid rapid successive requests
@@ -284,7 +284,11 @@ export function validateDpopConfiguration(options: DpopConfigurationOptions): {
   };
 
   // Validate retry configuration
-  if (dpopOptions.retry!.delay! < 0) {
+  if (
+    dpopOptions.retry &&
+    typeof dpopOptions.retry.delay === "number" &&
+    dpopOptions.retry.delay < 0
+  ) {
     throw new Error("Retry delay must be non-negative");
   }
 
