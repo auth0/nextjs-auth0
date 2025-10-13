@@ -1145,6 +1145,7 @@ export class Auth0Client {
     req: PagesRouterRequest | NextRequest | undefined,
     options: {
       useDPoP?: boolean;
+      nonceStorageId?: string;
     } & FetcherMinimalConfig<TOutput>
   ) {
     const session: SessionData | null = req
