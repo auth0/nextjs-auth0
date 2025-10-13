@@ -1789,7 +1789,7 @@ export class AuthClient {
     };
 
     const res = NextResponse.redirect(
-      `${connectAccountResponse.connectUri}?ticket=${connectAccountResponse.connectParams.ticket}`
+      `${connectAccountResponse.connectUri}?ticket=${encodeURIComponent(connectAccountResponse.connectParams.ticket)}`
     );
 
     await this.transactionStore.save(res.cookies, transactionState);
