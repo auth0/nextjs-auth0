@@ -1315,7 +1315,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const response = await authClient.handleLogin(request);
       expect(response.status).toEqual(500);
       expect(await response.text()).toContain(
-        "An error occured while trying to initiate the login request."
+        "An error occurred while trying to initiate the login request."
       );
     });
 
@@ -1916,7 +1916,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         expect(response.status).toEqual(500);
         expect(await response.text()).toEqual(
-          "An error occured while trying to initiate the login request."
+          "An error occurred while trying to initiate the login request."
         );
       });
 
@@ -2816,7 +2816,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const response = await authClient.handleLogout(request);
       expect(response.status).toEqual(500);
       expect(await response.text()).toEqual(
-        "An error occured while trying to initiate the logout request."
+        "An error occurred while trying to initiate the logout request."
       );
     });
 
@@ -3652,7 +3652,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const response = await authClient.handleCallback(request);
       expect(response.status).toEqual(500);
       expect(await response.text()).toEqual(
-        "An error occured during the authorization flow."
+        "An error occurred during the authorization flow."
       );
     });
 
@@ -3715,7 +3715,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const response = await authClient.handleCallback(request);
       expect(response.status).toEqual(500);
       expect(await response.text()).toEqual(
-        "An error occured while trying to exchange the authorization code."
+        "An error occurred while trying to exchange the authorization code."
       );
     });
 

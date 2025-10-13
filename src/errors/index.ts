@@ -12,7 +12,7 @@ export class OAuth2Error extends SdkError {
   constructor({ code, message }: { code: string; message?: string }) {
     super(
       message ??
-        "An error occured while interacting with the authorization server."
+        "An error occurred while interacting with the authorization server."
     );
     this.name = "OAuth2Error";
     this.code = code;
@@ -60,7 +60,7 @@ export class AuthorizationError extends SdkError {
   public cause: OAuth2Error;
 
   constructor({ cause, message }: { cause: OAuth2Error; message?: string }) {
-    super(message ?? "An error occured during the authorization flow.");
+    super(message ?? "An error occurred during the authorization flow.");
     this.cause = cause;
     this.name = "AuthorizationError";
   }
@@ -72,7 +72,7 @@ export class AuthorizationCodeGrantRequestError extends SdkError {
   constructor(message?: string) {
     super(
       message ??
-        "An error occured while preparing or performing the authorization code grant request."
+        "An error occurred while preparing or performing the authorization code grant request."
     );
     this.name = "AuthorizationCodeGrantRequestError";
   }
@@ -85,7 +85,7 @@ export class AuthorizationCodeGrantError extends SdkError {
   constructor({ cause, message }: { cause: OAuth2Error; message?: string }) {
     super(
       message ??
-        "An error occured while trying to exchange the authorization code."
+        "An error occurred while trying to exchange the authorization code."
     );
     this.cause = cause;
     this.name = "AuthorizationCodeGrantError";
@@ -98,7 +98,7 @@ export class BackchannelLogoutError extends SdkError {
   constructor(message?: string) {
     super(
       message ??
-        "An error occured while completing the backchannel logout request."
+        "An error occurred while completing the backchannel logout request."
     );
     this.name = "BackchannelLogoutError";
   }
