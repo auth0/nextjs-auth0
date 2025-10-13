@@ -1667,13 +1667,41 @@ export class AuthClient {
     return [null, openidClientConfig];
   }
 
+  /**
+   * Creates a new Fetcher instance with DPoP support and authentication capabilities.
+   *
+   * This method creates fetcher-scoped DPoP handles via `oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)`.
+   * Each fetcher instance maintains its own DPoP nonce state for isolation and security.
+   * It is recommended to create fetchers at module level and reuse them across requests
+   *
+   * @example Recommended fetcher reuse pattern
+   * ```typescript
+   * const managementApi = await auth0.fetcherFactory({
+   *   baseUrl: `https://${process.env.AUTH0_DOMAIN}/api/v2/`,
+   *   session: await getSession(req, res)
+   * });
+   *
+   * // Use the same fetcher for multiple requests
+   * const users = await managementApi.get('users');
+   * const roles = await managementApi.get('roles');
+   * ```
+   *
+   * **DPoP Nonce Management:**
+   * - Each fetcher learns and caches nonces from the authorization server
+   * - Failed nonce validation triggers automatic retry with updated nonce
+   * - Nonce state is isolated between fetcher instances for security
+   *
+   * @param options Configuration options for the fetcher
+   * @returns Promise resolving to a configured Fetcher instance
+   * @throws {DPoPError} When DPoP is enabled but no keypair is configured
+   */
   async fetcherFactory<TOutput extends Response>(
     options: FetcherFactoryOptions<TOutput>
   ): Promise<Fetcher<TOutput>> {
-    if (!this.dpopKeyPair) {
+    if (this.useDPoP && !this.dpopKeyPair) {
       throw new DPoPError(
         DPoPErrorCode.DPOP_CONFIGURATION_ERROR,
-        "Invalid DPoP Keypair configuration."
+        "DPoP is enabled but no keypair is configured."
       );
     }
 
@@ -1693,13 +1721,13 @@ export class AuthClient {
         getAccessTokenOptions || {}
       );
       if (error) {
-        throw new OAuth2Error({ code: error.code, message: error.message });
+        throw error;
       }
       return getTokenSetResponse.tokenSet.accessToken;
     };
 
     const fetcherConfig: FetcherConfig<TOutput> = {
-      // fetcher-scoped DPoP handle and nonce management
+      // Fetcher-scoped DPoP handle and nonce management
       dpopHandle:
         this.useDPoP && (options.useDPoP ?? true)
           ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
