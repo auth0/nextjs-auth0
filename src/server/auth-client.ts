@@ -434,7 +434,7 @@ export class AuthClient {
       await this.authorizationUrl(authorizationParams);
     if (error) {
       return new NextResponse(
-        "An error occured while trying to initiate the login request.",
+        "An error occurred while trying to initiate the login request.",
         {
           status: 500
         }
@@ -476,7 +476,7 @@ export class AuthClient {
     if (discoveryError) {
       // Clean up session on discovery error
       const errorResponse = new NextResponse(
-        "An error occured while trying to initiate the logout request.",
+        "An error occurred while trying to initiate the logout request.",
         {
           status: 500
         }
@@ -1335,7 +1335,7 @@ export class AuthClient {
       return [null, authorizationServerMetadata];
     } catch (e) {
       console.error(
-        `An error occured while performing the discovery request. issuer=${issuer.toString()}, error:`,
+        `An error occurred while performing the discovery request. issuer=${issuer.toString()}, error:`,
         e
       );
       return [
@@ -1531,7 +1531,8 @@ export class AuthClient {
               code: e.error,
               message: e.error_description
             }),
-            message: "An error occured while pushing the authorization request."
+            message:
+              "An error occurred while pushing the authorization request."
           }),
           null
         ];
@@ -1870,7 +1871,7 @@ export class AuthClient {
         new ConnectAccountError({
           code: ConnectAccountErrorCodes.FAILED_TO_INITIATE,
           message:
-            "An unexpected error occured while trying to initiate the connect account flow."
+            "An unexpected error occurred while trying to initiate the connect account flow."
         }),
         null
       ];
@@ -1950,7 +1951,7 @@ export class AuthClient {
         new ConnectAccountError({
           code: ConnectAccountErrorCodes.FAILED_TO_COMPLETE,
           message:
-            "An unexpected error occured while trying to complete the connect account flow."
+            "An unexpected error occurred while trying to complete the connect account flow."
         }),
         null
       ];
