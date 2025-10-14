@@ -69,26 +69,9 @@ This example shows:
 
 ## Quick Start
 
-### Manual Testing
+## Quick Start
 
-1. **Setup:**
-   ```bash
-   cd nextjs-auth0/examples/with-dpop
-   npm install
-   ```
-
-2. **Configure environment** (see Configuration section below)
-
-3. **Run the application:**
-   ```bash
-   npm run dev
-   ```
-
-4. **Test DPoP functionality:**
-   - Navigate to http://localhost:3000
-   - Login with Auth0
-   - Click "Test Server-Side DPoP API"
-   - View DPoP validation results (API calls are made server-side via Next.js API routes)
+For a rapid setup to test DPoP functionality:
 
 ### Automated Testing
 
@@ -97,6 +80,27 @@ This example shows:
    export CYPRESS_USER_EMAIL=test@example.com
    export CYPRESS_USER_PASSWORD=testpass123
    ```
+
+2. **Run automated tests:**
+   ```bash
+   npm test
+   ```
+
+### Manual Testing
+
+1. **Complete the Configuration steps below** (required for proper setup)
+
+2. **Install dependencies and start:**
+   ```bash
+   npm install
+   npm run dev
+   ```
+
+3. **Test DPoP functionality:**
+   - Navigate to http://localhost:3000
+   - Login with Auth0
+   - Click "Test Server-Side DPoP API"
+   - View DPoP validation results (API calls are made server-side via Next.js API routes)
 
 2. **Run all tests:**
    ```bash
@@ -116,13 +120,68 @@ npm install
 
 ## Configuration
 
-### Create an API
+This example demonstrates DPoP with **multiple audiences**, requiring specific Auth0 setup for optimal functionality.
 
-For the **DPoP API demo** to work, you will need to [create an API](https://auth0.com/docs/authorization/apis) using the [management dashboard](https://manage.auth0.com/#/apis). This will give you an API Identifier that you can use in the `AUTH0_AUDIENCE` environment variable below.
+### Prerequisites
 
-### Configure credentials
+Before configuring this example, ensure you have:
 
-Copy `.env.local.example` into a new file called `.env.local`, and replace the values with your own Auth0 application credentials:
+1. **Auth0 Account**: [Create a free account](https://auth0.com/signup) if you don't have one
+2. **Admin Access**: Ability to create applications, APIs, and configure policies in your Auth0 tenant
+
+### Step 1: Create Auth0 Application
+
+1. Go to [Auth0 Dashboard](https://manage.auth0.com) → **Applications**
+2. Click **Create Application**
+3. Choose **Regular Web Application** (required for server-side DPoP)
+4. Configure the application:
+   - **Name**: `DPoP Example App` (or your preferred name)
+   - **Application Type**: Regular Web Application
+   - **Allowed Callback URLs**: `http://localhost:3000/api/auth/callback`
+   - **Allowed Logout URLs**: `http://localhost:3000`
+
+### Step 2: Create Multiple APIs
+
+This example requires **two APIs** to demonstrate multiple audience functionality:
+
+#### API 1: DPoP Server (Primary API)
+1. Go to **APIs** → **Create API**
+2. Configure:
+   - **Name**: `DPoP Demo API`
+   - **Identifier**: `https://example.com` (must match `AUTH0_DPOP_AUDIENCE`)
+   - **Signing Algorithm**: RS256
+3. In **Settings** → **Advanced Settings**:
+   - Enable **Skip consent for verifiable first-party clients**
+4. Add custom scopes in **Scopes** tab:
+   - `read:users` - Read user information
+   - Add any other custom scopes your app needs
+
+#### API 2: Bearer Server (Secondary API)  
+1. Go to **APIs** → **Create API**
+2. Configure:
+   - **Name**: `Bearer Demo API`
+   - **Identifier**: `resource-server-1` (must match `AUTH0_BEARER_AUDIENCE`)
+   - **Signing Algorithm**: RS256
+3. In **Settings** → **Advanced Settings**:
+   - Enable **Skip consent for verifiable first-party clients**
+
+### Step 3: Configure Multiple Resource Token (MRRT) Policy
+
+To enable your application to request tokens for multiple audiences:
+
+1. Go to **Applications** → Your DPoP Example App → **Settings**
+2. Scroll to **Advanced Settings** → **Endpoints**
+3. In **Application Properties**:
+   - Enable **Multiple Resource Token Policy**
+   - Add both API identifiers to the MRRT policy:
+     - `https://example.com`
+     - `resource-server-1`
+
+> **Important**: MRRT policies allow a single authentication session to generate access tokens for multiple APIs. Only include **custom scopes** in MRRT policies—OIDC scopes (`openid`, `profile`, `email`, `offline_access`) are automatically included.
+
+### Step 4: Configure Environment Variables
+
+Copy `.env.local.example` into a new file called `.env.local`, and replace the values with your Auth0 application credentials:
 
 ```sh
 # A long secret value used to encrypt the session cookie
@@ -133,30 +192,183 @@ APP_BASE_URL='http://localhost:3000'
 AUTH0_DOMAIN='YOUR_AUTH0_DOMAIN.auth0.com'
 # Your Auth0 application's Client ID
 AUTH0_CLIENT_ID='YOUR_AUTH0_CLIENT_ID'
-# Your Auth0 application's Client Secret
+# Your Auth0 application's Client Secret  
 AUTH0_CLIENT_SECRET='YOUR_AUTH0_CLIENT_SECRET'
-# Your Auth0 API's Identifier 
-# OMIT if you do not want to use the API part of the sample
-AUTH0_AUDIENCE='YOUR_AUTH0_API_IDENTIFIER'
-# The permissions your app is asking for
-# OMIT if you do not want to use the API part of the sample
-AUTH0_SCOPE='openid profile email read:shows'
+# Your Auth0 issuer base URL (typically https://YOUR_DOMAIN.auth0.com)
+AUTH0_ISSUER_BASE_URL='https://YOUR_AUTH0_DOMAIN.auth0.com'
 
-# DPoP Configuration (optional)
-# Set USE_DPOP=true to enable DPoP demonstration
-USE_DPOP=false
+# Primary API audience and scope (from Step 2, API 1)
+AUTH0_AUDIENCE='https://example.com'
+AUTH0_SCOPE='openid profile email offline_access'
+
+# DPoP Configuration (required for this example)
+USE_DPOP=true
+
+# Multiple Audience Configuration
+# DPoP server audience and scopes (API 1 from Step 2)
+AUTH0_DPOP_AUDIENCE='https://example.com'
+AUTH0_DPOP_SCOPE='openid profile read:users offline_access'
+
+# Bearer server audience and scopes (API 2 from Step 2)  
+AUTH0_BEARER_AUDIENCE='resource-server-1'
+AUTH0_BEARER_SCOPE='openid profile email offline_access'
+
 # Optional: Provide your own DPoP key pair (PEM format)
+# If not provided, keys will be generated automatically
 # AUTH0_DPOP_PUBLIC_KEY='-----BEGIN PUBLIC KEY-----...'
 # AUTH0_DPOP_PRIVATE_KEY='-----BEGIN PRIVATE KEY-----...'
 ```
 
-**Note**: Make sure you replace `AUTH0_SECRET` with your own secret (you can generate a suitable string using `openssl rand -hex 32` on the command line).
+**Important Notes:**
+- Replace `YOUR_AUTH0_DOMAIN`, `YOUR_AUTH0_CLIENT_ID`, and `YOUR_AUTH0_CLIENT_SECRET` with values from your Auth0 application
+- Generate `AUTH0_SECRET` using: `openssl rand -hex 32`
+- Ensure `AUTH0_DPOP_AUDIENCE` and `AUTH0_BEARER_AUDIENCE` match the API identifiers created in Step 2
+- Set `USE_DPOP=true` to enable DPoP functionality
 
 ## DPoP (Demonstration of Proof-of-Possession)
 
 This example demonstrates DPoP integration with the [Auth0 Next.js SDK](https://github.com/auth0/nextjs-auth0). DPoP is a security extension that provides cryptographic proof that the client making a request is in possession of a private key. This helps prevent token theft and replay attacks.
 
 > **📚 Complete Documentation**: For comprehensive DPoP documentation, configuration options, and advanced usage patterns, see the [DPoP Examples](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#dpop-demonstrating-proof-of-possession) in the main SDK documentation.
+
+## ⚠️ Important: Token Audience Validation with Multiple APIs
+
+When using DPoP with **multiple audiences** in the same application (e.g., via MRRT policies), ensure each access token is sent **only** to its intended API. Sending a token to the wrong API will result in audience validation failures.
+
+### How This Can Happen
+
+When creating multiple fetcher instances for different APIs:
+
+```javascript
+// Fetcher for API 1
+const fetcher1 = createFetcher({
+  url: 'https://api1.example.com',
+  accessTokenFactory: () => getAccessToken({
+    audience: 'https://api1.example.com',
+    // ...
+  })
+});
+
+// Fetcher for API 2  
+const fetcher2 = createFetcher({
+  url: 'https://api2.example.com',
+  accessTokenFactory: () => getAccessToken({
+    audience: 'https://api2.example.com',
+    // ...
+  })
+});
+```
+
+**Common mistake**: Accidentally using `fetcher1` to call endpoints that should use `fetcher2`, or vice versa. The API will reject the request with an audience mismatch error like:
+
+```
+OAUTH_JWT_CLAIM_COMPARISON_FAILED: unexpected JWT "aud" (audience) claim value
+```
+
+### Mitigation Strategies
+
+**1. Scope fetcher instances appropriately**
+- Create one fetcher per API/audience combination
+- Use clear, descriptive variable names that indicate which API each fetcher targets
+- Consider namespacing or module organization to prevent confusion
+
+**2. Configure MRRT policies correctly**
+- Ensure your MRRT policies include all audiences your application needs to access
+- Set `skip_consent_for_verifiable_first_party_clients: true` on all APIs in MRRT policies
+- Only include **custom scopes** in MRRT policies (OIDC scopes like `openid`, `profile`, `offline_access` are automatically included)
+
+**3. Validate in development**
+- Log the `aud` claim from decoded tokens during development to verify correct routing
+- Implement error handling that clearly identifies audience mismatches
+- Test each fetcher instance against its intended API endpoint before production deployment
+
+**4. API server validation**
+- Ensure your API servers validate the `aud` claim matches their expected audience identifier
+- Use the same audience string in both Auth0 API configuration and server-side validation
+
+### Example: Proper Token Routing
+
+```javascript
+// ✅ Correct: Each fetcher calls its own API
+await fetcher1.fetchWithAuth('/users'); // Uses token with aud: "https://api1.example.com"
+await fetcher2.fetchWithAuth('/orders'); // Uses token with aud: "https://api2.example.com"
+
+// ❌ Incorrect: Wrong fetcher for the API
+await fetcher1.fetchWithAuth('https://api2.example.com/orders'); // Will fail with aud mismatch
+```
+
+**Remember**: JWT audience validation is a critical security feature that prevents token misuse across different resource servers. These errors indicate your security controls are working correctly—the solution is to ensure proper token-to-API routing in your application code.
+
+### Step 5: Verify Setup
+
+After completing the configuration:
+
+1. **Start the development servers**:
+   ```bash
+   npm install
+   npm run dev
+   ```
+
+2. **Test the setup**:
+   - Navigate to `http://localhost:3000`
+   - Login with your Auth0 account
+   - Click "Test Server-Side DPoP API" 
+   - Click "Test Bearer API"
+   - Both should return successful responses with token information
+
+## Troubleshooting Setup
+
+### Common Issues and Solutions
+
+#### 1. "Audience validation failed" errors
+**Problem**: API returns `OAUTH_JWT_CLAIM_COMPARISON_FAILED` or similar audience errors
+
+**Solutions**:
+- Verify API identifiers in Auth0 dashboard match environment variables exactly
+- Check that `AUTH0_DPOP_AUDIENCE` matches the DPoP API identifier
+- Ensure `AUTH0_BEARER_AUDIENCE` matches the Bearer API identifier
+
+#### 2. "Grant type not allowed" errors  
+**Problem**: Token exchange fails during authentication
+
+**Solutions**:
+- Ensure your Auth0 application is set to **Regular Web Application** (not SPA)
+- Check that **Client Credentials** grant type is enabled in Application Settings
+- Verify **Authorization Code** grant type is enabled
+
+#### 3. MRRT policy issues
+**Problem**: Cannot get tokens for multiple audiences
+
+**Solutions**:
+- Confirm MRRT policy is enabled in Application Settings → Advanced Settings
+- Verify both API identifiers are added to the MRRT policy
+- Ensure **Skip consent for verifiable first-party clients** is enabled on both APIs
+
+#### 4. DPoP key generation errors
+**Problem**: DPoP functionality fails to initialize
+
+**Solutions**:
+- Check that `USE_DPOP=true` in your environment variables
+- Verify Node.js crypto module is available (required for key generation)
+- If providing custom keys, ensure they're valid ES256 key pairs in PEM format
+
+#### 5. Scope-related errors
+**Problem**: "Insufficient scope" or scope validation failures
+
+**Solutions**:
+- Add required custom scopes to your APIs (e.g., `read:users`)
+- Verify scopes in environment variables match those configured in Auth0
+- Remember: OIDC scopes (`openid`, `profile`, `email`, `offline_access`) are automatically included
+
+#### 6. Development server issues
+**Problem**: API servers on ports 3001/3002 fail to start
+
+**Solutions**:
+- Check that ports 3001 and 3002 are available
+- Kill any existing processes: `lsof -ti:3001,3002 | xargs kill -9`
+- Restart the development server: `npm run dev`
+
+For additional help, see the [Auth0 Next.js SDK Documentation](https://github.com/auth0/nextjs-auth0/blob/main/TROUBLESHOOTING.md).
 
 ### Quick Start
 

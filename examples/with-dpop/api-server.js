@@ -1,23 +1,3 @@
-/**
- * ⚠️ EXAMPLE ONLY - NOT FOR PRODUCTION USE ⚠️
- * 
- * This is a demonstration API server for testing DPoP functionality.
- * 
- * SECURITY WARNINGS:
- * - This code is for development/testing purposes only
- * - CodeQL security scanner correctly flags several issues that are acceptable for examples:
- *   * User-controlled security bypass (USE_DPOP env var) - intentional for demo switching
- *   * Log injection from headers - acceptable for debugging in non-production
- *   * Missing rate limiting on some routes - should be added for production
- * - DO NOT deploy this code to production without proper hardening
- * - For production use, implement proper:
- *   * Input validation and sanitization
- *   * Rate limiting on all endpoints
- *   * Structured logging (not console.log)
- *   * Environment variable validation
- *   * Error handling without information leakage
- */
-
 require('dotenv').config({ path: './.env.local' });
 
 const express = require('express');
@@ -31,12 +11,13 @@ const oauth = require('oauth4webapi');
 const crypto = require('crypto');
 const jose = require('jose');
 
-const app = express();
-const port = process.env.API_PORT || 3001;
 const baseUrl = process.env.APP_BASE_URL;
 const domain = process.env.AUTH0_DOMAIN;
 const issuerBaseUrl = `https://${domain}`;
-const audience = process.env.AUTH0_AUDIENCE;
+
+if (!baseUrl || !domain) {
+  throw new Error('Please make sure that the file .env.local is in place and populated');
+}
 
 // Function to find available port
 async function findAvailablePort(startPort) {
@@ -65,35 +46,12 @@ async function findAvailablePort(startPort) {
   });
 }
 
-if (!baseUrl || !domain) {
-  throw new Error('Please make sure that the file .env.local is in place and populated');
-}
-
-if (!audience) {
-  console.log('AUTH0_AUDIENCE not set in .env.local. Shutting down API server.');
-  process.exit(1);
-}
-
-app.use(morgan('dev'));
-app.use(helmet());
-app.use(cors({ origin: baseUrl }));
-app.use(express.json());
-
-// Rate limiting configuration
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
+// Global authorization server metadata
 let authorizationServer;
 
 async function initializeAuthorizationServer() {
   try {
-    console.log('[API] Discovering authorization server metadata...');
-    console.log('[API] Issuer URL:', issuerBaseUrl);
+    console.log(`Discovering authorization server metadata from ${issuerBaseUrl}...`);
     
     const issuer = new URL(issuerBaseUrl);
     const discoveryResponse = await oauth.discoveryRequest(issuer, {
@@ -101,18 +59,12 @@ async function initializeAuthorizationServer() {
     });
     
     authorizationServer = await oauth.processDiscoveryResponse(issuer, discoveryResponse);
-    
-    console.log('[API] Authorization server metadata discovered successfully');
-    console.log('[API] Issuer:', authorizationServer.issuer);
-    console.log('[API] JWKS URI:', authorizationServer.jwks_uri);
-    console.log('[API] Token endpoint:', authorizationServer.token_endpoint);
+    console.log('Authorization server metadata discovered successfully');
     
   } catch (error) {
-    console.error('[API] Failed to discover authorization server metadata:', error);
-    
-    console.log('[API] Using fallback authorization server configuration...');
+    console.warn('Failed to discover authorization server metadata, using fallback configuration');
     authorizationServer = {
-      issuer: issuerBaseUrl,
+      issuer: `${issuerBaseUrl}/`,
       authorization_endpoint: `${issuerBaseUrl}/authorize`,
       token_endpoint: `${issuerBaseUrl}/oauth/token`,
       jwks_uri: `${issuerBaseUrl}/.well-known/jwks.json`,
@@ -128,221 +80,248 @@ async function initializeAuthorizationServer() {
   }
 }
 
-const checkJwt = jwt({
-  secret: jwksRsa.expressJwtSecret({
-    cache: true,
-    rateLimit: true,
-    jwksRequestsPerMinute: 5,
-    jwksUri: `${issuerBaseUrl}/.well-known/jwks.json`
-  }),
-  audience: audience,
-  issuer: `${issuerBaseUrl}/`,
-  algorithms: ['RS256']
-});
+// Factory function to create API server for specific audience and auth method
+function createApiServer(audience, serverName, forceDpop = null) {
+  const app = express();
 
-// DPoP validation middleware
-// This middleware validates DPoP proofs according to RFC 9449
-const checkDpop = async (req, res, next) => {
-  console.log('[API] DPoP validation middleware called');
-  console.log('[API] Request headers:', {
-    authorization: req.headers.authorization ? 'Present' : 'Missing',
-    dpop: req.headers.dpop ? 'Present' : 'Missing',
-    contentType: req.headers['content-type'] || 'N/A',
-    userAgent: req.headers['user-agent'] || 'N/A'
+  // Rate limiting configuration
+  const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100,
+    message: 'Too many requests from this IP, please try again later.',
+    standardHeaders: true,
+    legacyHeaders: false,
   });
-  
-  console.log('[API] Starting DPoP validation process');
 
-  try {
-    // Step 1: Validate request has proper headers
-    console.log('[API] Step 1: Validating headers');
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      console.log('[API] Missing Authorization header');
-      return res.status(401).json({ error: 'Missing Authorization header' });
-    }
+  // Basic middleware
+  app.use(morgan('combined'));
+  app.use(helmet());
+  app.use(cors({ origin: baseUrl }));
+  app.use(express.json());
 
-    // Check if using DPoP scheme
-    if (!authHeader.toLowerCase().startsWith('dpop ')) {
-      console.log('[API] Invalid authorization scheme, expected DPoP');
-      return res.status(401).json({ error: 'Expected DPoP authorization scheme' });
-    }
+  // JWT validation middleware for Bearer tokens
+  const checkJwt = jwt({
+    secret: jwksRsa.expressJwtSecret({
+      cache: true,
+      rateLimit: true,
+      jwksRequestsPerMinute: 5,
+      jwksUri: `${issuerBaseUrl}/.well-known/jwks.json`
+    }),
+    audience: audience,
+    issuer: `${issuerBaseUrl}/`,
+    algorithms: ['RS256']
+  });
 
-    const dpopHeader = req.headers.dpop;
-    if (!dpopHeader) {
-      console.log('[API] Missing DPoP header');
-      return res.status(401).json({ error: 'Missing DPoP header' });
-    }
-
-    const accessToken = authHeader.slice(5); // Remove 'DPoP ' prefix
-    console.log('[API] Headers validated successfully');
-
-    // Step 2: Validate JWT access token using jose (Auth0 compatible)
-    console.log('[API] Step 2: Validating JWT access token');
-    
-    // Use discovered JWKS URI from authorization server metadata
-    const jwksUri = authorizationServer?.jwks_uri || `${issuerBaseUrl}/.well-known/jwks.json`;
-    const jwks = jose.createRemoteJWKSet(new URL(jwksUri));
-
-    // Verify JWT access token using jose with discovered issuer
-    const expectedIssuer = authorizationServer?.issuer || `${issuerBaseUrl}/`;
-    const { payload: jwtClaims } = await jose.jwtVerify(accessToken, jwks, {
-      audience: audience,
-      issuer: expectedIssuer,
-      algorithms: ['RS256']
-    });
-    console.log('[API] JWT access token validated successfully');
-
-    // Step 3: Validate DPoP proof
-    console.log('[API] Step 3: Validating DPoP proof');
-
-    // Parse DPoP proof JWT
-    const dpopProofHeader = jose.decodeProtectedHeader(dpopHeader);
-    const dpopProofPayload = jose.decodeJwt(dpopHeader);
-    
-    console.log('[API] DPoP proof parsed successfully');
-    
-    if (!dpopProofHeader || !dpopProofPayload) {
-      console.log('[API] Invalid DPoP proof format');
-      return res.status(401).json({ error: 'Invalid DPoP proof format' });
-    }
-    
-    // Check required DPoP proof headers
-    if (dpopProofHeader.typ !== 'dpop+jwt') {
-      console.log('[API] Invalid DPoP proof typ');
-      return res.status(401).json({ error: 'DPoP proof must have typ: dpop+jwt' });
-    }
-
-    if (!dpopProofHeader.alg) {
-      console.log('[API] Missing DPoP proof alg header');
-      return res.status(401).json({ error: 'DPoP proof missing alg header' });
-    }
-
-    if (!dpopProofHeader.jwk) {
-      console.log('[API] Missing DPoP proof jwk header');
-      return res.status(401).json({ error: 'DPoP proof missing jwk header' });
-    }
-
-    // Check required DPoP proof claims
-    console.log('[API] Validating DPoP proof claims');
-    if (dpopProofPayload.htm !== req.method) {
-      console.log('[API] DPoP proof htm mismatch');
-      return res.status(401).json({ error: 'DPoP proof htm mismatch' });
-    }
-
-    const expectedHtu = `${req.protocol}://${req.get('host')}${req.originalUrl.split('?')[0]}`;
-    console.log('[API] Validating HTU claim');
-    if (dpopProofPayload.htu !== expectedHtu) {
-      console.log('[API] URL mismatch in DPoP proof');
-      return res.status(401).json({ error: 'DPoP proof htu mismatch' });
-    }
-
-    // Validate access token hash (ath) claim
-    const expectedAth = crypto.createHash('sha256').update(accessToken).digest('base64url');
-    console.log('[API] Validating access token hash');
-    if (dpopProofPayload.ath !== expectedAth) {
-      console.log('[API] Access token hash mismatch');
-      return res.status(401).json({ error: 'DPoP proof ath mismatch' });
-    }
-
-    // Validate timestamp - DPoP proofs should be recent (within 5 minutes)
-    const now = Math.floor(Date.now() / 1000);
-    const timeDiff = Math.abs(now - dpopProofPayload.iat);
-    console.log('[API] Validating DPoP proof timestamp');
-    if (timeDiff > 300) {
-      console.log('[API] DPoP proof timestamp validation failed');
-      return res.status(401).json({ error: 'DPoP proof is not recent enough' });
-    }
-
-    // Validate DPoP proof signature using jose library
-    console.log('[API] Step 4: Validating DPoP proof signature');
+  // DPoP validation middleware
+  const checkDpop = async (req, res, next) => {
     try {
-      // Determine algorithm for importJWK
-      let alg = dpopProofHeader.alg;
-      if (!alg) {
-        // Try to infer from JWK
-        const jwk = dpopProofHeader.jwk;
-        if (jwk.kty === 'EC' && jwk.crv === 'P-256') {
-          alg = 'ES256';
-        } else if (jwk.kty === 'RSA') {
-          alg = 'RS256';
-        } else {
-          console.error('[API] Unable to determine JWK algorithm for DPoP proof');
-          return res.status(401).json({ error: 'Unable to determine JWK algorithm for DPoP proof' });
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: 'Missing Authorization header' });
+      }
+
+      if (!authHeader.toLowerCase().startsWith('dpop ')) {
+        return res.status(401).json({ error: 'Expected DPoP authorization scheme' });
+      }
+
+      const dpopHeader = req.headers.dpop;
+      if (!dpopHeader) {
+        return res.status(401).json({ error: 'Missing DPoP header' });
+      }
+
+      const absoluteUrl = `${req.protocol}://${req.get('host')}${req.originalUrl.split('?')[0]}`;
+      const request = new Request(absoluteUrl, {
+        method: req.method,
+        headers: {
+          'authorization': authHeader,
+          'dpop': dpopHeader
+        }
+      });
+
+      if (!authorizationServer) {
+        return res.status(500).json({ error: 'Authorization server not ready' });
+      }
+
+      const jwtClaims = await oauth.validateJwtAccessToken(
+        authorizationServer,
+        request,
+        audience
+      );
+
+      // Analyze DPoP binding
+      const hasCnfClaim = jwtClaims.cnf && jwtClaims.cnf.jkt;
+      let cnfValidation = null;
+      
+      if (hasCnfClaim) {
+        try {
+          const dpopProofHeader = jose.decodeProtectedHeader(dpopHeader);
+          const actualThumbprint = await jose.calculateJwkThumbprint(dpopProofHeader.jwk, 'sha256');
+          
+          cnfValidation = {
+            expectedThumbprint: jwtClaims.cnf.jkt,
+            actualThumbprint: actualThumbprint,
+            valid: jwtClaims.cnf.jkt === actualThumbprint
+          };
+        } catch (cnfError) {
+          cnfValidation = {
+            error: cnfError.message,
+            valid: false
+          };
         }
       }
-      console.log('[API] Using algorithm:', alg);
-      const publicKey = await jose.importJWK(dpopProofHeader.jwk, alg);
-      await jose.jwtVerify(dpopHeader, publicKey, {
-        typ: 'dpop+jwt'
+
+      const dpopDiagnostics = {
+        validatedBy: 'oauth4webapi',
+        tokenBound: hasCnfClaim,
+        cnfClaim: hasCnfClaim ? jwtClaims.cnf : null,
+        cnfValidation: cnfValidation,
+        auth0Config: hasCnfClaim ? 'DPoP enabled' : 'DPoP disabled (Token Sender-Constraining = None)'
+      };
+
+      req.auth = jwtClaims;
+      req.dpopDiagnostics = dpopDiagnostics;
+      next();
+
+    } catch (error) {
+      console.error(`[${serverName}] DPoP validation failed:`, error.message);
+      
+      let errorDetails = {
+        message: error.message,
+        validatedBy: 'oauth4webapi'
+      };
+      
+      if (error.cause) {
+        errorDetails.cause = error.cause;
+      }
+      
+      if (error.message && error.message.includes('JWT "cnf" (confirmation) claim missing')) {
+        return res.status(401).json({
+          error: 'DPoP token missing cnf claim',
+          details: errorDetails,
+          auth0ConfigurationIssue: {
+            problem: 'Token Sender-Constraining is set to "None"',
+            solution: 'Enable DPoP in Auth0 Dashboard',
+            steps: [
+              '1. Go to Auth0 Dashboard → APIs → Select your API',
+              '2. Find "Token Sender-Constraining" setting',
+              '3. Change from "None" to "Demonstrating Proof-of-Possession (DPoP)"',
+              '4. Save changes and test again'
+            ],
+            technicalExplanation: 'Auth0 is issuing regular access tokens without the "cnf" (confirmation) claim required for DPoP binding.',
+            learnMore: 'https://auth0.com/docs/secure/tokens/token-binding/configure-token-binding'
+          },
+          validation: {
+            hasAuthorizationHeader: true,
+            hasDpopHeader: true,
+            tokenFormat: 'valid',
+            issue: 'missing_cnf_claim'
+          }
+        });
+      }
+      
+      return res.status(401).json({
+        error: 'DPoP validation failed',
+        details: errorDetails
       });
-      console.log('[API] DPoP proof signature successfully verified');
-    } catch (err) {
-      console.error('[API] DPoP signature validation error');
-      return res.status(401).json({ error: 'DPoP proof signature validation failed' });
     }
+  };
 
-    // Attach validated claims to request for use in route handlers
-    req.auth = jwtClaims;
-    req.dpopProof = dpopProofPayload;
-    console.log('[API] DPoP validation completed successfully');
-    next();
-  } catch (error) {
-    console.error('[API] DPoP validation failed');
-    return res.status(401).json({
-      error: 'DPoP validation failed'
-    });  
+  // Routes with configurable authentication method
+  const useDpop = forceDpop !== null ? forceDpop : (process.env.USE_DPOP === 'true');
+  
+  if (useDpop) {
+    app.get('/api/shows', apiLimiter, checkDpop, (req, res) => {
+      res.send({
+        msg: `Your DPoP access token was successfully validated for ${audience}!`,
+        dpopEnabled: true,
+        serverAudience: audience,
+        serverName: serverName,
+        claims: req.auth,
+        dpopDiagnostics: req.dpopDiagnostics,
+        tokenBinding: {
+          hasCnfClaim: req.dpopDiagnostics.tokenBound,
+          auth0Config: req.dpopDiagnostics.auth0Config,
+          cnfValidation: req.dpopDiagnostics.cnfValidation,
+          validationMethod: 'oauth4webapi'
+        }
+      });
+    });
+  } else {
+    app.get('/api/shows', apiLimiter, checkJwt, (req, res) => {
+      res.send({
+        msg: `Your Bearer access token was successfully validated for ${audience}!`,
+        dpopEnabled: false,
+        serverAudience: audience,
+        serverName: serverName,
+        claims: req.auth,
+        tokenBinding: {
+          hasCnfClaim: false,
+          auth0Config: 'DPoP disabled',
+          validationMethod: 'express-jwt'
+        }
+      });
+    });
   }
-};
 
-// Apply middleware based on DPoP configuration
-// Routes are protected with rate limiting and authentication
-if (process.env.USE_DPOP === 'true') {
-  app.get('/api/shows', apiLimiter, checkDpop, (req, res) => {
-    console.log('[API] DPoP endpoint hit successfully');
+  // Bearer token endpoint for comparison
+  app.get('/api/shows-bearer', apiLimiter, checkJwt, (req, res) => {
     res.send({
-      msg: 'Your DPoP access token was successfully validated!',
-      dpopEnabled: true,
-      claims: req.auth
+      msg: `Your Bearer access token was successfully validated for ${audience}!`,
+      dpopEnabled: false,
+      authType: 'Bearer',
+      serverAudience: audience,
+      serverName: serverName,
+      claims: req.auth,
+      tokenBinding: {
+        hasCnfClaim: false,
+        auth0Config: 'Bearer tokens (no DPoP binding)',
+        validationMethod: 'express-jwt'
+      }
     });
   });
-} else {
-  app.get('/api/shows', apiLimiter, checkJwt, (req, res) => {
-    console.log('[API] Bearer token endpoint hit successfully');
-    res.send({
-      msg: 'Your access token was successfully validated!',
-      dpopEnabled: false
-    });
-  });
+
+  return app;
 }
 
-// Add dedicated Bearer token endpoint for side-by-side comparison
-app.get('/api/shows-bearer', apiLimiter, checkJwt, (req, res) => {
-  console.log('[API] Bearer token endpoint (dedicated) hit successfully');
-  res.send({
-    msg: 'Your Bearer access token was successfully validated!',
-    dpopEnabled: false,
-    authType: 'Bearer',
-    claims: req.auth
-  });
-});
-
-// Start server with dynamic port assignment
-async function startServer() {
+// Main server startup function
+async function startServers() {
   try {
     await initializeAuthorizationServer();
-    const availablePort = await findAvailablePort(port);
-    
-    const server = app.listen(availablePort, () => {
-      console.log(`API Server listening on port ${availablePort}`);
-      console.log(`DPoP validation: ${process.env.USE_DPOP === 'true' ? 'ENABLED' : 'DISABLED'}`);
-    });
 
-    process.on('SIGINT', () => server.close());
+    // Server configurations
+    const servers = [
+      {
+        audience: process.env.AUTH0_BEARER_AUDIENCE || 'resource-server-1',
+        port: 3002,
+        name: 'Bearer-Server',
+        forceDpop: false
+      },
+      {
+        audience: process.env.AUTH0_DPOP_AUDIENCE || 'https://example.com',
+        port: 3001,
+        name: 'DPoP-Server',
+        forceDpop: true
+      }
+    ];
+
+    // Start both servers
+    for (const config of servers) {
+      const app = createApiServer(config.audience, config.name, config.forceDpop);
+      const availablePort = await findAvailablePort(config.port);
+      
+      const server = app.listen(availablePort, () => {
+        console.log(`[${config.name}] API Server listening on port ${availablePort}`);
+        console.log(`[${config.name}] Audience: ${config.audience}`);
+        console.log(`[${config.name}] Auth Method: ${config.forceDpop ? 'DPoP' : 'Bearer'}`);
+      });
+
+      process.on('SIGINT', () => server.close());
+    }
+
   } catch (error) {
-    console.error('Failed to start API server:', error);
+    console.error('Failed to start API servers:', error);
     process.exit(1);
   }
 }
 
-startServer();
+startServers();

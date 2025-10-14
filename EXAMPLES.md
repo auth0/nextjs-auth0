@@ -1254,8 +1254,6 @@ const response = await fetcher.fetchWithAuth("/api/endpoint");
 
 ### Advanced Usage
 
-Extend DPoP functionality with custom implementations and conditional usage patterns.
-
 #### Custom Access Token Factory
 
 Override the default token retrieval with custom logic for specific use cases:
@@ -1330,7 +1328,76 @@ const fetcher = await auth0.createFetcher(req, {
 });
 ```
 
-#### Security Best Practices
+
+### Token Audience Validation with Multiple APIs
+
+When using DPoP with **multiple audiences** in the same application (e.g., via MRRT policies), ensure each access token is sent **only** to its intended API. Sending a token to the wrong API will result in audience validation failures.
+
+#### How This Can Happen
+
+When creating multiple fetcher instances for different APIs:
+
+```javascript
+// Fetcher for API 1
+const fetcher1 = createFetcher({
+  url: 'https://api1.example.com',
+  accessTokenFactory: () => getAccessToken({
+    audience: 'https://api1.example.com',
+    // ...
+  })
+});
+
+// Fetcher for API 2  
+const fetcher2 = createFetcher({
+  url: 'https://api2.example.com',
+  accessTokenFactory: () => getAccessToken({
+    audience: 'https://api2.example.com',
+    // ...
+  })
+});
+```
+
+**Common mistake**: Accidentally using `fetcher1` to call endpoints that should use `fetcher2`, or vice versa. The API will reject the request with an audience mismatch error like:
+
+```
+OAUTH_JWT_CLAIM_COMPARISON_FAILED: unexpected JWT "aud" (audience) claim value
+```
+
+#### Mitigation Strategies
+
+**1. Scope fetcher instances appropriately**
+- Create one fetcher per API/audience combination
+- Use clear, descriptive variable names that indicate which API each fetcher targets
+- Consider namespacing or module organization to prevent confusion
+
+**2. Configure MRRT policies correctly**
+- Ensure your MRRT policies include all audiences your application needs to access
+- Set `skip_consent_for_verifiable_first_party_clients: true` on all APIs in MRRT policies
+- Only include **custom scopes** in MRRT policies (OIDC scopes like `openid`, `profile`, `offline_access` are automatically included)
+
+**3. Validate in development**
+- Log the `aud` claim from decoded tokens during development to verify correct routing
+- Implement error handling that clearly identifies audience mismatches
+- Test each fetcher instance against its intended API endpoint before production deployment
+
+**4. API server validation**
+- Ensure your API servers validate the `aud` claim matches their expected audience identifier
+- Use the same audience string in both Auth0 API configuration and server-side validation
+
+#### Example: Proper Token Routing
+
+```javascript
+// ✅ Correct: Each fetcher calls its own API
+await fetcher1.fetchWithAuth('/users'); // Uses token with aud: "https://api1.example.com"
+await fetcher2.fetchWithAuth('/orders'); // Uses token with aud: "https://api2.example.com"
+
+// ❌ Incorrect: Wrong fetcher for the API
+await fetcher1.fetchWithAuth('https://api2.example.com/orders'); // Will fail with aud mismatch
+```
+
+**Remember**: JWT audience validation is a critical security feature that prevents token misuse across different resource servers. These errors indicate your security controls are working correctly—the solution is to ensure proper token-to-API routing in your application code.
+
+### Security Best Practices
 
 Follow these guidelines for secure DPoP implementation:
 

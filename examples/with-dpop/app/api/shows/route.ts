@@ -12,17 +12,33 @@ export const GET = async function shows() {
     const relativePath = '/api/shows';
 
     const configuredOptions = {
-      audience: 'https://dev-10whndm3tf8jetu5.us.auth0.com/api/v2/',
-      scope: 'openid profile email offline_access',
+      audience: process.env.AUTH0_DPOP_AUDIENCE || 'https://example.com',
+      scope: process.env.AUTH0_DPOP_SCOPE || 'openid profile read:users offline_access',
       refresh: true
     };
 
     const fetcher = await auth0.createFetcher<Response>(undefined, {
       baseUrl: 'http://localhost:3001',
       getAccessToken: async(getAccessTokenOptions) => {
-        console.info("This is a custom getAccessToken factory method")
-        console.info(JSON.stringify(getAccessTokenOptions));
+        console.info(`[FIXED] Custom getAccessToken called with options: ${JSON.stringify(getAccessTokenOptions)}`);
         const at = await auth0.getAccessToken(getAccessTokenOptions);
+
+        console.log(`[FIXED] auth0.getAccessToken returned: ${JSON.stringify(at)}`);
+        
+        // Let's decode the JWT to see the audience
+        try {
+          const payload = JSON.parse(Buffer.from(at.token.split('.')[1], 'base64').toString());
+          console.log(`[FIXED] Decoded JWT payload - aud: ${JSON.stringify(payload.aud)}, scope: ${payload.scope}`);
+          
+          // Verify fix worked
+          const expectedAudience = process.env.AUTH0_DPOP_AUDIENCE || 'https://example.com';
+          const hasCorrectAudience = payload.aud.includes(expectedAudience);
+          console.log(`[FIXED] ✅ Fix verification - Expected audience '${expectedAudience}' found in JWT: ${hasCorrectAudience}`);
+          
+        } catch (e: any) {
+          console.log(`[FIXED] Failed to decode JWT: ${e.message}`);
+        }
+
         return at.token;
       }
     });
@@ -35,17 +51,30 @@ export const GET = async function shows() {
       try {
         const errorText = await response.text();
         console.info('[Route] Error response body:', errorText);
-        return NextResponse.json(
-          {
+        
+        // Try to parse error response as JSON to preserve Auth0 configuration guidance
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+          console.info('[Route] Parsed error response:', errorData);
+          
+          // Forward the enhanced error response with Auth0 configuration guidance
+          return NextResponse.json(errorData, { status: response.status });
+          
+        } catch (jsonParseError) {
+          console.info('[Route] Error response not JSON, using text:', jsonParseError);
+          
+          // Fallback for non-JSON error responses
+          errorData = {
             error: 'API request failed',
             status: response.status,
             statusText: response.statusText,
             body: errorText
-          },
-          {
-            status: response.status
-          }
-        );
+          };
+        }
+        
+        return NextResponse.json(errorData, { status: response.status });
+        
       } catch (parseError) {
         console.info('[Route] Failed to parse error response:', parseError);
         return NextResponse.json(

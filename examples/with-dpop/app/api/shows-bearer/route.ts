@@ -12,19 +12,29 @@ export const GET = async function showsBearer() {
     const relativePath = '/api/shows-bearer';
 
     const configuredOptions = {
-      audience: 'https://dev-10whndm3tf8jetu5.us.auth0.com/api/v2/',
-      scope: 'openid profile email offline_access',
-      refresh: true
+      audience: process.env.AUTH0_BEARER_AUDIENCE || 'resource-server-1',
+      scope: process.env.AUTH0_BEARER_SCOPE || 'openid profile email offline_access',
+      refresh: true,
     };
 
     // Create fetcher with useDPoP: false to force Bearer token authentication
     const fetcher = await auth0.createFetcher<Response>(undefined, {
-      baseUrl: 'http://localhost:3001',
+      baseUrl: 'http://localhost:3002',
       useDPoP: false, // Explicitly disable DPoP for this fetcher
       getAccessToken: async(getAccessTokenOptions) => {
-        console.info("This is a custom getAccessToken factory method for Bearer token");
-        console.info(JSON.stringify(getAccessTokenOptions));
+        console.info(`[DEBUG] Bearer route getAccessToken called with options: ${JSON.stringify(getAccessTokenOptions)}`);
         const at = await auth0.getAccessToken(getAccessTokenOptions);
+        
+        console.log(`[DEBUG] Bearer route auth0.getAccessToken returned: ${JSON.stringify(at)}`);
+        
+        // Let's decode the JWT to see the audience
+        try {
+          const payload = JSON.parse(Buffer.from(at.token.split('.')[1], 'base64').toString());
+          console.log(`[DEBUG] Bearer route decoded JWT payload - aud: ${JSON.stringify(payload.aud)}, scope: ${payload.scope}`);
+        } catch (e) {
+          console.log(`[DEBUG] Bearer route failed to decode JWT: ${e.message}`);
+        }
+        
         return at.token;
       }
     });

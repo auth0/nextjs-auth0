@@ -148,13 +148,24 @@ export default function Index() {
                     </p>
                     {apiError.details && (
                       <p>
-                        <strong>Details:</strong> {apiError.details}
+                        <strong>Details:</strong> {apiError.details.message || apiError.details}
                       </p>
                     )}
                     {apiError.errorType && (
                       <p>
                         <strong>Type:</strong> {apiError.errorType}
                       </p>
+                    )}
+                    
+                    {/* Validation Status */}
+                    {apiError.validation && (
+                      <div className="mt-3 p-2 rounded col">
+                          <strong>Validation Status:</strong>
+                          <div>Authorization Header: {apiError.validation.hasAuthorizationHeader ? '✅' : '❌'}</div>
+                          <div>DPoP Header: {apiError.validation.hasDpopHeader ? '✅' : '❌'}</div>
+                          <div>Token Format: {apiError.validation.tokenFormat === 'valid' ? '✅' : '❌'}</div>
+                          <div>Issue: {apiError.validation.issue}</div>
+                      </div>
                     )}
                   </div>
                 </div>
