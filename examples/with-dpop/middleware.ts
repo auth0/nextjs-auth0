@@ -36,13 +36,13 @@ async function handleMiddlewareDPoPDemo(request: NextRequest) {
     const relativePath = '/api/shows';
     
     const configuredOptions = {
-      audience: 'https://dev-10whndm3tf8jetu5.us.auth0.com/api/v2/',
-      scope: 'openid profile email offline_access',
+      audience: process.env.AUTH0_DPOP_AUDIENCE || 'https://example.com',
+      scope: process.env.AUTH0_BEARER_SCOPE || 'openid profile email offline_access',
       refresh: true
     };
 
     // Create fetcher with baseUrl configuration
-    const fetcher = await auth0.createFetcher(undefined, {
+    const fetcher = await auth0.createFetcher(request, {
       baseUrl: 'http://localhost:3001',
       getAccessToken: async function(getAccessTokenOptions) {
         console.log('[Middleware] Custom getAccessToken called');
