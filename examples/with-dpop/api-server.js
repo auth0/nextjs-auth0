@@ -316,6 +316,17 @@ if (process.env.USE_DPOP === 'true') {
   });
 }
 
+// Add dedicated Bearer token endpoint for side-by-side comparison
+app.get('/api/shows-bearer', apiLimiter, checkJwt, (req, res) => {
+  console.log('[API] Bearer token endpoint (dedicated) hit successfully');
+  res.send({
+    msg: 'Your Bearer access token was successfully validated!',
+    dpopEnabled: false,
+    authType: 'Bearer',
+    claims: req.auth
+  });
+});
+
 // Start server with dynamic port assignment
 async function startServer() {
   try {
