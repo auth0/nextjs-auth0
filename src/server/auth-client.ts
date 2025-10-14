@@ -1,6 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server.js";
 import * as jose from "jose";
 import * as oauth from "oauth4webapi";
+import {
+  allowInsecureRequests,
+  customFetch,
+  protectedResourceRequest
+} from "oauth4webapi";
 import * as client from "openid-client";
 
 import packageJson from "../../package.json" with { type: "json" };
@@ -26,7 +31,6 @@ import {
   OAuth2Error,
   SdkError
 } from "../errors/index.js";
-import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
 import {
   CompleteConnectAccountRequest,
   CompleteConnectAccountResponse,
@@ -34,6 +38,7 @@ import {
   ConnectAccountRequest,
   ConnectAccountResponse
 } from "../types/connected-accounts.js";
+import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
 import {
   AccessTokenForConnectionOptions,
   AccessTokenSet,
@@ -1905,21 +1910,35 @@ export class AuthClient {
       const httpOptions = this.httpOptions();
       const headers = new Headers(httpOptions.headers);
       headers.set("Content-Type", "application/json");
-      headers.set("Authorization", `Bearer ${options.accessToken}`);
 
-      const res = await this.fetch(connectAccountUrl, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          connection: options.connection,
-          redirect_uri: options.redirectUri,
-          state: options.state,
-          code_challenge: options.codeChallenge,
-          code_challenge_method: options.codeChallengeMethod,
-          authorization_params: options.authorizationParams
-        }),
-        signal: httpOptions.signal
+      const requestBody = JSON.stringify({
+        connection: options.connection,
+        redirect_uri: options.redirectUri,
+        state: options.state,
+        code_challenge: options.codeChallenge,
+        code_challenge_method: options.codeChallengeMethod,
+        authorization_params: options.authorizationParams
       });
+
+      const res = await protectedResourceRequest(
+        options.accessToken,
+        "POST",
+        connectAccountUrl,
+        headers,
+        requestBody,
+        {
+          ...httpOptions,
+          [customFetch]: (url: string, requestOptions: any) => {
+            const tmpRequest = new Request(url, requestOptions);
+            return this.fetch(tmpRequest);
+          },
+          [allowInsecureRequests]: this.allowInsecureRequests || false,
+          ...(this.useDPoP &&
+            this.dpopKeyPair && {
+              DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
+            })
+        }
+      );
 
       if (!res.ok) {
         try {
@@ -1985,19 +2004,33 @@ export class AuthClient {
       const httpOptions = this.httpOptions();
       const headers = new Headers(httpOptions.headers);
       headers.set("Content-Type", "application/json");
-      headers.set("Authorization", `Bearer ${options.accessToken}`);
 
-      const res = await this.fetch(completeConnectAccountUrl, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          auth_session: options.authSession,
-          connect_code: options.connectCode,
-          redirect_uri: options.redirectUri,
-          code_verifier: options.codeVerifier
-        }),
-        signal: httpOptions.signal
+      const requestBody = JSON.stringify({
+        auth_session: options.authSession,
+        connect_code: options.connectCode,
+        redirect_uri: options.redirectUri,
+        code_verifier: options.codeVerifier
       });
+
+      const res = await protectedResourceRequest(
+        options.accessToken,
+        "POST",
+        completeConnectAccountUrl,
+        headers,
+        requestBody,
+        {
+          ...httpOptions,
+          [customFetch]: (url: string, requestOptions: any) => {
+            const tmpRequest = new Request(url, requestOptions);
+            return this.fetch(tmpRequest);
+          },
+          [allowInsecureRequests]: this.allowInsecureRequests || false,
+          ...(this.useDPoP &&
+            this.dpopKeyPair && {
+              DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
+            })
+        }
+      );
 
       if (!res.ok) {
         try {
