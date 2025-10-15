@@ -52,7 +52,7 @@ export interface SessionConfiguration {
    */
   rolling?: boolean;
   /**
-   * The absolute duration after which the session will expire. The value must be specified in seconds..
+   * The absolute duration after which the session will expire. The value must be specified in seconds.
    *
    * Once the absolute duration has been reached, the session will no longer be extended.
    *

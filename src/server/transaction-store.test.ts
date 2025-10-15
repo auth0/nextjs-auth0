@@ -3,6 +3,7 @@ import * as oauth from "oauth4webapi";
 import { describe, expect, it } from "vitest";
 
 import { generateSecret } from "../test/utils.js";
+import { RESPONSE_TYPES } from "../types/connected-accounts.js";
 import {
   decrypt,
   encrypt,
@@ -22,7 +23,7 @@ describe("Transaction Store", async () => {
         nonce,
         maxAge: 3600,
         codeVerifier: codeVerifier,
-        responseType: "code",
+        responseType: RESPONSE_TYPES.CODE,
         state,
         returnTo: "/dashboard"
       };
@@ -56,7 +57,7 @@ describe("Transaction Store", async () => {
         nonce,
         maxAge: 3600,
         codeVerifier: codeVerifier,
-        responseType: "code",
+        responseType: RESPONSE_TYPES.CODE,
         state,
         returnTo: "/dashboard"
       };
@@ -90,7 +91,7 @@ describe("Transaction Store", async () => {
         nonce,
         maxAge: 3600,
         codeVerifier: codeVerifier,
-        responseType: "code",
+        responseType: RESPONSE_TYPES.CODE,
         state,
         returnTo: "/dashboard"
       };
@@ -125,7 +126,7 @@ describe("Transaction Store", async () => {
         nonce,
         maxAge: 3600,
         codeVerifier: codeVerifier,
-        responseType: "code",
+        responseType: RESPONSE_TYPES.CODE,
         returnTo: "/dashboard",
         state: "" // missing state
       };
@@ -151,7 +152,7 @@ describe("Transaction Store", async () => {
           nonce,
           maxAge: 3600,
           codeVerifier: codeVerifier,
-          responseType: "code",
+          responseType: RESPONSE_TYPES.CODE,
           state,
           returnTo: "/dashboard"
         };
@@ -190,7 +191,7 @@ describe("Transaction Store", async () => {
           nonce,
           maxAge: 3600,
           codeVerifier: codeVerifier,
-          responseType: "code",
+          responseType: RESPONSE_TYPES.CODE,
           state,
           returnTo: "/dashboard"
         };
@@ -229,7 +230,7 @@ describe("Transaction Store", async () => {
           nonce,
           maxAge: 3600,
           codeVerifier: codeVerifier,
-          responseType: "code",
+          responseType: RESPONSE_TYPES.CODE,
           state,
           returnTo: "/dashboard"
         };
@@ -264,7 +265,7 @@ describe("Transaction Store", async () => {
           nonce,
           maxAge: 3600,
           codeVerifier: codeVerifier,
-          responseType: "code",
+          responseType: RESPONSE_TYPES.CODE,
           state,
           returnTo: "/dashboard"
         };
@@ -303,7 +304,7 @@ describe("Transaction Store", async () => {
           nonce,
           maxAge: 3600,
           codeVerifier: codeVerifier,
-          responseType: "code",
+          responseType: RESPONSE_TYPES.CODE,
           state,
           returnTo: "/dashboard"
         };
@@ -346,7 +347,7 @@ describe("Transaction Store", async () => {
         nonce,
         maxAge: 3600,
         codeVerifier: codeVerifier,
-        responseType: "code",
+        responseType: RESPONSE_TYPES.CODE,
         state,
         returnTo: "/dashboard"
       };
