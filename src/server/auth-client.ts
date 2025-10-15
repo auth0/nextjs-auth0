@@ -1,6 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server.js";
 import * as jose from "jose";
 import * as oauth from "oauth4webapi";
+import {
+  allowInsecureRequests,
+  customFetch,
+  protectedResourceRequest
+} from "oauth4webapi";
 import * as client from "openid-client";
 
 import packageJson from "../../package.json" with { type: "json" };
@@ -15,34 +20,70 @@ import {
   BackchannelAuthenticationError,
   BackchannelAuthenticationNotSupportedError,
   BackchannelLogoutError,
+  ConnectAccountError,
+  ConnectAccountErrorCodes,
   DiscoveryError,
+  DPoPError,
+  DPoPErrorCode,
   InvalidStateError,
   MissingStateError,
+  MyAccountApiError,
   OAuth2Error,
   SdkError
 } from "../errors/index.js";
 import {
+  CompleteConnectAccountRequest,
+  CompleteConnectAccountResponse,
+  ConnectAccountOptions,
+  ConnectAccountRequest,
+  ConnectAccountResponse
+} from "../types/connected-accounts.js";
+import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
+import {
   AccessTokenForConnectionOptions,
+  AccessTokenSet,
   AuthorizationParameters,
   BackchannelAuthenticationOptions,
   BackchannelAuthenticationResponse,
   ConnectionTokenSet,
+  GetAccessTokenOptions,
   LogoutStrategy,
   LogoutToken,
+  RESPONSE_TYPES,
   SessionData,
   StartInteractiveLoginOptions,
   SUBJECT_TOKEN_TYPES,
   TokenSet,
   User
 } from "../types/index.js";
+import { mergeAuthorizationParamsIntoSearchParams } from "../utils/authorization-params-helpers.js";
+import { DEFAULT_SCOPES } from "../utils/constants.js";
+import { withDPoPNonceRetry } from "../utils/dpopUtils.js";
 import {
   ensureNoLeadingSlash,
   ensureTrailingSlash,
   normalizeWithBasePath,
   removeTrailingSlash
 } from "../utils/pathUtils.js";
+import {
+  ensureDefaultScope,
+  getScopeForAudience
+} from "../utils/scope-helpers.js";
+import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
+import {
+  compareScopes,
+  findAccessTokenSet,
+  mergeScopes,
+  tokenSetFromAccessTokenSet
+} from "../utils/token-set-helpers.js";
 import { toSafeRedirect } from "../utils/url-helpers.js";
 import { addCacheControlHeadersForSession } from "./cookies.js";
+import {
+  Fetcher,
+  FetcherConfig,
+  FetcherHooks,
+  FetcherMinimalConfig
+} from "./fetcher.js";
 import { AbstractSessionStore } from "./session/abstract-session-store.js";
 import { TransactionState, TransactionStore } from "./transaction-store.js";
 import { filterDefaultIdTokenClaims } from "./user.js";
@@ -53,7 +94,19 @@ export type BeforeSessionSavedHook = (
 ) => Promise<SessionData>;
 
 export type OnCallbackContext = {
+  /**
+   * The type of response expected from the authorization server.
+   * One of {@link RESPONSE_TYPES}
+   */
+  responseType?: RESPONSE_TYPES;
+  /**
+   * The URL or path the user should be redirected to after completing the transaction.
+   */
   returnTo?: string;
+  /**
+   * The connected account information when the responseType is {@link RESPONSE_TYPES.CONNECT_CODE}
+   */
+  connectedAccount?: CompleteConnectAccountResponse;
 };
 export type OnCallbackHook = (
   error: SdkError | null,
@@ -71,10 +124,6 @@ const INTERNAL_AUTHORIZE_PARAMS = [
   "state",
   "nonce"
 ];
-
-const DEFAULT_SCOPES = ["openid", "profile", "email", "offline_access"].join(
-  " "
-);
 
 /**
  * A constant representing the grant type for federated connection access token exchange.
@@ -103,9 +152,13 @@ export interface Routes {
   profile: string;
   accessToken: string;
   backChannelLogout: string;
+  connectAccount: string;
 }
 export type RoutesOptions = Partial<
-  Pick<Routes, "login" | "callback" | "logout" | "backChannelLogout">
+  Pick<
+    Routes,
+    "login" | "callback" | "logout" | "backChannelLogout" | "connectAccount"
+  >
 >;
 
 export interface AuthClientOptions {
@@ -139,6 +192,17 @@ export interface AuthClientOptions {
   enableTelemetry?: boolean;
   enableAccessTokenEndpoint?: boolean;
   noContentProfileResponseWhenUnauthenticated?: boolean;
+  enableConnectAccountEndpoint?: boolean;
+
+  useDPoP?: boolean;
+  dpopKeyPair?: DpopKeyPair;
+  dpopOptions?: DpopOptions;
+
+  /**
+   * @future This option is reserved for future implementation.
+   * Currently not used - placeholder for upcoming nonce persistence feature.
+   */
+  // dpopHandleStorage?: DPoPHandleStorageInterface; // Commented out until implementation
 }
 
 function createRouteUrl(path: string, baseUrl: string) {
@@ -174,12 +238,18 @@ export class AuthClient {
   private jwksCache: jose.JWKSCacheInput;
   private allowInsecureRequests: boolean;
   private httpTimeout: number;
-  private httpOptions: () => oauth.HttpRequestOptions<"GET" | "POST">;
+  private httpOptions: () => { signal: AbortSignal; headers: Headers };
 
   private authorizationServerMetadata?: oauth.AuthorizationServer;
 
   private readonly enableAccessTokenEndpoint: boolean;
   private readonly noContentProfileResponseWhenUnauthenticated: boolean;
+  private readonly enableConnectAccountEndpoint: boolean;
+
+  private dpopOptions?: DpopOptions;
+
+  private dpopKeyPair?: DpopKeyPair;
+  private readonly useDPoP: boolean;
 
   constructor(options: AuthClientOptions) {
     // dependencies
@@ -225,6 +295,20 @@ export class AuthClient {
     // authorization server
     this.domain = options.domain;
     this.clientMetadata = { client_id: options.clientId };
+
+    // Apply DPoP timing validation options to client metadata if provided
+    if (options.dpopOptions) {
+      if (typeof options.dpopOptions.clockSkew === "number") {
+        this.clientMetadata[oauth.clockSkew] = options.dpopOptions.clockSkew;
+      }
+      if (typeof options.dpopOptions.clockTolerance === "number") {
+        this.clientMetadata[oauth.clockTolerance] =
+          options.dpopOptions.clockTolerance;
+      }
+    }
+
+    // Store dpopOptions for use in retry logic
+    this.dpopOptions = options.dpopOptions;
     this.clientSecret = options.clientSecret;
     this.authorizationParameters = options.authorizationParameters || {
       scope: DEFAULT_SCOPES
@@ -235,14 +319,17 @@ export class AuthClient {
     this.clientAssertionSigningAlg =
       options.clientAssertionSigningAlg || "RS256";
 
-    if (!this.authorizationParameters.scope) {
-      this.authorizationParameters.scope = DEFAULT_SCOPES;
-    }
+    this.authorizationParameters.scope = ensureDefaultScope(
+      this.authorizationParameters
+    );
 
-    const scope = this.authorizationParameters.scope
-      .split(" ")
+    const scope = getScopeForAudience(
+      this.authorizationParameters.scope,
+      this.authorizationParameters.audience
+    )
+      ?.split(" ")
       .map((s) => s.trim());
-    if (!scope.includes("openid")) {
+    if (!scope || !scope.includes("openid")) {
       throw new Error(
         "The 'openid' scope must be included in the set of scopes. See https://auth0.com/docs"
       );
@@ -275,6 +362,15 @@ export class AuthClient {
     this.enableAccessTokenEndpoint = options.enableAccessTokenEndpoint ?? true;
     this.noContentProfileResponseWhenUnauthenticated =
       options.noContentProfileResponseWhenUnauthenticated ?? false;
+    this.enableConnectAccountEndpoint =
+      options.enableConnectAccountEndpoint ?? false;
+
+    this.useDPoP = options.useDPoP ?? false;
+
+    // Initialize DPoP if enabled. Check useDPoP flag first to avoid timing attacks.
+    if ((options.useDPoP ?? false) && options.dpopKeyPair) {
+      this.dpopKeyPair = options.dpopKeyPair;
+    }
   }
 
   async handler(req: NextRequest): Promise<NextResponse> {
@@ -301,6 +397,12 @@ export class AuthClient {
       sanitizedPathname === this.routes.backChannelLogout
     ) {
       return this.handleBackChannelLogout(req);
+    } else if (
+      method === "GET" &&
+      sanitizedPathname === this.routes.connectAccount &&
+      this.enableConnectAccountEndpoint
+    ) {
+      return this.handleConnectAccount(req);
     } else {
       // no auth handler found, simply touch the sessions
       // TODO: this should only happen if rolling sessions are enabled. Also, we should
@@ -324,7 +426,7 @@ export class AuthClient {
   async startInteractiveLogin(
     options: StartInteractiveLoginOptions = {}
   ): Promise<NextResponse> {
-    const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registed with the authorization server
+    const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registered with the authorization server
     let returnTo = this.signInReturnToPath;
 
     // Validate returnTo parameter
@@ -351,36 +453,48 @@ export class AuthClient {
     const nonce = oauth.generateRandomNonce();
 
     // Construct base authorization parameters
-    const authorizationParams = new URLSearchParams();
+    // If provided on both sides, this does not merge the scope property,
+    // instead, the scope from the right side (options) fully overrides the left side.
+    // This is done to avoid breaking existing behavior.
+    const authorizationParams = mergeAuthorizationParamsIntoSearchParams(
+      this.authorizationParameters,
+      options.authorizationParameters,
+      INTERNAL_AUTHORIZE_PARAMS
+    );
     authorizationParams.set("client_id", this.clientMetadata.client_id);
     authorizationParams.set("redirect_uri", redirectUri.toString());
-    authorizationParams.set("response_type", "code");
+    authorizationParams.set("response_type", RESPONSE_TYPES.CODE);
     authorizationParams.set("code_challenge", codeChallenge);
     authorizationParams.set("code_challenge_method", codeChallengeMethod);
     authorizationParams.set("state", state);
     authorizationParams.set("nonce", nonce);
 
-    const mergedAuthorizationParams: AuthorizationParameters = {
-      // any custom params to forward to /authorize defined as configuration
-      ...this.authorizationParameters,
-      // custom parameters passed in via the query params to ensure only the confidential client can set them
-      ...options.authorizationParameters
-    };
-
-    Object.entries(mergedAuthorizationParams).forEach(([key, val]) => {
-      if (!INTERNAL_AUTHORIZE_PARAMS.includes(key) && val != null) {
-        authorizationParams.set(key, String(val));
+    // Add dpop_jkt parameter if DPoP is enabled
+    if (this.dpopKeyPair) {
+      try {
+        const publicKeyJwk = await jose.exportJWK(this.dpopKeyPair.publicKey);
+        const dpopJkt = await jose.calculateJwkThumbprint(publicKeyJwk);
+        authorizationParams.set("dpop_jkt", dpopJkt);
+      } catch (error) {
+        throw new DPoPError(
+          DPoPErrorCode.DPOP_JKT_CALCULATION_FAILED,
+          "DPoP is enabled but failed to calculate key thumbprint (dpop_jkt). " +
+            "This is required for secure DPoP binding. Please check your key configuration.",
+          error instanceof Error ? error : undefined
+        );
       }
-    });
+    }
 
     // Prepare transaction state
     const transactionState: TransactionState = {
       nonce,
       maxAge: this.authorizationParameters.max_age,
       codeVerifier,
-      responseType: "code",
+      responseType: RESPONSE_TYPES.CODE,
       state,
-      returnTo
+      returnTo,
+      scope: authorizationParams.get("scope") || undefined,
+      audience: authorizationParams.get("audience") || undefined
     };
 
     // Generate authorization URL with PAR handling
@@ -388,7 +502,7 @@ export class AuthClient {
       await this.authorizationUrl(authorizationParams);
     if (error) {
       return new NextResponse(
-        "An error occured while trying to initiate the login request.",
+        "An error occurred while trying to initiate the login request.",
         {
           status: 500
         }
@@ -430,7 +544,7 @@ export class AuthClient {
     if (discoveryError) {
       // Clean up session on discovery error
       const errorResponse = new NextResponse(
-        "An error occured while trying to initiate the logout request.",
+        "An error occurred while trying to initiate the logout request.",
         {
           status: 500
         }
@@ -538,8 +652,77 @@ export class AuthClient {
 
     const transactionState = transactionStateCookie.payload;
     const onCallbackCtx: OnCallbackContext = {
+      responseType: transactionState.responseType,
       returnTo: transactionState.returnTo
     };
+
+    if (transactionState.responseType === RESPONSE_TYPES.CONNECT_CODE) {
+      const session = await this.sessionStore.get(req.cookies);
+
+      if (!session) {
+        return this.handleCallbackError(
+          new ConnectAccountError({
+            code: ConnectAccountErrorCodes.MISSING_SESSION,
+            message: "The user does not have an active session."
+          }),
+          onCallbackCtx,
+          req,
+          state
+        );
+      }
+
+      // get an access token for connected accounts
+      const [tokenSetError, tokenSetResponse] = await this.getTokenSet(
+        session,
+        {
+          audience: `${this.issuer}/me/`,
+          scope: "create:me:connected_accounts"
+        }
+      );
+
+      if (tokenSetError) {
+        return this.handleCallbackError(
+          tokenSetError,
+          onCallbackCtx,
+          req,
+          state
+        );
+      }
+
+      const [completeConnectAccountError, connectedAccount] =
+        await this.completeConnectAccount({
+          accessToken: tokenSetResponse.tokenSet.accessToken,
+          authSession: transactionState.authSession!,
+          connectCode: req.nextUrl.searchParams.get("connect_code")!,
+          redirectUri: createRouteUrl(
+            this.routes.callback,
+            this.appBaseUrl
+          ).toString(),
+          codeVerifier: transactionState.codeVerifier
+        });
+
+      if (completeConnectAccountError) {
+        return this.handleCallbackError(
+          completeConnectAccountError,
+          onCallbackCtx,
+          req,
+          state
+        );
+      }
+
+      const res = await this.onCallback(
+        null,
+        {
+          ...onCallbackCtx,
+          connectedAccount
+        },
+        session
+      );
+
+      await this.transactionStore.delete(res.cookies, state);
+
+      return res;
+    }
 
     const [discoveryError, authorizationServerMetadata] =
       await this.discoverAuthorizationServerMetadata();
@@ -576,21 +759,31 @@ export class AuthClient {
     }
 
     let codeGrantResponse: Response;
+    let redirectUri: URL;
+    let authorizationCodeGrantRequestCall: () => Promise<Response>;
+
     try {
-      const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registed with the authorization server
-      codeGrantResponse = await oauth.authorizationCodeGrantRequest(
-        authorizationServerMetadata,
-        this.clientMetadata,
-        await this.getClientAuth(),
-        codeGrantParams,
-        redirectUri.toString(),
-        transactionState.codeVerifier,
-        {
-          ...this.httpOptions(),
-          [oauth.customFetch]: this.fetch,
-          [oauth.allowInsecureRequests]: this.allowInsecureRequests
-        }
-      );
+      redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registered with the authorization server
+      authorizationCodeGrantRequestCall = async () =>
+        oauth.authorizationCodeGrantRequest(
+          authorizationServerMetadata,
+          this.clientMetadata,
+          await this.getClientAuth(),
+          codeGrantParams,
+          redirectUri.toString(),
+          transactionState.codeVerifier,
+          {
+            ...this.httpOptions(),
+            [oauth.customFetch]: this.fetch,
+            [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+            ...(this.useDPoP &&
+              this.dpopKeyPair && {
+                DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
+              })
+          }
+        );
+
+      codeGrantResponse = await authorizationCodeGrantRequestCall();
     } catch (e: any) {
       return this.handleCallbackError(
         new AuthorizationCodeGrantRequestError(e.message),
@@ -599,9 +792,11 @@ export class AuthClient {
         state
       );
     }
-
     let oidcRes: oauth.TokenEndpointResponse;
     try {
+      // Process the authorization code response
+      // For authorization code flows, oauth4webapi handles DPoP nonce management internally
+      // No need for manual retry since authorization codes are single-use
       oidcRes = await oauth.processAuthorizationCodeResponse(
         authorizationServerMetadata,
         this.clientMetadata,
@@ -633,6 +828,8 @@ export class AuthClient {
         accessToken: oidcRes.access_token,
         idToken: oidcRes.id_token,
         scope: oidcRes.scope,
+        requestedScope: transactionState.scope,
+        audience: transactionState.audience,
         refreshToken: oidcRes.refresh_token,
         expiresAt: Math.floor(Date.now() / 1000) + Number(oidcRes.expires_in)
       },
@@ -678,6 +875,8 @@ export class AuthClient {
 
   async handleAccessToken(req: NextRequest): Promise<NextResponse> {
     const session = await this.sessionStore.get(req.cookies);
+    const audience = req.nextUrl.searchParams.get("audience");
+    const scope = req.nextUrl.searchParams.get("scope");
 
     if (!session) {
       return NextResponse.json(
@@ -693,9 +892,10 @@ export class AuthClient {
       );
     }
 
-    const [error, getTokenSetResponse] = await this.getTokenSet(
-      session.tokenSet
-    );
+    const [error, getTokenSetResponse] = await this.getTokenSet(session, {
+      scope,
+      audience
+    });
 
     if (error) {
       return NextResponse.json(
@@ -716,14 +916,22 @@ export class AuthClient {
     const res = NextResponse.json({
       token: updatedTokenSet.accessToken,
       scope: updatedTokenSet.scope,
-      expires_at: updatedTokenSet.expiresAt
+      expires_at: updatedTokenSet.expiresAt,
+      ...(updatedTokenSet.token_type && {
+        token_type: updatedTokenSet.token_type
+      })
     });
 
-    if (
-      updatedTokenSet.accessToken !== session.tokenSet.accessToken ||
-      updatedTokenSet.expiresAt !== session.tokenSet.expiresAt ||
-      updatedTokenSet.refreshToken !== session.tokenSet.refreshToken
-    ) {
+    const sessionChanges = getSessionChangesAfterGetAccessToken(
+      session,
+      updatedTokenSet,
+      {
+        scope: this.authorizationParameters?.scope,
+        audience: this.authorizationParameters?.audience
+      }
+    );
+
+    if (sessionChanges) {
       if (idTokenClaims) {
         session.user = idTokenClaims as User;
       }
@@ -735,7 +943,7 @@ export class AuthClient {
       );
       await this.sessionStore.set(req.cookies, res.cookies, {
         ...finalSession,
-        tokenSet: updatedTokenSet
+        ...sessionChanges
       });
       addCacheControlHeadersForSession(res);
     }
@@ -783,6 +991,141 @@ export class AuthClient {
     });
   }
 
+  async handleConnectAccount(req: NextRequest): Promise<NextResponse> {
+    const session = await this.sessionStore.get(req.cookies);
+
+    // pass all query params except `connection` and `returnTo` as authorization params
+    const connection = req.nextUrl.searchParams.get("connection");
+    const returnTo = req.nextUrl.searchParams.get("returnTo") ?? undefined;
+    const authorizationParams = Object.fromEntries(
+      [...req.nextUrl.searchParams.entries()].filter(
+        ([key]) => key !== "connection" && key !== "returnTo"
+      )
+    );
+
+    if (!connection) {
+      return new NextResponse("A connection is required.", {
+        status: 400
+      });
+    }
+
+    if (!session) {
+      return new NextResponse("The user does not have an active session.", {
+        status: 401
+      });
+    }
+
+    const [getTokenSetError, getTokenSetResponse] = await this.getTokenSet(
+      session,
+      {
+        scope: "create:me:connected_accounts",
+        audience: `${this.issuer}/me/`
+      }
+    );
+
+    if (getTokenSetError) {
+      return new NextResponse(
+        "Failed to retrieve a connected account access token.",
+        {
+          status: 401
+        }
+      );
+    }
+
+    const { tokenSet, idTokenClaims } = getTokenSetResponse;
+    const [connectAccountError, connectAccountResponse] =
+      await this.connectAccount({
+        accessToken: tokenSet.accessToken,
+        connection,
+        authorizationParams,
+        returnTo
+      });
+
+    if (connectAccountError) {
+      return new NextResponse(connectAccountError.message, {
+        status: connectAccountError.cause?.status ?? 500
+      });
+    }
+
+    // update the session with the new token set, if necessary
+    const sessionChanges = getSessionChangesAfterGetAccessToken(
+      session,
+      tokenSet,
+      {
+        scope: this.authorizationParameters?.scope ?? DEFAULT_SCOPES,
+        audience: this.authorizationParameters?.audience
+      }
+    );
+
+    if (sessionChanges) {
+      if (idTokenClaims) {
+        session.user = idTokenClaims as User;
+      }
+      // call beforeSessionSaved callback if present
+      // if not then filter id_token claims with default rules
+      const finalSession = await this.finalizeSession(
+        session,
+        tokenSet.idToken
+      );
+      await this.sessionStore.set(req.cookies, connectAccountResponse.cookies, {
+        ...finalSession,
+        ...sessionChanges
+      });
+      addCacheControlHeadersForSession(connectAccountResponse);
+    }
+
+    return connectAccountResponse;
+  }
+
+  /**
+   * Retrieves the token set from the session data, considering optional audience and scope parameters.
+   * When audience and scope are provided, it checks if they match the global ones defined in the authorization parameters.
+   * If they match, it returns the top-level token set from the session data.
+   * If they don't match, it searches for a corresponding access token in the session's `accessTokens` array.
+   * @param sessionData The session data containing the token sets.
+   * @param options Optional parameters for audience and scope to filter the token set.
+   * @returns A partial token set that matches the provided audience and scope, or the top-level token set if they match the global ones.
+   */
+  #getTokenSetFromSession(
+    session: SessionData,
+    options: { scope: string; audience?: string | null }
+  ): Partial<TokenSet> {
+    const tokenSet: Partial<TokenSet> = session.tokenSet;
+    const audience = options.audience;
+    const scope = options.scope;
+
+    // When audience and scope are provided, we need to compare them with the original ones provided in either the `SessionData.tokenSet` itself, or the Auth0Client constructor.
+    // When they are identical, we should read from the top-level `SessionData.tokenSet`.
+    // If not, we should look for the corresponding access token in `SessionData.accessTokens`
+    const isAudienceTheGlobalAudience =
+      !audience ||
+      audience === (tokenSet.audience || this.authorizationParameters.audience);
+
+    const isScopeTheGlobalScope =
+      !scope ||
+      compareScopes(
+        tokenSet.requestedScope ||
+          getScopeForAudience(this.authorizationParameters.scope, audience),
+        scope
+      );
+
+    if (isAudienceTheGlobalAudience && isScopeTheGlobalScope) {
+      return tokenSet;
+    }
+
+    let accessTokenSet: AccessTokenSet | undefined;
+
+    // If there is an audience, we can search for the correct access token in the array
+    // If there is no audience, we cannot find the correct access token in the array
+    if (audience) {
+      accessTokenSet = findAccessTokenSet(session, { scope, audience });
+    }
+
+    // Convert the Access Token Set to a Token Set, which mostly ensures the Id Token and RefreshToken are also available,
+    // But the access token, expiresAt, audience and scope are taken from the Access Token Set.
+    // When no audience was found, we will return an empty Token Set with only the Id Token and Refresh Token
+    return tokenSetFromAccessTokenSet(accessTokenSet, tokenSet);
+  }
   /**
    * Retrieves OAuth token sets, handling token refresh when necessary or if forced.
    *
@@ -792,11 +1135,46 @@ export class AuthClient {
    *   - `[null, {tokenSet, }]` if token refresh was not done and existing token was returned
    */
   async getTokenSet(
-    tokenSet: TokenSet,
-    forceRefresh?: boolean | undefined
+    sessionData: SessionData,
+    options: GetAccessTokenOptions = {}
   ): Promise<[null, GetTokenSetResponse] | [SdkError, null]> {
-    // the access token has expired but we do not have a refresh token
-    if (!tokenSet.refreshToken && tokenSet.expiresAt <= Date.now() / 1000) {
+    // This will merge the scopes from the authorization parameters and the options.
+    // The scope from the options will be added to the scopes from the authorization parameters.
+    // If there are duplicate scopes, they will be removed.
+    const scope = mergeScopes(
+      getScopeForAudience(
+        this.authorizationParameters.scope,
+        options.audience ?? this.authorizationParameters.audience
+      ),
+      options.scope
+    );
+
+    const tokenSet: Partial<TokenSet> = this.#getTokenSetFromSession(
+      sessionData,
+      {
+        scope: scope,
+        audience: options.audience ?? this.authorizationParameters.audience
+      }
+    );
+
+    // no access token was found that matches the, optional, provided audience and scope
+    if (!tokenSet.refreshToken && !tokenSet.accessToken) {
+      return [
+        new AccessTokenError(
+          AccessTokenErrorCode.MISSING_REFRESH_TOKEN,
+          "No access token found and a refresh token was not provided. The user needs to re-authenticate."
+        ),
+        null
+      ];
+    }
+
+    // the access token was found, but it has expired and we do not have a refresh token
+    if (
+      !tokenSet.refreshToken &&
+      tokenSet.accessToken &&
+      tokenSet.expiresAt &&
+      tokenSet.expiresAt <= Date.now() / 1000
+    ) {
       return [
         new AccessTokenError(
           AccessTokenErrorCode.MISSING_REFRESH_TOKEN,
@@ -808,7 +1186,11 @@ export class AuthClient {
 
     if (tokenSet.refreshToken) {
       // either the access token has expired or we are forcing a refresh
-      if (forceRefresh || tokenSet.expiresAt <= Date.now() / 1000) {
+      if (
+        options.refresh ||
+        !tokenSet.expiresAt ||
+        tokenSet.expiresAt <= Date.now() / 1000
+      ) {
         const [discoveryError, authorizationServerMetadata] =
           await this.discoverAuthorizationServerMetadata();
 
@@ -816,25 +1198,47 @@ export class AuthClient {
           return [discoveryError, null];
         }
 
-        const refreshTokenRes = await oauth.refreshTokenGrantRequest(
-          authorizationServerMetadata,
-          this.clientMetadata,
-          await this.getClientAuth(),
-          tokenSet.refreshToken,
-          {
-            ...this.httpOptions(),
-            [oauth.customFetch]: this.fetch,
-            [oauth.allowInsecureRequests]: this.allowInsecureRequests
-          }
-        );
+        const additionalParameters = new URLSearchParams();
+
+        if (options.scope) {
+          additionalParameters.append("scope", scope);
+        }
+
+        if (options.audience) {
+          additionalParameters.append("audience", options.audience);
+        }
+
+        const refreshTokenGrantRequestCall = async () =>
+          oauth.refreshTokenGrantRequest(
+            authorizationServerMetadata,
+            this.clientMetadata,
+            await this.getClientAuth(),
+            tokenSet.refreshToken!,
+            {
+              ...this.httpOptions(),
+              [oauth.customFetch]: this.fetch,
+              [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+              additionalParameters,
+              ...(this.useDPoP &&
+                this.dpopKeyPair && {
+                  DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
+                })
+            }
+          );
+
+        const processRefreshTokenResponseCall = (response: Response) =>
+          oauth.processRefreshTokenResponse(
+            authorizationServerMetadata,
+            this.clientMetadata,
+            response
+          );
 
         let oauthRes: oauth.TokenEndpointResponse;
         try {
-          oauthRes = await oauth.processRefreshTokenResponse(
-            authorizationServerMetadata,
-            this.clientMetadata,
-            refreshTokenRes
-          );
+          oauthRes = await withDPoPNonceRetry(async () => {
+            const refreshTokenRes = await refreshTokenGrantRequestCall();
+            return await processRefreshTokenResponseCall(refreshTokenRes);
+          }, this.dpopOptions?.retry);
         } catch (e: any) {
           return [
             new AccessTokenError(
@@ -857,7 +1261,24 @@ export class AuthClient {
           ...tokenSet, // contains the existing `iat` claim to maintain the session lifetime
           accessToken: oauthRes.access_token,
           idToken: oauthRes.id_token,
-          expiresAt: accessTokenExpiresAt
+          // We store the both requested and granted scopes on the tokenSet, so we know what scopes were requested.
+          // The server may return less scopes than requested.
+          // This ensures we can return the same token again when a token for the same or less scopes is requested by using `requestedScope` during look-up.
+          //
+          // E.g. When requesting a token with scope `a b`, and we return one for scope `a` only,
+          // - If we only store the returned scopes, we cannot return this token when the user requests a token for scope `a b` again.
+          // - If we only store the requested scopes, we lose track of the actual scopes granted.
+          //
+          // Scopes actually granted by the server
+          scope: oauthRes.scope,
+          // Scopes requested by the client
+          requestedScope: scope,
+          expiresAt: accessTokenExpiresAt,
+          // Keep the audience if it exists, otherwise use the one from the options.
+          // If not provided, use `undefined`.
+          audience: tokenSet.audience || options.audience || undefined,
+          // Store the token type from the OAuth response (e.g., "Bearer", "DPoP")
+          ...(oauthRes.token_type && { token_type: oauthRes.token_type })
         };
 
         if (oauthRes.refresh_token) {
@@ -878,7 +1299,7 @@ export class AuthClient {
       }
     }
 
-    return [null, { tokenSet, idTokenClaims: undefined }];
+    return [null, { tokenSet: tokenSet as TokenSet, idTokenClaims: undefined }];
   }
 
   async backchannelAuthentication(
@@ -894,19 +1315,18 @@ export class AuthClient {
       return [new BackchannelAuthenticationNotSupportedError(), null];
     }
 
-    const authorizationParams = new URLSearchParams();
-    authorizationParams.set("scope", DEFAULT_SCOPES);
-
-    const mergedAuthorizationParams: AuthorizationParameters = {
-      // any custom params to forward to /authorize defined as configuration
-      ...this.authorizationParameters,
-      // custom parameters passed in via the query params to ensure only the confidential client can set them
-      ...options.authorizationParams
-    };
-
-    Object.entries(mergedAuthorizationParams).forEach(([key, val]) =>
-      authorizationParams.set(key, String(val))
+    // If provided on both sides, this does not merge the scope property,
+    // instead, the scope from the right side (options) fully overrides the left side.
+    // This is done to avoid breaking existing behavior.
+    const authorizationParams = mergeAuthorizationParamsIntoSearchParams(
+      this.authorizationParameters,
+      options.authorizationParams,
+      INTERNAL_AUTHORIZE_PARAMS
     );
+
+    if (!authorizationParams.get("scope")) {
+      authorizationParams.set("scope", DEFAULT_SCOPES);
+    }
 
     authorizationParams.set("client_id", this.clientMetadata.client_id);
     authorizationParams.set("binding_message", options.bindingMessage);
@@ -1007,7 +1427,7 @@ export class AuthClient {
       return [null, authorizationServerMetadata];
     } catch (e) {
       console.error(
-        `An error occured while performing the discovery request. issuer=${issuer.toString()}, error:`,
+        `An error occurred while performing the discovery request. issuer=${issuer.toString()}, error:`,
         e
       );
       return [
@@ -1203,7 +1623,8 @@ export class AuthClient {
               code: e.error,
               message: e.error_description
             }),
-            message: "An error occured while pushing the authorization request."
+            message:
+              "An error occurred while pushing the authorization request."
           }),
           null
         ];
@@ -1277,7 +1698,7 @@ export class AuthClient {
   > {
     // If we do not have a refresh token
     // and we do not have a connection token set in the cache or the one we have is expired,
-    // there is noting to retrieve and we return an error.
+    // there is nothing to retrieve and we return an error.
     if (
       !tokenSet.refreshToken &&
       (!connectionTokenSet || connectionTokenSet.expiresAt <= Date.now() / 1000)
@@ -1330,25 +1751,36 @@ export class AuthClient {
         return [discoveryError, null];
       }
 
-      const httpResponse = await oauth.genericTokenEndpointRequest(
-        authorizationServerMetadata,
-        this.clientMetadata,
-        await this.getClientAuth(),
-        GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN,
-        params,
-        {
-          [oauth.customFetch]: this.fetch,
-          [oauth.allowInsecureRequests]: this.allowInsecureRequests
-        }
-      );
+      const genericTokenEndpointRequestCall = async () =>
+        oauth.genericTokenEndpointRequest(
+          authorizationServerMetadata,
+          this.clientMetadata,
+          await this.getClientAuth(),
+          GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN,
+          params,
+          {
+            [oauth.customFetch]: this.fetch,
+            [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+            ...(this.useDPoP &&
+              this.dpopKeyPair && {
+                DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
+              })
+          }
+        );
+
+      const processGenericTokenEndpointResponseCall = (response: Response) =>
+        oauth.processGenericTokenEndpointResponse(
+          authorizationServerMetadata,
+          this.clientMetadata,
+          response
+        );
 
       let tokenEndpointResponse: oauth.TokenEndpointResponse;
       try {
-        tokenEndpointResponse = await oauth.processGenericTokenEndpointResponse(
-          authorizationServerMetadata,
-          this.clientMetadata,
-          httpResponse
-        );
+        tokenEndpointResponse = await withDPoPNonceRetry(async () => {
+          const httpResponse = await genericTokenEndpointRequestCall();
+          return await processGenericTokenEndpointResponseCall(httpResponse);
+        }, this.dpopOptions?.retry);
       } catch (err: any) {
         return [
           new AccessTokenForConnectionError(
@@ -1405,6 +1837,258 @@ export class AuthClient {
     return session;
   }
 
+  /**
+   * Initiates the connect account flow for linking a third-party account to the user's profile.
+   * The user will be redirected to authorize the connection.
+   */
+  async connectAccount(
+    options: ConnectAccountOptions & { accessToken: string }
+  ): Promise<[ConnectAccountError, null] | [null, NextResponse]> {
+    const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl);
+    let returnTo = this.signInReturnToPath;
+
+    // Validate returnTo parameter
+    if (options.returnTo) {
+      const safeBaseUrl = new URL(
+        (this.authorizationParameters.redirect_uri as string | undefined) ||
+          this.appBaseUrl
+      );
+      const sanitizedReturnTo = toSafeRedirect(options.returnTo, safeBaseUrl);
+
+      if (sanitizedReturnTo) {
+        returnTo =
+          sanitizedReturnTo.pathname +
+          sanitizedReturnTo.search +
+          sanitizedReturnTo.hash;
+      }
+    }
+
+    // Generate PKCE challenges
+    const codeChallengeMethod = "S256";
+    const codeVerifier = oauth.generateRandomCodeVerifier();
+    const codeChallenge = await oauth.calculatePKCECodeChallenge(codeVerifier);
+    const state = oauth.generateRandomState();
+
+    const [error, connectAccountResponse] =
+      await this.createConnectAccountTicket({
+        accessToken: options.accessToken,
+        connection: options.connection,
+        redirectUri: redirectUri.toString(),
+        state,
+        codeChallenge,
+        codeChallengeMethod,
+        authorizationParams: options.authorizationParams
+      });
+
+    if (error) {
+      return [error, null];
+    }
+
+    const transactionState: TransactionState = {
+      codeVerifier,
+      responseType: RESPONSE_TYPES.CONNECT_CODE,
+      state,
+      returnTo,
+      authSession: connectAccountResponse.authSession
+    };
+
+    const res = NextResponse.redirect(
+      `${connectAccountResponse.connectUri}?ticket=${encodeURIComponent(connectAccountResponse.connectParams.ticket)}`
+    );
+
+    await this.transactionStore.save(res.cookies, transactionState);
+
+    return [null, res];
+  }
+
+  private async createConnectAccountTicket(
+    options: ConnectAccountRequest
+  ): Promise<[null, ConnectAccountResponse] | [ConnectAccountError, null]> {
+    try {
+      const connectAccountUrl = new URL(
+        "/me/v1/connected-accounts/connect",
+        this.issuer
+      );
+
+      const httpOptions = this.httpOptions();
+      const headers = new Headers(httpOptions.headers);
+      headers.set("Content-Type", "application/json");
+
+      const requestBody = JSON.stringify({
+        connection: options.connection,
+        redirect_uri: options.redirectUri,
+        state: options.state,
+        code_challenge: options.codeChallenge,
+        code_challenge_method: options.codeChallengeMethod,
+        authorization_params: options.authorizationParams
+      });
+
+      const res = await protectedResourceRequest(
+        options.accessToken,
+        "POST",
+        connectAccountUrl,
+        headers,
+        requestBody,
+        {
+          ...httpOptions,
+          [customFetch]: (url: string, requestOptions: any) => {
+            const tmpRequest = new Request(url, requestOptions);
+            return this.fetch(tmpRequest);
+          },
+          [allowInsecureRequests]: this.allowInsecureRequests || false,
+          ...(this.useDPoP &&
+            this.dpopKeyPair && {
+              DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
+            })
+        }
+      );
+
+      if (!res.ok) {
+        try {
+          const errorBody = await res.json();
+          return [
+            new ConnectAccountError({
+              code: ConnectAccountErrorCodes.FAILED_TO_INITIATE,
+              message: `The request to initiate the connect account flow failed with status ${res.status}.`,
+              cause: new MyAccountApiError({
+                type: errorBody.type,
+                title: errorBody.title,
+                detail: errorBody.detail,
+                status: res.status,
+                validationErrors: errorBody.validation_errors
+              })
+            }),
+            null
+          ];
+        } catch (e) {
+          return [
+            new ConnectAccountError({
+              code: ConnectAccountErrorCodes.FAILED_TO_INITIATE,
+              message: `The request to initiate the connect account flow failed with status ${res.status}.`
+            }),
+            null
+          ];
+        }
+      }
+
+      const { connect_uri, connect_params, auth_session, expires_in } =
+        await res.json();
+
+      return [
+        null,
+        {
+          connectUri: connect_uri,
+          connectParams: connect_params,
+          authSession: auth_session,
+          expiresIn: expires_in
+        }
+      ];
+    } catch (e: any) {
+      return [
+        new ConnectAccountError({
+          code: ConnectAccountErrorCodes.FAILED_TO_INITIATE,
+          message:
+            "An unexpected error occurred while trying to initiate the connect account flow."
+        }),
+        null
+      ];
+    }
+  }
+
+  private async completeConnectAccount(
+    options: CompleteConnectAccountRequest
+  ): Promise<[null, CompleteConnectAccountResponse] | [SdkError, null]> {
+    const completeConnectAccountUrl = new URL(
+      "/me/v1/connected-accounts/complete",
+      this.issuer
+    );
+
+    try {
+      const httpOptions = this.httpOptions();
+      const headers = new Headers(httpOptions.headers);
+      headers.set("Content-Type", "application/json");
+
+      const requestBody = JSON.stringify({
+        auth_session: options.authSession,
+        connect_code: options.connectCode,
+        redirect_uri: options.redirectUri,
+        code_verifier: options.codeVerifier
+      });
+
+      const res = await protectedResourceRequest(
+        options.accessToken,
+        "POST",
+        completeConnectAccountUrl,
+        headers,
+        requestBody,
+        {
+          ...httpOptions,
+          [customFetch]: (url: string, requestOptions: any) => {
+            const tmpRequest = new Request(url, requestOptions);
+            return this.fetch(tmpRequest);
+          },
+          [allowInsecureRequests]: this.allowInsecureRequests || false,
+          ...(this.useDPoP &&
+            this.dpopKeyPair && {
+              DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
+            })
+        }
+      );
+
+      if (!res.ok) {
+        try {
+          const errorBody = await res.json();
+          return [
+            new ConnectAccountError({
+              code: ConnectAccountErrorCodes.FAILED_TO_COMPLETE,
+              message: `The request to complete the connect account flow failed with status ${res.status}.`,
+              cause: new MyAccountApiError({
+                type: errorBody.type,
+                title: errorBody.title,
+                detail: errorBody.detail,
+                status: res.status,
+                validationErrors: errorBody.validation_errors
+              })
+            }),
+            null
+          ];
+        } catch (e) {
+          return [
+            new ConnectAccountError({
+              code: ConnectAccountErrorCodes.FAILED_TO_COMPLETE,
+              message: `The request to complete the connect account flow failed with status ${res.status}.`
+            }),
+            null
+          ];
+        }
+      }
+
+      const { id, connection, access_type, scopes, created_at, expires_at } =
+        await res.json();
+
+      return [
+        null,
+        {
+          id,
+          connection,
+          accessType: access_type,
+          scopes,
+          createdAt: created_at,
+          expiresAt: expires_at
+        }
+      ];
+    } catch (e: any) {
+      return [
+        new ConnectAccountError({
+          code: ConnectAccountErrorCodes.FAILED_TO_COMPLETE,
+          message:
+            "An unexpected error occurred while trying to complete the connect account flow."
+        }),
+        null
+      ];
+    }
+  }
+
   private async getOpenIdClientConfig(): Promise<
     [null, client.Configuration] | [SdkError, null]
   > {
@@ -1428,6 +2112,7 @@ export class AuthClient {
       const headers = new Headers(args[1].headers);
       return this.fetch(args[0], {
         ...args[1],
+        body: args[1].body as BodyInit | null | undefined,
         headers: new Headers([...telemetryHeaders, ...headers])
       });
     };
@@ -1439,6 +2124,87 @@ export class AuthClient {
     }
 
     return [null, openidClientConfig];
+  }
+
+  /**
+   * Creates a new Fetcher instance with DPoP support and authentication capabilities.
+   *
+   * This method creates fetcher-scoped DPoP handles via `oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)`.
+   * Each fetcher instance maintains its own DPoP nonce state for isolation and security.
+   * It is recommended to create fetchers at module level and reuse them across requests
+   *
+   * @example Recommended fetcher reuse pattern
+   * ```typescript
+   * const managementApi = await auth0.fetcherFactory({
+   *   baseUrl: `https://${process.env.AUTH0_DOMAIN}/api/v2/`,
+   *   session: await getSession(req, res)
+   * });
+   *
+   * // Use the same fetcher for multiple requests
+   * const users = await managementApi.get('users');
+   * const roles = await managementApi.get('roles');
+   * ```
+   *
+   * **DPoP Nonce Management:**
+   * - Each fetcher learns and caches nonces from the authorization server
+   * - Failed nonce validation triggers automatic retry with updated nonce
+   * - Nonce state is isolated between fetcher instances for security
+   *
+   * @param options Configuration options for the fetcher
+   * @returns Promise resolving to a configured Fetcher instance
+   * @throws {DPoPError} When DPoP is enabled but no keypair is configured
+   */
+  async fetcherFactory<TOutput extends Response>(
+    options: FetcherFactoryOptions<TOutput>
+  ): Promise<Fetcher<TOutput>> {
+    if (this.useDPoP && !this.dpopKeyPair) {
+      throw new DPoPError(
+        DPoPErrorCode.DPOP_CONFIGURATION_ERROR,
+        "DPoP is enabled but no keypair is configured."
+      );
+    }
+
+    // Ensure authorization server metadata is available for oauth4webapi
+    const [discoveryError, _authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      throw discoveryError;
+    }
+
+    const defaultAccessTokenFactory = async (
+      getAccessTokenOptions: GetAccessTokenOptions
+    ) => {
+      const [error, getTokenSetResponse] = await this.getTokenSet(
+        options.session,
+        getAccessTokenOptions || {}
+      );
+      if (error) {
+        throw error;
+      }
+      return getTokenSetResponse.tokenSet.accessToken;
+    };
+
+    const fetcherConfig: FetcherConfig<TOutput> = {
+      // Fetcher-scoped DPoP handle and nonce management
+      dpopHandle:
+        this.useDPoP && (options.useDPoP ?? true)
+          ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
+          : undefined,
+      httpOptions: this.httpOptions,
+      allowInsecureRequests: this.allowInsecureRequests,
+      retryConfig: this.dpopOptions?.retry,
+      fetch: options.fetch,
+      getAccessToken: options.getAccessToken,
+      baseUrl: options.baseUrl
+    };
+
+    const fetcherHooks: FetcherHooks = {
+      getAccessToken: defaultAccessTokenFactory,
+      isDpopEnabled: () => options.useDPoP ?? this.useDPoP ?? false
+    };
+
+    return new Fetcher<TOutput>(fetcherConfig, fetcherHooks);
   }
 }
 
@@ -1459,3 +2225,14 @@ type GetTokenSetResponse = {
   tokenSet: TokenSet;
   idTokenClaims?: { [key: string]: any };
 };
+
+/**
+ * Options for creating a Fetcher instance via the factory method.
+ *
+ * Includes all FetcherMinimalConfig options plus internal session data.
+ * The `nonceStorageId` from FetcherMinimalConfig is included but currently ignored.
+ */
+export type FetcherFactoryOptions<TOutput extends Response> = {
+  useDPoP?: boolean;
+  session: SessionData;
+} & FetcherMinimalConfig<TOutput>;
