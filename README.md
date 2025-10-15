@@ -242,10 +242,10 @@ export const auth0 = new Auth0Client({
 #### Making DPoP-Protected Requests
 
 ```ts
-// Create a DPoP-enabled fetcher
+// Create a fetcher - DPoP inherited from global configuration
 const fetcher = await auth0.createFetcher(req, {
-  baseUrl: "https://api.example.com",
-  useDPoP: true
+  baseUrl: "https://api.example.com"
+  // useDPoP is inherited from Auth0Client config
 });
 
 // Make authenticated requests with automatic DPoP proof generation
@@ -255,6 +255,12 @@ const response = await fetcher.fetchWithAuth("/protected-resource", {
   body: JSON.stringify({ data: "example" })
 });
 ```
+
+**DPoP Inheritance Behavior**
+
+Fetchers created with `createFetcher` automatically inherit the global DPoP configuration from your `Auth0Client` instance.
+
+This inheritance pattern follows the same behavior as auth0-spa-js, providing consistent developer experience across Auth0 SDKs.
 
 For complete DPoP documentation, examples, and best practices, see [DPoP Examples](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#dpop-demonstrating-proof-of-possession).
 

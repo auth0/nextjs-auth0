@@ -1120,6 +1120,53 @@ console.log("AUTH0_DPOP_PRIVATE_KEY=" + privateKeyPem);
 
 The recommended approach is to use the `createFetcher` method, which handles all DPoP complexity automatically.
 
+#### DPoP Inheritance Behavior
+
+**Global Configuration Inheritance**
+
+When you enable DPoP globally in your `Auth0Client`, all fetchers automatically inherit this setting:
+
+```typescript
+// lib/auth0.ts - Global DPoP configuration
+export const auth0 = new Auth0Client({
+  useDPoP: true,  // Enable DPoP globally
+  dpopKeyPair    // Your key pair
+});
+
+// Fetchers inherit DPoP settings automatically
+const fetcher = await auth0.createFetcher(req, {
+  baseUrl: "https://api.example.com"
+  // No need to specify useDPoP: true - inherited from global config
+});
+```
+
+**Per-Fetcher Override**
+
+You can override the global DPoP setting for specific fetchers when needed:
+
+```typescript
+// Explicitly enable DPoP (when global setting is false)
+const dpopFetcher = await auth0.createFetcher(req, {
+  baseUrl: "https://secure-api.example.com",
+  useDPoP: true  // Override global setting
+});
+
+// Explicitly disable DPoP (when global setting is true)
+const legacyFetcher = await auth0.createFetcher(req, {
+  baseUrl: "https://legacy-api.example.com",
+  useDPoP: false  // Override global setting for legacy API
+});
+```
+
+**Fallback Behavior**
+
+The DPoP configuration follows this precedence order:
+1. **Explicit fetcher option**: `options.useDPoP` (when specified)
+2. **Global Auth0Client setting**: `auth0.useDPoP` (when fetcher option not specified)
+3. **Default**: `false` (when neither is configured)
+
+This inheritance pattern aligns with auth0-spa-js behavior, providing consistent developer experience across Auth0 SDKs.
+
 #### Using the Fetcher (Recommended)
 
 **App Router Example** - Server Components and Route Handlers:
@@ -1129,13 +1176,13 @@ import { auth0 } from "@/lib/auth0";
 
 // Route Handler: app/api/data/route.ts
 export async function GET() {
-  // Create fetcher with DPoP enabled and base URL for relative requests
+  // Create fetcher - DPoP inherited from global Auth0Client configuration
   const fetcher = await auth0.createFetcher(undefined, {
-    baseUrl: "https://api.example.com",
-    useDPoP: true  // Enable DPoP for this fetcher instance
+    baseUrl: "https://api.example.com"
+    // useDPoP is inherited from global auth0 config
   });
 
-  // Make authenticated request - DPoP proof generated automatically
+  // Make authenticated request - DPoP proof generated automatically if enabled globally
   const response = await fetcher.fetchWithAuth("/protected-resource", {
     method: "GET",
     headers: {
@@ -1153,14 +1200,14 @@ export async function GET() {
 ```typescript
 // API Route: pages/api/data.js
 export default async function handler(req, res) {
-  // Create fetcher with request context for session access
+  // Create fetcher with explicit DPoP override for legacy API compatibility
   const fetcher = await auth0.createFetcher(req, {
     baseUrl: "https://api.example.com",
-    useDPoP: true
+    useDPoP: false  // Explicitly disable DPoP for this legacy API
   });
 
   try {
-    // fetchWithAuth handles access token retrieval and DPoP proof generation
+    // fetchWithAuth handles access token retrieval (without DPoP)
     const response = await fetcher.fetchWithAuth("/protected-data");
     const data = await response.json();
     res.json(data);
