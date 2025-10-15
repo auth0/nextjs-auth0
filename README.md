@@ -156,6 +156,9 @@ You can customize the client by using the options below:
 | allowInsecureRequests       | `boolean`                 | Allow insecure requests to be made to the authorization server. This can be useful when testing with a mock OIDC provider that does not support TLS, locally. This option can only be used when `NODE_ENV` is not set to `production`.                                                                                                                                                                                                                                                                                                                                              |
 | httpTimeout                 | `number`                  | Integer value for the HTTP timeout in milliseconds for authentication requests. Defaults to `5000` milliseconds                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | enableTelemetry             | `boolean`                 | Boolean value to opt-out of sending the library name and version to your authorization server via the `Auth0-Client` header. Defaults to `true`.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| useDPoP                     | `boolean`                 | Enable DPoP (Demonstration of Proof-of-Possession) for enhanced security. When enabled, the client will generate DPoP proofs for token requests and protected resource requests. Defaults to `false`.                                                                                                                                                                                                                                                                                                                                                                               |
+| dpopKeyPair                 | `DpopKeyPair`            | ES256 key pair for DPoP proof generation. If not provided, the SDK will attempt to load keys from `AUTH0_DPOP_PUBLIC_KEY` and `AUTH0_DPOP_PRIVATE_KEY` environment variables. Keys must be in PEM format.                                                                                                                                                                                                                                                                                                                                                                           |
+| dpopOptions                 | `DpopOptions`            | Configure DPoP timing validation. Supports `clockSkew` (adjust assumed current time) and `clockTolerance` (validation tolerance). Can also be configured via `AUTH0_DPOP_CLOCK_SKEW` and `AUTH0_DPOP_CLOCK_TOLERANCE` environment variables. See [DPoP Clock Validation](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#dpop-clock-validation) for details.           |
 
 ### Customizing Auth Handlers
 
@@ -184,6 +187,103 @@ AUTH0_COOKIE_PATH=
 AUTH0_COOKIE_TRANSIENT=
 AUTH0_COOKIE_SECURE=
 AUTH0_COOKIE_SAME_SITE=
+AUTH0_DPOP_PUBLIC_KEY=
+AUTH0_DPOP_PRIVATE_KEY=
+AUTH0_DPOP_CLOCK_SKEW=
+AUTH0_DPOP_CLOCK_TOLERANCE=
+```
+
+### DPoP Configuration
+
+The Auth0 Next.js SDK supports **DPoP (Demonstrating Proof-of-Possession)** for enhanced OAuth 2.0 security. DPoP binds access tokens to cryptographic key pairs, preventing token theft and replay attacks.
+
+#### Quick Start
+
+**Option 1: Environment Variables**
+```env
+# Enable DPoP and provide ES256 key pair
+AUTH0_DPOP_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE...
+-----END PUBLIC KEY-----"
+AUTH0_DPOP_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQ...
+-----END PRIVATE KEY-----"
+```
+
+```ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+export const auth0 = new Auth0Client({
+  useDPoP: true
+  // Keys loaded automatically from environment variables
+});
+```
+
+**Option 2: Programmatic Configuration**
+```ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+import { generateKeyPair } from "oauth4webapi";
+
+const dpopKeyPair = await generateKeyPair("ES256");
+
+export const auth0 = new Auth0Client({
+  useDPoP: true,
+  dpopKeyPair,
+  dpopOptions: {
+    clockTolerance: 30,  // Allow 30s clock difference
+    retry: {
+      delay: 100,        // 100ms retry delay
+      jitter: true       // Add randomness
+    }
+  }
+});
+```
+
+#### Making DPoP-Protected Requests
+
+```ts
+// Create a fetcher - DPoP inherited from global configuration
+const fetcher = await auth0.createFetcher(req, {
+  baseUrl: "https://api.example.com"
+  // useDPoP is inherited from Auth0Client config
+});
+
+// Make authenticated requests with automatic DPoP proof generation
+const response = await fetcher.fetchWithAuth("/protected-resource", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ data: "example" })
+});
+```
+
+**DPoP Inheritance Behavior**
+
+Fetchers created with `createFetcher` automatically inherit the global DPoP configuration from your `Auth0Client` instance.
+
+This inheritance pattern follows the same behavior as auth0-spa-js, providing consistent developer experience across Auth0 SDKs.
+
+For complete DPoP documentation, examples, and best practices, see [DPoP Examples](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#dpop-demonstrating-proof-of-possession).
+
+#### Advanced: Clock Validation Configuration
+
+Configure timing validation for DPoP proofs to handle clock differences between client and server:
+
+```ts
+export const auth0 = new Auth0Client({
+  useDPoP: true,
+  dpopKeyPair: await generateKeyPair("ES256"),
+  dpopOptions: {
+    clockSkew: 120,      // Adjust for local clock being 2 minutes behind
+    clockTolerance: 45   // Allow 45 seconds tolerance for validation
+  }
+});
+```
+
+Or configure via environment variables:
+
+```env
+AUTH0_DPOP_CLOCK_SKEW=300        # Clock adjustment in seconds
+AUTH0_DPOP_CLOCK_TOLERANCE=90    # Tolerance in seconds
 ```
 
 Respective counterparts are also available in the client configuration. See [Cookie Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#cookie-configuration) for more details.

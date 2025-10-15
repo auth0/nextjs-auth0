@@ -1,0 +1,10 @@
+{
+  "version": "v1",
+  "packages": {
+    "@auth0/nextjs-auth0": {
+      "signature": "b9ce22c58ac9d523390974b7ad5abe81",
+      "file": true,
+      "replaced": "file:../../"
+    }
+  }
+}
