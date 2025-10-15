@@ -776,9 +776,10 @@ export class AuthClient {
             ...this.httpOptions(),
             [oauth.customFetch]: this.fetch,
             [oauth.allowInsecureRequests]: this.allowInsecureRequests,
-            ...(this.dpopKeyPair && {
-              DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
-            })
+            ...(this.useDPoP &&
+              this.dpopKeyPair && {
+                DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
+              })
           }
         );
 
@@ -1218,9 +1219,10 @@ export class AuthClient {
               [oauth.customFetch]: this.fetch,
               [oauth.allowInsecureRequests]: this.allowInsecureRequests,
               additionalParameters,
-              ...(this.dpopKeyPair && {
-                DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
-              })
+              ...(this.useDPoP &&
+                this.dpopKeyPair && {
+                  DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
+                })
             }
           );
 
@@ -1759,9 +1761,10 @@ export class AuthClient {
           {
             [oauth.customFetch]: this.fetch,
             [oauth.allowInsecureRequests]: this.allowInsecureRequests,
-            ...(this.dpopKeyPair && {
-              DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
-            })
+            ...(this.useDPoP &&
+              this.dpopKeyPair && {
+                DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
+              })
           }
         );
 
@@ -2198,7 +2201,7 @@ export class AuthClient {
 
     const fetcherHooks: FetcherHooks = {
       getAccessToken: defaultAccessTokenFactory,
-      isDpopEnabled: () => options.useDPoP ?? false
+      isDpopEnabled: () => options.useDPoP ?? this.useDPoP ?? false
     };
 
     return new Fetcher<TOutput>(fetcherConfig, fetcherHooks);

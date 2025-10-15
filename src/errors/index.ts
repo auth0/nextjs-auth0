@@ -193,7 +193,6 @@ export class AccessTokenForConnectionError extends SdkError {
 }
 
 /**
-<<<<<<< HEAD
  * Error codes for DPoP-related errors.
  *
  * These error codes categorize different types of failures that can occur
