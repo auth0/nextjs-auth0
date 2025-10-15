@@ -170,7 +170,7 @@ describe("Connected Accounts DPoP Integration Tests", () => {
         appBaseUrl: DEFAULT.appBaseUrl,
         routes: getDefaultRoutes(),
         dpopKeyPair,
-        useDpop: true,
+        useDPoP: true,
         fetch: getMockAuthorizationServer({})
       });
 
@@ -311,7 +311,7 @@ describe("Connected Accounts DPoP Integration Tests", () => {
         appBaseUrl: DEFAULT.appBaseUrl,
         routes: getDefaultRoutes(),
         dpopKeyPair,
-        useDpop: true,
+        useDPoP: true,
         fetch: getMockAuthorizationServer({})
       });
 
@@ -439,7 +439,7 @@ describe("Connected Accounts DPoP Integration Tests", () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
         routes: getDefaultRoutes(),
-        useDpop: true,
+        useDPoP: true,
         // dpopKeyPair intentionally omitted
         fetch: getMockAuthorizationServer({})
       });

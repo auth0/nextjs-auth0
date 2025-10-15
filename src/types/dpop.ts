@@ -13,7 +13,7 @@
  * const dpopKeyPair = await generateKeyPair("ES256");
  *
  * const auth0 = new Auth0Client({
- *   useDpop: true,
+ *   useDPoP: true,
  *   dpopKeyPair
  * });
  * ```
@@ -25,7 +25,7 @@
  * // AUTH0_DPOP_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----..."
  *
  * const auth0 = new Auth0Client({
- *   useDpop: true
+ *   useDPoP: true
  *   // Keys will be loaded automatically from environment
  * });
  * ```
@@ -47,7 +47,7 @@ export interface DpopKeyPair {
  * @example Basic configuration
  * ```typescript
  * const auth0 = new Auth0Client({
- *   useDpop: true,
+ *   useDPoP: true,
  *   dpopOptions: {
  *     clockTolerance: 60, // Allow 60 seconds clock difference
  *     clockSkew: 0,       // No clock skew adjustment

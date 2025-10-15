@@ -1034,7 +1034,7 @@ import { generateKeyPair } from "oauth4webapi";
 const dpopKeyPair = await generateKeyPair("ES256");
 
 export const auth0 = new Auth0Client({
-  useDpop: true,
+  useDPoP: true,
   dpopKeyPair
 });
 ```
@@ -1059,7 +1059,7 @@ import { Auth0Client } from "@auth0/nextjs-auth0/server";
 
 // Auth0 client automatically loads keys from environment variables
 export const auth0 = new Auth0Client({
-  useDpop: true
+  useDPoP: true
   // Keys loaded automatically from AUTH0_DPOP_* environment variables
 });
 ```
@@ -1146,7 +1146,7 @@ Configure timing validation to handle clock differences between client and serve
 
 ```typescript
 export const auth0 = new Auth0Client({
-  useDpop: true,
+  useDPoP: true,
   dpopOptions: {
     // Clock tolerance: Allow up to 60 seconds difference between client/server clocks
     clockTolerance: 60,
@@ -1416,7 +1416,7 @@ Diagnose and resolve common DPoP configuration and runtime issues.
 
 **DPoP keys not found:**
 ```
-WARNING: useDpop is set to true but dpopKeyPair is not provided.
+WARNING: useDPoP is set to true but dpopKeyPair is not provided.
 ```
 **Solution**: Ensure `AUTH0_DPOP_PUBLIC_KEY` and `AUTH0_DPOP_PRIVATE_KEY` are set correctly in your environment, or provide the `dpopKeyPair` option directly in the Auth0Client constructor.
 

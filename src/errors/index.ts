@@ -239,7 +239,7 @@ export enum DPoPErrorCode {
  * ```typescript
  * try {
  *   const auth0 = new Auth0Client({
- *     useDpop: true,
+ *     useDPoP: true,
  *     dpopKeyPair: invalidKeyPair
  *   });
  * } catch (error) {

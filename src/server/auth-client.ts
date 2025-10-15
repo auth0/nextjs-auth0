@@ -194,7 +194,7 @@ export interface AuthClientOptions {
   noContentProfileResponseWhenUnauthenticated?: boolean;
   enableConnectAccountEndpoint?: boolean;
 
-  useDpop?: boolean;
+  useDPoP?: boolean;
   dpopKeyPair?: DpopKeyPair;
   dpopOptions?: DpopOptions;
 
@@ -365,10 +365,10 @@ export class AuthClient {
     this.enableConnectAccountEndpoint =
       options.enableConnectAccountEndpoint ?? false;
 
-    this.useDPoP = options.useDpop ?? false;
+    this.useDPoP = options.useDPoP ?? false;
 
-    // Initialize DPoP if enabled. Check useDpop flag first to avoid timing attacks.
-    if ((options.useDpop ?? false) && options.dpopKeyPair) {
+    // Initialize DPoP if enabled. Check useDPoP flag first to avoid timing attacks.
+    if ((options.useDPoP ?? false) && options.dpopKeyPair) {
       this.dpopKeyPair = options.dpopKeyPair;
     }
   }
