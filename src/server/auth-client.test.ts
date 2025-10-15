@@ -5130,7 +5130,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(await response.json()).toEqual({
         token: newAccessToken,
         scope: "openid profile email",
-        expires_at: expect.any(Number)
+        expires_at: expect.any(Number),
+        token_type: "bearer"
       });
 
       // validate that the session cookie has been updated
@@ -6530,7 +6531,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
         refreshToken: DEFAULT.refreshToken,
         expiresAt: expect.any(Number),
         scope: "openid profile email offline_access",
-        requestedScope: "openid profile email offline_access"
+        requestedScope: "openid profile email offline_access",
+        audience: undefined,
+        idToken: undefined,
+        token_type: "bearer"
       });
     });
 
@@ -6666,7 +6670,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
           refreshToken: "rt_456",
           expiresAt: expect.any(Number),
           requestedScope: "openid profile email offline_access",
-          scope: "openid profile email offline_access"
+          scope: "openid profile email offline_access",
+          audience: undefined,
+          idToken: undefined,
+          token_type: "bearer"
         });
       });
     });
@@ -6962,7 +6969,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
           expiresAt: expect.any(Number),
           scope: "write:messages",
           requestedScope: "openid profile email offline_access write:messages",
-          audience: "https://api.example.com"
+          audience: "https://api.example.com",
+          idToken: undefined,
+          token_type: "bearer"
         });
       });
 
@@ -7029,7 +7038,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
           refreshToken: DEFAULT.refreshToken,
           expiresAt: expect.any(Number),
           scope: "write:messages",
-          requestedScope: "openid profile email offline_access write:messages"
+          requestedScope: "openid profile email offline_access write:messages",
+          audience: undefined,
+          idToken: undefined,
+          token_type: "bearer"
         });
       });
 

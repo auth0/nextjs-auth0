@@ -15,7 +15,8 @@ export function accessTokenSetFromTokenSet(
     expiresAt: tokenSet.expiresAt,
     audience: options.audience,
     scope: tokenSet.scope,
-    requestedScope: tokenSet.requestedScope
+    requestedScope: tokenSet.requestedScope,
+    ...(tokenSet.token_type && { token_type: tokenSet.token_type })
   };
 }
 
@@ -37,7 +38,8 @@ export function tokenSetFromAccessTokenSet(
     expiresAt: accessTokenSet?.expiresAt,
     scope: accessTokenSet?.scope,
     requestedScope: accessTokenSet?.requestedScope,
-    audience: accessTokenSet?.audience
+    audience: accessTokenSet?.audience,
+    ...(accessTokenSet?.token_type && { token_type: accessTokenSet.token_type })
   };
 }
 

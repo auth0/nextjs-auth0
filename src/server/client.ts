@@ -1,4 +1,4 @@
-import type { IncomingMessage, ServerResponse } from "node:http";
+import type { IncomingMessage, ServerResponse } from "http";
 import { cookies } from "next/headers.js";
 import { NextRequest, NextResponse } from "next/server.js";
 import { NextApiHandler, NextApiRequest, NextApiResponse } from "next/types.js";
@@ -11,11 +11,13 @@ import {
   ConnectAccountError,
   ConnectAccountErrorCodes
 } from "../errors/index.js";
+import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
 import {
   AccessTokenForConnectionOptions,
   AuthorizationParameters,
   BackchannelAuthenticationOptions,
   ConnectAccountOptions,
+  GetAccessTokenOptions,
   LogoutStrategy,
   SessionData,
   SessionDataStore,
@@ -23,6 +25,7 @@ import {
   User
 } from "../types/index.js";
 import { DEFAULT_SCOPES } from "../utils/constants.js";
+import { validateDpopConfiguration } from "../utils/dpopUtils.js";
 import { isRequest } from "../utils/request.js";
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
 import {
@@ -33,6 +36,7 @@ import {
   RoutesOptions
 } from "./auth-client.js";
 import { RequestCookies, ResponseCookies } from "./cookies.js";
+import { AccessTokenFactory, CustomFetchImpl, Fetcher } from "./fetcher.js";
 import * as withApiAuthRequired from "./helpers/with-api-auth-required.js";
 import {
   appRouteHandlerFactory,
@@ -229,6 +233,124 @@ export interface Auth0ClientOptions {
    * If true, the `/auth/connect` endpoint will be mounted to enable users to connect additional accounts.
    */
   enableConnectAccountEndpoint?: boolean;
+
+  // DPoP Configuration
+  /**
+   * Enable DPoP (Demonstrating Proof-of-Possession) for enhanced OAuth 2.0 security.
+   *
+   * When enabled, the SDK will:
+   * - Generate DPoP proofs for token requests and protected resource requests
+   * - Bind access tokens cryptographically to the client's key pair
+   * - Prevent token theft and replay attacks
+   * - Handle DPoP nonce errors with automatic retry logic
+   *
+   * DPoP requires an ES256 key pair that can be provided via `dpopKeyPair` option
+   * or loaded from environment variables `AUTH0_DPOP_PUBLIC_KEY` and `AUTH0_DPOP_PRIVATE_KEY`.
+   *
+   * @default false
+   *
+   * @example Enable DPoP with generated keys
+   * ```typescript
+   * import { generateKeyPair } from "oauth4webapi";
+   *
+   * const dpopKeyPair = await generateKeyPair("ES256");
+   *
+   * const auth0 = new Auth0Client({
+   *   useDPoP: true,
+   *   dpopKeyPair
+   * });
+   * ```
+   *
+   * @example Enable DPoP with environment variables
+   * ```typescript
+   * // .env.local
+   * // AUTH0_DPOP_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----..."
+   * // AUTH0_DPOP_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----..."
+   *
+   * const auth0 = new Auth0Client({
+   *   useDPoP: true
+   *   // Keys loaded automatically from environment
+   * });
+   * ```
+   *
+   * @see {@link https://datatracker.ietf.org/doc/html/rfc9449 | RFC 9449: OAuth 2.0 Demonstrating Proof-of-Possession at the Application Layer (DPoP)}
+   */
+  useDPoP?: boolean;
+
+  /**
+   * ES256 key pair for DPoP proof generation.
+   *
+   * If not provided when `useDPoP` is true, the SDK will attempt to load keys from
+   * environment variables `AUTH0_DPOP_PUBLIC_KEY` and `AUTH0_DPOP_PRIVATE_KEY`.
+   * Keys must be in PEM format and use the P-256 elliptic curve.
+   *
+   * @example Provide key pair directly
+   * ```typescript
+   * import { generateKeyPair } from "oauth4webapi";
+   *
+   * const keyPair = await generateKeyPair("ES256");
+   *
+   * const auth0 = new Auth0Client({
+   *   useDPoP: true,
+   *   dpopKeyPair: keyPair
+   * });
+   * ```
+   *
+   * @example Load from files
+   * ```typescript
+   * import { importSPKI, importPKCS8 } from "jose";
+   * import { readFileSync } from "fs";
+   *
+   * const publicKeyPem = readFileSync("dpop-public.pem", "utf8");
+   * const privateKeyPem = readFileSync("dpop-private.pem", "utf8");
+   *
+   * const auth0 = new Auth0Client({
+   *   useDPoP: true,
+   *   dpopKeyPair: {
+   *     publicKey: await importSPKI(publicKeyPem, "ES256"),
+   *     privateKey: await importPKCS8(privateKeyPem, "ES256")
+   *   }
+   * });
+   * ```
+   *
+   * @see {@link DpopKeyPair} for the key pair interface
+   * @see {@link generateDpopKeyPair} for generating new key pairs
+   */
+  dpopKeyPair?: DpopKeyPair;
+
+  /**
+   * Configuration options for DPoP timing validation and retry behavior.
+   *
+   * These options control how the SDK validates DPoP proof timing and handles
+   * nonce errors. Proper configuration is important for both security and reliability.
+   *
+   * @example Basic configuration
+   * ```typescript
+   * const auth0 = new Auth0Client({
+   *   useDPoP: true,
+   *   dpopOptions: {
+   *     clockTolerance: 60,    // Allow 60 seconds clock difference
+   *     clockSkew: 0,          // No clock adjustment needed
+   *     retry: {
+   *       delay: 200,          // 200ms delay before retry
+   *       jitter: true         // Add randomness to prevent thundering herd
+   *     }
+   *   }
+   * });
+   * ```
+   *
+   * @example Environment variable configuration
+   * ```bash
+   * # .env.local
+   * AUTH0_DPOP_CLOCK_SKEW=0
+   * AUTH0_DPOP_CLOCK_TOLERANCE=30
+   * AUTH0_RETRY_DELAY=100
+   * AUTH0_RETRY_JITTER=true
+   * ```
+   *
+   * @see {@link DpopOptions} for detailed option descriptions
+   */
+  dpopOptions?: DpopOptions;
 }
 
 export type PagesRouterRequest = IncomingMessage | NextApiRequest;
@@ -263,6 +385,12 @@ export class Auth0Client {
     const clientAssertionSigningAlg =
       options.clientAssertionSigningAlg ||
       process.env.AUTH0_CLIENT_ASSERTION_SIGNING_ALG;
+
+    // Validate DPoP configuration and resolve from environment variables if needed
+    const {
+      dpopKeyPair: resolvedDpopKeyPair,
+      dpopOptions: resolvedDpopOptions
+    } = validateDpopConfiguration(options);
 
     // Auto-detect base path for cookie configuration
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
@@ -364,7 +492,10 @@ export class Auth0Client {
       enableAccessTokenEndpoint: options.enableAccessTokenEndpoint,
       noContentProfileResponseWhenUnauthenticated:
         options.noContentProfileResponseWhenUnauthenticated,
-      enableConnectAccountEndpoint: options.enableConnectAccountEndpoint
+      enableConnectAccountEndpoint: options.enableConnectAccountEndpoint,
+      useDPoP: options.useDPoP || false,
+      dpopKeyPair: options.dpopKeyPair || resolvedDpopKeyPair,
+      dpopOptions: options.dpopOptions || resolvedDpopOptions
     });
   }
 
@@ -1021,6 +1152,81 @@ export class Auth0Client {
     };
   }
 
+  /**
+   * Creates a configured Fetcher instance for making authenticated API requests.
+   *
+   * This method creates a specialized HTTP client that handles:
+   * - Automatic access token retrieval and injection
+   * - DPoP (Demonstrating Proof-of-Possession) proof generation when enabled
+   * - Token refresh and session management
+   * - Error handling and retry logic for DPoP nonce errors
+   * - Base URL resolution for relative requests
+   *
+   * The fetcher provides a high-level interface for making requests to protected resources
+   * without manually handling authentication details.
+   *
+   * @template TOutput - Response type that extends the standard Response interface
+   * @param req - Request object for session context (required for Pages Router, optional for App Router)
+   * @param options - Configuration options for the fetcher
+   * @param options.useDPoP - Enable DPoP for this fetcher instance (overrides global setting)
+   * @param options.baseUrl - Base URL for resolving relative requests
+   * @param options.getAccessToken - Custom access token factory function
+   * @param options.fetch - Custom fetch implementation
+   * @returns Promise that resolves to a configured Fetcher instance
+   * @throws AccessTokenError when no active session exists
+   *
+   * @example
+   * ```typescript
+   * import { auth0 } from "@/lib/auth0";
+   *
+   * const fetcher = await auth0.createFetcher(undefined, {
+   *   baseUrl: "https://api.example.com",
+   *   useDPoP: true
+   * });
+   *
+   * const response = await fetcher.fetchWithAuth("/users");
+   * const users = await response.json();
+   * ```
+   *
+   * @see {@link Fetcher} for details on using the returned fetcher instance
+   * @see {@link FetcherMinimalConfig} for available configuration options
+   */
+  public async createFetcher<TOutput extends Response = Response>(
+    req: PagesRouterRequest | NextRequest | undefined,
+    options: {
+      /** Enable DPoP for this fetcher instance (overrides global setting) */
+      useDPoP?: boolean;
+      /** Custom access token factory function. If not provided, uses the default from hooks */
+      getAccessToken?: AccessTokenFactory;
+      /** Base URL for relative requests. Must be provided if using relative URLs */
+      baseUrl?: string;
+      /** Custom fetch implementation. Falls back to global fetch if not provided */
+      fetch?: CustomFetchImpl<TOutput>;
+      /**
+       * @future This parameter is reserved for future implementation.
+       */
+      nonceStorageId?: string;
+    }
+  ) {
+    const session: SessionData | null = req
+      ? await this.getSession(req)
+      : await this.getSession();
+
+    if (!session) {
+      throw new AccessTokenError(
+        AccessTokenErrorCode.MISSING_SESSION,
+        "The user does not have an active session."
+      );
+    }
+
+    const fetcher: Fetcher<TOutput> = await this.authClient.fetcherFactory({
+      ...options,
+      session
+    });
+
+    return fetcher;
+  }
+
   private get issuer(): string {
     return this.domain.startsWith("http://") ||
       this.domain.startsWith("https://")
@@ -1028,14 +1234,3 @@ export class Auth0Client {
       : `https://${this.domain}`;
   }
 }
-
-export type GetAccessTokenOptions = {
-  refresh?: boolean;
-  scope?: string;
-  /**
-   * Please note: If you are passing audience, ensure that the used audiences and scopes are
-   * part of the Application's Refresh Token Policies in Auth0 when configuring Multi-Resource Refresh Tokens (MRRT).
-   * {@link https://auth0.com/docs/secure/tokens/refresh-tokens/multi-resource-refresh-token|See Auth0 Documentation on Multi-resource Refresh Tokens}
-   */
-  audience?: string;
-};
