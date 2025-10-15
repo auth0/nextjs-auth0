@@ -1,6 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server.js";
 import * as jose from "jose";
 import * as oauth from "oauth4webapi";
+import {
+  allowInsecureRequests,
+  customFetch,
+  protectedResourceRequest
+} from "oauth4webapi";
 import * as client from "openid-client";
 
 import packageJson from "../../package.json" with { type: "json" };
@@ -18,6 +23,8 @@ import {
   ConnectAccountError,
   ConnectAccountErrorCodes,
   DiscoveryError,
+  DPoPError,
+  DPoPErrorCode,
   InvalidStateError,
   MissingStateError,
   MyAccountApiError,
@@ -31,6 +38,7 @@ import {
   ConnectAccountRequest,
   ConnectAccountResponse
 } from "../types/connected-accounts.js";
+import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
 import {
   AccessTokenForConnectionOptions,
   AccessTokenSet,
@@ -38,6 +46,7 @@ import {
   BackchannelAuthenticationOptions,
   BackchannelAuthenticationResponse,
   ConnectionTokenSet,
+  GetAccessTokenOptions,
   LogoutStrategy,
   LogoutToken,
   RESPONSE_TYPES,
@@ -49,6 +58,7 @@ import {
 } from "../types/index.js";
 import { mergeAuthorizationParamsIntoSearchParams } from "../utils/authorization-params-helpers.js";
 import { DEFAULT_SCOPES } from "../utils/constants.js";
+import { withDPoPNonceRetry } from "../utils/dpopUtils.js";
 import {
   ensureNoLeadingSlash,
   ensureTrailingSlash,
@@ -68,6 +78,12 @@ import {
 } from "../utils/token-set-helpers.js";
 import { toSafeRedirect } from "../utils/url-helpers.js";
 import { addCacheControlHeadersForSession } from "./cookies.js";
+import {
+  Fetcher,
+  FetcherConfig,
+  FetcherHooks,
+  FetcherMinimalConfig
+} from "./fetcher.js";
 import { AbstractSessionStore } from "./session/abstract-session-store.js";
 import { TransactionState, TransactionStore } from "./transaction-store.js";
 import { filterDefaultIdTokenClaims } from "./user.js";
@@ -177,6 +193,16 @@ export interface AuthClientOptions {
   enableAccessTokenEndpoint?: boolean;
   noContentProfileResponseWhenUnauthenticated?: boolean;
   enableConnectAccountEndpoint?: boolean;
+
+  useDPoP?: boolean;
+  dpopKeyPair?: DpopKeyPair;
+  dpopOptions?: DpopOptions;
+
+  /**
+   * @future This option is reserved for future implementation.
+   * Currently not used - placeholder for upcoming nonce persistence feature.
+   */
+  // dpopHandleStorage?: DPoPHandleStorageInterface; // Commented out until implementation
 }
 
 function createRouteUrl(path: string, baseUrl: string) {
@@ -219,6 +245,11 @@ export class AuthClient {
   private readonly enableAccessTokenEndpoint: boolean;
   private readonly noContentProfileResponseWhenUnauthenticated: boolean;
   private readonly enableConnectAccountEndpoint: boolean;
+
+  private dpopOptions?: DpopOptions;
+
+  private dpopKeyPair?: DpopKeyPair;
+  private readonly useDPoP: boolean;
 
   constructor(options: AuthClientOptions) {
     // dependencies
@@ -264,6 +295,20 @@ export class AuthClient {
     // authorization server
     this.domain = options.domain;
     this.clientMetadata = { client_id: options.clientId };
+
+    // Apply DPoP timing validation options to client metadata if provided
+    if (options.dpopOptions) {
+      if (typeof options.dpopOptions.clockSkew === "number") {
+        this.clientMetadata[oauth.clockSkew] = options.dpopOptions.clockSkew;
+      }
+      if (typeof options.dpopOptions.clockTolerance === "number") {
+        this.clientMetadata[oauth.clockTolerance] =
+          options.dpopOptions.clockTolerance;
+      }
+    }
+
+    // Store dpopOptions for use in retry logic
+    this.dpopOptions = options.dpopOptions;
     this.clientSecret = options.clientSecret;
     this.authorizationParameters = options.authorizationParameters || {
       scope: DEFAULT_SCOPES
@@ -319,6 +364,13 @@ export class AuthClient {
       options.noContentProfileResponseWhenUnauthenticated ?? false;
     this.enableConnectAccountEndpoint =
       options.enableConnectAccountEndpoint ?? false;
+
+    this.useDPoP = options.useDPoP ?? false;
+
+    // Initialize DPoP if enabled. Check useDPoP flag first to avoid timing attacks.
+    if ((options.useDPoP ?? false) && options.dpopKeyPair) {
+      this.dpopKeyPair = options.dpopKeyPair;
+    }
   }
 
   async handler(req: NextRequest): Promise<NextResponse> {
@@ -416,6 +468,22 @@ export class AuthClient {
     authorizationParams.set("code_challenge_method", codeChallengeMethod);
     authorizationParams.set("state", state);
     authorizationParams.set("nonce", nonce);
+
+    // Add dpop_jkt parameter if DPoP is enabled
+    if (this.dpopKeyPair) {
+      try {
+        const publicKeyJwk = await jose.exportJWK(this.dpopKeyPair.publicKey);
+        const dpopJkt = await jose.calculateJwkThumbprint(publicKeyJwk);
+        authorizationParams.set("dpop_jkt", dpopJkt);
+      } catch (error) {
+        throw new DPoPError(
+          DPoPErrorCode.DPOP_JKT_CALCULATION_FAILED,
+          "DPoP is enabled but failed to calculate key thumbprint (dpop_jkt). " +
+            "This is required for secure DPoP binding. Please check your key configuration.",
+          error instanceof Error ? error : undefined
+        );
+      }
+    }
 
     // Prepare transaction state
     const transactionState: TransactionState = {
@@ -691,21 +759,31 @@ export class AuthClient {
     }
 
     let codeGrantResponse: Response;
+    let redirectUri: URL;
+    let authorizationCodeGrantRequestCall: () => Promise<Response>;
+
     try {
-      const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registered with the authorization server
-      codeGrantResponse = await oauth.authorizationCodeGrantRequest(
-        authorizationServerMetadata,
-        this.clientMetadata,
-        await this.getClientAuth(),
-        codeGrantParams,
-        redirectUri.toString(),
-        transactionState.codeVerifier,
-        {
-          ...this.httpOptions(),
-          [oauth.customFetch]: this.fetch,
-          [oauth.allowInsecureRequests]: this.allowInsecureRequests
-        }
-      );
+      redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registered with the authorization server
+      authorizationCodeGrantRequestCall = async () =>
+        oauth.authorizationCodeGrantRequest(
+          authorizationServerMetadata,
+          this.clientMetadata,
+          await this.getClientAuth(),
+          codeGrantParams,
+          redirectUri.toString(),
+          transactionState.codeVerifier,
+          {
+            ...this.httpOptions(),
+            [oauth.customFetch]: this.fetch,
+            [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+            ...(this.useDPoP &&
+              this.dpopKeyPair && {
+                DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
+              })
+          }
+        );
+
+      codeGrantResponse = await authorizationCodeGrantRequestCall();
     } catch (e: any) {
       return this.handleCallbackError(
         new AuthorizationCodeGrantRequestError(e.message),
@@ -714,9 +792,11 @@ export class AuthClient {
         state
       );
     }
-
     let oidcRes: oauth.TokenEndpointResponse;
     try {
+      // Process the authorization code response
+      // For authorization code flows, oauth4webapi handles DPoP nonce management internally
+      // No need for manual retry since authorization codes are single-use
       oidcRes = await oauth.processAuthorizationCodeResponse(
         authorizationServerMetadata,
         this.clientMetadata,
@@ -836,7 +916,10 @@ export class AuthClient {
     const res = NextResponse.json({
       token: updatedTokenSet.accessToken,
       scope: updatedTokenSet.scope,
-      expires_at: updatedTokenSet.expiresAt
+      expires_at: updatedTokenSet.expiresAt,
+      ...(updatedTokenSet.token_type && {
+        token_type: updatedTokenSet.token_type
+      })
     });
 
     const sessionChanges = getSessionChangesAfterGetAccessToken(
@@ -1053,11 +1136,7 @@ export class AuthClient {
    */
   async getTokenSet(
     sessionData: SessionData,
-    options: {
-      refresh?: boolean | undefined;
-      scope?: string | null;
-      audience?: string | null;
-    } = {}
+    options: GetAccessTokenOptions = {}
   ): Promise<[null, GetTokenSetResponse] | [SdkError, null]> {
     // This will merge the scopes from the authorization parameters and the options.
     // The scope from the options will be added to the scopes from the authorization parameters.
@@ -1129,26 +1208,37 @@ export class AuthClient {
           additionalParameters.append("audience", options.audience);
         }
 
-        const refreshTokenRes = await oauth.refreshTokenGrantRequest(
-          authorizationServerMetadata,
-          this.clientMetadata,
-          await this.getClientAuth(),
-          tokenSet.refreshToken,
-          {
-            ...this.httpOptions(),
-            [oauth.customFetch]: this.fetch,
-            [oauth.allowInsecureRequests]: this.allowInsecureRequests,
-            additionalParameters
-          }
-        );
+        const refreshTokenGrantRequestCall = async () =>
+          oauth.refreshTokenGrantRequest(
+            authorizationServerMetadata,
+            this.clientMetadata,
+            await this.getClientAuth(),
+            tokenSet.refreshToken!,
+            {
+              ...this.httpOptions(),
+              [oauth.customFetch]: this.fetch,
+              [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+              additionalParameters,
+              ...(this.useDPoP &&
+                this.dpopKeyPair && {
+                  DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
+                })
+            }
+          );
+
+        const processRefreshTokenResponseCall = (response: Response) =>
+          oauth.processRefreshTokenResponse(
+            authorizationServerMetadata,
+            this.clientMetadata,
+            response
+          );
 
         let oauthRes: oauth.TokenEndpointResponse;
         try {
-          oauthRes = await oauth.processRefreshTokenResponse(
-            authorizationServerMetadata,
-            this.clientMetadata,
-            refreshTokenRes
-          );
+          oauthRes = await withDPoPNonceRetry(async () => {
+            const refreshTokenRes = await refreshTokenGrantRequestCall();
+            return await processRefreshTokenResponseCall(refreshTokenRes);
+          }, this.dpopOptions?.retry);
         } catch (e: any) {
           return [
             new AccessTokenError(
@@ -1186,7 +1276,9 @@ export class AuthClient {
           expiresAt: accessTokenExpiresAt,
           // Keep the audience if it exists, otherwise use the one from the options.
           // If not provided, use `undefined`.
-          audience: tokenSet.audience || options.audience || undefined
+          audience: tokenSet.audience || options.audience || undefined,
+          // Store the token type from the OAuth response (e.g., "Bearer", "DPoP")
+          ...(oauthRes.token_type && { token_type: oauthRes.token_type })
         };
 
         if (oauthRes.refresh_token) {
@@ -1659,25 +1751,36 @@ export class AuthClient {
         return [discoveryError, null];
       }
 
-      const httpResponse = await oauth.genericTokenEndpointRequest(
-        authorizationServerMetadata,
-        this.clientMetadata,
-        await this.getClientAuth(),
-        GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN,
-        params,
-        {
-          [oauth.customFetch]: this.fetch,
-          [oauth.allowInsecureRequests]: this.allowInsecureRequests
-        }
-      );
+      const genericTokenEndpointRequestCall = async () =>
+        oauth.genericTokenEndpointRequest(
+          authorizationServerMetadata,
+          this.clientMetadata,
+          await this.getClientAuth(),
+          GRANT_TYPE_FEDERATED_CONNECTION_ACCESS_TOKEN,
+          params,
+          {
+            [oauth.customFetch]: this.fetch,
+            [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+            ...(this.useDPoP &&
+              this.dpopKeyPair && {
+                DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
+              })
+          }
+        );
+
+      const processGenericTokenEndpointResponseCall = (response: Response) =>
+        oauth.processGenericTokenEndpointResponse(
+          authorizationServerMetadata,
+          this.clientMetadata,
+          response
+        );
 
       let tokenEndpointResponse: oauth.TokenEndpointResponse;
       try {
-        tokenEndpointResponse = await oauth.processGenericTokenEndpointResponse(
-          authorizationServerMetadata,
-          this.clientMetadata,
-          httpResponse
-        );
+        tokenEndpointResponse = await withDPoPNonceRetry(async () => {
+          const httpResponse = await genericTokenEndpointRequestCall();
+          return await processGenericTokenEndpointResponseCall(httpResponse);
+        }, this.dpopOptions?.retry);
       } catch (err: any) {
         return [
           new AccessTokenForConnectionError(
@@ -1810,21 +1913,35 @@ export class AuthClient {
       const httpOptions = this.httpOptions();
       const headers = new Headers(httpOptions.headers);
       headers.set("Content-Type", "application/json");
-      headers.set("Authorization", `Bearer ${options.accessToken}`);
 
-      const res = await this.fetch(connectAccountUrl, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          connection: options.connection,
-          redirect_uri: options.redirectUri,
-          state: options.state,
-          code_challenge: options.codeChallenge,
-          code_challenge_method: options.codeChallengeMethod,
-          authorization_params: options.authorizationParams
-        }),
-        signal: httpOptions.signal
+      const requestBody = JSON.stringify({
+        connection: options.connection,
+        redirect_uri: options.redirectUri,
+        state: options.state,
+        code_challenge: options.codeChallenge,
+        code_challenge_method: options.codeChallengeMethod,
+        authorization_params: options.authorizationParams
       });
+
+      const res = await protectedResourceRequest(
+        options.accessToken,
+        "POST",
+        connectAccountUrl,
+        headers,
+        requestBody,
+        {
+          ...httpOptions,
+          [customFetch]: (url: string, requestOptions: any) => {
+            const tmpRequest = new Request(url, requestOptions);
+            return this.fetch(tmpRequest);
+          },
+          [allowInsecureRequests]: this.allowInsecureRequests || false,
+          ...(this.useDPoP &&
+            this.dpopKeyPair && {
+              DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
+            })
+        }
+      );
 
       if (!res.ok) {
         try {
@@ -1890,19 +2007,33 @@ export class AuthClient {
       const httpOptions = this.httpOptions();
       const headers = new Headers(httpOptions.headers);
       headers.set("Content-Type", "application/json");
-      headers.set("Authorization", `Bearer ${options.accessToken}`);
 
-      const res = await this.fetch(completeConnectAccountUrl, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          auth_session: options.authSession,
-          connect_code: options.connectCode,
-          redirect_uri: options.redirectUri,
-          code_verifier: options.codeVerifier
-        }),
-        signal: httpOptions.signal
+      const requestBody = JSON.stringify({
+        auth_session: options.authSession,
+        connect_code: options.connectCode,
+        redirect_uri: options.redirectUri,
+        code_verifier: options.codeVerifier
       });
+
+      const res = await protectedResourceRequest(
+        options.accessToken,
+        "POST",
+        completeConnectAccountUrl,
+        headers,
+        requestBody,
+        {
+          ...httpOptions,
+          [customFetch]: (url: string, requestOptions: any) => {
+            const tmpRequest = new Request(url, requestOptions);
+            return this.fetch(tmpRequest);
+          },
+          [allowInsecureRequests]: this.allowInsecureRequests || false,
+          ...(this.useDPoP &&
+            this.dpopKeyPair && {
+              DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
+            })
+        }
+      );
 
       if (!res.ok) {
         try {
@@ -1981,6 +2112,7 @@ export class AuthClient {
       const headers = new Headers(args[1].headers);
       return this.fetch(args[0], {
         ...args[1],
+        body: args[1].body as BodyInit | null | undefined,
         headers: new Headers([...telemetryHeaders, ...headers])
       });
     };
@@ -1992,6 +2124,87 @@ export class AuthClient {
     }
 
     return [null, openidClientConfig];
+  }
+
+  /**
+   * Creates a new Fetcher instance with DPoP support and authentication capabilities.
+   *
+   * This method creates fetcher-scoped DPoP handles via `oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)`.
+   * Each fetcher instance maintains its own DPoP nonce state for isolation and security.
+   * It is recommended to create fetchers at module level and reuse them across requests
+   *
+   * @example Recommended fetcher reuse pattern
+   * ```typescript
+   * const managementApi = await auth0.fetcherFactory({
+   *   baseUrl: `https://${process.env.AUTH0_DOMAIN}/api/v2/`,
+   *   session: await getSession(req, res)
+   * });
+   *
+   * // Use the same fetcher for multiple requests
+   * const users = await managementApi.get('users');
+   * const roles = await managementApi.get('roles');
+   * ```
+   *
+   * **DPoP Nonce Management:**
+   * - Each fetcher learns and caches nonces from the authorization server
+   * - Failed nonce validation triggers automatic retry with updated nonce
+   * - Nonce state is isolated between fetcher instances for security
+   *
+   * @param options Configuration options for the fetcher
+   * @returns Promise resolving to a configured Fetcher instance
+   * @throws {DPoPError} When DPoP is enabled but no keypair is configured
+   */
+  async fetcherFactory<TOutput extends Response>(
+    options: FetcherFactoryOptions<TOutput>
+  ): Promise<Fetcher<TOutput>> {
+    if (this.useDPoP && !this.dpopKeyPair) {
+      throw new DPoPError(
+        DPoPErrorCode.DPOP_CONFIGURATION_ERROR,
+        "DPoP is enabled but no keypair is configured."
+      );
+    }
+
+    // Ensure authorization server metadata is available for oauth4webapi
+    const [discoveryError, _authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      throw discoveryError;
+    }
+
+    const defaultAccessTokenFactory = async (
+      getAccessTokenOptions: GetAccessTokenOptions
+    ) => {
+      const [error, getTokenSetResponse] = await this.getTokenSet(
+        options.session,
+        getAccessTokenOptions || {}
+      );
+      if (error) {
+        throw error;
+      }
+      return getTokenSetResponse.tokenSet.accessToken;
+    };
+
+    const fetcherConfig: FetcherConfig<TOutput> = {
+      // Fetcher-scoped DPoP handle and nonce management
+      dpopHandle:
+        this.useDPoP && (options.useDPoP ?? true)
+          ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
+          : undefined,
+      httpOptions: this.httpOptions,
+      allowInsecureRequests: this.allowInsecureRequests,
+      retryConfig: this.dpopOptions?.retry,
+      fetch: options.fetch,
+      getAccessToken: options.getAccessToken,
+      baseUrl: options.baseUrl
+    };
+
+    const fetcherHooks: FetcherHooks = {
+      getAccessToken: defaultAccessTokenFactory,
+      isDpopEnabled: () => options.useDPoP ?? this.useDPoP ?? false
+    };
+
+    return new Fetcher<TOutput>(fetcherConfig, fetcherHooks);
   }
 }
 
@@ -2012,3 +2225,14 @@ type GetTokenSetResponse = {
   tokenSet: TokenSet;
   idTokenClaims?: { [key: string]: any };
 };
+
+/**
+ * Options for creating a Fetcher instance via the factory method.
+ *
+ * Includes all FetcherMinimalConfig options plus internal session data.
+ * The `nonceStorageId` from FetcherMinimalConfig is included but currently ignored.
+ */
+export type FetcherFactoryOptions<TOutput extends Response> = {
+  useDPoP?: boolean;
+  session: SessionData;
+} & FetcherMinimalConfig<TOutput>;
