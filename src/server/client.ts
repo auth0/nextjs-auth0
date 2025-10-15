@@ -2,7 +2,6 @@ import type { IncomingMessage, ServerResponse } from "http";
 import { cookies } from "next/headers.js";
 import { NextRequest, NextResponse } from "next/server.js";
 import { NextApiHandler, NextApiRequest, NextApiResponse } from "next/types.js";
-import { ProtectedResourceRequestBody } from "oauth4webapi";
 
 import {
   AccessTokenError,
@@ -37,7 +36,7 @@ import {
   RoutesOptions
 } from "./auth-client.js";
 import { RequestCookies, ResponseCookies } from "./cookies.js";
-import { Fetcher, FetcherMinimalConfig } from "./fetcher.js";
+import { AccessTokenFactory, CustomFetchImpl, Fetcher } from "./fetcher.js";
 import * as withApiAuthRequired from "./helpers/with-api-auth-required.js";
 import {
   appRouteHandlerFactory,
@@ -1195,9 +1194,19 @@ export class Auth0Client {
   public async createFetcher<TOutput extends Response = Response>(
     req: PagesRouterRequest | NextRequest | undefined,
     options: {
+      /** Enable DPoP for this fetcher instance (overrides global setting) */
       useDPoP?: boolean;
+      /** Custom access token factory function. If not provided, uses the default from hooks */
+      getAccessToken?: AccessTokenFactory;
+      /** Base URL for relative requests. Must be provided if using relative URLs */
+      baseUrl?: string;
+      /** Custom fetch implementation. Falls back to global fetch if not provided */
+      fetch?: CustomFetchImpl<TOutput>;
+      /**
+       * @future This parameter is reserved for future implementation.
+       */
       nonceStorageId?: string;
-    } & FetcherMinimalConfig<TOutput>
+    }
   ) {
     const session: SessionData | null = req
       ? await this.getSession(req)
@@ -1225,21 +1234,3 @@ export class Auth0Client {
       : `https://${this.domain}`;
   }
 }
-
-/**
- * Request initialization options for fetchWithAuth.
- * Similar to RequestInit but uses ProtectedResourceRequestBody for the body type.
- */
-export type FetchWithAuthInit = {
-  method?: string;
-  headers?: HeadersInit;
-  /**
-   * Request body compatible with oauth4webapi's ProtectedResourceRequestBody.
-   * Supported types: string, URLSearchParams, ArrayBuffer, Uint8Array, ReadableStream<Uint8Array>
-   *
-   * Note: Blob and FormData are not supported. Convert them to supported types before use:
-   * - Blob: Use `await blob.arrayBuffer()`
-   * - FormData: Convert to URLSearchParams (loses file data) or use a different approach
-   */
-  body?: ProtectedResourceRequestBody;
-};
