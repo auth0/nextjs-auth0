@@ -411,7 +411,7 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       consoleWarnSpy.mockRestore();
     });
 
-    it("should load DPoP keypair from environment variables when useDpop is true", () => {
+    it("should load DPoP keypair from environment variables when useDPoP is true", () => {
       // Set up environment variables
       process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
       process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
@@ -422,7 +422,7 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       process.env[ENV_VARS.DPOP_PUBLIC_KEY] = TEST_PUBLIC_KEY_PEM;
 
       const client = new Auth0Client({
-        useDpop: true
+        useDPoP: true
       });
 
       expect(client).toBeInstanceOf(Auth0Client);
@@ -461,18 +461,18 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       delete process.env[ENV_VARS.DPOP_PUBLIC_KEY];
 
       const client = new Auth0Client({
-        useDpop: true
+        useDPoP: true
       });
 
       expect(client).toBeInstanceOf(Auth0Client);
       expect(consoleWarnSpy).toHaveBeenCalledWith(
         expect.stringContaining(
-          "WARNING: useDpop is set to true but dpopKeyPair is not provided"
+          "WARNING: useDPoP is set to true but dpopKeyPair is not provided"
         )
       );
     });
 
-    it("should return undefined when useDpop is false", () => {
+    it("should return undefined when useDPoP is false", () => {
       // Set up environment variables including DPoP keys
       process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
       process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
@@ -483,7 +483,7 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       process.env[ENV_VARS.DPOP_PUBLIC_KEY] = TEST_PUBLIC_KEY_PEM;
 
       const client = new Auth0Client({
-        useDpop: false
+        useDPoP: false
       });
 
       expect(client).toBeInstanceOf(Auth0Client);
@@ -507,7 +507,7 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       const mockKeypair = await generateDpopKeyPair();
 
       const client = new Auth0Client({
-        useDpop: true,
+        useDPoP: true,
         dpopKeyPair: mockKeypair
       });
 
@@ -528,7 +528,7 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       process.env[ENV_VARS.DPOP_PUBLIC_KEY] = "invalid-public-key";
 
       const client = new Auth0Client({
-        useDpop: true
+        useDPoP: true
       });
 
       expect(client).toBeInstanceOf(Auth0Client);
@@ -550,13 +550,13 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       // AUTH0_DPOP_PRIVATE_KEY is missing
 
       const client = new Auth0Client({
-        useDpop: true
+        useDPoP: true
       });
 
       expect(client).toBeInstanceOf(Auth0Client);
       expect(consoleWarnSpy).toHaveBeenCalledWith(
         expect.stringContaining(
-          "WARNING: useDpop is set to true but dpopKeyPair is not provided"
+          "WARNING: useDPoP is set to true but dpopKeyPair is not provided"
         )
       );
     });
@@ -572,13 +572,13 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       // AUTH0_DPOP_PUBLIC_KEY is missing
 
       const client = new Auth0Client({
-        useDpop: true
+        useDPoP: true
       });
 
       expect(client).toBeInstanceOf(Auth0Client);
       expect(consoleWarnSpy).toHaveBeenCalledWith(
         expect.stringContaining(
-          "WARNING: useDpop is set to true but dpopKeyPair is not provided"
+          "WARNING: useDPoP is set to true but dpopKeyPair is not provided"
         )
       );
     });

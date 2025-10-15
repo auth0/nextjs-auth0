@@ -257,7 +257,7 @@ export interface Auth0ClientOptions {
    * const dpopKeyPair = await generateKeyPair("ES256");
    *
    * const auth0 = new Auth0Client({
-   *   useDpop: true,
+   *   useDPoP: true,
    *   dpopKeyPair
    * });
    * ```
@@ -269,19 +269,19 @@ export interface Auth0ClientOptions {
    * // AUTH0_DPOP_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----..."
    *
    * const auth0 = new Auth0Client({
-   *   useDpop: true
+   *   useDPoP: true
    *   // Keys loaded automatically from environment
    * });
    * ```
    *
    * @see {@link https://datatracker.ietf.org/doc/html/rfc9449 | RFC 9449: OAuth 2.0 Demonstrating Proof-of-Possession at the Application Layer (DPoP)}
    */
-  useDpop?: boolean;
+  useDPoP?: boolean;
 
   /**
    * ES256 key pair for DPoP proof generation.
    *
-   * If not provided when `useDpop` is true, the SDK will attempt to load keys from
+   * If not provided when `useDPoP` is true, the SDK will attempt to load keys from
    * environment variables `AUTH0_DPOP_PUBLIC_KEY` and `AUTH0_DPOP_PRIVATE_KEY`.
    * Keys must be in PEM format and use the P-256 elliptic curve.
    *
@@ -292,7 +292,7 @@ export interface Auth0ClientOptions {
    * const keyPair = await generateKeyPair("ES256");
    *
    * const auth0 = new Auth0Client({
-   *   useDpop: true,
+   *   useDPoP: true,
    *   dpopKeyPair: keyPair
    * });
    * ```
@@ -306,7 +306,7 @@ export interface Auth0ClientOptions {
    * const privateKeyPem = readFileSync("dpop-private.pem", "utf8");
    *
    * const auth0 = new Auth0Client({
-   *   useDpop: true,
+   *   useDPoP: true,
    *   dpopKeyPair: {
    *     publicKey: await importSPKI(publicKeyPem, "ES256"),
    *     privateKey: await importPKCS8(privateKeyPem, "ES256")
@@ -328,7 +328,7 @@ export interface Auth0ClientOptions {
    * @example Basic configuration
    * ```typescript
    * const auth0 = new Auth0Client({
-   *   useDpop: true,
+   *   useDPoP: true,
    *   dpopOptions: {
    *     clockTolerance: 60,    // Allow 60 seconds clock difference
    *     clockSkew: 0,          // No clock adjustment needed
@@ -494,7 +494,7 @@ export class Auth0Client {
       noContentProfileResponseWhenUnauthenticated:
         options.noContentProfileResponseWhenUnauthenticated,
       enableConnectAccountEndpoint: options.enableConnectAccountEndpoint,
-      useDpop: options.useDpop || false,
+      useDPoP: options.useDPoP || false,
       dpopKeyPair: options.dpopKeyPair || resolvedDpopKeyPair,
       dpopOptions: options.dpopOptions || resolvedDpopOptions
     });

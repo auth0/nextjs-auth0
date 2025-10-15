@@ -9,7 +9,7 @@ export const auth0 = new Auth0Client({
     scope: process.env.AUTH0_SCOPE,
     audience: process.env.AUTH0_AUDIENCE
   },
-  useDpop: true,
+  useDPoP: true,
   dpopKeyPair,
   allowInsecureRequests: process.env.NODE_ENV === 'development'
 });

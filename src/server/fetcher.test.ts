@@ -140,7 +140,7 @@ describe("Fetcher", () => {
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
         routes: getDefaultRoutes(),
-        useDpop: true
+        useDPoP: true
       });
 
       const configWithDpop = {

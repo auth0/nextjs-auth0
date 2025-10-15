@@ -227,9 +227,9 @@ function createApiServer(audience, serverName, forceDpop = null) {
   };
 
   // Routes with configurable authentication method
-  const useDpop = forceDpop !== null ? forceDpop : (process.env.USE_DPOP === 'true');
+  const useDPoP = forceDpop !== null ? forceDpop : (process.env.USE_DPOP === 'true');
   
-  if (useDpop) {
+  if (useDPoP) {
     app.get('/api/shows', apiLimiter, checkDpop, (req, res) => {
       res.send({
         msg: `Your DPoP access token was successfully validated for ${audience}!`,
