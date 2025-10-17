@@ -8,7 +8,7 @@ import {
 } from "oauth4webapi";
 
 import { RetryConfig } from "../types/dpop.js";
-import { GetAccessTokenOptions } from "../types/index.js";
+import { GetAccessTokenOptions, TokenSet } from "../types/index.js";
 
 export type ResponseHeaders =
   | Record<string, string | null | undefined>
@@ -43,7 +43,7 @@ export type CustomFetchImpl<TOutput extends Response> = (
  */
 export type AccessTokenFactory = (
   getAccessTokenOptions: GetAccessTokenOptions
-) => Promise<string>;
+) => Promise<string | TokenSet>;
 
 // Aliased unused exports with underscore prefix to avoid lint errors in importing files
 export type _CustomFetchImpl<TOutput extends Response> =
@@ -239,7 +239,7 @@ export class Fetcher<TOutput extends Response> {
    */
   protected getAccessToken(
     getAccessTokenOptions?: GetAccessTokenOptions
-  ): Promise<string> {
+  ): Promise<string | TokenSet> {
     return this.config.getAccessToken
       ? this.config.getAccessToken(getAccessTokenOptions ?? {})
       : this.hooks.getAccessToken(getAccessTokenOptions ?? {});
@@ -292,7 +292,17 @@ export class Fetcher<TOutput extends Response> {
     getAccessTokenOptions?: GetAccessTokenOptions
   ): Promise<TOutput> {
     const request = this.buildBaseRequest(info, init);
-    const accessToken = await this.getAccessToken(getAccessTokenOptions);
+    const accessTokenResponse = await this.getAccessToken(getAccessTokenOptions);
+
+    let useDpop: boolean;
+    let accessToken: string;
+    if (typeof accessTokenResponse === 'string') {
+      useDpop = this.config.dpopHandle ? true : false;
+      accessToken = accessTokenResponse;
+    } else {
+      useDpop = this.config.dpopHandle ? accessTokenResponse.token_type === 'dpop' : false;
+      accessToken = accessTokenResponse.accessToken;
+    }
 
     try {
       // Make (DPoP)-authenticated request using oauth4webapi
@@ -309,7 +319,7 @@ export class Fetcher<TOutput extends Response> {
             return this.config.fetch(tmpRequest);
           },
           [allowInsecureRequests]: this.config.allowInsecureRequests || false,
-          ...(this.config.dpopHandle && { DPoP: this.config.dpopHandle })
+          ...(useDpop && { DPoP: this.config.dpopHandle })
         }
       );
 
