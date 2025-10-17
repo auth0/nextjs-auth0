@@ -1978,11 +1978,14 @@ export class AuthClient {
         }
       ];
     } catch (e: any) {
+      let message = "An unexpected error occurred while trying to initiate the connect account flow."
+      if (e instanceof DPoPError) {
+        message = e.message;
+      }
       return [
         new ConnectAccountError({
           code: ConnectAccountErrorCodes.FAILED_TO_INITIATE,
-          message:
-            "An unexpected error occurred while trying to initiate the connect account flow."
+          message: message
         }),
         null
       ];

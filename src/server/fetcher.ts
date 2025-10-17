@@ -303,7 +303,7 @@ export class Fetcher<TOutput extends Response> {
       accessToken = accessTokenResponse;
     } else {
       useDpop = this.config.dpopHandle
-        ? accessTokenResponse.token_type === "dpop"
+        ? accessTokenResponse.token_type?.toLowerCase() === "dpop"
         : false;
       accessToken = accessTokenResponse.accessToken;
     }
