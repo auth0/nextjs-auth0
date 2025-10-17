@@ -79,11 +79,6 @@ export type FetcherMinimalConfig<TOutput extends Response> = {
   baseUrl?: string;
   /** Custom fetch implementation. Falls back to global fetch if not provided */
   fetch?: CustomFetchImpl<TOutput>;
-  /**
-   * @future This parameter is reserved for future implementation.
-   * Currently not used - placeholder for upcoming multi-instance nonce persistence feature.
-   */
-  nonceStorageId?: string;
 };
 
 /**
