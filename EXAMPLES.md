@@ -891,6 +891,205 @@ By setting `{ refresh: true }`, you instruct the SDK to bypass the standard expi
 This will in turn, update the `access_token`, `id_token` and `expires_at` fields of `tokenset` in the session.
 
 
+### Understanding Token Type (`token_type`)
+
+The `getAccessToken()` method returns a structured response that includes the `token_type` field. This field indicates whether the token uses standard Bearer authentication or DPoP (Demonstrating Proof-of-Possession) for enhanced security.
+
+#### Return Value Structure
+
+When calling `getAccessToken()`, you receive an object with the following properties:
+
+```typescript
+{
+  token: string;        // The access token
+  expiresAt: number;    // Token expiration time (seconds since epoch)
+  scope?: string;       // Granted scopes (may differ from requested)
+  token_type?: string;  // Token type: "Bearer" or "DPoP"
+}
+```
+
+#### Token Types Explained
+
+- **`Bearer`**: Standard OAuth 2.0 token type. The token is included in the `Authorization` header as `Authorization: Bearer <token>`.
+- **`DPoP`**: Demonstrating Proof-of-Possession ([RFC 9449](https://datatracker.ietf.org/doc/html/rfc9449)). The token is cryptographically bound to a key pair, providing stronger security against token theft and replay attacks.
+
+> [!NOTE]
+> The `token_type` field is provided by Auth0 in the token response and reflects your tenant's configuration. The SDK automatically handles the appropriate authentication scheme based on this value.
+
+#### Usage Examples
+
+**App Router (Server Components, Route Handlers):**
+
+```typescript
+// app/api/protected-data/route.ts
+import { NextResponse } from "next/server";
+import { auth0 } from "@/lib/auth0";
+
+export async function GET() {
+  try {
+    const { token, expiresAt, scope, token_type } = await auth0.getAccessToken();
+    
+    console.log(`Token type: ${token_type}`); // "Bearer" or "DPoP"
+    console.log(`Token expires at: ${new Date(expiresAt * 1000).toISOString()}`);
+    console.log(`Granted scopes: ${scope}`);
+
+    // The SDK automatically handles the correct Authorization header format
+    // based on token_type when using the built-in fetcher
+    const response = await fetch("https://api.example.com/data", {
+      headers: {
+        Authorization: `${token_type || "Bearer"} ${token}`
+      }
+    });
+
+    return NextResponse.json(await response.json());
+  } catch (error) {
+    console.error("Error fetching protected resource:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch data" },
+      { status: 500 }
+    );
+  }
+}
+```
+
+**Pages Router (API Routes):**
+
+```typescript
+// pages/api/data.ts
+import type { NextApiRequest, NextApiResponse } from "next";
+import { auth0 } from "@/lib/auth0";
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  try {
+    const { token, expiresAt, scope, token_type } = await auth0.getAccessToken(
+      req,
+      res
+    );
+
+    // Log token metadata for debugging
+    console.log({
+      tokenType: token_type,
+      expiresAt: new Date(expiresAt * 1000).toISOString(),
+      scope
+    });
+
+    // Call external API with the token
+    const response = await fetch("https://api.example.com/data", {
+      headers: {
+        Authorization: `${token_type || "Bearer"} ${token}`
+      }
+    });
+
+    const data = await response.json();
+    res.status(200).json(data);
+  } catch (error: any) {
+    console.error("Error:", error);
+    res.status(error.status || 500).json({ error: error.message });
+  }
+}
+```
+
+**Using the Built-in Fetcher:**
+
+The SDK provides a `Fetcher` class that automatically handles the correct authentication scheme based on `token_type`. This is the recommended approach as it eliminates manual header construction:
+
+```typescript
+// app/api/products/route.ts
+import { NextResponse } from "next/server";
+import { auth0 } from "@/lib/auth0";
+
+export async function GET() {
+  try {
+    // Create a fetcher instance (automatically configured with DPoP if available)
+    const fetcher = await auth0.withAccessToken();
+
+    // The fetcher automatically uses the correct Authorization header format
+    // based on the token_type returned by getAccessToken()
+    const response = await fetcher.fetch("https://api.example.com/products");
+
+    if (!response.ok) {
+      throw new Error(`API returned ${response.status}`);
+    }
+
+    return NextResponse.json(await response.json());
+  } catch (error) {
+    console.error("Error fetching products:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch products" },
+      { status: 500 }
+    );
+  }
+}
+```
+
+#### DPoP Configuration
+
+When DPoP is configured on your Auth0 tenant and enabled in the SDK, tokens will automatically use the `DPoP` token type:
+
+```typescript
+// lib/auth0.ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+export const auth0 = new Auth0Client({
+  authorizationParameters: {
+    audience: "https://api.example.com",
+    scope: "openid profile email offline_access read:data"
+  },
+  // DPoP configuration
+  dpopHandle: {
+    privateKey: process.env.DPOP_PRIVATE_KEY!,
+    publicKey: process.env.DPOP_PUBLIC_KEY!
+  }
+});
+```
+
+With DPoP enabled, `getAccessToken()` will return `token_type: "DPoP"`, and the SDK will automatically:
+- Generate DPoP proof tokens for each request
+- Include the `DPoP` header alongside the `Authorization` header
+- Handle DPoP nonce challenges from the resource server
+
+> [!IMPORTANT]
+> **Backward Compatibility**: If you were previously calling `getAccessToken()` and treating the return value as a string, your code will break. Update your code to destructure the response:
+> 
+> ```typescript
+> // ❌ Old (no longer works)
+> const token = await auth0.getAccessToken();
+> 
+> // ✅ New (correct)
+> const { token } = await auth0.getAccessToken();
+> ```
+
+#### Token Type Best Practices
+
+1. **Use the Built-in Fetcher**: Prefer using `auth0.withAccessToken()` and the returned fetcher instead of manually constructing Authorization headers. This ensures correct handling of both Bearer and DPoP tokens.
+
+2. **Log Token Metadata**: During development, log the `token_type`, `expiresAt`, and `scope` to verify your configuration:
+   ```typescript
+   const tokenResponse = await auth0.getAccessToken();
+   console.log("Token metadata:", {
+     type: tokenResponse.token_type,
+     expiresAt: new Date(tokenResponse.expiresAt * 1000).toISOString(),
+     scope: tokenResponse.scope
+   });
+   ```
+
+3. **Default to Bearer**: If `token_type` is `undefined`, treat it as a Bearer token for backward compatibility:
+   ```typescript
+   const authHeader = `${token_type || "Bearer"} ${token}`;
+   ```
+
+4. **Respect Token Expiration**: Use the `expiresAt` field to determine when to refresh:
+   ```typescript
+   const isExpired = Date.now() / 1000 >= expiresAt;
+   if (isExpired) {
+     // Token refresh will be handled automatically on next getAccessToken() call
+   }
+   ```
+
+
 ### Multi-Resource Refresh Tokens (MRRT)
 
 Multi-Resource Refresh Tokens allow using a single refresh token to obtain access tokens for multiple audiences, simplifying token management in applications that interact with multiple backend services.

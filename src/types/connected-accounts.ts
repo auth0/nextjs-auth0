@@ -36,6 +36,18 @@ export interface ConnectAccountRequest {
    */
   accessToken: string;
   /**
+   * Token expiration time in seconds since epoch.
+   */
+  expiresAt?: number;
+  /**
+   * Granted scopes for the access token.
+   */
+  scope?: string;
+  /**
+   * Token type (e.g., 'Bearer', 'DPoP').
+   */
+  token_type?: string;
+  /**
    * The name of the connection to link the account with (e.g., 'google-oauth2', 'facebook').
    */
   connection: string;
@@ -87,6 +99,18 @@ export interface CompleteConnectAccountRequest {
    * The access token with the `create:me:connected_accounts` scope.
    */
   accessToken: string;
+  /**
+   * Token expiration time in seconds since epoch.
+   */
+  expiresAt?: number;
+  /**
+   * Granted scopes for the access token.
+   */
+  scope?: string;
+  /**
+   * Token type (e.g., 'Bearer', 'DPoP').
+   */
+  token_type?: string;
   /**
    * The authentication session identifier.
    */

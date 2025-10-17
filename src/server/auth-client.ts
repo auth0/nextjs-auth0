@@ -688,6 +688,9 @@ export class AuthClient {
       const [completeConnectAccountError, connectedAccount] =
         await this.completeConnectAccount({
           accessToken: tokenSetResponse.tokenSet.accessToken,
+          expiresAt: tokenSetResponse.tokenSet.expiresAt,
+          scope: tokenSetResponse.tokenSet.scope,
+          token_type: tokenSetResponse.tokenSet.token_type,
           authSession: transactionState.authSession!,
           connectCode: req.nextUrl.searchParams.get("connect_code")!,
           redirectUri: createRouteUrl(
@@ -1839,7 +1842,12 @@ export class AuthClient {
    * The user will be redirected to authorize the connection.
    */
   async connectAccount(
-    options: ConnectAccountOptions & { accessToken: string }
+    options: ConnectAccountOptions & {
+      accessToken: string;
+      expiresAt?: number;
+      scope?: string;
+      token_type?: string;
+    }
   ): Promise<[ConnectAccountError, null] | [null, NextResponse]> {
     const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl);
     let returnTo = this.signInReturnToPath;
@@ -1869,6 +1877,9 @@ export class AuthClient {
     const [error, connectAccountResponse] =
       await this.createConnectAccountTicket({
         accessToken: options.accessToken,
+        expiresAt: options.expiresAt,
+        scope: options.scope,
+        token_type: options.token_type,
         connection: options.connection,
         redirectUri: redirectUri.toString(),
         state,
@@ -1909,9 +1920,12 @@ export class AuthClient {
 
       // Create a fetcher with the provided access token
       const fetcher = await this.fetcherFactory({
-        defaultGetAccessTokenFactory: async () => {
-          return options.accessToken;
-        }
+        defaultGetAccessTokenFactory: async () => ({
+          token: options.accessToken,
+          expiresAt: options.expiresAt || 0,
+          scope: options.scope,
+          token_type: options.token_type
+        })
       });
 
       const requestBody = {
@@ -2008,7 +2022,12 @@ export class AuthClient {
     try {
       // Create a fetcher with the provided access token
       const fetcher = await this.fetcherFactory({
-        defaultGetAccessTokenFactory: async () => options.accessToken
+        defaultGetAccessTokenFactory: async () => ({
+          token: options.accessToken,
+          expiresAt: options.expiresAt || 0,
+          scope: options.scope,
+          token_type: options.token_type
+        })
       });
 
       const requestBody = {
