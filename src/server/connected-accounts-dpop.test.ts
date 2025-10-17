@@ -183,8 +183,8 @@ describe("Connected Accounts DPoP Integration Tests", () => {
         tokenSet: {
           accessToken: DEFAULT.accessToken,
           expiresAt: null,
-          scope: 'scope',
-          token_type: 'DPoP'
+          scope: "scope",
+          token_type: "DPoP"
         },
         connection: DEFAULT.connectAccount.connection,
         redirectUri: `${DEFAULT.appBaseUrl}/auth/callback`,
@@ -252,8 +252,8 @@ describe("Connected Accounts DPoP Integration Tests", () => {
         tokenSet: {
           accessToken: DEFAULT.accessToken,
           expiresAt: null,
-          scope: 'scope',
-          token_type: 'Bearer'
+          scope: "scope",
+          token_type: "Bearer"
         },
         connection: DEFAULT.connectAccount.connection,
         redirectUri: `${DEFAULT.appBaseUrl}/auth/callback`,
@@ -334,8 +334,8 @@ describe("Connected Accounts DPoP Integration Tests", () => {
         tokenSet: {
           accessToken: DEFAULT.accessToken,
           expiresAt: null,
-          scope: 'scope',
-          token_type: 'DPoP'
+          scope: "scope",
+          token_type: "DPoP"
         },
         authSession: DEFAULT.connectAccount.authSession,
         connectCode: "connect-code-123",
@@ -401,8 +401,8 @@ describe("Connected Accounts DPoP Integration Tests", () => {
         tokenSet: {
           accessToken: DEFAULT.accessToken,
           expiresAt: null,
-          scope: 'scope',
-          token_type: 'Bearer'
+          scope: "scope",
+          token_type: "Bearer"
         },
         authSession: DEFAULT.connectAccount.authSession,
         connectCode: "connect-code-123",
@@ -472,8 +472,8 @@ describe("Connected Accounts DPoP Integration Tests", () => {
         tokenSet: {
           accessToken: DEFAULT.accessToken,
           expiresAt: null,
-          scope: 'scope',
-          token_type: 'Bearer'
+          scope: "scope",
+          token_type: "Bearer"
         },
         connection: DEFAULT.connectAccount.connection,
         redirectUri: `${DEFAULT.appBaseUrl}/auth/callback`,
@@ -491,7 +491,9 @@ describe("Connected Accounts DPoP Integration Tests", () => {
       expect(error).not.toBeNull();
       expect(result).toBeNull();
 
-      expect(error.message).toBe("DPoP is enabled but no keypair is configured.");
+      expect(error.message).toBe(
+        "DPoP is enabled but no keypair is configured."
+      );
     });
   });
 });

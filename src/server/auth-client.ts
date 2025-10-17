@@ -1978,7 +1978,8 @@ export class AuthClient {
         }
       ];
     } catch (e: any) {
-      let message = "An unexpected error occurred while trying to initiate the connect account flow."
+      let message =
+        "An unexpected error occurred while trying to initiate the connect account flow.";
       if (e instanceof DPoPError) {
         message = e.message;
       }

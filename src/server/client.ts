@@ -554,9 +554,7 @@ export class Auth0Client {
    * @param options Optional configuration for getting the access token.
    * @param options.refresh Force a refresh of the access token.
    */
-  async getAccessToken(
-    options?: GetAccessTokenOptions
-  ): Promise<{
+  async getAccessToken(options?: GetAccessTokenOptions): Promise<{
     token: string;
     expiresAt: number;
     scope?: string;
