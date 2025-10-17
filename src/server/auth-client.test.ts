@@ -204,8 +204,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         // Connect Account
         if (url.pathname === "/me/v1/connected-accounts/connect") {
           if (onConnectAccountRequest) {
-            // When body is send, new Request() requires duplex: 'half'
-            // This appeared to only become neccessary once we started using the fetcher.
+            // Connect Account uses a fetcher for dpop.
+            // This means it creates a new Request internally.
+            // When a body is sent, it will be exposed as a `ReadableStream` here.
+            // When a `ReadableStream` is used as body, setting `duplex: 'half'` is required.
+            // https://github.com/whatwg/fetch/pull/1457
             await onConnectAccountRequest(
               new Request(input, { ...init, duplex: "half" } as RequestInit)
             );
@@ -228,8 +231,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         // Connect Account complete
         if (url.pathname === "/me/v1/connected-accounts/complete") {
           if (onCompleteConnectAccountRequest) {
-            // When body is send, new Request() requires duplex: 'half'
-            // This appeared to only become neccessary once we started using the fetcher.
+            // Complete Connect Account uses a fetcher for dpop.
+            // This means it creates a new Request internally.
+            // When a body is sent, it will be exposed as a `ReadableStream` here.
+            // When a `ReadableStream` is used as body, setting `duplex: 'half'` is required.
+            // https://github.com/whatwg/fetch/pull/1457
             await onCompleteConnectAccountRequest(
               new Request(input, { ...init, duplex: "half" } as RequestInit)
             );
