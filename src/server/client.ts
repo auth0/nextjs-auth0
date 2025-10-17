@@ -1219,9 +1219,23 @@ export class Auth0Client {
       );
     }
 
+    // Create defaultAccessTokenFactory that uses session-based token retrieval
+    const defaultAccessTokenFactory = async (
+      getAccessTokenOptions: GetAccessTokenOptions
+    ) => {
+      const [error, getTokenSetResponse] = await this.authClient.getTokenSet(
+        session,
+        getAccessTokenOptions || {}
+      );
+      if (error) {
+        throw error;
+      }
+      return getTokenSetResponse.tokenSet.accessToken;
+    };
+
     const fetcher: Fetcher<TOutput> = await this.authClient.fetcherFactory({
       ...options,
-      session
+      defaultGetAccessTokenFactory: defaultAccessTokenFactory
     });
 
     return fetcher;

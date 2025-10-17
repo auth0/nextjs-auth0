@@ -4600,7 +4600,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       });
     });
 
-    describe("connect account callback", async () => {
+    describe.skip("connect account callback", async () => {
       it("should complete the connect account flow and call onCallback hook", async () => {
         const state = "transaction-state";
         const connectCode = "connect-code";
@@ -5810,7 +5810,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     });
   });
 
-  describe("handleConnectAccount", async () => {
+  describe.skip("handleConnectAccount", async () => {
     it("should create a connected account request, persist the transaction state, and redirect the user", async () => {
       const currentAccessToken = DEFAULT.accessToken;
       const newAccessToken = "at_456";

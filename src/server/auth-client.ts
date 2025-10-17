@@ -1,11 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server.js";
 import * as jose from "jose";
 import * as oauth from "oauth4webapi";
-import {
-  allowInsecureRequests,
-  customFetch,
-  protectedResourceRequest
-} from "oauth4webapi";
 import * as client from "openid-client";
 
 import packageJson from "../../package.json" with { type: "json" };
@@ -79,6 +74,7 @@ import {
 import { toSafeRedirect } from "../utils/url-helpers.js";
 import { addCacheControlHeadersForSession } from "./cookies.js";
 import {
+  AccessTokenFactory,
   Fetcher,
   FetcherConfig,
   FetcherHooks,
@@ -764,6 +760,7 @@ export class AuthClient {
 
     try {
       redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registered with the authorization server
+      
       authorizationCodeGrantRequestCall = async () =>
         oauth.authorizationCodeGrantRequest(
           authorizationServerMetadata,
@@ -1910,42 +1907,43 @@ export class AuthClient {
         this.issuer
       );
 
-      const httpOptions = this.httpOptions();
-      const headers = new Headers(httpOptions.headers);
-      headers.set("Content-Type", "application/json");
+      // Create a fetcher with the provided access token
+      const fetcher = await this.fetcherFactory({
+        defaultGetAccessTokenFactory: async () => {
+          return options.accessToken;
+        }
+      });
 
-      const requestBody = JSON.stringify({
+      const requestBody = {
         connection: options.connection,
         redirect_uri: options.redirectUri,
         state: options.state,
         code_challenge: options.codeChallenge,
         code_challenge_method: options.codeChallengeMethod,
         authorization_params: options.authorizationParams
-      });
+      };
 
-      const res = await protectedResourceRequest(
-        options.accessToken,
-        "POST",
-        connectAccountUrl,
-        headers,
-        requestBody,
-        {
-          ...httpOptions,
-          [customFetch]: (url: string, requestOptions: any) => {
-            const tmpRequest = new Request(url, requestOptions);
-            return this.fetch(tmpRequest);
-          },
-          [allowInsecureRequests]: this.allowInsecureRequests || false,
-          ...(this.useDPoP &&
-            this.dpopKeyPair && {
-              DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
-            })
-        }
-      );
+     // Make the authenticated request
+      // The Fetcher class has built-in DPoP nonce retry logic (see fetcher.ts line ~344)
+      // No need for an additional wrapper that causes double-retry issues
+      const res = await fetcher.fetchWithAuth(connectAccountUrl.toString(), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(requestBody)
+      });
 
       if (!res.ok) {
         try {
-          const errorBody = await res.json();
+          const responseText = await res.text();
+          let errorBody;
+          try {
+            errorBody = JSON.parse(responseText);
+          } catch (parseError) {
+            errorBody = { error: "invalid_response", error_description: responseText };
+          }
+
           return [
             new ConnectAccountError({
               code: ConnectAccountErrorCodes.FAILED_TO_INITIATE,
@@ -1953,7 +1951,7 @@ export class AuthClient {
               cause: new MyAccountApiError({
                 type: errorBody.type,
                 title: errorBody.title,
-                detail: errorBody.detail,
+                detail: errorBody.detail || errorBody.error_description || responseText,
                 status: res.status,
                 validationErrors: errorBody.validation_errors
               })
@@ -1971,24 +1969,22 @@ export class AuthClient {
         }
       }
 
-      const { connect_uri, connect_params, auth_session, expires_in } =
-        await res.json();
-
-      return [
-        null,
-        {
-          connectUri: connect_uri,
-          connectParams: connect_params,
-          authSession: auth_session,
-          expiresIn: expires_in
-        }
-      ];
+      const responseText = await res.text();
+      const responseData = JSON.parse(responseText);
+      const { connect_uri, connect_params, auth_session, expires_in } = responseData;
+      const result = {
+        connectUri: connect_uri,
+        connectParams: connect_params,
+        authSession: auth_session,
+        expiresIn: expires_in
+      };
+      return [null, result];
     } catch (e: any) {
       return [
         new ConnectAccountError({
           code: ConnectAccountErrorCodes.FAILED_TO_INITIATE,
           message:
-            "An unexpected error occurred while trying to initiate the connect account flow."
+            `An unexpected error occurred while trying to initiate the connect account flow. Original error: ${e?.message || 'Unknown error'}`
         }),
         null
       ];
@@ -2004,36 +2000,25 @@ export class AuthClient {
     );
 
     try {
-      const httpOptions = this.httpOptions();
-      const headers = new Headers(httpOptions.headers);
-      headers.set("Content-Type", "application/json");
+      // Create a fetcher with the provided access token
+      const fetcher = await this.fetcherFactory({
+        defaultGetAccessTokenFactory: async () => options.accessToken
+      });
 
-      const requestBody = JSON.stringify({
+      const requestBody = {
         auth_session: options.authSession,
         connect_code: options.connectCode,
         redirect_uri: options.redirectUri,
         code_verifier: options.codeVerifier
-      });
+      };
 
-      const res = await protectedResourceRequest(
-        options.accessToken,
-        "POST",
-        completeConnectAccountUrl,
-        headers,
-        requestBody,
-        {
-          ...httpOptions,
-          [customFetch]: (url: string, requestOptions: any) => {
-            const tmpRequest = new Request(url, requestOptions);
-            return this.fetch(tmpRequest);
-          },
-          [allowInsecureRequests]: this.allowInsecureRequests || false,
-          ...(this.useDPoP &&
-            this.dpopKeyPair && {
-              DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
-            })
-        }
-      );
+      const res = await fetcher.fetchWithAuth(completeConnectAccountUrl.toString(), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(requestBody)
+      });
 
       if (!res.ok) {
         try {
@@ -2157,6 +2142,8 @@ export class AuthClient {
   async fetcherFactory<TOutput extends Response>(
     options: FetcherFactoryOptions<TOutput>
   ): Promise<Fetcher<TOutput>> {
+    
+
     if (this.useDPoP && !this.dpopKeyPair) {
       throw new DPoPError(
         DPoPErrorCode.DPOP_CONFIGURATION_ERROR,
@@ -2171,19 +2158,6 @@ export class AuthClient {
     if (discoveryError) {
       throw discoveryError;
     }
-
-    const defaultAccessTokenFactory = async (
-      getAccessTokenOptions: GetAccessTokenOptions
-    ) => {
-      const [error, getTokenSetResponse] = await this.getTokenSet(
-        options.session,
-        getAccessTokenOptions || {}
-      );
-      if (error) {
-        throw error;
-      }
-      return getTokenSetResponse.tokenSet.accessToken;
-    };
 
     const fetcherConfig: FetcherConfig<TOutput> = {
       // Fetcher-scoped DPoP handle and nonce management
@@ -2200,7 +2174,7 @@ export class AuthClient {
     };
 
     const fetcherHooks: FetcherHooks = {
-      getAccessToken: defaultAccessTokenFactory,
+      getAccessToken: options.defaultGetAccessTokenFactory,
       isDpopEnabled: () => options.useDPoP ?? this.useDPoP ?? false
     };
 
@@ -2229,10 +2203,11 @@ type GetTokenSetResponse = {
 /**
  * Options for creating a Fetcher instance via the factory method.
  *
- * Includes all FetcherMinimalConfig options plus internal session data.
+ * Includes all FetcherMinimalConfig options. Session data is handled via getAccessToken.
  * The `nonceStorageId` from FetcherMinimalConfig is included but currently ignored.
  */
 export type FetcherFactoryOptions<TOutput extends Response> = {
   useDPoP?: boolean;
-  session: SessionData;
-} & FetcherMinimalConfig<TOutput>;
+} & FetcherMinimalConfig<TOutput> & {
+  defaultGetAccessTokenFactory: AccessTokenFactory;
+};

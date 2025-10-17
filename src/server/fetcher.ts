@@ -305,7 +305,13 @@ export class Fetcher<TOutput extends Response> {
         {
           ...this.config.httpOptions(),
           [customFetch]: (url: string, options: any) => {
-            const tmpRequest = new Request(url, options);
+            // Node.js/Undici requires 'duplex' option when sending a body
+            // See: https://nodejs.org/api/fetch.html#request-duplex
+            const requestOptions = { ...options };
+            if (requestOptions.body && !requestOptions.duplex) {
+              requestOptions.duplex = 'half';
+            }
+            const tmpRequest = new Request(url, requestOptions);
             return this.config.fetch(tmpRequest);
           },
           [allowInsecureRequests]: this.config.allowInsecureRequests || false,
