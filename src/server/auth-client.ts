@@ -1913,7 +1913,8 @@ export class AuthClient {
           expiresAt: options.tokenSet.expiresAt || 0,
           scope: options.tokenSet.scope,
           token_type: options.tokenSet.token_type
-        })
+        }),
+        fetch: this.fetch,
       });
 
       const httpOptions = this.httpOptions();
@@ -2013,7 +2014,8 @@ export class AuthClient {
           expiresAt: options.tokenSet.expiresAt || 0,
           scope: options.tokenSet.scope,
           token_type: options.tokenSet.token_type
-        })
+        }),
+        fetch: this.fetch
       });
 
       const requestBody = {
