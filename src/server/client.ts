@@ -1249,7 +1249,13 @@ export class Auth0Client {
       if (error) {
         throw error;
       }
-      return getTokenSetResponse.tokenSet.accessToken;
+      // Return structured response with token_type for proper DPoP handling
+      return {
+        token: getTokenSetResponse.tokenSet.accessToken,
+        expiresAt: getTokenSetResponse.tokenSet.expiresAt || 0,
+        scope: getTokenSetResponse.tokenSet.scope,
+        token_type: getTokenSetResponse.tokenSet.token_type
+      };
     };
 
     const fetcher: Fetcher<TOutput> = await this.authClient.fetcherFactory({
