@@ -167,9 +167,9 @@ describe("Fetcher", () => {
         scope: "read:data"
       });
 
-      const headers = mockFetch.mock.calls[0][0].headers;
-      expect(headers.get("authorization")).toMatch(/^DPoP /);
-      expect(headers.get("DPoP")).not.toBeNull();
+      const headers = mockFetch.mock.calls[0][1].headers;
+      expect(headers["authorization"]).toMatch(/^DPoP /);
+      expect(headers["DPoP"]).not.toBeNull();
     });
 
     it("should not use DPoP when enabled but token is not bound", async () => {
@@ -178,9 +178,9 @@ describe("Fetcher", () => {
         scope: "read:data"
       });
 
-      const headers = mockFetch.mock.calls[0][0].headers;
-      expect(headers.get("authorization")).toMatch(/^Bearer /);
-      expect(headers.get("DPoP")).toBeNull();
+      const headers = mockFetch.mock.calls[0][1].headers;
+      expect(headers["authorization"]).toMatch(/^Bearer /);
+      expect(headers["DPoP"]).toBeUndefined();
     });
 
     it("should be able to mix dpop and bearer", async () => {
@@ -189,18 +189,18 @@ describe("Fetcher", () => {
         scope: "read:data"
       });
 
-      const headers = mockFetch.mock.calls[0][0].headers;
-      expect(headers.get("authorization")).toMatch(/^Bearer /);
-      expect(headers.get("DPoP")).toBeNull();
+      const headers = mockFetch.mock.calls[0][1].headers;
+      expect(headers["authorization"]).toMatch(/^Bearer /);
+      expect(headers["DPoP"]).toBeUndefined();
 
       await fetcher.fetchWithAuth("https://api.example.com/data", {
         audience: "https://api-dpop.example.com",
         scope: "read:data"
       });
 
-      const headers2 = mockFetch.mock.calls[1][0].headers;
-      expect(headers2.get("authorization")).toMatch(/^DPoP /);
-      expect(headers2.get("DPoP")).not.toBeNull();
+      const headers2 = mockFetch.mock.calls[1][1].headers;
+      expect(headers2["authorization"]).toMatch(/^DPoP /);
+      expect(headers2["DPoP"]).not.toBeDefined();
     });
   });
 });

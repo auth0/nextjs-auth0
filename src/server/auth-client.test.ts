@@ -204,7 +204,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         // Connect Account
         if (url.pathname === "/me/v1/connected-accounts/connect") {
           if (onConnectAccountRequest) {
-            await onConnectAccountRequest(new Request(input, init));
+            // When body is send, new Request() requires duplex: 'half'
+            // This appeared to only become neccessary once we started using the fetcher.
+            await onConnectAccountRequest(
+              new Request(input, { ...init, duplex: "half" } as RequestInit)
+            );
           }
 
           return Response.json(
@@ -224,7 +228,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         // Connect Account complete
         if (url.pathname === "/me/v1/connected-accounts/complete") {
           if (onCompleteConnectAccountRequest) {
-            await onCompleteConnectAccountRequest(new Request(input, init));
+            // When body is send, new Request() requires duplex: 'half'
+            // This appeared to only become neccessary once we started using the fetcher.
+            await onCompleteConnectAccountRequest(
+              new Request(input, { ...init, duplex: "half" } as RequestInit)
+            );
           }
 
           if (completeConnectAccountErrorResponse) {
@@ -4738,6 +4746,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         });
 
+        // Here is an issue
         expect(mockOnCallback).toHaveBeenCalledWith(
           null,
           expectedContext,
