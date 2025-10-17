@@ -554,9 +554,12 @@ export class Auth0Client {
    * @param options Optional configuration for getting the access token.
    * @param options.refresh Force a refresh of the access token.
    */
-  async getAccessToken(
-    options?: GetAccessTokenOptions
-  ): Promise<{ token: string; expiresAt: number; scope?: string }>;
+  async getAccessToken(options?: GetAccessTokenOptions): Promise<{
+    token: string;
+    expiresAt: number;
+    scope?: string;
+    token_type?: string;
+  }>;
 
   /**
    * getAccessToken returns the access token.
@@ -572,7 +575,12 @@ export class Auth0Client {
     req: PagesRouterRequest | NextRequest,
     res: PagesRouterResponse | NextResponse,
     options?: GetAccessTokenOptions
-  ): Promise<{ token: string; expiresAt: number; scope?: string }>;
+  ): Promise<{
+    token: string;
+    expiresAt: number;
+    scope?: string;
+    token_type?: string;
+  }>;
 
   /**
    * getAccessToken returns the access token.
@@ -588,7 +596,12 @@ export class Auth0Client {
     arg1?: PagesRouterRequest | NextRequest | GetAccessTokenOptions,
     arg2?: PagesRouterResponse | NextResponse,
     arg3?: GetAccessTokenOptions
-  ): Promise<{ token: string; expiresAt: number; scope?: string }> {
+  ): Promise<{
+    token: string;
+    expiresAt: number;
+    scope?: string;
+    token_type?: string;
+  }> {
     const defaultOptions: GetAccessTokenOptions = {
       refresh: false
     };
@@ -645,7 +658,12 @@ export class Auth0Client {
     req: PagesRouterRequest | NextRequest | undefined,
     res: PagesRouterResponse | NextResponse | undefined,
     options: GetAccessTokenOptions
-  ): Promise<{ token: string; expiresAt: number; scope?: string }> {
+  ): Promise<{
+    token: string;
+    expiresAt: number;
+    scope?: string;
+    token_type?: string;
+  }> {
     const session: SessionData | null = req
       ? await this.getSession(req)
       : await this.getSession();
@@ -698,7 +716,8 @@ export class Auth0Client {
     return {
       token: tokenSet.accessToken,
       scope: tokenSet.scope,
-      expiresAt: tokenSet.expiresAt
+      expiresAt: tokenSet.expiresAt,
+      token_type: tokenSet.token_type
     };
   }
 

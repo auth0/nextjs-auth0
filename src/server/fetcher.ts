@@ -35,15 +35,33 @@ export type CustomFetchImpl<TOutput extends Response> = (
 ) => Promise<TOutput>;
 
 /**
+ * Response type for access token retrieval, including optional metadata.
+ * This type is used when the access token factory returns detailed information
+ * about the token, including its type (Bearer or DPoP).
+ */
+export type AccessTokenResponse = {
+  /** The access token string */
+  token: string;
+  /** Token expiration time in seconds since epoch */
+  expiresAt: number;
+  /** Granted scopes (may differ from requested scopes) */
+  scope?: string;
+  /** Token type: 'Bearer' or 'DPoP'. Used to determine Authorization header scheme. */
+  token_type?: string;
+};
+
+/**
  * Factory function for creating access tokens with optional parameters.
  * Used internally to retrieve tokens for authenticated requests.
  *
  * @param getAccessTokenOptions - Options for token retrieval (scope, audience, refresh, etc.)
- * @returns Promise that resolves to the access token string
+ * @returns Promise that resolves to either:
+ *   - A string (backward compatibility - treated as Bearer token)
+ *   - An AccessTokenResponse object with token_type metadata
  */
 export type AccessTokenFactory = (
   getAccessTokenOptions: GetAccessTokenOptions
-) => Promise<string>;
+) => Promise<string | AccessTokenResponse>;
 
 // Aliased unused exports with underscore prefix to avoid lint errors in importing files
 export type _CustomFetchImpl<TOutput extends Response> =
@@ -226,23 +244,39 @@ export class Fetcher<TOutput extends Response> {
    * Retrieves an access token for the current request.
    * Uses the configured access token factory or falls back to the hooks implementation.
    *
+   * Handles both string returns (backward compatibility) and detailed AccessTokenResponse objects.
+   * String returns are normalized to AccessTokenResponse with undefined token_type.
+   *
    * @param getAccessTokenOptions - Options for token retrieval (scope, audience, etc.)
-   * @returns Promise that resolves to the access token string
+   * @returns Promise that resolves to the access token response with metadata
    *
    * @example
    * ```typescript
-   * const token = await fetcher.getAccessToken({
+   * const tokenResponse = await fetcher.getAccessToken({
    *   scope: 'read:data',
    *   audience: 'https://api.example.com'
    * });
+   * // tokenResponse.token contains the access token
+   * // tokenResponse.token_type indicates 'Bearer' or 'DPoP'
    * ```
    */
-  protected getAccessToken(
+  protected async getAccessToken(
     getAccessTokenOptions?: GetAccessTokenOptions
-  ): Promise<string> {
-    return this.config.getAccessToken
-      ? this.config.getAccessToken(getAccessTokenOptions ?? {})
-      : this.hooks.getAccessToken(getAccessTokenOptions ?? {});
+  ): Promise<AccessTokenResponse> {
+    const result = this.config.getAccessToken
+      ? await this.config.getAccessToken(getAccessTokenOptions ?? {})
+      : await this.hooks.getAccessToken(getAccessTokenOptions ?? {});
+
+    // Handle backward compatibility: normalize string to AccessTokenResponse
+    if (typeof result === "string") {
+      return {
+        token: result,
+        expiresAt: 0, // Unknown expiration
+        token_type: undefined // Will default to Bearer behavior
+      };
+    }
+
+    return result;
   }
 
   protected buildBaseRequest(
@@ -292,12 +326,27 @@ export class Fetcher<TOutput extends Response> {
     getAccessTokenOptions?: GetAccessTokenOptions
   ): Promise<TOutput> {
     const request = this.buildBaseRequest(info, init);
-    const accessToken = await this.getAccessToken(getAccessTokenOptions);
+    const accessTokenResponse = await this.getAccessToken(
+      getAccessTokenOptions
+    );
+
+    // Determine if we should use DPoP based on token_type from the token response
+    // Only pass DPoP handle to oauth4webapi if:
+    // 1. DPoP handle is configured (this.config.dpopHandle exists)
+    // 2. The token_type from the response is 'DPoP' (case-insensitive)
+    // This ensures we respect the server's decision about token binding
+    const shouldUseDpop =
+      this.config.dpopHandle &&
+      accessTokenResponse.token_type?.toLowerCase() === "dpop";
 
     try {
       // Make (DPoP)-authenticated request using oauth4webapi
+      // oauth4webapi will automatically:
+      // - Add DPoP proof header if DPoP handle is passed
+      // - Use "Authorization: DPoP <token>" if DPoP handle is passed
+      // - Use "Authorization: Bearer <token>" if DPoP handle is NOT passed
       const response = await protectedResourceRequest(
-        accessToken,
+        accessTokenResponse.token,
         request.method,
         new URL(request.url),
         request.headers,
@@ -315,7 +364,8 @@ export class Fetcher<TOutput extends Response> {
             return this.config.fetch(tmpRequest);
           },
           [allowInsecureRequests]: this.config.allowInsecureRequests || false,
-          ...(this.config.dpopHandle && { DPoP: this.config.dpopHandle })
+          // Conditionally pass DPoP handle based on token_type
+          ...(shouldUseDpop && { DPoP: this.config.dpopHandle })
         }
       );
 

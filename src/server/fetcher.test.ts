@@ -333,7 +333,7 @@ describe("Fetcher", () => {
   });
 
   describe("DPoP handle integration", () => {
-    it("should pass DPoP handle to protectedResourceRequest when available", async () => {
+    it("should pass DPoP handle to protectedResourceRequest when token_type is DPoP", async () => {
       const mockDpopHandle = {
         privateKey: "test",
         publicKey: "test",
@@ -349,7 +349,11 @@ describe("Fetcher", () => {
       };
 
       const dpopFetcher = new Fetcher(configWithDpopHandle, {
-        getAccessToken: vi.fn().mockResolvedValue("test-token"),
+        getAccessToken: vi.fn().mockResolvedValue({
+          token: "test-token",
+          expiresAt: Date.now() / 1000 + 3600,
+          token_type: "DPoP" // Token response indicates DPoP binding
+        }),
         isDpopEnabled: vi.fn().mockReturnValue(true)
       });
 
@@ -359,6 +363,98 @@ describe("Fetcher", () => {
       const callArgs = (oauth.protectedResourceRequest as any).mock.calls[0];
       const options = callArgs[5]; // 6th parameter is options
       expect(options.DPoP).toBe(mockDpopHandle);
+    });
+
+    it("should NOT pass DPoP handle when token_type is Bearer", async () => {
+      const mockDpopHandle = {
+        privateKey: "test",
+        publicKey: "test",
+        calculateThumbprint: vi.fn().mockResolvedValue("thumbprint")
+      };
+
+      const configWithDpopHandle = {
+        authClient,
+        baseUrl: "https://api.example.com",
+        fetch: mockFetch,
+        httpOptions: () => ({}),
+        dpopHandle: mockDpopHandle
+      };
+
+      const dpopFetcher = new Fetcher(configWithDpopHandle, {
+        getAccessToken: vi.fn().mockResolvedValue({
+          token: "test-token",
+          expiresAt: Date.now() / 1000 + 3600,
+          token_type: "Bearer" // Token response indicates Bearer token
+        }),
+        isDpopEnabled: vi.fn().mockReturnValue(true)
+      });
+
+      await dpopFetcher.fetchWithAuth("https://api.example.com/data");
+
+      // Verify that DPoP handle was NOT passed in options
+      const callArgs = (oauth.protectedResourceRequest as any).mock.calls[0];
+      const options = callArgs[5]; // 6th parameter is options
+      expect(options.DPoP).toBeUndefined();
+    });
+
+    it("should NOT pass DPoP handle when token_type is undefined", async () => {
+      const mockDpopHandle = {
+        privateKey: "test",
+        publicKey: "test",
+        calculateThumbprint: vi.fn().mockResolvedValue("thumbprint")
+      };
+
+      const configWithDpopHandle = {
+        authClient,
+        baseUrl: "https://api.example.com",
+        fetch: mockFetch,
+        httpOptions: () => ({}),
+        dpopHandle: mockDpopHandle
+      };
+
+      const dpopFetcher = new Fetcher(configWithDpopHandle, {
+        getAccessToken: vi.fn().mockResolvedValue({
+          token: "test-token",
+          expiresAt: Date.now() / 1000 + 3600,
+          token_type: undefined // No token_type specified
+        }),
+        isDpopEnabled: vi.fn().mockReturnValue(true)
+      });
+
+      await dpopFetcher.fetchWithAuth("https://api.example.com/data");
+
+      // Verify that DPoP handle was NOT passed (defaults to Bearer behavior)
+      const callArgs = (oauth.protectedResourceRequest as any).mock.calls[0];
+      const options = callArgs[5]; // 6th parameter is options
+      expect(options.DPoP).toBeUndefined();
+    });
+
+    it("should handle backward compatibility with string token returns", async () => {
+      const mockDpopHandle = {
+        privateKey: "test",
+        publicKey: "test",
+        calculateThumbprint: vi.fn().mockResolvedValue("thumbprint")
+      };
+
+      const configWithDpopHandle = {
+        authClient,
+        baseUrl: "https://api.example.com",
+        fetch: mockFetch,
+        httpOptions: () => ({}),
+        dpopHandle: mockDpopHandle
+      };
+
+      const dpopFetcher = new Fetcher(configWithDpopHandle, {
+        getAccessToken: vi.fn().mockResolvedValue("test-token"), // Old-style string return
+        isDpopEnabled: vi.fn().mockReturnValue(true)
+      });
+
+      await dpopFetcher.fetchWithAuth("https://api.example.com/data");
+
+      // Verify that DPoP handle was NOT passed (string returns default to Bearer)
+      const callArgs = (oauth.protectedResourceRequest as any).mock.calls[0];
+      const options = callArgs[5]; // 6th parameter is options
+      expect(options.DPoP).toBeUndefined();
     });
 
     it("should pass allowInsecureRequests when configured", async () => {
