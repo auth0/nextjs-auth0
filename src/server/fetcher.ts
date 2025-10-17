@@ -32,7 +32,7 @@ export type FetcherInit = {
  */
 export type CustomFetchImpl<TOutput extends Response> = (
   input: string | URL | globalThis.Request,
-  init?: RequestInit,
+  init?: RequestInit
 ) => Promise<TOutput>;
 
 /**

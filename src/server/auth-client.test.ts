@@ -206,7 +206,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
           if (onConnectAccountRequest) {
             // When body is send, new Request() requires duplex: 'half'
             // This appeared to only become neccessary once we started using the fetcher.
-            await onConnectAccountRequest(new Request(input, { ...init, duplex: 'half' } as RequestInit));
+            await onConnectAccountRequest(
+              new Request(input, { ...init, duplex: "half" } as RequestInit)
+            );
           }
 
           return Response.json(
@@ -228,7 +230,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
           if (onCompleteConnectAccountRequest) {
             // When body is send, new Request() requires duplex: 'half'
             // This appeared to only become neccessary once we started using the fetcher.
-            await onCompleteConnectAccountRequest(new Request(input, { ...init, duplex: 'half' } as RequestInit));
+            await onCompleteConnectAccountRequest(
+              new Request(input, { ...init, duplex: "half" } as RequestInit)
+            );
           }
 
           if (completeConnectAccountErrorResponse) {

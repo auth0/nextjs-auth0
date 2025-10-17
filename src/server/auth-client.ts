@@ -1914,7 +1914,7 @@ export class AuthClient {
           scope: options.tokenSet.scope,
           token_type: options.tokenSet.token_type
         }),
-        fetch: this.fetch,
+        fetch: this.fetch
       });
 
       const httpOptions = this.httpOptions();
