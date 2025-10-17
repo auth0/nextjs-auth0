@@ -4745,7 +4745,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             scopes: ["openid", "profile", "email"]
           }
         });
-        
+
         // Here is an issue
         expect(mockOnCallback).toHaveBeenCalledWith(
           null,
