@@ -31,7 +31,8 @@ export type FetcherInit = {
  * @returns Promise that resolves to the custom response type
  */
 export type CustomFetchImpl<TOutput extends Response> = (
-  req: Request
+  input: string | URL | globalThis.Request,
+  init?: RequestInit
 ) => Promise<TOutput>;
 
 /**
@@ -303,7 +304,7 @@ export class Fetcher<TOutput extends Response> {
       accessToken = accessTokenResponse;
     } else {
       useDpop = this.config.dpopHandle
-        ? accessTokenResponse.token_type === "dpop"
+        ? accessTokenResponse.token_type?.toLowerCase() === "dpop"
         : false;
       accessToken = accessTokenResponse.accessToken;
     }
@@ -319,8 +320,7 @@ export class Fetcher<TOutput extends Response> {
         {
           ...this.config.httpOptions(),
           [customFetch]: (url: string, options: any) => {
-            const tmpRequest = new Request(url, options);
-            return this.config.fetch(tmpRequest);
+            return this.config.fetch(url, options);
           },
           [allowInsecureRequests]: this.config.allowInsecureRequests || false,
           ...(useDpop && { DPoP: this.config.dpopHandle })
