@@ -2182,7 +2182,7 @@ export class AuthClient {
       if (error) {
         throw error;
       }
-      return getTokenSetResponse.tokenSet.accessToken;
+      return getTokenSetResponse.tokenSet;
     };
 
     const fetcherConfig: FetcherConfig<TOutput> = {
