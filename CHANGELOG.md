@@ -1,5 +1,18 @@
 # Change Log
 
+## [v4.11.0](https://github.com/auth0/nextjs-auth0/tree/v4.11.0) (2025-10-18)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.10.0...v4.11.0)
+
+**Added**
+- feat: Add DPoP (Demonstrating Proof-of-Possession) [\#2357](https://github.com/auth0/nextjs-auth0/pull/2357) ([tusharpandey13](https://github.com/tusharpandey13))
+- feat: add support for connected accounts [\#2344](https://github.com/auth0/nextjs-auth0/pull/2344) ([guabu](https://github.com/guabu))
+- Add support for access tokens with difference audiences (MRRT) [\#2333](https://github.com/auth0/nextjs-auth0/pull/2333) ([frederikprijck](https://github.com/frederikprijck))
+
+**Fixed**
+- fix: ensure Connected Accounts use fetcher to properly use DPoP [\#2366](https://github.com/auth0/nextjs-auth0/pull/2366) ([frederikprijck](https://github.com/frederikprijck))
+- fix: ensure fetcher honors token_type [\#2365](https://github.com/auth0/nextjs-auth0/pull/2365) ([frederikprijck](https://github.com/frederikprijck))
+- fix: address typos in comments and examples [\#2347](https://github.com/auth0/nextjs-auth0/pull/2347) ([frederikprijck](https://github.com/frederikprijck))
+
 ## [v4.10.0](https://github.com/auth0/nextjs-auth0/tree/v4.10.0) (2025-09-16)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.9.0...v4.10.0)
 

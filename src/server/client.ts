@@ -1231,10 +1231,6 @@ export class Auth0Client {
       baseUrl?: string;
       /** Custom fetch implementation. Falls back to global fetch if not provided */
       fetch?: CustomFetchImpl<TOutput>;
-      /**
-       * @future This parameter is reserved for future implementation.
-       */
-      nonceStorageId?: string;
     }
   ) {
     const session: SessionData | null = req
