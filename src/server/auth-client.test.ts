@@ -204,10 +204,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
         // Connect Account
         if (url.pathname === "/me/v1/connected-accounts/connect") {
           if (onConnectAccountRequest) {
-            // Connect Account uses a fetcher for dpop.
-            // This means it creates a new Request internally.
-            // When a body is sent, it will be exposed as a `ReadableStream` here.
-            // When a `ReadableStream` is used as body, setting `duplex: 'half'` is required.
+            // Connect Account uses a fetcher for DPoP.
+            // This means it creates a `new Request()` internally.
+            // When a body is sent as an object (`{ foo: 'bar' }`), it will be exposed as a `ReadableStream` below.
+            // When a `ReadableStream` is used as body for a `new Request()`, setting `duplex: 'half'` is required.
             // https://github.com/whatwg/fetch/pull/1457
             await onConnectAccountRequest(
               new Request(input, { ...init, duplex: "half" } as RequestInit)
@@ -231,10 +231,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
         // Connect Account complete
         if (url.pathname === "/me/v1/connected-accounts/complete") {
           if (onCompleteConnectAccountRequest) {
-            // Complete Connect Account uses a fetcher for dpop.
-            // This means it creates a new Request internally.
-            // When a body is sent, it will be exposed as a `ReadableStream` here.
-            // When a `ReadableStream` is used as body, setting `duplex: 'half'` is required.
+            // Complete Connect Account uses a fetcher for DPoP.
+            // This means it creates a `new Request()` internally.
+            // When a body is sent as an object (`{ foo: 'bar' }`), it will be exposed as a `ReadableStream` below.
+            // When a `ReadableStream` is used as body for a `new Request()`, setting `duplex: 'half'` is required.
             // https://github.com/whatwg/fetch/pull/1457
             await onCompleteConnectAccountRequest(
               new Request(input, { ...init, duplex: "half" } as RequestInit)
