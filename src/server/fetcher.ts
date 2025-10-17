@@ -292,15 +292,19 @@ export class Fetcher<TOutput extends Response> {
     getAccessTokenOptions?: GetAccessTokenOptions
   ): Promise<TOutput> {
     const request = this.buildBaseRequest(info, init);
-    const accessTokenResponse = await this.getAccessToken(getAccessTokenOptions);
+    const accessTokenResponse = await this.getAccessToken(
+      getAccessTokenOptions
+    );
 
     let useDpop: boolean;
     let accessToken: string;
-    if (typeof accessTokenResponse === 'string') {
+    if (typeof accessTokenResponse === "string") {
       useDpop = this.config.dpopHandle ? true : false;
       accessToken = accessTokenResponse;
     } else {
-      useDpop = this.config.dpopHandle ? accessTokenResponse.token_type === 'dpop' : false;
+      useDpop = this.config.dpopHandle
+        ? accessTokenResponse.token_type === "dpop"
+        : false;
       accessToken = accessTokenResponse.accessToken;
     }
 
