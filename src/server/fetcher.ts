@@ -309,7 +309,7 @@ export class Fetcher<TOutput extends Response> {
             // See: https://nodejs.org/api/fetch.html#request-duplex
             const requestOptions = { ...options };
             if (requestOptions.body && !requestOptions.duplex) {
-              requestOptions.duplex = 'half';
+              requestOptions.duplex = "half";
             }
             const tmpRequest = new Request(url, requestOptions);
             return this.config.fetch(tmpRequest);

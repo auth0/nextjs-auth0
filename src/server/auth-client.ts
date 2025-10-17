@@ -760,7 +760,7 @@ export class AuthClient {
 
     try {
       redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registered with the authorization server
-      
+
       authorizationCodeGrantRequestCall = async () =>
         oauth.authorizationCodeGrantRequest(
           authorizationServerMetadata,
@@ -1923,7 +1923,7 @@ export class AuthClient {
         authorization_params: options.authorizationParams
       };
 
-     // Make the authenticated request
+      // Make the authenticated request
       // The Fetcher class has built-in DPoP nonce retry logic (see fetcher.ts line ~344)
       // No need for an additional wrapper that causes double-retry issues
       const res = await fetcher.fetchWithAuth(connectAccountUrl.toString(), {
@@ -1941,7 +1941,10 @@ export class AuthClient {
           try {
             errorBody = JSON.parse(responseText);
           } catch (parseError) {
-            errorBody = { error: "invalid_response", error_description: responseText };
+            errorBody = {
+              error: "invalid_response",
+              error_description: responseText
+            };
           }
 
           return [
@@ -1951,7 +1954,10 @@ export class AuthClient {
               cause: new MyAccountApiError({
                 type: errorBody.type,
                 title: errorBody.title,
-                detail: errorBody.detail || errorBody.error_description || responseText,
+                detail:
+                  errorBody.detail ||
+                  errorBody.error_description ||
+                  responseText,
                 status: res.status,
                 validationErrors: errorBody.validation_errors
               })
@@ -1971,7 +1977,8 @@ export class AuthClient {
 
       const responseText = await res.text();
       const responseData = JSON.parse(responseText);
-      const { connect_uri, connect_params, auth_session, expires_in } = responseData;
+      const { connect_uri, connect_params, auth_session, expires_in } =
+        responseData;
       const result = {
         connectUri: connect_uri,
         connectParams: connect_params,
@@ -1983,8 +1990,7 @@ export class AuthClient {
       return [
         new ConnectAccountError({
           code: ConnectAccountErrorCodes.FAILED_TO_INITIATE,
-          message:
-            `An unexpected error occurred while trying to initiate the connect account flow. Original error: ${e?.message || 'Unknown error'}`
+          message: `An unexpected error occurred while trying to initiate the connect account flow. Original error: ${e?.message || "Unknown error"}`
         }),
         null
       ];
@@ -2012,13 +2018,16 @@ export class AuthClient {
         code_verifier: options.codeVerifier
       };
 
-      const res = await fetcher.fetchWithAuth(completeConnectAccountUrl.toString(), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(requestBody)
-      });
+      const res = await fetcher.fetchWithAuth(
+        completeConnectAccountUrl.toString(),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(requestBody)
+        }
+      );
 
       if (!res.ok) {
         try {
@@ -2142,8 +2151,6 @@ export class AuthClient {
   async fetcherFactory<TOutput extends Response>(
     options: FetcherFactoryOptions<TOutput>
   ): Promise<Fetcher<TOutput>> {
-    
-
     if (this.useDPoP && !this.dpopKeyPair) {
       throw new DPoPError(
         DPoPErrorCode.DPOP_CONFIGURATION_ERROR,
@@ -2209,5 +2216,5 @@ type GetTokenSetResponse = {
 export type FetcherFactoryOptions<TOutput extends Response> = {
   useDPoP?: boolean;
 } & FetcherMinimalConfig<TOutput> & {
-  defaultGetAccessTokenFactory: AccessTokenFactory;
-};
+    defaultGetAccessTokenFactory: AccessTokenFactory;
+  };
