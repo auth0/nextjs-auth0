@@ -753,6 +753,23 @@ describe("Connected Accounts Callback Flow", () => {
       const connectCode = "connect-code";
       const secret = await generateSecret(32);
 
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: testAuth0ClientConfig.domain,
+        clientId: testAuth0ClientConfig.clientId,
+        clientSecret: testAuth0ClientConfig.clientSecret,
+        secret,
+        appBaseUrl: testAuth0ClientConfig.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: fetch,
+        onCallback: mockOnCallback,
+        enableConnectAccountEndpoint: true
+      });
+
       // Mock the complete endpoint to return an error
       server.use(
         http.post(`${domain}/me/v1/connected-accounts/complete`, () => {
@@ -799,7 +816,14 @@ describe("Connected Accounts Callback Flow", () => {
       const sessionCookie = await encrypt(session, secret, expiration);
       headers.append("cookie", `__session=${sessionCookie}`);
 
-      // Should call onCallback with an error
+      const request = new NextRequest(url, {
+        method: "GET",
+        headers
+      });
+
+      const response = await authClient.handleCallback(request);
+
+      // Verify that the callback was called with an error
       expect(mockOnCallback).toHaveBeenCalledWith(
         expect.any(Error),
         expect.objectContaining({
@@ -808,6 +832,12 @@ describe("Connected Accounts Callback Flow", () => {
         }),
         null
       );
+
+      // Verify that the transaction cookie was cleaned up
+      const transactionCookie = response.cookies.get(`__txn_${state}`);
+      expect(transactionCookie).toBeDefined();
+      expect(transactionCookie!.value).toEqual("");
+      expect(transactionCookie!.maxAge).toEqual(0);
     });
   });
 
