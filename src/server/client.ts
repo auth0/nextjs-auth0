@@ -704,17 +704,10 @@ export class Auth0Client {
       // call beforeSessionSaved callback if present
       // if not then filter id_token claims with default rules
       const finalSession = await this.authClient.finalizeSession(
-        session,
+        { ...session, ...sessionChanges },
         tokenSet.idToken
       );
-      await this.saveToSession(
-        {
-          ...finalSession,
-          ...sessionChanges
-        },
-        req,
-        res
-      );
+      await this.saveToSession(finalSession, req, res);
     }
 
     return {

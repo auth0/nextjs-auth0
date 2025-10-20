@@ -244,7 +244,13 @@ describe("Auth0Client", () => {
       // Restore mocking of getTokenSet directly
       mockGetTokenSet = vi
         .spyOn(AuthClient.prototype as any, "getTokenSet")
-        .mockResolvedValue([null, mockRefreshedTokenSet]); // Simulate successful refresh
+        .mockResolvedValue([
+          null,
+          {
+            tokenSet: mockRefreshedTokenSet,
+            idTokenClaims: {}
+          }
+        ]); // Simulate successful refresh
 
       // Remove mocks for discoverAuthorizationServerMetadata and getClientAuth
       // Remove fetch mock
@@ -285,6 +291,53 @@ describe("Auth0Client", () => {
 
       // Verify save was not called
       expect(mockSaveToSession).not.toHaveBeenCalled();
+    });
+
+    it("should provide the refreshed accessToken to beforeSessionSaved hook", async () => {
+      let accessToken: string | undefined;
+
+      client = new Auth0Client({
+        beforeSessionSaved: async (session) => {
+          accessToken = session.tokenSet?.accessToken;
+          return session;
+        }
+      });
+
+      const mockReq = { headers: new Headers() } as NextRequest;
+      const mockRes = new NextResponse();
+
+      await client.getAccessToken(mockReq, mockRes, { refresh: true });
+
+      expect(accessToken).toBe("new_access_token");
+    });
+
+    it("should honor changes made to the tokenSet in beforeSessionSaved hook", async () => {
+      client = new Auth0Client({
+        beforeSessionSaved: async (session) => {
+          return {
+            ...session,
+            tokenSet: {
+              ...session.tokenSet,
+              idToken: "modified_id_token"
+            }
+          };
+        }
+      });
+
+      const mockReq = { headers: new Headers() } as NextRequest;
+      const mockRes = new NextResponse();
+
+      await client.getAccessToken(mockReq, mockRes, { refresh: true });
+
+      expect(mockSaveToSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tokenSet: expect.objectContaining({
+            idToken: "modified_id_token"
+          })
+        }),
+        mockReq,
+        mockRes
+      );
     });
   });
 
