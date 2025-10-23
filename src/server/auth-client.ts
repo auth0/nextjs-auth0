@@ -60,6 +60,7 @@ import {
   normalizeWithBasePath,
   removeTrailingSlash
 } from "../utils/pathUtils.js";
+import { isPrefetch } from "../utils/request.js";
 import {
   ensureDefaultScope,
   getScopeForAudience
@@ -373,6 +374,19 @@ export class AuthClient {
     const { pathname } = req.nextUrl;
     const sanitizedPathname = removeTrailingSlash(pathname);
     const method = req.method;
+
+    if (
+      method === "GET" &&
+      isPrefetch(req) &&
+      Object.values(this.routes).includes(sanitizedPathname)
+    ) {
+      return new NextResponse(null, {
+        status: 204,
+        headers: {
+          "cache-control": "no-store"
+        }
+      });
+    }
 
     if (method === "GET" && sanitizedPathname === this.routes.login) {
       return this.handleLogin(req);
