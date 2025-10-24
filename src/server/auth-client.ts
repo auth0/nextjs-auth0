@@ -1152,6 +1152,8 @@ export class AuthClient {
       headers.set("Authorization", `DPoP ${token?.tokenSet.accessToken}`);
     }
 
+    // TODO: We need to also include SearchParams
+
     return NextResponse.rewrite(targetUrl, {
       request: { headers }
     });
