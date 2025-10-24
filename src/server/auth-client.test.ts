@@ -20,6 +20,7 @@ import {
   SUBJECT_TOKEN_TYPES
 } from "../types/index.js";
 import { DEFAULT_SCOPES } from "../utils/constants.js";
+import { generateDpopKeyPair } from "../utils/dpopUtils.js";
 import { AuthClient } from "./auth-client.js";
 import { decrypt, encrypt } from "./cookies.js";
 import { StatefulSessionStore } from "./session/stateful-session-store.js";
@@ -6420,6 +6421,77 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       const response = await authClient.handler(request);
       expect(response.status).toEqual(400);
+    });
+  });
+
+  describe("handleMyAccount", async () => {
+    it("should rewrite to my account", async () => {
+      const currentAccessToken = DEFAULT.accessToken;
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+
+      const dpopKeyPair = await generateDpopKeyPair();
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: getMockAuthorizationServer(),
+        useDPoP: true,
+        dpopKeyPair: dpopKeyPair
+      });
+      const expiresAt = Math.floor(Date.now() / 1000) - 10 * 24 * 60 * 60; // expired 10 days ago
+      const session: SessionData = {
+        user: {
+          sub: DEFAULT.sub,
+          name: "John Doe",
+          email: "john@example.com",
+          picture: "https://example.com/john.jpg"
+        },
+        tokenSet: {
+          accessToken: currentAccessToken,
+          scope: "openid profile email",
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const sessionCookie = await encrypt(session, secret, expiration);
+      const headers = new Headers();
+      headers.append("cookie", `__session=${sessionCookie}`);
+      headers.append("auth0-scope", "foo:bar");
+      const request = new NextRequest(
+        new URL("/me/foo-bar/12", DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers
+        }
+      );
+
+      const response = await authClient.handleMyAccount(request);
+      expect(response.status).toEqual(200);
+      expect(response.headers.get("authorization")).toEqual("DPoP at_123");
+      expect(response.headers.get("auth0-scope")).toEqual("foo:bar");
+      expect(response.headers.get("x-middleware-rewrite")).toEqual("https://guabu.us.auth0.com/me/v1/foo-bar/12");
+
     });
   });
 
