@@ -1113,6 +1113,7 @@ export class AuthClient {
     }
   ): Promise<NextResponse> {
     const session = await this.sessionStore.get(req.cookies);
+
     if (!session) {
       return new NextResponse("The user does not have an active session.", {
         status: 401
@@ -1124,39 +1125,84 @@ export class AuthClient {
       req.nextUrl.pathname.replace(options.proxyPath, targetBaseUrl.toString())
     );
 
-    const [error, token] = await this.getTokenSet(session, {
-      audience: targetBaseUrl.toString(),
-      scope: req.headers.get("auth0-scope")
-    });
-
-    if (error) {
-      throw new Error(
-        `Failed to retrieve access token for My Account: ${error.message}`
-      );
-    }
-
     const headers = new Headers(req.headers);
 
-    if (token.tokenSet.token_type?.toLowerCase() === "bearer") {
-      headers.set("Authorization", `Bearer ${token.tokenSet.accessToken}`);
-    } else {
-      const dpopHandle = oauth.DPoP(
-        this.clientMetadata,
-        this.dpopKeyPair!
-      ) as DPoPHandle;
+    // Forward all x-forwarded-* headers
+    const headersToForward = [
+      "x-forwarded-for",
+      "x-forwarded-host",
+      "x-forwarded-port",
+      "x-forwarded-proto"
+    ];
 
-      // TODO: This is a private method on oauth4webapi.
-      // We probably should not use this but replace with a different way to add the proof.
-      dpopHandle.addProof(targetUrl, headers, req.method);
-
-      headers.set("Authorization", `DPoP ${token?.tokenSet.accessToken}`);
-    }
-
-    // TODO: We need to also include SearchParams
-
-    return NextResponse.rewrite(targetUrl, {
-      request: { headers }
+    headersToForward.forEach((header) => {
+      const value = req.headers.get(header);
+      if (value) {
+        headers.set(header, value);
+      }
     });
+
+    // Forward all search params
+    req.nextUrl.searchParams.forEach((value, key) => {
+      targetUrl.searchParams.set(key, value);
+    });
+
+    const fetcher = await this.fetcherFactory({
+      useDPoP: this.useDPoP,
+      getAccessToken: async (authParams) => {
+        const [error, tokenSetResponse] = await this.getTokenSet(session, {
+          audience: authParams.audience,
+          scope: authParams.scope
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        const sessionChanges = getSessionChangesAfterGetAccessToken(
+          session,
+          tokenSetResponse.tokenSet,
+          {
+            scope: this.authorizationParameters?.scope,
+            audience: this.authorizationParameters?.audience
+          }
+        );
+
+        if (sessionChanges) {
+          if (tokenSetResponse.idTokenClaims) {
+            session.user = tokenSetResponse.idTokenClaims as User;
+          }
+          // call beforeSessionSaved callback if present
+          // if not then filter id_token claims with default rules
+          const finalSession = await this.finalizeSession(
+            session,
+            tokenSetResponse.tokenSet.idToken
+          );
+          await this.sessionStore.set(req.cookies, res.cookies, {
+            ...finalSession,
+            ...sessionChanges
+          });
+          //addCacheControlHeadersForSession(res);
+        }
+
+        return tokenSetResponse.tokenSet;
+      }
+    });
+
+    const response = await fetcher.fetchWithAuth(
+      targetUrl.toString(),
+      {
+        method: req.method,
+        headers,
+        body: req.body
+      },
+      { scope: req.headers.get("auth0-scope"), audience: options.audience }
+    );
+
+    const json = await response.json();
+    const res = NextResponse.json(json, { status: response.status });
+
+    return res;
   }
 
   /**
