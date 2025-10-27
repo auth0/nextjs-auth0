@@ -157,6 +157,17 @@ export type RoutesOptions = Partial<
   >
 >;
 
+// We are using an internal method of DPoPHandle.
+// We should look for a way to achieve this without relying on internal methods.
+type DPoPHandle = oauth.DPoPHandle & {
+  addProof: (
+    url: URL,
+    headers: Headers,
+    htm: string,
+    accessToken?: string
+  ) => Promise<void>;
+};
+
 export interface AuthClientOptions {
   transactionStore: TransactionStore;
   sessionStore: AbstractSessionStore;
@@ -399,6 +410,10 @@ export class AuthClient {
       this.enableConnectAccountEndpoint
     ) {
       return this.handleConnectAccount(req);
+    } else if (sanitizedPathname.startsWith("/me")) {
+      return this.handleMyAccount(req);
+    } else if (sanitizedPathname.startsWith("/my-org")) {
+      return this.handleMyOrg(req);
     } else {
       // no auth handler found, simply touch the sessions
       // TODO: this should only happen if rolling sessions are enabled. Also, we should
@@ -1071,6 +1086,118 @@ export class AuthClient {
     }
 
     return connectAccountResponse;
+  }
+
+  async handleMyAccount(req: NextRequest): Promise<NextResponse> {
+    return this.handleProxy(req, {
+      proxyPath: "/me",
+      targetBaseUrl: `${this.issuer}/me/v1`,
+      audience: `${this.issuer}/me/v1/`
+    });
+  }
+
+  async handleMyOrg(req: NextRequest): Promise<NextResponse> {
+    return this.handleProxy(req, {
+      proxyPath: "/my-org",
+      targetBaseUrl: `${this.issuer}/my-org`,
+      audience: `${this.issuer}/my-org/`
+    });
+  }
+
+  async handleProxy(
+    req: NextRequest,
+    options: {
+      proxyPath: string;
+      targetBaseUrl: string;
+      audience: string;
+    }
+  ): Promise<NextResponse> {
+    const session = await this.sessionStore.get(req.cookies);
+    if (!session) {
+      return new NextResponse("The user does not have an active session.", {
+        status: 401
+      });
+    }
+    const targetBaseUrl = options.targetBaseUrl;
+    const targetUrl = new URL(
+      req.nextUrl.pathname.replace(options.proxyPath, targetBaseUrl.toString())
+    );
+    const headers = new Headers(req.headers);
+
+    // We have to delete the authorization header as the SDK always has a Bearer header for now.
+    headers.delete("authorization");
+    // We have to delete the host header to avoid certificate errors when calling the target url.
+    // TODO: We need to see if this causes issues or not.
+    headers.delete("host");
+
+    // Forward all search params
+    req.nextUrl.searchParams.forEach((value, key) => {
+      targetUrl.searchParams.set(key, value);
+    });
+
+    const fetcher = await this.fetcherFactory({
+      useDPoP: this.useDPoP,
+      fetch: this.fetch,
+      getAccessToken: async (authParams) => {
+        const [error, tokenSetResponse] = await this.getTokenSet(session, {
+          audience: authParams.audience,
+          scope: authParams.scope
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        // TODO: We need to update the cache here as well if the tokenSet has changed.
+
+        /*const sessionChanges = getSessionChangesAfterGetAccessToken(
+          session,
+          tokenSetResponse.tokenSet,
+          {
+            scope: this.authorizationParameters?.scope,
+            audience: this.authorizationParameters?.audience
+          }
+        );
+
+        if (sessionChanges) {
+          if (tokenSetResponse.idTokenClaims) {
+            session.user = tokenSetResponse.idTokenClaims as User;
+          }
+          // call beforeSessionSaved callback if present
+          // if not then filter id_token claims with default rules
+          const finalSession = await this.finalizeSession(
+            session,
+            tokenSetResponse.tokenSet.idToken
+          );
+          await this.sessionStore.set(req.cookies, res.cookies, {
+            ...finalSession,
+            ...sessionChanges
+          });
+          //addCacheControlHeadersForSession(res);
+        }*/
+
+        return tokenSetResponse.tokenSet;
+      }
+    });
+
+    const response = await fetcher.fetchWithAuth(
+      targetUrl.toString(),
+      {
+        method: req.method,
+        headers,
+        body: req.body,
+        // @ts-expect-error duplex is not known, while we do need it for sending streams as the body.
+        // As we are receiving a request, body is always exposed as a ReadableStream when defined,
+        // so setting duplex to 'half' is required at that point.
+        duplex: req.body ? 'half' : undefined
+      },
+      { scope: req.headers.get("auth0-scope"), audience: options.audience }
+    );
+
+    const json = await response.json();
+    const res = NextResponse.json(json, { status: response.status });
+
+    return res;
   }
 
   /**
