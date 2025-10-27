@@ -1119,6 +1119,7 @@ export class AuthClient {
 
     const fetcher = await this.fetcherFactory({
       useDPoP: this.useDPoP,
+      fetch: this.fetch,
       getAccessToken: async (authParams) => {
         const [error, tokenSetResponse] = await this.getTokenSet(session, {
           audience: authParams.audience,
@@ -1166,7 +1167,10 @@ export class AuthClient {
       {
         method: req.method,
         headers,
-        body: req.body
+        body: req.body,
+        // @ts-expect-error duplex is not known, while we do need it for sendding streams as the body.
+        // As we are receiving a request, body is always exposed as a ReadableStream when defined.
+        duplex: req.body ? 'half' : undefined
       },
       { scope: req.headers.get("auth0-scope"), audience: options.audience }
     );
