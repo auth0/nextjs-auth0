@@ -139,3 +139,5 @@ dist
 *.env.*
 *.tmp
 *PLAN*.md
+.yalc/
+yalc.lock
