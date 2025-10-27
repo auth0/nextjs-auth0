@@ -5,9 +5,14 @@
   - [Redirecting the user after authentication](#redirecting-the-user-after-authentication)
   - [Redirecting the user after logging out](#redirecting-the-user-after-logging-out)
   - [Configuring logout strategy](#configuring-logout-strategy)
+    - [When to use "v2" strategy](#when-to-use-v2-strategy)
   - [Federated logout](#federated-logout)
+  - [OIDC logout privacy configuration](#oidc-logout-privacy-configuration)
+    - [Default behavior (recommended)](#default-behavior-recommended)
+    - [Privacy-focused configuration](#privacy-focused-configuration)
 - [Accessing the authenticated user](#accessing-the-authenticated-user)
   - [In the browser](#in-the-browser)
+    - [Understanding `useUser()` Behavior](#understanding-useuser-behavior)
   - [On the server (App Router)](#on-the-server-app-router)
   - [On the server (Pages Router)](#on-the-server-pages-router)
   - [Middleware](#middleware)
@@ -15,6 +20,9 @@
   - [Page Router](#page-router)
   - [App Router](#app-router)
 - [Protecting a Client-Side Rendered (CSR) Page](#protecting-a-client-side-rendered-csr-page)
+- [Protect an API Route](#protect-an-api-route)
+  - [Page Router](#page-router-1)
+  - [App Router](#app-router-1)
 - [Accessing the idToken](#accessing-the-idtoken)
 - [Updating the session](#updating-the-session)
   - [On the server (App Router)](#on-the-server-app-router-1)
@@ -25,31 +33,57 @@
   - [On the server (App Router)](#on-the-server-app-router-2)
   - [On the server (Pages Router)](#on-the-server-pages-router-2)
   - [Middleware](#middleware-2)
+  - [Forcing Access Token Refresh](#forcing-access-token-refresh)
   - [Multi-Resource Refresh Tokens (MRRT)](#multi-resource-refresh-tokens-mrrt)
     - [Basic Configuration](#basic-configuration)
       - [Configuring Scopes Per Audience](#configuring-scopes-per-audience)
     - [Usage Example](#usage-example)
     - [Token Management Best Practices](#token-management-best-practices)
+  - [Mitigating Token Expiration Race Conditions in Latency-Sensitive Operations](#mitigating-token-expiration-race-conditions-in-latency-sensitive-operations)
 - [DPoP (Demonstrating Proof-of-Possession)](#dpop-demonstrating-proof-of-possession)
   - [What is DPoP?](#what-is-dpop)
   - [Basic DPoP Setup](#basic-dpop-setup)
+    - [1. Enable DPoP with Generated Keys](#1-enable-dpop-with-generated-keys)
+    - [2. Enable DPoP with Environment Variables](#2-enable-dpop-with-environment-variables)
+    - [3. Generate DPoP Keys Using the SDK](#3-generate-dpop-keys-using-the-sdk)
   - [Making DPoP-Protected Requests](#making-dpop-protected-requests)
+    - [Using the Fetcher (Recommended)](#using-the-fetcher-recommended)
   - [DPoP Configuration Options](#dpop-configuration-options)
+    - [Clock Tolerance and Skew](#clock-tolerance-and-skew)
+    - [Environment Variable Configuration](#environment-variable-configuration)
   - [Error Handling](#error-handling)
+    - [Handling DPoP Errors](#handling-dpop-errors)
+    - [Automatic Nonce Error Retry](#automatic-nonce-error-retry)
   - [Advanced Usage](#advanced-usage)
-  - [Production Considerations](#production-considerations)
+    - [Custom Access Token Factory](#custom-access-token-factory)
+    - [Custom Access Token Scopes with DPoP](#custom-access-token-scopes-with-dpop)
+    - [Conditional DPoP Usage](#conditional-dpop-usage)
+    - [Custom Fetch with DPoP](#custom-fetch-with-dpop)
+  - [Token Audience Validation with Multiple APIs](#token-audience-validation-with-multiple-apis)
+    - [How This Can Happen](#how-this-can-happen)
+    - [Mitigation Strategies](#mitigation-strategies)
+    - [Example: Proper Token Routing](#example-proper-token-routing)
+  - [Security Best Practices](#security-best-practices)
   - [Troubleshooting](#troubleshooting)
+    - [Common Issues](#common-issues)
+    - [Debug Logging](#debug-logging)
 - [`<Auth0Provider />`](#auth0provider-)
   - [Passing an initial user from the server](#passing-an-initial-user-from-the-server)
 - [Hooks](#hooks)
   - [`beforeSessionSaved`](#beforesessionsaved)
   - [`onCallback`](#oncallback)
 - [Session configuration](#session-configuration)
+  - [Understanding Rolling Sessions](#understanding-rolling-sessions)
 - [Cookie Configuration](#cookie-configuration)
 - [Transaction Cookie Configuration](#transaction-cookie-configuration)
+  - [Customizing Transaction Cookie Expiration](#customizing-transaction-cookie-expiration)
+  - [Transaction Management Modes](#transaction-management-modes)
+  - [Transaction Cookie Options](#transaction-cookie-options)
 - [Database sessions](#database-sessions)
-- [Back-Channel Authentication](#back-channel-authentication)
+- [Using Client-Initiated Backchannel Authentication](#using-client-initiated-backchannel-authentication)
 - [Connected Accounts](#connected-accounts)
+  - [`onCallback` hook](#oncallback-hook)
+  - [`connectAccount` method](#connectaccount-method)
 - [Back-Channel Logout](#back-channel-logout)
 - [Combining middleware](#combining-middleware)
 - [ID Token claims and the user object](#id-token-claims-and-the-user-object)
@@ -59,8 +93,8 @@
   - [`generateSessionCookie`](#generatesessioncookie)
 - [Programmatically starting interactive login](#programmatically-starting-interactive-login)
   - [Passing authorization parameters](#passing-authorization-parameters-1)
-  - [The `returnTo` parameter](#the-returnto-parameter-1)
-    - [Redirecting the user after authentication](#redirecting-the-user-after-authentication-1)
+- [The `returnTo` parameter](#the-returnto-parameter-1)
+  - [Redirecting the user after authentication](#redirecting-the-user-after-authentication-1)
 - [Getting access tokens for connections](#getting-access-tokens-for-connections)
   - [On the server (App Router)](#on-the-server-app-router-3)
   - [On the server (Pages Router)](#on-the-server-pages-router-3)
@@ -1034,7 +1068,7 @@ import { generateKeyPair } from "oauth4webapi";
 const dpopKeyPair = await generateKeyPair("ES256");
 
 export const auth0 = new Auth0Client({
-  useDpop: true,
+  useDPoP: true,
   dpopKeyPair
 });
 ```
@@ -1059,7 +1093,7 @@ import { Auth0Client } from "@auth0/nextjs-auth0/server";
 
 // Auth0 client automatically loads keys from environment variables
 export const auth0 = new Auth0Client({
-  useDpop: true
+  useDPoP: true
   // Keys loaded automatically from AUTH0_DPOP_* environment variables
 });
 ```
@@ -1086,6 +1120,53 @@ console.log("AUTH0_DPOP_PRIVATE_KEY=" + privateKeyPem);
 
 The recommended approach is to use the `createFetcher` method, which handles all DPoP complexity automatically.
 
+#### DPoP Inheritance Behavior
+
+**Global Configuration Inheritance**
+
+When you enable DPoP globally in your `Auth0Client`, all fetchers automatically inherit this setting:
+
+```typescript
+// lib/auth0.ts - Global DPoP configuration
+export const auth0 = new Auth0Client({
+  useDPoP: true,  // Enable DPoP globally
+  dpopKeyPair    // Your key pair
+});
+
+// Fetchers inherit DPoP settings automatically
+const fetcher = await auth0.createFetcher(req, {
+  baseUrl: "https://api.example.com"
+  // No need to specify useDPoP: true - inherited from global config
+});
+```
+
+**Per-Fetcher Override**
+
+You can override the global DPoP setting for specific fetchers when needed:
+
+```typescript
+// Explicitly enable DPoP (when global setting is false)
+const dpopFetcher = await auth0.createFetcher(req, {
+  baseUrl: "https://secure-api.example.com",
+  useDPoP: true  // Override global setting
+});
+
+// Explicitly disable DPoP (when global setting is true)
+const legacyFetcher = await auth0.createFetcher(req, {
+  baseUrl: "https://legacy-api.example.com",
+  useDPoP: false  // Override global setting for legacy API
+});
+```
+
+**Fallback Behavior**
+
+The DPoP configuration follows this precedence order:
+1. **Explicit fetcher option**: `options.useDPoP` (when specified)
+2. **Global Auth0Client setting**: `auth0.useDPoP` (when fetcher option not specified)
+3. **Default**: `false` (when neither is configured)
+
+This inheritance pattern aligns with auth0-spa-js behavior, providing consistent developer experience across Auth0 SDKs.
+
 #### Using the Fetcher (Recommended)
 
 **App Router Example** - Server Components and Route Handlers:
@@ -1095,13 +1176,13 @@ import { auth0 } from "@/lib/auth0";
 
 // Route Handler: app/api/data/route.ts
 export async function GET() {
-  // Create fetcher with DPoP enabled and base URL for relative requests
+  // Create fetcher - DPoP inherited from global Auth0Client configuration
   const fetcher = await auth0.createFetcher(undefined, {
-    baseUrl: "https://api.example.com",
-    useDPoP: true  // Enable DPoP for this fetcher instance
+    baseUrl: "https://api.example.com"
+    // useDPoP is inherited from global auth0 config
   });
 
-  // Make authenticated request - DPoP proof generated automatically
+  // Make authenticated request - DPoP proof generated automatically if enabled globally
   const response = await fetcher.fetchWithAuth("/protected-resource", {
     method: "GET",
     headers: {
@@ -1119,14 +1200,14 @@ export async function GET() {
 ```typescript
 // API Route: pages/api/data.js
 export default async function handler(req, res) {
-  // Create fetcher with request context for session access
+  // Create fetcher with explicit DPoP override for legacy API compatibility
   const fetcher = await auth0.createFetcher(req, {
     baseUrl: "https://api.example.com",
-    useDPoP: true
+    useDPoP: false  // Explicitly disable DPoP for this legacy API
   });
 
   try {
-    // fetchWithAuth handles access token retrieval and DPoP proof generation
+    // fetchWithAuth handles access token retrieval (without DPoP)
     const response = await fetcher.fetchWithAuth("/protected-data");
     const data = await response.json();
     res.json(data);
@@ -1146,7 +1227,7 @@ Configure timing validation to handle clock differences between client and serve
 
 ```typescript
 export const auth0 = new Auth0Client({
-  useDpop: true,
+  useDPoP: true,
   dpopOptions: {
     // Clock tolerance: Allow up to 60 seconds difference between client/server clocks
     clockTolerance: 60,
@@ -1254,8 +1335,6 @@ const response = await fetcher.fetchWithAuth("/api/endpoint");
 
 ### Advanced Usage
 
-Extend DPoP functionality with custom implementations and conditional usage patterns.
-
 #### Custom Access Token Factory
 
 Override the default token retrieval with custom logic for specific use cases:
@@ -1330,7 +1409,76 @@ const fetcher = await auth0.createFetcher(req, {
 });
 ```
 
-#### Security Best Practices
+
+### Token Audience Validation with Multiple APIs
+
+When using DPoP with **multiple audiences** in the same application (e.g., via MRRT policies), ensure each access token is sent **only** to its intended API. Sending a token to the wrong API will result in audience validation failures.
+
+#### How This Can Happen
+
+When creating multiple fetcher instances for different APIs:
+
+```javascript
+// Fetcher for API 1
+const fetcher1 = createFetcher({
+  url: 'https://api1.example.com',
+  accessTokenFactory: () => getAccessToken({
+    audience: 'https://api1.example.com',
+    // ...
+  })
+});
+
+// Fetcher for API 2  
+const fetcher2 = createFetcher({
+  url: 'https://api2.example.com',
+  accessTokenFactory: () => getAccessToken({
+    audience: 'https://api2.example.com',
+    // ...
+  })
+});
+```
+
+**Common mistake**: Accidentally using `fetcher1` to call endpoints that should use `fetcher2`, or vice versa. The API will reject the request with an audience mismatch error like:
+
+```
+OAUTH_JWT_CLAIM_COMPARISON_FAILED: unexpected JWT "aud" (audience) claim value
+```
+
+#### Mitigation Strategies
+
+**1. Scope fetcher instances appropriately**
+- Create one fetcher per API/audience combination
+- Use clear, descriptive variable names that indicate which API each fetcher targets
+- Consider namespacing or module organization to prevent confusion
+
+**2. Configure MRRT policies correctly**
+- Ensure your MRRT policies include all audiences your application needs to access
+- Set `skip_consent_for_verifiable_first_party_clients: true` on all APIs in MRRT policies
+- Only include **custom scopes** in MRRT policies (OIDC scopes like `openid`, `profile`, `offline_access` are automatically included)
+
+**3. Validate in development**
+- Log the `aud` claim from decoded tokens during development to verify correct routing
+- Implement error handling that clearly identifies audience mismatches
+- Test each fetcher instance against its intended API endpoint before production deployment
+
+**4. API server validation**
+- Ensure your API servers validate the `aud` claim matches their expected audience identifier
+- Use the same audience string in both Auth0 API configuration and server-side validation
+
+#### Example: Proper Token Routing
+
+```javascript
+// ✅ Correct: Each fetcher calls its own API
+await fetcher1.fetchWithAuth('/users'); // Uses token with aud: "https://api1.example.com"
+await fetcher2.fetchWithAuth('/orders'); // Uses token with aud: "https://api2.example.com"
+
+// ❌ Incorrect: Wrong fetcher for the API
+await fetcher1.fetchWithAuth('https://api2.example.com/orders'); // Will fail with aud mismatch
+```
+
+**Remember**: JWT audience validation is a critical security feature that prevents token misuse across different resource servers. These errors indicate your security controls are working correctly—the solution is to ensure proper token-to-API routing in your application code.
+
+### Security Best Practices
 
 Follow these guidelines for secure DPoP implementation:
 
@@ -1349,7 +1497,7 @@ Diagnose and resolve common DPoP configuration and runtime issues.
 
 **DPoP keys not found:**
 ```
-WARNING: useDpop is set to true but dpopKeyPair is not provided.
+WARNING: useDPoP is set to true but dpopKeyPair is not provided.
 ```
 **Solution**: Ensure `AUTH0_DPOP_PUBLIC_KEY` and `AUTH0_DPOP_PRIVATE_KEY` are set correctly in your environment, or provide the `dpopKeyPair` option directly in the Auth0Client constructor.
 

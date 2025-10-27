@@ -9,6 +9,9 @@ export default function Index() {
   const [apiResponse, setApiResponse] = useState(null);
   const [isLoadingApi, setIsLoadingApi] = useState(false);
   const [apiError, setApiError] = useState(null);
+  const [bearerApiResponse, setBearerApiResponse] = useState(null);
+  const [isLoadingBearerApi, setIsLoadingBearerApi] = useState(false);
+  const [bearerApiError, setBearerApiError] = useState(null);
 
   const testDPopAPI = async () => {
     setIsLoadingApi(true);
@@ -28,6 +31,27 @@ export default function Index() {
       setApiError({ error: 'Failed to connect to API', details: error.message });
     } finally {
       setIsLoadingApi(false);
+    }
+  };
+
+  const testBearerAPI = async () => {
+    setIsLoadingBearerApi(true);
+    setBearerApiError(null);
+    setBearerApiResponse(null);
+
+    try {
+      const response = await fetch('/api/shows-bearer');
+      const data = await response.json();
+
+      if (response.ok) {
+        setBearerApiResponse(data);
+      } else {
+        setBearerApiError(data);
+      }
+    } catch (error) {
+      setBearerApiError({ error: 'Failed to connect to API', details: error.message });
+    } finally {
+      setIsLoadingBearerApi(false);
     }
   };
 
@@ -70,76 +94,6 @@ export default function Index() {
               </div>
             </div>
           </div>
-
-          {/* Server Context Examples */}
-          <div className="row mt-4 justify-content-center">
-            <div className="col-md-8">
-              <h4 className="mb-3 text-center">DPoP in Different Server Contexts</h4>
-              <p className="text-center text-muted mb-4">
-                Test DPoP authentication across various Next.js server environments
-              </p>
-              
-              <div className="row g-3">
-                <div className="col-md-6">
-                  <div className="card h-100">
-                    <div className="card-body">
-                      <h6 className="card-title">🏗️ Server Component</h6>
-                      <p className="card-text small">
-                        DPoP in App Router Server Components during SSR
-                      </p>
-                      <a href="/server-component" className="btn btn-outline-primary btn-sm w-100">
-                        View Server Component Demo
-                      </a>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="col-md-6">
-                  <div className="card h-100">
-                    <div className="card-body">
-                      <h6 className="card-title">📄 SSR Page</h6>
-                      <p className="card-text small">
-                        DPoP with getServerSideProps (Pages Router pattern)
-                      </p>
-                      <Link href="/ssr-example" className="btn btn-outline-warning btn-sm w-100">
-                        View SSR Demo
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="col-md-6">
-                  <div className="card h-100">
-                    <div className="card-body">
-                      <h6 className="card-title">🛡️ Middleware</h6>
-                      <p className="card-text small">
-                        DPoP authentication in Next.js middleware
-                      </p>
-                      <a href="/middleware-dpop-demo" className="btn btn-outline-primary btn-sm w-100">
-                        View Middleware Demo
-                      </a>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="col-md-6">
-                  <div className="card h-100">
-                    <div className="card-body">
-                      <h6 className="card-title">⚡ Server Action</h6>
-                      <p className="card-text small">
-                        DPoP in Next.js Server Actions for form handling
-                      </p>
-                      <a href="/server-action-demo" className="btn btn-outline-success btn-sm w-100">
-                        View Server Action Demo
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* API Response Display */}
           <div className="row mt-4 justify-content-center">
             <div className="col-md-8">
               {apiResponse && (
@@ -194,7 +148,7 @@ export default function Index() {
                     </p>
                     {apiError.details && (
                       <p>
-                        <strong>Details:</strong> {apiError.details}
+                        <strong>Details:</strong> {apiError.details.message || apiError.details}
                       </p>
                     )}
                     {apiError.errorType && (
@@ -202,9 +156,179 @@ export default function Index() {
                         <strong>Type:</strong> {apiError.errorType}
                       </p>
                     )}
+                    
+                    {/* Validation Status */}
+                    {apiError.validation && (
+                      <div className="mt-3 p-2 rounded col">
+                          <strong>Validation Status:</strong>
+                          <div>Authorization Header: {apiError.validation.hasAuthorizationHeader ? '✅' : '❌'}</div>
+                          <div>DPoP Header: {apiError.validation.hasDpopHeader ? '✅' : '❌'}</div>
+                          <div>Token Format: {apiError.validation.tokenFormat === 'valid' ? '✅' : '❌'}</div>
+                          <div>Issue: {apiError.validation.issue}</div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+          <div className="row mt-4 justify-content-center">
+            <div className="col-md-8">
+              <div className="card">
+                <div className="card-header">
+                  <h5 className="mb-0">Server-Side Bearer Token Test</h5>
+                  <small className="text-muted">
+                    Via Next.js API route using auth0.fetchWithAuth() with useDPoP: false
+                  </small>
+                </div>
+                <div className="card-body">
+                  <p>
+                    Tests Bearer token authentication through a Next.js API route that explicitly disables DPoP using
+                    the <code>useDPoP: false</code> option in createFetcher.
+                  </p>
+                  <button
+                    onClick={testBearerAPI}
+                    disabled={isLoadingBearerApi}
+                    className="btn btn-secondary w-100"
+                    data-testid="test-bearer-button">
+                    {isLoadingBearerApi ? 'Testing Server Bearer API...' : 'Test Server-Side Bearer Token API'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          {/* API Response Display */}
+          <div className="row mt-4 justify-content-center">
+            <div className="col-md-8">
+              {bearerApiResponse && (
+                <div className="p-4 bg-light border rounded" data-testid="bearer-api-response">
+                  <h4 className="">✅ Server-Side Bearer Token API Test Successful!</h4>
+                  <div className="text-start">
+                    <h5>Response:</h5>
+                    <p>
+                      <strong>Message:</strong> {bearerApiResponse.msg}
+                    </p>
+                    <p>
+                      <strong>DPoP Enabled:</strong> {bearerApiResponse.dpopEnabled ? 'Yes' : 'No'}
+                    </p>
+                    {bearerApiResponse.authType && (
+                      <p>
+                        <strong>Auth Type:</strong> {bearerApiResponse.authType}
+                      </p>
+                    )}
+                    {bearerApiResponse.claims && (
+                      <div>
+                        <h6>Token Claims:</h6>
+                        <ul className="list-unstyled">
+                          <li>
+                            <strong>Issuer:</strong> {bearerApiResponse.claims.iss}
+                          </li>
+                          <li>
+                            <strong>Subject:</strong> {bearerApiResponse.claims.sub}
+                          </li>
+                          <li>
+                            <strong>Audience:</strong>{' '}
+                            {Array.isArray(bearerApiResponse.claims.aud)
+                              ? bearerApiResponse.claims.aud.join(', ')
+                              : bearerApiResponse.claims.aud}
+                          </li>
+                          <li>
+                            <strong>Scope:</strong> {bearerApiResponse.claims.scope}
+                          </li>
+                          <li>
+                            <strong>Issued At:</strong> {new Date(bearerApiResponse.claims.iat * 1000).toLocaleString()}
+                          </li>
+                          <li>
+                            <strong>Expires At:</strong>{' '}
+                            {new Date(bearerApiResponse.claims.exp * 1000).toLocaleString()}
+                          </li>
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {bearerApiError && (
+                <div className="p-4 bg-warning text-dark border rounded" data-testid="bearer-api-error">
+                  <h4>❌ Server-Side Bearer Token API Test Failed</h4>
+                  <div className="text-start">
+                    <p>
+                      <strong>Error:</strong> {bearerApiError.error}
+                    </p>
+                    {bearerApiError.details && (
+                      <p>
+                        <strong>Details:</strong> {bearerApiError.details}
+                      </p>
+                    )}
+                    {bearerApiError.errorType && (
+                      <p>
+                        <strong>Type:</strong> {bearerApiError.errorType}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Server Context Examples */}
+          <div className="row mt-4 justify-content-center">
+            <div className="col-md-8">
+              <h4 className="mb-3 text-center">DPoP in Different Server Contexts</h4>
+              <p className="text-center text-muted mb-4">
+                Test DPoP authentication across various Next.js server environments
+              </p>
+
+              <div className="row g-3">
+                <div className="col-md-6">
+                  <div className="card h-100">
+                    <div className="card-body">
+                      <h6 className="card-title">🏗️ Server Component</h6>
+                      <p className="card-text small">DPoP in App Router Server Components during SSR</p>
+                      <a href="/server-component" className="btn btn-outline-primary btn-sm w-100">
+                        View Server Component Demo
+                      </a>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="col-md-6">
+                  <div className="card h-100">
+                    <div className="card-body">
+                      <h6 className="card-title">📄 SSR Page</h6>
+                      <p className="card-text small">DPoP with getServerSideProps (Pages Router pattern)</p>
+                      <Link href="/ssr-example" className="btn btn-outline-warning btn-sm w-100">
+                        View SSR Demo
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="col-md-6">
+                  <div className="card h-100">
+                    <div className="card-body">
+                      <h6 className="card-title">🛡️ Middleware</h6>
+                      <p className="card-text small">DPoP authentication in Next.js middleware</p>
+                      <a href="/middleware-dpop-demo" className="btn btn-outline-primary btn-sm w-100">
+                        View Middleware Demo
+                      </a>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="col-md-6">
+                  <div className="card h-100">
+                    <div className="card-body">
+                      <h6 className="card-title">⚡ Server Action</h6>
+                      <p className="card-text small">DPoP in Next.js Server Actions for form handling</p>
+                      <a href="/server-action-demo" className="btn btn-outline-success btn-sm w-100">
+                        View Server Action Demo
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

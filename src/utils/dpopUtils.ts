@@ -40,7 +40,7 @@ function isEdgeRuntime(): boolean {
  * const keyPair = await generateDpopKeyPair();
  *
  * const auth0 = new Auth0Client({
- *   useDpop: true,
+ *   useDPoP: true,
  *   dpopKeyPair: keyPair
  * });
  * ```
@@ -194,7 +194,7 @@ export function validateKeyPairCompatibility(
  * This interface mirrors the relevant options from Auth0ClientOptions.
  */
 export interface DpopConfigurationOptions {
-  useDpop?: boolean;
+  useDPoP?: boolean;
   dpopKeyPair?: DpopKeyPair;
   dpopOptions?: DpopOptions;
 }
@@ -223,7 +223,7 @@ export interface DpopConfigurationOptions {
  * // Optimal: Pre-generated keys (no env var parsing)
  * import { generateKeyPair } from "oauth4webapi";
  * const dpopKeyPair = await generateKeyPair("ES256");
- * export const auth0 = new Auth0Client({ useDpop: true, dpopKeyPair });
+ * export const auth0 = new Auth0Client({ useDPoP: true, dpopKeyPair });
  * ```
  *
  * **Security-sensitive configuration:**
@@ -241,10 +241,10 @@ export function validateDpopConfiguration(options: DpopConfigurationOptions): {
   dpopKeyPair?: DpopKeyPair;
   dpopOptions?: DpopOptions;
 } {
-  const useDpop = options.useDpop || false;
+  const useDPoP = options.useDPoP || false;
 
   // If DPoP is not enabled, return early with undefined values
-  if (!useDpop) {
+  if (!useDPoP) {
     return { dpopKeyPair: undefined, dpopOptions: undefined };
   }
 
@@ -319,7 +319,7 @@ export function validateDpopConfiguration(options: DpopConfigurationOptions): {
   }
 
   // If DPoP is enabled but no keypair provided, check if environment variables exist
-  if (useDpop) {
+  if (useDPoP) {
     const privateKeyPem = process.env.AUTH0_DPOP_PRIVATE_KEY;
     const publicKeyPem = process.env.AUTH0_DPOP_PUBLIC_KEY;
 
@@ -409,7 +409,7 @@ export function validateDpopConfiguration(options: DpopConfigurationOptions): {
     if (!privateKeyPem || !publicKeyPem) {
       // Issue warning if no keypair is available
       console.warn(
-        "WARNING: useDpop is set to true but dpopKeyPair is not provided. " +
+        "WARNING: useDPoP is set to true but dpopKeyPair is not provided. " +
           "DPoP will not be used and protected requests will use bearer authentication instead. " +
           "To enable DPoP, provide a dpopKeyPair in the Auth0Client options or set " +
           "AUTH0_DPOP_PUBLIC_KEY and AUTH0_DPOP_PRIVATE_KEY environment variables."

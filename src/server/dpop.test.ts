@@ -60,7 +60,7 @@ describe("DPoP Tests", () => {
       appBaseUrl: DEFAULT.appBaseUrl,
       routes: getDefaultRoutes(),
       dpopKeyPair,
-      useDpop: true
+      useDPoP: true
     });
 
     // Reset mocks

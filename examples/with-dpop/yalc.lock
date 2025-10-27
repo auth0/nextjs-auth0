@@ -2,8 +2,7 @@
   "version": "v1",
   "packages": {
     "@auth0/nextjs-auth0": {
-      "version": "4.10.0",
-      "signature": "5c6b016cb2d0e1ffe84e7936b92ea467",
+      "signature": "b9ce22c58ac9d523390974b7ad5abe81",
       "file": true,
       "replaced": "file:../../"
     }

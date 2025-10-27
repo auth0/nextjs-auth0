@@ -26,7 +26,6 @@ import {
   OAuth2Error,
   SdkError
 } from "../errors/index.js";
-import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
 import {
   CompleteConnectAccountRequest,
   CompleteConnectAccountResponse,
@@ -34,6 +33,7 @@ import {
   ConnectAccountRequest,
   ConnectAccountResponse
 } from "../types/connected-accounts.js";
+import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
 import {
   AccessTokenForConnectionOptions,
   AccessTokenSet,
@@ -74,6 +74,7 @@ import {
 import { toSafeRedirect } from "../utils/url-helpers.js";
 import { addCacheControlHeadersForSession } from "./cookies.js";
 import {
+  AccessTokenFactory,
   Fetcher,
   FetcherConfig,
   FetcherHooks,
@@ -189,7 +190,7 @@ export interface AuthClientOptions {
   noContentProfileResponseWhenUnauthenticated?: boolean;
   enableConnectAccountEndpoint?: boolean;
 
-  useDpop?: boolean;
+  useDPoP?: boolean;
   dpopKeyPair?: DpopKeyPair;
   dpopOptions?: DpopOptions;
 
@@ -360,10 +361,10 @@ export class AuthClient {
     this.enableConnectAccountEndpoint =
       options.enableConnectAccountEndpoint ?? false;
 
-    this.useDPoP = options.useDpop ?? false;
+    this.useDPoP = options.useDPoP ?? false;
 
-    // Initialize DPoP if enabled. Check useDpop flag first to avoid timing attacks.
-    if ((options.useDpop ?? false) && options.dpopKeyPair) {
+    // Initialize DPoP if enabled. Check useDPoP flag first to avoid timing attacks.
+    if ((options.useDPoP ?? false) && options.dpopKeyPair) {
       this.dpopKeyPair = options.dpopKeyPair;
     }
   }
@@ -686,7 +687,7 @@ export class AuthClient {
 
       const [completeConnectAccountError, connectedAccount] =
         await this.completeConnectAccount({
-          accessToken: tokenSetResponse.tokenSet.accessToken,
+          tokenSet: tokenSetResponse.tokenSet,
           authSession: transactionState.authSession!,
           connectCode: req.nextUrl.searchParams.get("connect_code")!,
           redirectUri: createRouteUrl(
@@ -771,9 +772,10 @@ export class AuthClient {
             ...this.httpOptions(),
             [oauth.customFetch]: this.fetch,
             [oauth.allowInsecureRequests]: this.allowInsecureRequests,
-            ...(this.dpopKeyPair && {
-              DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
-            })
+            ...(this.useDPoP &&
+              this.dpopKeyPair && {
+                DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
+              })
           }
         );
 
@@ -1029,7 +1031,7 @@ export class AuthClient {
     const { tokenSet, idTokenClaims } = getTokenSetResponse;
     const [connectAccountError, connectAccountResponse] =
       await this.connectAccount({
-        accessToken: tokenSet.accessToken,
+        tokenSet: tokenSet,
         connection,
         authorizationParams,
         returnTo
@@ -1213,9 +1215,10 @@ export class AuthClient {
               [oauth.customFetch]: this.fetch,
               [oauth.allowInsecureRequests]: this.allowInsecureRequests,
               additionalParameters,
-              ...(this.dpopKeyPair && {
-                DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
-              })
+              ...(this.useDPoP &&
+                this.dpopKeyPair && {
+                  DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
+                })
             }
           );
 
@@ -1754,9 +1757,10 @@ export class AuthClient {
           {
             [oauth.customFetch]: this.fetch,
             [oauth.allowInsecureRequests]: this.allowInsecureRequests,
-            ...(this.dpopKeyPair && {
-              DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
-            })
+            ...(this.useDPoP &&
+              this.dpopKeyPair && {
+                DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
+              })
           }
         );
 
@@ -1834,7 +1838,7 @@ export class AuthClient {
    * The user will be redirected to authorize the connection.
    */
   async connectAccount(
-    options: ConnectAccountOptions & { accessToken: string }
+    options: ConnectAccountOptions & { tokenSet: TokenSet }
   ): Promise<[ConnectAccountError, null] | [null, NextResponse]> {
     const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl);
     let returnTo = this.signInReturnToPath;
@@ -1863,7 +1867,7 @@ export class AuthClient {
 
     const [error, connectAccountResponse] =
       await this.createConnectAccountTicket({
-        accessToken: options.accessToken,
+        tokenSet: options.tokenSet,
         connection: options.connection,
         redirectUri: redirectUri.toString(),
         state,
@@ -1902,23 +1906,36 @@ export class AuthClient {
         this.issuer
       );
 
+      const fetcher = await this.fetcherFactory({
+        useDPoP: this.useDPoP,
+        getAccessToken: async () => ({
+          accessToken: options.tokenSet.accessToken,
+          expiresAt: options.tokenSet.expiresAt || 0,
+          scope: options.tokenSet.scope,
+          token_type: options.tokenSet.token_type
+        }),
+        fetch: this.fetch
+      });
+
       const httpOptions = this.httpOptions();
       const headers = new Headers(httpOptions.headers);
       headers.set("Content-Type", "application/json");
-      headers.set("Authorization", `Bearer ${options.accessToken}`);
 
-      const res = await this.fetch(connectAccountUrl, {
+      const requestBody = {
+        connection: options.connection,
+        redirect_uri: options.redirectUri,
+        state: options.state,
+        code_challenge: options.codeChallenge,
+        code_challenge_method: options.codeChallengeMethod,
+        authorization_params: options.authorizationParams
+      };
+
+      const res = await fetcher.fetchWithAuth(connectAccountUrl.toString(), {
         method: "POST",
-        headers,
-        body: JSON.stringify({
-          connection: options.connection,
-          redirect_uri: options.redirectUri,
-          state: options.state,
-          code_challenge: options.codeChallenge,
-          code_challenge_method: options.codeChallengeMethod,
-          authorization_params: options.authorizationParams
-        }),
-        signal: httpOptions.signal
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(requestBody)
       });
 
       if (!res.ok) {
@@ -1962,11 +1979,15 @@ export class AuthClient {
         }
       ];
     } catch (e: any) {
+      let message =
+        "An unexpected error occurred while trying to initiate the connect account flow.";
+      if (e instanceof DPoPError) {
+        message = e.message;
+      }
       return [
         new ConnectAccountError({
           code: ConnectAccountErrorCodes.FAILED_TO_INITIATE,
-          message:
-            "An unexpected error occurred while trying to initiate the connect account flow."
+          message: message
         }),
         null
       ];
@@ -1985,18 +2006,31 @@ export class AuthClient {
       const httpOptions = this.httpOptions();
       const headers = new Headers(httpOptions.headers);
       headers.set("Content-Type", "application/json");
-      headers.set("Authorization", `Bearer ${options.accessToken}`);
 
-      const res = await this.fetch(completeConnectAccountUrl, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          auth_session: options.authSession,
-          connect_code: options.connectCode,
-          redirect_uri: options.redirectUri,
-          code_verifier: options.codeVerifier
+      const fetcher = await this.fetcherFactory({
+        useDPoP: this.useDPoP,
+        getAccessToken: async () => ({
+          accessToken: options.tokenSet.accessToken,
+          expiresAt: options.tokenSet.expiresAt || 0,
+          scope: options.tokenSet.scope,
+          token_type: options.tokenSet.token_type
         }),
-        signal: httpOptions.signal
+        fetch: this.fetch
+      });
+
+      const requestBody = {
+        auth_session: options.authSession,
+        connect_code: options.connectCode,
+        redirect_uri: options.redirectUri,
+        code_verifier: options.codeVerifier
+      };
+
+      const res = await fetcher.fetchWithAuth(completeConnectAccountUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(requestBody)
       });
 
       if (!res.ok) {
@@ -2136,19 +2170,6 @@ export class AuthClient {
       throw discoveryError;
     }
 
-    const defaultAccessTokenFactory = async (
-      getAccessTokenOptions: GetAccessTokenOptions
-    ) => {
-      const [error, getTokenSetResponse] = await this.getTokenSet(
-        options.session,
-        getAccessTokenOptions || {}
-      );
-      if (error) {
-        throw error;
-      }
-      return getTokenSetResponse.tokenSet.accessToken;
-    };
-
     const fetcherConfig: FetcherConfig<TOutput> = {
       // Fetcher-scoped DPoP handle and nonce management
       dpopHandle:
@@ -2164,8 +2185,8 @@ export class AuthClient {
     };
 
     const fetcherHooks: FetcherHooks = {
-      getAccessToken: defaultAccessTokenFactory,
-      isDpopEnabled: () => options.useDPoP ?? false
+      getAccessToken: options.getAccessToken,
+      isDpopEnabled: () => options.useDPoP ?? this.useDPoP ?? false
     };
 
     return new Fetcher<TOutput>(fetcherConfig, fetcherHooks);
@@ -2198,5 +2219,5 @@ type GetTokenSetResponse = {
  */
 export type FetcherFactoryOptions<TOutput extends Response> = {
   useDPoP?: boolean;
-  session: SessionData;
+  getAccessToken: AccessTokenFactory;
 } & FetcherMinimalConfig<TOutput>;

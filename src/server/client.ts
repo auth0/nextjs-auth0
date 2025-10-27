@@ -2,7 +2,6 @@ import type { IncomingMessage, ServerResponse } from "http";
 import { cookies } from "next/headers.js";
 import { NextRequest, NextResponse } from "next/server.js";
 import { NextApiHandler, NextApiRequest, NextApiResponse } from "next/types.js";
-import { ProtectedResourceRequestBody } from "oauth4webapi";
 
 import {
   AccessTokenError,
@@ -37,7 +36,7 @@ import {
   RoutesOptions
 } from "./auth-client.js";
 import { RequestCookies, ResponseCookies } from "./cookies.js";
-import { Fetcher, FetcherMinimalConfig } from "./fetcher.js";
+import { AccessTokenFactory, CustomFetchImpl, Fetcher } from "./fetcher.js";
 import * as withApiAuthRequired from "./helpers/with-api-auth-required.js";
 import {
   appRouteHandlerFactory,
@@ -257,7 +256,7 @@ export interface Auth0ClientOptions {
    * const dpopKeyPair = await generateKeyPair("ES256");
    *
    * const auth0 = new Auth0Client({
-   *   useDpop: true,
+   *   useDPoP: true,
    *   dpopKeyPair
    * });
    * ```
@@ -269,19 +268,19 @@ export interface Auth0ClientOptions {
    * // AUTH0_DPOP_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----..."
    *
    * const auth0 = new Auth0Client({
-   *   useDpop: true
+   *   useDPoP: true
    *   // Keys loaded automatically from environment
    * });
    * ```
    *
    * @see {@link https://datatracker.ietf.org/doc/html/rfc9449 | RFC 9449: OAuth 2.0 Demonstrating Proof-of-Possession at the Application Layer (DPoP)}
    */
-  useDpop?: boolean;
+  useDPoP?: boolean;
 
   /**
    * ES256 key pair for DPoP proof generation.
    *
-   * If not provided when `useDpop` is true, the SDK will attempt to load keys from
+   * If not provided when `useDPoP` is true, the SDK will attempt to load keys from
    * environment variables `AUTH0_DPOP_PUBLIC_KEY` and `AUTH0_DPOP_PRIVATE_KEY`.
    * Keys must be in PEM format and use the P-256 elliptic curve.
    *
@@ -292,7 +291,7 @@ export interface Auth0ClientOptions {
    * const keyPair = await generateKeyPair("ES256");
    *
    * const auth0 = new Auth0Client({
-   *   useDpop: true,
+   *   useDPoP: true,
    *   dpopKeyPair: keyPair
    * });
    * ```
@@ -306,7 +305,7 @@ export interface Auth0ClientOptions {
    * const privateKeyPem = readFileSync("dpop-private.pem", "utf8");
    *
    * const auth0 = new Auth0Client({
-   *   useDpop: true,
+   *   useDPoP: true,
    *   dpopKeyPair: {
    *     publicKey: await importSPKI(publicKeyPem, "ES256"),
    *     privateKey: await importPKCS8(privateKeyPem, "ES256")
@@ -328,7 +327,7 @@ export interface Auth0ClientOptions {
    * @example Basic configuration
    * ```typescript
    * const auth0 = new Auth0Client({
-   *   useDpop: true,
+   *   useDPoP: true,
    *   dpopOptions: {
    *     clockTolerance: 60,    // Allow 60 seconds clock difference
    *     clockSkew: 0,          // No clock adjustment needed
@@ -494,7 +493,7 @@ export class Auth0Client {
       noContentProfileResponseWhenUnauthenticated:
         options.noContentProfileResponseWhenUnauthenticated,
       enableConnectAccountEndpoint: options.enableConnectAccountEndpoint,
-      useDpop: options.useDpop || false,
+      useDPoP: options.useDPoP || false,
       dpopKeyPair: options.dpopKeyPair || resolvedDpopKeyPair,
       dpopOptions: options.dpopOptions || resolvedDpopOptions
     });
@@ -555,9 +554,13 @@ export class Auth0Client {
    * @param options Optional configuration for getting the access token.
    * @param options.refresh Force a refresh of the access token.
    */
-  async getAccessToken(
-    options?: GetAccessTokenOptions
-  ): Promise<{ token: string; expiresAt: number; scope?: string }>;
+  async getAccessToken(options?: GetAccessTokenOptions): Promise<{
+    token: string;
+    expiresAt: number;
+    scope?: string;
+    token_type?: string;
+    audience?: string;
+  }>;
 
   /**
    * getAccessToken returns the access token.
@@ -573,7 +576,13 @@ export class Auth0Client {
     req: PagesRouterRequest | NextRequest,
     res: PagesRouterResponse | NextResponse,
     options?: GetAccessTokenOptions
-  ): Promise<{ token: string; expiresAt: number; scope?: string }>;
+  ): Promise<{
+    token: string;
+    expiresAt: number;
+    scope?: string;
+    token_type?: string;
+    audience?: string;
+  }>;
 
   /**
    * getAccessToken returns the access token.
@@ -589,7 +598,13 @@ export class Auth0Client {
     arg1?: PagesRouterRequest | NextRequest | GetAccessTokenOptions,
     arg2?: PagesRouterResponse | NextResponse,
     arg3?: GetAccessTokenOptions
-  ): Promise<{ token: string; expiresAt: number; scope?: string }> {
+  ): Promise<{
+    token: string;
+    expiresAt: number;
+    scope?: string;
+    token_type?: string;
+    audience?: string;
+  }> {
     const defaultOptions: GetAccessTokenOptions = {
       refresh: false
     };
@@ -646,7 +661,13 @@ export class Auth0Client {
     req: PagesRouterRequest | NextRequest | undefined,
     res: PagesRouterResponse | NextResponse | undefined,
     options: GetAccessTokenOptions
-  ): Promise<{ token: string; expiresAt: number; scope?: string }> {
+  ): Promise<{
+    token: string;
+    expiresAt: number;
+    scope?: string;
+    token_type?: string;
+    audience?: string;
+  }> {
     const session: SessionData | null = req
       ? await this.getSession(req)
       : await this.getSession();
@@ -699,7 +720,9 @@ export class Auth0Client {
     return {
       token: tokenSet.accessToken,
       scope: tokenSet.scope,
-      expiresAt: tokenSet.expiresAt
+      expiresAt: tokenSet.expiresAt,
+      token_type: tokenSet.token_type,
+      audience: tokenSet.audience
     };
   }
 
@@ -983,7 +1006,12 @@ export class Auth0Client {
     const [error, connectAccountResponse] =
       await this.authClient.connectAccount({
         ...options,
-        accessToken: accessToken.token
+        tokenSet: {
+          accessToken: accessToken.token,
+          expiresAt: accessToken.expiresAt,
+          scope: getMyAccountTokenOpts.scope,
+          audience: accessToken.audience
+        }
       });
 
     if (error) {
@@ -1195,9 +1223,15 @@ export class Auth0Client {
   public async createFetcher<TOutput extends Response = Response>(
     req: PagesRouterRequest | NextRequest | undefined,
     options: {
+      /** Enable DPoP for this fetcher instance (overrides global setting) */
       useDPoP?: boolean;
-      nonceStorageId?: string;
-    } & FetcherMinimalConfig<TOutput>
+      /** Custom access token factory function. If not provided, uses the default from hooks */
+      getAccessToken?: AccessTokenFactory;
+      /** Base URL for relative requests. Must be provided if using relative URLs */
+      baseUrl?: string;
+      /** Custom fetch implementation. Falls back to global fetch if not provided */
+      fetch?: CustomFetchImpl<TOutput>;
+    }
   ) {
     const session: SessionData | null = req
       ? await this.getSession(req)
@@ -1210,9 +1244,22 @@ export class Auth0Client {
       );
     }
 
+    const getAccessToken = async (
+      getAccessTokenOptions: GetAccessTokenOptions
+    ) => {
+      const [error, getTokenSetResponse] = await this.authClient.getTokenSet(
+        session,
+        getAccessTokenOptions || {}
+      );
+      if (error) {
+        throw error;
+      }
+      return getTokenSetResponse.tokenSet;
+    };
+
     const fetcher: Fetcher<TOutput> = await this.authClient.fetcherFactory({
       ...options,
-      session
+      getAccessToken
     });
 
     return fetcher;
@@ -1225,21 +1272,3 @@ export class Auth0Client {
       : `https://${this.domain}`;
   }
 }
-
-/**
- * Request initialization options for fetchWithAuth.
- * Similar to RequestInit but uses ProtectedResourceRequestBody for the body type.
- */
-export type FetchWithAuthInit = {
-  method?: string;
-  headers?: HeadersInit;
-  /**
-   * Request body compatible with oauth4webapi's ProtectedResourceRequestBody.
-   * Supported types: string, URLSearchParams, ArrayBuffer, Uint8Array, ReadableStream<Uint8Array>
-   *
-   * Note: Blob and FormData are not supported. Convert them to supported types before use:
-   * - Blob: Use `await blob.arrayBuffer()`
-   * - FormData: Convert to URLSearchParams (loses file data) or use a different approach
-   */
-  body?: ProtectedResourceRequestBody;
-};

@@ -39,7 +39,7 @@ describe("DPoP Clock Validation Configuration", () => {
         clientId: "test-client-id",
         secret: "test-secret",
         appBaseUrl: "http://localhost:3000",
-        useDpop: true
+        useDPoP: true
       });
     }).not.toThrow();
   });
@@ -54,7 +54,7 @@ describe("DPoP Clock Validation Configuration", () => {
         clientId: "test-client-id",
         secret: "test-secret",
         appBaseUrl: "http://localhost:3000",
-        useDpop: true,
+        useDPoP: true,
         dpopOptions: {
           clockSkew: 60,
           clockTolerance: 30
@@ -78,14 +78,14 @@ describe("DPoP Clock Validation Configuration", () => {
     }).not.toThrow();
   });
 
-  it("should work without dpopOptions when useDpop is false", () => {
+  it("should work without dpopOptions when useDPoP is false", () => {
     expect(() => {
       new Auth0Client({
         domain: "test.auth0.com",
         clientId: "test-client-id",
         secret: "test-secret",
         appBaseUrl: "http://localhost:3000"
-        // No dpopOptions provided, useDpop defaults to false
+        // No dpopOptions provided, useDPoP defaults to false
       });
     }).not.toThrow();
   });

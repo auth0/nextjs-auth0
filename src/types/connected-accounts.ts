@@ -1,4 +1,5 @@
 import { AuthorizationParameters } from "./authorize.js";
+import { TokenSet } from "./index.js";
 
 /**
  * Options to initiate a connect account flow using the My Account API.
@@ -32,9 +33,9 @@ export enum RESPONSE_TYPES {
 
 export interface ConnectAccountRequest {
   /**
-   * The access token with the `create:me:connected_accounts` scope.
+   * The access token set with the `create:me:connected_accounts` scope.
    */
-  accessToken: string;
+  tokenSet: TokenSet;
   /**
    * The name of the connection to link the account with (e.g., 'google-oauth2', 'facebook').
    */
@@ -84,9 +85,9 @@ export interface ConnectAccountResponse {
 
 export interface CompleteConnectAccountRequest {
   /**
-   * The access token with the `create:me:connected_accounts` scope.
+   * The access token set with the `create:me:connected_accounts` scope.
    */
-  accessToken: string;
+  tokenSet: TokenSet;
   /**
    * The authentication session identifier.
    */

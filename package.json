@@ -1,6 +1,6 @@
 {
   "name": "@auth0/nextjs-auth0",
-  "version": "4.10.0",
+  "version": "4.11.0",
   "description": "Auth0 Next.js SDK",
   "type": "module",
   "scripts": {
@@ -13,8 +13,7 @@
     "install:examples": "pnpm install --filter ./examples/with-next-intl --shamefully-hoist && pnpm install --filter ./examples/with-shadcn --shamefully-hoist",
     "docs": "typedoc",
     "lint": "tsc --noEmit && eslint ./src",
-    "lint:fix": "tsc --noEmit && eslint --fix ./src",
-    "tmp": "pnpm run build && yalc push && cd examples/with-dpop && pnpm i && pnpm dev && cd ../.."
+    "lint:fix": "tsc --noEmit && eslint --fix ./src"
   },
   "repository": {
     "type": "git",
