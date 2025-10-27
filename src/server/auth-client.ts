@@ -1113,34 +1113,22 @@ export class AuthClient {
     }
   ): Promise<NextResponse> {
     const session = await this.sessionStore.get(req.cookies);
-
     if (!session) {
       return new NextResponse("The user does not have an active session.", {
         status: 401
       });
     }
-
     const targetBaseUrl = options.targetBaseUrl;
     const targetUrl = new URL(
       req.nextUrl.pathname.replace(options.proxyPath, targetBaseUrl.toString())
     );
-
     const headers = new Headers(req.headers);
 
-    // Forward all x-forwarded-* headers
-    const headersToForward = [
-      "x-forwarded-for",
-      "x-forwarded-host",
-      "x-forwarded-port",
-      "x-forwarded-proto"
-    ];
-
-    headersToForward.forEach((header) => {
-      const value = req.headers.get(header);
-      if (value) {
-        headers.set(header, value);
-      }
-    });
+    // We have to delete the authorization header as the SDK always has a Bearer header for now.
+    headers.delete("authorization");
+    // We have to delete the host header to avoid certificate errors when calling the target url.
+    // TODO: We need to see if this causes issues or not.
+    headers.delete("host");
 
     // Forward all search params
     req.nextUrl.searchParams.forEach((value, key) => {
@@ -1159,7 +1147,9 @@ export class AuthClient {
           throw error;
         }
 
-        const sessionChanges = getSessionChangesAfterGetAccessToken(
+        // TODO: We need to update the cache here as well if the tokenSet has changed.
+
+        /*const sessionChanges = getSessionChangesAfterGetAccessToken(
           session,
           tokenSetResponse.tokenSet,
           {
@@ -1183,7 +1173,7 @@ export class AuthClient {
             ...sessionChanges
           });
           //addCacheControlHeadersForSession(res);
-        }
+        }*/
 
         return tokenSetResponse.tokenSet;
       }
