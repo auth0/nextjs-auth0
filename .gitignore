@@ -132,3 +132,10 @@ dist
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# local development files
+.memory/
+.dev-files/
+*.env.*
+*.tmp
+*PLAN*.md
