@@ -103,8 +103,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
     onBackchannelAuthRequest,
     onConnectAccountRequest,
     onCompleteConnectAccountRequest,
-    completeConnectAccountErrorResponse,
-    onTokenRequest
+    completeConnectAccountErrorResponse
   }: {
     tokenEndpointResponse?: oauth.TokenEndpointResponse | oauth.OAuth2Error;
     tokenEndpointErrorResponse?: oauth.OAuth2Error;
@@ -118,7 +117,6 @@ ca/T0LLtgmbMmxSv/MmzIg==
     onConnectAccountRequest?: (request: Request) => Promise<void>;
     onCompleteConnectAccountRequest?: (request: Request) => Promise<void>;
     completeConnectAccountErrorResponse?: Response;
-    onTokenRequest?: (request: Request) => Promise<void>;
   } = {}) {
     // this function acts as a mock authorization server
     return vi.fn(
@@ -136,11 +134,6 @@ ca/T0LLtgmbMmxSv/MmzIg==
         if (url.pathname === "/oauth/token") {
           if (tokenEndpointFetchError) {
             throw tokenEndpointFetchError;
-          }
-
-          // Call the callback to allow test to inspect the request
-          if (onTokenRequest) {
-            await onTokenRequest(new Request(input, init));
           }
 
           const jwt = await new jose.SignJWT({
