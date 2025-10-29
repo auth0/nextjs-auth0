@@ -929,7 +929,29 @@ export class Auth0Client {
           }
         });
 
+        // Handle multiple set-cookie headers properly
+        // resHeaders.entries() yields each set-cookie header separately,
+        // but res.setHeader() overwrites previous values. We need to collect
+        // all set-cookie values and set them as an array.
+        // Note: Per the Web API specification, the Headers API normalizes header names
+        // to lowercase, so comparing key.toLowerCase() === "set-cookie" is safe.
+        const setCookieValues: string[] = [];
+        const otherHeaders: Record<string, string> = {};
+
         for (const [key, value] of resHeaders.entries()) {
+          if (key.toLowerCase() === "set-cookie") {
+            setCookieValues.push(value);
+          } else {
+            otherHeaders[key] = value;
+          }
+        }
+        // Set all cookies at once as an array if any exist
+        if (setCookieValues.length > 0) {
+          pagesRouterRes.setHeader("set-cookie", setCookieValues);
+        }
+
+        // Set non-cookie headers normally
+        for (const [key, value] of Object.entries(otherHeaders)) {
           pagesRouterRes.setHeader(key, value);
         }
       }
