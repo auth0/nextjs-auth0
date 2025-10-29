@@ -34,14 +34,11 @@ export async function middleware(request: NextRequest) {
       }
     }
     // For all other headers, or if 'x-middleware-next' can be safely copied,
-    // copy them to intlRes. Use append() if the header already exists to support
-    // multi-value headers like set-cookie. HTTP allows multiple headers with the same name,
-    // and cookies must be preserved separately. Using set() would overwrite previous cookies.
-    if (intlRes.headers.has(key)) {
-      intlRes.headers.append(key, value);
-    } else {
-      intlRes.headers.set(key, value);
-    }
+    // append them to intlRes. The append() method adds the header if it doesn't exist,
+    // or appends the value if it does. This correctly preserves multi-value headers
+    // like set-cookie. HTTP allows multiple headers with the same name, and using
+    // append() ensures all cookie values are preserved instead of overwriting.
+    intlRes.headers.append(key, value);
   }
 
   return intlRes
