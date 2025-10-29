@@ -934,13 +934,10 @@ export class AuthClient {
       // call beforeSessionSaved callback if present
       // if not then filter id_token claims with default rules
       const finalSession = await this.finalizeSession(
-        session,
+        { ...session, ...sessionChanges },
         updatedTokenSet.idToken
       );
-      await this.sessionStore.set(req.cookies, res.cookies, {
-        ...finalSession,
-        ...sessionChanges
-      });
+      await this.sessionStore.set(req.cookies, res.cookies, finalSession);
       addCacheControlHeadersForSession(res);
     }
 
@@ -1060,13 +1057,14 @@ export class AuthClient {
       // call beforeSessionSaved callback if present
       // if not then filter id_token claims with default rules
       const finalSession = await this.finalizeSession(
-        session,
+        { ...session, ...sessionChanges },
         tokenSet.idToken
       );
-      await this.sessionStore.set(req.cookies, connectAccountResponse.cookies, {
-        ...finalSession,
-        ...sessionChanges
-      });
+      await this.sessionStore.set(
+        req.cookies,
+        connectAccountResponse.cookies,
+        finalSession
+      );
       addCacheControlHeadersForSession(connectAccountResponse);
     }
 
