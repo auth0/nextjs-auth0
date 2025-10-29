@@ -34,8 +34,14 @@ export async function middleware(request: NextRequest) {
       }
     }
     // For all other headers, or if 'x-middleware-next' can be safely copied,
-    // set them on intlRes. This ensures session cookies from authResponse are preserved.
-    intlRes.headers.set(key, value);
+    // copy them to intlRes. Use append() if the header already exists to support
+    // multi-value headers like set-cookie. HTTP allows multiple headers with the same name,
+    // and cookies must be preserved separately. Using set() would overwrite previous cookies.
+    if (intlRes.headers.has(key)) {
+      intlRes.headers.append(key, value);
+    } else {
+      intlRes.headers.set(key, value);
+    }
   }
 
   return intlRes
