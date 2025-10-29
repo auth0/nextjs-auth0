@@ -50,12 +50,6 @@ describe("UpdateSession Header Copying Fix", () => {
         // Simulate StatelessSessionStore setting multiple cookies
         resCookies.set("appSession", "updated_session_value");
         resCookies.set("appSession.1", "chunk_data_here");
-
-        // If there's a legacy cookie to delete, simulate that too
-        if (Math.random() > 0.5) {
-          // Randomly simulate legacy cookie deletion
-          resCookies.set("__session", "", { maxAge: 0 });
-        }
       }
     );
   });
@@ -63,8 +57,7 @@ describe("UpdateSession Header Copying Fix", () => {
   it("should handle multiple set-cookie headers correctly in Pages Router", async () => {
     await client.updateSession(mockPagesRouterReq, mockPagesRouterRes, {
       ...mockSession,
-      user: { ...mockSession.user, nickname: "updated_user" },
-      test_data: "updated_value"
+      user: { ...mockSession.user, nickname: "updated_user" }
     });
 
     // Verify setHeader was called properly
