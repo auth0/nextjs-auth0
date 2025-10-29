@@ -196,7 +196,7 @@ export const appRouteHandlerFactory =
           : opts.returnTo;
       const { redirect } = await import("next/navigation.js");
       redirect(
-        `${config.loginUrl}${opts.returnTo ? `?returnTo=${returnTo}` : ""}`
+        `${config.loginUrl}${opts.returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ""}`
       );
     }
     return handler(params);
