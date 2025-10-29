@@ -180,7 +180,12 @@ describe("Connected Accounts DPoP Integration Tests", () => {
       ).createConnectAccountTicket.bind(authClientWithDPoP);
 
       const connectAccountRequest = {
-        accessToken: DEFAULT.accessToken,
+        tokenSet: {
+          accessToken: DEFAULT.accessToken,
+          expiresAt: null,
+          scope: "scope",
+          token_type: "DPoP"
+        },
         connection: DEFAULT.connectAccount.connection,
         redirectUri: `${DEFAULT.appBaseUrl}/auth/callback`,
         state: "test-state",
@@ -201,7 +206,7 @@ describe("Connected Accounts DPoP Integration Tests", () => {
         "POST",
         expect.any(URL),
         expect.any(Headers),
-        expect.any(String),
+        expect.any(ReadableStream),
         expect.objectContaining({
           DPoP: { client: {}, keyPair: {} }
         })
@@ -244,7 +249,12 @@ describe("Connected Accounts DPoP Integration Tests", () => {
       ).createConnectAccountTicket.bind(authClientNoDPoP);
 
       const connectAccountRequest = {
-        accessToken: DEFAULT.accessToken,
+        tokenSet: {
+          accessToken: DEFAULT.accessToken,
+          expiresAt: null,
+          scope: "scope",
+          token_type: "Bearer"
+        },
         connection: DEFAULT.connectAccount.connection,
         redirectUri: `${DEFAULT.appBaseUrl}/auth/callback`,
         state: "test-state",
@@ -267,7 +277,7 @@ describe("Connected Accounts DPoP Integration Tests", () => {
         "POST",
         expect.any(URL),
         expect.any(Headers),
-        expect.any(String),
+        expect.any(ReadableStream),
         expect.objectContaining({
           // Should NOT contain DPoP handle when DPoP is disabled
         })
@@ -321,7 +331,12 @@ describe("Connected Accounts DPoP Integration Tests", () => {
       ).completeConnectAccount.bind(authClientWithDPoP);
 
       const completeRequest = {
-        accessToken: DEFAULT.accessToken,
+        tokenSet: {
+          accessToken: DEFAULT.accessToken,
+          expiresAt: null,
+          scope: "scope",
+          token_type: "DPoP"
+        },
         authSession: DEFAULT.connectAccount.authSession,
         connectCode: "connect-code-123",
         redirectUri: `${DEFAULT.appBaseUrl}/auth/callback`,
@@ -338,7 +353,7 @@ describe("Connected Accounts DPoP Integration Tests", () => {
         "POST",
         expect.any(URL),
         expect.any(Headers),
-        expect.any(String),
+        expect.any(ReadableStream),
         expect.objectContaining({
           DPoP: { client: {}, keyPair: {} }
         })
@@ -383,7 +398,12 @@ describe("Connected Accounts DPoP Integration Tests", () => {
       ).completeConnectAccount.bind(authClientNoDPoP);
 
       const completeRequest = {
-        accessToken: DEFAULT.accessToken,
+        tokenSet: {
+          accessToken: DEFAULT.accessToken,
+          expiresAt: null,
+          scope: "scope",
+          token_type: "Bearer"
+        },
         authSession: DEFAULT.connectAccount.authSession,
         connectCode: "connect-code-123",
         redirectUri: `${DEFAULT.appBaseUrl}/auth/callback`,
@@ -402,7 +422,7 @@ describe("Connected Accounts DPoP Integration Tests", () => {
         "POST",
         expect.any(URL),
         expect.any(Headers),
-        expect.any(String),
+        expect.any(ReadableStream),
         expect.objectContaining({
           // Should NOT contain DPoP handle when DPoP is disabled
         })
@@ -415,8 +435,8 @@ describe("Connected Accounts DPoP Integration Tests", () => {
     });
   });
 
-  describe("DPoP fallback behavior", () => {
-    it("should fallback to Bearer tokens when DPoP is enabled but dpopKeyPair is missing", async () => {
+  describe("DPoP misconfigured behavior", () => {
+    it("should throw an error when DPoP is enabled but dpopKeyPair is missing", async () => {
       // Setup successful response for protectedResourceRequest
       const mockResponse = new Response(
         JSON.stringify({
@@ -449,7 +469,12 @@ describe("Connected Accounts DPoP Integration Tests", () => {
       ).createConnectAccountTicket.bind(authClientDPoPNoKeys);
 
       const connectAccountRequest = {
-        accessToken: DEFAULT.accessToken,
+        tokenSet: {
+          accessToken: DEFAULT.accessToken,
+          expiresAt: null,
+          scope: "scope",
+          token_type: "Bearer"
+        },
         connection: DEFAULT.connectAccount.connection,
         redirectUri: `${DEFAULT.appBaseUrl}/auth/callback`,
         state: "test-state",
@@ -463,25 +488,12 @@ describe("Connected Accounts DPoP Integration Tests", () => {
       );
 
       // Verify it fell back to Bearer tokens
-      expect(error).toBeNull();
-      expect(result).toBeDefined();
+      expect(error).not.toBeNull();
+      expect(result).toBeNull();
 
-      // Verify protectedResourceRequest was used (it handles fallback to Bearer tokens)
-      expect(oauth.protectedResourceRequest).toHaveBeenCalledWith(
-        DEFAULT.accessToken,
-        "POST",
-        expect.any(URL),
-        expect.any(Headers),
-        expect.any(String),
-        expect.objectContaining({
-          // Should NOT contain DPoP handle when dpopKeyPair is missing
-        })
+      expect(error.message).toBe(
+        "DPoP is enabled but no keypair is configured."
       );
-
-      // Verify the options passed to protectedResourceRequest don't include DPoP
-      const callArgs = (oauth.protectedResourceRequest as any).mock.calls[0];
-      const options = callArgs[5];
-      expect(options.DPoP).toBeUndefined();
     });
   });
 });

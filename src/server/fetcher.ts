@@ -8,7 +8,7 @@ import {
 } from "oauth4webapi";
 
 import { RetryConfig } from "../types/dpop.js";
-import { GetAccessTokenOptions } from "../types/index.js";
+import { GetAccessTokenOptions, TokenSet } from "../types/index.js";
 
 export type ResponseHeaders =
   | Record<string, string | null | undefined>
@@ -31,7 +31,8 @@ export type FetcherInit = {
  * @returns Promise that resolves to the custom response type
  */
 export type CustomFetchImpl<TOutput extends Response> = (
-  req: Request
+  input: string | URL | globalThis.Request,
+  init?: RequestInit
 ) => Promise<TOutput>;
 
 /**
@@ -43,7 +44,7 @@ export type CustomFetchImpl<TOutput extends Response> = (
  */
 export type AccessTokenFactory = (
   getAccessTokenOptions: GetAccessTokenOptions
-) => Promise<string>;
+) => Promise<string | TokenSet>;
 
 // Aliased unused exports with underscore prefix to avoid lint errors in importing files
 export type _CustomFetchImpl<TOutput extends Response> =
@@ -78,11 +79,6 @@ export type FetcherMinimalConfig<TOutput extends Response> = {
   baseUrl?: string;
   /** Custom fetch implementation. Falls back to global fetch if not provided */
   fetch?: CustomFetchImpl<TOutput>;
-  /**
-   * @future This parameter is reserved for future implementation.
-   * Currently not used - placeholder for upcoming multi-instance nonce persistence feature.
-   */
-  nonceStorageId?: string;
 };
 
 /**
@@ -239,7 +235,7 @@ export class Fetcher<TOutput extends Response> {
    */
   protected getAccessToken(
     getAccessTokenOptions?: GetAccessTokenOptions
-  ): Promise<string> {
+  ): Promise<string | TokenSet> {
     return this.config.getAccessToken
       ? this.config.getAccessToken(getAccessTokenOptions ?? {})
       : this.hooks.getAccessToken(getAccessTokenOptions ?? {});
@@ -292,7 +288,21 @@ export class Fetcher<TOutput extends Response> {
     getAccessTokenOptions?: GetAccessTokenOptions
   ): Promise<TOutput> {
     const request = this.buildBaseRequest(info, init);
-    const accessToken = await this.getAccessToken(getAccessTokenOptions);
+    const accessTokenResponse = await this.getAccessToken(
+      getAccessTokenOptions
+    );
+
+    let useDpop: boolean;
+    let accessToken: string;
+    if (typeof accessTokenResponse === "string") {
+      useDpop = this.config.dpopHandle ? true : false;
+      accessToken = accessTokenResponse;
+    } else {
+      useDpop = this.config.dpopHandle
+        ? accessTokenResponse.token_type?.toLowerCase() === "dpop"
+        : false;
+      accessToken = accessTokenResponse.accessToken;
+    }
 
     try {
       // Make (DPoP)-authenticated request using oauth4webapi
@@ -305,11 +315,10 @@ export class Fetcher<TOutput extends Response> {
         {
           ...this.config.httpOptions(),
           [customFetch]: (url: string, options: any) => {
-            const tmpRequest = new Request(url, options);
-            return this.config.fetch(tmpRequest);
+            return this.config.fetch(url, options);
           },
           [allowInsecureRequests]: this.config.allowInsecureRequests || false,
-          ...(this.config.dpopHandle && { DPoP: this.config.dpopHandle })
+          ...(useDpop && { DPoP: this.config.dpopHandle })
         }
       );
 

@@ -554,9 +554,13 @@ export class Auth0Client {
    * @param options Optional configuration for getting the access token.
    * @param options.refresh Force a refresh of the access token.
    */
-  async getAccessToken(
-    options?: GetAccessTokenOptions
-  ): Promise<{ token: string; expiresAt: number; scope?: string }>;
+  async getAccessToken(options?: GetAccessTokenOptions): Promise<{
+    token: string;
+    expiresAt: number;
+    scope?: string;
+    token_type?: string;
+    audience?: string;
+  }>;
 
   /**
    * getAccessToken returns the access token.
@@ -572,7 +576,13 @@ export class Auth0Client {
     req: PagesRouterRequest | NextRequest,
     res: PagesRouterResponse | NextResponse,
     options?: GetAccessTokenOptions
-  ): Promise<{ token: string; expiresAt: number; scope?: string }>;
+  ): Promise<{
+    token: string;
+    expiresAt: number;
+    scope?: string;
+    token_type?: string;
+    audience?: string;
+  }>;
 
   /**
    * getAccessToken returns the access token.
@@ -588,7 +598,13 @@ export class Auth0Client {
     arg1?: PagesRouterRequest | NextRequest | GetAccessTokenOptions,
     arg2?: PagesRouterResponse | NextResponse,
     arg3?: GetAccessTokenOptions
-  ): Promise<{ token: string; expiresAt: number; scope?: string }> {
+  ): Promise<{
+    token: string;
+    expiresAt: number;
+    scope?: string;
+    token_type?: string;
+    audience?: string;
+  }> {
     const defaultOptions: GetAccessTokenOptions = {
       refresh: false
     };
@@ -645,7 +661,13 @@ export class Auth0Client {
     req: PagesRouterRequest | NextRequest | undefined,
     res: PagesRouterResponse | NextResponse | undefined,
     options: GetAccessTokenOptions
-  ): Promise<{ token: string; expiresAt: number; scope?: string }> {
+  ): Promise<{
+    token: string;
+    expiresAt: number;
+    scope?: string;
+    token_type?: string;
+    audience?: string;
+  }> {
     const session: SessionData | null = req
       ? await this.getSession(req)
       : await this.getSession();
@@ -698,7 +720,9 @@ export class Auth0Client {
     return {
       token: tokenSet.accessToken,
       scope: tokenSet.scope,
-      expiresAt: tokenSet.expiresAt
+      expiresAt: tokenSet.expiresAt,
+      token_type: tokenSet.token_type,
+      audience: tokenSet.audience
     };
   }
 
@@ -982,7 +1006,12 @@ export class Auth0Client {
     const [error, connectAccountResponse] =
       await this.authClient.connectAccount({
         ...options,
-        accessToken: accessToken.token
+        tokenSet: {
+          accessToken: accessToken.token,
+          expiresAt: accessToken.expiresAt,
+          scope: getMyAccountTokenOpts.scope,
+          audience: accessToken.audience
+        }
       });
 
     if (error) {
@@ -1202,10 +1231,6 @@ export class Auth0Client {
       baseUrl?: string;
       /** Custom fetch implementation. Falls back to global fetch if not provided */
       fetch?: CustomFetchImpl<TOutput>;
-      /**
-       * @future This parameter is reserved for future implementation.
-       */
-      nonceStorageId?: string;
     }
   ) {
     const session: SessionData | null = req
@@ -1219,9 +1244,22 @@ export class Auth0Client {
       );
     }
 
+    const getAccessToken = async (
+      getAccessTokenOptions: GetAccessTokenOptions
+    ) => {
+      const [error, getTokenSetResponse] = await this.authClient.getTokenSet(
+        session,
+        getAccessTokenOptions || {}
+      );
+      if (error) {
+        throw error;
+      }
+      return getTokenSetResponse.tokenSet;
+    };
+
     const fetcher: Fetcher<TOutput> = await this.authClient.fetcherFactory({
       ...options,
-      session
+      getAccessToken
     });
 
     return fetcher;
