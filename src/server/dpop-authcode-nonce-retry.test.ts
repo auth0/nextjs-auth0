@@ -68,7 +68,9 @@ function createDPoPNonceRetryHandler(keyPairParam: jose.GenerateKeyPairResult) {
   };
 
   // Helper to parse DPoP JWT and extract nonce claim
-  const extractDPoPNonce = (dpopHeader: string | null): { hasNonce: boolean; nonce?: string } => {
+  const extractDPoPNonce = (
+    dpopHeader: string | null
+  ): { hasNonce: boolean; nonce?: string } => {
     if (!dpopHeader || typeof dpopHeader !== "string") {
       return { hasNonce: false };
     }
@@ -313,7 +315,9 @@ describe("AuthClient.handleCallback with DPoP Nonce Retry", () => {
       // 1. Received the DPoP-Nonce header from the 400 error response
       // 2. Extracted the nonce value ("server_nonce_value_123")
       // 3. Injected it into the DPoP JWT payload on retry
-      expect(tokenHandlerState.requests[1].nonce).toBe("server_nonce_value_123");
+      expect(tokenHandlerState.requests[1].nonce).toBe(
+        "server_nonce_value_123"
+      );
 
       // Additional validation: Decode the second request's DPoP JWT and verify
       // the payload contains the exact nonce claim

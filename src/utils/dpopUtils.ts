@@ -82,6 +82,26 @@ const applyRetryDelay = async (config?: RetryConfig) => {
  * Note: The DPoP handle (oauth4webapi) is stateful and automatically learns nonces
  * from the DPoP-Nonce response header. No manual nonce injection is required.
  *
+ * * ## Dual-Path Retry Logic
+ *
+ * The wrapper supports TWO different error paths, depending on how the caller
+ * structures their token request:
+ *
+ * ### Path 1: HTTP Request Only (Recommended for Auth Code Flow)
+ * **When to use:** Wrapping ONLY the HTTP request, not response processing*
+ * **Error handling:**
+ * - Nonce errors are detected via `response.status === 400` check (line 135)
+ * - Non-nonce 400 errors pass through unchanged
+ * - No exception is thrown; Response is returned for caller to process
+ *
+ * ### Path 2: HTTP Request + Response Processing (Used for Refresh/Connection Flows)
+ * **When to use:** Wrapping both HTTP request AND response processing
+ *
+ *  * **Error handling:**
+ * - Nonce errors are detected via `isDPoPNonceError(error)` check (line 150)
+ * - Non-nonce errors are re-thrown unchanged
+ * - Caller receives either a successful response or an exception
+ *
  * @template T - The return type of the function being executed
  * @param fn - The async function to execute with retry logic
  * @param config - Configuration object with retry behavior and DPoP enablement flag
@@ -128,6 +148,19 @@ export async function withDPoPNonceRetry<T>(
     return await fn();
   }
 
+  /**
+   * PATH 1: Response Object Inspection (Auth Code Flow)
+   *
+   * When fn() returns a Response object (not thrown), we check its status.
+   * If 400 with use_dpop_nonce error, extract nonce from error body and retry.
+   * This path is used when response processing happens OUTSIDE the wrapper.
+   *
+   * PATH 2: Exception Handling (Refresh/Connection Flows)
+   * When fn() includes response processing that throws, we catch exceptions above.
+   * Both paths support automatic nonce retry per RFC 9449 Section 8.
+   *
+   * @see withDPoPNonceRetry JSDoc for detailed explanation of dual-path retry logic
+   */
   try {
     const response = await fn();
 
@@ -153,8 +186,7 @@ export async function withDPoPNonceRetry<T>(
       await applyRetryDelay(config);
       // Retry the request - the DPoP handle automatically learned the nonce
       return await fn();
-    }
-    else{
+    } else {
       throw error;
     }
   }

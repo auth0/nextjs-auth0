@@ -796,7 +796,7 @@ export class AuthClient {
       codeGrantResponse = await withDPoPNonceRetry(
         authorizationCodeGrantRequestCall,
         {
-          isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
+          isDPoPEnabled: !!dpopHandle,
           ...this.dpopOptions?.retry
         }
       );
