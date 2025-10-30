@@ -3,86 +3,27 @@ import * as jose from "jose";
 import * as oauth from "oauth4webapi";
 import * as client from "openid-client";
 
+
+
 import packageJson from "../../package.json" with { type: "json" };
-import {
-  AccessTokenError,
-  AccessTokenErrorCode,
-  AccessTokenForConnectionError,
-  AccessTokenForConnectionErrorCode,
-  AuthorizationCodeGrantError,
-  AuthorizationCodeGrantRequestError,
-  AuthorizationError,
-  BackchannelAuthenticationError,
-  BackchannelAuthenticationNotSupportedError,
-  BackchannelLogoutError,
-  ConnectAccountError,
-  ConnectAccountErrorCodes,
-  DiscoveryError,
-  DPoPError,
-  DPoPErrorCode,
-  InvalidStateError,
-  MissingStateError,
-  MyAccountApiError,
-  OAuth2Error,
-  SdkError
-} from "../errors/index.js";
-import {
-  CompleteConnectAccountRequest,
-  CompleteConnectAccountResponse,
-  ConnectAccountOptions,
-  ConnectAccountRequest,
-  ConnectAccountResponse
-} from "../types/connected-accounts.js";
+import { AccessTokenError, AccessTokenErrorCode, AccessTokenForConnectionError, AccessTokenForConnectionErrorCode, AuthorizationCodeGrantError, AuthorizationCodeGrantRequestError, AuthorizationError, BackchannelAuthenticationError, BackchannelAuthenticationNotSupportedError, BackchannelLogoutError, ConnectAccountError, ConnectAccountErrorCodes, DiscoveryError, DPoPError, DPoPErrorCode, InvalidStateError, MissingStateError, MyAccountApiError, OAuth2Error, SdkError } from "../errors/index.js";
+import { CompleteConnectAccountRequest, CompleteConnectAccountResponse, ConnectAccountOptions, ConnectAccountRequest, ConnectAccountResponse } from "../types/connected-accounts.js";
 import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
-import {
-  AccessTokenForConnectionOptions,
-  AccessTokenSet,
-  AuthorizationParameters,
-  BackchannelAuthenticationOptions,
-  BackchannelAuthenticationResponse,
-  ConnectionTokenSet,
-  GetAccessTokenOptions,
-  LogoutStrategy,
-  LogoutToken,
-  RESPONSE_TYPES,
-  SessionData,
-  StartInteractiveLoginOptions,
-  SUBJECT_TOKEN_TYPES,
-  TokenSet,
-  User
-} from "../types/index.js";
+import { AccessTokenForConnectionOptions, AccessTokenSet, AuthorizationParameters, BackchannelAuthenticationOptions, BackchannelAuthenticationResponse, ConnectionTokenSet, GetAccessTokenOptions, LogoutStrategy, LogoutToken, RESPONSE_TYPES, SessionData, StartInteractiveLoginOptions, SUBJECT_TOKEN_TYPES, TokenSet, User } from "../types/index.js";
 import { mergeAuthorizationParamsIntoSearchParams } from "../utils/authorization-params-helpers.js";
 import { DEFAULT_SCOPES } from "../utils/constants.js";
 import { withDPoPNonceRetry } from "../utils/dpopUtils.js";
-import {
-  ensureNoLeadingSlash,
-  ensureTrailingSlash,
-  normalizeWithBasePath,
-  removeTrailingSlash
-} from "../utils/pathUtils.js";
-import {
-  ensureDefaultScope,
-  getScopeForAudience
-} from "../utils/scope-helpers.js";
+import { ensureNoLeadingSlash, ensureTrailingSlash, normalizeWithBasePath, removeTrailingSlash } from "../utils/pathUtils.js";
+import { ensureDefaultScope, getScopeForAudience } from "../utils/scope-helpers.js";
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
-import {
-  compareScopes,
-  findAccessTokenSet,
-  mergeScopes,
-  tokenSetFromAccessTokenSet
-} from "../utils/token-set-helpers.js";
+import { compareScopes, findAccessTokenSet, mergeScopes, tokenSetFromAccessTokenSet } from "../utils/token-set-helpers.js";
 import { toSafeRedirect } from "../utils/url-helpers.js";
 import { addCacheControlHeadersForSession } from "./cookies.js";
-import {
-  AccessTokenFactory,
-  Fetcher,
-  FetcherConfig,
-  FetcherHooks,
-  FetcherMinimalConfig
-} from "./fetcher.js";
+import { AccessTokenFactory, Fetcher, FetcherConfig, FetcherHooks, FetcherMinimalConfig } from "./fetcher.js";
 import { AbstractSessionStore } from "./session/abstract-session-store.js";
 import { TransactionState, TransactionStore } from "./transaction-store.js";
 import { filterDefaultIdTokenClaims } from "./user.js";
+
 
 export type BeforeSessionSavedHook = (
   session: SessionData,
@@ -156,17 +97,6 @@ export type RoutesOptions = Partial<
     "login" | "callback" | "logout" | "backChannelLogout" | "connectAccount"
   >
 >;
-
-// We are using an internal method of DPoPHandle.
-// We should look for a way to achieve this without relying on internal methods.
-type DPoPHandle = oauth.DPoPHandle & {
-  addProof: (
-    url: URL,
-    headers: Headers,
-    htm: string,
-    accessToken?: string
-  ) => Promise<void>;
-};
 
 export interface AuthClientOptions {
   transactionStore: TransactionStore;
@@ -805,6 +735,12 @@ export class AuthClient {
     }
     let oidcRes: oauth.TokenEndpointResponse;
     try {
+      // Log DPoP configuration for debugging
+      console.log(`[DEBUG] Authorization Code Exchange:`);
+      console.log(`[DEBUG] - useDPoP: ${this.useDPoP}`);
+      console.log(`[DEBUG] - dpopKeyPair present: ${!!this.dpopKeyPair}`);
+      console.log(`[DEBUG] - DPoP handle will be created: ${this.useDPoP && !!this.dpopKeyPair}`);
+      
       // Process the authorization code response
       // For authorization code flows, oauth4webapi handles DPoP nonce management internally
       // No need for manual retry since authorization codes are single-use
@@ -833,6 +769,26 @@ export class AuthClient {
     }
 
     const idTokenClaims = oauth.getValidatedIdTokenClaims(oidcRes)!;
+    
+    // CRITICAL DEBUGGING: Decode and inspect access token to verify DPoP binding
+    let accessTokenPayload: any = undefined;
+    try {
+      const accessTokenParts = oidcRes.access_token?.split('.');
+      if (accessTokenParts && accessTokenParts.length === 3) {
+        const payload = accessTokenParts[1];
+        const decoded = JSON.parse(Buffer.from(payload, 'base64').toString('utf-8'));
+        accessTokenPayload = decoded;
+        console.log(`[DEBUG] Access Token Payload (from initial login):`);
+        console.log(`[DEBUG] - cnf claim present: ${!!decoded.cnf}`);
+        console.log(`[DEBUG] - cnf value: ${decoded.cnf ? JSON.stringify(decoded.cnf) : 'MISSING'}`);
+        console.log(`[DEBUG] - token_type claim: ${decoded.token_type || 'MISSING'}`);
+        console.log(`[DEBUG] - Full payload claims: ${JSON.stringify(Object.keys(decoded))}`);
+        console.log(`[DEBUG] CRITICAL: If cnf is missing, tokens are NOT DPoP-bound!`);
+      }
+    } catch (decodeError) {
+      console.log(`[DEBUG] Failed to decode access token:`, decodeError);
+    }
+    
     let session: SessionData = {
       user: idTokenClaims,
       tokenSet: {
@@ -1135,69 +1091,118 @@ export class AuthClient {
       targetUrl.searchParams.set(key, value);
     });
 
-    const fetcher = await this.fetcherFactory({
-      useDPoP: this.useDPoP,
-      fetch: this.fetch,
-      getAccessToken: async (authParams) => {
-        const [error, tokenSetResponse] = await this.getTokenSet(session, {
-          audience: authParams.audience,
-          scope: authParams.scope
-        });
-
-        if (error) {
-          throw error;
-        }
-
-        // TODO: We need to update the cache here as well if the tokenSet has changed.
-
-        /*const sessionChanges = getSessionChangesAfterGetAccessToken(
-          session,
-          tokenSetResponse.tokenSet,
-          {
-            scope: this.authorizationParameters?.scope,
-            audience: this.authorizationParameters?.audience
-          }
-        );
-
-        if (sessionChanges) {
-          if (tokenSetResponse.idTokenClaims) {
-            session.user = tokenSetResponse.idTokenClaims as User;
-          }
-          // call beforeSessionSaved callback if present
-          // if not then filter id_token claims with default rules
-          const finalSession = await this.finalizeSession(
-            session,
-            tokenSetResponse.tokenSet.idToken
-          );
-          await this.sessionStore.set(req.cookies, res.cookies, {
-            ...finalSession,
-            ...sessionChanges
-          });
-          //addCacheControlHeadersForSession(res);
-        }*/
-
-        return tokenSetResponse.tokenSet;
-      }
+    console.log("checkpoint1");
+    console.log(`[DEBUG] Session tokenSet:`, {
+      hasAccessToken: !!session.tokenSet.accessToken,
+      accessTokenLength: session.tokenSet.accessToken?.length,
+      hasRefreshToken: !!session.tokenSet.refreshToken,
+      refreshTokenLength: session.tokenSet.refreshToken?.length,
+      scope: session.tokenSet.scope,
+      audience: session.tokenSet.audience,
+      expiresAt: session.tokenSet.expiresAt,
+      expiresIn: session.tokenSet.expiresAt ? session.tokenSet.expiresAt - Math.floor(Date.now() / 1000) : 'N/A'
     });
+    console.log(`[DEBUG] Session accessTokens:`, session.accessTokens?.map(t => ({
+      audience: t.audience,
+      hasAccessToken: !!t.accessToken,
+      expiresAt: t.expiresAt,
+      scope: t.scope
+    })));
+    console.log(`[DEBUG] Requesting token for audience: ${options.audience}`);
 
-    const response = await fetcher.fetchWithAuth(
-      targetUrl.toString(),
-      {
-        method: req.method,
-        headers,
-        body: req.body,
-        // @ts-expect-error duplex is not known, while we do need it for sending streams as the body.
-        // As we are receiving a request, body is always exposed as a ReadableStream when defined,
-        // so setting duplex to 'half' is required at that point.
-        duplex: req.body ? 'half' : undefined
-      },
-      { scope: req.headers.get("auth0-scope"), audience: options.audience }
-    );
+    let finalSessionData : SessionData | undefined = undefined;
+    
+    const fetcher = await this.fetcherFactory({
+        useDPoP: this.useDPoP,
+        fetch: this.fetch,
+        getAccessToken: async (authParams) => {
+          console.log(`[DEBUG] getAccessToken called with:`, {
+            audience: authParams.audience,
+            scope: authParams.scope
+          });
+          
+          const [error, tokenSetResponse] = await this.getTokenSet(session, {
+            audience: authParams.audience,
+            scope: authParams.scope,
+            refresh: true
+          });
 
-    const json = await response.json();
-    const res = NextResponse.json(json, { status: response.status });
+          if (error) {
+            const accessTokenError = error as AccessTokenError;
+            console.error(`[DEBUG] getTokenSet error:`, {
+              code: accessTokenError.code,
+              message: accessTokenError.message,
+              cause: accessTokenError.cause ? { code: accessTokenError.cause.code, message: accessTokenError.cause.message } : null
+            });
+            throw error;
+          }
 
-    return res;
+          console.log(`[DEBUG] Tokenset response:`, {
+            hasAccessToken: !!tokenSetResponse.tokenSet.accessToken,
+            accessTokenLength: tokenSetResponse.tokenSet.accessToken?.length,
+            audience: tokenSetResponse.tokenSet.audience,
+            token_type: tokenSetResponse.tokenSet.token_type,
+            expiresAt: tokenSetResponse.tokenSet.expiresAt,
+            expiresIn: tokenSetResponse.tokenSet.expiresAt ? tokenSetResponse.tokenSet.expiresAt - Math.floor(Date.now() / 1000) : 'N/A'
+          });
+
+          // TODO: We need to update the cache here as well if the tokenSet has changed.
+
+          const sessionChanges = getSessionChangesAfterGetAccessToken(
+            session,
+            tokenSetResponse.tokenSet,
+            {
+              scope: this.authorizationParameters?.scope,
+              audience: this.authorizationParameters?.audience
+            }
+          );
+
+          if (sessionChanges) {
+            if (tokenSetResponse.idTokenClaims) {
+              session.user = tokenSetResponse.idTokenClaims as User;
+            }
+            // call beforeSessionSaved callback if present
+            // if not then filter id_token claims with default rules
+            const finalSession = await this.finalizeSession(
+              session,
+              tokenSetResponse.tokenSet.idToken
+            );
+            // await this.sessionStore.set(req.cookies, res.cookies, {
+            //   ...finalSession,
+            //   ...sessionChanges
+            // });
+            finalSessionData = {
+              ...finalSession,
+              ...sessionChanges
+            };
+          }
+          return tokenSetResponse.tokenSet;
+        }
+      });
+
+      const response = await fetcher.fetchWithAuth(
+        targetUrl.toString(),
+        {
+          method: req.method,
+          headers,
+          body: req.body,
+          // @ts-expect-error duplex is not known, while we do need it for sending streams as the body.
+          // As we are receiving a request, body is always exposed as a ReadableStream when defined,
+          // so setting duplex to 'half' is required at that point.
+          duplex: req.body ? "half" : undefined
+        },
+        { scope: req.headers.get("auth0-scope"), audience: options.audience }
+      );
+
+      // console.log(`response: ${JSON.stringify(response)}`);
+
+      const json = await response.json();
+      const res = NextResponse.json(json, { status: response.status });
+      if(!!finalSessionData){
+        await this.sessionStore.set(req.cookies, res.cookies, finalSessionData);
+      }
+      addCacheControlHeadersForSession(res);
+      return res;
   }
 
   /**
@@ -1380,6 +1385,14 @@ export class AuthClient {
         const accessTokenExpiresAt =
           Math.floor(Date.now() / 1000) + Number(oauthRes.expires_in);
 
+        console.log(`[DEBUG] Token refresh - oauthRes.token_type:`, oauthRes.token_type);
+        console.log(`[DEBUG] Token refresh - useDPoP:`, this.useDPoP);
+        console.log(`[DEBUG] Token refresh - NOT overriding token_type because:`);
+        console.log(`[DEBUG]   - Real issue is missing cnf claim in JWT payload`);
+        console.log(`[DEBUG]   - token_type metadata doesn't fix binding`);
+        const calculatedTokenType = oauthRes.token_type;
+        console.log(`[DEBUG] Token refresh - token_type from Auth0:`, calculatedTokenType);
+
         const updatedTokenSet = {
           ...tokenSet, // contains the existing `iat` claim to maintain the session lifetime
           accessToken: oauthRes.access_token,
@@ -1401,7 +1414,8 @@ export class AuthClient {
           // If not provided, use `undefined`.
           audience: tokenSet.audience || options.audience || undefined,
           // Store the token type from the OAuth response (e.g., "Bearer", "DPoP")
-          ...(oauthRes.token_type && { token_type: oauthRes.token_type })
+          // For DPoP, ensure token_type is "at+jwt" even if the server doesn't include it
+          token_type: calculatedTokenType
         };
 
         if (oauthRes.refresh_token) {
@@ -1422,7 +1436,15 @@ export class AuthClient {
       }
     }
 
-    return [null, { tokenSet: tokenSet as TokenSet, idTokenClaims: undefined }];
+    // Ensure token_type is passed through for debugging (not overriding)
+    const finalTokenSet = { ...tokenSet } as TokenSet;
+    console.log(`[DEBUG] Non-refreshed token path - useDPoP:`, this.useDPoP);
+    console.log(`[DEBUG] Non-refreshed token path - existing token_type:`, finalTokenSet.token_type);
+    console.log(`[DEBUG] Non-refreshed token path - NOT modifying token_type because:`);
+    console.log(`[DEBUG]   - Token binding is in JWT cnf claim, not metadata`);
+    console.log(`[DEBUG]   - Final token_type:`, finalTokenSet.token_type);
+
+    return [null, { tokenSet: finalTokenSet, idTokenClaims: undefined }];
   }
 
   async backchannelAuthentication(

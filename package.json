@@ -13,7 +13,8 @@
     "install:examples": "pnpm install --filter ./examples/with-next-intl --shamefully-hoist && pnpm install --filter ./examples/with-shadcn --shamefully-hoist",
     "docs": "typedoc",
     "lint": "tsc --noEmit && eslint ./src",
-    "lint:fix": "tsc --noEmit && eslint --fix ./src"
+    "lint:fix": "tsc --noEmit && eslint --fix ./src",
+    "build-and-run-dpop-example": "pnpm run build && yalc push && cd examples/with-dpop && pnpm i && pnpm run dev && cd ../.."
   },
   "repository": {
     "type": "git",
