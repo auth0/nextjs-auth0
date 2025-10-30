@@ -1074,7 +1074,8 @@ export class AuthClient {
     return this.handleProxy(req, {
       proxyPath: "/me",
       targetBaseUrl: `${this.issuer}/me/v1`,
-      audience: `${this.issuer}/me/`
+      audience: `${this.issuer}/me/`,
+      scope: req.headers.get("auth0-scope")
     });
   }
 
@@ -1082,7 +1083,8 @@ export class AuthClient {
     return this.handleProxy(req, {
       proxyPath: "/my-org",
       targetBaseUrl: `${this.issuer}/my-org`,
-      audience: `${this.issuer}/my-org/`
+      audience: `${this.issuer}/my-org/`,
+      scope: req.headers.get("auth0-scope")
     });
   }
 
@@ -1092,6 +1094,7 @@ export class AuthClient {
       proxyPath: string;
       targetBaseUrl: string;
       audience: string;
+      scope: string | null;
     }
   ): Promise<NextResponse> {
     const session = await this.sessionStore.get(req.cookies);
@@ -1173,7 +1176,7 @@ export class AuthClient {
         // so setting duplex to 'half' is required at that point.
         duplex: req.body ? 'half' : undefined
       },
-      { scope: req.headers.get("auth0-scope"), audience: options.audience }
+      { scope: options.scope, audience: options.audience }
     );
 
     const json = await response.json();
