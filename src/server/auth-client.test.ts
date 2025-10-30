@@ -6458,7 +6458,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
           url = new URL(input);
         }
 
-        if (url.toString() === "https://guabu.us.auth0.com/me/v1/foo-bar/12?foo=bar") {
+        if (
+          url.toString() ===
+          "https://guabu.us.auth0.com/me/v1/foo-bar/12?foo=bar"
+        ) {
           return Response.json(myAccountResponse);
         }
 
@@ -6555,7 +6558,6 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
 
         if (url.toString() === "https://guabu.us.auth0.com/me/v1/foo-bar/12") {
-          console.log(init?.body);
           return new Response(init?.body, { status: 200 });
         }
 
@@ -6610,7 +6612,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           method: "POST",
           headers,
           body: JSON.stringify(myAccountResponse),
-          duplex: 'half'
+          duplex: "half"
         }
       );
 
