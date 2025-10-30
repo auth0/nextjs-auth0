@@ -351,6 +351,11 @@ export interface Auth0ClientOptions {
    * @see {@link DpopOptions} for detailed option descriptions
    */
   dpopOptions?: DpopOptions;
+
+  /**
+   * If true, enables progressive scope requests when obtaining access tokens.
+   */
+  progressiveScopes?: boolean;
 }
 
 export type PagesRouterRequest = IncomingMessage | NextApiRequest;
@@ -495,7 +500,8 @@ export class Auth0Client {
       enableConnectAccountEndpoint: options.enableConnectAccountEndpoint,
       useDPoP: options.useDPoP || false,
       dpopKeyPair: options.dpopKeyPair || resolvedDpopKeyPair,
-      dpopOptions: options.dpopOptions || resolvedDpopOptions
+      dpopOptions: options.dpopOptions || resolvedDpopOptions,
+      progressiveScopes: options.progressiveScopes,
     });
   }
 
@@ -694,7 +700,8 @@ export class Auth0Client {
       {
         scope: this.#options.authorizationParameters?.scope ?? DEFAULT_SCOPES,
         audience: this.#options.authorizationParameters?.audience
-      }
+      },
+      this.#options.progressiveScopes ?? false
     );
 
     if (sessionChanges) {

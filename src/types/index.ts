@@ -10,6 +10,11 @@ export interface TokenSet {
   expiresAt: number; // the time at which the access token expires in seconds since epoch
   audience?: string;
   token_type?: string; // the type of the access token (e.g., "Bearer", "DPoP")
+  scopeMetadata?: {
+    [scope: string]: {
+      lastRequestedAt: number; // timestamp in milliseconds
+    };
+  };
 }
 
 export interface AccessTokenSet {
@@ -19,6 +24,11 @@ export interface AccessTokenSet {
   audience: string;
   expiresAt: number; // the time at which the access token expires in seconds since epoch
   token_type?: string; // the type of the access token (e.g., "Bearer", "DPoP")
+  scopeMetadata?: {
+    [scope: string]: {
+      lastRequestedAt: number; // timestamp in milliseconds
+    };
+  };
 }
 
 export interface SessionData {

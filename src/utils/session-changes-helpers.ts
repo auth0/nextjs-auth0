@@ -170,13 +170,15 @@ function handleSpecificAccessTokenUpdate(
   session: SessionData,
   tokenSet: TokenSet,
   audience: string,
-  scope: string | undefined
+  scope: string | undefined,
+  progressiveScopes: boolean
 ): Partial<SessionData> | undefined {
   // First, try to find an entry based on the requestedScope
   let existingAccessTokenSet = findAccessTokenSet(session, {
     scope,
     audience,
-    matchMode: "requestedScope"
+    matchMode: "requestedScope",
+    progressiveScopes
   });
 
   if (!existingAccessTokenSet) {
@@ -191,7 +193,8 @@ function handleSpecificAccessTokenUpdate(
     existingAccessTokenSet = findAccessTokenSet(session, {
       scope: tokenSet.scope,
       audience,
-      matchMode: "scope"
+      matchMode: "scope",
+      progressiveScopes
     });
 
     if (existingAccessTokenSet) {
@@ -271,7 +274,8 @@ export function getSessionChangesAfterGetAccessToken(
   globalOptions: {
     scope?: string | null | undefined | { [key: string]: string };
     audience?: string | null | undefined;
-  }
+  },
+  progressiveScopes: boolean
 ): Partial<SessionData> | undefined {
   // Since globalOptions.scope can be a map of audience to scopes, we need to get the correct scope for the current audience.
   const globalScope = getScopeForAudience(
@@ -296,5 +300,5 @@ export function getSessionChangesAfterGetAccessToken(
     return undefined;
   }
 
-  return handleSpecificAccessTokenUpdate(session, tokenSet, audience, scope);
+  return handleSpecificAccessTokenUpdate(session, tokenSet, audience, scope, progressiveScopes);
 }
