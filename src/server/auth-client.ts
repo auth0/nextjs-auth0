@@ -1074,7 +1074,7 @@ export class AuthClient {
     return this.handleProxy(req, {
       proxyPath: "/me",
       targetBaseUrl: `${this.issuer}/me/v1`,
-      audience: `${this.issuer}/me/v1/`
+      audience: `${this.issuer}/me/`
     });
   }
 
