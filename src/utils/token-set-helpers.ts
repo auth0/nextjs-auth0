@@ -39,7 +39,8 @@ export function tokenSetFromAccessTokenSet(
     scope: accessTokenSet?.scope,
     requestedScope: accessTokenSet?.requestedScope,
     audience: accessTokenSet?.audience,
-    ...(accessTokenSet?.token_type && { token_type: accessTokenSet.token_type })
+    ...(accessTokenSet?.token_type && { token_type: accessTokenSet.token_type }),
+    scopeMetadata: accessTokenSet?.scopeMetadata
   };
 }
 
@@ -140,6 +141,7 @@ export function findAccessTokenSet(
     scope?: string;
     audience: string;
     matchMode?: "requestedScope" | "scope";
+    progressiveScopes: boolean;
   }
 ): AccessTokenSet | undefined {
   const matchMode = options.matchMode ?? "requestedScope";
@@ -156,13 +158,15 @@ export function findAccessTokenSet(
   const allMatches = accessTokenSets.filter((accessTokenSet) => {
     return (
       accessTokenSet.audience === options.audience &&
-      compareScopes(
-        matchMode === "scope"
-          ? accessTokenSet.scope
-          : (accessTokenSet.requestedScope ?? accessTokenSet.scope),
-        options.scope,
-        { strict: matchMode === "scope" }
-      )
+      // When progressiveScopes is enabled, we consider it a match regardless of scope.
+      (options.progressiveScopes ||
+        compareScopes(
+          matchMode === "scope"
+            ? accessTokenSet.scope
+            : (accessTokenSet.requestedScope ?? accessTokenSet.scope),
+          options.scope,
+          { strict: matchMode === "scope" }
+        ))
     );
   });
 
