@@ -1164,9 +1164,12 @@ export class AuthClient {
 
       return res;
     } catch (e: any) {
-      return new NextResponse(e.cause || e.message || "An error occurred while proxying the request.", {
-        status: 500
-      });
+      return new NextResponse(
+        e.cause || e.message || "An error occurred while proxying the request.",
+        {
+          status: 500
+        }
+      );
     }
   }
 
@@ -1987,13 +1990,13 @@ export class AuthClient {
       // call beforeSessionSaved callback if present
       // if not then filter id_token claims with default rules
       const finalSession = await this.finalizeSession(
-        session,
+        {
+          ...session,
+          ...sessionChanges
+        },
         tokenSetResponse.tokenSet.idToken
       );
-      await this.sessionStore.set(req.cookies, res.cookies, {
-        ...finalSession,
-        ...sessionChanges
-      });
+      await this.sessionStore.set(req.cookies, res.cookies, finalSession);
       addCacheControlHeadersForSession(res);
     }
   }
