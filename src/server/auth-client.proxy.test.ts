@@ -476,7 +476,7 @@ function getMockAuthorizationServer({
   discoveryResponse,
   audience,
   nonce,
-  keyPair = DEFAULT.keyPair,
+  keyPair = DEFAULT.keyPair
 }: {
   tokenEndpointResponse?: oauth.TokenEndpointResponse | oauth.OAuth2Error;
   tokenEndpointErrorResponse?: oauth.OAuth2Error;
@@ -534,7 +534,6 @@ function getMockAuthorizationServer({
       if (url.pathname === "/.well-known/openid-configuration") {
         return discoveryResponse ?? Response.json(_authorizationServerMetadata);
       }
-      
 
       return new Response(null, { status: 404 });
     }
