@@ -760,6 +760,15 @@ export class AuthClient {
 
     try {
       redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registered with the authorization server
+
+      // Create DPoP handle ONCE outside the closure so it persists across retries.
+      // This is required by RFC 9449: the handle must learn and reuse the nonce from
+      // the DPoP-Nonce header across multiple attempts.
+      const dpopHandle =
+        this.useDPoP && this.dpopKeyPair
+          ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+          : undefined;
+
       authorizationCodeGrantRequestCall = async () =>
         oauth.authorizationCodeGrantRequest(
           authorizationServerMetadata,
@@ -772,14 +781,25 @@ export class AuthClient {
             ...this.httpOptions(),
             [oauth.customFetch]: this.fetch,
             [oauth.allowInsecureRequests]: this.allowInsecureRequests,
-            ...(this.useDPoP &&
-              this.dpopKeyPair && {
-                DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
-              })
+            ...(dpopHandle && {
+              DPoP: dpopHandle
+            })
           }
         );
 
-      codeGrantResponse = await authorizationCodeGrantRequestCall();
+      // NOTE: Unlike refresh token and connection token flows, the auth code flow
+      // wraps only the HTTP request (not response processing) in withDPoPNonceRetry().
+      // This is intentional: withDPoPNonceRetry() expects a Response object to inspect
+      // for nonce retries. If response processing is included in the wrapper, it returns
+      // a processed object and retry logic breaks. Response processing happens after
+      // (see line 807) to maintain compatibility with the retry mechanism.
+      codeGrantResponse = await withDPoPNonceRetry(
+        authorizationCodeGrantRequestCall,
+        {
+          isDPoPEnabled: !!dpopHandle,
+          ...this.dpopOptions?.retry
+        }
+      );
     } catch (e: any) {
       return this.handleCallbackError(
         new AuthorizationCodeGrantRequestError(e.message),
@@ -934,13 +954,10 @@ export class AuthClient {
       // call beforeSessionSaved callback if present
       // if not then filter id_token claims with default rules
       const finalSession = await this.finalizeSession(
-        session,
+        { ...session, ...sessionChanges },
         updatedTokenSet.idToken
       );
-      await this.sessionStore.set(req.cookies, res.cookies, {
-        ...finalSession,
-        ...sessionChanges
-      });
+      await this.sessionStore.set(req.cookies, res.cookies, finalSession);
       addCacheControlHeadersForSession(res);
     }
 
@@ -1060,13 +1077,14 @@ export class AuthClient {
       // call beforeSessionSaved callback if present
       // if not then filter id_token claims with default rules
       const finalSession = await this.finalizeSession(
-        session,
+        { ...session, ...sessionChanges },
         tokenSet.idToken
       );
-      await this.sessionStore.set(req.cookies, connectAccountResponse.cookies, {
-        ...finalSession,
-        ...sessionChanges
-      });
+      await this.sessionStore.set(
+        req.cookies,
+        connectAccountResponse.cookies,
+        finalSession
+      );
       addCacheControlHeadersForSession(connectAccountResponse);
     }
 
@@ -1204,6 +1222,14 @@ export class AuthClient {
           additionalParameters.append("audience", options.audience);
         }
 
+        // Create DPoP handle ONCE outside the closure so it persists across retries.
+        // This is required by RFC 9449: the handle must learn and reuse the nonce from
+        // the DPoP-Nonce header across multiple attempts.
+        const dpopHandle =
+          this.useDPoP && this.dpopKeyPair
+            ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+            : undefined;
+
         const refreshTokenGrantRequestCall = async () =>
           oauth.refreshTokenGrantRequest(
             authorizationServerMetadata,
@@ -1215,10 +1241,9 @@ export class AuthClient {
               [oauth.customFetch]: this.fetch,
               [oauth.allowInsecureRequests]: this.allowInsecureRequests,
               additionalParameters,
-              ...(this.useDPoP &&
-                this.dpopKeyPair && {
-                  DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
-                })
+              ...(dpopHandle && {
+                DPoP: dpopHandle
+              })
             }
           );
 
@@ -1231,10 +1256,16 @@ export class AuthClient {
 
         let oauthRes: oauth.TokenEndpointResponse;
         try {
-          oauthRes = await withDPoPNonceRetry(async () => {
-            const refreshTokenRes = await refreshTokenGrantRequestCall();
-            return await processRefreshTokenResponseCall(refreshTokenRes);
-          }, this.dpopOptions?.retry);
+          oauthRes = await withDPoPNonceRetry(
+            async () => {
+              const refreshTokenRes = await refreshTokenGrantRequestCall();
+              return await processRefreshTokenResponseCall(refreshTokenRes);
+            },
+            {
+              isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
+              ...this.dpopOptions?.retry
+            }
+          );
         } catch (e: any) {
           return [
             new AccessTokenError(
@@ -1747,6 +1778,14 @@ export class AuthClient {
         return [discoveryError, null];
       }
 
+      // Create DPoP handle ONCE outside the closure so it persists across retries.
+      // This is required by RFC 9449: the handle must learn and reuse the nonce from
+      // the DPoP-Nonce header across multiple attempts.
+      const dpopHandle =
+        this.useDPoP && this.dpopKeyPair
+          ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+          : undefined;
+
       const genericTokenEndpointRequestCall = async () =>
         oauth.genericTokenEndpointRequest(
           authorizationServerMetadata,
@@ -1757,26 +1796,30 @@ export class AuthClient {
           {
             [oauth.customFetch]: this.fetch,
             [oauth.allowInsecureRequests]: this.allowInsecureRequests,
-            ...(this.useDPoP &&
-              this.dpopKeyPair && {
-                DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
-              })
+            ...(dpopHandle && {
+              DPoP: dpopHandle
+            })
           }
         );
 
-      const processGenericTokenEndpointResponseCall = (response: Response) =>
-        oauth.processGenericTokenEndpointResponse(
+      const processGenericTokenEndpointResponseCall = async () => {
+        const httpResponse = await genericTokenEndpointRequestCall();
+        return oauth.processGenericTokenEndpointResponse(
           authorizationServerMetadata,
           this.clientMetadata,
-          response
+          httpResponse
         );
+      };
 
       let tokenEndpointResponse: oauth.TokenEndpointResponse;
       try {
-        tokenEndpointResponse = await withDPoPNonceRetry(async () => {
-          const httpResponse = await genericTokenEndpointRequestCall();
-          return await processGenericTokenEndpointResponseCall(httpResponse);
-        }, this.dpopOptions?.retry);
+        tokenEndpointResponse = await withDPoPNonceRetry(
+          processGenericTokenEndpointResponseCall,
+          {
+            isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
+            ...this.dpopOptions?.retry
+          }
+        );
       } catch (err: any) {
         return [
           new AccessTokenForConnectionError(
