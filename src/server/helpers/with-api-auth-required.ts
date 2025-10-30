@@ -2,6 +2,7 @@ import { NextApiHandler } from "next";
 import { NextRequest, NextResponse } from "next/server.js";
 
 import { Auth0Client } from "../client.js";
+import { toNextRequest } from "../next-compat.js";
 
 /**
  * This contains `param`s, which is a Promise that resolves to an object
@@ -19,14 +20,7 @@ export type AppRouteHandlerFnContext = {
  * See: https://nextjs.org/docs/app/api-reference/file-conventions/route
  */
 export type AppRouteHandlerFn = (
-  /**
-   * Incoming request object.
-   */
-  req: NextRequest,
-  /**
-   * Context properties on the request (including the parameters if this was a
-   * dynamic route).
-   */
+  req: NextRequest | Request,
   ctx: AppRouteHandlerFnContext
 ) => Promise<Response> | Response;
 
@@ -80,8 +74,11 @@ export type WithApiAuthRequired = WithApiAuthRequiredAppRoute &
 export const appRouteHandlerFactory =
   (client: Auth0Client): WithApiAuthRequiredAppRoute =>
   (apiRoute) =>
-  async (req, params): Promise<NextResponse> => {
-    const session = await client.getSession();
+  async (req: NextRequest | Request, params): Promise<NextResponse> => {
+    // Normalize plain Request from Next 16 Node runtime
+    const nextReq = req instanceof Request ? toNextRequest(req) : req;
+
+    const session = await client.getSession(nextReq);
 
     if (!session || !session.user) {
       return NextResponse.json(
@@ -94,7 +91,7 @@ export const appRouteHandlerFactory =
       );
     }
 
-    const apiRes: NextResponse | Response = await apiRoute(req, params);
+    const apiRes: NextResponse | Response = await apiRoute(nextReq, params);
     const nextApiRes: NextResponse =
       apiRes instanceof NextResponse
         ? apiRes
@@ -110,7 +107,6 @@ export const pageRouteHandlerFactory =
     const session = await client.getSession(req);
 
     if (!session || !session.user) {
-      // If the user is not authenticated, return
       res.status(401).json({
         error: "not_authenticated",
         description:
