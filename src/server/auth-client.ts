@@ -157,17 +157,6 @@ export type RoutesOptions = Partial<
   >
 >;
 
-// We are using an internal method of DPoPHandle.
-// We should look for a way to achieve this without relying on internal methods.
-type DPoPHandle = oauth.DPoPHandle & {
-  addProof: (
-    url: URL,
-    headers: Headers,
-    htm: string,
-    accessToken?: string
-  ) => Promise<void>;
-};
-
 export interface AuthClientOptions {
   transactionStore: TransactionStore;
   sessionStore: AbstractSessionStore;
