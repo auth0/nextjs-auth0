@@ -1,16 +1,7 @@
-import exp from "constants";
 import { NextRequest, NextResponse } from "next/server.js";
 import * as jose from "jose";
 import * as oauth from "oauth4webapi";
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi
-} from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   AccessTokenError,
@@ -29,7 +20,6 @@ import {
   SUBJECT_TOKEN_TYPES
 } from "../types/index.js";
 import { DEFAULT_SCOPES } from "../utils/constants.js";
-import { generateDpopKeyPair } from "../utils/dpopUtils.js";
 import { AuthClient } from "./auth-client.js";
 import { decrypt, encrypt } from "./cookies.js";
 import { StatefulSessionStore } from "./session/stateful-session-store.js";
