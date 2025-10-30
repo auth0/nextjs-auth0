@@ -1109,6 +1109,8 @@ export class AuthClient {
       targetUrl.searchParams.set(key, value);
     });
 
+    let getTokenSetResponse!: GetTokenSetResponse;
+
     const fetcher = await this.fetcherFactory({
       useDPoP: this.useDPoP,
       fetch: this.fetch,
@@ -1122,33 +1124,8 @@ export class AuthClient {
           throw error;
         }
 
-        // TODO: We need to update the cache here as well if the tokenSet has changed.
-
-        /*const sessionChanges = getSessionChangesAfterGetAccessToken(
-          session,
-          tokenSetResponse.tokenSet,
-          {
-            scope: this.authorizationParameters?.scope,
-            audience: this.authorizationParameters?.audience
-          }
-        );
-
-        if (sessionChanges) {
-          if (tokenSetResponse.idTokenClaims) {
-            session.user = tokenSetResponse.idTokenClaims as User;
-          }
-          // call beforeSessionSaved callback if present
-          // if not then filter id_token claims with default rules
-          const finalSession = await this.finalizeSession(
-            session,
-            tokenSetResponse.tokenSet.idToken
-          );
-          await this.sessionStore.set(req.cookies, res.cookies, {
-            ...finalSession,
-            ...sessionChanges
-          });
-          //addCacheControlHeadersForSession(res);
-        }*/
+        // Tracking the last used token set response for session updates later
+        getTokenSetResponse = tokenSetResponse;
 
         return tokenSetResponse.tokenSet;
       }
@@ -1170,6 +1147,19 @@ export class AuthClient {
 
     const json = await response.json();
     const res = NextResponse.json(json, { status: response.status });
+
+    // Using the last used token set response to determine if we need to update the session
+    // This is not ideal, as this kind of relies on the order of execution.
+    // As we know the fetcher's `getAccessToken` is called before the actual fetch,
+    // we know it should always be defined when we reach this point.
+    if (getTokenSetResponse) {
+      await this.#updateSessionAfterTokenRetrieval(
+        req,
+        res,
+        session,
+        getTokenSetResponse
+      );
+    }
 
     return res;
   }
@@ -1957,6 +1947,49 @@ export class AuthClient {
       session.user = filterDefaultIdTokenClaims(session.user);
     }
     return session;
+  }
+
+  /**
+   * Updates the session after token retrieval if there are changes.
+   *
+   * This method:
+   * 1. Checks if the session needs to be updated based on token changes
+   * 2. Updates the user claims if new ID token claims are provided
+   * 3. Finalizes the session through the beforeSessionSaved hook or default filtering
+   * 4. Persists the updated session to the session store
+   * 5. Adds cache control headers to the response
+   */
+  async #updateSessionAfterTokenRetrieval(
+    req: NextRequest,
+    res: NextResponse,
+    session: SessionData,
+    tokenSetResponse: GetTokenSetResponse
+  ): Promise<void> {
+    const sessionChanges = getSessionChangesAfterGetAccessToken(
+      session,
+      tokenSetResponse.tokenSet,
+      {
+        scope: this.authorizationParameters?.scope,
+        audience: this.authorizationParameters?.audience
+      }
+    );
+
+    if (sessionChanges) {
+      if (tokenSetResponse.idTokenClaims) {
+        session.user = tokenSetResponse.idTokenClaims as User;
+      }
+      // call beforeSessionSaved callback if present
+      // if not then filter id_token claims with default rules
+      const finalSession = await this.finalizeSession(
+        session,
+        tokenSetResponse.tokenSet.idToken
+      );
+      await this.sessionStore.set(req.cookies, res.cookies, {
+        ...finalSession,
+        ...sessionChanges
+      });
+      addCacheControlHeadersForSession(res);
+    }
   }
 
   /**

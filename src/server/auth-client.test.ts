@@ -1,7 +1,16 @@
+import exp from "constants";
 import { NextRequest, NextResponse } from "next/server.js";
 import * as jose from "jose";
 import * as oauth from "oauth4webapi";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi
+} from "vitest";
 
 import {
   AccessTokenError,
@@ -6425,32 +6434,72 @@ ca/T0LLtgmbMmxSv/MmzIg==
   });
 
   describe("handleMyAccount", async () => {
-    it("should rewrite GET request to my account", async () => {
-      const myAccountResponse = {
-        branding: {
-          logo_url:
-            "https://cdn.cookielaw.org/logos/5b38f79c-c925-4d4e-af5e-ec27e97e1068/01963fbf-a156-710c-9ff0-e3528aa88982/baec8c9a-62ca-45e4-8549-18024c4409b1/auth0-logo.png",
-          colors: { page_background: "#ffffff", primary: "#007bff" }
-        },
-        id: "org_HdiNOwdtHO4fuiTU",
-        display_name: "cyborg",
-        name: "cyborg"
-      };
-      const currentAccessToken = DEFAULT.accessToken;
-      const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
+    const myAccountResponse = {
+      branding: {
+        logo_url:
+          "https://cdn.cookielaw.org/logos/5b38f79c-c925-4d4e-af5e-ec27e97e1068/01963fbf-a156-710c-9ff0-e3528aa88982/baec8c9a-62ca-45e4-8549-18024c4409b1/auth0-logo.png",
+        colors: { page_background: "#ffffff", primary: "#007bff" }
+      },
+      id: "org_HdiNOwdtHO4fuiTU",
+      display_name: "cyborg",
+      name: "cyborg"
+    };
 
+    const currentAccessToken = DEFAULT.accessToken;
+    const secret = await generateSecret(32);
+
+    let mockAuthorizationServer:  typeof fetch;
+    const mockFetchHandler = vi.fn();
+    const mockFetch = async (
+      input: RequestInfo | URL,
+      init?: RequestInit
+    ): Promise<Response> => {
+      const result = mockFetchHandler(input, init);
+
+      if (result) {
+        return result;
+      }
+
+      return mockAuthorizationServer(input, init);
+    };
+
+    let authClient: AuthClient;
+
+    beforeEach(async () => {
       const dpopKeyPair = await generateDpopKeyPair();
-      const mockAuthorizationServer = getMockAuthorizationServer();
-      const mockFetch = async (
-        input: RequestInfo | URL,
-        init?: RequestInit
-      ): Promise<Response> => {
+      mockAuthorizationServer = getMockAuthorizationServer();
+      authClient = new AuthClient({
+        transactionStore: new TransactionStore({
+          secret
+        }),
+        sessionStore: new StatelessSessionStore({
+          secret
+        }),
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: mockFetch,
+        useDPoP: true,
+        dpopKeyPair: dpopKeyPair,
+        authorizationParameters: {
+          audience: "test-api",
+          scope: {
+            [`https://${DEFAULT.domain}/me/`]: "foo"
+          }
+        }
+      });
+    });
+
+    beforeEach(() => {
+      mockFetchHandler.mockClear();
+      mockFetchHandler.mockImplementation((input: RequestInfo | URL) => {
         let url: URL;
         if (input instanceof Request) {
           url = new URL(input.url);
@@ -6464,27 +6513,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
         ) {
           return Response.json(myAccountResponse);
         }
-
-        return mockAuthorizationServer(input, init);
-      };
-
-      const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
-
-        domain: DEFAULT.domain,
-        clientId: DEFAULT.clientId,
-        clientSecret: DEFAULT.clientSecret,
-
-        secret,
-        appBaseUrl: DEFAULT.appBaseUrl,
-
-        routes: getDefaultRoutes(),
-
-        fetch: mockFetch,
-        useDPoP: true,
-        dpopKeyPair: dpopKeyPair
       });
+    });
+
+    it("should proxy GET request to my account", async () => {
       const expiresAt = Math.floor(Date.now() / 1000) - 10 * 24 * 60 * 60; // expired 10 days ago
       const session: SessionData = {
         user: {
@@ -6522,65 +6554,102 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(response.status).toEqual(200);
       const json = await response.json();
       expect(json).toEqual(myAccountResponse);
+
+      const setCookie = response.headers.get("Set-Cookie");
+      expect(setCookie).not.toBeNull();
+
+      const encryptedSessionCookieValue = setCookie
+        ?.split(";")[0]
+        .split("=")[1];
+      expect(encryptedSessionCookieValue).not.toBeNull();
+
+      const sessionCookieValue = await decrypt<SessionData>(
+        encryptedSessionCookieValue!,
+        secret
+      );
+      const accessTokens = sessionCookieValue?.payload.accessTokens;
+      const meAccessToken = accessTokens?.find(
+        (at) => at.audience === `https://${DEFAULT.domain}/me/`
+      );
+
+      expect(meAccessToken).toBeDefined();
+      expect(meAccessToken!.requestedScope).toEqual("foo foo:bar");
     });
 
-    it("should rewrite POST request to my account", async () => {
-      const myAccountResponse = {
-        branding: {
-          logo_url:
-            "https://cdn.cookielaw.org/logos/5b38f79c-c925-4d4e-af5e-ec27e97e1068/01963fbf-a156-710c-9ff0-e3528aa88982/baec8c9a-62ca-45e4-8549-18024c4409b1/auth0-logo.png",
-          colors: { page_background: "#ffffff", primary: "#007bff" }
+    it("should update the cache when using stateless storage", async () => {
+      const expiresAt = Math.floor(Date.now() / 1000) + 3600;
+      const session: SessionData = {
+        user: {
+          sub: DEFAULT.sub,
+          name: "John Doe",
+          email: "john@example.com",
+          picture: "https://example.com/john.jpg"
         },
-        id: "org_HdiNOwdtHO4fuiTU",
-        display_name: "cyborg",
-        name: "cyborg"
-      };
-      const currentAccessToken = DEFAULT.accessToken;
-      const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
-
-      const dpopKeyPair = await generateDpopKeyPair();
-      const mockAuthorizationServer = getMockAuthorizationServer();
-      const mockFetch = async (
-        input: RequestInfo | URL,
-        init?: RequestInit
-      ): Promise<Response> => {
-        let url: URL;
-        if (input instanceof Request) {
-          url = new URL(input.url);
-        } else {
-          url = new URL(input);
+        tokenSet: {
+          accessToken: currentAccessToken,
+          scope: "openid profile email",
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Math.floor(Date.now() / 1000)
         }
-
-        if (url.toString() === "https://guabu.us.auth0.com/me/v1/foo-bar/12") {
-          return new Response(init?.body, { status: 200 });
-        }
-
-        return mockAuthorizationServer(input, init);
       };
+      const maxAge = 60 * 60;
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const sessionCookie = await encrypt(session, secret, expiration);
+      const headers = new Headers();
+      headers.append("cookie", `__session=${sessionCookie}`);
+      headers.append("auth0-scope", "foo:bar");
+      const request = new NextRequest(
+        new URL("/me/foo-bar/12?foo=bar", DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers
+        }
+      );
 
-      const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
+      const response = await authClient.handleMyAccount(request);
 
-        domain: DEFAULT.domain,
-        clientId: DEFAULT.clientId,
-        clientSecret: DEFAULT.clientSecret,
+      const setCookie = response.headers.get("Set-Cookie");
+      expect(setCookie).not.toBeNull();
 
-        secret,
-        appBaseUrl: DEFAULT.appBaseUrl,
+      const encryptedSessionCookieValue = setCookie
+        ?.split(";")[0]
+        .split("=")[1];
 
-        routes: getDefaultRoutes(),
+      const sessionCookieValue = await decrypt<SessionData>(
+        encryptedSessionCookieValue!,
+        secret
+      );
+      const accessTokens = sessionCookieValue?.payload.accessTokens;
+      const accessToken = accessTokens?.find(
+        (at) => at.audience === `https://${DEFAULT.domain}/me/`
+      );
 
-        fetch: mockFetch,
-        useDPoP: true,
-        dpopKeyPair: dpopKeyPair
-      });
+      expect(accessToken).toBeDefined();
+      expect(accessToken!.requestedScope).toEqual("foo foo:bar");
+    });
+
+    it("should proxy POST request to my account", async () => {
+      mockFetchHandler.mockImplementation(
+        (input: RequestInfo | URL, init?: RequestInit) => {
+          let url: URL;
+          if (input instanceof Request) {
+            url = new URL(input.url);
+          } else {
+            url = new URL(input);
+          }
+
+          if (
+            url.toString() === "https://guabu.us.auth0.com/me/v1/foo-bar/12"
+          ) {
+            return new Response(init?.body, { status: 200 });
+          }
+        }
+      );
+
       const expiresAt = Math.floor(Date.now() / 1000) - 10 * 24 * 60 * 60; // expired 10 days ago
       const session: SessionData = {
         user: {
