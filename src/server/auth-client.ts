@@ -1131,37 +1131,43 @@ export class AuthClient {
       }
     });
 
-    const response = await fetcher.fetchWithAuth(
-      targetUrl.toString(),
-      {
-        method: req.method,
-        headers,
-        body: req.body,
-        // @ts-expect-error duplex is not known, while we do need it for sending streams as the body.
-        // As we are receiving a request, body is always exposed as a ReadableStream when defined,
-        // so setting duplex to 'half' is required at that point.
-        duplex: req.body ? "half" : undefined
-      },
-      { scope: options.scope, audience: options.audience }
-    );
-
-    const json = await response.json();
-    const res = NextResponse.json(json, { status: response.status });
-
-    // Using the last used token set response to determine if we need to update the session
-    // This is not ideal, as this kind of relies on the order of execution.
-    // As we know the fetcher's `getAccessToken` is called before the actual fetch,
-    // we know it should always be defined when we reach this point.
-    if (getTokenSetResponse) {
-      await this.#updateSessionAfterTokenRetrieval(
-        req,
-        res,
-        session,
-        getTokenSetResponse
+    try {
+      const response = await fetcher.fetchWithAuth(
+        targetUrl.toString(),
+        {
+          method: req.method,
+          headers,
+          body: req.body,
+          // @ts-expect-error duplex is not known, while we do need it for sending streams as the body.
+          // As we are receiving a request, body is always exposed as a ReadableStream when defined,
+          // so setting duplex to 'half' is required at that point.
+          duplex: req.body ? "half" : undefined
+        },
+        { scope: options.scope, audience: options.audience }
       );
-    }
 
-    return res;
+      const json = await response.json();
+      const res = NextResponse.json(json, { status: response.status });
+
+      // Using the last used token set response to determine if we need to update the session
+      // This is not ideal, as this kind of relies on the order of execution.
+      // As we know the fetcher's `getAccessToken` is called before the actual fetch,
+      // we know it should always be defined when we reach this point.
+      if (getTokenSetResponse) {
+        await this.#updateSessionAfterTokenRetrieval(
+          req,
+          res,
+          session,
+          getTokenSetResponse
+        );
+      }
+
+      return res;
+    } catch (e: any) {
+      return new NextResponse(e.cause || e.message || "An error occurred while proxying the request.", {
+        status: 500
+      });
+    }
   }
 
   /**

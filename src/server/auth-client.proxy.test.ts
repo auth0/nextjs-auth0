@@ -109,6 +109,24 @@ describe("Authentication Client", async () => {
       });
     });
 
+    it("should return 401 when no session", async () => {
+      const request = new NextRequest(
+        new URL("/me/foo-bar/12?foo=bar", DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers: {
+            "auth0-scope": "foo:bar"
+          }
+        }
+      );
+
+      const response = await authClient.handleMyAccount(request);
+      expect(response.status).toEqual(401);
+
+      const text = await response.text();
+      expect(text).toEqual("The user does not have an active session.");
+    });
+
     it("should proxy GET request to my account", async () => {
       const session = createInitialSessionData();
 
@@ -288,6 +306,93 @@ describe("Authentication Client", async () => {
       const json = await response.json();
       expect(json).toEqual({ hello: "world" });
     });
+
+    it("should handle when oauth/token throws", async () => {
+      const session = createInitialSessionData();
+      const cookie = await createSessionCookie(session, secret);
+      const request = new NextRequest(
+        new URL("/me/foo-bar/12?foo=bar", DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers: {
+            cookie,
+            "auth0-scope": "foo:bar"
+          }
+        }
+      );
+
+      mockFetchHandler.mockImplementation((url: URL) => {
+        if (url.toString() === `https://${DEFAULT.domain}/oauth/token`) {
+          return Response.json(
+            {
+              error: "test_error",
+              error_description: "An error from within the unit test."
+            },
+            { status: 401 }
+          );
+        }
+      });
+
+      const response = await authClient.handleMyAccount(request);
+      expect(response.status).toEqual(500);
+
+      const text = await response.text();
+      expect(text).toEqual("OAuth2Error: An error from within the unit test.");
+    });
+
+    it("should handle when getTokenSet throws", async () => {
+      const session = createInitialSessionData();
+      const cookie = await createSessionCookie(session, secret);
+      const request = new NextRequest(
+        new URL("/me/foo-bar/12?foo=bar", DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers: {
+            cookie,
+            "auth0-scope": "foo:bar"
+          }
+        }
+      );
+
+      authClient.getTokenSet = vi.fn().mockImplementation(() => {
+        {
+          throw new Error("An error from within the unit test.");
+        }
+      });
+
+      const response = await authClient.handleMyAccount(request);
+      expect(response.status).toEqual(500);
+
+      const text = await response.text();
+      expect(text).toEqual("An error from within the unit test.");
+    });
+
+    it.only("should handle when getTokenSet throws without message", async () => {
+      const session = createInitialSessionData();
+      const cookie = await createSessionCookie(session, secret);
+      const request = new NextRequest(
+        new URL("/me/foo-bar/12?foo=bar", DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers: {
+            cookie,
+            "auth0-scope": "foo:bar"
+          }
+        }
+      );
+
+      authClient.getTokenSet = vi.fn().mockImplementation(() => {
+        {
+          throw new Error();
+        }
+      });
+
+      const response = await authClient.handleMyAccount(request);
+      expect(response.status).toEqual(500);
+
+      const text = await response.text();
+      expect(text).toEqual("An error occurred while proxying the request.");
+    });
   });
 });
 
@@ -372,11 +477,6 @@ function getMockAuthorizationServer({
   audience,
   nonce,
   keyPair = DEFAULT.keyPair,
-  onParRequest,
-  onBackchannelAuthRequest,
-  onConnectAccountRequest,
-  onCompleteConnectAccountRequest,
-  completeConnectAccountErrorResponse
 }: {
   tokenEndpointResponse?: oauth.TokenEndpointResponse | oauth.OAuth2Error;
   tokenEndpointErrorResponse?: oauth.OAuth2Error;
@@ -385,11 +485,6 @@ function getMockAuthorizationServer({
   audience?: string;
   nonce?: string;
   keyPair?: jose.GenerateKeyPairResult;
-  onParRequest?: (request: Request) => Promise<void>;
-  onBackchannelAuthRequest?: (request: Request) => Promise<void>;
-  onConnectAccountRequest?: (request: Request) => Promise<void>;
-  onCompleteConnectAccountRequest?: (request: Request) => Promise<void>;
-  completeConnectAccountErrorResponse?: Response;
 } = {}) {
   // this function acts as a mock authorization server
   return vi.fn(
@@ -439,96 +534,7 @@ function getMockAuthorizationServer({
       if (url.pathname === "/.well-known/openid-configuration") {
         return discoveryResponse ?? Response.json(_authorizationServerMetadata);
       }
-      // PAR endpoint
-      if (url.pathname === "/oauth/par") {
-        if (onParRequest) {
-          await onParRequest(new Request(input, init));
-        }
-
-        return Response.json(
-          { request_uri: DEFAULT.requestUri, expires_in: 30 },
-          {
-            status: 201
-          }
-        );
-      }
-      // Backchannel Authorize endpoint
-      if (url.pathname === "/bc-authorize") {
-        if (onBackchannelAuthRequest) {
-          await onBackchannelAuthRequest(new Request(input, init));
-        }
-
-        return Response.json(
-          {
-            auth_req_id: "auth-req-id",
-            expires_in: 30,
-            interval: 0.01
-          },
-          {
-            status: 200
-          }
-        );
-      }
-      // Connect Account
-      if (url.pathname === "/me/v1/connected-accounts/connect") {
-        if (onConnectAccountRequest) {
-          // Connect Account uses a fetcher for DPoP.
-          // This means it creates a `new Request()` internally.
-          // When a body is sent as an object (`{ foo: 'bar' }`), it will be exposed as a `ReadableStream` below.
-          // When a `ReadableStream` is used as body for a `new Request()`, setting `duplex: 'half'` is required.
-          // https://github.com/whatwg/fetch/pull/1457
-          await onConnectAccountRequest(
-            new Request(input, { ...init, duplex: "half" } as RequestInit)
-          );
-        }
-
-        return Response.json(
-          {
-            connect_uri: `https://${DEFAULT.domain}/connect`,
-            auth_session: DEFAULT.connectAccount.authSession,
-            connect_params: {
-              ticket: DEFAULT.connectAccount.ticket
-            },
-            expires_in: 300
-          },
-          {
-            status: 201
-          }
-        );
-      }
-      // Connect Account complete
-      if (url.pathname === "/me/v1/connected-accounts/complete") {
-        if (onCompleteConnectAccountRequest) {
-          // Complete Connect Account uses a fetcher for DPoP.
-          // This means it creates a `new Request()` internally.
-          // When a body is sent as an object (`{ foo: 'bar' }`), it will be exposed as a `ReadableStream` below.
-          // When a `ReadableStream` is used as body for a `new Request()`, setting `duplex: 'half'` is required.
-          // https://github.com/whatwg/fetch/pull/1457
-          await onCompleteConnectAccountRequest(
-            new Request(input, { ...init, duplex: "half" } as RequestInit)
-          );
-        }
-
-        if (completeConnectAccountErrorResponse) {
-          return completeConnectAccountErrorResponse;
-        }
-
-        return Response.json(
-          {
-            id: "cac_abc123",
-            connection: DEFAULT.connectAccount.connection,
-            access_type: "offline",
-            scopes: ["openid", "profile", "email"],
-            created_at: new Date().toISOString(),
-            expires_at: new Date(
-              Date.now() + 1000 * 60 * 60 * 24 * 30
-            ).toISOString() // 30 days
-          },
-          {
-            status: 201
-          }
-        );
-      }
+      
 
       return new Response(null, { status: 404 });
     }
