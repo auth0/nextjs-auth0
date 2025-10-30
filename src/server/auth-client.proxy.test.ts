@@ -487,57 +487,55 @@ function getMockAuthorizationServer({
   keyPair?: jose.GenerateKeyPairResult;
 } = {}) {
   // this function acts as a mock authorization server
-  return vi.fn(
-    async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-      let url: URL;
-      if (input instanceof Request) {
-        url = new URL(input.url);
-      } else {
-        url = new URL(input);
-      }
-
-      if (url.pathname === "/oauth/token") {
-        if (tokenEndpointFetchError) {
-          throw tokenEndpointFetchError;
-        }
-
-        const jwt = await new jose.SignJWT({
-          sid: DEFAULT.sid,
-          auth_time: Date.now(),
-          nonce: nonce ?? "nonce-value",
-          "https://example.com/custom_claim": "value"
-        })
-          .setProtectedHeader({ alg: DEFAULT.alg })
-          .setSubject(DEFAULT.sub)
-          .setIssuedAt()
-          .setIssuer(_authorizationServerMetadata.issuer)
-          .setAudience(audience ?? DEFAULT.clientId)
-          .setExpirationTime("2h")
-          .sign(keyPair.privateKey);
-
-        if (tokenEndpointErrorResponse) {
-          return Response.json(tokenEndpointErrorResponse, {
-            status: 400
-          });
-        }
-        return Response.json(
-          tokenEndpointResponse ?? {
-            token_type: "Bearer",
-            access_token: DEFAULT.accessToken,
-            refresh_token: DEFAULT.refreshToken,
-            id_token: jwt,
-            expires_in: 86400 // expires in 10 days
-          }
-        );
-      }
-      // discovery URL
-      if (url.pathname === "/.well-known/openid-configuration") {
-        return discoveryResponse ?? Response.json(_authorizationServerMetadata);
-      }
-
-      return new Response(null, { status: 404 });
+  return vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
+    let url: URL;
+    if (input instanceof Request) {
+      url = new URL(input.url);
+    } else {
+      url = new URL(input);
     }
-  );
+
+    if (url.pathname === "/oauth/token") {
+      if (tokenEndpointFetchError) {
+        throw tokenEndpointFetchError;
+      }
+
+      const jwt = await new jose.SignJWT({
+        sid: DEFAULT.sid,
+        auth_time: Date.now(),
+        nonce: nonce ?? "nonce-value",
+        "https://example.com/custom_claim": "value"
+      })
+        .setProtectedHeader({ alg: DEFAULT.alg })
+        .setSubject(DEFAULT.sub)
+        .setIssuedAt()
+        .setIssuer(_authorizationServerMetadata.issuer)
+        .setAudience(audience ?? DEFAULT.clientId)
+        .setExpirationTime("2h")
+        .sign(keyPair.privateKey);
+
+      if (tokenEndpointErrorResponse) {
+        return Response.json(tokenEndpointErrorResponse, {
+          status: 400
+        });
+      }
+      return Response.json(
+        tokenEndpointResponse ?? {
+          token_type: "Bearer",
+          access_token: DEFAULT.accessToken,
+          refresh_token: DEFAULT.refreshToken,
+          id_token: jwt,
+          expires_in: 86400 // expires in 10 days
+        }
+      );
+    }
+    // discovery URL
+    if (url.pathname === "/.well-known/openid-configuration") {
+      return discoveryResponse ?? Response.json(_authorizationServerMetadata);
+    }
+
+    return new Response(null, { status: 404 });
+  });
 }
 
 async function createSessionCookie(session: SessionData, secret: string) {
