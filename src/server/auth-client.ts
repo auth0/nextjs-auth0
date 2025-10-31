@@ -55,6 +55,10 @@ import { mergeAuthorizationParamsIntoSearchParams } from "../utils/authorization
 import { DEFAULT_SCOPES } from "../utils/constants.js";
 import { withDPoPNonceRetry } from "../utils/dpopUtils.js";
 import {
+  buildForwardedRequestHeaders,
+  buildForwardedResponseHeaders
+} from "../utils/proxy.js";
+import {
   ensureNoLeadingSlash,
   ensureTrailingSlash,
   normalizeWithBasePath,
@@ -2252,14 +2256,7 @@ export class AuthClient {
     const targetUrl = new URL(
       req.nextUrl.pathname.replace(options.proxyPath, targetBaseUrl.toString())
     );
-    const headers = new Headers(req.headers);
-
-    // We have to delete the authorization header as the SDK always has a Bearer header for now.
-    // TODO: Once the SDKs are updated, we should be able to remove this line.
-    headers.delete("authorization");
-    // We have to delete the host header to avoid certificate errors when calling the target url.
-    // TODO: We need to see if this causes issues or not.
-    headers.delete("host");
+    const headers = buildForwardedRequestHeaders(req);
 
     // Forward all search params
     req.nextUrl.searchParams.forEach((value, key) => {
@@ -2310,7 +2307,11 @@ export class AuthClient {
         { scope: options.scope, audience: options.audience }
       );
 
-      const res = new NextResponse(response.body, response);
+      const res = new NextResponse(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: buildForwardedResponseHeaders(response)
+      });
 
       // Using the last used token set response to determine if we need to update the session
       // This is not ideal, as this kind of relies on the order of execution.
