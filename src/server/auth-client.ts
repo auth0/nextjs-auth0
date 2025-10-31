@@ -1964,49 +1964,6 @@ export class AuthClient {
   }
 
   /**
-   * Updates the session after token retrieval if there are changes.
-   *
-   * This method:
-   * 1. Checks if the session needs to be updated based on token changes
-   * 2. Updates the user claims if new ID token claims are provided
-   * 3. Finalizes the session through the beforeSessionSaved hook or default filtering
-   * 4. Persists the updated session to the session store
-   * 5. Adds cache control headers to the response
-   */
-  async #updateSessionAfterTokenRetrieval(
-    req: NextRequest,
-    res: NextResponse,
-    session: SessionData,
-    tokenSetResponse: GetTokenSetResponse
-  ): Promise<void> {
-    const sessionChanges = getSessionChangesAfterGetAccessToken(
-      session,
-      tokenSetResponse.tokenSet,
-      {
-        scope: this.authorizationParameters?.scope,
-        audience: this.authorizationParameters?.audience
-      }
-    );
-
-    if (sessionChanges) {
-      if (tokenSetResponse.idTokenClaims) {
-        session.user = tokenSetResponse.idTokenClaims as User;
-      }
-      // call beforeSessionSaved callback if present
-      // if not then filter id_token claims with default rules
-      const finalSession = await this.finalizeSession(
-        {
-          ...session,
-          ...sessionChanges
-        },
-        tokenSetResponse.tokenSet.idToken
-      );
-      await this.sessionStore.set(req.cookies, res.cookies, finalSession);
-      addCacheControlHeadersForSession(res);
-    }
-  }
-
-  /**
    * Initiates the connect account flow for linking a third-party account to the user's profile.
    * The user will be redirected to authorize the connection.
    */
