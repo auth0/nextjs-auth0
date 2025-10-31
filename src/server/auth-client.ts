@@ -247,6 +247,8 @@ export class AuthClient {
   private dpopKeyPair?: DpopKeyPair;
   private readonly useDPoP: boolean;
 
+  private proxyFetchers: { [audience: string]: Fetcher<Response> } = {};
+
   constructor(options: AuthClientOptions) {
     // dependencies
     this.fetch = options.fetch || fetch;
@@ -2266,33 +2268,35 @@ export class AuthClient {
 
     let getTokenSetResponse!: GetTokenSetResponse;
 
-    const fetcher = await this.fetcherFactory({
-      useDPoP: this.useDPoP,
-      fetch: this.fetch,
-      getAccessToken: async (authParams) => {
-        const [error, tokenSetResponse] = await this.getTokenSet(session, {
-          audience: authParams.audience,
-          scope: authParams.scope
-        });
+    this.proxyFetchers[options.audience] =
+      this.proxyFetchers[options.audience] ??
+      (await this.fetcherFactory({
+        useDPoP: this.useDPoP,
+        fetch: this.fetch,
+        getAccessToken: async (authParams) => {
+          const [error, tokenSetResponse] = await this.getTokenSet(session, {
+            audience: authParams.audience,
+            scope: authParams.scope
+          });
 
-        if (error) {
-          throw error;
+          if (error) {
+            throw error;
+          }
+
+          // Tracking the last used token set response for session updates later.
+          // This relies on the fact that `getAccessToken` is called before the actual fetch.
+          // Not ideal, but works because of that order of execution.
+          // We need to do this because the fetcher does not return the token set used, and we need it to update the session if necessary.
+          // Additionally, updating the session requires the request and response objects, which are not available in the fetcher,
+          // so we can not updat the session directly from the fetcher.
+          getTokenSetResponse = tokenSetResponse;
+
+          return tokenSetResponse.tokenSet;
         }
-
-        // Tracking the last used token set response for session updates later.
-        // This relies on the fact that `getAccessToken` is called before the actual fetch.
-        // Not ideal, but works because of that order of execution.
-        // We need to do this because the fetcher does not return the token set used, and we need it to update the session if necessary.
-        // Additionally, updating the session requires the request and response objects, which are not available in the fetcher,
-        // so we can not updat the session directly from the fetcher.
-        getTokenSetResponse = tokenSetResponse;
-
-        return tokenSetResponse.tokenSet;
-      }
-    });
+      }));
 
     try {
-      const response = await fetcher.fetchWithAuth(
+      const response = await this.proxyFetchers[options.audience].fetchWithAuth(
         targetUrl.toString(),
         {
           method: req.method,
