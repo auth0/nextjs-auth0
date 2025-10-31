@@ -1,15 +1,5 @@
 # Change Log
 
-## [v4.11.1](https://github.com/auth0/nextjs-auth0/tree/v4.11.1) (2025-10-31)
-[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.11.0...v4.11.1)
-
-**Fixed**
-- fix: DPoP nonce retry on auth code callback [\#2391](https://github.com/auth0/nextjs-auth0/pull/2391) ([tusharpandey13](https://github.com/tusharpandey13))
-- fix: append intl headers in with-next-intl instead of overwrite [\#2386](https://github.com/auth0/nextjs-auth0/pull/2386) ([tusharpandey13](https://github.com/tusharpandey13))
-- fix: make sure `beforeSessionSaved` hook gets the updated token after refresh [\#2387](https://github.com/auth0/nextjs-auth0/pull/2387) ([tusharpandey13](https://github.com/tusharpandey13))
-- Fix `updateSession` and header overwrite issues [\#2330](https://github.com/auth0/nextjs-auth0/pull/2330) ([tusharpandey13](https://github.com/tusharpandey13))
-- bugfix: Remove React dependency from server helpers to fix edge runtime bundling [\#2329](https://github.com/auth0/nextjs-auth0/pull/2329) ([tusharpandey13](https://github.com/tusharpandey13))
-
 ## [v4.11.0](https://github.com/auth0/nextjs-auth0/tree/v4.11.0) (2025-10-18)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.10.0...v4.11.0)
 
