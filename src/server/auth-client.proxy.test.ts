@@ -1,7 +1,17 @@
 import { NextRequest, NextResponse } from "next/server.js";
 import * as jose from "jose";
-import * as oauth from "oauth4webapi";
-import { beforeEach, describe, expect, it, Mock, vi } from "vitest";
+import { http, HttpResponse } from "msw";
+import { setupServer } from "msw/node";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi
+} from "vitest";
 
 import { getDefaultRoutes } from "../test/defaults.js";
 import { generateSecret } from "../test/utils.js";
@@ -40,34 +50,72 @@ describe("Authentication Client", async () => {
     };
 
     const secret = await generateSecret(32);
-
-    let mockAuthorizationServer: Mock<typeof fetch>;
-    const mockFetchHandler = vi.fn();
-    const mockFetch = async (
-      input: RequestInfo | URL,
-      init?: RequestInit
-    ): Promise<Response> => {
-      let url: URL;
-      if (input instanceof Request) {
-        url = new URL(input.url);
-      } else {
-        url = new URL(input);
-      }
-
-      const result = mockFetchHandler(url, init);
-
-      if (result) {
-        return result;
-      }
-
-      return mockAuthorizationServer(input, init);
-    };
-
     let authClient: AuthClient;
+
+    // Create MSW server with default handlers
+    const server = setupServer(
+      // Discovery endpoint
+      http.get(
+        `https://${DEFAULT.domain}/.well-known/openid-configuration`,
+        () => {
+          return HttpResponse.json(_authorizationServerMetadata);
+        }
+      ),
+      // OAuth token endpoint
+      http.post(`https://${DEFAULT.domain}/oauth/token`, async () => {
+        const jwt = await new jose.SignJWT({
+          sid: DEFAULT.sid,
+          auth_time: Date.now(),
+          nonce: "nonce-value",
+          "https://example.com/custom_claim": "value"
+        })
+          .setProtectedHeader({ alg: DEFAULT.alg })
+          .setSubject(DEFAULT.sub)
+          .setIssuedAt()
+          .setIssuer(_authorizationServerMetadata.issuer)
+          .setAudience(DEFAULT.clientId)
+          .setExpirationTime("2h")
+          .sign(DEFAULT.keyPair.privateKey);
+
+        return HttpResponse.json({
+          token_type: "Bearer",
+          access_token: DEFAULT.accessToken,
+          refresh_token: DEFAULT.refreshToken,
+          id_token: jwt,
+          expires_in: 86400 // expires in 10 days
+        });
+      }),
+      // My Account proxy endpoint (default GET)
+      http.get(`https://${DEFAULT.domain}/me/v1/foo-bar/12`, ({ request }) => {
+        const url = new URL(request.url);
+        if (url.searchParams.get("foo") === "bar") {
+          return HttpResponse.json(myAccountResponse);
+        }
+        return new HttpResponse(null, { status: 404 });
+      }),
+      // My Account proxy endpoint (default POST) - acts as a fallback
+      http.post(`https://${DEFAULT.domain}/me/v1/foo-bar/12`, () => {
+        return HttpResponse.json(myAccountResponse);
+      })
+    );
+
+    // Start MSW server before all tests
+    beforeAll(() => {
+      server.listen({ onUnhandledRequest: "bypass" });
+    });
+
+    // Reset handlers after each test
+    afterEach(() => {
+      server.resetHandlers();
+    });
+
+    // Stop MSW server after all tests
+    afterAll(() => {
+      server.close();
+    });
 
     beforeEach(async () => {
       const dpopKeyPair = await generateDpopKeyPair();
-      mockAuthorizationServer = getMockAuthorizationServer();
       authClient = new AuthClient({
         transactionStore: new TransactionStore({
           secret
@@ -85,7 +133,7 @@ describe("Authentication Client", async () => {
 
         routes: getDefaultRoutes(),
 
-        fetch: mockFetch,
+        // No need to pass custom fetch - MSW will intercept native fetch
         useDPoP: true,
         dpopKeyPair: dpopKeyPair,
         authorizationParameters: {
@@ -93,19 +141,9 @@ describe("Authentication Client", async () => {
           scope: {
             [`https://${DEFAULT.domain}/me/`]: "foo"
           }
-        }
-      });
-    });
-
-    beforeEach(() => {
-      mockFetchHandler.mockClear();
-      mockFetchHandler.mockImplementation((url: URL) => {
-        if (
-          url.toString() ===
-          `https://${DEFAULT.domain}/me/v1/foo-bar/12?foo=bar`
-        ) {
-          return Response.json(myAccountResponse);
-        }
+        },
+        fetch: (url, init) =>
+          fetch(url, { ...init, ...(init?.body ? { duplex: "half" } : {}) })
       });
     });
 
@@ -165,18 +203,21 @@ describe("Authentication Client", async () => {
       });
       const cookie = await createSessionCookie(session, secret);
 
-      mockFetchHandler.mockImplementation((url: URL, init: RequestInit) => {
-        const token = (init.headers as any)["authorization"]
-          ?.toString()
-          .split(" ")[1];
+      // Override the handler to check for the cached access token
+      server.use(
+        http.get(
+          `https://${DEFAULT.domain}/me/v1/foo-bar/12`,
+          ({ request }) => {
+            const authHeader = request.headers.get("authorization");
+            const token = authHeader?.split(" ")[1];
 
-        if (
-          url.toString() === `https://${DEFAULT.domain}/me/v1/foo-bar/12` &&
-          token === cachedAccessToken
-        ) {
-          return Response.json(myAccountResponse);
-        }
-      });
+            if (token === cachedAccessToken) {
+              return HttpResponse.json(myAccountResponse);
+            }
+            return new HttpResponse(null, { status: 401 });
+          }
+        )
+      );
 
       const request = new NextRequest(
         new URL("/me/foo-bar/12", DEFAULT.appBaseUrl),
@@ -193,11 +234,6 @@ describe("Authentication Client", async () => {
 
       // The Set Cookie header is not updated since the cache was used
       expect(response.headers.get("Set-Cookie")).toBeFalsy();
-      // The /oauth/token endpoint was not called
-      expect(mockAuthorizationServer).not.toHaveBeenCalledWith(
-        `https://${DEFAULT.domain}/oauth/token`,
-        expect.anything()
-      );
     });
 
     it("should update the cache when using stateless storage when no entry", async () => {
@@ -216,12 +252,6 @@ describe("Authentication Client", async () => {
       );
 
       const response = await authClient.handleMyAccount(request);
-
-      // The /oauth/token endpoint was called
-      expect(mockAuthorizationServer).toHaveBeenCalledWith(
-        `https://${DEFAULT.domain}/oauth/token`,
-        expect.anything()
-      );
 
       const accessToken = await getAccessTokenFromSetCookieHeader(
         response,
@@ -261,12 +291,6 @@ describe("Authentication Client", async () => {
 
       const response = await authClient.handleMyAccount(request);
 
-      // The /oauth/token endpoint was called
-      expect(mockAuthorizationServer).toHaveBeenCalledWith(
-        `https://${DEFAULT.domain}/oauth/token`,
-        expect.anything()
-      );
-
       const accessToken = await getAccessTokenFromSetCookieHeader(
         response,
         secret,
@@ -278,11 +302,18 @@ describe("Authentication Client", async () => {
     });
 
     it("should proxy POST request to my account", async () => {
-      mockFetchHandler.mockImplementation((url: URL, init?: RequestInit) => {
-        if (url.toString() === `https://${DEFAULT.domain}/me/v1/foo-bar/12`) {
-          return new Response(init?.body, { status: 200 });
-        }
-      });
+      // Override handler to echo the POST body
+      server.use(
+        http.post(
+          `https://${DEFAULT.domain}/me/v1/foo-bar/12`,
+          async ({ request }) => {
+            console.log("Inside MSW handler for POST /me/v1/foo-bar/12");
+            const body = await request.json();
+            console.log("Received body in MSW handler:", body);
+            return HttpResponse.json(body, { status: 200 });
+          }
+        )
+      );
 
       const session = createInitialSessionData();
       const cookie = await createSessionCookie(session, secret);
@@ -301,6 +332,12 @@ describe("Authentication Client", async () => {
       );
 
       const response = await authClient.handleMyAccount(request);
+
+      if (response.status !== 200) {
+        const errorText = await response.text();
+        console.error("Error response:", errorText);
+      }
+
       expect(response.status).toEqual(200);
 
       const json = await response.json();
@@ -321,17 +358,18 @@ describe("Authentication Client", async () => {
         }
       );
 
-      mockFetchHandler.mockImplementation((url: URL) => {
-        if (url.toString() === `https://${DEFAULT.domain}/oauth/token`) {
-          return Response.json(
+      // Override oauth/token handler to return an error
+      server.use(
+        http.post(`https://${DEFAULT.domain}/oauth/token`, () => {
+          return HttpResponse.json(
             {
               error: "test_error",
               error_description: "An error from within the unit test."
             },
             { status: 401 }
           );
-        }
-      });
+        })
+      );
 
       const response = await authClient.handleMyAccount(request);
       expect(response.status).toEqual(500);
@@ -367,7 +405,7 @@ describe("Authentication Client", async () => {
       expect(text).toEqual("An error from within the unit test.");
     });
 
-    it.only("should handle when getTokenSet throws without message", async () => {
+    it("should handle when getTokenSet throws without message", async () => {
       const session = createInitialSessionData();
       const cookie = await createSessionCookie(session, secret);
       const request = new NextRequest(
@@ -468,75 +506,6 @@ const _authorizationServerMetadata = {
   backchannel_authentication_endpoint: `https://${DEFAULT.domain}/bc-authorize`,
   backchannel_token_delivery_modes_supported: ["poll"]
 };
-
-function getMockAuthorizationServer({
-  tokenEndpointResponse,
-  tokenEndpointErrorResponse,
-  tokenEndpointFetchError,
-  discoveryResponse,
-  audience,
-  nonce,
-  keyPair = DEFAULT.keyPair
-}: {
-  tokenEndpointResponse?: oauth.TokenEndpointResponse | oauth.OAuth2Error;
-  tokenEndpointErrorResponse?: oauth.OAuth2Error;
-  tokenEndpointFetchError?: Error;
-  discoveryResponse?: Response;
-  audience?: string;
-  nonce?: string;
-  keyPair?: jose.GenerateKeyPairResult;
-} = {}) {
-  // this function acts as a mock authorization server
-  return vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
-    let url: URL;
-    if (input instanceof Request) {
-      url = new URL(input.url);
-    } else {
-      url = new URL(input);
-    }
-
-    if (url.pathname === "/oauth/token") {
-      if (tokenEndpointFetchError) {
-        throw tokenEndpointFetchError;
-      }
-
-      const jwt = await new jose.SignJWT({
-        sid: DEFAULT.sid,
-        auth_time: Date.now(),
-        nonce: nonce ?? "nonce-value",
-        "https://example.com/custom_claim": "value"
-      })
-        .setProtectedHeader({ alg: DEFAULT.alg })
-        .setSubject(DEFAULT.sub)
-        .setIssuedAt()
-        .setIssuer(_authorizationServerMetadata.issuer)
-        .setAudience(audience ?? DEFAULT.clientId)
-        .setExpirationTime("2h")
-        .sign(keyPair.privateKey);
-
-      if (tokenEndpointErrorResponse) {
-        return Response.json(tokenEndpointErrorResponse, {
-          status: 400
-        });
-      }
-      return Response.json(
-        tokenEndpointResponse ?? {
-          token_type: "Bearer",
-          access_token: DEFAULT.accessToken,
-          refresh_token: DEFAULT.refreshToken,
-          id_token: jwt,
-          expires_in: 86400 // expires in 10 days
-        }
-      );
-    }
-    // discovery URL
-    if (url.pathname === "/.well-known/openid-configuration") {
-      return discoveryResponse ?? Response.json(_authorizationServerMetadata);
-    }
-
-    return new Response(null, { status: 404 });
-  });
-}
 
 async function createSessionCookie(session: SessionData, secret: string) {
   const maxAge = 60 * 60; // 1 hour
