@@ -70,6 +70,33 @@ export const auth0 = new Auth0Client();
 > The Auth0Client automatically uses safe defaults to manage authentication cookies. For advanced use cases, you can customize transaction cookie behavior by providing your own configuration. See [Transaction Cookie Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#transaction-cookie-configuration) for details.
 
 ### 4. Add the authentication middleware
+Authentication requests in Next.js are intercepted at the network boundary using a middleware or proxy file.  
+Follow the setup below depending on your Next.js version.
+
+#### 🟦 On Next.js 15
+
+Create a `middleware.ts` file in the root of your project:
+
+```ts
+import type { NextRequest } from "next/server";
+import { auth0 } from "./lib/auth0"; // Adjust path if your auth0 client is elsewhere
+
+export async function middleware(request: NextRequest) {
+  return await auth0.middleware(request);
+}
+
+export const config = {
+  matcher: [
+    /*
+     * Match all request paths except for:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico, sitemap.xml, robots.txt (metadata files)
+     */
+    "/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)"
+  ]
+};
+```
 
 Create a `middleware.ts` file in the root of your project's directory:
 
@@ -97,6 +124,35 @@ export const config = {
 
 > [!NOTE]  
 > If you're using a `src/` directory, the `middleware.ts` file must be created inside the `src/` directory.
+
+
+#### 🟨 On Next.js 16
+Next.js 16 introduces a new convention called proxy.ts, replacing middleware.ts.
+This change better represents the network interception boundary and unifies request handling
+for both the Edge and Node runtimes.
+
+Create a proxy.ts file in the root of your project (Or rename your existing middleware.ts to proxy.ts):
+```ts
+import type { NextRequest } from "next/server";
+import { auth0 } from "./lib/auth0";
+
+export async function proxy(request: NextRequest) {
+  return await auth0.middleware(request);
+}
+
+export const config = {
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)"
+  ]
+};
+```
+> [!IMPORTANT]  
+> Starting with **Next.js 16**, the recommended file for handling authentication boundaries is **`proxy.ts`**. You can still continue using **`middleware.ts`** for backward compatibility, it will work under the **Edge runtime** in Next.js 16. However, it is **deprecated** for the Node runtime and will be removed in a future release.
+>
+> The new proxy layer also executes slightly earlier in the routing pipeline, so make sure your matcher patterns do not conflict with other proxy or middleware routes.  
+>
+> Additionally, the Edge runtime now applies stricter header and cookie validation,  
+> so avoid setting non-string cookie values or invalid header formats.  
 
 > [!IMPORTANT]
 > This broad middleware matcher is essential for rolling sessions and security features. For scenarios when rolling sessions are disabled, see [Session Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#session-configuration) for alternative approaches.

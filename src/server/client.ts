@@ -45,6 +45,7 @@ import {
   WithPageAuthRequiredAppRouterOptions,
   WithPageAuthRequiredPageRouterOptions
 } from "./helpers/with-page-auth-required.js";
+import { toNextRequest } from "./next-compat.js";
 import {
   AbstractSessionStore,
   SessionConfiguration,
@@ -502,8 +503,8 @@ export class Auth0Client {
   /**
    * middleware mounts the SDK routes to run as a middleware function.
    */
-  middleware(req: NextRequest): Promise<NextResponse> {
-    return this.authClient.handler.bind(this.authClient)(req);
+  middleware(req: Request | NextRequest): Promise<NextResponse> {
+    return this.authClient.handler.bind(this.authClient)(toNextRequest(req));
   }
 
   /**
@@ -526,12 +527,13 @@ export class Auth0Client {
    * getSession returns the session data for the current request.
    */
   async getSession(
-    req?: PagesRouterRequest | NextRequest
+    req?: Request | PagesRouterRequest | NextRequest
   ): Promise<SessionData | null> {
     if (req) {
       // middleware usage
-      if (req instanceof NextRequest) {
-        return this.sessionStore.get(req.cookies);
+      if (req instanceof Request) {
+        const nextReq = toNextRequest(req);
+        return this.sessionStore.get(nextReq.cookies);
       }
 
       // pages router usage
@@ -745,7 +747,7 @@ export class Auth0Client {
    */
   async getAccessTokenForConnection(
     options: AccessTokenForConnectionOptions,
-    req: PagesRouterRequest | NextRequest | undefined,
+    req: PagesRouterRequest | NextRequest | Request | undefined,
     res: PagesRouterResponse | NextResponse | undefined
   ): Promise<{ token: string; expiresAt: number }>;
 
@@ -768,11 +770,12 @@ export class Auth0Client {
    */
   async getAccessTokenForConnection(
     options: AccessTokenForConnectionOptions,
-    req?: PagesRouterRequest | NextRequest,
+    req?: PagesRouterRequest | NextRequest | Request,
     res?: PagesRouterResponse | NextResponse
   ): Promise<{ token: string; expiresAt: number; scope?: string }> {
-    const session: SessionData | null = req
-      ? await this.getSession(req)
+    const nextReq = req instanceof Request ? toNextRequest(req) : req;
+    const session: SessionData | null = nextReq
+      ? await this.getSession(nextReq)
       : await this.getSession();
 
     if (!session) {
@@ -828,7 +831,7 @@ export class Auth0Client {
           ...session,
           connectionTokenSets: tokenSets
         },
-        req,
+        nextReq,
         res
       );
     }
@@ -846,7 +849,7 @@ export class Auth0Client {
    * This method can be used in middleware and `getServerSideProps`, API routes, and middleware in the **Pages Router**.
    */
   async updateSession(
-    req: PagesRouterRequest | NextRequest,
+    req: PagesRouterRequest | NextRequest | Request,
     res: PagesRouterResponse | NextResponse,
     session: SessionData
   ): Promise<void>;
@@ -862,12 +865,11 @@ export class Auth0Client {
    * updateSession updates the session of the currently authenticated user. If the user does not have a session, an error is thrown.
    */
   async updateSession(
-    reqOrSession: PagesRouterRequest | NextRequest | SessionData,
+    reqOrSession: PagesRouterRequest | NextRequest | Request | SessionData,
     res?: PagesRouterResponse | NextResponse,
     sessionData?: SessionData
   ) {
     if (!res) {
-      // app router: Server Actions, Route Handlers
       const existingSession = await this.getSession();
 
       if (!existingSession) {
@@ -885,76 +887,103 @@ export class Auth0Client {
           ...existingSession.internal
         }
       });
-    } else {
-      const req = reqOrSession as PagesRouterRequest | NextRequest;
 
-      if (!sessionData) {
-        throw new Error("The session data is missing.");
+      return;
+    }
+
+    const req = reqOrSession as PagesRouterRequest | NextRequest | Request;
+
+    if (!sessionData) {
+      throw new Error("The session data is missing.");
+    }
+
+    if (req instanceof NextRequest && res instanceof NextResponse) {
+      // middleware usage
+      const existingSession = await this.getSession(req);
+
+      if (!existingSession) {
+        throw new Error("The user is not authenticated.");
       }
 
-      if (req instanceof NextRequest && res instanceof NextResponse) {
-        // middleware usage
-        const existingSession = await this.getSession(req);
-
-        if (!existingSession) {
-          throw new Error("The user is not authenticated.");
+      await this.sessionStore.set(req.cookies, res.cookies, {
+        ...sessionData,
+        internal: {
+          ...existingSession.internal
         }
+      });
 
-        await this.sessionStore.set(req.cookies, res.cookies, {
-          ...sessionData,
-          internal: {
-            ...existingSession.internal
-          }
-        });
+      return;
+    }
+
+    /*
+     * Next 16 proxy.ts path
+     * In Next 16 the function in proxy.ts gets a plain Web Request.
+     * We need to turn it into a NextRequest so that sessionStore can read cookies, then write back to the NextResponse.
+     */
+    if (req instanceof Request && res instanceof NextResponse) {
+      // rebuild a NextRequest using THIS sdk's next/server
+      const nextReq = toNextRequest(req);
+
+      const existingSession = await this.getSession(nextReq);
+
+      if (!existingSession) {
+        throw new Error("The user is not authenticated.");
+      }
+
+      await this.sessionStore.set(nextReq.cookies, res.cookies, {
+        ...sessionData,
+        internal: {
+          ...existingSession.internal
+        }
+      });
+
+      return;
+    }
+
+    // pages router usage
+    const existingSession = await this.getSession(req as PagesRouterRequest);
+
+    if (!existingSession) {
+      throw new Error("The user is not authenticated.");
+    }
+
+    const resHeaders = new Headers();
+    const resCookies = new ResponseCookies(resHeaders);
+    const updatedSession = sessionData as SessionData;
+    const reqCookies = this.createRequestCookies(req as PagesRouterRequest);
+    const pagesRouterRes = res as PagesRouterResponse;
+
+    await this.sessionStore.set(reqCookies, resCookies, {
+      ...updatedSession,
+      internal: {
+        ...existingSession.internal
+      }
+    });
+
+    // Handle multiple set-cookie headers properly
+    // resHeaders.entries() yields each set-cookie header separately,
+    // but res.setHeader() overwrites previous values. We need to collect
+    // all set-cookie values and set them as an array.
+    // Note: Per the Web API specification, the Headers API normalizes header names
+    // to lowercase, so comparing key.toLowerCase() === "set-cookie" is safe.
+    const setCookieValues: string[] = [];
+    const otherHeaders: Record<string, string> = {};
+
+    for (const [key, value] of resHeaders.entries()) {
+      if (key.toLowerCase() === "set-cookie") {
+        setCookieValues.push(value);
       } else {
-        // pages router usage
-        const existingSession = await this.getSession(
-          req as PagesRouterRequest
-        );
-
-        if (!existingSession) {
-          throw new Error("The user is not authenticated.");
-        }
-
-        const resHeaders = new Headers();
-        const resCookies = new ResponseCookies(resHeaders);
-        const updatedSession = sessionData as SessionData;
-        const reqCookies = this.createRequestCookies(req as PagesRouterRequest);
-        const pagesRouterRes = res as PagesRouterResponse;
-
-        await this.sessionStore.set(reqCookies, resCookies, {
-          ...updatedSession,
-          internal: {
-            ...existingSession.internal
-          }
-        });
-
-        // Handle multiple set-cookie headers properly
-        // resHeaders.entries() yields each set-cookie header separately,
-        // but res.setHeader() overwrites previous values. We need to collect
-        // all set-cookie values and set them as an array.
-        // Note: Per the Web API specification, the Headers API normalizes header names
-        // to lowercase, so comparing key.toLowerCase() === "set-cookie" is safe.
-        const setCookieValues: string[] = [];
-        const otherHeaders: Record<string, string> = {};
-
-        for (const [key, value] of resHeaders.entries()) {
-          if (key.toLowerCase() === "set-cookie") {
-            setCookieValues.push(value);
-          } else {
-            otherHeaders[key] = value;
-          }
-        }
-        // Set all cookies at once as an array if any exist
-        if (setCookieValues.length > 0) {
-          pagesRouterRes.setHeader("set-cookie", setCookieValues);
-        }
-
-        // Set non-cookie headers normally
-        for (const [key, value] of Object.entries(otherHeaders)) {
-          pagesRouterRes.setHeader(key, value);
-        }
+        otherHeaders[key] = value;
       }
+    }
+    // Set all cookies at once as an array if any exist
+    if (setCookieValues.length > 0) {
+      pagesRouterRes.setHeader("set-cookie", setCookieValues);
+    }
+
+    // Set non-cookie headers normally
+    for (const [key, value] of Object.entries(otherHeaders)) {
+      pagesRouterRes.setHeader(key, value);
     }
   }
 
@@ -1243,7 +1272,7 @@ export class Auth0Client {
    * @see {@link FetcherMinimalConfig} for available configuration options
    */
   public async createFetcher<TOutput extends Response = Response>(
-    req: PagesRouterRequest | NextRequest | undefined,
+    req: PagesRouterRequest | NextRequest | Request | undefined,
     options: {
       /** Enable DPoP for this fetcher instance (overrides global setting) */
       useDPoP?: boolean;
@@ -1255,8 +1284,9 @@ export class Auth0Client {
       fetch?: CustomFetchImpl<TOutput>;
     }
   ) {
-    const session: SessionData | null = req
-      ? await this.getSession(req)
+    const nextReq = req instanceof Request ? toNextRequest(req) : req;
+    const session: SessionData | null = nextReq
+      ? await this.getSession(nextReq)
       : await this.getSession();
 
     if (!session) {

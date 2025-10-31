@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server.js";
+import type { NextResponse } from "next/server.js";
 import {
   RequestCookie,
   RequestCookies,
