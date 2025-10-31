@@ -61,6 +61,10 @@ import {
   removeTrailingSlash
 } from "../utils/pathUtils.js";
 import {
+  buildForwardedRequestHeaders,
+  buildForwardedResponseHeaders
+} from "../utils/proxy.js";
+import {
   ensureDefaultScope,
   getScopeForAudience
 } from "../utils/scope-helpers.js";
@@ -247,6 +251,8 @@ export class AuthClient {
   private dpopKeyPair?: DpopKeyPair;
   private readonly useDPoP: boolean;
 
+  private proxyFetchers: { [audience: string]: Fetcher<Response> } = {};
+
   constructor(options: AuthClientOptions) {
     // dependencies
     this.fetch = options.fetch || fetch;
@@ -399,6 +405,10 @@ export class AuthClient {
       this.enableConnectAccountEndpoint
     ) {
       return this.handleConnectAccount(req);
+    } else if (sanitizedPathname.startsWith("/me")) {
+      return this.handleMyAccount(req);
+    } else if (sanitizedPathname.startsWith("/my-org")) {
+      return this.handleMyOrg(req);
     } else {
       // no auth handler found, simply touch the sessions
       // TODO: this should only happen if rolling sessions are enabled. Also, we should
@@ -1053,6 +1063,24 @@ export class AuthClient {
     );
 
     return connectAccountResponse;
+  }
+
+  async handleMyAccount(req: NextRequest): Promise<NextResponse> {
+    return this.#handleProxy(req, {
+      proxyPath: "/me",
+      targetBaseUrl: `${this.issuer}/me/v1`,
+      audience: `${this.issuer}/me/`,
+      scope: req.headers.get("auth0-scope")
+    });
+  }
+
+  async handleMyOrg(req: NextRequest): Promise<NextResponse> {
+    return this.#handleProxy(req, {
+      proxyPath: "/my-org",
+      targetBaseUrl: `${this.issuer}/my-org`,
+      audience: `${this.issuer}/my-org/`,
+      scope: req.headers.get("auth0-scope")
+    });
   }
 
   /**
@@ -2197,6 +2225,116 @@ export class AuthClient {
     };
 
     return new Fetcher<TOutput>(fetcherConfig, fetcherHooks);
+  }
+
+  /**
+   * Handles proxying requests to a target URL with authentication.
+   *
+   * This method retrieves the user's session, constructs the target URL,
+   * and forwards the request with appropriate authentication headers.
+   * It also manages token retrieval and session updates as needed.
+   * @param req The incoming Next.js request to be proxied.
+   * @param options Configuration options for the proxying behavior.
+   * @returns A Next.js response containing the proxied request's response.
+   */
+  async #handleProxy(
+    req: NextRequest,
+    options: {
+      proxyPath: string;
+      targetBaseUrl: string;
+      audience: string;
+      scope: string | null;
+    }
+  ): Promise<NextResponse> {
+    const session = await this.sessionStore.get(req.cookies);
+    if (!session) {
+      return new NextResponse("The user does not have an active session.", {
+        status: 401
+      });
+    }
+    const targetBaseUrl = options.targetBaseUrl;
+    const targetUrl = new URL(
+      req.nextUrl.pathname.replace(options.proxyPath, targetBaseUrl.toString())
+    );
+    const headers = buildForwardedRequestHeaders(req);
+
+    // Forward all search params
+    req.nextUrl.searchParams.forEach((value, key) => {
+      targetUrl.searchParams.set(key, value);
+    });
+
+    let getTokenSetResponse!: GetTokenSetResponse;
+
+    this.proxyFetchers[options.audience] =
+      this.proxyFetchers[options.audience] ??
+      (await this.fetcherFactory({
+        useDPoP: this.useDPoP,
+        fetch: this.fetch,
+        getAccessToken: async (authParams) => {
+          const [error, tokenSetResponse] = await this.getTokenSet(session, {
+            audience: authParams.audience,
+            scope: authParams.scope
+          });
+
+          if (error) {
+            throw error;
+          }
+
+          // Tracking the last used token set response for session updates later.
+          // This relies on the fact that `getAccessToken` is called before the actual fetch.
+          // Not ideal, but works because of that order of execution.
+          // We need to do this because the fetcher does not return the token set used, and we need it to update the session if necessary.
+          // Additionally, updating the session requires the request and response objects, which are not available in the fetcher,
+          // so we can not updat the session directly from the fetcher.
+          getTokenSetResponse = tokenSetResponse;
+
+          return tokenSetResponse.tokenSet;
+        }
+      }));
+
+    try {
+      const response = await this.proxyFetchers[options.audience].fetchWithAuth(
+        targetUrl.toString(),
+        {
+          method: req.method,
+          headers,
+          body: req.body,
+          // @ts-expect-error duplex is not known, while we do need it for sending streams as the body.
+          // As we are receiving a request, body is always exposed as a ReadableStream when defined,
+          // so setting duplex to 'half' is required at that point.
+          duplex: req.body ? "half" : undefined
+        },
+        { scope: options.scope, audience: options.audience }
+      );
+
+      const res = new NextResponse(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: buildForwardedResponseHeaders(response)
+      });
+
+      // Using the last used token set response to determine if we need to update the session
+      // This is not ideal, as this kind of relies on the order of execution.
+      // As we know the fetcher's `getAccessToken` is called before the actual fetch,
+      // we know it should always be defined when we reach this point.
+      if (getTokenSetResponse) {
+        await this.#updateSessionAfterTokenRetrieval(
+          req,
+          res,
+          session,
+          getTokenSetResponse
+        );
+      }
+
+      return res;
+    } catch (e: any) {
+      return new NextResponse(
+        e.cause || e.message || "An error occurred while proxying the request.",
+        {
+          status: 500
+        }
+      );
+    }
   }
 
   /**
