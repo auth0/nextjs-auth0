@@ -55,15 +55,15 @@ import { mergeAuthorizationParamsIntoSearchParams } from "../utils/authorization
 import { DEFAULT_SCOPES } from "../utils/constants.js";
 import { withDPoPNonceRetry } from "../utils/dpopUtils.js";
 import {
-  buildForwardedRequestHeaders,
-  buildForwardedResponseHeaders
-} from "../utils/proxy.js";
-import {
   ensureNoLeadingSlash,
   ensureTrailingSlash,
   normalizeWithBasePath,
   removeTrailingSlash
 } from "../utils/pathUtils.js";
+import {
+  buildForwardedRequestHeaders,
+  buildForwardedResponseHeaders
+} from "../utils/proxy.js";
 import {
   ensureDefaultScope,
   getScopeForAudience

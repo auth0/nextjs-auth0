@@ -1,8 +1,9 @@
-import { describe, it, expect } from "vitest";
 import { NextRequest } from "next/server.js";
+import { describe, expect, it } from "vitest";
+
 import {
   buildForwardedRequestHeaders,
-  buildForwardedResponseHeaders,
+  buildForwardedResponseHeaders
 } from "./proxy.js";
 
 describe("headers", () => {
@@ -14,8 +15,8 @@ describe("headers", () => {
           "accept-language": "en-US",
           "user-agent": "Mozilla/5.0",
           "x-forwarded-for": "192.168.1.1",
-          "x-request-id": "abc123",
-        },
+          "x-request-id": "abc123"
+        }
       });
 
       const result = buildForwardedRequestHeaders(request);
@@ -33,8 +34,8 @@ describe("headers", () => {
           accept: "application/json",
           "x-custom-header": "should-not-be-forwarded",
           authorization: "Bearer token",
-          cookie: "session=xyz",
-        },
+          cookie: "session=xyz"
+        }
       });
 
       const result = buildForwardedRequestHeaders(request);
@@ -50,8 +51,8 @@ describe("headers", () => {
         headers: {
           Accept: "application/json",
           "Content-Type": "text/plain",
-          "User-Agent": "Mozilla/5.0",
-        },
+          "User-Agent": "Mozilla/5.0"
+        }
       });
 
       const result = buildForwardedRequestHeaders(request);
@@ -75,8 +76,8 @@ describe("headers", () => {
           "cache-control": "no-cache",
           "if-none-match": '"abc123"',
           "if-modified-since": "Wed, 21 Oct 2015 07:28:00 GMT",
-          etag: '"xyz789"',
-        },
+          etag: '"xyz789"'
+        }
       });
 
       const result = buildForwardedRequestHeaders(request);
@@ -94,8 +95,8 @@ describe("headers", () => {
         headers: {
           traceparent: "00-abc123-def456-01",
           tracestate: "vendor=value",
-          "x-correlation-id": "corr-123",
-        },
+          "x-correlation-id": "corr-123"
+        }
       });
 
       const result = buildForwardedRequestHeaders(request);
@@ -111,8 +112,8 @@ describe("headers", () => {
           "x-forwarded-for": "192.168.1.1, 10.0.0.1",
           "x-forwarded-host": "example.com",
           "x-forwarded-proto": "https",
-          "x-real-ip": "192.168.1.1",
-        },
+          "x-real-ip": "192.168.1.1"
+        }
       });
 
       const result = buildForwardedRequestHeaders(request);
@@ -131,8 +132,8 @@ describe("headers", () => {
           "content-type": "application/json",
           "cache-control": "max-age=3600",
           "x-custom-header": "custom-value",
-          etag: '"abc123"',
-        },
+          etag: '"abc123"'
+        }
       });
 
       const result = buildForwardedResponseHeaders(response);
@@ -154,8 +155,8 @@ describe("headers", () => {
           te: "trailers",
           trailer: "Expires",
           "transfer-encoding": "chunked",
-          upgrade: "h2c",
-        },
+          upgrade: "h2c"
+        }
       });
 
       const result = buildForwardedResponseHeaders(response);
@@ -177,8 +178,8 @@ describe("headers", () => {
           "content-type": "application/json",
           Connection: "Keep-Alive",
           "Transfer-Encoding": "chunked",
-          Upgrade: "WebSocket",
-        },
+          Upgrade: "WebSocket"
+        }
       });
 
       const result = buildForwardedResponseHeaders(response);
@@ -209,8 +210,8 @@ describe("headers", () => {
           "content-language": "en-US",
           date: "Wed, 21 Oct 2015 07:28:00 GMT",
           expires: "Thu, 22 Oct 2015 07:28:00 GMT",
-          "last-modified": "Tue, 20 Oct 2015 07:28:00 GMT",
-        },
+          "last-modified": "Tue, 20 Oct 2015 07:28:00 GMT"
+        }
       });
 
       const result = buildForwardedResponseHeaders(response);
@@ -231,8 +232,8 @@ describe("headers", () => {
           "content-security-policy": "default-src 'self'",
           "x-frame-options": "DENY",
           "x-content-type-options": "nosniff",
-          "x-xss-protection": "1; mode=block",
-        },
+          "x-xss-protection": "1; mode=block"
+        }
       });
 
       const result = buildForwardedResponseHeaders(response);
@@ -251,8 +252,8 @@ describe("headers", () => {
           "access-control-allow-methods": "GET, POST, PUT",
           "access-control-allow-headers": "Content-Type, Authorization",
           "access-control-max-age": "86400",
-          "access-control-expose-headers": "X-Custom-Header",
-        },
+          "access-control-expose-headers": "X-Custom-Header"
+        }
       });
 
       const result = buildForwardedResponseHeaders(response);

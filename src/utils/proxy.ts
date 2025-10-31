@@ -29,7 +29,7 @@ const DEFAULT_HEADER_ALLOW_LIST: Set<string> = new Set([
   "x-forwarded-for",
   "x-forwarded-host",
   "x-forwarded-proto",
-  "x-real-ip",
+  "x-real-ip"
 ]);
 
 /**
@@ -60,16 +60,17 @@ const HOP_BY_HOP_HEADERS: Set<string> = new Set([
  * @param options Configuration for additional headers.
  * @returns A WHATWG Headers object suitable for `fetch`.
  */
-export function buildForwardedRequestHeaders(
-  request: NextRequest,
-): Headers {
+export function buildForwardedRequestHeaders(request: NextRequest): Headers {
   const forwardedHeaders = new Headers();
 
   request.headers.forEach((value, key) => {
     const lowerKey = key.toLowerCase();
 
     // Only forward if it's in the allow-list AND not a hop-by-hop header
-    if (DEFAULT_HEADER_ALLOW_LIST.has(lowerKey) && !HOP_BY_HOP_HEADERS.has(lowerKey)) {
+    if (
+      DEFAULT_HEADER_ALLOW_LIST.has(lowerKey) &&
+      !HOP_BY_HOP_HEADERS.has(lowerKey)
+    ) {
       forwardedHeaders.set(key, value);
     }
   });
@@ -86,9 +87,7 @@ export function buildForwardedRequestHeaders(
  * @param request The incoming Response object.
  * @returns A WHATWG Headers object suitable for `fetch`.
  */
-export function buildForwardedResponseHeaders(
-  response: Response,
-): Headers {
+export function buildForwardedResponseHeaders(response: Response): Headers {
   const forwardedHeaders = new Headers();
 
   response.headers.forEach((value, key) => {
