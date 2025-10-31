@@ -451,13 +451,9 @@ describe("Authentication Client", async () => {
 
     it("should proxy DELETE request to my account", async () => {
       server.use(
-        http.delete(
-          `https://${DEFAULT.domain}/me/v1/foo-bar/12`,
-          async ({ request }) => {
-            const body = (await request.json()) as any;
-            return new HttpResponse(null, { status: 204 });
-          }
-        )
+        http.delete(`https://${DEFAULT.domain}/me/v1/foo-bar/12`, async () => {
+          return new HttpResponse(null, { status: 204 });
+        })
       );
 
       const session = createInitialSessionData();
@@ -1058,13 +1054,9 @@ describe("Authentication Client", async () => {
 
     it("should proxy DELETE request to my org", async () => {
       server.use(
-        http.delete(
-          `https://${DEFAULT.domain}/my-org/foo-bar/12`,
-          async ({ request }) => {
-            const body = (await request.json()) as any;
-            return new HttpResponse(null, { status: 204 });
-          }
-        )
+        http.delete(`https://${DEFAULT.domain}/my-org/foo-bar/12`, async () => {
+          return new HttpResponse(null, { status: 204 });
+        })
       );
 
       const session = createInitialSessionData();
