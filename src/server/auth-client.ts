@@ -1125,7 +1125,12 @@ export class AuthClient {
           throw error;
         }
 
-        // Tracking the last used token set response for session updates later
+        // Tracking the last used token set response for session updates later.
+        // This relies on the fact that `getAccessToken` is called before the actual fetch.
+        // Not ideal, but works because of that order of execution.
+        // We need to do this because the fetcher does not return the token set used, and we need it to update the session if necessary.
+        // Additionally, updating the session requires the request and response objects, which are not available in the fetcher,
+        // so we can not updat the session directly from the fetcher.
         getTokenSetResponse = tokenSetResponse;
 
         return tokenSetResponse.tokenSet;
