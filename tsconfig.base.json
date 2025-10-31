@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ES2021",
+    "moduleResolution": "nodenext",
+    "module": "NodeNext",
+    "rootDir": "./src",
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "jsx": "react",
+    "declaration": true,
+    "resolveJsonModule": true
+  },
+}
