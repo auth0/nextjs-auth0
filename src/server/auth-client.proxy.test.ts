@@ -1204,7 +1204,7 @@ describe("Authentication Client", async () => {
           error_description: "Internal Server Error"
         }
       ].forEach(({ status, error, error_description }) => {
-        it(`should handle ${status} from my-account and forward headers and error`, async () => {
+        it(`should handle ${status} from my-org and forward headers and error`, async () => {
           server.use(
             http.get(
               `https://${DEFAULT.domain}/my-org/foo-bar/12`,
