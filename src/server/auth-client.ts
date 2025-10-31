@@ -1099,6 +1099,7 @@ export class AuthClient {
     const headers = new Headers(req.headers);
 
     // We have to delete the authorization header as the SDK always has a Bearer header for now.
+    // TODO: Once the SDKs are updated, we should be able to remove this line.
     headers.delete("authorization");
     // We have to delete the host header to avoid certificate errors when calling the target url.
     // TODO: We need to see if this causes issues or not.
