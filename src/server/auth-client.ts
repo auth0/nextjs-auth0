@@ -1146,8 +1146,7 @@ export class AuthClient {
         { scope: options.scope, audience: options.audience }
       );
 
-      const json = await response.json();
-      const res = NextResponse.json(json, { status: response.status });
+      const res = new NextResponse(response.body, response);
 
       // Using the last used token set response to determine if we need to update the session
       // This is not ideal, as this kind of relies on the order of execution.

@@ -158,7 +158,7 @@ describe("Authentication Client", async () => {
         }
       );
 
-      const response = await authClient.handleMyAccount(request);
+      const response = await authClient.handler(request);
       expect(response.status).toEqual(401);
 
       const text = await response.text();
@@ -181,7 +181,7 @@ describe("Authentication Client", async () => {
         }
       );
 
-      const response = await authClient.handleMyAccount(request);
+      const response = await authClient.handler(request);
       expect(response.status).toEqual(200);
 
       const json = await response.json();
@@ -230,7 +230,7 @@ describe("Authentication Client", async () => {
         }
       );
 
-      const response = await authClient.handleMyAccount(request);
+      const response = await authClient.handler(request);
 
       // The Set Cookie header is not updated since the cache was used
       expect(response.headers.get("Set-Cookie")).toBeFalsy();
@@ -251,7 +251,7 @@ describe("Authentication Client", async () => {
         }
       );
 
-      const response = await authClient.handleMyAccount(request);
+      const response = await authClient.handler(request);
 
       const accessToken = await getAccessTokenFromSetCookieHeader(
         response,
@@ -289,7 +289,7 @@ describe("Authentication Client", async () => {
         }
       );
 
-      const response = await authClient.handleMyAccount(request);
+      const response = await authClient.handler(request);
 
       const accessToken = await getAccessTokenFromSetCookieHeader(
         response,
@@ -302,14 +302,11 @@ describe("Authentication Client", async () => {
     });
 
     it("should proxy POST request to my account", async () => {
-      // Override handler to echo the POST body
       server.use(
         http.post(
           `https://${DEFAULT.domain}/me/v1/foo-bar/12`,
           async ({ request }) => {
-            console.log("Inside MSW handler for POST /me/v1/foo-bar/12");
             const body = await request.json();
-            console.log("Received body in MSW handler:", body);
             return HttpResponse.json(body, { status: 200 });
           }
         )
@@ -331,17 +328,160 @@ describe("Authentication Client", async () => {
         }
       );
 
-      const response = await authClient.handleMyAccount(request);
-
-      if (response.status !== 200) {
-        const errorText = await response.text();
-        console.error("Error response:", errorText);
-      }
+      const response = await authClient.handler(request);
 
       expect(response.status).toEqual(200);
 
       const json = await response.json();
       expect(json).toEqual({ hello: "world" });
+    });
+
+    it("should proxy POST request to my account and proxy 204 responses without content", async () => {
+      server.use(
+        http.post(
+          `https://${DEFAULT.domain}/me/v1/foo-bar/12`,
+          async () =>
+            new HttpResponse(null, {
+              status: 204,
+              headers: {
+                "X-RateLimit-Limit": "5"
+              }
+            })
+        )
+      );
+
+      const session = createInitialSessionData();
+      const cookie = await createSessionCookie(session, secret);
+
+      const request = new NextRequest(
+        new URL("/me/foo-bar/12", DEFAULT.appBaseUrl),
+        {
+          method: "POST",
+          headers: {
+            cookie,
+            "auth0-scope": "foo:bar"
+          },
+          body: JSON.stringify({ hello: "world" }),
+          duplex: "half"
+        }
+      );
+
+      const response = await authClient.handler(request);
+
+      expect(response.status).toEqual(204);
+
+      const text = await response.text();
+      expect(text).toBeFalsy();
+
+      expect(response.headers.get("X-RateLimit-Limit")).toEqual("5");
+    });
+
+    it("should proxy PATCH request to my account", async () => {
+      server.use(
+        http.patch(
+          `https://${DEFAULT.domain}/me/v1/foo-bar/12`,
+          async ({ request }) => {
+            const body = (await request.json()) as any;
+            return HttpResponse.json(
+              { ...myAccountResponse, ...body },
+              { status: 200 }
+            );
+          }
+        )
+      );
+
+      const session = createInitialSessionData();
+      const cookie = await createSessionCookie(session, secret);
+
+      const request = new NextRequest(
+        new URL("/me/foo-bar/12", DEFAULT.appBaseUrl),
+        {
+          method: "PATCH",
+          headers: {
+            cookie,
+            "auth0-scope": "foo:bar"
+          },
+          body: JSON.stringify({ hello: "world" }),
+          duplex: "half"
+        }
+      );
+
+      const response = await authClient.handler(request);
+
+      expect(response.status).toEqual(200);
+
+      const json = await response.json();
+      expect(json).toEqual({ ...myAccountResponse, hello: "world" });
+    });
+
+    it("should proxy PUT request to my account", async () => {
+      server.use(
+        http.put(
+          `https://${DEFAULT.domain}/me/v1/foo-bar/12`,
+          async ({ request }) => {
+            const body = (await request.json()) as any;
+            return HttpResponse.json(body, { status: 200 });
+          }
+        )
+      );
+
+      const session = createInitialSessionData();
+      const cookie = await createSessionCookie(session, secret);
+
+      const request = new NextRequest(
+        new URL("/me/foo-bar/12", DEFAULT.appBaseUrl),
+        {
+          method: "PUT",
+          headers: {
+            cookie,
+            "auth0-scope": "foo:bar"
+          },
+          body: JSON.stringify({ hello: "world" }),
+          duplex: "half"
+        }
+      );
+
+      const response = await authClient.handler(request);
+
+      expect(response.status).toEqual(200);
+
+      const json = await response.json();
+      expect(json).toEqual({ hello: "world" });
+    });
+
+    it("should proxy DELETE request to my account", async () => {
+      server.use(
+        http.delete(
+          `https://${DEFAULT.domain}/me/v1/foo-bar/12`,
+          async ({ request }) => {
+            const body = (await request.json()) as any;
+            return new HttpResponse(null, { status: 204 });
+          }
+        )
+      );
+
+      const session = createInitialSessionData();
+      const cookie = await createSessionCookie(session, secret);
+
+      const request = new NextRequest(
+        new URL("/me/foo-bar/12", DEFAULT.appBaseUrl),
+        {
+          method: "DELETE",
+          headers: {
+            cookie,
+            "auth0-scope": "foo:bar"
+          },
+          body: JSON.stringify({ hello: "world" }),
+          duplex: "half"
+        }
+      );
+
+      const response = await authClient.handler(request);
+
+      expect(response.status).toEqual(204);
+
+      const text = await response.text();
+      expect(text).toBeFalsy();
     });
 
     it("should handle when oauth/token throws", async () => {
@@ -371,7 +511,7 @@ describe("Authentication Client", async () => {
         })
       );
 
-      const response = await authClient.handleMyAccount(request);
+      const response = await authClient.handler(request);
       expect(response.status).toEqual(500);
 
       const text = await response.text();
@@ -398,7 +538,7 @@ describe("Authentication Client", async () => {
         }
       });
 
-      const response = await authClient.handleMyAccount(request);
+      const response = await authClient.handler(request);
       expect(response.status).toEqual(500);
 
       const text = await response.text();
@@ -425,11 +565,700 @@ describe("Authentication Client", async () => {
         }
       });
 
-      const response = await authClient.handleMyAccount(request);
+      const response = await authClient.handler(request);
       expect(response.status).toEqual(500);
 
       const text = await response.text();
       expect(text).toEqual("An error occurred while proxying the request.");
+    });
+
+    describe("error responses", () => {
+      /**
+       * Test various error responses from the my-account endpoint
+       */
+      [
+        { status: 400, error: "bad_request", error_description: "Bad request" },
+        {
+          status: 401,
+          error: "unauthorized",
+          error_description: "Not authorized"
+        },
+        {
+          status: 403,
+          error: "insufficient_scope",
+          error_description: "You do not have the sufficient scope"
+        },
+        { status: 404, error: "not_found", error_description: "Not Found" },
+        {
+          status: 409,
+          error: "confict",
+          error_description: "There is a conflict"
+        },
+        {
+          status: 429,
+          error: "rate_limit_exceeded",
+          error_description: "Rate limit exceeded"
+        },
+        {
+          status: 500,
+          error: "internal_server_error",
+          error_description: "Internal Server Error"
+        }
+      ].forEach(({ status, error, error_description }) => {
+        it(`should handle ${status} from my-account and forward headers and error`, async () => {
+          server.use(
+            http.get(`https://${DEFAULT.domain}/me/v1/foo-bar/12`, async () => {
+              return HttpResponse.json(
+                {
+                  error,
+                  error_description
+                },
+                {
+                  status: status,
+                  headers: {
+                    "X-RateLimit-Limit": "5"
+                  }
+                }
+              );
+            })
+          );
+
+          const session = createInitialSessionData();
+          const cookie = await createSessionCookie(session, secret);
+          const request = new NextRequest(
+            new URL("/me/foo-bar/12?foo=bar", DEFAULT.appBaseUrl),
+            {
+              method: "GET",
+              headers: {
+                cookie,
+                "auth0-scope": "foo:bar"
+              }
+            }
+          );
+
+          const response = await authClient.handler(request);
+          expect(response.status).toEqual(status);
+
+          const headers = response.headers;
+          expect(headers.get("X-RateLimit-Limit")).toEqual("5");
+
+          const json = response.json();
+          await expect(json).resolves.toEqual({
+            error,
+            error_description
+          });
+        });
+      });
+    });
+  });
+
+  describe("handleMyOrg", async () => {
+    const myOrgResponse = {
+      branding: {
+        logo_url:
+          "https://cdn.cookielaw.org/logos/5b38f79c-c925-4d4e-af5e-ec27e97e1068/01963fbf-a156-710c-9ff0-e3528aa88982/baec8c9a-62ca-45e4-8549-18024c4409b1/auth0-logo.png",
+        colors: { page_background: "#ffffff", primary: "#007bff" }
+      },
+      id: "org_HdiNOwdtHO4fuiTU",
+      display_name: "cyborg",
+      name: "cyborg"
+    };
+
+    const secret = await generateSecret(32);
+    let authClient: AuthClient;
+
+    // Create MSW server with default handlers
+    const server = setupServer(
+      // Discovery endpoint
+      http.get(
+        `https://${DEFAULT.domain}/.well-known/openid-configuration`,
+        () => {
+          return HttpResponse.json(_authorizationServerMetadata);
+        }
+      ),
+      // OAuth token endpoint
+      http.post(`https://${DEFAULT.domain}/oauth/token`, async () => {
+        const jwt = await new jose.SignJWT({
+          sid: DEFAULT.sid,
+          auth_time: Date.now(),
+          nonce: "nonce-value",
+          "https://example.com/custom_claim": "value"
+        })
+          .setProtectedHeader({ alg: DEFAULT.alg })
+          .setSubject(DEFAULT.sub)
+          .setIssuedAt()
+          .setIssuer(_authorizationServerMetadata.issuer)
+          .setAudience(DEFAULT.clientId)
+          .setExpirationTime("2h")
+          .sign(DEFAULT.keyPair.privateKey);
+
+        return HttpResponse.json({
+          token_type: "Bearer",
+          access_token: DEFAULT.accessToken,
+          refresh_token: DEFAULT.refreshToken,
+          id_token: jwt,
+          expires_in: 86400 // expires in 10 days
+        });
+      }),
+      // My Org proxy endpoint (default GET)
+      http.get(`https://${DEFAULT.domain}/my-org/foo-bar/12`, ({ request }) => {
+        const url = new URL(request.url);
+        if (url.searchParams.get("foo") === "bar") {
+          return HttpResponse.json(myOrgResponse);
+        }
+        return new HttpResponse(null, { status: 404 });
+      }),
+      // My Org proxy endpoint (default POST) - acts as a fallback
+      http.post(`https://${DEFAULT.domain}/my-org/v1/foo-bar/12`, () => {
+        return HttpResponse.json(myOrgResponse);
+      })
+    );
+
+    // Start MSW server before all tests
+    beforeAll(() => {
+      server.listen({ onUnhandledRequest: "bypass" });
+    });
+
+    // Reset handlers after each test
+    afterEach(() => {
+      server.resetHandlers();
+    });
+
+    // Stop MSW server after all tests
+    afterAll(() => {
+      server.close();
+    });
+
+    beforeEach(async () => {
+      const dpopKeyPair = await generateDpopKeyPair();
+      authClient = new AuthClient({
+        transactionStore: new TransactionStore({
+          secret
+        }),
+        sessionStore: new StatelessSessionStore({
+          secret
+        }),
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        // No need to pass custom fetch - MSW will intercept native fetch
+        useDPoP: true,
+        dpopKeyPair: dpopKeyPair,
+        authorizationParameters: {
+          audience: "test-api",
+          scope: {
+            [`https://${DEFAULT.domain}/my-org/`]: "foo"
+          }
+        },
+        fetch: (url, init) =>
+          fetch(url, { ...init, ...(init?.body ? { duplex: "half" } : {}) })
+      });
+    });
+
+    it("should return 401 when no session", async () => {
+      const request = new NextRequest(
+        new URL("/my-org/foo-bar/12?foo=bar", DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers: {
+            "auth0-scope": "foo:bar"
+          }
+        }
+      );
+
+      const response = await authClient.handler(request);
+      expect(response.status).toEqual(401);
+
+      const text = await response.text();
+      expect(text).toEqual("The user does not have an active session.");
+    });
+
+    it("should proxy GET request to my org", async () => {
+      const session = createInitialSessionData();
+
+      const cookie = await createSessionCookie(session, secret);
+
+      const request = new NextRequest(
+        new URL("/my-org/foo-bar/12?foo=bar", DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers: {
+            cookie,
+            "auth0-scope": "foo:bar"
+          }
+        }
+      );
+
+      const response = await authClient.handler(request);
+      expect(response.status).toEqual(200);
+
+      const json = await response.json();
+      expect(json).toEqual(myOrgResponse);
+    });
+
+    it("should read from the cache", async () => {
+      const cachedAccessToken = "cached_at_123";
+      const session = createInitialSessionData({
+        accessTokens: [
+          {
+            audience: `https://${DEFAULT.domain}/my-org/`,
+            accessToken: cachedAccessToken,
+            scope: "foo foo:bar",
+            token_type: "Bearer",
+            expiresAt: Math.floor(Date.now() / 1000) + 3600
+          }
+        ]
+      });
+      const cookie = await createSessionCookie(session, secret);
+
+      // Override the handler to check for the cached access token
+      server.use(
+        http.get(
+          `https://${DEFAULT.domain}/my-org/v1/foo-bar/12`,
+          ({ request }) => {
+            const authHeader = request.headers.get("authorization");
+            const token = authHeader?.split(" ")[1];
+
+            if (token === cachedAccessToken) {
+              return HttpResponse.json(myOrgResponse);
+            }
+            return new HttpResponse(null, { status: 401 });
+          }
+        )
+      );
+
+      const request = new NextRequest(
+        new URL("/my-org/foo-bar/12", DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers: {
+            cookie,
+            "auth0-scope": "foo:bar"
+          }
+        }
+      );
+
+      const response = await authClient.handler(request);
+
+      // The Set Cookie header is not updated since the cache was used
+      expect(response.headers.get("Set-Cookie")).toBeFalsy();
+    });
+
+    it("should update the cache when using stateless storage when no entry", async () => {
+      const session = createInitialSessionData();
+      const cookie = await createSessionCookie(session, secret);
+
+      const request = new NextRequest(
+        new URL("/my-org/foo-bar/12?foo=bar", DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers: {
+            cookie,
+            "auth0-scope": "foo:bar"
+          }
+        }
+      );
+
+      const response = await authClient.handler(request);
+
+      const accessToken = await getAccessTokenFromSetCookieHeader(
+        response,
+        secret,
+        `https://${DEFAULT.domain}/my-org/`
+      );
+
+      expect(accessToken).toBeDefined();
+      expect(accessToken!.requestedScope).toEqual("foo foo:bar");
+    });
+
+    it("should update the cache when using stateless storage when entry expired", async () => {
+      const cachedAccessToken = "cached_at_123";
+      const session = createInitialSessionData({
+        accessTokens: [
+          {
+            audience: `https://${DEFAULT.domain}/my-org/`,
+            accessToken: cachedAccessToken,
+            scope: "foo foo:bar",
+            token_type: "Bearer",
+            expiresAt: Math.floor(Date.now() / 1000) - 3600 // expired
+          }
+        ]
+      });
+      const cookie = await createSessionCookie(session, secret);
+
+      const request = new NextRequest(
+        new URL("/my-org/foo-bar/12?foo=bar", DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers: {
+            cookie,
+            "auth0-scope": "foo:bar"
+          }
+        }
+      );
+
+      const response = await authClient.handler(request);
+
+      const accessToken = await getAccessTokenFromSetCookieHeader(
+        response,
+        secret,
+        `https://${DEFAULT.domain}/my-org/`
+      );
+
+      expect(accessToken).toBeDefined();
+      expect(accessToken!.requestedScope).toEqual("foo foo:bar");
+    });
+
+    it("should proxy POST request to my org", async () => {
+      server.use(
+        http.post(
+          `https://${DEFAULT.domain}/my-org/foo-bar/12`,
+          async ({ request }) => {
+            const body = await request.json();
+            return HttpResponse.json(body, { status: 200 });
+          }
+        )
+      );
+
+      const session = createInitialSessionData();
+      const cookie = await createSessionCookie(session, secret);
+
+      const request = new NextRequest(
+        new URL("/my-org/foo-bar/12", DEFAULT.appBaseUrl),
+        {
+          method: "POST",
+          headers: {
+            cookie,
+            "auth0-scope": "foo:bar"
+          },
+          body: JSON.stringify({ hello: "world" }),
+          duplex: "half"
+        }
+      );
+
+      const response = await authClient.handler(request);
+
+      expect(response.status).toEqual(200);
+
+      const json = await response.json();
+      expect(json).toEqual({ hello: "world" });
+    });
+
+    it("should proxy POST request to my org and proxy 204 responses without content", async () => {
+      server.use(
+        http.post(
+          `https://${DEFAULT.domain}/my-org/foo-bar/12`,
+          async () => new HttpResponse(null, { status: 204 })
+        )
+      );
+
+      const session = createInitialSessionData();
+      const cookie = await createSessionCookie(session, secret);
+
+      const request = new NextRequest(
+        new URL("/my-org/foo-bar/12", DEFAULT.appBaseUrl),
+        {
+          method: "POST",
+          headers: {
+            cookie,
+            "auth0-scope": "foo:bar"
+          },
+          body: JSON.stringify({ hello: "world" }),
+          duplex: "half"
+        }
+      );
+
+      const response = await authClient.handler(request);
+
+      expect(response.status).toEqual(204);
+
+      const text = await response.text();
+      expect(text).toBeFalsy();
+    });
+
+    it("should proxy PATCH request to my org", async () => {
+      server.use(
+        http.patch(
+          `https://${DEFAULT.domain}/my-org/foo-bar/12`,
+          async ({ request }) => {
+            const body = (await request.json()) as any;
+            return HttpResponse.json(
+              { ...myOrgResponse, ...body },
+              { status: 200 }
+            );
+          }
+        )
+      );
+
+      const session = createInitialSessionData();
+      const cookie = await createSessionCookie(session, secret);
+
+      const request = new NextRequest(
+        new URL("/my-org/foo-bar/12", DEFAULT.appBaseUrl),
+        {
+          method: "PATCH",
+          headers: {
+            cookie,
+            "auth0-scope": "foo:bar"
+          },
+          body: JSON.stringify({ hello: "world" }),
+          duplex: "half"
+        }
+      );
+
+      const response = await authClient.handler(request);
+
+      expect(response.status).toEqual(200);
+
+      const json = await response.json();
+      expect(json).toEqual({ ...myOrgResponse, hello: "world" });
+    });
+
+    it("should proxy PUT request to my org", async () => {
+      server.use(
+        http.put(
+          `https://${DEFAULT.domain}/my-org/foo-bar/12`,
+          async ({ request }) => {
+            const body = (await request.json()) as any;
+            return HttpResponse.json(body, { status: 200 });
+          }
+        )
+      );
+
+      const session = createInitialSessionData();
+      const cookie = await createSessionCookie(session, secret);
+
+      const request = new NextRequest(
+        new URL("/my-org/foo-bar/12", DEFAULT.appBaseUrl),
+        {
+          method: "PUT",
+          headers: {
+            cookie,
+            "auth0-scope": "foo:bar"
+          },
+          body: JSON.stringify({ hello: "world" }),
+          duplex: "half"
+        }
+      );
+
+      const response = await authClient.handler(request);
+
+      expect(response.status).toEqual(200);
+
+      const json = await response.json();
+      expect(json).toEqual({ hello: "world" });
+    });
+
+    it("should proxy DELETE request to my org", async () => {
+      server.use(
+        http.delete(
+          `https://${DEFAULT.domain}/my-org/foo-bar/12`,
+          async ({ request }) => {
+            const body = (await request.json()) as any;
+            return new HttpResponse(null, { status: 204 });
+          }
+        )
+      );
+
+      const session = createInitialSessionData();
+      const cookie = await createSessionCookie(session, secret);
+
+      const request = new NextRequest(
+        new URL("/my-org/foo-bar/12", DEFAULT.appBaseUrl),
+        {
+          method: "DELETE",
+          headers: {
+            cookie,
+            "auth0-scope": "foo:bar"
+          },
+          body: JSON.stringify({ hello: "world" }),
+          duplex: "half"
+        }
+      );
+
+      const response = await authClient.handler(request);
+
+      expect(response.status).toEqual(204);
+
+      const text = await response.text();
+      expect(text).toBeFalsy();
+    });
+
+    it("should handle when oauth/token throws", async () => {
+      const session = createInitialSessionData();
+      const cookie = await createSessionCookie(session, secret);
+      const request = new NextRequest(
+        new URL("/my-org/foo-bar/12?foo=bar", DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers: {
+            cookie,
+            "auth0-scope": "foo:bar"
+          }
+        }
+      );
+
+      // Override oauth/token handler to return an error
+      server.use(
+        http.post(`https://${DEFAULT.domain}/oauth/token`, () => {
+          return HttpResponse.json(
+            {
+              error: "test_error",
+              error_description: "An error from within the unit test."
+            },
+            { status: 401 }
+          );
+        })
+      );
+
+      const response = await authClient.handler(request);
+      expect(response.status).toEqual(500);
+
+      const text = await response.text();
+      expect(text).toEqual("OAuth2Error: An error from within the unit test.");
+    });
+
+    it("should handle when getTokenSet throws", async () => {
+      const session = createInitialSessionData();
+      const cookie = await createSessionCookie(session, secret);
+      const request = new NextRequest(
+        new URL("/my-org/foo-bar/12?foo=bar", DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers: {
+            cookie,
+            "auth0-scope": "foo:bar"
+          }
+        }
+      );
+
+      authClient.getTokenSet = vi.fn().mockImplementation(() => {
+        {
+          throw new Error("An error from within the unit test.");
+        }
+      });
+
+      const response = await authClient.handler(request);
+      expect(response.status).toEqual(500);
+
+      const text = await response.text();
+      expect(text).toEqual("An error from within the unit test.");
+    });
+
+    it("should handle when getTokenSet throws without message", async () => {
+      const session = createInitialSessionData();
+      const cookie = await createSessionCookie(session, secret);
+      const request = new NextRequest(
+        new URL("/my-org/foo-bar/12?foo=bar", DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers: {
+            cookie,
+            "auth0-scope": "foo:bar"
+          }
+        }
+      );
+
+      authClient.getTokenSet = vi.fn().mockImplementation(() => {
+        {
+          throw new Error();
+        }
+      });
+
+      const response = await authClient.handler(request);
+      expect(response.status).toEqual(500);
+
+      const text = await response.text();
+      expect(text).toEqual("An error occurred while proxying the request.");
+    });
+
+    describe("error responses", () => {
+      /**
+       * Test various error responses from the my-account endpoint
+       */
+      [
+        { status: 400, error: "bad_request", error_description: "Bad request" },
+        {
+          status: 401,
+          error: "unauthorized",
+          error_description: "Not authorized"
+        },
+        {
+          status: 403,
+          error: "insufficient_scope",
+          error_description: "You do not have the sufficient scope"
+        },
+        { status: 404, error: "not_found", error_description: "Not Found" },
+        {
+          status: 409,
+          error: "confict",
+          error_description: "There is a conflict"
+        },
+        {
+          status: 429,
+          error: "rate_limit_exceeded",
+          error_description: "Rate limit exceeded"
+        },
+        {
+          status: 500,
+          error: "internal_server_error",
+          error_description: "Internal Server Error"
+        }
+      ].forEach(({ status, error, error_description }) => {
+        it(`should handle ${status} from my-account and forward headers and error`, async () => {
+          server.use(
+            http.get(
+              `https://${DEFAULT.domain}/my-org/foo-bar/12`,
+              async () => {
+                return HttpResponse.json(
+                  {
+                    error,
+                    error_description
+                  },
+                  {
+                    status: status,
+                    headers: {
+                      "X-RateLimit-Limit": "5"
+                    }
+                  }
+                );
+              }
+            )
+          );
+
+          const session = createInitialSessionData();
+          const cookie = await createSessionCookie(session, secret);
+          const request = new NextRequest(
+            new URL("/my-org/foo-bar/12?foo=bar", DEFAULT.appBaseUrl),
+            {
+              method: "GET",
+              headers: {
+                cookie,
+                "auth0-scope": "foo:bar"
+              }
+            }
+          );
+
+          const response = await authClient.handler(request);
+          expect(response.status).toEqual(status);
+
+          const headers = response.headers;
+          expect(headers.get("X-RateLimit-Limit")).toEqual("5");
+
+          const json = response.json();
+          await expect(json).resolves.toEqual({
+            error,
+            error_description
+          });
+        });
+      });
     });
   });
 });
