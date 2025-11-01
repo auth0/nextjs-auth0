@@ -2277,7 +2277,7 @@ export class AuthClient {
           // Not ideal, but works because of that order of execution.
           // We need to do this because the fetcher does not return the token set used, and we need it to update the session if necessary.
           // Additionally, updating the session requires the request and response objects, which are not available in the fetcher,
-          // so we can not updat the session directly from the fetcher.
+          // so we can not update the session directly from the fetcher.
           getTokenSetResponse = tokenSetResponse;
 
           return tokenSetResponse.tokenSet;
@@ -2338,6 +2338,10 @@ export class AuthClient {
    * 3. Finalizes the session through the beforeSessionSaved hook or default filtering
    * 4. Persists the updated session to the session store
    * 5. Adds cache control headers to the response
+   *
+   * @note This method mutates the `res` parameter by:
+   * - Setting session cookies via `res.cookies`
+   * - Adding cache control headers to the response
    */
   async #updateSessionAfterTokenRetrieval(
     req: NextRequest,
