@@ -869,7 +869,16 @@ export class Auth0Client {
     res?: PagesRouterResponse | NextResponse,
     sessionData?: SessionData
   ) {
+    // Normalize plain Request (Next 16 Node runtime) → NextRequest
+    if (
+      reqOrSession instanceof Request &&
+      !(reqOrSession instanceof NextRequest)
+    ) {
+      reqOrSession = toNextRequest(reqOrSession);
+    }
+
     if (!res) {
+      // app router: Server Actions, Route Handlers
       const existingSession = await this.getSession();
 
       if (!existingSession) {
@@ -887,103 +896,76 @@ export class Auth0Client {
           ...existingSession.internal
         }
       });
+    } else {
+      const req = reqOrSession as PagesRouterRequest | NextRequest;
 
-      return;
-    }
-
-    const req = reqOrSession as PagesRouterRequest | NextRequest | Request;
-
-    if (!sessionData) {
-      throw new Error("The session data is missing.");
-    }
-
-    if (req instanceof NextRequest && res instanceof NextResponse) {
-      // middleware usage
-      const existingSession = await this.getSession(req);
-
-      if (!existingSession) {
-        throw new Error("The user is not authenticated.");
+      if (!sessionData) {
+        throw new Error("The session data is missing.");
       }
 
-      await this.sessionStore.set(req.cookies, res.cookies, {
-        ...sessionData,
-        internal: {
-          ...existingSession.internal
+      if (req instanceof NextRequest && res instanceof NextResponse) {
+        // middleware usage
+        const existingSession = await this.getSession(req);
+
+        if (!existingSession) {
+          throw new Error("The user is not authenticated.");
         }
-      });
 
-      return;
-    }
-
-    /*
-     * Next 16 proxy.ts path
-     * In Next 16 the function in proxy.ts gets a plain Web Request.
-     * We need to turn it into a NextRequest so that sessionStore can read cookies, then write back to the NextResponse.
-     */
-    if (req instanceof Request && res instanceof NextResponse) {
-      // rebuild a NextRequest using THIS sdk's next/server
-      const nextReq = toNextRequest(req);
-
-      const existingSession = await this.getSession(nextReq);
-
-      if (!existingSession) {
-        throw new Error("The user is not authenticated.");
-      }
-
-      await this.sessionStore.set(nextReq.cookies, res.cookies, {
-        ...sessionData,
-        internal: {
-          ...existingSession.internal
-        }
-      });
-
-      return;
-    }
-
-    // pages router usage
-    const existingSession = await this.getSession(req as PagesRouterRequest);
-
-    if (!existingSession) {
-      throw new Error("The user is not authenticated.");
-    }
-
-    const resHeaders = new Headers();
-    const resCookies = new ResponseCookies(resHeaders);
-    const updatedSession = sessionData as SessionData;
-    const reqCookies = this.createRequestCookies(req as PagesRouterRequest);
-    const pagesRouterRes = res as PagesRouterResponse;
-
-    await this.sessionStore.set(reqCookies, resCookies, {
-      ...updatedSession,
-      internal: {
-        ...existingSession.internal
-      }
-    });
-
-    // Handle multiple set-cookie headers properly
-    // resHeaders.entries() yields each set-cookie header separately,
-    // but res.setHeader() overwrites previous values. We need to collect
-    // all set-cookie values and set them as an array.
-    // Note: Per the Web API specification, the Headers API normalizes header names
-    // to lowercase, so comparing key.toLowerCase() === "set-cookie" is safe.
-    const setCookieValues: string[] = [];
-    const otherHeaders: Record<string, string> = {};
-
-    for (const [key, value] of resHeaders.entries()) {
-      if (key.toLowerCase() === "set-cookie") {
-        setCookieValues.push(value);
+        await this.sessionStore.set(req.cookies, res.cookies, {
+          ...sessionData,
+          internal: {
+            ...existingSession.internal
+          }
+        });
       } else {
-        otherHeaders[key] = value;
-      }
-    }
-    // Set all cookies at once as an array if any exist
-    if (setCookieValues.length > 0) {
-      pagesRouterRes.setHeader("set-cookie", setCookieValues);
-    }
+        // pages router usage
+        const existingSession = await this.getSession(
+          req as PagesRouterRequest
+        );
 
-    // Set non-cookie headers normally
-    for (const [key, value] of Object.entries(otherHeaders)) {
-      pagesRouterRes.setHeader(key, value);
+        if (!existingSession) {
+          throw new Error("The user is not authenticated.");
+        }
+
+        const resHeaders = new Headers();
+        const resCookies = new ResponseCookies(resHeaders);
+        const updatedSession = sessionData as SessionData;
+        const reqCookies = this.createRequestCookies(req as PagesRouterRequest);
+        const pagesRouterRes = res as PagesRouterResponse;
+
+        await this.sessionStore.set(reqCookies, resCookies, {
+          ...updatedSession,
+          internal: {
+            ...existingSession.internal
+          }
+        });
+
+        // Handle multiple set-cookie headers properly
+        // resHeaders.entries() yields each set-cookie header separately,
+        // but res.setHeader() overwrites previous values. We need to collect
+        // all set-cookie values and set them as an array.
+        // Note: Per the Web API specification, the Headers API normalizes header names
+        // to lowercase, so comparing key.toLowerCase() === "set-cookie" is safe.
+        const setCookieValues: string[] = [];
+        const otherHeaders: Record<string, string> = {};
+
+        for (const [key, value] of resHeaders.entries()) {
+          if (key.toLowerCase() === "set-cookie") {
+            setCookieValues.push(value);
+          } else {
+            otherHeaders[key] = value;
+          }
+        }
+        // Set all cookies at once as an array if any exist
+        if (setCookieValues.length > 0) {
+          pagesRouterRes.setHeader("set-cookie", setCookieValues);
+        }
+
+        // Set non-cookie headers normally
+        for (const [key, value] of Object.entries(otherHeaders)) {
+          pagesRouterRes.setHeader(key, value);
+        }
+      }
     }
   }
 

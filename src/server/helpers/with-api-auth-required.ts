@@ -20,7 +20,14 @@ export type AppRouteHandlerFnContext = {
  * See: https://nextjs.org/docs/app/api-reference/file-conventions/route
  */
 export type AppRouteHandlerFn = (
+  /**
+   * Incoming request object.
+   */
   req: NextRequest | Request,
+  /**
+   * Context properties on the request (including the parameters if this was a
+   * dynamic route).
+   */
   ctx: AppRouteHandlerFnContext
 ) => Promise<Response> | Response;
 
@@ -75,7 +82,6 @@ export const appRouteHandlerFactory =
   (client: Auth0Client): WithApiAuthRequiredAppRoute =>
   (apiRoute) =>
   async (req: NextRequest | Request, params): Promise<NextResponse> => {
-    // Normalize plain Request from Next 16 Node runtime
     const nextReq = req instanceof Request ? toNextRequest(req) : req;
 
     const session = await client.getSession(nextReq);
@@ -91,7 +97,7 @@ export const appRouteHandlerFactory =
       );
     }
 
-    const apiRes: NextResponse | Response = await apiRoute(nextReq, params);
+    const apiRes: NextResponse | Response = await apiRoute(req, params);
     const nextApiRes: NextResponse =
       apiRes instanceof NextResponse
         ? apiRes
@@ -107,6 +113,7 @@ export const pageRouteHandlerFactory =
     const session = await client.getSession(req);
 
     if (!session || !session.user) {
+      // If the user is not authenticated, return
       res.status(401).json({
         error: "not_authenticated",
         description:

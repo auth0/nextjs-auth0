@@ -14,10 +14,6 @@ export function toNextRequest(input: Request | NextRequest): NextRequest {
   });
 }
 
-export function nextNextResponse(): NextResponse {
-  return NextResponse.next();
-}
-
 export function isPrefetch(req: Request | NextRequest): boolean {
   const h = req.headers;
   if (h.get("x-middleware-prefetch") === "1") return true;

@@ -133,10 +133,9 @@ for both the Edge and Node runtimes.
 
 Create a proxy.ts file in the root of your project (Or rename your existing middleware.ts to proxy.ts):
 ```ts
-import type { NextRequest } from "next/server";
 import { auth0 } from "./lib/auth0";
 
-export async function proxy(request: NextRequest) {
+export async function proxy(request: Request) { // Note that proxy uses the standard Request type
   return await auth0.middleware(request);
 }
 

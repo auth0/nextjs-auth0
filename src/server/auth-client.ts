@@ -80,7 +80,7 @@ import {
   FetcherHooks,
   FetcherMinimalConfig
 } from "./fetcher.js";
-import { isPrefetch, nextNextResponse, toNextRequest } from "./next-compat.js";
+import { isPrefetch } from "./next-compat.js";
 import { AbstractSessionStore } from "./session/abstract-session-store.js";
 import { TransactionState, TransactionStore } from "./transaction-store.js";
 import { filterDefaultIdTokenClaims } from "./user.js";
@@ -370,8 +370,7 @@ export class AuthClient {
     }
   }
 
-  async handler(request: Request | NextRequest): Promise<NextResponse> {
-    const req = toNextRequest(request);
+  async handler(req: NextRequest): Promise<NextResponse> {
     const { pathname } = req.nextUrl;
     const sanitizedPathname = removeTrailingSlash(pathname);
     const method = req.method;
@@ -403,12 +402,12 @@ export class AuthClient {
       return this.handleConnectAccount(req);
     } else {
       if (isPrefetch(req)) {
-        return nextNextResponse();
+        return NextResponse.next();
       }
       // no auth handler found, simply touch the sessions
       // TODO: this should only happen if rolling sessions are enabled. Also, we should
       // try to avoid reading from the DB (for stateful sessions) on every request if possible.
-      const res = nextNextResponse();
+      const res = NextResponse.next();
       const session = await this.sessionStore.get(req.cookies);
 
       if (session) {
