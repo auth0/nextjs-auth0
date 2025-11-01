@@ -45,7 +45,7 @@ import {
   WithPageAuthRequiredAppRouterOptions,
   WithPageAuthRequiredPageRouterOptions
 } from "./helpers/with-page-auth-required.js";
-import { toNextRequest } from "./next-compat.js";
+import { toNextRequest, toNextResponse } from "./next-compat.js";
 import {
   AbstractSessionStore,
   SessionConfiguration,
@@ -850,7 +850,7 @@ export class Auth0Client {
    */
   async updateSession(
     req: PagesRouterRequest | NextRequest | Request,
-    res: PagesRouterResponse | NextResponse,
+    res: PagesRouterResponse | NextResponse | Response,
     session: SessionData
   ): Promise<void>;
 
@@ -866,15 +866,20 @@ export class Auth0Client {
    */
   async updateSession(
     reqOrSession: PagesRouterRequest | NextRequest | Request | SessionData,
-    res?: PagesRouterResponse | NextResponse,
+    res?: PagesRouterResponse | NextResponse | Response,
     sessionData?: SessionData
   ) {
-    // Normalize plain Request (Next 16 Node runtime) → NextRequest
+    // Normalize plain Request (Next 16 Node runtime) to NextRequest
     if (
       reqOrSession instanceof Request &&
       !(reqOrSession instanceof NextRequest)
     ) {
       reqOrSession = toNextRequest(reqOrSession);
+    }
+
+    // Normalize plain Response (Next 16 Node runtime) to NextResponse
+    if (res && res instanceof Response && !(res instanceof NextResponse)) {
+      res = toNextResponse(res);
     }
 
     if (!res) {

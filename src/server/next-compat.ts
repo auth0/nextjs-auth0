@@ -1,5 +1,10 @@
-import { NextRequest } from "next/server.js";
+import { NextRequest, NextResponse } from "next/server.js";
 
+/**
+ * Normalize a Request or NextRequest to a NextRequest instance.
+ * Ensures consistent behavior across Next.js 15 (Edge) and 16 (Node Proxy).
+ * @internal
+ */
 export function toNextRequest(input: Request | NextRequest): NextRequest {
   if (input instanceof NextRequest) {
     return input;
@@ -13,6 +18,44 @@ export function toNextRequest(input: Request | NextRequest): NextRequest {
   });
 }
 
+/**
+ * Normalize a Response or NextResponse to a NextResponse instance.
+ * Converts plain Fetch Response objects into NextResponse while preserving
+ * headers, body, status, and statusText.
+ *
+ * Required for environments where plain Responses lack Next.js cookie helpers.
+ * @internal
+ */
+export function toNextResponse(res: Response | NextResponse): NextResponse {
+  if (res instanceof NextResponse) {
+    return res;
+  }
+
+  const headers = new Headers(res.headers);
+
+  const nextRes = new NextResponse(res.body, {
+    status: res.status,
+    statusText: res.statusText,
+    headers
+  });
+
+  try {
+    if ("url" in res && res.url) {
+      (nextRes as any).url = res.url;
+    }
+  } catch {
+    // ignore if url isn't accessible
+  }
+
+  return nextRes;
+}
+
+/**
+ * Detect whether a request is a prefetch (Next.js router or browser prefetch).
+ * Used to avoid unnecessary cookie writes or session logic.
+ *
+ * @internal
+ */
 export function isPrefetch(req: Request | NextRequest): boolean {
   const h = req.headers;
   if (h.get("x-middleware-prefetch") === "1") return true;
