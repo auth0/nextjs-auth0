@@ -1,11 +1,10 @@
-import { NextRequest, NextResponse } from "next/server.js";
+import { NextRequest } from "next/server.js";
 
 export function toNextRequest(input: Request | NextRequest): NextRequest {
   if (input instanceof NextRequest) {
     return input;
   }
 
-  // 16 proxy.ts → plain Request
   return new NextRequest(input.url, {
     method: input.method,
     headers: input.headers,
