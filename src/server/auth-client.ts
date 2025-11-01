@@ -13,8 +13,20 @@ import { AccessTokenForConnectionOptions, AccessTokenSet, AuthorizationParameter
 import { mergeAuthorizationParamsIntoSearchParams } from "../utils/authorization-params-helpers.js";
 import { DEFAULT_SCOPES } from "../utils/constants.js";
 import { withDPoPNonceRetry } from "../utils/dpopUtils.js";
-import { ensureNoLeadingSlash, ensureTrailingSlash, normalizeWithBasePath, removeTrailingSlash } from "../utils/pathUtils.js";
-import { ensureDefaultScope, getScopeForAudience } from "../utils/scope-helpers.js";
+import {
+  ensureNoLeadingSlash,
+  ensureTrailingSlash,
+  normalizeWithBasePath,
+  removeTrailingSlash
+} from "../utils/pathUtils.js";
+import {
+  buildForwardedRequestHeaders,
+  buildForwardedResponseHeaders
+} from "../utils/proxy.js";
+import {
+  ensureDefaultScope,
+  getScopeForAudience
+} from "../utils/scope-helpers.js";
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
 import { compareScopes, findAccessTokenSet, mergeScopes, tokenSetFromAccessTokenSet } from "../utils/token-set-helpers.js";
 import { toSafeRedirect } from "../utils/url-helpers.js";
@@ -187,6 +199,8 @@ export class AuthClient {
 
   private dpopKeyPair?: DpopKeyPair;
   private readonly useDPoP: boolean;
+
+  private proxyFetchers: { [audience: string]: Fetcher<Response> } = {};
 
   constructor(options: AuthClientOptions) {
     // dependencies
@@ -1027,164 +1041,21 @@ export class AuthClient {
   }
 
   async handleMyAccount(req: NextRequest): Promise<NextResponse> {
-    return this.handleProxy(req, {
+    return this.#handleProxy(req, {
       proxyPath: "/me",
       targetBaseUrl: `${this.issuer}/me/v1`,
-      audience: `${this.issuer}/me/v1/`
+      audience: `${this.issuer}/me/`,
+      scope: req.headers.get("auth0-scope")
     });
   }
 
   async handleMyOrg(req: NextRequest): Promise<NextResponse> {
-    return this.handleProxy(req, {
+    return this.#handleProxy(req, {
       proxyPath: "/my-org",
       targetBaseUrl: `${this.issuer}/my-org`,
-      audience: `${this.issuer}/my-org/`
+      audience: `${this.issuer}/my-org/`,
+      scope: req.headers.get("auth0-scope")
     });
-  }
-
-  async handleProxy(
-    req: NextRequest,
-    options: {
-      proxyPath: string;
-      targetBaseUrl: string;
-      audience: string;
-    }
-  ): Promise<NextResponse> {
-    const session = await this.sessionStore.get(req.cookies);
-    if (!session) {
-      return new NextResponse("The user does not have an active session.", {
-        status: 401
-      });
-    }
-    const targetBaseUrl = options.targetBaseUrl;
-    const targetUrl = new URL(
-      req.nextUrl.pathname.replace(options.proxyPath, targetBaseUrl.toString())
-    );
-    const headers = new Headers(req.headers);
-
-    // We have to delete the authorization header as the SDK always has a Bearer header for now.
-    headers.delete("authorization");
-    // We have to delete the host header to avoid certificate errors when calling the target url.
-    // TODO: We need to see if this causes issues or not.
-    headers.delete("host");
-
-    // Forward all search params
-    req.nextUrl.searchParams.forEach((value, key) => {
-      targetUrl.searchParams.set(key, value);
-    });
-
-    console.log("checkpoint1");
-    console.log(`[DEBUG] Session tokenSet:`, {
-      hasAccessToken: !!session.tokenSet.accessToken,
-      accessTokenLength: session.tokenSet.accessToken?.length,
-      hasRefreshToken: !!session.tokenSet.refreshToken,
-      refreshTokenLength: session.tokenSet.refreshToken?.length,
-      scope: session.tokenSet.scope,
-      audience: session.tokenSet.audience,
-      expiresAt: session.tokenSet.expiresAt,
-      expiresIn: session.tokenSet.expiresAt ? session.tokenSet.expiresAt - Math.floor(Date.now() / 1000) : 'N/A'
-    });
-    console.log(`[DEBUG] Session accessTokens:`, session.accessTokens?.map(t => ({
-      audience: t.audience,
-      hasAccessToken: !!t.accessToken,
-      expiresAt: t.expiresAt,
-      scope: t.scope
-    })));
-    console.log(`[DEBUG] Requesting token for audience: ${options.audience}`);
-
-    let finalSessionData : SessionData | undefined = undefined;
-    
-    const fetcher = await this.fetcherFactory({
-        useDPoP: this.useDPoP,
-        fetch: this.fetch,
-        getAccessToken: async (authParams) => {
-          console.log(`[DEBUG] getAccessToken called with:`, {
-            audience: authParams.audience,
-            scope: authParams.scope
-          });
-          
-          const [error, tokenSetResponse] = await this.getTokenSet(session, {
-            audience: authParams.audience,
-            scope: authParams.scope,
-            refresh: true
-          });
-
-          if (error) {
-            const accessTokenError = error as AccessTokenError;
-            console.error(`[DEBUG] getTokenSet error:`, {
-              code: accessTokenError.code,
-              message: accessTokenError.message,
-              cause: accessTokenError.cause ? { code: accessTokenError.cause.code, message: accessTokenError.cause.message } : null
-            });
-            throw error;
-          }
-
-          console.log(`[DEBUG] Tokenset response:`, {
-            hasAccessToken: !!tokenSetResponse.tokenSet.accessToken,
-            accessTokenLength: tokenSetResponse.tokenSet.accessToken?.length,
-            audience: tokenSetResponse.tokenSet.audience,
-            token_type: tokenSetResponse.tokenSet.token_type,
-            expiresAt: tokenSetResponse.tokenSet.expiresAt,
-            expiresIn: tokenSetResponse.tokenSet.expiresAt ? tokenSetResponse.tokenSet.expiresAt - Math.floor(Date.now() / 1000) : 'N/A'
-          });
-
-          // TODO: We need to update the cache here as well if the tokenSet has changed.
-
-          const sessionChanges = getSessionChangesAfterGetAccessToken(
-            session,
-            tokenSetResponse.tokenSet,
-            {
-              scope: this.authorizationParameters?.scope,
-              audience: this.authorizationParameters?.audience
-            }
-          );
-
-          if (sessionChanges) {
-            if (tokenSetResponse.idTokenClaims) {
-              session.user = tokenSetResponse.idTokenClaims as User;
-            }
-            // call beforeSessionSaved callback if present
-            // if not then filter id_token claims with default rules
-            const finalSession = await this.finalizeSession(
-              session,
-              tokenSetResponse.tokenSet.idToken
-            );
-            // await this.sessionStore.set(req.cookies, res.cookies, {
-            //   ...finalSession,
-            //   ...sessionChanges
-            // });
-            finalSessionData = {
-              ...finalSession,
-              ...sessionChanges
-            };
-          }
-          return tokenSetResponse.tokenSet;
-        }
-      });
-
-      const response = await fetcher.fetchWithAuth(
-        targetUrl.toString(),
-        {
-          method: req.method,
-          headers,
-          body: req.body,
-          // @ts-expect-error duplex is not known, while we do need it for sending streams as the body.
-          // As we are receiving a request, body is always exposed as a ReadableStream when defined,
-          // so setting duplex to 'half' is required at that point.
-          duplex: req.body ? "half" : undefined
-        },
-        { scope: req.headers.get("auth0-scope"), audience: options.audience }
-      );
-
-      // console.log(`response: ${JSON.stringify(response)}`);
-
-      const json = await response.json();
-      const res = NextResponse.json(json, { status: response.status });
-      if(!!finalSessionData){
-        await this.sessionStore.set(req.cookies, res.cookies, finalSessionData);
-      }
-      addCacheControlHeadersForSession(res);
-      return res;
   }
 
   /**
@@ -2346,6 +2217,116 @@ export class AuthClient {
     };
 
     return new Fetcher<TOutput>(fetcherConfig, fetcherHooks);
+  }
+
+  /**
+   * Handles proxying requests to a target URL with authentication.
+   *
+   * This method retrieves the user's session, constructs the target URL,
+   * and forwards the request with appropriate authentication headers.
+   * It also manages token retrieval and session updates as needed.
+   * @param req The incoming Next.js request to be proxied.
+   * @param options Configuration options for the proxying behavior.
+   * @returns A Next.js response containing the proxied request's response.
+   */
+  async #handleProxy(
+    req: NextRequest,
+    options: {
+      proxyPath: string;
+      targetBaseUrl: string;
+      audience: string;
+      scope: string | null;
+    }
+  ): Promise<NextResponse> {
+    const session = await this.sessionStore.get(req.cookies);
+    if (!session) {
+      return new NextResponse("The user does not have an active session.", {
+        status: 401
+      });
+    }
+    const targetBaseUrl = options.targetBaseUrl;
+    const targetUrl = new URL(
+      req.nextUrl.pathname.replace(options.proxyPath, targetBaseUrl.toString())
+    );
+    const headers = buildForwardedRequestHeaders(req);
+
+    // Forward all search params
+    req.nextUrl.searchParams.forEach((value, key) => {
+      targetUrl.searchParams.set(key, value);
+    });
+
+    let getTokenSetResponse!: GetTokenSetResponse;
+
+    this.proxyFetchers[options.audience] =
+      this.proxyFetchers[options.audience] ??
+      (await this.fetcherFactory({
+        useDPoP: this.useDPoP,
+        fetch: this.fetch,
+        getAccessToken: async (authParams) => {
+          const [error, tokenSetResponse] = await this.getTokenSet(session, {
+            audience: authParams.audience,
+            scope: authParams.scope
+          });
+
+          if (error) {
+            throw error;
+          }
+
+          // Tracking the last used token set response for session updates later.
+          // This relies on the fact that `getAccessToken` is called before the actual fetch.
+          // Not ideal, but works because of that order of execution.
+          // We need to do this because the fetcher does not return the token set used, and we need it to update the session if necessary.
+          // Additionally, updating the session requires the request and response objects, which are not available in the fetcher,
+          // so we can not updat the session directly from the fetcher.
+          getTokenSetResponse = tokenSetResponse;
+
+          return tokenSetResponse.tokenSet;
+        }
+      }));
+
+    try {
+      const response = await this.proxyFetchers[options.audience].fetchWithAuth(
+        targetUrl.toString(),
+        {
+          method: req.method,
+          headers,
+          body: req.body,
+          // @ts-expect-error duplex is not known, while we do need it for sending streams as the body.
+          // As we are receiving a request, body is always exposed as a ReadableStream when defined,
+          // so setting duplex to 'half' is required at that point.
+          duplex: req.body ? "half" : undefined
+        },
+        { scope: options.scope, audience: options.audience }
+      );
+
+      const res = new NextResponse(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: buildForwardedResponseHeaders(response)
+      });
+
+      // Using the last used token set response to determine if we need to update the session
+      // This is not ideal, as this kind of relies on the order of execution.
+      // As we know the fetcher's `getAccessToken` is called before the actual fetch,
+      // we know it should always be defined when we reach this point.
+      if (getTokenSetResponse) {
+        await this.#updateSessionAfterTokenRetrieval(
+          req,
+          res,
+          session,
+          getTokenSetResponse
+        );
+      }
+
+      return res;
+    } catch (e: any) {
+      return new NextResponse(
+        e.cause || e.message || "An error occurred while proxying the request.",
+        {
+          status: 500
+        }
+      );
+    }
   }
 
   /**
