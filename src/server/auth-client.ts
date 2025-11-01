@@ -705,6 +705,15 @@ export class AuthClient {
 
     try {
       redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registered with the authorization server
+
+      // Create DPoP handle ONCE outside the closure so it persists across retries.
+      // This is required by RFC 9449: the handle must learn and reuse the nonce from
+      // the DPoP-Nonce header across multiple attempts.
+      const dpopHandle =
+        this.useDPoP && this.dpopKeyPair
+          ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+          : undefined;
+
       authorizationCodeGrantRequestCall = async () =>
         oauth.authorizationCodeGrantRequest(
           authorizationServerMetadata,
@@ -717,14 +726,25 @@ export class AuthClient {
             ...this.httpOptions(),
             [oauth.customFetch]: this.fetch,
             [oauth.allowInsecureRequests]: this.allowInsecureRequests,
-            ...(this.useDPoP &&
-              this.dpopKeyPair && {
-                DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
-              })
+            ...(dpopHandle && {
+              DPoP: dpopHandle
+            })
           }
         );
 
-      codeGrantResponse = await authorizationCodeGrantRequestCall();
+      // NOTE: Unlike refresh token and connection token flows, the auth code flow
+      // wraps only the HTTP request (not response processing) in withDPoPNonceRetry().
+      // This is intentional: withDPoPNonceRetry() expects a Response object to inspect
+      // for nonce retries. If response processing is included in the wrapper, it returns
+      // a processed object and retry logic breaks. Response processing happens after
+      // (see line 807) to maintain compatibility with the retry mechanism.
+      codeGrantResponse = await withDPoPNonceRetry(
+        authorizationCodeGrantRequestCall,
+        {
+          isDPoPEnabled: !!dpopHandle,
+          ...this.dpopOptions?.retry
+        }
+      );
     } catch (e: any) {
       return this.handleCallbackError(
         new AuthorizationCodeGrantRequestError(e.message),
@@ -878,7 +898,7 @@ export class AuthClient {
       );
     }
 
-    const { tokenSet: updatedTokenSet, idTokenClaims } = getTokenSetResponse;
+    const { tokenSet: updatedTokenSet } = getTokenSetResponse;
 
     const res = NextResponse.json({
       token: updatedTokenSet.accessToken,
@@ -889,31 +909,12 @@ export class AuthClient {
       })
     });
 
-    const sessionChanges = getSessionChangesAfterGetAccessToken(
+    await this.#updateSessionAfterTokenRetrieval(
+      req,
+      res,
       session,
-      updatedTokenSet,
-      {
-        scope: this.authorizationParameters?.scope,
-        audience: this.authorizationParameters?.audience
-      }
+      getTokenSetResponse
     );
-
-    if (sessionChanges) {
-      if (idTokenClaims) {
-        session.user = idTokenClaims as User;
-      }
-      // call beforeSessionSaved callback if present
-      // if not then filter id_token claims with default rules
-      const finalSession = await this.finalizeSession(
-        session,
-        updatedTokenSet.idToken
-      );
-      await this.sessionStore.set(req.cookies, res.cookies, {
-        ...finalSession,
-        ...sessionChanges
-      });
-      addCacheControlHeadersForSession(res);
-    }
 
     return res;
   }
@@ -999,7 +1000,7 @@ export class AuthClient {
       );
     }
 
-    const { tokenSet, idTokenClaims } = getTokenSetResponse;
+    const { tokenSet } = getTokenSetResponse;
     const [connectAccountError, connectAccountResponse] =
       await this.connectAccount({
         tokenSet: tokenSet,
@@ -1015,31 +1016,12 @@ export class AuthClient {
     }
 
     // update the session with the new token set, if necessary
-    const sessionChanges = getSessionChangesAfterGetAccessToken(
+    await this.#updateSessionAfterTokenRetrieval(
+      req,
+      connectAccountResponse,
       session,
-      tokenSet,
-      {
-        scope: this.authorizationParameters?.scope ?? DEFAULT_SCOPES,
-        audience: this.authorizationParameters?.audience
-      }
+      getTokenSetResponse
     );
-
-    if (sessionChanges) {
-      if (idTokenClaims) {
-        session.user = idTokenClaims as User;
-      }
-      // call beforeSessionSaved callback if present
-      // if not then filter id_token claims with default rules
-      const finalSession = await this.finalizeSession(
-        session,
-        tokenSet.idToken
-      );
-      await this.sessionStore.set(req.cookies, connectAccountResponse.cookies, {
-        ...finalSession,
-        ...sessionChanges
-      });
-      addCacheControlHeadersForSession(connectAccountResponse);
-    }
 
     return connectAccountResponse;
   }
@@ -1336,6 +1318,14 @@ export class AuthClient {
           additionalParameters.append("audience", options.audience);
         }
 
+        // Create DPoP handle ONCE outside the closure so it persists across retries.
+        // This is required by RFC 9449: the handle must learn and reuse the nonce from
+        // the DPoP-Nonce header across multiple attempts.
+        const dpopHandle =
+          this.useDPoP && this.dpopKeyPair
+            ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+            : undefined;
+
         const refreshTokenGrantRequestCall = async () =>
           oauth.refreshTokenGrantRequest(
             authorizationServerMetadata,
@@ -1347,10 +1337,9 @@ export class AuthClient {
               [oauth.customFetch]: this.fetch,
               [oauth.allowInsecureRequests]: this.allowInsecureRequests,
               additionalParameters,
-              ...(this.useDPoP &&
-                this.dpopKeyPair && {
-                  DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
-                })
+              ...(dpopHandle && {
+                DPoP: dpopHandle
+              })
             }
           );
 
@@ -1363,10 +1352,16 @@ export class AuthClient {
 
         let oauthRes: oauth.TokenEndpointResponse;
         try {
-          oauthRes = await withDPoPNonceRetry(async () => {
-            const refreshTokenRes = await refreshTokenGrantRequestCall();
-            return await processRefreshTokenResponseCall(refreshTokenRes);
-          }, this.dpopOptions?.retry);
+          oauthRes = await withDPoPNonceRetry(
+            async () => {
+              const refreshTokenRes = await refreshTokenGrantRequestCall();
+              return await processRefreshTokenResponseCall(refreshTokenRes);
+            },
+            {
+              isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
+              ...this.dpopOptions?.retry
+            }
+          );
         } catch (e: any) {
           return [
             new AccessTokenError(
@@ -1896,6 +1891,14 @@ export class AuthClient {
         return [discoveryError, null];
       }
 
+      // Create DPoP handle ONCE outside the closure so it persists across retries.
+      // This is required by RFC 9449: the handle must learn and reuse the nonce from
+      // the DPoP-Nonce header across multiple attempts.
+      const dpopHandle =
+        this.useDPoP && this.dpopKeyPair
+          ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+          : undefined;
+
       const genericTokenEndpointRequestCall = async () =>
         oauth.genericTokenEndpointRequest(
           authorizationServerMetadata,
@@ -1906,26 +1909,30 @@ export class AuthClient {
           {
             [oauth.customFetch]: this.fetch,
             [oauth.allowInsecureRequests]: this.allowInsecureRequests,
-            ...(this.useDPoP &&
-              this.dpopKeyPair && {
-                DPoP: oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
-              })
+            ...(dpopHandle && {
+              DPoP: dpopHandle
+            })
           }
         );
 
-      const processGenericTokenEndpointResponseCall = (response: Response) =>
-        oauth.processGenericTokenEndpointResponse(
+      const processGenericTokenEndpointResponseCall = async () => {
+        const httpResponse = await genericTokenEndpointRequestCall();
+        return oauth.processGenericTokenEndpointResponse(
           authorizationServerMetadata,
           this.clientMetadata,
-          response
+          httpResponse
         );
+      };
 
       let tokenEndpointResponse: oauth.TokenEndpointResponse;
       try {
-        tokenEndpointResponse = await withDPoPNonceRetry(async () => {
-          const httpResponse = await genericTokenEndpointRequestCall();
-          return await processGenericTokenEndpointResponseCall(httpResponse);
-        }, this.dpopOptions?.retry);
+        tokenEndpointResponse = await withDPoPNonceRetry(
+          processGenericTokenEndpointResponseCall,
+          {
+            isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
+            ...this.dpopOptions?.retry
+          }
+        );
       } catch (err: any) {
         return [
           new AccessTokenForConnectionError(
@@ -2339,6 +2346,49 @@ export class AuthClient {
     };
 
     return new Fetcher<TOutput>(fetcherConfig, fetcherHooks);
+  }
+
+  /**
+   * Updates the session after token retrieval if there are changes.
+   *
+   * This method:
+   * 1. Checks if the session needs to be updated based on token changes
+   * 2. Updates the user claims if new ID token claims are provided
+   * 3. Finalizes the session through the beforeSessionSaved hook or default filtering
+   * 4. Persists the updated session to the session store
+   * 5. Adds cache control headers to the response
+   */
+  async #updateSessionAfterTokenRetrieval(
+    req: NextRequest,
+    res: NextResponse,
+    session: SessionData,
+    tokenSetResponse: GetTokenSetResponse
+  ): Promise<void> {
+    const sessionChanges = getSessionChangesAfterGetAccessToken(
+      session,
+      tokenSetResponse.tokenSet,
+      {
+        scope: this.authorizationParameters?.scope ?? DEFAULT_SCOPES,
+        audience: this.authorizationParameters?.audience
+      }
+    );
+
+    if (sessionChanges) {
+      if (tokenSetResponse.idTokenClaims) {
+        session.user = tokenSetResponse.idTokenClaims as User;
+      }
+      // call beforeSessionSaved callback if present
+      // if not then filter id_token claims with default rules
+      const finalSession = await this.finalizeSession(
+        {
+          ...session,
+          ...sessionChanges
+        },
+        tokenSetResponse.tokenSet.idToken
+      );
+      await this.sessionStore.set(req.cookies, res.cookies, finalSession);
+      addCacheControlHeadersForSession(res);
+    }
   }
 }
 

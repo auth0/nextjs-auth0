@@ -144,7 +144,9 @@ export class StatefulSessionStore extends AbstractSessionStore {
     }
 
     const maxAge = this.calculateMaxAge(session.internal.createdAt);
-    const expiration = Date.now() / 1000 + maxAge;
+    // Use consistent timestamp to avoid race condition - align with calculateMaxAge logic
+    const now = this.epoch();
+    const expiration = now + maxAge;
     const jwe = await cookies.encrypt(
       {
         id: sessionId
