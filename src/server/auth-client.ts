@@ -931,7 +931,7 @@ export class AuthClient {
       );
     }
 
-    const { tokenSet: updatedTokenSet, idTokenClaims } = getTokenSetResponse;
+    const { tokenSet: updatedTokenSet } = getTokenSetResponse;
 
     const res = NextResponse.json({
       token: updatedTokenSet.accessToken,
@@ -942,28 +942,12 @@ export class AuthClient {
       })
     });
 
-    const sessionChanges = getSessionChangesAfterGetAccessToken(
+    await this.#updateSessionAfterTokenRetrieval(
+      req,
+      res,
       session,
-      updatedTokenSet,
-      {
-        scope: this.authorizationParameters?.scope,
-        audience: this.authorizationParameters?.audience
-      }
+      getTokenSetResponse
     );
-
-    if (sessionChanges) {
-      if (idTokenClaims) {
-        session.user = idTokenClaims as User;
-      }
-      // call beforeSessionSaved callback if present
-      // if not then filter id_token claims with default rules
-      const finalSession = await this.finalizeSession(
-        { ...session, ...sessionChanges },
-        updatedTokenSet.idToken
-      );
-      await this.sessionStore.set(req.cookies, res.cookies, finalSession);
-      addCacheControlHeadersForSession(res);
-    }
 
     return res;
   }
@@ -1049,7 +1033,7 @@ export class AuthClient {
       );
     }
 
-    const { tokenSet, idTokenClaims } = getTokenSetResponse;
+    const { tokenSet } = getTokenSetResponse;
     const [connectAccountError, connectAccountResponse] =
       await this.connectAccount({
         tokenSet: tokenSet,
@@ -1065,32 +1049,12 @@ export class AuthClient {
     }
 
     // update the session with the new token set, if necessary
-    const sessionChanges = getSessionChangesAfterGetAccessToken(
+    await this.#updateSessionAfterTokenRetrieval(
+      req,
+      connectAccountResponse,
       session,
-      tokenSet,
-      {
-        scope: this.authorizationParameters?.scope ?? DEFAULT_SCOPES,
-        audience: this.authorizationParameters?.audience
-      }
+      getTokenSetResponse
     );
-
-    if (sessionChanges) {
-      if (idTokenClaims) {
-        session.user = idTokenClaims as User;
-      }
-      // call beforeSessionSaved callback if present
-      // if not then filter id_token claims with default rules
-      const finalSession = await this.finalizeSession(
-        { ...session, ...sessionChanges },
-        tokenSet.idToken
-      );
-      await this.sessionStore.set(
-        req.cookies,
-        connectAccountResponse.cookies,
-        finalSession
-      );
-      addCacheControlHeadersForSession(connectAccountResponse);
-    }
 
     return connectAccountResponse;
   }
@@ -2237,6 +2201,49 @@ export class AuthClient {
     };
 
     return new Fetcher<TOutput>(fetcherConfig, fetcherHooks);
+  }
+
+  /**
+   * Updates the session after token retrieval if there are changes.
+   *
+   * This method:
+   * 1. Checks if the session needs to be updated based on token changes
+   * 2. Updates the user claims if new ID token claims are provided
+   * 3. Finalizes the session through the beforeSessionSaved hook or default filtering
+   * 4. Persists the updated session to the session store
+   * 5. Adds cache control headers to the response
+   */
+  async #updateSessionAfterTokenRetrieval(
+    req: NextRequest,
+    res: NextResponse,
+    session: SessionData,
+    tokenSetResponse: GetTokenSetResponse
+  ): Promise<void> {
+    const sessionChanges = getSessionChangesAfterGetAccessToken(
+      session,
+      tokenSetResponse.tokenSet,
+      {
+        scope: this.authorizationParameters?.scope ?? DEFAULT_SCOPES,
+        audience: this.authorizationParameters?.audience
+      }
+    );
+
+    if (sessionChanges) {
+      if (tokenSetResponse.idTokenClaims) {
+        session.user = tokenSetResponse.idTokenClaims as User;
+      }
+      // call beforeSessionSaved callback if present
+      // if not then filter id_token claims with default rules
+      const finalSession = await this.finalizeSession(
+        {
+          ...session,
+          ...sessionChanges
+        },
+        tokenSetResponse.tokenSet.idToken
+      );
+      await this.sessionStore.set(req.cookies, res.cookies, finalSession);
+      addCacheControlHeadersForSession(res);
+    }
   }
 }
 
