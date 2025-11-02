@@ -3,13 +3,55 @@ import * as jose from "jose";
 import * as oauth from "oauth4webapi";
 import * as client from "openid-client";
 
-
-
 import packageJson from "../../package.json" with { type: "json" };
-import { AccessTokenError, AccessTokenErrorCode, AccessTokenForConnectionError, AccessTokenForConnectionErrorCode, AuthorizationCodeGrantError, AuthorizationCodeGrantRequestError, AuthorizationError, BackchannelAuthenticationError, BackchannelAuthenticationNotSupportedError, BackchannelLogoutError, ConnectAccountError, ConnectAccountErrorCodes, DiscoveryError, DPoPError, DPoPErrorCode, InvalidStateError, MissingStateError, MyAccountApiError, OAuth2Error, SdkError } from "../errors/index.js";
-import { CompleteConnectAccountRequest, CompleteConnectAccountResponse, ConnectAccountOptions, ConnectAccountRequest, ConnectAccountResponse } from "../types/connected-accounts.js";
+import {
+  AccessTokenError,
+  AccessTokenErrorCode,
+  AccessTokenForConnectionError,
+  AccessTokenForConnectionErrorCode,
+  AuthorizationCodeGrantError,
+  AuthorizationCodeGrantRequestError,
+  AuthorizationError,
+  BackchannelAuthenticationError,
+  BackchannelAuthenticationNotSupportedError,
+  BackchannelLogoutError,
+  ConnectAccountError,
+  ConnectAccountErrorCodes,
+  DiscoveryError,
+  DPoPError,
+  DPoPErrorCode,
+  InvalidStateError,
+  MissingStateError,
+  MyAccountApiError,
+  OAuth2Error,
+  SdkError
+} from "../errors/index.js";
+import {
+  CompleteConnectAccountRequest,
+  CompleteConnectAccountResponse,
+  ConnectAccountOptions,
+  ConnectAccountRequest,
+  ConnectAccountResponse
+} from "../types/connected-accounts.js";
 import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
-import { AccessTokenForConnectionOptions, AccessTokenSet, AuthorizationParameters, BackchannelAuthenticationOptions, BackchannelAuthenticationResponse, ConnectionTokenSet, GetAccessTokenOptions, LogoutStrategy, LogoutToken, RESPONSE_TYPES, SessionData, StartInteractiveLoginOptions, SUBJECT_TOKEN_TYPES, TokenSet, User } from "../types/index.js";
+import {
+  AccessTokenForConnectionOptions,
+  AccessTokenSet,
+  AuthorizationParameters,
+  BackchannelAuthenticationOptions,
+  BackchannelAuthenticationResponse,
+  ConnectionTokenSet,
+  GetAccessTokenOptions,
+  LogoutStrategy,
+  LogoutToken,
+  ProxyOptions,
+  RESPONSE_TYPES,
+  SessionData,
+  StartInteractiveLoginOptions,
+  SUBJECT_TOKEN_TYPES,
+  TokenSet,
+  User
+} from "../types/index.js";
 import { mergeAuthorizationParamsIntoSearchParams } from "../utils/authorization-params-helpers.js";
 import { DEFAULT_SCOPES } from "../utils/constants.js";
 import { withDPoPNonceRetry } from "../utils/dpopUtils.js";
@@ -21,21 +63,33 @@ import {
 } from "../utils/pathUtils.js";
 import {
   buildForwardedRequestHeaders,
-  buildForwardedResponseHeaders
+  buildForwardedResponseHeaders,
+  proxyMatcher,
+  transformTargetUrl
 } from "../utils/proxy.js";
 import {
   ensureDefaultScope,
   getScopeForAudience
 } from "../utils/scope-helpers.js";
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
-import { compareScopes, findAccessTokenSet, mergeScopes, tokenSetFromAccessTokenSet } from "../utils/token-set-helpers.js";
+import {
+  compareScopes,
+  findAccessTokenSet,
+  mergeScopes,
+  tokenSetFromAccessTokenSet
+} from "../utils/token-set-helpers.js";
 import { toSafeRedirect } from "../utils/url-helpers.js";
 import { addCacheControlHeadersForSession } from "./cookies.js";
-import { AccessTokenFactory, Fetcher, FetcherConfig, FetcherHooks, FetcherMinimalConfig } from "./fetcher.js";
+import {
+  AccessTokenFactory,
+  Fetcher,
+  FetcherConfig,
+  FetcherHooks,
+  FetcherMinimalConfig
+} from "./fetcher.js";
 import { AbstractSessionStore } from "./session/abstract-session-store.js";
 import { TransactionState, TransactionStore } from "./transaction-store.js";
 import { filterDefaultIdTokenClaims } from "./user.js";
-
 
 export type BeforeSessionSavedHook = (
   session: SessionData,
@@ -147,6 +201,8 @@ export interface AuthClientOptions {
   dpopKeyPair?: DpopKeyPair;
   dpopOptions?: DpopOptions;
 
+  proxyRoutes?: ProxyOptions[];
+
   /**
    * @future This option is reserved for future implementation.
    * Currently not used - placeholder for upcoming nonce persistence feature.
@@ -201,6 +257,7 @@ export class AuthClient {
   private readonly useDPoP: boolean;
 
   private proxyFetchers: { [audience: string]: Fetcher<Response> } = {};
+  private proxyRoutes: ProxyOptions[];
 
   constructor(options: AuthClientOptions) {
     // dependencies
@@ -322,6 +379,8 @@ export class AuthClient {
     if ((options.useDPoP ?? false) && options.dpopKeyPair) {
       this.dpopKeyPair = options.dpopKeyPair;
     }
+
+    this.proxyRoutes = options.proxyRoutes ?? [];
   }
 
   async handler(req: NextRequest): Promise<NextResponse> {
@@ -354,28 +413,41 @@ export class AuthClient {
       this.enableConnectAccountEndpoint
     ) {
       return this.handleConnectAccount(req);
-    } else if (sanitizedPathname.startsWith("/me")) {
+    }
+    // my-account and my-org proxies take precedence over any other defined proxy routes
+    else if (sanitizedPathname.startsWith("/me")) {
       return this.handleMyAccount(req);
     } else if (sanitizedPathname.startsWith("/my-org")) {
       return this.handleMyOrg(req);
-    } else {
-      // no auth handler found, simply touch the sessions
-      // TODO: this should only happen if rolling sessions are enabled. Also, we should
-      // try to avoid reading from the DB (for stateful sessions) on every request if possible.
-      const res = NextResponse.next();
-      const session = await this.sessionStore.get(req.cookies);
-
-      if (session) {
-        // we pass the existing session (containing an `createdAt` timestamp) to the set method
-        // which will update the cookie's `maxAge` property based on the `createdAt` time
-        await this.sessionStore.set(req.cookies, res.cookies, {
-          ...session
-        });
-        addCacheControlHeadersForSession(res);
-      }
-
-      return res;
     }
+
+    // de-couple handleProxy impl with my-account and my-org apis
+    // this enables testing handleProxy with an arbitrary upstream api
+    // this also enables generic proxy handling capabilities if needed in future.
+    const matchedProxyOptions = proxyMatcher(
+      sanitizedPathname,
+      this.proxyRoutes
+    );
+    if (matchedProxyOptions) {
+      return this.#handleProxy(req, matchedProxyOptions);
+    }
+
+    // no auth handler found, simply touch the sessions
+    // TODO: this should only happen if rolling sessions are enabled. Also, we should
+    // try to avoid reading from the DB (for stateful sessions) on every request if possible.
+    const res = NextResponse.next();
+    const session = await this.sessionStore.get(req.cookies);
+
+    if (session) {
+      // we pass the existing session (containing an `createdAt` timestamp) to the set method
+      // which will update the cookie's `maxAge` property based on the `createdAt` time
+      await this.sessionStore.set(req.cookies, res.cookies, {
+        ...session
+      });
+      addCacheControlHeadersForSession(res);
+    }
+
+    return res;
   }
 
   async startInteractiveLogin(
@@ -769,12 +841,6 @@ export class AuthClient {
     }
     let oidcRes: oauth.TokenEndpointResponse;
     try {
-      // Log DPoP configuration for debugging
-      console.log(`[DEBUG] Authorization Code Exchange:`);
-      console.log(`[DEBUG] - useDPoP: ${this.useDPoP}`);
-      console.log(`[DEBUG] - dpopKeyPair present: ${!!this.dpopKeyPair}`);
-      console.log(`[DEBUG] - DPoP handle will be created: ${this.useDPoP && !!this.dpopKeyPair}`);
-      
       // Process the authorization code response
       // For authorization code flows, oauth4webapi handles DPoP nonce management internally
       // No need for manual retry since authorization codes are single-use
@@ -803,26 +869,6 @@ export class AuthClient {
     }
 
     const idTokenClaims = oauth.getValidatedIdTokenClaims(oidcRes)!;
-    
-    // CRITICAL DEBUGGING: Decode and inspect access token to verify DPoP binding
-    let accessTokenPayload: any = undefined;
-    try {
-      const accessTokenParts = oidcRes.access_token?.split('.');
-      if (accessTokenParts && accessTokenParts.length === 3) {
-        const payload = accessTokenParts[1];
-        const decoded = JSON.parse(Buffer.from(payload, 'base64').toString('utf-8'));
-        accessTokenPayload = decoded;
-        console.log(`[DEBUG] Access Token Payload (from initial login):`);
-        console.log(`[DEBUG] - cnf claim present: ${!!decoded.cnf}`);
-        console.log(`[DEBUG] - cnf value: ${decoded.cnf ? JSON.stringify(decoded.cnf) : 'MISSING'}`);
-        console.log(`[DEBUG] - token_type claim: ${decoded.token_type || 'MISSING'}`);
-        console.log(`[DEBUG] - Full payload claims: ${JSON.stringify(Object.keys(decoded))}`);
-        console.log(`[DEBUG] CRITICAL: If cnf is missing, tokens are NOT DPoP-bound!`);
-      }
-    } catch (decodeError) {
-      console.log(`[DEBUG] Failed to decode access token:`, decodeError);
-    }
-    
     let session: SessionData = {
       user: idTokenClaims,
       tokenSet: {
@@ -1251,13 +1297,7 @@ export class AuthClient {
         const accessTokenExpiresAt =
           Math.floor(Date.now() / 1000) + Number(oauthRes.expires_in);
 
-        console.log(`[DEBUG] Token refresh - oauthRes.token_type:`, oauthRes.token_type);
-        console.log(`[DEBUG] Token refresh - useDPoP:`, this.useDPoP);
-        console.log(`[DEBUG] Token refresh - NOT overriding token_type because:`);
-        console.log(`[DEBUG]   - Real issue is missing cnf claim in JWT payload`);
-        console.log(`[DEBUG]   - token_type metadata doesn't fix binding`);
         const calculatedTokenType = oauthRes.token_type;
-        console.log(`[DEBUG] Token refresh - token_type from Auth0:`, calculatedTokenType);
 
         const updatedTokenSet = {
           ...tokenSet, // contains the existing `iat` claim to maintain the session lifetime
@@ -1302,13 +1342,7 @@ export class AuthClient {
       }
     }
 
-    // Ensure token_type is passed through for debugging (not overriding)
     const finalTokenSet = { ...tokenSet } as TokenSet;
-    console.log(`[DEBUG] Non-refreshed token path - useDPoP:`, this.useDPoP);
-    console.log(`[DEBUG] Non-refreshed token path - existing token_type:`, finalTokenSet.token_type);
-    console.log(`[DEBUG] Non-refreshed token path - NOT modifying token_type because:`);
-    console.log(`[DEBUG]   - Token binding is in JWT cnf claim, not metadata`);
-    console.log(`[DEBUG]   - Final token_type:`, finalTokenSet.token_type);
 
     return [null, { tokenSet: finalTokenSet, idTokenClaims: undefined }];
   }
@@ -2220,6 +2254,56 @@ export class AuthClient {
   }
 
   /**
+   * Handles CORS preflight requests without authentication headers.
+   *
+   * Special-cases the OPTIONS method to forward preflight requests directly WITHOUT
+   * calling `fetcher.fetchWithAuth()`, which would incorrectly inject DPoP/auth headers
+   * on the preflight request.
+   *
+   * The browser never sends auth headers on preflight requests, and we should not either.
+   * Authorization checks must not be performed on preflight requests according to RFC 7231.
+   * Additionally, DPoP proofs are bound to HTTP requests, not to preflights (RFC 9449).
+   *
+   * @param req The incoming CORS preflight OPTIONS request.
+   * @param options Configuration options for the proxy including target base URL, audience, and scope.
+   * @returns A NextResponse containing the preflight response from the target server, or a 500 error if the preflight fails.
+   *
+   * @see RFC 7231 Section 4.3.1 - Authorization checks must not be performed on preflight requests
+   * @see RFC 9449 Section 4.1 - DPoP proofs are bound to HTTP requests, not to preflights
+   */
+  async #handlePreflight(
+    req: NextRequest,
+    options: ProxyOptions
+  ): Promise<NextResponse> {
+    const headers = buildForwardedRequestHeaders(req);
+    const targetUrl = transformTargetUrl(req, options);
+
+    // Set Host header to upstream host
+    headers.set("host", targetUrl.host);
+
+    try {
+      // Forward preflight directly WITHOUT DPoP/auth headers
+      const preflightResponse = await this.fetch(targetUrl.toString(), {
+        method: "OPTIONS",
+        headers
+      });
+
+      // CORS preflight responses should be 204 No Content per spec
+      // Forward CORS headers from upstream but normalize status to 204
+      return new NextResponse(null, {
+        status: 204,
+        headers: buildForwardedResponseHeaders(preflightResponse)
+      });
+    } catch (error: any) {
+      // If preflight fails, return 500
+      return new NextResponse(
+        error.cause || error.message || "Preflight request failed",
+        { status: 500 }
+      );
+    }
+  }
+
+  /**
    * Handles proxying requests to a target URL with authentication.
    *
    * This method retrieves the user's session, constructs the target URL,
@@ -2231,12 +2315,7 @@ export class AuthClient {
    */
   async #handleProxy(
     req: NextRequest,
-    options: {
-      proxyPath: string;
-      targetBaseUrl: string;
-      audience: string;
-      scope: string | null;
-    }
+    options: ProxyOptions
   ): Promise<NextResponse> {
     const session = await this.sessionStore.get(req.cookies);
     if (!session) {
@@ -2244,19 +2323,38 @@ export class AuthClient {
         status: 401
       });
     }
-    const targetBaseUrl = options.targetBaseUrl;
-    const targetUrl = new URL(
-      req.nextUrl.pathname.replace(options.proxyPath, targetBaseUrl.toString())
-    );
+
+    // handle preflight requests
+    if (
+      req.method === "OPTIONS" &&
+      req.headers.has("access-control-request-method")
+    ) {
+      return this.#handlePreflight(req, options);
+    }
+
     const headers = buildForwardedRequestHeaders(req);
 
-    // Forward all search params
-    req.nextUrl.searchParams.forEach((value, key) => {
-      targetUrl.searchParams.set(key, value);
-    });
+    // Clone the request to preserve body for DPoP nonce retry
+    // WHATWG Streams Spec: ReadableStream is single-consume (can only be read once).
+    // When oauth4webapi's protectedResourceRequest encounters a DPoP nonce error,
+    // it triggers a retry. Without cloning, the body stream will be exhausted on the first attempt,
+    // causing the retry to fail with "stream already disturbed" or empty body.
+    // To support retry, we buffer the body so it can be reused on retry.
+    const clonedReq = req.clone();
+    const targetUrl = transformTargetUrl(req, options);
 
-    let getTokenSetResponse!: GetTokenSetResponse;
+    // Set Host header to upstream host
+    headers.set("host", targetUrl.host);
 
+    // Buffer the body to allow retry on DPoP nonce errors
+    // ReadableStreams can only be consumed once, so we need to buffer for retry
+    const bodyBuffer = clonedReq.body
+      ? await clonedReq.arrayBuffer()
+      : undefined;
+
+    let tokenSetSideEffect!: GetTokenSetResponse;
+
+    // get/create fetcher isntance
     this.proxyFetchers[options.audience] =
       this.proxyFetchers[options.audience] ??
       (await this.fetcherFactory({
@@ -2272,13 +2370,13 @@ export class AuthClient {
             throw error;
           }
 
-          // Tracking the last used token set response for session updates later.
+          // Tracking the last used token set response for session updates later as a side effect.
           // This relies on the fact that `getAccessToken` is called before the actual fetch.
           // Not ideal, but works because of that order of execution.
           // We need to do this because the fetcher does not return the token set used, and we need it to update the session if necessary.
           // Additionally, updating the session requires the request and response objects, which are not available in the fetcher,
           // so we can not update the session directly from the fetcher.
-          getTokenSetResponse = tokenSetResponse;
+          tokenSetSideEffect = tokenSetResponse;
 
           return tokenSetResponse.tokenSet;
         }
@@ -2288,13 +2386,13 @@ export class AuthClient {
       const response = await this.proxyFetchers[options.audience].fetchWithAuth(
         targetUrl.toString(),
         {
-          method: req.method,
+          method: clonedReq.method,
           headers,
-          body: req.body,
+          body: bodyBuffer,
           // @ts-expect-error duplex is not known, while we do need it for sending streams as the body.
           // As we are receiving a request, body is always exposed as a ReadableStream when defined,
           // so setting duplex to 'half' is required at that point.
-          duplex: req.body ? "half" : undefined
+          duplex: bodyBuffer ? "half" : undefined
         },
         { scope: options.scope, audience: options.audience }
       );
@@ -2309,17 +2407,26 @@ export class AuthClient {
       // This is not ideal, as this kind of relies on the order of execution.
       // As we know the fetcher's `getAccessToken` is called before the actual fetch,
       // we know it should always be defined when we reach this point.
-      if (getTokenSetResponse) {
+      if (tokenSetSideEffect) {
         await this.#updateSessionAfterTokenRetrieval(
           req,
           res,
           session,
-          getTokenSetResponse
+          tokenSetSideEffect
         );
       }
 
       return res;
     } catch (e: any) {
+      // Return 401 for missing refresh token (cannot refresh expired token)
+      if (
+        e instanceof AccessTokenError &&
+        e.code === AccessTokenErrorCode.MISSING_REFRESH_TOKEN
+      ) {
+        return new NextResponse(e.message, { status: 401 });
+      }
+
+      // Generic error handling for other errors
       return new NextResponse(
         e.cause || e.message || "An error occurred while proxying the request.",
         {

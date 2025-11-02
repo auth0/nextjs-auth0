@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server.js";
 
+import { ProxyOptions } from "../types/index.js";
+
 /**
  * A default allow-list of headers to forward.
  */
@@ -29,7 +31,14 @@ const DEFAULT_HEADER_ALLOW_LIST: Set<string> = new Set([
   "x-forwarded-for",
   "x-forwarded-host",
   "x-forwarded-proto",
-  "x-real-ip"
+  "x-real-ip",
+
+  // CORS REQUEST HEADERS
+  // Without these headers, Preflight fails, browser blocks all cross-origin requests
+  // See: RFC 7231 §4.3.1 (preflight semantics), RFC 6454 (origin), WHATWG Fetch Spec
+  "origin",
+  "access-control-request-method",
+  "access-control-request-headers"
 ]);
 
 /**
@@ -66,11 +75,15 @@ export function buildForwardedRequestHeaders(request: NextRequest): Headers {
   request.headers.forEach((value, key) => {
     const lowerKey = key.toLowerCase();
 
-    // Only forward if it's in the allow-list AND not a hop-by-hop header
-    if (
-      DEFAULT_HEADER_ALLOW_LIST.has(lowerKey) &&
-      !HOP_BY_HOP_HEADERS.has(lowerKey)
-    ) {
+    // Forward if:
+    // 1. It's in the allow-list, OR
+    // 2. It starts with 'x-' (custom headers convention), AND
+    // 3. It's not a hop-by-hop header
+    const shouldForward =
+      (DEFAULT_HEADER_ALLOW_LIST.has(lowerKey) || lowerKey.startsWith("x-")) &&
+      !HOP_BY_HOP_HEADERS.has(lowerKey);
+
+    if (shouldForward) {
       forwardedHeaders.set(key, value);
     }
   });
@@ -101,3 +114,82 @@ export function buildForwardedResponseHeaders(response: Response): Headers {
 
   return forwardedHeaders;
 }
+
+/**
+ * Builds a URL representing the upstream target for a proxied request.
+ *
+ * This function correctly handles the path transformation by:
+ * 1. Extracting the path segment that comes AFTER the proxyPath
+ * 2. Appending it to the targetBaseUrl to avoid path duplication
+ *
+ * Example:
+ *   - proxyPath: "/me"
+ *   - targetBaseUrl: "https://issuer/me/v1"
+ *   - incoming: "/me/v1/some-endpoint"
+ *   - remaining path: "/v1/some-endpoint" (after removing "/me")
+ *   - result: "https://issuer/me/v1/v1/some-endpoint" (targetBaseUrl + remainingPath)
+ *
+ * @param req - The incoming request to mirror when constructing the target URL.
+ * @param options - Proxy configuration containing the base URL and proxy path.
+ * @returns A URL object pointing to the resolved target endpoint with forwarded query parameters.
+ */
+export function transformTargetUrl(
+  req: NextRequest,
+  options: ProxyOptions
+): URL {
+  const targetBaseUrl = options.targetBaseUrl;
+
+  // Extract the path segment that comes AFTER the proxyPath
+  // If proxyPath is "/me" and pathname is "/me/v1/some-endpoint",
+  // the remaining path is "/v1/some-endpoint"
+  let remainingPath = req.nextUrl.pathname.startsWith(options.proxyPath)
+    ? req.nextUrl.pathname.slice(options.proxyPath.length)
+    : req.nextUrl.pathname;
+
+  // Ensure proper path joining by handling the slash
+  // If remainingPath is empty or doesn't start with /, handle accordingly
+  if (remainingPath && !remainingPath.startsWith("/")) {
+    remainingPath = "/" + remainingPath;
+  }
+
+  // Remove trailing slash from targetBaseUrl for consistent joining
+  const baseUrlTrimmed = targetBaseUrl.replace(/\/$/, "");
+
+  // Combine baseUrl with remainingPath
+  const targetUrl = new URL(baseUrlTrimmed + remainingPath);
+
+  req.nextUrl.searchParams.forEach((value, key) => {
+    targetUrl.searchParams.set(key, value);
+  });
+
+  return targetUrl;
+}
+
+/*
+  async handleMyAccount(req: NextRequest): Promise<NextResponse> {
+    return this.#handleProxy(req, {
+      proxyPath: "/me",
+      targetBaseUrl: `${this.issuer}/me/v1`,
+      audience: `${this.issuer}/me/`,
+      scope: req.headers.get("auth0-scope")
+    });
+  }
+*/
+
+/**
+ * Matches a given path against a list of proxy routes and returns the first matching proxy configuration.
+ * @param path - The path to match against proxy routes
+ * @param proxyRoutes - An array of proxy route configurations to match against
+ * @returns The first matching ProxyOptions configuration, or undefined if no match is found
+ */
+export const proxyMatcher = (
+  path: string,
+  proxyRoutes: ProxyOptions[]
+): ProxyOptions | undefined => {
+  for (const entry of proxyRoutes) {
+    if (path.startsWith(entry.proxyPath)) {
+      return entry;
+    }
+  }
+  return undefined;
+};
