@@ -8,7 +8,7 @@ const rateLimit = require('express-rate-limit');
 const { expressjwt: jwt } = require('express-jwt');
 const jwksRsa = require('jwks-rsa');
 const oauth = require('oauth4webapi');
-
+const crypto = require('crypto');
 const jose = require('jose');
 
 const baseUrl = process.env.APP_BASE_URL;
@@ -290,12 +290,12 @@ async function startServers() {
 
     // Server configurations
     const servers = [
-      // {
-      //   audience: process.env.AUTH0_BEARER_AUDIENCE || 'resource-server-1',
-      //   port: 3002,
-      //   name: 'Bearer-Server',
-      //   forceDpop: false
-      // },
+      {
+        audience: process.env.AUTH0_BEARER_AUDIENCE || 'resource-server-1',
+        port: 3002,
+        name: 'Bearer-Server',
+        forceDpop: false
+      },
       {
         audience: process.env.AUTH0_DPOP_AUDIENCE || 'https://example.com',
         port: 3001,
