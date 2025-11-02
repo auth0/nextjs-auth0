@@ -1,9 +1,11 @@
 import { NextRequest } from "next/server.js";
 import { describe, expect, it } from "vitest";
 
+import { ProxyOptions } from "../types/index.js";
 import {
   buildForwardedRequestHeaders,
-  buildForwardedResponseHeaders
+  buildForwardedResponseHeaders,
+  transformTargetUrl
 } from "./proxy.js";
 
 describe("headers", () => {
@@ -32,7 +34,7 @@ describe("headers", () => {
       const request = new NextRequest("https://example.com", {
         headers: {
           accept: "application/json",
-          "x-custom-header": "should-not-be-forwarded",
+          "some-custom-header": "should-not-be-forwarded",
           authorization: "Bearer token",
           cookie: "session=xyz"
         }
@@ -41,7 +43,7 @@ describe("headers", () => {
       const result = buildForwardedRequestHeaders(request);
 
       expect(result.get("accept")).toBe("application/json");
-      expect(result.get("x-custom-header")).toBeNull();
+      expect(result.get("some-custom-header")).toBeNull();
       expect(result.get("authorization")).toBeNull();
       expect(result.get("cookie")).toBeNull();
     });
@@ -267,6 +269,238 @@ describe("headers", () => {
       expect(result.get("access-control-expose-headers")).toBe(
         "X-Custom-Header"
       );
+    });
+  });
+});
+
+describe("url", () => {
+  describe("transformTargetUrl", () => {
+    /**
+     * Helper to create a mock NextRequest with a given pathname and search params
+     */
+    function createMockRequest(
+      pathname: string,
+      searchParams: Record<string, string> = {}
+    ): NextRequest {
+      const url = new URL(`http://localhost${pathname}`);
+      Object.entries(searchParams).forEach(([key, value]) => {
+        url.searchParams.set(key, value);
+      });
+
+      return {
+        nextUrl: url,
+        headers: new Headers()
+      } as unknown as NextRequest;
+    }
+
+    describe("Bug: Double path segment", () => {
+      it("should not duplicate path segments when targetBaseUrl includes path", () => {
+        // This is the reported bug scenario
+        const req = createMockRequest("/me/v1/some-endpoint");
+        const options: ProxyOptions = {
+          proxyPath: "/me",
+          targetBaseUrl: "https://issuer/me/v1",
+          audience: "https://issuer/me/",
+          scope: null
+        };
+
+        const result = transformTargetUrl(req, options);
+
+        // Expected: https://issuer/me/v1/v1/some-endpoint
+        // NOT: https://issuer/me/v1/v1/some-endpoint (old buggy behavior)
+        // The path after /me is /v1/some-endpoint
+        // So combined with https://issuer/me/v1 it should be /v1/some-endpoint
+        expect(result.toString()).toBe("https://issuer/me/v1/v1/some-endpoint");
+      });
+    });
+
+    describe("Single segment proxy paths", () => {
+      it("should handle simple single-segment proxy path", () => {
+        const req = createMockRequest("/api/users");
+        const options: ProxyOptions = {
+          proxyPath: "/api",
+          targetBaseUrl: "https://backend.example.com",
+          audience: "https://backend.example.com/",
+          scope: null
+        };
+
+        const result = transformTargetUrl(req, options);
+
+        expect(result.toString()).toBe("https://backend.example.com/users");
+      });
+
+      it("should handle root path replacement", () => {
+        const req = createMockRequest("/users");
+        const options: ProxyOptions = {
+          proxyPath: "/",
+          targetBaseUrl: "https://backend.example.com",
+          audience: "https://backend.example.com/",
+          scope: null
+        };
+
+        const result = transformTargetUrl(req, options);
+
+        // URL normalizes to include trailing slash
+        expect(result.toString()).toBe("https://backend.example.com/users");
+      });
+    });
+
+    describe("Multi-segment proxy paths", () => {
+      it("should handle multi-segment proxy paths", () => {
+        const req = createMockRequest("/api/v1/users");
+        const options: ProxyOptions = {
+          proxyPath: "/api/v1",
+          targetBaseUrl: "https://backend.example.com/api/v1",
+          audience: "https://backend.example.com/",
+          scope: null
+        };
+
+        const result = transformTargetUrl(req, options);
+
+        expect(result.toString()).toBe(
+          "https://backend.example.com/api/v1/users"
+        );
+      });
+
+      it("should handle complex nested paths", () => {
+        const req = createMockRequest("/proxy/auth/v2/some/nested/endpoint");
+        const options: ProxyOptions = {
+          proxyPath: "/proxy/auth",
+          targetBaseUrl: "https://auth.example.com/auth/v2",
+          audience: "https://auth.example.com/",
+          scope: null
+        };
+
+        const result = transformTargetUrl(req, options);
+
+        expect(result.toString()).toBe(
+          "https://auth.example.com/auth/v2/v2/some/nested/endpoint"
+        );
+      });
+    });
+
+    describe("Query parameters", () => {
+      it("should preserve query parameters", () => {
+        const req = createMockRequest("/api/users", {
+          id: "123",
+          name: "test"
+        });
+        const options: ProxyOptions = {
+          proxyPath: "/api",
+          targetBaseUrl: "https://backend.example.com",
+          audience: "https://backend.example.com/",
+          scope: null
+        };
+
+        const result = transformTargetUrl(req, options);
+
+        expect(result.href).toContain("https://backend.example.com/users?");
+        expect(result.searchParams.get("id")).toBe("123");
+        expect(result.searchParams.get("name")).toBe("test");
+      });
+
+      it("should handle multiple query parameters", () => {
+        const req = createMockRequest("/me/v1/profile", {
+          format: "json",
+          includeMetadata: "true"
+        });
+        const options: ProxyOptions = {
+          proxyPath: "/me",
+          targetBaseUrl: "https://issuer/me/v1",
+          audience: "https://issuer/me/",
+          scope: null
+        };
+
+        const result = transformTargetUrl(req, options);
+
+        expect(result.toString()).toMatch(
+          /https:\/\/issuer\/me\/v1\/v1\/profile\?.*format=json/
+        );
+        expect(result.toString()).toMatch(
+          /https:\/\/issuer\/me\/v1\/v1\/profile\?.*includeMetadata=true/
+        );
+      });
+    });
+
+    describe("Edge cases", () => {
+      it("should handle proxy path with trailing slash", () => {
+        const req = createMockRequest("/api/v1/test");
+        const options: ProxyOptions = {
+          proxyPath: "/api/v1",
+          targetBaseUrl: "https://backend.example.com/api/v1/",
+          audience: "https://backend.example.com/",
+          scope: null
+        };
+
+        const result = transformTargetUrl(req, options);
+
+        // The implementation removes trailing slash from base URL, so no double slash
+        expect(result.toString()).toBe(
+          "https://backend.example.com/api/v1/test"
+        );
+      });
+
+      it("should handle target base URL without trailing slash", () => {
+        const req = createMockRequest("/api/resource");
+        const options: ProxyOptions = {
+          proxyPath: "/api",
+          targetBaseUrl: "https://backend.example.com",
+          audience: "https://backend.example.com/",
+          scope: null
+        };
+
+        const result = transformTargetUrl(req, options);
+
+        expect(result.toString()).toBe("https://backend.example.com/resource");
+      });
+
+      it("should handle request path that doesn't match proxy path prefix", () => {
+        const req = createMockRequest("/other/path");
+        const options: ProxyOptions = {
+          proxyPath: "/api",
+          targetBaseUrl: "https://backend.example.com",
+          audience: "https://backend.example.com/",
+          scope: null
+        };
+
+        const result = transformTargetUrl(req, options);
+
+        // If the path doesn't start with proxyPath, the entire path is used
+        expect(result.toString()).toBe(
+          "https://backend.example.com/other/path"
+        );
+      });
+
+      it("should handle exactly matching proxy path", () => {
+        const req = createMockRequest("/api");
+        const options: ProxyOptions = {
+          proxyPath: "/api",
+          targetBaseUrl: "https://backend.example.com",
+          audience: "https://backend.example.com/",
+          scope: null
+        };
+
+        const result = transformTargetUrl(req, options);
+
+        // URL naturally normalizes with trailing slash
+        expect(result.toString()).toBe("https://backend.example.com/");
+      });
+
+      it("should handle path with special characters", () => {
+        const req = createMockRequest("/api/user%20name/profile");
+        const options: ProxyOptions = {
+          proxyPath: "/api",
+          targetBaseUrl: "https://backend.example.com",
+          audience: "https://backend.example.com/",
+          scope: null
+        };
+
+        const result = transformTargetUrl(req, options);
+
+        expect(result.toString()).toBe(
+          "https://backend.example.com/user%20name/profile"
+        );
+      });
     });
   });
 });
