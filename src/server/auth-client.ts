@@ -2371,7 +2371,7 @@ export class AuthClient {
       this.proxyFetchers[options.audience] = fetcher;
     } else {
       // @ts-expect-error Override fetcher's getAccessToken to capture token set side effects
-      fetcher.getAccessToken = getAccessToken.bind(fetcher);
+      fetcher.getAccessToken = getAccessToken;
     }
 
     try {
