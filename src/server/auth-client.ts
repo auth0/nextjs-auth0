@@ -302,17 +302,7 @@ export class AuthClient {
       this.authorizationParameters
     );
 
-    const scope = getScopeForAudience(
-      this.authorizationParameters.scope,
-      this.authorizationParameters.audience
-    )
-      ?.split(" ")
-      .map((s) => s.trim());
-    if (!scope || !scope.includes("openid")) {
-      throw new Error(
-        "The 'openid' scope must be included in the set of scopes. See https://auth0.com/docs"
-      );
-    }
+    this.validateRequiredScopes(this.authorizationParameters);
 
     // application
     this.appBaseUrl = options.appBaseUrl;
@@ -1083,6 +1073,21 @@ export class AuthClient {
     // But the access token, expiresAt, audience and scope are taken from the Access Token Set.
     // When no audience was found, we will return an empty Token Set with only the Id Token and Refresh Token
     return tokenSetFromAccessTokenSet(accessTokenSet, tokenSet);
+  }
+
+  private validateRequiredScopes(authParams: AuthorizationParameters): void {
+    const scope = getScopeForAudience(
+      authParams.scope,
+      authParams.audience
+    )
+      ?.split(" ")
+      .map((s) => s.trim());
+
+    if (!scope || !scope.includes("openid")) {
+      throw new Error(
+        "The 'openid' scope must be included in the set of scopes. See https://auth0.com/docs"
+      );
+    }
   }
 
   private createTelemetryHeaders(enableTelemetry: boolean): Headers {
