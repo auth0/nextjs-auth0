@@ -1493,6 +1493,166 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
     });
   });
 
+  describe("Category 8b: Reused Fetcher Token Set Side Effect", () => {
+    /**
+     * CRITICAL TEST: Validates that tokenSetSideEffect is properly captured on each proxy call.
+     *
+     * PROBLEM:
+     * - Fetchers are cached per audience to reuse DPoP handles
+     * - Each proxy call creates a new `getAccessToken` closure that captures `tokenSetSideEffect`
+     * - When a fetcher is reused, if we don't override its `getAccessToken`, it uses the STALE
+     *   closure from the first call, which references the OLD `tokenSetSideEffect` variable
+     * - This causes the second token refresh to update the WRONG tokenSetSideEffect variable,
+     *   leading to the session not being updated on the second call
+     *
+     * SOLUTION:
+     * - Override `fetcher.getAccessToken` on every proxy call to capture fresh `tokenSetSideEffect`
+     * - See auth-client.ts line ~2367: `fetcher.getAccessToken = getAccessToken;`
+     *
+     * This test validates that BOTH proxy calls properly update their sessions after token refresh,
+     * which would fail if the tokenSetSideEffect closure is stale.
+     */
+    it("8.3 should update session on BOTH calls when fetcher is reused for same audience", async () => {
+      const now = Math.floor(Date.now() / 1000);
+      
+      // Track how many times token endpoint is called
+      let tokenRefreshCount = 0;
+      const refreshedTokens = [
+        "first_refreshed_token",
+        "second_refreshed_token"
+      ];
+
+      // Track which token was used in each upstream request to verify correct token flow
+      const tokensUsedInUpstreamRequests: string[] = [];
+
+      // Override token endpoint to return different tokens on each refresh
+      server.use(
+        http.post(`https://${DEFAULT.domain}/oauth/token`, async () => {
+          const jwt = await new jose.SignJWT({
+            sid: DEFAULT.sid,
+            auth_time: Math.floor(Date.now() / 1000)
+          })
+            .setProtectedHeader({ alg: DEFAULT.alg })
+            .setSubject(DEFAULT.sub)
+            .setIssuedAt()
+            .setIssuer(_authorizationServerMetadata.issuer)
+            .setAudience(DEFAULT.clientId)
+            .setExpirationTime("2h")
+            .sign(keyPair.privateKey);
+
+          const token = refreshedTokens[tokenRefreshCount];
+          tokenRefreshCount++;
+
+          return HttpResponse.json({
+            access_token: token,
+            refresh_token: DEFAULT.refreshToken,
+            id_token: jwt,
+            token_type: "Bearer",
+            expires_in: 3600
+          });
+        }),
+        // Track Authorization header to verify correct token is used
+        http.get(`${DEFAULT.upstreamBaseUrl}/data`, ({ request }) => {
+          const authHeader = request.headers.get("authorization");
+          if (authHeader) {
+            tokensUsedInUpstreamRequests.push(authHeader);
+          }
+          return HttpResponse.json({ success: true });
+        })
+      );
+
+      // ===== FIRST REQUEST =====
+      const session1 = createInitialSessionData({
+        tokenSet: {
+          accessToken: "old_token_1",
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt: now - 10, // Expired
+          scope: "read:data",
+          token_type: "Bearer",
+          audience: DEFAULT.audience
+        }
+      });
+      const cookie1 = await createSessionCookie(session1, secret);
+
+      const request1 = new NextRequest(
+        new URL(`${DEFAULT.proxyPath}/data`, DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers: { cookie: cookie1 }
+        }
+      );
+
+      const response1 = await authClient.handler(request1);
+      expect(response1.status).toBe(200);
+
+      // Verify first session was updated after token refresh
+      const setCookie1 = response1.headers.get("set-cookie");
+      expect(setCookie1).toBeTruthy();
+      expect(setCookie1).toContain("__session=");
+      expect(tokenRefreshCount).toBe(1);
+      
+      // Verify the refreshed token was used in the upstream request
+      expect(tokensUsedInUpstreamRequests).toHaveLength(1);
+      expect(tokensUsedInUpstreamRequests[0]).toBe(`Bearer ${refreshedTokens[0]}`);
+
+      // ===== SECOND REQUEST (reusing fetcher for same audience) =====
+      // Key point: This will reuse the cached fetcher from the first request
+      // If the getAccessToken closure is stale, tokenSetSideEffect won't be updated
+      
+      // Simulate passage of time - token expires again
+      // We need to manually create a new session with expired token
+      // because we can't easily decrypt the cookie to verify its contents
+      const session2 = createInitialSessionData({
+        tokenSet: {
+          accessToken: refreshedTokens[0], // This was the token from first refresh
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt: now - 5, // Expired again
+          scope: "read:data",
+          token_type: "Bearer",
+          audience: DEFAULT.audience
+        }
+      });
+      const cookie2 = await createSessionCookie(session2, secret);
+
+      const request2 = new NextRequest(
+        new URL(`${DEFAULT.proxyPath}/data`, DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers: { cookie: cookie2 }
+        }
+      );
+
+      const response2 = await authClient.handler(request2);
+      expect(response2.status).toBe(200);
+
+      // CRITICAL ASSERTION: Verify second session was ALSO updated
+      // BUG SCENARIO: If tokenSetSideEffect closure is stale from the cached fetcher,
+      // the second token refresh would populate the OLD tokenSetSideEffect variable
+      // from the first call, which is no longer in scope. This would cause:
+      // 1. tokenSetSideEffect to remain undefined in the second call
+      // 2. #updateSessionAfterTokenRetrieval to skip (because tokenSetSideEffect is falsy)
+      // 3. No Set-Cookie header on the second response
+      // 4. Session not persisted with the new token
+      const setCookie2 = response2.headers.get("set-cookie");
+      expect(setCookie2).toBeTruthy();
+      expect(setCookie2).toContain("__session=");
+      
+      // Verify token was refreshed a second time
+      expect(tokenRefreshCount).toBe(2);
+      
+      // Verify the second refreshed token was used in the upstream request
+      expect(tokensUsedInUpstreamRequests).toHaveLength(2);
+      expect(tokensUsedInUpstreamRequests[1]).toBe(`Bearer ${refreshedTokens[1]}`);
+
+      // Verify the two session cookies are different (proving both were independently updated)
+      expect(setCookie2).not.toBe(setCookie1);
+      
+      // Summary: This test passes because auth-client.ts overrides fetcher.getAccessToken
+      // on reuse (line ~2367). Without that override, this test would FAIL because the
+      // second call's tokenSetSideEffect wouldn't be captured, preventing session updates.
+    });
+  });
+
   describe("Category 9: Error Scenarios", () => {
     it("9.1 should return upstream 500 error to client", async () => {
       const session = createInitialSessionData();
