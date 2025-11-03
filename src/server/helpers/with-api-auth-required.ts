@@ -84,7 +84,7 @@ export const appRouteHandlerFactory =
   async (req: NextRequest | Request, params): Promise<NextResponse> => {
     const nextReq = req instanceof Request ? toNextRequest(req) : req;
 
-    const session = await client.getSession(nextReq);
+    const session = await client.getSession();
 
     if (!session || !session.user) {
       return NextResponse.json(
@@ -97,7 +97,7 @@ export const appRouteHandlerFactory =
       );
     }
 
-    const apiRes: NextResponse | Response = await apiRoute(req, params);
+    const apiRes: NextResponse | Response = await apiRoute(nextReq, params);
     const nextApiRes: NextResponse =
       apiRes instanceof NextResponse
         ? apiRes
