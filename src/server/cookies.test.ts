@@ -63,10 +63,10 @@ describe("encrypt/decrypt", async () => {
 });
 
 describe("addCacheControlHeadersForSession", () => {
-  it("unconditionally adds strict cache headers", () => {
+  it("unconditionally adds strict cache headers", async () => {
     const res = NextResponse.next();
 
-    addCacheControlHeadersForSession(res);
+    await addCacheControlHeadersForSession(res);
 
     expect(res.headers.get("Cache-Control")).toBe(
       "private, no-cache, no-store, must-revalidate, max-age=0"
