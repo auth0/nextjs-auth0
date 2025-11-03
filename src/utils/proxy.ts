@@ -194,9 +194,3 @@ export const proxyMatcher = (
   }
   return undefined;
 };
-    if (path.startsWith(entry.proxyPath)) {
-      return entry;
-    }
-  }
-  return undefined;
-};

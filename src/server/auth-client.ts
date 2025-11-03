@@ -2340,7 +2340,8 @@ export class AuthClient {
     // it triggers a retry. Without cloning, the body stream will be exhausted on the first attempt,
     // causing the retry to fail with "stream already disturbed" or empty body.
     // To support retry, we buffer the body so it can be reused on retry.
-    const clonedReq = req.clone();
+    // This retry will not happen with bearer auth so no need to clone if DPoP is false.
+    const clonedReq = this.useDPoP ? req.clone(): req;
     const targetUrl = transformTargetUrl(req, options);
 
     // Set Host header to upstream host
