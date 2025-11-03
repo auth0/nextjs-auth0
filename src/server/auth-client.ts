@@ -771,10 +771,7 @@ export class AuthClient {
       // Create DPoP handle ONCE outside the closure so it persists across retries.
       // This is required by RFC 9449: the handle must learn and reuse the nonce from
       // the DPoP-Nonce header across multiple attempts.
-      const dpopHandle =
-        this.useDPoP && this.dpopKeyPair
-          ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
-          : undefined;
+      const dpopHandle = this.createDPoPHandle();
 
       authorizationCodeGrantRequestCall = async () =>
         oauth.authorizationCodeGrantRequest(
@@ -1119,6 +1116,12 @@ export class AuthClient {
    *   - `[null, {tokenSet, idTokenClaims}]` if a new token was retrieved, containing the new token set ID token claims
    *   - `[null, {tokenSet, }]` if token refresh was not done and existing token was returned
    */
+  private createDPoPHandle(): oauth.DPoPHandle | undefined {
+    return this.useDPoP && this.dpopKeyPair
+      ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+      : undefined;
+  }
+
   async getTokenSet(
     sessionData: SessionData,
     options: GetAccessTokenOptions = {}
@@ -1650,10 +1653,7 @@ export class AuthClient {
       // Create DPoP handle ONCE outside the closure so it persists across retries.
       // This is required by RFC 9449: the handle must learn and reuse the nonce from
       // the DPoP-Nonce header across multiple attempts.
-      const dpopHandle =
-        this.useDPoP && this.dpopKeyPair
-          ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
-          : undefined;
+      const dpopHandle = this.createDPoPHandle();
 
       const genericTokenEndpointRequestCall = async () =>
         oauth.genericTokenEndpointRequest(
@@ -2244,10 +2244,7 @@ export class AuthClient {
     // Create DPoP handle ONCE outside the closure so it persists across retries.
     // This is required by RFC 9449: the handle must learn and reuse the nonce from
     // the DPoP-Nonce header across multiple attempts.
-    const dpopHandle =
-      this.useDPoP && this.dpopKeyPair
-        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
-        : undefined;
+    const dpopHandle = this.createDPoPHandle();
 
     const refreshTokenGrantRequestCall = async () =>
       oauth.refreshTokenGrantRequest(
