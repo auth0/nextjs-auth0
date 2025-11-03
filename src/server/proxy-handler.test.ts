@@ -651,7 +651,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
   });
 
   describe("Category 4: HTTP Headers Forwarding", () => {
-    it("4.1 should forward custom request headers", async () => {
+    it("4.1 should forward allow-listed request headers", async () => {
       const session = createInitialSessionData();
       const cookie = await createSessionCookie(session, secret);
 
@@ -669,15 +669,50 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
           method: "GET",
           headers: {
             cookie,
-            "x-custom-header": "custom-value",
-            "x-request-id": "req-123"
+            "x-request-id": "req-123",
+            "x-correlation-id": "corr-456"
           }
         }
       );
 
       await authClient.handler(request);
 
-      expect(receivedHeaders!.get("x-custom-header")).toBe("custom-value");
+      // Only explicitly allow-listed headers should be forwarded
+      expect(receivedHeaders!.get("x-request-id")).toBe("req-123");
+      expect(receivedHeaders!.get("x-correlation-id")).toBe("corr-456");
+    });
+
+    it("4.1b should NOT forward arbitrary request headers not in allow-list", async () => {
+      const session = createInitialSessionData();
+      const cookie = await createSessionCookie(session, secret);
+
+      let receivedHeaders: Headers;
+      server.use(
+        http.get(`${DEFAULT.upstreamBaseUrl}/data`, ({ request }) => {
+          receivedHeaders = request.headers;
+          return HttpResponse.json({ success: true });
+        })
+      );
+
+      const request = new NextRequest(
+        new URL(`${DEFAULT.proxyPath}/data`, DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers: {
+            cookie,
+            "x-custom-header": "should-not-be-forwarded",
+            "some-custom-header-name": "also-not-forwarded",
+            "x-request-id": "req-123" // This IS in the allow-list
+          }
+        }
+      );
+
+      await authClient.handler(request);
+
+      // Arbitrary x-* headers should NOT be forwarded
+      expect(receivedHeaders!.get("x-custom-header")).toBeNull();
+      expect(receivedHeaders!.get("some-custom-header-name")).toBeNull();
+      // But explicitly allow-listed x-* headers SHOULD be forwarded
       expect(receivedHeaders!.get("x-request-id")).toBe("req-123");
     });
 
@@ -801,7 +836,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
       expect(receivedHeaders!.get("user-agent")).toBe("Test-Agent/1.0");
     });
 
-    it("4.6 should forward custom response headers from upstream", async () => {
+    it("4.6 should forward custom RESPONSE headers from upstream", async () => {
       const session = createInitialSessionData();
       const cookie = await createSessionCookie(session, secret);
 

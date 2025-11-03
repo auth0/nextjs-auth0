@@ -67,6 +67,23 @@
   - [Troubleshooting](#troubleshooting)
     - [Common Issues](#common-issues)
     - [Debug Logging](#debug-logging)
+- [Proxy Handler for My Account and My Organization APIs](#proxy-handler-for-my-account-and-my-organization-apis)
+  - [Overview](#overview)
+  - [How It Works](#how-it-works)
+  - [My Account API Proxy](#my-account-api-proxy)
+    - [Configuration](#configuration)
+    - [Client-Side Usage](#client-side-usage)
+    - [Auth0-Scope Header](#auth0-scope-header)
+  - [My Organization API Proxy](#my-organization-api-proxy)
+    - [Configuration](#configuration-1)
+    - [Client-Side Usage](#client-side-usage-1)
+  - [Integration with UI Components](#integration-with-ui-components)
+  - [HTTP Methods](#http-methods)
+  - [CORS Handling](#cors-handling)
+  - [Error Handling](#error-handling-1)
+  - [Token Management](#token-management)
+  - [Security Considerations](#security-considerations)
+  - [Debugging](#debugging)
 - [`<Auth0Provider />`](#auth0provider-)
   - [Passing an initial user from the server](#passing-an-initial-user-from-the-server)
 - [Hooks](#hooks)
@@ -1550,6 +1567,341 @@ const fetcher = await auth0.createFetcher(req, {
 });
 ```
 
+## Proxy Handler for My Account and My Organization APIs
+
+The SDK provides built-in proxy handler support for Auth0's My Account and My Organization Management APIs. This enables browser-initiated requests to these APIs while maintaining server-side DPoP authentication and token management.
+
+### Overview
+
+The proxy handler implements a Backend-for-Frontend (BFF) pattern that transparently forwards client requests to Auth0 APIs through the Next.js server. This architecture ensures:
+
+- DPoP private keys and tokens remain on the server, inaccessible to client-side JavaScript
+- Automatic token retrieval and refresh based on requested audience and scope
+- DPoP proof generation for each proxied request
+- Session updates when tokens are refreshed
+- Proper CORS handling for cross-origin requests
+
+The proxy handler is automatically enabled when using the SDK's middleware and requires no additional configuration.
+
+### How It Works
+
+When a client makes a request to `/me/*` or `/my-org/*` on your Next.js application:
+
+1. The SDK's middleware intercepts the request
+2. Validates the user's session exists
+3. Retrieves or refreshes the appropriate access token for the requested audience
+4. Generates DPoP proof if DPoP is enabled
+5. Forwards the request to the upstream Auth0 API with proper authentication headers
+6. Returns the response to the client
+7. Updates the session if tokens were refreshed
+
+### My Account API Proxy
+
+The My Account API proxy handles all requests to Auth0's My Account API at `/me/v1/*`.
+
+#### Configuration
+
+Enable My Account API access by configuring the audience and scopes:
+
+```ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+export const auth0 = new Auth0Client({
+  useDPoP: true,
+  authorizationParameters: {
+    audience: "urn:your-api-identifier",
+    scope: {
+      [`https://${process.env.AUTH0_DOMAIN}/me/`]: "profile:read profile:write factors:manage"
+    }
+  }
+});
+```
+
+#### Client-Side Usage
+
+Make requests to the My Account API through the `/me/*` path:
+
+```tsx
+"use client";
+
+import { useState } from "react";
+
+export default function MyAccountProfile() {
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const fetchProfile = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch("/me/v1/profile", {
+        method: "GET",
+        headers: {
+          "auth0-scope": "profile:read"
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      setProfile(data);
+    } catch (error) {
+      console.error("Failed to fetch profile:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateProfile = async (updates) => {
+    try {
+      const response = await fetch("/me/v1/profile", {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          "auth0-scope": "profile:write"
+        },
+        body: JSON.stringify(updates)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error("Failed to update profile:", error);
+      throw error;
+    }
+  };
+
+  return (
+    <div>
+      <button onClick={fetchProfile} disabled={loading}>
+        {loading ? "Loading..." : "Load Profile"}
+      </button>
+      {profile && (
+        <pre>{JSON.stringify(profile, null, 2)}</pre>
+      )}
+    </div>
+  );
+}
+```
+
+#### Auth0-Scope Header
+
+The `auth0-scope` header specifies the scope required for the request. The SDK uses this to retrieve an access token with the appropriate scope for the My Account API audience.
+
+Format: `"auth0-scope": "scope1 scope2 scope3"`
+
+Common scopes for My Account API:
+- `profile:read` - Read user profile information
+- `profile:write` - Update user profile information
+- `factors:read` - Read enrolled MFA factors
+- `factors:manage` - Manage MFA factors
+- `identities:read` - Read linked identities
+- `identities:manage` - Link and unlink identities
+
+### My Organization API Proxy
+
+The My Organization API proxy handles all requests to Auth0's My Organization Management API at `/my-org/*`.
+
+#### Configuration
+
+Enable My Organization API access by configuring the audience and scopes:
+
+```ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+export const auth0 = new Auth0Client({
+  useDPoP: true,
+  authorizationParameters: {
+    audience: "urn:your-api-identifier",
+    scope: {
+      [`https://${process.env.AUTH0_DOMAIN}/my-org/`]: "org:read org:write members:read"
+    }
+  }
+});
+```
+
+#### Client-Side Usage
+
+Make requests to the My Organization API through the `/my-org/*` path:
+
+```tsx
+"use client";
+
+import { useState, useEffect } from "react";
+
+export default function MyOrganization() {
+  const [organizations, setOrganizations] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchOrganizations();
+  }, []);
+
+  const fetchOrganizations = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch("/my-org/organizations", {
+        method: "GET",
+        headers: {
+          "auth0-scope": "org:read"
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      setOrganizations(data.organizations || []);
+    } catch (error) {
+      console.error("Failed to fetch organizations:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateOrganization = async (orgId, updates) => {
+    try {
+      const response = await fetch(`/my-org/organizations/${orgId}`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          "auth0-scope": "org:write"
+        },
+        body: JSON.stringify(updates)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error("Failed to update organization:", error);
+      throw error;
+    }
+  };
+
+  if (loading) return <div>Loading organizations...</div>;
+
+  return (
+    <div>
+      <h1>My Organizations</h1>
+      <ul>
+        {organizations.map((org) => (
+          <li key={org.id}>{org.display_name}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+Common scopes for My Organization API:
+- `org:read` - Read organization information
+- `org:write` - Update organization information
+- `members:read` - Read organization members
+- `members:manage` - Manage organization members
+- `roles:read` - Read organization roles
+- `roles:manage` - Manage organization roles
+
+### Integration with UI Components
+
+When using Auth0 UI Components with the proxy handler, configure the client to target the proxy endpoints:
+
+```tsx
+import { MyAccountClient } from "@auth0/my-account-js";
+
+const myAccountClient = new MyAccountClient({
+  domain: process.env.NEXT_PUBLIC_AUTH0_DOMAIN,
+  baseUrl: "/me",
+  fetcher: (url, init, authParams) => {
+    return fetch(url, {
+      ...init,
+      headers: {
+        ...init?.headers,
+        "auth0-scope": authParams?.scope?.join(" ") || ""
+      }
+    });
+  }
+});
+```
+
+This configuration:
+- Sets `baseUrl` to `/me` to route requests through the proxy
+- Passes the required scope via the `auth0-scope` header
+- Ensures the SDK middleware handles authentication transparently
+
+### HTTP Methods
+
+The proxy handler supports all standard HTTP methods:
+
+- `GET` - Retrieve resources
+- `POST` - Create resources
+- `PUT` - Replace resources
+- `PATCH` - Update resources
+- `DELETE` - Remove resources
+- `OPTIONS` - CORS preflight requests (handled without authentication)
+- `HEAD` - Retrieve headers only
+
+### CORS Handling
+
+The proxy handler correctly handles CORS preflight requests (OPTIONS with `access-control-request-method` header) by forwarding them to the upstream API without authentication headers, as required by RFC 7231 §4.3.1.
+
+CORS headers from the upstream API are forwarded to the client transparently.
+
+### Error Handling
+
+The proxy handler returns appropriate HTTP status codes:
+
+- `401 Unauthorized` - No active session or token refresh failed
+- `4xx Client Error` - Forwarded from upstream API
+- `5xx Server Error` - Forwarded from upstream API or proxy internal error
+
+Error responses from the upstream API are forwarded to the client with their original status code, headers, and body.
+
+### Token Management
+
+The proxy handler automatically:
+
+- Retrieves access tokens from the session for the requested audience
+- Refreshes expired tokens using the refresh token
+- Updates the session with new tokens after refresh
+- Caches tokens per audience to minimize token endpoint calls
+- Generates DPoP proofs for each request when DPoP is enabled
+
+### Security Considerations
+
+The proxy handler implements secure forwarding:
+
+- HTTP-only session cookies are not forwarded to upstream APIs
+- Authorization headers from the client are replaced with server-generated tokens
+- Hop-by-hop headers are stripped per RFC 2616 §13.5.1
+- Only allow-listed request headers are forwarded
+- Response headers are filtered before returning to the client
+- Host header is updated to match the upstream API
+
+### Debugging
+
+Enable debug logging to troubleshoot proxy requests:
+
+```ts
+export const auth0 = new Auth0Client({
+  // ... other config
+  enableDebugLogs: true
+});
+```
+
+This will log:
+- Request proxying flow
+- Token retrieval and refresh operations
+- DPoP proof generation
+- Session updates
+- Errors and warnings
 
 ## `<Auth0Provider />`
 

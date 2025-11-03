@@ -62,11 +62,9 @@ const HOP_BY_HOP_HEADERS: Set<string> = new Set([
  *
  * This function:
  * 1. Uses a strict **allow-list** (DEFAULT_HEADER_ALLOW_LIST).
- * 2. Allows adding app-specific headers (e.g., 'authorization').
- * 3. Strips all hop-by-hop headers as defined by https://datatracker.ietf.org/doc/html/rfc2616#section-13.5.1.
+ * 2. Strips all hop-by-hop headers as defined by https://datatracker.ietf.org/doc/html/rfc2616#section-13.5.1.
  *
  * @param request The incoming NextRequest object.
- * @param options Configuration for additional headers.
  * @returns A WHATWG Headers object suitable for `fetch`.
  */
 export function buildForwardedRequestHeaders(request: NextRequest): Headers {
@@ -76,11 +74,10 @@ export function buildForwardedRequestHeaders(request: NextRequest): Headers {
     const lowerKey = key.toLowerCase();
 
     // Forward if:
-    // 1. It's in the allow-list, OR
-    // 2. It starts with 'x-' (custom headers convention), AND
-    // 3. It's not a hop-by-hop header
+    // 1. It's in the allow-list, AND
+    // 2. It's not a hop-by-hop header
     const shouldForward =
-      (DEFAULT_HEADER_ALLOW_LIST.has(lowerKey) || lowerKey.startsWith("x-")) &&
+      DEFAULT_HEADER_ALLOW_LIST.has(lowerKey) &&
       !HOP_BY_HOP_HEADERS.has(lowerKey);
 
     if (shouldForward) {

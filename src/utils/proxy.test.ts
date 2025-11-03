@@ -142,6 +142,7 @@ describe("headers", () => {
 
       expect(result.get("content-type")).toBe("application/json");
       expect(result.get("cache-control")).toBe("max-age=3600");
+      // custom headers allowed in response headers
       expect(result.get("x-custom-header")).toBe("custom-value");
       expect(result.get("etag")).toBe('"abc123"');
     });
