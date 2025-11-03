@@ -59,7 +59,7 @@ const DEFAULT = {
   appBaseUrl: "https://example.com",
   proxyPath: "/me",
   upstreamBaseUrl: `https://test.auth0.local/me/v1`,
-  audience: `https://test.auth0.local/api/v2/`,
+  audience: `https://test.auth0.local/me/`,
   accessToken: "at_test_123",
   refreshToken: "rt_test_123",
   sub: "user_test_123",
@@ -138,7 +138,20 @@ const server = setupServer(
     });
   }),
 
-  // Default upstream API handler (will be overridden in tests)
+  // Default upstream API handlers (will be overridden in tests)
+  // Match base URL without trailing slash
+  http.all(`${DEFAULT.upstreamBaseUrl}`, () => {
+    return HttpResponse.json(UPSTREAM_RESPONSE_DATA.simpleJson, {
+      status: 200
+    });
+  }),
+  // Match base URL with trailing slash
+  http.all(`${DEFAULT.upstreamBaseUrl}/`, () => {
+    return HttpResponse.json(UPSTREAM_RESPONSE_DATA.simpleJson, {
+      status: 200
+    });
+  }),
+  // Match all subpaths
   http.all(`${DEFAULT.upstreamBaseUrl}/*`, () => {
     return HttpResponse.json(UPSTREAM_RESPONSE_DATA.simpleJson, {
       status: 200
@@ -481,7 +494,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
       const cookie = await createSessionCookie(session, secret);
 
       server.use(
-        http.get(`${DEFAULT.upstreamBaseUrl}/`, () => {
+        http.get(`${DEFAULT.upstreamBaseUrl}`, () => {
           return HttpResponse.json({ path: "/" });
         })
       );

@@ -27,10 +27,10 @@ export function createInitialSessionData(
       expiresAt: now + 3600, // 1 hour from now
       scope: "read:data write:data",
       token_type: "Bearer",
-      // Add audience to match the proxy route configuration
+      // Add audience to match the /me proxy route configuration
       // This ensures the token is recognized as valid for the proxy route
       // Without this, getTokenSet will think it needs a new token for the requested audience
-      audience: "https://api.internal.example.com"
+      audience: "https://test.auth0.local/me/"
     },
     user: {
       sub: "user_test_123"
