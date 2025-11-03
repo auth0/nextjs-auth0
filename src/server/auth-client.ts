@@ -414,12 +414,6 @@ export class AuthClient {
     ) {
       return this.handleConnectAccount(req);
     }
-    // my-account and my-org proxies take precedence over any other defined proxy routes
-    else if (sanitizedPathname.startsWith("/me")) {
-      return this.handleMyAccount(req);
-    } else if (sanitizedPathname.startsWith("/my-org")) {
-      return this.handleMyOrg(req);
-    }
 
     // de-couple handleProxy impl with my-account and my-org apis
     // this enables testing handleProxy with an arbitrary upstream api
@@ -1084,24 +1078,6 @@ export class AuthClient {
     );
 
     return connectAccountResponse;
-  }
-
-  async handleMyAccount(req: NextRequest): Promise<NextResponse> {
-    return this.#handleProxy(req, {
-      proxyPath: "/me",
-      targetBaseUrl: `${this.issuer}/me/v1`,
-      audience: `${this.issuer}/me/`,
-      scope: req.headers.get("auth0-scope")
-    });
-  }
-
-  async handleMyOrg(req: NextRequest): Promise<NextResponse> {
-    return this.#handleProxy(req, {
-      proxyPath: "/my-org",
-      targetBaseUrl: `${this.issuer}/my-org`,
-      audience: `${this.issuer}/my-org/`,
-      scope: req.headers.get("auth0-scope")
-    });
   }
 
   /**
