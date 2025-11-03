@@ -44,6 +44,7 @@ import {
   GetAccessTokenOptions,
   LogoutStrategy,
   LogoutToken,
+  ProxyOptions,
   RESPONSE_TYPES,
   SessionData,
   StartInteractiveLoginOptions,
@@ -60,6 +61,11 @@ import {
   normalizeWithBasePath,
   removeTrailingSlash
 } from "../utils/pathUtils.js";
+import {
+  buildForwardedRequestHeaders,
+  buildForwardedResponseHeaders,
+  transformTargetUrl
+} from "../utils/proxy.js";
 import {
   ensureDefaultScope,
   getScopeForAudience
@@ -247,6 +253,8 @@ export class AuthClient {
   private dpopKeyPair?: DpopKeyPair;
   private readonly useDPoP: boolean;
 
+  private proxyFetchers: { [audience: string]: Fetcher<Response> } = {};
+
   constructor(options: AuthClientOptions) {
     // dependencies
     this.fetch = options.fetch || fetch;
@@ -399,24 +407,30 @@ export class AuthClient {
       this.enableConnectAccountEndpoint
     ) {
       return this.handleConnectAccount(req);
-    } else {
-      // no auth handler found, simply touch the sessions
-      // TODO: this should only happen if rolling sessions are enabled. Also, we should
-      // try to avoid reading from the DB (for stateful sessions) on every request if possible.
-      const res = NextResponse.next();
-      const session = await this.sessionStore.get(req.cookies);
-
-      if (session) {
-        // we pass the existing session (containing an `createdAt` timestamp) to the set method
-        // which will update the cookie's `maxAge` property based on the `createdAt` time
-        await this.sessionStore.set(req.cookies, res.cookies, {
-          ...session
-        });
-        addCacheControlHeadersForSession(res);
-      }
-
-      return res;
     }
+    // my-account and my-org proxies
+    else if (sanitizedPathname.startsWith("/me")) {
+      return this.handleMyAccount(req);
+    } else if (sanitizedPathname.startsWith("/my-org")) {
+      return this.handleMyOrg(req);
+    }
+
+    // no auth handler found, simply touch the sessions
+    // TODO: this should only happen if rolling sessions are enabled. Also, we should
+    // try to avoid reading from the DB (for stateful sessions) on every request if possible.
+    const res = NextResponse.next();
+    const session = await this.sessionStore.get(req.cookies);
+
+    if (session) {
+      // we pass the existing session (containing an `createdAt` timestamp) to the set method
+      // which will update the cookie's `maxAge` property based on the `createdAt` time
+      await this.sessionStore.set(req.cookies, res.cookies, {
+        ...session
+      });
+      addCacheControlHeadersForSession(res);
+    }
+
+    return res;
   }
 
   async startInteractiveLogin(
@@ -927,7 +941,7 @@ export class AuthClient {
       );
     }
 
-    const { tokenSet: updatedTokenSet, idTokenClaims } = getTokenSetResponse;
+    const { tokenSet: updatedTokenSet } = getTokenSetResponse;
 
     const res = NextResponse.json({
       token: updatedTokenSet.accessToken,
@@ -938,28 +952,12 @@ export class AuthClient {
       })
     });
 
-    const sessionChanges = getSessionChangesAfterGetAccessToken(
+    await this.#updateSessionAfterTokenRetrieval(
+      req,
+      res,
       session,
-      updatedTokenSet,
-      {
-        scope: this.authorizationParameters?.scope,
-        audience: this.authorizationParameters?.audience
-      }
+      getTokenSetResponse
     );
-
-    if (sessionChanges) {
-      if (idTokenClaims) {
-        session.user = idTokenClaims as User;
-      }
-      // call beforeSessionSaved callback if present
-      // if not then filter id_token claims with default rules
-      const finalSession = await this.finalizeSession(
-        { ...session, ...sessionChanges },
-        updatedTokenSet.idToken
-      );
-      await this.sessionStore.set(req.cookies, res.cookies, finalSession);
-      addCacheControlHeadersForSession(res);
-    }
 
     return res;
   }
@@ -1045,7 +1043,7 @@ export class AuthClient {
       );
     }
 
-    const { tokenSet, idTokenClaims } = getTokenSetResponse;
+    const { tokenSet } = getTokenSetResponse;
     const [connectAccountError, connectAccountResponse] =
       await this.connectAccount({
         tokenSet: tokenSet,
@@ -1061,34 +1059,32 @@ export class AuthClient {
     }
 
     // update the session with the new token set, if necessary
-    const sessionChanges = getSessionChangesAfterGetAccessToken(
+    await this.#updateSessionAfterTokenRetrieval(
+      req,
+      connectAccountResponse,
       session,
-      tokenSet,
-      {
-        scope: this.authorizationParameters?.scope ?? DEFAULT_SCOPES,
-        audience: this.authorizationParameters?.audience
-      }
+      getTokenSetResponse
     );
 
-    if (sessionChanges) {
-      if (idTokenClaims) {
-        session.user = idTokenClaims as User;
-      }
-      // call beforeSessionSaved callback if present
-      // if not then filter id_token claims with default rules
-      const finalSession = await this.finalizeSession(
-        { ...session, ...sessionChanges },
-        tokenSet.idToken
-      );
-      await this.sessionStore.set(
-        req.cookies,
-        connectAccountResponse.cookies,
-        finalSession
-      );
-      addCacheControlHeadersForSession(connectAccountResponse);
-    }
-
     return connectAccountResponse;
+  }
+
+  async handleMyAccount(req: NextRequest): Promise<NextResponse> {
+    return this.#handleProxy(req, {
+      proxyPath: "/me",
+      targetBaseUrl: `${this.issuer}/me/v1`,
+      audience: `${this.issuer}/me/`,
+      scope: req.headers.get("auth0-scope")
+    });
+  }
+
+  async handleMyOrg(req: NextRequest): Promise<NextResponse> {
+    return this.#handleProxy(req, {
+      proxyPath: "/my-org",
+      targetBaseUrl: `${this.issuer}/my-org`,
+      audience: `${this.issuer}/my-org/`,
+      scope: req.headers.get("auth0-scope")
+    });
   }
 
   /**
@@ -1284,6 +1280,8 @@ export class AuthClient {
         const accessTokenExpiresAt =
           Math.floor(Date.now() / 1000) + Number(oauthRes.expires_in);
 
+        const calculatedTokenType = oauthRes.token_type;
+
         const updatedTokenSet = {
           ...tokenSet, // contains the existing `iat` claim to maintain the session lifetime
           accessToken: oauthRes.access_token,
@@ -1305,7 +1303,8 @@ export class AuthClient {
           // If not provided, use `undefined`.
           audience: tokenSet.audience || options.audience || undefined,
           // Store the token type from the OAuth response (e.g., "Bearer", "DPoP")
-          ...(oauthRes.token_type && { token_type: oauthRes.token_type })
+          // For DPoP, ensure token_type is "at+jwt" even if the server doesn't include it
+          token_type: calculatedTokenType
         };
 
         if (oauthRes.refresh_token) {
@@ -1326,7 +1325,9 @@ export class AuthClient {
       }
     }
 
-    return [null, { tokenSet: tokenSet as TokenSet, idTokenClaims: undefined }];
+    const finalTokenSet = { ...tokenSet } as TokenSet;
+
+    return [null, { tokenSet: finalTokenSet, idTokenClaims: undefined }];
   }
 
   async backchannelAuthentication(
@@ -2233,6 +2234,237 @@ export class AuthClient {
     };
 
     return new Fetcher<TOutput>(fetcherConfig, fetcherHooks);
+  }
+
+  /**
+   * Handles CORS preflight requests without authentication headers.
+   *
+   * Special-cases the OPTIONS method to forward preflight requests directly WITHOUT
+   * calling `fetcher.fetchWithAuth()`, which would incorrectly inject DPoP/auth headers
+   * on the preflight request.
+   *
+   * The browser never sends auth headers on preflight requests, and we should not either.
+   * Authorization checks must not be performed on preflight requests according to RFC 7231.
+   * Additionally, DPoP proofs are bound to HTTP requests, not to preflights (RFC 9449).
+   *
+   * @param req The incoming CORS preflight OPTIONS request.
+   * @param options Configuration options for the proxy including target base URL, audience, and scope.
+   * @returns A NextResponse containing the preflight response from the target server, or a 500 error if the preflight fails.
+   *
+   * @see RFC 7231 Section 4.3.1 - Authorization checks must not be performed on preflight requests
+   * @see RFC 9449 Section 4.1 - DPoP proofs are bound to HTTP requests, not to preflights
+   */
+  async #handlePreflight(
+    req: NextRequest,
+    options: ProxyOptions
+  ): Promise<NextResponse> {
+    const headers = buildForwardedRequestHeaders(req);
+    const targetUrl = transformTargetUrl(req, options);
+
+    // Set Host header to upstream host
+    headers.set("host", targetUrl.host);
+
+    try {
+      // Forward preflight directly WITHOUT DPoP/auth headers
+      const preflightResponse = await this.fetch(targetUrl.toString(), {
+        method: "OPTIONS",
+        headers
+      });
+
+      // CORS preflight responses should be 204 No Content per spec
+      // Forward CORS headers from upstream but normalize status to 204
+      return new NextResponse(null, {
+        status: 204,
+        headers: buildForwardedResponseHeaders(preflightResponse)
+      });
+    } catch (error: any) {
+      // If preflight fails, return 500
+      return new NextResponse(
+        error.cause || error.message || "Preflight request failed",
+        { status: 500 }
+      );
+    }
+  }
+
+  /**
+   * Handles proxying requests to a target URL with authentication.
+   *
+   * This method retrieves the user's session, constructs the target URL,
+   * and forwards the request with appropriate authentication headers.
+   * It also manages token retrieval and session updates as needed.
+   * @param req The incoming Next.js request to be proxied.
+   * @param options Configuration options for the proxying behavior.
+   * @returns A Next.js response containing the proxied request's response.
+   */
+  async #handleProxy(
+    req: NextRequest,
+    options: ProxyOptions
+  ): Promise<NextResponse> {
+    const session = await this.sessionStore.get(req.cookies);
+    if (!session) {
+      return new NextResponse("The user does not have an active session.", {
+        status: 401
+      });
+    }
+
+    // handle preflight requests
+    if (
+      req.method === "OPTIONS" &&
+      req.headers.has("access-control-request-method")
+    ) {
+      return this.#handlePreflight(req, options);
+    }
+
+    const headers = buildForwardedRequestHeaders(req);
+
+    // Clone the request to preserve body for DPoP nonce retry
+    // WHATWG Streams Spec: ReadableStream is single-consume (can only be read once).
+    // When oauth4webapi's protectedResourceRequest encounters a DPoP nonce error,
+    // it triggers a retry. Without cloning, the body stream will be exhausted on the first attempt,
+    // causing the retry to fail with "stream already disturbed" or empty body.
+    // To support retry, we buffer the body so it can be reused on retry.
+    // This retry will not happen with bearer auth so no need to clone if DPoP is false.
+    const clonedReq = this.useDPoP ? req.clone() : req;
+    const targetUrl = transformTargetUrl(req, options);
+
+    // Set Host header to upstream host
+    headers.set("host", targetUrl.host);
+
+    // Buffer the body to allow retry on DPoP nonce errors
+    // ReadableStreams can only be consumed once, so we need to buffer for retry
+    const bodyBuffer = clonedReq.body
+      ? await clonedReq.arrayBuffer()
+      : undefined;
+
+    let tokenSetSideEffect!: GetTokenSetResponse;
+
+    // get/create fetcher isntance
+    this.proxyFetchers[options.audience] =
+      this.proxyFetchers[options.audience] ??
+      (await this.fetcherFactory({
+        useDPoP: this.useDPoP,
+        fetch: this.fetch,
+        getAccessToken: async (authParams) => {
+          const [error, tokenSetResponse] = await this.getTokenSet(session, {
+            audience: authParams.audience,
+            scope: authParams.scope
+          });
+
+          if (error) {
+            throw error;
+          }
+
+          // Tracking the last used token set response for session updates later as a side effect.
+          // This relies on the fact that `getAccessToken` is called before the actual fetch.
+          // Not ideal, but works because of that order of execution.
+          // We need to do this because the fetcher does not return the token set used, and we need it to update the session if necessary.
+          // Additionally, updating the session requires the request and response objects, which are not available in the fetcher,
+          // so we can not update the session directly from the fetcher.
+          tokenSetSideEffect = tokenSetResponse;
+
+          return tokenSetResponse.tokenSet;
+        }
+      }));
+
+    try {
+      const response = await this.proxyFetchers[options.audience].fetchWithAuth(
+        targetUrl.toString(),
+        {
+          method: clonedReq.method,
+          headers,
+          body: bodyBuffer,
+          // @ts-expect-error duplex is not known, while we do need it for sending streams as the body.
+          // As we are receiving a request, body is always exposed as a ReadableStream when defined,
+          // so setting duplex to 'half' is required at that point.
+          duplex: bodyBuffer ? "half" : undefined
+        },
+        { scope: options.scope, audience: options.audience }
+      );
+
+      const res = new NextResponse(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: buildForwardedResponseHeaders(response)
+      });
+
+      // Using the last used token set response to determine if we need to update the session
+      // This is not ideal, as this kind of relies on the order of execution.
+      // As we know the fetcher's `getAccessToken` is called before the actual fetch,
+      // we know it should always be defined when we reach this point.
+      if (tokenSetSideEffect) {
+        await this.#updateSessionAfterTokenRetrieval(
+          req,
+          res,
+          session,
+          tokenSetSideEffect
+        );
+      }
+
+      return res;
+    } catch (e: any) {
+      // Return 401 for missing refresh token (cannot refresh expired token)
+      if (
+        e instanceof AccessTokenError &&
+        e.code === AccessTokenErrorCode.MISSING_REFRESH_TOKEN
+      ) {
+        return new NextResponse(e.message, { status: 401 });
+      }
+
+      // Generic error handling for other errors
+      return new NextResponse(
+        e.cause || e.message || "An error occurred while proxying the request.",
+        {
+          status: 500
+        }
+      );
+    }
+  }
+
+  /**
+   * Updates the session after token retrieval if there are changes.
+   *
+   * This method:
+   * 1. Checks if the session needs to be updated based on token changes
+   * 2. Updates the user claims if new ID token claims are provided
+   * 3. Finalizes the session through the beforeSessionSaved hook or default filtering
+   * 4. Persists the updated session to the session store
+   * 5. Adds cache control headers to the response
+   *
+   * @note This method mutates the `res` parameter by:
+   * - Setting session cookies via `res.cookies`
+   * - Adding cache control headers to the response
+   */
+  async #updateSessionAfterTokenRetrieval(
+    req: NextRequest,
+    res: NextResponse,
+    session: SessionData,
+    tokenSetResponse: GetTokenSetResponse
+  ): Promise<void> {
+    const sessionChanges = getSessionChangesAfterGetAccessToken(
+      session,
+      tokenSetResponse.tokenSet,
+      {
+        scope: this.authorizationParameters?.scope ?? DEFAULT_SCOPES,
+        audience: this.authorizationParameters?.audience
+      }
+    );
+
+    if (sessionChanges) {
+      if (tokenSetResponse.idTokenClaims) {
+        session.user = tokenSetResponse.idTokenClaims as User;
+      }
+      // call beforeSessionSaved callback if present
+      // if not then filter id_token claims with default rules
+      const finalSession = await this.finalizeSession(
+        {
+          ...session,
+          ...sessionChanges
+        },
+        tokenSetResponse.tokenSet.idToken
+      );
+      await this.sessionStore.set(req.cookies, res.cookies, finalSession);
+      addCacheControlHeadersForSession(res);
+    }
   }
 }
 

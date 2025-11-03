@@ -20,6 +20,7 @@ import {
   SUBJECT_TOKEN_TYPES
 } from "../types/index.js";
 import { DEFAULT_SCOPES } from "../utils/constants.js";
+import { generateDpopKeyPair } from "../utils/dpopUtils.js";
 import { AuthClient } from "./auth-client.js";
 import { decrypt, encrypt } from "./cookies.js";
 import { StatefulSessionStore } from "./session/stateful-session-store.js";
@@ -6420,6 +6421,205 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       const response = await authClient.handler(request);
       expect(response.status).toEqual(400);
+    });
+  });
+
+  describe("handleMyAccount", async () => {
+    it("should rewrite GET request to my account", async () => {
+      const myAccountResponse = {
+        branding: {
+          logo_url:
+            "https://cdn.cookielaw.org/logos/5b38f79c-c925-4d4e-af5e-ec27e97e1068/01963fbf-a156-710c-9ff0-e3528aa88982/baec8c9a-62ca-45e4-8549-18024c4409b1/auth0-logo.png",
+          colors: { page_background: "#ffffff", primary: "#007bff" }
+        },
+        id: "org_HdiNOwdtHO4fuiTU",
+        display_name: "cyborg",
+        name: "cyborg"
+      };
+      const currentAccessToken = DEFAULT.accessToken;
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+
+      const dpopKeyPair = await generateDpopKeyPair();
+      const mockAuthorizationServer = getMockAuthorizationServer();
+      const mockFetch = async (
+        input: RequestInfo | URL,
+        init?: RequestInit
+      ): Promise<Response> => {
+        let url: URL;
+        if (input instanceof Request) {
+          url = new URL(input.url);
+        } else {
+          url = new URL(input);
+        }
+
+        if (
+          url.toString() ===
+          "https://guabu.us.auth0.com/me/v1/foo-bar/12?foo=bar"
+        ) {
+          return Response.json(myAccountResponse);
+        }
+
+        return mockAuthorizationServer(input, init);
+      };
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: mockFetch,
+        useDPoP: true,
+        dpopKeyPair: dpopKeyPair
+      });
+      const expiresAt = Math.floor(Date.now() / 1000) - 10 * 24 * 60 * 60; // expired 10 days ago
+      const session: SessionData = {
+        user: {
+          sub: DEFAULT.sub,
+          name: "John Doe",
+          email: "john@example.com",
+          picture: "https://example.com/john.jpg"
+        },
+        tokenSet: {
+          accessToken: currentAccessToken,
+          scope: "openid profile email",
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const sessionCookie = await encrypt(session, secret, expiration);
+      const headers = new Headers();
+      headers.append("cookie", `__session=${sessionCookie}`);
+      headers.append("auth0-scope", "foo:bar");
+      const request = new NextRequest(
+        new URL("/me/foo-bar/12?foo=bar", DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers
+        }
+      );
+
+      const response = await authClient.handleMyAccount(request);
+      expect(response.status).toEqual(200);
+      const json = await response.json();
+      expect(json).toEqual(myAccountResponse);
+    });
+
+    it("should rewrite POST request to my account", async () => {
+      const myAccountResponse = {
+        branding: {
+          logo_url:
+            "https://cdn.cookielaw.org/logos/5b38f79c-c925-4d4e-af5e-ec27e97e1068/01963fbf-a156-710c-9ff0-e3528aa88982/baec8c9a-62ca-45e4-8549-18024c4409b1/auth0-logo.png",
+          colors: { page_background: "#ffffff", primary: "#007bff" }
+        },
+        id: "org_HdiNOwdtHO4fuiTU",
+        display_name: "cyborg",
+        name: "cyborg"
+      };
+      const currentAccessToken = DEFAULT.accessToken;
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+
+      const dpopKeyPair = await generateDpopKeyPair();
+      const mockAuthorizationServer = getMockAuthorizationServer();
+      const mockFetch = async (
+        input: RequestInfo | URL,
+        init?: RequestInit
+      ): Promise<Response> => {
+        let url: URL;
+        if (input instanceof Request) {
+          url = new URL(input.url);
+        } else {
+          url = new URL(input);
+        }
+
+        if (url.toString() === "https://guabu.us.auth0.com/me/v1/foo-bar/12") {
+          return new Response(init?.body, { status: 200 });
+        }
+
+        return mockAuthorizationServer(input, init);
+      };
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: mockFetch,
+        useDPoP: true,
+        dpopKeyPair: dpopKeyPair
+      });
+      const expiresAt = Math.floor(Date.now() / 1000) - 10 * 24 * 60 * 60; // expired 10 days ago
+      const session: SessionData = {
+        user: {
+          sub: DEFAULT.sub,
+          name: "John Doe",
+          email: "john@example.com",
+          picture: "https://example.com/john.jpg"
+        },
+        tokenSet: {
+          accessToken: currentAccessToken,
+          scope: "openid profile email",
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const sessionCookie = await encrypt(session, secret, expiration);
+      const headers = new Headers();
+      headers.append("cookie", `__session=${sessionCookie}`);
+      headers.append("auth0-scope", "foo:bar");
+      const request = new NextRequest(
+        new URL("/me/foo-bar/12", DEFAULT.appBaseUrl),
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify(myAccountResponse),
+          duplex: "half"
+        }
+      );
+
+      const response = await authClient.handleMyAccount(request);
+      expect(response.status).toEqual(200);
+      const json = await response.json();
+      expect(json).toEqual(myAccountResponse);
     });
   });
 
