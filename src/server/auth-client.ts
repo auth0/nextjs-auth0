@@ -261,23 +261,8 @@ export class AuthClient {
     this.allowInsecureRequests = options.allowInsecureRequests ?? false;
     this.httpTimeout = options.httpTimeout ?? 5000;
     this.httpOptions = () => {
-      const headers = new Headers();
       const enableTelemetry = options.enableTelemetry ?? true;
-      if (enableTelemetry) {
-        const name = "nextjs-auth0";
-        const version = packageJson.version;
-
-        headers.set("User-Agent", `${name}/${version}`);
-        headers.set(
-          "Auth0-Client",
-          encodeBase64(
-            JSON.stringify({
-              name,
-              version
-            })
-          )
-        );
-      }
+      const headers = this.createTelemetryHeaders(enableTelemetry);
 
       return {
         signal: AbortSignal.timeout(this.httpTimeout),
@@ -1099,14 +1084,31 @@ export class AuthClient {
     // When no audience was found, we will return an empty Token Set with only the Id Token and Refresh Token
     return tokenSetFromAccessTokenSet(accessTokenSet, tokenSet);
   }
-  /**
-   * Retrieves OAuth token sets, handling token refresh when necessary or if forced.
-   *
-   * @returns A tuple containing either:
-   *   - `[SdkError, null]` if an error occurred (missing refresh token, discovery failure, or refresh failure)
-   *   - `[null, {tokenSet, idTokenClaims}]` if a new token was retrieved, containing the new token set ID token claims
-   *   - `[null, {tokenSet, }]` if token refresh was not done and existing token was returned
-   */
+
+  private createTelemetryHeaders(enableTelemetry: boolean): Headers {
+    const headers = new Headers();
+
+    if (!enableTelemetry) {
+      return headers;
+    }
+
+    const name = "nextjs-auth0";
+    const version = packageJson.version;
+
+    headers.set("User-Agent", `${name}/${version}`);
+    headers.set(
+      "Auth0-Client",
+      encodeBase64(
+        JSON.stringify({
+          name,
+          version
+        })
+      )
+    );
+
+    return headers;
+  }
+
   private applyDPoPOptionsToClientMetadata(options?: DpopOptions): void {
     if (!options) {
       return;
@@ -1127,6 +1129,14 @@ export class AuthClient {
       : undefined;
   }
 
+  /**
+   * Retrieves OAuth token sets, handling token refresh when necessary or if forced.
+   *
+   * @returns A tuple containing either:
+   *   - `[SdkError, null]` if an error occurred (missing refresh token, discovery failure, or refresh failure)
+   *   - `[null, {tokenSet, idTokenClaims}]` if a new token was retrieved, containing the new token set ID token claims
+   *   - `[null, {tokenSet, }]` if token refresh was not done and existing token was returned
+   */
   async getTokenSet(
     sessionData: SessionData,
     options: GetAccessTokenOptions = {}
