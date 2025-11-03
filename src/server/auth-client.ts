@@ -299,19 +299,10 @@ export class AuthClient {
     this.domain = options.domain;
     this.clientMetadata = { client_id: options.clientId };
 
-    // Apply DPoP timing validation options to client metadata if provided
-    if (options.dpopOptions) {
-      if (typeof options.dpopOptions.clockSkew === "number") {
-        this.clientMetadata[oauth.clockSkew] = options.dpopOptions.clockSkew;
-      }
-      if (typeof options.dpopOptions.clockTolerance === "number") {
-        this.clientMetadata[oauth.clockTolerance] =
-          options.dpopOptions.clockTolerance;
-      }
-    }
-
     // Store dpopOptions for use in retry logic
     this.dpopOptions = options.dpopOptions;
+    // Apply DPoP timing validation options to client metadata if provided
+    this.applyDPoPOptionsToClientMetadata(options.dpopOptions);
     this.clientSecret = options.clientSecret;
     this.authorizationParameters = options.authorizationParameters || {
       scope: DEFAULT_SCOPES
@@ -1116,6 +1107,20 @@ export class AuthClient {
    *   - `[null, {tokenSet, idTokenClaims}]` if a new token was retrieved, containing the new token set ID token claims
    *   - `[null, {tokenSet, }]` if token refresh was not done and existing token was returned
    */
+  private applyDPoPOptionsToClientMetadata(options?: DpopOptions): void {
+    if (!options) {
+      return;
+    }
+
+    if (typeof options.clockSkew === "number") {
+      this.clientMetadata[oauth.clockSkew] = options.clockSkew;
+    }
+
+    if (typeof options.clockTolerance === "number") {
+      this.clientMetadata[oauth.clockTolerance] = options.clockTolerance;
+    }
+  }
+
   private createDPoPHandle(): oauth.DPoPHandle | undefined {
     return this.useDPoP && this.dpopKeyPair
       ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
