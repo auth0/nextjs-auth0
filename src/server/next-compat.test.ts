@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server.js";
 import { describe, expect, it } from "vitest";
 
-import { isPrefetch, toNextRequest, toNextResponse } from "./next-compat.js";
+import { toNextRequest, toNextResponse } from "./next-compat.js";
 
 describe("next-compact", () => {
   describe("toNextRequest", () => {
@@ -109,34 +109,6 @@ describe("next-compact", () => {
         }
       });
       expect(() => toNextResponse(fakeRes)).not.toThrow();
-    });
-  });
-
-  describe("isPrefetch", () => {
-    it("should detect x-middleware-prefetch header", () => {
-      const req = new Request("https://example.com", {
-        headers: { "x-middleware-prefetch": "1" }
-      });
-      expect(isPrefetch(req)).toBe(true);
-    });
-
-    it("should detect next-router-prefetch header", () => {
-      const req = new Request("https://example.com", {
-        headers: { "next-router-prefetch": "1" }
-      });
-      expect(isPrefetch(req)).toBe(true);
-    });
-
-    it("should detect purpose=prefetch header", () => {
-      const req = new Request("https://example.com", {
-        headers: { purpose: "prefetch" }
-      });
-      expect(isPrefetch(req)).toBe(true);
-    });
-
-    it("should return false when no prefetch-related headers are set", () => {
-      const req = new Request("https://example.com");
-      expect(isPrefetch(req)).toBe(false);
     });
   });
 });

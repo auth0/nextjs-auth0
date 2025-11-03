@@ -80,7 +80,6 @@ import {
   FetcherHooks,
   FetcherMinimalConfig
 } from "./fetcher.js";
-import { isPrefetch } from "./next-compat.js";
 import { AbstractSessionStore } from "./session/abstract-session-store.js";
 import { TransactionState, TransactionStore } from "./transaction-store.js";
 import { filterDefaultIdTokenClaims } from "./user.js";
@@ -401,9 +400,6 @@ export class AuthClient {
     ) {
       return this.handleConnectAccount(req);
     } else {
-      if (isPrefetch(req)) {
-        return NextResponse.next();
-      }
       // no auth handler found, simply touch the sessions
       // TODO: this should only happen if rolling sessions are enabled. Also, we should
       // try to avoid reading from the DB (for stateful sessions) on every request if possible.

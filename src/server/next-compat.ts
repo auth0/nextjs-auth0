@@ -49,17 +49,3 @@ export function toNextResponse(res: Response | NextResponse): NextResponse {
 
   return nextRes;
 }
-
-/**
- * Detect whether a request is a prefetch (Next.js router or browser prefetch).
- * Used to avoid unnecessary cookie writes or session logic.
- *
- * @internal
- */
-export function isPrefetch(req: Request | NextRequest): boolean {
-  const h = req.headers;
-  if (h.get("x-middleware-prefetch") === "1") return true;
-  if (h.get("next-router-prefetch") === "1") return true;
-  if (h.get("purpose") === "prefetch") return true;
-  return false;
-}
