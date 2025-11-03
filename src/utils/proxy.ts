@@ -187,6 +187,13 @@ export const proxyMatcher = (
   proxyRoutes: ProxyOptions[]
 ): ProxyOptions | undefined => {
   for (const entry of proxyRoutes) {
+    // Ensure exact match or that the path continues with a slash
+    if (path === entry.proxyPath || path.startsWith(entry.proxyPath + '/')) {
+      return entry;
+    }
+  }
+  return undefined;
+};
     if (path.startsWith(entry.proxyPath)) {
       return entry;
     }
