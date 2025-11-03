@@ -2338,36 +2338,44 @@ export class AuthClient {
 
     let tokenSetSideEffect!: GetTokenSetResponse;
 
+    const getAccessToken: AccessTokenFactory = async (authParams) => {
+      const [error, tokenSetResponse] = await this.getTokenSet(session, {
+        audience: authParams.audience,
+        scope: authParams.scope
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      // Tracking the last used token set response for session updates later as a side effect.
+      // This relies on the fact that `getAccessToken` is called before the actual fetch.
+      // Not ideal, but works because of that order of execution.
+      // We need to do this because the fetcher does not return the token set used, and we need it to update the session if necessary.
+      // Additionally, updating the session requires the request and response objects, which are not available in the fetcher,
+      // so we can not update the session directly from the fetcher.
+      tokenSetSideEffect = tokenSetResponse;
+
+      return tokenSetResponse.tokenSet;
+    };
+
     // get/create fetcher isntance
-    this.proxyFetchers[options.audience] =
-      this.proxyFetchers[options.audience] ??
-      (await this.fetcherFactory({
+    let fetcher = this.proxyFetchers[options.audience];
+
+    if (!fetcher) {
+      fetcher = await this.fetcherFactory({
         useDPoP: this.useDPoP,
         fetch: this.fetch,
-        getAccessToken: async (authParams) => {
-          const [error, tokenSetResponse] = await this.getTokenSet(session, {
-            audience: authParams.audience,
-            scope: authParams.scope
-          });
-
-          if (error) {
-            throw error;
-          }
-
-          // Tracking the last used token set response for session updates later as a side effect.
-          // This relies on the fact that `getAccessToken` is called before the actual fetch.
-          // Not ideal, but works because of that order of execution.
-          // We need to do this because the fetcher does not return the token set used, and we need it to update the session if necessary.
-          // Additionally, updating the session requires the request and response objects, which are not available in the fetcher,
-          // so we can not update the session directly from the fetcher.
-          tokenSetSideEffect = tokenSetResponse;
-
-          return tokenSetResponse.tokenSet;
-        }
-      }));
+        getAccessToken: getAccessToken
+      });
+      this.proxyFetchers[options.audience] = fetcher;
+    } else {
+      // @ts-expect-error Override fetcher's getAccessToken to capture token set side effects
+      fetcher.getAccessToken = getAccessToken.bind(fetcher);
+    }
 
     try {
-      const response = await this.proxyFetchers[options.audience].fetchWithAuth(
+      const response = await fetcher.fetchWithAuth(
         targetUrl.toString(),
         {
           method: clonedReq.method,
