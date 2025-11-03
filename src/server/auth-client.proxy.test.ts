@@ -153,7 +153,7 @@ describe("Authentication Client", async () => {
         {
           method: "GET",
           headers: {
-            "auth0-scope": "foo:bar"
+            scope: "foo:bar"
           }
         }
       );
@@ -176,7 +176,7 @@ describe("Authentication Client", async () => {
           method: "GET",
           headers: {
             cookie,
-            "auth0-scope": "foo:bar"
+            scope: "foo:bar"
           }
         }
       );
@@ -225,7 +225,7 @@ describe("Authentication Client", async () => {
           method: "GET",
           headers: {
             cookie,
-            "auth0-scope": "foo:bar"
+            scope: "foo:bar"
           }
         }
       );
@@ -246,7 +246,7 @@ describe("Authentication Client", async () => {
           method: "GET",
           headers: {
             cookie,
-            "auth0-scope": "foo:bar"
+            scope: "foo:bar"
           }
         }
       );
@@ -284,7 +284,7 @@ describe("Authentication Client", async () => {
           method: "GET",
           headers: {
             cookie,
-            "auth0-scope": "foo:bar"
+            scope: "foo:bar"
           }
         }
       );
@@ -321,7 +321,7 @@ describe("Authentication Client", async () => {
           method: "POST",
           headers: {
             cookie,
-            "auth0-scope": "foo:bar"
+            scope: "foo:bar"
           },
           body: JSON.stringify({ hello: "world" }),
           duplex: "half"
@@ -359,7 +359,7 @@ describe("Authentication Client", async () => {
           method: "POST",
           headers: {
             cookie,
-            "auth0-scope": "foo:bar"
+            scope: "foo:bar"
           },
           body: JSON.stringify({ hello: "world" }),
           duplex: "half"
@@ -399,7 +399,7 @@ describe("Authentication Client", async () => {
           method: "PATCH",
           headers: {
             cookie,
-            "auth0-scope": "foo:bar"
+            scope: "foo:bar"
           },
           body: JSON.stringify({ hello: "world" }),
           duplex: "half"
@@ -434,7 +434,7 @@ describe("Authentication Client", async () => {
           method: "PUT",
           headers: {
             cookie,
-            "auth0-scope": "foo:bar"
+            scope: "foo:bar"
           },
           body: JSON.stringify({ hello: "world" }),
           duplex: "half"
@@ -465,7 +465,7 @@ describe("Authentication Client", async () => {
           method: "DELETE",
           headers: {
             cookie,
-            "auth0-scope": "foo:bar"
+            scope: "foo:bar"
           },
           body: JSON.stringify({ hello: "world" }),
           duplex: "half"
@@ -489,7 +489,7 @@ describe("Authentication Client", async () => {
           method: "GET",
           headers: {
             cookie,
-            "auth0-scope": "foo:bar"
+            scope: "foo:bar"
           }
         }
       );
@@ -523,7 +523,7 @@ describe("Authentication Client", async () => {
           method: "GET",
           headers: {
             cookie,
-            "auth0-scope": "foo:bar"
+            scope: "foo:bar"
           }
         }
       );
@@ -550,7 +550,7 @@ describe("Authentication Client", async () => {
           method: "GET",
           headers: {
             cookie,
-            "auth0-scope": "foo:bar"
+            scope: "foo:bar"
           }
         }
       );
@@ -627,7 +627,7 @@ describe("Authentication Client", async () => {
               method: "GET",
               headers: {
                 cookie,
-                "auth0-scope": "foo:bar"
+                scope: "foo:bar"
               }
             }
           );
@@ -764,7 +764,7 @@ describe("Authentication Client", async () => {
         {
           method: "GET",
           headers: {
-            "auth0-scope": "foo:bar"
+            scope: "foo:bar"
           }
         }
       );
@@ -787,7 +787,7 @@ describe("Authentication Client", async () => {
           method: "GET",
           headers: {
             cookie,
-            "auth0-scope": "foo:bar"
+            scope: "foo:bar"
           }
         }
       );
@@ -836,7 +836,7 @@ describe("Authentication Client", async () => {
           method: "GET",
           headers: {
             cookie,
-            "auth0-scope": "foo:bar"
+            scope: "foo:bar"
           }
         }
       );
@@ -857,7 +857,7 @@ describe("Authentication Client", async () => {
           method: "GET",
           headers: {
             cookie,
-            "auth0-scope": "foo:bar"
+            scope: "foo:bar"
           }
         }
       );
@@ -895,7 +895,7 @@ describe("Authentication Client", async () => {
           method: "GET",
           headers: {
             cookie,
-            "auth0-scope": "foo:bar"
+            scope: "foo:bar"
           }
         }
       );
@@ -932,7 +932,7 @@ describe("Authentication Client", async () => {
           method: "POST",
           headers: {
             cookie,
-            "auth0-scope": "foo:bar"
+            scope: "foo:bar"
           },
           body: JSON.stringify({ hello: "world" }),
           duplex: "half"
@@ -964,7 +964,7 @@ describe("Authentication Client", async () => {
           method: "POST",
           headers: {
             cookie,
-            "auth0-scope": "foo:bar"
+            scope: "foo:bar"
           },
           body: JSON.stringify({ hello: "world" }),
           duplex: "half"
@@ -1002,7 +1002,7 @@ describe("Authentication Client", async () => {
           method: "PATCH",
           headers: {
             cookie,
-            "auth0-scope": "foo:bar"
+            scope: "foo:bar"
           },
           body: JSON.stringify({ hello: "world" }),
           duplex: "half"
@@ -1037,7 +1037,7 @@ describe("Authentication Client", async () => {
           method: "PUT",
           headers: {
             cookie,
-            "auth0-scope": "foo:bar"
+            scope: "foo:bar"
           },
           body: JSON.stringify({ hello: "world" }),
           duplex: "half"
@@ -1068,7 +1068,7 @@ describe("Authentication Client", async () => {
           method: "DELETE",
           headers: {
             cookie,
-            "auth0-scope": "foo:bar"
+            scope: "foo:bar"
           },
           body: JSON.stringify({ hello: "world" }),
           duplex: "half"
@@ -1092,7 +1092,7 @@ describe("Authentication Client", async () => {
           method: "GET",
           headers: {
             cookie,
-            "auth0-scope": "foo:bar"
+            scope: "foo:bar"
           }
         }
       );
@@ -1126,7 +1126,7 @@ describe("Authentication Client", async () => {
           method: "GET",
           headers: {
             cookie,
-            "auth0-scope": "foo:bar"
+            scope: "foo:bar"
           }
         }
       );
@@ -1153,7 +1153,7 @@ describe("Authentication Client", async () => {
           method: "GET",
           headers: {
             cookie,
-            "auth0-scope": "foo:bar"
+            scope: "foo:bar"
           }
         }
       );
@@ -1233,7 +1233,7 @@ describe("Authentication Client", async () => {
               method: "GET",
               headers: {
                 cookie,
-                "auth0-scope": "foo:bar"
+                scope: "foo:bar"
               }
             }
           );

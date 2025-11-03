@@ -1074,7 +1074,7 @@ export class AuthClient {
       proxyPath: "/me",
       targetBaseUrl: `${this.issuer}/me/v1`,
       audience: `${this.issuer}/me/`,
-      scope: req.headers.get("auth0-scope")
+      scope: req.headers.get("scope")
     });
   }
 
@@ -1083,7 +1083,7 @@ export class AuthClient {
       proxyPath: "/my-org",
       targetBaseUrl: `${this.issuer}/my-org`,
       audience: `${this.issuer}/my-org/`,
-      scope: req.headers.get("auth0-scope")
+      scope: req.headers.get("scope")
     });
   }
 
@@ -2274,7 +2274,7 @@ export class AuthClient {
       // CORS preflight responses should be 204 No Content per spec
       // Forward CORS headers from upstream but normalize status to 204
       return new NextResponse(null, {
-        status: 204,
+        status: preflightResponse.status,
         headers: buildForwardedResponseHeaders(preflightResponse)
       });
     } catch (error: any) {

@@ -6509,7 +6509,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const sessionCookie = await encrypt(session, secret, expiration);
       const headers = new Headers();
       headers.append("cookie", `__session=${sessionCookie}`);
-      headers.append("auth0-scope", "foo:bar");
+      headers.append("scope", "foo:bar");
       const request = new NextRequest(
         new URL("/me/foo-bar/12?foo=bar", DEFAULT.appBaseUrl),
         {
@@ -6605,7 +6605,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const sessionCookie = await encrypt(session, secret, expiration);
       const headers = new Headers();
       headers.append("cookie", `__session=${sessionCookie}`);
-      headers.append("auth0-scope", "foo:bar");
+      headers.append("scope", "foo:bar");
       const request = new NextRequest(
         new URL("/me/foo-bar/12", DEFAULT.appBaseUrl),
         {
