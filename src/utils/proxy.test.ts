@@ -307,11 +307,10 @@ describe("url", () => {
 
         const result = transformTargetUrl(req, options);
 
-        // Expected: https://issuer/me/v1/v1/some-endpoint
-        // NOT: https://issuer/me/v1/v1/some-endpoint (old buggy behavior)
         // The path after /me is /v1/some-endpoint
-        // So combined with https://issuer/me/v1 it should be /v1/some-endpoint
-        expect(result.toString()).toBe("https://issuer/me/v1/v1/some-endpoint");
+        // The targetBaseUrl already ends with /v1, so we detect and avoid duplication
+        // Result: https://issuer/me/v1/some-endpoint (NOT /v1/v1/)
+        expect(result.toString()).toBe("https://issuer/me/v1/some-endpoint");
       });
     });
 
@@ -374,8 +373,11 @@ describe("url", () => {
 
         const result = transformTargetUrl(req, options);
 
+        // After stripping "/proxy/auth", remaining is "/v2/some/nested/endpoint"
+        // targetBaseUrl ends with "/auth/v2", which overlaps with the start
+        // So we avoid duplication: /auth/v2/some/nested/endpoint (not /v2/v2/)
         expect(result.toString()).toBe(
-          "https://auth.example.com/auth/v2/v2/some/nested/endpoint"
+          "https://auth.example.com/auth/v2/some/nested/endpoint"
         );
       });
     });
@@ -414,11 +416,13 @@ describe("url", () => {
 
         const result = transformTargetUrl(req, options);
 
+        // After stripping "/me", remaining is "/v1/profile"
+        // targetBaseUrl ends with "/v1", so avoid duplication
         expect(result.toString()).toMatch(
-          /https:\/\/issuer\/me\/v1\/v1\/profile\?.*format=json/
+          /https:\/\/issuer\/me\/v1\/profile\?.*format=json/
         );
         expect(result.toString()).toMatch(
-          /https:\/\/issuer\/me\/v1\/v1\/profile\?.*includeMetadata=true/
+          /https:\/\/issuer\/me\/v1\/profile\?.*includeMetadata=true/
         );
       });
     });

@@ -117,14 +117,14 @@ export function buildForwardedResponseHeaders(response: Response): Headers {
  *
  * This function correctly handles the path transformation by:
  * 1. Extracting the path segment that comes AFTER the proxyPath
- * 2. Appending it to the targetBaseUrl to avoid path duplication
+ * 2. Intelligently combining it with targetBaseUrl to avoid path segment duplication
  *
  * Example:
  *   - proxyPath: "/me"
  *   - targetBaseUrl: "https://issuer/me/v1"
  *   - incoming: "/me/v1/some-endpoint"
  *   - remaining path: "/v1/some-endpoint" (after removing "/me")
- *   - result: "https://issuer/me/v1/v1/some-endpoint" (targetBaseUrl + remainingPath)
+ *   - result: "https://issuer/me/v1/some-endpoint" (no /v1 duplication)
  *
  * @param req - The incoming request to mirror when constructing the target URL.
  * @param options - Proxy configuration containing the base URL and proxy path.
@@ -152,8 +152,44 @@ export function transformTargetUrl(
   // Remove trailing slash from targetBaseUrl for consistent joining
   const baseUrlTrimmed = targetBaseUrl.replace(/\/$/, "");
 
-  // Combine baseUrl with remainingPath
-  const targetUrl = new URL(baseUrlTrimmed + remainingPath);
+  // Parse the targetBaseUrl to extract its path
+  const baseUrl = new URL(baseUrlTrimmed);
+  const basePath = baseUrl.pathname;
+
+  // Check if remainingPath starts with a segment that's already at the end of basePath
+  // to avoid duplication (e.g., basePath="/me/v1" + remainingPath="/v1/x" → "/me/v1/x")
+  let finalPath = basePath;
+
+  if (remainingPath && remainingPath !== "/") {
+    // Split paths into segments for comparison
+    const baseSegments = basePath.split("/").filter(Boolean);
+    const remainingSegments = remainingPath.split("/").filter(Boolean);
+
+    // Find the longest overlap by checking from longest to shortest
+    // Break on first match
+    let overlapLength = 0;
+    const maxOverlap = Math.min(baseSegments.length, remainingSegments.length);
+
+    for (let i = maxOverlap; i >= 1; i--) {
+      const baseEnd = baseSegments.slice(-i);
+      const remainingStart = remainingSegments.slice(0, i);
+
+      if (baseEnd.every((seg, idx) => seg === remainingStart[idx])) {
+        overlapLength = i;
+        break; // Found longest match, stop searching
+      }
+    }
+
+    // Build final path by appending non-overlapping segments
+    const nonOverlappingSegments = remainingSegments.slice(overlapLength);
+    if (nonOverlappingSegments.length > 0) {
+      const separator = basePath === "/" || basePath.endsWith("/") ? "" : "/";
+      finalPath = basePath + separator + nonOverlappingSegments.join("/");
+    }
+  }
+
+  // Build the final URL with the de-duplicated path
+  const targetUrl = new URL(baseUrl.origin + finalPath);
 
   req.nextUrl.searchParams.forEach((value, key) => {
     targetUrl.searchParams.set(key, value);

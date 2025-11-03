@@ -1514,7 +1514,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
      */
     it("8.3 should update session on BOTH calls when fetcher is reused for same audience", async () => {
       const now = Math.floor(Date.now() / 1000);
-      
+
       // Track how many times token endpoint is called
       let tokenRefreshCount = 0;
       const refreshedTokens = [
@@ -1590,15 +1590,17 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
       expect(setCookie1).toBeTruthy();
       expect(setCookie1).toContain("__session=");
       expect(tokenRefreshCount).toBe(1);
-      
+
       // Verify the refreshed token was used in the upstream request
       expect(tokensUsedInUpstreamRequests).toHaveLength(1);
-      expect(tokensUsedInUpstreamRequests[0]).toBe(`Bearer ${refreshedTokens[0]}`);
+      expect(tokensUsedInUpstreamRequests[0]).toBe(
+        `Bearer ${refreshedTokens[0]}`
+      );
 
       // ===== SECOND REQUEST (reusing fetcher for same audience) =====
       // Key point: This will reuse the cached fetcher from the first request
       // If the getAccessToken closure is stale, tokenSetSideEffect won't be updated
-      
+
       // Simulate passage of time - token expires again
       // We need to manually create a new session with expired token
       // because we can't easily decrypt the cookie to verify its contents
@@ -1636,17 +1638,19 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
       const setCookie2 = response2.headers.get("set-cookie");
       expect(setCookie2).toBeTruthy();
       expect(setCookie2).toContain("__session=");
-      
+
       // Verify token was refreshed a second time
       expect(tokenRefreshCount).toBe(2);
-      
+
       // Verify the second refreshed token was used in the upstream request
       expect(tokensUsedInUpstreamRequests).toHaveLength(2);
-      expect(tokensUsedInUpstreamRequests[1]).toBe(`Bearer ${refreshedTokens[1]}`);
+      expect(tokensUsedInUpstreamRequests[1]).toBe(
+        `Bearer ${refreshedTokens[1]}`
+      );
 
       // Verify the two session cookies are different (proving both were independently updated)
       expect(setCookie2).not.toBe(setCookie1);
-      
+
       // Summary: This test passes because auth-client.ts overrides fetcher.getAccessToken
       // on reuse (line ~2367). Without that override, this test would FAIL because the
       // second call's tokenSetSideEffect wouldn't be captured, preventing session updates.
