@@ -407,30 +407,28 @@ export class AuthClient {
       this.enableConnectAccountEndpoint
     ) {
       return this.handleConnectAccount(req);
-    }
-    // my-account and my-org proxies
-    else if (sanitizedPathname.startsWith("/me")) {
+    } else if (sanitizedPathname.startsWith("/me")) {
       return this.handleMyAccount(req);
     } else if (sanitizedPathname.startsWith("/my-org")) {
       return this.handleMyOrg(req);
+    } else {
+      // no auth handler found, simply touch the sessions
+      // TODO: this should only happen if rolling sessions are enabled. Also, we should
+      // try to avoid reading from the DB (for stateful sessions) on every request if possible.
+      const res = NextResponse.next();
+      const session = await this.sessionStore.get(req.cookies);
+
+      if (session) {
+        // we pass the existing session (containing an `createdAt` timestamp) to the set method
+        // which will update the cookie's `maxAge` property based on the `createdAt` time
+        await this.sessionStore.set(req.cookies, res.cookies, {
+          ...session
+        });
+        addCacheControlHeadersForSession(res);
+      }
+
+      return res;
     }
-
-    // no auth handler found, simply touch the sessions
-    // TODO: this should only happen if rolling sessions are enabled. Also, we should
-    // try to avoid reading from the DB (for stateful sessions) on every request if possible.
-    const res = NextResponse.next();
-    const session = await this.sessionStore.get(req.cookies);
-
-    if (session) {
-      // we pass the existing session (containing an `createdAt` timestamp) to the set method
-      // which will update the cookie's `maxAge` property based on the `createdAt` time
-      await this.sessionStore.set(req.cookies, res.cookies, {
-        ...session
-      });
-      addCacheControlHeadersForSession(res);
-    }
-
-    return res;
   }
 
   async startInteractiveLogin(
@@ -1280,8 +1278,6 @@ export class AuthClient {
         const accessTokenExpiresAt =
           Math.floor(Date.now() / 1000) + Number(oauthRes.expires_in);
 
-        const calculatedTokenType = oauthRes.token_type;
-
         const updatedTokenSet = {
           ...tokenSet, // contains the existing `iat` claim to maintain the session lifetime
           accessToken: oauthRes.access_token,
@@ -1303,8 +1299,7 @@ export class AuthClient {
           // If not provided, use `undefined`.
           audience: tokenSet.audience || options.audience || undefined,
           // Store the token type from the OAuth response (e.g., "Bearer", "DPoP")
-          // For DPoP, ensure token_type is "at+jwt" even if the server doesn't include it
-          token_type: calculatedTokenType
+          ...(oauthRes.token_type && { token_type: oauthRes.token_type })
         };
 
         if (oauthRes.refresh_token) {
@@ -1325,9 +1320,7 @@ export class AuthClient {
       }
     }
 
-    const finalTokenSet = { ...tokenSet } as TokenSet;
-
-    return [null, { tokenSet: finalTokenSet, idTokenClaims: undefined }];
+    return [null, { tokenSet: tokenSet as TokenSet, idTokenClaims: undefined }];
   }
 
   async backchannelAuthentication(
