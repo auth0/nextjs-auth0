@@ -23,7 +23,6 @@ import {
   DPoPErrorCode,
   InvalidStateError,
   MissingStateError,
-  MyAccountApiError,
   OAuth2Error,
   SdkError
 } from "../errors/index.js";
