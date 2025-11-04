@@ -2374,10 +2374,6 @@ export class AuthClient {
           method: clonedReq.method,
           headers,
           body: bodyBuffer,
-          // @ts-expect-error duplex is not known, while we do need it for sending streams as the body.
-          // As we are receiving a request, body is always exposed as a ReadableStream when defined,
-          // so setting duplex to 'half' is required at that point.
-          duplex: bodyBuffer ? "half" : undefined
         },
         { scope: options.scope, audience: options.audience }
       );
