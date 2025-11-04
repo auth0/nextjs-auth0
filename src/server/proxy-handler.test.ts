@@ -489,15 +489,12 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
 
   // combine single level and multi level subpaths
   describe("Category 3: URL Path Matching & Transformation", () => {
-    it("3.1 should proxy to root path", async () => {
+    it("3.1 should reject exact proxy path without subpath (security)", async () => {
+      // Security: The My Account and My Org APIs have no endpoints at exactly /me or /my-org
+      // All real endpoints are like /me/v1/... or /my-org/v1/...
+      // Accepting exact paths could lead to security issues
       const session = createInitialSessionData();
       const cookie = await createSessionCookie(session, secret);
-
-      server.use(
-        http.get(`${DEFAULT.upstreamBaseUrl}`, () => {
-          return HttpResponse.json({ path: "/" });
-        })
-      );
 
       const request = new NextRequest(
         new URL(DEFAULT.proxyPath, DEFAULT.appBaseUrl),
@@ -508,10 +505,11 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
       );
 
       const response = await authClient.handler(request);
+      // Should not proxy - should just touch sessions and return Next response
       expect(response.status).toBe(200);
-
-      const data = await response.json();
-      expect(data.path).toBe("/");
+      // Should not have proxied content
+      const text = await response.text();
+      expect(text).not.toContain('{"path":"/"}');
     });
 
     it("3.2 should proxy to single-level subpath", async () => {

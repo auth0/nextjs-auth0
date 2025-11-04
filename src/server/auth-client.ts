@@ -417,15 +417,9 @@ export class AuthClient {
       this.enableConnectAccountEndpoint
     ) {
       return this.handleConnectAccount(req);
-    } else if (
-      sanitizedPathname === "/me" ||
-      sanitizedPathname.startsWith("/me/")
-    ) {
+    } else if (sanitizedPathname.startsWith("/me/")) {
       return this.handleMyAccount(req);
-    } else if (
-      sanitizedPathname === "/my-org" ||
-      sanitizedPathname.startsWith("/my-org/")
-    ) {
+    } else if (sanitizedPathname.startsWith("/my-org/")) {
       return this.handleMyOrg(req);
     } else {
       // no auth handler found, simply touch the sessions
