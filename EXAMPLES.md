@@ -73,7 +73,7 @@
   - [My Account API Proxy](#my-account-api-proxy)
     - [Configuration](#configuration)
     - [Client-Side Usage](#client-side-usage)
-    - [Auth0-Scope Header](#auth0-scope-header)
+    - [`scope` Header](#scope-header)
   - [My Organization API Proxy](#my-organization-api-proxy)
     - [Configuration](#configuration-1)
     - [Client-Side Usage](#client-side-usage-1)
@@ -1636,7 +1636,7 @@ export default function MyAccountProfile() {
       const response = await fetch("/me/v1/profile", {
         method: "GET",
         headers: {
-          "auth0-scope": "profile:read"
+          "scope": "profile:read"
         }
       });
       
@@ -1659,7 +1659,7 @@ export default function MyAccountProfile() {
         method: "PATCH",
         headers: {
           "content-type": "application/json",
-          "auth0-scope": "profile:write"
+          "scope": "profile:write"
         },
         body: JSON.stringify(updates)
       });
@@ -1688,11 +1688,11 @@ export default function MyAccountProfile() {
 }
 ```
 
-#### Auth0-Scope Header
+#### `scope` Header
 
-The `auth0-scope` header specifies the scope required for the request. The SDK uses this to retrieve an access token with the appropriate scope for the My Account API audience.
+The `scope` header specifies the scope required for the request. The SDK uses this to retrieve an access token with the appropriate scope for the My Account API audience.
 
-Format: `"auth0-scope": "scope1 scope2 scope3"`
+Format: `"scope": "scope1 scope2 scope3"`
 
 Common scopes for My Account API:
 - `profile:read` - Read user profile information
@@ -1747,7 +1747,7 @@ export default function MyOrganization() {
       const response = await fetch("/my-org/organizations", {
         method: "GET",
         headers: {
-          "auth0-scope": "org:read"
+          "scope": "org:read"
         }
       });
       
@@ -1770,7 +1770,7 @@ export default function MyOrganization() {
         method: "PATCH",
         headers: {
           "content-type": "application/json",
-          "auth0-scope": "org:write"
+          "scope": "org:write"
         },
         body: JSON.stringify(updates)
       });
@@ -1824,7 +1824,7 @@ const myAccountClient = new MyAccountClient({
       ...init,
       headers: {
         ...init?.headers,
-        "auth0-scope": authParams?.scope?.join(" ") || ""
+        "scope": authParams?.scope?.join(" ") || ""
       }
     });
   }
@@ -1833,7 +1833,7 @@ const myAccountClient = new MyAccountClient({
 
 This configuration:
 - Sets `baseUrl` to `/me` to route requests through the proxy
-- Passes the required scope via the `auth0-scope` header
+- Passes the required scope via the `scope` header
 - Ensures the SDK middleware handles authentication transparently
 
 ### HTTP Methods

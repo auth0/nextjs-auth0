@@ -378,7 +378,17 @@ export class AuthClient {
   }
 
   async handler(req: NextRequest): Promise<NextResponse> {
-    const { pathname } = req.nextUrl;
+    let { pathname } = req.nextUrl;
+
+    // Next.js does NOT automatically strip basePath from pathname in middleware.
+    // We must manually strip it to match against our route configurations.
+    // Example: With basePath='/app', a request to '/app/auth/login' will have
+    // pathname='/app/auth/login', but routes are configured as '/auth/login'.
+    const basePath = req.nextUrl.basePath;
+    if (basePath && pathname.startsWith(basePath)) {
+      pathname = pathname.slice(basePath.length) || "/";
+    }
+
     const sanitizedPathname = removeTrailingSlash(pathname);
     const method = req.method;
 
@@ -407,9 +417,15 @@ export class AuthClient {
       this.enableConnectAccountEndpoint
     ) {
       return this.handleConnectAccount(req);
-    } else if (sanitizedPathname.startsWith("/me")) {
+    } else if (
+      sanitizedPathname === "/me" ||
+      sanitizedPathname.startsWith("/me/")
+    ) {
       return this.handleMyAccount(req);
-    } else if (sanitizedPathname.startsWith("/my-org")) {
+    } else if (
+      sanitizedPathname === "/my-org" ||
+      sanitizedPathname.startsWith("/my-org/")
+    ) {
       return this.handleMyOrg(req);
     } else {
       // no auth handler found, simply touch the sessions
@@ -2264,8 +2280,7 @@ export class AuthClient {
         headers
       });
 
-      // CORS preflight responses should be 204 No Content per spec
-      // Forward CORS headers from upstream but normalize status to 204
+      // Forward CORS headers from upstream
       return new NextResponse(null, {
         status: preflightResponse.status,
         headers: buildForwardedResponseHeaders(preflightResponse)
@@ -2373,7 +2388,7 @@ export class AuthClient {
         {
           method: clonedReq.method,
           headers,
-          body: bodyBuffer,
+          body: bodyBuffer
         },
         { scope: options.scope, audience: options.audience }
       );

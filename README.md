@@ -328,16 +328,16 @@ Make requests through the proxy paths:
 ```tsx
 // My Account API
 const response = await fetch("/me/v1/profile", {
-  headers: { "auth0-scope": "profile:read" }
+  headers: { "scope": "profile:read" }
 });
 
 // My Organization API
 const response = await fetch("/my-org/organizations", {
-  headers: { "auth0-scope": "org:read" }
+  headers: { "scope": "org:read" }
 });
 ```
 
-The `auth0-scope` header specifies the required scope. The SDK retrieves an access token with the appropriate audience and scope, then forwards the request with authentication headers.
+The `scope` header specifies the required scope. The SDK retrieves an access token with the appropriate audience and scope, then forwards the request with authentication headers.
 
 For complete documentation, examples, and integration patterns with UI Components, see [Proxy Handler for My Account and My Organization APIs](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#proxy-handler-for-my-account-and-my-organization-apis).
 
