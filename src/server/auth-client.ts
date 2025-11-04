@@ -1,4 +1,5 @@
-import { NextResponse, type NextRequest } from "next/server.js";
+import { cookies } from "next/headers.js";
+import { NextRequest, NextResponse } from "next/server.js";
 import * as jose from "jose";
 import * as oauth from "oauth4webapi";
 import * as client from "openid-client";
@@ -44,6 +45,8 @@ import {
   GetAccessTokenOptions,
   LogoutStrategy,
   LogoutToken,
+  PagesRouterRequest,
+  PagesRouterResponse,
   RESPONSE_TYPES,
   SessionData,
   StartInteractiveLoginOptions,
@@ -72,7 +75,11 @@ import {
   tokenSetFromAccessTokenSet
 } from "../utils/token-set-helpers.js";
 import { toSafeRedirect } from "../utils/url-helpers.js";
-import { addCacheControlHeadersForSession } from "./cookies.js";
+import {
+  addCacheControlHeadersForSession,
+  RequestCookies,
+  ResponseCookies
+} from "./cookies.js";
 import {
   AccessTokenFactory,
   Fetcher,
@@ -412,7 +419,7 @@ export class AuthClient {
         await this.sessionStore.set(req.cookies, res.cookies, {
           ...session
         });
-        addCacheControlHeadersForSession(res);
+        await addCacheControlHeadersForSession(res);
       }
 
       return res;
@@ -624,7 +631,7 @@ export class AuthClient {
 
     // Clean up session and transaction cookies
     await this.sessionStore.delete(req.cookies, logoutResponse.cookies);
-    addCacheControlHeadersForSession(logoutResponse);
+    await addCacheControlHeadersForSession(logoutResponse);
 
     // Clear any orphaned transaction cookies
     await this.transactionStore.deleteAll(req.cookies, logoutResponse.cookies);
@@ -862,7 +869,7 @@ export class AuthClient {
     session = await this.finalizeSession(session, oidcRes.id_token);
 
     await this.sessionStore.set(req.cookies, res.cookies, session, true);
-    addCacheControlHeadersForSession(res);
+    await addCacheControlHeadersForSession(res);
 
     // Clean up the current transaction cookie after successful authentication
     await this.transactionStore.delete(res.cookies, state);
@@ -885,7 +892,7 @@ export class AuthClient {
       });
     }
     const res = NextResponse.json(session?.user);
-    addCacheControlHeadersForSession(res);
+    await addCacheControlHeadersForSession(res);
     return res;
   }
 
@@ -938,7 +945,7 @@ export class AuthClient {
       })
     });
 
-    await this.#updateSessionAfterTokenRetrieval(
+    await this.updateSessionAfterTokenRetrieval(
       req,
       res,
       session,
@@ -1045,7 +1052,7 @@ export class AuthClient {
     }
 
     // update the session with the new token set, if necessary
-    await this.#updateSessionAfterTokenRetrieval(
+    await this.updateSessionAfterTokenRetrieval(
       req,
       connectAccountResponse,
       session,
@@ -2209,9 +2216,9 @@ export class AuthClient {
    * 4. Persists the updated session to the session store
    * 5. Adds cache control headers to the response
    */
-  async #updateSessionAfterTokenRetrieval(
-    req: NextRequest,
-    res: NextResponse,
+  async updateSessionAfterTokenRetrieval(
+    req: PagesRouterRequest | NextRequest | undefined,
+    res: PagesRouterResponse | NextResponse | undefined,
     session: SessionData,
     tokenSetResponse: GetTokenSetResponse
   ): Promise<void> {
@@ -2237,9 +2244,68 @@ export class AuthClient {
         },
         tokenSetResponse.tokenSet.idToken
       );
-      await this.sessionStore.set(req.cookies, res.cookies, finalSession);
-      addCacheControlHeadersForSession(res);
+      await this.saveToSession(finalSession, req, res);
+
+      // TODO: What if no res?
+      if (res) {
+        await addCacheControlHeadersForSession(res);
+      }
     }
+  }
+
+  private async saveToSession(
+    data: SessionData,
+    req?: PagesRouterRequest | NextRequest,
+    res?: PagesRouterResponse | NextResponse
+  ) {
+    if (req && res) {
+      if (req instanceof NextRequest && res instanceof NextResponse) {
+        // middleware usage
+        await this.sessionStore.set(req.cookies, res.cookies, data);
+      } else {
+        // pages router usage
+        const resHeaders = new Headers();
+        const resCookies = new ResponseCookies(resHeaders);
+        const pagesRouterRes = res as PagesRouterResponse;
+
+        await this.sessionStore.set(
+          this.createRequestCookies(req as PagesRouterRequest),
+          resCookies,
+          data
+        );
+
+        for (const [key, value] of resHeaders.entries()) {
+          pagesRouterRes.setHeader(key, value);
+        }
+      }
+    } else {
+      // app router usage: Server Components, Server Actions, Route Handlers
+      try {
+        await this.sessionStore.set(await cookies(), await cookies(), data);
+      } catch (e) {
+        if (process.env.NODE_ENV === "development") {
+          console.warn(
+            "Failed to persist the updated token set. `getAccessToken()` was likely called from a Server Component which cannot set cookies."
+          );
+        }
+      }
+    }
+  }
+
+  private createRequestCookies(req: PagesRouterRequest) {
+    const headers = new Headers();
+
+    for (const key in req.headers) {
+      if (Array.isArray(req.headers[key])) {
+        for (const value of req.headers[key]) {
+          headers.append(key, value);
+        }
+      } else {
+        headers.append(key, req.headers[key] ?? "");
+      }
+    }
+
+    return new RequestCookies(headers);
   }
 }
 

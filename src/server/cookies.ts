@@ -1,3 +1,4 @@
+import { headers } from "next/headers.js";
 import { NextResponse } from "next/server.js";
 import {
   RequestCookie,
@@ -6,6 +7,8 @@ import {
 } from "@edge-runtime/cookies";
 import { hkdf } from "@panva/hkdf";
 import * as jose from "jose";
+
+import { PagesRouterResponse } from "../types/index.js";
 
 const ENC = "A256GCM";
 const ALG = "dir";
@@ -360,13 +363,35 @@ export function deleteChunkedCookie(
  * Call this function whenever a `Set-Cookie` header is being written
  * for session management or any other sensitive data that must not be cached.
  */
-export function addCacheControlHeadersForSession(res: NextResponse): void {
-  res.headers.set(
-    "Cache-Control",
-    "private, no-cache, no-store, must-revalidate, max-age=0"
-  );
-  res.headers.set("Pragma", "no-cache");
-  res.headers.set("Expires", "0");
+export async function addCacheControlHeadersForSession(
+  res: PagesRouterResponse | NextResponse | undefined
+): Promise<void> {
+  if (res) {
+    if (res instanceof NextResponse) {
+      res.headers.set(
+        "Cache-Control",
+        "private, no-cache, no-store, must-revalidate, max-age=0"
+      );
+      res.headers.set("Pragma", "no-cache");
+      res.headers.set("Expires", "0");
+    } else {
+      res.setHeader(
+        "Cache-Control",
+        "private, no-cache, no-store, must-revalidate, max-age=0"
+      );
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+    }
+  } else {
+    // TODO: TEST
+    const responseHeaders = await headers();
+    responseHeaders.set(
+      "Cache-Control",
+      "private, no-cache, no-store, must-revalidate, max-age=0"
+    );
+    responseHeaders.set("Pragma", "no-cache");
+    responseHeaders.set("Expires", "0");
+  }
 }
 
 /**

@@ -22,12 +22,9 @@ import {
   SessionData,
   SessionDataStore,
   StartInteractiveLoginOptions,
-  User
 } from "../types/index.js";
-import { DEFAULT_SCOPES } from "../utils/constants.js";
 import { validateDpopConfiguration } from "../utils/dpopUtils.js";
 import { isRequest } from "../utils/request.js";
-import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
 import {
   AuthClient,
   BeforeSessionSavedHook,
@@ -686,36 +683,13 @@ export class Auth0Client {
     if (error) {
       throw error;
     }
-    const { tokenSet, idTokenClaims } = getTokenSetResponse;
-    // update the session with the new token set, if necessary
-    const sessionChanges = getSessionChangesAfterGetAccessToken(
+    const { tokenSet } = getTokenSetResponse;
+    await this.authClient.updateSessionAfterTokenRetrieval(
+      req,
+      res,
       session,
-      tokenSet,
-      {
-        scope: this.#options.authorizationParameters?.scope ?? DEFAULT_SCOPES,
-        audience: this.#options.authorizationParameters?.audience
-      }
-    );
-
-    if (sessionChanges) {
-      if (idTokenClaims) {
-        session.user = idTokenClaims as User;
-      }
-      // call beforeSessionSaved callback if present
-      // if not then filter id_token claims with default rules
-      const finalSession = await this.authClient.finalizeSession(
-        session,
-        tokenSet.idToken
-      );
-      await this.saveToSession(
-        {
-          ...finalSession,
-          ...sessionChanges
-        },
-        req,
-        res
-      );
-    }
+      getTokenSetResponse,
+    )
 
     return {
       token: tokenSet.accessToken,
