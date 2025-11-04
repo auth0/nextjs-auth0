@@ -15,6 +15,7 @@ import {
   BackchannelAuthenticationError,
   BackchannelAuthenticationNotSupportedError,
   BackchannelLogoutError,
+  buildConnectAccountErrorResponse,
   ConnectAccountError,
   ConnectAccountErrorCodes,
   DiscoveryError,
@@ -1946,31 +1947,10 @@ export class AuthClient {
       });
 
       if (!res.ok) {
-        try {
-          const errorBody = await res.json();
-          return [
-            new ConnectAccountError({
-              code: ConnectAccountErrorCodes.FAILED_TO_INITIATE,
-              message: `The request to initiate the connect account flow failed with status ${res.status}.`,
-              cause: new MyAccountApiError({
-                type: errorBody.type,
-                title: errorBody.title,
-                detail: errorBody.detail,
-                status: res.status,
-                validationErrors: errorBody.validation_errors
-              })
-            }),
-            null
-          ];
-        } catch (e) {
-          return [
-            new ConnectAccountError({
-              code: ConnectAccountErrorCodes.FAILED_TO_INITIATE,
-              message: `The request to initiate the connect account flow failed with status ${res.status}.`
-            }),
-            null
-          ];
-        }
+        return buildConnectAccountErrorResponse(
+          res,
+          ConnectAccountErrorCodes.FAILED_TO_INITIATE
+        );
       }
 
       const { connect_uri, connect_params, auth_session, expires_in } =
@@ -2041,31 +2021,10 @@ export class AuthClient {
       });
 
       if (!res.ok) {
-        try {
-          const errorBody = await res.json();
-          return [
-            new ConnectAccountError({
-              code: ConnectAccountErrorCodes.FAILED_TO_COMPLETE,
-              message: `The request to complete the connect account flow failed with status ${res.status}.`,
-              cause: new MyAccountApiError({
-                type: errorBody.type,
-                title: errorBody.title,
-                detail: errorBody.detail,
-                status: res.status,
-                validationErrors: errorBody.validation_errors
-              })
-            }),
-            null
-          ];
-        } catch (e) {
-          return [
-            new ConnectAccountError({
-              code: ConnectAccountErrorCodes.FAILED_TO_COMPLETE,
-              message: `The request to complete the connect account flow failed with status ${res.status}.`
-            }),
-            null
-          ];
-        }
+        return buildConnectAccountErrorResponse(
+          res,
+          ConnectAccountErrorCodes.FAILED_TO_COMPLETE
+        );
       }
 
       const { id, connection, access_type, scopes, created_at, expires_at } =
