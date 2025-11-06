@@ -1209,122 +1209,21 @@ export class AuthClient {
         !tokenSet.expiresAt ||
         tokenSet.expiresAt <= Date.now() / 1000
       ) {
-        const [discoveryError, authorizationServerMetadata] =
-          await this.discoverAuthorizationServerMetadata();
+        const [error, response] = await this.#refreshTokenSet(tokenSet, {
+          audience: options.audience,
+          scope: options.scope ? scope : undefined,
+          requestedScope: scope
+        });
 
-        if (discoveryError) {
-          return [discoveryError, null];
-        }
-
-        const additionalParameters = new URLSearchParams();
-
-        if (options.scope) {
-          additionalParameters.append("scope", scope);
-        }
-
-        if (options.audience) {
-          additionalParameters.append("audience", options.audience);
-        }
-
-        // Create DPoP handle ONCE outside the closure so it persists across retries.
-        // This is required by RFC 9449: the handle must learn and reuse the nonce from
-        // the DPoP-Nonce header across multiple attempts.
-        const dpopHandle =
-          this.useDPoP && this.dpopKeyPair
-            ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
-            : undefined;
-
-        const refreshTokenGrantRequestCall = async () =>
-          oauth.refreshTokenGrantRequest(
-            authorizationServerMetadata,
-            this.clientMetadata,
-            await this.getClientAuth(),
-            tokenSet.refreshToken!,
-            {
-              ...this.httpOptions(),
-              [oauth.customFetch]: this.fetch,
-              [oauth.allowInsecureRequests]: this.allowInsecureRequests,
-              additionalParameters,
-              ...(dpopHandle && {
-                DPoP: dpopHandle
-              })
-            }
-          );
-
-        const processRefreshTokenResponseCall = (response: Response) =>
-          oauth.processRefreshTokenResponse(
-            authorizationServerMetadata,
-            this.clientMetadata,
-            response
-          );
-
-        let oauthRes: oauth.TokenEndpointResponse;
-        try {
-          oauthRes = await withDPoPNonceRetry(
-            async () => {
-              const refreshTokenRes = await refreshTokenGrantRequestCall();
-              return await processRefreshTokenResponseCall(refreshTokenRes);
-            },
-            {
-              isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
-              ...this.dpopOptions?.retry
-            }
-          );
-        } catch (e: any) {
-          return [
-            new AccessTokenError(
-              AccessTokenErrorCode.FAILED_TO_REFRESH_TOKEN,
-              "The access token has expired and there was an error while trying to refresh it.",
-              new OAuth2Error({
-                code: e.error,
-                message: e.error_description
-              })
-            ),
-            null
-          ];
-        }
-
-        const idTokenClaims = oauth.getValidatedIdTokenClaims(oauthRes)!;
-        const accessTokenExpiresAt =
-          Math.floor(Date.now() / 1000) + Number(oauthRes.expires_in);
-
-        const updatedTokenSet = {
-          ...tokenSet, // contains the existing `iat` claim to maintain the session lifetime
-          accessToken: oauthRes.access_token,
-          idToken: oauthRes.id_token,
-          // We store the both requested and granted scopes on the tokenSet, so we know what scopes were requested.
-          // The server may return less scopes than requested.
-          // This ensures we can return the same token again when a token for the same or less scopes is requested by using `requestedScope` during look-up.
-          //
-          // E.g. When requesting a token with scope `a b`, and we return one for scope `a` only,
-          // - If we only store the returned scopes, we cannot return this token when the user requests a token for scope `a b` again.
-          // - If we only store the requested scopes, we lose track of the actual scopes granted.
-          //
-          // Scopes actually granted by the server
-          scope: oauthRes.scope,
-          // Scopes requested by the client
-          requestedScope: scope,
-          expiresAt: accessTokenExpiresAt,
-          // Keep the audience if it exists, otherwise use the one from the options.
-          // If not provided, use `undefined`.
-          audience: tokenSet.audience || options.audience || undefined,
-          // Store the token type from the OAuth response (e.g., "Bearer", "DPoP")
-          ...(oauthRes.token_type && { token_type: oauthRes.token_type })
-        };
-
-        if (oauthRes.refresh_token) {
-          // refresh token rotation is enabled, persist the new refresh token from the response
-          updatedTokenSet.refreshToken = oauthRes.refresh_token;
-        } else {
-          // we did not get a refresh token back, keep the current long-lived refresh token around
-          updatedTokenSet.refreshToken = tokenSet.refreshToken;
+        if (error) {
+          return [error, null];
         }
 
         return [
           null,
           {
-            tokenSet: updatedTokenSet,
-            idTokenClaims: idTokenClaims
+            tokenSet: response.updatedTokenSet,
+            idTokenClaims: response.idTokenClaims
           }
         ];
       }
@@ -2471,6 +2370,145 @@ export class AuthClient {
       await this.sessionStore.set(req.cookies, res.cookies, finalSession);
       addCacheControlHeadersForSession(res);
     }
+  }
+
+  /**
+   * Refreshes the token set using the provided refresh token.
+   * @param tokenSet The current token set containing the refresh token.
+   * @param options Options for the refresh operation, including scope and audience.
+   * @returns A tuple containing either:
+   *   - `[null, { updatedTokenSet: TokenSet; idTokenClaims: oauth.IDToken }]` if the token was successfully refreshed, containing the updated token set and ID token claims.
+   *   - `[SdkError, null]` if an error occurred during the refresh process.
+   */
+  async #refreshTokenSet(
+    tokenSet: Partial<TokenSet>,
+    options: {
+      scope?: string;
+      audience?: string | null;
+      requestedScope: string;
+    }
+  ): Promise<
+    | [null, { updatedTokenSet: TokenSet; idTokenClaims: oauth.IDToken }]
+    | [SdkError, null]
+  > {
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      return [discoveryError, null];
+    }
+
+    const additionalParameters = new URLSearchParams();
+
+    if (options.scope) {
+      additionalParameters.append("scope", options.scope);
+    }
+
+    if (options.audience) {
+      additionalParameters.append("audience", options.audience);
+    }
+
+    // Create DPoP handle ONCE outside the closure so it persists across retries.
+    // This is required by RFC 9449: the handle must learn and reuse the nonce from
+    // the DPoP-Nonce header across multiple attempts.
+    const dpopHandle =
+      this.useDPoP && this.dpopKeyPair
+        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+        : undefined;
+
+    const refreshTokenGrantRequestCall = async () =>
+      oauth.refreshTokenGrantRequest(
+        authorizationServerMetadata,
+        this.clientMetadata,
+        await this.getClientAuth(),
+        tokenSet.refreshToken!,
+        {
+          ...this.httpOptions(),
+          [oauth.customFetch]: this.fetch,
+          [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+          additionalParameters,
+          ...(dpopHandle && {
+            DPoP: dpopHandle
+          })
+        }
+      );
+
+    const processRefreshTokenResponseCall = (response: Response) =>
+      oauth.processRefreshTokenResponse(
+        authorizationServerMetadata,
+        this.clientMetadata,
+        response
+      );
+
+    let oauthRes: oauth.TokenEndpointResponse;
+    try {
+      oauthRes = await withDPoPNonceRetry(
+        async () => {
+          const refreshTokenRes = await refreshTokenGrantRequestCall();
+          return await processRefreshTokenResponseCall(refreshTokenRes);
+        },
+        {
+          isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
+          ...this.dpopOptions?.retry
+        }
+      );
+    } catch (e: any) {
+      return [
+        new AccessTokenError(
+          AccessTokenErrorCode.FAILED_TO_REFRESH_TOKEN,
+          "The access token has expired and there was an error while trying to refresh it.",
+          new OAuth2Error({
+            code: e.error,
+            message: e.error_description
+          })
+        ),
+        null
+      ];
+    }
+
+    const idTokenClaims = oauth.getValidatedIdTokenClaims(oauthRes)!;
+    const accessTokenExpiresAt =
+      Math.floor(Date.now() / 1000) + Number(oauthRes.expires_in);
+
+    const updatedTokenSet = {
+      ...tokenSet, // contains the existing `iat` claim to maintain the session lifetime
+      accessToken: oauthRes.access_token,
+      idToken: oauthRes.id_token,
+      // We store the both requested and granted scopes on the tokenSet, so we know what scopes were requested.
+      // The server may return less scopes than requested.
+      // This ensures we can return the same token again when a token for the same or less scopes is requested by using `requestedScope` during look-up.
+      //
+      // E.g. When requesting a token with scope `a b`, and we return one for scope `a` only,
+      // - If we only store the returned scopes, we cannot return this token when the user requests a token for scope `a b` again.
+      // - If we only store the requested scopes, we lose track of the actual scopes granted.
+      //
+      // Scopes actually granted by the server
+      scope: oauthRes.scope,
+      // Scopes requested by the client
+      requestedScope: options.requestedScope,
+      expiresAt: accessTokenExpiresAt,
+      // Keep the audience if it exists, otherwise use the one from the options.
+      // If not provided, use `undefined`.
+      audience: tokenSet.audience || options.audience || undefined,
+      // Store the token type from the OAuth response (e.g., "Bearer", "DPoP")
+      ...(oauthRes.token_type && { token_type: oauthRes.token_type })
+    };
+
+    if (oauthRes.refresh_token) {
+      // refresh token rotation is enabled, persist the new refresh token from the response
+      updatedTokenSet.refreshToken = oauthRes.refresh_token;
+    } else {
+      // we did not get a refresh token back, keep the current long-lived refresh token around
+      updatedTokenSet.refreshToken = tokenSet.refreshToken;
+    }
+
+    return [
+      null,
+      {
+        updatedTokenSet,
+        idTokenClaims
+      }
+    ];
   }
 }
 
