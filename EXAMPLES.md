@@ -102,6 +102,7 @@
 - [Customizing Auth Handlers](#customizing-auth-handlers)
   - [Run custom code before Auth Handlers](#run-custom-code-before-auth-handlers)
   - [Run code after callback](#run-code-after-callback)
+- [Next.js 16 Compatibility](#nextjs-16-compatibility)
 
 ## Passing authorization parameters
 
@@ -2382,3 +2383,30 @@ export async function middleware(request) {
 ### Run code after callback
 
 Please refer to [onCallback](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#oncallback) for details on how to run code after callback.
+
+## Next.js 16 Compatibility
+To support `Next.js 16`, rename your `middleware.ts` file to `proxy.ts`, and rename the exported function from `middleware` to `proxy`.
+All existing examples and helpers (`getSession`, `updateSession`, `getAccessToken`, etc.) will continue to work without any other changes.
+
+```diff
+
+- // middleware.ts
+- export async function middleware(request: NextRequest) {
+-   return auth0.middleware(request);
+- }
+
++ // proxy.ts
++ export async function proxy(request: Request) {
++   return auth0.middleware(request);
++ }
+
+```
+> [!NOTE]
+> Next.js 16 still supports the traditional `middleware.ts` file for Edge runtime use-cases,
+but it is now considered deprecated. Future versions of `Next.js` may remove Edge-only middleware,
+so it’s recommended to migrate to `proxy.ts` for long-term compatibility.
+
+For more details, see the official Next.js documentation:
+
+➡️ [Upgrading to Next 16 Middleware](https://nextjs.org/docs/app/api-reference/file-conventions/proxy#upgrading-to-nextjs-16)  
+➡️ [Proxy.ts Conventions](https://nextjs.org/docs/app/api-reference/file-conventions/proxy)

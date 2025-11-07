@@ -2,6 +2,7 @@ import { NextApiHandler } from "next";
 import { NextRequest, NextResponse } from "next/server.js";
 
 import { Auth0Client } from "../client.js";
+import { toNextRequest } from "../next-compat.js";
 
 /**
  * This contains `param`s, which is a Promise that resolves to an object
@@ -22,7 +23,7 @@ export type AppRouteHandlerFn = (
   /**
    * Incoming request object.
    */
-  req: NextRequest,
+  req: NextRequest | Request,
   /**
    * Context properties on the request (including the parameters if this was a
    * dynamic route).
@@ -80,7 +81,9 @@ export type WithApiAuthRequired = WithApiAuthRequiredAppRoute &
 export const appRouteHandlerFactory =
   (client: Auth0Client): WithApiAuthRequiredAppRoute =>
   (apiRoute) =>
-  async (req, params): Promise<NextResponse> => {
+  async (req: NextRequest | Request, params): Promise<NextResponse> => {
+    const nextReq = req instanceof Request ? toNextRequest(req) : req;
+
     const session = await client.getSession();
 
     if (!session || !session.user) {
@@ -94,7 +97,7 @@ export const appRouteHandlerFactory =
       );
     }
 
-    const apiRes: NextResponse | Response = await apiRoute(req, params);
+    const apiRes: NextResponse | Response = await apiRoute(nextReq, params);
     const nextApiRes: NextResponse =
       apiRes instanceof NextResponse
         ? apiRes
