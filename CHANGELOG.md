@@ -1,5 +1,11 @@
 # Change Log
 
+## [v4.12.0](https://github.com/auth0/nextjs-auth0/tree/v4.12.0) (2025-11-07)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.11.1...v4.12.0)
+
+**Added**
+- feat: Proxy handler support enabling My Account and My Org [\#2400](https://github.com/auth0/nextjs-auth0/pull/2400) ([tusharpandey13](https://github.com/tusharpandey13))
+
 ## [v4.11.1](https://github.com/auth0/nextjs-auth0/tree/v4.11.1) (2025-10-31)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.11.0...v4.11.1)
 
