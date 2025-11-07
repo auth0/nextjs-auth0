@@ -321,6 +321,58 @@ AUTH0_DPOP_CLOCK_TOLERANCE=90    # Tolerance in seconds
 
 Respective counterparts are also available in the client configuration. See [Cookie Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#cookie-configuration) for more details.
 
+### Proxy Handler for My Account and My Organization APIs
+
+The SDK provides built-in proxy support for Auth0's My Account and My Organization Management APIs, enabling secure browser-initiated requests while maintaining server-side DPoP authentication and token management.
+
+#### How It Works
+
+The proxy handler automatically intercepts requests to `/me/*` and `/my-org/*` paths in your Next.js application and forwards them to the respective Auth0 APIs with proper authentication headers. This implements a Backend-for-Frontend (BFF) pattern where:
+
+- Tokens and DPoP keys remain on the server
+- Access tokens are automatically retrieved or refreshed
+- DPoP proofs are generated for each request
+- Session updates occur transparently
+
+#### Configuration
+
+Configure audience and scopes for the APIs:
+
+```ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+export const auth0 = new Auth0Client({
+  useDPoP: true,
+  authorizationParameters: {
+    audience: "urn:your-api-identifier",
+    scope: {
+      [`https://${process.env.AUTH0_DOMAIN}/me/`]: "profile:read profile:write",
+      [`https://${process.env.AUTH0_DOMAIN}/my-org/`]: "org:read org:write"
+    }
+  }
+});
+```
+
+#### Client-Side Usage
+
+Make requests through the proxy paths:
+
+```tsx
+// My Account API
+const response = await fetch("/me/v1/profile", {
+  headers: { "scope": "profile:read" }
+});
+
+// My Organization API
+const response = await fetch("/my-org/organizations", {
+  headers: { "scope": "org:read" }
+});
+```
+
+The `scope` header specifies the required scope. The SDK retrieves an access token with the appropriate audience and scope, then forwards the request with authentication headers.
+
+For complete documentation, examples, and integration patterns with UI Components, see [Proxy Handler for My Account and My Organization APIs](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#proxy-handler-for-my-account-and-my-organization-apis).
+
 ## Base Path
 
 Your Next.js application may be configured to use a base path (e.g.: `/dashboard`) — this is usually done by setting the `basePath` option in the `next.config.js` file. To configure the SDK to use the base path, you will also need to set the `NEXT_PUBLIC_BASE_PATH` environment variable which will be used when mounting the authentication routes.
