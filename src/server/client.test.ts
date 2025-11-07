@@ -583,6 +583,128 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       );
     });
   });
+
+  describe("Request normalization | Next 15 + 16 compatibility", () => {
+    let client: Auth0Client;
+    let mockSession: SessionData;
+
+    beforeEach(() => {
+      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
+      process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
+      process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
+      process.env[ENV_VARS.APP_BASE_URL] = "https://myapp.test";
+      process.env[ENV_VARS.SECRET] = "test_secret";
+
+      client = new Auth0Client();
+      mockSession = {
+        user: { sub: "user123" },
+        tokenSet: { accessToken: "token", expiresAt: Date.now() / 1000 + 3600 },
+        internal: { sid: "sid", createdAt: Date.now() / 1000 },
+        createdAt: Date.now() / 1000
+      };
+    });
+
+    it("should return session successfully in getSession with plain Request", async () => {
+      const spy = vi
+        .spyOn(client["sessionStore"], "get")
+        .mockResolvedValue(mockSession);
+
+      const req = new Request("https://myapp.test/api/test", { method: "GET" });
+      const result = await client.getSession(req as any);
+
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(mockSession);
+    });
+
+    it("should get access token for connection with plain Request", async () => {
+      vi.spyOn(client, "getSession").mockResolvedValue(mockSession);
+      const expiresAt = Math.floor(Date.now() / 1000) + 3600;
+      vi.spyOn(client["authClient"], "getConnectionTokenSet").mockResolvedValue(
+        [
+          null,
+          {
+            accessToken: "abc",
+            expiresAt: expiresAt,
+            scope: "openid",
+            connection: "github"
+          }
+        ]
+      );
+      vi.spyOn(client as any, "saveToSession").mockResolvedValue(undefined);
+
+      const req = new Request("https://myapp.test/api/test", { method: "GET" });
+      const res = new Response();
+
+      const result = await client.getAccessTokenForConnection(
+        { connection: "github" },
+        req as any,
+        res as any
+      );
+
+      expect(result.token).toBe("abc");
+      expect(result.expiresAt).toBe(expiresAt);
+    });
+
+    it("should update session successfully with plain Request", async () => {
+      vi.spyOn(client, "getSession").mockResolvedValue(mockSession);
+      vi.spyOn(client["sessionStore"], "set").mockResolvedValue(undefined);
+
+      const req = new Request("https://myapp.test/api/update", {
+        method: "POST"
+      });
+      const res = new Response();
+      const updatedSession = { ...mockSession, user: { sub: "new_user" } };
+
+      await client.updateSession(req as any, res as any, updatedSession);
+
+      expect(client["sessionStore"].set).toHaveBeenCalledTimes(1);
+    });
+
+    it("should create fetcher successfully with plain Request", async () => {
+      vi.spyOn(client, "getSession").mockResolvedValue(mockSession);
+
+      const mockFetcher = {
+        config: {},
+        hooks: {},
+        isAbsoluteUrl: vi.fn().mockReturnValue(true),
+        buildUrl: vi.fn().mockReturnValue("https://api.example.com"),
+        fetchWithAuth: vi.fn().mockResolvedValue(new Response("{}")),
+        fetch: vi.fn(),
+        getAccessToken: vi.fn(),
+        getDPoPProof: vi.fn(),
+        attachDPoPHeaders: vi.fn(),
+        validateResponse: vi.fn()
+      };
+
+      vi.spyOn(client["authClient"], "fetcherFactory").mockResolvedValue(
+        mockFetcher as any
+      );
+
+      const req = new Request("https://myapp.test/api", { method: "GET" });
+      const fetcher = await client.createFetcher(req as any, {});
+
+      expect(fetcher).toBeDefined();
+      expect(fetcher.fetchWithAuth).toBeInstanceOf(Function);
+      // Instead of accessing the protected method, test public behavior or remove this line
+      // For example, you can check that fetchWithAuth was called with an absolute URL
+      await fetcher.fetchWithAuth("https://api.example.com");
+      expect(fetcher.fetchWithAuth).toHaveBeenCalledWith(
+        "https://api.example.com"
+      );
+    });
+
+    it("should call middleware successfully with plain Request", async () => {
+      const handlerSpy = vi
+        .spyOn(client["authClient"], "handler")
+        .mockResolvedValue(NextResponse.next());
+
+      const req = new Request("https://myapp.test/auth", { method: "GET" });
+      const result = await client.middleware(req as any);
+
+      expect(handlerSpy).toHaveBeenCalledTimes(1);
+      expect(result).toBeInstanceOf(NextResponse);
+    });
+  });
 });
 
 export type GetAccessTokenOptions = {
