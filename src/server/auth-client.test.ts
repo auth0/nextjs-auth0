@@ -5977,9 +5977,15 @@ ca/T0LLtgmbMmxSv/MmzIg==
                 state: expect.any(String),
                 code_challenge: expect.any(String),
                 code_challenge_method: "S256",
+                scopes: [
+                  "openid",
+                  "profile",
+                  "email",
+                  "offline_access",
+                  "read:messages"
+                ],
                 authorization_params: expect.objectContaining({
-                  audience: "urn:some-audience",
-                  scope: "openid profile email offline_access read:messages"
+                  audience: "urn:some-audience"
                 })
               })
             );
@@ -6017,10 +6023,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
       url.searchParams.append("connection", DEFAULT.connectAccount.connection);
       url.searchParams.append("returnTo", "/some-url");
       url.searchParams.append("audience", "urn:some-audience");
-      url.searchParams.append(
-        "scope",
-        "openid profile email offline_access read:messages"
-      );
+      url.searchParams.append("scopes", "openid");
+      url.searchParams.append("scopes", "profile");
+      url.searchParams.append("scopes", "email");
+      url.searchParams.append("scopes", "offline_access");
+      url.searchParams.append("scopes", "read:messages");
 
       const request = new NextRequest(url, {
         method: "GET",
@@ -6117,9 +6124,15 @@ ca/T0LLtgmbMmxSv/MmzIg==
                 state: expect.any(String),
                 code_challenge: expect.any(String),
                 code_challenge_method: "S256",
+                scopes: [
+                  "openid",
+                  "profile",
+                  "email",
+                  "offline_access",
+                  "read:messages"
+                ],
                 authorization_params: expect.objectContaining({
-                  audience: "urn:some-audience",
-                  scope: "openid profile email offline_access read:messages"
+                  audience: "urn:some-audience"
                 })
               })
             );
@@ -6157,10 +6170,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
       url.searchParams.append("connection", "some-connection");
       url.searchParams.append("returnTo", "https://google.com/some-url");
       url.searchParams.append("audience", "urn:some-audience");
-      url.searchParams.append(
-        "scope",
-        "openid profile email offline_access read:messages"
-      );
+      url.searchParams.append("scopes", "openid");
+      url.searchParams.append("scopes", "profile");
+      url.searchParams.append("scopes", "email");
+      url.searchParams.append("scopes", "offline_access");
+      url.searchParams.append("scopes", "read:messages");
 
       const request = new NextRequest(url, {
         method: "GET",
@@ -6254,10 +6268,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
       url.searchParams.append("connection", "some-connection");
       url.searchParams.append("returnTo", "/some-url");
       url.searchParams.append("audience", "urn:some-audience");
-      url.searchParams.append(
-        "scope",
-        "openid profile email offline_access read:messages"
-      );
+      url.searchParams.append("scopes", "openid");
+      url.searchParams.append("scopes", "profile");
+      url.searchParams.append("scopes", "email");
+      url.searchParams.append("scopes", "offline_access");
+      url.searchParams.append("scopes", "read:messages");
 
       authClient.handleConnectAccount = vi.fn();
       expect(authClient.handleConnectAccount).not.toHaveBeenCalled();
@@ -6294,10 +6309,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
       url.searchParams.append("connection", "some-connection");
       url.searchParams.append("returnTo", "/some-url");
       url.searchParams.append("audience", "urn:some-audience");
-      url.searchParams.append(
-        "scope",
-        "openid profile email offline_access read:messages"
-      );
+      url.searchParams.append("scopes", "openid");
+      url.searchParams.append("scopes", "profile");
+      url.searchParams.append("scopes", "email");
+      url.searchParams.append("scopes", "offline_access");
+      url.searchParams.append("scopes", "read:messages");
 
       const request = new NextRequest(url, {
         method: "GET",
@@ -6425,10 +6441,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
       url.searchParams.append("connection", "some-connection");
       url.searchParams.append("returnTo", "/some-url");
       url.searchParams.append("audience", "urn:some-audience");
-      url.searchParams.append(
-        "scope",
-        "openid profile email offline_access read:messages"
-      );
+      url.searchParams.append("scopes", "openid");
+      url.searchParams.append("scopes", "profile");
+      url.searchParams.append("scopes", "email");
+      url.searchParams.append("scopes", "offline_access");
+      url.searchParams.append("scopes", "read:messages");
 
       const request = new NextRequest(url, {
         method: "GET",
@@ -6498,10 +6515,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
       url.searchParams.append("connection", "some-connection");
       url.searchParams.append("returnTo", "/some-url");
       url.searchParams.append("audience", "urn:some-audience");
-      url.searchParams.append(
-        "scope",
-        "openid profile email offline_access read:messages"
-      );
+      url.searchParams.append("scopes", "openid");
+      url.searchParams.append("scopes", "profile");
+      url.searchParams.append("scopes", "email");
+      url.searchParams.append("scopes", "offline_access");
+      url.searchParams.append("scopes", "read:messages");
 
       const request = new NextRequest(url, {
         method: "GET",

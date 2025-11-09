@@ -1013,12 +1013,14 @@ export class AuthClient {
   async handleConnectAccount(req: NextRequest): Promise<NextResponse> {
     const session = await this.sessionStore.get(req.cookies);
 
-    // pass all query params except `connection` and `returnTo` as authorization params
+    // pass all query params except `connection`, `returnTo`, `scopes` as authorization params
     const connection = req.nextUrl.searchParams.get("connection");
     const returnTo = req.nextUrl.searchParams.get("returnTo") ?? undefined;
+    const scopes = req.nextUrl.searchParams.getAll("scopes");
     const authorizationParams = Object.fromEntries(
       [...req.nextUrl.searchParams.entries()].filter(
-        ([key]) => key !== "connection" && key !== "returnTo"
+        ([key]) =>
+          key !== "connection" && key !== "returnTo" && key !== "scopes"
       )
     );
 
@@ -1056,6 +1058,7 @@ export class AuthClient {
       await this.connectAccount({
         tokenSet: tokenSet,
         connection,
+        scopes,
         authorizationParams,
         returnTo
       });
@@ -1819,6 +1822,7 @@ export class AuthClient {
         state,
         codeChallenge,
         codeChallengeMethod,
+        scopes: options.scopes,
         authorizationParams: options.authorizationParams
       });
 
@@ -1873,6 +1877,7 @@ export class AuthClient {
         state: options.state,
         code_challenge: options.codeChallenge,
         code_challenge_method: options.codeChallengeMethod,
+        scopes: options.scopes,
         authorization_params: options.authorizationParams
       };
 
