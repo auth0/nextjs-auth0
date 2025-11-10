@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { toNextRequest, toNextResponse } from "./next-compat.js";
 
-describe("next-compact", () => {
+describe("next-compat", () => {
   describe("toNextRequest", () => {
     it("should return the same instance if input is already a NextRequest", () => {
       const req = new NextRequest("https://example.com/api/test", {
