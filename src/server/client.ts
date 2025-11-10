@@ -1007,6 +1007,8 @@ export class Auth0Client {
    * for the My Account API to create a connected account for the user.
    *
    * The user will then be redirected to authorize the connection with the third-party provider.
+   *
+   * You must enable `Offline Access` from the Connection Permissions settings to be able to use the connection with Connected Accounts.
    */
   async connectAccount(options: ConnectAccountOptions): Promise<NextResponse> {
     const session = await this.getSession();

@@ -1054,14 +1054,18 @@ export class AuthClient {
     }
 
     const { tokenSet } = getTokenSetResponse;
+    const connectAccountParams: ConnectAccountOptions = {
+      connection,
+      authorizationParams,
+      returnTo
+    };
+
+    if (scopes.length > 0) {
+      connectAccountParams.scopes = scopes;
+    }
+
     const [connectAccountError, connectAccountResponse] =
-      await this.connectAccount({
-        tokenSet: tokenSet,
-        connection,
-        scopes,
-        authorizationParams,
-        returnTo
-      });
+      await this.connectAccount({ tokenSet, ...connectAccountParams });
 
     if (connectAccountError) {
       return new NextResponse(connectAccountError.message, {

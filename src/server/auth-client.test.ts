@@ -6549,6 +6549,112 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const response = await authClient.handler(request);
       expect(response.status).toEqual(400);
     });
+
+    it("should only forward the scopes if at least one scope is requested", async () => {
+      const currentAccessToken = DEFAULT.accessToken;
+      const newAccessToken = "at_456";
+      const secret = await generateSecret(32);
+      let connectAccountRequestBody: any;
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: getMockAuthorizationServer({
+          tokenEndpointResponse: {
+            token_type: "Bearer",
+            access_token: newAccessToken,
+            scope: "openid profile email offline_access",
+            expires_in: 86400 // expires in 10 days
+          } as oauth.TokenEndpointResponse,
+          onConnectAccountRequest: async (req) => {
+            connectAccountRequestBody = await req.json();
+            expect(connectAccountRequestBody.scopes).toBeUndefined();
+          }
+        }),
+
+        enableConnectAccountEndpoint: true
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) + 10 * 24 * 60 * 60; // expires in 10 days
+      const session: SessionData = {
+        user: {
+          sub: DEFAULT.sub,
+          name: "John Doe",
+          email: "john@example.com",
+          picture: "https://example.com/john.jpg"
+        },
+        tokenSet: {
+          accessToken: currentAccessToken,
+          scope: "openid profile email",
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const sessionCookie = await encrypt(session, secret, expiration);
+      const headers = new Headers();
+      headers.append("cookie", `__session=${sessionCookie}`);
+      const url = new URL("/auth/connect", DEFAULT.appBaseUrl);
+      url.searchParams.append("connection", DEFAULT.connectAccount.connection);
+      url.searchParams.append("returnTo", "/some-url");
+      url.searchParams.append("audience", "urn:some-audience");
+
+      const request = new NextRequest(url, {
+        method: "GET",
+        headers
+      });
+
+      const response = await authClient.handler(request);
+      expect(response.status).toEqual(307);
+      const connectUrl = new URL(response.headers.get("location")!);
+      expect(connectUrl.origin).toEqual(`https://${DEFAULT.domain}`);
+      expect(connectUrl.pathname).toEqual("/connect");
+      expect(connectUrl.searchParams.get("ticket")).toEqual(
+        DEFAULT.connectAccount.ticket
+      );
+
+      // transaction state
+      const transactionCookie = response.cookies.get(
+        `__txn_${connectAccountRequestBody.state}`
+      );
+      expect(transactionCookie).toBeDefined();
+      expect(
+        (
+          (await decrypt(
+            transactionCookie!.value,
+            secret
+          )) as jose.JWTDecryptResult
+        ).payload
+      ).toEqual(
+        expect.objectContaining({
+          responseType: RESPONSE_TYPES.CONNECT_CODE,
+          state: connectAccountRequestBody?.state,
+          returnTo: "/some-url",
+          codeVerifier: expect.any(String),
+          authSession: DEFAULT.connectAccount.authSession
+        })
+      );
+    });
   });
 
   describe("getTokenSet", async () => {

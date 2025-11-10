@@ -2302,6 +2302,9 @@ The connect endpoint (`/auth/connect` or your custom path) accepts the following
 - `scopes`: (optional) defines the permissions that the client requests from the Identity Provider.. Can be specified as multiple values (e.g., `?scopes=openid&scopes=profile&scopes=email`) or using bracket notation (e.g., `?scopes[]=openid&scopes[]=profile&scopes[]=email`).
 - Any additional parameters will be passed as the `authorizationParams` in the call to `/me/v1/connected-accounts/connect`.
 
+> [!IMPORTANT]  
+> You must enable `Offline Access` from the Connection Permissions settings to be able to use the connection with Connected Accounts.
+
 ### `onCallback` hook
 
 When a user is redirected back to your application after completing the connected accounts flow, the `onCallback` hook will be called. You can use this hook to run custom logic after the user has connected their account, like so:
@@ -2346,6 +2349,9 @@ export async function GET() {
   return res;
 }
 ```
+
+> [!IMPORTANT]  
+> You must enable `Offline Access` from the Connection Permissions settings to be able to use the connection with Connected Accounts.
 
 ## Back-Channel Logout
 
