@@ -1103,20 +1103,130 @@ ca/T0LLtgmbMmxSv/MmzIg==
           });
 
           const request = new NextRequest(
-            // Next.js will strip the base path from the URL
+            // Simulate real Next.js behavior: basePath is included in pathname.
+            // With basePath='/base-path', Next.js sends pathname='/base-path/auth/login'
+            // to middleware. The handler must strip the basePath to match routes.
             new URL(
-              testCase.path,
-              `${DEFAULT.appBaseUrl}/${process.env.NEXT_PUBLIC_BASE_PATH}`
+              `${process.env.NEXT_PUBLIC_BASE_PATH}${testCase.path}`,
+              DEFAULT.appBaseUrl
             ),
             {
               method: testCase.method
             }
           );
 
+          // Mock the basePath property that Next.js provides in middleware
+          Object.defineProperty(request.nextUrl, "basePath", {
+            value: process.env.NEXT_PUBLIC_BASE_PATH,
+            writable: false
+          });
+
           (authClient as any)[testCase.handler] = vi.fn();
           await authClient.handler(request);
           expect((authClient as any)[testCase.handler]).toHaveBeenCalled();
         }
+      });
+
+      it("should handle requests without basePath (backward compatibility)", async () => {
+        // Clear basePath to test backward compatibility
+        delete process.env.NEXT_PUBLIC_BASE_PATH;
+
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({ secret });
+        const sessionStore = new StatelessSessionStore({ secret });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer()
+        });
+
+        const request = new NextRequest(
+          new URL("/auth/login", DEFAULT.appBaseUrl),
+          { method: "GET" }
+        );
+
+        authClient.handleLogin = vi.fn();
+        await authClient.handler(request);
+        expect(authClient.handleLogin).toHaveBeenCalled();
+
+        // Restore basePath for subsequent tests
+        process.env.NEXT_PUBLIC_BASE_PATH = "/base-path";
+      });
+
+      it("should handle hardcoded /me routes with basePath", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({ secret });
+        const sessionStore = new StatelessSessionStore({ secret });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer()
+        });
+
+        const request = new NextRequest(
+          new URL(
+            `${process.env.NEXT_PUBLIC_BASE_PATH}/me/profile`,
+            DEFAULT.appBaseUrl
+          ),
+          { method: "GET" }
+        );
+
+        // Mock the basePath property that Next.js provides in middleware
+        Object.defineProperty(request.nextUrl, "basePath", {
+          value: process.env.NEXT_PUBLIC_BASE_PATH,
+          writable: false
+        });
+
+        authClient.handleMyAccount = vi.fn();
+        await authClient.handler(request);
+        expect(authClient.handleMyAccount).toHaveBeenCalled();
+      });
+
+      it("should handle hardcoded /my-org routes with basePath", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({ secret });
+        const sessionStore = new StatelessSessionStore({ secret });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer()
+        });
+
+        const request = new NextRequest(
+          new URL(
+            `${process.env.NEXT_PUBLIC_BASE_PATH}/my-org/members`,
+            DEFAULT.appBaseUrl
+          ),
+          { method: "GET" }
+        );
+
+        // Mock the basePath property that Next.js provides in middleware
+        Object.defineProperty(request.nextUrl, "basePath", {
+          value: process.env.NEXT_PUBLIC_BASE_PATH,
+          writable: false
+        });
+
+        authClient.handleMyOrg = vi.fn();
+        await authClient.handler(request);
+        expect(authClient.handleMyOrg).toHaveBeenCalled();
       });
     });
   });

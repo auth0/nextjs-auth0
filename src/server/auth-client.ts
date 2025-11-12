@@ -44,6 +44,7 @@ import {
   GetAccessTokenOptions,
   LogoutStrategy,
   LogoutToken,
+  ProxyOptions,
   RESPONSE_TYPES,
   SessionData,
   StartInteractiveLoginOptions,
@@ -60,6 +61,11 @@ import {
   normalizeWithBasePath,
   removeTrailingSlash
 } from "../utils/pathUtils.js";
+import {
+  buildForwardedRequestHeaders,
+  buildForwardedResponseHeaders,
+  transformTargetUrl
+} from "../utils/proxy.js";
 import {
   ensureDefaultScope,
   getScopeForAudience
@@ -247,6 +253,8 @@ export class AuthClient {
   private dpopKeyPair?: DpopKeyPair;
   private readonly useDPoP: boolean;
 
+  private proxyFetchers: { [audience: string]: Fetcher<Response> } = {};
+
   constructor(options: AuthClientOptions) {
     // dependencies
     this.fetch = options.fetch || fetch;
@@ -370,7 +378,17 @@ export class AuthClient {
   }
 
   async handler(req: NextRequest): Promise<NextResponse> {
-    const { pathname } = req.nextUrl;
+    let { pathname } = req.nextUrl;
+
+    // Next.js does NOT automatically strip basePath from pathname in middleware.
+    // We must manually strip it to match against our route configurations.
+    // Example: With basePath='/app', a request to '/app/auth/login' will have
+    // pathname='/app/auth/login', but routes are configured as '/auth/login'.
+    const basePath = req.nextUrl.basePath;
+    if (basePath && pathname.startsWith(basePath)) {
+      pathname = pathname.slice(basePath.length) || "/";
+    }
+
     const sanitizedPathname = removeTrailingSlash(pathname);
     const method = req.method;
 
@@ -399,6 +417,10 @@ export class AuthClient {
       this.enableConnectAccountEndpoint
     ) {
       return this.handleConnectAccount(req);
+    } else if (sanitizedPathname.startsWith("/me/")) {
+      return this.handleMyAccount(req);
+    } else if (sanitizedPathname.startsWith("/my-org/")) {
+      return this.handleMyOrg(req);
     } else {
       // no auth handler found, simply touch the sessions
       // TODO: this should only happen if rolling sessions are enabled. Also, we should
@@ -1055,6 +1077,24 @@ export class AuthClient {
     return connectAccountResponse;
   }
 
+  async handleMyAccount(req: NextRequest): Promise<NextResponse> {
+    return this.#handleProxy(req, {
+      proxyPath: "/me",
+      targetBaseUrl: `${this.issuer}/me/v1`,
+      audience: `${this.issuer}/me/`,
+      scope: req.headers.get("scope")
+    });
+  }
+
+  async handleMyOrg(req: NextRequest): Promise<NextResponse> {
+    return this.#handleProxy(req, {
+      proxyPath: "/my-org",
+      targetBaseUrl: `${this.issuer}/my-org`,
+      audience: `${this.issuer}/my-org/`,
+      scope: req.headers.get("scope")
+    });
+  }
+
   /**
    * Retrieves the token set from the session data, considering optional audience and scope parameters.
    * When audience and scope are provided, it checks if they match the global ones defined in the authorization parameters.
@@ -1169,122 +1209,21 @@ export class AuthClient {
         !tokenSet.expiresAt ||
         tokenSet.expiresAt <= Date.now() / 1000
       ) {
-        const [discoveryError, authorizationServerMetadata] =
-          await this.discoverAuthorizationServerMetadata();
+        const [error, response] = await this.#refreshTokenSet(tokenSet, {
+          audience: options.audience,
+          scope: options.scope ? scope : undefined,
+          requestedScope: scope
+        });
 
-        if (discoveryError) {
-          return [discoveryError, null];
-        }
-
-        const additionalParameters = new URLSearchParams();
-
-        if (options.scope) {
-          additionalParameters.append("scope", scope);
-        }
-
-        if (options.audience) {
-          additionalParameters.append("audience", options.audience);
-        }
-
-        // Create DPoP handle ONCE outside the closure so it persists across retries.
-        // This is required by RFC 9449: the handle must learn and reuse the nonce from
-        // the DPoP-Nonce header across multiple attempts.
-        const dpopHandle =
-          this.useDPoP && this.dpopKeyPair
-            ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
-            : undefined;
-
-        const refreshTokenGrantRequestCall = async () =>
-          oauth.refreshTokenGrantRequest(
-            authorizationServerMetadata,
-            this.clientMetadata,
-            await this.getClientAuth(),
-            tokenSet.refreshToken!,
-            {
-              ...this.httpOptions(),
-              [oauth.customFetch]: this.fetch,
-              [oauth.allowInsecureRequests]: this.allowInsecureRequests,
-              additionalParameters,
-              ...(dpopHandle && {
-                DPoP: dpopHandle
-              })
-            }
-          );
-
-        const processRefreshTokenResponseCall = (response: Response) =>
-          oauth.processRefreshTokenResponse(
-            authorizationServerMetadata,
-            this.clientMetadata,
-            response
-          );
-
-        let oauthRes: oauth.TokenEndpointResponse;
-        try {
-          oauthRes = await withDPoPNonceRetry(
-            async () => {
-              const refreshTokenRes = await refreshTokenGrantRequestCall();
-              return await processRefreshTokenResponseCall(refreshTokenRes);
-            },
-            {
-              isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
-              ...this.dpopOptions?.retry
-            }
-          );
-        } catch (e: any) {
-          return [
-            new AccessTokenError(
-              AccessTokenErrorCode.FAILED_TO_REFRESH_TOKEN,
-              "The access token has expired and there was an error while trying to refresh it.",
-              new OAuth2Error({
-                code: e.error,
-                message: e.error_description
-              })
-            ),
-            null
-          ];
-        }
-
-        const idTokenClaims = oauth.getValidatedIdTokenClaims(oauthRes)!;
-        const accessTokenExpiresAt =
-          Math.floor(Date.now() / 1000) + Number(oauthRes.expires_in);
-
-        const updatedTokenSet = {
-          ...tokenSet, // contains the existing `iat` claim to maintain the session lifetime
-          accessToken: oauthRes.access_token,
-          idToken: oauthRes.id_token,
-          // We store the both requested and granted scopes on the tokenSet, so we know what scopes were requested.
-          // The server may return less scopes than requested.
-          // This ensures we can return the same token again when a token for the same or less scopes is requested by using `requestedScope` during look-up.
-          //
-          // E.g. When requesting a token with scope `a b`, and we return one for scope `a` only,
-          // - If we only store the returned scopes, we cannot return this token when the user requests a token for scope `a b` again.
-          // - If we only store the requested scopes, we lose track of the actual scopes granted.
-          //
-          // Scopes actually granted by the server
-          scope: oauthRes.scope,
-          // Scopes requested by the client
-          requestedScope: scope,
-          expiresAt: accessTokenExpiresAt,
-          // Keep the audience if it exists, otherwise use the one from the options.
-          // If not provided, use `undefined`.
-          audience: tokenSet.audience || options.audience || undefined,
-          // Store the token type from the OAuth response (e.g., "Bearer", "DPoP")
-          ...(oauthRes.token_type && { token_type: oauthRes.token_type })
-        };
-
-        if (oauthRes.refresh_token) {
-          // refresh token rotation is enabled, persist the new refresh token from the response
-          updatedTokenSet.refreshToken = oauthRes.refresh_token;
-        } else {
-          // we did not get a refresh token back, keep the current long-lived refresh token around
-          updatedTokenSet.refreshToken = tokenSet.refreshToken;
+        if (error) {
+          return [error, null];
         }
 
         return [
           null,
           {
-            tokenSet: updatedTokenSet,
-            idTokenClaims: idTokenClaims
+            tokenSet: response.updatedTokenSet,
+            idTokenClaims: response.idTokenClaims
           }
         ];
       }
@@ -2200,6 +2139,193 @@ export class AuthClient {
   }
 
   /**
+   * Handles CORS preflight requests without authentication headers.
+   *
+   * Special-cases the OPTIONS method to forward preflight requests directly WITHOUT
+   * calling `fetcher.fetchWithAuth()`, which would incorrectly inject DPoP/auth headers
+   * on the preflight request.
+   *
+   * The browser never sends auth headers on preflight requests, and we should not either.
+   * Authorization checks must not be performed on preflight requests according to RFC 7231.
+   * Additionally, DPoP proofs are bound to HTTP requests, not to preflights (RFC 9449).
+   *
+   * @param req The incoming CORS preflight OPTIONS request.
+   * @param options Configuration options for the proxy including target base URL, audience, and scope.
+   * @returns A NextResponse containing the preflight response from the target server, or a 500 error if the preflight fails.
+   *
+   * @see RFC 7231 Section 4.3.1 - Authorization checks must not be performed on preflight requests
+   * @see RFC 9449 Section 4.1 - DPoP proofs are bound to HTTP requests, not to preflights
+   */
+  async #handlePreflight(
+    req: NextRequest,
+    options: ProxyOptions
+  ): Promise<NextResponse> {
+    const headers = buildForwardedRequestHeaders(req);
+    const targetUrl = transformTargetUrl(req, options);
+
+    // Set Host header to upstream host
+    headers.set("host", targetUrl.host);
+
+    try {
+      // Forward preflight directly WITHOUT DPoP/auth headers
+      const preflightResponse = await this.fetch(targetUrl.toString(), {
+        method: "OPTIONS",
+        headers
+      });
+
+      // Forward CORS headers from upstream
+      return new NextResponse(null, {
+        status: preflightResponse.status,
+        headers: buildForwardedResponseHeaders(preflightResponse)
+      });
+    } catch (error: any) {
+      // If preflight fails, return 500
+      return new NextResponse(
+        error.cause || error.message || "Preflight request failed",
+        { status: 500 }
+      );
+    }
+  }
+
+  /**
+   * Handles proxying requests to a target URL with authentication.
+   *
+   * This method retrieves the user's session, constructs the target URL,
+   * and forwards the request with appropriate authentication headers.
+   * It also manages token retrieval and session updates as needed.
+   * @param req The incoming Next.js request to be proxied.
+   * @param options Configuration options for the proxying behavior.
+   * @returns A Next.js response containing the proxied request's response.
+   */
+  async #handleProxy(
+    req: NextRequest,
+    options: ProxyOptions
+  ): Promise<NextResponse> {
+    const session = await this.sessionStore.get(req.cookies);
+    if (!session) {
+      return new NextResponse("The user does not have an active session.", {
+        status: 401
+      });
+    }
+
+    // handle preflight requests
+    if (
+      req.method === "OPTIONS" &&
+      req.headers.has("access-control-request-method")
+    ) {
+      return this.#handlePreflight(req, options);
+    }
+
+    const headers = buildForwardedRequestHeaders(req);
+
+    // Clone the request to preserve body for DPoP nonce retry
+    // WHATWG Streams Spec: ReadableStream is single-consume (can only be read once).
+    // When oauth4webapi's protectedResourceRequest encounters a DPoP nonce error,
+    // it triggers a retry. Without cloning, the body stream will be exhausted on the first attempt,
+    // causing the retry to fail with "stream already disturbed" or empty body.
+    // To support retry, we buffer the body so it can be reused on retry.
+    // This retry will not happen with bearer auth so no need to clone if DPoP is false.
+    const clonedReq = this.useDPoP ? req.clone() : req;
+    const targetUrl = transformTargetUrl(req, options);
+
+    // Set Host header to upstream host
+    headers.set("host", targetUrl.host);
+
+    // Buffer the body to allow retry on DPoP nonce errors
+    // ReadableStreams can only be consumed once, so we need to buffer for retry
+    const bodyBuffer = clonedReq.body
+      ? await clonedReq.arrayBuffer()
+      : undefined;
+
+    let tokenSetSideEffect!: GetTokenSetResponse;
+
+    const getAccessToken: AccessTokenFactory = async (authParams) => {
+      const [error, tokenSetResponse] = await this.getTokenSet(session, {
+        audience: authParams.audience,
+        scope: authParams.scope
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      // Tracking the last used token set response for session updates later as a side effect.
+      // This relies on the fact that `getAccessToken` is called before the actual fetch.
+      // Not ideal, but works because of that order of execution.
+      // We need to do this because the fetcher does not return the token set used, and we need it to update the session if necessary.
+      // Additionally, updating the session requires the request and response objects, which are not available in the fetcher,
+      // so we can not update the session directly from the fetcher.
+      tokenSetSideEffect = tokenSetResponse;
+
+      return tokenSetResponse.tokenSet;
+    };
+
+    // get/create fetcher isntance
+    let fetcher = this.proxyFetchers[options.audience];
+
+    if (!fetcher) {
+      fetcher = await this.fetcherFactory({
+        useDPoP: this.useDPoP,
+        fetch: this.fetch,
+        getAccessToken: getAccessToken
+      });
+      this.proxyFetchers[options.audience] = fetcher;
+    } else {
+      // @ts-expect-error Override fetcher's getAccessToken to capture token set side effects
+      fetcher.getAccessToken = getAccessToken;
+    }
+
+    try {
+      const response = await fetcher.fetchWithAuth(
+        targetUrl.toString(),
+        {
+          method: clonedReq.method,
+          headers,
+          body: bodyBuffer
+        },
+        { scope: options.scope, audience: options.audience }
+      );
+
+      const res = new NextResponse(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: buildForwardedResponseHeaders(response)
+      });
+
+      // Using the last used token set response to determine if we need to update the session
+      // This is not ideal, as this kind of relies on the order of execution.
+      // As we know the fetcher's `getAccessToken` is called before the actual fetch,
+      // we know it should always be defined when we reach this point.
+      if (tokenSetSideEffect) {
+        await this.#updateSessionAfterTokenRetrieval(
+          req,
+          res,
+          session,
+          tokenSetSideEffect
+        );
+      }
+
+      return res;
+    } catch (e: any) {
+      // Return 401 for missing refresh token (cannot refresh expired token)
+      if (
+        e instanceof AccessTokenError &&
+        e.code === AccessTokenErrorCode.MISSING_REFRESH_TOKEN
+      ) {
+        return new NextResponse(e.message, { status: 401 });
+      }
+
+      // Generic error handling for other errors
+      return new NextResponse(
+        e.cause || e.message || "An error occurred while proxying the request.",
+        {
+          status: 500
+        }
+      );
+    }
+  }
+
+  /**
    * Updates the session after token retrieval if there are changes.
    *
    * This method:
@@ -2208,6 +2334,10 @@ export class AuthClient {
    * 3. Finalizes the session through the beforeSessionSaved hook or default filtering
    * 4. Persists the updated session to the session store
    * 5. Adds cache control headers to the response
+   *
+   * @note This method mutates the `res` parameter by:
+   * - Setting session cookies via `res.cookies`
+   * - Adding cache control headers to the response
    */
   async #updateSessionAfterTokenRetrieval(
     req: NextRequest,
@@ -2240,6 +2370,145 @@ export class AuthClient {
       await this.sessionStore.set(req.cookies, res.cookies, finalSession);
       addCacheControlHeadersForSession(res);
     }
+  }
+
+  /**
+   * Refreshes the token set using the provided refresh token.
+   * @param tokenSet The current token set containing the refresh token.
+   * @param options Options for the refresh operation, including scope and audience.
+   * @returns A tuple containing either:
+   *   - `[null, { updatedTokenSet: TokenSet; idTokenClaims: oauth.IDToken }]` if the token was successfully refreshed, containing the updated token set and ID token claims.
+   *   - `[SdkError, null]` if an error occurred during the refresh process.
+   */
+  async #refreshTokenSet(
+    tokenSet: Partial<TokenSet>,
+    options: {
+      scope?: string;
+      audience?: string | null;
+      requestedScope: string;
+    }
+  ): Promise<
+    | [null, { updatedTokenSet: TokenSet; idTokenClaims: oauth.IDToken }]
+    | [SdkError, null]
+  > {
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      return [discoveryError, null];
+    }
+
+    const additionalParameters = new URLSearchParams();
+
+    if (options.scope) {
+      additionalParameters.append("scope", options.scope);
+    }
+
+    if (options.audience) {
+      additionalParameters.append("audience", options.audience);
+    }
+
+    // Create DPoP handle ONCE outside the closure so it persists across retries.
+    // This is required by RFC 9449: the handle must learn and reuse the nonce from
+    // the DPoP-Nonce header across multiple attempts.
+    const dpopHandle =
+      this.useDPoP && this.dpopKeyPair
+        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+        : undefined;
+
+    const refreshTokenGrantRequestCall = async () =>
+      oauth.refreshTokenGrantRequest(
+        authorizationServerMetadata,
+        this.clientMetadata,
+        await this.getClientAuth(),
+        tokenSet.refreshToken!,
+        {
+          ...this.httpOptions(),
+          [oauth.customFetch]: this.fetch,
+          [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+          additionalParameters,
+          ...(dpopHandle && {
+            DPoP: dpopHandle
+          })
+        }
+      );
+
+    const processRefreshTokenResponseCall = (response: Response) =>
+      oauth.processRefreshTokenResponse(
+        authorizationServerMetadata,
+        this.clientMetadata,
+        response
+      );
+
+    let oauthRes: oauth.TokenEndpointResponse;
+    try {
+      oauthRes = await withDPoPNonceRetry(
+        async () => {
+          const refreshTokenRes = await refreshTokenGrantRequestCall();
+          return await processRefreshTokenResponseCall(refreshTokenRes);
+        },
+        {
+          isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
+          ...this.dpopOptions?.retry
+        }
+      );
+    } catch (e: any) {
+      return [
+        new AccessTokenError(
+          AccessTokenErrorCode.FAILED_TO_REFRESH_TOKEN,
+          "The access token has expired and there was an error while trying to refresh it.",
+          new OAuth2Error({
+            code: e.error,
+            message: e.error_description
+          })
+        ),
+        null
+      ];
+    }
+
+    const idTokenClaims = oauth.getValidatedIdTokenClaims(oauthRes)!;
+    const accessTokenExpiresAt =
+      Math.floor(Date.now() / 1000) + Number(oauthRes.expires_in);
+
+    const updatedTokenSet = {
+      ...tokenSet, // contains the existing `iat` claim to maintain the session lifetime
+      accessToken: oauthRes.access_token,
+      idToken: oauthRes.id_token,
+      // We store the both requested and granted scopes on the tokenSet, so we know what scopes were requested.
+      // The server may return less scopes than requested.
+      // This ensures we can return the same token again when a token for the same or less scopes is requested by using `requestedScope` during look-up.
+      //
+      // E.g. When requesting a token with scope `a b`, and we return one for scope `a` only,
+      // - If we only store the returned scopes, we cannot return this token when the user requests a token for scope `a b` again.
+      // - If we only store the requested scopes, we lose track of the actual scopes granted.
+      //
+      // Scopes actually granted by the server
+      scope: oauthRes.scope,
+      // Scopes requested by the client
+      requestedScope: options.requestedScope,
+      expiresAt: accessTokenExpiresAt,
+      // Keep the audience if it exists, otherwise use the one from the options.
+      // If not provided, use `undefined`.
+      audience: tokenSet.audience || options.audience || undefined,
+      // Store the token type from the OAuth response (e.g., "Bearer", "DPoP")
+      ...(oauthRes.token_type && { token_type: oauthRes.token_type })
+    };
+
+    if (oauthRes.refresh_token) {
+      // refresh token rotation is enabled, persist the new refresh token from the response
+      updatedTokenSet.refreshToken = oauthRes.refresh_token;
+    } else {
+      // we did not get a refresh token back, keep the current long-lived refresh token around
+      updatedTokenSet.refreshToken = tokenSet.refreshToken;
+    }
+
+    return [
+      null,
+      {
+        updatedTokenSet,
+        idTokenClaims
+      }
+    ];
   }
 }
 
