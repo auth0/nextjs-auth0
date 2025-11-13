@@ -1,5 +1,11 @@
 # Change Log
 
+## [v4.11.2](https://github.com/auth0/nextjs-auth0/tree/v4.11.2) (2025-11-13)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.11.1...v4.11.2)
+
+**Changed**
+- Remove TokenRequestCache when calling getAccessToken
+
 ## [v4.11.1](https://github.com/auth0/nextjs-auth0/tree/v4.11.1) (2025-10-31)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.11.0...v4.11.1)
 
