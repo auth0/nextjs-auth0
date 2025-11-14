@@ -53,7 +53,6 @@ import {
 } from "./session/abstract-session-store.js";
 import { StatefulSessionStore } from "./session/stateful-session-store.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
-import { TokenRequestCache } from "./token-request-cache.js";
 import {
   TransactionCookieOptions,
   TransactionStore
@@ -367,9 +366,6 @@ export class Auth0Client {
   private domain: string;
   #options: Auth0ClientOptions;
 
-  // Cache for in-flight token requests to prevent race conditions
-  #tokenRequestCache = new TokenRequestCache();
-
   constructor(options: Auth0ClientOptions = {}) {
     this.#options = options;
     // Extract and validate required options
@@ -645,14 +641,7 @@ export class Auth0Client {
       };
     }
 
-    // Execute the token request with caching to avoid duplicate in-flight requests
-    return this.#tokenRequestCache.execute(
-      () => this.executeGetAccessToken(req, res, options),
-      {
-        options,
-        authorizationParameters: this.#options.authorizationParameters
-      }
-    );
+    return this.executeGetAccessToken(req, res, options);
   }
 
   /**
