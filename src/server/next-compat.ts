@@ -13,7 +13,6 @@ export function toNextRequest(input: Request | NextRequest): NextRequest {
   return new NextRequest(input.url, {
     method: input.method,
     headers: input.headers,
-    // TODO: We might need to handle the case where body is a ReadableStream
     body: input.body as any,
     duplex: (input as any).duplex ?? "half"
   });
