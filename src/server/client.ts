@@ -45,6 +45,7 @@ import {
   WithPageAuthRequiredAppRouterOptions,
   WithPageAuthRequiredPageRouterOptions
 } from "./helpers/with-page-auth-required.js";
+import { toNextRequest, toNextResponse } from "./next-compat.js";
 import {
   AbstractSessionStore,
   SessionConfiguration,
@@ -52,7 +53,6 @@ import {
 } from "./session/abstract-session-store.js";
 import { StatefulSessionStore } from "./session/stateful-session-store.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
-import { TokenRequestCache } from "./token-request-cache.js";
 import {
   TransactionCookieOptions,
   TransactionStore
@@ -366,9 +366,6 @@ export class Auth0Client {
   private domain: string;
   #options: Auth0ClientOptions;
 
-  // Cache for in-flight token requests to prevent race conditions
-  #tokenRequestCache = new TokenRequestCache();
-
   constructor(options: Auth0ClientOptions = {}) {
     this.#options = options;
     // Extract and validate required options
@@ -502,8 +499,8 @@ export class Auth0Client {
   /**
    * middleware mounts the SDK routes to run as a middleware function.
    */
-  middleware(req: NextRequest): Promise<NextResponse> {
-    return this.authClient.handler.bind(this.authClient)(req);
+  middleware(req: Request | NextRequest): Promise<NextResponse> {
+    return this.authClient.handler.bind(this.authClient)(toNextRequest(req));
   }
 
   /**
@@ -526,12 +523,13 @@ export class Auth0Client {
    * getSession returns the session data for the current request.
    */
   async getSession(
-    req?: PagesRouterRequest | NextRequest
+    req?: Request | PagesRouterRequest | NextRequest
   ): Promise<SessionData | null> {
     if (req) {
       // middleware usage
-      if (req instanceof NextRequest) {
-        return this.sessionStore.get(req.cookies);
+      if (req instanceof Request) {
+        const nextReq = toNextRequest(req);
+        return this.sessionStore.get(nextReq.cookies);
       }
 
       // pages router usage
@@ -643,14 +641,7 @@ export class Auth0Client {
       };
     }
 
-    // Execute the token request with caching to avoid duplicate in-flight requests
-    return this.#tokenRequestCache.execute(
-      () => this.executeGetAccessToken(req, res, options),
-      {
-        options,
-        authorizationParameters: this.#options.authorizationParameters
-      }
-    );
+    return this.executeGetAccessToken(req, res, options);
   }
 
   /**
@@ -745,7 +736,7 @@ export class Auth0Client {
    */
   async getAccessTokenForConnection(
     options: AccessTokenForConnectionOptions,
-    req: PagesRouterRequest | NextRequest | undefined,
+    req: PagesRouterRequest | NextRequest | Request | undefined,
     res: PagesRouterResponse | NextResponse | undefined
   ): Promise<{ token: string; expiresAt: number }>;
 
@@ -768,11 +759,12 @@ export class Auth0Client {
    */
   async getAccessTokenForConnection(
     options: AccessTokenForConnectionOptions,
-    req?: PagesRouterRequest | NextRequest,
+    req?: PagesRouterRequest | NextRequest | Request,
     res?: PagesRouterResponse | NextResponse
   ): Promise<{ token: string; expiresAt: number; scope?: string }> {
-    const session: SessionData | null = req
-      ? await this.getSession(req)
+    const nextReq = req instanceof Request ? toNextRequest(req) : req;
+    const session: SessionData | null = nextReq
+      ? await this.getSession(nextReq)
       : await this.getSession();
 
     if (!session) {
@@ -828,7 +820,7 @@ export class Auth0Client {
           ...session,
           connectionTokenSets: tokenSets
         },
-        req,
+        nextReq,
         res
       );
     }
@@ -846,8 +838,8 @@ export class Auth0Client {
    * This method can be used in middleware and `getServerSideProps`, API routes, and middleware in the **Pages Router**.
    */
   async updateSession(
-    req: PagesRouterRequest | NextRequest,
-    res: PagesRouterResponse | NextResponse,
+    req: PagesRouterRequest | NextRequest | Request,
+    res: PagesRouterResponse | NextResponse | Response,
     session: SessionData
   ): Promise<void>;
 
@@ -862,10 +854,23 @@ export class Auth0Client {
    * updateSession updates the session of the currently authenticated user. If the user does not have a session, an error is thrown.
    */
   async updateSession(
-    reqOrSession: PagesRouterRequest | NextRequest | SessionData,
-    res?: PagesRouterResponse | NextResponse,
+    reqOrSession: PagesRouterRequest | NextRequest | Request | SessionData,
+    res?: PagesRouterResponse | NextResponse | Response,
     sessionData?: SessionData
   ) {
+    // Normalize plain Request (Next 16 Node runtime) to NextRequest
+    if (
+      reqOrSession instanceof Request &&
+      !(reqOrSession instanceof NextRequest)
+    ) {
+      reqOrSession = toNextRequest(reqOrSession);
+    }
+
+    // Normalize plain Response (Next 16 Node runtime) to NextResponse
+    if (res && res instanceof Response && !(res instanceof NextResponse)) {
+      res = toNextResponse(res);
+    }
+
     if (!res) {
       // app router: Server Actions, Route Handlers
       const existingSession = await this.getSession();
@@ -929,7 +934,29 @@ export class Auth0Client {
           }
         });
 
+        // Handle multiple set-cookie headers properly
+        // resHeaders.entries() yields each set-cookie header separately,
+        // but res.setHeader() overwrites previous values. We need to collect
+        // all set-cookie values and set them as an array.
+        // Note: Per the Web API specification, the Headers API normalizes header names
+        // to lowercase, so comparing key.toLowerCase() === "set-cookie" is safe.
+        const setCookieValues: string[] = [];
+        const otherHeaders: Record<string, string> = {};
+
         for (const [key, value] of resHeaders.entries()) {
+          if (key.toLowerCase() === "set-cookie") {
+            setCookieValues.push(value);
+          } else {
+            otherHeaders[key] = value;
+          }
+        }
+        // Set all cookies at once as an array if any exist
+        if (setCookieValues.length > 0) {
+          pagesRouterRes.setHeader("set-cookie", setCookieValues);
+        }
+
+        // Set non-cookie headers normally
+        for (const [key, value] of Object.entries(otherHeaders)) {
           pagesRouterRes.setHeader(key, value);
         }
       }
@@ -985,6 +1012,8 @@ export class Auth0Client {
    * for the My Account API to create a connected account for the user.
    *
    * The user will then be redirected to authorize the connection with the third-party provider.
+   *
+   * You must enable `Offline Access` from the Connection Permissions settings to be able to use the connection with Connected Accounts.
    */
   async connectAccount(options: ConnectAccountOptions): Promise<NextResponse> {
     const session = await this.getSession();
@@ -1221,7 +1250,7 @@ export class Auth0Client {
    * @see {@link FetcherMinimalConfig} for available configuration options
    */
   public async createFetcher<TOutput extends Response = Response>(
-    req: PagesRouterRequest | NextRequest | undefined,
+    req: PagesRouterRequest | NextRequest | Request | undefined,
     options: {
       /** Enable DPoP for this fetcher instance (overrides global setting) */
       useDPoP?: boolean;
@@ -1233,8 +1262,9 @@ export class Auth0Client {
       fetch?: CustomFetchImpl<TOutput>;
     }
   ) {
-    const session: SessionData | null = req
-      ? await this.getSession(req)
+    const nextReq = req instanceof Request ? toNextRequest(req) : req;
+    const session: SessionData | null = nextReq
+      ? await this.getSession(nextReq)
       : await this.getSession();
 
     if (!session) {
