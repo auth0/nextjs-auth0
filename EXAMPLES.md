@@ -67,6 +67,23 @@
   - [Troubleshooting](#troubleshooting)
     - [Common Issues](#common-issues)
     - [Debug Logging](#debug-logging)
+- [Proxy Handler for My Account and My Organization APIs](#proxy-handler-for-my-account-and-my-organization-apis)
+  - [Overview](#overview)
+  - [How It Works](#how-it-works)
+  - [My Account API Proxy](#my-account-api-proxy)
+    - [Configuration](#configuration)
+    - [Client-Side Usage](#client-side-usage)
+    - [`scope` Header](#scope-header)
+  - [My Organization API Proxy](#my-organization-api-proxy)
+    - [Configuration](#configuration-1)
+    - [Client-Side Usage](#client-side-usage-1)
+  - [Integration with UI Components](#integration-with-ui-components)
+  - [HTTP Methods](#http-methods)
+  - [CORS Handling](#cors-handling)
+  - [Error Handling](#error-handling-1)
+  - [Token Management](#token-management)
+  - [Security Considerations](#security-considerations)
+  - [Debugging](#debugging)
 - [`<Auth0Provider />`](#auth0provider-)
   - [Passing an initial user from the server](#passing-an-initial-user-from-the-server)
 - [Hooks](#hooks)
@@ -102,6 +119,7 @@
 - [Customizing Auth Handlers](#customizing-auth-handlers)
   - [Run custom code before Auth Handlers](#run-custom-code-before-auth-handlers)
   - [Run code after callback](#run-code-after-callback)
+- [Next.js 16 Compatibility](#nextjs-16-compatibility)
 
 ## Passing authorization parameters
 
@@ -195,7 +213,9 @@ By default, the logout endpoint only logs the user out from Auth0's session. To 
 <a href="/auth/logout?federated">Logout from IdP</a>
 
 <!-- Federated logout with custom returnTo -->
-<a href="/auth/logout?federated&returnTo=https://example.com/goodbye">Logout from IdP</a>
+<a href="/auth/logout?federated&returnTo=https://example.com/goodbye"
+  >Logout from IdP</a
+>
 ```
 
 The `federated` parameter works with all logout strategies (`auto`, `oidc`, and `v2`) and is passed through to the appropriate Auth0 logout endpoint:
@@ -274,6 +294,7 @@ The `useUser()` hook uses SWR (Stale-While-Revalidate) under the hood, which pro
 - **Event-driven revalidation**: Data automatically revalidates when you focus the browser tab, reconnect to the internet, or mount the component
 - **No background polling**: The hook does **not** make continuous background requests unless explicitly configured
 - **Cache-first approach**: Returns cached data immediately, then revalidates if needed
+
 ### On the server (App Router)
 
 On the server, the `getSession()` helper can be used in Server Components, Server Routes, and Server Actions to get the session of the currently authenticated user and to protect resources, like so:
@@ -845,7 +866,9 @@ import { auth0 } from "@/lib/auth0";
 export async function GET() {
   try {
     // Force a refresh of the access token
-    const { token, expiresAt, scope } = await auth0.getAccessToken({ refresh: true });
+    const { token, expiresAt, scope } = await auth0.getAccessToken({
+      refresh: true
+    });
 
     // Use the refreshed token
     // ...
@@ -890,13 +913,11 @@ export default withApiAuthRequired(async function handler(
 By setting `{ refresh: true }`, you instruct the SDK to bypass the standard expiration check and request a new access token from the identity provider using the refresh token (if available and valid). The new token set (including the potentially updated access token, refresh token, and expiration time) will be saved back into the session automatically.
 This will in turn, update the `access_token`, `id_token` and `expires_at` fields of `tokenset` in the session.
 
-
 ### Multi-Resource Refresh Tokens (MRRT)
 
 Multi-Resource Refresh Tokens allow using a single refresh token to obtain access tokens for multiple audiences, simplifying token management in applications that interact with multiple backend services.
 
 Read more about [Multi-Resource Refresh Tokens in the Auth0 documentation](https://auth0.com/docs/secure/tokens/refresh-tokens/multi-resource-refresh-token).
-
 
 > [!WARNING]
 > When using Multi-Resource Refresh Token Configuration (MRRT), **Refresh Token Policies** on your Application need to be configured with the audiences you want to support. See the [Auth0 MRRT documentation](https://auth0.com/docs/secure/tokens/refresh-tokens/multi-resource-refresh-token) for setup instructions.
@@ -931,9 +952,12 @@ export const auth0 = new Auth0Client({
   authorizationParameters: {
     audience: "https://api.example.com", // Default audience
     scope: {
-      "https://api.example.com": "openid profile email offline_access read:products read:orders",
-      "https://analytics.example.com": "openid profile email offline_access read:analytics write:analytics",
-      "https://admin.example.com": "openid profile email offline_access read:admin write:admin delete:admin"
+      "https://api.example.com":
+        "openid profile email offline_access read:products read:orders",
+      "https://analytics.example.com":
+        "openid profile email offline_access read:analytics write:analytics",
+      "https://admin.example.com":
+        "openid profile email offline_access read:admin write:admin delete:admin"
     }
   }
 });
@@ -955,6 +979,7 @@ To retrieve access tokens for different audiences, use the `getAccessToken()` me
 ```typescript
 // app/api/data/route.ts
 import { NextResponse } from "next/server";
+
 import { auth0 } from "@/lib/auth0";
 
 export async function GET() {
@@ -1001,7 +1026,8 @@ export const auth0 = new Auth0Client({
   authorizationParameters: {
     audience: "https://api.example.com",
     // Configure broad default scopes for most common operations
-    scope: "openid profile email offline_access read:products read:orders read:users"
+    scope:
+      "openid profile email offline_access read:products read:orders read:users"
   }
 });
 ```
@@ -1048,7 +1074,7 @@ DPoP is an OAuth 2.0 extension that enhances security by binding access tokens t
 DPoP (Demonstrating Proof-of-Possession) provides application-level proof-of-possession security for OAuth 2.0. Key benefits include:
 
 - **Token Binding**: Access tokens are cryptographically bound to the client's key pair
-- **Theft Protection**: Stolen tokens cannot be used without the corresponding private key  
+- **Theft Protection**: Stolen tokens cannot be used without the corresponding private key
 - **Replay Attack Prevention**: Each request includes a unique proof-of-possession signature
 - **Enhanced Security**: Complements OAuth 2.0 with additional cryptographic guarantees
 
@@ -1104,7 +1130,7 @@ For generating keys and exporting them to environment variables:
 
 ```typescript
 import { generateDpopKeyPair } from "@auth0/nextjs-auth0/server";
-import { exportSPKI, exportPKCS8 } from "jose";
+import { exportPKCS8, exportSPKI } from "jose";
 
 // Generate new key pair and export for environment variables
 const keyPair = await generateDpopKeyPair();
@@ -1129,8 +1155,8 @@ When you enable DPoP globally in your `Auth0Client`, all fetchers automatically 
 ```typescript
 // lib/auth0.ts - Global DPoP configuration
 export const auth0 = new Auth0Client({
-  useDPoP: true,  // Enable DPoP globally
-  dpopKeyPair    // Your key pair
+  useDPoP: true, // Enable DPoP globally
+  dpopKeyPair // Your key pair
 });
 
 // Fetchers inherit DPoP settings automatically
@@ -1148,19 +1174,20 @@ You can override the global DPoP setting for specific fetchers when needed:
 // Explicitly enable DPoP (when global setting is false)
 const dpopFetcher = await auth0.createFetcher(req, {
   baseUrl: "https://secure-api.example.com",
-  useDPoP: true  // Override global setting
+  useDPoP: true // Override global setting
 });
 
 // Explicitly disable DPoP (when global setting is true)
 const legacyFetcher = await auth0.createFetcher(req, {
   baseUrl: "https://legacy-api.example.com",
-  useDPoP: false  // Override global setting for legacy API
+  useDPoP: false // Override global setting for legacy API
 });
 ```
 
 **Fallback Behavior**
 
 The DPoP configuration follows this precedence order:
+
 1. **Explicit fetcher option**: `options.useDPoP` (when specified)
 2. **Global Auth0Client setting**: `auth0.useDPoP` (when fetcher option not specified)
 3. **Default**: `false` (when neither is configured)
@@ -1203,7 +1230,7 @@ export default async function handler(req, res) {
   // Create fetcher with explicit DPoP override for legacy API compatibility
   const fetcher = await auth0.createFetcher(req, {
     baseUrl: "https://api.example.com",
-    useDPoP: false  // Explicitly disable DPoP for this legacy API
+    useDPoP: false // Explicitly disable DPoP for this legacy API
   });
 
   try {
@@ -1231,14 +1258,14 @@ export const auth0 = new Auth0Client({
   dpopOptions: {
     // Clock tolerance: Allow up to 60 seconds difference between client/server clocks
     clockTolerance: 60,
-    
+
     // Clock skew: Adjust if your server clock is consistently ahead/behind (rare)
     clockSkew: 0,
-    
+
     // Retry configuration: Control behavior when DPoP nonce errors occur
     retry: {
-      delay: 200,     // Wait 200ms before retry (prevents server overload)
-      jitter: true    // Add randomness to prevent thundering herd effect
+      delay: 200, // Wait 200ms before retry (prevents server overload)
+      jitter: true // Add randomness to prevent thundering herd effect
     }
   }
 });
@@ -1272,8 +1299,9 @@ Handle DPoP-specific errors gracefully with proper error detection and response 
 Implement comprehensive error handling for DPoP configuration and runtime issues:
 
 ```typescript
-import { auth0 } from "@/lib/auth0";
 import { DPoPError, DPoPErrorCode } from "@auth0/nextjs-auth0/server";
+
+import { auth0 } from "@/lib/auth0";
 
 try {
   const fetcher = await auth0.createFetcher(req, {
@@ -1283,13 +1311,13 @@ try {
 
   const response = await fetcher.fetchWithAuth("/protected-resource");
   const data = await response.json();
-  
+
   return Response.json(data);
 } catch (error) {
   // Check for DPoP-specific errors first
   if (error instanceof DPoPError) {
     console.error(`DPoP Error [${error.code}]:`, error.message);
-    
+
     // Handle specific DPoP error types
     switch (error.code) {
       case DPoPErrorCode.DPOP_KEY_EXPORT_FAILED:
@@ -1311,7 +1339,7 @@ try {
         );
     }
   }
-  
+
   // Handle non-DPoP errors (network, API errors, etc.)
   return Response.json({ error: "Request failed" }, { status: 500 });
 }
@@ -1363,9 +1391,9 @@ Pass token options directly to individual requests:
 ```ts
 // Specify audience and scope per request
 const response = await fetcher.fetchWithAuth("/protected-resource", {
-  scope: "read:admin write:admin",      // Request specific scopes
-  audience: "https://api.example.com",  // Target specific API
-  refresh: true                         // Force token refresh if needed
+  scope: "read:admin write:admin", // Request specific scopes
+  audience: "https://api.example.com", // Target specific API
+  refresh: true // Force token refresh if needed
 });
 ```
 
@@ -1375,12 +1403,13 @@ Enable DPoP selectively based on environment or security requirements:
 
 ```typescript
 // Dynamic DPoP configuration based on environment or route sensitivity
-const shouldUseDPoP = process.env.NODE_ENV === "production" || 
-                      request.url.includes("/sensitive-api");
+const shouldUseDPoP =
+  process.env.NODE_ENV === "production" ||
+  request.url.includes("/sensitive-api");
 
 const fetcher = await auth0.createFetcher(req, {
   baseUrl: "https://api.example.com",
-  useDPoP: shouldUseDPoP  // DPoP only for production or sensitive routes
+  useDPoP: shouldUseDPoP // DPoP only for production or sensitive routes
 });
 ```
 
@@ -1395,20 +1424,19 @@ const fetcher = await auth0.createFetcher(req, {
   // Custom fetch implementation with logging and metrics
   fetch: async (request) => {
     console.log(`DPoP request to: ${request.url}`);
-    
+
     const startTime = Date.now();
     const response = await fetch(request);
     const duration = Date.now() - startTime;
-    
+
     // Log response metrics
     console.log(`Response: ${response.status} (${duration}ms)`);
-    
+
     // Could add custom headers, retry logic, etc.
     return response;
   }
 });
 ```
-
 
 ### Token Audience Validation with Multiple APIs
 
@@ -1421,20 +1449,22 @@ When creating multiple fetcher instances for different APIs:
 ```javascript
 // Fetcher for API 1
 const fetcher1 = createFetcher({
-  url: 'https://api1.example.com',
-  accessTokenFactory: () => getAccessToken({
-    audience: 'https://api1.example.com',
-    // ...
-  })
+  url: "https://api1.example.com",
+  accessTokenFactory: () =>
+    getAccessToken({
+      audience: "https://api1.example.com"
+      // ...
+    })
 });
 
-// Fetcher for API 2  
+// Fetcher for API 2
 const fetcher2 = createFetcher({
-  url: 'https://api2.example.com',
-  accessTokenFactory: () => getAccessToken({
-    audience: 'https://api2.example.com',
-    // ...
-  })
+  url: "https://api2.example.com",
+  accessTokenFactory: () =>
+    getAccessToken({
+      audience: "https://api2.example.com"
+      // ...
+    })
 });
 ```
 
@@ -1447,21 +1477,25 @@ OAUTH_JWT_CLAIM_COMPARISON_FAILED: unexpected JWT "aud" (audience) claim value
 #### Mitigation Strategies
 
 **1. Scope fetcher instances appropriately**
+
 - Create one fetcher per API/audience combination
 - Use clear, descriptive variable names that indicate which API each fetcher targets
 - Consider namespacing or module organization to prevent confusion
 
 **2. Configure MRRT policies correctly**
+
 - Ensure your MRRT policies include all audiences your application needs to access
 - Set `skip_consent_for_verifiable_first_party_clients: true` on all APIs in MRRT policies
 - Only include **custom scopes** in MRRT policies (OIDC scopes like `openid`, `profile`, `offline_access` are automatically included)
 
 **3. Validate in development**
+
 - Log the `aud` claim from decoded tokens during development to verify correct routing
 - Implement error handling that clearly identifies audience mismatches
 - Test each fetcher instance against its intended API endpoint before production deployment
 
 **4. API server validation**
+
 - Ensure your API servers validate the `aud` claim matches their expected audience identifier
 - Use the same audience string in both Auth0 API configuration and server-side validation
 
@@ -1469,11 +1503,11 @@ OAUTH_JWT_CLAIM_COMPARISON_FAILED: unexpected JWT "aud" (audience) claim value
 
 ```javascript
 // ✅ Correct: Each fetcher calls its own API
-await fetcher1.fetchWithAuth('/users'); // Uses token with aud: "https://api1.example.com"
-await fetcher2.fetchWithAuth('/orders'); // Uses token with aud: "https://api2.example.com"
+await fetcher1.fetchWithAuth("/users"); // Uses token with aud: "https://api1.example.com"
+await fetcher2.fetchWithAuth("/orders"); // Uses token with aud: "https://api2.example.com"
 
 // ❌ Incorrect: Wrong fetcher for the API
-await fetcher1.fetchWithAuth('https://api2.example.com/orders'); // Will fail with aud mismatch
+await fetcher1.fetchWithAuth("https://api2.example.com/orders"); // Will fail with aud mismatch
 ```
 
 **Remember**: JWT audience validation is a critical security feature that prevents token misuse across different resource servers. These errors indicate your security controls are working correctly—the solution is to ensure proper token-to-API routing in your application code.
@@ -1483,7 +1517,7 @@ await fetcher1.fetchWithAuth('https://api2.example.com/orders'); // Will fail wi
 Follow these guidelines for secure DPoP implementation:
 
 - **Key Management**: Use hardware security modules (HSMs) for key storage in production
-- **Key Rotation**: Implement regular key rotation policies for long-lived applications  
+- **Key Rotation**: Implement regular key rotation policies for long-lived applications
 - **Monitoring**: Monitor DPoP error rates to detect potential attacks or configuration issues
 - **Clock Tolerance**: Keep clock tolerance as low as possible (≤ 30 seconds recommended)
 - **Environment Isolation**: Use unique key pairs per environment (dev, staging, production)
@@ -1496,27 +1530,34 @@ Diagnose and resolve common DPoP configuration and runtime issues.
 #### Common Issues
 
 **DPoP keys not found:**
+
 ```
 WARNING: useDPoP is set to true but dpopKeyPair is not provided.
 ```
+
 **Solution**: Ensure `AUTH0_DPOP_PUBLIC_KEY` and `AUTH0_DPOP_PRIVATE_KEY` are set correctly in your environment, or provide the `dpopKeyPair` option directly in the Auth0Client constructor.
 
 **Key pair validation failed:**
+
 ```
 WARNING: Private and public keys do not form a valid key pair
 ```
+
 **Solution**: Verify that your keys are correctly paired, in PEM format, and use the P-256 elliptic curve. Regenerate keys if necessary using the SDK's `generateDpopKeyPair()` function.
 
 **Clock tolerance warnings:**
+
 ```
 WARNING: clockTolerance of 300s exceeds recommended maximum of 30s
 ```
+
 **Solution**: Synchronize server clocks using NTP instead of increasing tolerance. High tolerance values weaken DPoP security.
 
 **DPoP nonce errors:**
 If you see frequent nonce errors, check:
+
 - **Server clock synchronization**: Ensure clocks are accurate and synced
-- **Network stability**: Verify stable connection between client and authorization server  
+- **Network stability**: Verify stable connection between client and authorization server
 - **Rate limiting**: Check if authorization server is rate limiting requests
 
 #### Debug Logging
@@ -1530,12 +1571,13 @@ const fetcher = await auth0.createFetcher(req, {
   useDPoP: true,
   fetch: async (request) => {
     // Log outgoing request details
-    console.log("DPoP Request Headers:", 
+    console.log(
+      "DPoP Request Headers:",
       Object.fromEntries(request.headers.entries())
     );
-    
+
     const response = await fetch(request);
-    
+
     // Log response details, especially for failures
     if (!response.ok) {
       console.error("DPoP Request Failed:", {
@@ -1544,12 +1586,351 @@ const fetcher = await auth0.createFetcher(req, {
         headers: Object.fromEntries(response.headers.entries())
       });
     }
-    
+
     return response;
   }
 });
 ```
 
+## Proxy Handler for My Account and My Organization APIs
+
+The SDK provides built-in proxy handler support for Auth0's My Account and My Organization Management APIs. This enables browser-initiated requests to these APIs while maintaining server-side DPoP authentication and token management.
+
+### Overview
+
+The proxy handler implements a Backend-for-Frontend (BFF) pattern that transparently forwards client requests to Auth0 APIs through the Next.js server. This architecture ensures:
+
+- DPoP private keys and tokens remain on the server, inaccessible to client-side JavaScript
+- Automatic token retrieval and refresh based on requested audience and scope
+- DPoP proof generation for each proxied request
+- Session updates when tokens are refreshed
+- Proper CORS handling for cross-origin requests
+
+The proxy handler is automatically enabled when using the SDK's middleware and requires no additional configuration.
+
+### How It Works
+
+When a client makes a request to `/me/*` or `/my-org/*` on your Next.js application:
+
+1. The SDK's middleware intercepts the request
+2. Validates the user's session exists
+3. Retrieves or refreshes the appropriate access token for the requested audience
+4. Generates DPoP proof if DPoP is enabled
+5. Forwards the request to the upstream Auth0 API with proper authentication headers
+6. Returns the response to the client
+7. Updates the session if tokens were refreshed
+
+### My Account API Proxy
+
+The My Account API proxy handles all requests to Auth0's My Account API at `/me/v1/*`.
+
+#### Configuration
+
+Enable My Account API access by configuring the audience and scopes:
+
+```ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+export const auth0 = new Auth0Client({
+  useDPoP: true,
+  authorizationParameters: {
+    audience: "urn:your-api-identifier",
+    scope: {
+      [`https://${process.env.AUTH0_DOMAIN}/me/`]:
+        "profile:read profile:write factors:manage"
+    }
+  }
+});
+```
+
+#### Client-Side Usage
+
+Make requests to the My Account API through the `/me/*` path:
+
+```tsx
+"use client";
+
+import { useState } from "react";
+
+export default function MyAccountProfile() {
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const fetchProfile = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch("/me/v1/profile", {
+        method: "GET",
+        headers: {
+          scope: "profile:read"
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      setProfile(data);
+    } catch (error) {
+      console.error("Failed to fetch profile:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateProfile = async (updates) => {
+    try {
+      const response = await fetch("/me/v1/profile", {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          scope: "profile:write"
+        },
+        body: JSON.stringify(updates)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error("Failed to update profile:", error);
+      throw error;
+    }
+  };
+
+  return (
+    <div>
+      <button onClick={fetchProfile} disabled={loading}>
+        {loading ? "Loading..." : "Load Profile"}
+      </button>
+      {profile && <pre>{JSON.stringify(profile, null, 2)}</pre>}
+    </div>
+  );
+}
+```
+
+#### `scope` Header
+
+The `scope` header specifies the scope required for the request. The SDK uses this to retrieve an access token with the appropriate scope for the My Account API audience.
+
+Format: `"scope": "scope1 scope2 scope3"`
+
+Common scopes for My Account API:
+
+- `profile:read` - Read user profile information
+- `profile:write` - Update user profile information
+- `factors:read` - Read enrolled MFA factors
+- `factors:manage` - Manage MFA factors
+- `identities:read` - Read linked identities
+- `identities:manage` - Link and unlink identities
+
+### My Organization API Proxy
+
+The My Organization API proxy handles all requests to Auth0's My Organization Management API at `/my-org/*`.
+
+#### Configuration
+
+Enable My Organization API access by configuring the audience and scopes:
+
+```ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+export const auth0 = new Auth0Client({
+  useDPoP: true,
+  authorizationParameters: {
+    audience: "urn:your-api-identifier",
+    scope: {
+      [`https://${process.env.AUTH0_DOMAIN}/my-org/`]:
+        "org:read org:write members:read"
+    }
+  }
+});
+```
+
+#### Client-Side Usage
+
+Make requests to the My Organization API through the `/my-org/*` path:
+
+```tsx
+"use client";
+
+import { useEffect, useState } from "react";
+
+export default function MyOrganization() {
+  const [organizations, setOrganizations] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchOrganizations();
+  }, []);
+
+  const fetchOrganizations = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch("/my-org/organizations", {
+        method: "GET",
+        headers: {
+          scope: "org:read"
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      setOrganizations(data.organizations || []);
+    } catch (error) {
+      console.error("Failed to fetch organizations:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateOrganization = async (orgId, updates) => {
+    try {
+      const response = await fetch(`/my-org/organizations/${orgId}`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          scope: "org:write"
+        },
+        body: JSON.stringify(updates)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error("Failed to update organization:", error);
+      throw error;
+    }
+  };
+
+  if (loading) return <div>Loading organizations...</div>;
+
+  return (
+    <div>
+      <h1>My Organizations</h1>
+      <ul>
+        {organizations.map((org) => (
+          <li key={org.id}>{org.display_name}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+Common scopes for My Organization API:
+
+- `org:read` - Read organization information
+- `org:write` - Update organization information
+- `members:read` - Read organization members
+- `members:manage` - Manage organization members
+- `roles:read` - Read organization roles
+- `roles:manage` - Manage organization roles
+
+### Integration with UI Components
+
+When using Auth0 UI Components with the proxy handler, configure the client to target the proxy endpoints:
+
+```tsx
+import { MyAccountClient } from "@auth0/my-account-js";
+
+const myAccountClient = new MyAccountClient({
+  domain: process.env.NEXT_PUBLIC_AUTH0_DOMAIN,
+  baseUrl: "/me",
+  fetcher: (url, init, authParams) => {
+    return fetch(url, {
+      ...init,
+      headers: {
+        ...init?.headers,
+        scope: authParams?.scope?.join(" ") || ""
+      }
+    });
+  }
+});
+```
+
+This configuration:
+
+- Sets `baseUrl` to `/me` to route requests through the proxy
+- Passes the required scope via the `scope` header
+- Ensures the SDK middleware handles authentication transparently
+
+### HTTP Methods
+
+The proxy handler supports all standard HTTP methods:
+
+- `GET` - Retrieve resources
+- `POST` - Create resources
+- `PUT` - Replace resources
+- `PATCH` - Update resources
+- `DELETE` - Remove resources
+- `OPTIONS` - CORS preflight requests (handled without authentication)
+- `HEAD` - Retrieve headers only
+
+### CORS Handling
+
+The proxy handler correctly handles CORS preflight requests (OPTIONS with `access-control-request-method` header) by forwarding them to the upstream API without authentication headers, as required by RFC 7231 §4.3.1.
+
+CORS headers from the upstream API are forwarded to the client transparently.
+
+### Error Handling
+
+The proxy handler returns appropriate HTTP status codes:
+
+- `401 Unauthorized` - No active session or token refresh failed
+- `4xx Client Error` - Forwarded from upstream API
+- `5xx Server Error` - Forwarded from upstream API or proxy internal error
+
+Error responses from the upstream API are forwarded to the client with their original status code, headers, and body.
+
+### Token Management
+
+The proxy handler automatically:
+
+- Retrieves access tokens from the session for the requested audience
+- Refreshes expired tokens using the refresh token
+- Updates the session with new tokens after refresh
+- Caches tokens per audience to minimize token endpoint calls
+- Generates DPoP proofs for each request when DPoP is enabled
+
+### Security Considerations
+
+The proxy handler implements secure forwarding:
+
+- HTTP-only session cookies are not forwarded to upstream APIs
+- Authorization headers from the client are replaced with server-generated tokens
+- Hop-by-hop headers are stripped per RFC 2616 §13.5.1
+- Only allow-listed request headers are forwarded
+- Response headers are filtered before returning to the client
+- Host header is updated to match the upstream API
+
+### Debugging
+
+Enable debug logging to troubleshoot proxy requests:
+
+```ts
+export const auth0 = new Auth0Client({
+  // ... other config
+  enableDebugLogs: true
+});
+```
+
+This will log:
+
+- Request proxying flow
+- Token retrieval and refresh operations
+- DPoP proof generation
+- Session updates
+- Errors and warnings
 
 ## `<Auth0Provider />`
 
@@ -1690,6 +2071,7 @@ export const auth0 = new Auth0Client({
 Rolling sessions provide a seamless user experience by automatically extending session lifetime as users actively use your application. Here's how they work:
 
 **How rolling sessions work:**
+
 - Each request to your application extends the session by the `inactivityDuration`
 - Sessions are only extended if used within the inactivity window
 - Once the `absoluteDuration` is reached, sessions expire regardless of activity
@@ -1704,13 +2086,14 @@ export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)]
 };
 
-// ❌ INCORRECT: Narrow matcher breaks rolling sessions  
+// ❌ INCORRECT: Narrow matcher breaks rolling sessions
 export const config = {
   matcher: ["/dashboard/:path*", "/profile/:path*"]
 };
 ```
 
 **Why broad middleware is necessary:**
+
 - **Session extension**: Each page request extends the session lifetime
 - **Consistent auth state**: Ensures authentication status is up-to-date across all pages
 - **Security headers**: Applies no-cache headers to prevent caching of authenticated content
@@ -1917,7 +2300,11 @@ The connect endpoint (`/auth/connect` or your custom path) accepts the following
 
 - `connection`: (required) the name of the connection to use for linking the account
 - `returnTo`: (optional) the URL to redirect the user to after they have completed the connection flow.
+- `scopes`: (optional) defines the permissions that the client requests from the Identity Provider.. Can be specified as multiple values (e.g., `?scopes=openid&scopes=profile&scopes=email`) or using bracket notation (e.g., `?scopes[]=openid&scopes[]=profile&scopes[]=email`).
 - Any additional parameters will be passed as the `authorizationParams` in the call to `/me/v1/connected-accounts/connect`.
+
+> [!IMPORTANT]  
+> You must enable `Offline Access` from the Connection Permissions settings to be able to use the connection with Connected Accounts.
 
 ### `onCallback` hook
 
@@ -1952,8 +2339,8 @@ import { auth0 } from "@/lib/auth0";
 export async function GET() {
   const res = await auth0.connectAccount({
     connection: "my-connection",
+    scopes: ["openid", "profile", "offline_access", "read:something"],
     authorizationParams: {
-      scope: "openid profile offline_access read:something",
       prompt: "consent",
       audience: "https://myapi.com"
     },
@@ -1963,6 +2350,9 @@ export async function GET() {
   return res;
 }
 ```
+
+> [!IMPORTANT]  
+> You must enable `Offline Access` from the Connection Permissions settings to be able to use the connection with Connected Accounts.
 
 ## Back-Channel Logout
 
@@ -2382,3 +2772,30 @@ export async function middleware(request) {
 ### Run code after callback
 
 Please refer to [onCallback](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#oncallback) for details on how to run code after callback.
+
+## Next.js 16 Compatibility
+To support `Next.js 16`, rename your `middleware.ts` file to `proxy.ts`, and rename the exported function from `middleware` to `proxy`.
+All existing examples and helpers (`getSession`, `updateSession`, `getAccessToken`, etc.) will continue to work without any other changes.
+
+```diff
+
+- // middleware.ts
+- export async function middleware(request: NextRequest) {
+-   return auth0.middleware(request);
+- }
+
++ // proxy.ts
++ export async function proxy(request: Request) {
++   return auth0.middleware(request);
++ }
+
+```
+> [!NOTE]
+> Next.js 16 still supports the traditional `middleware.ts` file for Edge runtime use-cases,
+but it is now considered deprecated. Future versions of `Next.js` may remove Edge-only middleware,
+so it’s recommended to migrate to `proxy.ts` for long-term compatibility.
+
+For more details, see the official Next.js documentation:
+
+➡️ [Upgrading to Next 16 Middleware](https://nextjs.org/docs/app/api-reference/file-conventions/proxy#upgrading-to-nextjs-16)  
+➡️ [Proxy.ts Conventions](https://nextjs.org/docs/app/api-reference/file-conventions/proxy)
