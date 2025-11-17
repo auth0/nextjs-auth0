@@ -1,6 +1,6 @@
 {
   "name": "@auth0/nextjs-auth0",
-  "version": "4.10.0",
+  "version": "4.12.1",
   "description": "Auth0 Next.js SDK",
   "type": "module",
   "scripts": {
@@ -12,8 +12,8 @@
     "prepack": "pnpm run build",
     "install:examples": "pnpm install --filter ./examples/with-next-intl --shamefully-hoist && pnpm install --filter ./examples/with-shadcn --shamefully-hoist",
     "docs": "typedoc",
-    "lint": "tsc --noEmit && eslint ./src",
-    "lint:fix": "tsc --noEmit && eslint --fix ./src"
+    "lint": "tsc --noEmit && tsc --noEmit --project tsconfig.test.json && eslint ./src",
+    "lint:fix": "tsc --noEmit && tsc --noEmit --project tsconfig.test.json && eslint --fix ./src"
   },
   "repository": {
     "type": "git",
@@ -59,7 +59,7 @@
     "vitest": "^2.1.4"
   },
   "peerDependencies": {
-    "next": "^14.2.25 || ^15.2.3",
+    "next": "^14.2.25 || ^15.2.3 || ^16.0.0",
     "react": "^18.0.0 || ^19.0.0 || ^19.0.0-0",
     "react-dom": "^18.0.0 || ^19.0.0 || ^19.0.0-0"
   },

@@ -1,4 +1,5 @@
 import { AuthorizationParameters } from "./authorize.js";
+import { TokenSet } from "./index.js";
 
 /**
  * Options to initiate a connect account flow using the My Account API.
@@ -9,6 +10,10 @@ export interface ConnectAccountOptions {
    * The name of the connection to link the account with (e.g., 'google-oauth2', 'facebook').
    */
   connection: string;
+  /**
+   * Array of scopes to request from the Identity Provider during the connect account flow.
+   */
+  scopes?: string[];
   /**
    * Authorization parameters to be passed to the authorization server.
    */
@@ -32,9 +37,9 @@ export enum RESPONSE_TYPES {
 
 export interface ConnectAccountRequest {
   /**
-   * The access token with the `create:me:connected_accounts` scope.
+   * The access token set with the `create:me:connected_accounts` scope.
    */
-  accessToken: string;
+  tokenSet: TokenSet;
   /**
    * The name of the connection to link the account with (e.g., 'google-oauth2', 'facebook').
    */
@@ -55,6 +60,10 @@ export interface ConnectAccountRequest {
    * The method used to derive the code challenge. Required when code_challenge is provided.
    */
   codeChallengeMethod?: string;
+  /**
+   * Array of scopes to request during the connect account flow.
+   */
+  scopes?: string[];
   /**
    * Authorization parameters to be sent to the underlying Identity Provider (IdP)
    */
@@ -84,9 +93,9 @@ export interface ConnectAccountResponse {
 
 export interface CompleteConnectAccountRequest {
   /**
-   * The access token with the `create:me:connected_accounts` scope.
+   * The access token set with the `create:me:connected_accounts` scope.
    */
-  accessToken: string;
+  tokenSet: TokenSet;
   /**
    * The authentication session identifier.
    */

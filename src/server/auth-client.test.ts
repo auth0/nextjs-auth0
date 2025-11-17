@@ -204,7 +204,14 @@ ca/T0LLtgmbMmxSv/MmzIg==
         // Connect Account
         if (url.pathname === "/me/v1/connected-accounts/connect") {
           if (onConnectAccountRequest) {
-            await onConnectAccountRequest(new Request(input, init));
+            // Connect Account uses a fetcher for DPoP.
+            // This means it creates a `new Request()` internally.
+            // When a body is sent as an object (`{ foo: 'bar' }`), it will be exposed as a `ReadableStream` below.
+            // When a `ReadableStream` is used as body for a `new Request()`, setting `duplex: 'half'` is required.
+            // https://github.com/whatwg/fetch/pull/1457
+            await onConnectAccountRequest(
+              new Request(input, { ...init, duplex: "half" } as RequestInit)
+            );
           }
 
           return Response.json(
@@ -224,7 +231,14 @@ ca/T0LLtgmbMmxSv/MmzIg==
         // Connect Account complete
         if (url.pathname === "/me/v1/connected-accounts/complete") {
           if (onCompleteConnectAccountRequest) {
-            await onCompleteConnectAccountRequest(new Request(input, init));
+            // Complete Connect Account uses a fetcher for DPoP.
+            // This means it creates a `new Request()` internally.
+            // When a body is sent as an object (`{ foo: 'bar' }`), it will be exposed as a `ReadableStream` below.
+            // When a `ReadableStream` is used as body for a `new Request()`, setting `duplex: 'half'` is required.
+            // https://github.com/whatwg/fetch/pull/1457
+            await onCompleteConnectAccountRequest(
+              new Request(input, { ...init, duplex: "half" } as RequestInit)
+            );
           }
 
           if (completeConnectAccountErrorResponse) {
@@ -1089,20 +1103,130 @@ ca/T0LLtgmbMmxSv/MmzIg==
           });
 
           const request = new NextRequest(
-            // Next.js will strip the base path from the URL
+            // Simulate real Next.js behavior: basePath is included in pathname.
+            // With basePath='/base-path', Next.js sends pathname='/base-path/auth/login'
+            // to middleware. The handler must strip the basePath to match routes.
             new URL(
-              testCase.path,
-              `${DEFAULT.appBaseUrl}/${process.env.NEXT_PUBLIC_BASE_PATH}`
+              `${process.env.NEXT_PUBLIC_BASE_PATH}${testCase.path}`,
+              DEFAULT.appBaseUrl
             ),
             {
               method: testCase.method
             }
           );
 
+          // Mock the basePath property that Next.js provides in middleware
+          Object.defineProperty(request.nextUrl, "basePath", {
+            value: process.env.NEXT_PUBLIC_BASE_PATH,
+            writable: false
+          });
+
           (authClient as any)[testCase.handler] = vi.fn();
           await authClient.handler(request);
           expect((authClient as any)[testCase.handler]).toHaveBeenCalled();
         }
+      });
+
+      it("should handle requests without basePath (backward compatibility)", async () => {
+        // Clear basePath to test backward compatibility
+        delete process.env.NEXT_PUBLIC_BASE_PATH;
+
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({ secret });
+        const sessionStore = new StatelessSessionStore({ secret });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer()
+        });
+
+        const request = new NextRequest(
+          new URL("/auth/login", DEFAULT.appBaseUrl),
+          { method: "GET" }
+        );
+
+        authClient.handleLogin = vi.fn();
+        await authClient.handler(request);
+        expect(authClient.handleLogin).toHaveBeenCalled();
+
+        // Restore basePath for subsequent tests
+        process.env.NEXT_PUBLIC_BASE_PATH = "/base-path";
+      });
+
+      it("should handle hardcoded /me routes with basePath", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({ secret });
+        const sessionStore = new StatelessSessionStore({ secret });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer()
+        });
+
+        const request = new NextRequest(
+          new URL(
+            `${process.env.NEXT_PUBLIC_BASE_PATH}/me/profile`,
+            DEFAULT.appBaseUrl
+          ),
+          { method: "GET" }
+        );
+
+        // Mock the basePath property that Next.js provides in middleware
+        Object.defineProperty(request.nextUrl, "basePath", {
+          value: process.env.NEXT_PUBLIC_BASE_PATH,
+          writable: false
+        });
+
+        authClient.handleMyAccount = vi.fn();
+        await authClient.handler(request);
+        expect(authClient.handleMyAccount).toHaveBeenCalled();
+      });
+
+      it("should handle hardcoded /my-org routes with basePath", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({ secret });
+        const sessionStore = new StatelessSessionStore({ secret });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+          routes: getDefaultRoutes(),
+          fetch: getMockAuthorizationServer()
+        });
+
+        const request = new NextRequest(
+          new URL(
+            `${process.env.NEXT_PUBLIC_BASE_PATH}/my-org/members`,
+            DEFAULT.appBaseUrl
+          ),
+          { method: "GET" }
+        );
+
+        // Mock the basePath property that Next.js provides in middleware
+        Object.defineProperty(request.nextUrl, "basePath", {
+          value: process.env.NEXT_PUBLIC_BASE_PATH,
+          writable: false
+        });
+
+        authClient.handleMyOrg = vi.fn();
+        await authClient.handler(request);
+        expect(authClient.handleMyOrg).toHaveBeenCalled();
       });
     });
   });
@@ -4738,6 +4862,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         });
 
+        // Here is an issue
         expect(mockOnCallback).toHaveBeenCalledWith(
           null,
           expectedContext,
@@ -5852,9 +5977,15 @@ ca/T0LLtgmbMmxSv/MmzIg==
                 state: expect.any(String),
                 code_challenge: expect.any(String),
                 code_challenge_method: "S256",
+                scopes: [
+                  "openid",
+                  "profile",
+                  "email",
+                  "offline_access",
+                  "read:messages"
+                ],
                 authorization_params: expect.objectContaining({
-                  audience: "urn:some-audience",
-                  scope: "openid profile email offline_access read:messages"
+                  audience: "urn:some-audience"
                 })
               })
             );
@@ -5892,10 +6023,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
       url.searchParams.append("connection", DEFAULT.connectAccount.connection);
       url.searchParams.append("returnTo", "/some-url");
       url.searchParams.append("audience", "urn:some-audience");
-      url.searchParams.append(
-        "scope",
-        "openid profile email offline_access read:messages"
-      );
+      url.searchParams.append("scopes", "openid");
+      url.searchParams.append("scopes", "profile");
+      url.searchParams.append("scopes", "email");
+      url.searchParams.append("scopes", "offline_access");
+      url.searchParams.append("scopes", "read:messages");
 
       const request = new NextRequest(url, {
         method: "GET",
@@ -5992,9 +6124,15 @@ ca/T0LLtgmbMmxSv/MmzIg==
                 state: expect.any(String),
                 code_challenge: expect.any(String),
                 code_challenge_method: "S256",
+                scopes: [
+                  "openid",
+                  "profile",
+                  "email",
+                  "offline_access",
+                  "read:messages"
+                ],
                 authorization_params: expect.objectContaining({
-                  audience: "urn:some-audience",
-                  scope: "openid profile email offline_access read:messages"
+                  audience: "urn:some-audience"
                 })
               })
             );
@@ -6032,10 +6170,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
       url.searchParams.append("connection", "some-connection");
       url.searchParams.append("returnTo", "https://google.com/some-url");
       url.searchParams.append("audience", "urn:some-audience");
-      url.searchParams.append(
-        "scope",
-        "openid profile email offline_access read:messages"
-      );
+      url.searchParams.append("scopes", "openid");
+      url.searchParams.append("scopes", "profile");
+      url.searchParams.append("scopes", "email");
+      url.searchParams.append("scopes", "offline_access");
+      url.searchParams.append("scopes", "read:messages");
 
       const request = new NextRequest(url, {
         method: "GET",
@@ -6129,10 +6268,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
       url.searchParams.append("connection", "some-connection");
       url.searchParams.append("returnTo", "/some-url");
       url.searchParams.append("audience", "urn:some-audience");
-      url.searchParams.append(
-        "scope",
-        "openid profile email offline_access read:messages"
-      );
+      url.searchParams.append("scopes", "openid");
+      url.searchParams.append("scopes", "profile");
+      url.searchParams.append("scopes", "email");
+      url.searchParams.append("scopes", "offline_access");
+      url.searchParams.append("scopes", "read:messages");
 
       authClient.handleConnectAccount = vi.fn();
       expect(authClient.handleConnectAccount).not.toHaveBeenCalled();
@@ -6169,10 +6309,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
       url.searchParams.append("connection", "some-connection");
       url.searchParams.append("returnTo", "/some-url");
       url.searchParams.append("audience", "urn:some-audience");
-      url.searchParams.append(
-        "scope",
-        "openid profile email offline_access read:messages"
-      );
+      url.searchParams.append("scopes", "openid");
+      url.searchParams.append("scopes", "profile");
+      url.searchParams.append("scopes", "email");
+      url.searchParams.append("scopes", "offline_access");
+      url.searchParams.append("scopes", "read:messages");
 
       const request = new NextRequest(url, {
         method: "GET",
@@ -6300,10 +6441,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
       url.searchParams.append("connection", "some-connection");
       url.searchParams.append("returnTo", "/some-url");
       url.searchParams.append("audience", "urn:some-audience");
-      url.searchParams.append(
-        "scope",
-        "openid profile email offline_access read:messages"
-      );
+      url.searchParams.append("scopes", "openid");
+      url.searchParams.append("scopes", "profile");
+      url.searchParams.append("scopes", "email");
+      url.searchParams.append("scopes", "offline_access");
+      url.searchParams.append("scopes", "read:messages");
 
       const request = new NextRequest(url, {
         method: "GET",
@@ -6373,10 +6515,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
       url.searchParams.append("connection", "some-connection");
       url.searchParams.append("returnTo", "/some-url");
       url.searchParams.append("audience", "urn:some-audience");
-      url.searchParams.append(
-        "scope",
-        "openid profile email offline_access read:messages"
-      );
+      url.searchParams.append("scopes", "openid");
+      url.searchParams.append("scopes", "profile");
+      url.searchParams.append("scopes", "email");
+      url.searchParams.append("scopes", "offline_access");
+      url.searchParams.append("scopes", "read:messages");
 
       const request = new NextRequest(url, {
         method: "GET",
@@ -6405,6 +6548,112 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       const response = await authClient.handler(request);
       expect(response.status).toEqual(400);
+    });
+
+    it("should only forward the scopes if at least one scope is requested", async () => {
+      const currentAccessToken = DEFAULT.accessToken;
+      const newAccessToken = "at_456";
+      const secret = await generateSecret(32);
+      let connectAccountRequestBody: any;
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: getMockAuthorizationServer({
+          tokenEndpointResponse: {
+            token_type: "Bearer",
+            access_token: newAccessToken,
+            scope: "openid profile email offline_access",
+            expires_in: 86400 // expires in 10 days
+          } as oauth.TokenEndpointResponse,
+          onConnectAccountRequest: async (req) => {
+            connectAccountRequestBody = await req.json();
+            expect(connectAccountRequestBody.scopes).toBeUndefined();
+          }
+        }),
+
+        enableConnectAccountEndpoint: true
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) + 10 * 24 * 60 * 60; // expires in 10 days
+      const session: SessionData = {
+        user: {
+          sub: DEFAULT.sub,
+          name: "John Doe",
+          email: "john@example.com",
+          picture: "https://example.com/john.jpg"
+        },
+        tokenSet: {
+          accessToken: currentAccessToken,
+          scope: "openid profile email",
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const sessionCookie = await encrypt(session, secret, expiration);
+      const headers = new Headers();
+      headers.append("cookie", `__session=${sessionCookie}`);
+      const url = new URL("/auth/connect", DEFAULT.appBaseUrl);
+      url.searchParams.append("connection", DEFAULT.connectAccount.connection);
+      url.searchParams.append("returnTo", "/some-url");
+      url.searchParams.append("audience", "urn:some-audience");
+
+      const request = new NextRequest(url, {
+        method: "GET",
+        headers
+      });
+
+      const response = await authClient.handler(request);
+      expect(response.status).toEqual(307);
+      const connectUrl = new URL(response.headers.get("location")!);
+      expect(connectUrl.origin).toEqual(`https://${DEFAULT.domain}`);
+      expect(connectUrl.pathname).toEqual("/connect");
+      expect(connectUrl.searchParams.get("ticket")).toEqual(
+        DEFAULT.connectAccount.ticket
+      );
+
+      // transaction state
+      const transactionCookie = response.cookies.get(
+        `__txn_${connectAccountRequestBody.state}`
+      );
+      expect(transactionCookie).toBeDefined();
+      expect(
+        (
+          (await decrypt(
+            transactionCookie!.value,
+            secret
+          )) as jose.JWTDecryptResult
+        ).payload
+      ).toEqual(
+        expect.objectContaining({
+          responseType: RESPONSE_TYPES.CONNECT_CODE,
+          state: connectAccountRequestBody?.state,
+          returnTo: "/some-url",
+          codeVerifier: expect.any(String),
+          authSession: DEFAULT.connectAccount.authSession
+        })
+      );
     });
   });
 

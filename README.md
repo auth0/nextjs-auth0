@@ -3,6 +3,7 @@
 The Auth0 Next.js SDK is a library for implementing user authentication in Next.js applications.
 
 [![Auth0 Next.js SDK Release](https://img.shields.io/npm/v/@auth0/nextjs-auth0)](https://www.npmjs.com/package/@auth0/nextjs-auth0)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/auth0/nextjs-auth0)
 ![Auth0 Next.js SDK Downloads](https://img.shields.io/npm/dw/@auth0/nextjs-auth0)
 [![Auth0 Next.js SDK License](https://img.shields.io/:license-mit-blue.svg?style=flat)](https://opensource.org/licenses/MIT)
 
@@ -69,8 +70,12 @@ export const auth0 = new Auth0Client();
 > The Auth0Client automatically uses safe defaults to manage authentication cookies. For advanced use cases, you can customize transaction cookie behavior by providing your own configuration. See [Transaction Cookie Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#transaction-cookie-configuration) for details.
 
 ### 4. Add the authentication middleware
+Authentication requests in Next.js are intercepted at the network boundary using a middleware or proxy file.  
+Follow the setup below depending on your Next.js version.
 
-Create a `middleware.ts` file in the root of your project's directory:
+#### 🟦 On Next.js 15
+
+Create a `middleware.ts` file in the root of your project:
 
 ```ts
 import type { NextRequest } from "next/server";
@@ -84,7 +89,7 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
+     * Match all request paths except for:
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico, sitemap.xml, robots.txt (metadata files)
@@ -96,6 +101,34 @@ export const config = {
 
 > [!NOTE]  
 > If you're using a `src/` directory, the `middleware.ts` file must be created inside the `src/` directory.
+
+
+#### 🟨 On Next.js 16
+Next.js 16 introduces a new convention called proxy.ts, replacing middleware.ts.
+This change better represents the network interception boundary and unifies request handling
+for both the Edge and Node runtimes.
+
+Create a proxy.ts file in the root of your project (Or rename your existing middleware.ts to proxy.ts):
+```ts
+import { auth0 } from "./lib/auth0";
+
+export async function proxy(request: Request) { // Note that proxy uses the standard Request type
+  return await auth0.middleware(request);
+}
+
+export const config = {
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)"
+  ]
+};
+```
+> [!IMPORTANT]  
+> Starting with **Next.js 16**, the recommended file for handling authentication boundaries is **`proxy.ts`**. You can still continue using **`middleware.ts`** for backward compatibility, it will work under the **Edge runtime** in Next.js 16. However, it is **deprecated** for the Node runtime and will be removed in a future release.
+>
+> The new proxy layer also executes slightly earlier in the routing pipeline, so make sure your matcher patterns do not conflict with other proxy or middleware routes.  
+>
+> Additionally, the Edge runtime now applies stricter header and cookie validation,  
+> so avoid setting non-string cookie values or invalid header formats.  
 
 > [!IMPORTANT]
 > This broad middleware matcher is essential for rolling sessions and security features. For scenarios when rolling sessions are disabled, see [Session Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#session-configuration) for alternative approaches.
@@ -287,6 +320,58 @@ AUTH0_DPOP_CLOCK_TOLERANCE=90    # Tolerance in seconds
 ```
 
 Respective counterparts are also available in the client configuration. See [Cookie Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#cookie-configuration) for more details.
+
+### Proxy Handler for My Account and My Organization APIs
+
+The SDK provides built-in proxy support for Auth0's My Account and My Organization Management APIs, enabling secure browser-initiated requests while maintaining server-side DPoP authentication and token management.
+
+#### How It Works
+
+The proxy handler automatically intercepts requests to `/me/*` and `/my-org/*` paths in your Next.js application and forwards them to the respective Auth0 APIs with proper authentication headers. This implements a Backend-for-Frontend (BFF) pattern where:
+
+- Tokens and DPoP keys remain on the server
+- Access tokens are automatically retrieved or refreshed
+- DPoP proofs are generated for each request
+- Session updates occur transparently
+
+#### Configuration
+
+Configure audience and scopes for the APIs:
+
+```ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+export const auth0 = new Auth0Client({
+  useDPoP: true,
+  authorizationParameters: {
+    audience: "urn:your-api-identifier",
+    scope: {
+      [`https://${process.env.AUTH0_DOMAIN}/me/`]: "profile:read profile:write",
+      [`https://${process.env.AUTH0_DOMAIN}/my-org/`]: "org:read org:write"
+    }
+  }
+});
+```
+
+#### Client-Side Usage
+
+Make requests through the proxy paths:
+
+```tsx
+// My Account API
+const response = await fetch("/me/v1/profile", {
+  headers: { "scope": "profile:read" }
+});
+
+// My Organization API
+const response = await fetch("/my-org/organizations", {
+  headers: { "scope": "org:read" }
+});
+```
+
+The `scope` header specifies the required scope. The SDK retrieves an access token with the appropriate audience and scope, then forwards the request with authentication headers.
+
+For complete documentation, examples, and integration patterns with UI Components, see [Proxy Handler for My Account and My Organization APIs](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#proxy-handler-for-my-account-and-my-organization-apis).
 
 ## Base Path
 
