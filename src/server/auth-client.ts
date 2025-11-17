@@ -1894,31 +1894,10 @@ export class AuthClient {
       });
 
       if (!res.ok) {
-        try {
-          const errorBody = await res.json();
-          return [
-            new ConnectAccountError({
-              code: ConnectAccountErrorCodes.FAILED_TO_INITIATE,
-              message: `The request to initiate the connect account flow failed with status ${res.status}.`,
-              cause: new MyAccountApiError({
-                type: errorBody.type,
-                title: errorBody.title,
-                detail: errorBody.detail,
-                status: res.status,
-                validationErrors: errorBody.validation_errors
-              })
-            }),
-            null
-          ];
-        } catch (e) {
-          return [
-            new ConnectAccountError({
-              code: ConnectAccountErrorCodes.FAILED_TO_INITIATE,
-              message: `The request to initiate the connect account flow failed with status ${res.status}.`
-            }),
-            null
-          ];
-        }
+        return buildConnectAccountErrorResponse(
+          res,
+          ConnectAccountErrorCodes.FAILED_TO_INITIATE
+        );
       }
 
       const { connect_uri, connect_params, auth_session, expires_in } =
@@ -1989,31 +1968,10 @@ export class AuthClient {
       });
 
       if (!res.ok) {
-        try {
-          const errorBody = await res.json();
-          return [
-            new ConnectAccountError({
-              code: ConnectAccountErrorCodes.FAILED_TO_COMPLETE,
-              message: `The request to complete the connect account flow failed with status ${res.status}.`,
-              cause: new MyAccountApiError({
-                type: errorBody.type,
-                title: errorBody.title,
-                detail: errorBody.detail,
-                status: res.status,
-                validationErrors: errorBody.validation_errors
-              })
-            }),
-            null
-          ];
-        } catch (e) {
-          return [
-            new ConnectAccountError({
-              code: ConnectAccountErrorCodes.FAILED_TO_COMPLETE,
-              message: `The request to complete the connect account flow failed with status ${res.status}.`
-            }),
-            null
-          ];
-        }
+        return buildConnectAccountErrorResponse(
+          res,
+          ConnectAccountErrorCodes.FAILED_TO_COMPLETE
+        );
       }
 
       const { id, connection, access_type, scopes, created_at, expires_at } =
@@ -2549,3 +2507,45 @@ export type FetcherFactoryOptions<TOutput extends Response> = {
   useDPoP?: boolean;
   getAccessToken: AccessTokenFactory;
 } & FetcherMinimalConfig<TOutput>;
+
+/**
+ * Builds a ConnectAccountError response based on the provided Response object and error code.
+ * @param res The Response object containing the error details.
+ * @param errorCode The ConnectAccountErrorCodes enum value representing the type of error.
+ * @returns
+ */
+export async function buildConnectAccountErrorResponse(
+  res: Response,
+  errorCode: ConnectAccountErrorCodes
+): Promise<[ConnectAccountError, null]> {
+  const actionVerb =
+    errorCode === ConnectAccountErrorCodes.FAILED_TO_INITIATE
+      ? "initiate"
+      : "complete";
+
+  try {
+    const errorBody = await res.json();
+    return [
+      new ConnectAccountError({
+        code: errorCode,
+        message: `The request to ${actionVerb} the connect account flow failed with status ${res.status}.`,
+        cause: new MyAccountApiError({
+          type: errorBody.type,
+          title: errorBody.title,
+          detail: errorBody.detail,
+          status: res.status,
+          validationErrors: errorBody.validation_errors
+        })
+      }),
+      null
+    ];
+  } catch (e) {
+    return [
+      new ConnectAccountError({
+        code: errorCode,
+        message: `The request to ${actionVerb} the connect account flow failed with status ${res.status}.`
+      }),
+      null
+    ];
+  }
+}
