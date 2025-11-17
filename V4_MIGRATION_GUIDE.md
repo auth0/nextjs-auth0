@@ -233,6 +233,9 @@ export const auth0 = new Auth0Client({
 
 Read more about [passing authorization parameters](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#passing-authorization-parameters).
 
+> [!NOTE]
+> In previous versions, `authParams` was used. In v4, use `authorizationParameters`. For example, for silent authentication: `authorizationParameters: { prompt: 'none' }`.
+
 ## ID token claims
 
 In v3, any claims added to the ID token were automatically propagated to the `user` object in the session. This resulted in the large cookies that exceeded browser limits.

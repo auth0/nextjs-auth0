@@ -40,6 +40,7 @@
     - [Usage Example](#usage-example)
     - [Token Management Best Practices](#token-management-best-practices)
   - [Mitigating Token Expiration Race Conditions in Latency-Sensitive Operations](#mitigating-token-expiration-race-conditions-in-latency-sensitive-operations)
+- [Silent authentication](#silent-authentication)
 - [DPoP (Demonstrating Proof-of-Possession)](#dpop-demonstrating-proof-of-possession)
   - [What is DPoP?](#what-is-dpop)
   - [Basic DPoP Setup](#basic-dpop-setup)
@@ -1064,6 +1065,46 @@ This ensures that the token you send is guaranteed to be valid for at least the 
 
 > [!IMPORTANT]
 > This strategy is **not** a solution for long-running operations that take longer than the token's total validity period (e.g., 10 minutes). In those cases, the token will still expire mid-operation. The correct approach for long-running tasks is to call `getAccessToken()` immediately before the operation that requires it, ensuring you have a fresh token. The buffer is only for mitigating latency-related failures in short-lived requests.
+
+## Silent authentication
+
+Silent authentication checks for an existing Auth0 session without user interaction. Use `prompt: 'none'` as an authorization parameter.
+
+**Custom route:**
+
+```typescript
+// app/api/auth/silent/route.ts
+import { auth0 } from '@/lib/auth0';
+import { NextRequest } from 'next/server';
+
+export const GET = async (req: NextRequest) => {
+  return auth0.startInteractiveLogin({
+    authorizationParameters: { prompt: 'none' },
+    returnTo: req.nextUrl.searchParams.get('returnTo') || '/'
+  });
+};
+```
+
+**Built-in route with query param:**
+
+```html
+<a href="/auth/login?prompt=none">Silent Auth</a>
+```
+
+**Error handling:**
+
+Auth0 returns `login_required` when no active session exists. Handle gracefully:
+
+```typescript
+try {
+  return await auth0.startInteractiveLogin({
+    authorizationParameters: { prompt: 'none' }
+  });
+} catch (error) {
+  // Redirect to interactive login
+  return NextResponse.redirect('/auth/login');
+}
+```
 
 ## DPoP (Demonstrating Proof-of-Possession)
 
