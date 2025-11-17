@@ -45,6 +45,7 @@ import {
   WithPageAuthRequiredAppRouterOptions,
   WithPageAuthRequiredPageRouterOptions
 } from "./helpers/with-page-auth-required.js";
+import { toNextRequest, toNextResponse } from "./next-compat.js";
 import {
   AbstractSessionStore,
   SessionConfiguration,
@@ -498,8 +499,8 @@ export class Auth0Client {
   /**
    * middleware mounts the SDK routes to run as a middleware function.
    */
-  middleware(req: NextRequest): Promise<NextResponse> {
-    return this.authClient.handler.bind(this.authClient)(req);
+  middleware(req: Request | NextRequest): Promise<NextResponse> {
+    return this.authClient.handler.bind(this.authClient)(toNextRequest(req));
   }
 
   /**
@@ -522,12 +523,13 @@ export class Auth0Client {
    * getSession returns the session data for the current request.
    */
   async getSession(
-    req?: PagesRouterRequest | NextRequest
+    req?: Request | PagesRouterRequest | NextRequest
   ): Promise<SessionData | null> {
     if (req) {
       // middleware usage
-      if (req instanceof NextRequest) {
-        return this.sessionStore.get(req.cookies);
+      if (req instanceof Request) {
+        const nextReq = toNextRequest(req);
+        return this.sessionStore.get(nextReq.cookies);
       }
 
       // pages router usage
@@ -734,7 +736,7 @@ export class Auth0Client {
    */
   async getAccessTokenForConnection(
     options: AccessTokenForConnectionOptions,
-    req: PagesRouterRequest | NextRequest | undefined,
+    req: PagesRouterRequest | NextRequest | Request | undefined,
     res: PagesRouterResponse | NextResponse | undefined
   ): Promise<{ token: string; expiresAt: number }>;
 
@@ -757,11 +759,12 @@ export class Auth0Client {
    */
   async getAccessTokenForConnection(
     options: AccessTokenForConnectionOptions,
-    req?: PagesRouterRequest | NextRequest,
+    req?: PagesRouterRequest | NextRequest | Request,
     res?: PagesRouterResponse | NextResponse
   ): Promise<{ token: string; expiresAt: number; scope?: string }> {
-    const session: SessionData | null = req
-      ? await this.getSession(req)
+    const nextReq = req instanceof Request ? toNextRequest(req) : req;
+    const session: SessionData | null = nextReq
+      ? await this.getSession(nextReq)
       : await this.getSession();
 
     if (!session) {
@@ -817,7 +820,7 @@ export class Auth0Client {
           ...session,
           connectionTokenSets: tokenSets
         },
-        req,
+        nextReq,
         res
       );
     }
@@ -835,8 +838,8 @@ export class Auth0Client {
    * This method can be used in middleware and `getServerSideProps`, API routes, and middleware in the **Pages Router**.
    */
   async updateSession(
-    req: PagesRouterRequest | NextRequest,
-    res: PagesRouterResponse | NextResponse,
+    req: PagesRouterRequest | NextRequest | Request,
+    res: PagesRouterResponse | NextResponse | Response,
     session: SessionData
   ): Promise<void>;
 
@@ -851,10 +854,23 @@ export class Auth0Client {
    * updateSession updates the session of the currently authenticated user. If the user does not have a session, an error is thrown.
    */
   async updateSession(
-    reqOrSession: PagesRouterRequest | NextRequest | SessionData,
-    res?: PagesRouterResponse | NextResponse,
+    reqOrSession: PagesRouterRequest | NextRequest | Request | SessionData,
+    res?: PagesRouterResponse | NextResponse | Response,
     sessionData?: SessionData
   ) {
+    // Normalize plain Request (Next 16 Node runtime) to NextRequest
+    if (
+      reqOrSession instanceof Request &&
+      !(reqOrSession instanceof NextRequest)
+    ) {
+      reqOrSession = toNextRequest(reqOrSession);
+    }
+
+    // Normalize plain Response (Next 16 Node runtime) to NextResponse
+    if (res && res instanceof Response && !(res instanceof NextResponse)) {
+      res = toNextResponse(res);
+    }
+
     if (!res) {
       // app router: Server Actions, Route Handlers
       const existingSession = await this.getSession();
@@ -1232,7 +1248,7 @@ export class Auth0Client {
    * @see {@link FetcherMinimalConfig} for available configuration options
    */
   public async createFetcher<TOutput extends Response = Response>(
-    req: PagesRouterRequest | NextRequest | undefined,
+    req: PagesRouterRequest | NextRequest | Request | undefined,
     options: {
       /** Enable DPoP for this fetcher instance (overrides global setting) */
       useDPoP?: boolean;
@@ -1244,8 +1260,9 @@ export class Auth0Client {
       fetch?: CustomFetchImpl<TOutput>;
     }
   ) {
-    const session: SessionData | null = req
-      ? await this.getSession(req)
+    const nextReq = req instanceof Request ? toNextRequest(req) : req;
+    const session: SessionData | null = nextReq
+      ? await this.getSession(nextReq)
       : await this.getSession();
 
     if (!session) {
