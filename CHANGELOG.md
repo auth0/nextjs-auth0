@@ -3,10 +3,7 @@
 ## [Unreleased](https://github.com/auth0/nextjs-auth0/tree/HEAD)
 
 **Security**
-- Prevent OAuth parameter injection via returnTo parameter [\#2413](https://github.com/auth0/nextjs-auth0/pull/2413)
-  - Security issue discovered and fixed by **Joshua Rogers ([@MegaManSec](https://github.com/MegaManSec))** in [\#2381](https://github.com/auth0/nextjs-auth0/pull/2381)
-  - Added comprehensive unit test coverage
-  - URL encodes returnTo parameter to prevent injection of OAuth parameters
+- Prevent OAuth parameter injection via returnTo parameter [\#2413](https://github.com/auth0/nextjs-auth0/pull/2413) (Clone of #2381 by [MegaManSec](https://github.com/MegaManSec))
 
 ## [v4.12.1](https://github.com/auth0/nextjs-auth0/tree/v4.12.1) (2025-11-13)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.12.0...v4.12.1)
