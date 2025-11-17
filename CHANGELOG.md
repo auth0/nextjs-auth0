@@ -8,8 +8,8 @@
 - Adding support for Next 16 [\#2405](https://github.com/auth0/nextjs-auth0/pull/2405) ([nandan-bhat](https://github.com/nandan-bhat))
 
 **Fixed**
-- fix: merge sessionChanges before finalizing session after refresh (#2401) [\#2414](https://github.com/auth0/nextjs-auth0/pull/2414) ([tusharpandey13](https://github.com/tusharpandey13))
-- fix: prevent OAuth parameter injection via returnTo (#2381) [\#2413](https://github.com/auth0/nextjs-auth0/pull/2413) ([tusharpandey13](https://github.com/tusharpandey13))
+- fix: merge sessionChanges before finalizing session after refresh (#2401) [\#2414](https://github.com/auth0/nextjs-auth0/pull/2414) (Clone of #2401 by [wolfgangGoedel ](https://github.com/wolfgangGoedel))
+- fix: prevent OAuth parameter injection via returnTo (#2381) [\#2413](https://github.com/auth0/nextjs-auth0/pull/2413) (Clone of #2381 by [MegaManSec](https://github.com/MegaManSec))
 
 ## [v4.12.1](https://github.com/auth0/nextjs-auth0/tree/v4.12.1) (2025-11-13)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.12.0...v4.12.1)
