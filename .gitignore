@@ -141,4 +141,4 @@ dist
 *.tmp
 *PLAN*.md
 .yalc/
-yalc.lock
+yalc.lock.npmrc
