@@ -167,6 +167,13 @@ export type GetAccessTokenOptions = {
   audience?: string | null;
 };
 
+export type ProxyOptions = {
+  proxyPath: string;
+  targetBaseUrl: string;
+  audience: string;
+  scope: string | null;
+};
+
 export {
   AuthorizationParameters,
   StartInteractiveLoginOptions

@@ -161,6 +161,58 @@ describe("with-api-auth-required", () => {
       expect(response.cookies.get("foo")?.value).toBe("bar");
       expect(response.headers.get("baz")).toBe("bar");
     });
+
+    it("should allow access when called with a plain Request (Next.js 16 proxy.ts scenario)", async () => {
+      const auth0Client = new Auth0Client({
+        domain: constants.domain,
+        clientId: constants.clientId,
+        clientSecret: constants.clientSecret,
+        appBaseUrl: constants.appBaseUrl,
+        secret: constants.secret
+      });
+
+      const withApiAuthRequired = appRouteHandlerFactory(auth0Client);
+
+      // Mock valid session cookies (reuse same logic as the happy-path test)
+      vi.mocked(cookies).mockImplementation(async () => {
+        const session: SessionData = {
+          user: { sub: "user_123" },
+          tokenSet: {
+            idToken: "idt_123",
+            accessToken: "at_123",
+            refreshToken: "rt_123",
+            expiresAt: 123456
+          },
+          internal: {
+            sid: "auth0-sid",
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
+        const sessionCookie = await encrypt(
+          session,
+          constants.secret,
+          expiration
+        );
+
+        const headers = new Headers();
+        headers.append("cookie", `__session=${sessionCookie}`);
+        return new RequestCookies(headers) as unknown as ReadonlyRequestCookies;
+      });
+
+      const request = new Request(`${constants.appBaseUrl}/custom-profile`, {
+        method: "GET"
+      });
+
+      const handler = withApiAuthRequired(async () =>
+        NextResponse.json({ foo: "bar" })
+      );
+      const response = await handler(request as any, {});
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({ foo: "bar" });
+    });
   });
 
   describe("pages router", () => {

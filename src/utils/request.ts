@@ -1,6 +1,6 @@
 import type { IncomingMessage } from "http";
 import { NextApiRequest } from "next";
-import { NextRequest } from "next/server.js";
+import type { NextRequest } from "next/server.js";
 
 type Req =
   | IncomingMessage
