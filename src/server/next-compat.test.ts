@@ -13,6 +13,20 @@ describe("next-compat", () => {
       expect(result).toBe(req);
     });
 
+    it("should rebuild even if nextUrl is present on a plain object", () => {
+      const req: any = {
+        url: "https://example.com/api/test",
+        method: "GET",
+        headers: new Headers(),
+        body: null,
+        nextUrl: { pathname: "/api/test" }
+      };
+
+      const result = toNextRequest(req);
+      expect(result).toBeInstanceOf(NextRequest);
+      expect(result.url).toBe("https://example.com/api/test");
+    });
+
     it("should convert a plain Request into a NextRequest preserving url, method, headers and body", async () => {
       const headers = new Headers({ "x-test": "true" });
       const body = JSON.stringify({ foo: "bar" });
@@ -51,6 +65,62 @@ describe("next-compat", () => {
       const nextReq = toNextRequest(fakeReq);
       expect(nextReq).toBeInstanceOf(NextRequest);
       expect((nextReq as any).duplex).toBe("half");
+    });
+
+    it("should preserve nextUrl.basePath when present on the input request", () => {
+      const basePath = "/base-path";
+      const url = new URL(`${basePath}/auth/login`, "https://example.com");
+
+      const sourceNextUrl = new NextRequest(url, {
+        nextConfig: { basePath }
+      }).nextUrl;
+
+      const fakeReq: any = {
+        url: url.toString(),
+        method: "GET",
+        headers: new Headers(),
+        body: null,
+        nextUrl: sourceNextUrl
+      };
+
+      const nextReq = toNextRequest(fakeReq);
+
+      expect(nextReq.nextUrl.basePath).toBe(basePath);
+      expect(nextReq.nextUrl.pathname).toBe("/auth/login");
+    });
+
+    it("should use basePath from nextConfig when provided directly", () => {
+      const basePath = "/configured-base";
+      const url = new URL(`${basePath}/auth/login`, "https://example.com");
+
+      const nextReq = toNextRequest({
+        url: url.toString(),
+        method: "GET",
+        headers: new Headers(),
+        body: null,
+        nextConfig: { basePath }
+      } as any);
+
+      expect(nextReq.nextUrl.basePath).toBe(basePath);
+      expect(nextReq.nextUrl.pathname).toBe("/auth/login");
+    });
+
+    it("should ignore inaccessible nextUrl errors gracefully", () => {
+      const fakeReq: any = {
+        url: "https://example.com/api",
+        method: "GET",
+        headers: new Headers(),
+        body: null
+      };
+      Object.defineProperty(fakeReq, "nextUrl", {
+        get() {
+          throw new Error("boom");
+        }
+      });
+
+      expect(() => toNextRequest(fakeReq)).not.toThrow();
+      const nextReq = toNextRequest(fakeReq);
+      expect(nextReq).toBeInstanceOf(NextRequest);
     });
   });
 

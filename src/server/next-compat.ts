@@ -10,12 +10,44 @@ export function toNextRequest(input: Request | NextRequest): NextRequest {
     return input;
   }
 
-  return new NextRequest(input.url, {
+  const basePath = extractBasePath(input);
+
+  const init: any = {
     method: input.method,
     headers: input.headers,
     body: input.body as any,
     duplex: (input as any).duplex ?? "half"
-  });
+  };
+
+  if (basePath) {
+    init.nextConfig = { basePath };
+  }
+
+  return new NextRequest(input.url, init);
+}
+
+function extractBasePath(input: Request): string | undefined {
+  // Prefer incoming nextConfig.basePath if provided
+  const provided = (input as any).nextConfig;
+  if (
+    provided &&
+    typeof provided === "object" &&
+    typeof provided.basePath === "string"
+  ) {
+    return provided.basePath;
+  }
+
+  // Fallback: try to get basePath from nextUrl if it exists
+  try {
+    const basePath = (input as any).nextUrl?.basePath;
+    if (typeof basePath === "string") {
+      return basePath;
+    }
+  } catch {
+    // ignore inaccessible nextUrl
+  }
+
+  return undefined;
 }
 
 /**
