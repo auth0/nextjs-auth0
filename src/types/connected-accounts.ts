@@ -11,6 +11,10 @@ export interface ConnectAccountOptions {
    */
   connection: string;
   /**
+   * Array of scopes to request from the Identity Provider during the connect account flow.
+   */
+  scopes?: string[];
+  /**
    * Authorization parameters to be passed to the authorization server.
    */
   authorizationParams?: AuthorizationParameters;
@@ -56,6 +60,10 @@ export interface ConnectAccountRequest {
    * The method used to derive the code challenge. Required when code_challenge is provided.
    */
   codeChallengeMethod?: string;
+  /**
+   * Array of scopes to request during the connect account flow.
+   */
+  scopes?: string[];
   /**
    * Authorization parameters to be sent to the underlying Identity Provider (IdP)
    */
