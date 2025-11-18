@@ -1,4 +1,46 @@
+import type { NextConfig } from "next";
 import { NextRequest, NextResponse } from "next/server.js";
+
+function collectFromNextUrl(input: Request): NextConfig | undefined {
+  let config: NextConfig | undefined;
+
+  try {
+    const nextUrl: any = (input as any).nextUrl;
+
+    // Return early if nextUrl is not accessible
+    if (!nextUrl) {
+      return undefined;
+    }
+
+    // Handle basePath config
+    if (typeof nextUrl.basePath === "string" && nextUrl.basePath) {
+      config = { ...(config || {}), basePath: nextUrl.basePath };
+    }
+
+    // Handle i18n config
+    if (
+      typeof nextUrl.locale === "string" ||
+      typeof nextUrl.defaultLocale === "string"
+    ) {
+      config = {
+        ...(config || {}),
+        i18n: {
+          locales: nextUrl.locale ? [nextUrl.locale] : [],
+          defaultLocale: nextUrl.defaultLocale
+        }
+      };
+    }
+
+    // Handle trailingSlash config
+    if (typeof nextUrl.trailingSlash === "boolean") {
+      config = { ...(config || {}), trailingSlash: nextUrl.trailingSlash };
+    }
+  } catch {
+    // ignore inaccessible nextUrl
+  }
+
+  return config && Object.keys(config).length ? config : undefined;
+}
 
 /**
  * Normalize a Request or NextRequest to a NextRequest instance.
@@ -10,7 +52,7 @@ export function toNextRequest(input: Request | NextRequest): NextRequest {
     return input;
   }
 
-  const basePath = extractBasePath(input);
+  const nextConfig = collectFromNextUrl(input);
 
   const init: any = {
     method: input.method,
@@ -19,35 +61,11 @@ export function toNextRequest(input: Request | NextRequest): NextRequest {
     duplex: (input as any).duplex ?? "half"
   };
 
-  if (basePath) {
-    init.nextConfig = { basePath };
+  if (nextConfig) {
+    init.nextConfig = nextConfig;
   }
 
   return new NextRequest(input.url, init);
-}
-
-function extractBasePath(input: Request): string | undefined {
-  // Prefer incoming nextConfig.basePath if provided
-  const provided = (input as any).nextConfig;
-  if (
-    provided &&
-    typeof provided === "object" &&
-    typeof provided.basePath === "string"
-  ) {
-    return provided.basePath;
-  }
-
-  // Fallback: try to get basePath from nextUrl if it exists
-  try {
-    const basePath = (input as any).nextUrl?.basePath;
-    if (typeof basePath === "string") {
-      return basePath;
-    }
-  } catch {
-    // ignore inaccessible nextUrl
-  }
-
-  return undefined;
 }
 
 /**

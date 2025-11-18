@@ -67,7 +67,7 @@ describe("next-compat", () => {
       expect((nextReq as any).duplex).toBe("half");
     });
 
-    it("should preserve nextUrl.basePath when present on the input request", () => {
+    it("should preserve basePath from nextUrl when present on the input request", () => {
       const basePath = "/base-path";
       const url = new URL(`${basePath}/auth/login`, "https://example.com");
 
@@ -89,20 +89,171 @@ describe("next-compat", () => {
       expect(nextReq.nextUrl.pathname).toBe("/auth/login");
     });
 
-    it("should use basePath from nextConfig when provided directly", () => {
-      const basePath = "/configured-base";
-      const url = new URL(`${basePath}/auth/login`, "https://example.com");
+    it("should rebuild locale/defaultLocale and trailingSlash from nextUrl metadata", () => {
+      const url = new URL("https://example.com/app/fr/profile/");
 
-      const nextReq = toNextRequest({
+      const sourceNextUrl = new NextRequest(url, {
+        nextConfig: {
+          basePath: "/app",
+          i18n: { locales: ["en", "fr"], defaultLocale: "en" },
+          trailingSlash: true
+        }
+      }).nextUrl;
+
+      const fakeReq: any = {
         url: url.toString(),
         method: "GET",
         headers: new Headers(),
         body: null,
-        nextConfig: { basePath }
-      } as any);
+        nextUrl: sourceNextUrl
+      };
+
+      const nextReq = toNextRequest(fakeReq);
+
+      expect(nextReq.nextUrl.basePath).toBe("/app");
+      expect(nextReq.nextUrl.locale).toBe("fr");
+      expect(nextReq.nextUrl.defaultLocale).toBe("en");
+      expect(nextReq.nextUrl.href.endsWith("/profile/")).toBe(true);
+    });
+
+    it("should rebuild i18n when only locale/defaultLocale exist (no basePath)", () => {
+      const fakeReq: any = {
+        url: "https://example.com/fr/no-base",
+        method: "GET",
+        headers: new Headers(),
+        body: null,
+        nextUrl: {
+          locale: "fr",
+          defaultLocale: "en"
+        }
+      };
+
+      const nextReq = toNextRequest(fakeReq);
+
+      expect(nextReq.nextUrl.basePath).toBe("");
+      expect(nextReq.nextUrl.locale).toBe("fr");
+      expect(nextReq.nextUrl.defaultLocale).toBe("en");
+    });
+
+    it("should rebuild i18n when only defaultLocale is set (locale undefined)", () => {
+      const fakeReq: any = {
+        url: "https://example.com/no-locale",
+        method: "GET",
+        headers: new Headers(),
+        body: null,
+        nextUrl: {
+          defaultLocale: "en"
+        }
+      };
+
+      const nextReq = toNextRequest(fakeReq);
+
+      expect(nextReq.nextUrl.locale).toBe("en");
+      expect(nextReq.nextUrl.defaultLocale).toBe("en");
+    });
+
+    it("should honor trailingSlash when it is the only nextUrl field", () => {
+      const fakeReq: any = {
+        url: "https://example.com/trailing-only/",
+        method: "GET",
+        headers: new Headers(),
+        body: null,
+        nextUrl: {
+          trailingSlash: true
+        }
+      };
+
+      const nextReq = toNextRequest(fakeReq);
+
+      expect(nextReq.nextUrl.href.endsWith("/trailing-only/")).toBe(true);
+    });
+
+    it("should ignore non-boolean trailingSlash values while keeping other fields", () => {
+      const basePath = "/base";
+      const url = new URL(`${basePath}/foo`, "https://example.com");
+
+      const fakeReq: any = {
+        url: url.toString(),
+        method: "GET",
+        headers: new Headers(),
+        body: null,
+        nextUrl: {
+          basePath,
+          trailingSlash: "yes" // not a boolean, should be ignored
+        }
+      };
+
+      const nextReq = toNextRequest(fakeReq);
 
       expect(nextReq.nextUrl.basePath).toBe(basePath);
-      expect(nextReq.nextUrl.pathname).toBe("/auth/login");
+      expect(nextReq.nextUrl.href.endsWith("/foo")).toBe(true);
+    });
+
+    it("should set no nextConfig when nextUrl is absent", () => {
+      const req = new Request("https://example.com/no-next-url", {
+        method: "GET"
+      });
+
+      const nextReq = toNextRequest(req);
+
+      expect(nextReq.nextUrl.basePath).toBe("");
+      expect(nextReq.nextUrl.locale).toBe("");
+      expect(nextReq.nextUrl.defaultLocale).toBeUndefined();
+    });
+
+    it("should ignore nextUrl that lacks supported fields", () => {
+      const fakeReq: any = {
+        url: "https://example.com/no-fields",
+        method: "GET",
+        headers: new Headers(),
+        body: null,
+        nextUrl: {}
+      };
+
+      const nextReq = toNextRequest(fakeReq);
+
+      expect(nextReq.nextUrl.basePath).toBe("");
+      expect(nextReq.nextUrl.locale).toBe("");
+      expect(nextReq.nextUrl.defaultLocale).toBeUndefined();
+    });
+
+    it("should rebuild trailingSlash=false and defaultLocale even when locale is empty", () => {
+      const fakeReq: any = {
+        url: "https://example.com/app/no-locale",
+        method: "GET",
+        headers: new Headers(),
+        body: null,
+        nextUrl: {
+          basePath: "/app",
+          locale: "",
+          defaultLocale: "en",
+          trailingSlash: false
+        }
+      };
+
+      const nextReq = toNextRequest(fakeReq);
+
+      expect(nextReq.nextUrl.basePath).toBe("/app");
+      expect(nextReq.nextUrl.locale).toBe("en");
+      expect(nextReq.nextUrl.defaultLocale).toBe("en");
+      expect(nextReq.nextUrl.href.endsWith("/no-locale")).toBe(true);
+    });
+
+    it("should not set basePath when nextUrl.basePath is an empty string", () => {
+      const fakeReq: any = {
+        url: "https://example.com/empty-base",
+        method: "GET",
+        headers: new Headers(),
+        body: null,
+        nextUrl: {
+          basePath: ""
+        }
+      };
+
+      const nextReq = toNextRequest(fakeReq);
+
+      expect(nextReq.nextUrl.basePath).toBe("");
+      expect(nextReq.nextUrl.pathname).toBe("/empty-base");
     });
 
     it("should ignore inaccessible nextUrl errors gracefully", () => {
