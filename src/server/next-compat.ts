@@ -14,7 +14,7 @@ function collectFromNextUrl(input: Request): NextConfig | undefined {
 
     // Handle basePath config
     if (typeof nextUrl.basePath === "string" && nextUrl.basePath) {
-      config = { ...(config || {}), basePath: nextUrl.basePath };
+      config = { basePath: nextUrl.basePath };
     }
 
     // Handle i18n config
