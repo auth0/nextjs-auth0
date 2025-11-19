@@ -1,5 +1,15 @@
 # Change Log
 
+## [v4.13.1](https://github.com/auth0/nextjs-auth0/tree/v4.13.1) (2025-11-19)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.13.0...v4.13.1)
+
+**Added**
+- docs: Add docs for silent authentication [\#2422](https://github.com/auth0/nextjs-auth0/pull/2422) ([tusharpandey13](https://github.com/tusharpandey13))
+
+**Fixed**
+- fix: broken next-16 app when basePath is used [\#2424](https://github.com/auth0/nextjs-auth0/pull/2424) ([nandan-bhat](https://github.com/nandan-bhat))
+- docs: Correct attribution in changelog for security fix [\#2416](https://github.com/auth0/nextjs-auth0/pull/2416) ([tusharpandey13](https://github.com/tusharpandey13))
+
 ## [v4.13.0](https://github.com/auth0/nextjs-auth0/tree/v4.13.0) (2025-11-17)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.12.1...v4.13.0)
 
