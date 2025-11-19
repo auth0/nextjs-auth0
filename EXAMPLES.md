@@ -958,7 +958,7 @@ export async function middleware(request: NextRequest) {
     
     if (expiresInSeconds < TOKEN_REFRESH_THRESHOLD) {
       try {
-        await auth0.getAccessToken(request, authRes);
+        await auth0.getAccessToken(request, authRes, { refresh: true });
         // Token refreshed and persisted via authRes
       } catch (error) {
         console.error("Token refresh failed:", error);
