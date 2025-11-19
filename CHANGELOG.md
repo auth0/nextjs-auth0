@@ -8,7 +8,6 @@
 
 **Fixed**
 - fix: broken next-16 app when basePath is used [\#2424](https://github.com/auth0/nextjs-auth0/pull/2424) ([nandan-bhat](https://github.com/nandan-bhat))
-- docs: Correct attribution in changelog for security fix [\#2416](https://github.com/auth0/nextjs-auth0/pull/2416) ([tusharpandey13](https://github.com/tusharpandey13))
 
 ## [v4.13.0](https://github.com/auth0/nextjs-auth0/tree/v4.13.0) (2025-11-17)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.12.1...v4.13.0)
