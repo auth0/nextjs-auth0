@@ -1,7 +1,7 @@
 name: Claude Code PR Review
 
 on:
-  pull_request:
+  pull_request_target:
     types: [ opened, synchronize, reopened, edited ]
   issue_comment:
     types: [ created ]
@@ -12,9 +12,4 @@ on:
 
 jobs:
   claude-review:
-    permissions:
-      contents: write
-      pull-requests: write
-      issues: write
-      id-token: write
     uses: auth0/auth0-ai-pr-analyzer-gh-action/.github/workflows/claude-code-review.yml@fix-fork-issues
