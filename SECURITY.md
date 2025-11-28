@@ -33,3 +33,5 @@ You should be aware of the security implications of both models. However, [auth0
 - You are using [Static HTML Export](https://nextjs.org/docs/advanced-features/static-html-export) with Next.js.
 - You do not need to access user data during server-side rendering.
 - You want to get the access token and call external API's directly from the frontend layer rather than using Next.js API Routes as a proxy to call external APIs
+
+random readme update to test PR analyzer
