@@ -142,3 +142,4 @@ dist
 *PLAN*.md
 .yalc/
 yalc.lock
+.npmrc
