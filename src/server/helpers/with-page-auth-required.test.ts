@@ -81,7 +81,7 @@ describe("with-page-auth-required ssr", () => {
       );
       await expect(handler({})).rejects.toThrowError("NEXT_REDIRECT");
       expect(redirect).toHaveBeenCalledTimes(1);
-      expect(redirect).toHaveBeenCalledWith("/auth/login?returnTo=/foo");
+      expect(redirect).toHaveBeenCalledWith("/auth/login?returnTo=%2Ffoo");
     });
 
     it("should protect a page and redirect to returnTo fn option", async () => {
@@ -114,7 +114,7 @@ describe("with-page-auth-required ssr", () => {
       ).rejects.toThrowError("NEXT_REDIRECT");
       expect(redirect).toHaveBeenCalledTimes(1);
       expect(redirect).toHaveBeenCalledWith(
-        "/auth/login?returnTo=/foo/bar?foo=bar"
+        "/auth/login?returnTo=%2Ffoo%2Fbar%3Ffoo%3Dbar"
       );
     });
 
