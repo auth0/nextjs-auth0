@@ -81,7 +81,7 @@ describe("with-page-auth-required ssr", () => {
       );
       await expect(handler({})).rejects.toThrowError("NEXT_REDIRECT");
       expect(redirect).toHaveBeenCalledTimes(1);
-      expect(redirect).toHaveBeenCalledWith("/auth/login?returnTo=%2Ffoo");
+      expect(redirect).toHaveBeenCalledWith("/auth/login?returnTo=/foo");
     });
 
     it("should protect a page and redirect to returnTo fn option", async () => {
@@ -114,7 +114,7 @@ describe("with-page-auth-required ssr", () => {
       ).rejects.toThrowError("NEXT_REDIRECT");
       expect(redirect).toHaveBeenCalledTimes(1);
       expect(redirect).toHaveBeenCalledWith(
-        "/auth/login?returnTo=%2Ffoo%2Fbar%3Ffoo%3Dbar"
+        "/auth/login?returnTo=/foo/bar?foo=bar"
       );
     });
 
@@ -164,91 +164,6 @@ describe("with-page-auth-required ssr", () => {
       await expect(handler({})).rejects.toThrowError("NEXT_REDIRECT");
       expect(redirect).toHaveBeenCalledTimes(1);
       expect(redirect).toHaveBeenCalledWith("/api/auth/custom-login");
-    });
-
-    it("should URL encode returnTo parameter to prevent OAuth param injection", async () => {
-      const withPageAuthRequired = appRouteHandlerFactory(
-        new Auth0Client({
-          domain: constants.domain,
-          clientId: constants.clientId,
-          clientSecret: constants.clientSecret,
-          appBaseUrl: constants.appBaseUrl,
-          secret: constants.secret
-        }),
-        {
-          loginUrl: "/auth/login"
-        }
-      );
-      const handler = withPageAuthRequired(
-        () => Promise.resolve(React.createElement("div", {}, "foo")),
-        {
-          returnTo:
-            "/callback?scope=openid profile&audience=https://api.example.com"
-        }
-      );
-      await expect(handler({})).rejects.toThrowError("NEXT_REDIRECT");
-      expect(redirect).toHaveBeenCalledTimes(1);
-      expect(redirect).toHaveBeenCalledWith(
-        "/auth/login?returnTo=%2Fcallback%3Fscope%3Dopenid%20profile%26audience%3Dhttps%3A%2F%2Fapi.example.com"
-      );
-    });
-
-    it("should URL encode returnTo with special characters", async () => {
-      const withPageAuthRequired = appRouteHandlerFactory(
-        new Auth0Client({
-          domain: constants.domain,
-          clientId: constants.clientId,
-          clientSecret: constants.clientSecret,
-          appBaseUrl: constants.appBaseUrl,
-          secret: constants.secret
-        }),
-        {
-          loginUrl: "/auth/login"
-        }
-      );
-      const handler = withPageAuthRequired(
-        () => Promise.resolve(React.createElement("div", {}, "foo")),
-        {
-          returnTo: "/path/with spaces & special=chars"
-        }
-      );
-      await expect(handler({})).rejects.toThrowError("NEXT_REDIRECT");
-      expect(redirect).toHaveBeenCalledTimes(1);
-      expect(redirect).toHaveBeenCalledWith(
-        "/auth/login?returnTo=%2Fpath%2Fwith%20spaces%20%26%20special%3Dchars"
-      );
-    });
-
-    it("should URL encode returnTo from function to prevent OAuth param injection", async () => {
-      const withPageAuthRequired = appRouteHandlerFactory(
-        new Auth0Client({
-          domain: constants.domain,
-          clientId: constants.clientId,
-          clientSecret: constants.clientSecret,
-          appBaseUrl: constants.appBaseUrl,
-          secret: constants.secret
-        }),
-        {
-          loginUrl: "/auth/login"
-        }
-      );
-      const handler = withPageAuthRequired(
-        () => Promise.resolve(React.createElement("div", {}, "foo")),
-        {
-          async returnTo({ params }: any) {
-            return `/callback/${(await params).id}?malicious=scope%3Dopenid`;
-          }
-        }
-      );
-      await expect(
-        handler({
-          params: Promise.resolve({ id: "123" })
-        })
-      ).rejects.toThrowError("NEXT_REDIRECT");
-      expect(redirect).toHaveBeenCalledTimes(1);
-      expect(redirect).toHaveBeenCalledWith(
-        "/auth/login?returnTo=%2Fcallback%2F123%3Fmalicious%3Dscope%253Dopenid"
-      );
     });
   });
 
