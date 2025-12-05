@@ -1,5 +1,14 @@
 # Change Log
 
+## [v4.13.2](https://github.com/auth0/nextjs-auth0/tree/v4.13.2) (2025-12-05)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.13.1...v4.13.2)
+
+**Changed**
+- Updated peer dependency
+  - Next: `^14.2.25 || ~15.0.5 || ~15.1.9 || ~15.2.6 || ~15.3.6 || ~15.4.8 || ~15.5.7 || ^16.0.7`
+  - React: `^18.0.0 || ~19.0.1 ||  ~19.1.2 || ^19.2.1`
+  - React-DOM: `^18.0.0 || ~19.0.1 ||  ~19.1.2 || ^19.2.1`
+
 ## [v4.13.1](https://github.com/auth0/nextjs-auth0/tree/v4.13.1) (2025-11-19)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.13.0...v4.13.1)
 
