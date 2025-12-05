@@ -758,6 +758,171 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       expect(result).toBeInstanceOf(NextResponse);
     });
   });
+
+  describe("Pages Router Set-Cookie header handling", () => {
+    let client: Auth0Client;
+    const mockSession: SessionData = {
+      user: { sub: "user_123" },
+      tokenSet: {
+        accessToken: "access_token",
+        refreshToken: "refresh_token",
+        expiresAt: Math.floor(Date.now() / 1000) + 3600
+      },
+      internal: {
+        sid: "session_id",
+        createdAt: Math.floor(Date.now() / 1000)
+      }
+    };
+
+    beforeEach(() => {
+      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
+      process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
+      process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
+      process.env[ENV_VARS.APP_BASE_URL] = "https://myapp.test";
+      process.env[ENV_VARS.SECRET] = "a]T3Ep;v:dST7bmO9-2efzp!Ggcj-o5!";
+
+      client = new Auth0Client();
+    });
+
+    describe("saveToSession - Pages Router", () => {
+      it("should preserve multiple Set-Cookie headers using appendHeader", async () => {
+        // Mock getSession to return existing session
+        vi.spyOn(client, "getSession").mockResolvedValue(mockSession);
+
+        // Mock sessionStore.set to simulate setting multiple cookies
+        vi.spyOn(client["sessionStore"], "set").mockImplementation(
+          async (_reqCookies, resCookies) => {
+            // Simulate the session store setting multiple chunked cookies
+            resCookies.set("__session.0", "chunk0_value", { path: "/" });
+            resCookies.set("__session.1", "chunk1_value", { path: "/" });
+            resCookies.set("__session.2", "chunk2_value", { path: "/" });
+          }
+        );
+
+        // Create mock Pages Router request/response
+        const req = {
+          headers: { cookie: "" }
+        };
+
+        const appendedCookies: string[] = [];
+        const res = {
+          setHeader: vi.fn(),
+          appendHeader: vi.fn((name: string, value: string) => {
+            if (name.toLowerCase() === "set-cookie") {
+              appendedCookies.push(value);
+            }
+          })
+        };
+
+        // Call the private saveToSession method
+        await (client as any).saveToSession(mockSession, req, res);
+
+        // Verify appendHeader was called for each cookie
+        expect(res.appendHeader).toHaveBeenCalledTimes(3);
+        expect(appendedCookies).toHaveLength(3);
+        expect(appendedCookies.some((c) => c.includes("__session.0"))).toBe(
+          true
+        );
+        expect(appendedCookies.some((c) => c.includes("__session.1"))).toBe(
+          true
+        );
+        expect(appendedCookies.some((c) => c.includes("__session.2"))).toBe(
+          true
+        );
+      });
+
+      it("should not use setHeader for Set-Cookie headers in Pages Router", async () => {
+        vi.spyOn(client, "getSession").mockResolvedValue(mockSession);
+        vi.spyOn(client["sessionStore"], "set").mockImplementation(
+          async (_reqCookies, resCookies) => {
+            resCookies.set("__session", "value", { path: "/" });
+          }
+        );
+
+        const req = { headers: { cookie: "" } };
+        const res = {
+          setHeader: vi.fn(),
+          appendHeader: vi.fn()
+        };
+
+        await (client as any).saveToSession(mockSession, req, res);
+
+        // setHeader should NOT be called with set-cookie
+        const setHeaderCalls = res.setHeader.mock.calls;
+        const setCookieSetHeaderCalls = setHeaderCalls.filter(
+          (call) => (call[0] as string).toLowerCase() === "set-cookie"
+        );
+        expect(setCookieSetHeaderCalls).toHaveLength(0);
+
+        // appendHeader should be used instead
+        expect(res.appendHeader).toHaveBeenCalled();
+      });
+    });
+
+    describe("updateSession - Pages Router", () => {
+      it("should collect all Set-Cookie values and set them as array", async () => {
+        vi.spyOn(client, "getSession").mockResolvedValue(mockSession);
+        vi.spyOn(client["sessionStore"], "set").mockImplementation(
+          async (_reqCookies, resCookies) => {
+            // Simulate multiple chunked cookies
+            resCookies.set("__session.0", "chunk0", { path: "/" });
+            resCookies.set("__session.1", "chunk1", { path: "/" });
+            resCookies.set("__session.2", "chunk2", { path: "/" });
+          }
+        );
+
+        const req = { headers: { cookie: "" } };
+        const res = {
+          setHeader: vi.fn(),
+          appendHeader: vi.fn()
+        };
+
+        const updatedSession = {
+          ...mockSession,
+          user: { sub: "updated_user" }
+        };
+
+        await client.updateSession(req as any, res as any, updatedSession);
+
+        // Find the setHeader call for set-cookie
+        const setCookieCall = res.setHeader.mock.calls.find(
+          (call) => (call[0] as string).toLowerCase() === "set-cookie"
+        );
+
+        expect(setCookieCall).toBeDefined();
+        // Should be called with an array of cookie values
+        const cookieValues = setCookieCall![1];
+        expect(Array.isArray(cookieValues)).toBe(true);
+        expect(cookieValues).toHaveLength(3);
+      });
+
+      it("should handle single cookie without breaking", async () => {
+        vi.spyOn(client, "getSession").mockResolvedValue(mockSession);
+        vi.spyOn(client["sessionStore"], "set").mockImplementation(
+          async (_reqCookies, resCookies) => {
+            resCookies.set("__session", "single_value", { path: "/" });
+          }
+        );
+
+        const req = { headers: { cookie: "" } };
+        const res = {
+          setHeader: vi.fn(),
+          appendHeader: vi.fn()
+        };
+
+        await client.updateSession(req as any, res as any, mockSession);
+
+        const setCookieCall = res.setHeader.mock.calls.find(
+          (call) => (call[0] as string).toLowerCase() === "set-cookie"
+        );
+
+        expect(setCookieCall).toBeDefined();
+        const cookieValues = setCookieCall![1];
+        expect(Array.isArray(cookieValues)).toBe(true);
+        expect(cookieValues).toHaveLength(1);
+      });
+    });
+  });
 });
 
 export type GetAccessTokenOptions = {
