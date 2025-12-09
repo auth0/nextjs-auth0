@@ -156,12 +156,7 @@ export interface Routes {
   backChannelLogout: string;
   connectAccount: string;
 }
-export type RoutesOptions = Partial<
-  Pick<
-    Routes,
-    "login" | "callback" | "logout" | "backChannelLogout" | "connectAccount"
-  >
->;
+export type RoutesOptions = Partial<Routes>;
 
 export interface AuthClientOptions {
   transactionStore: TransactionStore;
