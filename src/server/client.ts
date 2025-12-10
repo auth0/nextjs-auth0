@@ -17,6 +17,8 @@ import {
   AuthorizationParameters,
   BackchannelAuthenticationOptions,
   ConnectAccountOptions,
+  CustomTokenExchangeOptions,
+  CustomTokenExchangeResponse,
   GetAccessTokenOptions,
   LogoutStrategy,
   SessionData,
@@ -823,6 +825,47 @@ export class Auth0Client {
       scope: retrievedTokenSet.scope,
       expiresAt: retrievedTokenSet.expiresAt
     };
+  }
+
+  /**
+   * Exchanges an external token for Auth0 tokens using Custom Token Exchange (RFC 8693).
+   *
+   * This is a server-only method that does NOT modify the session.
+   * The returned tokens can be used independently or stored by the developer.
+   *
+   * **Note**: CTE tokens are not cached. The caller is responsible for token storage if needed.
+   *
+   * This method can be used in Server Actions, Route Handlers, and API routes.
+   *
+   * @param options - The custom token exchange options
+   * @returns The token exchange response containing access token and optionally id/refresh tokens
+   * @throws {CustomTokenExchangeError} If validation fails or the exchange request fails
+   *
+   * @example
+   * ```typescript
+   * const result = await auth0.customTokenExchange({
+   *   subjectToken: legacyIdToken,
+   *   subjectTokenType: 'urn:acme:legacy-token',
+   *   audience: 'https://api.example.com',
+   *   scope: 'read:data'
+   * });
+   *
+   * console.log(result.accessToken);
+   * ```
+   *
+   * @see {@link https://auth0.com/docs/authenticate/custom-token-exchange Auth0 CTE Documentation}
+   */
+  async customTokenExchange(
+    options: CustomTokenExchangeOptions
+  ): Promise<CustomTokenExchangeResponse> {
+    const [error, response] =
+      await this.authClient.customTokenExchange(options);
+
+    if (error !== null) {
+      throw error;
+    }
+
+    return response;
   }
 
   /**
