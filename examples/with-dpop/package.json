@@ -27,7 +27,7 @@
     "cypress:open": "pnpm exec cypress open"
   },
   "dependencies": {
-    "@auth0/nextjs-auth0": "file:.yalc/@auth0/nextjs-auth0",
+    "@auth0/nextjs-auth0": "^4.13.1",
     "concurrently": "^8.2.0",
     "cors": "^2.8.5",
     "dotenv": "^16.0.3",
@@ -37,12 +37,12 @@
     "helmet": "^7.1.0",
     "jwks-rsa": "^3.1.0",
     "morgan": "^1.10.0",
-    "next": "15.2.4",
+    "next": "15.2.6",
     "nodemon": "^3.0.0",
     "oauth4webapi": "^3.8.2",
     "prop-types": "^15.8.1",
-    "react": "19.0.0",
-    "react-dom": "19.0.0",
+    "react": "19.0.1",
+    "react-dom": "19.0.1",
     "reactstrap": "^9.1.5",
     "undici": "^7.16.0"
   },
