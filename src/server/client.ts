@@ -1135,8 +1135,15 @@ export class Auth0Client {
           resHeaders
         );
 
+        for (const cookie of resHeaders.getSetCookie()) {
+          pagesRouterRes.appendHeader("set-cookie", cookie);
+        }
+
+        // Set any other headers (non-cookie)
         for (const [key, value] of resHeaders.entries()) {
-          pagesRouterRes.setHeader(key, value);
+          if (key.toLowerCase() !== "set-cookie") {
+            pagesRouterRes.setHeader(key, value);
+          }
         }
       }
     } else {
