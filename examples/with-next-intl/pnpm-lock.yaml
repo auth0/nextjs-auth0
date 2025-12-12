@@ -10,13 +10,13 @@ importers:
     dependencies:
       '@auth0/nextjs-auth0':
         specifier: ^4.0.0
-        version: 4.0.0(next@15.4.8(react-dom@19.0.1(react@19.0.1))(react@19.0.1))(react-dom@19.0.1(react@19.0.1))(react@19.0.1)
+        version: 4.0.0(next@15.4.10(react-dom@19.0.1(react@19.0.1))(react@19.0.1))(react-dom@19.0.1(react@19.0.1))(react@19.0.1)
       next:
-        specifier: 15.4.8
-        version: 15.4.8(react-dom@19.0.1(react@19.0.1))(react@19.0.1)
+        specifier: 15.4.10
+        version: 15.4.10(react-dom@19.0.1(react@19.0.1))(react@19.0.1)
       next-intl:
         specifier: ^3.25.0
-        version: 3.25.0(next@15.4.8(react-dom@19.0.1(react@19.0.1))(react@19.0.1))(react@19.0.1)
+        version: 3.25.0(next@15.4.10(react-dom@19.0.1(react@19.0.1))(react@19.0.1))(react@19.0.1)
       react:
         specifier: 19.0.1
         version: 19.0.1
@@ -259,8 +259,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.25':
     resolution: {integrity: sha512-vNk6aEwybGtawWmy/PzwnGDOjCkLWSD2wqvjGGAgOAwCGWySYXfYoxt00IJkTF+8Lb57DwOb3Aa0o9CApepiYQ==}
 
-  '@next/env@15.4.8':
-    resolution: {integrity: sha512-LydLa2MDI1NMrOFSkO54mTc8iIHSttj6R6dthITky9ylXV2gCGi0bHQjVCtLGRshdRPjyh2kXbxJukDtBWQZtQ==}
+  '@next/env@15.4.10':
+    resolution: {integrity: sha512-knhmoJ0Vv7VRf6pZEPSnciUG1S4bIhWx+qTYBW/AjxEtlzsiNORPk8sFDCEvqLfmKuey56UB9FL1UdHEV3uBrg==}
 
   '@next/eslint-plugin-next@15.0.3':
     resolution: {integrity: sha512-3Ln/nHq2V+v8uIaxCR6YfYo7ceRgZNXfTd3yW1ukTaFbO+/I8jNakrjYWODvG9BuR2v5kgVtH/C8r0i11quOgw==}
@@ -1215,8 +1215,8 @@ packages:
       next: ^10.0.0 || ^11.0.0 || ^12.0.0 || ^13.0.0 || ^14.0.0 || ^15.0.0
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || >=19.0.0-rc <19.0.0
 
-  next@15.4.8:
-    resolution: {integrity: sha512-jwOXTz/bo0Pvlf20FSb6VXVeWRssA2vbvq9SdrOPEg9x8E1B27C2rQtvriAn600o9hH61kjrVRexEffv3JybuA==}
+  next@15.4.10:
+    resolution: {integrity: sha512-itVlc79QjpKMFMRhP+kbGKaSG/gZM6RCvwhEbwmCNF06CdDiNaoHcbeg0PqkEa2GOcn8KJ0nnc7+yL7EjoYLHQ==}
     engines: {node: ^18.18.0 || ^19.8.0 || >= 20.0.0}
     hasBin: true
     peerDependencies:
@@ -1721,12 +1721,12 @@ snapshots:
 
   '@alloc/quick-lru@5.2.0': {}
 
-  '@auth0/nextjs-auth0@4.0.0(next@15.4.8(react-dom@19.0.1(react@19.0.1))(react@19.0.1))(react-dom@19.0.1(react@19.0.1))(react@19.0.1)':
+  '@auth0/nextjs-auth0@4.0.0(next@15.4.10(react-dom@19.0.1(react@19.0.1))(react@19.0.1))(react-dom@19.0.1(react@19.0.1))(react@19.0.1)':
     dependencies:
       '@edge-runtime/cookies': 5.0.2
       '@panva/hkdf': 1.2.1
       jose: 5.9.6
-      next: 15.4.8(react-dom@19.0.1(react@19.0.1))(react@19.0.1)
+      next: 15.4.10(react-dom@19.0.1(react@19.0.1))(react@19.0.1)
       oauth4webapi: 3.1.2
       react: 19.0.1
       react-dom: 19.0.1(react@19.0.1)
@@ -1911,7 +1911,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.0
 
-  '@next/env@15.4.8': {}
+  '@next/env@15.4.10': {}
 
   '@next/eslint-plugin-next@15.0.3':
     dependencies:
@@ -3024,17 +3024,17 @@ snapshots:
 
   negotiator@1.0.0: {}
 
-  next-intl@3.25.0(next@15.4.8(react-dom@19.0.1(react@19.0.1))(react@19.0.1))(react@19.0.1):
+  next-intl@3.25.0(next@15.4.10(react-dom@19.0.1(react@19.0.1))(react@19.0.1))(react@19.0.1):
     dependencies:
       '@formatjs/intl-localematcher': 0.5.7
       negotiator: 1.0.0
-      next: 15.4.8(react-dom@19.0.1(react@19.0.1))(react@19.0.1)
+      next: 15.4.10(react-dom@19.0.1(react@19.0.1))(react@19.0.1)
       react: 19.0.1
       use-intl: 3.25.0(react@19.0.1)
 
-  next@15.4.8(react-dom@19.0.1(react@19.0.1))(react@19.0.1):
+  next@15.4.10(react-dom@19.0.1(react@19.0.1))(react@19.0.1):
     dependencies:
-      '@next/env': 15.4.8
+      '@next/env': 15.4.10
       '@swc/helpers': 0.5.15
       caniuse-lite: 1.0.30001737
       postcss: 8.4.31
