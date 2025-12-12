@@ -1,5 +1,14 @@
 # Change Log
 
+## [v4.13.3](https://github.com/auth0/nextjs-auth0/tree/v4.13.3) (2025-12-12)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.13.2...v4.13.3)
+
+**Fixed**
+- bugfix: session write not happening for pages router with chunked cookies [\#2447](https://github.com/auth0/nextjs-auth0/pull/2447) ([tusharpandey13](https://github.com/tusharpandey13))
+
+**Security**
+- Security: Update Next.js peer dependencies for CVE-2025-55184 and CVE-2025-55183 [\#2457](https://github.com/auth0/nextjs-auth0/pull/2457) ([tusharpandey13](https://github.com/tusharpandey13))
+
 ## [v4.13.2](https://github.com/auth0/nextjs-auth0/tree/v4.13.2) (2025-12-05)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.13.1...v4.13.2)
 
