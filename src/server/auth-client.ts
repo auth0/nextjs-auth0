@@ -431,9 +431,16 @@ export class AuthClient {
       if (session) {
         // we pass the existing session (containing an `createdAt` timestamp) to the set method
         // which will update the cookie's `maxAge` property based on the `createdAt` time
-        await this.sessionStore.set(req.cookies, res.cookies, {
-          ...session
-        });
+        // Pass res.headers to enable dual-domain cookie deletion for domain config changes
+        await this.sessionStore.set(
+          req.cookies,
+          res.cookies,
+          {
+            ...session
+          },
+          false,
+          res.headers
+        );
         addCacheControlHeadersForSession(res);
       }
 
@@ -567,8 +574,17 @@ export class AuthClient {
           status: 500
         }
       );
-      await this.sessionStore.delete(req.cookies, errorResponse.cookies);
-      await this.transactionStore.deleteAll(req.cookies, errorResponse.cookies);
+      // Pass errorResponse.headers to enable dual-domain cookie deletion
+      await this.sessionStore.delete(
+        req.cookies,
+        errorResponse.cookies,
+        errorResponse.headers
+      );
+      await this.transactionStore.deleteAll(
+        req.cookies,
+        errorResponse.cookies,
+        errorResponse.headers
+      );
       return errorResponse;
     }
 
@@ -624,10 +640,16 @@ export class AuthClient {
             status: 500
           }
         );
-        await this.sessionStore.delete(req.cookies, errorResponse.cookies);
+        // Pass errorResponse.headers to enable dual-domain cookie deletion
+        await this.sessionStore.delete(
+          req.cookies,
+          errorResponse.cookies,
+          errorResponse.headers
+        );
         await this.transactionStore.deleteAll(
           req.cookies,
-          errorResponse.cookies
+          errorResponse.cookies,
+          errorResponse.headers
         );
         return errorResponse;
       }
@@ -645,11 +667,20 @@ export class AuthClient {
     }
 
     // Clean up session and transaction cookies
-    await this.sessionStore.delete(req.cookies, logoutResponse.cookies);
+    // Pass logoutResponse.headers to enable dual-domain cookie deletion
+    await this.sessionStore.delete(
+      req.cookies,
+      logoutResponse.cookies,
+      logoutResponse.headers
+    );
     addCacheControlHeadersForSession(logoutResponse);
 
     // Clear any orphaned transaction cookies
-    await this.transactionStore.deleteAll(req.cookies, logoutResponse.cookies);
+    await this.transactionStore.deleteAll(
+      req.cookies,
+      logoutResponse.cookies,
+      logoutResponse.headers
+    );
 
     return logoutResponse;
   }
@@ -737,7 +768,8 @@ export class AuthClient {
         session
       );
 
-      await this.transactionStore.delete(res.cookies, state);
+      // Pass res.headers to enable dual-domain cookie deletion
+      await this.transactionStore.delete(res.cookies, state, res.headers);
 
       return res;
     }
@@ -883,11 +915,18 @@ export class AuthClient {
     // if not then filter id_token claims with default rules
     session = await this.finalizeSession(session, oidcRes.id_token);
 
-    await this.sessionStore.set(req.cookies, res.cookies, session, true);
+    // Pass res.headers to enable dual-domain cookie deletion
+    await this.sessionStore.set(
+      req.cookies,
+      res.cookies,
+      session,
+      true,
+      res.headers
+    );
     addCacheControlHeadersForSession(res);
 
     // Clean up the current transaction cookie after successful authentication
-    await this.transactionStore.delete(res.cookies, state);
+    await this.transactionStore.delete(res.cookies, state, res.headers);
 
     return res;
   }
@@ -1405,8 +1444,13 @@ export class AuthClient {
     const response = await this.onCallback(error, ctx, null);
 
     // Clean up the transaction cookie on error to prevent accumulation
+    // Pass response.headers to enable dual-domain cookie deletion
     if (state) {
-      await this.transactionStore.delete(response.cookies, state);
+      await this.transactionStore.delete(
+        response.cookies,
+        state,
+        response.headers
+      );
     }
 
     return response;
@@ -2334,7 +2378,14 @@ export class AuthClient {
         },
         tokenSetResponse.tokenSet.idToken
       );
-      await this.sessionStore.set(req.cookies, res.cookies, finalSession);
+      // Pass res.headers to enable dual-domain cookie deletion
+      await this.sessionStore.set(
+        req.cookies,
+        res.cookies,
+        finalSession,
+        false,
+        res.headers
+      );
       addCacheControlHeadersForSession(res);
     }
   }

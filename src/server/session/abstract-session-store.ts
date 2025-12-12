@@ -130,17 +130,39 @@ export abstract class AbstractSessionStore {
   /**
    * save adds the encrypted session cookie as a `Set-Cookie` header. If the `iat` property
    * is present on the session, then it will be used to compute the `maxAge` cookie value.
+   *
+   * When `rawHeaders` is provided and a domain is configured, cookie deletions (for legacy
+   * cookies or chunk cleanup) will emit both domain and host-only Set-Cookie headers to
+   * prevent cookie accumulation from domain configuration changes.
+   *
+   * @param reqCookies - Request cookies for read-after-write support.
+   * @param resCookies - Response cookies to set the session cookie.
+   * @param session - The session data to store.
+   * @param isNew - Whether this is a new session (used for session fixation prevention).
+   * @param rawHeaders - Optional raw Headers object to enable dual-domain deletion.
    */
   abstract set(
     reqCookies: RequestCookies | ReadonlyRequestCookies,
     resCookies: ResponseCookies,
     session: SessionData,
-    isNew?: boolean
+    isNew?: boolean,
+    rawHeaders?: Headers
   ): Promise<void>;
 
+  /**
+   * Deletes the session cookie.
+   *
+   * When `rawHeaders` is provided and a domain is configured, emits both domain and
+   * host-only Set-Cookie deletion headers to prevent cookie accumulation.
+   *
+   * @param reqCookies - Request cookies to identify the session.
+   * @param resCookies - Response cookies to delete the session cookie.
+   * @param rawHeaders - Optional raw Headers object to enable dual-domain deletion.
+   */
   abstract delete(
     reqCookies: RequestCookies | ReadonlyRequestCookies,
-    resCookies: ResponseCookies
+    resCookies: ResponseCookies,
+    rawHeaders?: Headers
   ): Promise<void>;
 
   /**
