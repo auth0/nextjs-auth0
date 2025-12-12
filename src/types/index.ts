@@ -181,6 +181,9 @@ export {
 export {
   AccessTokenForConnectionOptions,
   ConnectionTokenSet,
+  CustomTokenExchangeOptions,
+  CustomTokenExchangeResponse,
+  GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE,
   SUBJECT_TOKEN_TYPES
 } from "./token-vault.js";
 export { ConnectAccountOptions, RESPONSE_TYPES } from "./connected-accounts.js";
