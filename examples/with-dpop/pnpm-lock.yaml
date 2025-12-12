@@ -10,7 +10,7 @@ importers:
     dependencies:
       '@auth0/nextjs-auth0':
         specifier: ^4.13.1
-        version: 4.13.1(next@15.2.6(@babel/core@7.28.4)(react-dom@19.0.1(react@19.0.1))(react@19.0.1))(react-dom@19.0.1(react@19.0.1))(react@19.0.1)
+        version: 4.13.1(next@15.2.8(@babel/core@7.28.4)(react-dom@19.0.1(react@19.0.1))(react@19.0.1))(react-dom@19.0.1(react@19.0.1))(react@19.0.1)
       concurrently:
         specifier: ^8.2.0
         version: 8.2.2
@@ -39,8 +39,8 @@ importers:
         specifier: ^1.10.0
         version: 1.10.1
       next:
-        specifier: 15.2.6
-        version: 15.2.6(@babel/core@7.28.4)(react-dom@19.0.1(react@19.0.1))(react@19.0.1)
+        specifier: 15.2.8
+        version: 15.2.8(@babel/core@7.28.4)(react-dom@19.0.1(react@19.0.1))(react@19.0.1)
       nodemon:
         specifier: ^3.0.0
         version: 3.1.10
@@ -751,8 +751,8 @@ packages:
   '@napi-rs/wasm-runtime@0.2.12':
     resolution: {integrity: sha512-ZVWUcfwY4E/yPitQJl481FjFo3K22D6qF0DuFH6Y/nbnE11GY5uguDxZMGXPQ8WQ0128MXQD7TnfHyK4oWoIJQ==}
 
-  '@next/env@15.2.6':
-    resolution: {integrity: sha512-kp1Mpm4K1IzSSJ5ZALfek0JBD2jBw9VGMXR/aT7ykcA2q/ieDARyBzg+e8J1TkeIb5AFj/YjtZdoajdy5uNy6w==}
+  '@next/env@15.2.8':
+    resolution: {integrity: sha512-TaEsAki14R7BlgywA05t2PFYfwZiNlGUHyIQHVyloXX3y+Dm0HUITe5YwTkjtuOQuDhuuLotNEad4VtnmE11Uw==}
 
   '@next/eslint-plugin-next@15.2.4':
     resolution: {integrity: sha512-O8ScvKtnxkp8kL9TpJTTKnMqlkZnS+QxwoQnJwPGBxjBbzd6OVVPEJ5/pMNrktSyXQD/chEfzfFzYLM6JANOOQ==}
@@ -3139,8 +3139,8 @@ packages:
     resolution: {integrity: sha512-+EUsqGPLsM+j/zdChZjsnX51g4XrHFOIXwfnCVPGlQk/k5giakcKsuxCObBRu6DSm9opw/O6slWbJdghQM4bBg==}
     engines: {node: '>= 0.6'}
 
-  next@15.2.6:
-    resolution: {integrity: sha512-DIKFctUpZoCq5ok2ztVU+PqhWsbiqM9xNP7rHL2cAp29NQcmDp7Y6JnBBhHRbFt4bCsCZigj6uh+/Gwh2158Wg==}
+  next@15.2.8:
+    resolution: {integrity: sha512-pe2trLKZTdaCuvNER0S9Wp+SP2APf7SfFmyUP9/w1SFA2UqmW0u+IsxCKkiky3n6um7mryaQIlgiDnKrf1ZwIw==}
     engines: {node: ^18.18.0 || ^19.8.0 || >= 20.0.0}
     hasBin: true
     peerDependencies:
@@ -4221,12 +4221,12 @@ snapshots:
 
   '@adobe/css-tools@4.4.4': {}
 
-  '@auth0/nextjs-auth0@4.13.1(next@15.2.6(@babel/core@7.28.4)(react-dom@19.0.1(react@19.0.1))(react@19.0.1))(react-dom@19.0.1(react@19.0.1))(react@19.0.1)':
+  '@auth0/nextjs-auth0@4.13.1(next@15.2.8(@babel/core@7.28.4)(react-dom@19.0.1(react@19.0.1))(react@19.0.1))(react-dom@19.0.1(react@19.0.1))(react@19.0.1)':
     dependencies:
       '@edge-runtime/cookies': 5.0.2
       '@panva/hkdf': 1.2.1
       jose: 6.1.0
-      next: 15.2.6(@babel/core@7.28.4)(react-dom@19.0.1(react@19.0.1))(react@19.0.1)
+      next: 15.2.8(@babel/core@7.28.4)(react-dom@19.0.1(react@19.0.1))(react@19.0.1)
       oauth4webapi: 3.8.2
       openid-client: 6.8.1
       react: 19.0.1
@@ -4907,7 +4907,7 @@ snapshots:
       '@tybys/wasm-util': 0.10.1
     optional: true
 
-  '@next/env@15.2.6': {}
+  '@next/env@15.2.8': {}
 
   '@next/eslint-plugin-next@15.2.4':
     dependencies:
@@ -7770,9 +7770,9 @@ snapshots:
 
   negotiator@0.6.3: {}
 
-  next@15.2.6(@babel/core@7.28.4)(react-dom@19.0.1(react@19.0.1))(react@19.0.1):
+  next@15.2.8(@babel/core@7.28.4)(react-dom@19.0.1(react@19.0.1))(react@19.0.1):
     dependencies:
-      '@next/env': 15.2.6
+      '@next/env': 15.2.8
       '@swc/counter': 0.1.3
       '@swc/helpers': 0.5.15
       busboy: 1.6.0
