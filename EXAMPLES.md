@@ -923,6 +923,76 @@ export default withApiAuthRequired(async function handler(
 By setting `{ refresh: true }`, you instruct the SDK to bypass the standard expiration check and request a new access token from the identity provider using the refresh token (if available and valid). The new token set (including the potentially updated access token, refresh token, and expiration time) will be saved back into the session automatically.
 This will in turn, update the `access_token`, `id_token` and `expires_at` fields of `tokenset` in the session.
 
+### Optimizing Token Refresh in Middleware
+
+When using `getAccessToken()` in middleware for Backend-for-Frontend (BFF) patterns or to ensure fresh tokens for Server Components, avoid calling it on every request. Instead, implement time-based refresh logic to only refresh when the token is nearing expiration.
+
+> [!NOTE]
+> This pattern is designed for **centralized token management** in middleware. For **per-request latency mitigation** (e.g., checking token expiry immediately before a critical API call), see [Mitigating Token Expiration Race Conditions](#mitigating-token-expiration-race-conditions-in-latency-sensitive-operations).
+
+#### Why This Matters
+Calling `getAccessToken()` on every request can:
+- Increase latency by 50-200ms per request
+- Generate unnecessary load on Auth0's token endpoint
+- Risk hitting rate limits at scale
+- Waste computational resources
+
+#### Recommended Pattern
+```typescript
+import { NextRequest, NextResponse } from "next/server";
+
+import { auth0 } from "./lib/auth0";
+
+// Define your refresh threshold (in seconds before expiry)
+const TOKEN_REFRESH_THRESHOLD = 5 * 60; // 5 minutes
+
+export async function middleware(request: NextRequest) {
+  const authRes = await auth0.middleware(request);
+
+  if (request.nextUrl.pathname.startsWith("/auth")) {
+    return authRes;
+  }
+
+  const session = await auth0.getSession(request);
+
+  if (!session) {
+    return NextResponse.redirect(
+      new URL("/auth/login", request.nextUrl.origin)
+    );
+  }
+
+  // Only refresh if token is expiring soon
+  if (session.tokenSet?.expiresAt) {
+    const expiresInSeconds = session.tokenSet.expiresAt - Date.now() / 1000;
+    
+    if (expiresInSeconds < TOKEN_REFRESH_THRESHOLD) {
+      try {
+        await auth0.getAccessToken(request, authRes, { refresh: true });
+        // Token refreshed and persisted via authRes
+      } catch (error) {
+        console.error("Token refresh failed:", error);
+        return NextResponse.redirect(
+          new URL("/auth/logout", request.nextUrl.origin)
+        );
+      }
+    }
+  }
+
+  return authRes;
+}
+
+export const config = {
+  matcher: [
+    // Apply to protected routes only
+    "/dashboard/:path*",
+    "/api/:path*"
+  ]
+};
+```
+
+> [!WARNING]  
+> Server Components cannot persist token updates. Always refresh tokens in middleware (where cookies can be set) rather than in Server Components to ensure refreshed tokens are saved to the session.
+
 ### Multi-Resource Refresh Tokens (MRRT)
 
 Multi-Resource Refresh Tokens allow using a single refresh token to obtain access tokens for multiple audiences, simplifying token management in applications that interact with multiple backend services.
@@ -1063,12 +1133,71 @@ const token = await auth0.getAccessToken({
 
 For applications where an API call might be made very close to the token's expiration time, network latency can cause the token to expire before the API receives it. To prevent this race condition, you can implement a strategy to refresh the token proactively when it's within a certain buffer period of its expiration.
 
+> [!NOTE]
+> This pattern is designed for **per-request latency mitigation** immediately before critical API calls. For **centralized token management** in middleware that benefits all Server Components, see [Optimizing Token Refresh in Middleware](#optimizing-token-refresh-in-middleware).
+
 The general approach is as follows:
 
 1. Before making a sensitive API call, get the session and check the `expiresAt` timestamp from the `tokenSet`.
-2. Determine if the token is within your desired buffer period (e.g., 30-90 seconds) of expiring.
+2. Determine if the token is within your desired buffer period of expiring.
 3. If it is, force a token refresh by calling `auth0.getAccessToken({ refresh: true })`.
 4. Use the newly acquired access token for your API call.
+
+**Example Implementation:**
+
+```typescript
+// app/api/critical-operation/route.ts
+import { auth0 } from "@/lib/auth0";
+import { NextResponse } from "next/server";
+
+// Define your latency buffer (in seconds before expiry)
+const LATENCY_BUFFER = 30; // 30 seconds
+
+export async function POST() {
+  const session = await auth0.getSession();
+  
+  if (!session?.tokenSet?.expiresAt) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const expiresInSeconds = session.tokenSet.expiresAt - Date.now() / 1000;
+  
+  let token = session.tokenSet.accessToken;
+  
+  // Refresh if token expires within the latency buffer
+  if (expiresInSeconds < LATENCY_BUFFER) {
+    const refreshed = await auth0.getAccessToken({ refresh: true });
+    token = refreshed.token;
+  }
+
+  // Make critical API call with fresh token
+  const response = await fetch("https://api.example.com/critical", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ /* ... */ })
+  });
+
+  return NextResponse.json(await response.json());
+}
+```
+
+**Buffer Configuration:**
+
+Adjust the buffer based on your API's typical response time and network conditions:
+
+```typescript
+// Short API calls with fast network
+const LATENCY_BUFFER = 15; // 15 seconds
+
+// Standard configuration
+const LATENCY_BUFFER = 30; // 30 seconds
+
+// Slow APIs or unreliable network
+const LATENCY_BUFFER = 90; // 90 seconds
+```
 
 This ensures that the token you send is guaranteed to be valid for at least the duration of the buffer, accounting for potential network delays.
 
