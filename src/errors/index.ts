@@ -193,6 +193,65 @@ export class AccessTokenForConnectionError extends SdkError {
 }
 
 /**
+ * Error codes for Custom Token Exchange errors.
+ */
+export enum CustomTokenExchangeErrorCode {
+  /**
+   * The subject_token is missing or empty.
+   */
+  MISSING_SUBJECT_TOKEN = "missing_subject_token",
+
+  /**
+   * The subject_token_type is not a valid URI, wrong length, or uses a reserved namespace.
+   */
+  INVALID_SUBJECT_TOKEN_TYPE = "invalid_subject_token_type",
+
+  /**
+   * The actor_token was provided without actor_token_type.
+   */
+  MISSING_ACTOR_TOKEN_TYPE = "missing_actor_token_type",
+
+  /**
+   * The token exchange request failed.
+   */
+  EXCHANGE_FAILED = "exchange_failed"
+}
+
+/**
+ * Error class representing a Custom Token Exchange error.
+ * Extends the `SdkError` class.
+ *
+ * This error is thrown when a Custom Token Exchange operation fails,
+ * such as validation errors or server-side token exchange failures.
+ *
+ * @see {@link https://auth0.com/docs/authenticate/custom-token-exchange Auth0 Custom Token Exchange Documentation}
+ */
+export class CustomTokenExchangeError extends SdkError {
+  /**
+   * The error code associated with the custom token exchange error.
+   */
+  public code: string;
+  /**
+   * The underlying OAuth2 error that caused this error (if applicable).
+   */
+  public cause?: OAuth2Error;
+
+  /**
+   * Constructs a new `CustomTokenExchangeError` instance.
+   *
+   * @param code - The error code.
+   * @param message - The error message.
+   * @param cause - The OAuth2 cause of the error.
+   */
+  constructor(code: string, message: string, cause?: OAuth2Error) {
+    super(message);
+    this.name = "CustomTokenExchangeError";
+    this.code = code;
+    this.cause = cause;
+  }
+}
+
+/**
  * Error codes for DPoP-related errors.
  *
  * These error codes categorize different types of failures that can occur
