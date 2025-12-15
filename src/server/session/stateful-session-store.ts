@@ -116,7 +116,8 @@ export class StatefulSessionStore extends AbstractSessionStore {
     reqCookies: cookies.RequestCookies,
     resCookies: cookies.ResponseCookies,
     session: SessionData,
-    isNew: boolean = false
+    isNew: boolean = false,
+    rawHeaders?: Headers
   ) {
     // check if a session already exists. If so, maintain the existing session ID
     let sessionId = null;
@@ -170,22 +171,33 @@ export class StatefulSessionStore extends AbstractSessionStore {
       this.sessionCookieName !== LEGACY_COOKIE_NAME &&
       reqCookies.has(LEGACY_COOKIE_NAME)
     ) {
-      cookies.deleteCookie(resCookies, LEGACY_COOKIE_NAME, {
-        domain: this.cookieConfig.domain,
-        path: this.cookieConfig.path
-      });
+      cookies.deleteCookie(
+        resCookies,
+        LEGACY_COOKIE_NAME,
+        {
+          domain: this.cookieConfig.domain,
+          path: this.cookieConfig.path
+        },
+        rawHeaders
+      );
     }
   }
 
   async delete(
     reqCookies: cookies.RequestCookies,
-    resCookies: cookies.ResponseCookies
+    resCookies: cookies.ResponseCookies,
+    rawHeaders?: Headers
   ) {
     const cookieValue = reqCookies.get(this.sessionCookieName)?.value;
-    cookies.deleteCookie(resCookies, this.sessionCookieName, {
-      domain: this.cookieConfig.domain,
-      path: this.cookieConfig.path
-    });
+    cookies.deleteCookie(
+      resCookies,
+      this.sessionCookieName,
+      {
+        domain: this.cookieConfig.domain,
+        path: this.cookieConfig.path
+      },
+      rawHeaders
+    );
 
     if (!cookieValue) {
       return;
