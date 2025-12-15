@@ -288,6 +288,7 @@ export const auth0 = new Auth0Client({
 - `touchSession` method was removed. The middleware enables rolling sessions by default and can be configured via the [Session configuration section in the Examples guide](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#session-configuration).
 - `getAccessToken` can now be called in React Server Components. For examples on how to use `getAccessToken` in various environments (browser, App Router, Pages Router, Middleware), refer to the [Getting an access token section in the Examples guide](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#getting-an-access-token).
 - By default, v4 will use [OpenID Connect's RP-Initiated Logout](https://auth0.com/docs/authenticate/login/logout/log-users-out-of-auth0) if it's enabled on the tenant. Otherwise, it will fallback to the `/v2/logout` endpoint.
+- The v4 `/auth/profile` profile route returns a 401 Unauthorized error when unauthenticated. If you would like to replicate the v3 behaviour where the profile route returns a 204 response, enable `noContentProfileResponseWhenUnauthenticated` in [Auth0ClientOptions](https://auth0.github.io/nextjs-auth0/interfaces/types.Auth0ClientOptions.html#nocontentprofileresponsewhenunauthenticated). This prevents the SDK from automatically retrying the error when the user is logged out.
 
 ## Customizing Auth Handlers
 
