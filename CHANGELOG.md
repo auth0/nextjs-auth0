@@ -1,5 +1,11 @@
 # Change Log
 
+## [v4.14.0](https://github.com/auth0/nextjs-auth0/tree/v4.14.0) (2025-12-15)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.13.3...v4.14.0)
+
+**Added**
+- feat: Custom Token Exchange [\#2453](https://github.com/auth0/nextjs-auth0/pull/2453) ([tusharpandey13](https://github.com/tusharpandey13))
+
 ## [v4.13.3](https://github.com/auth0/nextjs-auth0/tree/v4.13.3) (2025-12-12)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.13.2...v4.13.3)
 
