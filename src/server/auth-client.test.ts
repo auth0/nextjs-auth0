@@ -956,6 +956,82 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(authClient.handleBackChannelLogout).toHaveBeenCalled();
       });
 
+      it("should call the profile handler when custom route is configured via routes option", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          fetch: getMockAuthorizationServer(),
+
+          routes: {
+            ...getDefaultRoutes(),
+            profile: "/custom-profile"
+          }
+        });
+        const request = new NextRequest(
+          new URL("/custom-profile", DEFAULT.appBaseUrl),
+          {
+            method: "GET"
+          }
+        );
+
+        authClient.handleProfile = vi.fn();
+        await authClient.handler(request);
+        expect(authClient.handleProfile).toHaveBeenCalled();
+      });
+
+      it("should call the accessToken handler when custom route is configured via routes option", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          fetch: getMockAuthorizationServer(),
+
+          routes: {
+            ...getDefaultRoutes(),
+            accessToken: "/custom-access-token"
+          }
+        });
+        const request = new NextRequest(
+          new URL("/custom-access-token", DEFAULT.appBaseUrl),
+          {
+            method: "GET"
+          }
+        );
+
+        authClient.handleAccessToken = vi.fn();
+        await authClient.handler(request);
+        expect(authClient.handleAccessToken).toHaveBeenCalled();
+      });
+
       it("should call the profile handler when the configured route is called", async () => {
         process.env.NEXT_PUBLIC_PROFILE_ROUTE = "/custom-profile";
 
