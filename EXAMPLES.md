@@ -117,6 +117,15 @@
   - [On the server (App Router)](#on-the-server-app-router-3)
   - [On the server (Pages Router)](#on-the-server-pages-router-3)
   - [Middleware](#middleware-3)
+- [Custom Token Exchange](#custom-token-exchange)
+  - [When to Use](#when-to-use)
+  - [Basic Usage](#basic-usage)
+  - [With Organization](#with-organization)
+  - [With Actor Token (Delegation)](#with-actor-token-delegation)
+  - [Error Handling](#error-handling-2)
+  - [Token Type Requirements](#token-type-requirements)
+  - [Limitations](#limitations)
+  - [DPoP Support](#dpop-support)
 - [Customizing Auth Handlers](#customizing-auth-handlers)
   - [Run custom code before Auth Handlers](#run-custom-code-before-auth-handlers)
   - [Run code after callback](#run-code-after-callback)
@@ -1340,7 +1349,7 @@ Handle DPoP-specific errors gracefully with proper error detection and response 
 Implement comprehensive error handling for DPoP configuration and runtime issues:
 
 ```typescript
-import { DPoPError, DPoPErrorCode } from "@auth0/nextjs-auth0/server";
+import { DPoPError, DPoPErrorCode } from "@auth0/nextjs-auth0/errors";
 
 import { auth0 } from "@/lib/auth0";
 
@@ -2749,6 +2758,151 @@ export async function middleware(request: NextRequest) {
   // the headers from the auth middleware should always be returned
   return resWithCombinedHeaders;
 }
+```
+
+## Custom Token Exchange
+
+Custom Token Exchange (CTE) allows you to exchange external tokens (from legacy systems, third-party identity providers, or custom token services) for Auth0 access tokens. This implements [RFC 8693 (OAuth 2.0 Token Exchange)](https://datatracker.ietf.org/doc/html/rfc8693).
+
+### When to Use
+
+- **Legacy System Migration**: Exchange tokens from legacy auth systems for Auth0 tokens
+- **Third-Party Federation**: Convert tokens from external identity providers
+- **Token Mediation**: Bridge between different token ecosystems in your architecture
+
+### Basic Usage
+
+```ts
+import { auth0 } from "@/lib/auth0";
+
+export async function exchangeExternalToken(legacyToken: string) {
+  try {
+    const result = await auth0.customTokenExchange({
+      subjectToken: legacyToken,
+      subjectTokenType: "urn:acme:legacy-token",
+      audience: "https://api.example.com"
+    });
+
+    return {
+      accessToken: result.accessToken,
+      expiresIn: result.expiresIn,
+      tokenType: result.tokenType
+    };
+  } catch (error) {
+    if (error instanceof CustomTokenExchangeError) {
+      console.error(`Exchange failed: ${error.code}`, error.message);
+    }
+    throw error;
+  }
+}
+```
+
+### With Organization
+
+When exchanging tokens for organization-scoped access:
+
+```ts
+const result = await auth0.customTokenExchange({
+  subjectToken: externalToken,
+  subjectTokenType: "urn:partner:sso-token",
+  organization: "org_abc123",
+  scope: "read:data write:data"
+});
+```
+
+### With Actor Token (Delegation)
+
+For delegation scenarios where a service acts on behalf of a user:
+
+```ts
+const result = await auth0.customTokenExchange({
+  subjectToken: userToken,
+  subjectTokenType: "urn:acme:user-token",
+  actorToken: serviceToken,
+  actorTokenType: "urn:acme:service-token",
+  audience: "https://downstream-api.example.com"
+});
+```
+
+### Error Handling
+
+```ts
+import {
+  CustomTokenExchangeError,
+  CustomTokenExchangeErrorCode
+} from "@auth0/nextjs-auth0/errors";
+
+try {
+  const result = await auth0.customTokenExchange({
+    subjectToken: token,
+    subjectTokenType: "urn:acme:token"
+  });
+} catch (error) {
+  if (error instanceof CustomTokenExchangeError) {
+    switch (error.code) {
+      case CustomTokenExchangeErrorCode.MISSING_SUBJECT_TOKEN:
+        // Handle missing subject token
+        break;
+      case CustomTokenExchangeErrorCode.INVALID_SUBJECT_TOKEN_TYPE:
+        // Handle invalid token type format
+        break;
+      case CustomTokenExchangeErrorCode.MISSING_ACTOR_TOKEN_TYPE:
+        // Handle missing actor token type when actor token provided
+        break;
+      case CustomTokenExchangeErrorCode.EXCHANGE_FAILED:
+        // Handle server-side exchange failure
+        console.error("Exchange failed:", error.cause);
+        break;
+    }
+  }
+}
+```
+
+### Token Type Requirements
+
+The `subjectTokenType` (and `actorTokenType` if used) must:
+
+- Be 10-100 characters in length (per [Auth0 CTE Profiles Management API](https://auth0.com/docs/api/management/v2#!/Token_Exchange_Profiles))
+- Be a valid URI (starting with `urn:` or `https://` or `http://`)
+
+Valid examples:
+
+- `urn:acme:legacy-token`
+- `urn:partner:sso-token:v1`
+- `https://example.com/token-types/external`
+
+> **Note**: Reserved namespaces (e.g., `urn:ietf:`, `urn:auth0:`) are validated by Auth0 when creating CTE profiles via the Management API.
+
+### Limitations
+
+> [!IMPORTANT]
+> Custom Token Exchange has specific constraints you should be aware of (see [Auth0 Custom Token Exchange documentation](https://auth0.com/docs/authenticate/custom-token-exchange) for details):
+
+- **Server-side only**: Requires `client_secret`, cannot be used in browser
+- **No Auth0 session created**: Returns tokens only, does not establish an Auth0 session
+- **No token caching**: Tokens are not stored in the user's session; each call performs a new exchange
+- **MFA not supported**: Exchange fails if the user's policy requires MFA
+- **Rate limiting**: Subject to Auth0's token exchange rate limits
+
+### DPoP Support
+
+When DPoP is enabled in your Auth0Client configuration, custom token exchange automatically uses DPoP-bound tokens:
+
+```ts
+const auth0 = new Auth0Client({
+  // ... other config
+  dPoPOptions: {
+    enabled: true
+  }
+});
+
+// DPoP proof will be automatically included
+const result = await auth0.customTokenExchange({
+  subjectToken: externalToken,
+  subjectTokenType: "urn:acme:external-token"
+});
+
+// result.tokenType will be "DPoP"
 ```
 
 ## Customizing Auth Handlers

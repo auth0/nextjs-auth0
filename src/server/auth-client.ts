@@ -17,6 +17,8 @@ import {
   BackchannelLogoutError,
   ConnectAccountError,
   ConnectAccountErrorCodes,
+  CustomTokenExchangeError,
+  CustomTokenExchangeErrorCode,
   DiscoveryError,
   DPoPError,
   DPoPErrorCode,
@@ -41,7 +43,10 @@ import {
   BackchannelAuthenticationOptions,
   BackchannelAuthenticationResponse,
   ConnectionTokenSet,
+  CustomTokenExchangeOptions,
+  CustomTokenExchangeResponse,
   GetAccessTokenOptions,
+  GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE,
   LogoutStrategy,
   LogoutToken,
   ProxyOptions,
@@ -1758,6 +1763,235 @@ export class AuthClient {
     }
 
     return [null, connectionTokenSet] as [null, ConnectionTokenSet];
+  }
+
+  /**
+   * Validates that subject_token_type is a valid URI.
+   *
+   * Validation rules:
+   * - Length: 10-100 characters
+   * - Format: Valid URL or URN
+   *
+   * Note: Reserved namespace validation is handled by Auth0 when creating CTE profiles.
+   *
+   * @param type - The subject_token_type to validate
+   * @returns CustomTokenExchangeError if invalid, null if valid
+   */
+  private validateSubjectTokenType(
+    type: string
+  ): CustomTokenExchangeError | null {
+    // 1. Length validation (minLength: 10, maxLength: 100)
+    if (type.length < 10) {
+      return new CustomTokenExchangeError(
+        CustomTokenExchangeErrorCode.INVALID_SUBJECT_TOKEN_TYPE,
+        `Invalid subject_token_type: must be at least 10 characters. Received ${type.length} characters.`
+      );
+    }
+    if (type.length > 100) {
+      return new CustomTokenExchangeError(
+        CustomTokenExchangeErrorCode.INVALID_SUBJECT_TOKEN_TYPE,
+        `Invalid subject_token_type: must be at most 100 characters. Received ${type.length} characters.`
+      );
+    }
+
+    // 2. Check valid URI (URL or URN format)
+    let isValidUrl = false;
+    try {
+      new URL(type);
+      isValidUrl = true;
+    } catch {
+      // Not a valid URL, check URN format next
+    }
+
+    // URN format: urn:<nid>:<nss> where nid is alphanumeric (can contain hyphens)
+    const isValidUrn =
+      /^urn:[a-z0-9][a-z0-9-]{0,31}:[a-z0-9()+,\-.:=@;$_!*'%/?#]+$/i.test(type);
+
+    if (!isValidUrl && !isValidUrn) {
+      return new CustomTokenExchangeError(
+        CustomTokenExchangeErrorCode.INVALID_SUBJECT_TOKEN_TYPE,
+        `Invalid subject_token_type: must be a valid URI (URL or URN format). Received: "${type}"`
+      );
+    }
+
+    return null;
+  }
+
+  /**
+   * Exchanges an external token for Auth0 tokens via Custom Token Exchange (RFC 8693).
+   *
+   * This method allows you to exchange a token from an external identity provider
+   * for Auth0 tokens without a browser redirect. The external token is validated
+   * by your Auth0 Action with the Custom Token Exchange trigger.
+   *
+   * **Note**: CTE tokens are not cached per RWA SDK spec. The caller is responsible
+   * for token storage if needed.
+   *
+   * @param options - The custom token exchange options
+   * @returns A tuple of [error, null] or [null, response]
+   *
+   * @example
+   * ```typescript
+   * const [error, response] = await authClient.customTokenExchange({
+   *   subjectToken: legacyIdToken,
+   *   subjectTokenType: 'urn:acme:legacy-token',
+   *   audience: 'https://api.example.com',
+   *   scope: 'read:data'
+   * });
+   * ```
+   *
+   * @see {@link https://auth0.com/docs/authenticate/custom-token-exchange Auth0 CTE Documentation}
+   * @see {@link https://datatracker.ietf.org/doc/html/rfc8693 RFC 8693 Token Exchange}
+   */
+  async customTokenExchange(
+    options: CustomTokenExchangeOptions
+  ): Promise<
+    [CustomTokenExchangeError, null] | [null, CustomTokenExchangeResponse]
+  > {
+    // Note: CTE tokens are not cached per RWA SDK spec.
+    // Caller is responsible for token storage if needed.
+
+    // Validate subjectToken is non-empty
+    if (!options.subjectToken || options.subjectToken.trim() === "") {
+      return [
+        new CustomTokenExchangeError(
+          CustomTokenExchangeErrorCode.MISSING_SUBJECT_TOKEN,
+          "The subject_token is required and cannot be empty."
+        ),
+        null
+      ];
+    }
+
+    // Validate subjectTokenType
+    const tokenTypeError = this.validateSubjectTokenType(
+      options.subjectTokenType
+    );
+    if (tokenTypeError) {
+      return [tokenTypeError, null];
+    }
+
+    // Validate actor token pair (RFC 8693: actor_token requires actor_token_type)
+    if (options.actorToken && !options.actorTokenType) {
+      return [
+        new CustomTokenExchangeError(
+          CustomTokenExchangeErrorCode.MISSING_ACTOR_TOKEN_TYPE,
+          "The actor_token_type is required when actor_token is provided."
+        ),
+        null
+      ];
+    }
+
+    // Discover authorization server metadata
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      return [
+        new CustomTokenExchangeError(
+          CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
+          "Failed to discover authorization server metadata.",
+          new OAuth2Error({
+            code: "discovery_error",
+            message: discoveryError.message
+          })
+        ),
+        null
+      ];
+    }
+
+    // Merge scopes: user-provided + SDK defaults
+    const finalScope = mergeScopes(DEFAULT_SCOPES, options.scope);
+
+    // Build request params
+    const params = new URLSearchParams();
+    params.append("subject_token", options.subjectToken);
+    params.append("subject_token_type", options.subjectTokenType);
+    params.append("scope", finalScope);
+
+    if (options.audience) {
+      params.append("audience", options.audience);
+    }
+
+    if (options.organization) {
+      params.append("organization", options.organization);
+    }
+
+    // Add actor token if provided (both must be present due to validation above)
+    if (options.actorToken && options.actorTokenType) {
+      params.append("actor_token", options.actorToken);
+      params.append("actor_token_type", options.actorTokenType);
+    }
+
+    // Add additionalParameters if present
+    if (options.additionalParameters) {
+      for (const [key, value] of Object.entries(options.additionalParameters)) {
+        if (value !== undefined && value !== null) {
+          params.append(key, String(value));
+        }
+      }
+    }
+
+    // Create DPoP handle ONCE outside the closure so it persists across retries.
+    // This is required by RFC 9449: the handle must learn and reuse the nonce from
+    // the DPoP-Nonce header across multiple attempts.
+    const dpopHandle =
+      this.useDPoP && this.dpopKeyPair
+        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+        : undefined;
+
+    // Execute token exchange with DPoP retry support
+    const processTokenExchange = async () => {
+      const httpResponse = await oauth.genericTokenEndpointRequest(
+        authorizationServerMetadata,
+        this.clientMetadata,
+        await this.getClientAuth(),
+        GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE,
+        params,
+        {
+          [oauth.customFetch]: this.fetch,
+          [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+          ...(dpopHandle && { DPoP: dpopHandle })
+        }
+      );
+      return oauth.processGenericTokenEndpointResponse(
+        authorizationServerMetadata,
+        this.clientMetadata,
+        httpResponse
+      );
+    };
+
+    let tokenEndpointResponse: oauth.TokenEndpointResponse;
+    try {
+      tokenEndpointResponse = await withDPoPNonceRetry(processTokenExchange, {
+        isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
+        ...this.dpopOptions?.retry
+      });
+    } catch (err: any) {
+      return [
+        new CustomTokenExchangeError(
+          CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
+          "There was an error trying to exchange the token.",
+          new OAuth2Error({
+            code: err.error ?? "unknown_error",
+            message: err.error_description ?? err.message
+          })
+        ),
+        null
+      ];
+    }
+
+    // Map response: snake_case → camelCase
+    return [
+      null,
+      {
+        accessToken: tokenEndpointResponse.access_token,
+        idToken: tokenEndpointResponse.id_token,
+        refreshToken: tokenEndpointResponse.refresh_token,
+        tokenType: tokenEndpointResponse.token_type ?? "Bearer",
+        expiresIn: Number(tokenEndpointResponse.expires_in),
+        scope: tokenEndpointResponse.scope
+      }
+    ];
   }
 
   /**
