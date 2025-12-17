@@ -505,6 +505,159 @@ export class Auth0Client {
     return this.authClient.handler.bind(this.authClient)(toNextRequest(req));
   }
 
+  private reconstructPathname(segments: string[] | string | undefined): string {
+    if (!segments) return "/";
+    const parts = Array.isArray(segments) ? segments : [segments];
+    return "/api/" + parts.filter(Boolean).join("/");
+  }
+
+  private async streamResponseBody(
+    source: ReadableStream,
+    destination: PagesRouterResponse
+  ): Promise<void> {
+    const reader = source.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      destination.write(value);
+    }
+  }
+
+  /**
+   * apiRoute handles authentication routes in both App Router and Pages Router.
+   *
+   * @example App Router
+   * ```typescript
+   * // app/api/auth/[...auth0]/route.ts
+   * import { auth0 } from "@/lib/auth0";
+   *
+   * export const GET = auth0.apiRoute;
+   * export const POST = auth0.apiRoute;
+   * ```
+   *
+   * @example Pages Router
+   * ```typescript
+   * // pages/api/auth/[...auth0].ts
+   * import { auth0 } from "@/lib/auth0";
+   *
+   * export default auth0.apiRoute;
+   * ```
+   */
+  apiRoute(
+    req: NextRequest | Request,
+    context: { params: Promise<{ auth0?: string[] }> | { auth0?: string[] } }
+  ): Promise<NextResponse>;
+  apiRoute(
+    req: PagesRouterRequest,
+    res: PagesRouterResponse
+  ): Promise<void>;
+  async apiRoute(
+    req: NextRequest | Request | PagesRouterRequest,
+    contextOrRes:
+      | { params: Promise<{ auth0?: string[] }> | { auth0?: string[] } }
+      | PagesRouterResponse
+  ): Promise<NextResponse | void> {
+    // Check if this is a Pages Router call by checking if second arg is a response object
+    if (this.isPagesRouterResponse(contextOrRes)) {
+      // Pages Router path
+      const res = contextOrRes as PagesRouterResponse;
+      const pathname = this.reconstructPathname((req as any).query?.auth0);
+
+      const protocol = (req as any).headers?.["x-forwarded-proto"] || "http";
+      const host = (req as any).headers?.host || "localhost:3000";
+      const url = new URL(pathname, `${protocol}://${host}`);
+
+      const originalUrl = (req as any).url as string | undefined;
+      if (originalUrl?.includes("?")) {
+        url.search = originalUrl.substring(originalUrl.indexOf("?"));
+      }
+
+      const headers = new Headers();
+      for (const [key, value] of Object.entries((req as any).headers || {})) {
+        if (value) headers.set(key, String(value));
+      }
+
+      const nextReq = new NextRequest(url, {
+        method: (req as any).method || "GET",
+        headers,
+        body: (req as any).body
+      });
+
+      const nextRes = await this.authClient.apiHandler(nextReq);
+
+      res.statusCode = nextRes.status;
+
+      for (const [key, value] of nextRes.headers.entries()) {
+        if (key.toLowerCase() === "set-cookie") {
+          const existing = res.getHeader("set-cookie");
+          const cookies = existing
+            ? Array.isArray(existing) ? existing : [String(existing)]
+            : [];
+          res.setHeader("set-cookie", [...cookies, value]);
+        } else {
+          res.setHeader(key, value);
+        }
+      }
+
+      if (nextRes.body) {
+        await this.streamResponseBody(nextRes.body, res);
+      }
+      res.end();
+    } else {
+      // App Router path
+      const context = contextOrRes as { params: Promise<{ auth0?: string[] }> | { auth0?: string[] } };
+      const nextReq = toNextRequest(req as NextRequest | Request);
+      const resolvedParams = await Promise.resolve(context.params);
+      const pathname = this.reconstructPathname(resolvedParams.auth0);
+
+      const url = new URL(pathname, nextReq.url);
+      url.search = nextReq.nextUrl.search;
+
+      const modifiedRequest = new NextRequest(url, {
+        method: nextReq.method,
+        headers: nextReq.headers,
+        body: nextReq.body
+      });
+
+      for (const cookie of nextReq.cookies.getAll()) {
+        modifiedRequest.cookies.set(cookie.name, cookie.value);
+      }
+
+      return this.authClient.apiHandler(modifiedRequest);
+    }
+  }
+
+  private isPagesRouterResponse(
+    arg: any
+  ): arg is PagesRouterResponse {
+    // Check if it has response-like properties (statusCode, setHeader, end)
+    return (
+      arg &&
+      typeof arg === "object" &&
+      ("statusCode" in arg || "setHeader" in arg || "end" in arg)
+    );
+  }
+
+  /**
+   * @deprecated Use `apiRoute` instead. This method is kept for backward compatibility.
+   *
+   * apiRouteHandler handles authentication routes in Pages Router catch-all routes.
+   *
+   * @example
+   * ```typescript
+   * // pages/api/auth/[...auth0].ts
+   * import { auth0 } from "@/lib/auth0";
+   *
+   * export default auth0.apiRouteHandler;
+   * ```
+   */
+  apiRouteHandler = (
+    req: PagesRouterRequest,
+    res: PagesRouterResponse
+  ): Promise<void> => {
+    return this.apiRoute(req, res);
+  };
+
   /**
    * getSession returns the session data for the current request.
    *

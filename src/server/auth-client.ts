@@ -382,7 +382,10 @@ export class AuthClient {
     }
   }
 
-  async handler(req: NextRequest): Promise<NextResponse> {
+  async #handler(
+    req: NextRequest,
+    fallback: (req: NextRequest) => Promise<NextResponse>
+  ): Promise<NextResponse> {
     let { pathname } = req.nextUrl;
 
     // Next.js does NOT automatically strip basePath from pathname in middleware.
@@ -427,6 +430,12 @@ export class AuthClient {
     } else if (sanitizedPathname.startsWith("/my-org/")) {
       return this.handleMyOrg(req);
     } else {
+      return fallback(req);
+    }
+  }
+
+  async handler(req: NextRequest): Promise<NextResponse> {
+    return this.#handler(req, async (req) => {
       // no auth handler found, simply touch the sessions
       // TODO: this should only happen if rolling sessions are enabled. Also, we should
       // try to avoid reading from the DB (for stateful sessions) on every request if possible.
@@ -443,7 +452,17 @@ export class AuthClient {
       }
 
       return res;
-    }
+    });
+  }
+
+  async apiHandler(req: NextRequest): Promise<NextResponse> {
+    return this.#handler(req, async () => {
+      // When used in API routes, no route matched - return 404
+      return NextResponse.json(
+        { error: "Not Found" },
+        { status: 404 }
+      );
+    });
   }
 
   async startInteractiveLogin(

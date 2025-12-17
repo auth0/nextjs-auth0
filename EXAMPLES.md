@@ -23,6 +23,12 @@
 - [Protect an API Route](#protect-an-api-route)
   - [Page Router](#page-router-1)
   - [App Router](#app-router-1)
+- [Using API Routes Instead of Middleware](#using-api-routes-instead-of-middleware)
+  - [Why Use API Routes?](#why-use-api-routes)
+  - [Setup](#setup)
+  - [Behavior Differences](#behavior-differences)
+  - [Example: Complete Setup](#example-complete-setup)
+  - [Custom Route Paths](#custom-route-paths)
 - [Accessing the idToken](#accessing-the-idtoken)
 - [Updating the session](#updating-the-session)
   - [On the server (App Router)](#on-the-server-app-router-1)
@@ -524,6 +530,141 @@ export default withPageAuthRequired(function Products() {
   return <div>{data.protected}</div>;
 });
 ```
+
+## Using API Routes Instead of Middleware
+
+By default, the SDK mounts authentication routes (`/auth/login`, `/auth/logout`, `/auth/callback`, etc.) through middleware. However, you can choose to mount these routes using Next.js API routes instead and omit our middleware altogether.
+
+### Why Use API Routes?
+
+- **Recommended by Next.js**: Next.js now recommends using API routes for route handling instead of middleware
+- **Simpler Deployment**: Avoid potential middleware edge cases in certain hosting environments
+- **Explicit Routing**: More control over which routes are handled by the SDK
+
+### Setup
+
+**1. Update your Auth0 client configuration:**
+
+```ts
+// lib/auth0.ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+export const auth0 = new Auth0Client({
+  routes: {
+    login: "/api/auth/login",
+    logout: "/api/auth/logout",
+    callback: "/api/auth/callback"
+  }
+});
+```
+
+**2. Create a catch-all API route:**
+
+#### App Router
+
+Create `app/api/[...auth0]/route.ts`:
+
+```ts
+import { auth0 } from "@/lib/auth0";
+
+export const GET = auth0.apiRoute;
+export const POST = auth0.apiRoute;
+```
+
+> **Note:** The catch-all is at `/api/[...auth0]` (not `/api/auth/[...auth0]`) so that requests to `/api/auth/login` are captured as `["auth", "login"]` and reconstructed as `/auth/login` to match the default route configuration.
+
+#### Pages Router
+
+Create `pages/api/auth/[...auth0].ts`:
+
+```ts
+import { auth0 } from "@/lib/auth0";
+
+export default auth0.apiRouteHandler;
+```
+
+**3. Remove middleware/proxy (optional):**
+
+When using API route mode, you can remove `middleware.ts` or `proxy.ts` if you were only using it for authentication. If you have other middleware logic, keep the file but don't call `auth0.middleware()`.
+
+### Behavior Differences
+
+| Feature | Middleware Mode | API Route Mode |
+|---------|----------------|----------------|
+| Session Rolling | Automatic on every request | Only when auth routes are called |
+| Route Mounting | Via middleware/proxy | Via catch-all API route |
+| Setup Complexity | Single file | Two files (config + route) |
+| Next.js Alignment | Works but not recommended | Recommended approach |
+
+### Example: Complete Setup
+
+Here's a complete example of an app using API route mode:
+
+```ts
+// lib/auth0.ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+export const auth0 = new Auth0Client({
+  routes: {
+    login: "/api/auth/login",
+    logout: "/api/auth/logout",
+    callback: "/api/auth/callback"
+  },
+  // Other configuration options work the same
+  authorizationParameters: {
+    scope: "openid profile email offline_access"
+  }
+});
+```
+
+```ts
+// app/api/[...auth0]/route.ts
+import { auth0 } from "@/lib/auth0";
+
+export const GET = auth0.apiRoute;
+export const POST = auth0.apiRoute;
+```
+
+```tsx
+// app/page.tsx
+import { auth0 } from "@/lib/auth0";
+
+export default async function Home() {
+  const session = await auth0.getSession();
+
+  if (!session) {
+    return (
+      <main>
+        <a href="/auth/login">Log in</a>
+      </main>
+    );
+  }
+
+  return (
+    <main>
+      <h1>Welcome, {session.user.name}!</h1>
+      <a href="/auth/logout">Log out</a>
+    </main>
+  );
+}
+```
+
+### Custom Route Paths
+
+Custom route paths work the same way in API route mode:
+
+```ts
+// lib/auth0.ts
+export const auth0 = new Auth0Client({
+  routes: {
+    login: "/api/custom-login",
+    logout: "/api/custom-logout"
+  }
+});
+```
+
+> [!NOTE]
+> All other SDK features (session management, token refresh, hooks, etc.) work identically in both modes. Only the route mounting mechanism changes.
 
 ## Accessing the idToken
 
