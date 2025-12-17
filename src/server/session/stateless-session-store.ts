@@ -15,6 +15,7 @@ import {
   LegacySessionPayload,
   normalizeStatelessSession
 } from "./normalize-session.js";
+import { Auth0RequestCookies } from "../abstraction/auth0-request-cookies.js";
 
 interface StatelessSessionStoreOptions {
   secret: string;
@@ -45,7 +46,7 @@ export class StatelessSessionStore extends AbstractSessionStore {
     });
   }
 
-  async get(reqCookies: cookies.RequestCookies) {
+  async get(reqCookies: Auth0RequestCookies) {
     const cookieValue =
       cookies.getChunkedCookie(this.sessionCookieName, reqCookies) ??
       cookies.getChunkedCookie(LEGACY_COOKIE_NAME, reqCookies, true);
@@ -97,7 +98,7 @@ export class StatelessSessionStore extends AbstractSessionStore {
    * save adds the encrypted session cookie as a `Set-Cookie` header.
    */
   async set(
-    reqCookies: cookies.RequestCookies,
+    reqCookies: Auth0RequestCookies,
     resCookies: cookies.ResponseCookies,
     session: SessionData
   ) {
@@ -154,7 +155,7 @@ export class StatelessSessionStore extends AbstractSessionStore {
   }
 
   async delete(
-    reqCookies: cookies.RequestCookies,
+    reqCookies: Auth0RequestCookies,
     resCookies: cookies.ResponseCookies
   ) {
     const deleteOptions = {
@@ -176,7 +177,7 @@ export class StatelessSessionStore extends AbstractSessionStore {
   }
 
   private async storeInCookie(
-    reqCookies: cookies.RequestCookies,
+    reqCookies: Auth0RequestCookies,
     resCookies: cookies.ResponseCookies,
     session: JWTPayload,
     cookieName: string,
@@ -219,7 +220,7 @@ export class StatelessSessionStore extends AbstractSessionStore {
   }
 
   private getConnectionTokenSetsCookies(
-    cookies: cookies.RequestCookies | cookies.ResponseCookies
+    cookies: Auth0RequestCookies
   ) {
     return cookies
       .getAll()

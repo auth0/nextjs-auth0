@@ -2,6 +2,7 @@ import type * as jose from "jose";
 
 import { RESPONSE_TYPES } from "../types/index.js";
 import * as cookies from "./cookies.js";
+import { Auth0RequestCookies } from "./abstraction/auth0-request-cookies.js";
 
 const TRANSACTION_COOKIE_PREFIX = "__txn_";
 
@@ -170,7 +171,7 @@ export class TransactionStore {
     );
   }
 
-  async get(reqCookies: cookies.RequestCookies, state: string) {
+  async get(reqCookies: Auth0RequestCookies, state: string) {
     const cookieName = this.getTransactionCookieName(state);
     const cookieValue = reqCookies.get(cookieName)?.value;
 
@@ -192,7 +193,7 @@ export class TransactionStore {
    * Deletes all transaction cookies based on the configured prefix.
    */
   async deleteAll(
-    reqCookies: cookies.RequestCookies,
+    reqCookies: Auth0RequestCookies,
     resCookies: cookies.ResponseCookies
   ) {
     const txnPrefix = this.getCookiePrefix();

@@ -1,6 +1,5 @@
-import { NextRequest } from "next/server.js";
-
 import { ProxyOptions } from "../types/index.js";
+import { Auth0Request } from "../server/abstraction/auth0-request.js";
 
 /**
  * A default allow-list of headers to forward.
@@ -64,13 +63,13 @@ const HOP_BY_HOP_HEADERS: Set<string> = new Set([
  * 1. Uses a strict **allow-list** (DEFAULT_HEADER_ALLOW_LIST).
  * 2. Strips all hop-by-hop headers as defined by https://datatracker.ietf.org/doc/html/rfc2616#section-13.5.1.
  *
- * @param request The incoming NextRequest object.
+ * @param request The incoming Auth0Request object.
  * @returns A WHATWG Headers object suitable for `fetch`.
  */
-export function buildForwardedRequestHeaders(request: NextRequest): Headers {
+export function buildForwardedRequestHeaders(request: Auth0Request): Headers {
   const forwardedHeaders = new Headers();
 
-  request.headers.forEach((value, key) => {
+  request.getHeaders().forEach((value, key) => {
     const lowerKey = key.toLowerCase();
 
     // Forward if:
@@ -131,7 +130,7 @@ export function buildForwardedResponseHeaders(response: Response): Headers {
  * @returns A URL object pointing to the resolved target endpoint with forwarded query parameters.
  */
 export function transformTargetUrl(
-  req: NextRequest,
+  req: Auth0Request,
   options: ProxyOptions
 ): URL {
   const targetBaseUrl = options.targetBaseUrl;
@@ -139,9 +138,10 @@ export function transformTargetUrl(
   // Extract the path segment that comes AFTER the proxyPath
   // If proxyPath is "/me" and pathname is "/me/v1/some-endpoint",
   // the remaining path is "/v1/some-endpoint"
-  let remainingPath = req.nextUrl.pathname.startsWith(options.proxyPath)
-    ? req.nextUrl.pathname.slice(options.proxyPath.length)
-    : req.nextUrl.pathname;
+  const requestUrl = req.getUrl();
+  let remainingPath = requestUrl.pathname.startsWith(options.proxyPath)
+    ? requestUrl.pathname.slice(options.proxyPath.length)
+    : requestUrl.pathname;
 
   // Ensure proper path joining by handling the slash
   // If remainingPath is empty or doesn't start with /, handle accordingly
@@ -191,7 +191,7 @@ export function transformTargetUrl(
   // Build the final URL with the de-duplicated path
   const targetUrl = new URL(baseUrl.origin + finalPath);
 
-  req.nextUrl.searchParams.forEach((value, key) => {
+  requestUrl.searchParams.forEach((value, key) => {
     targetUrl.searchParams.set(key, value);
   });
 

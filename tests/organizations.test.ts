@@ -5,6 +5,7 @@ import { AuthClient } from "../src/server/auth-client.js";
 import { StatelessSessionStore } from "../src/server/session/stateless-session-store.js";
 import { TransactionStore } from "../src/server/transaction-store.js";
 import { getDefaultRoutes } from "../src/test/defaults.js";
+import { Auth0NextRequest } from "../src/server/abstraction/auth0-next-request.js";
 
 const DEFAULT = {
   domain: "test.auth0.com",
@@ -116,7 +117,7 @@ describe("Organizations Feature", () => {
         }
       );
 
-      const response = await authClient.handleLogin(request);
+      const response = await authClient.handleLogin(new Auth0NextRequest(request));
 
       expect(response.status).toBe(307); // Redirect to Auth0
       expect(response.headers.get("location")).toContain(
@@ -132,7 +133,7 @@ describe("Organizations Feature", () => {
         }
       );
 
-      const response = await authClient.handleLogin(request);
+      const response = await authClient.handleLogin(new Auth0NextRequest(request));
 
       expect(response.status).toBe(307);
       expect(response.headers.get("location")).toContain(
@@ -148,7 +149,7 @@ describe("Organizations Feature", () => {
         }
       );
 
-      const response = await authClient.handleLogin(request);
+      const response = await authClient.handleLogin(new Auth0NextRequest(request));
 
       expect(response.status).toBe(307); // Redirect to Auth0
       const location = response.headers.get("location");
@@ -163,7 +164,7 @@ describe("Organizations Feature", () => {
         }
       );
 
-      const response = await authClient.handleLogin(request);
+      const response = await authClient.handleLogin(new Auth0NextRequest(request));
 
       expect(response.status).toBe(307); // Redirect to Auth0
       const location = response.headers.get("location");
@@ -179,7 +180,7 @@ describe("Organizations Feature", () => {
         }
       );
 
-      const response = await authClient.handleLogin(request);
+      const response = await authClient.handleLogin(new Auth0NextRequest(request));
 
       expect(response.status).toBe(307); // Redirect to Auth0
       const location = response.headers.get("location");
@@ -191,7 +192,7 @@ describe("Organizations Feature", () => {
         method: "GET"
       });
 
-      const response = await authClient.handleLogin(request);
+      const response = await authClient.handleLogin(new Auth0NextRequest(request));
 
       expect(response.status).toBe(307);
       const location = response.headers.get("location");
@@ -220,7 +221,7 @@ describe("Organizations Feature", () => {
         method: "GET"
       });
 
-      const response = await authClientWithOrg.handleLogin(request);
+      const response = await authClientWithOrg.handleLogin(new Auth0NextRequest(request));
 
       expect(response.status).toBe(307);
       expect(response.headers.get("location")).toContain(
@@ -251,7 +252,7 @@ describe("Organizations Feature", () => {
         }
       );
 
-      const response = await authClientWithOrg.handleLogin(request);
+      const response = await authClientWithOrg.handleLogin(new Auth0NextRequest(request));
 
       expect(response.status).toBe(307);
       // URL parameter should override static configuration
@@ -286,7 +287,7 @@ describe("Organizations Feature", () => {
         }
       );
 
-      const response = await authClientWithPAR.handleLogin(request);
+      const response = await authClientWithPAR.handleLogin(new Auth0NextRequest(request));
 
       expect(response.status).toBe(307);
       // With PAR enabled, query parameters should not be forwarded
@@ -304,7 +305,7 @@ describe("Organizations Feature", () => {
         }
       );
 
-      const response = await authClient.handleLogin(request);
+      const response = await authClient.handleLogin(new Auth0NextRequest(request));
 
       expect(response.status).toBe(307);
       const location = response.headers.get("location");
@@ -321,7 +322,7 @@ describe("Organizations Feature", () => {
         }
       );
 
-      const response = await authClient.handleLogin(request);
+      const response = await authClient.handleLogin(new Auth0NextRequest(request));
 
       expect(response.status).toBe(307);
       const location = response.headers.get("location");

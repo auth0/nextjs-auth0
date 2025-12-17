@@ -133,6 +133,49 @@ export const config = {
 > [!IMPORTANT]
 > This broad middleware matcher is essential for rolling sessions and security features. For scenarios when rolling sessions are disabled, see [Session Configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#session-configuration) for alternative approaches.
 
+#### Alternative: Using API Routes Instead of Middleware
+
+If you prefer to mount authentication routes using Next.js API routes instead of middleware, you can omit the auth0 middleware and create a catch-all API route handler.
+
+**1. Update your Auth0 client configuration:**
+
+```ts
+// lib/auth0.ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+export const auth0 = new Auth0Client({
+  routes: {
+    login: "/api/auth/login",
+    logout: "/api/auth/logout",
+    callback: "/api/auth/callback"
+  }
+});
+```
+
+**2. Create a catch-all API route:**
+
+**For App Router**, create `app/api/[...auth0]/route.ts`:
+
+```ts
+import { auth0 } from "@/lib/auth0";
+
+export const GET = auth0.apiRoute;
+export const POST = auth0.apiRoute;
+```
+
+> **Note:** The catch-all is at `/api/[...auth0]` (not `/api/auth/[...auth0]`) so that `/api/auth/login` gets captured as `["auth", "login"]` and reconstructed as `/auth/login` to match the default routes.
+
+**For Pages Router**, create `pages/api/auth/[...auth0].ts`:
+
+```ts
+import { auth0 } from "@/lib/auth0";
+
+export default auth0.apiRouteHandler;
+```
+
+> [!NOTE]
+> When using API route mode, you should **not** use `middleware.ts` or `proxy.ts` for authentication routes. Session rolling will only occur when auth routes are explicitly called. (TODO: THIS IS A BREAKING CHANGE AND NEEDS TO BE UPDATED)
+
 You can now begin to authenticate your users by redirecting them to your application's `/auth/login` route:
 
 ```tsx

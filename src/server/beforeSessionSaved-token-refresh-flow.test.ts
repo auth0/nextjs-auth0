@@ -12,6 +12,7 @@ import { AuthClient } from "./auth-client.js";
 import { decrypt, encrypt } from "./cookies.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import { TransactionStore } from "./transaction-store.js";
+import { Auth0NextRequest } from "./abstraction/auth0-next-request.js";
 
 /**
  * Test suite for the beforeSessionSaved hook.
@@ -217,7 +218,7 @@ describe("AuthClient - beforeSessionSaved hook", async () => {
       headers
     });
 
-    const response = await authClient.handleAccessToken(request);
+    const response = await authClient.handleAccessToken(new Auth0NextRequest(request));
 
     // Verify the response
     expect(response.status).toEqual(200);

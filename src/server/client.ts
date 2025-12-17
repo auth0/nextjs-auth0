@@ -30,6 +30,8 @@ import { DEFAULT_SCOPES } from "../utils/constants.js";
 import { validateDpopConfiguration } from "../utils/dpopUtils.js";
 import { isRequest } from "../utils/request.js";
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
+import { Auth0NextResponse } from "./abstraction/auth0-next-response.js";
+import { Auth0RequestCookies } from "./abstraction/auth0-request-cookies.js";
 import {
   AuthClient,
   BeforeSessionSavedHook,
@@ -59,6 +61,7 @@ import {
   TransactionCookieOptions,
   TransactionStore
 } from "./transaction-store.js";
+import { Auth0NextApiResponse } from "./abstraction/auth0-next-api-response.js";
 
 export interface Auth0ClientOptions {
   // authorization server configuration
@@ -505,6 +508,59 @@ export class Auth0Client {
     return this.authClient.handler.bind(this.authClient)(toNextRequest(req));
   }
 
+  private reconstructPathname(segments: string[] | string | undefined): string {
+    if (!segments) return "/";
+    const parts = Array.isArray(segments) ? segments : [segments];
+    return "/api/" + parts.filter(Boolean).join("/");
+  }
+
+  private async streamResponseBody(
+    source: ReadableStream,
+    destination: PagesRouterResponse
+  ): Promise<void> {
+    const reader = source.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      destination.write(value);
+    }
+  }
+
+  /**
+   * apiRoute handles authentication routes in both App Router and Pages Router.
+   *
+   * @example App Router
+   * ```typescript
+   * // app/api/auth/[...auth0]/route.ts
+   * import { auth0 } from "@/lib/auth0";
+   *
+   * export const GET = auth0.apiRoute;
+   * export const POST = auth0.apiRoute;
+   * ```
+   *
+   * @example Pages Router
+   * ```typescript
+   * // pages/api/auth/[...auth0].ts
+   * import { auth0 } from "@/lib/auth0";
+   *
+   * export default auth0.apiRoute;
+   * ```
+   */
+  apiRoute(req: NextRequest | Request): Promise<NextResponse>;
+  apiRoute(req: NextApiRequest, res: NextApiResponse): Promise<void>;
+  async apiRoute(
+    req: NextRequest | Request | NextApiRequest,
+    res?: NextApiResponse
+  ): Promise<NextResponse | void> {
+    if (isRequest(req)) {
+      return await this.authClient.apiHandler(
+        toNextRequest(req as NextRequest | Request)
+      );
+    } else {
+      await this.authClient.apiHandler(req as NextApiRequest, res as NextApiResponse);
+    }
+  }
+
   /**
    * getSession returns the session data for the current request.
    *
@@ -531,7 +587,7 @@ export class Auth0Client {
       // middleware usage
       if (req instanceof Request) {
         const nextReq = toNextRequest(req);
-        return this.sessionStore.get(nextReq.cookies);
+        return this.sessionStore.get(new Auth0RequestCookies(nextReq.cookies));
       }
 
       // pages router usage
@@ -539,7 +595,8 @@ export class Auth0Client {
     }
 
     // app router usage: Server Components, Server Actions, Route Handlers
-    return this.sessionStore.get(await cookies());
+    const cks = await cookies();
+    return this.sessionStore.get(new Auth0RequestCookies(cks));
   }
 
   /**
@@ -920,12 +977,18 @@ export class Auth0Client {
         throw new Error("The session data is missing.");
       }
 
-      await this.sessionStore.set(await cookies(), await cookies(), {
-        ...updatedSession,
-        internal: {
-          ...existingSession.internal
+      const cks = await cookies();
+
+      await this.sessionStore.set(
+        new Auth0RequestCookies(cks),
+        await cookies(),
+        {
+          ...updatedSession,
+          internal: {
+            ...existingSession.internal
+          }
         }
-      });
+      );
     } else {
       const req = reqOrSession as PagesRouterRequest | NextRequest;
 
@@ -941,12 +1004,16 @@ export class Auth0Client {
           throw new Error("The user is not authenticated.");
         }
 
-        await this.sessionStore.set(req.cookies, res.cookies, {
-          ...sessionData,
-          internal: {
-            ...existingSession.internal
+        await this.sessionStore.set(
+          new Auth0RequestCookies(req.cookies),
+          res.cookies,
+          {
+            ...sessionData,
+            internal: {
+              ...existingSession.internal
+            }
           }
-        });
+        );
       } else {
         // pages router usage
         const existingSession = await this.getSession(
@@ -1012,13 +1079,21 @@ export class Auth0Client {
       }
     }
 
-    return new RequestCookies(headers);
+    return new Auth0RequestCookies(new RequestCookies(headers));
   }
 
   async startInteractiveLogin(
-    options: StartInteractiveLoginOptions = {}
-  ): Promise<NextResponse> {
-    return this.authClient.startInteractiveLogin(options);
+    options: StartInteractiveLoginOptions = {},
+    res?: NextApiResponse
+  ): Promise<NextResponse | undefined> {
+    const auth0Res = (await this.authClient.startInteractiveLogin(
+      options,
+      res ? new Auth0NextApiResponse(res) : new Auth0NextResponse(new NextResponse())
+    ));
+    // only return when using App Router. In API routes, response is handled in the method.
+    if (auth0Res instanceof Auth0NextResponse) {
+      return auth0Res?.res as NextResponse;
+    }
   }
 
   /**
@@ -1051,7 +1126,8 @@ export class Auth0Client {
    *
    * You must enable `Offline Access` from the Connection Permissions settings to be able to use the connection with Connected Accounts.
    */
-  async connectAccount(options: ConnectAccountOptions): Promise<NextResponse> {
+  async connectAccount(options: ConnectAccountOptions, res?: NextApiResponse): Promise<NextResponse | NextApiResponse> {
+    const auth0Res = res ? new Auth0NextApiResponse(res) : new Auth0NextResponse(new NextResponse())
     const session = await this.getSession();
 
     if (!session) {
@@ -1077,13 +1153,13 @@ export class Auth0Client {
           scope: getMyAccountTokenOpts.scope,
           audience: accessToken.audience
         }
-      });
+      }, auth0Res);
 
     if (error) {
       throw error;
     }
 
-    return connectAccountResponse;
+    return connectAccountResponse.res;
   }
 
   withPageAuthRequired(
@@ -1141,7 +1217,12 @@ export class Auth0Client {
     if (req && res) {
       if (req instanceof NextRequest && res instanceof NextResponse) {
         // middleware usage
-        await this.sessionStore.set(req.cookies, res.cookies, data);
+
+        await this.sessionStore.set(
+          new Auth0RequestCookies(req.cookies),
+          res.cookies,
+          data
+        );
       } else {
         // pages router usage
         const resHeaders = new Headers();
@@ -1168,7 +1249,12 @@ export class Auth0Client {
     } else {
       // app router usage: Server Components, Server Actions, Route Handlers
       try {
-        await this.sessionStore.set(await cookies(), await cookies(), data);
+        const cks = await cookies();
+        await this.sessionStore.set(
+          new Auth0RequestCookies(cks),
+          await cookies(),
+          data
+        );
       } catch (e) {
         if (process.env.NODE_ENV === "development") {
           console.warn(

@@ -18,6 +18,7 @@ import { AuthClient } from "./auth-client.js";
 import { encrypt } from "./cookies.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import { TransactionStore } from "./transaction-store.js";
+import { Auth0NextRequest } from "./abstraction/auth0-next-request.js";
 
 // Test constants
 const DEFAULT = {
@@ -139,7 +140,7 @@ describe("Logout Strategy Flow Tests", () => {
         }
       );
 
-      const response = await authClient.handleLogout(request);
+      const response = await authClient.handleLogout(new Auth0NextRequest(request));
 
       expect(response.status).toBe(307);
       const location = response.headers.get("Location");
@@ -179,7 +180,7 @@ describe("Logout Strategy Flow Tests", () => {
         }
       );
 
-      const response = await authClient.handleLogout(request);
+      const response = await authClient.handleLogout(new Auth0NextRequest(request));
 
       expect(response.status).toBe(307);
       const location = response.headers.get("Location");
@@ -213,7 +214,7 @@ describe("Logout Strategy Flow Tests", () => {
         method: "GET"
       });
 
-      const response = await authClient.handleLogout(request);
+      const response = await authClient.handleLogout(new Auth0NextRequest(request));
 
       expect(response.status).toBe(307);
       const location = response.headers.get("Location");
@@ -266,7 +267,7 @@ describe("Logout Strategy Flow Tests", () => {
         }
       );
 
-      const response = await authClient.handleLogout(request);
+      const response = await authClient.handleLogout(new Auth0NextRequest(request));
 
       expect(response.status).toBe(307);
       const location = response.headers.get("Location");
@@ -299,7 +300,7 @@ describe("Logout Strategy Flow Tests", () => {
         }
       );
 
-      const response = await authClient.handleLogout(request);
+      const response = await authClient.handleLogout(new Auth0NextRequest(request));
 
       expect(response.status).toBe(500);
       expect(await response.text()).toBe(
@@ -348,7 +349,7 @@ describe("Logout Strategy Flow Tests", () => {
         }
       );
 
-      const response = await authClient.handleLogout(request);
+      const response = await authClient.handleLogout(new Auth0NextRequest(request));
 
       expect(response.status).toBe(307);
       const location = response.headers.get("Location");
@@ -381,7 +382,7 @@ describe("Logout Strategy Flow Tests", () => {
         method: "GET"
       });
 
-      const response = await authClient.handleLogout(request);
+      const response = await authClient.handleLogout(new Auth0NextRequest(request));
 
       expect(response.status).toBe(307);
       const location = response.headers.get("Location");
@@ -412,7 +413,7 @@ describe("Logout Strategy Flow Tests", () => {
         }
       );
 
-      const response = await authClient.handleLogout(request);
+      const response = await authClient.handleLogout(new Auth0NextRequest(request));
 
       expect(response.status).toBe(307);
       const location = response.headers.get("Location");
@@ -466,7 +467,7 @@ describe("Logout Strategy Flow Tests", () => {
           }
         );
 
-        const response = await authClient.handleLogout(request);
+        const response = await authClient.handleLogout(new Auth0NextRequest(request));
 
         // All strategies should redirect (except oidc without endpoint, but we're testing with endpoint)
         expect(response.status).toBe(307);
@@ -501,7 +502,7 @@ describe("Logout Strategy Flow Tests", () => {
         }
       );
 
-      const response = await authClient.handleLogout(request);
+      const response = await authClient.handleLogout(new Auth0NextRequest(request));
 
       expect(response.status).toBe(307);
       const location = response.headers.get("Location");
@@ -556,7 +557,7 @@ describe("Logout Strategy Flow Tests", () => {
         }
       );
 
-      const response = await authClient.handleLogout(request);
+      const response = await authClient.handleLogout(new Auth0NextRequest(request));
 
       expect(response.status).toBe(307);
       const location = response.headers.get("Location");
@@ -608,7 +609,7 @@ describe("Logout Strategy Flow Tests", () => {
         }
       );
 
-      const response = await authClient.handleLogout(request);
+      const response = await authClient.handleLogout(new Auth0NextRequest(request));
 
       expect(response.status).toBe(307);
       const location = response.headers.get("Location");
@@ -660,7 +661,7 @@ describe("Logout Strategy Flow Tests", () => {
         }
       );
 
-      const response = await authClient.handleLogout(request);
+      const response = await authClient.handleLogout(new Auth0NextRequest(request));
 
       expect(response.status).toBe(307);
       const location = response.headers.get("Location");
@@ -714,7 +715,7 @@ describe("Logout Strategy Flow Tests", () => {
         }
       );
 
-      const response = await authClient.handleLogout(request);
+      const response = await authClient.handleLogout(new Auth0NextRequest(request));
 
       expect(response.status).toBe(307);
       const location = response.headers.get("Location");
@@ -753,7 +754,7 @@ describe("Logout Strategy Flow Tests", () => {
         }
       );
 
-      const response = await authClient.handleLogout(request);
+      const response = await authClient.handleLogout(new Auth0NextRequest(request));
 
       expect(response.status).toBe(307);
       const location = response.headers.get("Location");
@@ -792,7 +793,7 @@ describe("Logout Strategy Flow Tests", () => {
         }
       );
 
-      const response = await authClient.handleLogout(request);
+      const response = await authClient.handleLogout(new Auth0NextRequest(request));
 
       expect(response.status).toBe(307);
       const location = response.headers.get("Location");
@@ -823,7 +824,7 @@ describe("Logout Strategy Flow Tests", () => {
         }
       );
 
-      const response = await authClient.handleLogout(request);
+      const response = await authClient.handleLogout(new Auth0NextRequest(request));
 
       expect(response.status).toBe(307);
       const location = response.headers.get("Location");
@@ -857,7 +858,7 @@ describe("Logout Strategy Flow Tests", () => {
         }
       );
 
-      const response = await authClient.handleLogout(request);
+      const response = await authClient.handleLogout(new Auth0NextRequest(request));
 
       expect(response.status).toBe(307);
       const location = response.headers.get("Location");
@@ -888,7 +889,7 @@ describe("Logout Strategy Flow Tests", () => {
         }
       );
 
-      const response = await authClient.handleLogout(request);
+      const response = await authClient.handleLogout(new Auth0NextRequest(request));
 
       expect(response.status).toBe(307);
       const location = response.headers.get("Location");
@@ -918,7 +919,7 @@ describe("Logout Strategy Flow Tests", () => {
         }
       );
 
-      const response = await authClient.handleLogout(request);
+      const response = await authClient.handleLogout(new Auth0NextRequest(request));
 
       expect(response.status).toBe(307);
       const location = response.headers.get("Location");

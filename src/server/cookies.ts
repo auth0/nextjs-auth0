@@ -6,6 +6,7 @@ import {
 } from "@edge-runtime/cookies";
 import { hkdf } from "@panva/hkdf";
 import * as jose from "jose";
+import { Auth0RequestCookies } from "./abstraction/auth0-request-cookies.js";
 
 const ENC = "A256GCM";
 const ALG = "dir";
@@ -141,6 +142,7 @@ export type ReadonlyRequestCookies = Omit<
   Pick<ResponseCookies, "set" | "delete">;
 export { ResponseCookies };
 export { RequestCookies };
+export { Auth0ResponseCookies } from "./abstraction/auth0-response-cookies.js";
 
 // Chunked cookies Configuration
 const MAX_CHUNK_SIZE = 3500; // Slightly under 4KB
@@ -176,7 +178,7 @@ const getChunkedCookieIndex = (
  * @returns An array of cookies that have names starting with the specified prefix.
  */
 const getAllChunkedCookies = (
-  reqCookies: RequestCookies,
+  reqCookies: Auth0RequestCookies,
   name: string,
   isLegacyCookie?: boolean
 ): RequestCookie[] => {
@@ -206,7 +208,7 @@ export function setChunkedCookie(
   name: string,
   value: string,
   options: CookieOptions,
-  reqCookies: RequestCookies,
+  reqCookies: Auth0RequestCookies,
   resCookies: ResponseCookies
 ): void {
   const { transient, ...restOptions } = options;
@@ -286,7 +288,7 @@ export function setChunkedCookie(
  */
 export function getChunkedCookie(
   name: string,
-  reqCookies: RequestCookies,
+  reqCookies: Auth0RequestCookies,
   isLegacyCookie?: boolean
 ): string | undefined {
   // Check if regular cookie exists
@@ -337,7 +339,7 @@ export function getChunkedCookie(
  */
 export function deleteChunkedCookie(
   name: string,
-  reqCookies: RequestCookies,
+  reqCookies: Auth0RequestCookies,
   resCookies: ResponseCookies,
   isLegacyCookie?: boolean,
   options?: Pick<CookieOptions, "domain" | "path">
@@ -392,6 +394,6 @@ export function deleteCookie(
   if (options?.path) {
     deleteOptions.path = options.path;
   }
-
+  
   resCookies.set(name, "", deleteOptions);
 }

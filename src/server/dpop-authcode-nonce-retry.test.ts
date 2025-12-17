@@ -13,6 +13,7 @@ import { AuthClient } from "./auth-client.js";
 import { decrypt, encrypt } from "./cookies.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import { TransactionStore } from "./transaction-store.js";
+import { Auth0NextRequest } from "./abstraction/auth0-next-request.js";
 
 /**
  * Real SDK Integration Test for DPoP Nonce Retry on Auth Code Callback
@@ -239,7 +240,7 @@ describe("AuthClient.handleCallback with DPoP Nonce Retry", () => {
 
       // CALL THE ACTUAL SDK METHOD
       // This is where withDPoPNonceRetry() is applied internally
-      const response = await authClient.handleCallback(request);
+      const response = await authClient.handleCallback(new Auth0NextRequest(request));
 
       // Validate response
       expect(response.status).toBe(307); // Successful callback redirect

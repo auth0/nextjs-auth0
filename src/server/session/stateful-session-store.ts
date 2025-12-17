@@ -1,4 +1,5 @@
 import { SessionData, SessionDataStore } from "../../types/index.js";
+import { Auth0RequestCookies } from "../abstraction/auth0-request-cookies.js";
 import * as cookies from "../cookies.js";
 import {
   AbstractSessionStore,
@@ -57,7 +58,7 @@ export class StatefulSessionStore extends AbstractSessionStore {
     this.store = store;
   }
 
-  async get(reqCookies: cookies.RequestCookies) {
+  async get(reqCookies: Auth0RequestCookies) {
     const cookie =
       reqCookies.get(this.sessionCookieName) ||
       reqCookies.get(LEGACY_COOKIE_NAME);
@@ -113,7 +114,7 @@ export class StatefulSessionStore extends AbstractSessionStore {
   }
 
   async set(
-    reqCookies: cookies.RequestCookies,
+    reqCookies: Auth0RequestCookies,
     resCookies: cookies.ResponseCookies,
     session: SessionData,
     isNew: boolean = false
@@ -178,7 +179,7 @@ export class StatefulSessionStore extends AbstractSessionStore {
   }
 
   async delete(
-    reqCookies: cookies.RequestCookies,
+    reqCookies: Auth0RequestCookies,
     resCookies: cookies.ResponseCookies
   ) {
     const cookieValue = reqCookies.get(this.sessionCookieName)?.value;

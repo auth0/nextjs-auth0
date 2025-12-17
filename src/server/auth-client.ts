@@ -1,4 +1,5 @@
-import { NextResponse, type NextRequest } from "next/server.js";
+import { NextApiRequest, NextApiResponse } from "next";
+import { NextRequest, NextResponse } from "next/server.js";
 import * as jose from "jose";
 import * as oauth from "oauth4webapi";
 import * as client from "openid-client";
@@ -49,6 +50,7 @@ import {
   GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE,
   LogoutStrategy,
   LogoutToken,
+  PagesRouterRequest,
   ProxyOptions,
   RESPONSE_TYPES,
   SessionData,
@@ -71,6 +73,7 @@ import {
   buildForwardedResponseHeaders,
   transformTargetUrl
 } from "../utils/proxy.js";
+import { isRequest } from "../utils/request.js";
 import {
   ensureDefaultScope,
   getScopeForAudience
@@ -83,7 +86,14 @@ import {
   tokenSetFromAccessTokenSet
 } from "../utils/token-set-helpers.js";
 import { toSafeRedirect } from "../utils/url-helpers.js";
-import { addCacheControlHeadersForSession } from "./cookies.js";
+import { Auth0NextApiRequest } from "./abstraction/auth0-next-api-request.js";
+import { Auth0NextApiResponse } from "./abstraction/auth0-next-api-response.js";
+import { Auth0NextRequest } from "./abstraction/auth0-next-request.js";
+import { Auth0NextResponse } from "./abstraction/auth0-next-response.js";
+import { Auth0RequestCookies } from "./abstraction/auth0-request-cookies.js";
+import { Auth0Request } from "./abstraction/auth0-request.js";
+import { Auth0Response } from "./abstraction/auth0-response.js";
+import { addCacheControlHeadersForSession, RequestCookies } from "./cookies.js";
 import {
   AccessTokenFactory,
   Fetcher,
@@ -114,12 +124,26 @@ export type OnCallbackContext = {
    * The connected account information when the responseType is {@link RESPONSE_TYPES.CONNECT_CODE}
    */
   connectedAccount?: CompleteConnectAccountResponse;
+
+  /**
+   * The NextApiResponse object when using Pages Router.
+   *
+   * @remark This property is undefined when using the App Router.
+   */
+  response?: NextApiResponse;
+
+  /**
+   * The NextApiResponse object when using Pages Router.
+   *
+   * @remark This property is undefined when using the App Router.
+   */
+  request?: NextRequest | NextApiRequest | Request;
 };
 export type OnCallbackHook = (
   error: SdkError | null,
   ctx: OnCallbackContext,
   session: SessionData | null
-) => Promise<NextResponse>;
+) => Promise<NextResponse | void>;
 
 // params passed to the /authorize endpoint that cannot be overwritten
 const INTERNAL_AUTHORIZE_PARAMS = [
@@ -382,35 +406,86 @@ export class AuthClient {
     }
   }
 
-  async handler(req: NextRequest): Promise<NextResponse> {
-    let { pathname } = req.nextUrl;
+  /**
+   * Internal request handler that routes to the appropriate auth handler method
+   * @param nextRequest The incoming NextRequest or NextApiRequest instance.
+   * @param fallback A fallback function to execute if no auth route matches.
+   * @returns A Promise that resolves to a NextResponse.
+   */
+  async #handler(
+    nextRequest: NextRequest,
+    fallback: (req: Auth0Request, res: Auth0Response) => Promise<Auth0Response>,
+    nextResponse: undefined
+  ): Promise<NextResponse>;
+  async #handler(
+    nextRequest: NextApiRequest,
+    fallback: (req: Auth0Request, res: Auth0Response) => Promise<Auth0Response>,
+    nextResponse: NextApiResponse
+  ): Promise<undefined>;
+  async #handler(
+    nextRequest: NextRequest | NextApiRequest,
+    fallback: (req: Auth0Request, res: Auth0Response) => Promise<Auth0Response>,
+    nextResponse?: NextApiResponse | undefined
+  ): Promise<NextResponse | undefined> {
+    const req = isRequest(nextRequest)
+      ? new Auth0NextRequest(nextRequest as NextRequest)
+      : new Auth0NextApiRequest(nextRequest as NextApiRequest);
+
+    const res = isRequest(nextRequest)
+      ? new Auth0NextResponse(new NextResponse())
+      : new Auth0NextApiResponse(nextResponse as NextApiResponse);
+
+    let { pathname } = req.getUrl();
 
     // Next.js does NOT automatically strip basePath from pathname in middleware.
     // We must manually strip it to match against our route configurations.
     // Example: With basePath='/app', a request to '/app/auth/login' will have
     // pathname='/app/auth/login', but routes are configured as '/auth/login'.
-    const basePath = req.nextUrl.basePath;
+    const basePath =
+      "nextUrl" in nextRequest ? nextRequest.nextUrl.basePath : "";
     if (basePath && pathname.startsWith(basePath)) {
       pathname = pathname.slice(basePath.length) || "/";
     }
 
     const sanitizedPathname = removeTrailingSlash(pathname);
-    const method = req.method;
+    const method = req.getMethod().toUpperCase();
 
     if (method === "GET" && sanitizedPathname === this.routes.login) {
-      return this.handleLogin(req);
+      const auth0Res = await this.handleLogin(req, res);
+      // only return when using App Router. In API routes, response is handled in the method.
+      if (auth0Res instanceof Auth0NextResponse) {
+        return auth0Res?.res;
+      } 
     } else if (method === "GET" && sanitizedPathname === this.routes.logout) {
-      return this.handleLogout(req);
+      const auth0Res = await this.handleLogout(req, res);
+      // only return when using App Router. In API routes, response is handled in the method.
+      if (auth0Res instanceof Auth0NextResponse) {
+        return auth0Res?.res;
+      }
     } else if (method === "GET" && sanitizedPathname === this.routes.callback) {
-      return this.handleCallback(req);
+      const auth0Res = await this.handleCallback(req, res);
+      // only return when using App Router. In API routes, response is handled in the method.
+      if (auth0Res instanceof Auth0NextResponse) {
+        return auth0Res?.res;
+      } else {
+        auth0Res?.res.end();
+      }
     } else if (method === "GET" && sanitizedPathname === this.routes.profile) {
-      return this.handleProfile(req);
+      const auth0Res = await this.handleProfile(req, res);
+      // only return when using App Router. In API routes, response is handled in the method.
+      if (auth0Res instanceof Auth0NextResponse) {
+        return auth0Res?.res;
+      }
     } else if (
       method === "GET" &&
       sanitizedPathname === this.routes.accessToken &&
       this.enableAccessTokenEndpoint
     ) {
-      return this.handleAccessToken(req);
+      const auth0Res = await this.handleAccessToken(req, res);
+      // only return when using App Router. In API routes, response is handled in the method.
+      if (auth0Res instanceof Auth0NextResponse) {
+        return auth0Res?.res;
+      }
     } else if (
       method === "POST" &&
       sanitizedPathname === this.routes.backChannelLogout
@@ -421,34 +496,99 @@ export class AuthClient {
       sanitizedPathname === this.routes.connectAccount &&
       this.enableConnectAccountEndpoint
     ) {
-      return this.handleConnectAccount(req);
-    } else if (sanitizedPathname.startsWith("/me/")) {
-      return this.handleMyAccount(req);
-    } else if (sanitizedPathname.startsWith("/my-org/")) {
-      return this.handleMyOrg(req);
-    } else {
-      // no auth handler found, simply touch the sessions
-      // TODO: this should only happen if rolling sessions are enabled. Also, we should
-      // try to avoid reading from the DB (for stateful sessions) on every request if possible.
-      const res = NextResponse.next();
-      const session = await this.sessionStore.get(req.cookies);
-
-      if (session) {
-        // we pass the existing session (containing an `createdAt` timestamp) to the set method
-        // which will update the cookie's `maxAge` property based on the `createdAt` time
-        await this.sessionStore.set(req.cookies, res.cookies, {
-          ...session
-        });
-        addCacheControlHeadersForSession(res);
+      const auth0Res = await this.handleConnectAccount(req, res);
+      // only return when using App Router. In API routes, response is handled in the method.
+      if (auth0Res instanceof Auth0NextResponse) {
+        return auth0Res?.res;
       }
+    } else if (sanitizedPathname.startsWith("/me/")) {
+      const auth0Res = await this.handleMyAccount(req, res);
+      if (auth0Res instanceof Auth0NextResponse) {
+        // NextResponse
+        return auth0Res?.res;
+      }
+    } else if (sanitizedPathname.startsWith("/my-org/")) {
+      const auth0Res = await this.handleMyOrg(req, res);
+      if (auth0Res instanceof Auth0NextResponse) {
+        // NextResponse
+        return auth0Res?.res;
+      }
+    } else {
+      const auth0Res = await fallback(req, res);
+      if (auth0Res instanceof Auth0NextResponse) {
+        // NextResponse
+        return auth0Res?.res;
+      }
+    }
+  }
 
-      return res;
+  /**
+   * Handles an incoming request from within the middleware, routing it to the appropriate authentication handler.
+   * @param req
+   * @returns
+   */
+  async handler(req: NextRequest): Promise<NextResponse> {
+    // THE BELOW FALLBACK SHOULD BE MIDDLEWARE (OR PROXY) ONLY.
+    return this.#handler(
+      req,
+      async (req) => {
+        // no auth handler found, simply touch the sessions
+        // TODO: this should only happen if rolling sessions are enabled. Also, we should
+        // try to avoid reading from the DB (for stateful sessions) on every request if possible.
+        const res = NextResponse.next();
+        const session = await this.sessionStore.get(req.getCookies());
+
+        if (session) {
+          // we pass the existing session (containing an `createdAt` timestamp) to the set method
+          // which will update the cookie's `maxAge` property based on the `createdAt` time
+          await this.sessionStore.set(req.getCookies(), res.cookies, {
+            ...session
+          });
+          addCacheControlHeadersForSession(res);
+        }
+
+        return new Auth0NextResponse(res);
+      },
+      undefined
+    ) as Promise<NextResponse>;
+  }
+
+  async apiHandler(req: NextRequest): Promise<NextResponse>;
+  async apiHandler(
+    req: NextApiRequest,
+    res: NextApiResponse
+  ): Promise<undefined>;
+  async apiHandler(
+    req: NextRequest | NextApiRequest,
+    res?: NextApiResponse | undefined
+  ): Promise<NextResponse | undefined> {
+    if (res) {
+      return this.#handler(
+        req as NextApiRequest,
+        async (req: Auth0Request, res: Auth0Response) => {
+          res.json({ error: "Not Found" }, { status: 404 });
+
+          return res;
+        },
+        res
+      );
+    } else {
+      return this.#handler(
+        req as NextRequest,
+        async (req: Auth0Request, res: Auth0Response) => {
+          res.json({ error: "Not Found" }, { status: 404 });
+
+          return res;
+        },
+        res
+      );
     }
   }
 
   async startInteractiveLogin(
-    options: StartInteractiveLoginOptions = {}
-  ): Promise<NextResponse> {
+    options: StartInteractiveLoginOptions = {},
+    res: Auth0Response
+  ): Promise<Auth0Response | undefined> {
     const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registered with the authorization server
     let returnTo = this.signInReturnToPath;
 
@@ -523,26 +663,28 @@ export class AuthClient {
     // Generate authorization URL with PAR handling
     const [error, authorizationUrl] =
       await this.authorizationUrl(authorizationParams);
+
     if (error) {
-      return new NextResponse(
+      res.status(
         "An error occurred while trying to initiate the login request.",
-        {
-          status: 500
-        }
+        500
       );
+      return res;
     }
 
     // Set response and save transaction
-    const res = NextResponse.redirect(authorizationUrl.toString());
-
-    // Save transaction state
-    await this.transactionStore.save(res.cookies, transactionState);
-
+    await this.transactionStore.save(res.getCookies(), transactionState);
+    res.redirect(authorizationUrl.toString());
     return res;
   }
 
-  async handleLogin(req: NextRequest): Promise<NextResponse> {
-    const searchParams = Object.fromEntries(req.nextUrl.searchParams.entries());
+  async handleLogin(
+    req: Auth0Request,
+    res: Auth0Response
+  ): Promise<Auth0Response | undefined> {
+    const searchParams = Object.fromEntries(
+      req.getUrl().searchParams.entries()
+    );
 
     // Always forward all parameters
     // When PAR is disabled, parameters go to authorization URL as before
@@ -556,32 +698,33 @@ export class AuthClient {
       authorizationParameters,
       returnTo: returnTo
     };
-    return this.startInteractiveLogin(options);
+    return this.startInteractiveLogin(options, res);
   }
 
-  async handleLogout(req: NextRequest): Promise<NextResponse> {
-    const session = await this.sessionStore.get(req.cookies);
+  async handleLogout(
+    req: Auth0Request,
+    res: Auth0Response
+  ): Promise<Auth0Response> {
+    const session = await this.sessionStore.get(req.getCookies());
     const [discoveryError, authorizationServerMetadata] =
       await this.discoverAuthorizationServerMetadata();
 
     if (discoveryError) {
-      // Clean up session on discovery error
-      const errorResponse = new NextResponse(
+      res.status(
         "An error occurred while trying to initiate the logout request.",
-        {
-          status: 500
-        }
+        500
       );
-      await this.sessionStore.delete(req.cookies, errorResponse.cookies);
-      await this.transactionStore.deleteAll(req.cookies, errorResponse.cookies);
-      return errorResponse;
+
+      await this.sessionStore.delete(req.getCookies(), res.getCookies());
+      await this.transactionStore.deleteAll(req.getCookies(), res.getCookies());
+      return res;
     }
 
     const returnTo =
-      req.nextUrl.searchParams.get("returnTo") || this.appBaseUrl;
-    const federated = req.nextUrl.searchParams.has("federated");
+      req.getUrl().searchParams.get("returnTo") || this.appBaseUrl;
+    const federated = req.getUrl().searchParams.has("federated");
 
-    const createV2LogoutResponse = (): NextResponse => {
+    const createV2LogoutResponse = (): Auth0Response => {
       const url = new URL("/v2/logout", this.issuer);
       url.searchParams.set("returnTo", returnTo);
       url.searchParams.set("client_id", this.clientMetadata.client_id);
@@ -590,10 +733,12 @@ export class AuthClient {
         url.searchParams.set("federated", "");
       }
 
-      return NextResponse.redirect(url);
+      res.redirect(url.toString());
+
+      return res;
     };
 
-    const createOIDCLogoutResponse = (): NextResponse => {
+    const createOIDCLogoutResponse = (): Auth0Response => {
       const url = new URL(authorizationServerMetadata.end_session_endpoint!);
       url.searchParams.set("client_id", this.clientMetadata.client_id);
       url.searchParams.set("post_logout_redirect_uri", returnTo);
@@ -610,11 +755,12 @@ export class AuthClient {
         url.searchParams.set("federated", "");
       }
 
-      return NextResponse.redirect(url);
+      res.redirect(url.toString());
+      return res;
     };
 
     // Determine logout strategy and create appropriate response
-    let logoutResponse: NextResponse;
+    let logoutResponse: Auth0Response;
 
     if (this.logoutStrategy === "v2") {
       // Always use v2 logout endpoint
@@ -623,18 +769,16 @@ export class AuthClient {
       // Always use OIDC RP-Initiated Logout
       if (!authorizationServerMetadata.end_session_endpoint) {
         // Clean up session on OIDC error
-        const errorResponse = new NextResponse(
+        res.status(
           "OIDC RP-Initiated Logout is not supported by the authorization server. Enable it or use a different logout strategy.",
-          {
-            status: 500
-          }
+          500
         );
-        await this.sessionStore.delete(req.cookies, errorResponse.cookies);
+        await this.sessionStore.delete(req.getCookies(), res.getCookies());
         await this.transactionStore.deleteAll(
-          req.cookies,
-          errorResponse.cookies
+          req.getCookies(),
+          res.getCookies()
         );
-        return errorResponse;
+        return res;
       }
       logoutResponse = createOIDCLogoutResponse();
     } else {
@@ -650,37 +794,66 @@ export class AuthClient {
     }
 
     // Clean up session and transaction cookies
-    await this.sessionStore.delete(req.cookies, logoutResponse.cookies);
-    addCacheControlHeadersForSession(logoutResponse);
+    await this.sessionStore.delete(
+      req.getCookies(),
+      logoutResponse.getCookies()
+    );
+    logoutResponse.addCacheControlHeadersForSession();
 
     // Clear any orphaned transaction cookies
-    await this.transactionStore.deleteAll(req.cookies, logoutResponse.cookies);
+    await this.transactionStore.deleteAll(
+      req.getCookies(),
+      logoutResponse.getCookies()
+    );
 
     return logoutResponse;
   }
 
-  async handleCallback(req: NextRequest): Promise<NextResponse> {
-    const state = req.nextUrl.searchParams.get("state");
+  async handleCallback(
+    req: Auth0Request,
+    res: Auth0Response
+  ): Promise<Auth0Response> {
+    const state = req.getUrl().searchParams.get("state");
     if (!state) {
-      return this.handleCallbackError(new MissingStateError(), {}, req);
+      return this.handleCallbackError(new MissingStateError(), {}, req.req);
     }
 
     const transactionStateCookie = await this.transactionStore.get(
-      req.cookies,
+      req.getCookies(),
       state
     );
     if (!transactionStateCookie) {
-      return this.onCallback(new InvalidStateError(), {}, null);
+      const res2 = await this.onCallback(
+        new InvalidStateError(),
+        { request: req.req, response: res.res },
+        null
+      );
+
+      // Safe Merge res and res2
+      if (res2) {
+        return new Auth0NextResponse(res2);
+      } else {
+        return res;
+      }
+
+      // Here we have a problem
+      // We have a `res` parameter being passed in,
+      // but we also got a `res` from the onCallback hook
+
+      // Only for NextResponse, should this.onCallback return value be used
+      // Only for NextApi
     }
 
     const transactionState = transactionStateCookie.payload;
     const onCallbackCtx: OnCallbackContext = {
       responseType: transactionState.responseType,
-      returnTo: transactionState.returnTo
+      returnTo: transactionState.returnTo,
+      request: req.req,
+      response: res.res
     };
 
     if (transactionState.responseType === RESPONSE_TYPES.CONNECT_CODE) {
-      const session = await this.sessionStore.get(req.cookies);
+      const session = await this.sessionStore.get(req.getCookies());
 
       if (!session) {
         return this.handleCallbackError(
@@ -689,7 +862,7 @@ export class AuthClient {
             message: "The user does not have an active session."
           }),
           onCallbackCtx,
-          req,
+          req.req,
           state
         );
       }
@@ -707,7 +880,7 @@ export class AuthClient {
         return this.handleCallbackError(
           tokenSetError,
           onCallbackCtx,
-          req,
+          req.req,
           state
         );
       }
@@ -716,7 +889,7 @@ export class AuthClient {
         await this.completeConnectAccount({
           tokenSet: tokenSetResponse.tokenSet,
           authSession: transactionState.authSession!,
-          connectCode: req.nextUrl.searchParams.get("connect_code")!,
+          connectCode: req.getUrl().searchParams.get("connect_code")!,
           redirectUri: createRouteUrl(
             this.routes.callback,
             this.appBaseUrl
@@ -728,12 +901,16 @@ export class AuthClient {
         return this.handleCallbackError(
           completeConnectAccountError,
           onCallbackCtx,
-          req,
+          req.req,
           state
         );
       }
 
-      const res = await this.onCallback(
+      if (res) {
+        await this.transactionStore.delete(res.getCookies(), state);
+      }
+
+      const nextResponse = await this.onCallback(
         null,
         {
           ...onCallbackCtx,
@@ -742,7 +919,7 @@ export class AuthClient {
         session
       );
 
-      await this.transactionStore.delete(res.cookies, state);
+      await this.transactionStore.delete(res.getCookies(), state);
 
       return res;
     }
@@ -754,7 +931,7 @@ export class AuthClient {
       return this.handleCallbackError(
         discoveryError,
         onCallbackCtx,
-        req,
+        req.req,
         state
       );
     }
@@ -764,7 +941,7 @@ export class AuthClient {
       codeGrantParams = oauth.validateAuthResponse(
         authorizationServerMetadata,
         this.clientMetadata,
-        req.nextUrl.searchParams,
+        req.getUrl().searchParams,
         transactionState.state
       );
     } catch (e: any) {
@@ -776,7 +953,7 @@ export class AuthClient {
           })
         }),
         onCallbackCtx,
-        req,
+        req.req,
         state
       );
     }
@@ -831,7 +1008,7 @@ export class AuthClient {
       return this.handleCallbackError(
         new AuthorizationCodeGrantRequestError(e.message),
         onCallbackCtx,
-        req,
+        req.req,
         state
       );
     }
@@ -859,7 +1036,7 @@ export class AuthClient {
           })
         }),
         onCallbackCtx,
-        req,
+        req.req,
         state
       );
     }
@@ -882,47 +1059,64 @@ export class AuthClient {
       }
     };
 
-    const res = await this.onCallback(null, onCallbackCtx, session);
+    const nextResponse = await this.onCallback(null, onCallbackCtx, session);
+
+    // TODO: How can we avoid this?
+    if (nextResponse) {
+      res.setResponse(nextResponse);
+    }
 
     // call beforeSessionSaved callback if present
     // if not then filter id_token claims with default rules
     session = await this.finalizeSession(session, oidcRes.id_token);
 
-    await this.sessionStore.set(req.cookies, res.cookies, session, true);
-    addCacheControlHeadersForSession(res);
+    await this.sessionStore.set(
+      req.getCookies(),
+      res.getCookies(),
+      session,
+      true
+    );
 
     // Clean up the current transaction cookie after successful authentication
-    await this.transactionStore.delete(res.cookies, state);
+    await this.transactionStore.delete(res.getCookies(), state);
+
+    res.addCacheControlHeadersForSession();
+
 
     return res;
   }
 
-  async handleProfile(req: NextRequest): Promise<NextResponse> {
-    const session = await this.sessionStore.get(req.cookies);
-
+  async handleProfile(
+    req: Auth0Request,
+    res: Auth0Response
+  ): Promise<Auth0Response> {
+    const session = await this.sessionStore.get(req.getCookies());
     if (!session) {
       if (this.noContentProfileResponseWhenUnauthenticated) {
-        return new NextResponse(null, {
-          status: 204
-        });
+        res.status(null, 401);
+        return res;
       }
 
-      return new NextResponse(null, {
-        status: 401
-      });
+      res.status(null, 204);
+      return res;
     }
-    const res = NextResponse.json(session?.user);
-    addCacheControlHeadersForSession(res);
+
+    res.json(session?.user);
+    res.addCacheControlHeadersForSession();
+
     return res;
   }
 
-  async handleAccessToken(req: NextRequest): Promise<NextResponse> {
-    const session = await this.sessionStore.get(req.cookies);
-    const audience = req.nextUrl.searchParams.get("audience");
-    const scope = req.nextUrl.searchParams.get("scope");
+  async handleAccessToken(
+    req: Auth0Request,
+    res: Auth0Response
+  ): Promise<Auth0Response> {
+    const session = await this.sessionStore.get(req.getCookies());
+    const audience = req.getUrl().searchParams.get("audience");
+    const scope = req.getUrl().searchParams.get("scope");
 
     if (!session) {
-      return NextResponse.json(
+      res.json(
         {
           error: {
             message: "The user does not have an active session.",
@@ -933,6 +1127,7 @@ export class AuthClient {
           status: 401
         }
       );
+      return res;
     }
 
     const [error, getTokenSetResponse] = await this.getTokenSet(session, {
@@ -941,7 +1136,7 @@ export class AuthClient {
     });
 
     if (error) {
-      return NextResponse.json(
+      res.json(
         {
           error: {
             message: error.message,
@@ -952,11 +1147,13 @@ export class AuthClient {
           status: 401
         }
       );
+
+      return res;
     }
 
     const { tokenSet: updatedTokenSet } = getTokenSetResponse;
 
-    const res = NextResponse.json({
+    res.json({
       token: updatedTokenSet.accessToken,
       scope: updatedTokenSet.scope,
       expires_at: updatedTokenSet.expiresAt,
@@ -975,7 +1172,7 @@ export class AuthClient {
     return res;
   }
 
-  async handleBackChannelLogout(req: NextRequest): Promise<NextResponse> {
+  async handleBackChannelLogout(req: Auth0Request): Promise<NextResponse> {
     if (!this.sessionStore.store) {
       return new NextResponse("A session data store is not configured.", {
         status: 500
@@ -991,7 +1188,7 @@ export class AuthClient {
       );
     }
 
-    const body = new URLSearchParams(await req.text());
+    const body = new URLSearchParams(await req.getBody());
     const logoutToken = body.get("logout_token");
 
     if (!logoutToken) {
@@ -1015,30 +1212,35 @@ export class AuthClient {
     });
   }
 
-  async handleConnectAccount(req: NextRequest): Promise<NextResponse> {
-    const session = await this.sessionStore.get(req.cookies);
+  async handleConnectAccount(
+    req: Auth0Request,
+    res: Auth0Response
+  ): Promise<Auth0Response> {
+    const session = await this.sessionStore.get(req.getCookies());
 
     // pass all query params except `connection`, `returnTo`, `scopes` as authorization params
-    const connection = req.nextUrl.searchParams.get("connection");
-    const returnTo = req.nextUrl.searchParams.get("returnTo") ?? undefined;
-    const scopes = req.nextUrl.searchParams.getAll("scopes");
+    const connection = req.getUrl().searchParams.get("connection");
+    const returnTo = req.getUrl().searchParams.get("returnTo") ?? undefined;
+    const scopes = req.getUrl().searchParams.getAll("scopes");
     const authorizationParams = Object.fromEntries(
-      [...req.nextUrl.searchParams.entries()].filter(
+      [...req.getUrl().searchParams.entries()].filter(
         ([key]) =>
           key !== "connection" && key !== "returnTo" && key !== "scopes"
       )
     );
 
     if (!connection) {
-      return new NextResponse("A connection is required.", {
+      res.generic("A connection is required.", {
         status: 400
       });
+      return res;
     }
 
     if (!session) {
-      return new NextResponse("The user does not have an active session.", {
+      res.generic("The user does not have an active session.", {
         status: 401
       });
+      return res;
     }
 
     const [getTokenSetError, getTokenSetResponse] = await this.getTokenSet(
@@ -1050,12 +1252,10 @@ export class AuthClient {
     );
 
     if (getTokenSetError) {
-      return new NextResponse(
-        "Failed to retrieve a connected account access token.",
-        {
-          status: 401
-        }
-      );
+      res.generic("Failed to retrieve a connected account access token.", {
+        status: 401
+      });
+      return res;
     }
 
     const { tokenSet } = getTokenSetResponse;
@@ -1070,12 +1270,13 @@ export class AuthClient {
     }
 
     const [connectAccountError, connectAccountResponse] =
-      await this.connectAccount({ tokenSet, ...connectAccountParams });
+      await this.connectAccount({ tokenSet, ...connectAccountParams }, res);
 
     if (connectAccountError) {
-      return new NextResponse(connectAccountError.message, {
+      res.generic(connectAccountError.message, {
         status: connectAccountError.cause?.status ?? 500
       });
+      return res;
     }
 
     // update the session with the new token set, if necessary
@@ -1089,21 +1290,27 @@ export class AuthClient {
     return connectAccountResponse;
   }
 
-  async handleMyAccount(req: NextRequest): Promise<NextResponse> {
-    return this.#handleProxy(req, {
+  async handleMyAccount(
+    req: Auth0Request,
+    res: Auth0Response
+  ): Promise<Auth0Response> {
+    return this.#handleProxy(req, res, {
       proxyPath: "/me",
       targetBaseUrl: `${this.issuer}/me/v1`,
       audience: `${this.issuer}/me/`,
-      scope: req.headers.get("scope")
+      scope: req.getHeaders().get("scope")
     });
   }
 
-  async handleMyOrg(req: NextRequest): Promise<NextResponse> {
-    return this.#handleProxy(req, {
+  async handleMyOrg(
+    req: Auth0Request,
+    res: Auth0Response
+  ): Promise<Auth0Response> {
+    return this.#handleProxy(req, res, {
       proxyPath: "/my-org",
       targetBaseUrl: `${this.issuer}/my-org`,
       audience: `${this.issuer}/my-org/`,
-      scope: req.headers.get("scope")
+      scope: req.getHeaders().get("scope")
     });
   }
 
@@ -1385,17 +1592,30 @@ export class AuthClient {
     error: SdkError | null,
     ctx: OnCallbackContext
   ) {
-    if (error) {
-      return new NextResponse(error.message, {
-        status: 500
-      });
+    const redirectUrl = createRouteUrl(ctx.returnTo || "/", this.appBaseUrl);
+
+    if (ctx.request && isRequest(ctx.request)) {
+      if (error) {
+        return new NextResponse(error.message, {
+          status: 500
+        });
+      }
+
+      const res = NextResponse.redirect(redirectUrl);
+
+      return res;
+    } else {
+      if (error) {
+        ctx.response?.status(500).send(error.message);
+      } else {
+        // Here we redirect
+        // We do not use .redirect(), as that would call `res.end()` immediately.
+        // Even though that should be okay conceptually, 
+        // it would require changing code to not set cookies after calling `onCallback()`,
+        // which is not in scope.
+        ctx.response?.status(307).setHeader("Location", redirectUrl.toString());
+      }
     }
-
-    const res = NextResponse.redirect(
-      createRouteUrl(ctx.returnTo || "/", this.appBaseUrl)
-    );
-
-    return res;
   }
 
   /**
@@ -1404,17 +1624,24 @@ export class AuthClient {
   private async handleCallbackError(
     error: SdkError,
     ctx: OnCallbackContext,
-    req: NextRequest,
+    req: NextRequest | NextApiRequest,
     state?: string
-  ): Promise<NextResponse> {
+  ): Promise<Auth0Response> {
     const response = await this.onCallback(error, ctx, null);
+
+    // When onCallback returns a response, we are in App Router / NextResponse context
+    // When it does not, we are in API Route / NextApiResponse context
+    const res = response
+      ? new Auth0NextResponse(new NextResponse())
+      : // TODO: We should more gracefully handle the case where ctx.response is undefined
+        new Auth0NextApiResponse(ctx.response!);
 
     // Clean up the transaction cookie on error to prevent accumulation
     if (state) {
-      await this.transactionStore.delete(response.cookies, state);
+      await this.transactionStore.delete(res.getCookies(), state);
     }
 
-    return response;
+    return res;
   }
 
   private async verifyLogoutToken(
@@ -2025,8 +2252,9 @@ export class AuthClient {
    * The user will be redirected to authorize the connection.
    */
   async connectAccount(
-    options: ConnectAccountOptions & { tokenSet: TokenSet }
-  ): Promise<[ConnectAccountError, null] | [null, NextResponse]> {
+    options: ConnectAccountOptions & { tokenSet: TokenSet },
+    res: Auth0Response
+  ): Promise<[ConnectAccountError, null] | [null, Auth0Response]> {
     const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl);
     let returnTo = this.signInReturnToPath;
 
@@ -2076,11 +2304,11 @@ export class AuthClient {
       authSession: connectAccountResponse.authSession
     };
 
-    const res = NextResponse.redirect(
+    res.redirect(
       `${connectAccountResponse.connectUri}?ticket=${encodeURIComponent(connectAccountResponse.connectParams.ticket)}`
     );
 
-    await this.transactionStore.save(res.cookies, transactionState);
+    await this.transactionStore.save(res.getCookies(), transactionState);
 
     return [null, res];
   }
@@ -2358,9 +2586,10 @@ export class AuthClient {
    * @see RFC 9449 Section 4.1 - DPoP proofs are bound to HTTP requests, not to preflights
    */
   async #handlePreflight(
-    req: NextRequest,
+    req: Auth0Request,
+    res: Auth0Response,
     options: ProxyOptions
-  ): Promise<NextResponse> {
+  ): Promise<Auth0Response> {
     const headers = buildForwardedRequestHeaders(req);
     const targetUrl = transformTargetUrl(req, options);
 
@@ -2375,16 +2604,19 @@ export class AuthClient {
       });
 
       // Forward CORS headers from upstream
-      return new NextResponse(null, {
+      res.generic(null, {
         status: preflightResponse.status,
         headers: buildForwardedResponseHeaders(preflightResponse)
       });
+
+      return res;
     } catch (error: any) {
       // If preflight fails, return 500
-      return new NextResponse(
+      res.status(
         error.cause || error.message || "Preflight request failed",
-        { status: 500 }
+        500
       );
+      return res;
     }
   }
 
@@ -2399,22 +2631,22 @@ export class AuthClient {
    * @returns A Next.js response containing the proxied request's response.
    */
   async #handleProxy(
-    req: NextRequest,
+    req: Auth0Request,
+    res: Auth0Response,
     options: ProxyOptions
-  ): Promise<NextResponse> {
-    const session = await this.sessionStore.get(req.cookies);
+  ): Promise<Auth0Response> {
+    const session = await this.sessionStore.get(req.getCookies());
     if (!session) {
-      return new NextResponse("The user does not have an active session.", {
-        status: 401
-      });
+      res.status("The user does not have an active session.", 401);
+      return res;
     }
 
     // handle preflight requests
     if (
-      req.method === "OPTIONS" &&
-      req.headers.has("access-control-request-method")
+      req.getMethod() === "OPTIONS" &&
+      req.getHeaders().has("access-control-request-method")
     ) {
-      return this.#handlePreflight(req, options);
+      return this.#handlePreflight(req, res, options);
     }
 
     const headers = buildForwardedRequestHeaders(req);
@@ -2426,7 +2658,7 @@ export class AuthClient {
     // causing the retry to fail with "stream already disturbed" or empty body.
     // To support retry, we buffer the body so it can be reused on retry.
     // This retry will not happen with bearer auth so no need to clone if DPoP is false.
-    const clonedReq = this.useDPoP ? req.clone() : req;
+    const clonedReq = this.useDPoP ? req.clone() : req.req;
     const targetUrl = transformTargetUrl(req, options);
 
     // Set Host header to upstream host
@@ -2434,9 +2666,10 @@ export class AuthClient {
 
     // Buffer the body to allow retry on DPoP nonce errors
     // ReadableStreams can only be consumed once, so we need to buffer for retry
-    const bodyBuffer = clonedReq.body
-      ? await clonedReq.arrayBuffer()
-      : undefined;
+    const bodyBuffer =
+      clonedReq.body && clonedReq instanceof Request
+        ? await clonedReq.arrayBuffer()
+        : undefined;
 
     let tokenSetSideEffect!: GetTokenSetResponse;
 
@@ -2487,7 +2720,7 @@ export class AuthClient {
         { scope: options.scope, audience: options.audience }
       );
 
-      const res = new NextResponse(response.body, {
+      res.generic(response.body, {
         status: response.status,
         statusText: response.statusText,
         headers: buildForwardedResponseHeaders(response)
@@ -2513,15 +2746,13 @@ export class AuthClient {
         e instanceof AccessTokenError &&
         e.code === AccessTokenErrorCode.MISSING_REFRESH_TOKEN
       ) {
-        return new NextResponse(e.message, { status: 401 });
+        return res.status(e.message, 401);
       }
 
       // Generic error handling for other errors
-      return new NextResponse(
+      return res.status(
         e.cause || e.message || "An error occurred while proxying the request.",
-        {
-          status: 500
-        }
+        500
       );
     }
   }
@@ -2541,8 +2772,8 @@ export class AuthClient {
    * - Adding cache control headers to the response
    */
   async #updateSessionAfterTokenRetrieval(
-    req: NextRequest,
-    res: NextResponse,
+    req: Auth0Request,
+    res: Auth0Response,
     session: SessionData,
     tokenSetResponse: GetTokenSetResponse
   ): Promise<void> {
@@ -2568,8 +2799,13 @@ export class AuthClient {
         },
         tokenSetResponse.tokenSet.idToken
       );
-      await this.sessionStore.set(req.cookies, res.cookies, finalSession);
-      addCacheControlHeadersForSession(res);
+      await this.sessionStore.set(
+        req.getCookies(),
+        res.getCookies(),
+        finalSession
+      );
+
+      res.addCacheControlHeadersForSession();
     }
   }
 
@@ -2782,4 +3018,20 @@ export async function buildConnectAccountErrorResponse(
       null
     ];
   }
+}
+
+function createRequestCookies(req: PagesRouterRequest) {
+  const headers = new Headers();
+
+  for (const key in req.headers) {
+    if (Array.isArray(req.headers[key])) {
+      for (const value of req.headers[key]) {
+        headers.append(key, value);
+      }
+    } else {
+      headers.append(key, req.headers[key] ?? "");
+    }
+  }
+
+  return new Auth0RequestCookies(new RequestCookies(headers));
 }

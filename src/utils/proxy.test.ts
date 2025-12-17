@@ -7,6 +7,7 @@ import {
   buildForwardedResponseHeaders,
   transformTargetUrl
 } from "./proxy.js";
+import { Auth0NextRequest } from "../server/abstraction/auth0-next-request.js";
 
 describe("headers", () => {
   describe("buildForwardedRequestHeaders", () => {
@@ -21,7 +22,7 @@ describe("headers", () => {
         }
       });
 
-      const result = buildForwardedRequestHeaders(request);
+      const result = buildForwardedRequestHeaders(new Auth0NextRequest(request));
 
       expect(result.get("accept")).toBe("application/json");
       expect(result.get("accept-language")).toBe("en-US");
@@ -40,7 +41,7 @@ describe("headers", () => {
         }
       });
 
-      const result = buildForwardedRequestHeaders(request);
+      const result = buildForwardedRequestHeaders(new Auth0NextRequest(request));
 
       expect(result.get("accept")).toBe("application/json");
       expect(result.get("some-custom-header")).toBeNull();
@@ -57,7 +58,7 @@ describe("headers", () => {
         }
       });
 
-      const result = buildForwardedRequestHeaders(request);
+      const result = buildForwardedRequestHeaders(new Auth0NextRequest(request));
 
       expect(result.get("accept")).toBe("application/json");
       expect(result.get("content-type")).toBe("text/plain");
@@ -67,7 +68,7 @@ describe("headers", () => {
     it("should handle empty headers", () => {
       const request = new NextRequest("https://example.com");
 
-      const result = buildForwardedRequestHeaders(request);
+      const result = buildForwardedRequestHeaders(new Auth0NextRequest(request));
 
       expect(Array.from(result.keys()).length).toBe(0);
     });
@@ -82,7 +83,7 @@ describe("headers", () => {
         }
       });
 
-      const result = buildForwardedRequestHeaders(request);
+      const result = buildForwardedRequestHeaders(new Auth0NextRequest(request));
 
       expect(result.get("cache-control")).toBe("no-cache");
       expect(result.get("if-none-match")).toBe('"abc123"');
@@ -101,7 +102,7 @@ describe("headers", () => {
         }
       });
 
-      const result = buildForwardedRequestHeaders(request);
+      const result = buildForwardedRequestHeaders(new Auth0NextRequest(request));
 
       expect(result.get("traceparent")).toBe("00-abc123-def456-01");
       expect(result.get("tracestate")).toBe("vendor=value");
@@ -118,7 +119,7 @@ describe("headers", () => {
         }
       });
 
-      const result = buildForwardedRequestHeaders(request);
+      const result = buildForwardedRequestHeaders(new Auth0NextRequest(request));
 
       expect(result.get("x-forwarded-for")).toBe("192.168.1.1, 10.0.0.1");
       expect(result.get("x-forwarded-host")).toBe("example.com");
@@ -305,7 +306,7 @@ describe("url", () => {
           scope: null
         };
 
-        const result = transformTargetUrl(req, options);
+        const result = transformTargetUrl(new Auth0NextRequest(req), options);
 
         // The path after /me is /v1/some-endpoint
         // The targetBaseUrl already ends with /v1, so we detect and avoid duplication
@@ -324,7 +325,7 @@ describe("url", () => {
           scope: null
         };
 
-        const result = transformTargetUrl(req, options);
+        const result = transformTargetUrl(new Auth0NextRequest(req), options);
 
         expect(result.toString()).toBe("https://backend.example.com/users");
       });
@@ -338,7 +339,7 @@ describe("url", () => {
           scope: null
         };
 
-        const result = transformTargetUrl(req, options);
+        const result = transformTargetUrl(new Auth0NextRequest(req), options);
 
         // URL normalizes to include trailing slash
         expect(result.toString()).toBe("https://backend.example.com/users");
@@ -355,7 +356,7 @@ describe("url", () => {
           scope: null
         };
 
-        const result = transformTargetUrl(req, options);
+        const result = transformTargetUrl(new Auth0NextRequest(req), options);
 
         expect(result.toString()).toBe(
           "https://backend.example.com/api/v1/users"
@@ -371,7 +372,7 @@ describe("url", () => {
           scope: null
         };
 
-        const result = transformTargetUrl(req, options);
+        const result = transformTargetUrl(new Auth0NextRequest(req), options);
 
         // After stripping "/proxy/auth", remaining is "/v2/some/nested/endpoint"
         // targetBaseUrl ends with "/auth/v2", which overlaps with the start
@@ -395,7 +396,7 @@ describe("url", () => {
           scope: null
         };
 
-        const result = transformTargetUrl(req, options);
+        const result = transformTargetUrl(new Auth0NextRequest(req), options);
 
         expect(result.href).toContain("https://backend.example.com/users?");
         expect(result.searchParams.get("id")).toBe("123");
@@ -414,7 +415,7 @@ describe("url", () => {
           scope: null
         };
 
-        const result = transformTargetUrl(req, options);
+        const result = transformTargetUrl(new Auth0NextRequest(req), options);
 
         // After stripping "/me", remaining is "/v1/profile"
         // targetBaseUrl ends with "/v1", so avoid duplication
@@ -437,7 +438,7 @@ describe("url", () => {
           scope: null
         };
 
-        const result = transformTargetUrl(req, options);
+        const result = transformTargetUrl(new Auth0NextRequest(req), options);
 
         // The implementation removes trailing slash from base URL, so no double slash
         expect(result.toString()).toBe(
@@ -454,7 +455,7 @@ describe("url", () => {
           scope: null
         };
 
-        const result = transformTargetUrl(req, options);
+        const result = transformTargetUrl(new Auth0NextRequest(req), options);
 
         expect(result.toString()).toBe("https://backend.example.com/resource");
       });
@@ -468,7 +469,7 @@ describe("url", () => {
           scope: null
         };
 
-        const result = transformTargetUrl(req, options);
+        const result = transformTargetUrl(new Auth0NextRequest(req), options);
 
         // If the path doesn't start with proxyPath, the entire path is used
         expect(result.toString()).toBe(
@@ -485,7 +486,7 @@ describe("url", () => {
           scope: null
         };
 
-        const result = transformTargetUrl(req, options);
+        const result = transformTargetUrl(new Auth0NextRequest(req), options);
 
         // URL naturally normalizes with trailing slash
         expect(result.toString()).toBe("https://backend.example.com/");
@@ -500,7 +501,7 @@ describe("url", () => {
           scope: null
         };
 
-        const result = transformTargetUrl(req, options);
+        const result = transformTargetUrl(new Auth0NextRequest(req), options);
 
         expect(result.toString()).toBe(
           "https://backend.example.com/user%20name/profile"
