@@ -933,8 +933,14 @@ export class Auth0Client {
         throw new Error("The session data is missing.");
       }
 
-      if (req instanceof NextRequest && res instanceof NextResponse) {
-        // middleware usage
+      // Check if req/res have the right structure for middleware usage
+      // (supports both NextRequest and NextRequestHint from server actions)
+      const isMiddlewareRequest = req.cookies && res.cookies &&
+          typeof req.cookies.get === 'function' &&
+          typeof res.cookies.set === 'function';
+
+      if (isMiddlewareRequest) {
+        // middleware usage (NextRequest or NextRequestHint)
         const existingSession = await this.getSession(req);
 
         if (!existingSession) {
@@ -1139,8 +1145,14 @@ export class Auth0Client {
     res?: PagesRouterResponse | NextResponse
   ) {
     if (req && res) {
-      if (req instanceof NextRequest && res instanceof NextResponse) {
-        // middleware usage
+      // Check if req/res have the right structure for middleware usage
+      // (supports both NextRequest and NextRequestHint from server actions)
+      const isMiddlewareRequest = req.cookies && res.cookies &&
+          typeof req.cookies.get === 'function' &&
+          typeof res.cookies.set === 'function';
+
+      if (isMiddlewareRequest) {
+        // middleware usage (NextRequest or NextRequestHint)
         await this.sessionStore.set(req.cookies, res.cookies, data);
       } else {
         // pages router usage
