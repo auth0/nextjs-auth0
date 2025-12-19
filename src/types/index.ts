@@ -87,7 +87,6 @@ export type {
   BeforeSessionSavedHook,
   OnCallbackHook,
   RoutesOptions,
-  AuthClientOptions,
   OnCallbackContext,
   Routes
 } from "../server/auth-client.js";
