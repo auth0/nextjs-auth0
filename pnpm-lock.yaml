@@ -59,7 +59,7 @@ importers:
         version: 19.1.9(@types/react@19.1.16)
       '@vitest/coverage-v8':
         specifier: 2.1.9
-        version: 2.1.9(vitest@2.1.9(@types/node@22.18.8)(jsdom@26.1.0)(msw@2.12.4(@types/node@22.18.8)(typescript@5.9.3)))
+        version: 2.1.9(vitest@2.1.9(@types/node@22.18.8)(jsdom@26.1.0)(msw@2.12.7(@types/node@22.18.8)(typescript@5.9.3)))
       eslint:
         specifier: ^9.20.0
         version: 9.36.0
@@ -80,7 +80,7 @@ importers:
         version: 26.1.0
       msw:
         specifier: ^2.7.5
-        version: 2.12.4(@types/node@22.18.8)(typescript@5.9.3)
+        version: 2.12.7(@types/node@22.18.8)(typescript@5.9.3)
       next:
         specifier: 15.2.8
         version: 15.2.8(@playwright/test@1.57.0)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
@@ -101,7 +101,7 @@ importers:
         version: 5.4.21(@types/node@22.18.8)
       vitest:
         specifier: ^2.1.4
-        version: 2.1.9(@types/node@22.18.8)(jsdom@26.1.0)(msw@2.12.4(@types/node@22.18.8)(typescript@5.9.3))
+        version: 2.1.9(@types/node@22.18.8)(jsdom@26.1.0)(msw@2.12.7(@types/node@22.18.8)(typescript@5.9.3))
 
 packages:
 
@@ -1816,8 +1816,8 @@ packages:
   ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
 
-  msw@2.12.4:
-    resolution: {integrity: sha512-rHNiVfTyKhzc0EjoXUBVGteNKBevdjOlVC6GlIRXpy+/3LHEIGRovnB5WPjcvmNODVQ1TNFnoa7wsGbd0V3epg==}
+  msw@2.12.7:
+    resolution: {integrity: sha512-retd5i3xCZDVWMYjHEVuKTmhqY8lSsxujjVrZiGbbdoxxIBg5S7rCuYy/YQpfrTYIxpd/o0Kyb/3H+1udBMoYg==}
     engines: {node: '>=18'}
     hasBin: true
     peerDependencies:
@@ -2455,6 +2455,7 @@ packages:
   whatwg-encoding@3.1.1:
     resolution: {integrity: sha512-6qN4hJdMwfYBtE3YBTTHhoeuUrDBPZmbQaxWAqSALV/MeEnR5z1xd8UKud2RAkFoPkmB+hli1TZSnyi84xz1vQ==}
     engines: {node: '>=18'}
+    deprecated: Use @exodus/bytes instead for a more spec-conformant and faster implementation
 
   whatwg-mimetype@4.0.0:
     resolution: {integrity: sha512-QaKxh0eNIi2mE9p2vEdzfagOKHCcj1pJ56EEHGQOVxp8r9/iszLUUV7v89x9O1p/T+NlTM5W7jW6+cz4Fq1YVg==}
@@ -3277,7 +3278,7 @@ snapshots:
       '@typescript-eslint/types': 8.49.0
       eslint-visitor-keys: 4.2.1
 
-  '@vitest/coverage-v8@2.1.9(vitest@2.1.9(@types/node@22.18.8)(jsdom@26.1.0)(msw@2.12.4(@types/node@22.18.8)(typescript@5.9.3)))':
+  '@vitest/coverage-v8@2.1.9(vitest@2.1.9(@types/node@22.18.8)(jsdom@26.1.0)(msw@2.12.7(@types/node@22.18.8)(typescript@5.9.3)))':
     dependencies:
       '@ampproject/remapping': 2.3.0
       '@bcoe/v8-coverage': 0.2.3
@@ -3291,7 +3292,7 @@ snapshots:
       std-env: 3.9.0
       test-exclude: 7.0.1
       tinyrainbow: 1.2.0
-      vitest: 2.1.9(@types/node@22.18.8)(jsdom@26.1.0)(msw@2.12.4(@types/node@22.18.8)(typescript@5.9.3))
+      vitest: 2.1.9(@types/node@22.18.8)(jsdom@26.1.0)(msw@2.12.7(@types/node@22.18.8)(typescript@5.9.3))
     transitivePeerDependencies:
       - supports-color
 
@@ -3302,13 +3303,13 @@ snapshots:
       chai: 5.3.3
       tinyrainbow: 1.2.0
 
-  '@vitest/mocker@2.1.9(msw@2.12.4(@types/node@22.18.8)(typescript@5.9.3))(vite@5.4.21(@types/node@22.18.8))':
+  '@vitest/mocker@2.1.9(msw@2.12.7(@types/node@22.18.8)(typescript@5.9.3))(vite@5.4.21(@types/node@22.18.8))':
     dependencies:
       '@vitest/spy': 2.1.9
       estree-walker: 3.0.3
       magic-string: 0.30.19
     optionalDependencies:
-      msw: 2.12.4(@types/node@22.18.8)(typescript@5.9.3)
+      msw: 2.12.7(@types/node@22.18.8)(typescript@5.9.3)
       vite: 5.4.21(@types/node@22.18.8)
 
   '@vitest/pretty-format@2.1.9':
@@ -4328,7 +4329,7 @@ snapshots:
 
   ms@2.1.3: {}
 
-  msw@2.12.4(@types/node@22.18.8)(typescript@5.9.3):
+  msw@2.12.7(@types/node@22.18.8)(typescript@5.9.3):
     dependencies:
       '@inquirer/confirm': 5.1.21(@types/node@22.18.8)
       '@mswjs/interceptors': 0.40.0
@@ -5014,10 +5015,10 @@ snapshots:
       '@types/node': 22.18.8
       fsevents: 2.3.3
 
-  vitest@2.1.9(@types/node@22.18.8)(jsdom@26.1.0)(msw@2.12.4(@types/node@22.18.8)(typescript@5.9.3)):
+  vitest@2.1.9(@types/node@22.18.8)(jsdom@26.1.0)(msw@2.12.7(@types/node@22.18.8)(typescript@5.9.3)):
     dependencies:
       '@vitest/expect': 2.1.9
-      '@vitest/mocker': 2.1.9(msw@2.12.4(@types/node@22.18.8)(typescript@5.9.3))(vite@5.4.21(@types/node@22.18.8))
+      '@vitest/mocker': 2.1.9(msw@2.12.7(@types/node@22.18.8)(typescript@5.9.3))(vite@5.4.21(@types/node@22.18.8))
       '@vitest/pretty-format': 2.1.9
       '@vitest/runner': 2.1.9
       '@vitest/snapshot': 2.1.9
