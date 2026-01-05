@@ -163,6 +163,9 @@ export interface Routes {
 }
 export type RoutesOptions = Partial<Routes>;
 
+/**
+ * @private
+ */
 export interface AuthClientOptions {
   transactionStore: TransactionStore;
   sessionStore: AbstractSessionStore;
@@ -214,6 +217,9 @@ function createRouteUrl(path: string, baseUrl: string) {
   );
 }
 
+/**
+ * @private
+ */
 export class AuthClient {
   private transactionStore: TransactionStore;
   private sessionStore: AbstractSessionStore;
