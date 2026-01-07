@@ -7,6 +7,9 @@ import {
 import { hkdf } from "@panva/hkdf";
 import * as jose from "jose";
 
+import { Auth0RequestCookies } from "./abstraction/auth0-request-cookies.js";
+import { Auth0ResponseCookies } from "./abstraction/auth0-response-cookies.js";
+
 const ENC = "A256GCM";
 const ALG = "dir";
 const DIGEST = "sha256";
@@ -176,10 +179,10 @@ const getChunkedCookieIndex = (
  * @returns An array of cookies that have names starting with the specified prefix.
  */
 const getAllChunkedCookies = (
-  reqCookies: RequestCookies,
+  reqCookies: Auth0RequestCookies,
   name: string,
   isLegacyCookie?: boolean
-): RequestCookie[] => {
+): Array<{ name: string; value: string }> => {
   const chunkedCookieRegex = new RegExp(
     isLegacyCookie
       ? `^${name}${LEGACY_CHUNK_INDEX_REGEX.source}$`
@@ -206,8 +209,8 @@ export function setChunkedCookie(
   name: string,
   value: string,
   options: CookieOptions,
-  reqCookies: RequestCookies,
-  resCookies: ResponseCookies
+  reqCookies: Auth0RequestCookies,
+  resCookies: Auth0ResponseCookies
 ): void {
   const { transient, ...restOptions } = options;
   const finalOptions = { ...restOptions };
@@ -286,7 +289,7 @@ export function setChunkedCookie(
  */
 export function getChunkedCookie(
   name: string,
-  reqCookies: RequestCookies,
+  reqCookies: Auth0RequestCookies,
   isLegacyCookie?: boolean
 ): string | undefined {
   // Check if regular cookie exists
@@ -337,8 +340,8 @@ export function getChunkedCookie(
  */
 export function deleteChunkedCookie(
   name: string,
-  reqCookies: RequestCookies,
-  resCookies: ResponseCookies,
+  reqCookies: Auth0RequestCookies,
+  resCookies: Auth0ResponseCookies,
   isLegacyCookie?: boolean,
   options?: Pick<CookieOptions, "domain" | "path">
 ): void {
@@ -377,7 +380,7 @@ export function addCacheControlHeadersForSession(res: NextResponse): void {
  * @param options - Optional domain and path settings for cookie deletion.
  */
 export function deleteCookie(
-  resCookies: ResponseCookies,
+  resCookies: Auth0ResponseCookies,
   name: string,
   options?: Pick<CookieOptions, "domain" | "path">
 ) {
