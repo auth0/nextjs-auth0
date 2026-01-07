@@ -23,6 +23,7 @@ import {
   DPoPError,
   DPoPErrorCode,
   InvalidStateError,
+  MfaRequiredError,
   MissingStateError,
   MyAccountApiError,
   OAuth2Error,
@@ -49,6 +50,7 @@ import {
   GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE,
   LogoutStrategy,
   LogoutToken,
+  MfaContext,
   ProxyOptions,
   RESPONSE_TYPES,
   SessionData,
@@ -58,8 +60,17 @@ import {
   User
 } from "../types/index.js";
 import { mergeAuthorizationParamsIntoSearchParams } from "../utils/authorization-params-helpers.js";
-import { DEFAULT_SCOPES } from "../utils/constants.js";
+import {
+  DEFAULT_MFA_CONTEXT_TTL_SECONDS,
+  DEFAULT_SCOPES
+} from "../utils/constants.js";
 import { withDPoPNonceRetry } from "../utils/dpopUtils.js";
+import {
+  encryptMfaToken,
+  extractMfaErrorDetails,
+  hashMfaToken,
+  isMfaRequiredError
+} from "../utils/mfa-utils.js";
 import {
   ensureNoLeadingSlash,
   ensureTrailingSlash,
@@ -209,6 +220,12 @@ export interface AuthClientOptions {
   dpopOptions?: DpopOptions;
 
   /**
+   * MFA context TTL in seconds (for token encryption expiration).
+   * Default: 300 (5 minutes, matching Auth0's mfa_token expiration)
+   */
+  mfaContextTtl?: number;
+
+  /**
    * @future This option is reserved for future implementation.
    * Currently not used - placeholder for upcoming nonce persistence feature.
    */
@@ -263,6 +280,8 @@ export class AuthClient {
 
   private dpopKeyPair?: DpopKeyPair;
   private readonly useDPoP: boolean;
+
+  private readonly mfaContextTtl: number;
 
   private proxyFetchers: { [audience: string]: Fetcher<Response> } = {};
 
@@ -381,6 +400,10 @@ export class AuthClient {
       options.enableConnectAccountEndpoint ?? false;
 
     this.useDPoP = options.useDPoP ?? false;
+
+    // MFA context TTL for token encryption
+    this.mfaContextTtl =
+      options.mfaContextTtl ?? DEFAULT_MFA_CONTEXT_TTL_SECONDS;
 
     // Initialize DPoP if enabled. Check useDPoP flag first to avoid timing attacks.
     if ((options.useDPoP ?? false) && options.dpopKeyPair) {
@@ -947,6 +970,11 @@ export class AuthClient {
     });
 
     if (error) {
+      // Handle MFA required - return 403 with encrypted mfa_token
+      if (error instanceof MfaRequiredError) {
+        return this.#createMfaRequiredResponse(req, session, error);
+      }
+
       return NextResponse.json(
         {
           error: {
@@ -1056,6 +1084,11 @@ export class AuthClient {
     );
 
     if (getTokenSetError) {
+      // Handle MFA required - return 403 with encrypted mfa_token
+      if (getTokenSetError instanceof MfaRequiredError) {
+        return this.#createMfaRequiredResponse(req, session, getTokenSetError);
+      }
+
       return new NextResponse(
         "Failed to retrieve a connected account access token.",
         {
@@ -1227,13 +1260,24 @@ export class AuthClient {
         !tokenSet.expiresAt ||
         tokenSet.expiresAt <= Date.now() / 1000
       ) {
-        const [error, response] = await this.#refreshTokenSet(tokenSet, {
-          audience: options.audience,
-          scope: options.scope ? scope : undefined,
-          requestedScope: scope
-        });
+        const [error, response, mfaContextUpdate] = await this.#refreshTokenSet(
+          tokenSet,
+          {
+            audience: options.audience,
+            scope: options.scope ? scope : undefined,
+            requestedScope: scope
+          }
+        );
 
         if (error) {
+          // If MFA required, store context in session for later lookup.
+          // IMPORTANT: This mutates sessionData by reference. The caller's
+          // session object now contains session.mfa[hash] = context.
+          // Callers must persist the session to save MFA context.
+          if (error instanceof MfaRequiredError && mfaContextUpdate) {
+            sessionData.mfa = sessionData.mfa || {};
+            sessionData.mfa[mfaContextUpdate.hash] = mfaContextUpdate.context;
+          }
           return [error, null];
         }
 
@@ -2514,6 +2558,13 @@ export class AuthClient {
 
       return res;
     } catch (e: any) {
+      // Handle MFA required error - return 403 with MFA context
+      // Note: session.mfa was already mutated by getTokenSet() before the error was thrown.
+      // JavaScript is single-threaded, so no race condition exists.
+      if (e instanceof MfaRequiredError) {
+        return this.#createMfaRequiredResponse(req, session, e);
+      }
+
       // Return 401 for missing refresh token (cannot refresh expired token)
       if (
         e instanceof AccessTokenError &&
@@ -2580,12 +2631,34 @@ export class AuthClient {
   }
 
   /**
+   * Create HTTP response for MFA required error.
+   * Saves session with MFA context and returns 403 response with error details.
+   *
+   * @param req - The incoming request (for reading cookies)
+   * @param session - Session data (already mutated with MFA context by getTokenSet)
+   * @param error - The MfaRequiredError from getTokenSet
+   * @returns NextResponse with 403 status and MFA error JSON body
+   */
+  async #createMfaRequiredResponse(
+    req: NextRequest,
+    session: SessionData,
+    error: MfaRequiredError
+  ): Promise<NextResponse> {
+    // Use toJSON() for consistent REST API response format
+    const res = NextResponse.json(error.toJSON(), { status: 403 });
+    // Save session with MFA context (mutated by getTokenSet via reference)
+    await this.sessionStore.set(req.cookies, res.cookies, session);
+    addCacheControlHeadersForSession(res);
+    return res;
+  }
+
+  /**
    * Refreshes the token set using the provided refresh token.
    * @param tokenSet The current token set containing the refresh token.
    * @param options Options for the refresh operation, including scope and audience.
    * @returns A tuple containing either:
-   *   - `[null, { updatedTokenSet: TokenSet; idTokenClaims: oauth.IDToken }]` if the token was successfully refreshed, containing the updated token set and ID token claims.
-   *   - `[SdkError, null]` if an error occurred during the refresh process.
+   *   - `[null, { updatedTokenSet: TokenSet; idTokenClaims: oauth.IDToken }, undefined]` if the token was successfully refreshed, containing the updated token set and ID token claims.
+   *   - `[SdkError, null, mfaContext?]` if an error occurred during the refresh process. mfaContext is populated for MfaRequiredError.
    */
   async #refreshTokenSet(
     tokenSet: Partial<TokenSet>,
@@ -2595,14 +2668,18 @@ export class AuthClient {
       requestedScope: string;
     }
   ): Promise<
-    | [null, { updatedTokenSet: TokenSet; idTokenClaims: oauth.IDToken }]
-    | [SdkError, null]
+    | [
+        null,
+        { updatedTokenSet: TokenSet; idTokenClaims: oauth.IDToken },
+        undefined
+      ]
+    | [SdkError, null, { hash: string; context: MfaContext } | undefined]
   > {
     const [discoveryError, authorizationServerMetadata] =
       await this.discoverAuthorizationServerMetadata();
 
     if (discoveryError) {
-      return [discoveryError, null];
+      return [discoveryError, null, undefined];
     }
 
     const additionalParameters = new URLSearchParams();
@@ -2660,6 +2737,48 @@ export class AuthClient {
         }
       );
     } catch (e: any) {
+      // Check if this is an MFA required error
+      if (isMfaRequiredError(e)) {
+        const { mfa_token, error_description, mfa_requirements } =
+          extractMfaErrorDetails(e);
+
+        if (mfa_token) {
+          // Generate hash for session key
+          const tokenHash = hashMfaToken(mfa_token);
+
+          // MFA context to be stored in session by caller
+          const mfaContext: MfaContext = {
+            audience: options.audience || "",
+            scope: options.requestedScope,
+            createdAt: Date.now()
+          };
+
+          // Encrypt token before exposing to application
+          const encryptedToken = await encryptMfaToken(
+            mfa_token,
+            this.sessionStore.secret,
+            this.mfaContextTtl
+          );
+
+          // Return MFA required error and MFA context update
+          // Caller is responsible for storing mfaContext in session
+          return [
+            new MfaRequiredError(
+              error_description ?? "Multi-factor authentication is required.",
+              encryptedToken,
+              mfa_requirements,
+              new OAuth2Error({
+                code: e.error,
+                message: e.error_description
+              })
+            ),
+            null,
+            // Return MFA context for caller to store in session
+            { hash: tokenHash, context: mfaContext }
+          ];
+        }
+      }
+
       return [
         new AccessTokenError(
           AccessTokenErrorCode.FAILED_TO_REFRESH_TOKEN,
@@ -2669,7 +2788,8 @@ export class AuthClient {
             message: e.error_description
           })
         ),
-        null
+        null,
+        undefined
       ];
     }
 
@@ -2714,7 +2834,8 @@ export class AuthClient {
       {
         updatedTokenSet,
         idTokenClaims
-      }
+      },
+      undefined
     ];
   }
 }

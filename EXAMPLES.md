@@ -1244,6 +1244,104 @@ try {
 }
 ```
 
+## MFA Step-Up Authentication
+
+MFA Step-Up allows your application to require additional authentication factors for sensitive operations, even when the user is already logged in.
+
+### When MFA Step-Up Occurs
+
+When calling `getAccessToken()` with a token request that requires MFA (due to Auth0 policies like Actions or APIs requiring specific ACR values), the SDK throws an `MfaRequiredError` containing:
+
+- An **encrypted** `mfa_token` for completing MFA
+- `mfa_requirements` describing available challenge/enrollment options
+- The original `error_description` from Auth0
+
+### Handling MfaRequiredError
+
+```typescript
+import { auth0, MfaRequiredError } from '@auth0/nextjs-auth0/server';
+
+export async function performSensitiveAction() {
+  try {
+    const { token } = await auth0.getAccessToken({
+      audience: 'https://sensitive-api.example.com',
+      scope: 'admin:delete'
+    });
+
+    // Use token for sensitive operation
+    return await callSensitiveApi(token);
+  } catch (error) {
+    if (error instanceof MfaRequiredError) {
+      // MFA is required - the encrypted mfa_token is available
+      console.log('MFA required:', error.mfa_requirements);
+
+      // Option 1: Return error to client for handling
+      return Response.json(error.toJSON(), { status: 403 });
+
+      // Option 2: Redirect to custom MFA flow
+      // return NextResponse.redirect('/mfa-challenge');
+    }
+    throw error;
+  }
+}
+```
+
+### API Route Handler Example
+
+```typescript
+// app/api/sensitive/route.ts
+import { auth0, MfaRequiredError } from '@auth0/nextjs-auth0/server';
+import { NextRequest, NextResponse } from 'next/server';
+
+export async function POST(req: NextRequest) {
+  try {
+    const { token } = await auth0.getAccessToken();
+    // Perform sensitive operation
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    if (error instanceof MfaRequiredError) {
+      // Return 403 with MFA details for client to handle
+      return NextResponse.json(error.toJSON(), { status: 403 });
+    }
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+}
+```
+
+### MFA Error Types
+
+| Error Class | Code | When Thrown |
+|-------------|------|-------------|
+| `MfaRequiredError` | `mfa_required` | Token refresh requires MFA step-up |
+| `MfaTokenNotFoundError` | `mfa_token_not_found` | No MFA context for provided token |
+| `MfaTokenExpiredError` | `mfa_token_expired` | Encrypted MFA token TTL exceeded |
+| `MfaTokenInvalidError` | `mfa_token_invalid` | Token tampered or wrong secret |
+
+### Configuration
+
+Configure MFA token TTL via options or environment variable:
+
+```typescript
+// Option 1: Via constructor
+const auth0 = new Auth0Client({
+  mfaContextTtl: 600 // 10 minutes in seconds
+});
+```
+
+```bash
+# Option 2: Via environment variable
+AUTH0_MFA_CONTEXT_TTL=600
+```
+
+Default TTL is 300 seconds (5 minutes), matching Auth0's mfa_token expiration.
+
+### Session Context
+
+When MFA is required, the SDK automatically stores MFA context in the session keyed by a hash of the raw token.
+
+> [!NOTE]
+> The MFA context is cleaned up automatically when the session is written. Expired contexts (based on `mfaContextTtl`) are removed to prevent session bloat.
+
 ## DPoP (Demonstrating Proof-of-Possession)
 
 DPoP is an OAuth 2.0 extension that enhances security by binding access tokens to a client's private key. This prevents token theft and replay attacks by requiring cryptographic proof that the client possessing the token also possesses the private key used to request it.
