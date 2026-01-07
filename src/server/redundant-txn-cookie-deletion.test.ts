@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { NextRequest } from "next/server.js";
+import { NextRequest, NextResponse } from "next/server.js";
 import * as jose from "jose";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
@@ -31,6 +31,7 @@ import {
 } from "./session/abstract-session-store.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import { TransactionStore } from "./transaction-store.js";
+import { Auth0NextRequest, Auth0NextResponse } from "./http/index.js";
 
 // Only mock specific oauth4webapi functions that need predictable values
 vi.mock("oauth4webapi", async () => {
@@ -306,7 +307,10 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
       req.cookies.set("__session", "session-value");
 
       // Act: Process the logout
-      const res = await authClient.handleLogout(req);
+      const auth0Req = new Auth0NextRequest(req);
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+      await authClient.handleLogout(auth0Req, auth0Res);
+      const res = auth0Res.res;
 
       // Assert: Verify session cleanup occurred
       expect(mockSessionStoreInstance.delete).toHaveBeenCalledTimes(1);
@@ -348,7 +352,10 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
       req.cookies.set("other_cookie", "other-value"); // Non-auth cookie should be preserved
 
       // Act: Process the logout
-      const res = await authClient.handleLogout(req);
+      const auth0Req = new Auth0NextRequest(req);
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+      await authClient.handleLogout(auth0Req, auth0Res);
+      const res = auth0Res.res;
 
       // Assert: Verify all auth-related cleanup occurred
       expect(mockSessionStoreInstance.delete).toHaveBeenCalledTimes(1);
@@ -373,7 +380,10 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
       const req = new NextRequest("http://localhost:3000/api/auth/logout");
       req.cookies.set("__txn_state1", "txn-value1");
 
-      const res = await authClient.handleLogout(req);
+      const auth0Req = new Auth0NextRequest(req);
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+      await authClient.handleLogout(auth0Req, auth0Res);
+      const res = auth0Res.res;
 
       expect(mockSessionStoreInstance.delete).toHaveBeenCalledTimes(1);
 
@@ -412,7 +422,10 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
       req.cookies.set(`${customPrefix}state1`, "txn-value1");
       req.cookies.set("__txn_state2", "default-prefix-value");
 
-      const res = await authClient.handleLogout(req);
+      const auth0Req = new Auth0NextRequest(req);
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+      await authClient.handleLogout(auth0Req, auth0Res);
+      const res = auth0Res.res;
 
       expect(mockSessionStoreInstance.delete).toHaveBeenCalledTimes(1);
 
@@ -461,7 +474,10 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
 
       // Arrange: First, do a login to get proper state and transaction cookie
       const loginReq = new NextRequest("http://localhost:3000/api/auth/login");
-      const loginRes = await authClient.handleLogin(loginReq);
+      const loginAuth0Req = new Auth0NextRequest(loginReq);
+      const loginAuth0Res = new Auth0NextResponse(NextResponse.next());
+      await authClient.handleLogin(loginAuth0Req, loginAuth0Res);
+      const loginRes = loginAuth0Res.res;
 
       // Extract the state from the redirect URL
       const redirectUrl = new URL(loginRes.headers.get("Location")!);
@@ -482,13 +498,15 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
       }
 
       // Act: Process the successful callback
-      const res = await authClient.handleCallback(req);
+      const callbackAuth0Req = new Auth0NextRequest(req);
+      const callbackAuth0Res = new Auth0NextResponse(NextResponse.next());
+      await authClient.handleCallback(callbackAuth0Req, callbackAuth0Res);
+      const res = callbackAuth0Res.res;
 
       // Assert: Verify transaction was retrieved and processed
-      expect(mockTransactionStoreInstance.get).toHaveBeenCalledWith(
-        req.cookies,
-        state
-      );
+      expect(mockTransactionStoreInstance.get).toHaveBeenCalled();
+      const getCall = mockTransactionStoreInstance.get.mock.calls[0];
+      expect(getCall[1]).toBe(state);
 
       // Check that the specific transaction cookie was deleted
       const deletedTxnCookies = res.cookies
@@ -527,13 +545,15 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
       );
 
       // Act: Handle callback with invalid state
-      const res = await authClient.handleCallback(req);
+      const callbackAuth0Req = new Auth0NextRequest(req);
+      const callbackAuth0Res = new Auth0NextResponse(NextResponse.next());
+      await authClient.handleCallback(callbackAuth0Req, callbackAuth0Res);
+      const res = callbackAuth0Res.res;
 
       // Assert: Verify transaction store was queried but found nothing
-      expect(mockTransactionStoreInstance.get).toHaveBeenCalledWith(
-        req.cookies,
-        state
-      );
+      expect(mockTransactionStoreInstance.get).toHaveBeenCalled();
+      const getCall = mockTransactionStoreInstance.get.mock.calls[0];
+      expect(getCall[1]).toBe(state);
 
       // Check that no transaction cookies were deleted (preserve other auth flows)
       const deletedTxnCookies = res.cookies
@@ -571,7 +591,10 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
       );
 
       // Act: Handle the malformed callback
-      const res = await authClient.handleCallback(req);
+      const callbackAuth0Req = new Auth0NextRequest(req);
+      const callbackAuth0Res = new Auth0NextResponse(NextResponse.next());
+      await authClient.handleCallback(callbackAuth0Req, callbackAuth0Res);
+      const res = callbackAuth0Res.res;
 
       // Assert: Verify error handling behavior
       // Should not attempt to retrieve transaction since no state to look up
@@ -651,7 +674,10 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
         const loginReq = new NextRequest(
           "http://localhost:3000/api/auth/login"
         );
-        const loginRes = await authClient.handleLogin(loginReq);
+        const loginAuth0Req = new Auth0NextRequest(loginReq);
+        const loginAuth0Res = new Auth0NextResponse(NextResponse.next());
+        await authClient.handleLogin(loginAuth0Req, loginAuth0Res);
+        const loginRes = loginAuth0Res.res;
 
         // Extract the state from the redirect URL
         const redirectUrl = new URL(loginRes.headers.get("Location")!);
@@ -674,7 +700,10 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
         }
 
         // Act: Handle the callback
-        const callbackRes = await authClient.handleCallback(callbackReq);
+        const callbackAuth0Req = new Auth0NextRequest(callbackReq);
+        const callbackAuth0Res = new Auth0NextResponse(NextResponse.next());
+        await authClient.handleCallback(callbackAuth0Req, callbackAuth0Res);
+        const callbackRes = callbackAuth0Res.res;
 
         // Assert: Verify that ALL transaction cookies are cleaned up
         expect(callbackRes.status).toBeGreaterThanOrEqual(300); // Should redirect
@@ -719,7 +748,10 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
         const loginReq = new NextRequest(
           "http://localhost:3000/api/auth/login"
         );
-        const loginRes = await authClient.handleLogin(loginReq);
+        const loginAuth0Req = new Auth0NextRequest(loginReq);
+        const loginAuth0Res = new Auth0NextResponse(NextResponse.next());
+        await authClient.handleLogin(loginAuth0Req, loginAuth0Res);
+        const loginRes = loginAuth0Res.res;
 
         const redirectUrl = new URL(loginRes.headers.get("Location")!);
         const state = redirectUrl.searchParams.get("state")!;
@@ -734,7 +766,10 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
           callbackReq.cookies.set(`__txn_${state}`, txnCookie.value);
         }
 
-        const callbackRes = await authClient.handleCallback(callbackReq);
+        const callbackAuth0Req = new Auth0NextRequest(callbackReq);
+        const callbackAuth0Res = new Auth0NextResponse(NextResponse.next());
+        await authClient.handleCallback(callbackAuth0Req, callbackAuth0Res);
+        const callbackRes = callbackAuth0Res.res;
 
         // Should still work normally
         expect(callbackRes.status).toBeGreaterThanOrEqual(300);
@@ -756,7 +791,10 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
         const loginReq = new NextRequest(
           "http://localhost:3000/api/auth/login"
         );
-        const loginRes = await authClient.handleLogin(loginReq);
+        const loginAuth0Req = new Auth0NextRequest(loginReq);
+        const loginAuth0Res = new Auth0NextResponse(NextResponse.next());
+        await authClient.handleLogin(loginAuth0Req, loginAuth0Res);
+        const loginRes = loginAuth0Res.res;
 
         const redirectUrl = new URL(loginRes.headers.get("Location")!);
         const state = redirectUrl.searchParams.get("state")!;
@@ -773,7 +811,10 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
         callbackReq.cookies.set("other_cookie", "should_not_be_deleted");
         callbackReq.cookies.set("user_pref", "also_should_remain");
 
-        const callbackRes = await authClient.handleCallback(callbackReq);
+        const callbackAuth0Req = new Auth0NextRequest(callbackReq);
+        const callbackAuth0Res = new Auth0NextResponse(NextResponse.next());
+        await authClient.handleCallback(callbackAuth0Req, callbackAuth0Res);
+        const callbackRes = callbackAuth0Res.res;
 
         // Check that only transaction cookies are deleted
         const deletedCookies = callbackRes.cookies
@@ -814,7 +855,10 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
         const loginReq = new NextRequest(
           "http://localhost:3000/api/auth/login"
         );
-        const loginRes = await singleTxnAuthClient.handleLogin(loginReq);
+        const loginAuth0Req = new Auth0NextRequest(loginReq);
+        const loginAuth0Res = new Auth0NextResponse(NextResponse.next());
+        await singleTxnAuthClient.handleLogin(loginAuth0Req, loginAuth0Res);
+        const loginRes = loginAuth0Res.res;
 
         // Assert: Should use __txn_ without state suffix
         const txnCookies = loginRes.cookies

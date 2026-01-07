@@ -7,6 +7,9 @@ import {
 import { hkdf } from "@panva/hkdf";
 import * as jose from "jose";
 
+import { Auth0RequestCookies } from "./http/auth0-request-cookies.js";
+import { Auth0ResponseCookies } from "./http/auth0-response-cookies.js";
+
 const ENC = "A256GCM";
 const ALG = "dir";
 const DIGEST = "sha256";
@@ -176,10 +179,10 @@ const getChunkedCookieIndex = (
  * @returns An array of cookies that have names starting with the specified prefix.
  */
 const getAllChunkedCookies = (
-  reqCookies: RequestCookies,
+  reqCookies: Auth0RequestCookies,
   name: string,
   isLegacyCookie?: boolean
-): RequestCookie[] => {
+): Array<{ name: string; value: string }> => {
   const chunkedCookieRegex = new RegExp(
     isLegacyCookie
       ? `^${name}${LEGACY_CHUNK_INDEX_REGEX.source}$`
@@ -206,8 +209,8 @@ export function setChunkedCookie(
   name: string,
   value: string,
   options: CookieOptions,
-  reqCookies: RequestCookies,
-  resCookies: ResponseCookies
+  reqCookies: Auth0RequestCookies,
+  resCookies: Auth0ResponseCookies
 ): void {
   const { transient, ...restOptions } = options;
   const finalOptions = { ...restOptions };
@@ -227,7 +230,8 @@ export function setChunkedCookie(
     // When we are writing a non-chunked cookie, we should remove the chunked cookies
     // Remove any previously stored chunks for this cookie name
     getAllChunkedCookies(reqCookies, name).forEach((cookieChunk) => {
-      deleteCookie(resCookies, cookieChunk.name, {
+      resCookies.delete({
+        name: cookieChunk.name,
         path: finalOptions.path,
         domain: finalOptions.domain
       });
@@ -259,7 +263,8 @@ export function setChunkedCookie(
     for (let i = 0; i < chunksToRemove; i++) {
       const chunkIndexToRemove = chunkIndex + i;
       const chunkName = `${name}${CHUNK_PREFIX}${chunkIndexToRemove}`;
-      deleteCookie(resCookies, chunkName, {
+      resCookies.delete({
+        name: chunkName,
         path: finalOptions.path,
         domain: finalOptions.domain
       });
@@ -268,7 +273,8 @@ export function setChunkedCookie(
   }
 
   // When we have written chunked cookies, we should remove the non-chunked cookie
-  deleteCookie(resCookies, name, {
+  resCookies.delete({
+    name: name,
     path: finalOptions.path,
     domain: finalOptions.domain
   });
@@ -286,7 +292,7 @@ export function setChunkedCookie(
  */
 export function getChunkedCookie(
   name: string,
-  reqCookies: RequestCookies,
+  reqCookies: Auth0RequestCookies,
   isLegacyCookie?: boolean
 ): string | undefined {
   // Check if regular cookie exists
@@ -337,16 +343,22 @@ export function getChunkedCookie(
  */
 export function deleteChunkedCookie(
   name: string,
-  reqCookies: RequestCookies,
-  resCookies: ResponseCookies,
+  reqCookies: Auth0RequestCookies,
+  resCookies: Auth0ResponseCookies,
   isLegacyCookie?: boolean,
   options?: Pick<CookieOptions, "domain" | "path">
 ): void {
   // Delete main cookie
-  deleteCookie(resCookies, name, options);
+  resCookies.delete({
+    name: name,
+    ...options
+  });
 
   getAllChunkedCookies(reqCookies, name, isLegacyCookie).forEach((cookie) => {
-    deleteCookie(resCookies, cookie.name, options); // Delete each filtered cookie
+    resCookies.delete({
+      name: cookie.name,
+      ...options
+    });
   });
 }
 
@@ -367,31 +379,4 @@ export function addCacheControlHeadersForSession(res: NextResponse): void {
   );
   res.headers.set("Pragma", "no-cache");
   res.headers.set("Expires", "0");
-}
-
-/**
- * Deletes a cookie from the response with optional domain and path specifications.
- *
- * @param resCookies - The response cookies object to manipulate.
- * @param name - The name of the cookie to delete.
- * @param options - Optional domain and path settings for cookie deletion.
- */
-export function deleteCookie(
-  resCookies: ResponseCookies,
-  name: string,
-  options?: Pick<CookieOptions, "domain" | "path">
-) {
-  const deleteOptions: { maxAge: number; domain?: string; path?: string } = {
-    maxAge: 0 // Ensure the cookie is deleted immediately
-  };
-
-  if (options?.domain) {
-    deleteOptions.domain = options.domain;
-  }
-
-  if (options?.path) {
-    deleteOptions.path = options.path;
-  }
-
-  resCookies.set(name, "", deleteOptions);
 }

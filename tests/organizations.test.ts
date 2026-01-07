@@ -1,6 +1,10 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  Auth0NextRequest,
+  Auth0NextResponse
+} from "../src/server/http/index.js";
 import { AuthClient } from "../src/server/auth-client.js";
 import { StatelessSessionStore } from "../src/server/session/stateless-session-store.js";
 import { TransactionStore } from "../src/server/transaction-store.js";
@@ -116,7 +120,13 @@ describe("Organizations Feature", () => {
         }
       );
 
-      const response = await authClient.handleLogin(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleLogin(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
 
       expect(response.status).toBe(307); // Redirect to Auth0
       expect(response.headers.get("location")).toContain(
@@ -132,7 +142,13 @@ describe("Organizations Feature", () => {
         }
       );
 
-      const response = await authClient.handleLogin(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleLogin(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
 
       expect(response.status).toBe(307);
       expect(response.headers.get("location")).toContain(
@@ -148,7 +164,13 @@ describe("Organizations Feature", () => {
         }
       );
 
-      const response = await authClient.handleLogin(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleLogin(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
 
       expect(response.status).toBe(307); // Redirect to Auth0
       const location = response.headers.get("location");
@@ -163,7 +185,13 @@ describe("Organizations Feature", () => {
         }
       );
 
-      const response = await authClient.handleLogin(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleLogin(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
 
       expect(response.status).toBe(307); // Redirect to Auth0
       const location = response.headers.get("location");
@@ -179,7 +207,13 @@ describe("Organizations Feature", () => {
         }
       );
 
-      const response = await authClient.handleLogin(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleLogin(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
 
       expect(response.status).toBe(307); // Redirect to Auth0
       const location = response.headers.get("location");
@@ -191,7 +225,13 @@ describe("Organizations Feature", () => {
         method: "GET"
       });
 
-      const response = await authClient.handleLogin(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleLogin(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
 
       expect(response.status).toBe(307);
       const location = response.headers.get("location");
@@ -220,7 +260,10 @@ describe("Organizations Feature", () => {
         method: "GET"
       });
 
-      const response = await authClientWithOrg.handleLogin(request);
+      const auth0Req1 = new Auth0NextRequest(request);
+      const auth0Res1 = new Auth0NextResponse(NextResponse.next());
+      await authClientWithOrg.handleLogin(auth0Req1, auth0Res1);
+      const response = auth0Res1.res;
 
       expect(response.status).toBe(307);
       expect(response.headers.get("location")).toContain(
@@ -251,7 +294,10 @@ describe("Organizations Feature", () => {
         }
       );
 
-      const response = await authClientWithOrg.handleLogin(request);
+      const auth0Req2 = new Auth0NextRequest(request);
+      const auth0Res2 = new Auth0NextResponse(NextResponse.next());
+      await authClientWithOrg.handleLogin(auth0Req2, auth0Res2);
+      const response = auth0Res2.res;
 
       expect(response.status).toBe(307);
       // URL parameter should override static configuration
@@ -286,7 +332,10 @@ describe("Organizations Feature", () => {
         }
       );
 
-      const response = await authClientWithPAR.handleLogin(request);
+      const auth0Req = new Auth0NextRequest(request);
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+      await authClientWithPAR.handleLogin(auth0Req, auth0Res);
+      const response = auth0Res.res;
 
       expect(response.status).toBe(307);
       // With PAR enabled, query parameters should not be forwarded
@@ -304,7 +353,13 @@ describe("Organizations Feature", () => {
         }
       );
 
-      const response = await authClient.handleLogin(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleLogin(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
 
       expect(response.status).toBe(307);
       const location = response.headers.get("location");
@@ -321,7 +376,13 @@ describe("Organizations Feature", () => {
         }
       );
 
-      const response = await authClient.handleLogin(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleLogin(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
 
       expect(response.status).toBe(307);
       const location = response.headers.get("location");

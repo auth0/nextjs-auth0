@@ -1,10 +1,7 @@
 import type { SessionData, SessionDataStore } from "../../types/index.js";
-import {
-  CookieOptions,
-  ReadonlyRequestCookies,
-  RequestCookies,
-  ResponseCookies
-} from "../cookies.js";
+import { Auth0RequestCookies } from "../http/auth0-request-cookies.js";
+import { Auth0ResponseCookies } from "../http/auth0-response-cookies.js";
+import { CookieOptions } from "../cookies.js";
 
 export interface SessionCookieOptions {
   /**
@@ -124,7 +121,7 @@ export abstract class AbstractSessionStore {
   }
 
   abstract get(
-    reqCookies: RequestCookies | ReadonlyRequestCookies
+    reqCookies: Auth0RequestCookies
   ): Promise<SessionData | null>;
 
   /**
@@ -132,15 +129,15 @@ export abstract class AbstractSessionStore {
    * is present on the session, then it will be used to compute the `maxAge` cookie value.
    */
   abstract set(
-    reqCookies: RequestCookies | ReadonlyRequestCookies,
-    resCookies: ResponseCookies,
+    reqCookies: Auth0RequestCookies,
+    resCookies: Auth0ResponseCookies,
     session: SessionData,
     isNew?: boolean
   ): Promise<void>;
 
   abstract delete(
-    reqCookies: RequestCookies | ReadonlyRequestCookies,
-    resCookies: ResponseCookies
+    reqCookies: Auth0RequestCookies,
+    resCookies: Auth0ResponseCookies
   ): Promise<void>;
 
   /**

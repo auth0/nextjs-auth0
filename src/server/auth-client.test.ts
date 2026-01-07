@@ -22,6 +22,7 @@ import {
 import { DEFAULT_SCOPES } from "../utils/constants.js";
 import { AuthClient } from "./auth-client.js";
 import { decrypt, encrypt } from "./cookies.js";
+import { Auth0NextRequest, Auth0NextResponse } from "./http/index.js";
 import { StatefulSessionStore } from "./session/stateful-session-store.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import { TransactionState, TransactionStore } from "./transaction-store.js";
@@ -443,7 +444,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const request = new NextRequest("https://example.com/auth/login", {
         method: "GET"
       });
-      authClient.handleLogin = vi.fn();
+      authClient.handleLogin = vi.fn().mockResolvedValue({});
       await authClient.handler(request);
       expect(authClient.handleLogin).toHaveBeenCalled();
     });
@@ -474,7 +475,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const request = new NextRequest("https://example.com/auth/callback", {
         method: "GET"
       });
-      authClient.handleCallback = vi.fn();
+      authClient.handleCallback = vi.fn().mockResolvedValue({});
       await authClient.handler(request);
       expect(authClient.handleCallback).toHaveBeenCalled();
     });
@@ -505,7 +506,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const request = new NextRequest("https://example.com/auth/logout", {
         method: "GET"
       });
-      authClient.handleLogout = vi.fn();
+      authClient.handleLogout = vi.fn().mockResolvedValue({});
       await authClient.handler(request);
       expect(authClient.handleLogout).toHaveBeenCalled();
     });
@@ -536,7 +537,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const request = new NextRequest("https://example.com/auth/profile", {
         method: "GET"
       });
-      authClient.handleProfile = vi.fn();
+      authClient.handleProfile = vi.fn().mockResolvedValue({});
       await authClient.handler(request);
       expect(authClient.handleProfile).toHaveBeenCalled();
     });
@@ -568,7 +569,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const request = new NextRequest("https://example.com/auth/access-token", {
         method: "GET"
       });
-      authClient.handleAccessToken = vi.fn();
+      authClient.handleAccessToken = vi.fn().mockResolvedValue({});
       await authClient.handler(request);
       expect(authClient.handleAccessToken).toHaveBeenCalled();
     });
@@ -600,7 +601,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const request = new NextRequest("https://example.com/auth/access-token", {
         method: "GET"
       });
-      authClient.handleAccessToken = vi.fn();
+      authClient.handleAccessToken = vi.fn().mockResolvedValue({});
       const response = await authClient.handler(request);
       expect(authClient.handleAccessToken).not.toHaveBeenCalled();
       // When a route doesn't match, the handler returns a NextResponse.next() with status 200
@@ -634,7 +635,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       const request = new NextRequest("https://example.com/auth/access-token", {
         method: "GET"
       });
-      authClient.handleAccessToken = vi.fn();
+      authClient.handleAccessToken = vi.fn().mockResolvedValue({});
       await authClient.handler(request);
       expect(authClient.handleAccessToken).toHaveBeenCalled();
     });
@@ -668,7 +669,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           method: "POST"
         }
       );
-      authClient.handleBackChannelLogout = vi.fn();
+      authClient.handleBackChannelLogout = vi.fn().mockResolvedValue({});
       await authClient.handler(request);
       expect(authClient.handleBackChannelLogout).toHaveBeenCalled();
     });
@@ -837,7 +838,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         );
 
-        authClient.handleLogin = vi.fn();
+        authClient.handleLogin = vi.fn().mockResolvedValue({});
         await authClient.handler(request);
         expect(authClient.handleLogin).toHaveBeenCalled();
       });
@@ -875,7 +876,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         );
 
-        authClient.handleLogout = vi.fn();
+        authClient.handleLogout = vi.fn().mockResolvedValue({});
         await authClient.handler(request);
         expect(authClient.handleLogout).toHaveBeenCalled();
       });
@@ -913,7 +914,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         );
 
-        authClient.handleCallback = vi.fn();
+        authClient.handleCallback = vi.fn().mockResolvedValue({});
         await authClient.handler(request);
         expect(authClient.handleCallback).toHaveBeenCalled();
       });
@@ -951,7 +952,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         );
 
-        authClient.handleBackChannelLogout = vi.fn();
+        authClient.handleBackChannelLogout = vi.fn().mockResolvedValue({});
         await authClient.handler(request);
         expect(authClient.handleBackChannelLogout).toHaveBeenCalled();
       });
@@ -988,7 +989,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         );
 
-        authClient.handleProfile = vi.fn();
+        authClient.handleProfile = vi.fn().mockResolvedValue({});
         await authClient.handler(request);
         expect(authClient.handleProfile).toHaveBeenCalled();
 
@@ -1027,7 +1028,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         );
 
-        authClient.handleAccessToken = vi.fn();
+        authClient.handleAccessToken = vi.fn().mockResolvedValue({});
         await authClient.handler(request);
         expect(authClient.handleAccessToken).toHaveBeenCalled();
 
@@ -1121,7 +1122,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
             writable: false
           });
 
-          (authClient as any)[testCase.handler] = vi.fn();
+          (authClient as any)[testCase.handler] = vi.fn().mockResolvedValue({});
           await authClient.handler(request);
           expect((authClient as any)[testCase.handler]).toHaveBeenCalled();
         }
@@ -1151,7 +1152,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           { method: "GET" }
         );
 
-        authClient.handleLogin = vi.fn();
+        authClient.handleLogin = vi.fn().mockResolvedValue({});
         await authClient.handler(request);
         expect(authClient.handleLogin).toHaveBeenCalled();
 
@@ -1189,7 +1190,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           writable: false
         });
 
-        authClient.handleMyAccount = vi.fn();
+        authClient.handleMyAccount = vi.fn().mockResolvedValue({});
         await authClient.handler(request);
         expect(authClient.handleMyAccount).toHaveBeenCalled();
       });
@@ -1224,7 +1225,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           writable: false
         });
 
-        authClient.handleMyOrg = vi.fn();
+        authClient.handleMyOrg = vi.fn().mockResolvedValue({});
         await authClient.handler(request);
         expect(authClient.handleMyOrg).toHaveBeenCalled();
       });
@@ -1262,7 +1263,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      const response = await authClient.handleLogin(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleLogin(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
       expect(response.status).toEqual(307);
       expect(response.headers.get("Location")).not.toBeNull();
 
@@ -1344,7 +1351,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      const response = await authClient.handleLogin(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleLogin(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
       const authorizationUrl = new URL(response.headers.get("Location")!);
 
       expect(authorizationUrl.searchParams.get("redirect_uri")).toEqual(
@@ -1394,7 +1407,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         );
 
-        const response = await authClient.handleLogin(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleLogin(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         const authorizationUrl = new URL(response.headers.get("Location")!);
 
         expect(authorizationUrl.searchParams.get("redirect_uri")).toEqual(
@@ -1436,7 +1455,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      const response = await authClient.handleLogin(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleLogin(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
       expect(response.status).toEqual(500);
       expect(await response.text()).toContain(
         "An error occurred while trying to initiate the login request."
@@ -1474,7 +1499,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           method: "GET"
         });
 
-        const response = await authClient.handleLogin(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleLogin(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(307);
         expect(response.headers.get("Location")).not.toBeNull();
 
@@ -1565,7 +1596,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           method: "GET"
         });
 
-        const response = await authClient.handleLogin(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleLogin(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(307);
         expect(response.headers.get("Location")).not.toBeNull();
 
@@ -1635,7 +1672,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           method: "GET"
         });
 
-        const response = await authClient.handleLogin(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleLogin(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(307);
         expect(response.headers.get("Location")).not.toBeNull();
 
@@ -1721,7 +1764,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           method: "GET"
         });
 
-        const response = await authClient.handleLogin(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleLogin(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(307);
         expect(response.headers.get("Location")).not.toBeNull();
 
@@ -1791,7 +1840,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           method: "GET"
         });
 
-        const response = await authClient.handleLogin(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleLogin(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(307);
         expect(response.headers.get("Location")).not.toBeNull();
 
@@ -1855,7 +1910,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         method: "GET"
       });
 
-      const response = await authClient.handleLogin(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleLogin(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
       const authorizationUrl = new URL(response.headers.get("Location")!);
 
       expect(authorizationUrl.searchParams.get("max_age")).toEqual("3600");
@@ -1913,7 +1974,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         method: "GET"
       });
 
-      const response = await authClient.handleLogin(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleLogin(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
       const authorizationUrl = new URL(response.headers.get("Location")!);
 
       // transaction state
@@ -1968,7 +2035,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         method: "GET"
       });
 
-      const response = await authClient.handleLogin(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleLogin(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
       const authorizationUrl = new URL(response.headers.get("Location")!);
 
       // transaction state
@@ -2036,7 +2109,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
             method: "GET"
           }
         );
-        const response = await authClient.handleLogin(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleLogin(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
 
         expect(response.status).toEqual(500);
         expect(await response.text()).toEqual(
@@ -2089,7 +2168,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         );
 
-        const response = await authClient.handleLogin(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleLogin(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(307);
         expect(response.headers.get("Location")).not.toBeNull();
 
@@ -2197,7 +2282,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
             }
           );
 
-          const response = await authClient.handleLogin(request);
+          const auth0Req = new Auth0NextRequest(request);
+
+          const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+          await authClient.handleLogin(auth0Req, auth0Res);
+
+          const response = auth0Res.res;
           expect(response.status).toEqual(307);
           expect(response.headers.get("Location")).not.toBeNull();
 
@@ -2252,7 +2343,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
             })
           });
 
-          const response = await authClient.handleLogin(request);
+          const auth0Req = new Auth0NextRequest(request);
+
+          const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+          await authClient.handleLogin(auth0Req, auth0Res);
+
+          const response = auth0Res.res;
           expect(response.status).toEqual(307);
           expect(response.headers.get("Location")).not.toBeNull();
           const authorizationUrl = new URL(response.headers.get("Location")!);
@@ -2341,7 +2438,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
             })
           });
 
-          const response = await authClient.handleLogin(request);
+          const auth0Req = new Auth0NextRequest(request);
+
+          const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+          await authClient.handleLogin(auth0Req, auth0Res);
+
+          const response = auth0Res.res;
           expect(response.status).toEqual(307);
           expect(response.headers.get("Location")).not.toBeNull();
           const authorizationUrl = new URL(response.headers.get("Location")!);
@@ -2422,7 +2525,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         );
 
-        const response = await authClient.handleLogin(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleLogin(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(307);
         expect(response.headers.get("Location")).not.toBeNull();
 
@@ -2477,7 +2586,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           method: "GET"
         });
 
-        const response = await authClient.handleLogin(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleLogin(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         const authorizationUrl = new URL(response.headers.get("Location")!);
 
         // With PAR, the authorization URL should only contain request_uri and client_id
@@ -2533,7 +2648,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
           method: "GET"
         });
 
-        await authClient.handleLogin(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleLogin(auth0Req, auth0Res);
 
         // All safe parameters should be sent in the PAR request
         expect(parRequestParams!.get("screen_hint")).toEqual("signup");
@@ -2582,7 +2701,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
           method: "GET"
         });
 
-        await authClient.handleLogin(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleLogin(auth0Req, auth0Res);
 
         // With simplified approach, custom parameters are forwarded to PAR
         expect(parRequestParams!.get("scope")).toEqual("read:users"); // Query param forwarded
@@ -2650,7 +2773,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      const response = await authClient.handleLogout(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleLogout(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
       expect(response.status).toEqual(307);
       expect(response.headers.get("Location")).not.toBeNull();
 
@@ -2727,7 +2856,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         headers
       });
 
-      const response = await authClient.handleLogout(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleLogout(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
       expect(response.status).toEqual(307);
       expect(response.headers.get("Location")).not.toBeNull();
 
@@ -2782,7 +2917,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      const response = await authClient.handleLogout(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleLogout(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
       expect(response.status).toEqual(307);
       expect(response.headers.get("Location")).not.toBeNull();
 
@@ -2821,7 +2962,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      const response = await authClient.handleLogout(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleLogout(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
       expect(response.status).toEqual(307);
       expect(response.headers.get("Location")).not.toBeNull();
 
@@ -2887,7 +3034,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      const response = await authClient.handleLogout(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleLogout(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
       expect(response.status).toEqual(307);
       const logoutUrl = new URL(response.headers.get("Location")!);
       expect(logoutUrl.origin).toEqual(`https://${DEFAULT.domain}`);
@@ -2937,7 +3090,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      const response = await authClient.handleLogout(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleLogout(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
       expect(response.status).toEqual(500);
       expect(await response.text()).toEqual(
         "An error occurred while trying to initiate the logout request."
@@ -2999,7 +3158,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         );
 
-        const response = await authClient.handleLogout(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleLogout(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(307);
         expect(response.headers.get("Location")).not.toBeNull();
 
@@ -3066,7 +3231,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         );
 
-        const response = await authClient.handleLogout(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleLogout(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(307);
         expect(response.headers.get("Location")).not.toBeNull();
 
@@ -3131,7 +3302,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         );
 
-        const response = await authClient.handleLogout(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleLogout(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(307);
         expect(response.headers.get("Location")).not.toBeNull();
 
@@ -3195,7 +3372,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         );
 
-        const response = await authClient.handleLogout(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleLogout(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(307);
         expect(response.headers.get("Location")).not.toBeNull();
 
@@ -3264,7 +3447,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      const response = await authClient.handleProfile(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleProfile(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
       expect(response.status).toEqual(200);
       expect(await response.json()).toEqual({
         sub: DEFAULT.sub,
@@ -3305,7 +3494,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      const response = await authClient.handleProfile(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleProfile(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
       expect(response.status).toEqual(401);
       expect(response.body).toBeNull();
     });
@@ -3343,7 +3538,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      const response = await authClient.handleProfile(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleProfile(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
       expect(response.status).toEqual(204);
       expect(response.body).toBeNull();
     });
@@ -3401,7 +3602,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         headers
       });
 
-      const response = await authClient.handleCallback(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleCallback(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
       expect(response.status).toEqual(307);
       expect(response.headers.get("Location")).not.toBeNull();
 
@@ -3503,7 +3710,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           headers
         });
 
-        const response = await authClient.handleCallback(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleCallback(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(307);
         expect(response.headers.get("Location")).not.toBeNull();
 
@@ -3589,7 +3802,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         headers
       });
 
-      const response = await authClient.handleCallback(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleCallback(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
       expect(response.status).toEqual(307);
       expect(response.headers.get("Location")).not.toBeNull();
 
@@ -3661,7 +3880,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         method: "GET"
       });
 
-      const response = await authClient.handleCallback(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleCallback(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
       expect(response.status).toEqual(500);
       expect(await response.text()).toEqual("The state parameter is missing.");
     });
@@ -3717,7 +3942,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         headers
       });
 
-      const response = await authClient.handleCallback(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleCallback(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
       expect(response.status).toEqual(500);
       expect(await response.text()).toEqual("The state parameter is invalid.");
     });
@@ -3773,7 +4004,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         headers
       });
 
-      const response = await authClient.handleCallback(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleCallback(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
       expect(response.status).toEqual(500);
       expect(await response.text()).toEqual(
         "An error occurred during the authorization flow."
@@ -3836,7 +4073,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         headers
       });
 
-      const response = await authClient.handleCallback(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleCallback(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
       expect(response.status).toEqual(500);
       expect(await response.text()).toEqual(
         "An error occurred while trying to exchange the authorization code."
@@ -3896,7 +4139,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         headers
       });
 
-      const response = await authClient.handleCallback(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleCallback(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
       expect(response.status).toEqual(500);
       expect(await response.text()).toEqual(
         "Discovery failed for the OpenID Connect configuration."
@@ -3965,7 +4214,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         });
 
         // validate the new response redirect
-        const response = await authClient.handleCallback(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleCallback(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(307);
         const redirectUrl = new URL(response.headers.get("Location")!);
         expect(redirectUrl.pathname).toEqual("/other-path");
@@ -4048,7 +4303,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         });
 
         // validate the new response redirect
-        const response = await authClient.handleCallback(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleCallback(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(307);
         expect(response.headers.get("Location")).not.toBeNull();
 
@@ -4127,7 +4388,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         });
 
         // validate the new response redirect
-        const response = await authClient.handleCallback(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleCallback(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(307);
         expect(response.headers.get("Location")).not.toBeNull();
 
@@ -4206,7 +4473,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         });
 
         // validate the new response redirect
-        const response = await authClient.handleCallback(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleCallback(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(307);
         expect(response.headers.get("Location")).not.toBeNull();
 
@@ -4292,7 +4565,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         });
 
         // validate the new response redirect
-        const response = await authClient.handleCallback(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleCallback(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(307);
         expect(response.headers.get("Location")).not.toBeNull();
 
@@ -4377,7 +4656,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         });
 
         // validate the new response redirect
-        const response = await authClient.handleCallback(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleCallback(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(307);
         expect(response.headers.get("Location")).not.toBeNull();
 
@@ -4465,7 +4750,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
           headers
         });
 
-        await authClient.handleCallback(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleCallback(auth0Req, auth0Res);
         expect(mockBeforeSessionSaved).toHaveBeenCalledWith(
           {
             user: expect.objectContaining({
@@ -4549,7 +4838,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           headers
         });
 
-        const response = await authClient.handleCallback(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleCallback(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(307);
         expect(response.headers.get("Location")).not.toBeNull();
 
@@ -4618,7 +4913,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
           method: "GET"
         });
 
-        await authClient.handleCallback(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleCallback(auth0Req, auth0Res);
         expect(mockBeforeSessionSaved).not.toHaveBeenCalled();
       });
 
@@ -4687,7 +4986,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           headers
         });
 
-        const response = await authClient.handleCallback(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleCallback(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(307);
         expect(response.headers.get("Location")).not.toBeNull();
 
@@ -4817,7 +5122,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           headers
         });
 
-        const response = await authClient.handleCallback(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleCallback(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(307);
         expect(response.headers.get("Location")).not.toBeNull();
 
@@ -4930,7 +5241,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           headers
         });
 
-        const response = await authClient.handleCallback(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleCallback(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(307);
         expect(response.headers.get("Location")).not.toBeNull();
 
@@ -5036,7 +5353,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
             )
           ]);
 
-        const response = await authClient.handleCallback(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleCallback(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(307);
         expect(response.headers.get("Location")).not.toBeNull();
 
@@ -5154,7 +5477,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           headers
         });
 
-        const response = await authClient.handleCallback(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleCallback(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(307);
         expect(response.headers.get("Location")).not.toBeNull();
 
@@ -5250,7 +5579,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      const response = await authClient.handleAccessToken(request);
+      const auth0Req = new Auth0NextRequest(request);
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+      await authClient.handleAccessToken(auth0Req, auth0Res);
+      const response = auth0Res.res;
       expect(response.status).toEqual(200);
       expect(await response.json()).toEqual({
         token: newAccessToken,
@@ -5299,7 +5631,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      const response = await authClient.handleAccessToken(request);
+      const auth0Req = new Auth0NextRequest(request);
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+      await authClient.handleAccessToken(auth0Req, auth0Res);
+      const response = auth0Res.res;
       expect(response.status).toEqual(401);
       expect(await response.json()).toEqual({
         error: {
@@ -5368,7 +5703,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      const response = await authClient.handleAccessToken(request);
+      const auth0Req = new Auth0NextRequest(request);
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+      await authClient.handleAccessToken(auth0Req, auth0Res);
+      const response = auth0Res.res;
       expect(response.status).toEqual(401);
       expect(await response.json()).toEqual({
         error: {
@@ -5426,7 +5764,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      const response = await authClient.handleBackChannelLogout(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleBackChannelLogout(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
       expect(response.status).toEqual(204);
       expect(response.body).toBeNull();
 
@@ -5472,7 +5816,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      const response = await authClient.handleBackChannelLogout(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleBackChannelLogout(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
       expect(response.status).toEqual(500);
       expect(await response.text()).toEqual(
         "A session data store is not configured."
@@ -5519,7 +5869,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      const response = await authClient.handleBackChannelLogout(request);
+      const auth0Req = new Auth0NextRequest(request);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleBackChannelLogout(auth0Req, auth0Res);
+
+      const response = auth0Res.res;
       expect(response.status).toEqual(500);
       expect(await response.text()).toEqual(
         "Back-channel logout is not supported by the session data store."
@@ -5573,7 +5929,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         );
 
-        const response = await authClient.handleBackChannelLogout(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleBackChannelLogout(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(400);
         expect(deleteByLogoutTokenSpy).not.toHaveBeenCalled();
       });
@@ -5618,7 +5980,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         );
 
-        const response = await authClient.handleBackChannelLogout(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleBackChannelLogout(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(400);
         expect(deleteByLogoutTokenSpy).not.toHaveBeenCalled();
       });
@@ -5670,7 +6038,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         );
 
-        const response = await authClient.handleBackChannelLogout(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleBackChannelLogout(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(400);
         expect(deleteByLogoutTokenSpy).not.toHaveBeenCalled();
       });
@@ -5721,7 +6095,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         );
 
-        const response = await authClient.handleBackChannelLogout(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleBackChannelLogout(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(400);
         expect(deleteByLogoutTokenSpy).not.toHaveBeenCalled();
       });
@@ -5772,7 +6152,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         );
 
-        const response = await authClient.handleBackChannelLogout(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleBackChannelLogout(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(400);
         expect(deleteByLogoutTokenSpy).not.toHaveBeenCalled();
       });
@@ -5823,7 +6209,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         );
 
-        const response = await authClient.handleBackChannelLogout(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleBackChannelLogout(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(400);
         expect(deleteByLogoutTokenSpy).not.toHaveBeenCalled();
       });
@@ -5874,7 +6266,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         );
 
-        const response = await authClient.handleBackChannelLogout(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleBackChannelLogout(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(400);
         expect(deleteByLogoutTokenSpy).not.toHaveBeenCalled();
       });
@@ -5928,7 +6326,13 @@ ca/T0LLtgmbMmxSv/MmzIg==
           }
         );
 
-        const response = await authClient.handleBackChannelLogout(request);
+        const auth0Req = new Auth0NextRequest(request);
+
+        const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+        await authClient.handleBackChannelLogout(auth0Req, auth0Res);
+
+        const response = auth0Res.res;
         expect(response.status).toEqual(400);
         expect(deleteByLogoutTokenSpy).not.toHaveBeenCalled();
       });
@@ -6274,7 +6678,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       url.searchParams.append("scopes", "offline_access");
       url.searchParams.append("scopes", "read:messages");
 
-      authClient.handleConnectAccount = vi.fn();
+      authClient.handleConnectAccount = vi.fn().mockResolvedValue({});
       expect(authClient.handleConnectAccount).not.toHaveBeenCalled();
     });
 
@@ -7767,7 +8171,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
       );
       const req = new NextRequest(reqUrl, { method: "GET" });
 
-      await authClient.handleLogin(req);
+      const auth0Req = new Auth0NextRequest(req);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleLogin(auth0Req, auth0Res);
 
       expect(authClient.startInteractiveLogin).toHaveBeenCalled();
     });
@@ -7794,7 +8202,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
       );
       const req = new NextRequest(reqUrl, { method: "GET" });
 
-      await authClient.handleLogin(req);
+      const auth0Req = new Auth0NextRequest(req);
+
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+
+      await authClient.handleLogin(auth0Req, auth0Res);
 
       expect(authClient.startInteractiveLogin).toHaveBeenCalled();
     });

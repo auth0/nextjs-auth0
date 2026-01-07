@@ -1,6 +1,8 @@
 import type * as jose from "jose";
 
 import { RESPONSE_TYPES } from "../types/index.js";
+import { Auth0RequestCookies } from "./http/auth0-request-cookies.js";
+import { Auth0ResponseCookies } from "./http/auth0-response-cookies.js";
 import * as cookies from "./cookies.js";
 
 const TRANSACTION_COOKIE_PREFIX = "__txn_";
@@ -135,9 +137,9 @@ export class TransactionStore {
    * @throws {Error} When transaction state is missing required state parameter
    */
   async save(
-    resCookies: cookies.ResponseCookies,
+    resCookies: Auth0ResponseCookies,
     transactionState: TransactionState,
-    reqCookies?: cookies.RequestCookies
+    reqCookies?: Auth0RequestCookies
   ) {
     if (!transactionState.state) {
       throw new Error("Transaction state is required");
@@ -170,7 +172,7 @@ export class TransactionStore {
     );
   }
 
-  async get(reqCookies: cookies.RequestCookies, state: string) {
+  async get(reqCookies: Auth0RequestCookies, state: string) {
     const cookieName = this.getTransactionCookieName(state);
     const cookieValue = reqCookies.get(cookieName)?.value;
 
@@ -181,8 +183,9 @@ export class TransactionStore {
     return cookies.decrypt<TransactionState>(cookieValue, this.secret);
   }
 
-  async delete(resCookies: cookies.ResponseCookies, state: string) {
-    cookies.deleteCookie(resCookies, this.getTransactionCookieName(state), {
+  async delete(resCookies: Auth0ResponseCookies, state: string) {
+    resCookies.delete({
+      name: this.getTransactionCookieName(state),
       domain: this.cookieOptions.domain,
       path: this.cookieOptions.path
     });
@@ -192,8 +195,8 @@ export class TransactionStore {
    * Deletes all transaction cookies based on the configured prefix.
    */
   async deleteAll(
-    reqCookies: cookies.RequestCookies,
-    resCookies: cookies.ResponseCookies
+    reqCookies: Auth0RequestCookies,
+    resCookies: Auth0ResponseCookies
   ) {
     const txnPrefix = this.getCookiePrefix();
     const deleteOptions = {
@@ -203,7 +206,10 @@ export class TransactionStore {
 
     reqCookies.getAll().forEach((cookie) => {
       if (cookie.name.startsWith(txnPrefix)) {
-        cookies.deleteCookie(resCookies, cookie.name, deleteOptions);
+        resCookies.delete({
+          name: cookie.name,
+          ...deleteOptions
+        });
       }
     });
   }
