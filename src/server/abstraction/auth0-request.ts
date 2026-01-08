@@ -1,3 +1,4 @@
+import { NextApiRequest } from "next";
 import { Auth0RequestCookies } from "./auth0-request-cookies.js";
 
 /**
@@ -14,6 +15,6 @@ export abstract class Auth0Request<TRequest = any> {
     | string;
 
   public abstract getHeaders(): Headers;
-  public abstract clone(): Request;
+  public abstract clone(): Request | NextApiRequest;
   public abstract getCookies(): Auth0RequestCookies;
 }

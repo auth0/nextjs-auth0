@@ -508,6 +508,44 @@ export class Auth0Client {
   }
 
   /**
+   * apiRoute handles authentication routes in both App Router and Pages Router.
+   *
+   * @example App Router
+   * ```typescript
+   * // app/api/auth/[...auth0]/route.ts
+   * import { auth0 } from "@/lib/auth0";
+   *
+   * export const GET = auth0.apiRoute;
+   * export const POST = auth0.apiRoute;
+   * ```
+   *
+   * @example Pages Router
+   * ```typescript
+   * // pages/api/auth/[...auth0].ts
+   * import { auth0 } from "@/lib/auth0";
+   *
+   * export default auth0.apiRoute;
+   * ```
+   */
+  async apiRoute(req: NextRequest | Request): Promise<NextResponse>;
+  async apiRoute(req: NextApiRequest, res: NextApiResponse): Promise<void>;
+  async apiRoute(
+    req: NextRequest | Request | NextApiRequest,
+    res?: NextApiResponse
+  ): Promise<NextResponse | void> {
+    if (isRequest(req)) {
+      // For App Router (and Middleware / proxy) usage, we need to return the response.
+      return await this.authClient.apiHandler(
+        toNextRequest(req as NextRequest | Request)
+      );
+    } else {
+      // For Pages Router API route usage, we do not need to return anything
+      // Instead, NextApiResponse is modified in place.
+      await this.authClient.apiHandler(req as NextApiRequest, res as NextApiResponse);
+    }
+  }
+
+  /**
    * getSession returns the session data for the current request.
    *
    * This method can be used in Server Components, Server Actions, and Route Handlers in the **App Router**.

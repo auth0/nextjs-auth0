@@ -479,7 +479,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       });
       authClient.handleCallback = vi
         .fn()
-        .mockResolvedValue({ res: NextResponse.next() });
+        .mockResolvedValue(new Auth0NextResponse(NextResponse.next()));
       await authClient.handler(request);
       expect(authClient.handleCallback).toHaveBeenCalled();
     });
@@ -936,7 +936,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         authClient.handleCallback = vi
           .fn()
-          .mockResolvedValue({ res: NextResponse.next() });
+          .mockResolvedValue(new Auth0NextResponse(NextResponse.next()));
         await authClient.handler(request);
         expect(authClient.handleCallback).toHaveBeenCalled();
       });
@@ -1152,7 +1152,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
           (authClient as any)[testCase.handler] = vi
             .fn()
-            .mockResolvedValue({ res: NextResponse.next() });
+            .mockResolvedValue(new Auth0NextResponse(NextResponse.next()));
           await authClient.handler(request);
           expect((authClient as any)[testCase.handler]).toHaveBeenCalled();
         }

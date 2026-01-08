@@ -4,3 +4,5 @@ export { Auth0RequestCookies } from "./auth0-request-cookies.js";
 export { Auth0ResponseCookies } from "./auth0-response-cookies.js";
 export { Auth0NextRequest } from "./auth0-next-request.js";
 export { Auth0NextResponse } from "./auth0-next-response.js";
+export { Auth0NextApiRequest } from "./auth0-next-api-request.js";
+export { Auth0NextApiResponse } from "./auth0-next-api-response.js";

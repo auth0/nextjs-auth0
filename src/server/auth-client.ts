@@ -1,3 +1,4 @@
+import { NextApiRequest, NextApiResponse } from "next";
 import { NextResponse, type NextRequest } from "next/server.js";
 import * as jose from "jose";
 import * as oauth from "oauth4webapi";
@@ -71,6 +72,7 @@ import {
   buildForwardedResponseHeaders,
   transformTargetUrl
 } from "../utils/proxy.js";
+import { isRequest } from "../utils/request.js";
 import {
   ensureDefaultScope,
   getScopeForAudience
@@ -84,6 +86,8 @@ import {
 } from "../utils/token-set-helpers.js";
 import { toSafeRedirect } from "../utils/url-helpers.js";
 import {
+  Auth0NextApiRequest,
+  Auth0NextApiResponse,
   Auth0NextRequest,
   Auth0NextResponse,
   Auth0Request,
@@ -121,12 +125,27 @@ export type OnCallbackContext = {
    * The connected account information when the responseType is {@link RESPONSE_TYPES.CONNECT_CODE}
    */
   connectedAccount?: CompleteConnectAccountResponse;
+
+  /**
+   * The NextApiResponse object when using Pages Router.
+   *
+   * @remark This property is undefined when using the App Router, as the App Router uses NextResponse,
+   * which we do not have initially and should be created and returned instead.
+   */
+  response?: NextApiResponse;
+
+  /**
+   * The request object (NextRequest for App Router or Middleware on Edge, NextApiRequest for Pages Router, or Request for Middleware or Node.js or Proxy).
+   *
+   * @remark This property is undefined when using the App Router.
+   */
+  request?: NextRequest | NextApiRequest | Request;
 };
 export type OnCallbackHook = (
   error: SdkError | null,
   ctx: OnCallbackContext,
   session: SessionData | null
-) => Promise<NextResponse>;
+) => Promise<NextResponse | void>;
 
 // params passed to the /authorize endpoint that cannot be overwritten
 const INTERNAL_AUTHORIZE_PARAMS = [
@@ -395,9 +414,51 @@ export class AuthClient {
     }
   }
 
-  async handler(req: NextRequest): Promise<NextResponse> {
-    const auth0Req = new Auth0NextRequest(req);
-    const auth0Res = new Auth0NextResponse(new NextResponse());
+  /**
+   * Internal request handler that routes to the appropriate auth handler method
+   * @param nextRequest The incoming NextRequest instance.
+   * @param fallback A fallback function to execute if no route matches.
+   * @returns A Promise that resolves to a NextResponse.
+   */
+  async #handler(
+    nextRequest: NextRequest,
+    fallback: (req: Auth0Request, res: Auth0Response) => Promise<Auth0Response>
+  ): Promise<NextResponse>;
+
+  /**
+   * Internal request handler that routes to the appropriate auth handler method
+   * @param nextRequest The incoming NextApiRequest instance.
+   * @param fallback A fallback function to execute if no auth route matches.
+   * @param nextResponse The incoming NextApiResponse instance.
+   * @returns A Promise that resolves to a NextResponse.
+   */
+  async #handler(
+    nextRequest: NextApiRequest,
+    fallback: (req: Auth0Request, res: Auth0Response) => Promise<Auth0Response>,
+    nextResponse: NextApiResponse
+  ): Promise<undefined>;
+
+  /**
+   * Internal request handler that routes to the appropriate auth handler method
+   * @param nextRequest The incoming NextRequest or NextApiRequest instance.
+   * @param fallback A fallback function to execute if no auth route matches.
+   * @param nextResponse The incoming NextApiResponse instance, or not defined.
+   * @returns A Promise that resolves to a NextResponse or undefined.
+   */
+  async #handler(
+    nextRequest: NextRequest | NextApiRequest,
+    fallback: (req: Auth0Request, res: Auth0Response) => Promise<Auth0Response>,
+    nextResponse?: NextApiResponse
+  ): Promise<NextResponse | undefined> {
+    // Convert the incomming request to Auth0Request
+    const auth0Req = isRequest(nextRequest)
+      ? new Auth0NextRequest(nextRequest as NextRequest)
+      : new Auth0NextApiRequest(nextRequest as NextApiRequest);
+
+    // Convert the incomming response to Auth0Response
+    const auth0Res = isRequest(nextRequest)
+      ? new Auth0NextResponse(new NextResponse())
+      : new Auth0NextApiResponse(nextResponse as NextApiResponse);
 
     let { pathname } = auth0Req.getUrl();
 
@@ -405,13 +466,14 @@ export class AuthClient {
     // We must manually strip it to match against our route configurations.
     // Example: With basePath='/app', a request to '/app/auth/login' will have
     // pathname='/app/auth/login', but routes are configured as '/auth/login'.
-    const basePath = req.nextUrl.basePath;
+    const basePath =
+      "nextUrl" in nextRequest ? nextRequest.nextUrl.basePath : "";
     if (basePath && pathname.startsWith(basePath)) {
       pathname = pathname.slice(basePath.length) || "/";
     }
 
     const sanitizedPathname = removeTrailingSlash(pathname);
-    const method = auth0Req.getMethod();
+    const method = auth0Req.getMethod().toUpperCase();
 
     if (method === "GET" && sanitizedPathname === this.routes.login) {
       return this.#unwrap(() => this.handleLogin(auth0Req, auth0Res));
@@ -450,37 +512,81 @@ export class AuthClient {
       // We should solve this.
       return this.#unwrap(() => this.handleMyOrg(auth0Req, auth0Res));
     } else {
-      // no auth handler found, simply touch the sessions
-      // TODO: this should only happen if rolling sessions are enabled. Also, we should
-      // try to avoid reading from the DB (for stateful sessions) on every request if possible.
-      const session = await this.sessionStore.get(auth0Req.getCookies());
-      const auth0Res = new Auth0NextResponse(NextResponse.next());
-      if (session) {
-        // we pass the existing session (containing an `createdAt` timestamp) to the set method
-        // which will update the cookie's `maxAge` property based on the `createdAt` time
-        await this.sessionStore.set(
-          auth0Req.getCookies(),
-          auth0Res.getCookies(),
-          {
-            ...session
-          }
-        );
-        auth0Res.addCacheControlHeadersForSession();
-      }
-
-      return auth0Res.res;
+      return this.#unwrap(() => fallback(auth0Req, auth0Res));
     }
   }
 
   /**
-   * Unwraps an Auth0Response by extracting the underlying NextResponse.
-   * This utility simplifies the pattern of awaiting handler calls and accessing .res
+   * Handles an incoming request from within the middleware, routing it to the appropriate authentication handler.
+   * @param req
+   * @returns
    */
-  async #unwrap(handler: () => Promise<Auth0Response>): Promise<NextResponse> {
-    const x = await handler();
-    //console.log((x.res as NextResponse).status);
-    return x.res;
-    //return (await handler()).res;
+  async handler(req: NextRequest): Promise<NextResponse> {
+    return this.#handler(
+      req,
+      async (req) => {
+        // no auth handler found, simply touch the sessions
+        // TODO: this should only happen if rolling sessions are enabled. Also, we should
+        // try to avoid reading from the DB (for stateful sessions) on every request if possible.
+        const session = await this.sessionStore.get(req.getCookies());
+        const res = NextResponse.next();
+        if (session) {
+          // we pass the existing session (containing an `createdAt` timestamp) to the set method
+          // which will update the cookie's `maxAge` property based on the `createdAt` time
+          await this.sessionStore.set(
+            req.getCookies(),
+            new Auth0ResponseCookies(res.cookies),
+            {
+              ...session
+            }
+          );
+          addCacheControlHeadersForSession(res);
+        }
+
+        return new Auth0NextResponse(res);
+      }
+    ) as Promise<NextResponse>;
+  }
+
+  async apiHandler(req: NextRequest): Promise<NextResponse>;
+  async apiHandler(
+    req: NextApiRequest,
+    res: NextApiResponse
+  ): Promise<undefined>;
+  async apiHandler(
+    req: NextRequest | NextApiRequest,
+    res?: NextApiResponse | undefined
+  ): Promise<NextResponse | undefined> {
+    if (isRequest(req)) {
+      return this.#handler(
+        req as NextRequest,
+        // TODO: Do we even need the fallback for API routes?
+        async () => {
+          throw new Error("No matching auth route found");
+        },
+      ) as Promise<NextResponse>;
+    } else {
+      return this.#handler(
+        req as NextApiRequest,
+        // TODO: Do we even need the fallback for API routes?
+        async () => {
+          throw new Error("No matching auth route found");
+        },
+        res as NextApiResponse
+      ) as Promise<undefined>;
+    }
+  }
+
+  async #unwrap(
+    handler: () => Promise<Auth0Response>
+  ): Promise<NextResponse | undefined> {
+    const auth0Res = await handler();
+
+    if (auth0Res instanceof Auth0NextResponse) {
+      return auth0Res?.res;
+    } else {
+      auth0Res?.res.end();
+    }
   }
 
   async startInteractiveLogin(
