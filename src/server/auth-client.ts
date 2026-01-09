@@ -2737,6 +2737,19 @@ export class AuthClient {
         }
       );
     } catch (e: any) {
+      // DEBUG: Log the raw error structure
+      console.log("[SDK DEBUG] Caught error during token refresh:", {
+        name: e?.name,
+        message: e?.message,
+        error: e?.error,
+        code: e?.code,
+        cause: e?.cause,
+        causeError: e?.cause?.error,
+        causeCode: e?.cause?.code,
+        causeMfaToken: e?.cause?.mfa_token ? "present" : "absent",
+        isMfaRequired: isMfaRequiredError(e)
+      });
+      
       // Check if this is an MFA required error
       if (isMfaRequiredError(e)) {
         const { mfa_token, error_description, mfa_requirements } =
@@ -2775,6 +2788,29 @@ export class AuthClient {
             null,
             // Return MFA context for caller to store in session
             { hash: tokenHash, context: mfaContext }
+          ];
+        } else {
+          // MFA required but no mfa_token provided
+          // This typically happens when:
+          // 1. The refresh token was issued before MFA was enrolled
+          // 2. The API doesn't support step-up (no authorization policies)
+          // User needs to re-authenticate to get a new session with MFA
+          console.log(
+            "[SDK] MFA required but no mfa_token - user needs to re-authenticate"
+          );
+          return [
+            new MfaRequiredError(
+              error_description ??
+                "Multi-factor authentication is required. Please log in again.",
+              "", // Empty token - signals re-auth needed
+              mfa_requirements,
+              new OAuth2Error({
+                code: e.error,
+                message: e.error_description
+              })
+            ),
+            null,
+            undefined
           ];
         }
       }

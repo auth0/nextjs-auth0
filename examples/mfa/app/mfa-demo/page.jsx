@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 /**
  * MFA Demo Page
@@ -15,7 +15,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 // Inner component that uses useSearchParams
 function MfaDemoContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -33,14 +32,8 @@ function MfaDemoContent() {
     try {
       const response = await fetch("/api/protected");
       const data = await response.json();
-      
-      console.log("[MFA-Demo] Response:", { status: response.status, data });
 
       if (response.status === 403 && data.error === "mfa_required") {
-        console.log("[MFA-Demo] MFA Required!", {
-          mfa_token_length: data.mfa_token?.length,
-          requirements: data.mfa_requirements
-        });
         // MFA is required - in a real app, redirect to MFA UI
         setResult({
           type: "mfa_required",
@@ -53,18 +46,15 @@ function MfaDemoContent() {
       }
 
       if (!response.ok) {
-        console.log("[MFA-Demo] API Error:", response.status, data);
         setError(`API error: ${response.status} - ${data.error || "Unknown"}`);
         return;
       }
 
-      console.log("[MFA-Demo] Success!");
       setResult({
         type: "success",
         data,
       });
     } catch (err) {
-      console.error("[MFA-Demo] Network error:", err);
       setError(`Network error: ${err.message}`);
     } finally {
       setLoading(false);
