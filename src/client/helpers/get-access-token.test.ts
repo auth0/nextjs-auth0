@@ -52,6 +52,9 @@ export const restHandlers = [
     }
 
     return HttpResponse.json({ token });
+  }),
+  http.get("/custom/token", () => {
+    return HttpResponse.json({ token: "<access_token_from_custom_route>" });
   })
 ];
 
@@ -118,5 +121,35 @@ describe("getAccessToken", () => {
         audience: "trigger_not_ok_error"
       })
     ).rejects.toThrowError("The request is missing a required parameter.");
+  });
+
+  it("should use custom route when provided", async () => {
+    const result = await getAccessToken({
+      route: "/custom/token"
+    });
+
+    expect(result).toBe("<access_token_from_custom_route>");
+  });
+
+  it("should use custom route with audience and scope", async () => {
+    server.use(
+      http.get("/custom/token", ({ request }) => {
+        const url = new URL(request.url);
+        const audience = url.searchParams.get("audience");
+        const scope = url.searchParams.get("scope");
+
+        return HttpResponse.json({
+          token: `<custom_token_${audience}_${scope}>`
+        });
+      })
+    );
+
+    const result = await getAccessToken({
+      route: "/custom/token",
+      audience: "custom_audience",
+      scope: "read:custom"
+    });
+
+    expect(result).toBe("<custom_token_custom_audience_read:custom>");
   });
 });
