@@ -1,6 +1,11 @@
 # Examples
 
 - [Passing authorization parameters](#passing-authorization-parameters)
+- [Multi-Factor Authentication (MFA)](#multi-factor-authentication-mfa)
+  - [Step-up Authentication](#step-up-authentication)
+  - [Handling `MfaRequiredError`](#handling-mfarequirederror)
+  - [MFA Tenant Configuration](#mfa-tenant-configuration)
+  - [Example Scenarios](#example-scenarios)
 - [The `returnTo` parameter](#the-returnto-parameter)
   - [Redirecting the user after authentication](#redirecting-the-user-after-authentication)
   - [Redirecting the user after logging out](#redirecting-the-user-after-logging-out)
@@ -40,6 +45,11 @@
     - [Usage Example](#usage-example)
     - [Token Management Best Practices](#token-management-best-practices)
   - [Mitigating Token Expiration Race Conditions in Latency-Sensitive Operations](#mitigating-token-expiration-race-conditions-in-latency-sensitive-operations)
+- [Multi-Factor Authentication (MFA)](#multi-factor-authentication-mfa)
+  - [Step-up Authentication](#step-up-authentication)
+  - [Handling `MfaRequiredError`](#handling-mfarequirederror)
+  - [MFA Tenant Configuration](#mfa-tenant-configuration)
+  - [Critical Warning](#critical-warning)
 - [Silent authentication](#silent-authentication)
 - [DPoP (Demonstrating Proof-of-Possession)](#dpop-demonstrating-proof-of-possession)
   - [What is DPoP?](#what-is-dpop)
@@ -1203,6 +1213,93 @@ This ensures that the token you send is guaranteed to be valid for at least the 
 
 > [!IMPORTANT]
 > This strategy is **not** a solution for long-running operations that take longer than the token's total validity period (e.g., 10 minutes). In those cases, the token will still expire mid-operation. The correct approach for long-running tasks is to call `getAccessToken()` immediately before the operation that requires it, ensuring you have a fresh token. The buffer is only for mitigating latency-related failures in short-lived requests.
+
+## Multi-Factor Authentication (MFA)
+
+Start by checking out the [MFA example app](./examples/mfa) for a complete working demo.
+
+### Step-up Authentication
+
+Step-up authentication is a pattern where an application allows access to some resources with potential sensitive data, but requires the user to authenticate with a stronger mechanism (like MFA) to access others.
+
+The SDK supports handling the `mfa_required` error from Auth0 when an API requires higher security. This typically happens when you use an Auth0 Action or Rule to enforce MFA for specific audiences or scopes.
+
+### Handling `MfaRequiredError`
+
+When you request an Access Token for a resource that requires MFA, Auth0 will return a `403 Forbidden` with an `mfa_required` error code. The SDK automatically catches this and bubbles it up as an `MfaRequiredError`, containing the `mfa_token` needed to resolve the challenge.
+
+You should catch this error in your API routes or Server Actions and forward the `mfa_token` to your client.
+
+**Server Side (API Route):**
+```javascript
+import { NextResponse } from "next/server";
+import { auth0 } from "@/lib/auth0";
+import { MfaRequiredError } from "@auth0/nextjs-auth0/server";
+
+export async function GET() {
+  try {
+    const { token } = await auth0.getAccessToken({
+      audience: "https://my-high-security-api",
+      refresh: true // Ensure we get a fresh token check
+    });
+    return NextResponse.json({ token });
+  } catch (error) {
+    if (error instanceof MfaRequiredError) {
+      // Forward the error details to the client
+      return NextResponse.json(error.toJSON(), { status: 403 });
+    }
+    throw error;
+  }
+}
+```
+
+**Client Side:**
+When the client receives the 403 with `mfa_required`, you should redirect the user to complete the step-up challenge.
+
+```javascript
+const response = await fetch("/api/protected");
+if (response.status === 403) {
+  const data = await response.json();
+  if (data.error === "mfa_required") {
+    // Redirect to your MFA page or show MFA prompt
+    // Pass the mfa_token to the challenge flow
+    window.location.href = `/mfa-challenge?token=${data.mfa_token}`;
+  }
+}
+```
+
+### MFA Tenant Configuration
+
+The SDK relies on background token refreshes to maintain user sessions. For these non-interactive requests to succeed, it is important to configure your MFA policies to allow `refresh_token` exchanges without immediate user challenge.
+
+Enforcing **"Always"** or **"All Applications"** in your global Tenant MFA Policy will block these background requests, as they cannot satisfy an interactive MFA challenge.
+
+**Recommended Configuration:**
+1. Set Tenant MFA Policy to **"Adaptive"** or **"Never"**.
+2. Use **Auth0 Actions** to enforce MFA conditionally (only when specific resources are requested).
+3. Ensure your Action explicitly skips MFA for `refresh_token` grants.
+
+**Example Action Code:**
+```javascript
+exports.onExecutePostLogin = async (event, api) => {
+  // 1. SKIP MFA for silent token refreshes
+  if (event.request.body.grant_type === 'refresh_token') {
+    return;
+  }
+
+  // 2. Enforce only for specific audience
+  const targetAudience = 'https://my-high-security-api';
+  const requestedAudience = event.transaction?.requested_audience || [];
+  
+  if (requestedAudience.includes(targetAudience)) {
+    // 3. Ensure user has enrolled factors before challenging
+    // (Otherwise they get a 500 error page)
+    if (event.user.multifactor && event.user.multifactor.length > 0) {
+      api.authentication.challengeWith({ type: 'otp' });
+    }
+  }
+};
+```
 
 ## Silent authentication
 
