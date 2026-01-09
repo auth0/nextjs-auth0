@@ -21,6 +21,19 @@ export interface AccessTokenSet {
   token_type?: string; // the type of the access token (e.g., "Bearer", "DPoP")
 }
 
+/**
+ * MFA context stored in session, keyed by hash of raw mfa_token.
+ * Enables lookup of original audience/scope when MFA methods are called.
+ */
+export interface MfaContext {
+  /** API identifier that required MFA */
+  audience: string;
+  /** Scopes requested */
+  scope: string;
+  /** Timestamp for TTL-based cleanup (milliseconds since epoch) */
+  createdAt: number;
+}
+
 export interface SessionData {
   user: User;
   tokenSet: TokenSet;
@@ -32,6 +45,8 @@ export interface SessionData {
     createdAt: number;
   };
   connectionTokenSets?: ConnectionTokenSet[];
+  /** MFA contexts keyed by hash of raw mfa_token */
+  mfa?: Record<string, MfaContext>;
   [key: string]: unknown;
 }
 
