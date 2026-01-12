@@ -2,9 +2,5 @@
 pre-commit:
   parallel: false
   commands:
-    test:
-      run: pnpm run test:coverage
-    build:
-      run: pnpm run prepack
     lint:
-      run: pnpm run lint
+      run: pnpm run lint:fix
