@@ -1,4 +1,6 @@
-import { createHash } from "crypto";
+import { createHmac } from "crypto";
+
+const MFA_TOKEN_HASH_KEY = "mfa-token-hash-key";
 
 import {
   MfaRequirements,
@@ -16,7 +18,10 @@ import type { MfaContext, SessionData } from "../types/index.js";
  * @returns 16-character hex string for use as session key
  */
 export function hashMfaToken(rawMfaToken: string): string {
-  return createHash("sha256").update(rawMfaToken).digest("hex").slice(0, 16);
+  return createHmac("sha256", MFA_TOKEN_HASH_KEY)
+    .update(rawMfaToken)
+    .digest("hex")
+    .slice(0, 16);
 }
 
 /**
