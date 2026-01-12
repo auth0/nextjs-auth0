@@ -446,6 +446,8 @@ export class AuthClient {
       return this.#unwrapHandler(() => this.handleMyOrg(auth0Req, auth0Res));
     } else {
       // no auth handler found, simply touch the sessions
+      // TODO: this should only happen if rolling sessions are enabled. Also, we should
+      // try to avoid reading from the DB (for stateful sessions) on every request if possible.
       const session = await this.sessionStore.get(auth0Req.getCookies());
       const auth0Res = new Auth0NextResponse(NextResponse.next());
       if (session) {
