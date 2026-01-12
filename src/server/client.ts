@@ -61,6 +61,7 @@ import {
   TransactionCookieOptions,
   TransactionStore
 } from "./transaction-store.js";
+import { Auth0NextResponse } from "./http/auth0-next-response.js";
 
 export interface Auth0ClientOptions {
   // authorization server configuration
@@ -1020,7 +1021,8 @@ export class Auth0Client {
   async startInteractiveLogin(
     options: StartInteractiveLoginOptions = {}
   ): Promise<NextResponse> {
-    return this.authClient.startInteractiveLogin(options);
+    const auth0Res = await this.authClient.startInteractiveLogin(new Auth0NextResponse(new NextResponse()), options);
+    return auth0Res.res;
   }
 
   /**

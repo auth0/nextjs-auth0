@@ -477,8 +477,9 @@ export class AuthClient {
   }
 
   async startInteractiveLogin(
+    auth0Res: Auth0Response,
     options: StartInteractiveLoginOptions = {}
-  ): Promise<NextResponse> {
+  ): Promise<Auth0Response> {
     const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registered with the authorization server
     let returnTo = this.signInReturnToPath;
 
@@ -554,24 +555,19 @@ export class AuthClient {
     const [error, authorizationUrl] =
       await this.authorizationUrl(authorizationParams);
     if (error) {
-      return new NextResponse(
+      return auth0Res.status(
         "An error occurred while trying to initiate the login request.",
-        {
-          status: 500
-        }
+        500
       );
     }
 
     // Set response and save transaction
-    const res = NextResponse.redirect(authorizationUrl.toString());
+    auth0Res.redirect(authorizationUrl.toString());
 
     // Save transaction state
-    await this.transactionStore.save(
-      new Auth0ResponseCookies(res.cookies),
-      transactionState
-    );
+    await this.transactionStore.save(auth0Res.getCookies(), transactionState);
 
-    return res;
+    return auth0Res;
   }
 
   async handleLogin(
@@ -594,9 +590,7 @@ export class AuthClient {
       authorizationParameters,
       returnTo: returnTo
     };
-    const res = await this.startInteractiveLogin(options);
-    auth0Res.setResponse(res);
-    return auth0Res;
+    return await this.startInteractiveLogin(auth0Res, options);
   }
 
   async handleLogout(

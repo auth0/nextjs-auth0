@@ -7956,7 +7956,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      await authClient.startInteractiveLogin();
+      await authClient.startInteractiveLogin(new Auth0NextResponse(new NextResponse()));
 
       expect(authClient["transactionStore"].save).toHaveBeenCalled();
     });
@@ -7979,7 +7979,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      await authClient.startInteractiveLogin({ returnTo });
+      await authClient.startInteractiveLogin(new Auth0NextResponse(new NextResponse()), { returnTo });
 
       expect(authClient["transactionStore"].save).toHaveBeenCalled();
     });
@@ -8002,7 +8002,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      await authClient.startInteractiveLogin({ returnTo });
+      await authClient.startInteractiveLogin(new Auth0NextResponse(new NextResponse()), { returnTo });
 
       expect(authClient["transactionStore"].save).toHaveBeenCalled();
     });
@@ -8028,7 +8028,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      await authClient.startInteractiveLogin({ returnTo: unsafeReturnTo });
+      await authClient.startInteractiveLogin(new Auth0NextResponse(new NextResponse()), { returnTo: unsafeReturnTo });
 
       expect(authClient["transactionStore"].save).toHaveBeenCalled();
     });
@@ -8050,7 +8050,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         return originalAuthorizationUrl.call(authClient, params);
       });
 
-      await authClient.startInteractiveLogin({ authorizationParameters });
+      await authClient.startInteractiveLogin(new Auth0NextResponse(new NextResponse()), { authorizationParameters });
 
       expect(authClient["authorizationUrl"]).toHaveBeenCalled();
     });
@@ -8084,7 +8084,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         fetch: mockFetch
       });
 
-      await authClient.startInteractiveLogin();
+      await authClient.startInteractiveLogin(new Auth0NextResponse(new NextResponse()));
 
       // Verify that PAR was used
       expect(parRequestCalled).toBe(true);
@@ -8115,7 +8115,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      await authClient.startInteractiveLogin({ returnTo });
+      await authClient.startInteractiveLogin(new Auth0NextResponse(new NextResponse()), { returnTo });
 
       expect(authClient["transactionStore"].save).toHaveBeenCalled();
     });
@@ -8142,7 +8142,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         return originalAuthorizationUrl.call(authClient, params);
       });
 
-      await authClient.startInteractiveLogin({
+      await authClient.startInteractiveLogin(new Auth0NextResponse(new NextResponse()), {
         authorizationParameters: {
           scope: methodScope,
           audience: methodAudience
@@ -8158,12 +8158,12 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       // Mock startInteractiveLogin to check what options are passed to it
       const originalStartInteractiveLogin = authClient.startInteractiveLogin;
-      authClient.startInteractiveLogin = vi.fn(async (options) => {
+      authClient.startInteractiveLogin = vi.fn(async (res, options) => {
         expect(options).toEqual({
           authorizationParameters: { foo: "bar" },
           returnTo: "custom-return"
         });
-        return originalStartInteractiveLogin.call(authClient, options);
+        return originalStartInteractiveLogin.call(authClient, res, options);
       });
 
       const reqUrl = new URL(
@@ -8187,14 +8187,14 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       // Mock startInteractiveLogin to check what options are passed to it
       const originalStartInteractiveLogin = authClient.startInteractiveLogin;
-      authClient.startInteractiveLogin = vi.fn(async (options) => {
+      authClient.startInteractiveLogin = vi.fn(async (res, options) => {
         expect(options).toEqual({
           authorizationParameters: {
             foo: "bar"
           },
           returnTo: "custom-return"
         });
-        return originalStartInteractiveLogin.call(authClient, options);
+        return originalStartInteractiveLogin.call(authClient, res, options);
       });
 
       const reqUrl = new URL(

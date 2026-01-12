@@ -879,7 +879,7 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
         const saveSpy = vi.spyOn(mockTransactionStoreInstance, "save");
 
         // Act: Call startInteractiveLogin
-        await authClient.startInteractiveLogin();
+        await authClient.startInteractiveLogin(new Auth0NextResponse(new NextResponse()));
 
         // Assert: Verify save was called with only 2 parameters (no reqCookies)
         expect(saveSpy).toHaveBeenCalledTimes(1);
