@@ -714,7 +714,6 @@ export class AuthClient {
       return this.handleCallbackError(
         new MissingStateError(),
         {},
-        auth0Req,
         auth0Res
       );
     }
@@ -745,7 +744,6 @@ export class AuthClient {
             message: "The user does not have an active session."
           }),
           onCallbackCtx,
-          auth0Req,
           auth0Res,
           state
         );
@@ -764,7 +762,6 @@ export class AuthClient {
         return this.handleCallbackError(
           tokenSetError,
           onCallbackCtx,
-          auth0Req,
           auth0Res,
           state
         );
@@ -786,7 +783,6 @@ export class AuthClient {
         return this.handleCallbackError(
           completeConnectAccountError,
           onCallbackCtx,
-          auth0Req,
           auth0Res,
           state
         );
@@ -814,7 +810,6 @@ export class AuthClient {
       return this.handleCallbackError(
         discoveryError,
         onCallbackCtx,
-        auth0Req,
         auth0Res,
         state
       );
@@ -837,7 +832,6 @@ export class AuthClient {
           })
         }),
         onCallbackCtx,
-        auth0Req,
         auth0Res,
         state
       );
@@ -893,7 +887,6 @@ export class AuthClient {
       return this.handleCallbackError(
         new AuthorizationCodeGrantRequestError(e.message),
         onCallbackCtx,
-        auth0Req,
         auth0Res,
         state
       );
@@ -922,7 +915,6 @@ export class AuthClient {
           })
         }),
         onCallbackCtx,
-        auth0Req,
         auth0Res,
         state
       );
@@ -1491,7 +1483,6 @@ export class AuthClient {
   private async handleCallbackError(
     error: SdkError,
     ctx: OnCallbackContext,
-    auth0Req: Auth0Request,
     auth0Res: Auth0Response,
     state?: string
   ): Promise<Auth0Response> {
