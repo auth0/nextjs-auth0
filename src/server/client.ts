@@ -1081,13 +1081,13 @@ export class Auth0Client {
           scope: getMyAccountTokenOpts.scope,
           audience: accessToken.audience
         }
-      });
+      }, new Auth0NextResponse(new NextResponse()));
 
     if (error) {
       throw error;
     }
 
-    return connectAccountResponse;
+    return connectAccountResponse.res;
   }
 
   withPageAuthRequired(
