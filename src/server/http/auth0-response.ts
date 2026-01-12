@@ -56,7 +56,7 @@ export abstract class Auth0Response<TResponse = any> {
    *
    * @param url - The URL to redirect to. Should be validated before calling this method.
    */
-  abstract redirect(url: string): void;
+  abstract redirect(url: string): Auth0Response<TResponse>;
 
   /**
    * Sets the HTTP status code of the response.
@@ -67,7 +67,7 @@ export abstract class Auth0Response<TResponse = any> {
    * @param message - The response body as a string or null.
    * @param status - The HTTP status code (e.g., 200, 401, 500).
    */
-  abstract status(message: string | null, status: number): TResponse | void;
+  abstract status(message: string | null, status: number): Auth0Response<TResponse>;
 
   /**
    * Sends a JSON response with the specified body.
@@ -82,7 +82,7 @@ export abstract class Auth0Response<TResponse = any> {
    *   user data, or other structured data.
    * @param init - Optional response initialization options (status, headers, etc.).
    */
-  abstract json(body: any, init?: ResponseInit): void;
+  abstract json(body: any, init?: ResponseInit): Auth0Response<TResponse>;
 
   /**
    * Adds cache control headers to the response to prevent caching of sensitive data.

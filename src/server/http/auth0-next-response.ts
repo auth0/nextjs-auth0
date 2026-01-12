@@ -38,8 +38,10 @@ export class Auth0NextResponse extends Auth0Response<NextResponse> {
    *
    * @param url - The URL to redirect to.
    */
-  public redirect(url: string): void {
+  public redirect(url: string) {
     this.res = this.#mergeHeaders(this.res, NextResponse.redirect(url));
+
+    return this;
   }
 
   /**
@@ -55,12 +57,14 @@ export class Auth0NextResponse extends Auth0Response<NextResponse> {
    * res.status("Unauthorized", 401);
    * ```
    */
-  public status(message: string | null, status: number): void {
+  public status(message: string | null, status: number) {
     const body = status === 204 ? null : message;
     this.res = this.#mergeHeaders(
       this.res,
       new NextResponse(body, { status })
     );
+
+    return this;
   }
 
   /**
@@ -74,8 +78,10 @@ export class Auth0NextResponse extends Auth0Response<NextResponse> {
    * res.json({ error: "Invalid token" }, { status: 401 });
    * ```
    */
-  public json(body: any, init?: ResponseInit): void {
+  public json(body: any, init?: ResponseInit) {
     this.res = this.#mergeHeaders(this.res, NextResponse.json(body, init));
+
+    return this;
   }
 
   /**

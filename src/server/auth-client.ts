@@ -967,12 +967,12 @@ export class AuthClient {
 
     if (!session) {
       if (this.noContentProfileResponseWhenUnauthenticated) {
-        auth0Res.status(null, 204);
-      } else {
-        auth0Res.status(null, 401);
+        return auth0Res.status(null, 204);
       }
-      return auth0Res;
+
+      return auth0Res.status(null, 401);
     }
+
     auth0Res.json(session?.user);
     auth0Res.addCacheControlHeadersForSession();
     return auth0Res;
@@ -987,7 +987,7 @@ export class AuthClient {
     const scope = auth0Req.getUrl().searchParams.get("scope");
 
     if (!session) {
-      auth0Res.json(
+      return auth0Res.json(
         {
           error: {
             message: "The user does not have an active session.",
@@ -998,7 +998,6 @@ export class AuthClient {
           status: 401
         }
       );
-      return auth0Res;
     }
 
     const [error, getTokenSetResponse] = await this.getTokenSet(session, {
@@ -1007,7 +1006,7 @@ export class AuthClient {
     });
 
     if (error) {
-      auth0Res.json(
+      return auth0Res.json(
         {
           error: {
             message: error.message,
@@ -1018,7 +1017,6 @@ export class AuthClient {
           status: 401
         }
       );
-      return auth0Res;
     }
 
     const { tokenSet: updatedTokenSet } = getTokenSetResponse;
@@ -1047,37 +1045,32 @@ export class AuthClient {
     auth0Res: Auth0Response
   ): Promise<Auth0Response> {
     if (!this.sessionStore.store) {
-      auth0Res.status("A session data store is not configured.", 500);
-      return auth0Res;
+      return auth0Res.status("A session data store is not configured.", 500);
     }
 
     if (!this.sessionStore.store.deleteByLogoutToken) {
-      auth0Res.status(
+      return auth0Res.status(
         "Back-channel logout is not supported by the session data store.",
         500
       );
-      return auth0Res;
     }
 
     const body = new URLSearchParams(await auth0Req.getBody());
     const logoutToken = body.get("logout_token");
 
     if (!logoutToken) {
-      auth0Res.status("Missing `logout_token` in the request body.", 400);
-      return auth0Res;
+      return auth0Res.status("Missing `logout_token` in the request body.", 400);
     }
 
     const [error, logoutTokenClaims] =
       await this.verifyLogoutToken(logoutToken);
     if (error) {
-      auth0Res.status(error.message, 400);
-      return auth0Res;
+      return auth0Res.status(error.message, 400);
     }
 
     await this.sessionStore.store.deleteByLogoutToken(logoutTokenClaims);
 
-    auth0Res.status(null, 204);
-    return auth0Res;
+    return auth0Res.status(null, 204);
   }
 
   async handleConnectAccount(
@@ -1099,13 +1092,11 @@ export class AuthClient {
     );
 
     if (!connection) {
-      auth0Res.status("A connection is required.", 400);
-      return auth0Res;
+      return auth0Res.status("A connection is required.", 400);
     }
 
     if (!session) {
-      auth0Res.status("The user does not have an active session.", 401);
-      return auth0Res;
+      return auth0Res.status("The user does not have an active session.", 401);
     }
 
     const [getTokenSetError, getTokenSetResponse] = await this.getTokenSet(
@@ -1117,11 +1108,10 @@ export class AuthClient {
     );
 
     if (getTokenSetError) {
-      auth0Res.status(
+      return auth0Res.status(
         "Failed to retrieve a connected account access token.",
         401
       );
-      return auth0Res;
     }
 
     const { tokenSet } = getTokenSetResponse;
@@ -1139,11 +1129,10 @@ export class AuthClient {
       await this.connectAccount({ tokenSet, ...connectAccountParams });
 
     if (connectAccountError) {
-      auth0Res.status(
+      return auth0Res.status(
         connectAccountError.message,
         connectAccountError.cause?.status ?? 500
       );
-      return auth0Res;
     }
 
     // update the session with the new token set, if necessary
