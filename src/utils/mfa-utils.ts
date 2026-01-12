@@ -1,7 +1,5 @@
 import { createHmac } from "crypto";
 
-const MFA_TOKEN_HASH_KEY = "mfa-token-hash-key";
-
 import {
   MfaRequirements,
   MfaTokenExpiredError,
@@ -9,6 +7,8 @@ import {
 } from "../errors/index.js";
 import { decrypt, encrypt } from "../server/cookies.js";
 import type { MfaContext, SessionData } from "../types/index.js";
+
+const MFA_TOKEN_HASH_KEY = "mfa-token-hash-key";
 
 /**
  * Generate SHA-256 hash of raw mfa_token for session key.
