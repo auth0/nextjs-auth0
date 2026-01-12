@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server.js";
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it } from "vitest";
 import { Auth0NextRequest } from "./auth0-next-request.js";
 
 describe("Auth0NextRequest", () => {

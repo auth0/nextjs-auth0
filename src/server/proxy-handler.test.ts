@@ -24,7 +24,6 @@ import { generateDpopKeyPair } from "../utils/dpopUtils.js";
 import { AuthClient } from "./auth-client.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import { TransactionStore } from "./transaction-store.js";
-import { Auth0NextRequest, Auth0NextResponse } from "./http/index.js";
 
 /**
  * Comprehensive Test Suite: AuthClient Custom Proxy Handler
