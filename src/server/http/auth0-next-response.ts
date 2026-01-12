@@ -84,6 +84,12 @@ export class Auth0NextResponse extends Auth0Response<NextResponse> {
     return this;
   }
 
+  public generic(body: any, init?: ResponseInit) {
+    this.res = this.#mergeHeaders(this.res, new NextResponse(body, init));
+
+    return this;
+  }
+
   /**
    * Sets the response to a new NextResponse instance, merging headers.
    *

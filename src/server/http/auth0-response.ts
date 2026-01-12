@@ -61,11 +61,10 @@ export abstract class Auth0Response<TResponse = any> {
   /**
    * Sets the HTTP status code of the response.
    *
-   * Note: The return type may be void or the response object, but all implementations
-   * use side effects to modify internal state.
-   *
    * @param message - The response body as a string or null.
    * @param status - The HTTP status code (e.g., 200, 401, 500).
+   * 
+   * @returns This response object for method chaining.
    */
   abstract status(message: string | null, status: number): Auth0Response<TResponse>;
 
@@ -75,14 +74,24 @@ export abstract class Auth0Response<TResponse = any> {
    * This method automatically sets the Content-Type header to application/json and
    * serializes the body parameter as JSON.
    *
-   * Security: Be careful not to include sensitive data (like internal error details)
-   * in JSON responses, as this information could aid attackers.
+   * @param body - The response body to be serialized as JSON. May include error details,
+   *   user data, or other structured data.
+   * @param init - Optional response initialization options (status, headers, etc.).
+   * 
+   * @returns This response object for method chaining.
+   */
+  abstract json(body: any, init?: ResponseInit): Auth0Response<TResponse>;
+
+  /**
+   * Sends a Generic response with the specified body.
    *
    * @param body - The response body to be serialized as JSON. May include error details,
    *   user data, or other structured data.
    * @param init - Optional response initialization options (status, headers, etc.).
+   * 
+   * @returns This response object for method chaining.
    */
-  abstract json(body: any, init?: ResponseInit): Auth0Response<TResponse>;
+  abstract generic(body: any, init?: ResponseInit): Auth0Response<TResponse>;
 
   /**
    * Adds cache control headers to the response to prevent caching of sensitive data.

@@ -1126,7 +1126,7 @@ export class AuthClient {
     }
 
     const [connectAccountError, connectAccountResponse] =
-      await this.connectAccount({ tokenSet, ...connectAccountParams });
+      await this.connectAccount({ tokenSet, ...connectAccountParams }, auth0Res);
 
     if (connectAccountError) {
       return auth0Res.status(
@@ -1135,44 +1135,38 @@ export class AuthClient {
       );
     }
 
-    // update the session with the new token set, if necessary
-    auth0Res.setResponse(connectAccountResponse);
     await this.#updateSessionAfterTokenRetrieval(
       auth0Req,
-      auth0Res,
+      connectAccountResponse,
       session,
       getTokenSetResponse
     );
 
-    return auth0Res;
+    return connectAccountResponse;
   }
 
   async handleMyAccount(
     auth0Req: Auth0Request,
     auth0Res: Auth0Response
   ): Promise<Auth0Response> {
-    const res = await this.#handleProxy(auth0Req, {
+    return this.#handleProxy(auth0Req, auth0Res, {
       proxyPath: "/me",
       targetBaseUrl: `${this.issuer}/me/v1`,
       audience: `${this.issuer}/me/`,
       scope: auth0Req.getHeaders().get("scope")
     });
-    auth0Res.setResponse(res);
-    return auth0Res;
   }
 
   async handleMyOrg(
     auth0Req: Auth0Request,
     auth0Res: Auth0Response
   ): Promise<Auth0Response> {
-    const res = await this.#handleProxy(auth0Req, {
+    return this.#handleProxy(auth0Req, auth0Res, {
       proxyPath: "/my-org",
       targetBaseUrl: `${this.issuer}/my-org`,
       audience: `${this.issuer}/my-org/`,
       scope: auth0Req.getHeaders().get("scope")
     });
-    auth0Res.setResponse(res);
-    return auth0Res;
   }
 
   /**
@@ -2095,8 +2089,9 @@ export class AuthClient {
    * The user will be redirected to authorize the connection.
    */
   async connectAccount(
-    options: ConnectAccountOptions & { tokenSet: TokenSet }
-  ): Promise<[ConnectAccountError, null] | [null, NextResponse]> {
+    options: ConnectAccountOptions & { tokenSet: TokenSet },
+    auth0Res: Auth0Response
+  ): Promise<[ConnectAccountError, null] | [null, Auth0Response]> {
     const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl);
     let returnTo = this.signInReturnToPath;
 
@@ -2146,16 +2141,16 @@ export class AuthClient {
       authSession: connectAccountResponse.authSession
     };
 
-    const res = NextResponse.redirect(
+    auth0Res.redirect(
       `${connectAccountResponse.connectUri}?ticket=${encodeURIComponent(connectAccountResponse.connectParams.ticket)}`
     );
 
     await this.transactionStore.save(
-      new Auth0ResponseCookies(res.cookies),
+      new Auth0ResponseCookies(auth0Res.getCookies()),
       transactionState
     );
 
-    return [null, res];
+    return [null, auth0Res];
   }
 
   private async createConnectAccountTicket(
@@ -2432,8 +2427,9 @@ export class AuthClient {
    */
   async #handlePreflight(
     auth0Req: Auth0Request,
+    auth0Res: Auth0Response,
     options: ProxyOptions
-  ): Promise<NextResponse> {
+  ): Promise<Auth0Response> {
     // Extract underlying NextRequest for raw operations
     const req = (auth0Req as Auth0NextRequest).req;
 
@@ -2451,13 +2447,13 @@ export class AuthClient {
       });
 
       // Forward CORS headers from upstream
-      return new NextResponse(null, {
+      return auth0Res.generic(null, {
         status: preflightResponse.status,
         headers: buildForwardedResponseHeaders(preflightResponse)
       });
     } catch (error: any) {
       // If preflight fails, return 500
-      return new NextResponse(
+      return auth0Res.generic(
         error.cause || error.message || "Preflight request failed",
         { status: 500 }
       );
@@ -2476,16 +2472,15 @@ export class AuthClient {
    */
   async #handleProxy(
     auth0Req: Auth0Request,
+    auth0Res: Auth0Response,
     options: ProxyOptions
-  ): Promise<NextResponse> {
+  ): Promise<Auth0Response> {
     // Extract underlying NextRequest for raw operations
     const req = (auth0Req as Auth0NextRequest).req;
 
     const session = await this.sessionStore.get(auth0Req.getCookies());
     if (!session) {
-      return new NextResponse("The user does not have an active session.", {
-        status: 401
-      });
+      return auth0Res.status("The user does not have an active session.", 401);
     }
 
     // handle preflight requests
@@ -2493,7 +2488,7 @@ export class AuthClient {
       auth0Req.getMethod() === "OPTIONS" &&
       auth0Req.getHeaders().has("access-control-request-method")
     ) {
-      return this.#handlePreflight(auth0Req, options);
+      return this.#handlePreflight(auth0Req, auth0Res, options);
     }
 
     const headers = buildForwardedRequestHeaders(req);
@@ -2566,7 +2561,7 @@ export class AuthClient {
         { scope: options.scope, audience: options.audience }
       );
 
-      const res = new NextResponse(response.body, {
+      auth0Res.generic(response.body, {
         status: response.status,
         statusText: response.statusText,
         headers: buildForwardedResponseHeaders(response)
@@ -2578,29 +2573,28 @@ export class AuthClient {
       // we know it should always be defined when we reach this point.
       if (tokenSetSideEffect) {
         // Create temporary wrapper for the response to update session
-        const tempAuth0Res = new Auth0NextResponse(res);
         await this.#updateSessionAfterTokenRetrieval(
           auth0Req,
-          tempAuth0Res,
+          auth0Res,
           session,
           tokenSetSideEffect
         );
         // Return the updated response
-        return tempAuth0Res.res;
+        return auth0Res;
       }
 
-      return res;
+      return auth0Res;
     } catch (e: any) {
       // Return 401 for missing refresh token (cannot refresh expired token)
       if (
         e instanceof AccessTokenError &&
         e.code === AccessTokenErrorCode.MISSING_REFRESH_TOKEN
       ) {
-        return new NextResponse(e.message, { status: 401 });
+        return auth0Res.status(e.message, 401);
       }
 
       // Generic error handling for other errors
-      return new NextResponse(
+      return auth0Res.generic(
         e.cause || e.message || "An error occurred while proxying the request.",
         {
           status: 500

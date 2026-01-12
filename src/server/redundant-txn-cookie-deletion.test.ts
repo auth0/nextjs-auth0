@@ -12,6 +12,7 @@ import {
   describe,
   expect,
   it,
+  Mock,
   vi
 } from "vitest";
 
@@ -31,7 +32,7 @@ import {
 } from "./session/abstract-session-store.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import { TransactionStore } from "./transaction-store.js";
-import { Auth0NextRequest, Auth0NextResponse } from "./http/index.js";
+import { Auth0NextRequest, Auth0NextResponse, Auth0RequestCookies, Auth0ResponseCookies } from "./http/index.js";
 
 // Only mock specific oauth4webapi functions that need predictable values
 vi.mock("oauth4webapi", async () => {
@@ -141,21 +142,21 @@ class TestSessionStore extends AbstractSessionStore {
     super(config);
   }
   async get(
-    _reqCookies: RequestCookies | ReadonlyRequestCookies
+    _reqCookies: Auth0RequestCookies
   ): Promise<SessionData | null> {
     return null;
   }
   async set(
-    _reqCookies: RequestCookies | ReadonlyRequestCookies,
-    _resCookies: ResponseCookies,
+    _reqCookies: Auth0RequestCookies,
+    _resCookies: Auth0ResponseCookies,
     _session: SessionData,
     _isNew?: boolean | undefined
   ): Promise<void> {
     // Empty implementation for testing
   }
   async delete(
-    _reqCookies: RequestCookies | ReadonlyRequestCookies,
-    _resCookies: ResponseCookies
+    _reqCookies: Auth0RequestCookies,
+    _resCookies: Auth0ResponseCookies
   ): Promise<void> {
     // Empty implementation for testing
   }
@@ -505,7 +506,7 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
 
       // Assert: Verify transaction was retrieved and processed
       expect(mockTransactionStoreInstance.get).toHaveBeenCalled();
-      const getCall = mockTransactionStoreInstance.get.mock.calls[0];
+      const getCall = (mockTransactionStoreInstance.get as Mock).mock.calls[0];
       expect(getCall[1]).toBe(state);
 
       // Check that the specific transaction cookie was deleted
@@ -552,7 +553,7 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
 
       // Assert: Verify transaction store was queried but found nothing
       expect(mockTransactionStoreInstance.get).toHaveBeenCalled();
-      const getCall = mockTransactionStoreInstance.get.mock.calls[0];
+      const getCall = (mockTransactionStoreInstance.get as Mock).mock.calls[0];
       expect(getCall[1]).toBe(state);
 
       // Check that no transaction cookies were deleted (preserve other auth flows)
