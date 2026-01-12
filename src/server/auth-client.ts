@@ -590,7 +590,7 @@ export class AuthClient {
       authorizationParameters,
       returnTo: returnTo
     };
-    return await this.startInteractiveLogin(auth0Res, options);
+    return this.startInteractiveLogin(auth0Res, options);
   }
 
   async handleLogout(
@@ -622,7 +622,7 @@ export class AuthClient {
       auth0Req.getUrl().searchParams.get("returnTo") || this.appBaseUrl;
     const federated = auth0Req.getUrl().searchParams.has("federated");
 
-    const createV2LogoutResponse = (): void => {
+    const createV2LogoutResponse = (res: Auth0Response): void => {
       const url = new URL("/v2/logout", this.issuer);
       url.searchParams.set("returnTo", returnTo);
       url.searchParams.set("client_id", this.clientMetadata.client_id);
@@ -631,10 +631,10 @@ export class AuthClient {
         url.searchParams.set("federated", "");
       }
 
-      auth0Res.redirect(url.toString());
+      res.redirect(url.toString());
     };
 
-    const createOIDCLogoutResponse = (): void => {
+    const createOIDCLogoutResponse = (res: Auth0Response): void => {
       const url = new URL(authorizationServerMetadata.end_session_endpoint!);
       url.searchParams.set("client_id", this.clientMetadata.client_id);
       url.searchParams.set("post_logout_redirect_uri", returnTo);
@@ -651,13 +651,13 @@ export class AuthClient {
         url.searchParams.set("federated", "");
       }
 
-      auth0Res.redirect(url.toString());
+      res.redirect(url.toString());
     };
 
     // Determine logout strategy and create appropriate response
     if (this.logoutStrategy === "v2") {
       // Always use v2 logout endpoint
-      createV2LogoutResponse();
+      createV2LogoutResponse(auth0Res);
     } else if (this.logoutStrategy === "oidc") {
       // Always use OIDC RP-Initiated Logout
       if (!authorizationServerMetadata.end_session_endpoint) {
@@ -676,16 +676,16 @@ export class AuthClient {
         );
         return auth0Res;
       }
-      createOIDCLogoutResponse();
+      createOIDCLogoutResponse(auth0Res);
     } else {
       // Auto strategy (default): Try OIDC first, fallback to v2 if not available
       if (!authorizationServerMetadata.end_session_endpoint) {
         console.warn(
           "The Auth0 client does not have RP-initiated logout enabled, the user will be redirected to the `/v2/logout` endpoint instead. Learn how to enable it here: https://auth0.com/docs/authenticate/login/logout/log-users-out-of-auth0#enable-endpoint-discovery"
         );
-        createV2LogoutResponse();
+        createV2LogoutResponse(auth0Res);
       } else {
-        createOIDCLogoutResponse();
+        createOIDCLogoutResponse(auth0Res);
       }
     }
 
