@@ -354,7 +354,7 @@ import { NextResponse } from 'next/server';
 import { Auth0Client } from '@auth0/nextjs-auth0/server';
 
 export const auth0 = new Auth0Client({
-  async onCallback(error, context, session) {
+  async onCallback(error, context, session, defaultOnCallback) {
     if (error) {
       console.error('Authentication error:', error);
       return NextResponse.redirect(
