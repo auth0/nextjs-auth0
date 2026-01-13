@@ -61,7 +61,10 @@ export async function decrypt<T>(
     return cookie;
   } catch (e: any) {
     // When the JWE can not be decrypted or has expired, return null to indicate an invalid cookie and treat it as non-existent.
-    if (e.code === "ERR_JWE_DECRYPTION_FAILED" || e.code === "ERR_JWT_EXPIRED") {
+    if (
+      e.code === "ERR_JWE_DECRYPTION_FAILED" ||
+      e.code === "ERR_JWT_EXPIRED"
+    ) {
       return null;
     }
     throw e;
