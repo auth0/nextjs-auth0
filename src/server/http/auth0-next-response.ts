@@ -59,10 +59,7 @@ export class Auth0NextResponse extends Auth0Response<NextResponse> {
    */
   public status(message: string | null, status: number) {
     const body = status === 204 ? null : message;
-    this.res = this.#mergeHeaders(
-      this.res,
-      new NextResponse(body, { status })
-    );
+    this.res = this.#mergeHeaders(this.res, new NextResponse(body, { status }));
 
     return this;
   }

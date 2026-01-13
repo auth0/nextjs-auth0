@@ -27,13 +27,11 @@ import { ResponseCookies } from "../cookies.js";
  * ```
  */
 export class Auth0ResponseCookies {
-  constructor(
-    private responseCookies: ResponseCookies
-  ) {}
+  constructor(private responseCookies: ResponseCookies) {}
 
   /**
    * Retrieves a cookie by name.
-   * 
+   *
    * @param name The name of the cookie to retrieve.
    * @returns The cookie object if found, undefined otherwise.
    */
@@ -43,7 +41,7 @@ export class Auth0ResponseCookies {
 
   /**
    * Retrieves all cookies.
-   * 
+   *
    * @returns An array of all cookies with their attributes.
    */
   getAll(...args: Parameters<ResponseCookies["getAll"]>) {
@@ -110,14 +108,14 @@ export class Auth0ResponseCookies {
     const nameOrOptions = nameOrOptionsArgs[0];
 
     if (typeof nameOrOptions === "string") {
-      this.responseCookies.set(nameOrOptions, '', {
-        maxAge: 0,
+      this.responseCookies.set(nameOrOptions, "", {
+        maxAge: 0
       });
     } else {
       const { name, ...restOptions } = nameOrOptions;
-      this.responseCookies.set(name, '', {
+      this.responseCookies.set(name, "", {
         ...restOptions,
-        maxAge: 0,
+        maxAge: 0
       });
     }
 

@@ -97,7 +97,13 @@ const createMocks = () => {
     })
   };
 
-  return { reqCookies, auth0ReqCookies: new Auth0RequestCookies(reqCookies), resCookies, auth0ResCookies: new Auth0ResponseCookies(resCookies), cookieStore };
+  return {
+    reqCookies,
+    auth0ReqCookies: new Auth0RequestCookies(reqCookies),
+    resCookies,
+    auth0ResCookies: new Auth0ResponseCookies(resCookies),
+    cookieStore
+  };
 };
 
 describe("Chunked Cookie Utils", () => {
@@ -144,7 +150,13 @@ describe("Chunked Cookie Utils", () => {
       // Create a large string (8000 bytes)
       const largeValue = "a".repeat(8000);
 
-      setChunkedCookie(name, largeValue, options, auth0ReqCookies, auth0ResCookies);
+      setChunkedCookie(
+        name,
+        largeValue,
+        options,
+        auth0ReqCookies,
+        auth0ResCookies
+      );
 
       // Should create 3 chunks (8000 / 3500 ≈ 2.3, rounded up to 3)
       // called 4 times:
@@ -229,7 +241,13 @@ describe("Chunked Cookie Utils", () => {
       const largeValue = "a".repeat(8000);
       const options = { path: "/" } as CookieOptions;
 
-      setChunkedCookie(name, largeValue, options, auth0ReqCookies, auth0ResCookies);
+      setChunkedCookie(
+        name,
+        largeValue,
+        options,
+        auth0ReqCookies,
+        auth0ResCookies
+      );
 
       expect(reqCookies.delete).toHaveBeenCalledTimes(1);
       expect(reqCookies.delete).toHaveBeenCalledWith(`${name}`);
@@ -277,7 +295,13 @@ describe("Chunked Cookie Utils", () => {
       cookieStore.set(`${name}__4`, chunk4);
 
       const largeValue = "a".repeat(8000);
-      setChunkedCookie(name, largeValue, options, auth0ReqCookies, auth0ResCookies);
+      setChunkedCookie(
+        name,
+        largeValue,
+        options,
+        auth0ReqCookies,
+        auth0ResCookies
+      );
 
       // It is called 3 times.
       // 2 times for the chunks
@@ -321,7 +345,13 @@ describe("Chunked Cookie Utils", () => {
         sameSite: "lax"
       };
 
-      setChunkedCookie(name, largeValue, options, auth0ReqCookies, auth0ResCookies);
+      setChunkedCookie(
+        name,
+        largeValue,
+        options,
+        auth0ReqCookies,
+        auth0ResCookies
+      );
 
       // called 4 times:
       // 3 calls to set the chunks
@@ -393,7 +423,13 @@ describe("Chunked Cookie Utils", () => {
       delete expectedOptions.maxAge; // maxAge should be removed
       delete expectedOptions.transient; // transient flag itself is not part of the cookie options
 
-      setChunkedCookie(name, largeValue, options, auth0ReqCookies, auth0ResCookies);
+      setChunkedCookie(
+        name,
+        largeValue,
+        options,
+        auth0ReqCookies,
+        auth0ResCookies
+      );
 
       // called 4 times:
       // 3 calls to set the chunks
@@ -467,7 +503,13 @@ describe("Chunked Cookie Utils", () => {
       const expectedOptions = { ...options };
       delete expectedOptions.transient; // transient flag itself is not part of the cookie options
 
-      setChunkedCookie(name, largeValue, options, auth0ReqCookies, auth0ResCookies);
+      setChunkedCookie(
+        name,
+        largeValue,
+        options,
+        auth0ReqCookies,
+        auth0ResCookies
+      );
 
       // called 4 times:
       // 3 calls to set the chunks
@@ -611,7 +653,13 @@ describe("Chunked Cookie Utils", () => {
         const value = "";
         const options = { path: "/" } as CookieOptions;
 
-        setChunkedCookie(name, value, options, auth0ReqCookies, auth0ResCookies);
+        setChunkedCookie(
+          name,
+          value,
+          options,
+          auth0ReqCookies,
+          auth0ResCookies
+        );
 
         expect(resCookies.set).toHaveBeenCalledTimes(1);
         expect(resCookies.set).toHaveBeenCalledWith(name, value, options);
@@ -622,7 +670,13 @@ describe("Chunked Cookie Utils", () => {
         const value = "a".repeat(3500); // Exactly MAX_CHUNK_SIZE
         const options = { path: "/" } as CookieOptions;
 
-        setChunkedCookie(name, value, options, auth0ReqCookies, auth0ResCookies);
+        setChunkedCookie(
+          name,
+          value,
+          options,
+          auth0ReqCookies,
+          auth0ResCookies
+        );
 
         // Should still fit in one cookie
         expect(resCookies.set).toHaveBeenCalledTimes(1);
@@ -635,7 +689,13 @@ describe("Chunked Cookie Utils", () => {
           '{"special":"characters","with":"quotation marks","and":"😀 emoji"}';
         const options = { path: "/" } as CookieOptions;
 
-        setChunkedCookie(name, value, options, auth0ReqCookies, auth0ResCookies);
+        setChunkedCookie(
+          name,
+          value,
+          options,
+          auth0ReqCookies,
+          auth0ResCookies
+        );
 
         expect(resCookies.set).toHaveBeenCalledWith(name, value, options);
 
@@ -653,7 +713,13 @@ describe("Chunked Cookie Utils", () => {
         const options = { path: "/" } as CookieOptions;
 
         // Store the cookie
-        setChunkedCookie(name, value, options, auth0ReqCookies, auth0ResCookies);
+        setChunkedCookie(
+          name,
+          value,
+          options,
+          auth0ReqCookies,
+          auth0ResCookies
+        );
 
         // For the retrieval test, manually set up the cookies
         // We're testing the retrieval functionality, not the chunking itself
@@ -675,7 +741,13 @@ describe("Chunked Cookie Utils", () => {
         const value = "a".repeat(10000); // Will create multiple chunks
         const options = { path: "/" } as CookieOptions;
 
-        setChunkedCookie(name, value, options, auth0ReqCookies, auth0ResCookies);
+        setChunkedCookie(
+          name,
+          value,
+          options,
+          auth0ReqCookies,
+          auth0ResCookies
+        );
 
         // Get chunks count (10000 / 3500 ≈ 2.86, so we need 3 chunks)
         const expectedChunks = Math.ceil(10000 / 3500);

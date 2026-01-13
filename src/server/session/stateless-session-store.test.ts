@@ -3,8 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { generateSecret } from "../../test/utils.js";
 import { CookieOptions, SessionData } from "../../types/index.js";
-import { Auth0RequestCookies } from "../http/auth0-request-cookies.js";
-import { Auth0ResponseCookies } from "../http/auth0-response-cookies.js";
 import {
   decrypt,
   encrypt,
@@ -12,6 +10,8 @@ import {
   ResponseCookies
 } from "../cookies.js";
 import * as cookies from "../cookies.js";
+import { Auth0RequestCookies } from "../http/auth0-request-cookies.js";
+import { Auth0ResponseCookies } from "../http/auth0-response-cookies.js";
 import { LEGACY_COOKIE_NAME, LegacySession } from "./normalize-session.js";
 import { StatelessSessionStore } from "./stateless-session-store.js";
 
@@ -825,7 +825,11 @@ describe("Stateless Session Store", async () => {
       const setSpy = vi.spyOn(responseCookies, "set");
       const sessionStore = new StatelessSessionStore({ secret });
 
-      await sessionStore.set(requestCookies, auth0ResponseCookies, sessionToSet);
+      await sessionStore.set(
+        requestCookies,
+        auth0ResponseCookies,
+        sessionToSet
+      );
 
       const setCookies = responseCookies.getAll();
       let reconstructedValue = "";

@@ -27,12 +27,17 @@ import {
   ResponseCookies
 } from "./cookies.js";
 import {
+  Auth0NextRequest,
+  Auth0NextResponse,
+  Auth0RequestCookies,
+  Auth0ResponseCookies
+} from "./http/index.js";
+import {
   AbstractSessionStore,
   SessionStoreOptions
 } from "./session/abstract-session-store.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import { TransactionStore } from "./transaction-store.js";
-import { Auth0NextRequest, Auth0NextResponse, Auth0RequestCookies, Auth0ResponseCookies } from "./http/index.js";
 
 // Only mock specific oauth4webapi functions that need predictable values
 vi.mock("oauth4webapi", async () => {
@@ -141,9 +146,7 @@ class TestSessionStore extends AbstractSessionStore {
   constructor(config: SessionStoreOptions) {
     super(config);
   }
-  async get(
-    _reqCookies: Auth0RequestCookies
-  ): Promise<SessionData | null> {
+  async get(_reqCookies: Auth0RequestCookies): Promise<SessionData | null> {
     return null;
   }
   async set(
@@ -880,7 +883,9 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
         const saveSpy = vi.spyOn(mockTransactionStoreInstance, "save");
 
         // Act: Call startInteractiveLogin
-        await authClient.startInteractiveLogin(new Auth0NextResponse(new NextResponse()));
+        await authClient.startInteractiveLogin(
+          new Auth0NextResponse(new NextResponse())
+        );
 
         // Assert: Verify save was called with only 2 parameters (no reqCookies)
         expect(saveSpy).toHaveBeenCalledTimes(1);

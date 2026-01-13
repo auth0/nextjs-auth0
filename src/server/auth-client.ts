@@ -84,20 +84,19 @@ import {
 } from "../utils/token-set-helpers.js";
 import { toSafeRedirect } from "../utils/url-helpers.js";
 import {
-  Auth0NextRequest,
-  Auth0NextResponse,
-  Auth0Request,
-  Auth0Response,
-  Auth0ResponseCookies
-} from "./http/index.js";
-import { addCacheControlHeadersForSession } from "./cookies.js";
-import {
   AccessTokenFactory,
   Fetcher,
   FetcherConfig,
   FetcherHooks,
   FetcherMinimalConfig
 } from "./fetcher.js";
+import {
+  Auth0NextRequest,
+  Auth0NextResponse,
+  Auth0Request,
+  Auth0Response,
+  Auth0ResponseCookies
+} from "./http/index.js";
 import { AbstractSessionStore } from "./session/abstract-session-store.js";
 import { TransactionState, TransactionStore } from "./transaction-store.js";
 import { filterDefaultIdTokenClaims } from "./user.js";
@@ -426,7 +425,9 @@ export class AuthClient {
       sanitizedPathname === this.routes.accessToken &&
       this.enableAccessTokenEndpoint
     ) {
-      return this.#unwrapHandler(() => this.handleAccessToken(auth0Req, auth0Res));
+      return this.#unwrapHandler(() =>
+        this.handleAccessToken(auth0Req, auth0Res)
+      );
     } else if (
       method === "POST" &&
       sanitizedPathname === this.routes.backChannelLogout
@@ -439,9 +440,13 @@ export class AuthClient {
       sanitizedPathname === this.routes.connectAccount &&
       this.enableConnectAccountEndpoint
     ) {
-      return this.#unwrapHandler(() => this.handleConnectAccount(auth0Req, auth0Res));
+      return this.#unwrapHandler(() =>
+        this.handleConnectAccount(auth0Req, auth0Res)
+      );
     } else if (sanitizedPathname.startsWith("/me/")) {
-      return this.#unwrapHandler(() => this.handleMyAccount(auth0Req, auth0Res));
+      return this.#unwrapHandler(() =>
+        this.handleMyAccount(auth0Req, auth0Res)
+      );
     } else if (sanitizedPathname.startsWith("/my-org/")) {
       return this.#unwrapHandler(() => this.handleMyOrg(auth0Req, auth0Res));
     } else {
@@ -471,7 +476,9 @@ export class AuthClient {
    * Unwraps an Auth0Response by extracting the underlying NextResponse.
    * This utility simplifies the pattern of awaiting handler calls and accessing .res
    */
-  async #unwrapHandler(handler: () => Promise<Auth0Response>): Promise<NextResponse> {
+  async #unwrapHandler(
+    handler: () => Promise<Auth0Response>
+  ): Promise<NextResponse> {
     const auth0Response = await handler();
     return auth0Response.res;
   }
@@ -711,11 +718,7 @@ export class AuthClient {
   ): Promise<Auth0Response> {
     const state = auth0Req.getUrl().searchParams.get("state");
     if (!state) {
-      return this.handleCallbackError(
-        new MissingStateError(),
-        {},
-        auth0Res
-      );
+      return this.handleCallbackError(new MissingStateError(), {}, auth0Res);
     }
 
     const transactionStateCookie = await this.transactionStore.get(
@@ -1059,7 +1062,10 @@ export class AuthClient {
     const logoutToken = body.get("logout_token");
 
     if (!logoutToken) {
-      return auth0Res.status("Missing `logout_token` in the request body.", 400);
+      return auth0Res.status(
+        "Missing `logout_token` in the request body.",
+        400
+      );
     }
 
     const [error, logoutTokenClaims] =
@@ -1126,7 +1132,10 @@ export class AuthClient {
     }
 
     const [connectAccountError, connectAccountResponse] =
-      await this.connectAccount({ tokenSet, ...connectAccountParams }, auth0Res);
+      await this.connectAccount(
+        { tokenSet, ...connectAccountParams },
+        auth0Res
+      );
 
     if (connectAccountError) {
       return auth0Res.status(

@@ -1,5 +1,6 @@
 import { RequestCookies } from "@edge-runtime/cookies";
 import { describe, expect, it } from "vitest";
+
 import { Auth0RequestCookies } from "./auth0-request-cookies.js";
 
 describe("Auth0RequestCookies", () => {
@@ -16,7 +17,9 @@ describe("Auth0RequestCookies", () => {
     });
 
     it("should return undefined for non-existent cookie", () => {
-      const cookies = new RequestCookies(new Headers({ cookie: "session=abc123" }));
+      const cookies = new RequestCookies(
+        new Headers({ cookie: "session=abc123" })
+      );
       const auth0Cookies = new Auth0RequestCookies(cookies);
 
       const cookie = auth0Cookies.get("nonexistent");

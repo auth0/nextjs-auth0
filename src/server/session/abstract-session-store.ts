@@ -1,7 +1,7 @@
 import type { SessionData, SessionDataStore } from "../../types/index.js";
+import { CookieOptions } from "../cookies.js";
 import { Auth0RequestCookies } from "../http/auth0-request-cookies.js";
 import { Auth0ResponseCookies } from "../http/auth0-response-cookies.js";
-import { CookieOptions } from "../cookies.js";
 
 export interface SessionCookieOptions {
   /**
@@ -120,9 +120,7 @@ export abstract class AbstractSessionStore {
     };
   }
 
-  abstract get(
-    reqCookies: Auth0RequestCookies
-  ): Promise<SessionData | null>;
+  abstract get(reqCookies: Auth0RequestCookies): Promise<SessionData | null>;
 
   /**
    * save adds the encrypted session cookie as a `Set-Cookie` header. If the `iat` property

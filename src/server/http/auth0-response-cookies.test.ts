@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server.js";
 import { describe, expect, it } from "vitest";
+
 import { Auth0ResponseCookies } from "./auth0-response-cookies.js";
 
 describe("Auth0ResponseCookies", () => {
@@ -184,7 +185,9 @@ describe("Auth0ResponseCookies", () => {
       const response = NextResponse.next();
       const auth0Cookies = new Auth0ResponseCookies(response.cookies);
 
-      const result = auth0Cookies.set("cookie1", "value1").set("cookie2", "value2");
+      const result = auth0Cookies
+        .set("cookie1", "value1")
+        .set("cookie2", "value2");
 
       expect(result).toBe(auth0Cookies);
       expect(auth0Cookies.has("cookie1")).toBe(true);
@@ -206,7 +209,8 @@ describe("Auth0ResponseCookies", () => {
       const response = NextResponse.next();
       const auth0Cookies = new Auth0ResponseCookies(response.cookies);
 
-      const jwtToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.TJVA95OrM7E2cBab30RMHrHDcEfxjoYZgeFONFh7HgQ";
+      const jwtToken =
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.TJVA95OrM7E2cBab30RMHrHDcEfxjoYZgeFONFh7HgQ";
       auth0Cookies.set("jwt", jwtToken);
 
       const cookie = auth0Cookies.get("jwt");

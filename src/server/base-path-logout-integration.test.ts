@@ -3,9 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Auth0Client } from "./client.js";
 import { deleteChunkedCookie } from "./cookies.js";
+import { Auth0RequestCookies, Auth0ResponseCookies } from "./http/index.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import { TransactionStore } from "./transaction-store.js";
-import { Auth0RequestCookies, Auth0ResponseCookies } from "./http/index.js";
 
 describe("Base path and cookie configuration tests", () => {
   let originalEnv: NodeJS.ProcessEnv;
@@ -56,7 +56,10 @@ describe("Base path and cookie configuration tests", () => {
       mockReqCookies.getAll = () => [];
 
       // Call delete method (this would be called during logout)
-      await sessionStore.delete(new Auth0RequestCookies(mockReqCookies), new Auth0ResponseCookies(mockResCookies));
+      await sessionStore.delete(
+        new Auth0RequestCookies(mockReqCookies),
+        new Auth0ResponseCookies(mockResCookies)
+      );
 
       // Verify that the cookie deletion header includes the correct path
       const cookieHeader = mockResCookies.toString();
@@ -91,7 +94,10 @@ describe("Base path and cookie configuration tests", () => {
       mockReqCookies.get = () => ({ value: "mock-session-value" });
       mockReqCookies.getAll = () => [];
 
-      await sessionStore.delete(new Auth0RequestCookies(mockReqCookies), new Auth0ResponseCookies(mockResCookies));
+      await sessionStore.delete(
+        new Auth0RequestCookies(mockReqCookies),
+        new Auth0ResponseCookies(mockResCookies)
+      );
 
       const cookieHeader = mockResCookies.toString();
 
@@ -294,7 +300,10 @@ describe("Base path and cookie configuration tests", () => {
         }
       });
 
-      await sessionStore.delete(new Auth0RequestCookies(mockReqCookies), new Auth0ResponseCookies(mockResCookies));
+      await sessionStore.delete(
+        new Auth0RequestCookies(mockReqCookies),
+        new Auth0ResponseCookies(mockResCookies)
+      );
 
       const cookieHeader = mockResCookies.toString();
       expect(cookieHeader).toContain("__session=");
@@ -314,7 +323,10 @@ describe("Base path and cookie configuration tests", () => {
         }
       });
 
-      await transactionStore.delete(new Auth0ResponseCookies(mockResCookies), "test-state");
+      await transactionStore.delete(
+        new Auth0ResponseCookies(mockResCookies),
+        "test-state"
+      );
 
       const cookieHeader = mockResCookies.toString();
       expect(cookieHeader).toContain("__txn_test-state=");
@@ -340,7 +352,10 @@ describe("Base path and cookie configuration tests", () => {
         }
       });
 
-      await transactionStore.deleteAll(new Auth0RequestCookies(mockReqCookies), new Auth0ResponseCookies(mockResCookies));
+      await transactionStore.deleteAll(
+        new Auth0RequestCookies(mockReqCookies),
+        new Auth0ResponseCookies(mockResCookies)
+      );
 
       const cookieHeader = mockResCookies.toString();
       expect(cookieHeader).toContain("__txn_state1=");
@@ -383,7 +398,9 @@ describe("Base path and cookie configuration tests", () => {
     });
 
     it("should handle empty path correctly", () => {
-      const auth0ResponseCookies = new Auth0ResponseCookies(new ResponseCookies(new Headers()));
+      const auth0ResponseCookies = new Auth0ResponseCookies(
+        new ResponseCookies(new Headers())
+      );
       auth0ResponseCookies.delete({
         name: "test-cookie",
         path: ""

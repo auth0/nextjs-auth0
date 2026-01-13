@@ -37,8 +37,6 @@ import {
   Routes,
   RoutesOptions
 } from "./auth-client.js";
-import { Auth0RequestCookies } from "./http/auth0-request-cookies.js";
-import { Auth0ResponseCookies } from "./http/auth0-response-cookies.js";
 import { RequestCookies, ResponseCookies } from "./cookies.js";
 import { AccessTokenFactory, CustomFetchImpl, Fetcher } from "./fetcher.js";
 import * as withApiAuthRequired from "./helpers/with-api-auth-required.js";
@@ -49,6 +47,9 @@ import {
   WithPageAuthRequiredAppRouterOptions,
   WithPageAuthRequiredPageRouterOptions
 } from "./helpers/with-page-auth-required.js";
+import { Auth0NextResponse } from "./http/auth0-next-response.js";
+import { Auth0RequestCookies } from "./http/auth0-request-cookies.js";
+import { Auth0ResponseCookies } from "./http/auth0-response-cookies.js";
 import { toNextRequest, toNextResponse } from "./next-compat.js";
 import {
   AbstractSessionStore,
@@ -61,7 +62,6 @@ import {
   TransactionCookieOptions,
   TransactionStore
 } from "./transaction-store.js";
-import { Auth0NextResponse } from "./http/auth0-next-response.js";
 
 export interface Auth0ClientOptions {
   // authorization server configuration
@@ -538,7 +538,9 @@ export class Auth0Client {
       }
 
       // pages router usage
-      return this.sessionStore.get(new Auth0RequestCookies(this.createRequestCookies(req)));
+      return this.sessionStore.get(
+        new Auth0RequestCookies(this.createRequestCookies(req))
+      );
     }
 
     // app router usage: Server Components, Server Actions, Route Handlers
@@ -923,12 +925,16 @@ export class Auth0Client {
         throw new Error("The session data is missing.");
       }
 
-      await this.sessionStore.set(new Auth0RequestCookies(await cookies()), new Auth0ResponseCookies(await cookies()), {
-        ...updatedSession,
-        internal: {
-          ...existingSession.internal
+      await this.sessionStore.set(
+        new Auth0RequestCookies(await cookies()),
+        new Auth0ResponseCookies(await cookies()),
+        {
+          ...updatedSession,
+          internal: {
+            ...existingSession.internal
+          }
         }
-      });
+      );
     } else {
       const req = reqOrSession as PagesRouterRequest | NextRequest;
 
@@ -944,12 +950,16 @@ export class Auth0Client {
           throw new Error("The user is not authenticated.");
         }
 
-        await this.sessionStore.set(new Auth0RequestCookies(req.cookies), new Auth0ResponseCookies(res.cookies), {
-          ...sessionData,
-          internal: {
-            ...existingSession.internal
+        await this.sessionStore.set(
+          new Auth0RequestCookies(req.cookies),
+          new Auth0ResponseCookies(res.cookies),
+          {
+            ...sessionData,
+            internal: {
+              ...existingSession.internal
+            }
           }
-        });
+        );
       } else {
         // pages router usage
         const existingSession = await this.getSession(
@@ -966,12 +976,16 @@ export class Auth0Client {
         const reqCookies = this.createRequestCookies(req as PagesRouterRequest);
         const pagesRouterRes = res as PagesRouterResponse;
 
-        await this.sessionStore.set(new Auth0RequestCookies(reqCookies), new Auth0ResponseCookies(resCookies), {
-          ...updatedSession,
-          internal: {
-            ...existingSession.internal
+        await this.sessionStore.set(
+          new Auth0RequestCookies(reqCookies),
+          new Auth0ResponseCookies(resCookies),
+          {
+            ...updatedSession,
+            internal: {
+              ...existingSession.internal
+            }
           }
-        });
+        );
 
         // Handle multiple set-cookie headers properly
         // resHeaders.entries() yields each set-cookie header separately,
@@ -1021,7 +1035,10 @@ export class Auth0Client {
   async startInteractiveLogin(
     options: StartInteractiveLoginOptions = {}
   ): Promise<NextResponse> {
-    const auth0Res = await this.authClient.startInteractiveLogin(new Auth0NextResponse(new NextResponse()), options);
+    const auth0Res = await this.authClient.startInteractiveLogin(
+      new Auth0NextResponse(new NextResponse()),
+      options
+    );
     return auth0Res.res;
   }
 
@@ -1073,15 +1090,18 @@ export class Auth0Client {
     const accessToken = await this.getAccessToken(getMyAccountTokenOpts);
 
     const [error, connectAccountResponse] =
-      await this.authClient.connectAccount({
-        ...options,
-        tokenSet: {
-          accessToken: accessToken.token,
-          expiresAt: accessToken.expiresAt,
-          scope: getMyAccountTokenOpts.scope,
-          audience: accessToken.audience
-        }
-      }, new Auth0NextResponse(new NextResponse()));
+      await this.authClient.connectAccount(
+        {
+          ...options,
+          tokenSet: {
+            accessToken: accessToken.token,
+            expiresAt: accessToken.expiresAt,
+            scope: getMyAccountTokenOpts.scope,
+            audience: accessToken.audience
+          }
+        },
+        new Auth0NextResponse(new NextResponse())
+      );
 
     if (error) {
       throw error;
@@ -1145,7 +1165,11 @@ export class Auth0Client {
     if (req && res) {
       if (req instanceof NextRequest && res instanceof NextResponse) {
         // middleware usage
-        await this.sessionStore.set(new Auth0RequestCookies(req.cookies), new Auth0ResponseCookies(res.cookies), data);
+        await this.sessionStore.set(
+          new Auth0RequestCookies(req.cookies),
+          new Auth0ResponseCookies(res.cookies),
+          data
+        );
       } else {
         // pages router usage
         const resHeaders = new Headers();
@@ -1153,7 +1177,9 @@ export class Auth0Client {
         const pagesRouterRes = res as PagesRouterResponse;
 
         await this.sessionStore.set(
-          new Auth0RequestCookies(this.createRequestCookies(req as PagesRouterRequest)),
+          new Auth0RequestCookies(
+            this.createRequestCookies(req as PagesRouterRequest)
+          ),
           new Auth0ResponseCookies(resCookies),
           data
         );
@@ -1174,7 +1200,11 @@ export class Auth0Client {
       try {
         const reqCookies = await cookies();
         const resCookies = await cookies();
-        await this.sessionStore.set(new Auth0RequestCookies(reqCookies), new Auth0ResponseCookies(resCookies), data);
+        await this.sessionStore.set(
+          new Auth0RequestCookies(reqCookies),
+          new Auth0ResponseCookies(resCookies),
+          data
+        );
       } catch (e) {
         if (process.env.NODE_ENV === "development") {
           console.warn(

@@ -10,12 +10,12 @@ import {
   ResponseCookies,
   sign
 } from "../cookies.js";
+import { Auth0RequestCookies, Auth0ResponseCookies } from "../http/index.js";
 import {
   LEGACY_COOKIE_NAME,
   LegacySessionPayload
 } from "./normalize-session.js";
 import { StatefulSessionStore } from "./stateful-session-store.js";
-import { Auth0RequestCookies, Auth0ResponseCookies } from "../http/index.js";
 
 describe("Stateful Session Store", async () => {
   describe("get", async () => {
@@ -51,7 +51,9 @@ describe("Stateful Session Store", async () => {
 
       const headers = new Headers();
       headers.append("cookie", `__session=${encryptedCookieValue}`);
-      const requestCookies = new Auth0RequestCookies(new RequestCookies(headers));
+      const requestCookies = new Auth0RequestCookies(
+        new RequestCookies(headers)
+      );
 
       const sessionStore = new StatefulSessionStore({
         secret,
@@ -67,7 +69,9 @@ describe("Stateful Session Store", async () => {
     it("should return null if no session cookie exists", async () => {
       const secret = await generateSecret(32);
       const headers = new Headers();
-      const requestCookies = new Auth0RequestCookies(new RequestCookies(headers));
+      const requestCookies = new Auth0RequestCookies(
+        new RequestCookies(headers)
+      );
       const store = {
         get: vi.fn(),
         set: vi.fn(),
@@ -119,7 +123,9 @@ describe("Stateful Session Store", async () => {
 
       const headers = new Headers();
       headers.append("cookie", `__session=${encryptedCookieValue}`);
-      const requestCookies = new Auth0RequestCookies(new RequestCookies(headers));
+      const requestCookies = new Auth0RequestCookies(
+        new RequestCookies(headers)
+      );
 
       const sessionStore = new StatefulSessionStore({
         secret,
@@ -162,7 +168,9 @@ describe("Stateful Session Store", async () => {
 
         const headers = new Headers();
         headers.append("cookie", `appSession=${signedCookieValue}`);
-        const requestCookies = new Auth0RequestCookies(new RequestCookies(headers));
+        const requestCookies = new Auth0RequestCookies(
+          new RequestCookies(headers)
+        );
 
         const sessionStore = new StatefulSessionStore({
           secret,
@@ -212,7 +220,9 @@ describe("Stateful Session Store", async () => {
 
         const headers = new Headers();
         headers.append("cookie", `appSession=${signedCookieValue}`);
-        const requestCookies = new Auth0RequestCookies(new RequestCookies(headers));
+        const requestCookies = new Auth0RequestCookies(
+          new RequestCookies(headers)
+        );
 
         const sessionStore = new StatefulSessionStore({
           secret,
@@ -262,7 +272,9 @@ describe("Stateful Session Store", async () => {
 
         const headers = new Headers();
         headers.append("cookie", `${cookieName}=${signedCookieValue}`);
-        const requestCookies = new Auth0RequestCookies(new RequestCookies(headers));
+        const requestCookies = new Auth0RequestCookies(
+          new RequestCookies(headers)
+        );
 
         const sessionStore = new StatefulSessionStore({
           secret,
@@ -324,8 +336,12 @@ describe("Stateful Session Store", async () => {
           delete: vi.fn()
         };
 
-        const requestCookies = new Auth0RequestCookies(new RequestCookies(new Headers()));
-        const responseCookies = new Auth0ResponseCookies(new ResponseCookies(new Headers()));
+        const requestCookies = new Auth0RequestCookies(
+          new RequestCookies(new Headers())
+        );
+        const responseCookies = new Auth0ResponseCookies(
+          new ResponseCookies(new Headers())
+        );
 
         const sessionStore = new StatefulSessionStore({
           secret,
@@ -377,9 +393,12 @@ describe("Stateful Session Store", async () => {
           delete: vi.fn()
         };
 
-        
-        const requestCookies = new Auth0RequestCookies(new RequestCookies(new Headers()));
-        const responseCookies = new Auth0ResponseCookies(new ResponseCookies(new Headers()));
+        const requestCookies = new Auth0RequestCookies(
+          new RequestCookies(new Headers())
+        );
+        const responseCookies = new Auth0ResponseCookies(
+          new ResponseCookies(new Headers())
+        );
 
         const sessionStore = new StatefulSessionStore({
           secret,
@@ -434,8 +453,12 @@ describe("Stateful Session Store", async () => {
           delete: vi.fn()
         };
 
-        const requestCookies = new Auth0RequestCookies(new RequestCookies(new Headers()));
-        const responseCookies = new Auth0ResponseCookies(new ResponseCookies(new Headers()));
+        const requestCookies = new Auth0RequestCookies(
+          new RequestCookies(new Headers())
+        );
+        const responseCookies = new Auth0ResponseCookies(
+          new ResponseCookies(new Headers())
+        );
 
         const sessionStore = new StatefulSessionStore({
           secret,
@@ -497,8 +520,12 @@ describe("Stateful Session Store", async () => {
         const headers = new Headers();
         headers.append("cookie", `__session=${encryptedCookieValue}`);
 
-        const requestCookies = new Auth0RequestCookies(new RequestCookies(headers));
-        const responseCookies = new Auth0ResponseCookies(new ResponseCookies(new Headers()));
+        const requestCookies = new Auth0RequestCookies(
+          new RequestCookies(headers)
+        );
+        const responseCookies = new Auth0ResponseCookies(
+          new ResponseCookies(new Headers())
+        );
 
         const sessionStore = new StatefulSessionStore({
           secret,
@@ -544,8 +571,12 @@ describe("Stateful Session Store", async () => {
           delete: vi.fn()
         };
 
-        const requestCookies = new Auth0RequestCookies(new RequestCookies(new Headers()));
-        const responseCookies = new Auth0ResponseCookies(new ResponseCookies(new Headers()));
+        const requestCookies = new Auth0RequestCookies(
+          new RequestCookies(new Headers())
+        );
+        const responseCookies = new Auth0ResponseCookies(
+          new ResponseCookies(new Headers())
+        );
 
         const sessionStore = new StatefulSessionStore({
           secret,
@@ -597,8 +628,12 @@ describe("Stateful Session Store", async () => {
           delete: vi.fn()
         };
 
-        const requestCookies = new Auth0RequestCookies(new RequestCookies(new Headers()));
-        const responseCookies = new Auth0ResponseCookies(new ResponseCookies(new Headers()));
+        const requestCookies = new Auth0RequestCookies(
+          new RequestCookies(new Headers())
+        );
+        const responseCookies = new Auth0ResponseCookies(
+          new ResponseCookies(new Headers())
+        );
 
         const sessionStore = new StatefulSessionStore({
           secret,
@@ -650,8 +685,12 @@ describe("Stateful Session Store", async () => {
           delete: vi.fn()
         };
 
-        const requestCookies = new Auth0RequestCookies(new RequestCookies(new Headers()));
-        const responseCookies = new Auth0ResponseCookies(new ResponseCookies(new Headers()));
+        const requestCookies = new Auth0RequestCookies(
+          new RequestCookies(new Headers())
+        );
+        const responseCookies = new Auth0ResponseCookies(
+          new ResponseCookies(new Headers())
+        );
 
         const sessionStore = new StatefulSessionStore({
           secret,
@@ -694,8 +733,12 @@ describe("Stateful Session Store", async () => {
           delete: vi.fn()
         };
 
-        const requestCookies = new Auth0RequestCookies(new RequestCookies(new Headers()));
-        const responseCookies = new Auth0ResponseCookies(new ResponseCookies(new Headers()));
+        const requestCookies = new Auth0RequestCookies(
+          new RequestCookies(new Headers())
+        );
+        const responseCookies = new Auth0ResponseCookies(
+          new ResponseCookies(new Headers())
+        );
 
         const sessionStore = new StatefulSessionStore({
           secret,
@@ -761,7 +804,11 @@ describe("Stateful Session Store", async () => {
       vi.spyOn(requestCookies, "has").mockReturnValue(true);
       vi.spyOn(responseCookies, "set");
 
-      await sessionStore.set(auth0RequestCookies, auth0ResponseCookies, session);
+      await sessionStore.set(
+        auth0RequestCookies,
+        auth0ResponseCookies,
+        session
+      );
 
       expect(responseCookies.set).toHaveBeenCalledWith(LEGACY_COOKIE_NAME, "", {
         maxAge: 0,
@@ -803,7 +850,11 @@ describe("Stateful Session Store", async () => {
         cookieOptions: { name: LEGACY_COOKIE_NAME } // 👈 simulate legacy name
       });
 
-      await sessionStore.set(auth0RequestCookies, auth0ResponseCookies, session);
+      await sessionStore.set(
+        auth0RequestCookies,
+        auth0ResponseCookies,
+        session
+      );
       expect(deleteSpy).not.toHaveBeenCalled();
     });
   });
@@ -841,8 +892,12 @@ describe("Stateful Session Store", async () => {
       const headers = new Headers();
       headers.append("cookie", `__session=${encryptedCookieValue}`);
 
-      const requestCookies = new Auth0RequestCookies(new RequestCookies(headers));
-      const responseCookies = new Auth0ResponseCookies(new ResponseCookies(new Headers()));
+      const requestCookies = new Auth0RequestCookies(
+        new RequestCookies(headers)
+      );
+      const responseCookies = new Auth0ResponseCookies(
+        new ResponseCookies(new Headers())
+      );
 
       const sessionStore = new StatefulSessionStore({
         secret,
@@ -878,9 +933,13 @@ describe("Stateful Session Store", async () => {
         set: vi.fn(),
         delete: vi.fn()
       };
-      
-      const requestCookies = new Auth0RequestCookies(new RequestCookies(new Headers()));
-      const responseCookies = new Auth0ResponseCookies(new ResponseCookies(new Headers()));
+
+      const requestCookies = new Auth0RequestCookies(
+        new RequestCookies(new Headers())
+      );
+      const responseCookies = new Auth0ResponseCookies(
+        new ResponseCookies(new Headers())
+      );
 
       const sessionStore = new StatefulSessionStore({
         secret,

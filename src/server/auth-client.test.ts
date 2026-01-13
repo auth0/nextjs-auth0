@@ -7956,7 +7956,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      await authClient.startInteractiveLogin(new Auth0NextResponse(new NextResponse()));
+      await authClient.startInteractiveLogin(
+        new Auth0NextResponse(new NextResponse())
+      );
 
       expect(authClient["transactionStore"].save).toHaveBeenCalled();
     });
@@ -7979,7 +7981,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      await authClient.startInteractiveLogin(new Auth0NextResponse(new NextResponse()), { returnTo });
+      await authClient.startInteractiveLogin(
+        new Auth0NextResponse(new NextResponse()),
+        { returnTo }
+      );
 
       expect(authClient["transactionStore"].save).toHaveBeenCalled();
     });
@@ -8002,7 +8007,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      await authClient.startInteractiveLogin(new Auth0NextResponse(new NextResponse()), { returnTo });
+      await authClient.startInteractiveLogin(
+        new Auth0NextResponse(new NextResponse()),
+        { returnTo }
+      );
 
       expect(authClient["transactionStore"].save).toHaveBeenCalled();
     });
@@ -8028,7 +8036,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      await authClient.startInteractiveLogin(new Auth0NextResponse(new NextResponse()), { returnTo: unsafeReturnTo });
+      await authClient.startInteractiveLogin(
+        new Auth0NextResponse(new NextResponse()),
+        { returnTo: unsafeReturnTo }
+      );
 
       expect(authClient["transactionStore"].save).toHaveBeenCalled();
     });
@@ -8050,7 +8061,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
         return originalAuthorizationUrl.call(authClient, params);
       });
 
-      await authClient.startInteractiveLogin(new Auth0NextResponse(new NextResponse()), { authorizationParameters });
+      await authClient.startInteractiveLogin(
+        new Auth0NextResponse(new NextResponse()),
+        { authorizationParameters }
+      );
 
       expect(authClient["authorizationUrl"]).toHaveBeenCalled();
     });
@@ -8084,7 +8098,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
         fetch: mockFetch
       });
 
-      await authClient.startInteractiveLogin(new Auth0NextResponse(new NextResponse()));
+      await authClient.startInteractiveLogin(
+        new Auth0NextResponse(new NextResponse())
+      );
 
       // Verify that PAR was used
       expect(parRequestCalled).toBe(true);
@@ -8115,7 +8131,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       );
 
-      await authClient.startInteractiveLogin(new Auth0NextResponse(new NextResponse()), { returnTo });
+      await authClient.startInteractiveLogin(
+        new Auth0NextResponse(new NextResponse()),
+        { returnTo }
+      );
 
       expect(authClient["transactionStore"].save).toHaveBeenCalled();
     });
@@ -8142,12 +8161,15 @@ ca/T0LLtgmbMmxSv/MmzIg==
         return originalAuthorizationUrl.call(authClient, params);
       });
 
-      await authClient.startInteractiveLogin(new Auth0NextResponse(new NextResponse()), {
-        authorizationParameters: {
-          scope: methodScope,
-          audience: methodAudience
+      await authClient.startInteractiveLogin(
+        new Auth0NextResponse(new NextResponse()),
+        {
+          authorizationParameters: {
+            scope: methodScope,
+            audience: methodAudience
+          }
         }
-      });
+      );
 
       expect(authClient["authorizationUrl"]).toHaveBeenCalled();
     });

@@ -1,9 +1,9 @@
 import type * as jose from "jose";
 
 import { RESPONSE_TYPES } from "../types/index.js";
+import * as cookies from "./cookies.js";
 import { Auth0RequestCookies } from "./http/auth0-request-cookies.js";
 import { Auth0ResponseCookies } from "./http/auth0-response-cookies.js";
-import * as cookies from "./cookies.js";
 
 const TRANSACTION_COOKIE_PREFIX = "__txn_";
 

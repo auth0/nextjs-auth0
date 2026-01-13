@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server.js";
 import { describe, expect, it } from "vitest";
+
 import { Auth0NextRequest } from "./auth0-next-request.js";
 
 describe("Auth0NextRequest", () => {
@@ -30,9 +31,12 @@ describe("Auth0NextRequest", () => {
     });
 
     it("should include query parameters in the URL", () => {
-      const request = new NextRequest("https://example.com/auth/login?returnTo=/dashboard", {
-        method: "GET"
-      });
+      const request = new NextRequest(
+        "https://example.com/auth/login?returnTo=/dashboard",
+        {
+          method: "GET"
+        }
+      );
 
       const auth0Request = new Auth0NextRequest(request);
       const url = auth0Request.getUrl();
@@ -41,9 +45,12 @@ describe("Auth0NextRequest", () => {
     });
 
     it("should handle complex URLs with fragments and special characters", () => {
-      const request = new NextRequest("https://example.com/auth/callback?code=abc123&state=xyz789", {
-        method: "GET"
-      });
+      const request = new NextRequest(
+        "https://example.com/auth/callback?code=abc123&state=xyz789",
+        {
+          method: "GET"
+        }
+      );
 
       const auth0Request = new Auth0NextRequest(request);
       const url = auth0Request.getUrl();
@@ -62,7 +69,9 @@ describe("Auth0NextRequest", () => {
     });
 
     it("should return the HTTP method for POST requests", () => {
-      const request = new NextRequest("https://example.com", { method: "POST" });
+      const request = new NextRequest("https://example.com", {
+        method: "POST"
+      });
       const auth0Request = new Auth0NextRequest(request);
 
       expect(auth0Request.getMethod()).toBe("POST");
@@ -167,7 +176,7 @@ describe("Auth0NextRequest", () => {
       const request = new NextRequest("https://example.com", {
         headers: {
           "content-type": "application/json",
-          "authorization": "Bearer token123"
+          authorization: "Bearer token123"
         }
       });
 
@@ -194,7 +203,7 @@ describe("Auth0NextRequest", () => {
 
     it("should handle multiple header values", () => {
       const request = new NextRequest("https://example.com", {
-        headers: { "accept": "application/json, text/plain" }
+        headers: { accept: "application/json, text/plain" }
       });
 
       const auth0Request = new Auth0NextRequest(request);

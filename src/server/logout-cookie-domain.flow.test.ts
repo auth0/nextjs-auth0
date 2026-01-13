@@ -1,8 +1,8 @@
 import { ResponseCookies } from "@edge-runtime/cookies";
 import { describe, expect, it } from "vitest";
 
-import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import { Auth0RequestCookies, Auth0ResponseCookies } from "./http/index.js";
+import { StatelessSessionStore } from "./session/stateless-session-store.js";
 
 describe("Session cookie domain deletion bug", () => {
   it("should delete session cookies with domain when AUTH0_COOKIE_DOMAIN is set", () => {
@@ -39,7 +39,10 @@ describe("Session cookie domain deletion bug", () => {
     };
 
     // Call delete method
-    sessionStore.delete(new Auth0RequestCookies(mockReqCookies as any), resCookies);
+    sessionStore.delete(
+      new Auth0RequestCookies(mockReqCookies as any),
+      resCookies
+    );
 
     // Check that cookies are deleted with domain
     const setCookieHeaders = headers.getSetCookie();

@@ -4,14 +4,14 @@ import { describe, expect, it } from "vitest";
 
 import { generateSecret } from "../test/utils.js";
 import { RESPONSE_TYPES } from "../types/connected-accounts.js";
-import { Auth0RequestCookies } from "./http/auth0-request-cookies.js";
-import { Auth0ResponseCookies } from "./http/auth0-response-cookies.js";
 import {
   decrypt,
   encrypt,
   RequestCookies,
   ResponseCookies
 } from "./cookies.js";
+import { Auth0RequestCookies } from "./http/auth0-request-cookies.js";
+import { Auth0ResponseCookies } from "./http/auth0-response-cookies.js";
 import { TransactionState, TransactionStore } from "./transaction-store.js";
 
 describe("Transaction Store", async () => {

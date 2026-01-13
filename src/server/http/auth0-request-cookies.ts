@@ -48,9 +48,7 @@ import { ReadonlyRequestCookies, RequestCookies } from "../cookies.js";
  * ```
  */
 export class Auth0RequestCookies {
-  constructor(
-    private cookies: ReadonlyRequestCookies | RequestCookies
-  ) {}
+  constructor(private cookies: ReadonlyRequestCookies | RequestCookies) {}
 
   /**
    * Retrieves a cookie by name.

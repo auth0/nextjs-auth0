@@ -8,9 +8,9 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { getDefaultRoutes } from "../test/defaults.js";
 import { generateSecret } from "../test/utils.js";
 import { SessionData } from "../types/index.js";
-import { Auth0NextRequest, Auth0NextResponse } from "./http/index.js";
 import { AuthClient } from "./auth-client.js";
 import { decrypt, encrypt } from "./cookies.js";
+import { Auth0NextRequest, Auth0NextResponse } from "./http/index.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import { TransactionStore } from "./transaction-store.js";
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server.js";
 import { describe, expect, it } from "vitest";
+
 import { Auth0NextResponse } from "./auth0-next-response.js";
 
 describe("Auth0NextResponse", () => {
@@ -40,7 +41,9 @@ describe("Auth0NextResponse", () => {
       auth0Response.redirect("https://example.com/callback");
 
       expect(auth0Response.res.status).toBe(307);
-      expect(auth0Response.res.headers.get("location")).toBe("https://example.com/callback");
+      expect(auth0Response.res.headers.get("location")).toBe(
+        "https://example.com/callback"
+      );
     });
 
     it("should preserve headers from previous response", () => {
@@ -52,7 +55,9 @@ describe("Auth0NextResponse", () => {
       auth0Response.redirect("https://example.com/redirect");
 
       expect(auth0Response.res.headers.get("x-custom")).toBe("value");
-      expect(auth0Response.res.headers.get("location")).toBe("https://example.com/redirect");
+      expect(auth0Response.res.headers.get("location")).toBe(
+        "https://example.com/redirect"
+      );
     });
   });
 
@@ -106,7 +111,9 @@ describe("Auth0NextResponse", () => {
       const data = { token: "abc123", user: { id: 1 } };
       auth0Response.json(data);
 
-      expect(auth0Response.res.headers.get("content-type")).toContain("application/json");
+      expect(auth0Response.res.headers.get("content-type")).toContain(
+        "application/json"
+      );
     });
 
     it("should set status code when provided in init", () => {
@@ -124,7 +131,9 @@ describe("Auth0NextResponse", () => {
 
       auth0Response.json({});
 
-      expect(auth0Response.res.headers.get("content-type")).toContain("application/json");
+      expect(auth0Response.res.headers.get("content-type")).toContain(
+        "application/json"
+      );
     });
 
     it("should handle nested objects", () => {
@@ -141,7 +150,9 @@ describe("Auth0NextResponse", () => {
       };
       auth0Response.json(data);
 
-      expect(auth0Response.res.headers.get("content-type")).toContain("application/json");
+      expect(auth0Response.res.headers.get("content-type")).toContain(
+        "application/json"
+      );
     });
 
     it("should preserve previous headers", () => {
@@ -153,7 +164,9 @@ describe("Auth0NextResponse", () => {
       auth0Response.json({ data: "test" });
 
       expect(auth0Response.res.headers.get("x-custom")).toBe("value");
-      expect(auth0Response.res.headers.get("content-type")).toContain("application/json");
+      expect(auth0Response.res.headers.get("content-type")).toContain(
+        "application/json"
+      );
     });
   });
 
@@ -249,7 +262,9 @@ describe("Auth0NextResponse", () => {
 
       auth0Response.json({ data: "test" });
 
-      expect(auth0Response.res.headers.get("content-security-policy")).toBe("default-src 'self'");
+      expect(auth0Response.res.headers.get("content-security-policy")).toBe(
+        "default-src 'self'"
+      );
       expect(auth0Response.res.headers.get("x-frame-options")).toBe("DENY");
     });
   });
@@ -280,8 +295,12 @@ describe("Auth0NextResponse", () => {
         path: "/"
       });
 
-      expect(auth0Response.res.headers.get("content-type")).toContain("application/json");
-      expect(auth0Response.res.headers.get("cache-control")).toContain("no-store");
+      expect(auth0Response.res.headers.get("content-type")).toContain(
+        "application/json"
+      );
+      expect(auth0Response.res.headers.get("cache-control")).toContain(
+        "no-store"
+      );
     });
 
     it("should handle error response", () => {
@@ -294,7 +313,9 @@ describe("Auth0NextResponse", () => {
       );
 
       expect(auth0Response.res.status).toBe(401);
-      expect(auth0Response.res.headers.get("content-type")).toContain("application/json");
+      expect(auth0Response.res.headers.get("content-type")).toContain(
+        "application/json"
+      );
     });
 
     it("should handle redirect after login", () => {
@@ -309,7 +330,9 @@ describe("Auth0NextResponse", () => {
       });
 
       expect(auth0Response.res.status).toBe(307);
-      expect(auth0Response.res.headers.get("location")).toBe("https://example.com/dashboard");
+      expect(auth0Response.res.headers.get("location")).toBe(
+        "https://example.com/dashboard"
+      );
     });
 
     it("should handle logout response", () => {
@@ -319,7 +342,9 @@ describe("Auth0NextResponse", () => {
       auth0Response.getCookies().delete("session");
       auth0Response.redirect("https://example.com");
 
-      expect(auth0Response.res.headers.get("location")).toBe("https://example.com/");
+      expect(auth0Response.res.headers.get("location")).toBe(
+        "https://example.com/"
+      );
     });
   });
 });

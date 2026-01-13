@@ -16,9 +16,9 @@ import { generateSecret } from "../test/utils.js";
 import type { SessionData } from "../types/index.js";
 import { AuthClient } from "./auth-client.js";
 import { encrypt } from "./cookies.js";
+import { Auth0NextRequest, Auth0NextResponse } from "./http/index.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import { TransactionStore } from "./transaction-store.js";
-import { Auth0NextRequest, Auth0NextResponse } from "./http/index.js";
 
 // Test constants
 const DEFAULT = {

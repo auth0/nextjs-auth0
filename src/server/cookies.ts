@@ -1,9 +1,5 @@
 import type { NextResponse } from "next/server.js";
-import {
-  RequestCookie,
-  RequestCookies,
-  ResponseCookies
-} from "@edge-runtime/cookies";
+import { RequestCookies, ResponseCookies } from "@edge-runtime/cookies";
 import { hkdf } from "@panva/hkdf";
 import * as jose from "jose";
 
