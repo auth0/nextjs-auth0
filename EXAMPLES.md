@@ -2197,11 +2197,12 @@ Do realize that this has an impact on the size of the cookie being issued, so it
 
 The `onCallback` hook is run once the user has been redirected back from Auth0 to your application with either an error or the authorization code which will be verified and exchanged.
 
-The `onCallback` hook receives 3 parameters:
+The `onCallback` hook receives 4 parameters:
 
 1. `error`: the error returned from Auth0 or when attempting to complete the transaction. This will be `null` if the transaction was completed successfully.
 2. `context`: provides context on the transaction that initiated the transaction.
 3. `session`: the `SessionData` that will be persisted once the transaction completes successfully. This will be `null` if there was an error.
+4. `defaultOnCallback`: the default onCallback hook that would have been called instead of the user-provided hook. This can be used if you want to take an action on callback, but keep the default callback behaviour instead of overriding it.
 
 The hook must return a Promise that resolves to a `NextResponse`.
 
