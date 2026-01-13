@@ -180,7 +180,11 @@ export type OnCallbackContext = {
 export type OnCallbackHook = (
   error: SdkError | null,
   ctx: OnCallbackContext,
-  session: SessionData | null
+  session: SessionData | null,
+  defaultOnCallback: (
+    error: SdkError | null,
+    ctx: OnCallbackContext
+  ) => Promise<NextResponse>
 ) => Promise<NextResponse>;
 
 // params passed to the /authorize endpoint that cannot be overwritten
@@ -936,7 +940,12 @@ export class AuthClient {
       state
     );
     if (!transactionStateCookie) {
-      return this.onCallback(new InvalidStateError(), {}, null);
+      return this.onCallback(
+        new InvalidStateError(),
+        {},
+        null,
+        this.defaultOnCallback
+      );
     }
 
     const transactionState = transactionStateCookie.payload;
@@ -1032,7 +1041,8 @@ export class AuthClient {
           ...onCallbackCtx,
           connectedAccount
         },
-        session
+        session,
+        this.defaultOnCallback
       );
 
       await this.transactionStore.delete(res.cookies, state);
@@ -1224,7 +1234,7 @@ export class AuthClient {
         );
 
         // Call onCallback after finalization with the actual saved session
-        await this.onCallback(null, onCallbackCtx, mergedSession);
+        await this.onCallback(null, onCallbackCtx, mergedSession, this.defaultOnCallback);
 
         const popupResponse = createAuthCompletePostMessageResponse({
           success: true,
@@ -1269,7 +1279,7 @@ export class AuthClient {
         );
 
         // Call onCallback after finalization with the actual saved session
-        await this.onCallback(null, onCallbackCtx, mergedSession);
+        await this.onCallback(null, onCallbackCtx, mergedSession, this.defaultOnCallback);
 
         const popupResponse = createAuthCompletePostMessageResponse({
           success: true,
@@ -1309,7 +1319,12 @@ export class AuthClient {
       };
     }
 
-    const res = await this.onCallback(null, onCallbackCtx, session);
+    const res = await this.onCallback(
+      null,
+      onCallbackCtx,
+      session,
+      this.defaultOnCallback
+    );
 
     // call beforeSessionSaved callback if present
     // if not then filter id_token claims with default rules
@@ -2130,7 +2145,7 @@ export class AuthClient {
     // PostMessage branch: return error as postMessage HTML instead of redirect
     if (transactionState?.challengeMode === "popup") {
       // Call onCallback for error observability, matching standard flow behavior
-      await this.onCallback(error, ctx, null);
+      await this.onCallback(error, ctx, null, this.defaultOnCallback);
 
       const response = createAuthCompletePostMessageResponse({
         success: false,
@@ -2149,7 +2164,12 @@ export class AuthClient {
       return response;
     }
 
-    const response = await this.onCallback(error, ctx, null);
+    const response = await this.onCallback(
+      error,
+      ctx,
+      null,
+      this.defaultOnCallback
+    );
 
     // Clean up the transaction cookie on error to prevent accumulation
     if (state) {
