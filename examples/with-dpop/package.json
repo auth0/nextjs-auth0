@@ -44,7 +44,7 @@
     "react": "19.0.1",
     "react-dom": "19.0.1",
     "reactstrap": "^9.1.5",
-    "undici": "^7.16.0"
+    "undici": "^7.18.2"
   },
   "devDependencies": {
     "@babel/core": "^7.23.0",
