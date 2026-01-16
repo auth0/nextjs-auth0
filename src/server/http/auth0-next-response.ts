@@ -116,7 +116,7 @@ export class Auth0NextResponse extends Auth0Response<NextResponse> {
     // we ensure to copy it to the new response.
     const headers = ["Cache-Control", "Pragma", "Expires"];
 
-    headers.forEach(name => {
+    headers.forEach((name) => {
       const originalHeader = oldRes.headers.get(name);
 
       if (originalHeader) {
@@ -126,9 +126,9 @@ export class Auth0NextResponse extends Auth0Response<NextResponse> {
 
     // If we have cookies defined on the response,
     // ensure to carry them over to the new response.
-    oldRes.cookies.getAll().forEach(cookie => {
+    oldRes.cookies.getAll().forEach((cookie) => {
       newRes.cookies.set(cookie.name, cookie.value, cookie);
-    })
+    });
 
     return newRes;
   }
