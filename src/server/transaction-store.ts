@@ -181,11 +181,20 @@ export class TransactionStore {
     return cookies.decrypt<TransactionState>(cookieValue, this.secret);
   }
 
-  async delete(resCookies: cookies.ResponseCookies, state: string) {
-    cookies.deleteCookie(resCookies, this.getTransactionCookieName(state), {
-      domain: this.cookieOptions.domain,
-      path: this.cookieOptions.path
-    });
+  async delete(
+    resCookies: cookies.ResponseCookies,
+    state: string,
+    rawHeaders?: Headers
+  ) {
+    cookies.deleteCookie(
+      resCookies,
+      this.getTransactionCookieName(state),
+      {
+        domain: this.cookieOptions.domain,
+        path: this.cookieOptions.path
+      },
+      rawHeaders
+    );
   }
 
   /**
@@ -193,7 +202,8 @@ export class TransactionStore {
    */
   async deleteAll(
     reqCookies: cookies.RequestCookies,
-    resCookies: cookies.ResponseCookies
+    resCookies: cookies.ResponseCookies,
+    rawHeaders?: Headers
   ) {
     const txnPrefix = this.getCookiePrefix();
     const deleteOptions = {
@@ -203,7 +213,12 @@ export class TransactionStore {
 
     reqCookies.getAll().forEach((cookie) => {
       if (cookie.name.startsWith(txnPrefix)) {
-        cookies.deleteCookie(resCookies, cookie.name, deleteOptions);
+        cookies.deleteCookie(
+          resCookies,
+          cookie.name,
+          deleteOptions,
+          rawHeaders
+        );
       }
     });
   }

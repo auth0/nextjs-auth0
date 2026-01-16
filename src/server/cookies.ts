@@ -2,7 +2,8 @@ import type { NextResponse } from "next/server.js";
 import {
   RequestCookie,
   RequestCookies,
-  ResponseCookies
+  ResponseCookies,
+  stringifyCookie
 } from "@edge-runtime/cookies";
 import { hkdf } from "@panva/hkdf";
 import * as jose from "jose";
@@ -196,18 +197,23 @@ const getAllChunkedCookies = (
  * If the value exceeds the maximum chunk size, it will be split into multiple cookies
  * with names suffixed by a chunk index.
  *
+ * When `rawHeaders` is provided and a domain is configured, any chunk cleanup deletions
+ * will emit dual Set-Cookie headers (domain and host-only) to prevent cookie accumulation.
+ *
  * @param name - The name of the cookie.
  * @param value - The value to be stored in the cookie.
  * @param options - Options for setting the cookie.
  * @param reqCookies - The request cookies object, used to enable read-after-write in the same request for middleware.
  * @param resCookies - The response cookies object, used to set the cookies in the response.
+ * @param rawHeaders - Optional raw Headers object to enable dual-domain deletion for chunk cleanup.
  */
 export function setChunkedCookie(
   name: string,
   value: string,
   options: CookieOptions,
   reqCookies: RequestCookies,
-  resCookies: ResponseCookies
+  resCookies: ResponseCookies,
+  rawHeaders?: Headers
 ): void {
   const { transient, ...restOptions } = options;
   const finalOptions = { ...restOptions };
@@ -227,10 +233,15 @@ export function setChunkedCookie(
     // When we are writing a non-chunked cookie, we should remove the chunked cookies
     // Remove any previously stored chunks for this cookie name
     getAllChunkedCookies(reqCookies, name).forEach((cookieChunk) => {
-      deleteCookie(resCookies, cookieChunk.name, {
-        path: finalOptions.path,
-        domain: finalOptions.domain
-      });
+      deleteCookie(
+        resCookies,
+        cookieChunk.name,
+        {
+          path: finalOptions.path,
+          domain: finalOptions.domain
+        },
+        rawHeaders
+      );
       reqCookies.delete(cookieChunk.name);
     });
 
@@ -259,19 +270,29 @@ export function setChunkedCookie(
     for (let i = 0; i < chunksToRemove; i++) {
       const chunkIndexToRemove = chunkIndex + i;
       const chunkName = `${name}${CHUNK_PREFIX}${chunkIndexToRemove}`;
-      deleteCookie(resCookies, chunkName, {
-        path: finalOptions.path,
-        domain: finalOptions.domain
-      });
+      deleteCookie(
+        resCookies,
+        chunkName,
+        {
+          path: finalOptions.path,
+          domain: finalOptions.domain
+        },
+        rawHeaders
+      );
       reqCookies.delete(chunkName);
     }
   }
 
   // When we have written chunked cookies, we should remove the non-chunked cookie
-  deleteCookie(resCookies, name, {
-    path: finalOptions.path,
-    domain: finalOptions.domain
-  });
+  deleteCookie(
+    resCookies,
+    name,
+    {
+      path: finalOptions.path,
+      domain: finalOptions.domain
+    },
+    rawHeaders
+  );
   reqCookies.delete(name);
 }
 
@@ -329,25 +350,54 @@ export function getChunkedCookie(
 /**
  * Deletes a chunked cookie and all its associated chunks from the response cookies.
  *
+ * When `rawHeaders` is provided and a domain is configured, each chunk deletion
+ * emits two Set-Cookie headers (domain and host-only) to prevent cookie accumulation.
+ *
+ * Note: Due to ResponseCookies.set() rebuilding all Set-Cookie headers from its internal
+ * Map on each call, we must collect all cookie names first, perform all ResponseCookies.set()
+ * calls, then append all host-only variants at the end.
+ *
  * @param name - The name of the main cookie to delete.
  * @param reqCookies - The request cookies object containing all cookies from the request.
  * @param resCookies - The response cookies object to manipulate the cookies in the response.
  * @param isLegacyCookie - Whether to handle legacy cookie format.
  * @param options - Options for cookie deletion including domain and path.
+ * @param rawHeaders - Optional raw Headers object to enable dual-domain deletion.
  */
 export function deleteChunkedCookie(
   name: string,
   reqCookies: RequestCookies,
   resCookies: ResponseCookies,
   isLegacyCookie?: boolean,
-  options?: Pick<CookieOptions, "domain" | "path">
+  options?: Pick<CookieOptions, "domain" | "path">,
+  rawHeaders?: Headers
 ): void {
-  // Delete main cookie
-  deleteCookie(resCookies, name, options);
-
+  // Collect all cookie names to delete
+  const cookieNames = [name];
   getAllChunkedCookies(reqCookies, name, isLegacyCookie).forEach((cookie) => {
-    deleteCookie(resCookies, cookie.name, options); // Delete each filtered cookie
+    cookieNames.push(cookie.name);
   });
+
+  // Perform all ResponseCookies.set() calls first (without rawHeaders to avoid
+  // intermediate appends being wiped by subsequent set() calls)
+  for (const cookieName of cookieNames) {
+    deleteCookie(resCookies, cookieName, options);
+  }
+
+  // After all set() calls are complete, append host-only variants if domain is configured
+  if (rawHeaders && options?.domain) {
+    for (const cookieName of cookieNames) {
+      rawHeaders.append(
+        "Set-Cookie",
+        stringifyCookie({
+          name: cookieName,
+          value: "",
+          maxAge: 0,
+          path: options.path || "/"
+        })
+      );
+    }
+  }
 }
 
 /**
@@ -372,14 +422,26 @@ export function addCacheControlHeadersForSession(res: NextResponse): void {
 /**
  * Deletes a cookie from the response with optional domain and path specifications.
  *
+ * When `rawHeaders` is provided and a domain is configured, this function emits
+ * two Set-Cookie deletion headers: one for the domain cookie (e.g., Domain=.example.com)
+ * and one for the host-only cookie (no Domain attribute). This prevents cookie
+ * accumulation when the domain configuration changes.
+ *
+ * Per RFC 6265, cookies are unique by (name, domain, path). A cookie with
+ * Domain=.example.com and one without domain are two different cookies.
+ * If only one is deleted, the other persists and can cause HTTP 431 errors.
+ *
  * @param resCookies - The response cookies object to manipulate.
  * @param name - The name of the cookie to delete.
  * @param options - Optional domain and path settings for cookie deletion.
+ * @param rawHeaders - Optional raw Headers object to append additional deletion headers.
+ *                     When provided with a domain, enables dual-domain deletion.
  */
 export function deleteCookie(
   resCookies: ResponseCookies,
   name: string,
-  options?: Pick<CookieOptions, "domain" | "path">
+  options?: Pick<CookieOptions, "domain" | "path">,
+  rawHeaders?: Headers
 ) {
   const deleteOptions: { maxAge: number; domain?: string; path?: string } = {
     maxAge: 0 // Ensure the cookie is deleted immediately
@@ -394,4 +456,18 @@ export function deleteCookie(
   }
 
   resCookies.set(name, "", deleteOptions);
+
+  // When domain is configured and rawHeaders is available, also delete the host-only
+  // variant to prevent cookie accumulation from domain configuration changes.
+  if (rawHeaders && options?.domain) {
+    rawHeaders.append(
+      "Set-Cookie",
+      stringifyCookie({
+        name,
+        value: "",
+        maxAge: 0,
+        path: options.path || "/"
+      })
+    );
+  }
 }

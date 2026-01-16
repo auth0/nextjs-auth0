@@ -941,12 +941,19 @@ export class Auth0Client {
           throw new Error("The user is not authenticated.");
         }
 
-        await this.sessionStore.set(req.cookies, res.cookies, {
-          ...sessionData,
-          internal: {
-            ...existingSession.internal
-          }
-        });
+        // Pass res.headers to enable dual-domain cookie deletion
+        await this.sessionStore.set(
+          req.cookies,
+          res.cookies,
+          {
+            ...sessionData,
+            internal: {
+              ...existingSession.internal
+            }
+          },
+          false,
+          res.headers
+        );
       } else {
         // pages router usage
         const existingSession = await this.getSession(
@@ -963,12 +970,19 @@ export class Auth0Client {
         const reqCookies = this.createRequestCookies(req as PagesRouterRequest);
         const pagesRouterRes = res as PagesRouterResponse;
 
-        await this.sessionStore.set(reqCookies, resCookies, {
-          ...updatedSession,
-          internal: {
-            ...existingSession.internal
-          }
-        });
+        // Pass resHeaders to enable dual-domain cookie deletion
+        await this.sessionStore.set(
+          reqCookies,
+          resCookies,
+          {
+            ...updatedSession,
+            internal: {
+              ...existingSession.internal
+            }
+          },
+          false,
+          resHeaders
+        );
 
         // Handle multiple set-cookie headers properly
         // resHeaders.entries() yields each set-cookie header separately,
@@ -1141,17 +1155,27 @@ export class Auth0Client {
     if (req && res) {
       if (req instanceof NextRequest && res instanceof NextResponse) {
         // middleware usage
-        await this.sessionStore.set(req.cookies, res.cookies, data);
+        // Pass res.headers to enable dual-domain cookie deletion
+        await this.sessionStore.set(
+          req.cookies,
+          res.cookies,
+          data,
+          false,
+          res.headers
+        );
       } else {
         // pages router usage
         const resHeaders = new Headers();
         const resCookies = new ResponseCookies(resHeaders);
         const pagesRouterRes = res as PagesRouterResponse;
 
+        // Pass resHeaders to enable dual-domain cookie deletion
         await this.sessionStore.set(
           this.createRequestCookies(req as PagesRouterRequest),
           resCookies,
-          data
+          data,
+          false,
+          resHeaders
         );
 
         for (const cookie of resHeaders.getSetCookie()) {
@@ -1167,6 +1191,7 @@ export class Auth0Client {
       }
     } else {
       // app router usage: Server Components, Server Actions, Route Handlers
+      // Note: No rawHeaders available in App Router context, which is acceptable
       try {
         await this.sessionStore.set(await cookies(), await cookies(), data);
       } catch (e) {
