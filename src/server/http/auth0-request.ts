@@ -1,3 +1,4 @@
+import { NextApiRequest } from "next";
 import { Auth0RequestCookies } from "./auth0-request-cookies.js";
 
 /**
@@ -69,7 +70,7 @@ export abstract class Auth0Request<TRequest = any> {
    *
    * @returns A cloned Request object that is independent of the original.
    */
-  public abstract clone(): Request;
+  public abstract clone(): Request | NextApiRequest;
 
   /**
    * Retrieves the cookies from the request.

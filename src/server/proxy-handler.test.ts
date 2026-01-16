@@ -21,9 +21,7 @@ import {
 } from "../test/proxy-handler-test-helpers.js";
 import { generateSecret } from "../test/utils.js";
 import { generateDpopKeyPair } from "../utils/dpopUtils.js";
-import { AuthClient } from "./auth-client.js";
-import { StatelessSessionStore } from "./session/stateless-session-store.js";
-import { TransactionStore } from "./transaction-store.js";
+import { Auth0Client } from "./client.js";
 
 /**
  * Comprehensive Test Suite: AuthClient Custom Proxy Handler
@@ -97,7 +95,7 @@ const _authorizationServerMetadata = {
 let keyPair: jose.GenerateKeyPairResult;
 let dpopKeyPair: Awaited<ReturnType<typeof generateDpopKeyPair>>;
 let secret: string;
-let authClient: AuthClient;
+let authClient: Auth0Client;
 
 const server = setupServer(
   // Discovery endpoint
@@ -176,15 +174,13 @@ afterAll(() => {
 
 describe("Authentication Client - Custom Proxy Handler", async () => {
   beforeEach(async () => {
-    authClient = new AuthClient({
+    authClient = new Auth0Client({
       domain: DEFAULT.domain,
       clientId: DEFAULT.clientId,
       clientSecret: DEFAULT.clientSecret,
       appBaseUrl: DEFAULT.appBaseUrl,
       routes: getDefaultRoutes(),
       secret,
-      sessionStore: new StatelessSessionStore({ secret }),
-      transactionStore: new TransactionStore({ secret }),
       fetch: (url, init) =>
         fetch(url, { ...init, ...(init?.body ? { duplex: "half" } : {}) })
     });
@@ -203,7 +199,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      const response = await authClient.handler(request);
+      const response = await authClient.middleware(request);
       // Handler uses NextResponse.next() for unmatched routes, allowing them to pass through
       // This is intentional to allow the handler to coexist with other Next.js routes
       expect(response.status).toBe(200);
@@ -215,7 +211,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         { method: "GET" }
       );
 
-      const response = await authClient.handler(request);
+      const response = await authClient.middleware(request);
       expect(response.status).toBe(401);
       const text = await response.text();
       expect(text).toContain("active session");
@@ -240,7 +236,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      const response = await authClient.handler(request);
+      const response = await authClient.middleware(request);
       expect(response.status).toBe(200);
 
       const data = await response.json();
@@ -268,7 +264,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      const response = await authClient.handler(request);
+      const response = await authClient.middleware(request);
       expect(response.status).toBe(200);
 
       const data = await response.json();
@@ -300,7 +296,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      const response = await authClient.handler(request);
+      const response = await authClient.middleware(request);
       expect(response.status).toBe(200);
 
       expect(receivedBody).toEqual(requestBody);
@@ -331,7 +327,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      const response = await authClient.handler(request);
+      const response = await authClient.middleware(request);
       expect(response.status).toBe(200);
 
       expect(receivedBody).toEqual(requestBody);
@@ -365,7 +361,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      const response = await authClient.handler(request);
+      const response = await authClient.middleware(request);
       expect(response.status).toBe(200);
 
       expect(receivedBody).toEqual(requestBody);
@@ -389,7 +385,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      const response = await authClient.handler(request);
+      const response = await authClient.middleware(request);
       expect(response.status).toBe(204);
     });
 
@@ -414,7 +410,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      const response = await authClient.handler(request);
+      const response = await authClient.middleware(request);
       expect(response.status).toBe(200);
       expect(response.headers.get("x-total-count")).toBe("42");
     });
@@ -450,7 +446,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      const response = await authClient.handler(request);
+      const response = await authClient.middleware(request);
       expect(response.status).toBe(204);
 
       // Preflight should not include Authorization header
@@ -481,7 +477,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      const response = await authClient.handler(request);
+      const response = await authClient.middleware(request);
       expect(response.status).toBe(200);
       expect(response.headers.get("allow")).toContain("GET");
     });
@@ -504,7 +500,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      const response = await authClient.handler(request);
+      const response = await authClient.middleware(request);
       // Should not proxy - should just touch sessions and return Next response
       expect(response.status).toBe(200);
       // Should not have proxied content
@@ -530,7 +526,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      const response = await authClient.handler(request);
+      const response = await authClient.middleware(request);
       expect(response.status).toBe(200);
 
       const data = await response.json();
@@ -558,7 +554,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      const response = await authClient.handler(request);
+      const response = await authClient.middleware(request);
       expect(response.status).toBe(200);
 
       const data = await response.json();
@@ -588,7 +584,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      const response = await authClient.handler(request);
+      const response = await authClient.middleware(request);
       expect(response.status).toBe(200);
 
       const url = new URL(receivedUrl!);
@@ -621,7 +617,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      const response = await authClient.handler(request);
+      const response = await authClient.middleware(request);
       expect(response.status).toBe(200);
     });
 
@@ -643,7 +639,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      const response = await authClient.handler(request);
+      const response = await authClient.middleware(request);
       expect(response.status).toBe(200);
     });
   });
@@ -673,7 +669,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      await authClient.handler(request);
+      await authClient.middleware(request);
 
       // Only explicitly allow-listed headers should be forwarded
       expect(receivedHeaders!.get("x-request-id")).toBe("req-123");
@@ -705,7 +701,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      await authClient.handler(request);
+      await authClient.middleware(request);
 
       // Arbitrary x-* headers should NOT be forwarded
       expect(receivedHeaders!.get("x-custom-header")).toBeNull();
@@ -739,7 +735,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      await authClient.handler(request);
+      await authClient.middleware(request);
 
       expect(receivedHeaders!.get("accept")).toBe("application/json");
       expect(receivedHeaders!.get("accept-language")).toBe("en-US");
@@ -768,7 +764,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      await authClient.handler(request);
+      await authClient.middleware(request);
 
       // Cookie should be stripped
       expect(receivedHeaders!.get("cookie")).toBeNull();
@@ -799,7 +795,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      await authClient.handler(request);
+      await authClient.middleware(request);
 
       // Host should be updated to upstream host
       const upstreamHost = new URL(DEFAULT.upstreamBaseUrl).host;
@@ -829,7 +825,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      await authClient.handler(request);
+      await authClient.middleware(request);
 
       expect(receivedHeaders!.get("user-agent")).toBe("Test-Agent/1.0");
     });
@@ -860,7 +856,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      const response = await authClient.handler(request);
+      const response = await authClient.middleware(request);
 
       expect(response.headers.get("x-custom-response")).toBe("response-value");
       expect(response.headers.get("x-rate-limit")).toBe("100");
@@ -893,7 +889,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      const response = await authClient.handler(request);
+      const response = await authClient.middleware(request);
 
       expect(response.headers.get("access-control-allow-origin")).toBe("*");
       expect(response.headers.get("access-control-allow-methods")).toBe(
@@ -928,7 +924,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      await authClient.handler(request);
+      await authClient.middleware(request);
 
       expect(receivedBody).toEqual(requestBody);
     });
@@ -962,7 +958,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      await authClient.handler(request);
+      await authClient.middleware(request);
 
       expect(receivedBody!).toBe("username=testuser&password=testpass");
     });
@@ -992,7 +988,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      await authClient.handler(request);
+      await authClient.middleware(request);
 
       expect(receivedBody!).toBe(textBody);
     });
@@ -1017,7 +1013,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      const response = await authClient.handler(request);
+      const response = await authClient.middleware(request);
 
       expect(response.status).toBe(200);
       expect(bodyWasNull).toBe(true);
@@ -1056,7 +1052,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      await authClient.handler(request);
+      await authClient.middleware(request);
 
       expect(receivedBody).toEqual(largeBody);
     });
@@ -1083,26 +1079,24 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      await authClient.handler(request);
+      await authClient.middleware(request);
 
       expect(receivedAuthHeader).toBe(`Bearer ${DEFAULT.accessToken}`);
     });
   });
 
   describe("Category 7: DPoP Token Handling", () => {
-    let dpopAuthClient: AuthClient;
+    let dpopAuthClient: Auth0Client;
 
     beforeEach(async () => {
       // Create AuthClient with DPoP enabled
-      dpopAuthClient = new AuthClient({
+      dpopAuthClient = new Auth0Client({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         routes: getDefaultRoutes(),
         secret,
-        sessionStore: new StatelessSessionStore({ secret }),
-        transactionStore: new TransactionStore({ secret }),
         useDPoP: true,
         dpopKeyPair: dpopKeyPair,
         fetch: (url, init) =>
@@ -1138,7 +1132,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      await dpopAuthClient.handler(request);
+      await dpopAuthClient.middleware(request);
 
       expect(receivedDPoPHeader).toBeTruthy();
       expect(receivedDPoPHeader).toMatch(
@@ -1179,7 +1173,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      await dpopAuthClient.handler(request);
+      await dpopAuthClient.middleware(request);
 
       const dpopInfo = extractDPoPInfo(dpopProof);
       expect(dpopInfo.htm).toBe("POST");
@@ -1214,7 +1208,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      await dpopAuthClient.handler(request);
+      await dpopAuthClient.middleware(request);
 
       const dpopInfo = extractDPoPInfo(dpopProof);
       expect(dpopInfo.htu).toBe(`${DEFAULT.upstreamBaseUrl}/users/123`);
@@ -1249,7 +1243,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      await dpopAuthClient.handler(request);
+      await dpopAuthClient.middleware(request);
 
       const dpopInfo = extractDPoPInfo(dpopProof);
       expect(dpopInfo.jti).toBeTruthy();
@@ -1286,7 +1280,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      await dpopAuthClient.handler(request);
+      await dpopAuthClient.middleware(request);
 
       expect(receivedAuthHeader).toBe(`DPoP ${DEFAULT.accessToken}`);
     });
@@ -1321,7 +1315,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      const response = await dpopAuthClient.handler(request);
+      const response = await dpopAuthClient.middleware(request);
 
       expect(response.status).toBe(200);
       expect(state.requestCount).toBe(2); // Initial + retry
@@ -1366,7 +1360,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      const response = await dpopAuthClient.handler(request);
+      const response = await dpopAuthClient.middleware(request);
 
       expect(response.status).toBe(200);
 
@@ -1427,7 +1421,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      const response = await authClient.handler(request);
+      const response = await authClient.middleware(request);
 
       // Should have Set-Cookie header with updated session
       const setCookieHeader = response.headers.get("set-cookie");
@@ -1483,7 +1477,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      const response = await authClient.handler(request);
+      const response = await authClient.middleware(request);
       expect(response.status).toBe(200);
 
       // Verify session was updated (Set-Cookie present)
@@ -1580,7 +1574,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      const response1 = await authClient.handler(request1);
+      const response1 = await authClient.middleware(request1);
       expect(response1.status).toBe(200);
 
       // Verify first session was updated after token refresh
@@ -1622,7 +1616,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      const response2 = await authClient.handler(request2);
+      const response2 = await authClient.middleware(request2);
       expect(response2.status).toBe(200);
 
       // CRITICAL ASSERTION: Verify second session was ALSO updated
@@ -1677,7 +1671,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      const response = await authClient.handler(request);
+      const response = await authClient.middleware(request);
 
       expect(response.status).toBe(500);
       const body = await response.json();
@@ -1702,7 +1696,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      const response = await authClient.handler(request);
+      const response = await authClient.middleware(request);
 
       expect(response.status).toBe(404);
     });
@@ -1728,7 +1722,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      const response = await authClient.handler(request);
+      const response = await authClient.middleware(request);
 
       expect(response.status).toBe(401);
     });
@@ -1767,7 +1761,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
 
       // Make 5 concurrent requests
       const requests = Array.from({ length: 5 }, (_, i) =>
-        authClient.handler(
+        authClient.middleware(
           new NextRequest(
             new URL(`${DEFAULT.proxyPath}/data?id=${i}`, DEFAULT.appBaseUrl),
             {
@@ -1838,7 +1832,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
 
       // Make 3 concurrent requests with expired token
       const requests = Array.from({ length: 3 }, () =>
-        authClient.handler(
+        authClient.middleware(
           new NextRequest(
             new URL(`${DEFAULT.proxyPath}/data`, DEFAULT.appBaseUrl),
             {
@@ -1868,15 +1862,13 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
       const cookie = await createSessionCookie(session, secret);
 
       // Create AuthClient with multiple proxy routes
-      const multiProxyClient = new AuthClient({
+      const multiProxyClient = new Auth0Client({
         domain: DEFAULT.domain,
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
         appBaseUrl: DEFAULT.appBaseUrl,
         routes: getDefaultRoutes(),
         secret,
-        sessionStore: new StatelessSessionStore({ secret }),
-        transactionStore: new TransactionStore({ secret }),
         fetch: (url, init) =>
           fetch(url, { ...init, ...(init?.body ? { duplex: "half" } : {}) })
       });
@@ -1892,7 +1884,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
 
       // Make concurrent requests to /me endpoint
       const requests = [
-        multiProxyClient.handler(
+        multiProxyClient.middleware(
           new NextRequest(
             new URL(`${DEFAULT.proxyPath}/data`, DEFAULT.appBaseUrl),
             {
@@ -1901,7 +1893,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
             }
           )
         ),
-        multiProxyClient.handler(
+        multiProxyClient.middleware(
           new NextRequest(
             new URL(`${DEFAULT.proxyPath}/data`, DEFAULT.appBaseUrl),
             {
@@ -1910,7 +1902,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
             }
           )
         ),
-        multiProxyClient.handler(
+        multiProxyClient.middleware(
           new NextRequest(
             new URL(`${DEFAULT.proxyPath}/data`, DEFAULT.appBaseUrl),
             {
@@ -1961,7 +1953,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         }
       );
 
-      const response = await authClient.handler(request);
+      const response = await authClient.middleware(request);
 
       expect(response.status).toBe(204);
       expect(response.headers.get("access-control-allow-origin")).toBe(

@@ -356,6 +356,11 @@ export interface Auth0ClientOptions {
    * @see {@link DpopOptions} for detailed option descriptions
    */
   dpopOptions?: DpopOptions;
+
+  /**
+   * Custom fetch implementation to use for HTTP requests.
+   */
+  fetch?: typeof fetch;
 }
 
 export type PagesRouterRequest = IncomingMessage | NextApiRequest;
@@ -497,7 +502,8 @@ export class Auth0Client {
       enableConnectAccountEndpoint: options.enableConnectAccountEndpoint,
       useDPoP: options.useDPoP || false,
       dpopKeyPair: options.dpopKeyPair || resolvedDpopKeyPair,
-      dpopOptions: options.dpopOptions || resolvedDpopOptions
+      dpopOptions: options.dpopOptions || resolvedDpopOptions,
+      fetch: options.fetch
     });
   }
 
@@ -505,7 +511,82 @@ export class Auth0Client {
    * middleware mounts the SDK routes to run as a middleware function.
    */
   middleware(req: Request | NextRequest): Promise<NextResponse> {
-    return this.authClient.handler.bind(this.authClient)(toNextRequest(req));
+    return this.authClient.handler.bind(this.authClient)(
+      toNextRequest(req),
+      async (req) => {
+        // no auth handler found, simply touch the sessions
+        // TODO: this should only happen if rolling sessions are enabled. Also, we should
+        // try to avoid reading from the DB (for stateful sessions) on every request if possible.
+        const session = await this.sessionStore.get(req.getCookies());
+        const res = NextResponse.next();
+        const auth0Res = new Auth0NextResponse(res);
+        if (session) {
+          // we pass the existing session (containing an `createdAt` timestamp) to the set method
+          // which will update the cookie's `maxAge` property based on the `createdAt` time
+          await this.sessionStore.set(
+            req.getCookies(),
+            new Auth0ResponseCookies(res.cookies),
+            {
+              ...session
+            }
+          );
+          auth0Res.addCacheControlHeadersForSession();
+        }
+
+        return auth0Res;
+      }
+    );
+  }
+
+  /**
+   * handleAuth handles authentication routes in both App Router and Pages Router.
+   *
+   * @example App Router
+   * ```typescript
+   * // app/api/auth/[...auth0]/route.ts
+   * import { auth0 } from "@/lib/auth0";
+   *
+   * export const GET = auth0.handleAuth;
+   * export const POST = auth0.handleAuth;
+   * ```
+   *
+   * @example Pages Router
+   * ```typescript
+   * // pages/api/auth/[...auth0].ts
+   * import { auth0 } from "@/lib/auth0";
+   *
+   * export default auth0.handleAuth;
+   * ```
+   */
+  async handleAuth(req: NextRequest | Request): Promise<NextResponse>;
+  async handleAuth(req: NextApiRequest, res: NextApiResponse): Promise<void>;
+  async handleAuth(
+    req: NextRequest | Request | NextApiRequest,
+    res?: NextApiResponse
+  ): Promise<NextResponse | void> {
+    if (isRequest(req)) {
+      // For App Router usage, we need to return the response.
+      return await this.authClient.handler(
+        toNextRequest(req as NextRequest | Request)
+      );
+    } else {
+      // For Pages Router API route usage, we do not need to return anything
+      // Instead, NextApiResponse is modified in place.
+      await this.authClient.handler(
+        req as NextApiRequest,
+        undefined,
+        res as NextApiResponse
+      );
+    }
+  }
+
+  /**
+   * Mounts the SDK proxy routes to run as a proxy function.
+   */
+  async proxy(req: NextRequest) {
+    return await this.authClient.proxyHandler(
+      toNextRequest(req as NextRequest | Request)
+    );
   }
 
   /**
