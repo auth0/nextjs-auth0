@@ -46,7 +46,7 @@ describe("Auth0NextResponse", () => {
       );
     });
 
-    it("should preserve headers from previous response", () => {
+    it("should not preserve custom headers from previous response", () => {
       const response = new NextResponse(null, {
         headers: { "x-custom": "value" }
       });
@@ -54,10 +54,7 @@ describe("Auth0NextResponse", () => {
 
       auth0Response.redirect("https://example.com/redirect");
 
-      expect(auth0Response.res.headers.get("x-custom")).toBe("value");
-      expect(auth0Response.res.headers.get("location")).toBe(
-        "https://example.com/redirect"
-      );
+      expect(auth0Response.res.headers.has("x-custom")).toBe(false);
     });
   });
 
@@ -157,13 +154,16 @@ describe("Auth0NextResponse", () => {
 
     it("should preserve previous headers", () => {
       const response = new NextResponse(null, {
-        headers: { "x-custom": "value" }
+        headers: { "x-custom": "value", "cache-control": "no-cache" }
       });
       const auth0Response = new Auth0NextResponse(response);
 
       auth0Response.json({ data: "test" });
 
-      expect(auth0Response.res.headers.get("x-custom")).toBe("value");
+      expect(auth0Response.res.headers.has("x-custom")).toBe(false);
+      expect(auth0Response.res.headers.get("cache-control")).toContain(
+        "no-cache"
+      );
       expect(auth0Response.res.headers.get("content-type")).toContain(
         "application/json"
       );
@@ -183,14 +183,16 @@ describe("Auth0NextResponse", () => {
 
     it("should preserve headers from old response", () => {
       const oldResponse = new NextResponse("old", {
-        headers: { "x-old": "value" }
+        headers: { "x-old": "value", "cache-control": "no-cache" }
       });
       const auth0Response = new Auth0NextResponse(oldResponse);
 
       const newResponse = new NextResponse("new");
       auth0Response.setResponse(newResponse);
 
-      expect(auth0Response.res.headers.get("x-old")).toBe("value");
+      expect(auth0Response.res.headers.has("x-old")).toBe(false);
+      expect(auth0Response.res.headers.has("cache-control")).toBe(true);
+      expect(auth0Response.res.headers.get("cache-control")).toBe("no-cache");
     });
   });
 
@@ -239,7 +241,7 @@ describe("Auth0NextResponse", () => {
   });
 
   describe("header merging", () => {
-    it("should merge custom headers when creating new response", () => {
+    it("should not merge custom headers when creating new response", () => {
       const oldResponse = new NextResponse(null, {
         headers: { "x-custom": "preserved", "x-another": "value" }
       });
@@ -247,25 +249,8 @@ describe("Auth0NextResponse", () => {
 
       auth0Response.json({ data: "test" });
 
-      expect(auth0Response.res.headers.get("x-custom")).toBe("preserved");
-      expect(auth0Response.res.headers.get("x-another")).toBe("value");
-    });
-
-    it("should handle security headers correctly", () => {
-      const oldResponse = new NextResponse(null, {
-        headers: {
-          "content-security-policy": "default-src 'self'",
-          "x-frame-options": "DENY"
-        }
-      });
-      const auth0Response = new Auth0NextResponse(oldResponse);
-
-      auth0Response.json({ data: "test" });
-
-      expect(auth0Response.res.headers.get("content-security-policy")).toBe(
-        "default-src 'self'"
-      );
-      expect(auth0Response.res.headers.get("x-frame-options")).toBe("DENY");
+      expect(auth0Response.res.headers.has("x-custom")).toBe(false);
+      expect(auth0Response.res.headers.has("x-another")).toBe(false);
     });
   });
 

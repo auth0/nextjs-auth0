@@ -105,16 +105,30 @@ export class Auth0NextResponse extends Auth0Response<NextResponse> {
   /**
    * Merges headers from the old response into the new response.
    *
+   * This is used because we can apply cookie and cache changes prior to ending the response.
+   *
    * @param oldRes - The old NextResponse instance.
    * @param newRes - The new NextResponse instance.
    * @returns The new NextResponse with merged headers.
    */
   #mergeHeaders(oldRes: NextResponse, newRes: NextResponse) {
-    // TODO: Should we allow-list here and only copy the expected headers?
-    // TODO: What breaks when we do not copy the headers here?
-    oldRes.headers.forEach((value, key) => {
-      newRes.headers.set(key, value);
+    // When a Cache-Control, Pragma, or Expires header was defined on the old response,
+    // we ensure to copy it to the new response.
+    const headers = ["Cache-Control", "Pragma", "Expires"];
+
+    headers.forEach(name => {
+      const originalHeader = oldRes.headers.get(name);
+
+      if (originalHeader) {
+        newRes.headers.set(name, originalHeader);
+      }
     });
+
+    // If we have cookies defined on the response,
+    // ensure to carry them over to the new response.
+    oldRes.cookies.getAll().forEach(cookie => {
+      newRes.cookies.set(cookie.name, cookie.value, cookie);
+    })
 
     return newRes;
   }
