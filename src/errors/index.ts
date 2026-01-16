@@ -465,3 +465,162 @@ export class ConnectAccountError extends SdkError {
     this.cause = cause;
   }
 }
+
+/**
+ * MFA requirements from an mfa_required error response.
+ * Indicates which MFA methods are available for the user.
+ * Matches Auth0 API response shape and auth0-spa-js type.
+ */
+export interface MfaRequirements {
+  /** Required enrollment types (user needs to enroll new authenticator) */
+  enroll?: Array<{ type: string }>;
+  /** Available challenge types (existing authenticators) */
+  challenge?: Array<{ type: string }>;
+}
+
+/**
+ * Thrown when {@link getAccessToken} requires MFA step-up authentication.
+ *
+ * This error is thrown during token refresh when Auth0 returns `mfa_required`.
+ * The {@link mfa_token} property contains an encrypted token that can be used
+ * with Auth0's MFA API to complete the authentication challenge.
+ *
+ * @remarks
+ * The `mfa_token` is encrypted using the SDK's cookie secret for security.
+ * The raw token from Auth0 is never exposed to application code.
+ *
+ * Supports two consumption paths with identical shape:
+ * 1. Direct SDK call: properties accessed on error instance
+ * 2. HTTP API route: Response.json(error) uses toJSON() automatically
+ *
+ * @example Handling MFA required in a route handler
+ * ```typescript
+ * import { getAccessToken, MfaRequiredError } from "@auth0/nextjs-auth0/server";
+ *
+ * try {
+ *   const { token } = await getAccessToken({ audience: "https://api.example.com" });
+ * } catch (error) {
+ *   if (error instanceof MfaRequiredError) {
+ *     // Redirect to MFA challenge page
+ *     redirect(`/mfa?token=${error.mfa_token}`);
+ *   }
+ *   throw error;
+ * }
+ * ```
+ *
+ * @see {@link https://auth0.com/docs/api/authentication#multi-factor-authentication Auth0 MFA API}
+ */
+export class MfaRequiredError extends SdkError {
+  public readonly code: string = "mfa_required";
+
+  /**
+   * Encrtpted MFA token to pass to MFA API methods.
+   */
+  public readonly mfa_token: string;
+
+  /** Original Auth0 error code */
+  public readonly error: string = "mfa_required";
+
+  /** Original Auth0 error description */
+  public readonly error_description: string;
+
+  /** MFA requirements indicating available challenge/enrollment methods */
+  public readonly mfa_requirements?: MfaRequirements;
+
+  public readonly cause?: OAuth2Error;
+
+  constructor(
+    error_description: string,
+    mfa_token: string,
+    mfa_requirements?: MfaRequirements,
+    cause?: OAuth2Error
+  ) {
+    super(error_description);
+    this.name = "MfaRequiredError";
+    this.error_description = error_description;
+    this.mfa_token = mfa_token;
+    this.mfa_requirements = mfa_requirements;
+    this.cause = cause;
+  }
+
+  /**
+   * Serialize error for HTTP responses.
+   * Called automatically by Response.json() and JSON.stringify().
+   * Ensures both SDK and HTTP API consumers get identical shape.
+   */
+  toJSON(): {
+    error: string;
+    error_description: string;
+    mfa_token: string;
+    mfa_requirements?: MfaRequirements;
+  } {
+    return {
+      error: this.error,
+      error_description: this.error_description,
+      mfa_token: this.mfa_token,
+      ...(this.mfa_requirements && { mfa_requirements: this.mfa_requirements })
+    };
+  }
+}
+
+/**
+ * Thrown when MFA API methods are called but no context exists in session
+ * for the provided encrypted mfa_token.
+ *
+ * This typically occurs when:
+ * - The session expired between catching MfaRequiredError and calling MFA methods
+ * - The mfa_token was modified or is from a different session
+ * - The MFA context was cleaned up due to TTL expiration
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   await auth0.completeMfaChallenge(mfaToken, code);
+ * } catch (error) {
+ *   if (error instanceof MfaTokenNotFoundError) {
+ *     // Restart MFA flow - context was lost
+ *     redirect("/auth/login?prompt=mfa");
+ *   }
+ * }
+ * ```
+ */
+export class MfaTokenNotFoundError extends SdkError {
+  public readonly code: string = "mfa_token_not_found";
+
+  constructor(message?: string) {
+    super(message ?? "No MFA context found for the provided token.");
+    this.name = "MfaTokenNotFoundError";
+  }
+}
+
+/**
+ * Thrown when the encrypted mfa_token has expired.
+ *
+ * MFA tokens have a 5-minute TTL (configurable via `AUTH0_MFA_CONTEXT_TTL`).
+ * After expiration, users must restart the MFA flow.
+ */
+export class MfaTokenExpiredError extends SdkError {
+  public readonly code: string = "mfa_token_expired";
+
+  constructor() {
+    super("MFA token has expired. Please restart the MFA flow.");
+    this.name = "MfaTokenExpiredError";
+  }
+}
+
+/**
+ * Thrown when the encrypted mfa_token is invalid.
+ *
+ * This occurs when:
+ * - The token was tampered with
+ * - The token is malformed (not valid JWE)
+ * - The token was encrypted with a different secret
+ */
+export class MfaTokenInvalidError extends SdkError {
+  public readonly code: string = "mfa_token_invalid";
+
+  constructor() {
+    super("MFA token is invalid.");
+    this.name = "MfaTokenInvalidError";
+  }
+}

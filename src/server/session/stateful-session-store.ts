@@ -24,6 +24,9 @@ interface StatefulSessionStoreOptions {
 
   store: SessionDataStore;
 
+  /** MFA context TTL in milliseconds for cleanup during session writes */
+  mfaContextTtlMs?: number;
+
   cookieOptions?: SessionCookieOptions;
 }
 
@@ -44,6 +47,7 @@ export class StatefulSessionStore extends AbstractSessionStore {
     rolling,
     absoluteDuration,
     inactivityDuration,
+    mfaContextTtlMs,
     cookieOptions
   }: StatefulSessionStoreOptions) {
     super({
@@ -51,6 +55,7 @@ export class StatefulSessionStore extends AbstractSessionStore {
       rolling,
       absoluteDuration,
       inactivityDuration,
+      mfaContextTtlMs,
       cookieOptions
     });
 
@@ -118,6 +123,9 @@ export class StatefulSessionStore extends AbstractSessionStore {
     session: SessionData,
     isNew: boolean = false
   ) {
+    // Clean up expired MFA contexts before persisting
+    const cleanedSession = this.cleanupMfaContexts(session);
+
     // check if a session already exists. If so, maintain the existing session ID
     let sessionId = null;
     const cookieValue = reqCookies.get(this.sessionCookieName)?.value;
@@ -143,7 +151,7 @@ export class StatefulSessionStore extends AbstractSessionStore {
       sessionId = generateId();
     }
 
-    const maxAge = this.calculateMaxAge(session.internal.createdAt);
+    const maxAge = this.calculateMaxAge(cleanedSession.internal.createdAt);
     // Use consistent timestamp to avoid race condition - align with calculateMaxAge logic
     const now = this.epoch();
     const expiration = now + maxAge;
@@ -159,7 +167,7 @@ export class StatefulSessionStore extends AbstractSessionStore {
       ...this.cookieConfig,
       maxAge
     });
-    await this.store.set(sessionId, session);
+    await this.store.set(sessionId, cleanedSession);
 
     // to enable read-after-write in the same request for middleware
     reqCookies.set(this.sessionCookieName, jwe.toString());

@@ -23,6 +23,9 @@ interface StatelessSessionStoreOptions {
   absoluteDuration?: number; // defaults to 3 days
   inactivityDuration?: number; // defaults to 1 day
 
+  /** MFA context TTL in milliseconds for cleanup during session writes */
+  mfaContextTtlMs?: number;
+
   cookieOptions?: SessionCookieOptions;
 }
 
@@ -34,6 +37,7 @@ export class StatelessSessionStore extends AbstractSessionStore {
     rolling,
     absoluteDuration,
     inactivityDuration,
+    mfaContextTtlMs,
     cookieOptions
   }: StatelessSessionStoreOptions) {
     super({
@@ -41,6 +45,7 @@ export class StatelessSessionStore extends AbstractSessionStore {
       rolling,
       absoluteDuration,
       inactivityDuration,
+      mfaContextTtlMs,
       cookieOptions
     });
   }
@@ -101,7 +106,9 @@ export class StatelessSessionStore extends AbstractSessionStore {
     resCookies: cookies.ResponseCookies,
     session: SessionData
   ) {
-    const { connectionTokenSets, ...originalSession } = session;
+    // Clean up expired MFA contexts before persisting
+    const cleanedSession = this.cleanupMfaContexts(session);
+    const { connectionTokenSets, ...originalSession } = cleanedSession;
     const maxAge = this.calculateMaxAge(session.internal.createdAt);
     // Use consistent timestamp to avoid race condition - align with calculateMaxAge logic
     const now = this.epoch();
