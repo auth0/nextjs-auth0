@@ -1,14 +1,15 @@
 import { RequestCookies, ResponseCookies } from "@edge-runtime/cookies";
 import { describe, expect, it } from "vitest";
 
-import { deleteChunkedCookie, deleteCookie } from "./cookies.js";
+import { deleteChunkedCookie } from "./cookies.js";
+import { Auth0RequestCookies, Auth0ResponseCookies } from "./http/index.js";
 
 describe("Cookie deletion with domain", () => {
   it("should delete cookies without domain by default", () => {
     const headers = new Headers();
-    const resCookies = new ResponseCookies(headers);
+    const resCookies = new Auth0ResponseCookies(new ResponseCookies(headers));
 
-    deleteCookie(resCookies, "__session");
+    resCookies.delete("__session");
 
     const setCookieHeaders = headers.getSetCookie();
     const sessionCookieHeader = setCookieHeaders.find((header) =>
@@ -21,10 +22,11 @@ describe("Cookie deletion with domain", () => {
 
   it("should include domain when deleting cookies if domain option is provided", () => {
     const headers = new Headers();
-    const resCookies = new ResponseCookies(headers);
+    const resCookies = new Auth0ResponseCookies(new ResponseCookies(headers));
     const cookieDomain = "df.mydomain.com";
 
-    deleteCookie(resCookies, "__session", {
+    resCookies.delete({
+      name: "__session",
       domain: cookieDomain,
       path: "/"
     });
@@ -40,8 +42,8 @@ describe("Cookie deletion with domain", () => {
 
   it("should delete chunked cookies with domain when provided", () => {
     const headers = new Headers();
-    const reqCookies = new RequestCookies(headers);
-    const resCookies = new ResponseCookies(headers);
+    const reqCookies = new Auth0RequestCookies(new RequestCookies(headers));
+    const resCookies = new Auth0ResponseCookies(new ResponseCookies(headers));
 
     reqCookies.set("__session__0", "chunk0");
     reqCookies.set("__session__1", "chunk1");

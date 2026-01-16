@@ -1,6 +1,7 @@
 import { ResponseCookies } from "@edge-runtime/cookies";
 import { describe, expect, it } from "vitest";
 
+import { Auth0RequestCookies, Auth0ResponseCookies } from "./http/index.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 
 describe("Session cookie domain deletion bug", () => {
@@ -19,7 +20,7 @@ describe("Session cookie domain deletion bug", () => {
     // Mock request and response cookies
     const headers = new Headers();
     const reqCookies = new Headers();
-    const resCookies = new ResponseCookies(headers);
+    const resCookies = new Auth0ResponseCookies(new ResponseCookies(headers));
 
     // Add session cookie to request (simulate existing session)
     reqCookies.set("__session", "existing-session-value");
@@ -38,7 +39,10 @@ describe("Session cookie domain deletion bug", () => {
     };
 
     // Call delete method
-    sessionStore.delete(mockReqCookies as any, resCookies);
+    sessionStore.delete(
+      new Auth0RequestCookies(mockReqCookies as any),
+      resCookies
+    );
 
     // Check that cookies are deleted with domain
     const setCookieHeaders = headers.getSetCookie();
@@ -73,7 +77,7 @@ describe("Session cookie domain deletion bug", () => {
 
     const headers = new Headers();
     const reqCookies = new Headers();
-    const resCookies = new ResponseCookies(headers);
+    const resCookies = new Auth0ResponseCookies(new ResponseCookies(headers));
 
     reqCookies.set("__session", "existing-session-value");
 
