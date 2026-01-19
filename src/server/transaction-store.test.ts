@@ -10,6 +10,8 @@ import {
   RequestCookies,
   ResponseCookies
 } from "./cookies.js";
+import { Auth0RequestCookies } from "./http/auth0-request-cookies.js";
+import { Auth0ResponseCookies } from "./http/auth0-response-cookies.js";
 import { TransactionState, TransactionStore } from "./transaction-store.js";
 
 describe("Transaction Store", async () => {
@@ -37,7 +39,9 @@ describe("Transaction Store", async () => {
 
       const headers = new Headers();
       headers.append("cookie", `__txn_${state}=${encryptedCookieValue}`);
-      const requestCookies = new RequestCookies(headers);
+      const requestCookies = new Auth0RequestCookies(
+        new RequestCookies(headers)
+      );
 
       const transactionStore = new TransactionStore({
         secret
@@ -71,7 +75,9 @@ describe("Transaction Store", async () => {
 
       const headers = new Headers();
       headers.append("cookie", `__txn_incorrect-state=${encryptedCookieValue}`);
-      const requestCookies = new RequestCookies(headers);
+      const requestCookies = new Auth0RequestCookies(
+        new RequestCookies(headers)
+      );
 
       const transactionStore = new TransactionStore({
         secret
@@ -96,7 +102,9 @@ describe("Transaction Store", async () => {
         returnTo: "/dashboard"
       };
       const headers = new Headers();
-      const responseCookies = new ResponseCookies(headers);
+      const responseCookies = new Auth0ResponseCookies(
+        new ResponseCookies(headers)
+      );
 
       const transactionStore = new TransactionStore({
         secret
@@ -131,7 +139,9 @@ describe("Transaction Store", async () => {
         state: "" // missing state
       };
       const headers = new Headers();
-      const responseCookies = new ResponseCookies(headers);
+      const responseCookies = new Auth0ResponseCookies(
+        new ResponseCookies(headers)
+      );
 
       const transactionStore = new TransactionStore({
         secret
@@ -157,7 +167,9 @@ describe("Transaction Store", async () => {
           returnTo: "/dashboard"
         };
         const headers = new Headers();
-        const responseCookies = new ResponseCookies(headers);
+        const responseCookies = new Auth0ResponseCookies(
+          new ResponseCookies(headers)
+        );
 
         const transactionStore = new TransactionStore({
           secret,
@@ -196,7 +208,9 @@ describe("Transaction Store", async () => {
           returnTo: "/dashboard"
         };
         const headers = new Headers();
-        const responseCookies = new ResponseCookies(headers);
+        const responseCookies = new Auth0ResponseCookies(
+          new ResponseCookies(headers)
+        );
 
         const transactionStore = new TransactionStore({
           secret,
@@ -235,7 +249,9 @@ describe("Transaction Store", async () => {
           returnTo: "/dashboard"
         };
         const headers = new Headers();
-        const responseCookies = new ResponseCookies(headers);
+        const responseCookies = new Auth0ResponseCookies(
+          new ResponseCookies(headers)
+        );
 
         const transactionStore = new TransactionStore({
           secret,
@@ -270,7 +286,9 @@ describe("Transaction Store", async () => {
           returnTo: "/dashboard"
         };
         const headers = new Headers();
-        const responseCookies = new ResponseCookies(headers);
+        const responseCookies = new Auth0ResponseCookies(
+          new ResponseCookies(headers)
+        );
 
         const transactionStore = new TransactionStore({
           secret,
@@ -309,7 +327,9 @@ describe("Transaction Store", async () => {
           returnTo: "/dashboard"
         };
         const headers = new Headers();
-        const responseCookies = new ResponseCookies(headers);
+        const responseCookies = new Auth0ResponseCookies(
+          new ResponseCookies(headers)
+        );
 
         const customMaxAge = 1800; // 30 minutes
         const transactionStore = new TransactionStore({
@@ -352,7 +372,9 @@ describe("Transaction Store", async () => {
         returnTo: "/dashboard"
       };
       const headers = new Headers();
-      const responseCookies = new ResponseCookies(headers);
+      const responseCookies = new Auth0ResponseCookies(
+        new ResponseCookies(headers)
+      );
 
       const transactionStore = new TransactionStore({
         secret
@@ -373,7 +395,9 @@ describe("Transaction Store", async () => {
     it("should not throw an error if the cookie does not exist", async () => {
       const secret = await generateSecret(32);
       const headers = new Headers();
-      const responseCookies = new ResponseCookies(headers);
+      const responseCookies = new Auth0ResponseCookies(
+        new ResponseCookies(headers)
+      );
 
       const transactionStore = new TransactionStore({
         secret
@@ -389,16 +413,18 @@ describe("Transaction Store", async () => {
     it("should delete all cookies starting with the prefix", async () => {
       const secret = await generateSecret(32);
       const headers = new Headers();
-      const requestCookies = new RequestCookies(headers);
-      const responseCookies = new ResponseCookies(headers);
+      const originalRequestCookies = new RequestCookies(headers);
+      const originalResponseCookies = new ResponseCookies(headers);
+      const requestCookies = new Auth0RequestCookies(originalRequestCookies);
+      const responseCookies = new Auth0ResponseCookies(originalResponseCookies);
 
-      // Set some cookies
-      requestCookies.set("__txn_state1", "value1");
-      requestCookies.set("__txn_state2", "value2");
-      requestCookies.set("other_cookie", "value3");
-      responseCookies.set("__txn_state1", "value1");
-      responseCookies.set("__txn_state2", "value2");
-      responseCookies.set("other_cookie", "value3");
+      // Set some cookies on the original cookies
+      originalRequestCookies.set("__txn_state1", "value1");
+      originalRequestCookies.set("__txn_state2", "value2");
+      originalRequestCookies.set("other_cookie", "value3");
+      originalResponseCookies.set("__txn_state1", "value1");
+      originalResponseCookies.set("__txn_state2", "value2");
+      originalResponseCookies.set("other_cookie", "value3");
 
       const transactionStore = new TransactionStore({
         secret
@@ -416,17 +442,19 @@ describe("Transaction Store", async () => {
     it("should respect custom prefix when deleting cookies", async () => {
       const secret = await generateSecret(32);
       const headers = new Headers();
-      const requestCookies = new RequestCookies(headers);
-      const responseCookies = new ResponseCookies(headers);
+      const originalRequestCookies = new RequestCookies(headers);
+      const originalResponseCookies = new ResponseCookies(headers);
+      const requestCookies = new Auth0RequestCookies(originalRequestCookies);
+      const responseCookies = new Auth0ResponseCookies(originalResponseCookies);
       const customPrefix = "custom_txn_";
 
-      // Set some cookies
-      requestCookies.set(`${customPrefix}state1`, "value1");
-      requestCookies.set("__txn_state2", "value2");
-      requestCookies.set("other_cookie", "value3");
-      responseCookies.set(`${customPrefix}state1`, "value1");
-      responseCookies.set("__txn_state2", "value2");
-      responseCookies.set("other_cookie", "value3");
+      // Set some cookies on the original cookies
+      originalRequestCookies.set(`${customPrefix}state1`, "value1");
+      originalRequestCookies.set("__txn_state2", "value2");
+      originalRequestCookies.set("other_cookie", "value3");
+      originalResponseCookies.set(`${customPrefix}state1`, "value1");
+      originalResponseCookies.set("__txn_state2", "value2");
+      originalResponseCookies.set("other_cookie", "value3");
 
       const transactionStore = new TransactionStore({
         secret,
@@ -446,11 +474,13 @@ describe("Transaction Store", async () => {
     it("should not fail if no transaction cookies exist", async () => {
       const secret = await generateSecret(32);
       const headers = new Headers();
-      const requestCookies = new RequestCookies(headers);
-      const responseCookies = new ResponseCookies(headers);
+      const originalRequestCookies = new RequestCookies(headers);
+      const originalResponseCookies = new ResponseCookies(headers);
+      const requestCookies = new Auth0RequestCookies(originalRequestCookies);
+      const responseCookies = new Auth0ResponseCookies(originalResponseCookies);
 
-      requestCookies.set("other_cookie", "value3");
-      responseCookies.set("other_cookie", "value3");
+      originalRequestCookies.set("other_cookie", "value3");
+      originalResponseCookies.set("other_cookie", "value3");
 
       const transactionStore = new TransactionStore({
         secret

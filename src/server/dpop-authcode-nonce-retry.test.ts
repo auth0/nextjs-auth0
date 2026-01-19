@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server.js";
+import { NextRequest, NextResponse } from "next/server.js";
 import * as jose from "jose";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
@@ -11,6 +11,7 @@ import { RESPONSE_TYPES, TransactionState } from "../types/index.js";
 import { generateDpopKeyPair } from "../utils/dpopUtils.js";
 import { AuthClient } from "./auth-client.js";
 import { decrypt, encrypt } from "./cookies.js";
+import { Auth0NextRequest, Auth0NextResponse } from "./http/index.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import { TransactionStore } from "./transaction-store.js";
 
@@ -239,7 +240,10 @@ describe("AuthClient.handleCallback with DPoP Nonce Retry", () => {
 
       // CALL THE ACTUAL SDK METHOD
       // This is where withDPoPNonceRetry() is applied internally
-      const response = await authClient.handleCallback(request);
+      const auth0Req = new Auth0NextRequest(request);
+      const auth0Res = new Auth0NextResponse(NextResponse.next());
+      await authClient.handleCallback(auth0Req, auth0Res);
+      const response = auth0Res.res;
 
       // Validate response
       expect(response.status).toBe(307); // Successful callback redirect

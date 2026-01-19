@@ -10,6 +10,8 @@ import {
   ResponseCookies
 } from "../cookies.js";
 import * as cookies from "../cookies.js";
+import { Auth0RequestCookies } from "../http/auth0-request-cookies.js";
+import { Auth0ResponseCookies } from "../http/auth0-response-cookies.js";
 import { LEGACY_COOKIE_NAME, LegacySession } from "./normalize-session.js";
 import { StatelessSessionStore } from "./stateless-session-store.js";
 
@@ -42,7 +44,9 @@ describe("Stateless Session Store", async () => {
 
       const headers = new Headers();
       headers.append("cookie", `__session=${encryptedCookieValue}`);
-      const requestCookies = new RequestCookies(headers);
+      const requestCookies = new Auth0RequestCookies(
+        new RequestCookies(headers)
+      );
 
       const sessionStore = new StatelessSessionStore({
         secret
@@ -56,7 +60,9 @@ describe("Stateless Session Store", async () => {
     it("should return null if no session cookie exists", async () => {
       const secret = await generateSecret(32);
       const headers = new Headers();
-      const requestCookies = new RequestCookies(headers);
+      const requestCookies = new Auth0RequestCookies(
+        new RequestCookies(headers)
+      );
 
       const sessionStore = new StatelessSessionStore({
         secret
@@ -95,7 +101,9 @@ describe("Stateless Session Store", async () => {
 
         const headers = new Headers();
         headers.append("cookie", `appSession=${encryptedCookieValue}`);
-        const requestCookies = new RequestCookies(headers);
+        const requestCookies = new Auth0RequestCookies(
+          new RequestCookies(headers)
+        );
 
         const sessionStore = new StatelessSessionStore({
           secret
@@ -140,7 +148,9 @@ describe("Stateless Session Store", async () => {
 
         const headers = new Headers();
         headers.append("cookie", `appSession=${encryptedCookieValue}`);
-        const requestCookies = new RequestCookies(headers);
+        const requestCookies = new Auth0RequestCookies(
+          new RequestCookies(headers)
+        );
 
         const sessionStore = new StatelessSessionStore({
           secret
@@ -191,7 +201,9 @@ describe("Stateless Session Store", async () => {
 
         const headers = new Headers();
         headers.append("cookie", `${cookieName}=${encryptedCookieValue}`);
-        const requestCookies = new RequestCookies(headers);
+        const requestCookies = new Auth0RequestCookies(
+          new RequestCookies(headers)
+        );
 
         const sessionStore = new StatelessSessionStore({
           secret,
@@ -250,7 +262,9 @@ describe("Stateless Session Store", async () => {
         "cookie",
         `__session=${encryptedCookieValue};__FC.0=${encryptedGoogleConnectionCookieValue}`
       );
-      const requestCookies = new RequestCookies(headers);
+      const requestCookies = new Auth0RequestCookies(
+        new RequestCookies(headers)
+      );
 
       const sessionStore = new StatelessSessionStore({
         secret
@@ -308,7 +322,9 @@ describe("Stateless Session Store", async () => {
         "cookie",
         `__session=${encryptedCookieValue};__FC.0=${encryptedGoogleConnectionCookieValue};__FC.1=${encryptedGithubConnectionCookieValue}`
       );
-      const requestCookies = new RequestCookies(headers);
+      const requestCookies = new Auth0RequestCookies(
+        new RequestCookies(headers)
+      );
 
       const sessionStore = new StatelessSessionStore({
         secret
@@ -349,8 +365,12 @@ describe("Stateless Session Store", async () => {
             createdAt
           }
         };
-        const requestCookies = new RequestCookies(new Headers());
-        const responseCookies = new ResponseCookies(new Headers());
+        const requestCookies = new Auth0RequestCookies(
+          new RequestCookies(new Headers())
+        );
+        const responseCookies = new Auth0ResponseCookies(
+          new ResponseCookies(new Headers())
+        );
 
         const sessionStore = new StatelessSessionStore({
           secret,
@@ -393,8 +413,12 @@ describe("Stateless Session Store", async () => {
             createdAt
           }
         };
-        const requestCookies = new RequestCookies(new Headers());
-        const responseCookies = new ResponseCookies(new Headers());
+        const requestCookies = new Auth0RequestCookies(
+          new RequestCookies(new Headers())
+        );
+        const responseCookies = new Auth0ResponseCookies(
+          new ResponseCookies(new Headers())
+        );
 
         const sessionStore = new StatelessSessionStore({
           secret,
@@ -431,8 +455,11 @@ describe("Stateless Session Store", async () => {
             createdAt
           }
         };
-        const requestCookies = new RequestCookies(new Headers());
+        const requestCookies = new Auth0RequestCookies(
+          new RequestCookies(new Headers())
+        );
         const responseCookies = new ResponseCookies(new Headers());
+        const auth0ResponseCookies = new Auth0ResponseCookies(responseCookies);
 
         const sessionStore = new StatelessSessionStore({
           secret
@@ -448,7 +475,7 @@ describe("Stateless Session Store", async () => {
           return undefined;
         });
 
-        await sessionStore.set(requestCookies, responseCookies, session);
+        await sessionStore.set(requestCookies, auth0ResponseCookies, session);
 
         expect(responseCookies.set).toHaveBeenCalledWith(
           LEGACY_COOKIE_NAME,
@@ -476,8 +503,11 @@ describe("Stateless Session Store", async () => {
             createdAt
           }
         };
-        const requestCookies = new RequestCookies(new Headers());
+        const requestCookies = new Auth0RequestCookies(
+          new RequestCookies(new Headers())
+        );
         const responseCookies = new ResponseCookies(new Headers());
+        const auth0ResponseCookies = new Auth0ResponseCookies(responseCookies);
 
         const sessionStore = new StatelessSessionStore({
           secret
@@ -498,7 +528,7 @@ describe("Stateless Session Store", async () => {
           { name: `${LEGACY_COOKIE_NAME}.1`, value: "" }
         ]);
 
-        await sessionStore.set(requestCookies, responseCookies, session);
+        await sessionStore.set(requestCookies, auth0ResponseCookies, session);
 
         expect(responseCookies.set).toHaveBeenCalledTimes(4);
         expect(responseCookies.set).toHaveBeenNthCalledWith(
@@ -543,8 +573,12 @@ describe("Stateless Session Store", async () => {
             createdAt: Math.floor(Date.now() / 1000)
           }
         };
-        const requestCookies = new RequestCookies(new Headers());
-        const responseCookies = new ResponseCookies(new Headers());
+        const requestCookies = new Auth0RequestCookies(
+          new RequestCookies(new Headers())
+        );
+        const responseCookies = new Auth0ResponseCookies(
+          new ResponseCookies(new Headers())
+        );
 
         const sessionStore = new StatelessSessionStore({
           secret,
@@ -583,8 +617,12 @@ describe("Stateless Session Store", async () => {
             createdAt: Math.floor(Date.now() / 1000)
           }
         };
-        const requestCookies = new RequestCookies(new Headers());
-        const responseCookies = new ResponseCookies(new Headers());
+        const requestCookies = new Auth0RequestCookies(
+          new RequestCookies(new Headers())
+        );
+        const responseCookies = new Auth0ResponseCookies(
+          new ResponseCookies(new Headers())
+        );
 
         const sessionStore = new StatelessSessionStore({
           secret,
@@ -624,8 +662,12 @@ describe("Stateless Session Store", async () => {
             createdAt: Math.floor(Date.now() / 1000)
           }
         };
-        const requestCookies = new RequestCookies(new Headers());
-        const responseCookies = new ResponseCookies(new Headers());
+        const requestCookies = new Auth0RequestCookies(
+          new RequestCookies(new Headers())
+        );
+        const responseCookies = new Auth0ResponseCookies(
+          new ResponseCookies(new Headers())
+        );
 
         const sessionStore = new StatelessSessionStore({
           secret,
@@ -666,8 +708,12 @@ describe("Stateless Session Store", async () => {
             createdAt: Math.floor(Date.now() / 1000)
           }
         };
-        const requestCookies = new RequestCookies(new Headers());
-        const responseCookies = new ResponseCookies(new Headers());
+        const requestCookies = new Auth0RequestCookies(
+          new RequestCookies(new Headers())
+        );
+        const responseCookies = new Auth0ResponseCookies(
+          new ResponseCookies(new Headers())
+        );
 
         const sessionStore = new StatelessSessionStore({
           secret,
@@ -701,8 +747,12 @@ describe("Stateless Session Store", async () => {
             createdAt: Math.floor(Date.now() / 1000)
           }
         };
-        const requestCookies = new RequestCookies(new Headers());
-        const responseCookies = new ResponseCookies(new Headers());
+        const requestCookies = new Auth0RequestCookies(
+          new RequestCookies(new Headers())
+        );
+        const responseCookies = new Auth0ResponseCookies(
+          new ResponseCookies(new Headers())
+        );
 
         const sessionStore = new StatelessSessionStore({
           secret,
@@ -748,12 +798,14 @@ describe("Stateless Session Store", async () => {
         expiration
       );
 
-      const tempResCookies = new ResponseCookies(new Headers());
+      const tempResCookies = new Auth0ResponseCookies(
+        new ResponseCookies(new Headers())
+      );
       cookies.setChunkedCookie(
         LEGACY_COOKIE_NAME,
         encryptedLegacyValue,
         baseCookieOptions,
-        new RequestCookies(new Headers()),
+        new Auth0RequestCookies(new RequestCookies(new Headers())),
         tempResCookies
       );
       const finalHeaders = new Headers();
@@ -764,13 +816,20 @@ describe("Stateless Session Store", async () => {
           `${cookie.name}=${encodeURIComponent(cookie.value)}`
         )
       );
-      const requestCookies = new RequestCookies(finalHeaders);
-
+      const requestCookies = new Auth0RequestCookies(
+        new RequestCookies(finalHeaders)
+      );
       const responseCookies = new ResponseCookies(new Headers());
+      const auth0ResponseCookies = new Auth0ResponseCookies(responseCookies);
+
       const setSpy = vi.spyOn(responseCookies, "set");
       const sessionStore = new StatelessSessionStore({ secret });
 
-      await sessionStore.set(requestCookies, responseCookies, sessionToSet);
+      await sessionStore.set(
+        requestCookies,
+        auth0ResponseCookies,
+        sessionToSet
+      );
 
       const setCookies = responseCookies.getAll();
       let reconstructedValue = "";
@@ -830,8 +889,12 @@ describe("Stateless Session Store", async () => {
           createdAt: Math.floor(Date.now() / 1000)
         }
       };
-      const requestCookies = new RequestCookies(new Headers());
-      const responseCookies = new ResponseCookies(new Headers());
+      const requestCookies = new Auth0RequestCookies(
+        new RequestCookies(new Headers())
+      );
+      const responseCookies = new Auth0ResponseCookies(
+        new ResponseCookies(new Headers())
+      );
 
       const sessionStore = new StatelessSessionStore({
         secret
@@ -847,8 +910,12 @@ describe("Stateless Session Store", async () => {
 
     it("should not throw an error if the cookie does not exist", async () => {
       const secret = await generateSecret(32);
-      const requestCookies = new RequestCookies(new Headers());
-      const responseCookies = new ResponseCookies(new Headers());
+      const requestCookies = new Auth0RequestCookies(
+        new RequestCookies(new Headers())
+      );
+      const responseCookies = new Auth0ResponseCookies(
+        new ResponseCookies(new Headers())
+      );
       const sessionStore = new StatelessSessionStore({
         secret
       });

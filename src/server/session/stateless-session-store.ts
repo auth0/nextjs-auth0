@@ -6,6 +6,8 @@ import {
   SessionData
 } from "../../types/index.js";
 import * as cookies from "../cookies.js";
+import { Auth0RequestCookies } from "../http/auth0-request-cookies.js";
+import { Auth0ResponseCookies } from "../http/auth0-response-cookies.js";
 import {
   AbstractSessionStore,
   SessionCookieOptions
@@ -45,7 +47,7 @@ export class StatelessSessionStore extends AbstractSessionStore {
     });
   }
 
-  async get(reqCookies: cookies.RequestCookies) {
+  async get(reqCookies: Auth0RequestCookies) {
     const cookieValue =
       cookies.getChunkedCookie(this.sessionCookieName, reqCookies) ??
       cookies.getChunkedCookie(LEGACY_COOKIE_NAME, reqCookies, true);
@@ -97,8 +99,8 @@ export class StatelessSessionStore extends AbstractSessionStore {
    * save adds the encrypted session cookie as a `Set-Cookie` header.
    */
   async set(
-    reqCookies: cookies.RequestCookies,
-    resCookies: cookies.ResponseCookies,
+    reqCookies: Auth0RequestCookies,
+    resCookies: Auth0ResponseCookies,
     session: SessionData
   ) {
     const { connectionTokenSets, ...originalSession } = session;
@@ -154,8 +156,8 @@ export class StatelessSessionStore extends AbstractSessionStore {
   }
 
   async delete(
-    reqCookies: cookies.RequestCookies,
-    resCookies: cookies.ResponseCookies
+    reqCookies: Auth0RequestCookies,
+    resCookies: Auth0ResponseCookies
   ) {
     const deleteOptions = {
       domain: this.cookieConfig.domain,
@@ -171,13 +173,16 @@ export class StatelessSessionStore extends AbstractSessionStore {
     );
 
     this.getConnectionTokenSetsCookies(reqCookies).forEach((cookie) =>
-      cookies.deleteCookie(resCookies, cookie.name, deleteOptions)
+      resCookies.delete({
+        name: cookie.name,
+        ...deleteOptions
+      })
     );
   }
 
   private async storeInCookie(
-    reqCookies: cookies.RequestCookies,
-    resCookies: cookies.ResponseCookies,
+    reqCookies: Auth0RequestCookies,
+    resCookies: Auth0ResponseCookies,
     session: JWTPayload,
     cookieName: string,
     maxAge: number
@@ -219,7 +224,7 @@ export class StatelessSessionStore extends AbstractSessionStore {
   }
 
   private getConnectionTokenSetsCookies(
-    cookies: cookies.RequestCookies | cookies.ResponseCookies
+    cookies: Auth0RequestCookies | Auth0ResponseCookies
   ) {
     return cookies
       .getAll()
