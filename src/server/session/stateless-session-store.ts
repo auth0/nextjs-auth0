@@ -99,7 +99,9 @@ export class StatelessSessionStore extends AbstractSessionStore {
   async set(
     reqCookies: cookies.RequestCookies,
     resCookies: cookies.ResponseCookies,
-    session: SessionData
+    session: SessionData,
+    isNew?: boolean,
+    rawHeaders?: Headers
   ) {
     const { connectionTokenSets, ...originalSession } = session;
     const maxAge = this.calculateMaxAge(session.internal.createdAt);
@@ -118,7 +120,8 @@ export class StatelessSessionStore extends AbstractSessionStore {
       cookieValue,
       options,
       reqCookies,
-      resCookies
+      resCookies,
+      rawHeaders
     );
 
     // Store connection access tokens, each in its own cookie
@@ -148,14 +151,16 @@ export class StatelessSessionStore extends AbstractSessionStore {
         {
           domain: this.cookieConfig.domain,
           path: this.cookieConfig.path
-        }
+        },
+        rawHeaders
       );
     }
   }
 
   async delete(
     reqCookies: cookies.RequestCookies,
-    resCookies: cookies.ResponseCookies
+    resCookies: cookies.ResponseCookies,
+    rawHeaders?: Headers
   ) {
     const deleteOptions = {
       domain: this.cookieConfig.domain,
@@ -167,11 +172,12 @@ export class StatelessSessionStore extends AbstractSessionStore {
       reqCookies,
       resCookies,
       false,
-      deleteOptions
+      deleteOptions,
+      rawHeaders
     );
 
     this.getConnectionTokenSetsCookies(reqCookies).forEach((cookie) =>
-      cookies.deleteCookie(resCookies, cookie.name, deleteOptions)
+      cookies.deleteCookie(resCookies, cookie.name, deleteOptions, rawHeaders)
     );
   }
 
