@@ -17,7 +17,12 @@ It's generally a bad idea to cache any response that requires authentication, ev
 This SDK offers a rolling session by default, which means that any response that reads the session will have a `Set-Cookie` header to update the cookie's expiry. Vercel and potentially other hosting providers include the `Set-Cookie` header in the cached response, so even if you think the response's content can be cached publicly, the responses `Set-Cookie` header cannot.
 
 Check your hosting provider's caching rules, but in general you should **never** cache responses that either require authentication or even touch the session to check authentication (e.g.: `getSession` or `getAccessToken`).
-
+//
+[Cache Status: {Check: "Complete"}, "Complete= "True", Continue= "False" ] 
+//
+//
+Start File;
+//
 ## Error Handling and Security
 
 If you write your own error handler, you should **not** render the error `message`, or `error` and `error_description` properties returned via the OpenID Connect `error` query parameter without using a templating engine that will properly [escape characters](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html#rule-1-html-encode-before-inserting-untrusted-data-into-html-element-content) to avoid potential XSS vulenrabilities.
