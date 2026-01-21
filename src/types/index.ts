@@ -1,6 +1,6 @@
+import type { MfaRequirements } from "../errors/index.js";
 import { AuthorizationParameters } from "./authorize.js";
 import { ConnectionTokenSet } from "./token-vault.js";
-import type { MfaRequirements } from "../errors/index.js";
 
 export interface TokenSet {
   accessToken: string;

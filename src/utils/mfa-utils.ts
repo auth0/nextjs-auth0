@@ -4,7 +4,7 @@ import {
   MfaTokenInvalidError
 } from "../errors/index.js";
 import { decrypt, encrypt } from "../server/cookies.js";
-import type { MfaContext, SessionData } from "../types/index.js";
+import type { MfaContext } from "../types/index.js";
 
 /**
  * Encrypt mfa_token with full context before exposing to application.
@@ -34,7 +34,11 @@ export async function encryptMfaToken(
     mfaRequirements,
     createdAt: Date.now()
   };
-  return await encrypt(context as any, secret, Math.floor(Date.now() / 1000) + ttlSeconds);
+  return await encrypt(
+    context as any,
+    secret,
+    Math.floor(Date.now() / 1000) + ttlSeconds
+  );
 }
 
 /**
@@ -121,4 +125,3 @@ export function extractMfaErrorDetails(error: unknown): {
       (err.mfa_requirements as MfaRequirements | undefined)
   };
 }
-

@@ -4,7 +4,6 @@ import {
   MfaRequiredError,
   MfaTokenExpiredError,
   MfaTokenInvalidError,
-  MfaTokenNotFoundError,
   OAuth2Error
 } from "./index.js";
 
@@ -105,24 +104,6 @@ describe("MFA Errors", () => {
         expect(parsed.error).toBe("mfa_required");
         expect(parsed.mfa_token).toBe("token");
       });
-    });
-  });
-
-  describe("MfaTokenNotFoundError", () => {
-    it("should create error with default message", () => {
-      const error = new MfaTokenNotFoundError();
-
-      expect(error.name).toBe("MfaTokenNotFoundError");
-      expect(error.code).toBe("mfa_token_not_found");
-      expect(error.message).toBe(
-        "No MFA context found for the provided token."
-      );
-    });
-
-    it("should create error with custom message", () => {
-      const error = new MfaTokenNotFoundError("Custom message");
-
-      expect(error.message).toBe("Custom message");
     });
   });
 

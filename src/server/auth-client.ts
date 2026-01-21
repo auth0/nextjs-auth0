@@ -50,7 +50,6 @@ import {
   GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE,
   LogoutStrategy,
   LogoutToken,
-  MfaContext,
   ProxyOptions,
   RESPONSE_TYPES,
   SessionData,
@@ -68,7 +67,6 @@ import { withDPoPNonceRetry } from "../utils/dpopUtils.js";
 import {
   encryptMfaToken,
   extractMfaErrorDetails,
-  
   isMfaRequiredError
 } from "../utils/mfa-utils.js";
 import {
@@ -402,8 +400,7 @@ export class AuthClient {
     this.useDPoP = options.useDPoP ?? false;
 
     // MFA token TTL for token encryption
-    this.mfaTokenTtl =
-      options.mfaTokenTtl ?? DEFAULT_MFA_CONTEXT_TTL_SECONDS;
+    this.mfaTokenTtl = options.mfaTokenTtl ?? DEFAULT_MFA_CONTEXT_TTL_SECONDS;
 
     // Initialize DPoP if enabled. Check useDPoP flag first to avoid timing attacks.
     if ((options.useDPoP ?? false) && options.dpopKeyPair) {
@@ -1260,14 +1257,11 @@ export class AuthClient {
         !tokenSet.expiresAt ||
         tokenSet.expiresAt <= Date.now() / 1000
       ) {
-        const [error, response] = await this.#refreshTokenSet(
-          tokenSet,
-          {
-            audience: options.audience,
-            scope: options.scope ? scope : undefined,
-            requestedScope: scope
-          }
-        );
+        const [error, response] = await this.#refreshTokenSet(tokenSet, {
+          audience: options.audience,
+          scope: options.scope ? scope : undefined,
+          requestedScope: scope
+        });
 
         if (error) {
           // MFA context is now embedded in the encrypted token itself

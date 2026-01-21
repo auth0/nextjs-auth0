@@ -15,7 +15,6 @@ import {
 
 import { MfaRequiredError, OAuth2Error } from "../errors/index.js";
 import { MfaContext, SessionData } from "../types/index.js";
-import { hashMfaToken } from "../utils/mfa-utils.js";
 import { Auth0Client } from "./client.js";
 import { decrypt } from "./cookies.js";
 
@@ -135,9 +134,7 @@ afterAll(() => server.close());
 /**
  * Creates initial session data for tests.
  */
-async function createInitialSession(
-  mfa?: Record<string, MfaContext>
-): Promise<SessionData> {
+async function createInitialSession(): Promise<SessionData> {
   return {
     user: { sub },
     tokenSet: {
@@ -147,8 +144,7 @@ async function createInitialSession(
       scope,
       expiresAt: Math.floor(Date.now() / 1000) - 60 // Expired 1 minute ago
     },
-    internal: { sid, createdAt: Date.now() / 1000 },
-    mfa
+    internal: { sid, createdAt: Date.now() / 1000 }
   };
 }
 
@@ -217,7 +213,7 @@ describe("MFA Error Bubbling", () => {
   });
 
   describe("2. Session Storage", () => {
-    it("should store MFA context in session keyed by token hash", async () => {
+    it("should NOT store MFA context in session (stateless design)", async () => {
       shouldReturnMfaError = true;
       const initialSession = await createInitialSession();
 
@@ -236,72 +232,10 @@ describe("MFA Error Bubbling", () => {
         // Expected
       }
 
+      // Session saved but should NOT contain mfa property
       expect(mockSaveToSession).toHaveBeenCalled();
       expect(savedSession).not.toBeNull();
-      expect(savedSession!.mfa).toBeDefined();
-
-      // Verify hash-keyed storage
-      const expectedHash = hashMfaToken(mockMfaToken);
-      expect(savedSession!.mfa![expectedHash]).toBeDefined();
-    });
-
-    it("should store audience and scope in MFA context", async () => {
-      shouldReturnMfaError = true;
-      const initialSession = await createInitialSession();
-
-      vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-        initialSession
-      );
-
-      const mockReq = new NextRequest(
-        `${testAuth0ClientConfig.appBaseUrl}/api`
-      );
-      const mockRes = new NextResponse();
-
-      try {
-        await auth0Client.getAccessToken(mockReq, mockRes, { refresh: true });
-      } catch {
-        // Expected
-      }
-
-      const hash = hashMfaToken(mockMfaToken);
-      const mfaContext = savedSession!.mfa![hash];
-
-      expect(mfaContext).toBeDefined();
-      expect(mfaContext.scope).toBeDefined();
-      expect(mfaContext.createdAt).toBeDefined();
-    });
-
-    it("should preserve existing MFA contexts when adding new one", async () => {
-      shouldReturnMfaError = true;
-      const existingMfaContext: MfaContext = {
-        audience: "https://existing-api.example.com",
-        scope: "existing-scope",
-        createdAt: Date.now() - 60000
-      };
-      const initialSession = await createInitialSession({
-        existingHash: existingMfaContext
-      });
-
-      vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-        initialSession
-      );
-
-      const mockReq = new NextRequest(
-        `${testAuth0ClientConfig.appBaseUrl}/api`
-      );
-      const mockRes = new NextResponse();
-
-      try {
-        await auth0Client.getAccessToken(mockReq, mockRes, { refresh: true });
-      } catch {
-        // Expected
-      }
-
-      // Should have both existing and new MFA contexts
-      expect(savedSession!.mfa!["existingHash"]).toBeDefined();
-      const newHash = hashMfaToken(mockMfaToken);
-      expect(savedSession!.mfa![newHash]).toBeDefined();
+      expect(savedSession!.mfa).toBeUndefined();
     });
   });
 
@@ -381,13 +315,15 @@ describe("MFA Error Bubbling", () => {
       expect(thrownError).not.toBeNull();
 
       // Decrypt using the same secret
-      const decrypted = await decrypt<{ mfa_token: string }>(
+      const decrypted = await decrypt<MfaContext>(
         thrownError!.mfa_token,
         secret
       );
 
       expect(decrypted).not.toBeNull();
-      expect(decrypted!.payload.mfa_token).toBe(mockMfaToken);
+      expect(decrypted!.payload.mfaToken).toBe(mockMfaToken);
+      expect(decrypted!.payload.audience).toBeDefined();
+      expect(decrypted!.payload.scope).toBeDefined();
     });
   });
 
@@ -553,7 +489,7 @@ describe("MFA Error Bubbling", () => {
       ).rejects.toThrow(MfaRequiredError);
     });
 
-    it("should save session with MFA context before throwing", async () => {
+    it("should NOT mutate session when throwing MfaRequiredError", async () => {
       shouldReturnMfaError = true;
       const initialSession = await createInitialSession();
 
@@ -572,9 +508,9 @@ describe("MFA Error Bubbling", () => {
         // Expected
       }
 
-      // Session should be saved with MFA context
+      // Session saved but no mfa property (stateless design)
       expect(mockSaveToSession).toHaveBeenCalled();
-      expect(savedSession!.mfa).toBeDefined();
+      expect(savedSession!.mfa).toBeUndefined();
     });
 
     it("should work without req/res (App Router)", async () => {
@@ -623,19 +559,9 @@ describe("MFA Error Bubbling", () => {
       ).rejects.toThrow();
     });
 
-    it("should support concurrent MFA contexts for different audiences", async () => {
-      // First MFA error
-      const firstMfaContext: MfaContext = {
-        audience: "https://api1.example.com",
-        scope: "read:api1",
-        createdAt: Date.now() - 60000
-      };
-      const firstHash = "first-hash-123456";
-
+    it("should create self-contained encrypted token for each MFA challenge", async () => {
       shouldReturnMfaError = true;
-      const initialSession = await createInitialSession({
-        [firstHash]: firstMfaContext
-      });
+      const initialSession = await createInitialSession();
 
       vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
         initialSession
@@ -646,25 +572,33 @@ describe("MFA Error Bubbling", () => {
       );
       const mockRes = new NextResponse();
 
+      let thrownError: MfaRequiredError | null = null;
       try {
         await auth0Client.getAccessToken(mockReq, mockRes, { refresh: true });
-      } catch {
-        // Expected
+      } catch (error) {
+        thrownError = error as MfaRequiredError;
       }
 
-      // Should have both MFA contexts
-      expect(savedSession!.mfa![firstHash]).toBeDefined();
-      const newHash = hashMfaToken(mockMfaToken);
-      expect(savedSession!.mfa![newHash]).toBeDefined();
+      expect(thrownError).not.toBeNull();
+      expect(thrownError!.mfa_token).toBeDefined();
+
+      // Verify token is self-contained
+      const decrypted = await decrypt<MfaContext>(
+        thrownError!.mfa_token,
+        secret
+      );
+      expect(decrypted!.payload.mfaToken).toBe(mockMfaToken);
+      expect(decrypted!.payload.audience).toBeDefined();
+      expect(decrypted!.payload.scope).toBeDefined();
     });
   });
 
   describe("8. Configuration", () => {
-    it("should respect custom mfaContextTtl", async () => {
+    it("should respect custom mfaTokenTtl", async () => {
       const customTtl = 600; // 10 minutes
       const customClient = new Auth0Client({
         ...testAuth0ClientConfig,
-        mfaContextTtl: customTtl
+        mfaTokenTtl: customTtl
       });
 
       shouldReturnMfaError = true;
