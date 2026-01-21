@@ -168,9 +168,4 @@ export abstract class AbstractSessionStore {
 
     return maxAge > 0 ? maxAge : 0;
   }
-
-  /**
-   * Cleans up expired MFA contexts from session before persisting.
-   * Should be called in set() before writing session data.
-   */
 }
