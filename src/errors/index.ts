@@ -584,21 +584,6 @@ export class MfaRequiredError extends SdkError {
  * }
  * ```
  */
-export class MfaTokenNotFoundError extends SdkError {
-  public readonly code: string = "mfa_token_not_found";
-
-  constructor(message?: string) {
-    super(message ?? "No MFA context found for the provided token.");
-    this.name = "MfaTokenNotFoundError";
-  }
-}
-
-/**
- * Thrown when the encrypted mfa_token has expired.
- *
- * MFA tokens have a 5-minute TTL (configurable via `AUTH0_MFA_CONTEXT_TTL`).
- * After expiration, users must restart the MFA flow.
- */
 export class MfaTokenExpiredError extends SdkError {
   public readonly code: string = "mfa_token_expired";
 

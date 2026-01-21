@@ -1,5 +1,6 @@
 import { AuthorizationParameters } from "./authorize.js";
 import { ConnectionTokenSet } from "./token-vault.js";
+import type { MfaRequirements } from "../errors/index.js";
 
 export interface TokenSet {
   accessToken: string;
@@ -22,15 +23,19 @@ export interface AccessTokenSet {
 }
 
 /**
- * MFA context stored in session, keyed by hash of raw mfa_token.
- * Enables lookup of original audience/scope when MFA methods are called.
+ * MFA context embedded in encrypted token.
+ * Self-contained with all information needed for challenge completion.
  */
 export interface MfaContext {
+  /** Raw mfa_token from Auth0 */
+  mfaToken: string;
   /** API identifier that required MFA */
   audience: string;
   /** Scopes requested */
   scope: string;
-  /** Timestamp for TTL-based cleanup (milliseconds since epoch) */
+  /** MFA requirements from Auth0 */
+  mfaRequirements: MfaRequirements | undefined;
+  /** Timestamp for TTL validation (milliseconds since epoch) */
   createdAt: number;
 }
 
@@ -45,8 +50,6 @@ export interface SessionData {
     createdAt: number;
   };
   connectionTokenSets?: ConnectionTokenSet[];
-  /** MFA contexts keyed by hash of raw mfa_token */
-  mfa?: Record<string, MfaContext>;
   [key: string]: unknown;
 }
 

@@ -1,6 +1,4 @@
 import type { SessionData, SessionDataStore } from "../../types/index.js";
-import { DEFAULT_MFA_CONTEXT_TTL_SECONDS } from "../../utils/constants.js";
-import { cleanupExpiredMfaContexts } from "../../utils/mfa-utils.js";
 import {
   CookieOptions,
   ReadonlyRequestCookies,
@@ -81,12 +79,6 @@ export interface SessionStoreOptions extends SessionConfiguration {
   store?: SessionDataStore;
 
   cookieOptions?: SessionCookieOptions;
-
-  /**
-   * MFA context TTL in milliseconds for cleanup during session writes.
-   * Default: DEFAULT_MFA_CONTEXT_TTL_SECONDS * 1000 (5 minutes)
-   */
-  mfaContextTtlMs?: number;
 }
 
 const SESSION_COOKIE_NAME = "__session";
@@ -103,9 +95,6 @@ export abstract class AbstractSessionStore {
 
   public cookieConfig: CookieOptions;
 
-  /** MFA context TTL in milliseconds for cleanup */
-  protected mfaContextTtlMs: number;
-
   constructor({
     secret,
 
@@ -114,8 +103,7 @@ export abstract class AbstractSessionStore {
     inactivityDuration = 60 * 60 * 24 * 1, // 1 day in seconds
     store,
 
-    cookieOptions,
-    mfaContextTtlMs
+    cookieOptions
   }: SessionStoreOptions) {
     this.secret = secret;
 
@@ -133,10 +121,6 @@ export abstract class AbstractSessionStore {
       domain: cookieOptions?.domain,
       transient: cookieOptions?.transient
     };
-
-    // MFA context TTL in milliseconds (default: 5 minutes)
-    this.mfaContextTtlMs =
-      mfaContextTtlMs ?? DEFAULT_MFA_CONTEXT_TTL_SECONDS * 1000;
   }
 
   abstract get(
@@ -189,7 +173,4 @@ export abstract class AbstractSessionStore {
    * Cleans up expired MFA contexts from session before persisting.
    * Should be called in set() before writing session data.
    */
-  protected cleanupMfaContexts(session: SessionData): SessionData {
-    return cleanupExpiredMfaContexts(session, this.mfaContextTtlMs);
-  }
 }

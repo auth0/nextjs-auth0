@@ -362,16 +362,16 @@ export interface Auth0ClientOptions {
    * MFA context TTL in seconds. Controls how long encrypted mfa_token remains valid.
    * Default: 300 (5 minutes, matching Auth0's mfa_token expiration)
    *
-   * Can also be set via AUTH0_MFA_CONTEXT_TTL environment variable.
+   * Can also be set via AUTH0_MFA_TOKEN_TTL environment variable.
    *
    * @example
    * ```typescript
    * const auth0 = new Auth0Client({
-   *   mfaContextTtl: 600 // 10 minutes
+   *   mfaTokenTtl: 600 // 10 minutes
    * });
    * ```
    */
-  mfaContextTtl?: number;
+  mfaTokenTtl?: number;
 }
 
 export type PagesRouterRequest = IncomingMessage | NextApiRequest;
@@ -410,10 +410,10 @@ export class Auth0Client {
       dpopOptions: resolvedDpopOptions
     } = validateDpopConfiguration(options);
 
-    // Resolve MFA context TTL from options or environment variable
-    const mfaContextTtl = this.resolveMfaContextTtl(
-      options.mfaContextTtl,
-      process.env.AUTH0_MFA_CONTEXT_TTL
+    // Resolve MFA token TTL from options or environment variable
+    const mfaTokenTtl = this.resolveMfaTokenTtl(
+      options.mfaTokenTtl,
+      process.env.AUTH0_MFA_TOKEN_TTL
     );
 
     // Auto-detect base path for cookie configuration
@@ -478,13 +478,11 @@ export class Auth0Client {
           ...options.session,
           secret,
           store: options.sessionStore,
-          mfaContextTtlMs: mfaContextTtl * 1000,
           cookieOptions: sessionCookieOptions
         })
       : new StatelessSessionStore({
           ...options.session,
           secret,
-          mfaContextTtlMs: mfaContextTtl * 1000,
           cookieOptions: sessionCookieOptions
         });
 
@@ -522,7 +520,7 @@ export class Auth0Client {
       useDPoP: options.useDPoP || false,
       dpopKeyPair: options.dpopKeyPair || resolvedDpopKeyPair,
       dpopOptions: options.dpopOptions || resolvedDpopOptions,
-      mfaContextTtl
+      mfaTokenTtl
     });
   }
 
@@ -1375,7 +1373,7 @@ export class Auth0Client {
    * Resolve mfaContextTtl with validation and fallback to default.
    * Issues console warning for invalid values instead of throwing.
    */
-  private resolveMfaContextTtl(
+  private resolveMfaTokenTtl(
     optionValue: number | undefined,
     envValue: string | undefined
   ): number {
@@ -1387,7 +1385,7 @@ export class Auth0Client {
         return optionValue;
       }
       console.warn(
-        `[auth0-nextjs] Invalid mfaContextTtl option value: ${optionValue}. ` +
+        `[auth0-nextjs] Invalid mfaTokenTtl option value: ${optionValue}. ` +
           `Using default: ${DEFAULT_TTL} seconds.`
       );
       return DEFAULT_TTL;
@@ -1400,7 +1398,7 @@ export class Auth0Client {
         return parsed;
       }
       console.warn(
-        `[auth0-nextjs] Invalid AUTH0_MFA_CONTEXT_TTL environment variable: ${envValue}. ` +
+        `[auth0-nextjs] Invalid AUTH0_MFA_TOKEN_TTL environment variable: ${envValue}. ` +
           `Using default: ${DEFAULT_TTL} seconds.`
       );
       return DEFAULT_TTL;

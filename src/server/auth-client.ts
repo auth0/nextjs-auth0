@@ -68,7 +68,7 @@ import { withDPoPNonceRetry } from "../utils/dpopUtils.js";
 import {
   encryptMfaToken,
   extractMfaErrorDetails,
-  hashMfaToken,
+  
   isMfaRequiredError
 } from "../utils/mfa-utils.js";
 import {
@@ -220,10 +220,10 @@ export interface AuthClientOptions {
   dpopOptions?: DpopOptions;
 
   /**
-   * MFA context TTL in seconds (for token encryption expiration).
+   * MFA token TTL in seconds (for token encryption expiration).
    * Default: 300 (5 minutes, matching Auth0's mfa_token expiration)
    */
-  mfaContextTtl?: number;
+  mfaTokenTtl?: number;
 
   /**
    * @future This option is reserved for future implementation.
@@ -281,7 +281,7 @@ export class AuthClient {
   private dpopKeyPair?: DpopKeyPair;
   private readonly useDPoP: boolean;
 
-  private readonly mfaContextTtl: number;
+  private readonly mfaTokenTtl: number;
 
   private proxyFetchers: { [audience: string]: Fetcher<Response> } = {};
 
@@ -401,9 +401,9 @@ export class AuthClient {
 
     this.useDPoP = options.useDPoP ?? false;
 
-    // MFA context TTL for token encryption
-    this.mfaContextTtl =
-      options.mfaContextTtl ?? DEFAULT_MFA_CONTEXT_TTL_SECONDS;
+    // MFA token TTL for token encryption
+    this.mfaTokenTtl =
+      options.mfaTokenTtl ?? DEFAULT_MFA_CONTEXT_TTL_SECONDS;
 
     // Initialize DPoP if enabled. Check useDPoP flag first to avoid timing attacks.
     if ((options.useDPoP ?? false) && options.dpopKeyPair) {
@@ -1260,7 +1260,7 @@ export class AuthClient {
         !tokenSet.expiresAt ||
         tokenSet.expiresAt <= Date.now() / 1000
       ) {
-        const [error, response, mfaContextUpdate] = await this.#refreshTokenSet(
+        const [error, response] = await this.#refreshTokenSet(
           tokenSet,
           {
             audience: options.audience,
@@ -1270,14 +1270,8 @@ export class AuthClient {
         );
 
         if (error) {
-          // If MFA required, store context in session for later lookup.
-          // IMPORTANT: This mutates sessionData by reference. The caller's
-          // session object now contains session.mfa[hash] = context.
-          // Callers must persist the session to save MFA context.
-          if (error instanceof MfaRequiredError && mfaContextUpdate) {
-            sessionData.mfa = sessionData.mfa || {};
-            sessionData.mfa[mfaContextUpdate.hash] = mfaContextUpdate.context;
-          }
+          // MFA context is now embedded in the encrypted token itself
+          // No session mutation needed
           return [error, null];
         }
 
@@ -2657,8 +2651,8 @@ export class AuthClient {
    * @param tokenSet The current token set containing the refresh token.
    * @param options Options for the refresh operation, including scope and audience.
    * @returns A tuple containing either:
-   *   - `[null, { updatedTokenSet: TokenSet; idTokenClaims: oauth.IDToken }, undefined]` if the token was successfully refreshed, containing the updated token set and ID token claims.
-   *   - `[SdkError, null, mfaContext?]` if an error occurred during the refresh process. mfaContext is populated for MfaRequiredError.
+   *   - `[null, { updatedTokenSet: TokenSet; idTokenClaims: oauth.IDToken }]` if the token was successfully refreshed, containing the updated token set and ID token claims.
+   *   - `[SdkError, null]` if an error occurred during the refresh process.
    */
   async #refreshTokenSet(
     tokenSet: Partial<TokenSet>,
@@ -2668,18 +2662,14 @@ export class AuthClient {
       requestedScope: string;
     }
   ): Promise<
-    | [
-        null,
-        { updatedTokenSet: TokenSet; idTokenClaims: oauth.IDToken },
-        undefined
-      ]
-    | [SdkError, null, { hash: string; context: MfaContext } | undefined]
+    | [null, { updatedTokenSet: TokenSet; idTokenClaims: oauth.IDToken }]
+    | [SdkError, null]
   > {
     const [discoveryError, authorizationServerMetadata] =
       await this.discoverAuthorizationServerMetadata();
 
     if (discoveryError) {
-      return [discoveryError, null, undefined];
+      return [discoveryError, null];
     }
 
     const additionalParameters = new URLSearchParams();
@@ -2743,25 +2733,17 @@ export class AuthClient {
           extractMfaErrorDetails(e);
 
         if (mfa_token) {
-          // Generate hash for session key
-          const tokenHash = hashMfaToken(mfa_token);
-
-          // MFA context to be stored in session by caller
-          const mfaContext: MfaContext = {
-            audience: options.audience || "",
-            scope: options.requestedScope,
-            createdAt: Date.now()
-          };
-
-          // Encrypt token before exposing to application
+          // Encrypt token with full context before exposing to application
           const encryptedToken = await encryptMfaToken(
             mfa_token,
+            options.audience || "",
+            options.requestedScope,
+            mfa_requirements,
             this.sessionStore.secret,
-            this.mfaContextTtl
+            this.mfaTokenTtl
           );
 
-          // Return MFA required error and MFA context update
-          // Caller is responsible for storing mfaContext in session
+          // Return MFA required error with self-contained encrypted token
           return [
             new MfaRequiredError(
               error_description ?? "Multi-factor authentication is required.",
@@ -2772,9 +2754,7 @@ export class AuthClient {
                 message: e.error_description
               })
             ),
-            null,
-            // Return MFA context for caller to store in session
-            { hash: tokenHash, context: mfaContext }
+            null
           ];
         } else {
           // MFA required but no mfa_token provided
@@ -2796,8 +2776,7 @@ export class AuthClient {
                 message: e.error_description
               })
             ),
-            null,
-            undefined
+            null
           ];
         }
       }
@@ -2811,8 +2790,7 @@ export class AuthClient {
             message: e.error_description
           })
         ),
-        null,
-        undefined
+        null
       ];
     }
 
@@ -2857,8 +2835,7 @@ export class AuthClient {
       {
         updatedTokenSet,
         idTokenClaims
-      },
-      undefined
+      }
     ];
   }
 }

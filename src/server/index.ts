@@ -9,7 +9,6 @@ export { filterDefaultIdTokenClaims, DEFAULT_ID_TOKEN_CLAIMS } from "./user.js";
 // MFA error classes for handling MFA step-up authentication
 export {
   MfaRequiredError,
-  MfaTokenNotFoundError,
   MfaTokenExpiredError,
   MfaTokenInvalidError
 } from "../errors/index.js";
