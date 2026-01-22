@@ -728,6 +728,12 @@ export default function Component() {
 }
 ```
 
+If you want to refresh early (before expiry), pass a `refreshBuffer` in seconds. This forwards `refreshBuffer` to `/auth/access-token` and refreshes if the token is within that window.
+
+```tsx
+const token = await getAccessToken({ refreshBuffer: 60 });
+```
+
 ### On the server (App Router)
 
 On the server, the `getAccessToken()` helper can be used in Server Routes, Server Actions and Server Components to get an access token to call external APIs.

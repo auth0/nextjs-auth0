@@ -49,6 +49,12 @@ export type AccessTokenOptions = {
    * @example 'https://orders-api.mycompany.com'
    */
   audience?: string;
+
+  /**
+   * Refresh the access token if it expires within this many seconds.
+   * Values <= 0 disable early refresh.
+   */
+  refreshBuffer?: number;
 };
 
 type AccessTokenResponse = {
@@ -78,6 +84,16 @@ export async function getAccessToken(
   // We only want to add the scope if it's explicitly provided
   if (options.scope) {
     urlParams.append("scope", options.scope);
+  }
+
+  if (
+    typeof options.refreshBuffer === "number" &&
+    Number.isFinite(options.refreshBuffer)
+  ) {
+    urlParams.append(
+      "refreshBuffer",
+      String(Math.max(0, options.refreshBuffer))
+    );
   }
 
   let url = normalizeWithBasePath(

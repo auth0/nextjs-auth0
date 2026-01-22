@@ -157,6 +157,11 @@ export interface AuthorizationDetails {
 
 export type GetAccessTokenOptions = {
   refresh?: boolean | null;
+  /**
+   * Refresh the access token if it expires within this many seconds.
+   * Values <= 0 disable early refresh.
+   */
+  refreshBuffer?: number | null;
   scope?: string | null;
   /**
    * Please note: If you are passing audience, ensure that the used audiences and scopes are

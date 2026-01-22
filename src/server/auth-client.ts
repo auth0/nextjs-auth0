@@ -222,6 +222,27 @@ function createRouteUrl(path: string, baseUrl: string) {
   );
 }
 
+function normalizeRefreshBufferSeconds(value?: number | null): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.max(0, value);
+}
+
+function parseRefreshBufferSeconds(value: string | null): number | undefined {
+  if (value === null) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return undefined;
+  }
+
+  return normalizeRefreshBufferSeconds(parsed);
+}
+
 /**
  * @private
  */
@@ -926,6 +947,9 @@ export class AuthClient {
     const session = await this.sessionStore.get(req.cookies);
     const audience = req.nextUrl.searchParams.get("audience");
     const scope = req.nextUrl.searchParams.get("scope");
+    const refreshBuffer = parseRefreshBufferSeconds(
+      req.nextUrl.searchParams.get("refreshBuffer")
+    );
 
     if (!session) {
       return NextResponse.json(
@@ -943,7 +967,8 @@ export class AuthClient {
 
     const [error, getTokenSetResponse] = await this.getTokenSet(session, {
       scope,
-      audience
+      audience,
+      refreshBuffer
     });
 
     if (error) {
@@ -1174,6 +1199,9 @@ export class AuthClient {
     sessionData: SessionData,
     options: GetAccessTokenOptions = {}
   ): Promise<[null, GetTokenSetResponse] | [SdkError, null]> {
+    const now = Date.now() / 1000;
+    const refreshBuffer = normalizeRefreshBufferSeconds(options.refreshBuffer);
+
     // This will merge the scopes from the authorization parameters and the options.
     // The scope from the options will be added to the scopes from the authorization parameters.
     // If there are duplicate scopes, they will be removed.
@@ -1209,7 +1237,7 @@ export class AuthClient {
       !tokenSet.refreshToken &&
       tokenSet.accessToken &&
       tokenSet.expiresAt &&
-      tokenSet.expiresAt <= Date.now() / 1000
+      tokenSet.expiresAt <= now
     ) {
       return [
         new AccessTokenError(
@@ -1225,7 +1253,7 @@ export class AuthClient {
       if (
         options.refresh ||
         !tokenSet.expiresAt ||
-        tokenSet.expiresAt <= Date.now() / 1000
+        tokenSet.expiresAt <= now + refreshBuffer
       ) {
         const [error, response] = await this.#refreshTokenSet(tokenSet, {
           audience: options.audience,

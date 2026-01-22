@@ -339,6 +339,18 @@ describe("Auth0Client", () => {
         mockRes
       );
     });
+
+    it("should pass refreshBuffer through to getTokenSet", async () => {
+      const mockReq = { headers: new Headers() } as NextRequest;
+      const mockRes = new NextResponse();
+
+      await client.getAccessToken(mockReq, mockRes, { refreshBuffer: 30 });
+
+      expect(mockGetTokenSet).toHaveBeenCalledWith(
+        mockSession,
+        expect.objectContaining({ refreshBuffer: 30 })
+      );
+    });
   });
 
   describe("constructor configuration", () => {
@@ -927,4 +939,5 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
 
 export type GetAccessTokenOptions = {
   refresh?: boolean;
+  refreshBuffer?: number;
 };

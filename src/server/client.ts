@@ -553,6 +553,7 @@ export class Auth0Client {
   /**
    * @param options Optional configuration for getting the access token.
    * @param options.refresh Force a refresh of the access token.
+   * @param options.refreshBuffer Refresh early if the access token expires within this many seconds.
    */
   async getAccessToken(options?: GetAccessTokenOptions): Promise<{
     token: string;
@@ -571,6 +572,7 @@ export class Auth0Client {
    * @param res The response object.
    * @param options Optional configuration for getting the access token.
    * @param options.refresh Force a refresh of the access token.
+   * @param options.refreshBuffer Refresh early if the access token expires within this many seconds.
    */
   async getAccessToken(
     req: PagesRouterRequest | NextRequest,

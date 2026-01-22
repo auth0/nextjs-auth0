@@ -5268,6 +5268,89 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(updatedSession.tokenSet.accessToken).toEqual(newAccessToken);
     });
 
+    it("should refresh the access token when refreshBuffer is provided", async () => {
+      const currentAccessToken = DEFAULT.accessToken;
+      const newAccessToken = "at_456";
+
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: getMockAuthorizationServer({
+          tokenEndpointResponse: {
+            token_type: "Bearer",
+            access_token: newAccessToken,
+            scope: "openid profile email",
+            expires_in: 86400 // expires in 10 days
+          } as oauth.TokenEndpointResponse
+        })
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) + 30; // expires soon
+      const session: SessionData = {
+        user: {
+          sub: DEFAULT.sub,
+          name: "John Doe",
+          email: "john@example.com",
+          picture: "https://example.com/john.jpg"
+        },
+        tokenSet: {
+          accessToken: currentAccessToken,
+          scope: "openid profile email",
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      };
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const sessionCookie = await encrypt(session, secret, expiration);
+      const headers = new Headers();
+      headers.append("cookie", `__session=${sessionCookie}`);
+      const request = new NextRequest(
+        new URL("/auth/access-token?refreshBuffer=60", DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers
+        }
+      );
+
+      const response = await authClient.handleAccessToken(request);
+      expect(response.status).toEqual(200);
+      expect(await response.json()).toEqual({
+        token: newAccessToken,
+        scope: "openid profile email",
+        expires_at: expect.any(Number),
+        token_type: "bearer"
+      });
+
+      const updatedSessionCookie = response.cookies.get("__session");
+      const { payload: updatedSession } = (await decrypt<SessionData>(
+        updatedSessionCookie!.value,
+        secret
+      )) as jose.JWTDecryptResult<SessionData>;
+      expect(updatedSession.tokenSet.accessToken).toEqual(newAccessToken);
+    });
+
     it("should return a 401 if the user does not have a session", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({
@@ -6691,6 +6774,139 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       const [error, updatedTokenSet] = await authClient.getTokenSet(
         createSessionData({ tokenSet })
+      );
+      expect(error).toBeNull();
+      expect(updatedTokenSet?.tokenSet).toEqual(tokenSet);
+    });
+
+    it("should refresh the access token if it expires within the refresh buffer", async () => {
+      const newAccessToken = "at_456";
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: getMockAuthorizationServer({
+          tokenEndpointResponse: {
+            token_type: "Bearer",
+            access_token: newAccessToken,
+            expires_in: 86400,
+            scope: "openid profile email offline_access"
+          } as oauth.TokenEndpointResponse
+        })
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) + 30; // expires soon
+      const tokenSet = {
+        accessToken: DEFAULT.accessToken,
+        refreshToken: DEFAULT.refreshToken,
+        expiresAt
+      };
+
+      const [error, updatedTokenSet] = await authClient.getTokenSet(
+        createSessionData({ tokenSet }),
+        { refreshBuffer: 60 }
+      );
+      expect(error).toBeNull();
+      expect(updatedTokenSet?.tokenSet).toEqual({
+        accessToken: newAccessToken,
+        refreshToken: DEFAULT.refreshToken,
+        expiresAt: expect.any(Number),
+        scope: "openid profile email offline_access",
+        requestedScope: "openid profile email offline_access",
+        audience: undefined,
+        idToken: undefined,
+        token_type: "bearer"
+      });
+    });
+
+    it("should not refresh if the access token expires outside the refresh buffer", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: getMockAuthorizationServer()
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) + 10 * 60; // expires in 10 minutes
+      const tokenSet = {
+        accessToken: DEFAULT.accessToken,
+        refreshToken: DEFAULT.refreshToken,
+        expiresAt
+      };
+
+      const [error, updatedTokenSet] = await authClient.getTokenSet(
+        createSessionData({ tokenSet }),
+        { refreshBuffer: 60 }
+      );
+      expect(error).toBeNull();
+      expect(updatedTokenSet?.tokenSet).toEqual(tokenSet);
+    });
+
+    it("should not require a refresh token when within the refresh buffer and not expired", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: getMockAuthorizationServer()
+      });
+
+      const expiresAt = Math.floor(Date.now() / 1000) + 30; // expires soon
+      const tokenSet = {
+        accessToken: DEFAULT.accessToken,
+        expiresAt
+      };
+
+      const [error, updatedTokenSet] = await authClient.getTokenSet(
+        createSessionData({ tokenSet }),
+        { refreshBuffer: 60 }
       );
       expect(error).toBeNull();
       expect(updatedTokenSet?.tokenSet).toEqual(tokenSet);

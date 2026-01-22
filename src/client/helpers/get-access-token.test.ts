@@ -22,6 +22,7 @@ export const restHandlers = [
 
     const audience = url.searchParams.get("audience");
     const scope = url.searchParams.get("scope");
+    const refreshBuffer = url.searchParams.get("refreshBuffer");
 
     let token = "<access_token>";
 
@@ -31,6 +32,10 @@ export const restHandlers = [
       token = `<access_token_for_${audience}_without_scope>`;
     } else if (scope) {
       token = `<access_token_with_scope_${scope}>`;
+    }
+
+    if (refreshBuffer) {
+      token = `${token}_refresh_buffer_${refreshBuffer}`;
     }
 
     if (audience === "trigger_json_error") {
@@ -100,6 +105,14 @@ describe("getAccessToken", () => {
     });
 
     expect(result).toBe("<access_token_with_scope_read:bar>");
+  });
+
+  it("should pass refreshBuffer", async () => {
+    const result = await getAccessToken({
+      refreshBuffer: 15
+    });
+
+    expect(result).toBe("<access_token>_refresh_buffer_15");
   });
 
   it("should throw an error when json deserialization fails", async () => {

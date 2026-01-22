@@ -222,7 +222,7 @@ export class Fetcher<TOutput extends Response> {
    * Retrieves an access token for the current request.
    * Uses the configured access token factory or falls back to the hooks implementation.
    *
-   * @param getAccessTokenOptions - Options for token retrieval (scope, audience, etc.)
+   * @param getAccessTokenOptions - Options for token retrieval (scope, audience, refresh, etc.)
    * @returns Promise that resolves to the access token string
    *
    * @example
@@ -341,7 +341,12 @@ export class Fetcher<TOutput extends Response> {
     // Check for GetAccessTokenOptions-specific properties
     // Since RequestInit and GetAccessTokenOptions have no common properties,
     // if any GetAccessTokenOptions property is present, it's GetAccessTokenOptions
-    const getAccessTokenOptionsProps = ["refresh", "scope", "audience"];
+    const getAccessTokenOptionsProps = [
+      "refresh",
+      "refreshBuffer",
+      "scope",
+      "audience"
+    ];
     const hasGetAccessTokenOptionsProp = getAccessTokenOptionsProps.some(
       (prop) => Object.prototype.hasOwnProperty.call(obj, prop)
     );

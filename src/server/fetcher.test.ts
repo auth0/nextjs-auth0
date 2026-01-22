@@ -23,6 +23,10 @@ describe("Fetcher", () => {
   let fetcher: Fetcher<Response>;
   let mockFetch: any;
   let authClient: AuthClient;
+  let hooks: {
+    getAccessToken: ReturnType<typeof vi.fn>;
+    isDpopEnabled: ReturnType<typeof vi.fn>;
+  };
   let secret: string;
 
   const DEFAULT = {
@@ -68,7 +72,7 @@ describe("Fetcher", () => {
       httpOptions: () => ({})
     };
 
-    const hooks = {
+    hooks = {
       getAccessToken: vi.fn().mockResolvedValue("test-token"),
       isDpopEnabled: vi.fn().mockReturnValue(false)
     };
@@ -211,6 +215,17 @@ describe("Fetcher", () => {
       expect(oauth.protectedResourceRequest).toHaveBeenCalledTimes(1);
       const callArgs = (oauth.protectedResourceRequest as any).mock.calls[0];
       expect(callArgs[1]).toBe("PATCH");
+    });
+
+    it("should treat refreshBuffer-only options as getAccessTokenOptions", async () => {
+      const getAccessTokenOptions = { refreshBuffer: 45 };
+
+      await fetcher.fetchWithAuth(
+        "https://api.example.com/data",
+        getAccessTokenOptions
+      );
+
+      expect(hooks.getAccessToken).toHaveBeenCalledWith(getAccessTokenOptions);
     });
   });
 
