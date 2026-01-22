@@ -713,6 +713,22 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       expect(client["sessionStore"].set).toHaveBeenCalledTimes(1);
     });
 
+    it("should save session with plain Request and NextResponse", async () => {
+      const setSpy = vi
+        .spyOn(client["sessionStore"], "set")
+        .mockResolvedValue(undefined);
+
+      const req = new Request("https://myapp.test/api/update", {
+        method: "POST",
+        headers: { cookie: "appSession=mock_session_cookie" }
+      });
+      const res = NextResponse.next();
+
+      await (client as any).saveToSession(mockSession, req as any, res as any);
+
+      expect(setSpy).toHaveBeenCalledTimes(1);
+    });
+
     it("should create fetcher successfully with plain Request", async () => {
       vi.spyOn(client, "getSession").mockResolvedValue(mockSession);
 
@@ -782,6 +798,26 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       process.env[ENV_VARS.SECRET] = "a]T3Ep;v:dST7bmO9-2efzp!Ggcj-o5!";
 
       client = new Auth0Client();
+    });
+
+    describe("createRequestCookies - Pages Router", () => {
+      it("should ignore non-header properties on request headers", () => {
+        const req = {
+          headers: {
+            cookie: "appSession=mock_session_cookie",
+            append: vi.fn(),
+            delete: vi.fn(),
+            get: vi.fn(),
+            set: vi.fn()
+          }
+        };
+
+        const requestCookies = (client as any).createRequestCookies(req);
+
+        expect(requestCookies.get("appSession")?.value).toBe(
+          "mock_session_cookie"
+        );
+      });
     });
 
     describe("saveToSession - Pages Router", () => {

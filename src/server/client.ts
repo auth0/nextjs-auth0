@@ -1001,14 +1001,27 @@ export class Auth0Client {
 
   private createRequestCookies(req: PagesRouterRequest) {
     const headers = new Headers();
+    const reqHeaders = req.headers as unknown;
 
-    for (const key in req.headers) {
-      if (Array.isArray(req.headers[key])) {
-        for (const value of req.headers[key]) {
-          headers.append(key, value);
+    if (
+      reqHeaders &&
+      typeof (reqHeaders as Headers).forEach === "function" &&
+      typeof (reqHeaders as Headers).get === "function"
+    ) {
+      (reqHeaders as Headers).forEach((value, key) => {
+        headers.append(key, value);
+      });
+
+      return new RequestCookies(headers);
+    }
+
+    for (const [key, value] of Object.entries(req.headers)) {
+      if (typeof value === "string") {
+        headers.append(key, value);
+      } else if (Array.isArray(value)) {
+        for (const entry of value) {
+          headers.append(key, entry);
         }
-      } else {
-        headers.append(key, req.headers[key] ?? "");
       }
     }
 
@@ -1139,9 +1152,10 @@ export class Auth0Client {
     res?: PagesRouterResponse | NextResponse
   ) {
     if (req && res) {
-      if (req instanceof NextRequest && res instanceof NextResponse) {
+      if (res instanceof NextResponse && isRequest(req)) {
         // middleware usage
-        await this.sessionStore.set(req.cookies, res.cookies, data);
+        const nextReq = toNextRequest(req);
+        await this.sessionStore.set(nextReq.cookies, res.cookies, data);
       } else {
         // pages router usage
         const resHeaders = new Headers();
