@@ -1,0 +1,6 @@
+# See https://lefthook.dev
+pre-commit:
+  parallel: false
+  commands:
+    lint:
+      run: pnpm run lint:fix
