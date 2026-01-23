@@ -9,7 +9,7 @@ type Req =
   | Request
   | Record<string, any>;
 
-export const isRequest = (req: Req): boolean => {
+export const isRequest = (req: Req): req is Request | NextRequest => {
   return (
     req instanceof Request ||
     req.headers instanceof Headers ||
