@@ -31,9 +31,8 @@ describe("encrypt/decrypt", async () => {
     const maxAge = 60 * 60; // 1 hour in seconds
     const expiration = Math.floor(Date.now() / 1000 + maxAge);
     const encrypted = await encrypt(payload, secret, expiration);
-    await expect(() =>
-      decrypt(encrypted, incorrectSecret)
-    ).rejects.toThrowError();
+    const decrypted = await decrypt(encrypted, incorrectSecret);
+    expect(decrypted).toBeNull();
   });
 
   it("should fail to decrypt when expired", async () => {
