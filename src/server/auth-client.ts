@@ -78,6 +78,7 @@ import {
   decryptMfaToken,
   encryptMfaToken,
   extractMfaErrorDetails,
+  handleMfaError,
   isMfaRequiredError
 } from "../utils/mfa-utils.js";
 import {
@@ -459,6 +460,18 @@ export class AuthClient {
       this.enableConnectAccountEndpoint
     ) {
       return this.handleConnectAccount(req);
+    } else if (
+      method === "GET" &&
+      sanitizedPathname === "/auth/mfa/authenticators"
+    ) {
+      return this.handleGetAuthenticators(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === "/auth/mfa/challenge"
+    ) {
+      return this.handleChallenge(req);
+    } else if (method === "POST" && sanitizedPathname === "/auth/mfa/verify") {
+      return this.handleVerify(req);
     } else if (sanitizedPathname.startsWith("/me/")) {
       return this.handleMyAccount(req);
     } else if (sanitizedPathname.startsWith("/my-org/")) {
@@ -951,6 +964,151 @@ export class AuthClient {
     const res = NextResponse.json(session?.user);
     addCacheControlHeadersForSession(res);
     return res;
+  }
+
+  /**
+   * Route: GET /auth/mfa/authenticators
+   * Lists enrolled MFA authenticators.
+   *
+   * Headers:
+   *   Authorization: Bearer <encrypted-mfa-token>
+   *
+   * Response: 200 + Authenticator[]
+   * Error: 400/401 + {error, error_description}
+   */
+  async handleGetAuthenticators(req: NextRequest): Promise<NextResponse> {
+    try {
+      // Extract Bearer token from Authorization header
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return NextResponse.json(
+          {
+            error: "invalid_request",
+            error_description: "Missing or invalid Authorization header"
+          },
+          { status: 401 }
+        );
+      }
+
+      const mfaToken = authHeader.substring(7);
+
+      // Delegate to business logic
+      const authenticators = await this.mfaGetAuthenticators(mfaToken);
+
+      return NextResponse.json(authenticators);
+    } catch (e) {
+      return handleMfaError(e);
+    }
+  }
+
+  /**
+   * Route: POST /auth/mfa/challenge
+   * Initiates an MFA challenge.
+   *
+   * Body: {mfaToken, challengeType, authenticatorId?}
+   *
+   * Response: 200 + ChallengeResponse
+   * Error: 400 + {error, error_description}
+   */
+  async handleChallenge(req: NextRequest): Promise<NextResponse> {
+    try {
+      // Parse request body
+      const body = await req.json();
+      const { mfaToken, challengeType, authenticatorId } = body;
+
+      // Validate required fields
+      if (!mfaToken || typeof mfaToken !== "string") {
+        return NextResponse.json(
+          {
+            error: "invalid_request",
+            error_description: "Missing or invalid mfaToken"
+          },
+          { status: 400 }
+        );
+      }
+
+      if (!challengeType || typeof challengeType !== "string") {
+        return NextResponse.json(
+          {
+            error: "invalid_request",
+            error_description: "Missing or invalid challengeType"
+          },
+          { status: 400 }
+        );
+      }
+
+      // Delegate to business logic
+      const result = await this.mfaChallenge(
+        mfaToken,
+        challengeType,
+        authenticatorId
+      );
+
+      return NextResponse.json(result);
+    } catch (e) {
+      return handleMfaError(e);
+    }
+  }
+
+  /**
+   * Route: POST /auth/mfa/verify
+   * Verifies MFA code and returns tokens.
+   *
+   * Body: {mfaToken, otp | oobCode+bindingCode | recoveryCode}
+   *
+   * Response: 200 + TokenResponse + Set-Cookie
+   * Error: 400 + {error, error_description, mfaToken?}
+   */
+  async handleVerify(req: NextRequest): Promise<NextResponse> {
+    try {
+      // Parse request body
+      const body = await req.json();
+      const { mfaToken } = body;
+
+      // Validate mfaToken
+      if (!mfaToken || typeof mfaToken !== "string") {
+        return NextResponse.json(
+          {
+            error: "invalid_request",
+            error_description: "Missing or invalid mfaToken"
+          },
+          { status: 400 }
+        );
+      }
+
+      // Validate verification credential (one of otp, oobCode+bindingCode, recoveryCode)
+      const hasOtp = "otp" in body && typeof body.otp === "string";
+      const hasOob =
+        "oobCode" in body &&
+        typeof body.oobCode === "string" &&
+        "bindingCode" in body &&
+        typeof body.bindingCode === "string";
+      const hasRecovery =
+        "recoveryCode" in body && typeof body.recoveryCode === "string";
+
+      if (!hasOtp && !hasOob && !hasRecovery) {
+        return NextResponse.json(
+          {
+            error: "invalid_request",
+            error_description:
+              "Missing verification credential (otp, oobCode+bindingCode, or recoveryCode required)"
+          },
+          { status: 400 }
+        );
+      }
+
+      // Delegate to ServerMfaClient which handles session management
+      const result = await this.mfaVerify(
+        body,
+        req.cookies,
+        NextResponse.next().cookies
+      );
+
+      // Return success response (session cookies set by mfaVerify)
+      return NextResponse.json(result);
+    } catch (e) {
+      return handleMfaError(e);
+    }
   }
 
   async handleAccessToken(req: NextRequest): Promise<NextResponse> {

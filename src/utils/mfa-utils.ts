@@ -1,7 +1,16 @@
+import { NextResponse } from "next/server.js";
+
 import {
+  MfaChallengeError,
+  MfaGetAuthenticatorsError,
+  MfaNoAvailableFactorsError,
+  MfaRequiredError,
   MfaRequirements,
   MfaTokenExpiredError,
-  MfaTokenInvalidError
+  MfaTokenInvalidError,
+  MfaVerifyError,
+  OAuth2Error,
+  SdkError
 } from "../errors/index.js";
 import { decrypt, encrypt } from "../server/cookies.js";
 import type { MfaContext } from "../types/index.js";
@@ -124,4 +133,103 @@ export function extractMfaErrorDetails(error: unknown): {
       (cause?.mfa_requirements as MfaRequirements | undefined) ??
       (err.mfa_requirements as MfaRequirements | undefined)
   };
+}
+
+/**
+ * Handle MFA errors and format response.
+ *
+ * @param e - Error thrown by business logic
+ * @returns NextResponse with error details
+ */
+export function handleMfaError(e: unknown): NextResponse {
+  if (e instanceof MfaTokenExpiredError) {
+    return NextResponse.json(
+      {
+        error: e.code,
+        error_description: e.message
+      },
+      { status: 401 }
+    );
+  }
+
+  if (e instanceof MfaTokenInvalidError) {
+    return NextResponse.json(
+      {
+        error: e.code,
+        error_description: e.message
+      },
+      { status: 401 }
+    );
+  }
+
+  if (e instanceof MfaNoAvailableFactorsError) {
+    return NextResponse.json(
+      {
+        error: e.code,
+        error_description: e.message
+      },
+      { status: 400 }
+    );
+  }
+
+  if (e instanceof MfaGetAuthenticatorsError) {
+    return NextResponse.json(
+      {
+        error: e.code,
+        error_description: e.message
+      },
+      { status: 400 }
+    );
+  }
+
+  if (e instanceof MfaChallengeError) {
+    return NextResponse.json(
+      {
+        error: e.code,
+        error_description: e.message
+      },
+      { status: 400 }
+    );
+  }
+
+  if (e instanceof MfaVerifyError) {
+    return NextResponse.json(
+      {
+        error: e.code,
+        error_description: e.message
+      },
+      { status: 400 }
+    );
+  }
+
+  // Chained MFA: mfaVerify() throws MfaRequiredError with encrypted token
+  if (e instanceof MfaRequiredError) {
+    // Token already encrypted by AuthClient.mfaVerify()
+    // Return mfa_required error with encrypted token for next factor
+    return NextResponse.json(
+      {
+        error: e.error,
+        error_description: e.error_description,
+        mfa_token: e.mfa_token
+      },
+      { status: 400 }
+    );
+  }
+
+  // Wrap unexpected errors for consistent error shape
+  if (!(e instanceof SdkError)) {
+    e = new OAuth2Error({
+      code: "server_error",
+      message: e instanceof Error ? e.message : "Internal server error"
+    });
+  }
+
+  // Generic SdkError
+  return NextResponse.json(
+    {
+      error: (e as SdkError).code || "server_error",
+      error_description: (e as SdkError).message || "Internal server error"
+    },
+    { status: 500 }
+  );
 }
