@@ -136,87 +136,71 @@ export function extractMfaErrorDetails(error: unknown): {
 }
 
 /**
+ * Get HTTP status code for MFA error.
+ *
+ * Centralized mapping: 401 (auth), 400 (validation), 500 (unexpected)
+ *
+ * @param error - Error instance
+ * @returns HTTP status code
+ */
+export function getMfaErrorStatusCode(error: Error): number {
+  if (
+    error instanceof MfaTokenExpiredError ||
+    error instanceof MfaTokenInvalidError
+  ) {
+    return 401;
+  }
+
+  if (
+    error instanceof MfaNoAvailableFactorsError ||
+    error instanceof MfaGetAuthenticatorsError ||
+    error instanceof MfaChallengeError ||
+    error instanceof MfaVerifyError ||
+    error instanceof MfaRequiredError
+  ) {
+    return 400;
+  }
+
+  return 500;
+}
+
+/**
+ * Serialize MFA error to HTTP response body.
+ *
+ * Handles special cases like MfaRequiredError.toJSON() for chained MFA.
+ *
+ * @param error - Error instance
+ * @returns Error response body
+ */
+export function serializeMfaError(error: Error): {
+  error: string;
+  error_description: string;
+  mfa_token?: string;
+  mfa_requirements?: MfaRequirements;
+} {
+  if (error instanceof MfaRequiredError) {
+    // Use toJSON() for chained MFA (includes encrypted mfa_token)
+    return error.toJSON();
+  }
+
+  // Standard SDK error serialization
+  const sdkError = error as SdkError;
+  return {
+    error: sdkError.code || "server_error",
+    error_description: sdkError.message || "Internal server error"
+  };
+}
+
+/**
  * Handle MFA errors and format response.
+ *
+ * Wraps non-SDK errors for consistent shape, then uses utilities for serialization.
  *
  * @param e - Error thrown by business logic
  * @returns NextResponse with error details
  */
 export function handleMfaError(e: unknown): NextResponse {
-  if (e instanceof MfaTokenExpiredError) {
-    return NextResponse.json(
-      {
-        error: e.code,
-        error_description: e.message
-      },
-      { status: 401 }
-    );
-  }
-
-  if (e instanceof MfaTokenInvalidError) {
-    return NextResponse.json(
-      {
-        error: e.code,
-        error_description: e.message
-      },
-      { status: 401 }
-    );
-  }
-
-  if (e instanceof MfaNoAvailableFactorsError) {
-    return NextResponse.json(
-      {
-        error: e.code,
-        error_description: e.message
-      },
-      { status: 400 }
-    );
-  }
-
-  if (e instanceof MfaGetAuthenticatorsError) {
-    return NextResponse.json(
-      {
-        error: e.code,
-        error_description: e.message
-      },
-      { status: 400 }
-    );
-  }
-
-  if (e instanceof MfaChallengeError) {
-    return NextResponse.json(
-      {
-        error: e.code,
-        error_description: e.message
-      },
-      { status: 400 }
-    );
-  }
-
-  if (e instanceof MfaVerifyError) {
-    return NextResponse.json(
-      {
-        error: e.code,
-        error_description: e.message
-      },
-      { status: 400 }
-    );
-  }
-
-  // Chained MFA: mfaVerify() throws MfaRequiredError with encrypted token
-  if (e instanceof MfaRequiredError) {
-    // Token already encrypted by AuthClient.mfaVerify()
-    // Return mfa_required error with encrypted token for next factor
-    return NextResponse.json(
-      {
-        error: e.error,
-        error_description: e.error_description,
-        mfa_token: e.mfa_token
-      },
-      { status: 400 }
-    );
-  }
-
-  // Wrap unexpected errors for consistent error shape
+  // Wrap non-SDK errors in OAuth2Error for consistent shape
   if (!(e instanceof SdkError)) {
     e = new OAuth2Error({
       code: "server_error",
@@ -224,12 +208,9 @@ export function handleMfaError(e: unknown): NextResponse {
     });
   }
 
-  // Generic SdkError
-  return NextResponse.json(
-    {
-      error: (e as SdkError).code || "server_error",
-      error_description: (e as SdkError).message || "Internal server error"
-    },
-    { status: 500 }
-  );
+  const error = e as Error;
+  const status = getMfaErrorStatusCode(error);
+  const body = serializeMfaError(error);
+
+  return NextResponse.json(body, { status });
 }
