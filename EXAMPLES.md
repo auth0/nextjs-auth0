@@ -684,9 +684,16 @@ export async function middleware(request: NextRequest) {
     }
   });
 
-  // set the response headers (set-cookie) from the auth response
+  // set the response headers (except set-cookie) from the auth response
   authRes.headers.forEach((value, key) => {
-    resWithCombinedHeaders.headers.set(key, value);
+    if (key.toLowerCase() !== 'set-cookie') {
+      resWithCombinedHeaders.headers.set(key, value);
+    }
+  });
+
+  // set the response cookies from the auth response
+  authRes.cookies.getAll().forEach(cookie => {
+    resWithCombinedHeaders.cookies.set(cookie);
   });
 
   // the headers from the auth middleware should always be returned
@@ -849,9 +856,16 @@ export async function middleware(request: NextRequest) {
     }
   });
 
-  // set the response headers (set-cookie) from the auth response
+  // set the response headers (except set-cookie) from the auth response
   authRes.headers.forEach((value, key) => {
-    resWithCombinedHeaders.headers.set(key, value);
+    if (key.toLowerCase() !== 'set-cookie') {
+      resWithCombinedHeaders.headers.set(key, value);
+    }
+  });
+
+  // set the response cookies from the auth response
+  authRes.cookies.getAll().forEach(cookie => {
+    resWithCombinedHeaders.cookies.set(cookie);
   });
 
   // the headers from the auth middleware should always be returned
@@ -2879,9 +2893,16 @@ export async function middleware(request: NextRequest) {
     }
   });
 
-  // set the response headers (set-cookie) from the auth response
+  // set the response headers (except set-cookie) from the auth response
   authRes.headers.forEach((value, key) => {
-    resWithCombinedHeaders.headers.set(key, value);
+    if (key.toLowerCase() !== 'set-cookie') {
+      resWithCombinedHeaders.headers.set(key, value);
+    }
+  });
+
+  // set the response cookies from the auth response
+  authRes.cookies.getAll().forEach(cookie => {
+    resWithCombinedHeaders.cookies.set(cookie);
   });
 
   // the headers from the auth middleware should always be returned
