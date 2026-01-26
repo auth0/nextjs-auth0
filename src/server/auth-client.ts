@@ -2673,6 +2673,19 @@ export class AuthClient {
       bindingCode: "bindingCode" in options ? options.bindingCode : undefined,
       recoveryCode: "recoveryCode" in options ? options.recoveryCode : undefined
     };
+
+    // Validate at least one verification credential is provided
+    const hasOtp = !!params.otp;
+    const hasOob = !!(params.oobCode && params.bindingCode);
+    const hasRecovery = !!params.recoveryCode;
+
+    if (!hasOtp && !hasOob && !hasRecovery) {
+      throw new MfaVerifyError(
+        "invalid_request",
+        "At least one verification credential required (otp, oobCode+bindingCode, or recoveryCode)"
+      );
+    }
+
     const [discoveryError, authorizationServerMetadata] =
       await this.discoverAuthorizationServerMetadata();
 
