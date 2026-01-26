@@ -23,7 +23,10 @@ import {
   DPoPError,
   DPoPErrorCode,
   InvalidStateError,
+  MfaChallengeError,
+  MfaGetAuthenticatorsError,
   MfaRequiredError,
+  MfaVerifyError,
   MissingStateError,
   MyAccountApiError,
   OAuth2Error,
@@ -40,14 +43,17 @@ import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
 import {
   AccessTokenForConnectionOptions,
   AccessTokenSet,
+  Authenticator,
   AuthorizationParameters,
   BackchannelAuthenticationOptions,
   BackchannelAuthenticationResponse,
+  ChallengeResponse,
   ConnectionTokenSet,
   CustomTokenExchangeOptions,
   CustomTokenExchangeResponse,
   GetAccessTokenOptions,
   GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE,
+  GRANT_TYPE_MFA_OTP,
   LogoutStrategy,
   LogoutToken,
   ProxyOptions,
@@ -2424,6 +2430,252 @@ export class AuthClient {
         { status: 500 }
       );
     }
+  }
+
+  /**
+   * List enrolled MFA authenticators.
+   * Internal method - called by handleGetAuthenticators route.
+   *
+   * @param mfaToken - Raw MFA token from Auth0
+   * @returns Array of authenticators
+   * @throws {MfaGetAuthenticatorsError} On API failure
+   * @private
+   */
+  // eslint-disable-next-line no-unused-private-class-members
+  async #getAuthenticators(mfaToken: string): Promise<Authenticator[]> {
+    const endpoint = new URL("/mfa/authenticators", this.issuer).toString();
+    const httpOptions = this.httpOptions();
+    httpOptions.headers.set("Authorization", `Bearer ${mfaToken}`);
+
+    try {
+      const response = await this.fetch(endpoint, {
+        method: "GET",
+        ...httpOptions
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({
+          error: "unknown_error",
+          error_description: "Failed to retrieve authenticators"
+        }));
+        throw new MfaGetAuthenticatorsError(
+          errorBody.error || "unknown_error",
+          errorBody.error_description || "Failed to retrieve authenticators",
+          errorBody.error
+            ? new OAuth2Error({
+                code: errorBody.error,
+                message: errorBody.error_description
+              })
+            : undefined
+        );
+      }
+
+      const authenticators = await response.json();
+      return authenticators.map((auth: any) => ({
+        id: auth.id,
+        authenticatorType: auth.authenticator_type,
+        type: auth.type,
+        active: auth.active,
+        name: auth.name,
+        phoneNumber: auth.phone_number,
+        oobChannel: auth.oob_channel,
+        createdAt: auth.created_at,
+        lastAuthenticatedAt: auth.last_auth
+      }));
+    } catch (e) {
+      if (e instanceof MfaGetAuthenticatorsError) throw e;
+      throw new MfaGetAuthenticatorsError(
+        "unexpected_error",
+        "Unexpected error during authenticator retrieval",
+        e instanceof Error ? e : undefined
+      );
+    }
+  }
+
+  /**
+   * Initiate an MFA challenge.
+   * Internal method - called by handleChallenge route.
+   *
+   * @param mfaToken - Raw MFA token from Auth0
+   * @param challengeType - Challenge type (otp, oob)
+   * @param authenticatorId - Optional authenticator ID
+   * @returns Challenge response
+   * @throws {MfaChallengeError} On API failure
+   * @private
+   */
+  // eslint-disable-next-line no-unused-private-class-members
+  async #challenge(
+    mfaToken: string,
+    challengeType: string,
+    authenticatorId?: string
+  ): Promise<ChallengeResponse> {
+    const endpoint = new URL("/mfa/challenge", this.issuer).toString();
+    const httpOptions = this.httpOptions();
+    httpOptions.headers.set("Content-Type", "application/json");
+
+    try {
+      const body: any = {
+        challenge_type: challengeType,
+        mfa_token: mfaToken
+      };
+
+      if (authenticatorId) {
+        body.authenticator_id = authenticatorId;
+      }
+
+      const response = await this.fetch(endpoint, {
+        method: "POST",
+        body: JSON.stringify(body),
+        ...httpOptions
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({
+          error: "unknown_error",
+          error_description: "Failed to initiate MFA challenge"
+        }));
+        throw new MfaChallengeError(
+          errorBody.error || "unknown_error",
+          errorBody.error_description || "Failed to initiate MFA challenge",
+          errorBody.error
+            ? new OAuth2Error({
+                code: errorBody.error,
+                message: errorBody.error_description
+              })
+            : undefined
+        );
+      }
+
+      const result = await response.json();
+
+      // Map response to SDK types (camelCase)
+      return {
+        challengeType: result.challenge_type,
+        oobCode: result.oob_code,
+        bindingMethod: result.binding_method
+      };
+    } catch (e) {
+      if (e instanceof MfaChallengeError) throw e;
+      throw new MfaChallengeError(
+        "unexpected_error",
+        "Unexpected error during MFA challenge",
+        e instanceof Error ? e : undefined
+      );
+    }
+  }
+
+  /**
+   * Verify MFA and exchange for tokens.
+   * Internal method - called by handleVerify route.
+   *
+   * Uses oauth4webapi's genericTokenEndpointRequest for proper DPoP support,
+   * retry logic, and response processing (matches pattern from connection tokens
+   * and custom token exchange).
+   *
+   *
+   * @param params - Verification parameters
+   * @returns Token response (snake_case) or throws MfaRequiredError (for chained MFA)
+   * @throws {MfaVerifyError} On API failure
+   * @throws {MfaRequiredError} On chained MFA (subsequent mfa_required)
+   * @private
+   */
+  // eslint-disable-next-line no-unused-private-class-members
+  async #verifyMfa(params: {
+    mfaToken: string;
+    otp?: string;
+    oobCode?: string;
+    bindingCode?: string;
+    recoveryCode?: string;
+  }): Promise<any> {
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      throw new MfaVerifyError(
+        "discovery_error",
+        "Failed to discover authorization server metadata",
+        discoveryError
+      );
+    }
+
+    // Build parameters for MFA grant
+    const tokenParams = new URLSearchParams();
+    tokenParams.append("mfa_token", params.mfaToken);
+
+    // Add verification credential based on type
+    if (params.otp) {
+      tokenParams.append("otp", params.otp);
+    } else if (params.oobCode && params.bindingCode) {
+      tokenParams.append("oob_code", params.oobCode);
+      tokenParams.append("binding_code", params.bindingCode);
+    } else if (params.recoveryCode) {
+      tokenParams.append("recovery_code", params.recoveryCode);
+    }
+
+    // Create DPoP handle ONCE outside the closure so it persists across retries.
+    // This is required by RFC 9449: the handle must learn and reuse the nonce from
+    // the DPoP-Nonce header across multiple attempts.
+    const dpopHandle =
+      this.useDPoP && this.dpopKeyPair
+        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+        : undefined;
+
+    // Execute MFA token exchange with DPoP retry support
+    // CRITICAL: Retry wrapper must encompass BOTH request AND response processing
+    let tokenEndpointResponse: oauth.TokenEndpointResponse;
+    try {
+      tokenEndpointResponse = await withDPoPNonceRetry(
+        async () => {
+          const httpResponse = await oauth.genericTokenEndpointRequest(
+            authorizationServerMetadata,
+            this.clientMetadata,
+            await this.getClientAuth(),
+            GRANT_TYPE_MFA_OTP,
+            tokenParams,
+            {
+              ...this.httpOptions(),
+              [oauth.customFetch]: this.fetch,
+              [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+              ...(dpopHandle && {
+                DPoP: dpopHandle
+              })
+            }
+          );
+          return oauth.processGenericTokenEndpointResponse(
+            authorizationServerMetadata,
+            this.clientMetadata,
+            httpResponse
+          );
+        },
+        {
+          isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
+          ...this.dpopOptions?.retry
+        }
+      );
+    } catch (err: any) {
+      // Handle chained MFA (subsequent mfa_required response)
+      // Throw MfaRequiredError for consistency with token endpoint error handling
+      if (err.error === "mfa_required") {
+        throw new MfaRequiredError(
+          err.error_description || "Multi-factor authentication required",
+          err.mfa_token,
+          err.mfa_requirements
+        );
+      }
+      throw new MfaVerifyError(
+        err.error || "unknown_error",
+        err.error_description || "MFA verification failed",
+        new OAuth2Error({
+          code: err.error || "unknown_error",
+          message: err.error_description
+        })
+      );
+    }
+
+    // Return snake_case response (matches Auth0 API)
+    // oauth4webapi's TokenEndpointResponse has index signature [parameter: string]: JsonValue
+    // so extra fields like recovery_code are automatically preserved
+    return tokenEndpointResponse;
   }
 
   /**

@@ -1,4 +1,3 @@
-import type { MfaRequirements } from "../errors/index.js";
 import { AuthorizationParameters } from "./authorize.js";
 import { ConnectionTokenSet } from "./token-vault.js";
 
@@ -197,6 +196,6 @@ export {
   VerifyMfaWithOtpOptions,
   VerifyMfaWithOobOptions,
   VerifyMfaWithRecoveryCodeOptions,
-  MfaContext
+  MfaContext,
+  GRANT_TYPE_MFA_OTP
 } from "./mfa.js";
-

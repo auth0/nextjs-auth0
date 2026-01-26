@@ -1,6 +1,6 @@
 /**
  * MFA-related types for authentication flow.
- * 
+ *
  * Response types use snake_case to match Auth0 API conventions (consistent with SPA SDK).
  * SDK-facing types use camelCase.
  */
@@ -8,9 +8,17 @@
 import type { MfaRequirements } from "../errors/index.js";
 
 /**
+ * Grant type for MFA token exchange.
+ * Used in token endpoint requests to exchange an mfa_token for access/refresh tokens.
+ *
+ * @see https://auth0.com/docs/api/authentication#verify-with-one-time-password-otp-
+ */
+export const GRANT_TYPE_MFA_OTP = "http://auth0.com/oauth/grant-type/mfa-otp";
+
+/**
  * MFA verify response from Auth0.
  * Uses snake_case to match Auth0 API and SPA SDK conventions.
- * 
+ *
  * @see https://auth0.com/docs/api/authentication#verify-with-one-time-password-otp-
  */
 export interface MfaVerifyResponse {
@@ -39,7 +47,7 @@ export interface MfaClient {
   /**
    * List enrolled authenticators for the user.
    * Filters by allowed challenge types from mfa_requirements.
-   * 
+   *
    * @param options - Options containing encrypted mfaToken
    * @returns Array of authenticators
    */
@@ -47,7 +55,7 @@ export interface MfaClient {
 
   /**
    * Initiate an MFA challenge.
-   * 
+   *
    * @param options - Challenge options
    * @returns Challenge response (oobCode, bindingMethod)
    */
@@ -60,7 +68,7 @@ export interface MfaClient {
   /**
    * Verify MFA code and complete authentication.
    * Caches resulting access token in session.
-   * 
+   *
    * @param options - Verification options (otp | oobCode+bindingCode | recoveryCode)
    * @returns Token response with access token, refresh token, etc.
    */
@@ -74,8 +82,10 @@ export interface MfaClient {
 export interface Authenticator {
   /** Authenticator ID */
   id: string;
-  /** Authenticator type (otp, oob, recovery-code, etc.) */
-  type: string;
+  /** Authenticator type (primary field mapped from authenticator_type) */
+  authenticatorType: string;
+  /** Direct type value (optional, feature-flagged field from Auth0 API) */
+  type?: string;
   /** Whether authenticator is active */
   active: boolean;
   /** Authenticator name (user-defined or default) */
