@@ -96,8 +96,6 @@ export interface Authenticator {
   oobChannel?: string;
   /** ISO 8601 timestamp of creation */
   createdAt?: string;
-  /** ISO 8601 timestamp of last authentication */
-  lastAuthenticatedAt?: string;
 }
 
 /**

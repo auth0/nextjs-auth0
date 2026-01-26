@@ -2479,8 +2479,7 @@ export class AuthClient {
         name: auth.name,
         phoneNumber: auth.phone_number,
         oobChannel: auth.oob_channel,
-        createdAt: auth.created_at,
-        lastAuthenticatedAt: auth.last_auth
+        createdAt: auth.created_at
       }));
     } catch (e) {
       if (e instanceof MfaGetAuthenticatorsError) throw e;
@@ -2586,7 +2585,7 @@ export class AuthClient {
     oobCode?: string;
     bindingCode?: string;
     recoveryCode?: string;
-  }): Promise<any> {
+  }): Promise<oauth.TokenEndpointResponse> {
     const [discoveryError, authorizationServerMetadata] =
       await this.discoverAuthorizationServerMetadata();
 
