@@ -1170,9 +1170,10 @@ export class Auth0Client {
     res?: PagesRouterResponse | NextResponse
   ) {
     if (req && res) {
-      if (req instanceof NextRequest && res instanceof NextResponse) {
+      if (isRequest(req) && res instanceof NextResponse) {
         // middleware usage
-        await this.sessionStore.set(req.cookies, res.cookies, data);
+        const nextReq = toNextRequest(req);
+        await this.sessionStore.set(nextReq.cookies, res.cookies, data);
       } else {
         // pages router usage
         const resHeaders = new Headers();
