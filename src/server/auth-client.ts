@@ -2496,7 +2496,9 @@ export class AuthClient {
 
       // Filter by allowed challenge types from mfa_requirements
       const allowedTypes = new Set(
-        (context.mfaRequirements?.challenge ?? []).map(c => c.type.toLowerCase())
+        (context.mfaRequirements?.challenge ?? []).map((c) =>
+          c.type.toLowerCase()
+        )
       );
 
       // If no challenge types specified, return all (no filtering)
@@ -2506,7 +2508,8 @@ export class AuthClient {
 
       // Filter authenticators by type field
       return allAuthenticators.filter(
-        (auth: Authenticator) => auth.type && allowedTypes.has(auth.type.toLowerCase())
+        (auth: Authenticator) =>
+          auth.type && allowedTypes.has(auth.type.toLowerCase())
       );
     } catch (e) {
       if (e instanceof MfaGetAuthenticatorsError) throw e;
@@ -2543,7 +2546,9 @@ export class AuthClient {
 
     // Validate mfaRequirements has challenge types
     const allowedTypes = new Set(
-      (context.mfaRequirements?.challenge ?? []).map(c => c.type.toLowerCase())
+      (context.mfaRequirements?.challenge ?? []).map((c) =>
+        c.type.toLowerCase()
+      )
     );
 
     if (allowedTypes.size === 0) {
@@ -2620,9 +2625,7 @@ export class AuthClient {
    * @throws {MfaTokenExpiredError} If token expired
    * @throws {MfaVerifyError} On API failure or chained MFA (with new encrypted token)
    */
-  async mfaVerify(
-    options: VerifyMfaOptions
-  ): Promise<MfaVerifyResponse> {
+  async mfaVerify(options: VerifyMfaOptions): Promise<MfaVerifyResponse> {
     // Decrypt token to extract context
     const context = await decryptMfaToken(
       options.mfaToken,

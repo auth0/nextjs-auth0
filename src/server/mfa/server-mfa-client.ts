@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server.js";
-import type { AuthClient } from "../auth-client.js";
-import type { RequestCookies, ResponseCookies } from "../cookies.js";
+
 import { AccessTokenErrorCode, MfaVerifyError } from "../../errors/index.js";
 import type {
-  MfaClient,
   Authenticator,
   ChallengeResponse,
+  MfaClient,
   MfaVerifyResponse,
   VerifyMfaOptions
 } from "../../types/index.js";
+import type { AuthClient } from "../auth-client.js";
+import type { RequestCookies, ResponseCookies } from "../cookies.js";
 
 /**
  * Server-side MFA API.
@@ -132,7 +133,11 @@ export class ServerMfaClient implements MfaClient {
       token_type: response.token_type
     });
 
-    await (this.authClient as any).sessionStore.save(session, reqCookies, resCookies);
+    await (this.authClient as any).sessionStore.save(
+      session,
+      reqCookies,
+      resCookies
+    );
 
     return response;
   }

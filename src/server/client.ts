@@ -43,7 +43,6 @@ import {
 } from "./auth-client.js";
 import { RequestCookies, ResponseCookies } from "./cookies.js";
 import { AccessTokenFactory, CustomFetchImpl, Fetcher } from "./fetcher.js";
-import { ServerMfaClient } from "./mfa/server-mfa-client.js";
 import * as withApiAuthRequired from "./helpers/with-api-auth-required.js";
 import {
   appRouteHandlerFactory,
@@ -52,6 +51,7 @@ import {
   WithPageAuthRequiredAppRouterOptions,
   WithPageAuthRequiredPageRouterOptions
 } from "./helpers/with-page-auth-required.js";
+import { ServerMfaClient } from "./mfa/server-mfa-client.js";
 import { toNextRequest, toNextResponse } from "./next-compat.js";
 import {
   AbstractSessionStore,
