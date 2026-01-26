@@ -21,6 +21,11 @@ import { normalizeWithBasePath } from "../../utils/pathUtils.js";
  * const ordersToken = await getAccessToken({
  *   audience: 'https://orders-api.example.com'
  * });
+ *
+ * // Custom route - useful for multi-tenant applications
+ * const token = await getAccessToken({
+ *   route: '/tenant-a/auth/access-token'
+ * });
  * ```
  */
 export type AccessTokenOptions = {
@@ -49,6 +54,15 @@ export type AccessTokenOptions = {
    * @example 'https://orders-api.mycompany.com'
    */
   audience?: string;
+
+  /**
+   * Custom route for the access token endpoint.
+   * Useful for multi-tenant applications where different tenants require different route configurations.
+   * If not specified, falls back to the NEXT_PUBLIC_ACCESS_TOKEN_ROUTE environment variable or "/auth/access-token".
+   *
+   * @example '/tenant-a/auth/access-token'
+   */
+  route?: string;
 };
 
 type AccessTokenResponse = {
@@ -81,7 +95,9 @@ export async function getAccessToken(
   }
 
   let url = normalizeWithBasePath(
-    process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token"
+    options.route ||
+      process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE ||
+      "/auth/access-token"
   );
 
   // Only append the query string if we have any url parameters to add

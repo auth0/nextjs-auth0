@@ -5,10 +5,24 @@ import useSWR from "swr";
 import type { User } from "../../types/index.js";
 import { normalizeWithBasePath } from "../../utils/pathUtils.js";
 
-export function useUser() {
+/**
+ * Options for the useUser hook.
+ */
+export type UseUserOptions = {
+  /**
+   * Custom route for the profile endpoint.
+   * Useful for multi-tenant applications where different tenants require different route configurations.
+   * If not specified, falls back to the NEXT_PUBLIC_PROFILE_ROUTE environment variable or "/auth/profile".
+   *
+   * @example '/tenant-a/auth/profile'
+   */
+  route?: string;
+};
+
+export function useUser(options: UseUserOptions = {}) {
   const { data, error, isLoading, mutate } = useSWR<User, Error, string>(
     normalizeWithBasePath(
-      process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile"
+      options.route || process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile"
     ),
     (...args) =>
       fetch(...args).then((res) => {

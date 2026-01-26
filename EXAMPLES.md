@@ -2622,15 +2622,23 @@ export const auth0 = new Auth0Client({
     login: "/login",
     logout: "/logout",
     callback: "/callback",
-    backChannelLogout: "/backchannel-logout"
+    backChannelLogout: "/backchannel-logout",
+    profile: "/api/me",
+    accessToken: "/api/auth/token"
   }
 });
 ```
 
-> [!NOTE]  
+> [!NOTE]
 > If you customize the login url you will need to set the environment variable `NEXT_PUBLIC_LOGIN_ROUTE` to this custom value for `withPageAuthRequired` to work correctly.
 
-To configure the profile and access token routes, you must use the `NEXT_PUBLIC_PROFILE_ROUTE` and `NEXT_PUBLIC_ACCESS_TOKEN_ROUTE`, respectively. For example:
+#### Configuring routes for client-side usage
+
+When customizing the `profile` and `accessToken` routes, you need to ensure that client-side functions (`useUser`, `getAccessToken`) and the `Auth0Provider` use the correct routes. There are two approaches:
+
+**Option 1: Using environment variables (recommended for most cases)**
+
+Set the environment variables in your `.env.local` file:
 
 ```
 # .env.local
@@ -2640,7 +2648,40 @@ NEXT_PUBLIC_PROFILE_ROUTE=/api/me
 NEXT_PUBLIC_ACCESS_TOKEN_ROUTE=/api/auth/token
 ```
 
-> [!IMPORTANT]  
+**Option 2: Passing routes programmatically (recommended for multi-tenant applications)**
+
+For multi-tenant applications where routes may vary by tenant at runtime, you can pass the route directly to the client-side functions:
+
+```tsx
+import { useUser, getAccessToken, Auth0Provider } from "@auth0/nextjs-auth0/client";
+
+// In your component
+function MyComponent() {
+  const { user } = useUser({ route: "/tenant-a/auth/profile" });
+
+  const handleGetToken = async () => {
+    const token = await getAccessToken({
+      route: "/tenant-a/auth/access-token"
+    });
+  };
+
+  return <div>{user?.name}</div>;
+}
+
+// In your layout
+export default function RootLayout({ children }) {
+  return (
+    <Auth0Provider profileRoute="/tenant-a/auth/profile">
+      {children}
+    </Auth0Provider>
+  );
+}
+```
+
+> [!IMPORTANT]
+> When using `useUser` with a custom route, ensure the `Auth0Provider` is configured with the same `profileRoute` to properly initialize the SWR cache.
+
+> [!IMPORTANT]
 > Updating the route paths will also require updating the **Allowed Callback URLs** and **Allowed Logout URLs** configured in the [Auth0 Dashboard](https://manage.auth0.com) for your client.
 
 ## Testing helpers
