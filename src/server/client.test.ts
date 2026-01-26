@@ -713,6 +713,26 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       expect(client["sessionStore"].set).toHaveBeenCalledTimes(1);
     });
 
+    it("should save session with plain Request and NextResponse", async () => {
+      vi.spyOn(client["sessionStore"], "set").mockImplementation(
+        async (_reqCookies, resCookies) => {
+          resCookies.set("appSession", "updated_session_value");
+        }
+      );
+
+      const req = new Request("https://myapp.test/api/update", {
+        method: "POST",
+        headers: { cookie: "appSession=mock_session_cookie" }
+      });
+      const res = NextResponse.next();
+
+      await (client as any).saveToSession(mockSession, req as any, res as any);
+
+      expect(res.cookies.get("appSession")?.value).toBe(
+        "updated_session_value"
+      );
+    });
+
     it("should create fetcher successfully with plain Request", async () => {
       vi.spyOn(client, "getSession").mockResolvedValue(mockSession);
 
