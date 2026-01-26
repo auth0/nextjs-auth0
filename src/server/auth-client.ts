@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server.js";
+import { RequestCookies, ResponseCookies } from "@edge-runtime/cookies";
 import * as jose from "jose";
 import * as oauth from "oauth4webapi";
 import * as client from "openid-client";
@@ -417,6 +418,8 @@ export class AuthClient {
       this.dpopKeyPair = options.dpopKeyPair;
     }
   }
+
+
 
   async handler(req: NextRequest): Promise<NextResponse> {
     let { pathname } = req.nextUrl;
@@ -2625,7 +2628,36 @@ export class AuthClient {
    * @throws {MfaTokenExpiredError} If token expired
    * @throws {MfaVerifyError} On API failure or chained MFA (with new encrypted token)
    */
-  async mfaVerify(options: VerifyMfaOptions): Promise<MfaVerifyResponse> {
+  /**
+   * Verify MFA code and complete authentication.
+   *
+   * When req/res provided: Handles session management (get session, cache tokens, save).
+   * When omitted: Returns tokens without session persistence (for client-side use).
+   *
+   * @param options - Verification options (otp | oobCode+bindingCode | recoveryCode)
+   * @param reqCookies - Optional request cookies for session retrieval
+   * @param resCookies - Optional response cookies for session persistence
+   * @returns Token response
+   * @throws {MfaVerifyError} If session required but missing, or on API failure
+   * @throws {MfaRequiredError} For chained MFA (with encrypted token)
+   */
+  async mfaVerify(
+    options: VerifyMfaOptions,
+    reqCookies?: RequestCookies,
+    resCookies?: ResponseCookies
+  ): Promise<MfaVerifyResponse> {
+    // Get session if cookies provided (server-side call)
+    let session: SessionData | null = null;
+    if (reqCookies) {
+      session = await this.sessionStore.get(reqCookies);
+      if (!session) {
+        throw new MfaVerifyError(
+          AccessTokenErrorCode.MISSING_SESSION,
+          "The user does not have an active session."
+        );
+      }
+    }
+
     // Decrypt token to extract context
     const context = await decryptMfaToken(
       options.mfaToken,
@@ -2709,12 +2741,24 @@ export class AuthClient {
       );
     } catch (err: any) {
       // Handle chained MFA (subsequent mfa_required response)
-      // Throw MfaRequiredError for consistency with token endpoint error handling
       if (err.error === "mfa_required") {
-        throw new MfaRequiredError(
-          err.error_description || "Multi-factor authentication required",
+        // Re-encrypt the new mfaToken for client use
+        const encryptedToken = await encryptMfaToken(
           err.mfa_token,
-          err.mfa_requirements
+          context.audience,
+          context.scope,
+          err.mfa_requirements,
+          this.sessionStore.secret,
+          DEFAULT_MFA_CONTEXT_TTL_SECONDS
+        );
+        throw new MfaRequiredError(
+          err.error_description || "Additional MFA factor required",
+          encryptedToken,
+          err.mfa_requirements,
+          new OAuth2Error({
+            code: "mfa_required",
+            message: err.error_description
+          })
         );
       }
       throw new MfaVerifyError(
@@ -2725,6 +2769,21 @@ export class AuthClient {
           message: err.error_description
         })
       );
+    }
+
+    // Cache access token in session if cookies provided (server-side)
+    if (session && reqCookies && resCookies) {
+      session.accessTokens = session.accessTokens || [];
+      session.accessTokens.push({
+        accessToken: tokenEndpointResponse.access_token,
+        scope: tokenEndpointResponse.scope,
+        audience: (tokenEndpointResponse as any).audience || "",
+        expiresAt: Math.floor(Date.now() / 1000) + Number(tokenEndpointResponse.expires_in),
+        token_type: tokenEndpointResponse.token_type
+      });
+
+      // Persist updated session
+      await this.sessionStore.set(reqCookies, resCookies, session);
     }
 
     return tokenEndpointResponse as MfaVerifyResponse;

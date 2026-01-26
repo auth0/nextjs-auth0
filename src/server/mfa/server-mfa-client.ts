@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server.js";
 
-import { AccessTokenErrorCode, MfaVerifyError } from "../../errors/index.js";
 import type {
   Authenticator,
   ChallengeResponse,
@@ -9,7 +8,6 @@ import type {
   VerifyMfaOptions
 } from "../../types/index.js";
 import type { AuthClient } from "../auth-client.js";
-import type { RequestCookies, ResponseCookies } from "../cookies.js";
 
 /**
  * Server-side MFA API.
@@ -75,17 +73,13 @@ export class ServerMfaClient implements MfaClient {
 
   /**
    * Implementation with overload resolution.
-   * Handles session management and delegates business logic to AuthClient.
+   * Resolves cookies and delegates to AuthClient for business logic + session management.
    */
   async verify(
     arg1: VerifyMfaOptions | NextRequest,
     arg2?: NextResponse,
     arg3?: VerifyMfaOptions
   ): Promise<MfaVerifyResponse> {
-    let reqCookies: RequestCookies;
-    let resCookies: ResponseCookies;
-    let options: VerifyMfaOptions;
-
     // Determine which overload based on arg types
     if (arg1 instanceof NextRequest) {
       // Pages Router/Middleware: verify(req, res, options)
@@ -94,9 +88,8 @@ export class ServerMfaClient implements MfaClient {
           "verify(req, res, options): All three arguments required for Pages Router"
         );
       }
-      reqCookies = arg1.cookies;
-      resCookies = arg2.cookies;
-      options = arg3;
+      // Extract cookies from req/res and delegate
+      return this.authClient.mfaVerify(arg3, arg1.cookies, arg2.cookies);
     } else {
       // App Router: verify(options)
       if (arg2 !== undefined || arg3 !== undefined) {
@@ -104,41 +97,10 @@ export class ServerMfaClient implements MfaClient {
           "verify(options): Only one argument allowed for App Router"
         );
       }
+      // Get cookies from next/headers and delegate
       const { cookies } = await import("next/headers.js");
       const cookieStore = await cookies();
-      reqCookies = cookieStore as any;
-      resCookies = cookieStore as any;
-      options = arg1;
+      return this.authClient.mfaVerify(arg1, cookieStore as any, cookieStore as any);
     }
-
-    // Get session for token caching
-    const session = await (this.authClient as any).sessionStore.get(reqCookies);
-    if (!session) {
-      throw new MfaVerifyError(
-        AccessTokenErrorCode.MISSING_SESSION,
-        "The user does not have an active session."
-      );
-    }
-
-    // Call AuthClient business logic
-    const response = await this.authClient.mfaVerify(options);
-
-    // Cache access token in session
-    session.accessTokens = session.accessTokens || [];
-    session.accessTokens.push({
-      accessToken: response.access_token,
-      scope: response.scope,
-      audience: response.audience,
-      expiresAt: Math.floor(Date.now() / 1000) + Number(response.expires_in),
-      token_type: response.token_type
-    });
-
-    await (this.authClient as any).sessionStore.save(
-      session,
-      reqCookies,
-      resCookies
-    );
-
-    return response;
   }
 }
