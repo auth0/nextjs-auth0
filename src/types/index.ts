@@ -22,23 +22,6 @@ export interface AccessTokenSet {
   token_type?: string; // the type of the access token (e.g., "Bearer", "DPoP")
 }
 
-/**
- * MFA context embedded in encrypted token.
- * Self-contained with all information needed for challenge completion.
- */
-export interface MfaContext {
-  /** Raw mfa_token from Auth0 */
-  mfaToken: string;
-  /** API identifier that required MFA */
-  audience: string;
-  /** Scopes requested */
-  scope: string;
-  /** MFA requirements from Auth0 */
-  mfaRequirements: MfaRequirements | undefined;
-  /** Timestamp for TTL validation (milliseconds since epoch) */
-  createdAt: number;
-}
-
 export interface SessionData {
   user: User;
   tokenSet: TokenSet;
@@ -204,3 +187,16 @@ export {
   SUBJECT_TOKEN_TYPES
 } from "./token-vault.js";
 export { ConnectAccountOptions, RESPONSE_TYPES } from "./connected-accounts.js";
+export {
+  MfaClient,
+  Authenticator,
+  ChallengeResponse,
+  MfaVerifyResponse,
+  VerifyMfaOptions,
+  VerifyMfaOptionsBase,
+  VerifyMfaWithOtpOptions,
+  VerifyMfaWithOobOptions,
+  VerifyMfaWithRecoveryCodeOptions,
+  MfaContext
+} from "./mfa.js";
+
