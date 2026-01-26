@@ -100,7 +100,11 @@ export class ServerMfaClient implements MfaClient {
       // Get cookies from next/headers and delegate
       const { cookies } = await import("next/headers.js");
       const cookieStore = await cookies();
-      return this.authClient.mfaVerify(arg1, cookieStore as any, cookieStore as any);
+      return this.authClient.mfaVerify(
+        arg1,
+        cookieStore as any,
+        cookieStore as any
+      );
     }
   }
 }

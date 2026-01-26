@@ -419,8 +419,6 @@ export class AuthClient {
     }
   }
 
-
-
   async handler(req: NextRequest): Promise<NextResponse> {
     let { pathname } = req.nextUrl;
 
@@ -2778,7 +2776,9 @@ export class AuthClient {
         accessToken: tokenEndpointResponse.access_token,
         scope: tokenEndpointResponse.scope,
         audience: (tokenEndpointResponse as any).audience || "",
-        expiresAt: Math.floor(Date.now() / 1000) + Number(tokenEndpointResponse.expires_in),
+        expiresAt:
+          Math.floor(Date.now() / 1000) +
+          Number(tokenEndpointResponse.expires_in),
         token_type: tokenEndpointResponse.token_type
       });
 
