@@ -43,6 +43,7 @@ import {
 } from "./auth-client.js";
 import { RequestCookies, ResponseCookies } from "./cookies.js";
 import { AccessTokenFactory, CustomFetchImpl, Fetcher } from "./fetcher.js";
+import { ServerMfaClient } from "./mfa/server-mfa-client.js";
 import * as withApiAuthRequired from "./helpers/with-api-auth-required.js";
 import {
   appRouteHandlerFactory,
@@ -385,6 +386,7 @@ export class Auth0Client {
   private authClient: AuthClient;
   private routes: Routes;
   private domain: string;
+  private _mfa?: ServerMfaClient;
   #options: Auth0ClientOptions;
 
   constructor(options: Auth0ClientOptions = {}) {
@@ -897,6 +899,48 @@ export class Auth0Client {
     }
 
     return response;
+  }
+
+  /**
+   * MFA API for server-side operations.
+   *
+   * Provides access to MFA methods that require encrypted mfa_token from MfaRequiredError:
+   * - getAuthenticators: List enrolled MFA factors
+   * - challenge: Initiate MFA challenge (OTP/OOB)
+   * - verify: Complete MFA verification
+   *
+   * @example Handling MFA required scenario
+   * ```typescript
+   * try {
+   *   const { token } = await auth0.getAccessToken({ audience: 'https://api.example.com' });
+   * } catch (error) {
+   *   if (error instanceof MfaRequiredError) {
+   *     // Get available authenticators
+   *     const authenticators = await auth0.mfa.getAuthenticators({
+   *       mfaToken: error.mfa_token
+   *     });
+   *
+   *     // Initiate challenge
+   *     const challenge = await auth0.mfa.challenge({
+   *       mfaToken: error.mfa_token,
+   *       challengeType: 'otp',
+   *       authenticatorId: authenticators[0].id
+   *     });
+   *
+   *     // Verify code
+   *     const tokens = await auth0.mfa.verify({
+   *       mfaToken: error.mfa_token,
+   *       otp: '123456'
+   *     });
+   *   }
+   * }
+   * ```
+   */
+  get mfa(): ServerMfaClient {
+    if (!this._mfa) {
+      this._mfa = new ServerMfaClient(this.authClient);
+    }
+    return this._mfa;
   }
 
   /**

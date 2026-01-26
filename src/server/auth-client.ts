@@ -25,6 +25,7 @@ import {
   InvalidStateError,
   MfaChallengeError,
   MfaGetAuthenticatorsError,
+  MfaNoAvailableFactorsError,
   MfaRequiredError,
   MfaVerifyError,
   MissingStateError,
@@ -56,13 +57,15 @@ import {
   GRANT_TYPE_MFA_OTP,
   LogoutStrategy,
   LogoutToken,
+  MfaVerifyResponse,
   ProxyOptions,
   RESPONSE_TYPES,
   SessionData,
   StartInteractiveLoginOptions,
   SUBJECT_TOKEN_TYPES,
   TokenSet,
-  User
+  User,
+  VerifyMfaOptions
 } from "../types/index.js";
 import { mergeAuthorizationParamsIntoSearchParams } from "../utils/authorization-params-helpers.js";
 import {
@@ -71,6 +74,7 @@ import {
 } from "../utils/constants.js";
 import { withDPoPNonceRetry } from "../utils/dpopUtils.js";
 import {
+  decryptMfaToken,
   encryptMfaToken,
   extractMfaErrorDetails,
   isMfaRequiredError
@@ -2433,16 +2437,24 @@ export class AuthClient {
   }
 
   /**
-   * List enrolled MFA authenticators.
-   * Internal method - called by handleGetAuthenticators route.
+   * List enrolled MFA authenticators, filtered by allowed challenge types.
    *
-   * @param mfaToken - Raw MFA token from Auth0
-   * @returns Array of authenticators
-   * @throws {MfaGetAuthenticatorsError} On API failure
-   * @private
+   * @param encryptedToken - Encrypted MFA token from MfaRequiredError
+   * @returns Array of authenticators filtered by mfa_requirements
+   * @throws {MfaTokenInvalidError} If token cannot be decrypted
+   * @throws {MfaTokenExpiredError} If token expired (>5 min)
+   * @throws {MfaGetAuthenticatorsError} On Auth0 API failure
    */
-  // eslint-disable-next-line no-unused-private-class-members
-  async #getAuthenticators(mfaToken: string): Promise<Authenticator[]> {
+  async mfaGetAuthenticators(encryptedToken: string): Promise<Authenticator[]> {
+    // Decrypt token to extract context
+    const context = await decryptMfaToken(
+      encryptedToken,
+      this.sessionStore.secret
+    );
+
+    // Extract raw mfaToken for Auth0 API call
+    const mfaToken = context.mfaToken;
+
     const endpoint = new URL("/mfa/authenticators", this.issuer).toString();
     const httpOptions = this.httpOptions();
     httpOptions.headers.set("Authorization", `Bearer ${mfaToken}`);
@@ -2471,7 +2483,7 @@ export class AuthClient {
       }
 
       const authenticators = await response.json();
-      return authenticators.map((auth: any) => ({
+      const allAuthenticators = authenticators.map((auth: any) => ({
         id: auth.id,
         authenticatorType: auth.authenticator_type,
         type: auth.type,
@@ -2481,6 +2493,21 @@ export class AuthClient {
         oobChannel: auth.oob_channel,
         createdAt: auth.created_at
       }));
+
+      // Filter by allowed challenge types from mfa_requirements
+      const allowedTypes = new Set(
+        (context.mfaRequirements?.challenge ?? []).map(c => c.type.toLowerCase())
+      );
+
+      // If no challenge types specified, return all (no filtering)
+      if (allowedTypes.size === 0) {
+        return allAuthenticators;
+      }
+
+      // Filter authenticators by type field
+      return allAuthenticators.filter(
+        (auth: Authenticator) => auth.type && allowedTypes.has(auth.type.toLowerCase())
+      );
     } catch (e) {
       if (e instanceof MfaGetAuthenticatorsError) throw e;
       throw new MfaGetAuthenticatorsError(
@@ -2493,21 +2520,41 @@ export class AuthClient {
 
   /**
    * Initiate an MFA challenge.
-   * Internal method - called by handleChallenge route.
    *
-   * @param mfaToken - Raw MFA token from Auth0
+   * @param encryptedToken - Encrypted MFA token from MfaRequiredError
    * @param challengeType - Challenge type (otp, oob)
    * @param authenticatorId - Optional authenticator ID
-   * @returns Challenge response
-   * @throws {MfaChallengeError} On API failure
-   * @private
+   * @returns Challenge response (oobCode, bindingMethod)
+   * @throws {MfaTokenInvalidError} If token cannot be decrypted
+   * @throws {MfaTokenExpiredError} If token expired
+   * @throws {MfaNoAvailableFactorsError} If no challenge types available
+   * @throws {MfaChallengeError} On Auth0 API failure
    */
-  // eslint-disable-next-line no-unused-private-class-members
-  async #challenge(
-    mfaToken: string,
+  async mfaChallenge(
+    encryptedToken: string,
     challengeType: string,
     authenticatorId?: string
   ): Promise<ChallengeResponse> {
+    // Decrypt token to extract context
+    const context = await decryptMfaToken(
+      encryptedToken,
+      this.sessionStore.secret
+    );
+
+    // Validate mfaRequirements has challenge types
+    const allowedTypes = new Set(
+      (context.mfaRequirements?.challenge ?? []).map(c => c.type.toLowerCase())
+    );
+
+    if (allowedTypes.size === 0) {
+      throw new MfaNoAvailableFactorsError(
+        "No MFA challenge types available in mfa_requirements"
+      );
+    }
+
+    // Extract raw mfaToken for Auth0 API call
+    const mfaToken = context.mfaToken;
+
     const endpoint = new URL("/mfa/challenge", this.issuer).toString();
     const httpOptions = this.httpOptions();
     httpOptions.headers.set("Content-Type", "application/json");
@@ -2564,28 +2611,35 @@ export class AuthClient {
   }
 
   /**
-   * Verify MFA and exchange for tokens.
-   * Internal method - called by handleVerify route.
+   * Verify MFA code and complete authentication.
+   * Business logic only - session management handled by ServerMfaClient.
    *
-   * Uses oauth4webapi's genericTokenEndpointRequest for proper DPoP support,
-   * retry logic, and response processing (matches pattern from connection tokens
-   * and custom token exchange).
-   *
-   *
-   * @param params - Verification parameters
-   * @returns Token response (snake_case) or throws MfaRequiredError (for chained MFA)
-   * @throws {MfaVerifyError} On API failure
-   * @throws {MfaRequiredError} On chained MFA (subsequent mfa_required)
-   * @private
+   * @param options - Verification options (otp | oobCode+bindingCode | recoveryCode)
+   * @returns Token response with access token, refresh token, etc.
+   * @throws {MfaTokenInvalidError} If token cannot be decrypted
+   * @throws {MfaTokenExpiredError} If token expired
+   * @throws {MfaVerifyError} On API failure or chained MFA (with new encrypted token)
    */
-  // eslint-disable-next-line no-unused-private-class-members
-  async #verifyMfa(params: {
-    mfaToken: string;
-    otp?: string;
-    oobCode?: string;
-    bindingCode?: string;
-    recoveryCode?: string;
-  }): Promise<oauth.TokenEndpointResponse> {
+  async mfaVerify(
+    options: VerifyMfaOptions
+  ): Promise<MfaVerifyResponse> {
+    // Decrypt token to extract context
+    const context = await decryptMfaToken(
+      options.mfaToken,
+      this.sessionStore.secret
+    );
+
+    // Extract raw mfaToken for Auth0 API call
+    const mfaToken = context.mfaToken;
+
+    // Build parameters for MFA grant
+    const params = {
+      mfaToken,
+      otp: "otp" in options ? options.otp : undefined,
+      oobCode: "oobCode" in options ? options.oobCode : undefined,
+      bindingCode: "bindingCode" in options ? options.bindingCode : undefined,
+      recoveryCode: "recoveryCode" in options ? options.recoveryCode : undefined
+    };
     const [discoveryError, authorizationServerMetadata] =
       await this.discoverAuthorizationServerMetadata();
 
@@ -2597,7 +2651,6 @@ export class AuthClient {
       );
     }
 
-    // Build parameters for MFA grant
     const tokenParams = new URLSearchParams();
     tokenParams.append("mfa_token", params.mfaToken);
 
@@ -2671,10 +2724,7 @@ export class AuthClient {
       );
     }
 
-    // Return snake_case response (matches Auth0 API)
-    // oauth4webapi's TokenEndpointResponse has index signature [parameter: string]: JsonValue
-    // so extra fields like recovery_code are automatically preserved
-    return tokenEndpointResponse;
+    return tokenEndpointResponse as MfaVerifyResponse;
   }
 
   /**
