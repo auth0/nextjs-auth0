@@ -1,5 +1,13 @@
 # Change Log
 
+## [v4.14.1](https://github.com/auth0/nextjs-auth0/tree/v4.14.1) (2026-01-24)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.14.0...v4.14.1)
+
+**Fixed**
+- fix: do not throw ERR_JWE_DECRYPTION_FAILED, but catch it and ignore the cookie. [\#2487](https://github.com/auth0/nextjs-auth0/pull/2487) ([frederikprijck](https://github.com/frederikprijck))
+- fix: avoid headers.append error when using getAccessToken with refresh in Next.js 16 proxy  [\#2495](https://github.com/auth0/nextjs-auth0/pull/2495) ([nandan-bhat](https://github.com/nandan-bhat))
+- fix: removed un-intended class/type exports from the SDK [\#2475](https://github.com/auth0/nextjs-auth0/pull/2475) ([nandan-bhat](https://github.com/nandan-bhat))
+
 ## [v4.14.0](https://github.com/auth0/nextjs-auth0/tree/v4.14.0) (2025-12-15)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.13.3...v4.14.0)
 
