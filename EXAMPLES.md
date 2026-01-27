@@ -691,7 +691,7 @@ export async function middleware(request: NextRequest) {
     }
   });
 
-  // set the response cookies from the auth response
+  // append the response headers (set-cookie) from the auth response
 	authRes.headers.getSetCookie().forEach(setCookie => {
 		resWithCombinedHeaders.headers.append('set-cookie', setCookie);
 	});
@@ -863,7 +863,7 @@ export async function middleware(request: NextRequest) {
     }
   });
 
-  // set the response cookies from the auth response
+  // append the response headers (set-cookie) from the auth response
 	authRes.headers.getSetCookie().forEach(setCookie => {
 		resWithCombinedHeaders.headers.append('set-cookie', setCookie);
 	});
@@ -2900,7 +2900,7 @@ export async function middleware(request: NextRequest) {
     }
   });
 
-  // set the response cookies from the auth response
+  // append the response headers (set-cookie) from the auth response
 	authRes.headers.getSetCookie().forEach(setCookie => {
 		resWithCombinedHeaders.headers.append('set-cookie', setCookie);
 	});
