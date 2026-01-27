@@ -64,19 +64,19 @@ export async function decryptMfaToken(
   secret: string
 ): Promise<MfaContext> {
   try {
-    const result = await decrypt<MfaContext>(encryptedToken, secret);
+    const result = await decrypt<MfaContext>(
+      encryptedToken,
+      secret,
+      undefined,
+      true
+    );
 
-    // decrypt() returns null for expired tokens (ERR_JWT_EXPIRED)
-    if (!result) {
+    return result!.payload;
+  } catch (e: any) {
+    if (e.code === "ERR_JWT_EXPIRED") {
       throw new MfaTokenExpiredError();
     }
-
-    return result.payload;
-  } catch (e) {
-    if (e instanceof MfaTokenExpiredError) {
-      throw e;
-    }
-    // Any other error means tampered, malformed, or wrong secret
+    // ERR_JWE_DECRYPTION_FAILED or any other error means tampered, malformed, or wrong secret
     throw new MfaTokenInvalidError();
   }
 }

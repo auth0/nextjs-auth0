@@ -42,7 +42,8 @@ export async function encrypt(
 export async function decrypt<T>(
   cookieValue: string,
   secret: string,
-  options?: jose.JWTDecryptOptions
+  options?: jose.JWTDecryptOptions,
+  throwOnJWEErrors?: boolean
 ) {
   try {
     const encryptionSecret = await hkdf(
@@ -60,6 +61,10 @@ export async function decrypt<T>(
 
     return cookie;
   } catch (e: any) {
+    // When throwOnJWEErrors is true, throw the original error to preserve granular error codes
+    if (throwOnJWEErrors) {
+      throw e;
+    }
     // When the JWE can not be decrypted or has expired, return null to indicate an invalid cookie and treat it as non-existent.
     if (
       e.code === "ERR_JWE_DECRYPTION_FAILED" ||
