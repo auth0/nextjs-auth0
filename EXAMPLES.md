@@ -1211,8 +1211,6 @@ This ensures that the token you send is guaranteed to be valid for at least the 
 
 ## Multi-Factor Authentication (MFA)
 
-Start by checking out the [MFA example app](./examples/mfa) for a complete working demo.
-
 ### Step-up Authentication
 
 Step-up authentication is a pattern where an application allows access to some resources with potential sensitive data, but requires the user to authenticate with a stronger mechanism (like MFA) to access others.
