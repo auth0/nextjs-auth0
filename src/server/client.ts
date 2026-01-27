@@ -466,6 +466,12 @@ export class Auth0Client {
       accessToken:
         process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
       connectAccount: "/auth/connect",
+      mfaAuthenticators:
+        process.env.NEXT_PUBLIC_MFA_AUTHENTICATORS_ROUTE ||
+        "/auth/mfa/authenticators",
+      mfaChallenge:
+        process.env.NEXT_PUBLIC_MFA_CHALLENGE_ROUTE || "/auth/mfa/challenge",
+      mfaVerify: process.env.NEXT_PUBLIC_MFA_VERIFY_ROUTE || "/auth/mfa/verify",
       ...options.routes
     };
 

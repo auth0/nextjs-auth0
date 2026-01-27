@@ -181,6 +181,9 @@ export interface Routes {
   accessToken: string;
   backChannelLogout: string;
   connectAccount: string;
+  mfaAuthenticators: string;
+  mfaChallenge: string;
+  mfaVerify: string;
 }
 export type RoutesOptions = Partial<
   Pick<
@@ -462,15 +465,18 @@ export class AuthClient {
       return this.handleConnectAccount(req);
     } else if (
       method === "GET" &&
-      sanitizedPathname === "/auth/mfa/authenticators"
+      sanitizedPathname === this.routes.mfaAuthenticators
     ) {
       return this.handleGetAuthenticators(req);
     } else if (
       method === "POST" &&
-      sanitizedPathname === "/auth/mfa/challenge"
+      sanitizedPathname === this.routes.mfaChallenge
     ) {
       return this.handleChallenge(req);
-    } else if (method === "POST" && sanitizedPathname === "/auth/mfa/verify") {
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.mfaVerify
+    ) {
       return this.handleVerify(req);
     } else if (sanitizedPathname.startsWith("/me/")) {
       return this.handleMyAccount(req);
