@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server.js";
 import type {
   Authenticator,
   ChallengeResponse,
+  EnrollmentResponse,
+  EnrollOptions,
   MfaClient,
   MfaVerifyResponse,
   VerifyMfaOptions
@@ -45,6 +47,33 @@ export class ServerMfaClient implements MfaClient {
       options.challengeType,
       options.authenticatorId
     );
+  }
+
+  /**
+   * Delete an enrolled MFA authenticator.
+   *
+   * @param options - Delete options containing encrypted mfaToken and authenticatorId
+   * @returns Promise that resolves when deletion succeeds
+   */
+  async deleteAuthenticator(options: {
+    mfaToken: string;
+    authenticatorId: string;
+  }): Promise<void> {
+    return this.authClient.mfaDeleteAuthenticator(
+      options.mfaToken,
+      options.authenticatorId
+    );
+  }
+
+  /**
+   * Enroll a new MFA authenticator.
+   *
+   * @param options - Enrollment options (otp | oob | email)
+   * @returns Enrollment response with authenticator details and optional recovery codes
+   */
+  async enroll(options: EnrollOptions): Promise<EnrollmentResponse> {
+    const { mfaToken, ...enrollOptions } = options;
+    return this.authClient.mfaEnroll(mfaToken, enrollOptions);
   }
 
   /**

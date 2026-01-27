@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server.js";
 
 import {
+  InvalidRequestError,
   MfaChallengeError,
   MfaGetAuthenticatorsError,
   MfaNoAvailableFactorsError,
@@ -152,6 +153,7 @@ export function getMfaErrorStatusCode(error: Error): number {
   }
 
   if (
+    error instanceof InvalidRequestError ||
     error instanceof MfaNoAvailableFactorsError ||
     error instanceof MfaGetAuthenticatorsError ||
     error instanceof MfaChallengeError ||
@@ -165,36 +167,9 @@ export function getMfaErrorStatusCode(error: Error): number {
 }
 
 /**
- * Serialize MFA error to HTTP response body.
- *
- * Handles special cases like MfaRequiredError.toJSON() for chained MFA.
- *
- * @param error - Error instance
- * @returns Error response body
- */
-export function serializeMfaError(error: Error): {
-  error: string;
-  error_description: string;
-  mfa_token?: string;
-  mfa_requirements?: MfaRequirements;
-} {
-  if (error instanceof MfaRequiredError) {
-    // Use toJSON() for chained MFA (includes encrypted mfa_token)
-    return error.toJSON();
-  }
-
-  // Standard SDK error serialization
-  const sdkError = error as SdkError;
-  return {
-    error: sdkError.code || "server_error",
-    error_description: sdkError.message || "Internal server error"
-  };
-}
-
-/**
  * Handle MFA errors and format response.
  *
- * Wraps non-SDK errors for consistent shape, then uses utilities for serialization.
+ * Wraps non-SDK errors for consistent shape, uses error.toJSON() for serialization.
  *
  * @param e - Error thrown by business logic
  * @returns NextResponse with error details
@@ -208,9 +183,16 @@ export function handleMfaError(e: unknown): NextResponse {
     });
   }
 
-  const error = e as Error;
+  const error = e as SdkError;
   const status = getMfaErrorStatusCode(error);
-  const body = serializeMfaError(error);
+
+  // MfaRequiredError has toJSON() with mfa_token + mfa_requirements
+  // MfaError subclasses have toJSON() with error + error_description
+  // Other SdkErrors fallback to generic shape
+  const body = (error as any).toJSON?.() ?? {
+    error: error.code || "server_error",
+    error_description: error.message || "Internal server error"
+  };
 
   return NextResponse.json(body, { status });
 }

@@ -25,6 +25,8 @@ import {
   DPoPErrorCode,
   InvalidStateError,
   MfaChallengeError,
+  MfaDeleteAuthenticatorError,
+  MfaEnrollmentError,
   MfaGetAuthenticatorsError,
   MfaNoAvailableFactorsError,
   MfaRequiredError,
@@ -53,9 +55,15 @@ import {
   ConnectionTokenSet,
   CustomTokenExchangeOptions,
   CustomTokenExchangeResponse,
+  EnrollEmailOptions,
+  EnrollmentResponse,
+  EnrollOobOptions,
+  EnrollOptions,
   GetAccessTokenOptions,
   GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE,
+  GRANT_TYPE_MFA_OOB,
   GRANT_TYPE_MFA_OTP,
+  GRANT_TYPE_MFA_RECOVERY_CODE,
   LogoutStrategy,
   LogoutToken,
   MfaVerifyResponse,
@@ -75,12 +83,25 @@ import {
 } from "../utils/constants.js";
 import { withDPoPNonceRetry } from "../utils/dpopUtils.js";
 import {
+  buildEnrollmentResponse,
+  buildEnrollOptions,
+  camelizeAuthenticator,
+  camelizeChallengeResponse
+} from "../utils/mfa-transform-utils.js";
+import {
   decryptMfaToken,
   encryptMfaToken,
   extractMfaErrorDetails,
   handleMfaError,
   isMfaRequiredError
 } from "../utils/mfa-utils.js";
+import {
+  extractBearerToken,
+  extractPathParam,
+  validateArrayField,
+  validateStringField,
+  validateVerificationCredential
+} from "../utils/mfa-validation-utils.js";
 import {
   ensureNoLeadingSlash,
   ensureTrailingSlash,
@@ -184,6 +205,7 @@ export interface Routes {
   mfaAuthenticators: string;
   mfaChallenge: string;
   mfaVerify: string;
+  mfaEnroll: string;
 }
 export type RoutesOptions = Partial<
   Pick<
@@ -469,10 +491,20 @@ export class AuthClient {
     ) {
       return this.handleGetAuthenticators(req);
     } else if (
+      method === "DELETE" &&
+      sanitizedPathname.startsWith(this.routes.mfaAuthenticators + "/")
+    ) {
+      return this.handleDeleteAuthenticator(req, sanitizedPathname);
+    } else if (
       method === "POST" &&
       sanitizedPathname === this.routes.mfaChallenge
     ) {
       return this.handleChallenge(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.mfaEnroll
+    ) {
+      return this.handleEnroll(req);
     } else if (
       method === "POST" &&
       sanitizedPathname === this.routes.mfaVerify
@@ -984,24 +1016,33 @@ export class AuthClient {
    */
   async handleGetAuthenticators(req: NextRequest): Promise<NextResponse> {
     try {
-      // Extract Bearer token from Authorization header
-      const authHeader = req.headers.get("Authorization");
-      if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        return NextResponse.json(
-          {
-            error: "invalid_request",
-            error_description: "Missing or invalid Authorization header"
-          },
-          { status: 401 }
-        );
-      }
-
-      const mfaToken = authHeader.substring(7);
-
-      // Delegate to business logic
+      const mfaToken = extractBearerToken(req);
       const authenticators = await this.mfaGetAuthenticators(mfaToken);
-
       return NextResponse.json(authenticators);
+    } catch (e) {
+      return handleMfaError(e);
+    }
+  }
+
+  /**
+   * Route: DELETE /auth/mfa/authenticators/:id
+   * Deletes an enrolled MFA authenticator.
+   *
+   * Headers:
+   *   Authorization: Bearer <encrypted-mfa-token>
+   *
+   * Response: 204 No Content
+   * Error: 400/401 + {error, error_description}
+   */
+  async handleDeleteAuthenticator(
+    req: NextRequest,
+    pathname: string
+  ): Promise<NextResponse> {
+    try {
+      const authenticatorId = extractPathParam(pathname, "authenticator ID");
+      const mfaToken = extractBearerToken(req);
+      await this.mfaDeleteAuthenticator(mfaToken, authenticatorId);
+      return new NextResponse(null, { status: 204 });
     } catch (e) {
       return handleMfaError(e);
     }
@@ -1018,38 +1059,49 @@ export class AuthClient {
    */
   async handleChallenge(req: NextRequest): Promise<NextResponse> {
     try {
-      // Parse request body
       const body = await req.json();
-      const { mfaToken, challengeType, authenticatorId } = body;
-
-      // Validate required fields
-      if (!mfaToken || typeof mfaToken !== "string") {
-        return NextResponse.json(
-          {
-            error: "invalid_request",
-            error_description: "Missing or invalid mfaToken"
-          },
-          { status: 400 }
-        );
-      }
-
-      if (!challengeType || typeof challengeType !== "string") {
-        return NextResponse.json(
-          {
-            error: "invalid_request",
-            error_description: "Missing or invalid challengeType"
-          },
-          { status: 400 }
-        );
-      }
-
-      // Delegate to business logic
+      const mfaToken = validateStringField(body.mfaToken, "mfaToken");
+      const challengeType = validateStringField(
+        body.challengeType,
+        "challengeType"
+      );
       const result = await this.mfaChallenge(
         mfaToken,
         challengeType,
-        authenticatorId
+        body.authenticatorId
+      );
+      return NextResponse.json(result);
+    } catch (e) {
+      return handleMfaError(e);
+    }
+  }
+
+  /**
+   * Route: POST /auth/mfa/enroll
+   * Enrolls a new MFA authenticator.
+   *
+   * Body: {mfaToken, authenticatorTypes, oobChannels?, phoneNumber?, email?}
+   *
+   * Response: 200 + EnrollmentResponse
+   * Error: 400 + {error, error_description}
+   */
+  async handleEnroll(req: NextRequest): Promise<NextResponse> {
+    try {
+      const body = await req.json();
+      const mfaToken = validateStringField(body.mfaToken, "mfaToken");
+      const authenticatorTypes = validateArrayField(
+        body.authenticatorTypes,
+        "authenticatorTypes"
       );
 
+      const authenticatorType = authenticatorTypes[0];
+      const [enrollOptions, errorResponse] = buildEnrollOptions(
+        body,
+        authenticatorType
+      );
+      if (errorResponse) return errorResponse;
+
+      const result = await this.mfaEnroll(mfaToken, enrollOptions);
       return NextResponse.json(result);
     } catch (e) {
       return handleMfaError(e);
@@ -1067,50 +1119,15 @@ export class AuthClient {
    */
   async handleVerify(req: NextRequest): Promise<NextResponse> {
     try {
-      // Parse request body
       const body = await req.json();
-      const { mfaToken } = body;
+      validateStringField(body.mfaToken, "mfaToken");
+      validateVerificationCredential(body);
 
-      // Validate mfaToken
-      if (!mfaToken || typeof mfaToken !== "string") {
-        return NextResponse.json(
-          {
-            error: "invalid_request",
-            error_description: "Missing or invalid mfaToken"
-          },
-          { status: 400 }
-        );
-      }
-
-      // Validate verification credential (one of otp, oobCode+bindingCode, recoveryCode)
-      const hasOtp = "otp" in body && typeof body.otp === "string";
-      const hasOob =
-        "oobCode" in body &&
-        typeof body.oobCode === "string" &&
-        "bindingCode" in body &&
-        typeof body.bindingCode === "string";
-      const hasRecovery =
-        "recoveryCode" in body && typeof body.recoveryCode === "string";
-
-      if (!hasOtp && !hasOob && !hasRecovery) {
-        return NextResponse.json(
-          {
-            error: "invalid_request",
-            error_description:
-              "Missing verification credential (otp, oobCode+bindingCode, or recoveryCode required)"
-          },
-          { status: 400 }
-        );
-      }
-
-      // Delegate to ServerMfaClient which handles session management
       const result = await this.mfaVerify(
         body,
         req.cookies,
         NextResponse.next().cookies
       );
-
-      // Return success response (session cookies set by mfaVerify)
       return NextResponse.json(result);
     } catch (e) {
       return handleMfaError(e);
@@ -2638,26 +2655,12 @@ export class AuthClient {
         throw new MfaGetAuthenticatorsError(
           errorBody.error || "unknown_error",
           errorBody.error_description || "Failed to retrieve authenticators",
-          errorBody.error
-            ? new OAuth2Error({
-                code: errorBody.error,
-                message: errorBody.error_description
-              })
-            : undefined
+          errorBody.error ? errorBody : undefined
         );
       }
 
       const authenticators = await response.json();
-      const allAuthenticators = authenticators.map((auth: any) => ({
-        id: auth.id,
-        authenticatorType: auth.authenticator_type,
-        type: auth.type,
-        active: auth.active,
-        name: auth.name,
-        phoneNumber: auth.phone_number,
-        oobChannel: auth.oob_channel,
-        createdAt: auth.created_at
-      }));
+      const allAuthenticators = authenticators.map(camelizeAuthenticator);
 
       // Filter by allowed challenge types from mfa_requirements
       const allowedTypes = new Set(
@@ -2681,7 +2684,7 @@ export class AuthClient {
       throw new MfaGetAuthenticatorsError(
         "unexpected_error",
         "Unexpected error during authenticator retrieval",
-        e instanceof Error ? e : undefined
+        undefined
       );
     }
   }
@@ -2753,43 +2756,160 @@ export class AuthClient {
         throw new MfaChallengeError(
           errorBody.error || "unknown_error",
           errorBody.error_description || "Failed to initiate MFA challenge",
-          errorBody.error
-            ? new OAuth2Error({
-                code: errorBody.error,
-                message: errorBody.error_description
-              })
-            : undefined
+          errorBody.error ? errorBody : undefined
         );
       }
 
       const result = await response.json();
-
-      // Map response to SDK types (camelCase)
-      return {
-        challengeType: result.challenge_type,
-        oobCode: result.oob_code,
-        bindingMethod: result.binding_method
-      };
+      return camelizeChallengeResponse(result);
     } catch (e) {
       if (e instanceof MfaChallengeError) throw e;
       throw new MfaChallengeError(
         "unexpected_error",
         "Unexpected error during MFA challenge",
-        e instanceof Error ? e : undefined
+        undefined
       );
     }
   }
 
   /**
-   * Verify MFA code and complete authentication.
-   * Business logic only - session management handled by ServerMfaClient.
+   * Delete an enrolled MFA authenticator.
+   * First-time deletion only (requires mfa_token, not access token).
    *
-   * @param options - Verification options (otp | oobCode+bindingCode | recoveryCode)
-   * @returns Token response with access token, refresh token, etc.
+   * @param encryptedToken - Encrypted MFA token from MfaRequiredError
+   * @param authenticatorId - Authenticator ID to delete
    * @throws {MfaTokenInvalidError} If token cannot be decrypted
    * @throws {MfaTokenExpiredError} If token expired
-   * @throws {MfaVerifyError} On API failure or chained MFA (with new encrypted token)
+   * @throws {MfaDeleteAuthenticatorError} On Auth0 API failure
    */
+  async mfaDeleteAuthenticator(
+    encryptedToken: string,
+    authenticatorId: string
+  ): Promise<void> {
+    // Decrypt token to extract context
+    const context = await decryptMfaToken(
+      encryptedToken,
+      this.sessionStore.secret
+    );
+
+    // Extract raw mfaToken for Auth0 API call
+    const mfaToken = context.mfaToken;
+
+    const endpoint = new URL(
+      `/mfa/authenticators/${authenticatorId}`,
+      this.issuer
+    ).toString();
+    const httpOptions = this.httpOptions();
+    httpOptions.headers.set("Authorization", `Bearer ${mfaToken}`);
+
+    try {
+      const response = await this.fetch(endpoint, {
+        method: "DELETE",
+        ...httpOptions
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({
+          error: "unknown_error",
+          error_description: "Failed to delete authenticator"
+        }));
+        throw new MfaDeleteAuthenticatorError(
+          errorBody.error || "unknown_error",
+          errorBody.error_description || "Failed to delete authenticator",
+          errorBody.error ? errorBody : undefined
+        );
+      }
+
+      // Success: 204 No Content (no response body)
+    } catch (e) {
+      if (e instanceof MfaDeleteAuthenticatorError) throw e;
+      throw new MfaDeleteAuthenticatorError(
+        "unexpected_error",
+        "Unexpected error during authenticator deletion",
+        undefined
+      );
+    }
+  }
+
+  /**
+   * Enroll a new MFA authenticator during initial MFA setup.
+   * First-time enrollment only (requires mfa_token, not access token).
+   *
+   * @param encryptedToken - Encrypted MFA token from MfaRequiredError
+   * @param options - Enrollment options (otp | oob | email)
+   * @returns Enrollment response with authenticator details and optional recovery codes
+   * @throws {MfaTokenInvalidError} If token cannot be decrypted
+   * @throws {MfaTokenExpiredError} If token expired
+   * @throws {MfaEnrollmentError} On Auth0 API failure
+   */
+  async mfaEnroll(
+    encryptedToken: string,
+    options: Omit<EnrollOptions, "mfaToken">
+  ): Promise<EnrollmentResponse> {
+    // Decrypt token to extract context
+    const context = await decryptMfaToken(
+      encryptedToken,
+      this.sessionStore.secret
+    );
+
+    // Extract raw mfaToken for Auth0 API call
+    const mfaToken = context.mfaToken;
+
+    const endpoint = new URL(`/mfa/associate`, this.issuer).toString();
+    const httpOptions = this.httpOptions();
+    httpOptions.headers.set("Authorization", `Bearer ${mfaToken}`);
+    httpOptions.headers.set("Content-Type", "application/json");
+
+    // Build request body based on enrollment type
+    const body: Record<string, any> = {
+      authenticator_types: options.authenticatorTypes
+    };
+
+    // Add type-specific fields with type narrowing
+    if ("oobChannels" in options) {
+      const oobOptions = options as EnrollOobOptions;
+      body.oob_channels = oobOptions.oobChannels;
+      if (oobOptions.phoneNumber) {
+        body.phone_number = oobOptions.phoneNumber;
+      }
+    } else if ("email" in options) {
+      const emailOptions = options as EnrollEmailOptions;
+      if (emailOptions.email) {
+        body.email = emailOptions.email;
+      }
+    }
+
+    try {
+      const response = await this.fetch(endpoint, {
+        method: "POST",
+        body: JSON.stringify(body),
+        ...httpOptions
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({
+          error: "unknown_error",
+          error_description: "Failed to enroll authenticator"
+        }));
+        throw new MfaEnrollmentError(
+          errorBody.error || "unknown_error",
+          errorBody.error_description || "Failed to enroll authenticator",
+          errorBody.error ? errorBody : undefined
+        );
+      }
+
+      const result = await response.json();
+      return buildEnrollmentResponse(result);
+    } catch (e) {
+      if (e instanceof MfaEnrollmentError) throw e;
+      throw new MfaEnrollmentError(
+        "unexpected_error",
+        "Unexpected error during MFA enrollment",
+        undefined
+      );
+    }
+  }
+
   /**
    * Verify MFA code and complete authentication.
    *
@@ -2808,7 +2928,7 @@ export class AuthClient {
     reqCookies?: RequestCookies,
     resCookies?: ResponseCookies
   ): Promise<MfaVerifyResponse> {
-    // Get session if cookies provided (server-side call)
+    // Get session if cookies provided
     let session: SessionData | null = null;
     if (reqCookies) {
       session = await this.sessionStore.get(reqCookies);
@@ -2857,21 +2977,31 @@ export class AuthClient {
       throw new MfaVerifyError(
         "discovery_error",
         "Failed to discover authorization server metadata",
-        discoveryError
+        undefined
       );
     }
 
     const tokenParams = new URLSearchParams();
     tokenParams.append("mfa_token", params.mfaToken);
 
-    // Add verification credential based on type
+    // Determine grant type and add verification credential
+    let grantType: string;
     if (params.otp) {
+      grantType = GRANT_TYPE_MFA_OTP;
       tokenParams.append("otp", params.otp);
     } else if (params.oobCode && params.bindingCode) {
+      grantType = GRANT_TYPE_MFA_OOB;
       tokenParams.append("oob_code", params.oobCode);
       tokenParams.append("binding_code", params.bindingCode);
     } else if (params.recoveryCode) {
+      grantType = GRANT_TYPE_MFA_RECOVERY_CODE;
       tokenParams.append("recovery_code", params.recoveryCode);
+    } else {
+      // This case should never happen - validated earlier in handleVerify
+      throw new MfaVerifyError(
+        "invalid_request",
+        "No verification credential provided"
+      );
     }
 
     // Create DPoP handle ONCE outside the closure so it persists across retries.
@@ -2883,7 +3013,6 @@ export class AuthClient {
         : undefined;
 
     // Execute MFA token exchange with DPoP retry support
-    // CRITICAL: Retry wrapper must encompass BOTH request AND response processing
     let tokenEndpointResponse: oauth.TokenEndpointResponse;
     try {
       tokenEndpointResponse = await withDPoPNonceRetry(
@@ -2892,7 +3021,7 @@ export class AuthClient {
             authorizationServerMetadata,
             this.clientMetadata,
             await this.getClientAuth(),
-            GRANT_TYPE_MFA_OTP,
+            grantType,
             tokenParams,
             {
               ...this.httpOptions(),
@@ -2939,10 +3068,7 @@ export class AuthClient {
       throw new MfaVerifyError(
         err.error || "unknown_error",
         err.error_description || "MFA verification failed",
-        new OAuth2Error({
-          code: err.error || "unknown_error",
-          message: err.error_description
-        })
+        err.error ? err : undefined
       );
     }
 

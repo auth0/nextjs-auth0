@@ -8,12 +8,104 @@
 import type { MfaRequirements } from "../errors/index.js";
 
 /**
+ * Auth0 MFA API response types (snake_case).
+ * These represent raw API responses before transformation to SDK types.
+ */
+
+/**
+ * Authenticator response from Auth0 API (snake_case).
+ * Maps to {@link Authenticator} in SDK-facing interface.
+ */
+export interface AuthenticatorApiResponse {
+  /** Authenticator ID */
+  id: string;
+  /** Authenticator type (primary field) */
+  authenticator_type: string;
+  /** Direct type value (optional, feature-flagged field) */
+  type?: string;
+  /** Whether authenticator is active */
+  active: boolean;
+  /** Authenticator name (user-defined or default) */
+  name?: string;
+  /** Phone number for OOB (masked) */
+  phone_number?: string;
+  /** OOB channel (sms, voice) */
+  oob_channel?: string;
+  /** ISO 8601 timestamp of creation */
+  created_at?: string;
+}
+
+/**
+ * Challenge response from Auth0 API (snake_case).
+ * Maps to {@link ChallengeResponse} in SDK-facing interface.
+ */
+export interface ChallengeApiResponse {
+  /** Challenge type (otp, oob) */
+  challenge_type: string;
+  /** OOB code (for oob challenges) */
+  oob_code?: string;
+  /** Binding method (for oob challenges) */
+  binding_method?: string;
+}
+
+/**
+ * Enrollment response from Auth0 API (snake_case).
+ * Maps to {@link EnrollmentResponse} in SDK-facing interface.
+ */
+export interface EnrollmentApiResponse {
+  /** Authenticator type discriminator */
+  authenticator_type: "otp" | "oob" | "email";
+  /** Authenticator ID */
+  id: string;
+  /** Recovery codes (first enrollment only) */
+  recovery_codes?: string[];
+  /** TOTP secret (otp only - required for otp) */
+  secret?: string;
+  /** Barcode URI (otp only - required for otp) */
+  barcode_uri?: string;
+  /** OOB channel (oob only - required for oob) */
+  oob_channel?: "sms" | "voice" | "auth0";
+  /** Authenticator name (oob/email only) */
+  name?: string;
+}
+
+/**
+ * Request body for verify endpoint (pre-validation).
+ * Contains at least one verification credential.
+ */
+export interface VerifyCredentialBody {
+  /** OTP code (6 digits) */
+  otp?: string;
+  /** OOB code from challenge */
+  oobCode?: string;
+  /** Binding code for OOB */
+  bindingCode?: string;
+  /** Recovery code */
+  recoveryCode?: string;
+}
+
+/**
  * Grant type for MFA token exchange.
  * Used in token endpoint requests to exchange an mfa_token for access/refresh tokens.
  *
  * @see https://auth0.com/docs/api/authentication#verify-with-one-time-password-otp-
  */
 export const GRANT_TYPE_MFA_OTP = "http://auth0.com/oauth/grant-type/mfa-otp";
+
+/**
+ * Grant type for MFA OOB (SMS/Email/Push) verification.
+ *
+ * @see https://auth0.com/docs/api/authentication#verify-with-oob
+ */
+export const GRANT_TYPE_MFA_OOB = "http://auth0.com/oauth/grant-type/mfa-oob";
+
+/**
+ * Grant type for MFA recovery code verification.
+ *
+ * @see https://auth0.com/docs/api/authentication#verify-with-recovery-code
+ */
+export const GRANT_TYPE_MFA_RECOVERY_CODE =
+  "http://auth0.com/oauth/grant-type/mfa-recovery-code";
 
 /**
  * MFA verify response from Auth0.
@@ -41,6 +133,104 @@ export interface MfaVerifyResponse {
 }
 
 /**
+ * Enroll OTP authenticator (TOTP app like Authy/Google Authenticator).
+ */
+export interface EnrollOtpOptions {
+  /** Encrypted MFA token */
+  mfaToken: string;
+  /** Authenticator types to enroll */
+  authenticatorTypes: ["otp"];
+}
+
+/**
+ * Enroll OOB authenticator (SMS/Voice/Push).
+ */
+export interface EnrollOobOptions {
+  /** Encrypted MFA token */
+  mfaToken: string;
+  /** Authenticator types to enroll */
+  authenticatorTypes: ["oob"];
+  /** OOB channels (sms, voice, auth0) */
+  oobChannels: ("sms" | "voice" | "auth0")[];
+  /** Phone number in E.164 format (required for sms/voice) */
+  phoneNumber?: string;
+}
+
+/**
+ * Enroll Email authenticator.
+ */
+export interface EnrollEmailOptions {
+  /** Encrypted MFA token */
+  mfaToken: string;
+  /** Authenticator types to enroll */
+  authenticatorTypes: ["email"];
+  /** Email address (optional - uses user's email if not provided) */
+  email?: string;
+}
+
+/**
+ * MFA enrollment options (discriminated union).
+ */
+export type EnrollOptions =
+  | EnrollOtpOptions
+  | EnrollOobOptions
+  | EnrollEmailOptions;
+
+/**
+ * OTP enrollment response.
+ */
+export interface OtpEnrollmentResponse {
+  /** Authenticator type discriminator */
+  authenticatorType: "otp";
+  /** TOTP secret (for QR code generation) */
+  secret: string;
+  /** Barcode URI (otpauth:// format) */
+  barcodeUri: string;
+  /** Recovery codes (first enrollment only) */
+  recoveryCodes?: string[];
+  /** Authenticator ID */
+  id: string;
+}
+
+/**
+ * OOB enrollment response (SMS/Voice/Push).
+ */
+export interface OobEnrollmentResponse {
+  /** Authenticator type discriminator */
+  authenticatorType: "oob";
+  /** OOB channel */
+  oobChannel: "sms" | "voice" | "auth0";
+  /** Recovery codes (first enrollment only) */
+  recoveryCodes?: string[];
+  /** Authenticator ID */
+  id: string;
+  /** Authenticator name */
+  name?: string;
+}
+
+/**
+ * Email enrollment response.
+ */
+export interface EmailEnrollmentResponse {
+  /** Authenticator type discriminator */
+  authenticatorType: "email";
+  /** Recovery codes (first enrollment only) */
+  recoveryCodes?: string[];
+  /** Authenticator ID */
+  id: string;
+  /** Authenticator name */
+  name?: string;
+}
+
+/**
+ * MFA enrollment response (discriminated union).
+ */
+export type EnrollmentResponse =
+  | OtpEnrollmentResponse
+  | OobEnrollmentResponse
+  | EmailEnrollmentResponse;
+
+/**
  * MFA client interface available in both server and client contexts.
  */
 export interface MfaClient {
@@ -66,6 +256,17 @@ export interface MfaClient {
   }): Promise<ChallengeResponse>;
 
   /**
+   * Delete an enrolled MFA authenticator.
+   *
+   * @param options - Delete options containing encrypted mfaToken and authenticatorId
+   * @returns Promise that resolves when deletion succeeds
+   */
+  deleteAuthenticator(options: {
+    mfaToken: string;
+    authenticatorId: string;
+  }): Promise<void>;
+
+  /**
    * Verify MFA code and complete authentication.
    * Caches resulting access token in session.
    *
@@ -73,6 +274,14 @@ export interface MfaClient {
    * @returns Token response with access token, refresh token, etc.
    */
   verify(options: VerifyMfaOptions): Promise<MfaVerifyResponse>;
+
+  /**
+   * Enroll a new MFA authenticator during initial MFA setup.
+   *
+   * @param options - Enrollment options (otp | oob | email)
+   * @returns Enrollment response with authenticator details and optional recovery codes
+   */
+  enroll(options: EnrollOptions): Promise<EnrollmentResponse>;
 }
 
 /**

@@ -614,5 +614,9 @@ export {
   MfaGetAuthenticatorsError,
   MfaChallengeError,
   MfaVerifyError,
-  MfaNoAvailableFactorsError
+  MfaEnrollmentError,
+  MfaNoAvailableFactorsError,
+  MfaDeleteAuthenticatorError,
+  type MfaApiErrorResponse
 } from "./mfa.js";
+export { InvalidRequestError } from "./invalid-request-error.js";
