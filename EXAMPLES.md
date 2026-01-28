@@ -1273,30 +1273,9 @@ Enforcing **"Always"** or **"All Applications"** in your global Tenant MFA Polic
 
 **Example Action Code:**
 ```javascript
-/**
- * MFA Step-up Action
- * Set your target audience in `event.secrets.TARGET_AUDIENCE`
- * 
- * ONLY triggers MFA on refresh_token grants for protected audience.
- * This prevents UL challenge during initial login, enabling proper step-up flow.
- * 
- * Flow:
- * 1. User requests protected API → SDK uses refresh_token grant
- * 2. Action triggers on refresh_token → challengeWithAny() → mfa_required error
- * 3. SDK handles enrollment/verification via Management API
- */
 exports.onExecutePostLogin = async (event, api) => {
   const grantType = event.request?.body?.grant_type;
-  const targetAudience = event.secrets.TARGET_AUDIENCE;
-  
-  // Check if this authorization request is for the protected API
-  const requestedAudience = event.transaction?.requested_audience || 
-                            event.request?.query?.audience ||
-                            (event.resource_server?.identifier);
-  
-  // ONLY trigger on refresh_token grant for protected audience
-  if (grantType === 'refresh_token' && requestedAudience && requestedAudience.includes(targetAudience)) {
-    
+  if (grantType === 'refresh_token') {
     // Check if user has enrolled factors
     const enrolledFactors = event.user.multifactor || [];
     
