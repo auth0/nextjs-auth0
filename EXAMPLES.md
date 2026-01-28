@@ -684,10 +684,17 @@ export async function middleware(request: NextRequest) {
     }
   });
 
-  // set the response headers (set-cookie) from the auth response
+  // set the response headers (except set-cookie) from the auth response
   authRes.headers.forEach((value, key) => {
-    resWithCombinedHeaders.headers.set(key, value);
+    if (key.toLowerCase() !== 'set-cookie') {
+      resWithCombinedHeaders.headers.set(key, value);
+    }
   });
+
+  // append the response headers (set-cookie) from the auth response
+	authRes.headers.getSetCookie().forEach(setCookie => {
+		resWithCombinedHeaders.headers.append('set-cookie', setCookie);
+	});
 
   // the headers from the auth middleware should always be returned
   return resWithCombinedHeaders;
@@ -876,10 +883,17 @@ export async function middleware(request: NextRequest) {
     }
   });
 
-  // set the response headers (set-cookie) from the auth response
+  // set the response headers (except set-cookie) from the auth response
   authRes.headers.forEach((value, key) => {
-    resWithCombinedHeaders.headers.set(key, value);
+    if (key.toLowerCase() !== 'set-cookie') {
+      resWithCombinedHeaders.headers.set(key, value);
+    }
   });
+
+  // append the response headers (set-cookie) from the auth response
+	authRes.headers.getSetCookie().forEach(setCookie => {
+		resWithCombinedHeaders.headers.append('set-cookie', setCookie);
+	});
 
   // the headers from the auth middleware should always be returned
   return resWithCombinedHeaders;
@@ -2909,10 +2923,17 @@ export async function middleware(request: NextRequest) {
     }
   });
 
-  // set the response headers (set-cookie) from the auth response
+  // set the response headers (except set-cookie) from the auth response
   authRes.headers.forEach((value, key) => {
-    resWithCombinedHeaders.headers.set(key, value);
+    if (key.toLowerCase() !== 'set-cookie') {
+      resWithCombinedHeaders.headers.set(key, value);
+    }
   });
+
+  // append the response headers (set-cookie) from the auth response
+	authRes.headers.getSetCookie().forEach(setCookie => {
+		resWithCombinedHeaders.headers.append('set-cookie', setCookie);
+	});
 
   // the headers from the auth middleware should always be returned
   return resWithCombinedHeaders;
