@@ -1270,29 +1270,61 @@ Enforcing **"Always"** or **"All Applications"** in your global Tenant MFA Polic
 **Recommended Configuration:**
 1. Set Tenant MFA Policy to **"Adaptive"** or **"Never"**.
 2. Use **Auth0 Actions** to enforce MFA conditionally (only when specific resources are requested).
-3. Ensure your Action explicitly skips MFA for `refresh_token` grants.
 
 **Example Action Code:**
 ```javascript
+/**
+ * MFA Step-up Action
+ * Set your target audience in `event.secrets.TARGET_AUDIENCE`
+ * 
+ * ONLY triggers MFA on refresh_token grants for protected audience.
+ * This prevents UL challenge during initial login, enabling proper step-up flow.
+ * 
+ * Flow:
+ * 1. User requests protected API → SDK uses refresh_token grant
+ * 2. Action triggers on refresh_token → challengeWithAny() → mfa_required error
+ * 3. SDK handles enrollment/verification via Management API
+ */
 exports.onExecutePostLogin = async (event, api) => {
-  // 1. SKIP MFA for silent token refreshes
-  if (event.request.body.grant_type === 'refresh_token') {
-    return;
-  }
-
-  // 2. Enforce only for specific audience
-  const targetAudience = 'https://my-high-security-api';
-  const requestedAudience = event.transaction?.requested_audience || [];
+  const grantType = event.request?.body?.grant_type;
+  const targetAudience = event.secrets.TARGET_AUDIENCE;
   
-  if (requestedAudience.includes(targetAudience)) {
-    // 3. Ensure user has enrolled factors before challenging
-    // (Otherwise they get a 500 error page)
-    if (event.user.multifactor && event.user.multifactor.length > 0) {
-      api.authentication.challengeWith({ type: 'otp' });
+  // Check if this authorization request is for the protected API
+  const requestedAudience = event.transaction?.requested_audience || 
+                            event.request?.query?.audience ||
+                            (event.resource_server?.identifier);
+  
+  // ONLY trigger on refresh_token grant for protected audience
+  if (grantType === 'refresh_token' && requestedAudience && requestedAudience.includes(targetAudience)) {
+    
+    // Check if user has enrolled factors
+    const enrolledFactors = event.user.multifactor || [];
+    
+    if (enrolledFactors.length > 0) {
+      // Challenge with all available factor types
+      // This returns mfa_required error during token endpoint
+      api.authentication.challengeWithAny([
+        { type: 'otp' },
+        { type: 'phone' },
+        { type: 'email' },
+        { type: 'push-notification' },
+        { type: 'recovery-code' }
+      ]);
+    } else {
+      // Prompt enrollment (also returns mfa_required error)
+      api.authentication.enrollWithAny([
+        { type: 'otp' },
+        { type: 'phone' },
+        { type: 'email' },
+        { type: 'push-notification' }
+      ]);
     }
+  } else {
+    console.log('[MFA Action] Skipping: not refresh_token grant or audience not protected');
   }
 };
 ```
+For more information on how to customize MFA flows using post-login Actions, take a look at this [auth0 docs page](https://auth0.com/docs/secure/multi-factor-authentication/customize-mfa/customize-mfa-enrollments-universal-login).
 
 ### MFA Error Types
 
