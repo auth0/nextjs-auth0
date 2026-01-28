@@ -64,3 +64,12 @@ export const DEFAULT_RETRY_DELAY = 100;
  * @default true - Jitter enabled for better load distribution
  */
 export const DEFAULT_RETRY_JITTER = true;
+
+/**
+ * Default TTL for MFA context in seconds.
+ * Controls how long encrypted mfa_token and session MFA context remain valid.
+ * Matches Auth0's mfa_token expiration (5 minutes).
+ *
+ * @default 300 - 5 minutes (300 seconds)
+ */
+export const DEFAULT_MFA_CONTEXT_TTL_SECONDS = 5 * 60; // 5 minutes (300 seconds)

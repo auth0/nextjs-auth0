@@ -9,7 +9,8 @@ import {
   AccessTokenForConnectionError,
   AccessTokenForConnectionErrorCode,
   ConnectAccountError,
-  ConnectAccountErrorCodes
+  ConnectAccountErrorCodes,
+  MfaRequiredError
 } from "../errors/index.js";
 import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
 import {
@@ -26,7 +27,10 @@ import {
   StartInteractiveLoginOptions,
   User
 } from "../types/index.js";
-import { DEFAULT_SCOPES } from "../utils/constants.js";
+import {
+  DEFAULT_MFA_CONTEXT_TTL_SECONDS,
+  DEFAULT_SCOPES
+} from "../utils/constants.js";
 import { validateDpopConfiguration } from "../utils/dpopUtils.js";
 import { isRequest } from "../utils/request.js";
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
@@ -353,6 +357,21 @@ export interface Auth0ClientOptions {
    * @see {@link DpopOptions} for detailed option descriptions
    */
   dpopOptions?: DpopOptions;
+
+  /**
+   * MFA context TTL in seconds. Controls how long encrypted mfa_token remains valid.
+   * Default: 300 (5 minutes, matching Auth0's mfa_token expiration)
+   *
+   * Can also be set via AUTH0_MFA_TOKEN_TTL environment variable.
+   *
+   * @example
+   * ```typescript
+   * const auth0 = new Auth0Client({
+   *   mfaTokenTtl: 600 // 10 minutes
+   * });
+   * ```
+   */
+  mfaTokenTtl?: number;
 }
 
 export type PagesRouterRequest = IncomingMessage | NextApiRequest;
@@ -390,6 +409,12 @@ export class Auth0Client {
       dpopKeyPair: resolvedDpopKeyPair,
       dpopOptions: resolvedDpopOptions
     } = validateDpopConfiguration(options);
+
+    // Resolve MFA token TTL from options or environment variable
+    const mfaTokenTtl = this.resolveMfaTokenTtl(
+      options.mfaTokenTtl,
+      process.env.AUTH0_MFA_TOKEN_TTL
+    );
 
     // Auto-detect base path for cookie configuration
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
@@ -494,7 +519,8 @@ export class Auth0Client {
       enableConnectAccountEndpoint: options.enableConnectAccountEndpoint,
       useDPoP: options.useDPoP || false,
       dpopKeyPair: options.dpopKeyPair || resolvedDpopKeyPair,
-      dpopOptions: options.dpopOptions || resolvedDpopOptions
+      dpopOptions: options.dpopOptions || resolvedDpopOptions,
+      mfaTokenTtl
     });
   }
 
@@ -677,6 +703,11 @@ export class Auth0Client {
       options
     );
     if (error) {
+      // For MFA required errors, save session with MFA context before throwing
+      // Note: getTokenSet mutates session.mfa by reference when MFA is required
+      if (error instanceof MfaRequiredError) {
+        await this.saveToSession(session, req, res);
+      }
       throw error;
     }
     const { tokenSet, idTokenClaims } = getTokenSetResponse;
@@ -1337,6 +1368,44 @@ export class Auth0Client {
     });
 
     return fetcher;
+  }
+
+  /**
+   * Resolve mfaContextTtl with validation and fallback to default.
+   * Issues console warning for invalid values instead of throwing.
+   */
+  private resolveMfaTokenTtl(
+    optionValue: number | undefined,
+    envValue: string | undefined
+  ): number {
+    const DEFAULT_TTL = DEFAULT_MFA_CONTEXT_TTL_SECONDS;
+
+    // Try option value first
+    if (optionValue !== undefined) {
+      if (Number.isFinite(optionValue) && optionValue > 0) {
+        return optionValue;
+      }
+      console.warn(
+        `[auth0-nextjs] Invalid mfaTokenTtl option value: ${optionValue}. ` +
+          `Using default: ${DEFAULT_TTL} seconds.`
+      );
+      return DEFAULT_TTL;
+    }
+
+    // Try environment variable
+    if (envValue !== undefined) {
+      const parsed = parseInt(envValue, 10);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        return parsed;
+      }
+      console.warn(
+        `[auth0-nextjs] Invalid AUTH0_MFA_TOKEN_TTL environment variable: ${envValue}. ` +
+          `Using default: ${DEFAULT_TTL} seconds.`
+      );
+      return DEFAULT_TTL;
+    }
+
+    return DEFAULT_TTL;
   }
 
   private get issuer(): string {
