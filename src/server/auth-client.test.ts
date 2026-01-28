@@ -5353,6 +5353,70 @@ ca/T0LLtgmbMmxSv/MmzIg==
       }
     });
 
+    it("should return expires_in as 0 when expiresAt is missing", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+
+        routes: getDefaultRoutes(),
+
+        fetch: getMockAuthorizationServer()
+      });
+
+      const session = {
+        user: {
+          sub: DEFAULT.sub,
+          name: "John Doe",
+          email: "john@example.com",
+          picture: "https://example.com/john.jpg"
+        },
+        tokenSet: {
+          accessToken: DEFAULT.accessToken,
+          scope: "openid profile email"
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Math.floor(Date.now() / 1000)
+        }
+      } as SessionData;
+
+      const maxAge = 60 * 60; // 1 hour
+      const expiration = Math.floor(Date.now() / 1000 + maxAge);
+      const sessionCookie = await encrypt(session, secret, expiration);
+      const headers = new Headers();
+      headers.append("cookie", `__session=${sessionCookie}`);
+      const request = new NextRequest(
+        new URL("/auth/access-token", DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers
+        }
+      );
+
+      const response = await authClient.handleAccessToken(request);
+      expect(response.status).toEqual(200);
+      expect(await response.json()).toEqual({
+        token: DEFAULT.accessToken,
+        scope: "openid profile email",
+        expires_at: 0,
+        expires_in: 0
+      });
+    });
+
     it("should return a 401 if the user does not have a session", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({
