@@ -23,6 +23,19 @@ export const restHandlers = [
     const audience = url.searchParams.get("audience");
     const scope = url.searchParams.get("scope");
 
+    // This guard is there to ensure `includeFullResponse` doesn’t leak into the URL query string.
+    if (url.searchParams.has("includeFullResponse")) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: "invalid_request",
+            message: "Unexpected includeFullResponse query param."
+          }
+        },
+        { status: 400 }
+      );
+    }
+
     let token = "<access_token>";
 
     if (audience && scope) {
@@ -49,6 +62,16 @@ export const restHandlers = [
         },
         { status: 400 }
       );
+    }
+
+    if (audience === "with_full_response") {
+      return HttpResponse.json({
+        token,
+        scope: "read:profile",
+        expires_at: 123,
+        expires_in: 60,
+        token_type: "bearer"
+      });
     }
 
     return HttpResponse.json({ token });
@@ -100,6 +123,30 @@ describe("getAccessToken", () => {
     });
 
     expect(result).toBe("<access_token_with_scope_read:bar>");
+  });
+
+  it("should return the full response when includeFullResponse is true", async () => {
+    const result = await getAccessToken({
+      audience: "with_full_response",
+      includeFullResponse: true
+    });
+
+    expect(result).toEqual({
+      token: "<access_token_for_with_full_response_without_scope>",
+      scope: "read:profile",
+      expires_at: 123,
+      expires_in: 60,
+      token_type: "bearer"
+    });
+  });
+
+  it("should still return token only when includeFullResponse is false", async () => {
+    const result = await getAccessToken({
+      audience: "with_full_response",
+      includeFullResponse: false
+    });
+
+    expect(result).toBe("<access_token_for_with_full_response_without_scope>");
   });
 
   it("should throw an error when json deserialization fails", async () => {

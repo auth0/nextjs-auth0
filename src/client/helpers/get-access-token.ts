@@ -49,6 +49,14 @@ export type AccessTokenOptions = {
    * @example 'https://orders-api.mycompany.com'
    */
   audience?: string;
+
+  /**
+   * When true, returns the full response from the `/auth/access-token` endpoint
+   * instead of only the access token string.
+   *
+   * @default false
+   */
+  includeFullResponse?: boolean;
 };
 
 type AccessTokenResponse = {
@@ -62,13 +70,19 @@ type AccessTokenResponse = {
 /**
  * Fetches an access token for the currently logged-in user.
  * @param options Options for fetching the access token, including optional audience and scope.
- * @returns The access token as a string.
+ * @returns The access token as a string, or the full token response when `includeFullResponse` is true.
  * @note Passing audience or scope relies on MRRT to be configured in your Auth0 Application.
  * @see https://auth0.com/docs/secure/tokens/refresh-tokens/multi-resource-refresh-token/configure-and-implement-multi-resource-refresh-token
  */
 export async function getAccessToken(
+  options: AccessTokenOptions & { includeFullResponse: true }
+): Promise<AccessTokenResponse>;
+export async function getAccessToken(
+  options?: AccessTokenOptions & { includeFullResponse?: false }
+): Promise<string>;
+export async function getAccessToken(
   options: AccessTokenOptions = {}
-): Promise<string> {
+): Promise<string | AccessTokenResponse> {
   const urlParams = new URLSearchParams();
 
   // We only want to add the audience if it's explicitly provided
@@ -111,5 +125,5 @@ export async function getAccessToken(
   }
 
   const tokenSet: AccessTokenResponse = await tokenRes.json();
-  return tokenSet.token;
+  return options.includeFullResponse ? tokenSet : tokenSet.token;
 }
