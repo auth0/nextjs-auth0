@@ -222,6 +222,16 @@ export interface Auth0ClientOptions {
   enableAccessTokenEndpoint?: boolean;
 
   /**
+   * Number of seconds to refresh access tokens early when calling `getAccessToken`.
+   * This is a server-side leeway applied to token expiration checks. For example,
+   * with a leeway of 60 seconds, tokens expiring within the next minute will be
+   * refreshed proactively when a refresh token is available.
+   *
+   * Defaults to `0` (no early refresh).
+   */
+  tokenRefreshLeeway?: number;
+
+  /**
    * If true, the profile endpoint will return a 204 No Content response when the user is not authenticated
    * instead of returning a 401 Unauthorized response.
    *
@@ -391,6 +401,20 @@ export class Auth0Client {
       dpopOptions: resolvedDpopOptions
     } = validateDpopConfiguration(options);
 
+    const tokenRefreshLeewayOption = options.tokenRefreshLeeway;
+    if (tokenRefreshLeewayOption != null) {
+      if (
+        typeof tokenRefreshLeewayOption !== "number" ||
+        !Number.isFinite(tokenRefreshLeewayOption) ||
+        tokenRefreshLeewayOption < 0
+      ) {
+        throw new TypeError(
+          "tokenRefreshLeeway must be a non-negative number of seconds."
+        );
+      }
+    }
+    const tokenRefreshLeeway = tokenRefreshLeewayOption ?? 0;
+
     // Auto-detect base path for cookie configuration
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
 
@@ -492,6 +516,7 @@ export class Auth0Client {
       noContentProfileResponseWhenUnauthenticated:
         options.noContentProfileResponseWhenUnauthenticated,
       enableConnectAccountEndpoint: options.enableConnectAccountEndpoint,
+      tokenRefreshLeeway,
       useDPoP: options.useDPoP || false,
       dpopKeyPair: options.dpopKeyPair || resolvedDpopKeyPair,
       dpopOptions: options.dpopOptions || resolvedDpopOptions
