@@ -55,6 +55,7 @@ type AccessTokenResponse = {
   token: string;
   scope?: string;
   expires_at?: number;
+  expires_in?: number;
   token_type?: string;
 };
 

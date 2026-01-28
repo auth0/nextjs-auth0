@@ -5256,6 +5256,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         token: newAccessToken,
         scope: "openid profile email",
         expires_at: expect.any(Number),
+        expires_in: expect.any(Number),
         token_type: "bearer"
       });
 
@@ -5266,6 +5267,90 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret
       )) as jose.JWTDecryptResult<SessionData>;
       expect(updatedSession.tokenSet.accessToken).toEqual(newAccessToken);
+    });
+
+    it("should return expires_in based on server time", async () => {
+      vi.useFakeTimers();
+      const now = new Date("2026-01-01T00:00:00.000Z");
+      vi.setSystemTime(now);
+
+      try {
+        const currentAccessToken = DEFAULT.accessToken;
+        const newAccessToken = "at_456";
+        const expiresIn = 3600;
+
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret
+        });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
+
+          fetch: getMockAuthorizationServer({
+            tokenEndpointResponse: {
+              token_type: "Bearer",
+              access_token: newAccessToken,
+              scope: "openid profile email",
+              expires_in: expiresIn
+            } as oauth.TokenEndpointResponse
+          })
+        });
+
+        const expiresAt = Math.floor(now.getTime() / 1000) - 10 * 24 * 60 * 60; // expired
+        const session: SessionData = {
+          user: {
+            sub: DEFAULT.sub,
+            name: "John Doe",
+            email: "john@example.com",
+            picture: "https://example.com/john.jpg"
+          },
+          tokenSet: {
+            accessToken: currentAccessToken,
+            scope: "openid profile email",
+            refreshToken: DEFAULT.refreshToken,
+            expiresAt
+          },
+          internal: {
+            sid: DEFAULT.sid,
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
+        const sessionCookie = await encrypt(session, secret, expiration);
+        const headers = new Headers();
+        headers.append("cookie", `__session=${sessionCookie}`);
+        const request = new NextRequest(
+          new URL("/auth/access-token", DEFAULT.appBaseUrl),
+          {
+            method: "GET",
+            headers
+          }
+        );
+
+        const response = await authClient.handleAccessToken(request);
+        expect(response.status).toEqual(200);
+        const body = await response.json();
+        const expectedExpiresAt = Math.floor(now.getTime() / 1000) + expiresIn;
+
+        expect(body.expires_at).toEqual(expectedExpiresAt);
+        expect(body.expires_in).toEqual(expiresIn);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it("should return a 401 if the user does not have a session", async () => {
