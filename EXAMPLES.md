@@ -728,6 +728,33 @@ export default function Component() {
 }
 ```
 
+If you need the full response from `/auth/access-token` (for example, to access `expires_in` for client-side caching), pass `includeFullResponse: true`:
+
+```tsx
+"use client";
+
+import { getAccessToken } from "@auth0/nextjs-auth0";
+
+export default function Component() {
+  async function fetchData() {
+    try {
+      const tokenSet = await getAccessToken({
+        includeFullResponse: true
+      });
+      // tokenSet.token, tokenSet.expires_in, tokenSet.expires_at, ...
+    } catch (err) {
+      // err will be an instance of AccessTokenError if an access token could not be obtained
+    }
+  }
+
+  return (
+    <main>
+      <button onClick={fetchData}>Fetch Data</button>
+    </main>
+  );
+}
+```
+
 ### On the server (App Router)
 
 On the server, the `getAccessToken()` helper can be used in Server Routes, Server Actions and Server Components to get an access token to call external APIs.
@@ -2609,6 +2636,9 @@ The SDK mounts 6 routes:
 4. `/auth/profile`: the route to check the user's session and return their attributes
 5. `/auth/access-token`: the route to check the user's session and return an access token (which will be automatically refreshed if a refresh token is available)
 6. `/auth/backchannel-logout`: the route that will receive a `logout_token` when a configured Back-Channel Logout initiator occurs
+
+> [!NOTE]  
+> The `/auth/access-token` response includes `token`, `expires_at` (seconds since epoch), `expires_in` (TTL seconds), optional `scope`, and optional `token_type`.
 
 ### Custom routes
 
