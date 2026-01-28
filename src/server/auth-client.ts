@@ -2734,9 +2734,14 @@ export class AuthClient {
 
     try {
       const body: any = {
+        client_id: this.clientMetadata.client_id,
         challenge_type: challengeType,
         mfa_token: mfaToken
       };
+
+      if (this.clientSecret) {
+        body.client_secret = this.clientSecret;
+      }
 
       if (authenticatorId) {
         body.authenticator_id = authenticatorId;
@@ -3078,7 +3083,7 @@ export class AuthClient {
       session.accessTokens.push({
         accessToken: tokenEndpointResponse.access_token,
         scope: tokenEndpointResponse.scope,
-        audience: (tokenEndpointResponse as any).audience || "",
+        audience: context.audience || "",
         expiresAt:
           Math.floor(Date.now() / 1000) +
           Number(tokenEndpointResponse.expires_in),
