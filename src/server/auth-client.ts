@@ -203,6 +203,7 @@ export interface AuthClientOptions {
   enableAccessTokenEndpoint?: boolean;
   noContentProfileResponseWhenUnauthenticated?: boolean;
   enableConnectAccountEndpoint?: boolean;
+  tokenRefreshLeeway?: number;
 
   useDPoP?: boolean;
   dpopKeyPair?: DpopKeyPair;
@@ -258,6 +259,7 @@ export class AuthClient {
   private readonly enableAccessTokenEndpoint: boolean;
   private readonly noContentProfileResponseWhenUnauthenticated: boolean;
   private readonly enableConnectAccountEndpoint: boolean;
+  private readonly tokenRefreshLeeway: number;
 
   private dpopOptions?: DpopOptions;
 
@@ -379,6 +381,7 @@ export class AuthClient {
       options.noContentProfileResponseWhenUnauthenticated ?? false;
     this.enableConnectAccountEndpoint =
       options.enableConnectAccountEndpoint ?? false;
+    this.tokenRefreshLeeway = options.tokenRefreshLeeway ?? 0;
 
     this.useDPoP = options.useDPoP ?? false;
 
@@ -1200,6 +1203,13 @@ export class AuthClient {
         audience: options.audience ?? this.authorizationParameters.audience
       }
     );
+    const now = Date.now() / 1000;
+    const expiresAt =
+      typeof tokenSet.expiresAt === "number" ? tokenSet.expiresAt : undefined;
+    const isExpired = typeof expiresAt === "number" && expiresAt <= now;
+    const isWithinRefreshWindow =
+      typeof expiresAt === "number" &&
+      expiresAt <= now + this.tokenRefreshLeeway;
 
     // no access token was found that matches the, optional, provided audience and scope
     if (!tokenSet.refreshToken && !tokenSet.accessToken) {
@@ -1213,12 +1223,7 @@ export class AuthClient {
     }
 
     // the access token was found, but it has expired and we do not have a refresh token
-    if (
-      !tokenSet.refreshToken &&
-      tokenSet.accessToken &&
-      tokenSet.expiresAt &&
-      tokenSet.expiresAt <= Date.now() / 1000
-    ) {
+    if (!tokenSet.refreshToken && tokenSet.accessToken && isExpired) {
       return [
         new AccessTokenError(
           AccessTokenErrorCode.MISSING_REFRESH_TOKEN,
@@ -1230,11 +1235,7 @@ export class AuthClient {
 
     if (tokenSet.refreshToken) {
       // either the access token has expired or we are forcing a refresh
-      if (
-        options.refresh ||
-        !tokenSet.expiresAt ||
-        tokenSet.expiresAt <= Date.now() / 1000
-      ) {
+      if (options.refresh || !expiresAt || isWithinRefreshWindow) {
         const [error, response] = await this.#refreshTokenSet(tokenSet, {
           audience: options.audience,
           scope: options.scope ? scope : undefined,
