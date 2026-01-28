@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { Download, Copy } from 'lucide-react';
 
 interface RecoveryCodesProps {
   codes: string[];

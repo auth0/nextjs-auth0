@@ -13,16 +13,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('[API:MFA:Authenticators] List request');
-
     // List all enrolled authenticators for the user
     const authenticators = await auth0.mfa.getAuthenticators({ mfaToken });
 
-    console.log('[API:MFA:Authenticators] Retrieved', { count: authenticators.length });
-
     return NextResponse.json(authenticators);
   } catch (error: any) {
-    console.error('[API:MFA:Authenticators] List failed:', error.code || 'unknown', error.message);
     
     return NextResponse.json(
       {
@@ -38,8 +33,6 @@ export async function DELETE(request: NextRequest) {
   try {
     const body = await request.json();
     const { authenticatorId, mfaToken } = body;
-
-    console.log('[API:MFA:Authenticators] Delete request', { authenticatorId });
 
     if (!authenticatorId) {
       return NextResponse.json(
@@ -58,11 +51,8 @@ export async function DELETE(request: NextRequest) {
     // Delete authenticator
     await auth0.mfa.deleteAuthenticator({ mfaToken, authenticatorId });
 
-    console.log('[API:MFA:Authenticators] Deleted successfully');
-
     return new NextResponse(null, { status: 204 });
   } catch (error: any) {
-    console.error('[API:MFA:Authenticators] Delete failed:', error.code || 'unknown', error.message);
     
     return NextResponse.json(
       {

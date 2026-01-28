@@ -6,11 +6,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { mfaToken, challengeType, authenticatorId } = body;
 
-    console.log('[API:MFA:Challenge] Request received', { 
-      challengeType,
-      hasAuthenticatorId: !!authenticatorId,
-    });
-
     if (!mfaToken) {
       return NextResponse.json(
         { error: 'missing_mfa_token', error_description: 'MFA token is required' },
@@ -32,14 +27,8 @@ export async function POST(request: NextRequest) {
       authenticatorId,
     });
 
-    console.log('[API:MFA:Challenge] Challenge created successfully', {
-      challengeType,
-      hasOobCode: !!challengeData.oobCode,
-    });
-
     return NextResponse.json(challengeData);
   } catch (error: any) {
-    console.error('[API:MFA:Challenge] Failed:', error.code || error.error || 'unknown', error.message || error.error_description);
     
     return NextResponse.json(
       {

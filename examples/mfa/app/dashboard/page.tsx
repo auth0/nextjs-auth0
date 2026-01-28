@@ -5,7 +5,6 @@ import { useUser } from '@auth0/nextjs-auth0';
 import { UserInfo } from '@/components/user-info';
 import { ProtectedData } from '@/components/protected-data';
 import { ErrorDisplay } from '@/components/mfa/error-display';
-import Link from 'next/link';
 
 export default function Dashboard() {
   const { user, isLoading } = useUser();
@@ -200,7 +199,7 @@ export default function Dashboard() {
         throw new Error(errorData.error_description || errorData.error || 'Verification failed');
       }
 
-      const verifyData = await response.json();
+      await response.json();
 
       setError({ message: '✓ Verification successful! Fetching protected data...', type: 'success' });
       await new Promise(resolve => setTimeout(resolve, 1000));

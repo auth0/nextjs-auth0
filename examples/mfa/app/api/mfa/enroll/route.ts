@@ -6,13 +6,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { mfaToken, authenticatorTypes, oobChannels, phoneNumber, email } = body;
 
-    console.log('[API:MFA:Enroll] Request received', { 
-      authenticatorTypes, 
-      oobChannels,
-      hasPhoneNumber: !!phoneNumber,
-      hasEmail: !!email,
-    });
-
     if (!mfaToken) {
       return NextResponse.json(
         { error: 'missing_mfa_token', error_description: 'MFA token is required' },
@@ -29,14 +22,8 @@ export async function POST(request: NextRequest) {
       email,
     });
 
-    console.log('[API:MFA:Enroll] Success', { 
-      authenticatorType: enrollData.authenticatorType,
-      hasRecoveryCodes: !!enrollData.recoveryCodes,
-    });
-
     return NextResponse.json(enrollData);
   } catch (error: any) {
-    console.error('[API:MFA:Enroll] Failed:', error.code || error.error || 'unknown', error.message || error.error_description);
     
     return NextResponse.json(
       {

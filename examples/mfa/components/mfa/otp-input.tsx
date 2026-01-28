@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, KeyboardEvent, ClipboardEvent } from 'react';
+import { useRef, KeyboardEvent, ClipboardEvent } from 'react';
 
 interface OtpInputProps {
   value: string;

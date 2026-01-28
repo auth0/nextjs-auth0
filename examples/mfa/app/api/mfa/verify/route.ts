@@ -6,12 +6,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { mfaToken, otp, recoveryCode, oobCode } = body;
 
-    console.log('[API:MFA:Verify] Request received', { 
-      hasOtp: !!otp,
-      hasRecoveryCode: !!recoveryCode,
-      hasOobCode: !!oobCode,
-    });
-
     if (!mfaToken) {
       return NextResponse.json(
         { error: 'missing_mfa_token', error_description: 'MFA token is required' },
@@ -27,11 +21,8 @@ export async function POST(request: NextRequest) {
       oobCode,
     });
 
-    console.log('[API:MFA:Verify] Success - token cached in session');
-
     return NextResponse.json(verifyData);
   } catch (error: any) {
-    console.error('[API:MFA:Verify] Failed:', error.code || error.error || 'unknown', error.message || error.error_description);
     
     return NextResponse.json(
       {
