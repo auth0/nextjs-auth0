@@ -609,3 +609,14 @@ export class MfaTokenInvalidError extends SdkError {
     this.name = "MfaTokenInvalidError";
   }
 }
+
+export {
+  MfaGetAuthenticatorsError,
+  MfaChallengeError,
+  MfaVerifyError,
+  MfaEnrollmentError,
+  MfaNoAvailableFactorsError,
+  MfaDeleteAuthenticatorError,
+  type MfaApiErrorResponse
+} from "./mfa.js";
+export { InvalidRequestError } from "./invalid-request-error.js";

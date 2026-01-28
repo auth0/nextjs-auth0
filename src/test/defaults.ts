@@ -9,6 +9,13 @@ export function getDefaultRoutes(): Routes {
     profile: process.env.NEXT_PUBLIC_PROFILE_ROUTE || "/auth/profile",
     accessToken:
       process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
-    connectAccount: "/auth/connect"
+    connectAccount: "/auth/connect",
+    mfaAuthenticators:
+      process.env.NEXT_PUBLIC_MFA_AUTHENTICATORS_ROUTE ||
+      "/auth/mfa/authenticators",
+    mfaChallenge:
+      process.env.NEXT_PUBLIC_MFA_CHALLENGE_ROUTE || "/auth/mfa/challenge",
+    mfaVerify: process.env.NEXT_PUBLIC_MFA_VERIFY_ROUTE || "/auth/mfa/verify",
+    mfaEnroll: process.env.NEXT_PUBLIC_MFA_ENROLL_ROUTE || "/auth/mfa/enroll"
   };
 }

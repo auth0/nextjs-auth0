@@ -6,3 +6,4 @@ export {
   WithPageAuthRequiredOptions
 } from "./helpers/with-page-auth-required.js";
 export { Auth0Provider } from "./providers/auth0-provider.js";
+export { mfa } from "./mfa/index.js";
