@@ -514,7 +514,7 @@ export class MfaRequiredError extends SdkError {
   public readonly code: string = "mfa_required";
 
   /**
-   * Encrtpted MFA token to pass to MFA API methods.
+   * Encrypted MFA token to pass to MFA API methods.
    */
   public readonly mfa_token: string;
 
@@ -529,17 +529,28 @@ export class MfaRequiredError extends SdkError {
 
   public readonly cause?: OAuth2Error;
 
+  /**
+   * @param error_description - Error description from Auth0
+   * @param mfaToken - Encrypted MFA token (constructor param uses camelCase)
+   * @param mfaRequirements - MFA requirements from Auth0 (constructor param uses camelCase)
+   * @param cause - Underlying OAuth2 error
+   *
+   * @remarks
+   * Constructor parameters use camelCase (mfaToken, mfaRequirements) for consistency
+   * with SDK conventions, but they are assigned to snake_case properties (mfa_token,
+   * mfa_requirements) to match Auth0 API response format.
+   */
   constructor(
     error_description: string,
-    mfa_token: string,
-    mfa_requirements?: MfaRequirements,
+    mfaToken: string,
+    mfaRequirements?: MfaRequirements,
     cause?: OAuth2Error
   ) {
     super(error_description);
     this.name = "MfaRequiredError";
     this.error_description = error_description;
-    this.mfa_token = mfa_token;
-    this.mfa_requirements = mfa_requirements;
+    this.mfa_token = mfaToken;
+    this.mfa_requirements = mfaRequirements;
     this.cause = cause;
   }
 

@@ -33,6 +33,8 @@ export interface AuthenticatorApiResponse {
   oob_channel?: string;
   /** ISO 8601 timestamp of creation */
   created_at?: string;
+  /** ISO 8601 timestamp of last authentication */
+  last_auth?: string;
 }
 
 /**
@@ -305,6 +307,8 @@ export interface Authenticator {
   oobChannel?: string;
   /** ISO 8601 timestamp of creation */
   createdAt?: string;
+  /** ISO 8601 timestamp of last authentication */
+  lastAuthenticatedAt?: string;
 }
 
 /**

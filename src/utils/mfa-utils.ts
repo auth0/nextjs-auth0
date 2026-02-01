@@ -157,10 +157,13 @@ export function getMfaErrorStatusCode(error: Error): number {
     error instanceof MfaNoAvailableFactorsError ||
     error instanceof MfaGetAuthenticatorsError ||
     error instanceof MfaChallengeError ||
-    error instanceof MfaVerifyError ||
-    error instanceof MfaRequiredError
+    error instanceof MfaVerifyError
   ) {
     return 400;
+  }
+
+  if (error instanceof MfaRequiredError) {
+    return 403;
   }
 
   return 500;
