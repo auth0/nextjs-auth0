@@ -31,7 +31,8 @@ export function camelizeAuthenticator(
     name: auth.name,
     phoneNumber: auth.phone_number,
     oobChannel: auth.oob_channel,
-    createdAt: auth.created_at
+    createdAt: auth.created_at,
+    lastAuthenticatedAt: auth.last_auth
   };
 }
 
@@ -122,19 +123,27 @@ export function buildEnrollOptions(
         )
       ];
     }
+    const phoneNumber =
+      typeof bodyObj.phoneNumber === "string" && bodyObj.phoneNumber !== ""
+        ? bodyObj.phoneNumber
+        : undefined;
     return [
       {
         authenticatorTypes: ["oob"] as ["oob"],
         oobChannels: bodyObj.oobChannels as ("sms" | "voice" | "auth0")[],
-        phoneNumber: bodyObj.phoneNumber as string | undefined
+        phoneNumber
       },
       null
     ];
   } else if (authenticatorType === "email") {
+    const email =
+      typeof bodyObj.email === "string" && bodyObj.email !== ""
+        ? bodyObj.email
+        : undefined;
     return [
       {
         authenticatorTypes: ["email"] as ["email"],
-        email: bodyObj.email as string | undefined
+        email
       },
       null
     ];

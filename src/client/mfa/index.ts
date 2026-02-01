@@ -103,20 +103,26 @@ class ClientMfaClient implements MfaClient {
     authenticatorId?: string;
   }): Promise<ChallengeResponse> {
     try {
-      const urlParams = new URLSearchParams();
-      urlParams.append("mfa_token", options.mfaToken);
-      urlParams.append("challenge_type", options.challengeType);
+      const body: Record<string, string> = {
+        mfaToken: options.mfaToken,
+        challengeType: options.challengeType
+      };
+
       if (options.authenticatorId) {
-        urlParams.append("authenticator_id", options.authenticatorId);
+        body.authenticatorId = options.authenticatorId;
       }
 
-      const url = `${normalizeWithBasePath(
+      const url = normalizeWithBasePath(
         process.env.NEXT_PUBLIC_MFA_CHALLENGE_ROUTE || "/auth/mfa/challenge"
-      )}?${urlParams.toString()}`;
+      );
 
       const response = await fetch(url, {
         method: "POST",
-        credentials: "omit" // Stateless operation
+        headers: {
+          "Content-Type": "application/json"
+        },
+        credentials: "omit", // Stateless operation
+        body: JSON.stringify(body)
       });
 
       if (!response.ok) {

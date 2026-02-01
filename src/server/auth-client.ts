@@ -97,10 +97,12 @@ import {
 } from "../utils/mfa-utils.js";
 import {
   extractBearerToken,
+  extractMfaToken,
   extractPathParam,
-  validateArrayField,
-  validateStringField,
-  validateVerificationCredential
+  parseJsonBody,
+  validateArrayFieldAndThrow,
+  validateStringFieldAndThrow,
+  validateVerificationCredentialAndThrow
 } from "../utils/mfa-validation-utils.js";
 import {
   ensureNoLeadingSlash,
@@ -1016,7 +1018,7 @@ export class AuthClient {
    */
   async handleGetAuthenticators(req: NextRequest): Promise<NextResponse> {
     try {
-      const mfaToken = extractBearerToken(req);
+      const mfaToken = extractMfaToken(req);
       const authenticators = await this.mfaGetAuthenticators(mfaToken);
       return NextResponse.json(authenticators);
     } catch (e) {
@@ -1059,16 +1061,26 @@ export class AuthClient {
    */
   async handleChallenge(req: NextRequest): Promise<NextResponse> {
     try {
-      const body = await req.json();
-      const mfaToken = validateStringField(body.mfaToken, "mfaToken");
-      const challengeType = validateStringField(
-        body.challengeType,
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+      const mfaToken = validateStringFieldAndThrow(
+        bodyRecord.mfaToken,
+        "mfaToken"
+      );
+      const challengeType = validateStringFieldAndThrow(
+        bodyRecord.challengeType,
         "challengeType"
       );
+      const authenticatorId = bodyRecord.authenticatorId
+        ? validateStringFieldAndThrow(
+            bodyRecord.authenticatorId,
+            "authenticatorId"
+          )
+        : undefined;
       const result = await this.mfaChallenge(
         mfaToken,
         challengeType,
-        body.authenticatorId
+        authenticatorId
       );
       return NextResponse.json(result);
     } catch (e) {
@@ -1087,10 +1099,14 @@ export class AuthClient {
    */
   async handleEnroll(req: NextRequest): Promise<NextResponse> {
     try {
-      const body = await req.json();
-      const mfaToken = validateStringField(body.mfaToken, "mfaToken");
-      const authenticatorTypes = validateArrayField(
-        body.authenticatorTypes,
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+      const mfaToken = validateStringFieldAndThrow(
+        bodyRecord.mfaToken,
+        "mfaToken"
+      );
+      const authenticatorTypes = validateArrayFieldAndThrow(
+        bodyRecord.authenticatorTypes,
         "authenticatorTypes"
       );
 
@@ -1119,14 +1135,28 @@ export class AuthClient {
    */
   async handleVerify(req: NextRequest): Promise<NextResponse> {
     try {
-      const body = await req.json();
-      validateStringField(body.mfaToken, "mfaToken");
-      validateVerificationCredential(body);
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+      validateStringFieldAndThrow(bodyRecord.mfaToken, "mfaToken");
+      const validatedBody = validateVerificationCredentialAndThrow(body);
+
+      // Session typically exists in normal flows (browser sends cookies)
+      // If missing/expired, verify still works but won't cache tokens in session
+      const session = await this.sessionStore.get(req.cookies);
+
+      // Only create response cookies when session exists for token caching
+      let reqCookies: RequestCookies | undefined;
+      let resCookies: ResponseCookies | undefined;
+      if (session) {
+        const tempRes = NextResponse.next();
+        reqCookies = req.cookies;
+        resCookies = tempRes.cookies;
+      }
 
       const result = await this.mfaVerify(
-        body,
-        req.cookies,
-        NextResponse.next().cookies
+        validatedBody as VerifyMfaOptions,
+        reqCookies,
+        resCookies
       );
       return NextResponse.json(result);
     } catch (e) {
@@ -3051,29 +3081,39 @@ export class AuthClient {
     } catch (err: any) {
       // Handle chained MFA (subsequent mfa_required response)
       if (err.error === "mfa_required") {
+        // Extract error body from cause for oauth4webapi wrapped errors
+        // ResponseBodyError wraps actual error in cause property
+        const errorBody =
+          err.cause && typeof err.cause === "object" ? (err.cause as any) : err;
+
         // Re-encrypt the new mfaToken for client use
         const encryptedToken = await encryptMfaToken(
-          err.mfa_token,
+          errorBody.mfa_token,
           context.audience,
           context.scope,
-          err.mfa_requirements,
+          errorBody.mfa_requirements,
           this.sessionStore.secret,
           DEFAULT_MFA_CONTEXT_TTL_SECONDS
         );
         throw new MfaRequiredError(
-          err.error_description || "Additional MFA factor required",
+          errorBody.error_description || "Additional MFA factor required",
           encryptedToken,
-          err.mfa_requirements,
+          errorBody.mfa_requirements,
           new OAuth2Error({
             code: "mfa_required",
-            message: err.error_description
+            message: errorBody.error_description
           })
         );
       }
+
+      // Extract error body from cause for all oauth4webapi errors
+      const errorBody =
+        err.cause && typeof err.cause === "object" ? (err.cause as any) : err;
+
       throw new MfaVerifyError(
-        err.error || "unknown_error",
-        err.error_description || "MFA verification failed",
-        err.error ? err : undefined
+        errorBody.error || "unknown_error",
+        errorBody.error_description || err.message || "MFA verification failed",
+        errorBody.error ? errorBody : undefined
       );
     }
 
@@ -3094,7 +3134,17 @@ export class AuthClient {
       await this.sessionStore.set(reqCookies, resCookies, session);
     }
 
-    return tokenEndpointResponse as MfaVerifyResponse;
+    // Ensure token_type is present (oauth4webapi marks it optional)
+    // oauth4webapi normalizes to lowercase, but we keep Auth0's casing for compatibility
+    const result = {
+      ...tokenEndpointResponse,
+      token_type: tokenEndpointResponse.token_type
+        ? tokenEndpointResponse.token_type.charAt(0).toUpperCase() +
+          tokenEndpointResponse.token_type.slice(1)
+        : "Bearer"
+    } as MfaVerifyResponse;
+
+    return result;
   }
 
   /**

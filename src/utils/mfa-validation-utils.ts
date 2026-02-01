@@ -19,6 +19,36 @@ export function extractBearerToken(req: NextRequest): string {
 }
 
 /**
+ * Extracts MFA token from query param or Authorization header.
+ * Prioritizes query param (SDK client pattern), falls back to header (API pattern).
+ *
+ * @param req - NextRequest with mfa_token query param or Authorization header
+ * @returns MFA token value
+ * @throws {InvalidRequestError} If token is missing from both locations
+ */
+export function extractMfaToken(req: NextRequest): string {
+  // Check query param first (client SDK sends here)
+  const url = new URL(req.url);
+  const queryToken = url.searchParams.get("mfa_token");
+  if (queryToken && queryToken !== "") {
+    return queryToken;
+  }
+
+  // Fall back to Authorization header (standard OAuth pattern)
+  return extractBearerToken(req);
+}
+
+/**
+ * Type guard to check if value is a non-empty string.
+ *
+ * @param value - Value to check
+ * @returns True if value is a non-empty string
+ */
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value !== "";
+}
+
+/**
  * Validates that a field is a non-empty string.
  *
  * @param value - Value to validate
@@ -26,8 +56,11 @@ export function extractBearerToken(req: NextRequest): string {
  * @returns Validated string value
  * @throws {InvalidRequestError} If value is not a non-empty string
  */
-export function validateStringField(value: unknown, fieldName: string): string {
-  if (!value || typeof value !== "string") {
+export function validateStringFieldAndThrow(
+  value: unknown,
+  fieldName: string
+): string {
+  if (!isNonEmptyString(value)) {
     throw new InvalidRequestError(`Missing or invalid ${fieldName}`);
   }
   return value;
@@ -41,7 +74,7 @@ export function validateStringField(value: unknown, fieldName: string): string {
  * @returns Validated array
  * @throws {InvalidRequestError} If value is not a non-empty array
  */
-export function validateArrayField(
+export function validateArrayFieldAndThrow(
   value: unknown,
   fieldName: string
 ): string[] {
@@ -59,18 +92,23 @@ export function validateArrayField(
  * @returns Validated credential body
  * @throws {InvalidRequestError} If no valid credential present
  */
-export function validateVerificationCredential(
+export function validateVerificationCredentialAndThrow(
   body: unknown
 ): VerifyCredentialBody {
   const bodyObj = body as Record<string, unknown>;
-  const hasOtp = "otp" in bodyObj && typeof bodyObj.otp === "string";
+  const hasOtp =
+    "otp" in bodyObj && typeof bodyObj.otp === "string" && bodyObj.otp !== "";
   const hasOob =
     "oobCode" in bodyObj &&
     typeof bodyObj.oobCode === "string" &&
+    bodyObj.oobCode !== "" &&
     "bindingCode" in bodyObj &&
-    typeof bodyObj.bindingCode === "string";
+    typeof bodyObj.bindingCode === "string" &&
+    bodyObj.bindingCode !== "";
   const hasRecovery =
-    "recoveryCode" in bodyObj && typeof bodyObj.recoveryCode === "string";
+    "recoveryCode" in bodyObj &&
+    typeof bodyObj.recoveryCode === "string" &&
+    bodyObj.recoveryCode !== "";
 
   if (!hasOtp && !hasOob && !hasRecovery) {
     throw new InvalidRequestError(
@@ -91,8 +129,23 @@ export function validateVerificationCredential(
  */
 export function extractPathParam(pathname: string, paramName: string): string {
   const value = pathname.split("/").pop();
-  if (!value) {
+  if (!value || value === "") {
     throw new InvalidRequestError(`Missing ${paramName} in URL`);
   }
   return value;
+}
+
+/**
+ * Parses JSON from request body with error handling.
+ *
+ * @param req - NextRequest to parse
+ * @returns Parsed JSON body
+ * @throws {InvalidRequestError} If JSON is malformed
+ */
+export async function parseJsonBody(req: NextRequest): Promise<unknown> {
+  try {
+    return await req.json();
+  } catch (parseError) {
+    throw new InvalidRequestError("Invalid JSON in request body");
+  }
 }
