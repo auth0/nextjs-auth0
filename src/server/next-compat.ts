@@ -42,6 +42,41 @@ function collectFromNextUrl(input: Request): NextConfig | undefined {
   return config && Object.keys(config).length ? config : undefined;
 }
 
+function tryCloneRequest(input: Request): Request | null {
+  if (typeof (input as any).clone !== "function") {
+    return null;
+  }
+
+  try {
+    return input.clone();
+  } catch {
+    return null;
+  }
+}
+
+function getSafeBody(input: any): BodyInit | null | undefined {
+  if (!("body" in input)) {
+    return undefined;
+  }
+
+  const body = input.body;
+
+  if (body == null) {
+    return body;
+  }
+
+  if (input.bodyUsed) {
+    return undefined;
+  }
+
+  const locked = (body as any).locked;
+  if (typeof locked === "boolean" && locked) {
+    return undefined;
+  }
+
+  return body as BodyInit;
+}
+
 /**
  * Normalize a Request or NextRequest to a NextRequest instance.
  * Ensures consistent behavior across Next.js 15 (Edge) and 16 (Node Proxy).
@@ -54,18 +89,22 @@ export function toNextRequest(input: Request | NextRequest): NextRequest {
 
   const nextConfig = collectFromNextUrl(input);
 
+  const source =
+    input instanceof Request ? (tryCloneRequest(input) ?? input) : input;
+  const body = getSafeBody(source);
+
   const init: any = {
-    method: input.method,
-    headers: input.headers,
-    body: input.body as any,
-    duplex: (input as any).duplex ?? "half"
+    method: source.method,
+    headers: source.headers,
+    duplex: (source as any).duplex ?? "half",
+    ...(body !== undefined ? { body } : {})
   };
 
   if (nextConfig) {
     init.nextConfig = nextConfig;
   }
 
-  return new NextRequest(input.url, init);
+  return new NextRequest(source.url, init);
 }
 
 /**
