@@ -119,22 +119,6 @@ export class ServerMfaClient implements MfaClient {
   }
 
   /**
-   * Delete an enrolled MFA authenticator.
-   *
-   * @param options - Delete options containing encrypted mfaToken and authenticatorId
-   * @returns Promise that resolves when deletion succeeds
-   */
-  async deleteAuthenticator(options: {
-    mfaToken: string;
-    authenticatorId: string;
-  }): Promise<void> {
-    return this.authClient.mfaDeleteAuthenticator(
-      options.mfaToken,
-      options.authenticatorId
-    );
-  }
-
-  /**
    * Enroll a new MFA authenticator.
    *
    * @param options - Enrollment options (otp | oob | email)

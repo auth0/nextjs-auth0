@@ -1,6 +1,5 @@
 import {
   MfaChallengeError,
-  MfaDeleteAuthenticatorError,
   MfaEnrollmentError,
   MfaGetAuthenticatorsError,
   MfaNoAvailableFactorsError,
@@ -297,65 +296,6 @@ class ClientMfaClient implements MfaClient {
   }
 
   /**
-   * Delete an enrolled MFA authenticator.
-   *
-   * Server-side logic:
-   * - Decrypts mfaToken (validates TTL and integrity)
-   * - Calls Auth0 DELETE /mfa/authenticators/{id} API
-   * - Returns 204 on success
-   *
-   * @param options - Delete options containing encrypted mfaToken and authenticatorId
-   * @returns Promise that resolves when deletion succeeds
-   * @throws {MfaTokenExpiredError} Token TTL exceeded
-   * @throws {MfaTokenInvalidError} Token tampered or malformed
-   * @throws {MfaDeleteAuthenticatorError} Auth0 API error
-   */
-  async deleteAuthenticator(options: {
-    mfaToken: string;
-    authenticatorId: string;
-  }): Promise<void> {
-    try {
-      const url = normalizeWithBasePath(
-        `${
-          process.env.NEXT_PUBLIC_MFA_AUTHENTICATORS_ROUTE ||
-          "/auth/mfa/authenticators"
-        }/${options.authenticatorId}`
-      );
-
-      const response = await fetch(url, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${options.mfaToken}`
-        },
-        credentials: "omit" // Stateless operation
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw this.parseError(error, "deleteAuthenticator", response.url);
-      }
-
-      // Success: 204 No Content
-    } catch (e) {
-      // Re-throw typed errors
-      if (
-        e instanceof MfaTokenExpiredError ||
-        e instanceof MfaTokenInvalidError ||
-        e instanceof MfaDeleteAuthenticatorError
-      ) {
-        throw e;
-      }
-
-      // Network/parse errors
-      throw new MfaDeleteAuthenticatorError(
-        "client_error",
-        e instanceof Error ? e.message : "Network or parsing error",
-        undefined
-      );
-    }
-  }
-
-  /**
    * Enroll a new MFA authenticator.
    *
    * Server-side logic:
@@ -449,12 +389,7 @@ class ClientMfaClient implements MfaClient {
    */
   private parseError(
     error: Record<string, any>,
-    route:
-      | "getAuthenticators"
-      | "challenge"
-      | "verify"
-      | "deleteAuthenticator"
-      | "enroll",
+    route: "getAuthenticators" | "challenge" | "verify" | "enroll",
     url: string
   ): Error {
     const code = error.error || "unknown_error";
@@ -486,15 +421,10 @@ class ClientMfaClient implements MfaClient {
     // Route detection from URL (fallback if route param is unreliable)
     const isAuthenticators =
       route === "getAuthenticators" || url.includes("/authenticators");
-    const isDeleteAuthenticator =
-      route === "deleteAuthenticator" || url.includes("/authenticators/");
     const isChallenge = route === "challenge" || url.includes("/challenge");
     const isVerify = route === "verify" || url.includes("/verify");
     const isEnroll = route === "enroll" || url.includes("/enroll");
 
-    if (isDeleteAuthenticator) {
-      return new MfaDeleteAuthenticatorError(code, description, undefined);
-    }
     if (isAuthenticators) {
       return new MfaGetAuthenticatorsError(code, description, undefined);
     }

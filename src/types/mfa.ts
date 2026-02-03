@@ -238,17 +238,6 @@ export interface MfaClient {
   }): Promise<ChallengeResponse>;
 
   /**
-   * Delete an enrolled MFA authenticator.
-   *
-   * @param options - Delete options containing encrypted mfaToken and authenticatorId
-   * @returns Promise that resolves when deletion succeeds
-   */
-  deleteAuthenticator(options: {
-    mfaToken: string;
-    authenticatorId: string;
-  }): Promise<void>;
-
-  /**
    * Verify MFA code and complete authentication.
    * Caches resulting access token in session.
    *
