@@ -244,17 +244,17 @@ class ClientMfaClient implements MfaClient {
   async verify(options: VerifyMfaOptions): Promise<MfaVerifyResponse> {
     try {
       const body: Record<string, string> = {
-        mfa_token: options.mfaToken
+        mfaToken: options.mfaToken
       };
 
       // Type-based field mapping (matches VerifyMfaOptions union type)
       if ("otp" in options) {
         body.otp = options.otp;
       } else if ("oobCode" in options) {
-        body.oob_code = options.oobCode;
-        body.binding_code = options.bindingCode;
+        body.oobCode = options.oobCode;
+        body.bindingCode = options.bindingCode;
       } else if ("recoveryCode" in options) {
-        body.recovery_code = options.recoveryCode;
+        body.recoveryCode = options.recoveryCode;
       }
 
       const url = normalizeWithBasePath(

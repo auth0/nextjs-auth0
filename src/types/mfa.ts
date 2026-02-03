@@ -63,12 +63,16 @@ export interface EnrollmentApiResponse {
   recovery_codes?: string[];
   /** TOTP secret (otp only - required for otp) */
   secret?: string;
-  /** Barcode URI (otp only - required for otp) */
+  /** Barcode URI (otp: otpauth:// format, oob: Guardian/Push QR code) */
   barcode_uri?: string;
   /** OOB channel (oob only - required for oob) */
-  oob_channel?: "sms" | "voice" | "auth0";
+  oob_channel?: "sms" | "voice" | "auth0" | "email";
   /** Authenticator name (oob/email only) */
   name?: string;
+  /** OOB code (oob only - for enrollment verification) */
+  oob_code?: string;
+  /** Binding method (oob only - prompt, none) */
+  binding_method?: string;
 }
 
 /**
@@ -145,38 +149,25 @@ export interface EnrollOtpOptions {
 }
 
 /**
- * Enroll OOB authenticator (SMS/Voice/Push).
+ * Enroll OOB authenticator (SMS/Voice/Push/Email).
  */
 export interface EnrollOobOptions {
   /** Encrypted MFA token */
   mfaToken: string;
   /** Authenticator types to enroll */
   authenticatorTypes: ["oob"];
-  /** OOB channels (sms, voice, auth0) */
-  oobChannels: ("sms" | "voice" | "auth0")[];
+  /** OOB channels (sms, voice, auth0, email) */
+  oobChannels: ("sms" | "voice" | "auth0" | "email")[];
   /** Phone number in E.164 format (required for sms/voice) */
   phoneNumber?: string;
-}
-
-/**
- * Enroll Email authenticator.
- */
-export interface EnrollEmailOptions {
-  /** Encrypted MFA token */
-  mfaToken: string;
-  /** Authenticator types to enroll */
-  authenticatorTypes: ["email"];
-  /** Email address (optional - uses user's email if not provided) */
+  /** Email address (optional for email channel - uses user's email if not provided) */
   email?: string;
 }
 
 /**
  * MFA enrollment options (discriminated union).
  */
-export type EnrollOptions =
-  | EnrollOtpOptions
-  | EnrollOobOptions
-  | EnrollEmailOptions;
+export type EnrollOptions = EnrollOtpOptions | EnrollOobOptions;
 
 /**
  * OTP enrollment response.
@@ -195,42 +186,31 @@ export interface OtpEnrollmentResponse {
 }
 
 /**
- * OOB enrollment response (SMS/Voice/Push).
+ * OOB enrollment response (SMS/Voice/Push/Email).
  */
 export interface OobEnrollmentResponse {
   /** Authenticator type discriminator */
   authenticatorType: "oob";
   /** OOB channel */
-  oobChannel: "sms" | "voice" | "auth0";
+  oobChannel: "sms" | "voice" | "auth0" | "email";
   /** Recovery codes (first enrollment only) */
   recoveryCodes?: string[];
   /** Authenticator ID */
   id: string;
   /** Authenticator name */
   name?: string;
-}
-
-/**
- * Email enrollment response.
- */
-export interface EmailEnrollmentResponse {
-  /** Authenticator type discriminator */
-  authenticatorType: "email";
-  /** Recovery codes (first enrollment only) */
-  recoveryCodes?: string[];
-  /** Authenticator ID */
-  id: string;
-  /** Authenticator name */
-  name?: string;
+  /** OOB code for enrollment verification */
+  oobCode?: string;
+  /** Binding method (prompt, none) */
+  bindingMethod?: string;
+  /** Barcode URI (for Guardian/Push QR code) */
+  barcodeUri?: string;
 }
 
 /**
  * MFA enrollment response (discriminated union).
  */
-export type EnrollmentResponse =
-  | OtpEnrollmentResponse
-  | OobEnrollmentResponse
-  | EmailEnrollmentResponse;
+export type EnrollmentResponse = OtpEnrollmentResponse | OobEnrollmentResponse;
 
 /**
  * MFA client interface available in both server and client contexts.
