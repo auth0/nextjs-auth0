@@ -59,7 +59,8 @@ abstract class MfaError extends SdkError {
  *   const authenticators = await mfa.getAuthenticators({ mfaToken });
  * } catch (error) {
  *   if (error instanceof MfaGetAuthenticatorsError) {
- *     console.error(`Failed to list authenticators: ${error.error_description}`);
+ *     console.error(error.code); // 'invalid_token', 'expired_token', etc.
+ *     console.error(error.cause?.error_description);
  *   }
  * }
  * ```
@@ -89,10 +90,16 @@ export class MfaGetAuthenticatorsError extends MfaError {
  * @example
  * ```typescript
  * try {
- *   const result = await mfa.challenge({ mfaToken, challengeType: 'oob', authenticatorId });
+ *   await mfa.challenge({
+ *     mfaToken,
+ *     challengeType: 'oob',
+ *     authenticatorId: 'sms|dev_abc123'
+ *   });
  * } catch (error) {
  *   if (error instanceof MfaChallengeError) {
- *     console.error(`Challenge failed: ${error.error_description}`);
+ *     if (error.cause?.error === 'invalid_authenticator_id') {
+ *       console.error('Authenticator not found or not active');
+ *     }
  *   }
  * }
  * ```
@@ -122,10 +129,15 @@ export class MfaChallengeError extends MfaError {
  * @example
  * ```typescript
  * try {
- *   const tokens = await mfa.verify({ mfaToken, otp: '123456' });
+ *   await mfa.verify({
+ *     mfaToken,
+ *     otp: '123456'
+ *   });
  * } catch (error) {
  *   if (error instanceof MfaVerifyError) {
- *     console.error(`Verification failed: ${error.error_description}`);
+ *     if (error.cause?.error === 'invalid_grant') {
+ *       console.error('Invalid or expired verification code');
+ *     }
  *   }
  * }
  * ```
@@ -172,10 +184,15 @@ export class MfaNoAvailableFactorsError extends SdkError {
  * @example
  * ```typescript
  * try {
- *   const enrollment = await mfa.enroll({ mfaToken, authenticatorTypes: ['otp'] });
+ *   await mfa.enroll({
+ *     mfaToken,
+ *     authenticatorTypes: ['otp']
+ *   });
  * } catch (error) {
  *   if (error instanceof MfaEnrollmentError) {
- *     console.error(`Enrollment failed: ${error.error_description}`);
+ *     if (error.cause?.error === 'unsupported_challenge_type') {
+ *       console.error('Tenant does not support OTP enrollment');
+ *     }
  *   }
  * }
  * ```
@@ -205,10 +222,15 @@ export class MfaEnrollmentError extends MfaError {
  * @example
  * ```typescript
  * try {
- *   await mfa.deleteAuthenticator({ mfaToken, authenticatorId });
+ *   await mfa.deleteAuthenticator({
+ *     mfaToken,
+ *     authenticatorId: 'totp|dev_abc123'
+ *   });
  * } catch (error) {
  *   if (error instanceof MfaDeleteAuthenticatorError) {
- *     console.error(`Delete failed: ${error.error_description}`);
+ *     if (error.cause?.error === 'authenticator_not_found') {
+ *       console.error('Authenticator already deleted or invalid ID');
+ *     }
  *   }
  * }
  * ```

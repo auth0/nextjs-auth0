@@ -22,8 +22,39 @@ import { normalizeWithBasePath } from "../../utils/pathUtils.js";
 
 /**
  * Client-side MFA API (singleton).
- * Thin wrappers that fetch() to SDK routes.
- * All business logic executes server-side.
+ *
+ * All operations are thin wrappers that fetch() to SDK routes.
+ * Business logic executes server-side for security.
+ *
+ * @example React Component
+ * ```typescript
+ * 'use client';
+ *
+ * import { mfa } from '@auth0/nextjs-auth0/client';
+ * import { useState } from 'react';
+ *
+ * export function MfaVerification({ mfaToken }) {
+ *   const [otp, setOtp] = useState('');
+ *   const [error, setError] = useState(null);
+ *
+ *   async function handleVerify() {
+ *     try {
+ *       await mfa.verify({ mfaToken, otp });
+ *       window.location.href = '/dashboard'; // Redirect after success
+ *     } catch (err) {
+ *       setError(err.message);
+ *     }
+ *   }
+ *
+ *   return (
+ *     <form onSubmit={e => { e.preventDefault(); handleVerify(); }}>
+ *       <input value={otp} onChange={e => setOtp(e.target.value)} />
+ *       <button type="submit">Verify</button>
+ *       {error && <p>{error}</p>}
+ *     </form>
+ *   );
+ * }
+ * ```
  */
 class ClientMfaClient implements MfaClient {
   /**
@@ -40,6 +71,31 @@ class ClientMfaClient implements MfaClient {
    * @throws {MfaTokenExpiredError} Token TTL exceeded
    * @throws {MfaTokenInvalidError} Token tampered or malformed
    * @throws {MfaGetAuthenticatorsError} Auth0 API error
+   *
+   * @example
+   * ```typescript
+   * 'use client';
+   * import { mfa } from '@auth0/nextjs-auth0/client';
+   * import { useState, useEffect } from 'react';
+   *
+   * export function AuthenticatorList({ mfaToken }) {
+   *   const [authenticators, setAuthenticators] = useState([]);
+   *
+   *   useEffect(() => {
+   *     mfa.getAuthenticators({ mfaToken })
+   *       .then(setAuthenticators)
+   *       .catch(console.error);
+   *   }, [mfaToken]);
+   *
+   *   return (
+   *     <ul>
+   *       {authenticators.map(auth => (
+   *         <li key={auth.id}>{auth.authenticatorType}</li>
+   *       ))}
+   *     </ul>
+   *   );
+   * }
+   * ```
    */
   async getAuthenticators(options: {
     mfaToken: string;
@@ -96,6 +152,22 @@ class ClientMfaClient implements MfaClient {
    * @throws {MfaTokenExpiredError} Token TTL exceeded
    * @throws {MfaTokenInvalidError} Token tampered or malformed
    * @throws {MfaChallengeError} Auth0 API error
+   *
+   * @example
+   * ```typescript
+   * 'use client';
+   * import { mfa } from '@auth0/nextjs-auth0/client';
+   *
+   * async function sendSmsCode(mfaToken, authenticatorId) {
+   *   const challenge = await mfa.challenge({
+   *     mfaToken,
+   *     challengeType: 'oob',
+   *     authenticatorId
+   *   });
+   *   // SMS sent, now collect binding code from user
+   *   return challenge.oobCode;
+   * }
+   * ```
    */
   async challenge(options: {
     mfaToken: string;
@@ -296,6 +368,31 @@ class ClientMfaClient implements MfaClient {
    * @throws {MfaTokenExpiredError} Token TTL exceeded
    * @throws {MfaTokenInvalidError} Token tampered or malformed
    * @throws {MfaEnrollmentError} Auth0 API error
+   *
+   * @example
+   * ```typescript
+   * 'use client';
+   * import { mfa } from '@auth0/nextjs-auth0/client';
+   * import QRCode from 'qrcode.react';
+   *
+   * export function EnrollOtp({ mfaToken }) {
+   *   const [enrollment, setEnrollment] = useState(null);
+   *
+   *   async function handleEnroll() {
+   *     const result = await mfa.enroll({
+   *       mfaToken,
+   *       authenticatorTypes: ['otp']
+   *     });
+   *     setEnrollment(result);
+   *   }
+   *
+   *   return enrollment ? (
+   *     <QRCode value={enrollment.barcodeUri} />
+   *   ) : (
+   *     <button onClick={handleEnroll}>Enroll</button>
+   *   );
+   * }
+   * ```
    */
   async enroll(options: EnrollOptions): Promise<EnrollmentResponse> {
     try {

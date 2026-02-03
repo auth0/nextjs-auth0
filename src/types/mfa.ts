@@ -289,6 +289,14 @@ export interface MfaClient {
 /**
  * MFA authenticator (enrolled factor).
  * Uses camelCase for SDK-facing interface.
+ *
+ * @example
+ * ```typescript
+ * const authenticators = await mfa.getAuthenticators({ mfaToken });
+ *
+ * const otpAuth = authenticators.find(a => a.authenticatorType === 'otp');
+ * const smsAuth = authenticators.find(a => a.oobChannel === 'sms');
+ * ```
  */
 export interface Authenticator {
   /** Authenticator ID */
@@ -314,6 +322,19 @@ export interface Authenticator {
 /**
  * MFA challenge response.
  * Uses camelCase for SDK-facing interface.
+ *
+ * @example
+ * ```typescript
+ * const response = await mfa.challenge({
+ *   mfaToken,
+ *   challengeType: 'oob',
+ *   authenticatorId: 'sms|dev_abc123'
+ * });
+ *
+ * console.log(`Challenge type: ${response.challengeType}`);
+ * console.log(`OOB code: ${response.oobCode}`);
+ * console.log(`Binding method: ${response.bindingMethod}`); // 'prompt'
+ * ```
  */
 export interface ChallengeResponse {
   /** Challenge type (otp, oob) */
@@ -333,14 +354,48 @@ export interface VerifyMfaOptionsBase {
 }
 
 /**
- * Verify with OTP code.
+ * Verification with OTP code from authenticator app.
+ *
+ * @example
+ * ```typescript
+ * import { mfa } from '@auth0/nextjs-auth0/client';
+ *
+ * try {
+ *   await mfa.verify({
+ *     mfaToken: encryptedToken,
+ *     otp: '123456' // From Google Authenticator
+ *   });
+ *   // User authenticated, access token in session
+ * } catch (error) {
+ *   if (error instanceof MfaVerifyError) {
+ *     console.error('Invalid OTP code');
+ *   }
+ * }
+ * ```
  */
 export interface VerifyMfaWithOtpOptions extends VerifyMfaOptionsBase {
   otp: string;
 }
 
 /**
- * Verify with OOB code and binding code.
+ * Verification with OOB code sent via SMS/Email/Push.
+ *
+ * @example
+ * ```typescript
+ * // After calling challenge()
+ * const challengeResponse = await mfa.challenge({
+ *   mfaToken,
+ *   challengeType: 'oob',
+ *   authenticatorId: 'sms|dev_abc123'
+ * });
+ *
+ * // User receives code "543210"
+ * await mfa.verify({
+ *   mfaToken,
+ *   oobCode: challengeResponse.oobCode,
+ *   bindingCode: '543210'
+ * });
+ * ```
  */
 export interface VerifyMfaWithOobOptions extends VerifyMfaOptionsBase {
   oobCode: string;
@@ -348,7 +403,17 @@ export interface VerifyMfaWithOobOptions extends VerifyMfaOptionsBase {
 }
 
 /**
- * Verify with recovery code.
+ * Verification with recovery code (backup).
+ *
+ * @example
+ * ```typescript
+ * // Using recovery code from enrollment
+ * await mfa.verify({
+ *   mfaToken,
+ *   recoveryCode: 'ABCD-EFGH-IJKL-MNOP'
+ * });
+ * // Recovery code is single-use and invalidated after verification
+ * ```
  */
 export interface VerifyMfaWithRecoveryCodeOptions extends VerifyMfaOptionsBase {
   recoveryCode: string;
