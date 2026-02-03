@@ -284,15 +284,15 @@ describe("ClientMfaClient", () => {
               `${DEFAULT.appBaseUrl}/auth/mfa/verify`,
               async ({ request }) => {
                 const body = (await request.json()) as any;
-                expect(body.mfa_token).toBe(encryptedToken);
+                expect(body.mfaToken).toBe(encryptedToken);
 
                 if (scenario.input.otp) {
                   expect(body.otp).toBe(scenario.input.otp);
                 } else if (scenario.input.oobCode) {
-                  expect(body.oob_code).toBe(scenario.input.oobCode);
-                  expect(body.binding_code).toBe(scenario.input.bindingCode);
+                  expect(body.oobCode).toBe(scenario.input.oobCode);
+                  expect(body.bindingCode).toBe(scenario.input.bindingCode);
                 } else if (scenario.input.recoveryCode) {
-                  expect(body.recovery_code).toBe(scenario.input.recoveryCode);
+                  expect(body.recoveryCode).toBe(scenario.input.recoveryCode);
                 }
 
                 return HttpResponse.json(scenario.mswResponse!.body, {

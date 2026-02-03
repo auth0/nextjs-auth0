@@ -553,19 +553,22 @@ export const enrollScenarios: MfaTestScenario<
     name: "Email enrollment",
     input: {
       mfaToken: "encrypted-token",
-      authenticatorTypes: ["email"],
+      authenticatorTypes: ["oob"],
+      oobChannels: ["email"],
       email: "user@example.com"
     },
     mswResponse: {
       status: 200,
       body: {
-        authenticator_type: "email",
+        id: "email|dev_abc123",
+        authenticator_type: "oob",
+        oob_channel: "email",
         oob_code: "email-code-123"
       }
     },
     expected: (result: EnrollmentResponse) => {
-      if (result.authenticatorType !== "email")
-        throw new Error("Expected authenticatorType=email");
+      if (result.authenticatorType !== "oob" || result.oobChannel !== "email")
+        throw new Error("Expected authenticatorType=oob with oobChannel=email");
     }
   },
   {

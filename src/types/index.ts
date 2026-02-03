@@ -194,7 +194,6 @@ export {
   EnrollOptions,
   EnrollOtpOptions,
   EnrollOobOptions,
-  EnrollEmailOptions,
   MfaVerifyResponse,
   VerifyMfaOptions,
   VerifyMfaOptionsBase,
