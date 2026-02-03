@@ -13,7 +13,6 @@ import {
 
 import {
   challengeScenarios,
-  deleteAuthenticatorScenarios,
   enrollScenarios,
   getAuthenticatorsScenarios,
   verifyScenarios
@@ -40,7 +39,6 @@ beforeAll(() => {
   process.env.NEXT_PUBLIC_MFA_CHALLENGE_ROUTE = `${DEFAULT.appBaseUrl}/auth/mfa/challenge`;
   process.env.NEXT_PUBLIC_MFA_VERIFY_ROUTE = `${DEFAULT.appBaseUrl}/auth/mfa/verify`;
   process.env.NEXT_PUBLIC_MFA_ENROLL_ROUTE = `${DEFAULT.appBaseUrl}/auth/mfa/enroll`;
-  process.env.NEXT_PUBLIC_MFA_DELETE_AUTHENTICATOR_ROUTE = `${DEFAULT.appBaseUrl}/auth/mfa/authenticators`;
 });
 
 afterEach(() => {
@@ -52,7 +50,6 @@ afterAll(() => {
   delete process.env.NEXT_PUBLIC_MFA_CHALLENGE_ROUTE;
   delete process.env.NEXT_PUBLIC_MFA_VERIFY_ROUTE;
   delete process.env.NEXT_PUBLIC_MFA_ENROLL_ROUTE;
-  delete process.env.NEXT_PUBLIC_MFA_DELETE_AUTHENTICATOR_ROUTE;
   server.close();
 });
 
@@ -604,145 +601,6 @@ describe("ClientMfaClient", () => {
           })
         })
       );
-    });
-  });
-
-  describe("deleteAuthenticator", () => {
-    // Shared scenarios (3 tests)
-    deleteAuthenticatorScenarios.forEach((scenario) => {
-      it(scenario.name, async () => {
-        const encryptedToken = await encryptMfaToken(
-          DEFAULT.mfaToken,
-          "",
-          "openid profile",
-          undefined,
-          secret,
-          300
-        );
-
-        if (scenario.mswResponse) {
-          server.use(
-            http.delete(
-              `${DEFAULT.appBaseUrl}/auth/mfa/authenticators/${scenario.input.authenticatorId}`,
-              () => {
-                if (scenario.mswResponse!.status === 204) {
-                  return new HttpResponse(null, { status: 204 });
-                }
-                // Error responses - add description for 500
-                const errorBody = scenario.mswResponse!.body;
-                if (
-                  scenario.mswResponse!.status === 500 &&
-                  Object.keys(errorBody).length === 0
-                ) {
-                  return HttpResponse.json(
-                    {
-                      error: "server_error",
-                      error_description: "Failed to delete authenticator"
-                    },
-                    {
-                      status: 500
-                    }
-                  );
-                }
-                return HttpResponse.json(errorBody, {
-                  status: scenario.mswResponse!.status
-                });
-              }
-            )
-          );
-        }
-
-        if (scenario.expectError) {
-          try {
-            await mfaClient.deleteAuthenticator({
-              mfaToken: encryptedToken,
-              authenticatorId: scenario.input.authenticatorId
-            });
-            throw new Error("Expected error to be thrown");
-          } catch (error) {
-            scenario.expectError(error);
-          }
-        } else {
-          const result = await mfaClient.deleteAuthenticator({
-            mfaToken: encryptedToken,
-            authenticatorId: scenario.input.authenticatorId
-          });
-          expect(result).toBeUndefined();
-        }
-      });
-    });
-
-    // Request format (1 test)
-    it("should send DELETE with Authorization header", async () => {
-      const fetchSpy = vi.spyOn(global, "fetch");
-      const encryptedToken = await encryptMfaToken(
-        DEFAULT.mfaToken,
-        "",
-        "openid profile",
-        undefined,
-        secret,
-        300
-      );
-
-      server.use(
-        http.delete(
-          `${DEFAULT.appBaseUrl}/auth/mfa/authenticators/auth_123`,
-          () => {
-            return new HttpResponse(null, { status: 204 });
-          }
-        )
-      );
-
-      await mfaClient.deleteAuthenticator({
-        mfaToken: encryptedToken,
-        authenticatorId: "auth_123"
-      });
-
-      expect(fetchSpy).toHaveBeenCalledWith(
-        expect.stringContaining("/auth/mfa/authenticators/auth_123"),
-        expect.objectContaining({
-          method: "DELETE",
-          credentials: "omit",
-          headers: expect.objectContaining({
-            Authorization: `Bearer ${encryptedToken}`
-          })
-        })
-      );
-    });
-
-    // Network errors (1 test)
-    it("should throw MfaDeleteAuthenticatorError for network errors", async () => {
-      const { MfaDeleteAuthenticatorError } = await import(
-        "../../errors/index.js"
-      );
-      const encryptedToken = await encryptMfaToken(
-        DEFAULT.mfaToken,
-        "",
-        "openid profile",
-        undefined,
-        secret,
-        300
-      );
-
-      server.use(
-        http.delete(
-          `${DEFAULT.appBaseUrl}/auth/mfa/authenticators/auth_123`,
-          () => {
-            return HttpResponse.error();
-          }
-        )
-      );
-
-      try {
-        await mfaClient.deleteAuthenticator({
-          mfaToken: encryptedToken,
-          authenticatorId: "auth_123"
-        });
-        throw new Error("Expected error to be thrown");
-      } catch (error) {
-        expect(error).toBeInstanceOf(MfaDeleteAuthenticatorError);
-        expect((error as any).code).toBe("client_error");
-      }
     });
   });
 

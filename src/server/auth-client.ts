@@ -25,7 +25,6 @@ import {
   DPoPErrorCode,
   InvalidStateError,
   MfaChallengeError,
-  MfaDeleteAuthenticatorError,
   MfaEnrollmentError,
   MfaGetAuthenticatorsError,
   MfaNoAvailableFactorsError,
@@ -94,9 +93,7 @@ import {
   isMfaRequiredError
 } from "../utils/mfa-utils.js";
 import {
-  extractBearerToken,
   extractMfaToken,
-  extractPathParam,
   parseJsonBody,
   validateArrayFieldAndThrow,
   validateStringFieldAndThrow,
@@ -490,11 +487,6 @@ export class AuthClient {
       sanitizedPathname === this.routes.mfaAuthenticators
     ) {
       return this.handleGetAuthenticators(req);
-    } else if (
-      method === "DELETE" &&
-      sanitizedPathname.startsWith(this.routes.mfaAuthenticators + "/")
-    ) {
-      return this.handleDeleteAuthenticator(req, sanitizedPathname);
     } else if (
       method === "POST" &&
       sanitizedPathname === this.routes.mfaChallenge
@@ -1019,30 +1011,6 @@ export class AuthClient {
       const mfaToken = extractMfaToken(req);
       const authenticators = await this.mfaGetAuthenticators(mfaToken);
       return NextResponse.json(authenticators);
-    } catch (e) {
-      return handleMfaError(e);
-    }
-  }
-
-  /**
-   * Route: DELETE /auth/mfa/authenticators/:id
-   * Deletes an enrolled MFA authenticator.
-   *
-   * Headers:
-   *   Authorization: Bearer <encrypted-mfa-token>
-   *
-   * Response: 204 No Content
-   * Error: 400/401 + {error, error_description}
-   */
-  async handleDeleteAuthenticator(
-    req: NextRequest,
-    pathname: string
-  ): Promise<NextResponse> {
-    try {
-      const authenticatorId = extractPathParam(pathname, "authenticator ID");
-      const mfaToken = extractBearerToken(req);
-      await this.mfaDeleteAuthenticator(mfaToken, authenticatorId);
-      return new NextResponse(null, { status: 204 });
     } catch (e) {
       return handleMfaError(e);
     }
@@ -2799,65 +2767,6 @@ export class AuthClient {
       throw new MfaChallengeError(
         "unexpected_error",
         "Unexpected error during MFA challenge",
-        undefined
-      );
-    }
-  }
-
-  /**
-   * Delete an enrolled MFA authenticator.
-   * First-time deletion only (requires mfa_token, not access token).
-   *
-   * @param encryptedToken - Encrypted MFA token from MfaRequiredError
-   * @param authenticatorId - Authenticator ID to delete
-   * @throws {MfaTokenInvalidError} If token cannot be decrypted
-   * @throws {MfaTokenExpiredError} If token expired
-   * @throws {MfaDeleteAuthenticatorError} On Auth0 API failure
-   */
-  async mfaDeleteAuthenticator(
-    encryptedToken: string,
-    authenticatorId: string
-  ): Promise<void> {
-    // Decrypt token to extract context
-    const context = await decryptMfaToken(
-      encryptedToken,
-      this.sessionStore.secret
-    );
-
-    // Extract raw mfaToken for Auth0 API call
-    const mfaToken = context.mfaToken;
-
-    const endpoint = new URL(
-      `/mfa/authenticators/${authenticatorId}`,
-      this.issuer
-    ).toString();
-    const httpOptions = this.httpOptions();
-    httpOptions.headers.set("Authorization", `Bearer ${mfaToken}`);
-
-    try {
-      const response = await this.fetch(endpoint, {
-        method: "DELETE",
-        ...httpOptions
-      });
-
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({
-          error: "unknown_error",
-          error_description: "Failed to delete authenticator"
-        }));
-        throw new MfaDeleteAuthenticatorError(
-          errorBody.error || "unknown_error",
-          errorBody.error_description || "Failed to delete authenticator",
-          errorBody.error ? errorBody : undefined
-        );
-      }
-
-      // Success: 204 No Content (no response body)
-    } catch (e) {
-      if (e instanceof MfaDeleteAuthenticatorError) throw e;
-      throw new MfaDeleteAuthenticatorError(
-        "unexpected_error",
-        "Unexpected error during authenticator deletion",
         undefined
       );
     }
