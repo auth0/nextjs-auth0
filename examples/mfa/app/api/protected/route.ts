@@ -2,11 +2,15 @@ import { NextResponse } from 'next/server';
 import { auth0 } from '@/lib/auth0';
 
 export async function GET() {
-  const audience = process.env.AUTH0_AUDIENCE || 'resource-server-1';
+  const audience = process.env.AUTH0_AUDIENCE;
+  
+  console.log('[/api/protected] Request received for audience:', audience);
   
   try {
     // This will trigger MFA step-up if user hasn't authenticated with MFA for this audience
+    console.log('[/api/protected] Calling getAccessToken...');
     await auth0.getAccessToken({ audience });
+    console.log('[/api/protected] Token retrieved successfully');
 
     // Simulate protected data
     const protectedData = {
@@ -20,6 +24,15 @@ export async function GET() {
 
     return NextResponse.json(protectedData);
   } catch (error: any) {
+    console.error('[/api/protected] Error caught:', {
+      code: error.code,
+      error: error.error,
+      message: error.message,
+      error_description: error.error_description,
+      status: error.status,
+      cause: error.cause
+    });
+    
     // Check if it's an MFA required error
     if (error.code === 'mfa_required' || error.error === 'mfa_required') {
       // Validate mfa_token exists (empty string = re-auth required, not step-up)
@@ -39,7 +52,7 @@ export async function GET() {
         error: 'mfa_required',
         error_description: error.error_description || 'Multi-factor authentication is required',
         mfaToken: error.mfa_token,
-        mfaRequirements: {
+        mfa_requirements: {
           challenge: challengeTypes,
           enroll: enrollTypes,
           authenticators: error.authenticators || [],

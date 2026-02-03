@@ -1,172 +1,168 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useUser } from '@auth0/nextjs-auth0';
+import { mfa } from '@auth0/nextjs-auth0/client';
 import { UserInfo } from '@/components/user-info';
 import { ProtectedData } from '@/components/protected-data';
 import { ErrorDisplay } from '@/components/mfa/error-display';
+import { PhoneEnrollment } from '@/components/mfa/phone-enrollment';
+import { TotpEnrollment } from '@/components/mfa/totp-enrollment';
+import { EmailEnrollment } from '@/components/mfa/email-enrollment';
 
 export default function Dashboard() {
   const { user, isLoading } = useUser();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<any>(null);
   const [protectedData, setProtectedData] = useState<any>(null);
-  const [mfaSuccess, setMfaSuccess] = useState<any>(null);
   
-  // MFA inline flow states
+  // Simplified MFA flow states
   const [mfaToken, setMfaToken] = useState<string | null>(null);
   const [mfaRequirements, setMfaRequirements] = useState<any>(null);
   const [authenticators, setAuthenticators] = useState<any[]>([]);
-  const [challengeData, setChallengeData] = useState<any>(null);
+  const [selectedAuthId, setSelectedAuthId] = useState<string>('');
   const [otp, setOtp] = useState('');
-  const [mfaStep, setMfaStep] = useState<'idle' | 'token' | 'authenticators' | 'enroll' | 'qr' | 'challenge' | 'verify'>('idle');
-  const [enrollData, setEnrollData] = useState<any>(null);
+  const [enrollmentMode, setEnrollmentMode] = useState(false);
+  const [enrollmentType, setEnrollmentType] = useState<'phone' | 'totp' | 'email'>('totp');
+  const [challengeData, setChallengeData] = useState<{
+    oobCode: string;
+    bindingMethod: string;
+  } | null>(null);
 
-  useEffect(() => {
-    // Check for MFA success state
-    const successData = sessionStorage.getItem('mfaSuccess');
-    if (successData) {
-      const parsed = JSON.parse(successData);
-      setMfaSuccess(parsed);
-      setProtectedData(parsed.protectedData?.data);
-      sessionStorage.removeItem('mfaSuccess');
+  const getAuthenticatorFlow = (auth: any) => {
+    // TOTP: Direct verify (no challenge)
+    if (auth.authenticatorType === 'otp' || auth.type === 'totp') {
+      return 'direct';
     }
-  }, []);
+    
+    // OOB (SMS/Email/Push): Challenge then verify
+    if (auth.authenticatorType === 'oob' || auth.oobChannel) {
+      return 'challenge';
+    }
+    
+    // Recovery: Direct verify
+    if (auth.authenticatorType === 'recovery-code') {
+      return 'direct';
+    }
+    
+    return 'direct';
+  };
+
+  const canEnroll = (type: string) => {
+    if (!mfaRequirements) return false;
+    
+    // Must be in enroll list (or already have authenticators)
+    const canEnrollType = mfaRequirements.enroll?.includes(type) || authenticators.length > 0;
+    if (!canEnrollType) return false;
+    
+    // For OOB types (phone/email), must ALSO support oob challenges
+    if (type === 'phone' || type === 'email') {
+      const challengeTypes = (mfaRequirements.challenge || []).map((c: any) => c.type);
+      return challengeTypes.includes('oob');
+    }
+    
+    // For OTP, check if otp challenges supported
+    if (type === 'otp') {
+      const challengeTypes = (mfaRequirements.challenge || []).map((c: any) => c.type);
+      return challengeTypes.includes('otp');
+    }
+    
+    return true;
+  };
+
+  const handleReset = () => {
+    setMfaToken(null);
+    setAuthenticators([]);
+    setSelectedAuthId('');
+    setOtp('');
+    setError(null);
+    setChallengeData(null);
+  };
+
+  const handleSendChallenge = async (authenticatorId: string) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await mfa.challenge({
+        mfaToken: mfaToken!,
+        challengeType: 'oob',
+        authenticatorId
+      });
+      
+      setChallengeData({
+        oobCode: response.oobCode || '',
+        bindingMethod: response.bindingMethod || 'prompt'
+      });
+      
+      setError({ 
+        message: '✓ SMS sent! Enter the code below.', 
+        type: 'success' 
+      });
+    } catch (err: any) {
+      setError(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleAccessProtectedResource = async () => {
     setLoading(true);
     setError(null);
-    setMfaStep('idle');
 
     try {
-      // Step 1: Call protected API
+      // Step 1: Call protected API - will trigger mfa_required
       const response = await fetch('/api/protected');
       const data = await response.json();
 
       if (data.error === 'mfa_required') {
-        // Step 2: Show MFA token received
+        // Step 2: Store MFA token and requirements
         setMfaToken(data.mfaToken);
-        setMfaRequirements(data.mfaRequirements);
-        setMfaStep('token');
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        // Step 3: Call getAuthenticators and display list
-        const authResponse = await fetch(`/api/mfa/authenticators?mfa_token=${encodeURIComponent(data.mfaToken)}`);
-        const authenticatorsList = await authResponse.json();
-        
-        if (authenticatorsList.error) {
-          setError(authenticatorsList);
-          setMfaStep('idle');
-          setLoading(false);
-          return;
-        }
-        
-        setAuthenticators(authenticatorsList);
-        setMfaStep('authenticators');
-
-        if (authenticatorsList.length === 0) {
-          await new Promise(resolve => setTimeout(resolve, 1500));
-          setMfaStep('enroll');
-          setLoading(false);
-          return;
-        }
-
-        await new Promise(resolve => setTimeout(resolve, 1500));
-
-        // Step 4: Call challenge - REQUIRED for all MFA flows
-        const challengeResponse = await fetch('/api/mfa/challenge', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            mfaToken: data.mfaToken,
-            challengeType: 'otp',
-            authenticatorId: authenticatorsList[0].id, // Use first authenticator
-          }),
+        setMfaRequirements(data.mfa_requirements || null);
+        console.log('[CLIENT] MFA required, token received:', {
+          tokenLength: data.mfaToken?.length,
+          tokenPrefix: data.mfaToken?.substring(0, 30) + '...',
+          requirements: data.mfa_requirements,
+          enrollLength: data.mfa_requirements?.enroll?.length,
+          challengeLength: data.mfa_requirements?.challenge?.length
         });
 
-        const challenge = await challengeResponse.json();
+        // Step 3: Fetch authenticators using the MFA token
+        console.log('[CLIENT] Fetching authenticators...');
+        const authenticatorsList = await mfa.getAuthenticators({ mfaToken: data.mfaToken });
+        console.log('[CLIENT] Authenticators received:', {
+          count: authenticatorsList.length,
+          authenticators: authenticatorsList.map(a => ({
+            id: a.id,
+            type: a.type,
+            active: a.active,
+            name: a.name
+          }))
+        });
         
-        if (challenge.error) {
-          setError(challenge);
-          setMfaStep('idle');
-          setLoading(false);
-          return;
+        // Filter to only active authenticators
+        const activeAuthenticators = authenticatorsList.filter(a => a.active);
+        console.log('[CLIENT] Active authenticators:', {
+          count: activeAuthenticators.length,
+          ids: activeAuthenticators.map(a => a.id)
+        });
+        
+        setAuthenticators(activeAuthenticators);
+
+        // Preselect first active authenticator
+        if (activeAuthenticators.length > 0) {
+          setSelectedAuthId(activeAuthenticators[0].id);
+        } else if (authenticatorsList.length > 0) {
+          // Fallback: show warning and use all authenticators
+          console.warn('[CLIENT] No active authenticators found, showing all');
+          setAuthenticators(authenticatorsList);
+          setSelectedAuthId(authenticatorsList[0].id);
         }
-
-        setChallengeData(challenge);
-        setMfaStep('challenge');
-
-        // Step 5: Wait for OTP (user input)
-        // UI will show OTP input, verification happens in handleVerifyOtp
-
       } else if (data.error) {
         setError(data);
       } else {
         setProtectedData(data);
       }
-    } catch (err: any) {
-      setError(err);
-      setMfaStep('idle');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleEnrollOtp = async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetch('/api/mfa/enroll', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mfaToken,
-          authenticatorTypes: ['otp'],
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.error) {
-        throw new Error(data.error_description || data.error);
-      }
-
-      setEnrollData(data);
-      setMfaStep('qr');
-    } catch (err: any) {
-      setError(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleContinueFromQr = async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      // Must call challenge API before OTP verification
-      const challengeResponse = await fetch('/api/mfa/challenge', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mfaToken,
-          challengeType: 'otp',
-          authenticatorId: enrollData.id, // Use enrolled authenticator ID
-        }),
-      });
-
-      const challenge = await challengeResponse.json();
-      
-      if (challenge.error) {
-        setError(challenge);
-        setMfaStep('qr');
-        return;
-      }
-
-      setChallengeData(challenge);
-      setMfaStep('challenge');
     } catch (err: any) {
       setError(err);
     } finally {
@@ -175,41 +171,55 @@ export default function Dashboard() {
   };
 
   const handleVerifyOtp = async () => {
-    if (otp.length !== 6) {
+    if (!otp || otp.length !== 6) {
       setError({ message: 'Please enter a 6-digit code', type: 'error' });
+      return;
+    }
+
+    if (!mfaToken) {
+      setError({ message: 'No MFA token available', type: 'error' });
       return;
     }
 
     setLoading(true);
     setError(null);
-    setMfaStep('verify');
 
     try {
-      const response = await fetch('/api/mfa/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const selectedAuth = authenticators.find(a => a.id === selectedAuthId);
+      const flow = getAuthenticatorFlow(selectedAuth);
+      
+      if (flow === 'challenge' && !challengeData) {
+        setError({ 
+          message: 'Please send SMS first by clicking "Send Code"', 
+          type: 'error' 
+        });
+        setLoading(false);
+        return;
+      }
+      
+      // Verify based on flow type
+      if (flow === 'direct') {
+        // TOTP/Recovery: Direct verify
+        await mfa.verify({
           mfaToken,
           otp,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error_description || errorData.error || 'Verification failed');
+          ...(selectedAuthId && { authenticatorId: selectedAuthId }),
+        });
+      } else {
+        // OOB: Verify with oobCode from challenge
+        await mfa.verify({
+          mfaToken,
+          oobCode: challengeData!.oobCode,
+          bindingCode: otp, // User enters SMS code as binding code
+        });
       }
 
-      await response.json();
-
-      setError({ message: '✓ Verification successful! Fetching protected data...', type: 'success' });
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Fetch protected data to verify token works
+      // Fetch protected data after successful verification
       const protectedResponse = await fetch('/api/protected');
       
       if (!protectedResponse.ok) {
         const errorData = await protectedResponse.json();
-        setError({ message: `Token received but protected resource failed: ${errorData.error_description || errorData.error}`, type: 'error' });
+        setError({ message: `Protected resource failed: ${errorData.error_description || errorData.error}`, type: 'error' });
         return;
       }
 
@@ -223,18 +233,13 @@ export default function Dashboard() {
       setProtectedData(data);
       setError({ message: '✓ Complete! Protected data retrieved successfully.', type: 'success' });
       
-      // Reset MFA flow
-      setMfaStep('idle');
-      setMfaToken(null);
-      setAuthenticators([]);
-      setChallengeData(null);
-      setEnrollData(null);
-      setOtp('');
+      // Reset MFA flow state
+      handleReset();
 
     } catch (err: any) {
       setError(err);
       setOtp('');
-      setMfaStep('challenge');
+      setChallengeData(null);
     } finally {
       setLoading(false);
     }
@@ -283,41 +288,6 @@ export default function Dashboard() {
         <div className="space-y-6">
           <UserInfo user={user} />
 
-          {mfaSuccess && (
-            <div className="bg-green-50 border-2 border-green-500 rounded-lg p-6">
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0">
-                  <svg className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-green-900 mb-3">
-                    ✓ MFA Verification Complete
-                  </h3>
-                  <div className="space-y-2 text-sm text-green-800">
-                    <p className="font-medium">Verified at: {new Date(mfaSuccess.timestamp).toLocaleString()}</p>
-                    <div className="mt-3 space-y-1">
-                      <p>✓ Access token received: <span className="font-mono">{mfaSuccess.verify.tokenType}</span></p>
-                      <p>✓ Token expires in: <span className="font-semibold">{mfaSuccess.verify.expiresIn}s</span> (at {mfaSuccess.verify.expiresAt ? new Date(mfaSuccess.verify.expiresAt).toLocaleTimeString() : 'N/A'})</p>
-                      {mfaSuccess.verify.scope && (
-                        <p>✓ Scope: <span className="font-mono text-xs">{mfaSuccess.verify.scope}</span></p>
-                      )}
-                      <p>✓ Token cached in session: <span className="font-semibold">Yes</span></p>
-                      <p>✓ Protected resource accessed: <span className="font-semibold">{mfaSuccess.protectedData.received ? 'Success' : 'Failed'}</span></p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setMfaSuccess(null)}
-                    className="mt-4 px-4 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700"
-                  >
-                    Dismiss
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
           {protectedData && (
             <ProtectedData data={protectedData} />
           )}
@@ -326,128 +296,172 @@ export default function Dashboard() {
             <h2 className="text-xl font-semibold mb-4">Protected Resource Access</h2>
             <p className="text-gray-600 mb-4">
               Click the button below to access a protected API that requires MFA authentication.
-              If you haven&apos;t enrolled in MFA yet, you&apos;ll be prompted to do so.
             </p>
             
             <button
               onClick={handleAccessProtectedResource}
-              disabled={loading || mfaStep !== 'idle'}
+              disabled={loading || (authenticators.length > 0 && !protectedData)}
               className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
             >
               {loading ? 'Processing...' : 'Access Protected API'}
             </button>
 
-            {/* MFA Flow Visual Feedback */}
-            {mfaStep === 'token' && (
-              <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <svg className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span className="font-semibold text-blue-900">Step 1/4: MFA Token Received</span>
-                </div>
-                <p className="text-sm text-blue-700 mt-2">Token length: {mfaToken?.length} characters</p>
-                <p className="text-xs text-blue-600 mt-1">Requirements: {mfaRequirements?.challenge?.map((c: any) => c.type).join(', ')}</p>
-              </div>
-            )}
-
-            {mfaStep === 'authenticators' && (
-              <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <svg className="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span className="font-semibold text-green-900">Step 2/4: Authenticators Retrieved</span>
-                </div>
-                <div className="mt-3 space-y-2">
-                  {authenticators.map((auth: any, idx: number) => (
-                    <div key={idx} className="text-sm text-green-700 flex items-center gap-2">
-                      <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                      <span className="font-mono">{auth.authenticatorType}</span>
-                      {auth.name && <span className="text-xs">({auth.name})</span>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {mfaStep === 'enroll' && (
+            {/* Show enrollment UI when mfa_requirements.enroll exists OR user wants to add factors */}
+            {mfaToken && (mfaRequirements?.enroll?.length > 0 || authenticators.length > 0) && !protectedData && (
               <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <div className="flex items-center gap-2 mb-3">
-                  <svg className="h-5 w-5 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                  <span className="font-semibold text-yellow-900">No Authenticators Found</span>
+                <h3 className="font-semibold text-yellow-900 mb-2">
+                  📱 {authenticators.length === 0 ? 'Enroll Your First Authenticator' : 'Enroll Additional Authenticator'}
+                </h3>
+                <p className="text-sm text-yellow-700 mb-3">
+                  {authenticators.length === 0 && mfaRequirements?.enroll?.length > 0 
+                    ? 'You need at least one MFA factor to continue:' 
+                    : 'You can enroll additional MFA factors:'}
+                </p>
+                
+                <div className="flex gap-3">
+                  {canEnroll('otp') && (
+                    <button
+                      onClick={() => {
+                        setEnrollmentType('totp');
+                        setEnrollmentMode(true);
+                      }}
+                      disabled={loading}
+                      className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:bg-gray-400"
+                    >
+                      📱 Enroll Authenticator App
+                    </button>
+                  )}
+                  {canEnroll('phone') && (
+                    <button
+                      onClick={() => {
+                        setEnrollmentType('phone');
+                        setEnrollmentMode(true);
+                      }}
+                      disabled={loading}
+                      className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:bg-gray-400"
+                    >
+                      💬 Enroll Phone (SMS)
+                    </button>
+                  )}
+                  {canEnroll('email') && (
+                    <button
+                      onClick={() => {
+                        setEnrollmentType('email');
+                        setEnrollmentMode(true);
+                      }}
+                      disabled={loading}
+                      className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:bg-gray-400"
+                    >
+                      📧 Enroll Email
+                    </button>
+                  )}
                 </div>
-                <p className="text-sm text-yellow-700 mb-3">You need to enroll an authenticator to continue. Click below to set up OTP authentication.</p>
-                <button
-                  onClick={handleEnrollOtp}
-                  disabled={loading}
-                  className="px-6 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                >
-                  {loading ? 'Enrolling...' : 'Enroll OTP Authenticator'}
-                </button>
               </div>
             )}
 
-            {mfaStep === 'qr' && enrollData && (
-              <div className="mt-4 p-6 bg-white border-2 border-indigo-200 rounded-lg">
-                <div className="flex items-center gap-2 mb-4">
-                  <svg className="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                  </svg>
-                  <span className="font-semibold text-indigo-900">Scan QR Code</span>
-                </div>
-                
-                <div className="bg-white p-4 rounded-lg border mb-4 flex justify-center">
-                  <img 
-                    src={enrollData.barcodeUri} 
-                    alt="QR Code" 
-                    className="w-48 h-48"
-                  />
-                </div>
-                
-                <div className="mb-4 p-3 bg-gray-50 rounded border">
-                  <p className="text-xs text-gray-600 mb-1">Manual entry code:</p>
-                  <p className="font-mono text-sm break-all">{enrollData.secret}</p>
-                </div>
+            {/* Enrollment modals */}
+            {enrollmentMode && mfaToken && enrollmentType === 'phone' && (
+              <PhoneEnrollment
+                mfaToken={mfaToken}
+                onSuccess={(auth) => {
+                  setAuthenticators([...authenticators, auth]);
+                  setEnrollmentMode(false);
+                  setError({ message: '✓ Phone enrolled successfully!', type: 'success' });
+                }}
+                onCancel={() => setEnrollmentMode(false)}
+              />
+            )}
+            {enrollmentMode && mfaToken && enrollmentType === 'totp' && (
+              <TotpEnrollment
+                mfaToken={mfaToken}
+                onSuccess={(auth) => {
+                  setAuthenticators([...authenticators, auth]);
+                  setEnrollmentMode(false);
+                  setError({ message: '✓ Authenticator app enrolled successfully!', type: 'success' });
+                }}
+                onCancel={() => setEnrollmentMode(false)}
+              />
+            )}
+            {enrollmentMode && mfaToken && enrollmentType === 'email' && (
+              <EmailEnrollment
+                mfaToken={mfaToken}
+                userEmail={user?.email}
+                onSuccess={(auth) => {
+                  setAuthenticators([...authenticators, auth]);
+                  setEnrollmentMode(false);
+                  setError({ message: '✓ Email enrolled successfully!', type: 'success' });
+                }}
+                onCancel={() => setEnrollmentMode(false)}
+              />
+            )}
 
-                {enrollData.recoveryCodes && enrollData.recoveryCodes.length > 0 && (
-                  <div className="mb-4 p-3 bg-amber-50 rounded border border-amber-200">
-                    <p className="text-xs text-amber-900 font-semibold mb-2">Recovery Codes (Save these!):</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {enrollData.recoveryCodes.map((code: string, idx: number) => (
-                        <p key={idx} className="font-mono text-xs text-amber-800">{code}</p>
-                      ))}
-                    </div>
+            {/* Show authenticators selection */}
+            {authenticators.length > 0 && !protectedData && (
+              <div className="mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+                <div className="flex items-center gap-2 mb-3">
+                  <svg className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  <span className="font-semibold text-indigo-900">MFA Required - Select Authenticator</span>
+                </div>
+                
+                <p className="text-sm text-indigo-700 mb-3">
+                  Choose an authenticator and enter your code:
+                </p>
+
+                <div className="space-y-3 mb-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-2 block">Authenticator:</label>
+                    <select
+                      value={selectedAuthId}
+                      onChange={(e) => {
+                        setSelectedAuthId(e.target.value);
+                        setChallengeData(null); // Reset challenge when switching
+                        setOtp('');
+                      }}
+                      className="w-full px-3 py-2 border border-indigo-300 rounded-lg"
+                    >
+                      {authenticators.map((auth: any, index: number) => {
+                        const flow = getAuthenticatorFlow(auth);
+                        const icon = auth.authenticatorType === 'otp' ? '📱' : 
+                                     auth.oobChannel === 'sms' ? '💬' : 
+                                     auth.oobChannel === 'email' ? '📧' : '🔒';
+                        const flowLabel = flow === 'direct' ? '(Direct)' : '(Send Code First)';
+                        // Extract last part of ID for unique display
+                        const idSuffix = auth.id.split('|')[1]?.substring(0, 8) || auth.id.substring(0, 8);
+                        const activeLabel = auth.active ? '✓ Active' : '⚠️ Inactive';
+                        return (
+                          <option key={auth.id} value={auth.id}>
+                            {icon} {auth.authenticatorType} [{idSuffix}] {auth.name ? `- ${auth.name}` : ''} {flowLabel} - {activeLabel}
+                          </option>
+                        );
+                      })}
+                    </select>
                   </div>
-                )}
-                
-                <button
-                  onClick={handleContinueFromQr}
-                  className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-                >
-                  Continue to Verification
-                </button>
-              </div>
-            )}
 
-            {(mfaStep === 'challenge' || mfaStep === 'verify') && (
-              <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
-                <div className="flex items-center gap-2 mb-3">
-                  <svg className="h-5 w-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span className="font-semibold text-purple-900">
-                    {mfaStep === 'challenge' ? 'Step 4/5: Challenge Created - Enter Code' : 'Step 5/5: Verifying...'}
-                  </span>
-                </div>
-                
-                {mfaStep === 'challenge' && (
-                  <>
-                    <p className="text-sm text-purple-700 mb-1">Challenge created for authenticator:</p>
-                    <p className="text-xs font-mono text-purple-600 mb-3">{challengeData?.challengeType || 'otp'}</p>
-                    <p className="text-sm text-purple-700 mb-3">Enter your 6-digit code:</p>
+                  {/* Challenge button for OOB authenticators */}
+                  {selectedAuthId && getAuthenticatorFlow(
+                    authenticators.find(a => a.id === selectedAuthId)
+                  ) === 'challenge' && (
+                    challengeData ? (
+                      <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+                        ✓ SMS sent! Enter the code below to verify.
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleSendChallenge(selectedAuthId)}
+                        disabled={loading}
+                        className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400"
+                      >
+                        {loading ? 'Sending...' : '💬 Send SMS Code'}
+                      </button>
+                    )
+                  )}
+
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-2 block">
+                      {challengeData ? 'Enter code from SMS:' : 'Enter authenticator code:'}
+                    </label>
                     <div className="flex gap-2">
                       <input
                         type="text"
@@ -455,26 +469,34 @@ export default function Dashboard() {
                         onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                         placeholder="000000"
                         maxLength={6}
-                        className="flex-1 px-4 py-2 border border-purple-300 rounded-lg font-mono text-lg text-center"
+                        className="flex-1 px-4 py-2 border border-indigo-300 rounded-lg font-mono text-lg text-center"
                         autoFocus
                       />
                       <button
                         onClick={handleVerifyOtp}
                         disabled={otp.length !== 6 || loading}
-                        className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                        className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                       >
-                        Verify
+                        {loading ? 'Verifying...' : 'Verify'}
                       </button>
                     </div>
-                  </>
-                )}
-
-                {mfaStep === 'verify' && (
-                  <div className="flex items-center gap-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
-                    <span className="text-sm text-purple-700">Verifying OTP and fetching access token...</span>
                   </div>
-                )}
+                </div>
+
+                <div className="flex gap-3">
+                  <div className="flex-1 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-xs text-blue-800">
+                      <strong>💡 Tip:</strong> TOTP apps require direct verification. SMS/Email require sending a code first.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleReset}
+                    disabled={loading}
+                    className="px-4 py-2 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700 disabled:bg-gray-400 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             )}
 
@@ -484,10 +506,6 @@ export default function Dashboard() {
               </div>
             )}
           </div>
-
-          {protectedData && (
-            <ProtectedData data={protectedData} />
-          )}
         </div>
       </div>
     </div>

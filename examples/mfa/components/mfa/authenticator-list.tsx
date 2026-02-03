@@ -2,8 +2,8 @@
 
 type Authenticator = {
   id: string;
-  authenticator_type: 'otp' | 'oob' | 'recovery-code';
-  oob_channel?: 'sms' | 'email';
+  authenticatorType: 'otp' | 'oob' | 'recovery-code';
+  oobChannel?: 'sms' | 'email';
   name?: string;
   created_at?: string;
 };
@@ -21,14 +21,38 @@ export function AuthenticatorList({
   mode = 'select',
   onDelete 
 }: AuthenticatorListProps) {
+  const getAuthenticatorIcon = (auth: Authenticator) => {
+    if (auth.authenticatorType === 'otp') return '📱'; // TOTP app
+    if (auth.oobChannel === 'sms') return '💬'; // SMS
+    if (auth.oobChannel === 'email') return '📧'; // Email
+    if (auth.authenticatorType === 'recovery-code') return '🔑'; // Recovery
+    return '🔒';
+  };
+
   const getAuthenticatorLabel = (auth: Authenticator) => {
-    if (auth.authenticator_type === 'otp') return 'Authenticator App (OTP)';
-    if (auth.authenticator_type === 'oob') {
-      if (auth.oob_channel === 'sms') return 'SMS';
-      if (auth.oob_channel === 'email') return 'Email';
+    if (auth.authenticatorType === 'otp') return 'Authenticator App (OTP)';
+    if (auth.authenticatorType === 'oob') {
+      if (auth.oobChannel === 'sms') return 'SMS';
+      if (auth.oobChannel === 'email') return 'Email';
     }
-    if (auth.authenticator_type === 'recovery-code') return 'Recovery Code';
-    return auth.authenticator_type;
+    if (auth.authenticatorType === 'recovery-code') return 'Recovery Code';
+    return auth.authenticatorType;
+  };
+
+  const getAuthenticatorBadge = (auth: Authenticator) => {
+    if (auth.authenticatorType === 'otp') {
+      return <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded">TOTP - Direct Verify</span>;
+    }
+    if (auth.oobChannel === 'sms') {
+      return <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded">SMS - Send Code First</span>;
+    }
+    if (auth.oobChannel === 'email') {
+      return <span className="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-800 rounded">Email - Send Code First</span>;
+    }
+    if (auth.authenticatorType === 'recovery-code') {
+      return <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded">Recovery - Direct Verify</span>;
+    }
+    return null;
   };
 
   const handleSelect = (auth: Authenticator) => {
@@ -58,7 +82,13 @@ export function AuthenticatorList({
         >
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <h3 className="font-medium">{getAuthenticatorLabel(auth)}</h3>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-2xl">{getAuthenticatorIcon(auth)}</span>
+                <h3 className="font-medium">{getAuthenticatorLabel(auth)}</h3>
+              </div>
+              <div className="mb-2">
+                {getAuthenticatorBadge(auth)}
+              </div>
               {auth.created_at && (
                 <p className="text-sm text-gray-500">
                   Enrolled: {new Date(auth.created_at).toLocaleDateString()}
