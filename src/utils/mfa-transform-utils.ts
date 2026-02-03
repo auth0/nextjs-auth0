@@ -1,17 +1,21 @@
 import { NextResponse } from "next/server.js";
 
+import { MfaVerifyError } from "../errors/mfa.js";
 import type {
   Authenticator,
   ChallengeResponse,
-  EnrollEmailOptions,
   EnrollmentResponse,
   EnrollOobOptions,
   EnrollOtpOptions
 } from "../types/index.js";
-import type {
-  AuthenticatorApiResponse,
-  ChallengeApiResponse,
-  EnrollmentApiResponse
+import {
+  GRANT_TYPE_MFA_OOB,
+  GRANT_TYPE_MFA_OTP,
+  GRANT_TYPE_MFA_RECOVERY_CODE,
+  VerifyMfaOptions,
+  type AuthenticatorApiResponse,
+  type ChallengeApiResponse,
+  type EnrollmentApiResponse
 } from "../types/mfa.js";
 
 /**
@@ -69,27 +73,26 @@ export function buildEnrollmentResponse(
   };
 
   if (result.authenticator_type === "otp") {
-    return {
+    const response = {
       ...baseResponse,
       authenticatorType: "otp" as const,
       secret: result.secret!,
       barcodeUri: result.barcode_uri!
     };
+    return response;
   } else if (result.authenticator_type === "oob") {
     return {
       ...baseResponse,
       authenticatorType: "oob" as const,
       oobChannel: result.oob_channel!,
-      name: result.name
-    };
-  } else {
-    // email
-    return {
-      ...baseResponse,
-      authenticatorType: "email" as const,
-      name: result.name
+      name: result.name,
+      oobCode: result.oob_code,
+      bindingMethod: result.binding_method,
+      barcodeUri: result.barcode_uri
     };
   }
+
+  throw new Error(`Unknown authenticator type: ${result.authenticator_type}`);
 }
 
 /**
@@ -105,7 +108,6 @@ export function buildEnrollOptions(
   authenticatorType: string
 ):
   | [Omit<EnrollOobOptions, "mfaToken">, null]
-  | [Omit<EnrollEmailOptions, "mfaToken">, null]
   | [Omit<EnrollOtpOptions, "mfaToken">, null]
   | [null, NextResponse] {
   const bodyObj = body as Record<string, unknown>;
@@ -127,22 +129,20 @@ export function buildEnrollOptions(
       typeof bodyObj.phoneNumber === "string" && bodyObj.phoneNumber !== ""
         ? bodyObj.phoneNumber
         : undefined;
-    return [
-      {
-        authenticatorTypes: ["oob"] as ["oob"],
-        oobChannels: bodyObj.oobChannels as ("sms" | "voice" | "auth0")[],
-        phoneNumber
-      },
-      null
-    ];
-  } else if (authenticatorType === "email") {
     const email =
       typeof bodyObj.email === "string" && bodyObj.email !== ""
         ? bodyObj.email
         : undefined;
     return [
       {
-        authenticatorTypes: ["email"] as ["email"],
+        authenticatorTypes: ["oob"] as ["oob"],
+        oobChannels: bodyObj.oobChannels as (
+          | "sms"
+          | "voice"
+          | "auth0"
+          | "email"
+        )[],
+        phoneNumber,
         email
       },
       null
@@ -157,3 +157,47 @@ export function buildEnrollOptions(
     ];
   }
 }
+
+export const buildVerifyParams = (
+  options: VerifyMfaOptions,
+  mfaToken: string
+): URLSearchParams => {
+  const params = new URLSearchParams();
+  params.append("mfa_token", mfaToken);
+
+  if ("otp" in options && options.otp) {
+    params.append("otp", options.otp);
+  } else if (
+    "oobCode" in options &&
+    "bindingCode" in options &&
+    options.oobCode &&
+    options.bindingCode
+  ) {
+    params.append("oob_code", options.oobCode);
+    params.append("binding_code", options.bindingCode);
+  } else if ("recoveryCode" in options && options.recoveryCode) {
+    params.append("recovery_code", options.recoveryCode);
+  } else {
+    throw new MfaVerifyError(
+      "invalid_request",
+      "At least one verification credential required (otp, oobCode+bindingCode, or recoveryCode)"
+    );
+  }
+
+  return params;
+};
+
+export const getVerifyGrantType = (params: URLSearchParams) => {
+  if (params.has("otp")) {
+    return GRANT_TYPE_MFA_OTP;
+  } else if (params.has("oob_code") && params.has("binding_code")) {
+    return GRANT_TYPE_MFA_OOB;
+  } else if (params.has("recovery_code")) {
+    return GRANT_TYPE_MFA_RECOVERY_CODE;
+  } else {
+    throw new MfaVerifyError(
+      "invalid_request",
+      "No verification credential provided"
+    );
+  }
+};
