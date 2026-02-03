@@ -55,15 +55,11 @@ import {
   ConnectionTokenSet,
   CustomTokenExchangeOptions,
   CustomTokenExchangeResponse,
-  EnrollEmailOptions,
   EnrollmentResponse,
   EnrollOobOptions,
   EnrollOptions,
   GetAccessTokenOptions,
   GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE,
-  GRANT_TYPE_MFA_OOB,
-  GRANT_TYPE_MFA_OTP,
-  GRANT_TYPE_MFA_RECOVERY_CODE,
   LogoutStrategy,
   LogoutToken,
   MfaVerifyResponse,
@@ -85,8 +81,10 @@ import { withDPoPNonceRetry } from "../utils/dpopUtils.js";
 import {
   buildEnrollmentResponse,
   buildEnrollOptions,
+  buildVerifyParams,
   camelizeAuthenticator,
-  camelizeChallengeResponse
+  camelizeChallengeResponse,
+  getVerifyGrantType
 } from "../utils/mfa-transform-utils.js";
 import {
   decryptMfaToken,
@@ -1140,25 +1138,24 @@ export class AuthClient {
       validateStringFieldAndThrow(bodyRecord.mfaToken, "mfaToken");
       const validatedBody = validateVerificationCredentialAndThrow(body);
 
-      // Session typically exists in normal flows (browser sends cookies)
-      // If missing/expired, verify still works but won't cache tokens in session
-      const session = await this.sessionStore.get(req.cookies);
+      // Verify MFA and get tokens
+      const result = await this.mfaVerify(validatedBody as VerifyMfaOptions);
 
-      // Only create response cookies when session exists for token caching
-      let reqCookies: RequestCookies | undefined;
-      let resCookies: ResponseCookies | undefined;
+      // Create response FIRST so cookies can be attached
+      const res = NextResponse.json(result);
+
+      // Cache tokens in session if session exists
+      const session = await this.sessionStore.get(req.cookies);
       if (session) {
-        const tempRes = NextResponse.next();
-        reqCookies = req.cookies;
-        resCookies = tempRes.cookies;
+        await this.cacheTokenFromMfaVerify(
+          result,
+          bodyRecord.mfaToken,
+          req.cookies,
+          res.cookies // Use actual response cookies, not temp
+        );
       }
 
-      const result = await this.mfaVerify(
-        validatedBody as VerifyMfaOptions,
-        reqCookies,
-        resCookies
-      );
-      return NextResponse.json(result);
+      return res; // Return response WITH cookies
     } catch (e) {
       return handleMfaError(e);
     }
@@ -2907,10 +2904,8 @@ export class AuthClient {
       if (oobOptions.phoneNumber) {
         body.phone_number = oobOptions.phoneNumber;
       }
-    } else if ("email" in options) {
-      const emailOptions = options as EnrollEmailOptions;
-      if (emailOptions.email) {
-        body.email = emailOptions.email;
+      if (oobOptions.email) {
+        body.email = oobOptions.email;
       }
     }
 
@@ -2947,63 +2942,19 @@ export class AuthClient {
 
   /**
    * Verify MFA code and complete authentication.
-   *
-   * When req/res provided: Handles session management (get session, cache tokens, save).
-   * When omitted: Returns tokens without session persistence (for client-side use).
+   * Returns tokens without session persistence.
    *
    * @param options - Verification options (otp | oobCode+bindingCode | recoveryCode)
-   * @param reqCookies - Optional request cookies for session retrieval
-   * @param resCookies - Optional response cookies for session persistence
    * @returns Token response
-   * @throws {MfaVerifyError} If session required but missing, or on API failure
+   * @throws {MfaVerifyError} On API failure
    * @throws {MfaRequiredError} For chained MFA (with encrypted token)
    */
-  async mfaVerify(
-    options: VerifyMfaOptions,
-    reqCookies?: RequestCookies,
-    resCookies?: ResponseCookies
-  ): Promise<MfaVerifyResponse> {
-    // Get session if cookies provided
-    let session: SessionData | null = null;
-    if (reqCookies) {
-      session = await this.sessionStore.get(reqCookies);
-      if (!session) {
-        throw new MfaVerifyError(
-          AccessTokenErrorCode.MISSING_SESSION,
-          "The user does not have an active session."
-        );
-      }
-    }
-
+  async mfaVerify(options: VerifyMfaOptions): Promise<MfaVerifyResponse> {
     // Decrypt token to extract context
-    const context = await decryptMfaToken(
+    const { mfaToken, audience, scope } = await decryptMfaToken(
       options.mfaToken,
       this.sessionStore.secret
     );
-
-    // Extract raw mfaToken for Auth0 API call
-    const mfaToken = context.mfaToken;
-
-    // Build parameters for MFA grant
-    const params = {
-      mfaToken,
-      otp: "otp" in options ? options.otp : undefined,
-      oobCode: "oobCode" in options ? options.oobCode : undefined,
-      bindingCode: "bindingCode" in options ? options.bindingCode : undefined,
-      recoveryCode: "recoveryCode" in options ? options.recoveryCode : undefined
-    };
-
-    // Validate at least one verification credential is provided
-    const hasOtp = !!params.otp;
-    const hasOob = !!(params.oobCode && params.bindingCode);
-    const hasRecovery = !!params.recoveryCode;
-
-    if (!hasOtp && !hasOob && !hasRecovery) {
-      throw new MfaVerifyError(
-        "invalid_request",
-        "At least one verification credential required (otp, oobCode+bindingCode, or recoveryCode)"
-      );
-    }
 
     const [discoveryError, authorizationServerMetadata] =
       await this.discoverAuthorizationServerMetadata();
@@ -3016,28 +2967,8 @@ export class AuthClient {
       );
     }
 
-    const tokenParams = new URLSearchParams();
-    tokenParams.append("mfa_token", params.mfaToken);
-
-    // Determine grant type and add verification credential
-    let grantType: string;
-    if (params.otp) {
-      grantType = GRANT_TYPE_MFA_OTP;
-      tokenParams.append("otp", params.otp);
-    } else if (params.oobCode && params.bindingCode) {
-      grantType = GRANT_TYPE_MFA_OOB;
-      tokenParams.append("oob_code", params.oobCode);
-      tokenParams.append("binding_code", params.bindingCode);
-    } else if (params.recoveryCode) {
-      grantType = GRANT_TYPE_MFA_RECOVERY_CODE;
-      tokenParams.append("recovery_code", params.recoveryCode);
-    } else {
-      // This case should never happen - validated earlier in handleVerify
-      throw new MfaVerifyError(
-        "invalid_request",
-        "No verification credential provided"
-      );
-    }
+    const verifyParams = buildVerifyParams(options, mfaToken);
+    const verifyGrantType = getVerifyGrantType(verifyParams);
 
     // Create DPoP handle ONCE outside the closure so it persists across retries.
     // This is required by RFC 9449: the handle must learn and reuse the nonce from
@@ -3056,8 +2987,8 @@ export class AuthClient {
             authorizationServerMetadata,
             this.clientMetadata,
             await this.getClientAuth(),
-            grantType,
-            tokenParams,
+            verifyGrantType,
+            verifyParams,
             {
               ...this.httpOptions(),
               [oauth.customFetch]: this.fetch,
@@ -3089,8 +3020,8 @@ export class AuthClient {
         // Re-encrypt the new mfaToken for client use
         const encryptedToken = await encryptMfaToken(
           errorBody.mfa_token,
-          context.audience,
-          context.scope,
+          audience,
+          scope,
           errorBody.mfa_requirements,
           this.sessionStore.secret,
           DEFAULT_MFA_CONTEXT_TTL_SECONDS
@@ -3117,23 +3048,6 @@ export class AuthClient {
       );
     }
 
-    // Cache access token in session if cookies provided (server-side)
-    if (session && reqCookies && resCookies) {
-      session.accessTokens = session.accessTokens || [];
-      session.accessTokens.push({
-        accessToken: tokenEndpointResponse.access_token,
-        scope: tokenEndpointResponse.scope,
-        audience: context.audience || "",
-        expiresAt:
-          Math.floor(Date.now() / 1000) +
-          Number(tokenEndpointResponse.expires_in),
-        token_type: tokenEndpointResponse.token_type
-      });
-
-      // Persist updated session
-      await this.sessionStore.set(reqCookies, resCookies, session);
-    }
-
     // Ensure token_type is present (oauth4webapi marks it optional)
     // oauth4webapi normalizes to lowercase, but we keep Auth0's casing for compatibility
     const result = {
@@ -3145,6 +3059,50 @@ export class AuthClient {
     } as MfaVerifyResponse;
 
     return result;
+  }
+
+  /**
+   * Cache access token from MFA verification in session.
+   *
+   * @param tokenResponse - Token response from mfaVerify
+   * @param encryptedMfaToken - Encrypted MFA token containing context
+   * @param reqCookies - Request cookies for session retrieval
+   * @param resCookies - Response cookies for session persistence
+   * @throws {MfaVerifyError} If session not found
+   */
+  async cacheTokenFromMfaVerify(
+    tokenResponse: MfaVerifyResponse,
+    encryptedMfaToken: string,
+    reqCookies: RequestCookies,
+    resCookies: ResponseCookies
+  ): Promise<void> {
+    const session = await this.sessionStore.get(reqCookies);
+    if (!session) {
+      throw new MfaVerifyError(
+        AccessTokenErrorCode.MISSING_SESSION,
+        "The user does not have an active session."
+      );
+    }
+
+    // Decrypt token to extract audience
+    const { audience } = await decryptMfaToken(
+      encryptedMfaToken,
+      this.sessionStore.secret
+    );
+
+    session.accessTokens = session.accessTokens || [];
+    session.accessTokens.push({
+      accessToken: tokenResponse.access_token,
+      scope: tokenResponse.scope,
+      // oauth4webapi TokenEndpointResponse does NOT include audience field
+      audience: audience || "",
+      expiresAt:
+        Math.floor(Date.now() / 1000) + Number(tokenResponse.expires_in),
+      token_type: tokenResponse.token_type
+    });
+
+    // Persist updated session
+    await this.sessionStore.set(reqCookies, resCookies, session);
   }
 
   /**

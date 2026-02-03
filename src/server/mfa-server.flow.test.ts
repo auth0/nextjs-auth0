@@ -489,8 +489,15 @@ describe("AuthClient MFA Methods", () => {
       const resHeaders = new Headers();
       const resCookies = new ResponseCookies(resHeaders);
 
-      await authClient.mfaVerify(
-        { mfaToken: encryptedToken, otp: "123456" },
+      const result = await authClient.mfaVerify({
+        mfaToken: encryptedToken,
+        otp: "123456"
+      });
+
+      // Cache tokens in session
+      await authClient.cacheTokenFromMfaVerify(
+        result,
+        encryptedToken,
         reqCookies,
         resCookies
       );

@@ -208,8 +208,16 @@ export class ServerMfaClient implements MfaClient {
           "verify(req, res, options): All three arguments required for Pages Router"
         );
       }
-      // Extract cookies from req/res and delegate
-      return this.authClient.mfaVerify(arg3, arg1.cookies, arg2.cookies);
+      // Verify MFA and get tokens
+      const result = await this.authClient.mfaVerify(arg3);
+      // Cache tokens in session
+      await this.authClient.cacheTokenFromMfaVerify(
+        result,
+        arg3.mfaToken,
+        arg1.cookies,
+        arg2.cookies
+      );
+      return result;
     } else {
       // App Router: verify(options)
       if (arg2 !== undefined || arg3 !== undefined) {
@@ -217,14 +225,18 @@ export class ServerMfaClient implements MfaClient {
           "verify(options): Only one argument allowed for App Router"
         );
       }
-      // Get cookies from next/headers and delegate
+      // Verify MFA and get tokens
+      const result = await this.authClient.mfaVerify(arg1);
+      // Get cookies from next/headers and cache tokens
       const { cookies } = await import("next/headers.js");
       const cookieStore = await cookies();
-      return this.authClient.mfaVerify(
-        arg1,
+      await this.authClient.cacheTokenFromMfaVerify(
+        result,
+        arg1.mfaToken,
         cookieStore as any,
         cookieStore as any
       );
+      return result;
     }
   }
 }
