@@ -15,6 +15,32 @@ import type { AuthClient } from "../auth-client.js";
  * Server-side MFA API.
  * Delegates all operations to AuthClient business logic.
  * Provides overload support for App Router and Pages Router.
+ *
+ * @example App Router
+ * ```typescript
+ * import { auth0 } from '@/lib/auth0';
+ *
+ * export async function POST(req: NextRequest) {
+ *   const { mfa } = auth0;
+ *   const { mfaToken } = await req.json();
+ *
+ *   const authenticators = await mfa.getAuthenticators({ mfaToken });
+ *   return Response.json(authenticators);
+ * }
+ * ```
+ *
+ * @example Pages Router
+ * ```typescript
+ * import { auth0 } from '@/lib/auth0';
+ *
+ * export default async function handler(req, res) {
+ *   const { mfa } = auth0;
+ *   const { mfaToken } = req.body;
+ *
+ *   const authenticators = await mfa.getAuthenticators({ mfaToken });
+ *   res.json(authenticators);
+ * }
+ * ```
  */
 export class ServerMfaClient implements MfaClient {
   constructor(private authClient: AuthClient) {}
@@ -24,6 +50,32 @@ export class ServerMfaClient implements MfaClient {
    *
    * @param options - Options containing encrypted mfaToken
    * @returns Array of authenticators filtered by mfa_requirements
+   *
+   * @example App Router
+   * ```typescript
+   * // app/api/mfa/authenticators/route.ts
+   * import { NextRequest, NextResponse } from "next/server";
+   * import { auth0 } from "@/lib/auth0";
+   *
+   * export async function POST(req: NextRequest) {
+   *   const { mfaToken } = await req.json();
+   *   const authenticators = await auth0.mfa.getAuthenticators({ mfaToken });
+   *   return NextResponse.json(authenticators);
+   * }
+   * ```
+   *
+   * @example Pages Router
+   * ```typescript
+   * // pages/api/mfa/authenticators.ts
+   * import type { NextApiRequest, NextApiResponse } from "next";
+   * import { auth0 } from "@/lib/auth0";
+   *
+   * export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+   *   const { mfaToken } = req.body;
+   *   const authenticators = await auth0.mfa.getAuthenticators({ mfaToken });
+   *   res.json(authenticators);
+   * }
+   * ```
    */
   async getAuthenticators(options: {
     mfaToken: string;
@@ -36,6 +88,23 @@ export class ServerMfaClient implements MfaClient {
    *
    * @param options - Challenge options
    * @returns Challenge response (oobCode, bindingMethod)
+   *
+   * @example
+   * ```typescript
+   * // app/api/mfa/challenge/route.ts
+   * const { mfaToken, authenticatorId } = await req.json();
+   *
+   * const challenge = await auth0.mfa.challenge({
+   *   mfaToken,
+   *   challengeType: "oob",
+   *   authenticatorId
+   * });
+   *
+   * return NextResponse.json({
+   *   oobCode: challenge.oobCode,
+   *   bindingMethod: challenge.bindingMethod
+   * });
+   * ```
    */
   async challenge(options: {
     mfaToken: string;
@@ -70,6 +139,28 @@ export class ServerMfaClient implements MfaClient {
    *
    * @param options - Enrollment options (otp | oob | email)
    * @returns Enrollment response with authenticator details and optional recovery codes
+   *
+   * @example OTP Enrollment
+   * ```typescript
+   * const enrollment = await auth0.mfa.enroll({
+   *   mfaToken,
+   *   authenticatorTypes: ["otp"]
+   * });
+   *
+   * // Returns: { id, secret, barcodeUri, recoveryCodes }
+   * ```
+   *
+   * @example SMS Enrollment
+   * ```typescript
+   * const enrollment = await auth0.mfa.enroll({
+   *   mfaToken,
+   *   authenticatorTypes: ["oob"],
+   *   oobChannels: ["sms"],
+   *   phoneNumber: "+15551234567"
+   * });
+   *
+   * // Returns: { id, oobChannel, name, recoveryCodes }
+   * ```
    */
   async enroll(options: EnrollOptions): Promise<EnrollmentResponse> {
     const { mfaToken, ...enrollOptions } = options;
