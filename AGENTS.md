@@ -66,41 +66,11 @@ Legend: `→` flow, `↔` bidirectional, `[]` storage, `{}` transform
 | useUser | Browser→`/auth/profile`→[session]→User |
 | Stateful session | [cookie:sid]↔[external store:SessionData] |
 
-**CRITICAL:** Routes are `/auth/*` not `/api/auth/*`. Middleware required.
-
 See [EXAMPLES.md](EXAMPLES.md) for detailed flow implementations.
 
 ---
 
 ## Key Patterns
-
-### Middleware Requirement
-
-**MANDATORY:** Create `middleware.ts` at workspace root:
-
-```ts
-import { auth0 } from "./lib/auth0";
-export async function middleware(req) {
-  const authRes = await auth0.middleware(req);
-  
-  // Auth routes handled by SDK
-  if (req.nextUrl.pathname.startsWith("/auth")) {
-    return authRes;
-  }
-  
-  // Custom logic: check session (MUST pass req)
-  const session = await auth0.getSession(req);
-  if (!session) {
-    return NextResponse.redirect(new URL("/auth/login", req.url));
-  }
-  
-  return authRes;
-}
-export const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"] };
-```
-
-Without middleware, `/auth/*` routes return 404.  
-**CRITICAL:** Pass `req` to `getSession(req)` in middleware context.
 
 ### Public API Surface
 
@@ -233,10 +203,6 @@ E2E runs separately, requires credentials.
 
 ## Anti-Patterns
 
-- ❌ Missing `middleware.ts` (causes 404 on `/auth/*`)
-- ❌ Using `/api/auth/*` routes (correct: `/auth/*`)
-- ❌ `getSession()` without request in middleware (causes "cookies called outside request scope")
-- ❌ Setting `AUTH0_BASE_URL` env var (correct: `APP_BASE_URL`)
 - ❌ Importing from internal paths (`src/server/auth-client.ts`)
 - ❌ Using `instanceof` for error handling (use `error.code`)
 - ❌ Storing sensitive data in client-accessible session fields
