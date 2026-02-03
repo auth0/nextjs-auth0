@@ -16,8 +16,6 @@ export function QrCodeDisplay({ barcodeUri, secret }: QrCodeDisplayProps) {
       QRCode.toCanvas(canvasRef.current, barcodeUri, {
         width: 256,
         margin: 2,
-      }).catch(err => {
-        console.error('[Component:QRCode] Generation failed:', err);
       });
     }
   }, [barcodeUri]);

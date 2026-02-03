@@ -20,26 +20,22 @@ export function TotpEnrollment({ mfaToken, onSuccess, onCancel }: TotpEnrollment
   const [authenticatorId, setAuthenticatorId] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [error, setError] = useState<any>(null);
-  const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
 
   const handleEnroll = async () => {
     setState('enrolling');
     setError(null);
 
     try {
-      console.log('[TOTP-ENROLLMENT] Enrolling TOTP authenticator');
       const response = await mfa.enroll({
         mfaToken,
         authenticatorTypes: ['otp']
       });
 
-      console.log('[TOTP-ENROLLMENT] Enrollment response:', response);
       
       if (response.authenticatorType === 'otp') {
         setSecret(response.secret);
         setBarcodeUri(response.barcodeUri);
         setAuthenticatorId(response.id);
-        setRecoveryCodes(response.recoveryCodes || []);
         
         setState('awaiting-verification');
         setError({ 
@@ -51,7 +47,6 @@ export function TotpEnrollment({ mfaToken, onSuccess, onCancel }: TotpEnrollment
       }
 
     } catch (err: any) {
-      console.error('[TOTP-ENROLLMENT] Enrollment error:', err);
       setError(err);
       setState('error');
     }
@@ -67,7 +62,6 @@ export function TotpEnrollment({ mfaToken, onSuccess, onCancel }: TotpEnrollment
     setError(null);
 
     try {
-      console.log('[TOTP-ENROLLMENT] Verifying TOTP code');
 
       await mfa.verify({
         mfaToken,
@@ -89,14 +83,12 @@ export function TotpEnrollment({ mfaToken, onSuccess, onCancel }: TotpEnrollment
           } else {
             onSuccess({ id: authenticatorId, authenticatorType: 'otp' } as any);
           }
-        } catch (err) {
-          console.error('[TOTP-ENROLLMENT] Error fetching authenticators:', err);
+        } catch {
           onSuccess({ id: authenticatorId, authenticatorType: 'otp' } as any);
         }
       }, 1000);
 
     } catch (err: any) {
-      console.error('[TOTP-ENROLLMENT] Verification error:', err);
       setError(err);
       setState('error');
       setVerificationCode('');

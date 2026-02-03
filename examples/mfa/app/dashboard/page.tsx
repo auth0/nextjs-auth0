@@ -3,12 +3,12 @@
 import { useState } from 'react';
 import { useUser } from '@auth0/nextjs-auth0';
 import { mfa } from '@auth0/nextjs-auth0/client';
-import { UserInfo } from '@/components/user-info';
-import { ProtectedData } from '@/components/protected-data';
+import { EmailEnrollment } from '@/components/mfa/email-enrollment';
 import { ErrorDisplay } from '@/components/mfa/error-display';
 import { PhoneEnrollment } from '@/components/mfa/phone-enrollment';
 import { TotpEnrollment } from '@/components/mfa/totp-enrollment';
-import { EmailEnrollment } from '@/components/mfa/email-enrollment';
+import { ProtectedData } from '@/components/protected-data';
+import { UserInfo } from '@/components/user-info';
 
 export default function Dashboard() {
   const { user, isLoading } = useUser();
@@ -119,33 +119,11 @@ export default function Dashboard() {
         // Step 2: Store MFA token and requirements
         setMfaToken(data.mfaToken);
         setMfaRequirements(data.mfa_requirements || null);
-        console.log('[CLIENT] MFA required, token received:', {
-          tokenLength: data.mfaToken?.length,
-          tokenPrefix: data.mfaToken?.substring(0, 30) + '...',
-          requirements: data.mfa_requirements,
-          enrollLength: data.mfa_requirements?.enroll?.length,
-          challengeLength: data.mfa_requirements?.challenge?.length
-        });
-
         // Step 3: Fetch authenticators using the MFA token
-        console.log('[CLIENT] Fetching authenticators...');
         const authenticatorsList = await mfa.getAuthenticators({ mfaToken: data.mfaToken });
-        console.log('[CLIENT] Authenticators received:', {
-          count: authenticatorsList.length,
-          authenticators: authenticatorsList.map(a => ({
-            id: a.id,
-            type: a.type,
-            active: a.active,
-            name: a.name
-          }))
-        });
         
         // Filter to only active authenticators
         const activeAuthenticators = authenticatorsList.filter(a => a.active);
-        console.log('[CLIENT] Active authenticators:', {
-          count: activeAuthenticators.length,
-          ids: activeAuthenticators.map(a => a.id)
-        });
         
         setAuthenticators(activeAuthenticators);
 
@@ -154,7 +132,7 @@ export default function Dashboard() {
           setSelectedAuthId(activeAuthenticators[0].id);
         } else if (authenticatorsList.length > 0) {
           // Fallback: show warning and use all authenticators
-          console.warn('[CLIENT] No active authenticators found, showing all');
+          // console.warn('[CLIENT] No active authenticators found, showing all');
           setAuthenticators(authenticatorsList);
           setSelectedAuthId(authenticatorsList[0].id);
         }
@@ -421,7 +399,7 @@ export default function Dashboard() {
                       }}
                       className="w-full px-3 py-2 border border-indigo-300 rounded-lg"
                     >
-                      {authenticators.map((auth: any, index: number) => {
+                      {authenticators.map((auth: any) => {
                         const flow = getAuthenticatorFlow(auth);
                         const icon = auth.authenticatorType === 'otp' ? '📱' : 
                                      auth.oobChannel === 'sms' ? '💬' : 

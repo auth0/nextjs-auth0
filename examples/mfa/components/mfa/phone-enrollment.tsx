@@ -17,7 +17,6 @@ export function PhoneEnrollment({ mfaToken, onSuccess, onCancel }: PhoneEnrollme
   const [phoneNumber, setPhoneNumber] = useState('');
   const [countryCode, setCountryCode] = useState('+1');
   const [oobCode, setOobCode] = useState('');
-  const [bindingMethod, setBindingMethod] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [error, setError] = useState<any>(null);
 
@@ -33,7 +32,6 @@ export function PhoneEnrollment({ mfaToken, onSuccess, onCancel }: PhoneEnrollme
     try {
       const fullPhoneNumber = `${countryCode}${phoneNumber}`;
       
-      console.log('[PHONE-ENROLLMENT] Enrolling phone:', fullPhoneNumber);
       const response = await mfa.enroll({
         mfaToken,
         authenticatorTypes: ['oob'],
@@ -41,12 +39,10 @@ export function PhoneEnrollment({ mfaToken, onSuccess, onCancel }: PhoneEnrollme
         phoneNumber: fullPhoneNumber
       });
 
-      console.log('[PHONE-ENROLLMENT] Enrollment response:', response);
       
       if (response.authenticatorType === 'oob') {
         // OOB enrollment sends code automatically
         setOobCode(response.oobCode || '');
-        setBindingMethod(response.bindingMethod || 'prompt');
         
         setState('awaiting-verification');
         setError({ message: '✓ SMS sent! Check your phone and enter the code below.', type: 'success' });
@@ -55,7 +51,6 @@ export function PhoneEnrollment({ mfaToken, onSuccess, onCancel }: PhoneEnrollme
       }
 
     } catch (err: any) {
-      console.error('[PHONE-ENROLLMENT] Enrollment error:', err);
       setError(err);
       setState('error');
     }
@@ -76,11 +71,6 @@ export function PhoneEnrollment({ mfaToken, onSuccess, onCancel }: PhoneEnrollme
     setError(null);
 
     try {
-      console.log('[PHONE-ENROLLMENT] Verifying with:', {
-        oobCode: oobCode.substring(0, 20) + '...',
-        bindingCode: verificationCode
-      });
-
       await mfa.verify({
         mfaToken,
         oobCode,
@@ -103,14 +93,13 @@ export function PhoneEnrollment({ mfaToken, onSuccess, onCancel }: PhoneEnrollme
             // Just close if we can't find the new authenticator
             onSuccess({ id: 'new', authenticatorType: 'oob', oobChannel: 'sms' } as any);
           }
-        } catch (err) {
-          console.error('[PHONE-ENROLLMENT] Error fetching authenticators:', err);
+        } catch {
+          // console.error('[PHONE-ENROLLMENT] Error fetching authenticators:', err);
           onSuccess({ id: 'new', authenticatorType: 'oob', oobChannel: 'sms' } as any);
         }
       }, 1000);
 
     } catch (err: any) {
-      console.error('[PHONE-ENROLLMENT] Verification error:', err);
       setError(err);
       setState('error');
       setVerificationCode('');
@@ -129,7 +118,6 @@ export function PhoneEnrollment({ mfaToken, onSuccess, onCancel }: PhoneEnrollme
     setPhoneNumber('');
     setVerificationCode('');
     setOobCode('');
-    setBindingMethod('');
     setError(null);
   };
 

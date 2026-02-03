@@ -17,7 +17,6 @@ export function EmailEnrollment({ mfaToken, onSuccess, onCancel, userEmail }: Em
   const [state, setState] = useState<EnrollmentState>('idle');
   const [email, setEmail] = useState(userEmail || '');
   const [oobCode, setOobCode] = useState('');
-  const [bindingMethod, setBindingMethod] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [error, setError] = useState<any>(null);
 
@@ -31,7 +30,6 @@ export function EmailEnrollment({ mfaToken, onSuccess, onCancel, userEmail }: Em
     setError(null);
 
     try {
-      console.log('[EMAIL-ENROLLMENT] Enrolling email:', email);
       const response = await mfa.enroll({
         mfaToken,
         authenticatorTypes: ['oob'],
@@ -39,12 +37,10 @@ export function EmailEnrollment({ mfaToken, onSuccess, onCancel, userEmail }: Em
         email
       });
 
-      console.log('[EMAIL-ENROLLMENT] Enrollment response:', response);
       
       if (response.authenticatorType === 'oob' && response.oobChannel === 'email') {
         // OOB enrollment sends code automatically
         setOobCode(response.oobCode || '');
-        setBindingMethod(response.bindingMethod || 'prompt');
         
         setState('awaiting-verification');
         setError({ message: '✓ Email sent! Check your inbox and enter the code below.', type: 'success' });
@@ -53,7 +49,6 @@ export function EmailEnrollment({ mfaToken, onSuccess, onCancel, userEmail }: Em
       }
 
     } catch (err: any) {
-      console.error('[EMAIL-ENROLLMENT] Enrollment error:', err);
       setError(err);
       setState('error');
     }
@@ -74,11 +69,6 @@ export function EmailEnrollment({ mfaToken, onSuccess, onCancel, userEmail }: Em
     setError(null);
 
     try {
-      console.log('[EMAIL-ENROLLMENT] Verifying with:', {
-        oobCode: oobCode.substring(0, 20) + '...',
-        bindingCode: verificationCode
-      });
-
       await mfa.verify({
         mfaToken,
         oobCode,
@@ -100,14 +90,12 @@ export function EmailEnrollment({ mfaToken, onSuccess, onCancel, userEmail }: Em
           } else {
             onSuccess({ id: 'new', authenticatorType: 'oob', oobChannel: 'email' } as any);
           }
-        } catch (err) {
-          console.error('[EMAIL-ENROLLMENT] Error fetching authenticators:', err);
+        } catch {
           onSuccess({ id: 'new', authenticatorType: 'oob', oobChannel: 'email' } as any);
         }
       }, 1000);
 
     } catch (err: any) {
-      console.error('[EMAIL-ENROLLMENT] Verification error:', err);
       setError(err);
       setState('error');
       setVerificationCode('');
@@ -125,7 +113,6 @@ export function EmailEnrollment({ mfaToken, onSuccess, onCancel, userEmail }: Em
     setState('idle');
     setVerificationCode('');
     setOobCode('');
-    setBindingMethod('');
     setError(null);
   };
 

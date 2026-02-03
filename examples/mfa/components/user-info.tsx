@@ -1,5 +1,7 @@
 'use client';
 
+import Image from 'next/image';
+
 interface UserInfoProps {
   user: any;
 }
@@ -24,10 +26,12 @@ export function UserInfo({ user }: UserInfoProps) {
         {user.picture && (
           <div>
             <label className="text-sm text-gray-500 block mb-2">Avatar</label>
-            <img 
+            <Image 
               src={user.picture} 
-              alt={user.name} 
-              className="w-16 h-16 rounded-full"
+              alt={user.name || 'User avatar'} 
+              width={64}
+              height={64}
+              className="rounded-full"
             />
           </div>
         )}
