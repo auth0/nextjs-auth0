@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server.js";
 
-import { MfaVerifyError } from "../errors/mfa.js";
+import { MfaVerifyError } from "../errors/mfa-errors.js";
 import type {
   Authenticator,
   ChallengeResponse,
