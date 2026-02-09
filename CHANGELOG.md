@@ -1,5 +1,13 @@
 # Change Log
 
+## [v4.15.0](https://github.com/auth0/nextjs-auth0/tree/v4.15.0) (2026-02-09)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.14.1...v4.15.0)
+
+**Added**
+- feat: MFA APIs [\#2502](https://github.com/auth0/nextjs-auth0/pull/2502) ([tusharpandey13](https://github.com/tusharpandey13))
+- feat: Base MFA support [\#2480](https://github.com/auth0/nextjs-auth0/pull/2480) ([tusharpandey13](https://github.com/tusharpandey13))
+- Add TTL to /auth/access-token and optional full client response [\#2505](https://github.com/auth0/nextjs-auth0/pull/2505) ([nandan-bhat](https://github.com/nandan-bhat))
+
 ## [v4.14.1](https://github.com/auth0/nextjs-auth0/tree/v4.14.1) (2026-01-24)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.14.0...v4.14.1)
 
