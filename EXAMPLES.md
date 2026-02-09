@@ -135,6 +135,10 @@
   - [Run custom code before Auth Handlers](#run-custom-code-before-auth-handlers)
   - [Run code after callback](#run-code-after-callback)
 - [Next.js 16 Compatibility](#nextjs-16-compatibility)
+- [Multi-Factor Authentication (MFA)](#multi-factor-authentication-mfa)
+  - [Step-up Authentication](#step-up-authentication)
+  - [Handling `MfaRequiredError`](#handling-mfarequirederror)
+  - [MFA Tenant Configuration](#mfa-tenant-configuration)
 
 ## Passing authorization parameters
 
@@ -3288,3 +3292,257 @@ For more details, see the official Next.js documentation:
 
 ➡️ [Upgrading to Next 16 Middleware](https://nextjs.org/docs/app/api-reference/file-conventions/proxy#upgrading-to-nextjs-16)  
 ➡️ [Proxy.ts Conventions](https://nextjs.org/docs/app/api-reference/file-conventions/proxy)
+
+## Multi-Factor Authentication (MFA)
+
+> [!NOTE]
+> Multi Factor Authentication support via SDKs is currently in Early Access.
+
+The SDK provides comprehensive MFA client APIs to manage multi-factor authentication for your users. The MFA client is accessible via the `mfa` property on both server and client Auth0 instances.
+
+### Setup & Configuration
+
+Before using MFA APIs, configure your Auth0 tenant:
+
+1. **Enable MFA** in [Auth0 Dashboard > Security > Multi-factor Auth](https://manage.auth0.com/#/security/multi-factor-authentication)
+2. **Configure Factors**: Enable OTP, SMS, Email, or Push Notification
+3. **Set Tenant Policy** to "Adaptive" or "Never" (see [MFA Tenant Configuration](#mfa-tenant-configuration))
+4. **Configure MFA Actions** to conditionally enforce MFA for specific resources
+
+### Configuration
+
+Configure MFA token TTL via options or environment variable:
+
+```typescript
+// lib/auth0.ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+export const auth0 = new Auth0Client({
+  mfaContextTtl: 600 // 10 minutes in seconds
+});
+```
+
+```bash
+# .env.local
+AUTH0_MFA_CONTEXT_TTL=600
+```
+
+Default TTL is 300 seconds (5 minutes), matching Auth0's mfa_token expiration.
+
+### Handling MfaRequiredError
+
+When you request an Access Token for a resource that requires MFA, Auth0 will return a `403 Forbidden`. The SDK automatically catches this and throws an `MfaRequiredError` containing the `mfaToken` needed to resolve the challenge.
+
+**`mfa_required` Response:**
+```json
+{
+  "error": "mfa_required",
+  "error_description": "Multifactor authentication required",
+  "mfa_token": "Fe26...encoded_token"
+}
+```
+
+Add a catch handler for `MfaRequiredError` around `getAccessToken` call:
+```js
+try {
+  const { token } = await getAccessToken({ audience: "https://api.example.com" });
+} catch (error) {
+  if (error instanceof MfaRequiredError) {
+    // MFA logic here
+    // You can pass the `error.mfa_token` to SDK MFA methods
+    // Example, redirect to MFA challenge page that contains MFA handling logic
+    redirect(`/mfa?token=${error.mfa_token}`);
+  }
+  throw error;
+}
+```
+
+### Accessing the MFA API
+
+The MFA API is accessible on both the server and the client to manage authenticators and perform verification.
+
+**On the Server:**
+
+The MFA API is available via the `mfa` property of your `Auth0Client` instance.
+
+```ts
+// lib/auth0.ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+export const auth0 = new Auth0Client();
+
+// Usage in Route Handler or Server Action
+const authenticators = await auth0.mfa.getAuthenticators({ mfaToken });
+```
+
+**On the Client:**
+
+The MFA API is available as a named export `mfa` from the client entry point.
+
+```ts
+// components/mfa-form.tsx
+import { mfa } from "@auth0/nextjs-auth0/client";
+
+// Usage in client component
+await mfa.verify({ mfaToken, otp });
+```
+
+### Getting Authenticators
+
+List all enrolled authenticators for the current user:
+
+```ts
+const authenticators = await auth0.mfa.getAuthenticators({ mfaToken });
+```
+
+### Enrollment
+
+Enroll new authenticators for MFA. Support includes OTP (TOTP apps), SMS, Email, and Push Notification.
+
+**OTP (Authenticator App)**
+
+```ts
+// Returns secret, barcodeUri for QR code
+const enrollment = await auth0.mfa.enroll({
+  mfaToken,
+  authenticatorTypes: ["otp"]
+});
+```
+
+**SMS**
+
+```ts
+const enrollment = await auth0.mfa.enroll({
+  mfaToken,
+  authenticatorTypes: ["oob"],
+  oobChannels: ["sms"],
+  phoneNumber: "+15555555555"
+});
+```
+
+**Email**
+
+```ts
+const enrollment = await auth0.mfa.enroll({
+  mfaToken,
+  authenticatorTypes: ["oob"],
+  oobChannels: ["email"],
+  email: "user@example.com"
+});
+```
+
+**Push Notification**
+
+```ts
+const enrollment = await auth0.mfa.enroll({
+  mfaToken,
+  authenticatorTypes: ["oob"],
+  oobChannels: ["auth0"]
+});
+```
+
+### Challenge
+
+Initiate an MFA challenge for OOB authenticators (SMS/Email/Push). OTP authenticators do not require explicit challenge.
+
+```ts
+// Returns oobCode and bindingMethod
+const challenge = await auth0.mfa.challenge({
+  mfaToken,
+  challengeType: "oob",
+  authenticatorId: "sms|..."
+});
+```
+
+### Verify
+
+Verify MFA with OTP code, OOB code, or recovery code.
+
+**OTP Verification**
+
+```ts
+await auth0.mfa.verify({
+  mfaToken,
+  otp: "123456"
+});
+```
+
+**OOB Verification (SMS/Email/Push)**
+
+```ts
+await auth0.mfa.verify({
+  mfaToken,
+  oobCode: challenge.oobCode,
+  bindingCode: "123456" // User input
+});
+```
+
+**Recovery Code Verification**
+
+```ts
+await auth0.mfa.verify({
+  mfaToken,
+  recoveryCode: "ABCD-EFGH-IJKL-MNOP"
+});
+```
+
+### Complete Flow Examples
+
+For complete implementation guides and best practices, refer to the official Auth0 documentation:
+
+- [Explore multi-factor authentication](https://auth0.com/docs/secure/multi-factor-authentication)
+- [Customize Multi-Factor Authentication Pages](https://auth0.com/docs/brand-and-customize/universal-login-pages/customize-mfa-pages)
+
+### MFA Tenant Configuration
+
+The SDK relies on background token refreshes to maintain user sessions. For these non-interactive requests to succeed, configure your MFA policies to allow `refresh_token` exchanges without immediate user challenge.
+
+> [!NOTE]
+> Enforcing **"Always"** or **"All Applications"** in your global Tenant MFA Policy will block background token refreshes, as they cannot satisfy an interactive MFA challenge.
+
+
+**Recommended Configuration:**
+Set Tenant MFA Policy to **"Adaptive"** or **"Never"**.
+
+**Example Action Code:**
+```javascript
+exports.onExecutePostLogin = async (event, api) => {
+  // Only trigger on refresh_token grant (step-up)
+  if (event.request?.body?.grant_type == "refresh_token") {
+    
+    if (event.user.enrolledFactors.length) {
+      // User has factors enrolled - challenge
+      api.authentication.challengeWithAny([
+        { type: 'otp' }, 
+        { type: 'phone' }, 
+        { type: 'push-notification' }, 
+        { type: 'email' },
+        { type: 'recovery-code' }
+      ]);
+    } else {
+      // No factors enrolled - prompt enrollment
+      api.authentication.enrollWithAny([
+        { type: 'otp'}, 
+        { type: 'phone'},
+        { type: 'push-notification' }
+      ]);
+    }
+  }
+};
+```
+
+### MFA Error Handling
+
+The SDK provides typed error classes for all MFA operations:
+
+| Error Class | Code | When Thrown | Example |
+|-------------|------|-------------|---------|
+| `MfaRequiredError` | `mfa_required` | Token refresh requires MFA step-up | Accessing protected API |
+| `MfaGetAuthenticatorsError` | Various | Failed to list authenticators | Invalid/expired token |
+| `MfaEnrollmentError` | Various | Enrollment failed | Unsupported factor type |
+| `MfaDeleteAuthenticatorError` | Various | Delete failed | Authenticator not found |
+| `MfaChallengeError` | Various | Challenge failed | Invalid authenticator ID |
+| `MfaVerifyError` | `invalid_grant` | Verification failed | Invalid OTP code |
+| `MfaTokenNotFoundError` | `mfa_token_not_found` | No MFA context for token | Token not in session |
+| `MfaTokenExpiredError` | `mfa_token_expired` | Token TTL exceeded | Context expired |
+| `MfaTokenInvalidError` | `mfa_token_invalid` | Token tampered or wrong secret | Decryption failed |

@@ -1,4 +1,3 @@
-import type { MfaRequirements } from "../errors/index.js";
 import { AuthorizationParameters } from "./authorize.js";
 import { ConnectionTokenSet } from "./token-vault.js";
 
@@ -20,23 +19,6 @@ export interface AccessTokenSet {
   audience: string;
   expiresAt: number; // the time at which the access token expires in seconds since epoch
   token_type?: string; // the type of the access token (e.g., "Bearer", "DPoP")
-}
-
-/**
- * MFA context embedded in encrypted token.
- * Self-contained with all information needed for challenge completion.
- */
-export interface MfaContext {
-  /** Raw mfa_token from Auth0 */
-  mfaToken: string;
-  /** API identifier that required MFA */
-  audience: string;
-  /** Scopes requested */
-  scope: string;
-  /** MFA requirements from Auth0 */
-  mfaRequirements: MfaRequirements | undefined;
-  /** Timestamp for TTL validation (milliseconds since epoch) */
-  createdAt: number;
 }
 
 export interface SessionData {
@@ -204,3 +186,22 @@ export {
   SUBJECT_TOKEN_TYPES
 } from "./token-vault.js";
 export { ConnectAccountOptions, RESPONSE_TYPES } from "./connected-accounts.js";
+export {
+  MfaClient,
+  Authenticator,
+  ChallengeResponse,
+  EnrollmentResponse,
+  EnrollOptions,
+  EnrollOtpOptions,
+  EnrollOobOptions,
+  MfaVerifyResponse,
+  VerifyMfaOptions,
+  VerifyMfaOptionsBase,
+  VerifyMfaWithOtpOptions,
+  VerifyMfaWithOobOptions,
+  VerifyMfaWithRecoveryCodeOptions,
+  MfaContext,
+  GRANT_TYPE_MFA_OTP,
+  GRANT_TYPE_MFA_OOB,
+  GRANT_TYPE_MFA_RECOVERY_CODE
+} from "./mfa.js";

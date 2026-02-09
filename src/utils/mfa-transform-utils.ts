@@ -1,0 +1,203 @@
+import { NextResponse } from "next/server.js";
+
+import { MfaVerifyError } from "../errors/mfa-errors.js";
+import type {
+  Authenticator,
+  ChallengeResponse,
+  EnrollmentResponse,
+  EnrollOobOptions,
+  EnrollOtpOptions
+} from "../types/index.js";
+import {
+  GRANT_TYPE_MFA_OOB,
+  GRANT_TYPE_MFA_OTP,
+  GRANT_TYPE_MFA_RECOVERY_CODE,
+  VerifyMfaOptions,
+  type AuthenticatorApiResponse,
+  type ChallengeApiResponse,
+  type EnrollmentApiResponse
+} from "../types/mfa.js";
+
+/**
+ * Transforms Auth0 API authenticator response (snake_case) to SDK format (camelCase).
+ *
+ * @param auth - Raw authenticator from Auth0 API
+ * @returns Transformed authenticator
+ */
+export function camelizeAuthenticator(
+  auth: AuthenticatorApiResponse
+): Authenticator {
+  return {
+    id: auth.id,
+    authenticatorType: auth.authenticator_type,
+    type: auth.type,
+    active: auth.active,
+    name: auth.name,
+    phoneNumber: auth.phone_number,
+    oobChannel: auth.oob_channel,
+    createdAt: auth.created_at,
+    lastAuthenticatedAt: auth.last_auth
+  };
+}
+
+/**
+ * Transforms Auth0 API challenge response (snake_case) to SDK format (camelCase).
+ *
+ * @param result - Raw challenge result from Auth0 API
+ * @returns Transformed challenge response
+ */
+export function camelizeChallengeResponse(
+  result: ChallengeApiResponse
+): ChallengeResponse {
+  return {
+    challengeType: result.challenge_type,
+    oobCode: result.oob_code,
+    bindingMethod: result.binding_method
+  };
+}
+
+/**
+ * Transforms Auth0 API enrollment response (snake_case) to SDK format (camelCase).
+ * Builds discriminated union based on authenticator type.
+ *
+ * @param result - Raw enrollment result from Auth0 API
+ * @returns Transformed enrollment response
+ */
+export function buildEnrollmentResponse(
+  result: EnrollmentApiResponse
+): EnrollmentResponse {
+  const baseResponse = {
+    authenticatorType: result.authenticator_type,
+    id: result.id,
+    recoveryCodes: result.recovery_codes
+  };
+
+  if (result.authenticator_type === "otp") {
+    const response = {
+      ...baseResponse,
+      authenticatorType: "otp" as const,
+      secret: result.secret!,
+      barcodeUri: result.barcode_uri!
+    };
+    return response;
+  } else if (result.authenticator_type === "oob") {
+    return {
+      ...baseResponse,
+      authenticatorType: "oob" as const,
+      oobChannel: result.oob_channel!,
+      name: result.name,
+      oobCode: result.oob_code,
+      bindingMethod: result.binding_method,
+      barcodeUri: result.barcode_uri
+    };
+  }
+
+  throw new Error(`Unknown authenticator type: ${result.authenticator_type}`);
+}
+
+/**
+ * Builds type-safe enrollment options from request body.
+ * Validates type-specific required fields.
+ *
+ * @param body - Request body
+ * @param authenticatorType - Type of authenticator to enroll
+ * @returns Tuple of [options, null] or [null, errorResponse]
+ */
+export function buildEnrollOptions(
+  body: unknown,
+  authenticatorType: string
+):
+  | [Omit<EnrollOobOptions, "mfaToken">, null]
+  | [Omit<EnrollOtpOptions, "mfaToken">, null]
+  | [null, NextResponse] {
+  const bodyObj = body as Record<string, unknown>;
+  if (authenticatorType === "oob") {
+    if (!bodyObj.oobChannels || !Array.isArray(bodyObj.oobChannels)) {
+      return [
+        null,
+        NextResponse.json(
+          {
+            error: "invalid_request",
+            error_description:
+              "Missing or invalid oobChannels for OOB enrollment"
+          },
+          { status: 400 }
+        )
+      ];
+    }
+    const phoneNumber =
+      typeof bodyObj.phoneNumber === "string" && bodyObj.phoneNumber !== ""
+        ? bodyObj.phoneNumber
+        : undefined;
+    const email =
+      typeof bodyObj.email === "string" && bodyObj.email !== ""
+        ? bodyObj.email
+        : undefined;
+    return [
+      {
+        authenticatorTypes: ["oob"] as ["oob"],
+        oobChannels: bodyObj.oobChannels as (
+          | "sms"
+          | "voice"
+          | "auth0"
+          | "email"
+        )[],
+        phoneNumber,
+        email
+      },
+      null
+    ];
+  } else {
+    // otp
+    return [
+      {
+        authenticatorTypes: ["otp"] as ["otp"]
+      },
+      null
+    ];
+  }
+}
+
+export const buildVerifyParams = (
+  options: VerifyMfaOptions,
+  mfaToken: string
+): URLSearchParams => {
+  const params = new URLSearchParams();
+  params.append("mfa_token", mfaToken);
+
+  if ("otp" in options && options.otp) {
+    params.append("otp", options.otp);
+  } else if (
+    "oobCode" in options &&
+    "bindingCode" in options &&
+    options.oobCode &&
+    options.bindingCode
+  ) {
+    params.append("oob_code", options.oobCode);
+    params.append("binding_code", options.bindingCode);
+  } else if ("recoveryCode" in options && options.recoveryCode) {
+    params.append("recovery_code", options.recoveryCode);
+  } else {
+    throw new MfaVerifyError(
+      "invalid_request",
+      "At least one verification credential required (otp, oobCode+bindingCode, or recoveryCode)"
+    );
+  }
+
+  return params;
+};
+
+export const getVerifyGrantType = (params: URLSearchParams) => {
+  if (params.has("otp")) {
+    return GRANT_TYPE_MFA_OTP;
+  } else if (params.has("oob_code") && params.has("binding_code")) {
+    return GRANT_TYPE_MFA_OOB;
+  } else if (params.has("recovery_code")) {
+    return GRANT_TYPE_MFA_RECOVERY_CODE;
+  } else {
+    throw new MfaVerifyError(
+      "invalid_request",
+      "No verification credential provided"
+    );
+  }
+};

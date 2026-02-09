@@ -51,6 +51,7 @@ import {
   WithPageAuthRequiredAppRouterOptions,
   WithPageAuthRequiredPageRouterOptions
 } from "./helpers/with-page-auth-required.js";
+import { ServerMfaClient } from "./mfa/server-mfa-client.js";
 import { toNextRequest, toNextResponse } from "./next-compat.js";
 import {
   AbstractSessionStore,
@@ -385,6 +386,7 @@ export class Auth0Client {
   private authClient: AuthClient;
   private routes: Routes;
   private domain: string;
+  private _mfa?: ServerMfaClient;
   #options: Auth0ClientOptions;
 
   constructor(options: Auth0ClientOptions = {}) {
@@ -464,6 +466,14 @@ export class Auth0Client {
       accessToken:
         process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
       connectAccount: "/auth/connect",
+      mfaAuthenticators:
+        process.env.NEXT_PUBLIC_MFA_AUTHENTICATORS_ROUTE ||
+        "/auth/mfa/authenticators",
+      mfaChallenge:
+        process.env.NEXT_PUBLIC_MFA_CHALLENGE_ROUTE || "/auth/mfa/challenge",
+      mfaVerify: process.env.NEXT_PUBLIC_MFA_VERIFY_ROUTE || "/auth/mfa/verify",
+      mfaEnroll: process.env.NEXT_PUBLIC_MFA_ENROLL_ROUTE || "/auth/mfa/enroll",
+      // deleteAuthenticator uses mfaAuthenticators route with DELETE method
       ...options.routes
     };
 
@@ -897,6 +907,48 @@ export class Auth0Client {
     }
 
     return response;
+  }
+
+  /**
+   * MFA API for server-side operations.
+   *
+   * Provides access to MFA methods that require encrypted mfa_token from MfaRequiredError:
+   * - getAuthenticators: List enrolled MFA factors
+   * - challenge: Initiate MFA challenge (OTP/OOB)
+   * - verify: Complete MFA verification
+   *
+   * @example Handling MFA required scenario
+   * ```typescript
+   * try {
+   *   const { token } = await auth0.getAccessToken({ audience: 'https://api.example.com' });
+   * } catch (error) {
+   *   if (error instanceof MfaRequiredError) {
+   *     // Get available authenticators
+   *     const authenticators = await auth0.mfa.getAuthenticators({
+   *       mfaToken: error.mfa_token
+   *     });
+   *
+   *     // Initiate challenge
+   *     const challenge = await auth0.mfa.challenge({
+   *       mfaToken: error.mfa_token,
+   *       challengeType: 'otp',
+   *       authenticatorId: authenticators[0].id
+   *     });
+   *
+   *     // Verify code
+   *     const tokens = await auth0.mfa.verify({
+   *       mfaToken: error.mfa_token,
+   *       otp: '123456'
+   *     });
+   *   }
+   * }
+   * ```
+   */
+  get mfa(): ServerMfaClient {
+    if (!this._mfa) {
+      this._mfa = new ServerMfaClient(this.authClient);
+    }
+    return this._mfa;
   }
 
   /**

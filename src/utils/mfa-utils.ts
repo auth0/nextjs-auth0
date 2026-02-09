@@ -1,7 +1,17 @@
+import { NextResponse } from "next/server.js";
+
 import {
+  InvalidRequestError,
+  MfaChallengeError,
+  MfaGetAuthenticatorsError,
+  MfaNoAvailableFactorsError,
+  MfaRequiredError,
   MfaRequirements,
   MfaTokenExpiredError,
-  MfaTokenInvalidError
+  MfaTokenInvalidError,
+  MfaVerifyError,
+  OAuth2Error,
+  SdkError
 } from "../errors/index.js";
 import { decrypt, encrypt } from "../server/cookies.js";
 import type { MfaContext } from "../types/index.js";
@@ -124,4 +134,68 @@ export function extractMfaErrorDetails(error: unknown): {
       (cause?.mfa_requirements as MfaRequirements | undefined) ??
       (err.mfa_requirements as MfaRequirements | undefined)
   };
+}
+
+/**
+ * Get HTTP status code for MFA error.
+ *
+ * Centralized mapping: 401 (auth), 400 (validation), 500 (unexpected)
+ *
+ * @param error - Error instance
+ * @returns HTTP status code
+ */
+export function getMfaErrorStatusCode(error: Error): number {
+  if (
+    error instanceof MfaTokenExpiredError ||
+    error instanceof MfaTokenInvalidError
+  ) {
+    return 401;
+  }
+
+  if (
+    error instanceof InvalidRequestError ||
+    error instanceof MfaNoAvailableFactorsError ||
+    error instanceof MfaGetAuthenticatorsError ||
+    error instanceof MfaChallengeError ||
+    error instanceof MfaVerifyError
+  ) {
+    return 400;
+  }
+
+  if (error instanceof MfaRequiredError) {
+    return 403;
+  }
+
+  return 500;
+}
+
+/**
+ * Handle MFA errors and format response.
+ *
+ * Wraps non-SDK errors for consistent shape, uses error.toJSON() for serialization.
+ *
+ * @param e - Error thrown by business logic
+ * @returns NextResponse with error details
+ */
+export function handleMfaError(e: unknown): NextResponse {
+  // Wrap non-SDK errors in OAuth2Error for consistent shape
+  if (!(e instanceof SdkError)) {
+    e = new OAuth2Error({
+      code: "server_error",
+      message: e instanceof Error ? e.message : "Internal server error"
+    });
+  }
+
+  const error = e as SdkError;
+  const status = getMfaErrorStatusCode(error);
+
+  // MfaRequiredError has toJSON() with mfa_token + mfa_requirements
+  // MfaError subclasses have toJSON() with error + error_description
+  // Other SdkErrors fallback to generic shape
+  const body = (error as any).toJSON?.() ?? {
+    error: error.code || "server_error",
+    error_description: error.message || "Internal server error"
+  };
+
+  return NextResponse.json(body, { status });
 }
