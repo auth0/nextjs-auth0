@@ -23,6 +23,7 @@ import {
   DPoPError,
   DPoPErrorCode,
   InvalidStateError,
+  MfaRequiredError,
   MissingStateError,
   MyAccountApiError,
   OAuth2Error,
@@ -58,8 +59,16 @@ import {
   User
 } from "../types/index.js";
 import { mergeAuthorizationParamsIntoSearchParams } from "../utils/authorization-params-helpers.js";
-import { DEFAULT_SCOPES } from "../utils/constants.js";
+import {
+  DEFAULT_MFA_CONTEXT_TTL_SECONDS,
+  DEFAULT_SCOPES
+} from "../utils/constants.js";
 import { withDPoPNonceRetry } from "../utils/dpopUtils.js";
+import {
+  encryptMfaToken,
+  extractMfaErrorDetails,
+  isMfaRequiredError
+} from "../utils/mfa-utils.js";
 import {
   ensureNoLeadingSlash,
   ensureTrailingSlash,
@@ -209,6 +218,12 @@ export interface AuthClientOptions {
   dpopOptions?: DpopOptions;
 
   /**
+   * MFA token TTL in seconds (for token encryption expiration).
+   * Default: 300 (5 minutes, matching Auth0's mfa_token expiration)
+   */
+  mfaTokenTtl?: number;
+
+  /**
    * @future This option is reserved for future implementation.
    * Currently not used - placeholder for upcoming nonce persistence feature.
    */
@@ -263,6 +278,8 @@ export class AuthClient {
 
   private dpopKeyPair?: DpopKeyPair;
   private readonly useDPoP: boolean;
+
+  private readonly mfaTokenTtl: number;
 
   private proxyFetchers: { [audience: string]: Fetcher<Response> } = {};
 
@@ -381,6 +398,9 @@ export class AuthClient {
       options.enableConnectAccountEndpoint ?? false;
 
     this.useDPoP = options.useDPoP ?? false;
+
+    // MFA token TTL for token encryption
+    this.mfaTokenTtl = options.mfaTokenTtl ?? DEFAULT_MFA_CONTEXT_TTL_SECONDS;
 
     // Initialize DPoP if enabled. Check useDPoP flag first to avoid timing attacks.
     if ((options.useDPoP ?? false) && options.dpopKeyPair) {
@@ -947,6 +967,11 @@ export class AuthClient {
     });
 
     if (error) {
+      // Handle MFA required - return 403 with encrypted mfa_token
+      if (error instanceof MfaRequiredError) {
+        return this.#createMfaRequiredResponse(req, session, error);
+      }
+
       return NextResponse.json(
         {
           error: {
@@ -1064,6 +1089,11 @@ export class AuthClient {
     );
 
     if (getTokenSetError) {
+      // Handle MFA required - return 403 with encrypted mfa_token
+      if (getTokenSetError instanceof MfaRequiredError) {
+        return this.#createMfaRequiredResponse(req, session, getTokenSetError);
+      }
+
       return new NextResponse(
         "Failed to retrieve a connected account access token.",
         {
@@ -1242,6 +1272,8 @@ export class AuthClient {
         });
 
         if (error) {
+          // MFA context is now embedded in the encrypted token itself
+          // No session mutation needed
           return [error, null];
         }
 
@@ -2522,6 +2554,13 @@ export class AuthClient {
 
       return res;
     } catch (e: any) {
+      // Handle MFA required error - return 403 with MFA context
+      // Note: session.mfa was already mutated by getTokenSet() before the error was thrown.
+      // JavaScript is single-threaded, so no race condition exists.
+      if (e instanceof MfaRequiredError) {
+        return this.#createMfaRequiredResponse(req, session, e);
+      }
+
       // Return 401 for missing refresh token (cannot refresh expired token)
       if (
         e instanceof AccessTokenError &&
@@ -2585,6 +2624,28 @@ export class AuthClient {
       await this.sessionStore.set(req.cookies, res.cookies, finalSession);
       addCacheControlHeadersForSession(res);
     }
+  }
+
+  /**
+   * Create HTTP response for MFA required error.
+   * Saves session with MFA context and returns 403 response with error details.
+   *
+   * @param req - The incoming request (for reading cookies)
+   * @param session - Session data (already mutated with MFA context by getTokenSet)
+   * @param error - The MfaRequiredError from getTokenSet
+   * @returns NextResponse with 403 status and MFA error JSON body
+   */
+  async #createMfaRequiredResponse(
+    req: NextRequest,
+    session: SessionData,
+    error: MfaRequiredError
+  ): Promise<NextResponse> {
+    // Use toJSON() for consistent REST API response format
+    const res = NextResponse.json(error.toJSON(), { status: 403 });
+    // Save session with MFA context (mutated by getTokenSet via reference)
+    await this.sessionStore.set(req.cookies, res.cookies, session);
+    addCacheControlHeadersForSession(res);
+    return res;
   }
 
   /**
@@ -2668,6 +2729,60 @@ export class AuthClient {
         }
       );
     } catch (e: any) {
+      // Check if this is an MFA required error
+      if (isMfaRequiredError(e)) {
+        const { mfa_token, error_description, mfa_requirements } =
+          extractMfaErrorDetails(e);
+
+        if (mfa_token) {
+          // Encrypt token with full context before exposing to application
+          const encryptedToken = await encryptMfaToken(
+            mfa_token,
+            options.audience || "",
+            options.requestedScope,
+            mfa_requirements,
+            this.sessionStore.secret,
+            this.mfaTokenTtl
+          );
+
+          // Return MFA required error with self-contained encrypted token
+          return [
+            new MfaRequiredError(
+              error_description ?? "Multi-factor authentication is required.",
+              encryptedToken,
+              mfa_requirements,
+              new OAuth2Error({
+                code: e.error,
+                message: e.error_description
+              })
+            ),
+            null
+          ];
+        } else {
+          // MFA required but no mfa_token provided
+          // This typically happens when:
+          // 1. The refresh token was issued before MFA was enrolled
+          // 2. The API doesn't support step-up (no authorization policies)
+          // User needs to re-authenticate to get a new session with MFA
+          console.error(
+            "MFA required but no mfa_token - user needs to re-authenticate"
+          );
+          return [
+            new MfaRequiredError(
+              error_description ??
+                "Multi-factor authentication is required. Please log in again.",
+              "", // Empty token - signals re-auth needed
+              mfa_requirements,
+              new OAuth2Error({
+                code: e.error,
+                message: e.error_description
+              })
+            ),
+            null
+          ];
+        }
+      }
+
       return [
         new AccessTokenError(
           AccessTokenErrorCode.FAILED_TO_REFRESH_TOKEN,
