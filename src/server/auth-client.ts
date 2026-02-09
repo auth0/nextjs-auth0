@@ -1174,10 +1174,18 @@ export class AuthClient {
 
     const { tokenSet: updatedTokenSet } = getTokenSetResponse;
 
+    const now = Math.floor(Date.now() / 1000);
+    const expiresAt =
+      typeof updatedTokenSet.expiresAt === "number"
+        ? updatedTokenSet.expiresAt
+        : 0;
+    const expiresIn = Math.max(0, expiresAt - now);
+
     const res = NextResponse.json({
       token: updatedTokenSet.accessToken,
       scope: updatedTokenSet.scope,
-      expires_at: updatedTokenSet.expiresAt,
+      expires_at: expiresAt,
+      expires_in: expiresIn,
       ...(updatedTokenSet.token_type && {
         token_type: updatedTokenSet.token_type
       })
