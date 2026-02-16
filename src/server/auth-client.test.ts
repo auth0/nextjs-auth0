@@ -3987,7 +3987,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         };
         const expectedContext = {
           responseType: RESPONSE_TYPES.CODE,
-          returnTo: transactionState.returnTo
+          returnTo: transactionState.returnTo,
+          returnStrategy: "redirect"
         };
 
         expect(mockOnCallback).toHaveBeenCalledWith(
@@ -4217,7 +4218,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           expect.any(Error),
           {
             responseType: RESPONSE_TYPES.CODE,
-            returnTo: transactionState.returnTo
+            returnTo: transactionState.returnTo,
+            returnStrategy: "redirect"
           },
           null
         );
@@ -4303,7 +4305,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           expect.any(Error),
           {
             responseType: RESPONSE_TYPES.CODE,
-            returnTo: transactionState.returnTo
+            returnTo: transactionState.returnTo,
+            returnStrategy: "redirect"
           },
           null
         );
@@ -4388,7 +4391,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           expect.any(Error),
           {
             responseType: RESPONSE_TYPES.CODE,
-            returnTo: transactionState.returnTo
+            returnTo: transactionState.returnTo,
+            returnStrategy: "redirect"
           },
           null
         );
@@ -4938,7 +4942,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           expect.any(Error),
           {
             responseType: RESPONSE_TYPES.CONNECT_CODE,
-            returnTo: transactionState.returnTo
+            returnTo: transactionState.returnTo,
+            returnStrategy: "redirect"
           },
           null
         );
@@ -5053,7 +5058,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           expect.any(Error),
           {
             responseType: RESPONSE_TYPES.CONNECT_CODE,
-            returnTo: transactionState.returnTo
+            returnTo: transactionState.returnTo,
+            returnStrategy: "redirect"
           },
           null
         );
@@ -5171,7 +5177,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
           expect.any(Error),
           {
             responseType: RESPONSE_TYPES.CONNECT_CODE,
-            returnTo: transactionState.returnTo
+            returnTo: transactionState.returnTo,
+            returnStrategy: "redirect"
           },
           null
         );
