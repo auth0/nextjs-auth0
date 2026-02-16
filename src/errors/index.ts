@@ -41,3 +41,11 @@ export {
   type MfaApiErrorResponse,
   type MfaRequirements
 } from "./mfa-errors.js";
+
+export {
+  PopupBlockedError,
+  PopupCancelledError,
+  PopupTimeoutError,
+  PopupInProgressError,
+  ExecutionContextError
+} from "./popup-errors.js";

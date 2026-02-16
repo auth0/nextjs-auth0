@@ -1,4 +1,5 @@
 import {
+  AccessTokenError,
   MfaChallengeError,
   MfaEnrollmentError,
   MfaGetAuthenticatorsError,
@@ -8,6 +9,12 @@ import {
   MfaTokenInvalidError,
   MfaVerifyError
 } from "../../errors/index.js";
+import {
+  ExecutionContextError,
+  PopupBlockedError,
+  PopupInProgressError
+} from "../../errors/popup-errors.js";
+import type { SdkError } from "../../errors/sdk-error.js";
 import type {
   Authenticator,
   ChallengeResponse,
@@ -18,6 +25,57 @@ import type {
   VerifyMfaOptions
 } from "../../types/index.js";
 import { normalizeWithBasePath } from "../../utils/pathUtils.js";
+import {
+  DEFAULT_POPUP_HEIGHT,
+  DEFAULT_POPUP_TIMEOUT,
+  DEFAULT_POPUP_WIDTH,
+  openCenteredPopup,
+  waitForPopupCompletion
+} from "../../utils/popup-helpers.js";
+import {
+  getAccessToken,
+  type AccessTokenResponse
+} from "../helpers/get-access-token.js";
+
+/**
+ * Client-side options for stepUpWithPopup()
+ */
+export interface StepUpWithPopupOptions {
+  /** Target API audience (required) */
+  audience: string;
+  /** Space-separated scopes (optional, default: 'openid profile email') */
+  scope?: string;
+  /** ACR values for step-up (optional, default: MFA policy URI) */
+  acr_values?: string;
+  /** Return URL after authentication (optional, default: '/') */
+  returnTo?: string;
+  /** Timeout in milliseconds (optional, default: 60000) */
+  timeout?: number;
+  /** Popup window width (optional, default: 400) */
+  popupWidth?: number;
+  /** Popup window height (optional, default: 600) */
+  popupHeight?: number;
+}
+
+// Singleton popup guard - prevents concurrent popups
+let activePopup: Window | null = null;
+
+/**
+ * Parse error from postMessage payload into typed SdkError.
+ * Called when popup sends {type: 'auth_complete', success: false, error: {...}}
+ */
+function parsePopupError(error: { code: string; message: string }): SdkError {
+  const { code, message } = error;
+
+  switch (code) {
+    case "mfa_required":
+      return new MfaRequiredError(message, "", undefined, undefined);
+    case "access_denied":
+      return new AccessTokenError(code, message, undefined);
+    default:
+      return new AccessTokenError(code, message, undefined);
+  }
+}
 
 /**
  * Client-side MFA API (singleton).
@@ -375,6 +433,87 @@ class ClientMfaClient implements MfaClient {
   }
 
   /**
+   * Triggers MFA step-up authentication via Universal Login popup.
+   * Opens popup window -> user completes MFA -> token cached in session -> returned.
+   *
+   * @param options - Configuration for the popup MFA flow
+   * @returns AccessTokenResponse with the acquired token
+   *
+   * @throws ExecutionContextError - called in server/middleware context
+   * @throws PopupBlockedError - browser blocks popup
+   * @throws PopupInProgressError - another popup is already active
+   * @throws PopupCancelledError - user closes popup
+   * @throws PopupTimeoutError - popup doesn't complete within timeout
+   * @throws AccessTokenError - token retrieval fails after popup
+   * @throws MfaRequiredError - MFA is still required (shouldn't happen after popup)
+   */
+  async stepUpWithPopup(
+    options: StepUpWithPopupOptions
+  ): Promise<AccessTokenResponse> {
+    // 1. Execution context guard
+    if (typeof window === "undefined") {
+      throw new ExecutionContextError(
+        "stepUpWithPopup() can only be called in browser context"
+      );
+    }
+
+    // 2. Concurrent popup guard (singleton)
+    if (activePopup !== null && !activePopup.closed) {
+      throw new PopupInProgressError();
+    }
+
+    // 3. Construct login URL with returnStrategy=postMessage
+    const params = new URLSearchParams({
+      returnTo: options.returnTo || "/",
+      prompt: "login",
+      acr_values:
+        options.acr_values ||
+        "http://schemas.openid.net/pape/policies/2007/06/multi-factor",
+      audience: options.audience,
+      scope: options.scope || "openid profile email",
+      returnStrategy: "postMessage"
+    });
+
+    const loginUrl =
+      normalizeWithBasePath("/auth/login") + "?" + params.toString();
+
+    // 4. Open centered popup
+    const width = options.popupWidth || DEFAULT_POPUP_WIDTH;
+    const height = options.popupHeight || DEFAULT_POPUP_HEIGHT;
+    const popup = openCenteredPopup(loginUrl, width, height);
+
+    if (popup === null) {
+      throw new PopupBlockedError();
+    }
+
+    // 5. Track active popup (singleton guard)
+    activePopup = popup;
+
+    try {
+      // 6. Wait for postMessage completion or timeout/cancel
+      const timeout = options.timeout || DEFAULT_POPUP_TIMEOUT;
+      const result = await waitForPopupCompletion(popup, timeout);
+
+      // 7. Check postMessage result (discriminated union)
+      if (!result.success) {
+        throw parsePopupError(result.error);
+      }
+
+      // 8. Retrieve token from session via getAccessToken()
+      //    mergeScopes: false prevents global scope pollution
+      return (await getAccessToken({
+        audience: options.audience,
+        scope: options.scope || "openid profile email",
+        mergeScopes: false,
+        includeFullResponse: true
+      })) as AccessTokenResponse;
+    } finally {
+      // 9. Cleanup: reset singleton guard
+      activePopup = null;
+    }
+  }
+
+  /**
    * Parse server error response into typed error classes.
    *
    * Server returns JSON: { error, error_description, mfa_token? }
@@ -460,4 +599,4 @@ class ClientMfaClient implements MfaClient {
  * const tokens = await mfa.verify({ mfaToken, otp: '123456' });
  * ```
  */
-export const mfa: MfaClient = new ClientMfaClient();
+export const mfa = new ClientMfaClient();

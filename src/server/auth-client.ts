@@ -153,6 +153,13 @@ export type OnCallbackContext = {
    * The connected account information when the responseType is {@link RESPONSE_TYPES.CONNECT_CODE}
    */
   connectedAccount?: CompleteConnectAccountResponse;
+  /**
+   * The return strategy for this callback flow.
+   * - 'redirect' (default): Standard OAuth redirect flow
+   * - 'postMessage': Popup flow returning via window.postMessage
+   * Hook authors can use this to detect popup flows and adapt behavior.
+   */
+  returnStrategy?: "redirect" | "postMessage";
 };
 export type OnCallbackHook = (
   error: SdkError | null,
@@ -258,6 +265,13 @@ export interface AuthClientOptions {
   mfaTokenTtl?: number;
 
   /**
+   * Content Security Policy nonce for inline scripts.
+   * Required when CSP is enabled and popup flows use postMessage return strategy.
+   * The nonce is injected into the <script> tag of the postMessage HTML response.
+   */
+  cspNonce?: string;
+
+  /**
    * @future This option is reserved for future implementation.
    * Currently not used - placeholder for upcoming nonce persistence feature.
    */
@@ -269,6 +283,62 @@ function createRouteUrl(path: string, baseUrl: string) {
     ensureNoLeadingSlash(normalizeWithBasePath(path)),
     ensureTrailingSlash(baseUrl)
   );
+}
+
+/**
+ * Escape HTML special characters to prevent XSS in postMessage HTML.
+ * Escapes: & < > " ' / `
+ */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;")
+    .replace(/\//g, "&#x2F;")
+    .replace(/`/g, "&#96;");
+}
+
+/**
+ * Sanitize CSP nonce: only allow base64 characters.
+ * Per CSP spec, nonce-source = base64-value.
+ */
+function sanitizeCspNonce(nonce: string): string {
+  return nonce.replace(/[^A-Za-z0-9+/=]/g, "");
+}
+
+/**
+ * Merge access token from popup MFA completion into existing session.
+ * Pushes to session.accessTokens[] for multi-audience support.
+ */
+function mergePopupTokenIntoSession(
+  session: SessionData,
+  oidcRes: oauth.TokenEndpointResponse,
+  transactionState: TransactionState,
+  idTokenClaims?: oauth.IDToken
+): void {
+  session.accessTokens = session.accessTokens || [];
+  session.accessTokens.push({
+    accessToken: oidcRes.access_token,
+    scope: oidcRes.scope,
+    requestedScope: transactionState.scope,
+    audience: transactionState.audience || "",
+    expiresAt: Math.floor(Date.now() / 1000) + Number(oidcRes.expires_in)
+  });
+
+  // Update refresh token if a new one was issued
+  if (oidcRes.refresh_token) {
+    session.tokenSet.refreshToken = oidcRes.refresh_token;
+  }
+
+  // Update id token and user claims if new ones were issued
+  if (oidcRes.id_token) {
+    session.tokenSet.idToken = oidcRes.id_token;
+    if (idTokenClaims) {
+      session.user = idTokenClaims;
+    }
+  }
 }
 
 /**
@@ -314,6 +384,7 @@ export class AuthClient {
   private readonly useDPoP: boolean;
 
   private readonly mfaTokenTtl: number;
+  private readonly cspNonce?: string;
 
   private proxyFetchers: { [audience: string]: Fetcher<Response> } = {};
 
@@ -435,6 +506,9 @@ export class AuthClient {
 
     // MFA token TTL for token encryption
     this.mfaTokenTtl = options.mfaTokenTtl ?? DEFAULT_MFA_CONTEXT_TTL_SECONDS;
+
+    // CSP nonce for popup postMessage inline scripts
+    this.cspNonce = options.cspNonce;
 
     // Initialize DPoP if enabled. Check useDPoP flag first to avoid timing attacks.
     if ((options.useDPoP ?? false) && options.dpopKeyPair) {
@@ -588,6 +662,9 @@ export class AuthClient {
       }
     }
 
+    // Validate returnStrategy
+    const returnStrategy = options.returnStrategy || "redirect";
+
     // Prepare transaction state
     const transactionState: TransactionState = {
       nonce,
@@ -597,7 +674,8 @@ export class AuthClient {
       state,
       returnTo,
       scope: authorizationParams.get("scope") || undefined,
-      audience: authorizationParams.get("audience") || undefined
+      audience: authorizationParams.get("audience") || undefined,
+      returnStrategy: returnStrategy !== "redirect" ? returnStrategy : undefined
     };
 
     // Generate authorization URL with PAR handling
@@ -624,9 +702,21 @@ export class AuthClient {
   async handleLogin(req: NextRequest): Promise<NextResponse> {
     const searchParams = Object.fromEntries(req.nextUrl.searchParams.entries());
 
-    // Always forward all parameters
-    // When PAR is disabled, parameters go to authorization URL as before
-    // When PAR is enabled, all parameters are sent securely in the PAR request body
+    // Extract returnStrategy from URL query params (takes precedence per Design)
+    const queryReturnStrategy = searchParams.returnStrategy;
+    delete searchParams.returnStrategy; // Don't forward to Auth0 /authorize
+
+    // Validate returnStrategy value
+    if (
+      queryReturnStrategy &&
+      queryReturnStrategy !== "postMessage" &&
+      queryReturnStrategy !== "redirect"
+    ) {
+      return new NextResponse(
+        `Invalid returnStrategy query param: ${queryReturnStrategy}. Expected 'redirect', 'postMessage', or omit.`,
+        { status: 400 }
+      );
+    }
 
     // do not pass returnTo as part of authorizationParameters
     // returnTo should only be used in txn state
@@ -634,7 +724,11 @@ export class AuthClient {
 
     const options: StartInteractiveLoginOptions = {
       authorizationParameters,
-      returnTo: returnTo
+      returnTo: returnTo,
+      returnStrategy: queryReturnStrategy as
+        | "redirect"
+        | "postMessage"
+        | undefined
     };
     return this.startInteractiveLogin(options);
   }
@@ -756,7 +850,8 @@ export class AuthClient {
     const transactionState = transactionStateCookie.payload;
     const onCallbackCtx: OnCallbackContext = {
       responseType: transactionState.responseType,
-      returnTo: transactionState.returnTo
+      returnTo: transactionState.returnTo,
+      returnStrategy: transactionState.returnStrategy || "redirect"
     };
 
     if (transactionState.responseType === RESPONSE_TYPES.CONNECT_CODE) {
@@ -835,7 +930,8 @@ export class AuthClient {
         discoveryError,
         onCallbackCtx,
         req,
-        state
+        state,
+        transactionState
       );
     }
 
@@ -857,7 +953,8 @@ export class AuthClient {
         }),
         onCallbackCtx,
         req,
-        state
+        state,
+        transactionState
       );
     }
 
@@ -912,14 +1009,22 @@ export class AuthClient {
         new AuthorizationCodeGrantRequestError(e.message),
         onCallbackCtx,
         req,
-        state
+        state,
+        transactionState
       );
     }
+    // Determine return strategy BEFORE processing token response
+    const returnStrategy = transactionState.returnStrategy || "redirect";
+
     let oidcRes: oauth.TokenEndpointResponse;
     try {
       // Process the authorization code response
       // For authorization code flows, oauth4webapi handles DPoP nonce management internally
       // No need for manual retry since authorization codes are single-use
+      //
+      // Popup flows (postMessage): requireIdToken: false because API-only audiences
+      // may not return an ID token. If requireIdToken: true is used,
+      // processAuthorizationCodeResponse would throw AuthorizationCodeGrantError.
       oidcRes = await oauth.processAuthorizationCodeResponse(
         authorizationServerMetadata,
         this.clientMetadata,
@@ -927,7 +1032,7 @@ export class AuthClient {
         {
           expectedNonce: transactionState.nonce,
           maxAge: transactionState.maxAge,
-          requireIdToken: true
+          requireIdToken: returnStrategy !== "postMessage"
         }
       );
     } catch (e: any) {
@@ -940,13 +1045,114 @@ export class AuthClient {
         }),
         onCallbackCtx,
         req,
-        state
+        state,
+        transactionState
       );
     }
 
-    const idTokenClaims = oauth.getValidatedIdTokenClaims(oidcRes)!;
+    // For standard flows, idTokenClaims is always present (requireIdToken: true)
+    // For popup flows, idTokenClaims may be undefined (requireIdToken: false)
+    const idTokenClaims = oidcRes.id_token
+      ? oauth.getValidatedIdTokenClaims(oidcRes)
+      : undefined;
+
+    // ★ POSTMESSAGE BRANCH
+    if (returnStrategy === "postMessage") {
+      // Call onCallback for side-effects (logging, analytics) - discard redirect response.
+      await this.onCallback(null, onCallbackCtx, null);
+
+      // Merge new token into existing session (do NOT create fresh session)
+      const existingSession = await this.sessionStore.get(req.cookies);
+
+      if (existingSession) {
+        mergePopupTokenIntoSession(
+          existingSession,
+          oidcRes,
+          transactionState,
+          idTokenClaims
+        );
+        const mergedSession = await this.finalizeSession(
+          existingSession,
+          oidcRes.id_token
+        );
+
+        const popupResponse = this.createAuthCompletePostMessageResponse({
+          success: true,
+          user: {
+            sub: mergedSession.user.sub,
+            email: mergedSession.user.email
+          },
+          nonce: this.cspNonce
+        });
+        await this.sessionStore.set(
+          req.cookies,
+          popupResponse.cookies,
+          mergedSession,
+          true
+        );
+        addCacheControlHeadersForSession(popupResponse);
+        await this.transactionStore.delete(popupResponse.cookies, state);
+        return popupResponse;
+      } else {
+        // No existing session (edge case: session expired during popup flow)
+        if (!idTokenClaims) {
+          const popupResponse = this.createAuthCompletePostMessageResponse({
+            success: false,
+            error: {
+              code: "session_expired",
+              message:
+                "Session expired during popup flow and no ID token available to create new session"
+            },
+            nonce: this.cspNonce
+          });
+          await this.transactionStore.delete(popupResponse.cookies, state);
+          return popupResponse;
+        }
+        const fallbackSession: SessionData = {
+          user: idTokenClaims,
+          tokenSet: {
+            accessToken: oidcRes.access_token,
+            idToken: oidcRes.id_token,
+            scope: oidcRes.scope,
+            requestedScope: transactionState.scope,
+            audience: transactionState.audience,
+            refreshToken: oidcRes.refresh_token,
+            expiresAt:
+              Math.floor(Date.now() / 1000) + Number(oidcRes.expires_in)
+          },
+          internal: {
+            sid: idTokenClaims.sid as string,
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        const mergedSession = await this.finalizeSession(
+          fallbackSession,
+          oidcRes.id_token
+        );
+
+        const popupResponse = this.createAuthCompletePostMessageResponse({
+          success: true,
+          user: {
+            sub: mergedSession.user.sub,
+            email: mergedSession.user.email
+          },
+          nonce: this.cspNonce
+        });
+        await this.sessionStore.set(
+          req.cookies,
+          popupResponse.cookies,
+          mergedSession,
+          true
+        );
+        addCacheControlHeadersForSession(popupResponse);
+        await this.transactionStore.delete(popupResponse.cookies, state);
+        return popupResponse;
+      }
+    }
+
+    // ★ STANDARD REDIRECT BRANCH (default, unchanged)
     let session: SessionData = {
-      user: idTokenClaims,
+      user: idTokenClaims!,
       tokenSet: {
         accessToken: oidcRes.access_token,
         idToken: oidcRes.id_token,
@@ -957,7 +1163,7 @@ export class AuthClient {
         expiresAt: Math.floor(Date.now() / 1000) + Number(oidcRes.expires_in)
       },
       internal: {
-        sid: idTokenClaims.sid as string,
+        sid: idTokenClaims!.sid as string,
         createdAt: Math.floor(Date.now() / 1000)
       }
     };
@@ -1133,6 +1339,7 @@ export class AuthClient {
     const session = await this.sessionStore.get(req.cookies);
     const audience = req.nextUrl.searchParams.get("audience");
     const scope = req.nextUrl.searchParams.get("scope");
+    const mergeScopesParam = req.nextUrl.searchParams.get("mergeScopes");
 
     if (!session) {
       return NextResponse.json(
@@ -1150,7 +1357,10 @@ export class AuthClient {
 
     const [error, getTokenSetResponse] = await this.getTokenSet(session, {
       scope,
-      audience
+      audience,
+      // Only set mergeScopes when explicitly passed as "false"
+      // Absence of param = default behavior (true)
+      mergeScopes: mergeScopesParam === "false" ? false : undefined
     });
 
     if (error) {
@@ -1399,16 +1609,21 @@ export class AuthClient {
     sessionData: SessionData,
     options: GetAccessTokenOptions = {}
   ): Promise<[null, GetTokenSetResponse] | [SdkError, null]> {
-    // This will merge the scopes from the authorization parameters and the options.
-    // The scope from the options will be added to the scopes from the authorization parameters.
-    // If there are duplicate scopes, they will be removed.
-    const scope = mergeScopes(
-      getScopeForAudience(
-        this.authorizationParameters.scope,
-        options.audience ?? this.authorizationParameters.audience
-      ),
-      options.scope
-    );
+    // Scope resolution:
+    // When mergeScopes !== false (default): merge global scopes for the audience with options.scope
+    // When mergeScopes === false: use ONLY options.scope (no global merge)
+    // This is critical for stepUpWithPopup() which needs isolated scope to prevent
+    // refresh token grants requesting scopes beyond what the step-up flow needs.
+    const shouldMerge = options.mergeScopes !== false;
+    const scope = shouldMerge
+      ? mergeScopes(
+          getScopeForAudience(
+            this.authorizationParameters.scope,
+            options.audience ?? this.authorizationParameters.audience
+          ),
+          options.scope
+        )
+      : options.scope || "openid";
 
     const tokenSet: Partial<TokenSet> = this.#getTokenSetFromSession(
       sessionData,
@@ -1638,8 +1853,28 @@ export class AuthClient {
     error: SdkError,
     ctx: OnCallbackContext,
     req: NextRequest,
-    state?: string
+    state?: string,
+    transactionState?: TransactionState
   ): Promise<NextResponse> {
+    // PostMessage branch: return error as postMessage HTML instead of redirect
+    if (transactionState?.returnStrategy === "postMessage") {
+      const response = this.createAuthCompletePostMessageResponse({
+        success: false,
+        error: {
+          code: error.code || "callback_error",
+          message: error.message
+        },
+        nonce: this.cspNonce
+      });
+
+      // Clean up the transaction cookie on error
+      if (state) {
+        await this.transactionStore.delete(response.cookies, state);
+      }
+
+      return response;
+    }
+
     const response = await this.onCallback(error, ctx, null);
 
     // Clean up the transaction cookie on error to prevent accumulation
@@ -3212,6 +3447,74 @@ export class AuthClient {
       await this.sessionStore.set(req.cookies, res.cookies, finalSession);
       addCacheControlHeadersForSession(res);
     }
+  }
+
+  /**
+   * Returns an HTML page that posts a message to the opener window.
+   * Used for popup-based auth flows (returnStrategy: "postMessage").
+   *
+   * The HTML page:
+   * 1. Sends a postMessage to window.opener with auth result
+   * 2. Auto-closes after AUTO_CLOSE_DELAY (2s fallback)
+   *
+   * @param options - Message payload and optional CSP nonce
+   * @returns NextResponse with HTML body and appropriate headers
+   */
+  createAuthCompletePostMessageResponse(options: {
+    success: boolean;
+    user?: { sub: string; email?: string };
+    error?: { code: string; message: string };
+    nonce?: string;
+  }): NextResponse {
+    // Build the message as a JS object literal for the <script> context.
+    // JSON.stringify produces valid JavaScript literals and never contains
+    // </script> sequences, so no HTML-escaping is needed inside <script>.
+    // Using escapeHtml here would corrupt the JS (& → &amp;, " → &quot;).
+    const message = options.success
+      ? JSON.stringify({
+          type: "auth_complete",
+          success: true,
+          user: options.user
+        })
+      : JSON.stringify({
+          type: "auth_complete",
+          success: false,
+          error: options.error
+        });
+
+    const nonceAttr = options.nonce
+      ? ` nonce="${sanitizeCspNonce(options.nonce)}"`
+      : "";
+
+    const statusText = options.success
+      ? "Authentication completed successfully. This window will close automatically."
+      : "Authentication failed. Please close this window and try again.";
+
+    const html = `<!DOCTYPE html>
+<html>
+<head><title>Authentication Complete</title></head>
+<body>
+<p>${escapeHtml(statusText)}</p>
+<script${nonceAttr}>
+(function(){
+  try {
+    if (window.opener) {
+      window.opener.postMessage(${message}, window.location.origin);
+    }
+  } catch(e) {}
+  setTimeout(function(){ window.close(); }, 2000);
+})();
+</script>
+</body>
+</html>`;
+
+    return new NextResponse(html, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store"
+      }
+    });
   }
 
   /**

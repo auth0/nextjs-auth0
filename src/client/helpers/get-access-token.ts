@@ -1,4 +1,4 @@
-import { AccessTokenError } from "../../errors/index.js";
+import { AccessTokenError, MfaRequiredError } from "../../errors/index.js";
 import { normalizeWithBasePath } from "../../utils/pathUtils.js";
 
 /**
@@ -57,9 +57,17 @@ export type AccessTokenOptions = {
    * @default false
    */
   includeFullResponse?: boolean;
+
+  /**
+   * Control scope merging behavior server-side.
+   * When true (default): merge global scopes for default audience.
+   * When false: use ONLY requested scope (no global merge).
+   * Passed as query param to /auth/access-token endpoint.
+   */
+  mergeScopes?: boolean;
 };
 
-type AccessTokenResponse = {
+export type AccessTokenResponse = {
   token: string;
   scope?: string;
   expires_at?: number;
@@ -95,6 +103,13 @@ export async function getAccessToken(
     urlParams.append("scope", options.scope);
   }
 
+  // Forward mergeScopes to server-side handleAccessToken
+  // Only forward when explicitly false to maintain backward compatibility
+  // (server defaults to true when param is absent)
+  if (options.mergeScopes === false) {
+    urlParams.append("mergeScopes", "false");
+  }
+
   let url = normalizeWithBasePath(
     process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token"
   );
@@ -118,9 +133,22 @@ export async function getAccessToken(
       );
     }
 
+    // Detect MFA required response (403 with flat { error: "mfa_required", mfa_token, ... })
+    // Server returns MfaRequiredError.toJSON() format from #createMfaRequiredResponse
+    if (tokenRes.status === 403 && accessTokenError.error === "mfa_required") {
+      throw new MfaRequiredError(
+        accessTokenError.error_description ||
+          "Multi-factor authentication is required.",
+        accessTokenError.mfa_token || "",
+        accessTokenError.mfa_requirements,
+        undefined
+      );
+    }
+
+    // Standard error format: { error: { code, message } }
     throw new AccessTokenError(
-      accessTokenError.error.code,
-      accessTokenError.error.message
+      accessTokenError.error?.code || accessTokenError.error,
+      accessTokenError.error?.message || accessTokenError.error_description
     );
   }
 
