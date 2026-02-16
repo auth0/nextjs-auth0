@@ -45,6 +45,15 @@
   - [Handling `MfaRequiredError`](#handling-mfarequirederror)
   - [MFA Tenant Configuration](#mfa-tenant-configuration)
   - [Critical Warning](#critical-warning)
+- [Reactive MFA Step-Up (Popup)](#reactive-mfa-step-up-popup)
+  - [Overview](#overview-1)
+  - [Basic Usage](#basic-usage)
+  - [Handling MfaRequiredError from Client Components](#handling-mfarequirederror-from-client-components)
+  - [Configuration Options](#configuration-options)
+  - [CSP Nonce Support](#csp-nonce-support)
+  - [Error Handling](#error-handling-2)
+  - [Security Considerations](#security-considerations-1)
+  - [Known Limitations](#known-limitations)
 - [Silent authentication](#silent-authentication)
 - [DPoP (Demonstrating Proof-of-Possession)](#dpop-demonstrating-proof-of-possession)
   - [What is DPoP?](#what-is-dpop)
@@ -1278,8 +1287,9 @@ export async function GET() {
 ```
 
 **Client Side:**
-When the client receives the 403 with `mfa_required`, you should redirect the user to complete the step-up challenge.
+When the client receives the 403 with `mfa_required`, you can either redirect the user to a dedicated MFA page or use the popup-based approach to complete MFA without a full-page redirect.
 
+**Option 1: Full-page redirect**
 ```javascript
 const response = await fetch("/api/protected");
 if (response.status === 403) {
@@ -1291,6 +1301,10 @@ if (response.status === 403) {
   }
 }
 ```
+
+**Option 2: Popup (no redirect)**
+
+Use `mfa.stepUpWithPopup()` to complete MFA in a popup without leaving the current page. See [Reactive MFA Step-Up (Popup)](#reactive-mfa-step-up-popup) for full documentation.
 
 ### MFA Tenant Configuration
 
@@ -3546,3 +3560,220 @@ The SDK provides typed error classes for all MFA operations:
 | `MfaTokenNotFoundError` | `mfa_token_not_found` | No MFA context for token | Token not in session |
 | `MfaTokenExpiredError` | `mfa_token_expired` | Token TTL exceeded | Context expired |
 | `MfaTokenInvalidError` | `mfa_token_invalid` | Token tampered or wrong secret | Decryption failed |
+
+## Reactive MFA Step-Up (Popup)
+
+### Overview
+
+The SDK supports **reactive MFA step-up** via a browser popup using Auth0 Universal Login. When an API call fails with `mfa_required`, the client-side `mfa.stepUpWithPopup()` method opens a popup window where the user completes MFA through Auth0's Universal Login. After completion, the token is cached in the server-side session and returned directly to the caller — no full-page redirect required.
+
+This is useful for applications that need to protect specific actions (e.g., transferring funds, changing settings) with MFA without disrupting the user's current page state.
+
+**Flow summary:**
+1. App calls an API that requires MFA → receives `MfaRequiredError`
+2. App calls `mfa.stepUpWithPopup({ audience })` → popup opens
+3. User completes MFA in the popup via Auth0 Universal Login
+4. Popup sends result back via `postMessage` → popup auto-closes
+5. SDK retrieves the cached token from the server session
+6. `stepUpWithPopup()` resolves with the access token
+
+### Basic Usage
+
+```tsx
+'use client';
+
+import { mfa, getAccessToken } from '@auth0/nextjs-auth0/client';
+import { MfaRequiredError } from '@auth0/nextjs-auth0/errors';
+import { useState } from 'react';
+
+export function ProtectedAction() {
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+
+  async function handleAction() {
+    try {
+      // 1. Try to get an access token for the protected API
+      const token = await getAccessToken({
+        audience: 'https://api.example.com',
+        scope: 'read:sensitive'
+      });
+
+      // 2. Use the token to call your API
+      const res = await fetch('https://api.example.com/sensitive', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setResult(await res.json());
+    } catch (err) {
+      if (err instanceof MfaRequiredError) {
+        try {
+          // 3. MFA required — trigger popup step-up
+          const { token } = await mfa.stepUpWithPopup({
+            audience: 'https://api.example.com',
+            scope: 'read:sensitive'
+          });
+
+          // 4. Retry with the step-up token
+          const res = await fetch('https://api.example.com/sensitive', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          setResult(await res.json());
+        } catch (popupErr) {
+          setError(popupErr.message);
+        }
+      } else {
+        setError(err.message);
+      }
+    }
+  }
+
+  return (
+    <div>
+      <button onClick={handleAction}>Perform Sensitive Action</button>
+      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {result && <pre>{JSON.stringify(result, null, 2)}</pre>}
+    </div>
+  );
+}
+```
+
+### Handling MfaRequiredError from Client Components
+
+The client-side `getAccessToken()` helper automatically detects 403 responses with `error: "mfa_required"` and throws `MfaRequiredError`. This allows you to use `instanceof` checks to trigger the popup flow:
+
+```tsx
+import { getAccessToken } from '@auth0/nextjs-auth0/client';
+import { MfaRequiredError } from '@auth0/nextjs-auth0/errors';
+
+try {
+  const token = await getAccessToken({ audience: 'https://api.example.com' });
+} catch (err) {
+  if (err instanceof MfaRequiredError) {
+    // Trigger popup MFA step-up
+    const { token } = await mfa.stepUpWithPopup({
+      audience: 'https://api.example.com'
+    });
+  }
+}
+```
+
+> [!NOTE]
+> The `MfaRequiredError` detection works for both server-side and client-side `getAccessToken()` calls. On the client, it is reconstructed from the 403 JSON response returned by the `/auth/access-token` endpoint.
+
+### Configuration Options
+
+`stepUpWithPopup()` accepts the following options:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `audience` | `string` | *(required)* | Target API audience identifier |
+| `scope` | `string` | `'openid profile email'` | Space-separated scopes for the token |
+| `acr_values` | `string` | `'http://schemas.openid.net/pape/policies/2007/06/multi-factor'` | ACR values sent to Auth0 for step-up policy |
+| `returnTo` | `string` | `'/'` | Return URL (used internally by the OAuth flow) |
+| `timeout` | `number` | `60000` | Popup timeout in milliseconds |
+| `popupWidth` | `number` | `400` | Popup window width in pixels |
+| `popupHeight` | `number` | `600` | Popup window height in pixels |
+
+**Example with custom options:**
+
+```tsx
+const { token } = await mfa.stepUpWithPopup({
+  audience: 'https://api.example.com',
+  scope: 'openid profile email transfer:funds',
+  timeout: 120000,    // 2 minutes
+  popupWidth: 500,
+  popupHeight: 700
+});
+```
+
+> [!NOTE]
+> Popup timeout is configured per-call only. There is no server-side configuration option or environment variable for this — timeout is a client-side runtime concern. If you need a consistent default across your app, define an application-level constant and pass it to every call.
+
+### CSP Nonce Support
+
+If your application uses a strict Content Security Policy that blocks inline scripts, configure a CSP nonce on the server-side `Auth0Client`:
+
+```typescript
+// lib/auth0.ts
+import { Auth0Client } from '@auth0/nextjs-auth0/server';
+
+export const auth0 = new Auth0Client({
+  cspNonce: 'your-generated-nonce'
+});
+```
+
+The nonce is injected into the `<script>` tag of the popup callback HTML response, making it compliant with `script-src 'nonce-...'` CSP policies.
+
+> [!IMPORTANT]
+> The nonce must contain only base64 characters (`A-Za-z0-9+/=-_`). Invalid characters will throw an `InvalidConfigurationError`. The nonce should be generated per-request on the server side for maximum security.
+
+If you do **not** configure a `cspNonce` and your CSP blocks inline scripts, the popup will complete the MFA flow but the parent window will never receive the `postMessage`. This manifests as a `PopupTimeoutError` after the configured timeout.
+
+### Error Handling
+
+`stepUpWithPopup()` can throw several typed errors. Handle them to provide appropriate user feedback:
+
+```tsx
+import { mfa } from '@auth0/nextjs-auth0/client';
+import {
+  PopupBlockedError,
+  PopupCancelledError,
+  PopupTimeoutError,
+  PopupInProgressError,
+  ExecutionContextError
+} from '@auth0/nextjs-auth0/errors';
+
+try {
+  const { token } = await mfa.stepUpWithPopup({
+    audience: 'https://api.example.com'
+  });
+} catch (err) {
+  if (err instanceof PopupBlockedError) {
+    // Browser blocked the popup — prompt user to allow popups
+    alert('Please allow popups for this site and try again.');
+  } else if (err instanceof PopupCancelledError) {
+    // User closed the popup before completing MFA
+    console.log('MFA cancelled by user.');
+  } else if (err instanceof PopupTimeoutError) {
+    // Popup did not complete within the timeout
+    console.log('MFA timed out. Please try again.');
+  } else if (err instanceof PopupInProgressError) {
+    // Another popup is already open
+    console.log('Please complete the current MFA prompt first.');
+  } else if (err instanceof ExecutionContextError) {
+    // Called from server-side code (SSR, middleware)
+    console.error('stepUpWithPopup() can only be called in browser context.');
+  } else {
+    // AccessTokenError or other errors
+    console.error('MFA failed:', err.message);
+  }
+}
+```
+
+**Error reference:**
+
+| Error Class | Code | When Thrown |
+|-------------|------|------------|
+| `PopupBlockedError` | `popup_blocked` | Browser blocked `window.open()` |
+| `PopupCancelledError` | `popup_cancelled` | User closed the popup window |
+| `PopupTimeoutError` | `popup_timeout` | Popup did not complete within timeout |
+| `PopupInProgressError` | `popup_in_progress` | Another `stepUpWithPopup()` call is active |
+| `ExecutionContextError` | `invalid_execution_context` | Called outside browser context (SSR/middleware) |
+| `AccessTokenError` | Various | Token retrieval failed after popup completed |
+
+### Security Considerations
+
+- **Same-origin postMessage:** The popup listener only accepts messages from `window.location.origin`. Cross-origin messages are silently ignored.
+- **No tokens in postMessage:** The popup's `postMessage` payload contains only `{ sub, email }` metadata — never raw access tokens. Tokens remain server-side in the encrypted session cookie.
+- **PKCE:** The popup flow uses the same PKCE-based authorization code exchange as standard login. No security downgrade.
+- **State encryption:** The `returnStrategy` flag is stored in the encrypted transaction cookie alongside other OAuth state (AES-256-GCM).
+- **XSS prevention:** The callback HTML uses `JSON.stringify()` with `<` escaping (`\u003c`) to prevent script injection via user-controlled values.
+
+### Known Limitations
+
+| Limitation | Details |
+|------------|---------|
+| **One popup at a time** | Only one `stepUpWithPopup()` call is allowed concurrently. A second call throws `PopupInProgressError` regardless of audience. |
+| **Same-origin only** | The postMessage validation requires same-origin. Cross-origin popup flows are not supported. |
+| **Browser popup policies** | Most browsers block popups unless triggered by a direct user action (click handler). Ensure `stepUpWithPopup()` is called within a user-initiated event handler. |
+| **`beforeSessionSaved` idempotency** | The `beforeSessionSaved` hook runs again when the popup token is merged into the existing session. Ensure your hook is idempotent when using popup flows. |
+| **Session cookie size** | Each cached MRRT token increases session cookie size. For applications with many audiences, consider using a [database session store](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#database-sessions). |
