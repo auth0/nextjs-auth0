@@ -23,6 +23,7 @@ import {
   DiscoveryError,
   DPoPError,
   DPoPErrorCode,
+  InvalidConfigurationError,
   InvalidStateError,
   MfaChallengeError,
   MfaEnrollmentError,
@@ -77,6 +78,7 @@ import {
   DEFAULT_SCOPES
 } from "../utils/constants.js";
 import { withDPoPNonceRetry } from "../utils/dpopUtils.js";
+import { createAuthCompletePostMessageResponse } from "../utils/html-helpers.js";
 import {
   buildEnrollmentResponse,
   buildEnrollOptions,
@@ -115,6 +117,10 @@ import {
   getScopeForAudience
 } from "../utils/scope-helpers.js";
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
+import {
+  buildSessionFromCallback,
+  mergePopupTokenIntoSession
+} from "../utils/session-helpers.js";
 import {
   compareScopes,
   findAccessTokenSet,
@@ -283,62 +289,6 @@ function createRouteUrl(path: string, baseUrl: string) {
     ensureNoLeadingSlash(normalizeWithBasePath(path)),
     ensureTrailingSlash(baseUrl)
   );
-}
-
-/**
- * Escape HTML special characters to prevent XSS in postMessage HTML.
- * Escapes: & < > " ' / `
- */
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#x27;")
-    .replace(/\//g, "&#x2F;")
-    .replace(/`/g, "&#96;");
-}
-
-/**
- * Sanitize CSP nonce: only allow base64 characters.
- * Per CSP spec, nonce-source = base64-value.
- */
-function sanitizeCspNonce(nonce: string): string {
-  return nonce.replace(/[^A-Za-z0-9+/=]/g, "");
-}
-
-/**
- * Merge access token from popup MFA completion into existing session.
- * Pushes to session.accessTokens[] for multi-audience support.
- */
-function mergePopupTokenIntoSession(
-  session: SessionData,
-  oidcRes: oauth.TokenEndpointResponse,
-  transactionState: TransactionState,
-  idTokenClaims?: oauth.IDToken
-): void {
-  session.accessTokens = session.accessTokens || [];
-  session.accessTokens.push({
-    accessToken: oidcRes.access_token,
-    scope: oidcRes.scope,
-    requestedScope: transactionState.scope,
-    audience: transactionState.audience || "",
-    expiresAt: Math.floor(Date.now() / 1000) + Number(oidcRes.expires_in)
-  });
-
-  // Update refresh token if a new one was issued
-  if (oidcRes.refresh_token) {
-    session.tokenSet.refreshToken = oidcRes.refresh_token;
-  }
-
-  // Update id token and user claims if new ones were issued
-  if (oidcRes.id_token) {
-    session.tokenSet.idToken = oidcRes.id_token;
-    if (idTokenClaims) {
-      session.user = idTokenClaims;
-    }
-  }
 }
 
 /**
@@ -662,8 +612,18 @@ export class AuthClient {
       }
     }
 
-    // Validate returnStrategy
+    // Resolve returnStrategy: controls whether handleCallback returns a redirect
+    // (standard) or postMessage HTML (popup flows). Only stored in TransactionState
+    // when non-default to minimize encrypted cookie size.
     const returnStrategy = options.returnStrategy || "redirect";
+
+    // Runtime guard — TypeScript enforces at compile time, but JS callers
+    // or incorrect casts could pass invalid values.
+    if (returnStrategy !== "redirect" && returnStrategy !== "postMessage") {
+      throw new InvalidConfigurationError(
+        `Invalid returnStrategy: ${returnStrategy}. Expected 'redirect' or 'postMessage'.`
+      );
+    }
 
     // Prepare transaction state
     const transactionState: TransactionState = {
@@ -702,9 +662,11 @@ export class AuthClient {
   async handleLogin(req: NextRequest): Promise<NextResponse> {
     const searchParams = Object.fromEntries(req.nextUrl.searchParams.entries());
 
-    // Extract returnStrategy from URL query params (takes precedence per Design)
+    // Extract returnStrategy from URL query params.
+    // URL param takes precedence over programmatic StartInteractiveLoginOptions.returnStrategy.
+    // Must be deleted before forwarding remaining params to Auth0 /authorize.
     const queryReturnStrategy = searchParams.returnStrategy;
-    delete searchParams.returnStrategy; // Don't forward to Auth0 /authorize
+    delete searchParams.returnStrategy;
 
     // Validate returnStrategy value
     if (
@@ -865,7 +827,8 @@ export class AuthClient {
           }),
           onCallbackCtx,
           req,
-          state
+          state,
+          transactionState
         );
       }
 
@@ -883,7 +846,8 @@ export class AuthClient {
           tokenSetError,
           onCallbackCtx,
           req,
-          state
+          state,
+          transactionState
         );
       }
 
@@ -904,7 +868,8 @@ export class AuthClient {
           completeConnectAccountError,
           onCallbackCtx,
           req,
-          state
+          state,
+          transactionState
         );
       }
 
@@ -1058,11 +1023,11 @@ export class AuthClient {
 
     // ★ POSTMESSAGE BRANCH
     if (returnStrategy === "postMessage") {
-      // Call onCallback for side-effects (logging, analytics) - discard redirect response.
-      await this.onCallback(null, onCallbackCtx, null);
-
       // Merge new token into existing session (do NOT create fresh session)
       const existingSession = await this.sessionStore.get(req.cookies);
+
+      // Call onCallback for side-effects (logging, analytics) - discard redirect response.
+      await this.onCallback(null, onCallbackCtx, existingSession);
 
       if (existingSession) {
         mergePopupTokenIntoSession(
@@ -1076,7 +1041,7 @@ export class AuthClient {
           oidcRes.id_token
         );
 
-        const popupResponse = this.createAuthCompletePostMessageResponse({
+        const popupResponse = createAuthCompletePostMessageResponse({
           success: true,
           user: {
             sub: mergedSession.user.sub,
@@ -1096,7 +1061,7 @@ export class AuthClient {
       } else {
         // No existing session (edge case: session expired during popup flow)
         if (!idTokenClaims) {
-          const popupResponse = this.createAuthCompletePostMessageResponse({
+          const popupResponse = createAuthCompletePostMessageResponse({
             success: false,
             error: {
               code: "session_expired",
@@ -1108,29 +1073,17 @@ export class AuthClient {
           await this.transactionStore.delete(popupResponse.cookies, state);
           return popupResponse;
         }
-        const fallbackSession: SessionData = {
-          user: idTokenClaims,
-          tokenSet: {
-            accessToken: oidcRes.access_token,
-            idToken: oidcRes.id_token,
-            scope: oidcRes.scope,
-            requestedScope: transactionState.scope,
-            audience: transactionState.audience,
-            refreshToken: oidcRes.refresh_token,
-            expiresAt:
-              Math.floor(Date.now() / 1000) + Number(oidcRes.expires_in)
-          },
-          internal: {
-            sid: idTokenClaims.sid as string,
-            createdAt: Math.floor(Date.now() / 1000)
-          }
-        };
+        const fallbackSession = buildSessionFromCallback(
+          idTokenClaims,
+          oidcRes,
+          transactionState
+        );
         const mergedSession = await this.finalizeSession(
           fallbackSession,
           oidcRes.id_token
         );
 
-        const popupResponse = this.createAuthCompletePostMessageResponse({
+        const popupResponse = createAuthCompletePostMessageResponse({
           success: true,
           user: {
             sub: mergedSession.user.sub,
@@ -1151,22 +1104,11 @@ export class AuthClient {
     }
 
     // ★ STANDARD REDIRECT BRANCH (default, unchanged)
-    let session: SessionData = {
-      user: idTokenClaims!,
-      tokenSet: {
-        accessToken: oidcRes.access_token,
-        idToken: oidcRes.id_token,
-        scope: oidcRes.scope,
-        requestedScope: transactionState.scope,
-        audience: transactionState.audience,
-        refreshToken: oidcRes.refresh_token,
-        expiresAt: Math.floor(Date.now() / 1000) + Number(oidcRes.expires_in)
-      },
-      internal: {
-        sid: idTokenClaims!.sid as string,
-        createdAt: Math.floor(Date.now() / 1000)
-      }
-    };
+    let session: SessionData = buildSessionFromCallback(
+      idTokenClaims!,
+      oidcRes,
+      transactionState
+    );
 
     const res = await this.onCallback(null, onCallbackCtx, session);
 
@@ -1623,7 +1565,7 @@ export class AuthClient {
           ),
           options.scope
         )
-      : options.scope || "openid";
+      : options.scope || "";
 
     const tokenSet: Partial<TokenSet> = this.#getTokenSetFromSession(
       sessionData,
@@ -1847,7 +1789,21 @@ export class AuthClient {
   }
 
   /**
-   * Handle callback errors with transaction cleanup
+   * Handle errors during the OAuth callback flow.
+   *
+   * For popup flows (`returnStrategy: 'postMessage'`): returns error details
+   * as a postMessage HTML page instead of redirecting. The parent window
+   * receives `{ type: 'auth_complete', success: false, error: { code, message } }`
+   * and the promise returned by `stepUpWithPopup()` rejects with a typed error.
+   *
+   * For standard flows (`returnStrategy: 'redirect'`): delegates to the
+   * `onCallback` hook, which returns a redirect or error response.
+   *
+   * @param error - The SDK error that occurred during callback processing
+   * @param ctx - Callback context (responseType, returnTo, returnStrategy)
+   * @param req - The incoming callback request
+   * @param state - OAuth state parameter (for transaction cookie cleanup)
+   * @param transactionState - Loaded transaction state (provides returnStrategy)
    */
   private async handleCallbackError(
     error: SdkError,
@@ -1858,7 +1814,7 @@ export class AuthClient {
   ): Promise<NextResponse> {
     // PostMessage branch: return error as postMessage HTML instead of redirect
     if (transactionState?.returnStrategy === "postMessage") {
-      const response = this.createAuthCompletePostMessageResponse({
+      const response = createAuthCompletePostMessageResponse({
         success: false,
         error: {
           code: error.code || "callback_error",
@@ -3447,74 +3403,6 @@ export class AuthClient {
       await this.sessionStore.set(req.cookies, res.cookies, finalSession);
       addCacheControlHeadersForSession(res);
     }
-  }
-
-  /**
-   * Returns an HTML page that posts a message to the opener window.
-   * Used for popup-based auth flows (returnStrategy: "postMessage").
-   *
-   * The HTML page:
-   * 1. Sends a postMessage to window.opener with auth result
-   * 2. Auto-closes after AUTO_CLOSE_DELAY (2s fallback)
-   *
-   * @param options - Message payload and optional CSP nonce
-   * @returns NextResponse with HTML body and appropriate headers
-   */
-  createAuthCompletePostMessageResponse(options: {
-    success: boolean;
-    user?: { sub: string; email?: string };
-    error?: { code: string; message: string };
-    nonce?: string;
-  }): NextResponse {
-    // Build the message as a JS object literal for the <script> context.
-    // JSON.stringify produces valid JavaScript literals and never contains
-    // </script> sequences, so no HTML-escaping is needed inside <script>.
-    // Using escapeHtml here would corrupt the JS (& → &amp;, " → &quot;).
-    const message = options.success
-      ? JSON.stringify({
-          type: "auth_complete",
-          success: true,
-          user: options.user
-        })
-      : JSON.stringify({
-          type: "auth_complete",
-          success: false,
-          error: options.error
-        });
-
-    const nonceAttr = options.nonce
-      ? ` nonce="${sanitizeCspNonce(options.nonce)}"`
-      : "";
-
-    const statusText = options.success
-      ? "Authentication completed successfully. This window will close automatically."
-      : "Authentication failed. Please close this window and try again.";
-
-    const html = `<!DOCTYPE html>
-<html>
-<head><title>Authentication Complete</title></head>
-<body>
-<p>${escapeHtml(statusText)}</p>
-<script${nonceAttr}>
-(function(){
-  try {
-    if (window.opener) {
-      window.opener.postMessage(${message}, window.location.origin);
-    }
-  } catch(e) {}
-  setTimeout(function(){ window.close(); }, 2000);
-})();
-</script>
-</body>
-</html>`;
-
-    return new NextResponse(html, {
-      status: 200,
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        "Cache-Control": "no-store"
-      }
-    });
   }
 
   /**

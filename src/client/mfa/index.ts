@@ -38,12 +38,26 @@ import {
 } from "../helpers/get-access-token.js";
 
 /**
- * Client-side options for stepUpWithPopup()
+ * Options for {@link ClientMfaClient.stepUpWithPopup | mfa.stepUpWithPopup()}.
+ *
+ * Controls the popup MFA step-up flow: which API audience to target,
+ * scopes to request, and popup window behavior.
+ *
+ * @example
+ * ```typescript
+ * const { token } = await mfa.stepUpWithPopup({
+ *   audience: 'https://api.example.com',
+ *   scope: 'openid profile email read:sensitive',
+ *   timeout: 120000,
+ *   popupWidth: 500,
+ *   popupHeight: 700
+ * });
+ * ```
  */
 export interface StepUpWithPopupOptions {
   /** Target API audience (required) */
   audience: string;
-  /** Space-separated scopes (optional, default: 'openid profile email') */
+  /** Space-separated scopes (optional — inherits global config when omitted) */
   scope?: string;
   /** ACR values for step-up (optional, default: MFA policy URI) */
   acr_values?: string;
@@ -433,19 +447,48 @@ class ClientMfaClient implements MfaClient {
   }
 
   /**
-   * Triggers MFA step-up authentication via Universal Login popup.
-   * Opens popup window -> user completes MFA -> token cached in session -> returned.
+   * Triggers MFA step-up authentication via a Universal Login popup.
+   *
+   * Opens a centered popup window that navigates to `/auth/login` with
+   * `returnStrategy=postMessage`. The user completes MFA through Auth0's
+   * Universal Login in the popup. On completion, the popup sends a
+   * `postMessage` back to the parent window, and the SDK retrieves the
+   * cached access token from the server session.
+   *
+   * **Important:** Must be called from a user-initiated event handler
+   * (e.g., click) to avoid browser popup blockers.
    *
    * @param options - Configuration for the popup MFA flow
-   * @returns AccessTokenResponse with the acquired token
+   * @returns Access token response with token, scope, and expiry metadata
    *
-   * @throws ExecutionContextError - called in server/middleware context
-   * @throws PopupBlockedError - browser blocks popup
-   * @throws PopupInProgressError - another popup is already active
-   * @throws PopupCancelledError - user closes popup
-   * @throws PopupTimeoutError - popup doesn't complete within timeout
-   * @throws AccessTokenError - token retrieval fails after popup
-   * @throws MfaRequiredError - MFA is still required (shouldn't happen after popup)
+   * @throws {ExecutionContextError} Called in server/middleware context (requires `window`)
+   * @throws {PopupBlockedError} Browser blocked the popup (not user-initiated or popups disabled)
+   * @throws {PopupInProgressError} Another `stepUpWithPopup()` call is already active
+   * @throws {PopupCancelledError} User manually closed the popup window
+   * @throws {PopupTimeoutError} Popup did not complete within the configured timeout
+   * @throws {AccessTokenError} Token retrieval from session failed after popup completed
+   * @throws {MfaRequiredError} MFA is still required (unexpected after successful popup)
+   *
+   * @example
+   * ```typescript
+   * 'use client';
+   * import { mfa, getAccessToken } from '@auth0/nextjs-auth0/client';
+   * import { MfaRequiredError } from '@auth0/nextjs-auth0/errors';
+   *
+   * async function fetchProtectedData() {
+   *   try {
+   *     return await getAccessToken({ audience: 'https://api.example.com' });
+   *   } catch (err) {
+   *     if (err instanceof MfaRequiredError) {
+   *       const { token } = await mfa.stepUpWithPopup({
+   *         audience: 'https://api.example.com'
+   *       });
+   *       return token;
+   *     }
+   *     throw err;
+   *   }
+   * }
+   * ```
    */
   async stepUpWithPopup(
     options: StepUpWithPopupOptions
@@ -470,9 +513,17 @@ class ClientMfaClient implements MfaClient {
         options.acr_values ||
         "http://schemas.openid.net/pape/policies/2007/06/multi-factor",
       audience: options.audience,
-      scope: options.scope || "openid profile email",
       returnStrategy: "postMessage"
     });
+    // Only override scope if the caller explicitly provided one.
+    // When omitted, startInteractiveLogin uses the global scope config,
+    // so transactionState.scope matches what a default getAccessToken()
+    // lookup computes — preventing cache misses on subsequent calls.
+    // See session-helpers.ts for detailed explanation of why
+    // requestedScope must use transactionState.scope (not oidcRes.scope).
+    if (options.scope) {
+      params.set("scope", options.scope);
+    }
 
     const loginUrl =
       normalizeWithBasePath("/auth/login") + "?" + params.toString();
@@ -500,12 +551,16 @@ class ClientMfaClient implements MfaClient {
       }
 
       // 8. Retrieve token from session via getAccessToken()
-      //    mergeScopes: false prevents global scope pollution
+      // When caller provided explicit scope: use mergeScopes:false for
+      // precise lookup matching exactly what was stored.
+      // When no explicit scope: use default behavior (server merges global
+      // scopes) so the lookup key matches what the popup flow stored
+      // in transactionState.scope (which inherited global scopes).
+      // See session-helpers.ts for the full requestedScope rationale.
       return (await getAccessToken({
         audience: options.audience,
-        scope: options.scope || "openid profile email",
-        mergeScopes: false,
-        includeFullResponse: true
+        includeFullResponse: true,
+        ...(options.scope ? { scope: options.scope, mergeScopes: false } : {})
       })) as AccessTokenResponse;
     } finally {
       // 9. Cleanup: reset singleton guard
@@ -585,6 +640,9 @@ class ClientMfaClient implements MfaClient {
 /**
  * Client-side MFA API singleton.
  *
+ * Provides methods for MFA authenticator management, challenge/verify flows,
+ * and popup-based step-up authentication via Universal Login.
+ *
  * @example
  * ```typescript
  * import { mfa } from '@auth0/nextjs-auth0/client';
@@ -597,6 +655,11 @@ class ClientMfaClient implements MfaClient {
  *
  * // Verify and complete
  * const tokens = await mfa.verify({ mfaToken, otp: '123456' });
+ *
+ * // Step-up via popup (no redirect)
+ * const { token } = await mfa.stepUpWithPopup({
+ *   audience: 'https://api.example.com'
+ * });
  * ```
  */
 export const mfa = new ClientMfaClient();

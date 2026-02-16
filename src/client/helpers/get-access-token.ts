@@ -67,11 +67,23 @@ export type AccessTokenOptions = {
   mergeScopes?: boolean;
 };
 
+/**
+ * Full response from the `/auth/access-token` endpoint.
+ *
+ * Returned by `getAccessToken({ includeFullResponse: true })` and by
+ * `mfa.stepUpWithPopup()`. Contains the access token along with scope
+ * and expiration metadata.
+ */
 export type AccessTokenResponse = {
+  /** The access token string (JWT or opaque). */
   token: string;
+  /** Space-separated scopes granted by Auth0. */
   scope?: string;
+  /** Absolute expiration time in seconds since Unix epoch. */
   expires_at?: number;
+  /** Time-to-live in seconds from the time of issuance. */
   expires_in?: number;
+  /** Token type, typically `"Bearer"`. */
   token_type?: string;
 };
 

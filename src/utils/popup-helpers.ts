@@ -2,27 +2,39 @@ import {
   PopupCancelledError,
   PopupTimeoutError
 } from "../errors/popup-errors.js";
+import { POLL_INTERVAL } from "./constants.js";
+
+export {
+  AUTO_CLOSE_DELAY,
+  DEFAULT_POPUP_HEIGHT,
+  DEFAULT_POPUP_TIMEOUT,
+  DEFAULT_POPUP_WIDTH,
+  POLL_INTERVAL
+} from "./constants.js";
 
 /**
- * postMessage payload (discriminated union)
+ * postMessage payload sent from the popup callback page to the parent window.
+ *
+ * Uses a discriminated union on `success` for type-safe handling:
+ * - `success: true` — MFA completed, optional user metadata attached
+ * - `success: false` — error occurred, error code and message attached
+ *
+ * Security: Never contains raw access tokens. Only user metadata (`sub`, `email`)
+ * is sent via postMessage. Tokens remain server-side in the encrypted session.
  */
 export type AuthCompleteMessage =
   | {
       type: "auth_complete";
       success: true;
+      /** User metadata from the authenticated session (sub and email only). */
       user?: { sub: string; email: string };
     }
   | {
       type: "auth_complete";
       success: false;
+      /** Error details from the callback (OAuth error code + description). */
       error: { code: string; message: string };
     };
-
-export const DEFAULT_POPUP_WIDTH = 400;
-export const DEFAULT_POPUP_HEIGHT = 600;
-export const DEFAULT_POPUP_TIMEOUT = 60000;
-export const AUTO_CLOSE_DELAY = 2000;
-export const POLL_INTERVAL = 500;
 
 /**
  * Opens a centered popup window.
@@ -48,14 +60,20 @@ export function openCenteredPopup(
 
 /**
  * Waits for popup to complete authentication via postMessage.
- * Monitors for:
- *   - postMessage with type 'auth_complete' from same origin (resolve)
- *   - popup.closed === true (reject PopupCancelledError)
- *   - timeout expiry (reject PopupTimeoutError)
  *
- * @param popup - Popup window reference
- * @param timeout - Timeout in milliseconds
- * @returns Promise resolving to AuthCompleteMessage
+ * Monitors three conditions concurrently:
+ * 1. **postMessage** with `type: 'auth_complete'` from same origin (resolves)
+ * 2. **popup.closed** polling every {@link POLL_INTERVAL}ms (rejects)
+ * 3. **Timeout** expiry (rejects)
+ *
+ * Only accepts messages where `event.origin === window.location.origin`
+ * (same-origin validation, Design Decision DD-1).
+ *
+ * @param popup - Popup window reference from `window.open()`
+ * @param timeout - Timeout in milliseconds before rejecting
+ * @returns Promise resolving to {@link AuthCompleteMessage}
+ * @throws {PopupTimeoutError} If timeout expires before completion
+ * @throws {PopupCancelledError} If user closes popup before completion
  */
 export function waitForPopupCompletion(
   popup: Window,
