@@ -62,5 +62,21 @@ describe("authorization-params-helpers", () => {
       expect(searchParams.has("scope")).toBeTruthy();
       expect(searchParams.get("scope")).toEqual("a b");
     });
+
+    it("should merge falsey values except null and undefined", () => {
+      const searchParams = mergeAuthorizationParamsIntoSearchParams(
+        { a: 0 },
+        { b: "", c: false, d: null, e: undefined }
+      );
+
+      expect(searchParams.has("a")).toBe(true);
+      expect(searchParams.has("b")).toBe(true);
+      expect(searchParams.has("c")).toBe(true);
+      expect(searchParams.has("d")).toBe(false);
+      expect(searchParams.has("e")).toBe(false);
+      expect(searchParams.get("a")).toEqual("0");
+      expect(searchParams.get("b")).toEqual("");
+      expect(searchParams.get("c")).toEqual("false");
+    });
   });
 });
