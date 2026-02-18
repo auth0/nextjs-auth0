@@ -135,6 +135,7 @@
   - [Run custom code before Auth Handlers](#run-custom-code-before-auth-handlers)
   - [Run code after callback](#run-code-after-callback)
 - [Instrumentation](#instrumentation)
+  - [Environment Variable Configuration](#environment-variable-configuration-1)
   - [Basic Console Logger](#basic-console-logger)
   - [Filtering by Log Level](#filtering-by-log-level)
   - [Filtering by Event Name](#filtering-by-event-name)
@@ -3296,6 +3297,39 @@ interface InstrumentationEvent {
   durationMs?: number;
 }
 ```
+
+### Environment Variable Configuration
+
+The quickest way to enable logging is via environment variables — no code changes required:
+
+```bash
+# .env.local
+
+# Logging target. Currently only "console" is supported.
+# If unset, no logging occurs.
+AUTH0_LOGGING_TARGET=console
+
+# Minimum log level: "debug", "info", "warn", or "error".
+# Defaults to "info" when a target is configured.
+AUTH0_LOGGING_LEVEL=debug
+```
+
+| Variable | Values | Default | Description |
+|----------|--------|---------|-------------|
+| `AUTH0_LOGGING_TARGET` | `console` | _(unset)_ | Where to send log output. If unset or invalid, no logging occurs. |
+| `AUTH0_LOGGING_LEVEL` | `debug`, `info`, `warn`, `error` | `info` | Minimum severity level to emit. Events below this level are filtered out. |
+
+Example output with `AUTH0_LOGGING_TARGET=console` and `AUTH0_LOGGING_LEVEL=info`:
+
+```
+[auth0/info] auth:login:start { domain: 'example.auth0.com', scope: 'openid profile email' }
+[auth0/info] auth:login:redirect { authorizationUrl: 'https://example.auth0.com/authorize' }
+[auth0/warn] auth:logout:fallback { domain: 'example.auth0.com', reason: 'rp_initiated_logout_not_supported' }
+[auth0/error] error { operation: 'discovery', errorType: 'Error', message: 'fetch failed' }
+```
+
+> [!NOTE]
+> A programmatic `instrumentation.logger` always takes precedence over environment variables. If both are configured, the env vars are ignored.
 
 ### Basic Console Logger
 

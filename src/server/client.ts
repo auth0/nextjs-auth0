@@ -52,7 +52,10 @@ import {
   WithPageAuthRequiredAppRouterOptions,
   WithPageAuthRequiredPageRouterOptions
 } from "./helpers/with-page-auth-required.js";
-import { InstrumentationEmitter } from "./instrumentation-emitter.js";
+import {
+  InstrumentationEmitter,
+  resolveLoggerFromEnvironment
+} from "./instrumentation-emitter.js";
 import { ServerMfaClient } from "./mfa/server-mfa-client.js";
 import { toNextRequest, toNextResponse } from "./next-compat.js";
 import {
@@ -419,7 +422,11 @@ export class Auth0Client {
 
   constructor(options: Auth0ClientOptions = {}) {
     this.#options = options;
-    this.emitter = new InstrumentationEmitter(options.instrumentation?.logger);
+
+    // Programmatic logger takes precedence; fall back to env-based logger
+    const logger =
+      options.instrumentation?.logger ?? resolveLoggerFromEnvironment();
+    this.emitter = new InstrumentationEmitter(logger);
 
     // Extract and validate required options
     const {
@@ -561,7 +568,7 @@ export class Auth0Client {
       dpopKeyPair: options.dpopKeyPair || resolvedDpopKeyPair,
       dpopOptions: options.dpopOptions || resolvedDpopOptions,
       mfaTokenTtl,
-      logger: options.instrumentation?.logger
+      logger
     });
   }
 

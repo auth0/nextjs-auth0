@@ -4,6 +4,70 @@ import type {
 } from "../types/instrumentation.js";
 
 /**
+ * Numeric severity for log level comparison.
+ * Higher value = more severe.
+ */
+const LOG_LEVEL_SEVERITY: Record<LogLevel, number> = {
+  debug: 0,
+  info: 1,
+  warn: 2,
+  error: 3
+};
+
+const VALID_LOG_LEVELS = new Set<string>(["debug", "info", "warn", "error"]);
+const VALID_LOG_TARGETS = new Set<string>(["console"]);
+
+/**
+ * Resolve an InstrumentationLogger from environment variables.
+ *
+ * - `AUTH0_LOGGING_TARGET`: Logging target. Currently only `"console"` is supported.
+ *   If unset or invalid, returns `undefined` (no logging).
+ * - `AUTH0_LOGGING_LEVEL`: Minimum log level to emit. One of `"debug"`, `"info"`,
+ *   `"warn"`, `"error"`. Defaults to `"info"` when a target is configured.
+ *
+ * @returns An InstrumentationLogger or undefined if env-based logging is not configured.
+ */
+export function resolveLoggerFromEnvironment():
+  | InstrumentationLogger
+  | undefined {
+  const target = process.env.AUTH0_LOGGING_TARGET?.toUpperCase();
+  if (!target || !VALID_LOG_TARGETS.has(target)) {
+    return undefined;
+  }
+
+  const levelEnv = process.env.AUTH0_LOGGING_LEVEL?.toLowerCase();
+  const minLevel: LogLevel =
+    levelEnv && VALID_LOG_LEVELS.has(levelEnv)
+      ? (levelEnv as LogLevel)
+      : "info";
+  const minSeverity = LOG_LEVEL_SEVERITY[minLevel];
+
+  return (event) => {
+    if (LOG_LEVEL_SEVERITY[event.level] < minSeverity) {
+      return;
+    }
+
+    const method =
+      event.level === "error"
+        ? "error"
+        : event.level === "warn"
+          ? "warn"
+          : "log";
+
+    const parts: unknown[] = [
+      `[auth0/${event.level}]`,
+      event.event,
+      event.data
+    ];
+    if (event.durationMs !== undefined) {
+      parts.push(`(${event.durationMs}ms)`);
+    }
+    // eslint-disable-next-line no-console
+    console[method](...parts);
+  };
+}
+
+/**
  * Encapsulates all instrumentation emission logic.
  * Constructed with an optional logger and optional base context data
  * that is automatically merged into every emitted event.

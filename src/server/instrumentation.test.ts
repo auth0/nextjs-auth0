@@ -7,7 +7,10 @@ import type {
   InstrumentationLogger
 } from "../types/instrumentation.js";
 import { AuthClient } from "./auth-client.js";
-import { InstrumentationEmitter } from "./instrumentation-emitter.js";
+import {
+  InstrumentationEmitter,
+  resolveLoggerFromEnvironment
+} from "./instrumentation-emitter.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import { TransactionStore } from "./transaction-store.js";
 
@@ -471,5 +474,288 @@ describe("Instrumentation - Console.warn/error Suppression", () => {
       (msg) => typeof msg === "string" && msg.includes("allowInsecureRequests")
     );
     expect(hasInsecureWarn).toBe(true);
+  });
+});
+
+describe("resolveLoggerFromEnvironment", () => {
+  let origTarget: string | undefined;
+  let origLevel: string | undefined;
+
+  beforeEach(() => {
+    origTarget = process.env.AUTH0_LOGGING_TARGET;
+    origLevel = process.env.AUTH0_LOGGING_LEVEL;
+    delete process.env.AUTH0_LOGGING_TARGET;
+    delete process.env.AUTH0_LOGGING_LEVEL;
+  });
+
+  afterEach(() => {
+    if (origTarget !== undefined) {
+      process.env.AUTH0_LOGGING_TARGET = origTarget;
+    } else {
+      delete process.env.AUTH0_LOGGING_TARGET;
+    }
+    if (origLevel !== undefined) {
+      process.env.AUTH0_LOGGING_LEVEL = origLevel;
+    } else {
+      delete process.env.AUTH0_LOGGING_LEVEL;
+    }
+  });
+
+  it("returns undefined when AUTH0_LOGGING_TARGET is not set", () => {
+    expect(resolveLoggerFromEnvironment()).toBeUndefined();
+  });
+
+  it("returns undefined when AUTH0_LOGGING_TARGET is empty string", () => {
+    process.env.AUTH0_LOGGING_TARGET = "";
+    expect(resolveLoggerFromEnvironment()).toBeUndefined();
+  });
+
+  it("returns undefined when AUTH0_LOGGING_TARGET is an invalid value", () => {
+    process.env.AUTH0_LOGGING_TARGET = "FILE";
+    expect(resolveLoggerFromEnvironment()).toBeUndefined();
+  });
+
+  it("returns a logger when AUTH0_LOGGING_TARGET is console", () => {
+    process.env.AUTH0_LOGGING_TARGET = "console";
+    const logger = resolveLoggerFromEnvironment();
+    expect(logger).toBeTypeOf("function");
+  });
+
+  it("is case-insensitive for AUTH0_LOGGING_TARGET", () => {
+    process.env.AUTH0_LOGGING_TARGET = "console";
+    expect(resolveLoggerFromEnvironment()).toBeTypeOf("function");
+  });
+
+  it("defaults to info level when AUTH0_LOGGING_LEVEL is not set", () => {
+    process.env.AUTH0_LOGGING_TARGET = "console";
+    const logger = resolveLoggerFromEnvironment()!;
+
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const consoleWarnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => {});
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    // debug should be filtered out
+    logger({
+      event: "discovery:start",
+      level: "debug",
+      timestamp: new Date().toISOString(),
+      data: {}
+    });
+    expect(consoleSpy).not.toHaveBeenCalled();
+
+    // info should pass through
+    logger({
+      event: "auth:login:start",
+      level: "info",
+      timestamp: new Date().toISOString(),
+      data: { domain: "test.auth0.com" }
+    });
+    expect(consoleSpy).toHaveBeenCalledTimes(1);
+
+    consoleSpy.mockRestore();
+    consoleWarnSpy.mockRestore();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("respects AUTH0_LOGGING_LEVEL=debug — emits all levels", () => {
+    process.env.AUTH0_LOGGING_TARGET = "console";
+    process.env.AUTH0_LOGGING_LEVEL = "debug";
+    const logger = resolveLoggerFromEnvironment()!;
+
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    logger({
+      event: "discovery:start",
+      level: "debug",
+      timestamp: new Date().toISOString(),
+      data: {}
+    });
+    expect(consoleSpy).toHaveBeenCalledTimes(1);
+
+    consoleSpy.mockRestore();
+  });
+
+  it("respects AUTH0_LOGGING_LEVEL=warn — filters out debug and info", () => {
+    process.env.AUTH0_LOGGING_TARGET = "console";
+    process.env.AUTH0_LOGGING_LEVEL = "warn";
+    const logger = resolveLoggerFromEnvironment()!;
+
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const consoleWarnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => {});
+
+    logger({
+      event: "auth:login:start",
+      level: "info",
+      timestamp: new Date().toISOString(),
+      data: {}
+    });
+    expect(consoleSpy).not.toHaveBeenCalled();
+
+    logger({
+      event: "auth:logout:fallback",
+      level: "warn",
+      timestamp: new Date().toISOString(),
+      data: {}
+    });
+    expect(consoleWarnSpy).toHaveBeenCalledTimes(1);
+
+    consoleSpy.mockRestore();
+    consoleWarnSpy.mockRestore();
+  });
+
+  it("respects AUTH0_LOGGING_LEVEL=error — only errors pass through", () => {
+    process.env.AUTH0_LOGGING_TARGET = "console";
+    process.env.AUTH0_LOGGING_LEVEL = "error";
+    const logger = resolveLoggerFromEnvironment()!;
+
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const consoleWarnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => {});
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    logger({
+      event: "auth:login:start",
+      level: "info",
+      timestamp: new Date().toISOString(),
+      data: {}
+    });
+    logger({
+      event: "auth:logout:fallback",
+      level: "warn",
+      timestamp: new Date().toISOString(),
+      data: {}
+    });
+    expect(consoleSpy).not.toHaveBeenCalled();
+    expect(consoleWarnSpy).not.toHaveBeenCalled();
+
+    logger({
+      event: "error",
+      level: "error",
+      timestamp: new Date().toISOString(),
+      data: { operation: "callback" }
+    });
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+
+    consoleSpy.mockRestore();
+    consoleWarnSpy.mockRestore();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("defaults to info when AUTH0_LOGGING_LEVEL is invalid", () => {
+    process.env.AUTH0_LOGGING_TARGET = "console";
+    process.env.AUTH0_LOGGING_LEVEL = "verbose";
+    const logger = resolveLoggerFromEnvironment()!;
+
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    // debug should be filtered (defaulted to info)
+    logger({
+      event: "discovery:start",
+      level: "debug",
+      timestamp: new Date().toISOString(),
+      data: {}
+    });
+    expect(consoleSpy).not.toHaveBeenCalled();
+
+    // info should pass
+    logger({
+      event: "auth:login:start",
+      level: "info",
+      timestamp: new Date().toISOString(),
+      data: {}
+    });
+    expect(consoleSpy).toHaveBeenCalledTimes(1);
+
+    consoleSpy.mockRestore();
+  });
+
+  it("is case-insensitive for AUTH0_LOGGING_LEVEL", () => {
+    process.env.AUTH0_LOGGING_TARGET = "console";
+    process.env.AUTH0_LOGGING_LEVEL = "DEBUG";
+    const logger = resolveLoggerFromEnvironment()!;
+
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    logger({
+      event: "discovery:start",
+      level: "debug",
+      timestamp: new Date().toISOString(),
+      data: {}
+    });
+    expect(consoleSpy).toHaveBeenCalledTimes(1);
+
+    consoleSpy.mockRestore();
+  });
+
+  it("uses console.error for error-level events", () => {
+    process.env.AUTH0_LOGGING_TARGET = "console";
+    const logger = resolveLoggerFromEnvironment()!;
+
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    logger({
+      event: "error",
+      level: "error",
+      timestamp: new Date().toISOString(),
+      data: { operation: "callback" }
+    });
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+    expect(consoleErrorSpy.mock.calls[0][0]).toBe("[auth0/error]");
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("uses console.warn for warn-level events", () => {
+    process.env.AUTH0_LOGGING_TARGET = "console";
+    const logger = resolveLoggerFromEnvironment()!;
+
+    const consoleWarnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => {});
+
+    logger({
+      event: "auth:logout:fallback",
+      level: "warn",
+      timestamp: new Date().toISOString(),
+      data: {}
+    });
+    expect(consoleWarnSpy).toHaveBeenCalledTimes(1);
+    expect(consoleWarnSpy.mock.calls[0][0]).toBe("[auth0/warn]");
+
+    consoleWarnSpy.mockRestore();
+  });
+
+  it("includes durationMs in output when present", () => {
+    process.env.AUTH0_LOGGING_TARGET = "console";
+    const logger = resolveLoggerFromEnvironment()!;
+
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    logger({
+      event: "discovery:complete",
+      level: "info",
+      timestamp: new Date().toISOString(),
+      data: { domain: "test.auth0.com" },
+      durationMs: 150
+    });
+    expect(consoleSpy).toHaveBeenCalledWith(
+      "[auth0/info]",
+      "discovery:complete",
+      { domain: "test.auth0.com" },
+      "(150ms)"
+    );
+
+    consoleSpy.mockRestore();
   });
 });
