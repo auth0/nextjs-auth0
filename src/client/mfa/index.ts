@@ -61,6 +61,14 @@ export interface StepUpWithPopupOptions {
   scope?: string;
   /** ACR values for step-up (optional, default: MFA policy URI) */
   acr_values?: string;
+  /**
+   * OIDC `prompt` parameter (optional, default: not sent).
+   *
+   * When omitted, Auth0 will use the existing session and skip straight to
+   * the MFA challenge if the user is already authenticated. Set to `"login"`
+   * to force full re-authentication (username + password + MFA).
+   */
+  prompt?: string;
   /** Return URL after authentication (optional, default: '/') */
   returnTo?: string;
   /** Timeout in milliseconds (optional, default: 60000) */
@@ -508,13 +516,18 @@ class ClientMfaClient implements MfaClient {
     // 3. Construct login URL with returnStrategy=postMessage
     const params = new URLSearchParams({
       returnTo: options.returnTo || "/",
-      prompt: "login",
       acr_values:
         options.acr_values ||
         "http://schemas.openid.net/pape/policies/2007/06/multi-factor",
       audience: options.audience,
       returnStrategy: "postMessage"
     });
+    // Only include prompt when explicitly provided. Omitting it lets Auth0
+    // recognise the existing session and skip straight to the MFA challenge
+    // instead of showing the full login screen again.
+    if (options.prompt) {
+      params.set("prompt", options.prompt);
+    }
     // Only override scope if the caller explicitly provided one.
     // When omitted, startInteractiveLogin uses the global scope config,
     // so transactionState.scope matches what a default getAccessToken()

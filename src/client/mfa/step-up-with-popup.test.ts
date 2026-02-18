@@ -186,7 +186,8 @@ describe("stepUpWithPopup", () => {
 
       expect(url.pathname).toBe("/auth/login");
       expect(url.searchParams.get("returnTo")).toBe("/");
-      expect(url.searchParams.get("prompt")).toBe("login");
+      // prompt should NOT be present by default (lets Auth0 skip to MFA challenge)
+      expect(url.searchParams.has("prompt")).toBe(false);
       expect(url.searchParams.get("acr_values")).toBe(
         "http://schemas.openid.net/pape/policies/2007/06/multi-factor"
       );
@@ -194,6 +195,26 @@ describe("stepUpWithPopup", () => {
       expect(url.searchParams.get("returnStrategy")).toBe("postMessage");
       // Scope should NOT be present when not provided
       expect(url.searchParams.has("scope")).toBe(false);
+    });
+
+    it("should include prompt when explicitly provided", async () => {
+      server.use(
+        http.get("/auth/access-token", () => {
+          return HttpResponse.json(DEFAULT_TOKEN_RESPONSE);
+        })
+      );
+      const stepUpWithPopup = await getStepUpWithPopup();
+
+      const promise = stepUpWithPopup({
+        audience: "https://api.example.com",
+        prompt: "login"
+      });
+      simulatePopupSuccess();
+      await promise;
+
+      const openUrl = windowOpenSpy.mock.calls[0][0] as string;
+      const url = new URL(openUrl, window.location.origin);
+      expect(url.searchParams.get("prompt")).toBe("login");
     });
 
     it("should include scope when explicitly provided", async () => {

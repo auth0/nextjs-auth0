@@ -58,7 +58,7 @@ export function sanitizeCspNonce(nonce: string): string {
  *
  * The HTML page:
  * 1. Sends a postMessage to window.opener with auth result
- * 2. Auto-closes after 2s fallback
+ * 2. Auto-closes after 100ms fallback
  *
  * @param options - Message payload and optional CSP nonce
  * @returns NextResponse with HTML body and appropriate headers
@@ -113,7 +113,7 @@ export function createAuthCompletePostMessageResponse(options: {
       window.opener.postMessage(${message}, window.location.origin);
     }
   } catch(e) {}
-  setTimeout(function(){ window.close(); }, 2000);
+  setTimeout(function(){ window.close(); }, 100);
 })();
 </script>
 </body>

@@ -398,7 +398,7 @@ describe("MFA Popup (returnStrategy + postMessage)", async () => {
       expect(body).toContain("window.opener.postMessage");
       expect(body).toContain("auth_complete");
       expect(body).toContain("window.close()");
-      expect(body).toContain("2000"); // auto-close delay
+      expect(body).toContain("100"); // auto-close delay
 
       // Should contain user info
       expect(body).toContain(DEFAULT.sub);
@@ -732,7 +732,7 @@ describe("MFA Popup (returnStrategy + postMessage)", async () => {
       expect(body).toContain("user@example.com");
       expect(body).toContain("window.opener.postMessage");
       expect(body).toContain("window.close()");
-      expect(body).toContain("2000");
+      expect(body).toContain("100");
     });
 
     it("should generate error HTML", async () => {
