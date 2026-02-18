@@ -134,6 +134,12 @@
 - [Customizing Auth Handlers](#customizing-auth-handlers)
   - [Run custom code before Auth Handlers](#run-custom-code-before-auth-handlers)
   - [Run code after callback](#run-code-after-callback)
+- [Instrumentation](#instrumentation)
+  - [Basic Console Logger](#basic-console-logger)
+  - [Filtering by Log Level](#filtering-by-log-level)
+  - [Filtering by Event Name](#filtering-by-event-name)
+  - [Sending Events to an External Service](#sending-events-to-an-external-service)
+  - [Event Reference](#event-reference)
 - [Next.js 16 Compatibility](#nextjs-16-compatibility)
 - [Multi-Factor Authentication (MFA)](#multi-factor-authentication-mfa)
   - [Step-up Authentication](#step-up-authentication)
@@ -3265,6 +3271,154 @@ export async function middleware(request) {
 ### Run code after callback
 
 Please refer to [onCallback](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#oncallback) for details on how to run code after callback.
+
+## Instrumentation
+
+The SDK supports an optional `instrumentation.logger` callback that receives structured, PII-filtered events at key points in the auth lifecycle. This is useful for debugging, monitoring, and observability.
+
+- **Zero overhead** when not configured — no object allocation, no string formatting.
+- **PII-safe** — tokens, secrets, user claims, cookies, and state/nonce values are never included in event data.
+- **Non-breaking** — logger errors are silently swallowed and never affect auth flows.
+
+Each event has the following shape:
+
+```typescript
+interface InstrumentationEvent {
+  /** Namespaced event name, e.g. 'auth:login:start', 'discovery:complete' */
+  event: string;
+  /** 'debug' | 'info' | 'warn' | 'error' */
+  level: LogLevel;
+  /** ISO 8601 timestamp */
+  timestamp: string;
+  /** PII-filtered data (shape varies per event) */
+  data: Record<string, unknown>;
+  /** Duration in ms (present on timed 'complete' events) */
+  durationMs?: number;
+}
+```
+
+### Basic Console Logger
+
+```typescript
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+export const auth0 = new Auth0Client({
+  instrumentation: {
+    logger: (event) => {
+      console.log(`[${event.level}] ${event.event}`, event.data);
+    },
+  },
+});
+```
+
+Example output during a login flow:
+
+```
+[info] auth:login:start { domain: 'example.auth0.com', scope: 'openid profile email' }
+[debug] discovery:start { domain: 'example.auth0.com' }
+[debug] discovery:complete { domain: 'example.auth0.com', durationMs: 120 }
+[info] auth:login:redirect { authorizationUrl: 'https://example.auth0.com/authorize' }
+```
+
+### Filtering by Log Level
+
+```typescript
+export const auth0 = new Auth0Client({
+  instrumentation: {
+    logger: (event) => {
+      // Only log info, warn, and error events — skip debug
+      if (event.level === "debug") return;
+
+      console.log(`[${event.level}] ${event.event}`, event.data);
+    },
+  },
+});
+```
+
+### Filtering by Event Name
+
+Events use colon-separated namespaces (`auth:*`, `token:*`, `discovery:*`, `session:*`, `mfa:*`, `error`), so you can filter by prefix:
+
+```typescript
+export const auth0 = new Auth0Client({
+  instrumentation: {
+    logger: (event) => {
+      // Only log auth flow and error events
+      if (event.event.startsWith("auth:") || event.event === "error") {
+        console.log(`[${event.level}] ${event.event}`, event.data);
+      }
+    },
+  },
+});
+```
+
+### Sending Events to an External Service
+
+The logger is called synchronously, but you can perform async work inside it. If the logger returns a Promise, it is not awaited — the SDK attaches a `.catch()` to prevent unhandled rejections.
+
+```typescript
+export const auth0 = new Auth0Client({
+  instrumentation: {
+    logger: (event) => {
+      // Fire-and-forget to your logging service
+      fetch("https://logging.example.com/ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(event),
+      }).catch(() => {
+        // Handle send failure silently
+      });
+    },
+  },
+});
+```
+
+For high-throughput scenarios, consider batching events:
+
+```typescript
+const eventBuffer: InstrumentationEvent[] = [];
+
+function flushEvents() {
+  if (eventBuffer.length === 0) return;
+  const batch = eventBuffer.splice(0);
+  fetch("https://logging.example.com/ingest", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(batch),
+  }).catch(() => {});
+}
+
+// Flush every 5 seconds
+setInterval(flushEvents, 5000);
+
+export const auth0 = new Auth0Client({
+  instrumentation: {
+    logger: (event) => {
+      eventBuffer.push(event);
+    },
+  },
+});
+```
+
+### Event Reference
+
+The SDK emits events across the following categories:
+
+| Category | Events | Level |
+|----------|--------|-------|
+| **Auth Flow** | `auth:login:start`, `auth:login:redirect`, `auth:callback:start`, `auth:callback:complete`, `auth:logout:start`, `auth:logout:complete`, `auth:backchannel:start`, `auth:backchannel:complete`, `auth:backchannel-logout:start`, `auth:backchannel-logout:complete`, `auth:connect-account:start` | info |
+| **Token** | `token:get:start`, `token:refresh:start`, `token:connection:start` | debug |
+| **Token** | `token:refresh:complete`, `token:exchange:start`, `token:exchange:complete`, `token:connection:complete` | info |
+| **Discovery** | `discovery:start`, `discovery:complete`, `discovery:cache-hit` | debug |
+| **Session** | `session:create`, `session:delete` | info |
+| **Session** | `session:touch`, `session:update`, `session:refresh` | debug |
+| **MFA** | `mfa:authenticators:start`, `mfa:challenge:start`, `mfa:enroll:start`, `mfa:verify:start`, `mfa:verify:complete` | debug |
+| **MFA** | `mfa:required` | info |
+| **Warnings** | `auth:logout:fallback`, `config:insecure-requests` | warn |
+| **Errors** | `error` (with `operation` field in data) | error |
+
+> [!NOTE]
+> When a logger is configured, SDK warnings (e.g., insecure requests, logout fallback) are emitted as `warn`-level events instead of `console.warn()`. If no logger is configured, the original `console.warn()` behavior is preserved.
 
 ## Next.js 16 Compatibility
 To support `Next.js 16`, rename your `middleware.ts` file to `proxy.ts`, and rename the exported function from `middleware` to `proxy`.

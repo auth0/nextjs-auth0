@@ -205,3 +205,9 @@ export {
   GRANT_TYPE_MFA_OOB,
   GRANT_TYPE_MFA_RECOVERY_CODE
 } from "./mfa.js";
+
+export type {
+  LogLevel,
+  InstrumentationEvent,
+  InstrumentationLogger
+} from "./instrumentation.js";
