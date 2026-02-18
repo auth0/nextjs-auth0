@@ -30,7 +30,7 @@ const VALID_LOG_TARGETS = new Set<string>(["console"]);
 export function resolveLoggerFromEnvironment():
   | InstrumentationLogger
   | undefined {
-  const target = process.env.AUTH0_LOGGING_TARGET?.toUpperCase();
+  const target = process.env.AUTH0_LOGGING_TARGET?.toLowerCase();
   if (!target || !VALID_LOG_TARGETS.has(target)) {
     return undefined;
   }
