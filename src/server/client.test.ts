@@ -545,15 +545,39 @@ describe("Auth0Client", () => {
       expect(transactionStore.cookieOptions.secure).toBe(true);
     });
 
-    it("should keep cookies non-secure in development", () => {
+    it("should keep cookies non-secure in development and warn when explicitly insecure", () => {
       vi.stubEnv("NODE_ENV", "development");
       process.env[ENV_VARS.COOKIE_SECURE] = "false";
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
       const client = new Auth0Client();
       const sessionStore = client["sessionStore"] as any;
       const transactionStore = (client as any).transactionStore;
 
       expect(sessionStore.cookieConfig.secure).toBe(false);
       expect(transactionStore.cookieOptions.secure).toBe(false);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("'appBaseUrl' is not configured")
+      );
+      warnSpy.mockRestore();
+    });
+
+    it("should warn when transactionCookie.secure is explicitly false in development", () => {
+      vi.stubEnv("NODE_ENV", "development");
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const client = new Auth0Client({
+        transactionCookie: {
+          secure: false
+        }
+      });
+      const sessionStore = client["sessionStore"] as any;
+      const transactionStore = (client as any).transactionStore;
+
+      expect(sessionStore.cookieConfig.secure).toBe(false);
+      expect(transactionStore.cookieOptions.secure).toBe(false);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("'appBaseUrl' is not configured")
+      );
+      warnSpy.mockRestore();
     });
   });
 
@@ -709,6 +733,17 @@ describe("Auth0Client", () => {
           secure: false
         }
       });
+      const sessionStore = client["sessionStore"] as any;
+      const transactionStore = (client as any).transactionStore;
+
+      expect(sessionStore.cookieConfig.secure).toBe(true);
+      expect(transactionStore.cookieOptions.secure).toBe(true);
+    });
+
+    it("should force secure cookies when APP_BASE_URL is https even if AUTH0_COOKIE_SECURE is false", () => {
+      process.env[ENV_VARS.APP_BASE_URL] = "https://app.example.com";
+      process.env[ENV_VARS.COOKIE_SECURE] = "false";
+      const client = new Auth0Client();
       const sessionStore = client["sessionStore"] as any;
       const transactionStore = (client as any).transactionStore;
 

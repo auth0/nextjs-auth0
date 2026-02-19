@@ -114,7 +114,8 @@ export interface Auth0ClientOptions {
    *
    * If it's not specified, it will be loaded from the `APP_BASE_URL` environment variable.
    * If neither is provided, the SDK will infer it from the request host at runtime.
-   * When using multiple dynamic environments, pass an array or a comma-separated list.
+   * If you need to support multiple base URLs and those values are known at startup (for example, via environment variables), we recommend listing all permitted base URLs in appBaseUrl.
+   * This helps ensure the SDK only operates on trusted hosts and avoids redirecting users to Auth0 when the incoming host does not match one of the allowed values.
    */
   appBaseUrl?: string | string[];
   /**
@@ -425,6 +426,7 @@ export class Auth0Client {
     // Auto-detect base path for cookie configuration
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
 
+    // Session cookie secure can be configured via options or AUTH0_COOKIE_SECURE.
     const envCookieSecure = process.env.AUTH0_COOKIE_SECURE;
     const sessionSecureExplicit =
       options.session?.cookie?.secure ??
@@ -448,6 +450,7 @@ export class Auth0Client {
       domain: options.session?.cookie?.domain ?? process.env.AUTH0_COOKIE_DOMAIN
     };
 
+    // Transaction cookies only support secure via options (no env var).
     const transactionSecureExplicit = options.transactionCookie?.secure;
     const transactionCookieOptions: TransactionCookieOptions = {
       prefix: options.transactionCookie?.prefix ?? "__txn_",
@@ -457,18 +460,23 @@ export class Auth0Client {
       maxAge: options.transactionCookie?.maxAge ?? 3600
     };
 
+    // Normalize appBaseUrl input (string/array/CSV) into an allow-list.
     const appBaseUrls = normalizeAppBaseUrlConfig(appBaseUrl);
 
     if (appBaseUrls) {
-      const allHttps = appBaseUrls.every(
+      const hasOnlyHttpsBaseUrls = appBaseUrls.every(
         (url) => new URL(url).protocol === "https:"
       );
 
-      if (allHttps) {
+      // Only enforce secure cookies when every configured base URL is https; if any http is present, keep user-provided secure settings.
+      if (hasOnlyHttpsBaseUrls) {
         sessionCookieOptions.secure = true;
         transactionCookieOptions.secure = true;
       }
     } else if (process.env.NODE_ENV === "production") {
+      // No appBaseUrl is configured, so the SDK relies on the request host at runtime.
+      // In production we require secure cookies for this dynamic mode (and fail fast if
+      // a cookie is explicitly marked insecure) to avoid shipping non-secure defaults.
       if (sessionSecureExplicit === false) {
         throw new InvalidConfigurationError(
           "Session cookies must be marked secure in production when appBaseUrl is not configured. Set AUTH0_COOKIE_SECURE=true or session.cookie.secure=true."
@@ -483,6 +491,15 @@ export class Auth0Client {
 
       sessionCookieOptions.secure = true;
       transactionCookieOptions.secure = true;
+    } else if (
+      process.env.NODE_ENV === "development" &&
+      (sessionSecureExplicit === false || transactionSecureExplicit === false)
+    ) {
+      // Warn during development when dynamic base URL resolution is combined with
+      // explicitly insecure cookies, since production will reject this configuration.
+      console.warn(
+        "'appBaseUrl' is not configured and cookies are explicitly marked insecure. This is allowed in development, but will throw in production. Configure appBaseUrl or set secure=true for session/transaction cookies."
+      );
     }
 
     this.routes = {

@@ -62,6 +62,21 @@ If you omit it, the SDK will infer the base URL from the incoming request host a
 For preview environments (`Vercel`, `Netlify`), we recommend supplying an allow list so only known hosts are accepted (or use a comma-separated `APP_BASE_URL`).
 The SDK resolves the base URL per request by matching the incoming host against the list. If multiple entries match, the most specific URL path wins.
 
+Static vs allow-list behavior:
+
+- `appBaseUrl: "https://app.example.com/app"` is treated as a fixed base URL. The SDK uses it directly and does not compare the incoming request host/path.
+- `appBaseUrl: ["https://app.example.com/app"]` is treated as an allow list. The SDK matches the request host and path and throws if they do not match.
+
+Example (allow list with a single entry):
+
+```ts
+export const auth0 = new Auth0Client({
+  appBaseUrl: ["https://app.example.com/app"]
+});
+```
+
+If a request arrives for `https://app.example.com/other`, the SDK rejects it because the path does not match `/app`.
+
 If you prefer zero-config, you can omit `APP_BASE_URL` and let the SDK infer the base URL from the request host at runtime.
 Because host headers are untrusted input, the SDK treats the Auth0 Allowed Callback URLs as the primary safeguard in zero-config mode: if the inferred host is not allowlisted in Auth0, the authorize request is rejected. An allow list adds an SDK-side guardrail before any redirect happens.
 
@@ -202,7 +217,7 @@ You can customize the client by using the options below:
 | authorizationParameters     | `AuthorizationParameters` | The authorization parameters to pass to the `/authorize` endpoint. See [Passing authorization parameters](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#passing-authorization-parameters) for more details.                                                                                                                                                                                                                                                                                                                                                           |
 | clientAssertionSigningKey   | `string` or `CryptoKey`   | Private key for use with `private_key_jwt` clients. This can also be specified via the `AUTH0_CLIENT_ASSERTION_SIGNING_KEY` environment variable.                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | clientAssertionSigningAlg   | `string`                  | The algorithm used to sign the client assertion JWT. This can also be provided via the `AUTH0_CLIENT_ASSERTION_SIGNING_ALG` environment variable.                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| appBaseUrl                  | `string \| string[]`       | The URL of your application (e.g.: `http://localhost:3000`). If it's not specified, it will be loaded from the `APP_BASE_URL` environment variable or inferred from the request host at runtime. Pass an array (or a comma-separated `APP_BASE_URL`) to allow-list multiple hosts.                                                                                                                                                                                                                                                                                                    |
+| appBaseUrl                  | `string \| string[]`       | The URL of your application (e.g.: `http://localhost:3000`). If it's not specified, it will be loaded from the `APP_BASE_URL` environment variable or inferred from the request host at runtime. A string is treated as a fixed base URL; an array (or comma-separated `APP_BASE_URL`) is treated as an allow list and the request host/path must match.                                                                                                                                                                                                 |
 | logoutStrategy              | `"auto" \| "oidc" \| "v2"` | Strategy for logout endpoint selection. `"auto"` (default) uses OIDC logout when available, falls back to `/v2/logout`. `"oidc"` always uses OIDC logout. `"v2"` always uses `/v2/logout` endpoint which supports wildcard URLs. See [Configuring logout strategy](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#configuring-logout-strategy) for details. |
 | includeIdTokenHintInOIDCLogoutUrl | `boolean`            | Configure whether to include `id_token_hint` in OIDC logout URLs for privacy. Defaults to `true` (recommended). When `false`, excludes PII from logout URLs but reduces DoS protection. See [OIDC logout privacy configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#oidc-logout-privacy-configuration) for details. |
 | secret                      | `string`                  | A 32-byte, hex-encoded secret used for encrypting cookies. If it's not specified, it will be loaded from the `AUTH0_SECRET` environment variable.                                                                                                                                                                                                                                                                                                                                                                                                                                   |

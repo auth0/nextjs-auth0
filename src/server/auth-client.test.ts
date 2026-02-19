@@ -1523,6 +1523,38 @@ ca/T0LLtgmbMmxSv/MmzIg==
       );
     });
 
+    it("should throw when appBaseUrl cannot be inferred from the request", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+
+        routes: getDefaultRoutes(),
+
+        fetch: getMockAuthorizationServer()
+      });
+
+      const request = {
+        headers: new Headers()
+      } as unknown as NextRequest;
+
+      await expect(
+        authClient.startInteractiveLogin({}, request)
+      ).rejects.toThrow(InvalidConfigurationError);
+    });
+
     it("should select the matching appBaseUrl from an allow list", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({
@@ -1601,6 +1633,42 @@ ca/T0LLtgmbMmxSv/MmzIg==
       );
     });
 
+    it("should reject allow list entries when the request path does not match the configured path", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: ["https://preview.example.com/app"],
+
+        routes: getDefaultRoutes(),
+
+        fetch: getMockAuthorizationServer()
+      });
+
+      const request = new NextRequest(
+        new URL("/other-path", "https://preview.example.com"),
+        {
+          method: "GET"
+        }
+      );
+
+      await expect(authClient.handleLogin(request)).rejects.toThrow(
+        InvalidConfigurationError
+      );
+    });
+
     it("should prefer the most specific appBaseUrl when multiple entries match", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({
@@ -1669,6 +1737,42 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       const request = new NextRequest(
         new URL("/auth/login", "https://preview.example.com"),
+        {
+          method: "GET"
+        }
+      );
+
+      await expect(authClient.handleLogin(request)).rejects.toThrow(
+        InvalidConfigurationError
+      );
+    });
+
+    it("should treat comma-separated appBaseUrl input as an allow list even with one entry", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+
+        secret,
+        appBaseUrl: "https://preview.example.com,",
+
+        routes: getDefaultRoutes(),
+
+        fetch: getMockAuthorizationServer()
+      });
+
+      const request = new NextRequest(
+        new URL("/auth/login", "https://other.example.com"),
         {
           method: "GET"
         }

@@ -2853,6 +2853,13 @@ export const auth0 = new Auth0Client({
 
 If the request host does not match the allow list, the SDK throws `InvalidConfigurationError`.
 
+Static vs allow-list behavior:
+
+- `appBaseUrl: "https://app.example.com/app"` is treated as a fixed base URL and is used directly.
+- `appBaseUrl: ["https://app.example.com/app"]` is treated as an allow list; the request host/path must match or the SDK throws.
+
+Example: a request to `https://app.example.com/other` is rejected when the allow list is `["https://app.example.com/app"]`.
+
 > [!NOTE]  
 > When relying on dynamic base URLs in production, the SDK enforces secure cookies. If you explicitly set `AUTH0_COOKIE_SECURE=false`, `session.cookie.secure=false`, or `transactionCookie.secure=false`, the SDK throws `InvalidConfigurationError`.
 
