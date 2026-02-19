@@ -114,6 +114,7 @@ export interface Auth0ClientOptions {
    *
    * If it's not specified, it will be loaded from the `APP_BASE_URL` environment variable.
    * If neither is provided, the SDK will infer it from the request host at runtime.
+   * A single string (including `APP_BASE_URL` without commas) is treated as a static base URL; arrays or comma-separated values enable allow-listing.
    * If you need to support multiple base URLs and those values are known at startup (for example, via environment variables), we recommend listing all permitted base URLs in appBaseUrl.
    * This helps ensure the SDK only operates on trusted hosts and avoids redirecting users to Auth0 when the incoming host does not match one of the allowed values.
    */
@@ -460,11 +461,15 @@ export class Auth0Client {
       maxAge: options.transactionCookie?.maxAge ?? 3600
     };
 
-    // Normalize appBaseUrl input (string/array/CSV) into an allow-list.
-    const appBaseUrls = normalizeAppBaseUrlConfig(appBaseUrl);
+    // Normalize appBaseUrl input: string for static, array for allow-list.
+    const appBaseUrlConfig = normalizeAppBaseUrlConfig(appBaseUrl);
 
-    if (appBaseUrls) {
-      const hasOnlyHttpsBaseUrls = appBaseUrls.every(
+    if (appBaseUrlConfig) {
+      const appBaseUrlList =
+        typeof appBaseUrlConfig === "string"
+          ? [appBaseUrlConfig]
+          : appBaseUrlConfig;
+      const hasOnlyHttpsBaseUrls = appBaseUrlList.every(
         (url) => new URL(url).protocol === "https:"
       );
 

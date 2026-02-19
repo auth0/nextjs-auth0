@@ -20,13 +20,13 @@ describe("normalizeAppBaseUrlConfig", () => {
         "https://input.example.com",
         "https://env.example.com"
       )
-    ).toEqual(["https://input.example.com"]);
+    ).toEqual("https://input.example.com");
   });
 
   it("should strip query/hash and trailing slash from a single appBaseUrl input", () => {
     expect(
       normalizeAppBaseUrlConfig("https://example.com/base/?a=1#hash")
-    ).toEqual(["https://example.com/base"]);
+    ).toEqual("https://example.com/base");
   });
 
   it("should split comma-separated appBaseUrl input and normalize each entry", () => {
@@ -35,6 +35,12 @@ describe("normalizeAppBaseUrlConfig", () => {
         " https://a.example.com/ , http://b.example.com/base/?x=1#y "
       )
     ).toEqual(["https://a.example.com", "http://b.example.com/base"]);
+  });
+
+  it("should treat comma-separated appBaseUrl input with a single entry as an allow list", () => {
+    expect(normalizeAppBaseUrlConfig("https://app.example.com,")).toEqual([
+      "https://app.example.com"
+    ]);
   });
 
   it("should ignore non-string or blank entries in appBaseUrl array input", () => {
@@ -95,8 +101,18 @@ describe("normalizeAppBaseUrlConfig", () => {
     ).toEqual(["https://a.example.com", "http://b.example.com"]);
   });
 
+  it("should treat a single APP_BASE_URL value as a static base URL", () => {
+    expect(
+      normalizeAppBaseUrlConfig(undefined, "https://env.example.com/")
+    ).toEqual("https://env.example.com");
+  });
+
   it("should return undefined when APP_BASE_URL env is blank", () => {
     expect(normalizeAppBaseUrlConfig(undefined, " , ")).toBeUndefined();
+  });
+
+  it("should return undefined when APP_BASE_URL env is only whitespace", () => {
+    expect(normalizeAppBaseUrlConfig(undefined, "   ")).toBeUndefined();
   });
 
   it("should include APP_BASE_URL in error messages for invalid env values", () => {
@@ -241,31 +257,58 @@ describe("matchAppBaseUrlForRequest", () => {
 describe("resolveAppBaseUrl", () => {
   it("should return the static appBaseUrl when configured as a single string", () => {
     const req = new NextRequest(new URL("https://ignored.example.com"));
-    expect(resolveAppBaseUrl(["https://static.example.com"], true, req)).toBe(
+    expect(resolveAppBaseUrl("https://static.example.com", req)).toBe(
       "https://static.example.com"
     );
   });
 
   it("should resolve a single allow-list entry without a request", () => {
-    expect(resolveAppBaseUrl(["https://preview.example.com"], false)).toBe(
+    expect(resolveAppBaseUrl(["https://preview.example.com"])).toBe(
       "https://preview.example.com"
     );
   });
 
   it("should throw when multiple allow-list entries exist and no request is provided", () => {
     expect(() =>
+      resolveAppBaseUrl([
+        "https://preview.example.com",
+        "https://prod.example.com"
+      ])
+    ).toThrowError(InvalidConfigurationError);
+  });
+
+  it("should resolve the most specific allow-list entry for a request", () => {
+    const req = new NextRequest(
+      new URL("https://app.example.com/app/settings")
+    );
+    expect(
       resolveAppBaseUrl(
-        ["https://preview.example.com", "https://prod.example.com"],
-        false
+        ["https://app.example.com", "https://app.example.com/app"],
+        req
       )
+    ).toBe("https://app.example.com/app");
+  });
+
+  it("should throw when the request does not match the allow list", () => {
+    const req = new NextRequest(new URL("https://app.example.com/other"));
+    expect(() =>
+      resolveAppBaseUrl(["https://app.example.com/app"], req)
+    ).toThrowError(InvalidConfigurationError);
+  });
+
+  it("should throw when allow-list resolution cannot infer the request host", () => {
+    const req = {
+      headers: new Headers()
+    } as unknown as NextRequest;
+
+    expect(() =>
+      resolveAppBaseUrl(["https://preview.example.com"], req)
     ).toThrowError(InvalidConfigurationError);
   });
 
   it("should infer the base URL from the request when no appBaseUrl is configured", () => {
     const req = new NextRequest(new URL("https://app.example.com/path"));
-    expect(resolveAppBaseUrl(undefined, false, req)).toBe(
-      "https://app.example.com"
-    );
+    expect(resolveAppBaseUrl(undefined, req)).toBe("https://app.example.com");
   });
 
   it("should throw when the request does not provide host/proto information", () => {
@@ -273,7 +316,13 @@ describe("resolveAppBaseUrl", () => {
       headers: new Headers()
     } as unknown as NextRequest;
 
-    expect(() => resolveAppBaseUrl(undefined, false, req)).toThrowError(
+    expect(() => resolveAppBaseUrl(undefined, req)).toThrowError(
+      InvalidConfigurationError
+    );
+  });
+
+  it("should throw when no appBaseUrl is configured and no request is provided", () => {
+    expect(() => resolveAppBaseUrl(undefined)).toThrowError(
       InvalidConfigurationError
     );
   });

@@ -54,7 +54,7 @@ function firstHeaderValue(value: string | null): string | null {
 export function normalizeAppBaseUrlConfig(
   input: AppBaseUrlInput,
   envValue?: string
-): string[] | undefined {
+): string | string[] | undefined {
   if (input !== undefined) {
     if (Array.isArray(input)) {
       return normalizeBaseUrlValues(input, "appBaseUrl");
@@ -70,7 +70,8 @@ export function normalizeAppBaseUrlConfig(
     }
 
     if (typeof input === "string") {
-      return [normalizeBaseUrlString(input, "appBaseUrl")];
+      // A plain string is treated as a static base URL.
+      return normalizeBaseUrlString(input, "appBaseUrl");
     }
 
     return normalizeBaseUrlValues([input], "appBaseUrl");
@@ -80,12 +81,22 @@ export function normalizeAppBaseUrlConfig(
     return undefined;
   }
 
-  const envValues = envValue
-    .split(",")
-    .map((value) => value.trim())
-    .filter((value) => value.length > 0);
+  const trimmedEnvValue = envValue.trim();
+  if (!trimmedEnvValue) {
+    return undefined;
+  }
 
-  return normalizeBaseUrlValues(envValues, "APP_BASE_URL");
+  if (trimmedEnvValue.includes(",")) {
+    const envValues = trimmedEnvValue
+      .split(",")
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
+
+    return normalizeBaseUrlValues(envValues, "APP_BASE_URL");
+  }
+
+  // A single env value is treated as a static base URL.
+  return normalizeBaseUrlString(trimmedEnvValue, "APP_BASE_URL");
 }
 
 export function inferBaseUrlFromRequest(req: NextRequest): string | null {
@@ -146,16 +157,15 @@ export function matchAppBaseUrlForRequest(
 }
 
 export function resolveAppBaseUrl(
-  appBaseUrls: string[] | undefined,
-  isStaticAppBaseUrl: boolean,
+  appBaseUrls: string | string[] | undefined,
   req?: NextRequest
 ): string {
-  if (appBaseUrls?.length) {
-    // Static appBaseUrl (single string) is authoritative; no host matching needed.
-    if (isStaticAppBaseUrl) {
-      return appBaseUrls[0];
-    }
+  if (typeof appBaseUrls === "string") {
+    // A static base URL is authoritative; no host matching needed.
+    return appBaseUrls;
+  }
 
+  if (appBaseUrls?.length) {
     if (!req) {
       // Without a request we cannot validate host/path, so only a single allow-list entry is resolvable.
       if (appBaseUrls.length === 1) {

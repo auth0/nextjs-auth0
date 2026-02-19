@@ -2857,6 +2857,7 @@ Static vs allow-list behavior:
 
 - `appBaseUrl: "https://app.example.com/app"` is treated as a fixed base URL and is used directly.
 - `appBaseUrl: ["https://app.example.com/app"]` is treated as an allow list; the request host/path must match or the SDK throws.
+- `APP_BASE_URL=https://app.example.com/app` (single value, no commas) behaves like the static string above. Use commas to enable allow-list behavior from env.
 
 Example: a request to `https://app.example.com/other` is rejected when the allow list is `["https://app.example.com/app"]`.
 

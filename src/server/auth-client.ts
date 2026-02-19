@@ -295,8 +295,8 @@ export class AuthClient {
   private authorizationParameters: AuthorizationParameters;
   private pushedAuthorizationRequests: boolean;
 
-  private appBaseUrls?: string[];
-  private isStaticAppBaseUrl: boolean;
+  // Normalized appBaseUrl configuration: string for static, array for allow-list.
+  private appBaseUrlConfig?: string | string[];
   private signInReturnToPath: string;
   private logoutStrategy: LogoutStrategy;
   private includeIdTokenHintInOIDCLogoutUrl: boolean;
@@ -412,10 +412,7 @@ export class AuthClient {
     }
 
     // application
-    this.isStaticAppBaseUrl =
-      typeof options.appBaseUrl === "string" &&
-      !options.appBaseUrl.includes(",");
-    this.appBaseUrls = normalizeAppBaseUrlConfig(options.appBaseUrl);
+    this.appBaseUrlConfig = normalizeAppBaseUrlConfig(options.appBaseUrl);
     this.signInReturnToPath = options.signInReturnToPath || "/";
 
     // validate logout strategy
@@ -543,11 +540,7 @@ export class AuthClient {
     options: StartInteractiveLoginOptions = {},
     req?: NextRequest
   ): Promise<NextResponse> {
-    const appBaseUrl = resolveAppBaseUrl(
-      this.appBaseUrls,
-      this.isStaticAppBaseUrl,
-      req
-    );
+    const appBaseUrl = resolveAppBaseUrl(this.appBaseUrlConfig, req);
     const redirectUri = createRouteUrl(
       this.routes.callback,
       appBaseUrl
@@ -679,11 +672,7 @@ export class AuthClient {
       return errorResponse;
     }
 
-    const appBaseUrl = resolveAppBaseUrl(
-      this.appBaseUrls,
-      this.isStaticAppBaseUrl,
-      req
-    );
+    const appBaseUrl = resolveAppBaseUrl(this.appBaseUrlConfig, req);
     const returnTo = req.nextUrl.searchParams.get("returnTo") || appBaseUrl;
     const federated = req.nextUrl.searchParams.has("federated");
 
@@ -780,11 +769,7 @@ export class AuthClient {
     }
 
     const transactionState = transactionStateCookie.payload;
-    const appBaseUrl = resolveAppBaseUrl(
-      this.appBaseUrls,
-      this.isStaticAppBaseUrl,
-      req
-    );
+    const appBaseUrl = resolveAppBaseUrl(this.appBaseUrlConfig, req);
     const onCallbackCtx: OnCallbackContext = {
       responseType: transactionState.responseType,
       returnTo: transactionState.returnTo,
@@ -1660,7 +1645,11 @@ export class AuthClient {
 
     const appBaseUrl =
       ctx.appBaseUrl ||
-      (this.appBaseUrls?.length === 1 ? this.appBaseUrls[0] : undefined);
+      (typeof this.appBaseUrlConfig === "string"
+        ? this.appBaseUrlConfig
+        : this.appBaseUrlConfig?.length === 1
+          ? this.appBaseUrlConfig[0]
+          : undefined);
 
     if (!appBaseUrl) {
       throw new InvalidConfigurationError(
@@ -2305,11 +2294,7 @@ export class AuthClient {
     options: ConnectAccountOptions & { tokenSet: TokenSet },
     req?: NextRequest
   ): Promise<[ConnectAccountError, null] | [null, NextResponse]> {
-    const appBaseUrl = resolveAppBaseUrl(
-      this.appBaseUrls,
-      this.isStaticAppBaseUrl,
-      req
-    );
+    const appBaseUrl = resolveAppBaseUrl(this.appBaseUrlConfig, req);
     const redirectUri = createRouteUrl(
       this.routes.callback,
       appBaseUrl
