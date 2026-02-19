@@ -73,8 +73,8 @@ import {
   VerifyMfaOptions
 } from "../types/index.js";
 import {
-  inferBaseUrlFromRequest,
-  normalizeAppBaseUrlConfig
+  normalizeAppBaseUrlConfig,
+  resolveAppBaseUrl
 } from "../utils/app-base-url.js";
 import { mergeAuthorizationParamsIntoSearchParams } from "../utils/authorization-params-helpers.js";
 import {
@@ -539,106 +539,15 @@ export class AuthClient {
     }
   }
 
-  private resolveAppBaseUrl(req?: NextRequest): string {
-    const appBaseUrls = this.appBaseUrls;
-
-    if (appBaseUrls?.length) {
-      // Static appBaseUrl (single string) is authoritative; no host matching needed.
-      if (this.isStaticAppBaseUrl) {
-        return appBaseUrls[0];
-      }
-
-      if (!req) {
-        // Without a request we cannot validate host/path, so only a single allow-list entry is resolvable.
-        if (appBaseUrls.length === 1) {
-          return appBaseUrls[0];
-        }
-
-        throw new InvalidConfigurationError(
-          "Multiple appBaseUrl values are configured. Provide a request to resolve the matching host."
-        );
-      }
-
-      // Resolve the host from request headers and validate against the allow list.
-      const inferred = inferBaseUrlFromRequest(req);
-      if (!inferred) {
-        throw new InvalidConfigurationError(
-          "Unable to resolve appBaseUrl from request headers. Set appBaseUrl/APP_BASE_URL or ensure the request host is available."
-        );
-      }
-
-      // Prefer the most specific allow-list entry when multiple match.
-      const match = this.matchAppBaseUrlForRequest(
-        appBaseUrls,
-        inferred,
-        req.nextUrl?.pathname
-      );
-
-      if (!match) {
-        throw new InvalidConfigurationError(
-          `The request origin "${inferred}" is not in the configured appBaseUrl allow list.`
-        );
-      }
-
-      return match;
-    }
-
-    if (req) {
-      // No configured appBaseUrl: infer from request headers as a dynamic base URL fallback.
-      // In this case, Auth0 Allowed Callback URLs provide the primary host safeguard.
-      const inferred = inferBaseUrlFromRequest(req);
-      if (inferred) {
-        return inferred;
-      }
-    }
-
-    throw new InvalidConfigurationError(
-      "appBaseUrl could not be resolved. Set appBaseUrl/APP_BASE_URL or ensure the request host is available."
-    );
-  }
-
-  private matchAppBaseUrlForRequest(
-    appBaseUrls: string[],
-    requestBaseUrl: string,
-    requestPathname?: string
-  ): string | undefined {
-    // Match allow-list entries by origin and optional path, then pick the most specific path.
-    // Resolve the request origin/path once to compare against allow-list entries.
-    const requestOrigin = new URL(requestBaseUrl).origin;
-    const requestPath = requestPathname || "/";
-
-    const matches = appBaseUrls.filter((baseUrl) => {
-      const parsed = new URL(baseUrl);
-      // Origin mismatch means this entry is not a candidate.
-      if (parsed.origin !== requestOrigin) {
-        return false;
-      }
-
-      // Allow root (or empty) paths to match any request path on the same origin.
-      const basePath = parsed.pathname.replace(/\/$/, "");
-      if (!basePath || basePath === "/") {
-        return true;
-      }
-
-      // Otherwise, require an exact path match or a deeper path under the base path.
-      return requestPath === basePath || requestPath.startsWith(`${basePath}/`);
-    });
-
-    if (matches.length === 0) {
-      return undefined;
-    }
-
-    // Pick the most specific path when multiple entries match.
-    return matches.sort(
-      (a, b) => new URL(b).pathname.length - new URL(a).pathname.length
-    )[0];
-  }
-
   async startInteractiveLogin(
     options: StartInteractiveLoginOptions = {},
     req?: NextRequest
   ): Promise<NextResponse> {
-    const appBaseUrl = this.resolveAppBaseUrl(req);
+    const appBaseUrl = resolveAppBaseUrl(
+      this.appBaseUrls,
+      this.isStaticAppBaseUrl,
+      req
+    );
     const redirectUri = createRouteUrl(
       this.routes.callback,
       appBaseUrl
@@ -770,7 +679,11 @@ export class AuthClient {
       return errorResponse;
     }
 
-    const appBaseUrl = this.resolveAppBaseUrl(req);
+    const appBaseUrl = resolveAppBaseUrl(
+      this.appBaseUrls,
+      this.isStaticAppBaseUrl,
+      req
+    );
     const returnTo = req.nextUrl.searchParams.get("returnTo") || appBaseUrl;
     const federated = req.nextUrl.searchParams.has("federated");
 
@@ -867,7 +780,11 @@ export class AuthClient {
     }
 
     const transactionState = transactionStateCookie.payload;
-    const appBaseUrl = this.resolveAppBaseUrl(req);
+    const appBaseUrl = resolveAppBaseUrl(
+      this.appBaseUrls,
+      this.isStaticAppBaseUrl,
+      req
+    );
     const onCallbackCtx: OnCallbackContext = {
       responseType: transactionState.responseType,
       returnTo: transactionState.returnTo,
@@ -2388,7 +2305,11 @@ export class AuthClient {
     options: ConnectAccountOptions & { tokenSet: TokenSet },
     req?: NextRequest
   ): Promise<[ConnectAccountError, null] | [null, NextResponse]> {
-    const appBaseUrl = this.resolveAppBaseUrl(req);
+    const appBaseUrl = resolveAppBaseUrl(
+      this.appBaseUrls,
+      this.isStaticAppBaseUrl,
+      req
+    );
     const redirectUri = createRouteUrl(
       this.routes.callback,
       appBaseUrl

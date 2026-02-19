@@ -4,7 +4,9 @@ import { describe, expect, it } from "vitest";
 import { InvalidConfigurationError } from "../errors/index.js";
 import {
   inferBaseUrlFromRequest,
-  normalizeAppBaseUrlConfig
+  matchAppBaseUrlForRequest,
+  normalizeAppBaseUrlConfig,
+  resolveAppBaseUrl
 } from "./app-base-url.js";
 
 describe("normalizeAppBaseUrlConfig", () => {
@@ -192,5 +194,87 @@ describe("inferBaseUrlFromRequest", () => {
     });
 
     expect(inferBaseUrlFromRequest(req)).toBeNull();
+  });
+});
+
+describe("matchAppBaseUrlForRequest", () => {
+  it("should return undefined when the origin does not match", () => {
+    expect(
+      matchAppBaseUrlForRequest(
+        ["https://app.example.com"],
+        "https://preview.example.com"
+      )
+    ).toBeUndefined();
+  });
+
+  it("should match root allow-list entries for any request path", () => {
+    expect(
+      matchAppBaseUrlForRequest(
+        ["https://app.example.com"],
+        "https://app.example.com",
+        "/any/path"
+      )
+    ).toBe("https://app.example.com");
+  });
+
+  it("should require the request path to match a scoped allow-list entry", () => {
+    expect(
+      matchAppBaseUrlForRequest(
+        ["https://app.example.com/app"],
+        "https://app.example.com",
+        "/other"
+      )
+    ).toBeUndefined();
+  });
+
+  it("should prefer the most specific matching allow-list entry", () => {
+    expect(
+      matchAppBaseUrlForRequest(
+        ["https://app.example.com", "https://app.example.com/app"],
+        "https://app.example.com",
+        "/app/settings"
+      )
+    ).toBe("https://app.example.com/app");
+  });
+});
+
+describe("resolveAppBaseUrl", () => {
+  it("should return the static appBaseUrl when configured as a single string", () => {
+    const req = new NextRequest(new URL("https://ignored.example.com"));
+    expect(resolveAppBaseUrl(["https://static.example.com"], true, req)).toBe(
+      "https://static.example.com"
+    );
+  });
+
+  it("should resolve a single allow-list entry without a request", () => {
+    expect(resolveAppBaseUrl(["https://preview.example.com"], false)).toBe(
+      "https://preview.example.com"
+    );
+  });
+
+  it("should throw when multiple allow-list entries exist and no request is provided", () => {
+    expect(() =>
+      resolveAppBaseUrl(
+        ["https://preview.example.com", "https://prod.example.com"],
+        false
+      )
+    ).toThrowError(InvalidConfigurationError);
+  });
+
+  it("should infer the base URL from the request when no appBaseUrl is configured", () => {
+    const req = new NextRequest(new URL("https://app.example.com/path"));
+    expect(resolveAppBaseUrl(undefined, false, req)).toBe(
+      "https://app.example.com"
+    );
+  });
+
+  it("should throw when the request does not provide host/proto information", () => {
+    const req = {
+      headers: new Headers()
+    } as unknown as NextRequest;
+
+    expect(() => resolveAppBaseUrl(undefined, false, req)).toThrowError(
+      InvalidConfigurationError
+    );
   });
 });
