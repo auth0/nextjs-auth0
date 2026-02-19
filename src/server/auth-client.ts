@@ -72,10 +72,7 @@ import {
   User,
   VerifyMfaOptions
 } from "../types/index.js";
-import {
-  normalizeAppBaseUrlConfig,
-  resolveAppBaseUrl
-} from "../utils/app-base-url.js";
+import { resolveAppBaseUrl } from "../utils/app-base-url.js";
 import { mergeAuthorizationParamsIntoSearchParams } from "../utils/authorization-params-helpers.js";
 import {
   DEFAULT_MFA_CONTEXT_TTL_SECONDS,
@@ -296,7 +293,7 @@ export class AuthClient {
   private pushedAuthorizationRequests: boolean;
 
   // Normalized appBaseUrl configuration: string for static, array for allow-list.
-  private appBaseUrlConfig?: string | string[];
+  private appBaseUrl?: string | string[];
   private signInReturnToPath: string;
   private logoutStrategy: LogoutStrategy;
   private includeIdTokenHintInOIDCLogoutUrl: boolean;
@@ -412,7 +409,7 @@ export class AuthClient {
     }
 
     // application
-    this.appBaseUrlConfig = normalizeAppBaseUrlConfig(options.appBaseUrl);
+    this.appBaseUrl = options.appBaseUrl;
     this.signInReturnToPath = options.signInReturnToPath || "/";
 
     // validate logout strategy
@@ -540,7 +537,7 @@ export class AuthClient {
     options: StartInteractiveLoginOptions = {},
     req?: NextRequest
   ): Promise<NextResponse> {
-    const appBaseUrl = resolveAppBaseUrl(this.appBaseUrlConfig, req);
+    const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
     const redirectUri = createRouteUrl(
       this.routes.callback,
       appBaseUrl
@@ -672,7 +669,7 @@ export class AuthClient {
       return errorResponse;
     }
 
-    const appBaseUrl = resolveAppBaseUrl(this.appBaseUrlConfig, req);
+    const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
     const returnTo = req.nextUrl.searchParams.get("returnTo") || appBaseUrl;
     const federated = req.nextUrl.searchParams.has("federated");
 
@@ -769,7 +766,7 @@ export class AuthClient {
     }
 
     const transactionState = transactionStateCookie.payload;
-    const appBaseUrl = resolveAppBaseUrl(this.appBaseUrlConfig, req);
+    const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
     const onCallbackCtx: OnCallbackContext = {
       responseType: transactionState.responseType,
       returnTo: transactionState.returnTo,
@@ -1645,10 +1642,10 @@ export class AuthClient {
 
     const appBaseUrl =
       ctx.appBaseUrl ||
-      (typeof this.appBaseUrlConfig === "string"
-        ? this.appBaseUrlConfig
-        : this.appBaseUrlConfig?.length === 1
-          ? this.appBaseUrlConfig[0]
+      (typeof this.appBaseUrl === "string"
+        ? this.appBaseUrl
+        : this.appBaseUrl?.length === 1
+          ? this.appBaseUrl[0]
           : undefined);
 
     if (!appBaseUrl) {
@@ -2294,7 +2291,7 @@ export class AuthClient {
     options: ConnectAccountOptions & { tokenSet: TokenSet },
     req?: NextRequest
   ): Promise<[ConnectAccountError, null] | [null, NextResponse]> {
-    const appBaseUrl = resolveAppBaseUrl(this.appBaseUrlConfig, req);
+    const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
     const redirectUri = createRouteUrl(
       this.routes.callback,
       appBaseUrl

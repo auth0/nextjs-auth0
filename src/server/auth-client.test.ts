@@ -1747,7 +1747,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
       );
     });
 
-    it("should treat comma-separated appBaseUrl input as an allow list even with one entry", async () => {
+    it("should enforce a single-entry allow list when the host does not match", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({
         secret
@@ -1764,7 +1764,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         clientSecret: DEFAULT.clientSecret,
 
         secret,
-        appBaseUrl: "https://preview.example.com,",
+        appBaseUrl: ["https://preview.example.com"],
 
         routes: getDefaultRoutes(),
 

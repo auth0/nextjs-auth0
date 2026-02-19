@@ -558,7 +558,7 @@ export class Auth0Client {
       authorizationParameters: options.authorizationParameters,
       pushedAuthorizationRequests: options.pushedAuthorizationRequests,
 
-      appBaseUrl,
+      appBaseUrl: appBaseUrlConfig,
       secret,
       signInReturnToPath: options.signInReturnToPath,
       logoutStrategy: options.logoutStrategy,
