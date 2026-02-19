@@ -118,8 +118,8 @@ describe("ClientMfaClient", () => {
     });
 
     it("should throw MfaGetAuthenticatorsError for network errors", async () => {
-      const { MfaGetAuthenticatorsError } =
-        await import("../../errors/index.js");
+      const errors = await import("../../errors/index.js");
+      const { MfaGetAuthenticatorsError } = errors;
 
       const encryptedToken = await encryptMfaToken(
         DEFAULT.mfaToken,
@@ -649,8 +649,8 @@ describe("ClientMfaClient", () => {
 
   describe("getAuthenticators - query param validation", () => {
     it("should handle empty query param gracefully", async () => {
-      const { MfaGetAuthenticatorsError } =
-        await import("../../errors/index.js");
+      const errors = await import("../../errors/index.js");
+      const { MfaGetAuthenticatorsError } = errors;
 
       // Server should reject empty mfa_token
       server.use(
