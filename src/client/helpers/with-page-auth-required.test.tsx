@@ -249,12 +249,10 @@ describe("with-page-auth-required csr", () => {
     await waitFor(() => {
       expect(window.location.assign).toHaveBeenCalled();
     });
-    const url = new URL(
-      (
-        window.location.assign as MockedFunction<typeof window.location.assign>
-      ).mock.calls[0][0],
-      "https://example.com"
-    );
+    const assignMock = window.location.assign as MockedFunction<
+      typeof window.location.assign
+    >;
+    const url = new URL(assignMock.mock.calls[0][0], "https://example.com");
     expect(url.searchParams.get("returnTo")).toEqual("/foo?bar=baz&qux=quux");
   });
 });
