@@ -10,6 +10,7 @@ import {
   AccessTokenForConnectionErrorCode,
   ConnectAccountError,
   ConnectAccountErrorCodes,
+  InvalidConfigurationError,
   MfaRequiredError
 } from "../errors/index.js";
 import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
@@ -27,6 +28,7 @@ import {
   StartInteractiveLoginOptions,
   User
 } from "../types/index.js";
+import { normalizeAppBaseUrlConfig } from "../utils/app-base-url.js";
 import {
   DEFAULT_MFA_CONTEXT_TTL_SECONDS,
   DEFAULT_SCOPES
@@ -111,8 +113,10 @@ export interface Auth0ClientOptions {
    * The URL of your application (e.g.: `http://localhost:3000`).
    *
    * If it's not specified, it will be loaded from the `APP_BASE_URL` environment variable.
+   * If neither is provided, the SDK will infer it from the request host at runtime.
+   * When using multiple dynamic environments, pass an array or a comma-separated list.
    */
-  appBaseUrl?: string;
+  appBaseUrl?: string | string[];
   /**
    * A 32-byte, hex-encoded secret used for encrypting cookies.
    *
@@ -421,11 +425,14 @@ export class Auth0Client {
     // Auto-detect base path for cookie configuration
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
 
+    const envCookieSecure = process.env.AUTH0_COOKIE_SECURE;
+    const sessionSecureExplicit =
+      options.session?.cookie?.secure ??
+      (envCookieSecure !== undefined ? envCookieSecure === "true" : undefined);
+
     const sessionCookieOptions: SessionCookieOptions = {
       name: options.session?.cookie?.name ?? "__session",
-      secure:
-        options.session?.cookie?.secure ??
-        process.env.AUTH0_COOKIE_SECURE === "true",
+      secure: sessionSecureExplicit ?? false,
       sameSite:
         options.session?.cookie?.sameSite ??
         (process.env.AUTH0_COOKIE_SAME_SITE as "lax" | "strict" | "none") ??
@@ -441,20 +448,41 @@ export class Auth0Client {
       domain: options.session?.cookie?.domain ?? process.env.AUTH0_COOKIE_DOMAIN
     };
 
+    const transactionSecureExplicit = options.transactionCookie?.secure;
     const transactionCookieOptions: TransactionCookieOptions = {
       prefix: options.transactionCookie?.prefix ?? "__txn_",
-      secure: options.transactionCookie?.secure ?? false,
+      secure: transactionSecureExplicit ?? false,
       sameSite: options.transactionCookie?.sameSite ?? "lax",
       path: options.transactionCookie?.path ?? basePath ?? "/",
       maxAge: options.transactionCookie?.maxAge ?? 3600
     };
 
-    if (appBaseUrl) {
-      const { protocol } = new URL(appBaseUrl);
-      if (protocol === "https:") {
+    const appBaseUrls = normalizeAppBaseUrlConfig(appBaseUrl);
+
+    if (appBaseUrls) {
+      const allHttps = appBaseUrls.every(
+        (url) => new URL(url).protocol === "https:"
+      );
+
+      if (allHttps) {
         sessionCookieOptions.secure = true;
         transactionCookieOptions.secure = true;
       }
+    } else if (process.env.NODE_ENV === "production") {
+      if (sessionSecureExplicit === false) {
+        throw new InvalidConfigurationError(
+          "Session cookies must be marked secure in production when appBaseUrl is not configured. Set AUTH0_COOKIE_SECURE=true or session.cookie.secure=true."
+        );
+      }
+
+      if (transactionSecureExplicit === false) {
+        throw new InvalidConfigurationError(
+          "Transaction cookies must be marked secure in production when appBaseUrl is not configured. Set transactionCookie.secure=true."
+        );
+      }
+
+      sessionCookieOptions.secure = true;
+      transactionCookieOptions.secure = true;
     }
 
     this.routes = {
@@ -1274,9 +1302,10 @@ export class Auth0Client {
     const requiredOptions = {
       domain: options.domain ?? process.env.AUTH0_DOMAIN,
       clientId: options.clientId ?? process.env.AUTH0_CLIENT_ID,
-      appBaseUrl: options.appBaseUrl ?? process.env.APP_BASE_URL,
       secret: options.secret ?? process.env.AUTH0_SECRET
     };
+
+    const appBaseUrl = options.appBaseUrl ?? process.env.APP_BASE_URL;
 
     // Check client authentication options - either clientSecret OR clientAssertionSigningKey must be provided
     const clientSecret =
@@ -1302,7 +1331,6 @@ export class Auth0Client {
       const envVarNames: Record<string, string> = {
         domain: "AUTH0_DOMAIN",
         clientId: "AUTH0_CLIENT_ID",
-        appBaseUrl: "APP_BASE_URL",
         secret: "AUTH0_SECRET"
       };
 
@@ -1327,13 +1355,19 @@ export class Auth0Client {
     // Prepare the result object with all validated options
     const result = {
       ...requiredOptions,
+      appBaseUrl,
       clientSecret,
       clientAssertionSigningKey
     };
 
     // Type-safe assignment after validation
     return result as {
-      [K in keyof typeof result]: NonNullable<(typeof result)[K]>;
+      domain: NonNullable<typeof result.domain>;
+      clientId: NonNullable<typeof result.clientId>;
+      secret: NonNullable<typeof result.secret>;
+      appBaseUrl: typeof result.appBaseUrl;
+      clientSecret: typeof result.clientSecret;
+      clientAssertionSigningKey: typeof result.clientAssertionSigningKey;
     };
   }
 
