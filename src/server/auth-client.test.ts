@@ -9,7 +9,6 @@ import {
   BackchannelAuthenticationError,
   ConnectAccountError,
   ConnectAccountErrorCodes,
-  InvalidConfigurationError,
   MyAccountApiError
 } from "../errors/index.js";
 import { getDefaultRoutes } from "../test/defaults.js";
@@ -414,45 +413,6 @@ ca/T0LLtgmbMmxSv/MmzIg==
             fetch: getMockAuthorizationServer()
           })
       ).not.toThrowError();
-    });
-
-    it("should warn when allowInsecureRequests is enabled in production", async () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-      vi.stubEnv("NODE_ENV", "production");
-
-      try {
-        const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
-
-        new AuthClient({
-          transactionStore,
-          sessionStore,
-
-          domain: DEFAULT.domain,
-          clientId: DEFAULT.clientId,
-          clientSecret: DEFAULT.clientSecret,
-
-          secret,
-          appBaseUrl: DEFAULT.appBaseUrl,
-
-          routes: getDefaultRoutes(),
-
-          allowInsecureRequests: true,
-          fetch: getMockAuthorizationServer()
-        });
-
-        expect(warnSpy).toHaveBeenCalledWith(
-          "allowInsecureRequests is enabled in a production environment. This is not recommended."
-        );
-      } finally {
-        warnSpy.mockRestore();
-        vi.unstubAllEnvs();
-      }
     });
   });
 
@@ -1443,118 +1403,6 @@ ca/T0LLtgmbMmxSv/MmzIg==
       });
     });
 
-    it("should infer appBaseUrl from request host when not configured", async () => {
-      const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
-      const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
-
-        domain: DEFAULT.domain,
-        clientId: DEFAULT.clientId,
-        clientSecret: DEFAULT.clientSecret,
-
-        secret,
-
-        routes: getDefaultRoutes(),
-
-        fetch: getMockAuthorizationServer()
-      });
-
-      const request = new NextRequest(
-        new URL("/auth/login", "https://preview.example.com"),
-        {
-          method: "GET"
-        }
-      );
-
-      const response = await authClient.handleLogin(request);
-      const authorizationUrl = new URL(response.headers.get("Location")!);
-
-      expect(authorizationUrl.searchParams.get("redirect_uri")).toEqual(
-        "https://preview.example.com/auth/callback"
-      );
-    });
-
-    it("should prefer forwarded headers when inferring appBaseUrl", async () => {
-      const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
-      const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
-
-        domain: DEFAULT.domain,
-        clientId: DEFAULT.clientId,
-        clientSecret: DEFAULT.clientSecret,
-
-        secret,
-
-        routes: getDefaultRoutes(),
-
-        fetch: getMockAuthorizationServer()
-      });
-
-      const request = new NextRequest(
-        new URL("/auth/login", "http://internal.example"),
-        {
-          method: "GET",
-          headers: {
-            "x-forwarded-host": "preview.example.com",
-            "x-forwarded-proto": "https"
-          }
-        }
-      );
-
-      const response = await authClient.handleLogin(request);
-      const authorizationUrl = new URL(response.headers.get("Location")!);
-
-      expect(authorizationUrl.searchParams.get("redirect_uri")).toEqual(
-        "https://preview.example.com/auth/callback"
-      );
-    });
-
-    it("should throw when appBaseUrl cannot be inferred from the request", async () => {
-      const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
-      const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
-
-        domain: DEFAULT.domain,
-        clientId: DEFAULT.clientId,
-        clientSecret: DEFAULT.clientSecret,
-
-        secret,
-
-        routes: getDefaultRoutes(),
-
-        fetch: getMockAuthorizationServer()
-      });
-
-      const request = {
-        headers: new Headers()
-      } as unknown as NextRequest;
-
-      await expect(
-        authClient.startInteractiveLogin({}, request)
-      ).rejects.toThrow(InvalidConfigurationError);
-    });
-
     it("should return an error if the discovery endpoint could not be fetched", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({
@@ -1823,7 +1671,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         );
       });
 
-      it("should protect internal params while ignoring redirect_uri overrides", async () => {
+      it("should not override internal authorization parameter values", async () => {
         const secret = await generateSecret(32);
         const transactionStore = new TransactionStore({
           secret
@@ -1840,7 +1688,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           clientSecret: DEFAULT.clientSecret,
           authorizationParameters: {
             client_id: "from-config",
-            redirect_uri: "https://config.example.com/auth/callback",
+            redirect_uri: "from-config",
             response_type: "from-config",
             code_challenge: "from-config",
             code_challenge_method: "from-config",
@@ -1861,10 +1709,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         });
         const loginUrl = new URL("/auth/login", DEFAULT.appBaseUrl);
         loginUrl.searchParams.set("client_id", "from-query");
-        loginUrl.searchParams.set(
-          "redirect_uri",
-          "https://query.example.com/auth/callback"
-        );
+        loginUrl.searchParams.set("redirect_uri", "from-query");
         loginUrl.searchParams.set("response_type", "from-query");
         loginUrl.searchParams.set("code_challenge", "from-query");
         loginUrl.searchParams.set("code_challenge_method", "from-query");
@@ -2744,9 +2589,10 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(parRequestParams!.get("audience")).toEqual(
           "https://api.example.com"
         ); // Query param forwarded
+        // redirect_uri should NOT be overridden as it's a security-sensitive internal parameter
         expect(parRequestParams!.get("redirect_uri")).toEqual(
           `${DEFAULT.appBaseUrl}/auth/callback`
-        );
+        ); // Should use configured value, not malicious query param
         expect(parRequestParams!.get("screen_hint")).toEqual("signup"); // Query param forwarded
       });
     });
@@ -4141,8 +3987,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         };
         const expectedContext = {
           responseType: RESPONSE_TYPES.CODE,
-          returnTo: transactionState.returnTo,
-          appBaseUrl: DEFAULT.appBaseUrl
+          returnTo: transactionState.returnTo
         };
 
         expect(mockOnCallback).toHaveBeenCalledWith(
@@ -4372,8 +4217,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           expect.any(Error),
           {
             responseType: RESPONSE_TYPES.CODE,
-            returnTo: transactionState.returnTo,
-            appBaseUrl: DEFAULT.appBaseUrl
+            returnTo: transactionState.returnTo
           },
           null
         );
@@ -4459,8 +4303,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           expect.any(Error),
           {
             responseType: RESPONSE_TYPES.CODE,
-            returnTo: transactionState.returnTo,
-            appBaseUrl: DEFAULT.appBaseUrl
+            returnTo: transactionState.returnTo
           },
           null
         );
@@ -4545,8 +4388,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           expect.any(Error),
           {
             responseType: RESPONSE_TYPES.CODE,
-            returnTo: transactionState.returnTo,
-            appBaseUrl: DEFAULT.appBaseUrl
+            returnTo: transactionState.returnTo
           },
           null
         );
@@ -4882,70 +4724,6 @@ ca/T0LLtgmbMmxSv/MmzIg==
       });
     });
 
-    describe("defaultOnCallback", async () => {
-      it("should fall back to the single configured appBaseUrl when ctx.appBaseUrl is missing", async () => {
-        const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
-        const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
-
-          domain: DEFAULT.domain,
-          clientId: DEFAULT.clientId,
-          clientSecret: DEFAULT.clientSecret,
-
-          secret,
-          appBaseUrl: DEFAULT.appBaseUrl,
-
-          routes: getDefaultRoutes(),
-
-          fetch: getMockAuthorizationServer()
-        });
-
-        const response = await (authClient as any).defaultOnCallback(null, {
-          returnTo: "/dashboard"
-        });
-        const redirectUrl = new URL(response.headers.get("Location")!);
-
-        expect(redirectUrl.toString()).toEqual(
-          `${DEFAULT.appBaseUrl}/dashboard`
-        );
-      });
-
-      it("should throw when appBaseUrl is missing from ctx and configuration", async () => {
-        const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
-        const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
-
-          domain: DEFAULT.domain,
-          clientId: DEFAULT.clientId,
-          clientSecret: DEFAULT.clientSecret,
-
-          secret,
-
-          routes: getDefaultRoutes(),
-
-          fetch: getMockAuthorizationServer()
-        });
-
-        await expect(
-          (authClient as any).defaultOnCallback(null, { returnTo: "/" })
-        ).rejects.toThrow(InvalidConfigurationError);
-      });
-    });
-
     describe("connect account callback", async () => {
       it("should complete the connect account flow and call onCallback hook", async () => {
         const state = "transaction-state";
@@ -5160,8 +4938,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           expect.any(Error),
           {
             responseType: RESPONSE_TYPES.CONNECT_CODE,
-            returnTo: transactionState.returnTo,
-            appBaseUrl: DEFAULT.appBaseUrl
+            returnTo: transactionState.returnTo
           },
           null
         );
@@ -5276,8 +5053,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           expect.any(Error),
           {
             responseType: RESPONSE_TYPES.CONNECT_CODE,
-            returnTo: transactionState.returnTo,
-            appBaseUrl: DEFAULT.appBaseUrl
+            returnTo: transactionState.returnTo
           },
           null
         );
@@ -5395,8 +5171,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           expect.any(Error),
           {
             responseType: RESPONSE_TYPES.CONNECT_CODE,
-            returnTo: transactionState.returnTo,
-            appBaseUrl: DEFAULT.appBaseUrl
+            returnTo: transactionState.returnTo
           },
           null
         );
@@ -8025,70 +7800,6 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(authClient["authorizationUrl"]).toHaveBeenCalled();
     });
 
-    it("should throw when appBaseUrl is missing and no request is available", async () => {
-      const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
-      const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
-
-        domain: DEFAULT.domain,
-        clientId: DEFAULT.clientId,
-        clientSecret: DEFAULT.clientSecret,
-
-        secret,
-
-        routes: getDefaultRoutes(),
-
-        fetch: getMockAuthorizationServer()
-      });
-
-      await expect(authClient.startInteractiveLogin()).rejects.toThrow(
-        InvalidConfigurationError
-      );
-    });
-
-    it("should throw when request host cannot be inferred", async () => {
-      const secret = await generateSecret(32);
-      const transactionStore = new TransactionStore({
-        secret
-      });
-      const sessionStore = new StatelessSessionStore({
-        secret
-      });
-      const authClient = new AuthClient({
-        transactionStore,
-        sessionStore,
-
-        domain: DEFAULT.domain,
-        clientId: DEFAULT.clientId,
-        clientSecret: DEFAULT.clientSecret,
-
-        secret,
-
-        routes: getDefaultRoutes(),
-
-        fetch: getMockAuthorizationServer()
-      });
-
-      const request = {
-        headers: new Headers(),
-        nextUrl: {
-          host: "",
-          protocol: ""
-        }
-      } as unknown as NextRequest;
-
-      await expect(
-        authClient.startInteractiveLogin({}, request)
-      ).rejects.toThrow(InvalidConfigurationError);
-    });
-
     it("should handle pushed authorization requests (PAR) correctly", async () => {
       let parRequestCalled = false;
       const mockFetch = getMockAuthorizationServer({
@@ -8192,12 +7903,12 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       // Mock startInteractiveLogin to check what options are passed to it
       const originalStartInteractiveLogin = authClient.startInteractiveLogin;
-      authClient.startInteractiveLogin = vi.fn(async (options, req) => {
+      authClient.startInteractiveLogin = vi.fn(async (options) => {
         expect(options).toEqual({
           authorizationParameters: { foo: "bar" },
           returnTo: "custom-return"
         });
-        return originalStartInteractiveLogin.call(authClient, options, req);
+        return originalStartInteractiveLogin.call(authClient, options);
       });
 
       const reqUrl = new URL(
@@ -8217,14 +7928,14 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       // Mock startInteractiveLogin to check what options are passed to it
       const originalStartInteractiveLogin = authClient.startInteractiveLogin;
-      authClient.startInteractiveLogin = vi.fn(async (options, req) => {
+      authClient.startInteractiveLogin = vi.fn(async (options) => {
         expect(options).toEqual({
           authorizationParameters: {
             foo: "bar"
           },
           returnTo: "custom-return"
         });
-        return originalStartInteractiveLogin.call(authClient, options, req);
+        return originalStartInteractiveLogin.call(authClient, options);
       });
 
       const reqUrl = new URL(
