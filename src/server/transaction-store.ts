@@ -22,6 +22,13 @@ export interface TransactionState extends jose.JWTPayload {
    * The audience used for this transaction.
    */
   audience?: string;
+
+  /**
+   * The return strategy for this transaction.
+   * - 'redirect' (default): Standard OAuth redirect flow
+   * - 'postMessage': Popup flow returning via window.postMessage
+   */
+  returnStrategy?: "redirect" | "postMessage";
 }
 
 export interface TransactionCookieOptions {
