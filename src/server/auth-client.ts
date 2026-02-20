@@ -1554,7 +1554,7 @@ export class AuthClient {
     // Scope resolution:
     // When mergeScopes !== false (default): merge global scopes for the audience with options.scope
     // When mergeScopes === false: use ONLY options.scope (no global merge)
-    // This is critical for stepUpWithPopup() which needs isolated scope to prevent
+    // This is critical for challengeWithPopup() which needs isolated scope to prevent
     // refresh token grants requesting scopes beyond what the step-up flow needs.
     const shouldMerge = options.mergeScopes !== false;
     const scope = shouldMerge
@@ -1794,7 +1794,7 @@ export class AuthClient {
    * For popup flows (`returnStrategy: 'postMessage'`): returns error details
    * as a postMessage HTML page instead of redirecting. The parent window
    * receives `{ type: 'auth_complete', success: false, error: { code, message } }`
-   * and the promise returned by `stepUpWithPopup()` rejects with a typed error.
+   * and the promise returned by `challengeWithPopup()` rejects with a typed error.
    *
    * For standard flows (`returnStrategy: 'redirect'`): delegates to the
    * `onCallback` hook, which returns a redirect or error response.

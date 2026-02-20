@@ -1304,7 +1304,7 @@ if (response.status === 403) {
 
 **Option 2: Popup (no redirect)**
 
-Use `mfa.stepUpWithPopup()` to complete MFA in a popup without leaving the current page. See [Reactive MFA Step-Up (Popup)](#reactive-mfa-step-up-popup) for full documentation.
+Use `mfa.challengeWithPopup()` to complete MFA in a popup without leaving the current page. See [Reactive MFA Step-Up (Popup)](#reactive-mfa-step-up-popup) for full documentation.
 
 ### MFA Tenant Configuration
 
@@ -3565,17 +3565,17 @@ The SDK provides typed error classes for all MFA operations:
 
 ### Overview
 
-The SDK supports **reactive MFA step-up** via a browser popup using Auth0 Universal Login. When an API call fails with `mfa_required`, the client-side `mfa.stepUpWithPopup()` method opens a popup window where the user completes MFA through Auth0's Universal Login. After completion, the token is cached in the server-side session and returned directly to the caller — no full-page redirect required.
+The SDK supports **reactive MFA step-up** via a browser popup using Auth0 Universal Login. When an API call fails with `mfa_required`, the client-side `mfa.challengeWithPopup()` method opens a popup window where the user completes MFA through Auth0's Universal Login. After completion, the token is cached in the server-side session and returned directly to the caller — no full-page redirect required.
 
 This is useful for applications that need to protect specific actions (e.g., transferring funds, changing settings) with MFA without disrupting the user's current page state.
 
 **Flow summary:**
 1. App calls an API that requires MFA → receives `MfaRequiredError`
-2. App calls `mfa.stepUpWithPopup({ audience })` → popup opens
+2. App calls `mfa.challengeWithPopup({ audience })` → popup opens
 3. User completes MFA in the popup via Auth0 Universal Login
 4. Popup sends result back via `postMessage` → popup auto-closes
 5. SDK retrieves the cached token from the server session
-6. `stepUpWithPopup()` resolves with the access token
+6. `challengeWithPopup()` resolves with the access token
 
 ### Basic Usage
 
@@ -3607,7 +3607,7 @@ export function ProtectedAction() {
       if (err instanceof MfaRequiredError) {
         try {
           // 3. MFA required — trigger popup step-up
-          const { token } = await mfa.stepUpWithPopup({
+          const { token } = await mfa.challengeWithPopup({
             audience: 'https://api.example.com',
             scope: 'read:sensitive'
           });
@@ -3649,7 +3649,7 @@ try {
 } catch (err) {
   if (err instanceof MfaRequiredError) {
     // Trigger popup MFA step-up
-    const { token } = await mfa.stepUpWithPopup({
+    const { token } = await mfa.challengeWithPopup({
       audience: 'https://api.example.com'
     });
   }
@@ -3661,7 +3661,7 @@ try {
 
 ### Configuration Options
 
-`stepUpWithPopup()` accepts the following options:
+`challengeWithPopup()` accepts the following options:
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
@@ -3676,7 +3676,7 @@ try {
 **Example with custom options:**
 
 ```tsx
-const { token } = await mfa.stepUpWithPopup({
+const { token } = await mfa.challengeWithPopup({
   audience: 'https://api.example.com',
   scope: 'openid profile email transfer:funds',
   timeout: 120000,    // 2 minutes
@@ -3710,7 +3710,7 @@ If you do **not** configure a `cspNonce` and your CSP blocks inline scripts, the
 
 ### Error Handling
 
-`stepUpWithPopup()` can throw several typed errors. Handle them to provide appropriate user feedback:
+`challengeWithPopup()` can throw several typed errors. Handle them to provide appropriate user feedback:
 
 ```tsx
 import { mfa } from '@auth0/nextjs-auth0/client';
@@ -3723,7 +3723,7 @@ import {
 } from '@auth0/nextjs-auth0/errors';
 
 try {
-  const { token } = await mfa.stepUpWithPopup({
+  const { token } = await mfa.challengeWithPopup({
     audience: 'https://api.example.com'
   });
 } catch (err) {
@@ -3741,7 +3741,7 @@ try {
     console.log('Please complete the current MFA prompt first.');
   } else if (err instanceof ExecutionContextError) {
     // Called from server-side code (SSR, middleware)
-    console.error('stepUpWithPopup() can only be called in browser context.');
+    console.error('challengeWithPopup() can only be called in browser context.');
   } else {
     // AccessTokenError or other errors
     console.error('MFA failed:', err.message);
@@ -3756,7 +3756,7 @@ try {
 | `PopupBlockedError` | `popup_blocked` | Browser blocked `window.open()` |
 | `PopupCancelledError` | `popup_cancelled` | User closed the popup window |
 | `PopupTimeoutError` | `popup_timeout` | Popup did not complete within timeout |
-| `PopupInProgressError` | `popup_in_progress` | Another `stepUpWithPopup()` call is active |
+| `PopupInProgressError` | `popup_in_progress` | Another `challengeWithPopup()` call is active |
 | `ExecutionContextError` | `invalid_execution_context` | Called outside browser context (SSR/middleware) |
 | `AccessTokenError` | Various | Token retrieval failed after popup completed |
 
@@ -3772,8 +3772,8 @@ try {
 
 | Limitation | Details |
 |------------|---------|
-| **One popup at a time** | Only one `stepUpWithPopup()` call is allowed concurrently. A second call throws `PopupInProgressError` regardless of audience. |
+| **One popup at a time** | Only one `challengeWithPopup()` call is allowed concurrently. A second call throws `PopupInProgressError` regardless of audience. |
 | **Same-origin only** | The postMessage validation requires same-origin. Cross-origin popup flows are not supported. |
-| **Browser popup policies** | Most browsers block popups unless triggered by a direct user action (click handler). Ensure `stepUpWithPopup()` is called within a user-initiated event handler. |
+| **Browser popup policies** | Most browsers block popups unless triggered by a direct user action (click handler). Ensure `challengeWithPopup()` is called within a user-initiated event handler. |
 | **`beforeSessionSaved` idempotency** | The `beforeSessionSaved` hook runs again when the popup token is merged into the existing session. Ensure your hook is idempotent when using popup flows. |
 | **Session cookie size** | Each cached MRRT token increases session cookie size. For applications with many audiences, consider using a [database session store](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#database-sessions). |

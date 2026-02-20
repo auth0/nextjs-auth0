@@ -51,7 +51,7 @@ afterAll(() => {
  * Helper: Simulate successful popup flow.
  * Opens popup → fires auth_complete postMessage → returns.
  *
- * Must be called AFTER the stepUpWithPopup promise is created
+ * Must be called AFTER the challengeWithPopup promise is created
  * but BEFORE it resolves.
  */
 function simulatePopupSuccess(
@@ -88,7 +88,7 @@ function simulatePopupError(
   }, delay);
 }
 
-describe("stepUpWithPopup", () => {
+describe("challengeWithPopup", () => {
   let windowOpenSpy: any;
 
   beforeEach(() => {
@@ -103,15 +103,15 @@ describe("stepUpWithPopup", () => {
    * We re-import to get a fresh module for each test, avoiding singleton state
    * (activePopup) leaking between tests.
    */
-  async function getStepUpWithPopup() {
+  async function getchallengeWithPopup() {
     // Dynamic import to get fresh module (activePopup singleton reset)
     const mod = await import("./index.js");
-    return mod.mfa.stepUpWithPopup.bind(mod.mfa);
+    return mod.mfa.challengeWithPopup.bind(mod.mfa);
   }
 
   describe("execution context guard", () => {
     it("should throw ExecutionContextError in server context", async () => {
-      const stepUpWithPopup = await getStepUpWithPopup();
+      const challengeWithPopup = await getchallengeWithPopup();
 
       // Simulate SSR by temporarily making window undefined
       const originalWindow = globalThis.window;
@@ -120,7 +120,7 @@ describe("stepUpWithPopup", () => {
 
       try {
         await expect(
-          stepUpWithPopup({ audience: "https://api.example.com" })
+          challengeWithPopup({ audience: "https://api.example.com" })
         ).rejects.toBeInstanceOf(ExecutionContextError);
       } finally {
         globalThis.window = originalWindow;
@@ -131,10 +131,10 @@ describe("stepUpWithPopup", () => {
   describe("popup blocked", () => {
     it("should throw PopupBlockedError when window.open returns null", async () => {
       windowOpenSpy.mockReturnValue(null);
-      const stepUpWithPopup = await getStepUpWithPopup();
+      const challengeWithPopup = await getchallengeWithPopup();
 
       await expect(
-        stepUpWithPopup({ audience: "https://api.example.com" })
+        challengeWithPopup({ audience: "https://api.example.com" })
       ).rejects.toBeInstanceOf(PopupBlockedError);
     });
   });
@@ -148,16 +148,16 @@ describe("stepUpWithPopup", () => {
         })
       );
 
-      const stepUpWithPopup = await getStepUpWithPopup();
+      const challengeWithPopup = await getchallengeWithPopup();
 
       // First call: will wait for postMessage
-      const firstPromise = stepUpWithPopup({
+      const firstPromise = challengeWithPopup({
         audience: "https://api.example.com"
       });
 
       // Second call: should throw PopupInProgressError immediately
       await expect(
-        stepUpWithPopup({ audience: "https://api.other.com" })
+        challengeWithPopup({ audience: "https://api.other.com" })
       ).rejects.toBeInstanceOf(PopupInProgressError);
 
       // Clean up: resolve the first call
@@ -173,9 +173,9 @@ describe("stepUpWithPopup", () => {
           return HttpResponse.json(DEFAULT_TOKEN_RESPONSE);
         })
       );
-      const stepUpWithPopup = await getStepUpWithPopup();
+      const challengeWithPopup = await getchallengeWithPopup();
 
-      const promise = stepUpWithPopup({
+      const promise = challengeWithPopup({
         audience: "https://api.example.com"
       });
       simulatePopupSuccess();
@@ -203,9 +203,9 @@ describe("stepUpWithPopup", () => {
           return HttpResponse.json(DEFAULT_TOKEN_RESPONSE);
         })
       );
-      const stepUpWithPopup = await getStepUpWithPopup();
+      const challengeWithPopup = await getchallengeWithPopup();
 
-      const promise = stepUpWithPopup({
+      const promise = challengeWithPopup({
         audience: "https://api.example.com",
         prompt: "login"
       });
@@ -223,9 +223,9 @@ describe("stepUpWithPopup", () => {
           return HttpResponse.json(DEFAULT_TOKEN_RESPONSE);
         })
       );
-      const stepUpWithPopup = await getStepUpWithPopup();
+      const challengeWithPopup = await getchallengeWithPopup();
 
-      const promise = stepUpWithPopup({
+      const promise = challengeWithPopup({
         audience: "https://api.example.com",
         scope: "openid profile email read:data"
       });
@@ -245,9 +245,9 @@ describe("stepUpWithPopup", () => {
           return HttpResponse.json(DEFAULT_TOKEN_RESPONSE);
         })
       );
-      const stepUpWithPopup = await getStepUpWithPopup();
+      const challengeWithPopup = await getchallengeWithPopup();
 
-      const promise = stepUpWithPopup({
+      const promise = challengeWithPopup({
         audience: "https://api.example.com",
         acr_values: "custom:acr:value"
       });
@@ -265,9 +265,9 @@ describe("stepUpWithPopup", () => {
           return HttpResponse.json(DEFAULT_TOKEN_RESPONSE);
         })
       );
-      const stepUpWithPopup = await getStepUpWithPopup();
+      const challengeWithPopup = await getchallengeWithPopup();
 
-      const promise = stepUpWithPopup({
+      const promise = challengeWithPopup({
         audience: "https://api.example.com",
         returnTo: "/dashboard"
       });
@@ -287,9 +287,9 @@ describe("stepUpWithPopup", () => {
           return HttpResponse.json(DEFAULT_TOKEN_RESPONSE);
         })
       );
-      const stepUpWithPopup = await getStepUpWithPopup();
+      const challengeWithPopup = await getchallengeWithPopup();
 
-      const promise = stepUpWithPopup({
+      const promise = challengeWithPopup({
         audience: "https://api.example.com"
       });
       simulatePopupSuccess();
@@ -306,9 +306,9 @@ describe("stepUpWithPopup", () => {
           return HttpResponse.json(DEFAULT_TOKEN_RESPONSE);
         })
       );
-      const stepUpWithPopup = await getStepUpWithPopup();
+      const challengeWithPopup = await getchallengeWithPopup();
 
-      const promise = stepUpWithPopup({
+      const promise = challengeWithPopup({
         audience: "https://api.example.com",
         popupWidth: 500,
         popupHeight: 700
@@ -329,9 +329,9 @@ describe("stepUpWithPopup", () => {
           return HttpResponse.json(DEFAULT_TOKEN_RESPONSE);
         })
       );
-      const stepUpWithPopup = await getStepUpWithPopup();
+      const challengeWithPopup = await getchallengeWithPopup();
 
-      const promise = stepUpWithPopup({
+      const promise = challengeWithPopup({
         audience: "https://api.example.com"
       });
       simulatePopupSuccess({
@@ -353,9 +353,9 @@ describe("stepUpWithPopup", () => {
           return HttpResponse.json(DEFAULT_TOKEN_RESPONSE);
         })
       );
-      const stepUpWithPopup = await getStepUpWithPopup();
+      const challengeWithPopup = await getchallengeWithPopup();
 
-      const promise = stepUpWithPopup({
+      const promise = challengeWithPopup({
         audience: "https://api.example.com"
       });
       simulatePopupSuccess();
@@ -371,9 +371,9 @@ describe("stepUpWithPopup", () => {
           return HttpResponse.json(DEFAULT_TOKEN_RESPONSE);
         })
       );
-      const stepUpWithPopup = await getStepUpWithPopup();
+      const challengeWithPopup = await getchallengeWithPopup();
 
-      const promise = stepUpWithPopup({
+      const promise = challengeWithPopup({
         audience: "https://api.example.com",
         scope: "read:data"
       });
@@ -390,9 +390,9 @@ describe("stepUpWithPopup", () => {
           return HttpResponse.json(DEFAULT_TOKEN_RESPONSE);
         })
       );
-      const stepUpWithPopup = await getStepUpWithPopup();
+      const challengeWithPopup = await getchallengeWithPopup();
 
-      const promise = stepUpWithPopup({
+      const promise = challengeWithPopup({
         audience: "https://api.example.com"
       });
       simulatePopupSuccess();
@@ -402,9 +402,9 @@ describe("stepUpWithPopup", () => {
 
   describe("postMessage error handling", () => {
     it("should throw AccessTokenError on auth_complete with error", async () => {
-      const stepUpWithPopup = await getStepUpWithPopup();
+      const challengeWithPopup = await getchallengeWithPopup();
 
-      const promise = stepUpWithPopup({
+      const promise = challengeWithPopup({
         audience: "https://api.example.com"
       });
       simulatePopupError({
@@ -417,9 +417,9 @@ describe("stepUpWithPopup", () => {
     });
 
     it("should throw AccessTokenError for unknown error codes from postMessage", async () => {
-      const stepUpWithPopup = await getStepUpWithPopup();
+      const challengeWithPopup = await getchallengeWithPopup();
 
-      const promise = stepUpWithPopup({
+      const promise = challengeWithPopup({
         audience: "https://api.example.com"
       });
       simulatePopupError({
@@ -446,9 +446,9 @@ describe("stepUpWithPopup", () => {
           );
         })
       );
-      const stepUpWithPopup = await getStepUpWithPopup();
+      const challengeWithPopup = await getchallengeWithPopup();
 
-      const promise = stepUpWithPopup({
+      const promise = challengeWithPopup({
         audience: "https://api.example.com"
       });
       simulatePopupSuccess();
@@ -464,10 +464,10 @@ describe("stepUpWithPopup", () => {
           return HttpResponse.json(DEFAULT_TOKEN_RESPONSE);
         })
       );
-      const stepUpWithPopup = await getStepUpWithPopup();
+      const challengeWithPopup = await getchallengeWithPopup();
 
       // First call succeeds
-      const promise1 = stepUpWithPopup({
+      const promise1 = challengeWithPopup({
         audience: "https://api.example.com"
       });
       simulatePopupSuccess();
@@ -475,7 +475,7 @@ describe("stepUpWithPopup", () => {
 
       // Second call should NOT throw PopupInProgressError
       // (activePopup was cleaned up)
-      const promise2 = stepUpWithPopup({
+      const promise2 = challengeWithPopup({
         audience: "https://api.example.com"
       });
       simulatePopupSuccess();
@@ -483,10 +483,10 @@ describe("stepUpWithPopup", () => {
     });
 
     it("should reset activePopup after error", async () => {
-      const stepUpWithPopup = await getStepUpWithPopup();
+      const challengeWithPopup = await getchallengeWithPopup();
 
       // First call errors
-      const promise1 = stepUpWithPopup({
+      const promise1 = challengeWithPopup({
         audience: "https://api.example.com"
       });
       simulatePopupError({
@@ -506,7 +506,7 @@ describe("stepUpWithPopup", () => {
       );
 
       // Second call should work
-      const promise2 = stepUpWithPopup({
+      const promise2 = challengeWithPopup({
         audience: "https://api.example.com"
       });
       simulatePopupSuccess();

@@ -1,7 +1,7 @@
 import { SdkError } from "./sdk-error.js";
 
 /**
- * Thrown when the browser blocks the popup window opened by {@link mfa.stepUpWithPopup}.
+ * Thrown when the browser blocks the popup window opened by {@link mfa.challengeWithPopup}.
  *
  * Most browsers block popups unless they are triggered by a direct user action
  * (e.g., a click handler). Prompt the user to allow popups for your site.
@@ -11,7 +11,7 @@ import { SdkError } from "./sdk-error.js";
  * import { PopupBlockedError } from '@auth0/nextjs-auth0/errors';
  *
  * try {
- *   await mfa.stepUpWithPopup({ audience: 'https://api.example.com' });
+ *   await mfa.challengeWithPopup({ audience: 'https://api.example.com' });
  * } catch (err) {
  *   if (err instanceof PopupBlockedError) {
  *     alert('Please allow popups for this site.');
@@ -42,7 +42,7 @@ export class PopupBlockedError extends SdkError {
  * import { PopupCancelledError } from '@auth0/nextjs-auth0/errors';
  *
  * try {
- *   await mfa.stepUpWithPopup({ audience: 'https://api.example.com' });
+ *   await mfa.challengeWithPopup({ audience: 'https://api.example.com' });
  * } catch (err) {
  *   if (err instanceof PopupCancelledError) {
  *     console.log('User cancelled MFA.');
@@ -64,14 +64,14 @@ export class PopupCancelledError extends SdkError {
  * Thrown when the popup does not complete authentication within the configured timeout.
  *
  * Default timeout is 60 seconds. Configure per-call via
- * `StepUpWithPopupOptions.timeout`.
+ * `ChallengeWithPopupOptions.timeout`.
  *
  * @example
  * ```typescript
  * import { PopupTimeoutError } from '@auth0/nextjs-auth0/errors';
  *
  * try {
- *   await mfa.stepUpWithPopup({ audience: 'https://api.example.com', timeout: 120000 });
+ *   await mfa.challengeWithPopup({ audience: 'https://api.example.com', timeout: 120000 });
  * } catch (err) {
  *   if (err instanceof PopupTimeoutError) {
  *     console.log('MFA timed out. Please try again.');
@@ -90,7 +90,7 @@ export class PopupTimeoutError extends SdkError {
 }
 
 /**
- * Thrown when {@link mfa.stepUpWithPopup} is called while another popup is already active.
+ * Thrown when {@link mfa.challengeWithPopup} is called while another popup is already active.
  *
  * Only one popup flow is allowed at a time, regardless of audience. Wait for the
  * current popup to complete or be cancelled before starting another.
@@ -100,7 +100,7 @@ export class PopupTimeoutError extends SdkError {
  * import { PopupInProgressError } from '@auth0/nextjs-auth0/errors';
  *
  * try {
- *   await mfa.stepUpWithPopup({ audience: 'https://api.example.com' });
+ *   await mfa.challengeWithPopup({ audience: 'https://api.example.com' });
  * } catch (err) {
  *   if (err instanceof PopupInProgressError) {
  *     console.log('Complete the current MFA prompt first.');
@@ -119,17 +119,17 @@ export class PopupInProgressError extends SdkError {
 }
 
 /**
- * Thrown when {@link mfa.stepUpWithPopup} is called outside of a browser context
+ * Thrown when {@link mfa.challengeWithPopup} is called outside of a browser context
  * (e.g., in a Server Component, Route Handler, or middleware).
  *
- * `stepUpWithPopup()` requires `window` and can only run in client components.
+ * `challengeWithPopup()` requires `window` and can only run in client components.
  *
  * @example
  * ```typescript
  * import { ExecutionContextError } from '@auth0/nextjs-auth0/errors';
  *
  * try {
- *   await mfa.stepUpWithPopup({ audience: 'https://api.example.com' });
+ *   await mfa.challengeWithPopup({ audience: 'https://api.example.com' });
  * } catch (err) {
  *   if (err instanceof ExecutionContextError) {
  *     // This method must be called from a client component

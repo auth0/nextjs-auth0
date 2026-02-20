@@ -38,14 +38,14 @@ import {
 } from "../helpers/get-access-token.js";
 
 /**
- * Options for {@link ClientMfaClient.stepUpWithPopup | mfa.stepUpWithPopup()}.
+ * Options for {@link ClientMfaClient.challengeWithPopup | mfa.challengeWithPopup()}.
  *
  * Controls the popup MFA step-up flow: which API audience to target,
  * scopes to request, and popup window behavior.
  *
  * @example
  * ```typescript
- * const { token } = await mfa.stepUpWithPopup({
+ * const { token } = await mfa.challengeWithPopup({
  *   audience: 'https://api.example.com',
  *   scope: 'openid profile email read:sensitive',
  *   timeout: 120000,
@@ -54,7 +54,7 @@ import {
  * });
  * ```
  */
-export interface StepUpWithPopupOptions {
+export interface ChallengeWithPopupOptions {
   /** Target API audience (required) */
   audience: string;
   /** Space-separated scopes (optional — inherits global config when omitted) */
@@ -471,7 +471,7 @@ class ClientMfaClient implements MfaClient {
    *
    * @throws {ExecutionContextError} Called in server/middleware context (requires `window`)
    * @throws {PopupBlockedError} Browser blocked the popup (not user-initiated or popups disabled)
-   * @throws {PopupInProgressError} Another `stepUpWithPopup()` call is already active
+   * @throws {PopupInProgressError} Another `challengeWithPopup()` call is already active
    * @throws {PopupCancelledError} User manually closed the popup window
    * @throws {PopupTimeoutError} Popup did not complete within the configured timeout
    * @throws {AccessTokenError} Token retrieval from session failed after popup completed
@@ -488,7 +488,7 @@ class ClientMfaClient implements MfaClient {
    *     return await getAccessToken({ audience: 'https://api.example.com' });
    *   } catch (err) {
    *     if (err instanceof MfaRequiredError) {
-   *       const { token } = await mfa.stepUpWithPopup({
+   *       const { token } = await mfa.challengeWithPopup({
    *         audience: 'https://api.example.com'
    *       });
    *       return token;
@@ -498,13 +498,13 @@ class ClientMfaClient implements MfaClient {
    * }
    * ```
    */
-  async stepUpWithPopup(
-    options: StepUpWithPopupOptions
+  async challengeWithPopup(
+    options: ChallengeWithPopupOptions
   ): Promise<AccessTokenResponse> {
     // 1. Execution context guard
     if (typeof window === "undefined") {
       throw new ExecutionContextError(
-        "stepUpWithPopup() can only be called in browser context"
+        "challengeWithPopup() can only be called in browser context"
       );
     }
 
@@ -670,7 +670,7 @@ class ClientMfaClient implements MfaClient {
  * const tokens = await mfa.verify({ mfaToken, otp: '123456' });
  *
  * // Step-up via popup (no redirect)
- * const { token } = await mfa.stepUpWithPopup({
+ * const { token } = await mfa.challengeWithPopup({
  *   audience: 'https://api.example.com'
  * });
  * ```

@@ -71,7 +71,7 @@ export type AccessTokenOptions = {
  * Full response from the `/auth/access-token` endpoint.
  *
  * Returned by `getAccessToken({ includeFullResponse: true })` and by
- * `mfa.stepUpWithPopup()`. Contains the access token along with scope
+ * `mfa.challengeWithPopup()`. Contains the access token along with scope
  * and expiration metadata.
  */
 export type AccessTokenResponse = {
