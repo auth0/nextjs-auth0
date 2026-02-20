@@ -2,8 +2,6 @@ import { NextRequest } from "next/server.js";
 
 import { InvalidConfigurationError } from "../errors/index.js";
 
-export type AppBaseUrlInput = string | undefined;
-
 const HTTP_PROTOCOLS = new Set(["http:", "https:"]);
 
 function ensureHttpUrl(url: URL, label: string) {
@@ -43,32 +41,6 @@ function getFirstHeaderValue(value: string | null): string | null {
 
   const [first] = value.split(",");
   return first?.trim() || null;
-}
-
-export function normalizeAppBaseUrl(
-  input: AppBaseUrlInput,
-  envValue?: string
-): string | undefined {
-  if (input !== undefined) {
-    if (typeof input !== "string") {
-      throw new InvalidConfigurationError("appBaseUrl must be a URL string.");
-    }
-
-    // A plain string is treated as a static base URL.
-    return normalizeBaseUrlString(input, "appBaseUrl");
-  }
-
-  if (!envValue) {
-    return undefined;
-  }
-
-  const trimmedEnvValue = envValue.trim();
-  if (!trimmedEnvValue) {
-    return undefined;
-  }
-
-  // A single env value is treated as a static base URL.
-  return normalizeBaseUrlString(trimmedEnvValue, "APP_BASE_URL");
 }
 
 export function inferBaseUrlFromRequest(req: NextRequest): string | null {

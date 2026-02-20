@@ -28,7 +28,6 @@ import {
   StartInteractiveLoginOptions,
   User
 } from "../types/index.js";
-import { normalizeAppBaseUrl } from "../utils/app-base-url.js";
 import {
   DEFAULT_MFA_CONTEXT_TTL_SECONDS,
   DEFAULT_SCOPES
@@ -399,7 +398,7 @@ export class Auth0Client {
       domain,
       clientId,
       clientSecret,
-      appBaseUrl: rawAppBaseUrl,
+      appBaseUrl,
       secret,
       clientAssertionSigningKey
     } = this.validateAndExtractRequiredOptions(options);
@@ -457,9 +456,6 @@ export class Auth0Client {
       path: options.transactionCookie?.path ?? basePath ?? "/",
       maxAge: options.transactionCookie?.maxAge ?? 3600
     };
-
-    // Normalize appBaseUrl input to a single static base URL when provided.
-    const appBaseUrl = normalizeAppBaseUrl(rawAppBaseUrl);
 
     if (appBaseUrl) {
       const usesHttps = new URL(appBaseUrl).protocol === "https:";

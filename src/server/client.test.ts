@@ -590,13 +590,13 @@ describe("Auth0Client", () => {
       delete process.env[ENV_VARS.APP_BASE_URL];
     });
 
-    it("should throw when appBaseUrl is configured as an array", () => {
+    it("should throw when appBaseUrl is not a valid URL", () => {
       expect(
         () =>
           new Auth0Client({
-            appBaseUrl: ["https://app.example.com"] as unknown as string
+            appBaseUrl: "not-a-url"
           })
-      ).toThrowError(InvalidConfigurationError);
+      ).toThrowError(TypeError);
     });
 
     it("should force secure cookies when appBaseUrl is a single https string", () => {
@@ -780,7 +780,7 @@ describe("Auth0Client", () => {
       process.env[ENV_VARS.APP_BASE_URL] =
         "https://app.example.com, https://preview.example.com";
 
-      expect(() => new Auth0Client()).toThrowError(InvalidConfigurationError);
+      expect(() => new Auth0Client()).toThrowError(TypeError);
     });
   });
 
