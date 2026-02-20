@@ -227,6 +227,16 @@ export interface Auth0ClientOptions {
   enableAccessTokenEndpoint?: boolean;
 
   /**
+   * Number of seconds to refresh access tokens early when calling `getAccessToken`.
+   * This is a server-side buffer applied to token expiration checks. For example,
+   * with a buffer of 60 seconds, tokens expiring within the next minute will be
+   * refreshed proactively when a refresh token is available.
+   *
+   * Defaults to `0` (no early refresh).
+   */
+  tokenRefreshBuffer?: number;
+
+  /**
    * If true, the profile endpoint will return a 204 No Content response when the user is not authenticated
    * instead of returning a 401 Unauthorized response.
    *
@@ -418,6 +428,20 @@ export class Auth0Client {
       process.env.AUTH0_MFA_TOKEN_TTL
     );
 
+    const tokenRefreshBufferOption = options.tokenRefreshBuffer;
+    if (tokenRefreshBufferOption != null) {
+      if (
+        typeof tokenRefreshBufferOption !== "number" ||
+        !Number.isFinite(tokenRefreshBufferOption) ||
+        tokenRefreshBufferOption < 0
+      ) {
+        throw new TypeError(
+          "tokenRefreshBuffer must be a non-negative number of seconds."
+        );
+      }
+    }
+    const tokenRefreshBuffer = tokenRefreshBufferOption ?? 0;
+
     // Auto-detect base path for cookie configuration
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
 
@@ -527,6 +551,7 @@ export class Auth0Client {
       noContentProfileResponseWhenUnauthenticated:
         options.noContentProfileResponseWhenUnauthenticated,
       enableConnectAccountEndpoint: options.enableConnectAccountEndpoint,
+      tokenRefreshBuffer,
       useDPoP: options.useDPoP || false,
       dpopKeyPair: options.dpopKeyPair || resolvedDpopKeyPair,
       dpopOptions: options.dpopOptions || resolvedDpopOptions,
