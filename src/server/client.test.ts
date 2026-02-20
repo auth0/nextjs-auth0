@@ -1,7 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AccessTokenError, AccessTokenErrorCode } from "../errors/index.js";
+import {
+  AccessTokenError,
+  AccessTokenErrorCode,
+  InvalidConfigurationError
+} from "../errors/index.js";
 import { SessionData } from "../types/index.js";
 import { AuthClient } from "./auth-client.js"; // Import the actual class for spyOn
 import { Auth0Client } from "./client.js";
@@ -13,6 +17,7 @@ const ENV_VARS = {
   CLIENT_SECRET: "AUTH0_CLIENT_SECRET",
   CLIENT_ASSERTION_SIGNING_KEY: "AUTH0_CLIENT_ASSERTION_SIGNING_KEY",
   APP_BASE_URL: "APP_BASE_URL",
+  COOKIE_SECURE: "AUTH0_COOKIE_SECURE",
   SECRET: "AUTH0_SECRET",
   SCOPE: "AUTH0_SCOPE",
   DPOP_PRIVATE_KEY: "AUTH0_DPOP_PRIVATE_KEY",
@@ -32,6 +37,7 @@ describe("Auth0Client", () => {
     delete process.env[ENV_VARS.CLIENT_SECRET];
     delete process.env[ENV_VARS.CLIENT_ASSERTION_SIGNING_KEY];
     delete process.env[ENV_VARS.APP_BASE_URL];
+    delete process.env[ENV_VARS.COOKIE_SECURE];
     delete process.env[ENV_VARS.SECRET];
     delete process.env[ENV_VARS.SCOPE];
     delete process.env[ENV_VARS.DPOP_PRIVATE_KEY];
@@ -40,6 +46,7 @@ describe("Auth0Client", () => {
 
   // Restore env vars after each test
   afterEach(() => {
+    vi.unstubAllEnvs();
     process.env = { ...originalEnv };
     vi.restoreAllMocks(); // Restore mocks created within tests/beforeEach
   });
@@ -435,6 +442,345 @@ describe("Auth0Client", () => {
       const enableParallelTransactions = (transactionStore as any)
         .enableParallelTransactions;
       expect(enableParallelTransactions).toBe(true);
+    });
+  });
+
+  describe("cookie security when appBaseUrl is omitted", () => {
+    beforeEach(() => {
+      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
+      process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
+      process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
+      process.env[ENV_VARS.SECRET] = "test_secret";
+      delete process.env[ENV_VARS.APP_BASE_URL];
+    });
+
+    it("should default session and transaction cookies to secure in production", () => {
+      vi.stubEnv("NODE_ENV", "production");
+      const client = new Auth0Client();
+      const sessionStore = client["sessionStore"] as any;
+      const transactionStore = (client as any).transactionStore;
+
+      expect(sessionStore.cookieConfig.secure).toBe(true);
+      expect(transactionStore.cookieOptions.secure).toBe(true);
+    });
+
+    it("should keep cookies secure when AUTH0_COOKIE_SECURE is explicitly true in production", () => {
+      vi.stubEnv("NODE_ENV", "production");
+      process.env[ENV_VARS.COOKIE_SECURE] = "true";
+      const client = new Auth0Client();
+      const sessionStore = client["sessionStore"] as any;
+      const transactionStore = (client as any).transactionStore;
+
+      expect(sessionStore.cookieConfig.secure).toBe(true);
+      expect(transactionStore.cookieOptions.secure).toBe(true);
+    });
+
+    it("should honor session.cookie.secure over AUTH0_COOKIE_SECURE in production", () => {
+      vi.stubEnv("NODE_ENV", "production");
+      process.env[ENV_VARS.COOKIE_SECURE] = "false";
+      const client = new Auth0Client({
+        session: {
+          cookie: {
+            secure: true
+          }
+        }
+      });
+      const sessionStore = client["sessionStore"] as any;
+      const transactionStore = (client as any).transactionStore;
+
+      expect(sessionStore.cookieConfig.secure).toBe(true);
+      expect(transactionStore.cookieOptions.secure).toBe(true);
+    });
+
+    it("should throw when AUTH0_COOKIE_SECURE is explicitly false in production", () => {
+      vi.stubEnv("NODE_ENV", "production");
+      process.env[ENV_VARS.COOKIE_SECURE] = "false";
+
+      expect(() => new Auth0Client()).toThrowError(InvalidConfigurationError);
+    });
+
+    it("should throw when session.cookie.secure is explicitly false in production", () => {
+      vi.stubEnv("NODE_ENV", "production");
+
+      expect(
+        () =>
+          new Auth0Client({
+            session: {
+              cookie: {
+                secure: false
+              }
+            }
+          })
+      ).toThrowError(InvalidConfigurationError);
+    });
+
+    it("should throw when transactionCookie.secure is explicitly false in production", () => {
+      vi.stubEnv("NODE_ENV", "production");
+      expect(
+        () =>
+          new Auth0Client({
+            transactionCookie: {
+              secure: false
+            }
+          })
+      ).toThrowError(InvalidConfigurationError);
+    });
+
+    it("should honor session.cookie.secure in development", () => {
+      vi.stubEnv("NODE_ENV", "development");
+      const client = new Auth0Client({
+        session: {
+          cookie: {
+            secure: true
+          }
+        },
+        transactionCookie: {
+          secure: true
+        }
+      });
+      const sessionStore = client["sessionStore"] as any;
+      const transactionStore = (client as any).transactionStore;
+
+      expect(sessionStore.cookieConfig.secure).toBe(true);
+      expect(transactionStore.cookieOptions.secure).toBe(true);
+    });
+
+    it("should keep cookies non-secure in development and warn when explicitly insecure", () => {
+      vi.stubEnv("NODE_ENV", "development");
+      process.env[ENV_VARS.COOKIE_SECURE] = "false";
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const client = new Auth0Client();
+      const sessionStore = client["sessionStore"] as any;
+      const transactionStore = (client as any).transactionStore;
+
+      expect(sessionStore.cookieConfig.secure).toBe(false);
+      expect(transactionStore.cookieOptions.secure).toBe(false);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("'appBaseUrl' is not configured")
+      );
+      warnSpy.mockRestore();
+    });
+
+    it("should warn when transactionCookie.secure is explicitly false in development", () => {
+      vi.stubEnv("NODE_ENV", "development");
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const client = new Auth0Client({
+        transactionCookie: {
+          secure: false
+        }
+      });
+      const sessionStore = client["sessionStore"] as any;
+      const transactionStore = (client as any).transactionStore;
+
+      expect(sessionStore.cookieConfig.secure).toBe(false);
+      expect(transactionStore.cookieOptions.secure).toBe(false);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("'appBaseUrl' is not configured")
+      );
+      warnSpy.mockRestore();
+    });
+  });
+
+  describe("cookie security when appBaseUrl is configured via options", () => {
+    beforeEach(() => {
+      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
+      process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
+      process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
+      process.env[ENV_VARS.SECRET] = "test_secret";
+      delete process.env[ENV_VARS.APP_BASE_URL];
+    });
+
+    it("should throw when appBaseUrl is not a valid URL", () => {
+      expect(
+        () =>
+          new Auth0Client({
+            appBaseUrl: "not-a-url"
+          })
+      ).toThrowError(TypeError);
+    });
+
+    it("should force secure cookies when appBaseUrl is a single https string", () => {
+      const client = new Auth0Client({
+        appBaseUrl: "https://app.example.com"
+      });
+      const sessionStore = client["sessionStore"] as any;
+      const transactionStore = (client as any).transactionStore;
+
+      expect(sessionStore.cookieConfig.secure).toBe(true);
+      expect(transactionStore.cookieOptions.secure).toBe(true);
+    });
+
+    it("should not force secure cookies when appBaseUrl is a single http string", () => {
+      const client = new Auth0Client({
+        appBaseUrl: "http://localhost:3000"
+      });
+      const sessionStore = client["sessionStore"] as any;
+      const transactionStore = (client as any).transactionStore;
+
+      expect(sessionStore.cookieConfig.secure).toBe(false);
+      expect(transactionStore.cookieOptions.secure).toBe(false);
+    });
+
+    it("should honor AUTH0_COOKIE_SECURE when appBaseUrl is http", () => {
+      process.env[ENV_VARS.COOKIE_SECURE] = "true";
+      const client = new Auth0Client({
+        appBaseUrl: "http://localhost:3000"
+      });
+      const sessionStore = client["sessionStore"] as any;
+      const transactionStore = (client as any).transactionStore;
+
+      expect(sessionStore.cookieConfig.secure).toBe(true);
+      expect(transactionStore.cookieOptions.secure).toBe(false);
+    });
+
+    it("should honor secure options when appBaseUrl is http", () => {
+      const client = new Auth0Client({
+        appBaseUrl: "http://localhost:3000",
+        session: {
+          cookie: {
+            secure: true
+          }
+        },
+        transactionCookie: {
+          secure: true
+        }
+      });
+      const sessionStore = client["sessionStore"] as any;
+      const transactionStore = (client as any).transactionStore;
+
+      expect(sessionStore.cookieConfig.secure).toBe(true);
+      expect(transactionStore.cookieOptions.secure).toBe(true);
+    });
+
+    it("should prefer session.cookie.secure over AUTH0_COOKIE_SECURE when appBaseUrl is http", () => {
+      process.env[ENV_VARS.COOKIE_SECURE] = "true";
+      const client = new Auth0Client({
+        appBaseUrl: "http://localhost:3000",
+        session: {
+          cookie: {
+            secure: false
+          }
+        }
+      });
+      const sessionStore = client["sessionStore"] as any;
+      const transactionStore = (client as any).transactionStore;
+
+      expect(sessionStore.cookieConfig.secure).toBe(false);
+      expect(transactionStore.cookieOptions.secure).toBe(false);
+    });
+  });
+
+  describe("cookie security when appBaseUrl is configured via APP_BASE_URL", () => {
+    beforeEach(() => {
+      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
+      process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
+      process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
+      process.env[ENV_VARS.SECRET] = "test_secret";
+      delete process.env[ENV_VARS.APP_BASE_URL];
+    });
+
+    it("should force secure cookies when APP_BASE_URL is a single https value", () => {
+      process.env[ENV_VARS.APP_BASE_URL] = "https://app.example.com";
+      const client = new Auth0Client();
+      const sessionStore = client["sessionStore"] as any;
+      const transactionStore = (client as any).transactionStore;
+
+      expect(sessionStore.cookieConfig.secure).toBe(true);
+      expect(transactionStore.cookieOptions.secure).toBe(true);
+    });
+
+    it("should force secure cookies when APP_BASE_URL is https even if options disable secure", () => {
+      process.env[ENV_VARS.APP_BASE_URL] = "https://app.example.com";
+      const client = new Auth0Client({
+        session: {
+          cookie: {
+            secure: false
+          }
+        },
+        transactionCookie: {
+          secure: false
+        }
+      });
+      const sessionStore = client["sessionStore"] as any;
+      const transactionStore = (client as any).transactionStore;
+
+      expect(sessionStore.cookieConfig.secure).toBe(true);
+      expect(transactionStore.cookieOptions.secure).toBe(true);
+    });
+
+    it("should force secure cookies when APP_BASE_URL is https even if AUTH0_COOKIE_SECURE is false", () => {
+      process.env[ENV_VARS.APP_BASE_URL] = "https://app.example.com";
+      process.env[ENV_VARS.COOKIE_SECURE] = "false";
+      const client = new Auth0Client();
+      const sessionStore = client["sessionStore"] as any;
+      const transactionStore = (client as any).transactionStore;
+
+      expect(sessionStore.cookieConfig.secure).toBe(true);
+      expect(transactionStore.cookieOptions.secure).toBe(true);
+    });
+
+    it("should not force secure cookies when APP_BASE_URL is a single http value", () => {
+      process.env[ENV_VARS.APP_BASE_URL] = "http://localhost:3000";
+      const client = new Auth0Client();
+      const sessionStore = client["sessionStore"] as any;
+      const transactionStore = (client as any).transactionStore;
+
+      expect(sessionStore.cookieConfig.secure).toBe(false);
+      expect(transactionStore.cookieOptions.secure).toBe(false);
+    });
+
+    it("should honor AUTH0_COOKIE_SECURE when APP_BASE_URL is http", () => {
+      process.env[ENV_VARS.APP_BASE_URL] = "http://localhost:3000";
+      process.env[ENV_VARS.COOKIE_SECURE] = "true";
+      const client = new Auth0Client();
+      const sessionStore = client["sessionStore"] as any;
+      const transactionStore = (client as any).transactionStore;
+
+      expect(sessionStore.cookieConfig.secure).toBe(true);
+      expect(transactionStore.cookieOptions.secure).toBe(false);
+    });
+
+    it("should honor secure options when APP_BASE_URL is http", () => {
+      process.env[ENV_VARS.APP_BASE_URL] = "http://localhost:3000";
+      const client = new Auth0Client({
+        session: {
+          cookie: {
+            secure: true
+          }
+        },
+        transactionCookie: {
+          secure: true
+        }
+      });
+      const sessionStore = client["sessionStore"] as any;
+      const transactionStore = (client as any).transactionStore;
+
+      expect(sessionStore.cookieConfig.secure).toBe(true);
+      expect(transactionStore.cookieOptions.secure).toBe(true);
+    });
+
+    it("should prefer session.cookie.secure over AUTH0_COOKIE_SECURE when APP_BASE_URL is http", () => {
+      process.env[ENV_VARS.APP_BASE_URL] = "http://localhost:3000";
+      process.env[ENV_VARS.COOKIE_SECURE] = "true";
+      const client = new Auth0Client({
+        session: {
+          cookie: {
+            secure: false
+          }
+        }
+      });
+      const sessionStore = client["sessionStore"] as any;
+      const transactionStore = (client as any).transactionStore;
+
+      expect(sessionStore.cookieConfig.secure).toBe(false);
+      expect(transactionStore.cookieOptions.secure).toBe(false);
+    });
+
+    it("should throw when APP_BASE_URL contains multiple values", () => {
+      process.env[ENV_VARS.APP_BASE_URL] =
+        "https://app.example.com, https://preview.example.com";
+
+      expect(() => new Auth0Client()).toThrowError(TypeError);
     });
   });
 

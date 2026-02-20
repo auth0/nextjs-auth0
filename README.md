@@ -35,7 +35,7 @@ AUTH0_DOMAIN=
 AUTH0_CLIENT_ID=
 AUTH0_CLIENT_SECRET=
 AUTH0_SECRET=
-APP_BASE_URL=
+APP_BASE_URL= # optional for dynamic preview environments
 ```
 
 The `AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, and `AUTH0_CLIENT_SECRET` can be obtained from the [Auth0 Dashboard](https://manage.auth0.com) once you've created an application. **This application must be a `Regular Web Application`**.
@@ -47,12 +47,44 @@ openssl rand -hex 32
 ```
 
 The `APP_BASE_URL` is the URL that your application is running on. When developing locally, this is most commonly `http://localhost:3000`.
+If you omit it, the SDK will infer the base URL from the incoming request host at runtime.
 
 > [!IMPORTANT]  
 > You will need to register the following URLs in your Auth0 Application via the [Auth0 Dashboard](https://manage.auth0.com):
 >
 > - Add `http://localhost:3000/auth/callback` to the list of **Allowed Callback URLs**
 > - Add `http://localhost:3000` to the list of **Allowed Logout URLs**
+>
+> When using dynamic hosts (preview environments), ensure the resulting callback and logout URLs are registered in your Auth0 application.
+
+#### Dynamic base URLs (Preview deployments)
+
+For preview environments (`Vercel`, `Netlify`), you can omit `APP_BASE_URL` and let the SDK infer the base URL from the incoming request host at runtime. This keeps dynamic preview URLs working without extra configuration.
+
+If you know the base URL at startup (for example, a stable production domain), set `appBaseUrl` or `APP_BASE_URL` to a single absolute URL. Comma-separated values are not supported.
+
+Because the Host header is untrusted input, Auth0's Allowed Callback URLs are the safety net in this mode: if the inferred host is not registered, Auth0 rejects the authorize request.
+
+Example (dynamic):
+
+```ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+export const auth0 = new Auth0Client();
+```
+
+Example (static):
+
+```ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+export const auth0 = new Auth0Client({
+  appBaseUrl: "https://app.example.com"
+});
+```
+
+> [!NOTE]  
+> When relying on dynamic base URLs in production, the SDK enforces secure cookies. If you explicitly set `AUTH0_COOKIE_SECURE=false`, `session.cookie.secure=false`, or `transactionCookie.secure=false`, the SDK throws `InvalidConfigurationError`.
 
 ### 3. Create the Auth0 SDK client
 
@@ -173,7 +205,7 @@ You can customize the client by using the options below:
 | authorizationParameters     | `AuthorizationParameters` | The authorization parameters to pass to the `/authorize` endpoint. See [Passing authorization parameters](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#passing-authorization-parameters) for more details.                                                                                                                                                                                                                                                                                                                                                           |
 | clientAssertionSigningKey   | `string` or `CryptoKey`   | Private key for use with `private_key_jwt` clients. This can also be specified via the `AUTH0_CLIENT_ASSERTION_SIGNING_KEY` environment variable.                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | clientAssertionSigningAlg   | `string`                  | The algorithm used to sign the client assertion JWT. This can also be provided via the `AUTH0_CLIENT_ASSERTION_SIGNING_ALG` environment variable.                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| appBaseUrl                  | `string`                  | The URL of your application (e.g.: `http://localhost:3000`). If it's not specified, it will be loaded from the `APP_BASE_URL` environment variable.                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| appBaseUrl                  | `string`                  | The URL of your application (e.g.: `http://localhost:3000`). If it's not specified, it will be loaded from the `APP_BASE_URL` environment variable or inferred from the request host at runtime. |
 | logoutStrategy              | `"auto" \| "oidc" \| "v2"` | Strategy for logout endpoint selection. `"auto"` (default) uses OIDC logout when available, falls back to `/v2/logout`. `"oidc"` always uses OIDC logout. `"v2"` always uses `/v2/logout` endpoint which supports wildcard URLs. See [Configuring logout strategy](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#configuring-logout-strategy) for details. |
 | includeIdTokenHintInOIDCLogoutUrl | `boolean`            | Configure whether to include `id_token_hint` in OIDC logout URLs for privacy. Defaults to `true` (recommended). When `false`, excludes PII from logout URLs but reduces DoS protection. See [OIDC logout privacy configuration](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#oidc-logout-privacy-configuration) for details. |
 | secret                      | `string`                  | A 32-byte, hex-encoded secret used for encrypting cookies. If it's not specified, it will be loaded from the `AUTH0_SECRET` environment variable.                                                                                                                                                                                                                                                                                                                                                                                                                                   |
@@ -388,13 +420,14 @@ The SDK performs validation of required configuration options when initializing 
 
 - `domain` (or `AUTH0_DOMAIN` environment variable)
 - `clientId` (or `AUTH0_CLIENT_ID` environment variable)
-- `appBaseUrl` (or `APP_BASE_URL` environment variable)
 - `secret` (or `AUTH0_SECRET` environment variable)
 - Either:
   - `clientSecret` (or `AUTH0_CLIENT_SECRET` environment variable), OR
   - `clientAssertionSigningKey` (or `AUTH0_CLIENT_ASSERTION_SIGNING_KEY` environment variable)
 
 If any of these required options are missing, the SDK will issue a warning with a detailed message explaining which options are missing and how to provide them.
+
+`appBaseUrl` is optional; if omitted, the SDK will infer it from the request host at runtime.
 
 ## Routes
 
