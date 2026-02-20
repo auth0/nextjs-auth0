@@ -139,8 +139,27 @@ export class StatefulSessionStore extends AbstractSessionStore {
       sessionId = generateId();
     }
 
+    // Track whether the session ID was recovered from an existing cookie or is brand-new.
+    // This is needed for the race-condition guard below.
+    const existingSessionId = !isNew && sessionId !== null ? sessionId : null;
+
     if (!sessionId) {
       sessionId = generateId();
+    }
+
+    // For rolling session updates, verify the session we are about to update still exists
+    // in the store. This prevents a race condition where a concurrent logout deletes the
+    // session while an in-flight request is rolling it: without this check the in-flight
+    // response would re-create the deleted session and leave the user logged in.
+    //
+    // The guard only applies when we found an existing session ID in the request cookie
+    // (existingSessionId !== null). Brand-new sessions (no cookie, or isNew login) bypass
+    // the check because there is nothing in the store to verify against.
+    if (existingSessionId !== null) {
+      const existingSession = await this.store.get(existingSessionId);
+      if (!existingSession) {
+        return;
+      }
     }
 
     const maxAge = this.calculateMaxAge(session.internal.createdAt);
