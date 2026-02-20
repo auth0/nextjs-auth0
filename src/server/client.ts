@@ -28,7 +28,7 @@ import {
   StartInteractiveLoginOptions,
   User
 } from "../types/index.js";
-import { normalizeAppBaseUrlConfig } from "../utils/app-base-url.js";
+import { normalizeAppBaseUrl } from "../utils/app-base-url.js";
 import {
   DEFAULT_MFA_CONTEXT_TTL_SECONDS,
   DEFAULT_SCOPES
@@ -114,11 +114,8 @@ export interface Auth0ClientOptions {
    *
    * If it's not specified, it will be loaded from the `APP_BASE_URL` environment variable.
    * If neither is provided, the SDK will infer it from the request host at runtime.
-   * A single string (including `APP_BASE_URL` without commas) is treated as a static base URL; arrays or comma-separated values enable allow-listing.
-   * If you need to support multiple base URLs and those values are known at startup (for example, via environment variables), we recommend listing all permitted base URLs in appBaseUrl.
-   * This helps ensure the SDK only operates on trusted hosts and avoids redirecting users to Auth0 when the incoming host does not match one of the allowed values.
    */
-  appBaseUrl?: string | string[];
+  appBaseUrl?: string;
   /**
    * A 32-byte, hex-encoded secret used for encrypting cookies.
    *
@@ -402,7 +399,7 @@ export class Auth0Client {
       domain,
       clientId,
       clientSecret,
-      appBaseUrl,
+      appBaseUrl: rawAppBaseUrl,
       secret,
       clientAssertionSigningKey
     } = this.validateAndExtractRequiredOptions(options);
@@ -461,20 +458,14 @@ export class Auth0Client {
       maxAge: options.transactionCookie?.maxAge ?? 3600
     };
 
-    // Normalize appBaseUrl input: string for static, array for allow-list.
-    const appBaseUrlConfig = normalizeAppBaseUrlConfig(appBaseUrl);
+    // Normalize appBaseUrl input to a single static base URL when provided.
+    const appBaseUrl = normalizeAppBaseUrl(rawAppBaseUrl);
 
-    if (appBaseUrlConfig) {
-      const appBaseUrlList =
-        typeof appBaseUrlConfig === "string"
-          ? [appBaseUrlConfig]
-          : appBaseUrlConfig;
-      const hasOnlyHttpsBaseUrls = appBaseUrlList.every(
-        (url) => new URL(url).protocol === "https:"
-      );
+    if (appBaseUrl) {
+      const usesHttps = new URL(appBaseUrl).protocol === "https:";
 
-      // Only enforce secure cookies when every configured base URL is https; if any http is present, keep user-provided secure settings.
-      if (hasOnlyHttpsBaseUrls) {
+      // Only enforce secure cookies when the configured base URL is https.
+      if (usesHttps) {
         sessionCookieOptions.secure = true;
         transactionCookieOptions.secure = true;
       }
@@ -558,7 +549,7 @@ export class Auth0Client {
       authorizationParameters: options.authorizationParameters,
       pushedAuthorizationRequests: options.pushedAuthorizationRequests,
 
-      appBaseUrl: appBaseUrlConfig,
+      appBaseUrl,
       secret,
       signInReturnToPath: options.signInReturnToPath,
       logoutStrategy: options.logoutStrategy,

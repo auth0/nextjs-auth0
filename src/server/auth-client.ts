@@ -233,7 +233,11 @@ export interface AuthClientOptions {
   pushedAuthorizationRequests?: boolean;
 
   secret: string;
-  appBaseUrl?: string | string[];
+  /**
+   * Normalized appBaseUrl. When omitted, the SDK infers the base URL from the request.
+   * If you construct AuthClient directly, normalize the value first.
+   */
+  appBaseUrl?: string;
   signInReturnToPath?: string;
   logoutStrategy?: LogoutStrategy;
   includeIdTokenHintInOIDCLogoutUrl?: boolean;
@@ -292,8 +296,8 @@ export class AuthClient {
   private authorizationParameters: AuthorizationParameters;
   private pushedAuthorizationRequests: boolean;
 
-  // Normalized appBaseUrl configuration: string for static, array for allow-list.
-  private appBaseUrl?: string | string[];
+  // Normalized appBaseUrl for this client instance.
+  private appBaseUrl?: string;
   private signInReturnToPath: string;
   private logoutStrategy: LogoutStrategy;
   private includeIdTokenHintInOIDCLogoutUrl: boolean;
@@ -1640,13 +1644,7 @@ export class AuthClient {
       });
     }
 
-    const appBaseUrl =
-      ctx.appBaseUrl ||
-      (typeof this.appBaseUrl === "string"
-        ? this.appBaseUrl
-        : this.appBaseUrl?.length === 1
-          ? this.appBaseUrl[0]
-          : undefined);
+    const appBaseUrl = ctx.appBaseUrl || this.appBaseUrl;
 
     if (!appBaseUrl) {
       throw new InvalidConfigurationError(

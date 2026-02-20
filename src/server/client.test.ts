@@ -590,45 +590,13 @@ describe("Auth0Client", () => {
       delete process.env[ENV_VARS.APP_BASE_URL];
     });
 
-    it("should force secure cookies when all appBaseUrls are https", () => {
-      const client = new Auth0Client({
-        appBaseUrl: ["https://app.example.com", "https://preview.example.com"]
-      });
-      const sessionStore = client["sessionStore"] as any;
-      const transactionStore = (client as any).transactionStore;
-
-      expect(sessionStore.cookieConfig.secure).toBe(true);
-      expect(transactionStore.cookieOptions.secure).toBe(true);
-    });
-
-    it("should force secure cookies when all appBaseUrls are https even if options disable secure", () => {
-      const client = new Auth0Client({
-        appBaseUrl: ["https://app.example.com", "https://preview.example.com"],
-        session: {
-          cookie: {
-            secure: false
-          }
-        },
-        transactionCookie: {
-          secure: false
-        }
-      });
-      const sessionStore = client["sessionStore"] as any;
-      const transactionStore = (client as any).transactionStore;
-
-      expect(sessionStore.cookieConfig.secure).toBe(true);
-      expect(transactionStore.cookieOptions.secure).toBe(true);
-    });
-
-    it("should not force secure cookies when appBaseUrls include http", () => {
-      const client = new Auth0Client({
-        appBaseUrl: ["https://app.example.com", "http://localhost:3000"]
-      });
-      const sessionStore = client["sessionStore"] as any;
-      const transactionStore = (client as any).transactionStore;
-
-      expect(sessionStore.cookieConfig.secure).toBe(false);
-      expect(transactionStore.cookieOptions.secure).toBe(false);
+    it("should throw when appBaseUrl is configured as an array", () => {
+      expect(
+        () =>
+          new Auth0Client({
+            appBaseUrl: ["https://app.example.com"] as unknown as string
+          })
+      ).toThrowError(InvalidConfigurationError);
     });
 
     it("should force secure cookies when appBaseUrl is a single https string", () => {
@@ -808,26 +776,11 @@ describe("Auth0Client", () => {
       expect(transactionStore.cookieOptions.secure).toBe(false);
     });
 
-    it("should force secure cookies when APP_BASE_URL is a https allow list", () => {
+    it("should throw when APP_BASE_URL contains multiple values", () => {
       process.env[ENV_VARS.APP_BASE_URL] =
         "https://app.example.com, https://preview.example.com";
-      const client = new Auth0Client();
-      const sessionStore = client["sessionStore"] as any;
-      const transactionStore = (client as any).transactionStore;
 
-      expect(sessionStore.cookieConfig.secure).toBe(true);
-      expect(transactionStore.cookieOptions.secure).toBe(true);
-    });
-
-    it("should not force secure cookies when APP_BASE_URL allow list includes http", () => {
-      process.env[ENV_VARS.APP_BASE_URL] =
-        "https://app.example.com, http://localhost:3000";
-      const client = new Auth0Client();
-      const sessionStore = client["sessionStore"] as any;
-      const transactionStore = (client as any).transactionStore;
-
-      expect(sessionStore.cookieConfig.secure).toBe(false);
-      expect(transactionStore.cookieOptions.secure).toBe(false);
+      expect(() => new Auth0Client()).toThrowError(InvalidConfigurationError);
     });
   });
 

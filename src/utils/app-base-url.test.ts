@@ -4,124 +4,96 @@ import { describe, expect, it } from "vitest";
 import { InvalidConfigurationError } from "../errors/index.js";
 import {
   inferBaseUrlFromRequest,
-  matchAppBaseUrlForRequest,
-  normalizeAppBaseUrlConfig,
+  normalizeAppBaseUrl,
   resolveAppBaseUrl
 } from "./app-base-url.js";
 
-describe("normalizeAppBaseUrlConfig", () => {
+describe("normalizeAppBaseUrl", () => {
   it("should return undefined when neither appBaseUrl nor APP_BASE_URL is provided", () => {
-    expect(normalizeAppBaseUrlConfig(undefined, undefined)).toBeUndefined();
+    expect(normalizeAppBaseUrl(undefined, undefined)).toBeUndefined();
   });
 
   it("should prefer appBaseUrl input over APP_BASE_URL env", () => {
     expect(
-      normalizeAppBaseUrlConfig(
+      normalizeAppBaseUrl(
         "https://input.example.com",
         "https://env.example.com"
       )
     ).toEqual("https://input.example.com");
   });
 
-  it("should strip query/hash and trailing slash from a single appBaseUrl input", () => {
-    expect(
-      normalizeAppBaseUrlConfig("https://example.com/base/?a=1#hash")
-    ).toEqual("https://example.com/base");
-  });
-
-  it("should split comma-separated appBaseUrl input and normalize each entry", () => {
-    expect(
-      normalizeAppBaseUrlConfig(
-        " https://a.example.com/ , http://b.example.com/base/?x=1#y "
-      )
-    ).toEqual(["https://a.example.com", "http://b.example.com/base"]);
-  });
-
-  it("should treat comma-separated appBaseUrl input with a single entry as an allow list", () => {
-    expect(normalizeAppBaseUrlConfig("https://app.example.com,")).toEqual([
-      "https://app.example.com"
-    ]);
-  });
-
-  it("should ignore non-string or blank entries in appBaseUrl array input", () => {
-    const input = [
-      "https://a.example.com",
-      123 as unknown as string,
-      "  ",
-      "http://b.example.com/"
-    ];
-    expect(normalizeAppBaseUrlConfig(input)).toEqual([
-      "https://a.example.com",
-      "http://b.example.com"
-    ]);
-  });
-
-  it("should return undefined when appBaseUrl array contains no usable entries", () => {
-    const input = ["   ", ""];
-    expect(normalizeAppBaseUrlConfig(input)).toBeUndefined();
+  it("should preserve query/hash and trailing slash in a single appBaseUrl input", () => {
+    expect(normalizeAppBaseUrl("https://example.com/base/?a=1#hash")).toEqual(
+      "https://example.com/base/?a=1#hash"
+    );
   });
 
   it("should throw InvalidConfigurationError for blank appBaseUrl input", () => {
-    expect(() => normalizeAppBaseUrlConfig("   ")).toThrowError(
+    expect(() => normalizeAppBaseUrl("   ")).toThrowError(
       InvalidConfigurationError
     );
-    expect(() => normalizeAppBaseUrlConfig("   ")).toThrowError(
+    expect(() => normalizeAppBaseUrl("   ")).toThrowError(
       "appBaseUrl must be a non-empty URL."
     );
   });
 
-  it("should ignore non-string appBaseUrl input types", () => {
-    expect(normalizeAppBaseUrlConfig(123 as unknown as string)).toBeUndefined();
+  it("should throw InvalidConfigurationError for non-string appBaseUrl input types", () => {
+    expect(() => normalizeAppBaseUrl(123 as unknown as string)).toThrowError(
+      InvalidConfigurationError
+    );
+    expect(() => normalizeAppBaseUrl(123 as unknown as string)).toThrowError(
+      "appBaseUrl must be a URL string."
+    );
   });
 
   it("should throw InvalidConfigurationError for non-absolute appBaseUrl input", () => {
-    expect(() => normalizeAppBaseUrlConfig("not-a-url")).toThrowError(
+    expect(() => normalizeAppBaseUrl("not-a-url")).toThrowError(
       InvalidConfigurationError
     );
-    expect(() => normalizeAppBaseUrlConfig("not-a-url")).toThrowError(
+    expect(() => normalizeAppBaseUrl("not-a-url")).toThrowError(
       "appBaseUrl must be an absolute URL."
     );
   });
 
-  it("should throw InvalidConfigurationError for non-http(s) appBaseUrl input", () => {
-    expect(() => normalizeAppBaseUrlConfig("ftp://example.com")).toThrowError(
-      InvalidConfigurationError
+  it("should accept non-http(s) appBaseUrl input values as-is", () => {
+    expect(normalizeAppBaseUrl("ftp://example.com")).toEqual(
+      "ftp://example.com"
     );
-    expect(() => normalizeAppBaseUrlConfig("ftp://example.com")).toThrowError(
-      "appBaseUrl must use http or https."
-    );
-  });
-
-  it("should parse and normalize comma-separated APP_BASE_URL allow lists", () => {
-    expect(
-      normalizeAppBaseUrlConfig(
-        undefined,
-        "https://a.example.com, http://b.example.com/"
-      )
-    ).toEqual(["https://a.example.com", "http://b.example.com"]);
   });
 
   it("should treat a single APP_BASE_URL value as a static base URL", () => {
-    expect(
-      normalizeAppBaseUrlConfig(undefined, "https://env.example.com/")
-    ).toEqual("https://env.example.com");
+    expect(normalizeAppBaseUrl(undefined, "https://env.example.com/")).toEqual(
+      "https://env.example.com/"
+    );
   });
 
   it("should return undefined when APP_BASE_URL env is blank", () => {
-    expect(normalizeAppBaseUrlConfig(undefined, " , ")).toBeUndefined();
+    expect(normalizeAppBaseUrl(undefined, "")).toBeUndefined();
   });
 
   it("should return undefined when APP_BASE_URL env is only whitespace", () => {
-    expect(normalizeAppBaseUrlConfig(undefined, "   ")).toBeUndefined();
+    expect(normalizeAppBaseUrl(undefined, "   ")).toBeUndefined();
   });
 
-  it("should include APP_BASE_URL in error messages for invalid env values", () => {
+  it("should accept non-http APP_BASE_URL values as-is", () => {
+    expect(normalizeAppBaseUrl(undefined, "mailto:ops@example.com")).toEqual(
+      "mailto:ops@example.com"
+    );
+  });
+
+  it("should throw when APP_BASE_URL contains multiple values", () => {
     expect(() =>
-      normalizeAppBaseUrlConfig(undefined, "mailto:ops@example.com")
+      normalizeAppBaseUrl(
+        undefined,
+        "https://a.example.com, https://b.example.com"
+      )
     ).toThrowError(InvalidConfigurationError);
     expect(() =>
-      normalizeAppBaseUrlConfig(undefined, "mailto:ops@example.com")
-    ).toThrowError("APP_BASE_URL must use http or https.");
+      normalizeAppBaseUrl(
+        undefined,
+        "https://a.example.com, https://b.example.com"
+      )
+    ).toThrowError("APP_BASE_URL must be an absolute URL.");
   });
 });
 
@@ -211,99 +183,25 @@ describe("inferBaseUrlFromRequest", () => {
 
     expect(inferBaseUrlFromRequest(req)).toBeNull();
   });
-});
 
-describe("matchAppBaseUrlForRequest", () => {
-  it("should return undefined when the origin does not match", () => {
-    expect(
-      matchAppBaseUrlForRequest(
-        ["https://app.example.com"],
-        "https://preview.example.com"
-      )
-    ).toBeUndefined();
-  });
+  it("should return null when inferred protocol is not http(s)", () => {
+    const req = new NextRequest(new URL("http://internal.local/path"), {
+      headers: {
+        "x-forwarded-host": "preview.example.com",
+        "x-forwarded-proto": "ftp"
+      }
+    });
 
-  it("should match root allow-list entries for any request path", () => {
-    expect(
-      matchAppBaseUrlForRequest(
-        ["https://app.example.com"],
-        "https://app.example.com",
-        "/any/path"
-      )
-    ).toBe("https://app.example.com");
-  });
-
-  it("should require the request path to match a scoped allow-list entry", () => {
-    expect(
-      matchAppBaseUrlForRequest(
-        ["https://app.example.com/app"],
-        "https://app.example.com",
-        "/other"
-      )
-    ).toBeUndefined();
-  });
-
-  it("should prefer the most specific matching allow-list entry", () => {
-    expect(
-      matchAppBaseUrlForRequest(
-        ["https://app.example.com", "https://app.example.com/app"],
-        "https://app.example.com",
-        "/app/settings"
-      )
-    ).toBe("https://app.example.com/app");
+    expect(inferBaseUrlFromRequest(req)).toBeNull();
   });
 });
 
 describe("resolveAppBaseUrl", () => {
-  it("should return the static appBaseUrl when configured as a single string", () => {
+  it("should return the static appBaseUrl when configured", () => {
     const req = new NextRequest(new URL("https://ignored.example.com"));
     expect(resolveAppBaseUrl("https://static.example.com", req)).toBe(
       "https://static.example.com"
     );
-  });
-
-  it("should resolve a single allow-list entry without a request", () => {
-    expect(resolveAppBaseUrl(["https://preview.example.com"])).toBe(
-      "https://preview.example.com"
-    );
-  });
-
-  it("should throw when multiple allow-list entries exist and no request is provided", () => {
-    expect(() =>
-      resolveAppBaseUrl([
-        "https://preview.example.com",
-        "https://prod.example.com"
-      ])
-    ).toThrowError(InvalidConfigurationError);
-  });
-
-  it("should resolve the most specific allow-list entry for a request", () => {
-    const req = new NextRequest(
-      new URL("https://app.example.com/app/settings")
-    );
-    expect(
-      resolveAppBaseUrl(
-        ["https://app.example.com", "https://app.example.com/app"],
-        req
-      )
-    ).toBe("https://app.example.com/app");
-  });
-
-  it("should throw when the request does not match the allow list", () => {
-    const req = new NextRequest(new URL("https://app.example.com/other"));
-    expect(() =>
-      resolveAppBaseUrl(["https://app.example.com/app"], req)
-    ).toThrowError(InvalidConfigurationError);
-  });
-
-  it("should throw when allow-list resolution cannot infer the request host", () => {
-    const req = {
-      headers: new Headers()
-    } as unknown as NextRequest;
-
-    expect(() =>
-      resolveAppBaseUrl(["https://preview.example.com"], req)
-    ).toThrowError(InvalidConfigurationError);
   });
 
   it("should infer the base URL from the request when no appBaseUrl is configured", () => {

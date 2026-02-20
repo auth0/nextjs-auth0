@@ -2819,9 +2819,9 @@ NEXT_PUBLIC_ACCESS_TOKEN_ROUTE=/api/auth/token
 
 ## Dynamic Application Base URLs
 
-By default the SDK uses `appBaseUrl`/`APP_BASE_URL`. If it is omitted, the base URL is inferred at runtime from the request host.
+By default the SDK uses `appBaseUrl`/`APP_BASE_URL`. If it is omitted, the base URL is inferred at runtime from the request host. `APP_BASE_URL` must be a single absolute URL (comma-separated values are not supported).
 
-### Host-based inference (zero-config)
+### Host-based inference
 
 Omit `APP_BASE_URL` to let the SDK infer the base URL from the incoming request:
 
@@ -2834,32 +2834,17 @@ AUTH0_SECRET=
 # APP_BASE_URL omitted
 ```
 
-### Allow-listing hosts
-
-To restrict which hosts are accepted, pass an allow list (or use a comma-separated `APP_BASE_URL`):
+### Static base URL
 
 ```ts
 import { Auth0Client } from "@auth0/nextjs-auth0/server";
 
-const appBaseUrls = [
-  "https://app.example.com",
-  process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined
-].filter((value): value is string => Boolean(value));
-
 export const auth0 = new Auth0Client({
-  appBaseUrl: appBaseUrls
+  appBaseUrl: "https://app.example.com"
 });
 ```
 
-If the request host does not match the allow list, the SDK throws `InvalidConfigurationError`.
-
-Static vs allow-list behavior:
-
-- `appBaseUrl: "https://app.example.com/app"` is treated as a fixed base URL and is used directly.
-- `appBaseUrl: ["https://app.example.com/app"]` is treated as an allow list; the request host/path must match or the SDK throws.
-- `APP_BASE_URL=https://app.example.com/app` (single value, no commas) behaves like the static string above. Use commas to enable allow-list behavior from env.
-
-Example: a request to `https://app.example.com/other` is rejected when the allow list is `["https://app.example.com/app"]`.
+Because the Host header is untrusted input, Auth0's Allowed Callback URLs gate this flow: if the inferred host is not registered, Auth0 rejects the authorize request. Ensure your preview hosts are registered in Auth0.
 
 > [!NOTE]  
 > When relying on dynamic base URLs in production, the SDK enforces secure cookies. If you explicitly set `AUTH0_COOKIE_SECURE=false`, `session.cookie.secure=false`, or `transactionCookie.secure=false`, the SDK throws `InvalidConfigurationError`.
