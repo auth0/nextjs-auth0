@@ -1,5 +1,14 @@
 # Change Log
 
+## [v4.16.0-beta.0](https://github.com/auth0/nextjs-auth0/tree/v4.16.0-beta.0) (2026-02-20)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.15.0...v4.16.0-beta.0)
+
+**Added**
+- feat: Add dynamic app base URL handling [\#2528](https://github.com/auth0/nextjs-auth0/pull/2528) ([nandan-bhat](https://github.com/nandan-bhat))
+
+**Fixed**
+- fix: do not strip falsey values from authorization params [\#2526](https://github.com/auth0/nextjs-auth0/pull/2526) ([frederikprijck](https://github.com/frederikprijck))
+
 ## [v4.15.0](https://github.com/auth0/nextjs-auth0/tree/v4.15.0) (2026-02-09)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.14.1...v4.15.0)
 
