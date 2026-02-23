@@ -131,4 +131,62 @@ describe("resolveAppBaseUrl", () => {
       InvalidConfigurationError
     );
   });
+
+  it("should match request origin against an array of allowed URLs", () => {
+    const req = new NextRequest(
+      new URL("https://app2.example.com/some/path")
+    );
+    expect(
+      resolveAppBaseUrl(
+        ["https://app1.example.com", "https://app2.example.com", "https://app3.example.com"],
+        req
+      )
+    ).toBe("https://app2.example.com");
+  });
+
+  it("should match request origin against an array with different ports", () => {
+    const req = new NextRequest(
+      new URL("http://localhost:3001/auth/login")
+    );
+    expect(
+      resolveAppBaseUrl(
+        ["http://localhost:3000", "http://localhost:3001", "http://localhost:3002"],
+        req
+      )
+    ).toBe("http://localhost:3001");
+  });
+
+  it("should match Vercel preview URLs from an array", () => {
+    const req = new NextRequest(
+      new URL("https://myapp-pr-123.vercel.app/auth/login")
+    );
+    expect(
+      resolveAppBaseUrl(
+        [
+          "https://myapp.vercel.app",
+          "https://myapp-git-feature.vercel.app",
+          "https://myapp-pr-123.vercel.app"
+        ],
+        req
+      )
+    ).toBe("https://myapp-pr-123.vercel.app");
+  });
+
+  it("should throw when request origin does not match any URL in the array", () => {
+    const req = new NextRequest(
+      new URL("https://unknown.example.com/path")
+    );
+    expect(() =>
+      resolveAppBaseUrl(
+        ["https://app1.example.com", "https://app2.example.com"],
+        req
+      )
+    ).toThrowError(InvalidConfigurationError);
+  });
+
+  it("should throw when an array is provided but no request context is available", () => {
+    expect(() =>
+      resolveAppBaseUrl(["https://app1.example.com", "https://app2.example.com"])
+    ).toThrowError(InvalidConfigurationError);
+  });
 });

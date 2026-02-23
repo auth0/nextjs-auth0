@@ -69,24 +69,52 @@ export function inferBaseUrlFromRequest(req: NextRequest): string | null {
 }
 
 export function resolveAppBaseUrl(
-  appBaseUrl: string | undefined,
+  appBaseUrl: string | string[] | undefined,
   req?: NextRequest
 ): string {
-  if (appBaseUrl) {
-    // Use the configured base URL as-is.
-    return appBaseUrl;
+  const staticAppBaseUrl =
+    typeof appBaseUrl === "string" ? appBaseUrl : undefined;
+  const allowedAppBaseUrls =
+    typeof appBaseUrl === "string" ? undefined : appBaseUrl;
+
+  if (staticAppBaseUrl) {
+    return staticAppBaseUrl;
   }
 
-  if (req) {
-    // No configured appBaseUrl: infer from request headers as a dynamic base URL fallback.
-    // In this case, Auth0 Allowed Callback URLs provide the primary host safeguard.
-    const inferred = inferBaseUrlFromRequest(req);
-    if (inferred) {
-      return inferred;
+  // If we do not have a request, we can not resolve the base URL.
+  if (!req) {
+    throw new InvalidConfigurationError(
+      "APP_BASE_URL is not configured as a static string, and a request context is not available."
+    );
+  }
+
+  // Resolve the request origin, then validate it against the allow list.
+  const inferred = inferBaseUrlFromRequest(req);
+  if (!inferred) {
+    throw new InvalidConfigurationError(
+      "APP_BASE_URL is not configured as a static string, and the request origin could not be determined from the request context. "
+    );
+  }
+
+  if (!allowedAppBaseUrls) {
+    return inferred;
+  }
+
+  const requestOrigin = new URL(inferred).origin;
+
+  const isRequestOriginAllowed = allowedAppBaseUrls.some((allowedUrl) => {
+    try {
+      return new URL(allowedUrl).origin === requestOrigin;
+    } catch {
+      return false;
     }
+  });
+
+  if (isRequestOriginAllowed) {
+    return requestOrigin;
   }
 
   throw new InvalidConfigurationError(
-    "appBaseUrl could not be resolved. Set appBaseUrl/APP_BASE_URL or ensure the request host is available."
+    `APP_BASE_URL is not configured as a static string, and the APP_BASE_URL configuration does not contain a match for the current request origin.`
   );
 }
