@@ -416,16 +416,20 @@ export class AuthClient {
     // application
     if (Array.isArray(options.appBaseUrl)) {
       if (options.appBaseUrl.length === 0) {
-        throw new ConfigurationError("APP_BASE_URL array configuration cannot be empty.");
+        throw new ConfigurationError(
+          "APP_BASE_URL array configuration cannot be empty."
+        );
       }
-      const invalidUrls = options.appBaseUrl.filter((url) => isUrl(url) === false);
+      const invalidUrls = options.appBaseUrl.filter(
+        (url) => isUrl(url) === false
+      );
       if (invalidUrls.length > 0) {
         throw new ConfigurationError(
           `APP_BASE_URL array contains invalid URLs: ${invalidUrls.join(", ")}`
         );
       }
     }
-    
+
     this.appBaseUrl = options.appBaseUrl;
     this.signInReturnToPath = options.signInReturnToPath || "/";
 

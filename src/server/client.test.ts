@@ -776,11 +776,17 @@ describe("Auth0Client", () => {
       expect(transactionStore.cookieOptions.secure).toBe(false);
     });
 
-    it("should throw when APP_BASE_URL contains multiple values", () => {
+    it("should parse a comma-separated APP_BASE_URL into an array", () => {
       process.env[ENV_VARS.APP_BASE_URL] =
-        "https://app.example.com, https://preview.example.com";
+        "https://app.example.com, https://myapp.vercel.app";
 
-      expect(() => new Auth0Client()).toThrowError(TypeError);
+      const client = new Auth0Client();
+      const sessionStore = client["sessionStore"] as any;
+      const transactionStore = (client as any).transactionStore;
+
+      // Both origins are HTTPS so secure cookies must be forced
+      expect(sessionStore.cookieConfig.secure).toBe(true);
+      expect(transactionStore.cookieOptions.secure).toBe(true);
     });
   });
 

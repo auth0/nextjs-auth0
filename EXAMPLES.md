@@ -2829,7 +2829,7 @@ The SDK determines the application base URL in one of three ways, listed here fr
 
 Some platforms assign more than one URL to the same deployment. For example, a Vercel app is reachable via both its custom domain and the platform-assigned `*.vercel.app` URL. Similarly, an application behind a load balancer may be reachable by IP address and by hostname.
 
-In these cases, set `APP_BASE_URL` to an array of all valid origins for that environment. The SDK matches the incoming request origin against the list and rejects any host not in it.
+In these cases, set `APP_BASE_URL` to a comma-separated list of all valid origins for that environment. The SDK matches the incoming request origin against the list and rejects any host not in it.
 
 ```env
 # .env.local
@@ -2837,7 +2837,7 @@ AUTH0_DOMAIN=
 AUTH0_CLIENT_ID=
 AUTH0_CLIENT_SECRET=
 AUTH0_SECRET=
-APP_BASE_URL=["https://app.example.com","https://myapp.vercel.app"]
+APP_BASE_URL=https://app.example.com,https://myapp.vercel.app
 ```
 
 Or in code:

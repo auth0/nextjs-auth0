@@ -133,24 +133,28 @@ describe("resolveAppBaseUrl", () => {
   });
 
   it("should match request origin against an array of allowed URLs", () => {
-    const req = new NextRequest(
-      new URL("https://app2.example.com/some/path")
-    );
+    const req = new NextRequest(new URL("https://app2.example.com/some/path"));
     expect(
       resolveAppBaseUrl(
-        ["https://app1.example.com", "https://app2.example.com", "https://app3.example.com"],
+        [
+          "https://app1.example.com",
+          "https://app2.example.com",
+          "https://app3.example.com"
+        ],
         req
       )
     ).toBe("https://app2.example.com");
   });
 
   it("should match request origin against an array with different ports", () => {
-    const req = new NextRequest(
-      new URL("http://localhost:3001/auth/login")
-    );
+    const req = new NextRequest(new URL("http://localhost:3001/auth/login"));
     expect(
       resolveAppBaseUrl(
-        ["http://localhost:3000", "http://localhost:3001", "http://localhost:3002"],
+        [
+          "http://localhost:3000",
+          "http://localhost:3001",
+          "http://localhost:3002"
+        ],
         req
       )
     ).toBe("http://localhost:3001");
@@ -173,9 +177,7 @@ describe("resolveAppBaseUrl", () => {
   });
 
   it("should throw when request origin does not match any URL in the array", () => {
-    const req = new NextRequest(
-      new URL("https://unknown.example.com/path")
-    );
+    const req = new NextRequest(new URL("https://unknown.example.com/path"));
     expect(() =>
       resolveAppBaseUrl(
         ["https://app1.example.com", "https://app2.example.com"],
@@ -186,7 +188,10 @@ describe("resolveAppBaseUrl", () => {
 
   it("should throw when an array is provided but no request context is available", () => {
     expect(() =>
-      resolveAppBaseUrl(["https://app1.example.com", "https://app2.example.com"])
+      resolveAppBaseUrl([
+        "https://app1.example.com",
+        "https://app2.example.com"
+      ])
     ).toThrowError(InvalidConfigurationError);
   });
 });
