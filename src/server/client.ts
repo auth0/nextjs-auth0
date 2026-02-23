@@ -1323,7 +1323,9 @@ export class Auth0Client {
     };
 
     const envAppBaseUrl = process.env.APP_BASE_URL?.includes(",")
-      ? process.env.APP_BASE_URL.split(",").map((u) => u.trim()).filter(Boolean)
+      ? process.env.APP_BASE_URL.split(",")
+          .map((u) => u.trim())
+          .filter(Boolean)
       : process.env.APP_BASE_URL;
     const appBaseUrl = options.appBaseUrl ?? envAppBaseUrl;
 

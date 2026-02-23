@@ -16,9 +16,6 @@ function normalizeBaseUrlString(
   requireHttp = false
 ): string {
   const trimmed = value.trim();
-  if (!trimmed) {
-    throw new InvalidConfigurationError(`${label} must be a non-empty URL.`);
-  }
 
   let url: URL;
   try {

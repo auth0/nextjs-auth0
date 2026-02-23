@@ -194,4 +194,13 @@ describe("resolveAppBaseUrl", () => {
       ])
     ).toThrowError(InvalidConfigurationError);
   });
+
+  it("should treat an invalid entry in the allow list as non-matching", () => {
+    const req = new NextRequest(new URL("https://app1.example.com/path"));
+    // "not-a-url" is unparseable; the catch branch skips it and the valid
+    // entry still matches.
+    expect(
+      resolveAppBaseUrl(["not-a-url", "https://app1.example.com"], req)
+    ).toBe("https://app1.example.com");
+  });
 });
