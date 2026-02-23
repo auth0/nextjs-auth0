@@ -16,7 +16,6 @@ import {
   BackchannelAuthenticationError,
   BackchannelAuthenticationNotSupportedError,
   BackchannelLogoutError,
-  ConfigurationError,
   ConnectAccountError,
   ConnectAccountErrorCodes,
   CustomTokenExchangeError,
@@ -416,7 +415,7 @@ export class AuthClient {
     // application
     if (Array.isArray(options.appBaseUrl)) {
       if (options.appBaseUrl.length === 0) {
-        throw new ConfigurationError(
+        throw new InvalidConfigurationError(
           "APP_BASE_URL array configuration cannot be empty."
         );
       }
@@ -424,7 +423,7 @@ export class AuthClient {
         (url) => isUrl(url) === false
       );
       if (invalidUrls.length > 0) {
-        throw new ConfigurationError(
+        throw new InvalidConfigurationError(
           `APP_BASE_URL array contains invalid URLs: ${invalidUrls.join(", ")}`
         );
       }

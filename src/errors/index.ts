@@ -1,4 +1,4 @@
-export { SdkError, ConfigurationError } from "./sdk-error.js";
+export { SdkError } from "./sdk-error.js";
 
 export {
   OAuth2Error,
