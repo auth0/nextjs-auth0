@@ -22,7 +22,7 @@ importers:
         version: 3.8.5
       openid-client:
         specifier: ^6.8.0
-        version: 6.8.1
+        version: 6.8.2
       react:
         specifier: ^18.0.0 || ~19.0.1 ||  ~19.1.2 || ^19.2.1
         version: 19.2.1
@@ -1922,8 +1922,8 @@ packages:
     resolution: {integrity: sha512-gXah6aZrcUxjWg2zR2MwouP2eHlCBzdV4pygudehaKXSGW4v2AsRQUK+lwwXhii6KFZcunEnmSUoYp5CXibxtA==}
     engines: {node: '>= 0.4'}
 
-  openid-client@6.8.1:
-    resolution: {integrity: sha512-VoYT6enBo6Vj2j3Q5Ec0AezS+9YGzQo1f5Xc42lreMGlfP4ljiXPKVDvCADh+XHCV/bqPu/wWSiCVXbJKvrODw==}
+  openid-client@6.8.2:
+    resolution: {integrity: sha512-uOvTCndr4udZsKihJ68H9bUICrriHdUVJ6Az+4Ns6cW55rwM5h0bjVIzDz2SxgOI84LKjFyjOFvERLzdTUROGA==}
 
   optionator@0.9.4:
     resolution: {integrity: sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g==}
@@ -4474,7 +4474,7 @@ snapshots:
       define-properties: 1.2.1
       es-object-atoms: 1.1.1
 
-  openid-client@6.8.1:
+  openid-client@6.8.2:
     dependencies:
       jose: 6.1.3
       oauth4webapi: 3.8.5
