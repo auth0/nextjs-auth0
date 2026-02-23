@@ -112,6 +112,7 @@
 - [ID Token claims and the user object](#id-token-claims-and-the-user-object)
 - [Routes](#routes)
   - [Custom routes](#custom-routes)
+- [Dynamic Application Base URLs](#dynamic-application-base-urls)
 - [Testing helpers](#testing-helpers)
   - [`generateSessionCookie`](#generatesessioncookie)
 - [Programmatically starting interactive login](#programmatically-starting-interactive-login)
@@ -2385,16 +2386,18 @@ For example, a custom `onCallback` hook may be specified like so:
 ```ts
 export const auth0 = new Auth0Client({
   async onCallback(error, context, session) {
+    const appBaseUrl = context.appBaseUrl ?? process.env.APP_BASE_URL;
+
     // redirect the user to a custom error page
     if (error) {
       return NextResponse.redirect(
-        new URL(`/error?error=${error.message}`, process.env.APP_BASE_URL)
+        new URL(`/error?error=${error.message}`, appBaseUrl)
       );
     }
 
     // complete the redirect to the provided returnTo URL
     return NextResponse.redirect(
-      new URL(context.returnTo || "/", process.env.APP_BASE_URL)
+      new URL(context.returnTo || "/", appBaseUrl)
     );
   }
 });
@@ -2471,7 +2474,7 @@ Set the desired environment variables in your `.env.local` file or your deployme
 AUTH0_COOKIE_DOMAIN='.example.com' # Set cookie for subdomains
 AUTH0_COOKIE_PATH='/app'          # Limit cookie to /app path
 AUTH0_COOKIE_TRANSIENT=true       # Make cookie transient (session-only)
-AUTH0_COOKIE_SECURE=true          # Recommended for production
+AUTH0_COOKIE_SECURE=true          # Recommended for production; enforced when appBaseUrl is omitted
 AUTH0_COOKIE_SAME_SITE='Lax'
 ```
 
@@ -2506,7 +2509,7 @@ export const auth0 = new Auth0Client({
 - `domain` (String): Specifies the `Domain` attribute.
 - `path` (String): Specifies the `Path` attribute. Defaults to `/`.
 - `transient` (Boolean): If `true`, the `maxAge` attribute is omitted, making it a session cookie. Defaults to `false`.
-- `secure` (Boolean): Specifies the `Secure` attribute. Defaults to `false` (or `true` if `AUTH0_COOKIE_SECURE=true` is set).
+- `secure` (Boolean): Specifies the `Secure` attribute. Defaults to `false` (or `true` if `AUTH0_COOKIE_SECURE=true` is set, or when `appBaseUrl` is omitted in production).
 - `sameSite` ('Lax' | 'Strict' | 'None'): Specifies the `SameSite` attribute. Defaults to `Lax` (or the value of `AUTH0_COOKIE_SAME_SITE`).
 - `name` (String): The name of the session cookie. Defaults to `__session`.
 
@@ -2573,7 +2576,7 @@ const authClient = new Auth0Client({
 | cookieOptions.maxAge   | `number`                      | The expiration time for transaction cookies in seconds. Defaults to `3600` (1 hour). After this time, abandoned transaction cookies will expire automatically. |
 | cookieOptions.prefix   | `string`                      | The prefix for transaction cookie names. Defaults to `__txn_`. In parallel mode, cookies are named `__txn_{state}`. In single mode, just `__txn_`.             |
 | cookieOptions.sameSite | `"strict" \| "lax" \| "none"` | Controls when the cookie is sent with cross-site requests. Defaults to `"lax"`.                                                                                |
-| cookieOptions.secure   | `boolean`                     | When `true`, the cookie will only be sent over HTTPS connections. Automatically determined based on your application's base URL protocol if not specified.     |
+| cookieOptions.secure   | `boolean`                     | When `true`, the cookie will only be sent over HTTPS connections. Derived from `appBaseUrl` when available; enforced in production when `appBaseUrl` is omitted. |
 | cookieOptions.path     | `string`                      | Specifies the URL path for which the cookie is valid. Defaults to `"/"`.                                                                                       |
 
 ## Database sessions
@@ -2670,13 +2673,15 @@ import { Auth0Client } from "@auth0/nextjs-auth0/server";
 
 export const auth0 = new Auth0Client({
   async onCallback(err, ctx, session) {
+    const appBaseUrl = ctx.appBaseUrl ?? process.env.APP_BASE_URL;
+
     // `ctx` will contain the following properties when handling a connected account callback:
     // - `connectedAccount`: the connected account object (`CompleteConnectAccountResponse`) if the connection was successful
     // - `responseType`: will be set to `connect_code` when handling a connected accounts callback (`RESPONSE_TYPES.ConnectCode`)
     // - `returnTo`: the returnTo URL specified when calling the connect endpoint (if any)
 
     return NextResponse.redirect(
-      new URL(ctx.returnTo ?? "/", process.env.APP_BASE_URL)
+      new URL(ctx.returnTo ?? "/", appBaseUrl)
     );
   },
   enableConnectAccountEndpoint: true
@@ -2820,6 +2825,74 @@ NEXT_PUBLIC_ACCESS_TOKEN_ROUTE=/api/auth/token
 
 > [!IMPORTANT]  
 > Updating the route paths will also require updating the **Allowed Callback URLs** and **Allowed Logout URLs** configured in the [Auth0 Dashboard](https://manage.auth0.com) for your client.
+
+## Dynamic Application Base URLs
+
+The SDK determines the application base URL in one of three ways, listed here from most to least specific:
+
+1. **Static URL** — a single string, used as-is.
+2. **Allow-list** — an array of allowed origins; the SDK matches the incoming request against the list.
+3. **Unconstrained inference** — `APP_BASE_URL` omitted entirely; the base URL is inferred from the request host with no SDK-level origin check.
+
+### Allow-list (recommended for multiple origins per environment)
+
+Some platforms assign more than one URL to the same deployment. For example, a Vercel app is reachable via both its custom domain and the platform-assigned `*.vercel.app` URL. Similarly, an application behind a load balancer may be reachable by IP address and by hostname.
+
+In these cases, set `APP_BASE_URL` to a comma-separated list of all valid origins for that environment. The SDK matches the incoming request origin against the list and rejects any host not in it.
+
+```env
+# .env.local
+AUTH0_DOMAIN=
+AUTH0_CLIENT_ID=
+AUTH0_CLIENT_SECRET=
+AUTH0_SECRET=
+APP_BASE_URL=https://app.example.com,https://myapp.vercel.app
+```
+
+Or in code:
+
+```ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+export const auth0 = new Auth0Client({
+  // Custom domain and platform-assigned URL for the same deployment
+  appBaseUrl: ["https://app.example.com", "https://myapp.vercel.app"]
+});
+```
+
+Each environment (development, staging, production) should have its own `APP_BASE_URL` configuration containing only the origins valid for that environment.
+
+### Static base URL
+
+Use a single string when your application always runs on one origin:
+
+```ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+export const auth0 = new Auth0Client({
+  appBaseUrl: "https://app.example.com"
+});
+```
+
+### Unconstrained host inference
+
+Omitting `APP_BASE_URL` entirely causes the SDK to infer the base URL from the incoming request host with no SDK-level origin check.
+
+```env
+# .env.local
+AUTH0_DOMAIN=
+AUTH0_CLIENT_ID=
+AUTH0_CLIENT_SECRET=
+AUTH0_SECRET=
+# APP_BASE_URL omitted — base URL inferred from the request host
+```
+
+Auth0 itself still enforces origin validation through the **Allowed Callback URLs** configured on your application in the Auth0 dashboard. When the SDK constructs the authorization request, the callback URL it sends is derived from the inferred host. Auth0 will reject any authorize request whose `redirect_uri` is not on the Allowed Callback URLs list, so every origin your application can be reached from must be registered there.
+
+Prefer the allow-list approach unless the full set of valid origins cannot be known in advance.
+
+> [!NOTE]
+> When relying on dynamic base URLs in production, the SDK enforces secure cookies. If you explicitly set `AUTH0_COOKIE_SECURE=false`, `session.cookie.secure=false`, or `transactionCookie.secure=false`, the SDK throws `InvalidConfigurationError`.
 
 ## Testing helpers
 
