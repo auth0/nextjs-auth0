@@ -960,6 +960,15 @@ export default withApiAuthRequired(async function handler(
 By setting `{ refresh: true }`, you instruct the SDK to bypass the standard expiration check and request a new access token from the identity provider using the refresh token (if available and valid). The new token set (including the potentially updated access token, refresh token, and expiration time) will be saved back into the session automatically.
 This will in turn, update the `access_token`, `id_token` and `expires_at` fields of `tokenset` in the session.
 
+> [!TIP]  
+> To refresh access tokens slightly before they expire across all `getAccessToken()` calls, set `tokenRefreshBuffer` on the `Auth0Client`:
+> ```typescript
+> export const auth0 = new Auth0Client({
+>   tokenRefreshBuffer: 60, // refresh tokens up to 60s before expiry
+>   // ... other config
+> });
+> ```
+
 ### Optimizing Token Refresh in Middleware
 
 When using `getAccessToken()` in middleware for Backend-for-Frontend (BFF) patterns or to ensure fresh tokens for Server Components, avoid calling it on every request. Instead, implement time-based refresh logic to only refresh when the token is nearing expiration.

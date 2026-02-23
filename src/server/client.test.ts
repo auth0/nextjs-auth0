@@ -126,6 +126,36 @@ describe("Auth0Client", () => {
           originalValidateAndExtractRequiredOptions;
       }
     });
+
+    it("should throw when tokenRefreshBuffer is negative", () => {
+      const options = {
+        domain: "options.auth0.com",
+        clientId: "options_client_id",
+        clientSecret: "options_client_secret",
+        appBaseUrl: "https://options-app.com",
+        secret: "options_secret",
+        tokenRefreshBuffer: -1
+      };
+
+      expect(() => new Auth0Client(options)).toThrow(
+        "tokenRefreshBuffer must be a non-negative number of seconds."
+      );
+    });
+
+    it("should throw when tokenRefreshBuffer is not a finite number", () => {
+      const options = {
+        domain: "options.auth0.com",
+        clientId: "options_client_id",
+        clientSecret: "options_client_secret",
+        appBaseUrl: "https://options-app.com",
+        secret: "options_secret",
+        tokenRefreshBuffer: Number.NaN
+      };
+
+      expect(() => new Auth0Client(options)).toThrow(
+        "tokenRefreshBuffer must be a non-negative number of seconds."
+      );
+    });
   });
 
   // TODO: Re-implement DPoP handle management if needed
