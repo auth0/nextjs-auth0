@@ -4883,40 +4883,6 @@ ca/T0LLtgmbMmxSv/MmzIg==
     });
 
     describe("defaultOnCallback", async () => {
-      it("should fall back to the single configured appBaseUrl when ctx.appBaseUrl is missing", async () => {
-        const secret = await generateSecret(32);
-        const transactionStore = new TransactionStore({
-          secret
-        });
-        const sessionStore = new StatelessSessionStore({
-          secret
-        });
-        const authClient = new AuthClient({
-          transactionStore,
-          sessionStore,
-
-          domain: DEFAULT.domain,
-          clientId: DEFAULT.clientId,
-          clientSecret: DEFAULT.clientSecret,
-
-          secret,
-          appBaseUrl: DEFAULT.appBaseUrl,
-
-          routes: getDefaultRoutes(),
-
-          fetch: getMockAuthorizationServer()
-        });
-
-        const response = await (authClient as any).defaultOnCallback(null, {
-          returnTo: "/dashboard"
-        });
-        const redirectUrl = new URL(response.headers.get("Location")!);
-
-        expect(redirectUrl.toString()).toEqual(
-          `${DEFAULT.appBaseUrl}/dashboard`
-        );
-      });
-
       it("should throw when appBaseUrl is missing from ctx and configuration", async () => {
         const secret = await generateSecret(32);
         const transactionStore = new TransactionStore({

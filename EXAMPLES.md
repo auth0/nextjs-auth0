@@ -2819,11 +2819,17 @@ NEXT_PUBLIC_ACCESS_TOKEN_ROUTE=/api/auth/token
 
 ## Dynamic Application Base URLs
 
-By default the SDK uses `appBaseUrl`/`APP_BASE_URL`. If it is omitted, the base URL is inferred at runtime from the request host. `APP_BASE_URL` must be a single absolute URL (comma-separated values are not supported).
+The SDK determines the application base URL in one of three ways, listed here from most to least specific:
 
-### Host-based inference
+1. **Static URL** — a single string, used as-is.
+2. **Allow-list** — an array of allowed origins; the SDK matches the incoming request against the list.
+3. **Unconstrained inference** — `APP_BASE_URL` omitted entirely; the base URL is inferred from the request host with no SDK-level origin check.
 
-Omit `APP_BASE_URL` to let the SDK infer the base URL from the incoming request:
+### Allow-list (recommended for multiple origins per environment)
+
+Some platforms assign more than one URL to the same deployment. For example, a Vercel app is reachable via both its custom domain and the platform-assigned `*.vercel.app` URL. Similarly, an application behind a load balancer may be reachable by IP address and by hostname.
+
+In these cases, set `APP_BASE_URL` to a comma-separated list of all valid origins for that environment. The SDK matches the incoming request origin against the list and rejects any host not in it.
 
 ```env
 # .env.local
@@ -2831,10 +2837,25 @@ AUTH0_DOMAIN=
 AUTH0_CLIENT_ID=
 AUTH0_CLIENT_SECRET=
 AUTH0_SECRET=
-# APP_BASE_URL omitted
+APP_BASE_URL=https://app.example.com,https://myapp.vercel.app
 ```
 
+Or in code:
+
+```ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+export const auth0 = new Auth0Client({
+  // Custom domain and platform-assigned URL for the same deployment
+  appBaseUrl: ["https://app.example.com", "https://myapp.vercel.app"]
+});
+```
+
+Each environment (development, staging, production) should have its own `APP_BASE_URL` configuration containing only the origins valid for that environment.
+
 ### Static base URL
+
+Use a single string when your application always runs on one origin:
 
 ```ts
 import { Auth0Client } from "@auth0/nextjs-auth0/server";
@@ -2844,9 +2865,24 @@ export const auth0 = new Auth0Client({
 });
 ```
 
-Because the Host header is untrusted input, Auth0's Allowed Callback URLs gate this flow: if the inferred host is not registered, Auth0 rejects the authorize request. Ensure your preview hosts are registered in Auth0.
+### Unconstrained host inference
 
-> [!NOTE]  
+Omitting `APP_BASE_URL` entirely causes the SDK to infer the base URL from the incoming request host with no SDK-level origin check.
+
+```env
+# .env.local
+AUTH0_DOMAIN=
+AUTH0_CLIENT_ID=
+AUTH0_CLIENT_SECRET=
+AUTH0_SECRET=
+# APP_BASE_URL omitted — base URL inferred from the request host
+```
+
+Auth0 itself still enforces origin validation through the **Allowed Callback URLs** configured on your application in the Auth0 dashboard. When the SDK constructs the authorization request, the callback URL it sends is derived from the inferred host. Auth0 will reject any authorize request whose `redirect_uri` is not on the Allowed Callback URLs list, so every origin your application can be reached from must be registered there.
+
+Prefer the allow-list approach unless the full set of valid origins cannot be known in advance.
+
+> [!NOTE]
 > When relying on dynamic base URLs in production, the SDK enforces secure cookies. If you explicitly set `AUTH0_COOKIE_SECURE=false`, `session.cookie.secure=false`, or `transactionCookie.secure=false`, the SDK throws `InvalidConfigurationError`.
 
 ## Testing helpers

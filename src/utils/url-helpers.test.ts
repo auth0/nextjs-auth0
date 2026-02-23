@@ -1,9 +1,31 @@
 import { describe, expect, it } from "vitest";
 
 import payloads from "../test/fixtures/open-redirect-payloads.json" with { type: "json" };
-import { toSafeRedirect } from "./url-helpers.js";
+import { isUrl, toSafeRedirect } from "./url-helpers.js";
 
 describe("url-helpers", () => {
+  describe("isUrl", () => {
+    it("should return true for http URLs", () => {
+      expect(isUrl("http://example.com")).toBe(true);
+      expect(isUrl("http://localhost:3000")).toBe(true);
+    });
+
+    it("should return true for https URLs", () => {
+      expect(isUrl("https://example.com")).toBe(true);
+      expect(isUrl("https://myapp.vercel.app")).toBe(true);
+    });
+
+    it("should return false for non-http(s) URLs", () => {
+      expect(isUrl("ftp://example.com")).toBe(false);
+      expect(isUrl("file://example.com")).toBe(false);
+    });
+
+    it("should return false for non-URL strings", () => {
+      expect(isUrl("not-a-url")).toBe(false);
+      expect(isUrl("")).toBe(false);
+    });
+  });
+
   const safeBaseUrl = new URL("http://www.example.com");
 
   describe("isSafeRedirect", () => {

@@ -123,7 +123,7 @@ import {
   mergeScopes,
   tokenSetFromAccessTokenSet
 } from "../utils/token-set-helpers.js";
-import { toSafeRedirect } from "../utils/url-helpers.js";
+import { isUrl, toSafeRedirect } from "../utils/url-helpers.js";
 import { addCacheControlHeadersForSession } from "./cookies.js";
 import {
   AccessTokenFactory,
@@ -237,7 +237,7 @@ export interface AuthClientOptions {
    * Normalized appBaseUrl. When omitted, the SDK infers the base URL from the request.
    * If you construct AuthClient directly, normalize the value first.
    */
-  appBaseUrl?: string;
+  appBaseUrl?: string | string[];
   signInReturnToPath?: string;
   logoutStrategy?: LogoutStrategy;
   includeIdTokenHintInOIDCLogoutUrl?: boolean;
@@ -297,7 +297,7 @@ export class AuthClient {
   private pushedAuthorizationRequests: boolean;
 
   // Normalized appBaseUrl for this client instance.
-  private appBaseUrl?: string;
+  private appBaseUrl?: string | string[];
   private signInReturnToPath: string;
   private logoutStrategy: LogoutStrategy;
   private includeIdTokenHintInOIDCLogoutUrl: boolean;
@@ -413,6 +413,22 @@ export class AuthClient {
     }
 
     // application
+    if (Array.isArray(options.appBaseUrl)) {
+      if (options.appBaseUrl.length === 0) {
+        throw new InvalidConfigurationError(
+          "APP_BASE_URL array configuration cannot be empty."
+        );
+      }
+      const invalidUrls = options.appBaseUrl.filter(
+        (url) => isUrl(url) === false
+      );
+      if (invalidUrls.length > 0) {
+        throw new InvalidConfigurationError(
+          `APP_BASE_URL array contains invalid URLs: ${invalidUrls.join(", ")}`
+        );
+      }
+    }
+
     this.appBaseUrl = options.appBaseUrl;
     this.signInReturnToPath = options.signInReturnToPath || "/";
 
@@ -1644,7 +1660,7 @@ export class AuthClient {
       });
     }
 
-    const appBaseUrl = ctx.appBaseUrl || this.appBaseUrl;
+    const appBaseUrl = ctx.appBaseUrl;
 
     if (!appBaseUrl) {
       throw new InvalidConfigurationError(

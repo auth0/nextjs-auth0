@@ -111,10 +111,16 @@ export interface Auth0ClientOptions {
   /**
    * The URL of your application (e.g.: `http://localhost:3000`).
    *
+   * Can be a single URL string, or an array of allowed base URLs. When an array is
+   * provided, the SDK validates the incoming request origin against the list and uses
+   * the matching entry (allow-list mode). This is useful for multi-domain or preview
+   * deployments where you want to restrict which origins are accepted.
+   *
    * If it's not specified, it will be loaded from the `APP_BASE_URL` environment variable.
+   * Multiple origins can be provided as a comma-separated string (e.g. `https://app.example.com,https://myapp.vercel.app`).
    * If neither is provided, the SDK will infer it from the request host at runtime.
    */
-  appBaseUrl?: string;
+  appBaseUrl?: string | string[];
   /**
    * A 32-byte, hex-encoded secret used for encrypting cookies.
    *
@@ -458,9 +464,11 @@ export class Auth0Client {
     };
 
     if (appBaseUrl) {
-      const usesHttps = new URL(appBaseUrl).protocol === "https:";
+      const usesHttps = Array.isArray(appBaseUrl)
+        ? appBaseUrl.every((url) => new URL(url).protocol === "https:")
+        : new URL(appBaseUrl).protocol === "https:";
 
-      // Only enforce secure cookies when the configured base URL is https.
+      // Only enforce secure cookies when the configured base URL(s) are all https.
       if (usesHttps) {
         sessionCookieOptions.secure = true;
         transactionCookieOptions.secure = true;
@@ -1314,7 +1322,12 @@ export class Auth0Client {
       secret: options.secret ?? process.env.AUTH0_SECRET
     };
 
-    const appBaseUrl = options.appBaseUrl ?? process.env.APP_BASE_URL;
+    const envAppBaseUrl = process.env.APP_BASE_URL?.includes(",")
+      ? process.env.APP_BASE_URL.split(",")
+          .map((u) => u.trim())
+          .filter(Boolean)
+      : process.env.APP_BASE_URL;
+    const appBaseUrl = options.appBaseUrl ?? envAppBaseUrl;
 
     // Check client authentication options - either clientSecret OR clientAssertionSigningKey must be provided
     const clientSecret =
