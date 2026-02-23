@@ -166,6 +166,8 @@ export type OnCallbackHook = (
   session: SessionData | null
 ) => Promise<NextResponse>;
 
+type ExpiresAtInput = number | string | null | undefined;
+
 // params passed to the /authorize endpoint that cannot be overwritten
 const INTERNAL_AUTHORIZE_PARAMS = [
   "client_id",
@@ -1457,12 +1459,30 @@ export class AuthClient {
       }
     );
     const now = Date.now() / 1000;
-    const expiresAt =
-      typeof tokenSet.expiresAt === "number" ? tokenSet.expiresAt : undefined;
-    const isExpired = typeof expiresAt === "number" && expiresAt <= now;
-    const isWithinRefreshWindow =
-      typeof expiresAt === "number" &&
-      expiresAt <= now + this.tokenRefreshBuffer;
+    const normalizeExpiresAt = (value: ExpiresAtInput): number | undefined => {
+      if (typeof value === "number") {
+        return Number.isFinite(value) ? value : undefined;
+      }
+      if (typeof value === "string") {
+        if (value.trim() === "") {
+          return undefined;
+        }
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : undefined;
+      }
+      return undefined;
+    };
+    const isBeforeOrEqual = (left: ExpiresAtInput, right: number) => {
+      const normalized = normalizeExpiresAt(left);
+      return normalized !== undefined && normalized <= right;
+    };
+
+    const expiresAt = normalizeExpiresAt(tokenSet.expiresAt);
+    const isExpired = isBeforeOrEqual(tokenSet.expiresAt, now);
+    const shouldRefresh = isBeforeOrEqual(
+      tokenSet.expiresAt,
+      now + this.tokenRefreshBuffer
+    );
 
     // no access token was found that matches the, optional, provided audience and scope
     if (!tokenSet.refreshToken && !tokenSet.accessToken) {
@@ -1488,7 +1508,7 @@ export class AuthClient {
 
     if (tokenSet.refreshToken) {
       // either the access token has expired or we are forcing a refresh
-      if (options.refresh || !expiresAt || isWithinRefreshWindow) {
+      if (options.refresh || expiresAt === undefined || shouldRefresh) {
         const [error, response] = await this.#refreshTokenSet(tokenSet, {
           audience: options.audience,
           scope: options.scope ? scope : undefined,

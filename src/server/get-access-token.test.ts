@@ -320,4 +320,25 @@ describe("Auth0Client - getAccessToken", () => {
       vi.useRealTimers();
     }
   });
+
+  it("should treat string expiresAt as a timestamp when checking expiry", async () => {
+    vi.useFakeTimers();
+    const now = new Date("2026-01-01T00:00:00.000Z");
+    vi.setSystemTime(now);
+
+    try {
+      const session = await createInitialSession();
+      (session.tokenSet as any).expiresAt = String(
+        Math.floor(now.getTime() / 1000) - 10
+      );
+      delete session.tokenSet.refreshToken;
+      mockGetSession.mockResolvedValue(session);
+
+      await expect(auth0Client.getAccessToken()).rejects.toMatchObject({
+        code: AccessTokenErrorCode.MISSING_REFRESH_TOKEN
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
