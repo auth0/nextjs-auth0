@@ -2867,7 +2867,7 @@ export const auth0 = new Auth0Client({
 
 ### Unconstrained host inference
 
-Omitting `APP_BASE_URL` entirely causes the SDK to infer the base URL from the incoming request host with no SDK-level origin check. Auth0's Allowed Callback URLs then become the only gate: if the inferred host is not registered, Auth0 rejects the authorize request.
+Omitting `APP_BASE_URL` entirely causes the SDK to infer the base URL from the incoming request host with no SDK-level origin check.
 
 ```env
 # .env.local
@@ -2877,6 +2877,8 @@ AUTH0_CLIENT_SECRET=
 AUTH0_SECRET=
 # APP_BASE_URL omitted — base URL inferred from the request host
 ```
+
+Auth0 itself still enforces origin validation through the **Allowed Callback URLs** configured on your application in the Auth0 dashboard. When the SDK constructs the authorization request, the callback URL it sends is derived from the inferred host. Auth0 will reject any authorize request whose `redirect_uri` is not on the Allowed Callback URLs list, so every origin your application can be reached from must be registered there.
 
 Prefer the allow-list approach unless the full set of valid origins cannot be known in advance.
 
