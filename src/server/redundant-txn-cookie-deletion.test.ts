@@ -447,16 +447,14 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
       } as any);
     });
 
-    it("should delete the correct transaction cookie on success", async () => {
+    it("should delete all transaction cookies on success", async () => {
       /**
-       * Test Purpose: Verify that when OAuth callback succeeds, only the specific transaction
-       * cookie for that authentication flow is deleted, not all transaction cookies.
+       * Test Purpose: Verify that when OAuth callback succeeds, all transaction cookies
+       * are deleted to prevent cookie accumulation.
        *
        * Why this matters:
        * - In successful auth flows, we should clean up the used transaction cookie
-       * - But preserve other parallel authentication attempts that might be in progress
-       * - This is the "happy path" that demonstrates proper transaction cookie lifecycle
-       * - Validates that the state parameter correctly identifies which transaction to clean up
+       * - By calling deleteAll on successful callback, we clear all accumulated cookies
        */
 
       // Arrange: First, do a login to get proper state and transaction cookie
@@ -471,15 +469,17 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
       const txnCookie = loginRes.cookies.get(`__txn_${state}`);
       expect(txnCookie).toBeDefined();
 
-      // Now create the callback request
+      // Now create the callback request with multiple transaction cookies
       const req = new NextRequest(
         `http://localhost:3000/api/auth/callback?code=auth_code&state=${state}`
       );
 
-      // Add the transaction cookie to the callback request
+      // Add the current transaction cookie and some stale ones
       if (txnCookie) {
         req.cookies.set(`__txn_${state}`, txnCookie.value);
       }
+      req.cookies.set("__txn_old_state_1", "old_value_1");
+      req.cookies.set("__txn_old_state_2", "old_value_2");
 
       // Act: Process the successful callback
       const res = await authClient.handleCallback(req);
@@ -490,17 +490,18 @@ describe("Ensure that redundant transaction cookies are deleted from auth-client
         state
       );
 
-      // Check that the specific transaction cookie was deleted
+      // Check that all transaction cookies were deleted
       const deletedTxnCookies = res.cookies
         .getAll()
         .filter(
           (cookie) =>
-            cookie.name === `__txn_${state}` &&
+            cookie.name.startsWith("__txn_") &&
             cookie.value === "" &&
             cookie.maxAge === 0
         );
 
-      expect(deletedTxnCookies.length).toBe(1);
+      // All 3 transaction cookies should be deleted
+      expect(deletedTxnCookies.length).toBe(3);
       expect(mockSessionStoreInstance.set).toHaveBeenCalledTimes(1);
       expect(res.status).toBeGreaterThanOrEqual(300);
       expect(res.status).toBeLessThan(400);
