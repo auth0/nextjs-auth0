@@ -539,19 +539,22 @@ export class AuthClient {
     } else if (sanitizedPathname.startsWith("/my-org/")) {
       return this.handleMyOrg(req);
     } else {
-      // no auth handler found, simply touch the sessions
-      // TODO: this should only happen if rolling sessions are enabled. Also, we should
-      // try to avoid reading from the DB (for stateful sessions) on every request if possible.
+      // no auth handler found, simply touch the sessions if rolling sessions are enabled.
+      // TODO: we should try to avoid reading from the DB (for stateful sessions) on every
+      // request if possible.
       const res = NextResponse.next();
-      const session = await this.sessionStore.get(req.cookies);
 
-      if (session) {
-        // we pass the existing session (containing an `createdAt` timestamp) to the set method
-        // which will update the cookie's `maxAge` property based on the `createdAt` time
-        await this.sessionStore.set(req.cookies, res.cookies, {
-          ...session
-        });
-        addCacheControlHeadersForSession(res);
+      if (this.sessionStore.isRolling) {
+        const session = await this.sessionStore.get(req.cookies);
+
+        if (session) {
+          // we pass the existing session (containing an `createdAt` timestamp) to the set method
+          // which will update the cookie's `maxAge` property based on the `createdAt` time
+          await this.sessionStore.set(req.cookies, res.cookies, {
+            ...session
+          });
+          addCacheControlHeadersForSession(res);
+        }
       }
 
       return res;
