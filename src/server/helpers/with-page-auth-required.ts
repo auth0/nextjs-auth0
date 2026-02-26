@@ -44,10 +44,22 @@ export type AppRouterPageRouteOpts = {
 /**
  * An app route that has been augmented with {@link WithPageAuthRequired}.
  * Returns unknown to avoid React dependency while maintaining type safety.
+ *
+ * The generic parameter `P` allows passing Next.js `PageProps` or `LayoutProps`
+ * types for strongly-typed route parameters:
+ *
+ * ```ts
+ * export default auth0.withPageAuthRequired(
+ *   async function Page(props: PageProps<"/customers/[id]/details">) {
+ *     const { id } = await props.params;
+ *     return <div>{id}</div>;
+ *   }
+ * );
+ * ```
  */
-export type AppRouterPageRoute = (
-  obj: AppRouterPageRouteOpts
-) => Promise<unknown>;
+export type AppRouterPageRoute<
+  P extends AppRouterPageRouteOpts = AppRouterPageRouteOpts
+> = (obj: P) => Promise<unknown>;
 
 /**
  * If you have a custom returnTo url you should specify it in `returnTo`.
@@ -166,10 +178,12 @@ export type WithPageAuthRequiredAppRouterOptions = {
  * export default ProtectedPage;
  * ```
  */
-export type WithPageAuthRequiredAppRouter = (
-  fn: AppRouterPageRoute,
+export type WithPageAuthRequiredAppRouter = <
+  P extends AppRouterPageRouteOpts = AppRouterPageRouteOpts
+>(
+  fn: AppRouterPageRoute<P>,
   opts?: WithPageAuthRequiredAppRouterOptions
-) => AppRouterPageRoute;
+) => AppRouterPageRoute<P>;
 
 /**
  * Protects Page router pages {@link WithPageAuthRequiredPageRouter} or
@@ -185,8 +199,8 @@ export const appRouteHandlerFactory =
       loginUrl: string;
     }
   ): WithPageAuthRequiredAppRouter =>
-  (handler, opts = {}) =>
-  async (params) => {
+  <P extends AppRouterPageRouteOpts = AppRouterPageRouteOpts>(handler: AppRouterPageRoute<P>, opts: WithPageAuthRequiredAppRouterOptions = {}) =>
+  async (params: P) => {
     const session = await client.getSession();
 
     if (!session?.user) {
