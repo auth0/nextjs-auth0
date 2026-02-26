@@ -4148,7 +4148,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(mockOnCallback).toHaveBeenCalledWith(
           null,
           expectedContext,
-          expectedSession
+          expectedSession,
+          expect.any(Function)
         );
 
         // validate the session cookie
@@ -4213,7 +4214,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(mockOnCallback).toHaveBeenCalledWith(
           expect.any(Error),
           {},
-          null
+          null,
+          expect.any(Function)
         );
         expect(mockOnCallback.mock.calls[0][0].code).toEqual("missing_state");
 
@@ -4292,7 +4294,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(mockOnCallback).toHaveBeenCalledWith(
           expect.any(Error),
           {},
-          null
+          null,
+          expect.any(Function)
         );
         expect(mockOnCallback.mock.calls[0][0].code).toEqual("invalid_state");
 
@@ -4375,7 +4378,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
             returnTo: transactionState.returnTo,
             appBaseUrl: DEFAULT.appBaseUrl
           },
-          null
+          null,
+          expect.any(Function)
         );
         expect(mockOnCallback.mock.calls[0][0].code).toEqual(
           "authorization_error"
@@ -4462,7 +4466,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
             returnTo: transactionState.returnTo,
             appBaseUrl: DEFAULT.appBaseUrl
           },
-          null
+          null,
+          expect.any(Function)
         );
         expect(mockOnCallback.mock.calls[0][0].code).toEqual(
           "authorization_code_grant_request_error"
@@ -4548,7 +4553,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
             returnTo: transactionState.returnTo,
             appBaseUrl: DEFAULT.appBaseUrl
           },
-          null
+          null,
+          expect.any(Function)
         );
         expect(mockOnCallback.mock.calls[0][0].code).toEqual(
           "authorization_code_grant_error"
@@ -5054,7 +5060,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(mockOnCallback).toHaveBeenCalledWith(
           null,
           expectedContext,
-          expectedSession
+          expectedSession,
+          expect.any(Function)
         );
       });
 
@@ -5129,7 +5136,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
             returnTo: transactionState.returnTo,
             appBaseUrl: DEFAULT.appBaseUrl
           },
-          null
+          null,
+          expect.any(Function)
         );
         expect(mockOnCallback.mock.calls[0][0].code).toEqual(
           ConnectAccountErrorCodes.MISSING_SESSION
@@ -5245,7 +5253,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
             returnTo: transactionState.returnTo,
             appBaseUrl: DEFAULT.appBaseUrl
           },
-          null
+          null,
+          expect.any(Function)
         );
         expect(mockOnCallback.mock.calls[0][0].code).toEqual(
           AccessTokenErrorCode.MISSING_REFRESH_TOKEN
@@ -5364,7 +5373,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
             returnTo: transactionState.returnTo,
             appBaseUrl: DEFAULT.appBaseUrl
           },
-          null
+          null,
+          expect.any(Function)
         );
         expect(mockOnCallback.mock.calls[0][0].code).toEqual(
           ConnectAccountErrorCodes.FAILED_TO_COMPLETE
