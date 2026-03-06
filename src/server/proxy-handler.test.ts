@@ -53,13 +53,13 @@ import { TransactionStore } from "./transaction-store.js";
  */
 
 const DEFAULT = {
-  domain: "test.auth0.local",
+  domain: "test.auth0.example.com",
   clientId: "test_client_id",
   clientSecret: "test_client_secret",
   appBaseUrl: "https://example.com",
   proxyPath: "/me",
-  upstreamBaseUrl: `https://test.auth0.local/me/v1`,
-  audience: `https://test.auth0.local/me/`,
+  upstreamBaseUrl: `https://test.auth0.example.com/me/v1`,
+  audience: `https://test.auth0.example.com/me/`,
   accessToken: "at_test_123",
   refreshToken: "rt_test_123",
   sub: "user_test_123",

@@ -18,8 +18,16 @@ import { MfaContext, SessionData } from "../types/index.js";
 import { Auth0Client } from "./client.js";
 import { decrypt } from "./cookies.js";
 
+vi.mock("next/headers.js", async (importActual) => {
+  const actual = await importActual<typeof import("next/headers.js")>();
+  return {
+    ...actual,
+    headers: vi.fn().mockImplementation(async () => new Headers())
+  };
+});
+
 // Test configuration
-const domain = "https://auth0.local";
+const domain = "https://auth0.example.com";
 const alg = "RS256";
 const sub = "test-sub";
 const sid = "test-sid";

@@ -748,7 +748,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
             },
             internal: {
               sid: DEFAULT.sid,
-              createdAt: expect.any(Number)
+              createdAt: expect.any(Number),
+              mcd: {
+                domain: DEFAULT.domain,
+                issuer: `https://${DEFAULT.domain}/`
+              }
             }
           })
         );
@@ -4846,7 +4850,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
           },
           internal: {
             sid: expect.any(String),
-            createdAt: expect.any(Number)
+            createdAt: expect.any(Number),
+            mcd: {
+              domain: DEFAULT.domain,
+              issuer: `https://${DEFAULT.domain}/`
+            }
           }
         });
         const expectedContext = expect.objectContaining({

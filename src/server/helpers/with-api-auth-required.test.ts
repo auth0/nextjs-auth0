@@ -23,6 +23,9 @@ describe("with-api-auth-required", () => {
         ...actual,
         cookies: vi.fn().mockImplementation(async () => {
           return new RequestCookies(new Headers());
+        }),
+        headers: vi.fn().mockImplementation(() => {
+          return new Headers();
         })
       };
     });
