@@ -1,5 +1,16 @@
 # Change Log
 
+## [v4.16.0](https://github.com/auth0/nextjs-auth0/tree/v4.16.0) (2026-02-27)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.15.0...v4.16.0)
+
+**Added**
+- feat: added tokenRefreshBuffer for early access‑token refreshes [\#2508](https://github.com/auth0/nextjs-auth0/pull/2508) ([nandan-bhat](https://github.com/nandan-bhat))
+- feat: support allow list for dynamic APP_BASE_URL configuration [\#2538](https://github.com/auth0/nextjs-auth0/pull/2538) ([frederikprijck](https://github.com/frederikprijck))
+- feat: Add dynamic app base URL handling [\#2528](https://github.com/auth0/nextjs-auth0/pull/2528) ([nandan-bhat](https://github.com/nandan-bhat))
+
+**Fixed**
+- fix: do not strip falsey values from authorization params [\#2526](https://github.com/auth0/nextjs-auth0/pull/2526) ([frederikprijck](https://github.com/frederikprijck))
+
 ## [v4.15.0](https://github.com/auth0/nextjs-auth0/tree/v4.15.0) (2026-02-09)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.14.1...v4.15.0)
 
