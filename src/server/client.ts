@@ -391,6 +391,22 @@ export interface Auth0ClientOptions {
    * ```
    */
   mfaTokenTtl?: number;
+
+  /**
+   * Content Security Policy nonce for inline scripts in popup flows.
+   *
+   * Required when your application uses CSP and the popup-based step-up
+   * authentication flow (challengeMode: 'popup'). The nonce is
+   * injected into the inline `<script>` tag of the postMessage HTML response.
+   *
+   * @example
+   * ```typescript
+   * const auth0 = new Auth0Client({
+   *   cspNonce: crypto.randomUUID()
+   * });
+   * ```
+   */
+  cspNonce?: string;
 }
 
 export type PagesRouterRequest = IncomingMessage | NextApiRequest;
@@ -600,7 +616,8 @@ export class Auth0Client {
       useDPoP: options.useDPoP || false,
       dpopKeyPair: options.dpopKeyPair || resolvedDpopKeyPair,
       dpopOptions: options.dpopOptions || resolvedDpopOptions,
-      mfaTokenTtl
+      mfaTokenTtl,
+      cspNonce: options.cspNonce
     });
   }
 
