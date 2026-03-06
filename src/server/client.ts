@@ -492,7 +492,9 @@ export class Auth0Client {
       secure: transactionSecureExplicit ?? false,
       sameSite: options.transactionCookie?.sameSite ?? "lax",
       path: options.transactionCookie?.path ?? basePath ?? "/",
-      maxAge: options.transactionCookie?.maxAge ?? 3600
+      maxAge: options.transactionCookie?.maxAge ?? 3600,
+      domain:
+        options.transactionCookie?.domain ?? process.env.AUTH0_COOKIE_DOMAIN
     };
 
     if (appBaseUrl) {

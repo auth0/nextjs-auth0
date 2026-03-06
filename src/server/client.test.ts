@@ -502,6 +502,48 @@ describe("Auth0Client", () => {
       expect(cookieOptions.path).toBe(customOptions.path);
     });
 
+    it("should pass transactionCookie.domain to TransactionStore", () => {
+      const client = new Auth0Client({
+        transactionCookie: {
+          domain: ".example.com"
+        }
+      });
+
+      const transactionStore = (client as any).transactionStore;
+      const cookieOptions = (transactionStore as any).cookieOptions;
+      expect(cookieOptions.domain).toBe(".example.com");
+    });
+
+    it("should inherit AUTH0_COOKIE_DOMAIN for transaction cookies when transactionCookie.domain is not set", () => {
+      process.env.AUTH0_COOKIE_DOMAIN = ".inherited.com";
+      try {
+        const client = new Auth0Client();
+
+        const transactionStore = (client as any).transactionStore;
+        const cookieOptions = (transactionStore as any).cookieOptions;
+        expect(cookieOptions.domain).toBe(".inherited.com");
+      } finally {
+        delete process.env.AUTH0_COOKIE_DOMAIN;
+      }
+    });
+
+    it("should prefer transactionCookie.domain over AUTH0_COOKIE_DOMAIN", () => {
+      process.env.AUTH0_COOKIE_DOMAIN = ".env-domain.com";
+      try {
+        const client = new Auth0Client({
+          transactionCookie: {
+            domain: ".explicit-domain.com"
+          }
+        });
+
+        const transactionStore = (client as any).transactionStore;
+        const cookieOptions = (transactionStore as any).cookieOptions;
+        expect(cookieOptions.domain).toBe(".explicit-domain.com");
+      } finally {
+        delete process.env.AUTH0_COOKIE_DOMAIN;
+      }
+    });
+
     it("should pass enableParallelTransactions to TransactionStore", () => {
       const client = new Auth0Client({
         enableParallelTransactions: false
