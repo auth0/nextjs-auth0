@@ -16,9 +16,24 @@ import {
 import { SessionData } from "../types/index.js";
 import { DEFAULT_SCOPES } from "../utils/constants.js";
 import { Auth0Client } from "./client.js";
+import { RequestCookies } from "./cookies.js";
+
+vi.mock("next/headers.js", async (importActual) => {
+  const actual = await importActual<typeof import("next/headers.js")>();
+
+  return {
+    ...actual,
+    cookies: vi.fn().mockImplementation(async () => {
+      return new RequestCookies(new Headers());
+    }),
+    headers: vi.fn().mockImplementation(() => {
+      return new Headers();
+    })
+  };
+});
 
 // Basic constants for testing
-const domain = "https://auth0.local";
+const domain = "https://auth0.example.com";
 const alg = "RS256";
 const sub = "test-sub";
 const sid = "test-sid";

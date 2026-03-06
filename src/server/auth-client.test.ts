@@ -23,6 +23,7 @@ import {
 import { DEFAULT_SCOPES } from "../utils/constants.js";
 import { AuthClient } from "./auth-client.js";
 import { decrypt, encrypt } from "./cookies.js";
+import { InvalidConfigurationError as McdInvalidConfigurationError } from "./errors.js";
 import { StatefulSessionStore } from "./session/stateful-session-store.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import { TransactionState, TransactionStore } from "./transaction-store.js";
@@ -788,7 +789,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
             },
             internal: {
               sid: DEFAULT.sid,
-              createdAt: expect.any(Number)
+              createdAt: expect.any(Number),
+              mcd: {
+                domain: DEFAULT.domain,
+                issuer: `https://${DEFAULT.domain}/`
+              }
             }
           })
         );
@@ -4908,7 +4913,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         await expect(
           (authClient as any).defaultOnCallback(null, { returnTo: "/" })
-        ).rejects.toThrow(InvalidConfigurationError);
+        ).rejects.toThrow(McdInvalidConfigurationError);
       });
     });
 
@@ -5034,7 +5039,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
           },
           internal: {
             sid: expect.any(String),
-            createdAt: expect.any(Number)
+            createdAt: expect.any(Number),
+            mcd: {
+              domain: DEFAULT.domain,
+              issuer: `https://${DEFAULT.domain}/`
+            }
           }
         });
         const expectedContext = expect.objectContaining({

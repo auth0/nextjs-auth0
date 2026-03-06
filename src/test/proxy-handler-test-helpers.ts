@@ -30,7 +30,7 @@ export function createInitialSessionData(
       // Add audience to match the /me proxy route configuration
       // This ensures the token is recognized as valid for the proxy route
       // Without this, getTokenSet will think it needs a new token for the requested audience
-      audience: "https://test.auth0.local/me/"
+      audience: "https://test.auth0.example.com/me/"
     },
     user: {
       sub: "user_test_123"

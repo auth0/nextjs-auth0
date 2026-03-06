@@ -23,7 +23,6 @@ import {
   DiscoveryError,
   DPoPError,
   DPoPErrorCode,
-  InvalidConfigurationError,
   InvalidStateError,
   MfaChallengeError,
   MfaEnrollmentError,
@@ -124,7 +123,14 @@ import {
   tokenSetFromAccessTokenSet
 } from "../utils/token-set-helpers.js";
 import { isUrl, toSafeRedirect } from "../utils/url-helpers.js";
+import type { AuthClientProvider } from "./auth-client-provider.js";
 import { addCacheControlHeadersForSession } from "./cookies.js";
+import { DiscoveryCache } from "./discovery-cache.js";
+import {
+  InvalidConfigurationError,
+  IssuerValidationError,
+  SessionDomainMismatchError
+} from "./errors.js";
 import {
   AccessTokenFactory,
   Fetcher,
@@ -132,9 +138,28 @@ import {
   FetcherHooks,
   FetcherMinimalConfig
 } from "./fetcher.js";
+import { normalizeDomain, normalizeIssuer } from "./normalize.js";
 import { AbstractSessionStore } from "./session/abstract-session-store.js";
 import { TransactionState, TransactionStore } from "./transaction-store.js";
 import { filterDefaultIdTokenClaims } from "./user.js";
+
+/**
+ * Result of a session domain check operation.
+ *
+ * @field error - SDK error object (null if no error). Includes SessionDomainMismatchError on domain mismatch.
+ * @field session - The session data, or null if not found, domain mismatch, or error occurred.
+ * @field exists - Whether a session physically exists in the store (true even if domain mismatch or error).
+ *                 Distinguishes "no session" from "session found but domain mismatch/error".
+ *
+ * Callers MUST check error first before using session.
+ *
+ * @internal
+ */
+export interface SessionCheckResult {
+  error: SdkError | null;
+  session: SessionData | null;
+  exists: boolean;
+}
 
 export type BeforeSessionSavedHook = (
   session: SessionData,
@@ -252,6 +277,8 @@ export interface AuthClientOptions {
   // custom fetch implementation to allow for dependency injection
   fetch?: typeof fetch;
   jwksCache?: jose.JWKSCacheInput;
+  discoveryCache?: DiscoveryCache;
+  provider?: AuthClientProvider;
   allowInsecureRequests?: boolean;
   httpTimeout?: number;
   enableTelemetry?: boolean;
@@ -277,7 +304,12 @@ export interface AuthClientOptions {
   // dpopHandleStorage?: DPoPHandleStorageInterface; // Commented out until implementation
 }
 
-function createRouteUrl(path: string, baseUrl: string) {
+function createRouteUrl(path: string, baseUrl?: string) {
+  if (!baseUrl) {
+    throw new Error(
+      "appBaseUrl is required for this operation. Provide it in Auth0ClientOptions or ensure it can be resolved from request headers."
+    );
+  }
   return new URL(
     ensureNoLeadingSlash(normalizeWithBasePath(path)),
     ensureTrailingSlash(baseUrl)
@@ -295,7 +327,7 @@ export class AuthClient {
   private clientSecret?: string;
   private clientAssertionSigningKey?: string | jose.CryptoKey;
   private clientAssertionSigningAlg: string;
-  private domain: string;
+  readonly domain: string;
   private authorizationParameters: AuthorizationParameters;
   private pushedAuthorizationRequests: boolean;
 
@@ -312,6 +344,8 @@ export class AuthClient {
 
   private fetch: typeof fetch;
   private jwksCache: jose.JWKSCacheInput;
+  private discoveryCache: DiscoveryCache;
+  public provider?: AuthClientProvider;
   private allowInsecureRequests: boolean;
   private httpTimeout: number;
   private httpOptions: () => { signal: AbortSignal; headers: Headers };
@@ -336,6 +370,8 @@ export class AuthClient {
     // dependencies
     this.fetch = options.fetch || fetch;
     this.jwksCache = options.jwksCache || {};
+    this.discoveryCache = options.discoveryCache || new DiscoveryCache();
+    this.provider = options.provider;
     this.allowInsecureRequests = options.allowInsecureRequests ?? false;
     this.httpTimeout = options.httpTimeout ?? 5000;
     this.httpOptions = () => {
@@ -543,17 +579,21 @@ export class AuthClient {
       // TODO: this should only happen if rolling sessions are enabled. Also, we should
       // try to avoid reading from the DB (for stateful sessions) on every request if possible.
       const res = NextResponse.next();
-      const session = await this.sessionStore.get(req.cookies);
+      const { error, session } = await this.getSessionWithDomainCheck(
+        req.cookies
+      );
 
-      if (session) {
-        // we pass the existing session (containing an `createdAt` timestamp) to the set method
-        // which will update the cookie's `maxAge` property based on the `createdAt` time
-        await this.sessionStore.set(req.cookies, res.cookies, {
-          ...session
-        });
-        addCacheControlHeadersForSession(res);
+      // Skip touch silently if domain mismatch or no session
+      if (error || !session) {
+        return res;
       }
 
+      // we pass the existing session (containing an `createdAt` timestamp) to the set method
+      // which will update the cookie's `maxAge` property based on the `createdAt` time
+      await this.sessionStore.set(req.cookies, res.cookies, {
+        ...session
+      });
+      addCacheControlHeadersForSession(res);
       return res;
     }
   }
@@ -625,6 +665,27 @@ export class AuthClient {
       }
     }
 
+    // Unit-12: Enforce openid scope in resolver mode
+    if (this.provider?.isResolverMode) {
+      // Merge scopes from baseConfig defaults and explicit options
+      const explicitScope = options.authorizationParameters?.scope;
+      const defaultScope = this.authorizationParameters.scope || "";
+
+      // Combine scopes: base config defaults + explicit options
+      const scopeString = [defaultScope, explicitScope]
+        .filter(Boolean)
+        .join(" ");
+      const scopeSet = new Set(scopeString.split(/\s+/).filter(Boolean));
+
+      // Enforce openid scope in resolver mode
+      if (!scopeSet.has("openid")) {
+        throw new InvalidConfigurationError(
+          'The "openid" scope is required in resolver mode (DomainResolver). ' +
+            'Add "openid" to your SDK configuration or login options.'
+        );
+      }
+    }
+
     // Prepare transaction state
     const transactionState: TransactionState = {
       nonce,
@@ -634,7 +695,10 @@ export class AuthClient {
       state,
       returnTo,
       scope: authorizationParams.get("scope") || undefined,
-      audience: authorizationParams.get("audience") || undefined
+      audience: authorizationParams.get("audience") || undefined,
+      // Unit-9: Store origin domain and issuer for callback delegation in resolver mode
+      originDomain: this.provider?.isResolverMode ? this.domain : undefined,
+      originIssuer: this.provider?.isResolverMode ? this.issuer : undefined
     };
 
     // Generate authorization URL with PAR handling
@@ -677,19 +741,29 @@ export class AuthClient {
   }
 
   async handleLogout(req: NextRequest): Promise<NextResponse> {
-    const session = await this.sessionStore.get(req.cookies);
+    const {
+      error: sessionError,
+      session,
+      exists: sessionExists
+    } = await this.getSessionWithDomainCheck(req.cookies);
+
+    // Propagate domain mismatch error but don't delete session on domain mismatch
+    const hasDomainMismatch = sessionError && sessionExists;
+
     const [discoveryError, authorizationServerMetadata] =
       await this.discoverAuthorizationServerMetadata();
 
     if (discoveryError) {
-      // Clean up session on discovery error
+      // Clean up session on discovery error (unless domain mismatch)
       const errorResponse = new NextResponse(
         "An error occurred while trying to initiate the logout request.",
         {
           status: 500
         }
       );
-      await this.sessionStore.delete(req.cookies, errorResponse.cookies);
+      if (!hasDomainMismatch) {
+        await this.sessionStore.delete(req.cookies, errorResponse.cookies);
+      }
       await this.transactionStore.deleteAll(req.cookies, errorResponse.cookies);
       return errorResponse;
     }
@@ -719,6 +793,7 @@ export class AuthClient {
         url.searchParams.set("logout_hint", session.internal.sid);
       }
 
+      // Only include id_token_hint if we have a valid session (domain match)
       if (this.includeIdTokenHintInOIDCLogoutUrl && session?.tokenSet.idToken) {
         url.searchParams.set("id_token_hint", session.tokenSet.idToken);
       }
@@ -739,14 +814,16 @@ export class AuthClient {
     } else if (this.logoutStrategy === "oidc") {
       // Always use OIDC RP-Initiated Logout
       if (!authorizationServerMetadata.end_session_endpoint) {
-        // Clean up session on OIDC error
+        // Clean up session on OIDC error (unless domain mismatch)
         const errorResponse = new NextResponse(
           "OIDC RP-Initiated Logout is not supported by the authorization server. Enable it or use a different logout strategy.",
           {
             status: 500
           }
         );
-        await this.sessionStore.delete(req.cookies, errorResponse.cookies);
+        if (!hasDomainMismatch) {
+          await this.sessionStore.delete(req.cookies, errorResponse.cookies);
+        }
         await this.transactionStore.deleteAll(
           req.cookies,
           errorResponse.cookies
@@ -766,8 +843,10 @@ export class AuthClient {
       }
     }
 
-    // Clean up session and transaction cookies
-    await this.sessionStore.delete(req.cookies, logoutResponse.cookies);
+    // Clean up session and transaction cookies (only if session matched domain)
+    if (!hasDomainMismatch) {
+      await this.sessionStore.delete(req.cookies, logoutResponse.cookies);
+    }
     addCacheControlHeadersForSession(logoutResponse);
 
     // Clear any orphaned transaction cookies
@@ -776,8 +855,15 @@ export class AuthClient {
     return logoutResponse;
   }
 
-  async handleCallback(req: NextRequest): Promise<NextResponse> {
+  /**
+   * Handle OAuth2/OIDC callback.
+   * @internal This method is not part of the public SDK API. It is called internally
+   * during callback delegation in resolver mode to route callbacks to the correct domain.
+   * @public (explicit visibility marker for cross-instance delegation)
+   */
+  public async handleCallback(req: NextRequest): Promise<NextResponse> {
     const state = req.nextUrl.searchParams.get("state");
+
     if (!state) {
       return this.handleCallbackError(new MissingStateError(), {}, req);
     }
@@ -798,15 +884,36 @@ export class AuthClient {
       appBaseUrl
     };
 
-    if (transactionState.responseType === RESPONSE_TYPES.CONNECT_CODE) {
-      const session = await this.sessionStore.get(req.cookies);
+    // Unit-9: Callback domain delegation in resolver mode
+    if (
+      state &&
+      this.provider?.isResolverMode &&
+      transactionState.originDomain
+    ) {
+      // Check if the origin domain differs from current domain
+      const normalizedOriginDomain = normalizeDomain(
+        transactionState.originDomain
+      ).domain;
+      if (normalizedOriginDomain !== this.domain) {
+        // Delegate to the domain-specific AuthClient
+        const delegatedClient = this.provider.forDomainSync(
+          normalizedOriginDomain
+        );
+        return delegatedClient.handleCallback(req);
+      }
+    }
 
-      if (!session) {
+    if (transactionState.responseType === RESPONSE_TYPES.CONNECT_CODE) {
+      const { error: sessionError, session } =
+        await this.getSessionWithDomainCheck(req.cookies);
+
+      if (sessionError || !session) {
         return this.handleCallbackError(
-          new ConnectAccountError({
-            code: ConnectAccountErrorCodes.MISSING_SESSION,
-            message: "The user does not have an active session."
-          }),
+          sessionError ||
+            new ConnectAccountError({
+              code: ConnectAccountErrorCodes.MISSING_SESSION,
+              message: "The user does not have an active session."
+            }),
           onCallbackCtx,
           req,
           state
@@ -817,7 +924,7 @@ export class AuthClient {
       const [tokenSetError, tokenSetResponse] = await this.getTokenSet(
         session,
         {
-          audience: `${this.issuer}/me/`,
+          audience: `${this.issuer}me/`,
           scope: "create:me:connected_accounts"
         }
       );
@@ -986,6 +1093,21 @@ export class AuthClient {
     }
 
     const idTokenClaims = oauth.getValidatedIdTokenClaims(oidcRes)!;
+
+    // Unit-9: Secondary issuer check for defense-in-depth
+    if (transactionState.originIssuer) {
+      const actualIssuer = normalizeIssuer(idTokenClaims.iss);
+      const expectedIssuer = normalizeIssuer(transactionState.originIssuer);
+      if (actualIssuer !== expectedIssuer) {
+        return this.handleCallbackError(
+          new IssuerValidationError(expectedIssuer, actualIssuer),
+          onCallbackCtx,
+          req,
+          state
+        );
+      }
+    }
+
     let session: SessionData = {
       user: idTokenClaims,
       tokenSet: {
@@ -999,7 +1121,14 @@ export class AuthClient {
       },
       internal: {
         sid: idTokenClaims.sid as string,
-        createdAt: Math.floor(Date.now() / 1000)
+        createdAt: Math.floor(Date.now() / 1000),
+        // Unit-9: Add MCD metadata when in resolver mode
+        ...(this.provider?.isResolverMode && {
+          mcd: {
+            domain: this.domain,
+            issuer: this.issuer
+          }
+        })
       }
     };
 
@@ -1008,6 +1137,17 @@ export class AuthClient {
     // call beforeSessionSaved callback if present
     // if not then filter id_token claims with default rules
     session = await this.finalizeSession(session, oidcRes.id_token);
+
+    // Unit-8: Post-hook MCD validation - ensure hooks don't remove internal.mcd in resolver mode
+    if (this.provider?.isResolverMode) {
+      if (!session.internal?.mcd) {
+        throw new InvalidConfigurationError(
+          "beforeSessionSaved hook must not remove the internal.mcd field in resolver mode. " +
+            "The internal.mcd object is required for multi-custom-domain session isolation. " +
+            "If you need to modify session.internal, preserve the .mcd field."
+        );
+      }
+    }
 
     await this.sessionStore.set(req.cookies, res.cookies, session, true);
     addCacheControlHeadersForSession(res);
@@ -1019,9 +1159,10 @@ export class AuthClient {
   }
 
   async handleProfile(req: NextRequest): Promise<NextResponse> {
-    const session = await this.sessionStore.get(req.cookies);
+    const { error: sessionError, session } =
+      await this.getSessionWithDomainCheck(req.cookies);
 
-    if (!session) {
+    if (sessionError || !session) {
       if (this.noContentProfileResponseWhenUnauthenticated) {
         return new NextResponse(null, {
           status: 204
@@ -1154,8 +1295,9 @@ export class AuthClient {
       const res = NextResponse.json(result);
 
       // Cache tokens in session if session exists
-      const session = await this.sessionStore.get(req.cookies);
-      if (session) {
+      const { error: sessionError, session } =
+        await this.getSessionWithDomainCheck(req.cookies);
+      if (!sessionError && session) {
         await this.cacheTokenFromMfaVerify(
           result,
           bodyRecord.mfaToken,
@@ -1171,16 +1313,19 @@ export class AuthClient {
   }
 
   async handleAccessToken(req: NextRequest): Promise<NextResponse> {
-    const session = await this.sessionStore.get(req.cookies);
+    const { error: sessionError, session } =
+      await this.getSessionWithDomainCheck(req.cookies);
     const audience = req.nextUrl.searchParams.get("audience");
     const scope = req.nextUrl.searchParams.get("scope");
 
-    if (!session) {
+    if (sessionError || !session) {
       return NextResponse.json(
         {
           error: {
-            message: "The user does not have an active session.",
-            code: AccessTokenErrorCode.MISSING_SESSION
+            message: sessionError
+              ? sessionError.message
+              : "The user does not have an active session.",
+            code: sessionError?.code ?? AccessTokenErrorCode.MISSING_SESSION
           }
         },
         {
@@ -1267,6 +1412,51 @@ export class AuthClient {
       });
     }
 
+    // Unit-10: In resolver mode, extract issuer from logout token and delegate
+    if (this.provider?.isResolverMode) {
+      try {
+        // Step 1: Decode unverified to extract iss claim
+        const payload = jose.decodeJwt(logoutToken);
+        const iss = payload.iss as string;
+
+        if (!iss) {
+          return new NextResponse("Missing 'iss' claim in logout token.", {
+            status: 400
+          });
+        }
+
+        // Step 2-3: Normalize domain and validate (SSRF prevention)
+        const { domain } = normalizeDomain(iss);
+
+        // Step 4: Get AuthClient for the domain
+        const delegatedClient = this.provider.forDomainSync(domain);
+
+        // Step 5-6: Verify and delete via delegated client
+        const [error, logoutTokenClaims] =
+          await delegatedClient.verifyLogoutToken(logoutToken);
+        if (error) {
+          return new NextResponse(error.message, {
+            status: 400
+          });
+        }
+
+        // Step 7: Delete session (verified successfully)
+        await this.sessionStore.store.deleteByLogoutToken(logoutTokenClaims);
+
+        return new NextResponse(null, {
+          status: 204
+        });
+      } catch (error: any) {
+        return new NextResponse(
+          error.message || "Failed to process logout token.",
+          {
+            status: 400
+          }
+        );
+      }
+    }
+
+    // Static mode: verify with configured domain
     const [error, logoutTokenClaims] =
       await this.verifyLogoutToken(logoutToken);
     if (error) {
@@ -1283,7 +1473,8 @@ export class AuthClient {
   }
 
   async handleConnectAccount(req: NextRequest): Promise<NextResponse> {
-    const session = await this.sessionStore.get(req.cookies);
+    const { error: sessionError, session } =
+      await this.getSessionWithDomainCheck(req.cookies);
 
     // pass all query params except `connection`, `returnTo`, `scopes` as authorization params
     const connection = req.nextUrl.searchParams.get("connection");
@@ -1302,17 +1493,20 @@ export class AuthClient {
       });
     }
 
-    if (!session) {
-      return new NextResponse("The user does not have an active session.", {
-        status: 401
-      });
+    if (sessionError || !session) {
+      return new NextResponse(
+        sessionError?.message ?? "The user does not have an active session.",
+        {
+          status: 401
+        }
+      );
     }
 
     const [getTokenSetError, getTokenSetResponse] = await this.getTokenSet(
       session,
       {
         scope: "create:me:connected_accounts",
-        audience: `${this.issuer}/me/`
+        audience: `${this.issuer}me/`
       }
     );
 
@@ -1364,8 +1558,8 @@ export class AuthClient {
   async handleMyAccount(req: NextRequest): Promise<NextResponse> {
     return this.#handleProxy(req, {
       proxyPath: "/me",
-      targetBaseUrl: `${this.issuer}/me/v1`,
-      audience: `${this.issuer}/me/`,
+      targetBaseUrl: `${this.issuer}me/v1`,
+      audience: `${this.issuer}me/`,
       scope: req.headers.get("scope")
     });
   }
@@ -1373,8 +1567,8 @@ export class AuthClient {
   async handleMyOrg(req: NextRequest): Promise<NextResponse> {
     return this.#handleProxy(req, {
       proxyPath: "/my-org",
-      targetBaseUrl: `${this.issuer}/my-org`,
-      audience: `${this.issuer}/my-org/`,
+      targetBaseUrl: `${this.issuer}my-org`,
+      audience: `${this.issuer}my-org/`,
       scope: req.headers.get("scope")
     });
   }
@@ -1646,13 +1840,20 @@ export class AuthClient {
     const issuer = new URL(this.issuer);
 
     try {
-      const authorizationServerMetadata = await oauth
-        .discoveryRequest(issuer, {
-          ...this.httpOptions(),
-          [oauth.customFetch]: this.fetch,
-          [oauth.allowInsecureRequests]: this.allowInsecureRequests
-        })
-        .then((response) => oauth.processDiscoveryResponse(issuer, response));
+      const authorizationServerMetadata = await this.discoveryCache.get(
+        this.domain,
+        async () => {
+          return await oauth
+            .discoveryRequest(issuer, {
+              ...this.httpOptions(),
+              [oauth.customFetch]: this.fetch,
+              [oauth.allowInsecureRequests]: this.allowInsecureRequests
+            })
+            .then((response) =>
+              oauth.processDiscoveryResponse(issuer, response)
+            );
+        }
+      );
 
       this.authorizationServerMetadata = authorizationServerMetadata;
 
@@ -1715,7 +1916,11 @@ export class AuthClient {
     return response;
   }
 
-  private async verifyLogoutToken(
+  /**
+   * Verify a logout token.
+   * @internal Used internally by backchannel logout handling and MCD delegation.
+   */
+  async verifyLogoutToken(
     logoutToken: string
   ): Promise<[null, LogoutToken] | [SdkError, null]> {
     const [discoveryError, authorizationServerMetadata] =
@@ -1908,10 +2113,86 @@ export class AuthClient {
   }
 
   private get issuer(): string {
-    return this.domain.startsWith("http://") ||
-      this.domain.startsWith("https://")
-      ? this.domain
-      : `https://${this.domain}`;
+    return `https://${this.domain}/`;
+  }
+
+  /**
+   * Gets the session with domain validation in MCD mode.
+   *
+   * In resolver mode, sessions are tagged with the domain they were created for.
+   * This method checks that the session domain matches the current request domain,
+   * and backlills pre-MCD sessions atomically.
+   *
+   * Implementation in Unit-8: Session Domain Gating
+   *
+   * @param cookies - Request cookies containing session information
+   * @returns A SessionCheckResult object with the following properties:
+   *   - `error: null | SessionDomainMismatchError` — null if session is valid for current domain, or SessionDomainMismatchError if domain mismatch
+   *   - `session: null | SessionData` — the session object if valid, null otherwise
+   *   - `exists: boolean` — true if a session was found (regardless of domain match), false if no session
+   *
+   * @note SessionCheckResult is an internal contract used for session validation. Not part of public API.
+   *
+   * @internal
+   */
+  async getSessionWithDomainCheck(
+    cookies: RequestCookies | import("./cookies.js").ReadonlyRequestCookies
+  ): Promise<SessionCheckResult> {
+    // Read session from store
+    const session = await this.sessionStore.get(cookies);
+
+    // No session found
+    if (!session) {
+      return {
+        error: null,
+        session: null,
+        exists: false
+      };
+    }
+
+    // Session has domain metadata: check for match
+    if (session.internal?.mcd) {
+      // Compare session domain with current domain
+      if (session.internal.mcd.domain !== this.domain) {
+        // Domain mismatch - session was created for a different domain
+        return {
+          error: new SessionDomainMismatchError(
+            `Session was created for domain '${session.internal.mcd.domain}' but the current request is for domain '${this.domain}'. ` +
+              `This may indicate a cross-domain session reuse attempt.`
+          ),
+          session: null,
+          exists: true
+        };
+      }
+      // Domain matches - return session
+      return {
+        error: null,
+        session,
+        exists: true
+      };
+    }
+
+    // Pre-MCD session (no mcd field): need to backfill
+    // Fail-open in both modes: backfill with current domain instead of throwing error
+    session.internal = session.internal || {};
+    session.internal.mcd = {
+      domain: this.domain,
+      issuer: this.issuer
+    };
+
+    // Persist immediately (atomic backfill)
+    try {
+      const resCookies = new ResponseCookies(new Headers());
+      await this.sessionStore.set(cookies, resCookies, session);
+    } catch (error) {
+      // If backfill fails, still return the session but log the error
+    }
+
+    return {
+      error: null,
+      session,
+      exists: true
+    };
   }
 
   /**
@@ -3060,11 +3341,12 @@ export class AuthClient {
     reqCookies: RequestCookies,
     resCookies: ResponseCookies
   ): Promise<void> {
-    const session = await this.sessionStore.get(reqCookies);
-    if (!session) {
+    const { error: sessionError, session } =
+      await this.getSessionWithDomainCheck(reqCookies);
+    if (sessionError || !session) {
       throw new MfaVerifyError(
-        AccessTokenErrorCode.MISSING_SESSION,
-        "The user does not have an active session."
+        sessionError?.code ?? AccessTokenErrorCode.MISSING_SESSION,
+        sessionError?.message ?? "The user does not have an active session."
       );
     }
 
@@ -3103,11 +3385,15 @@ export class AuthClient {
     req: NextRequest,
     options: ProxyOptions
   ): Promise<NextResponse> {
-    const session = await this.sessionStore.get(req.cookies);
-    if (!session) {
-      return new NextResponse("The user does not have an active session.", {
-        status: 401
-      });
+    const { error: sessionError, session } =
+      await this.getSessionWithDomainCheck(req.cookies);
+    if (sessionError || !session) {
+      return new NextResponse(
+        sessionError?.message ?? "The user does not have an active session.",
+        {
+          status: 401
+        }
+      );
     }
 
     // handle preflight requests
@@ -3162,20 +3448,38 @@ export class AuthClient {
       return tokenSetResponse.tokenSet;
     };
 
-    // get/create fetcher isntance
-    let fetcher = this.proxyFetchers[options.audience];
+    // Unit-11: Get/create fetcher instance with domain-aware caching
+    // In MCD mode, use provider.getProxyFetcher for shared caching across AuthClient instances
+    // In static mode, use local proxyFetchers cache
+    const cacheKey = this.provider
+      ? `${this.domain}:${options.audience}`
+      : options.audience;
 
-    if (!fetcher) {
-      fetcher = await this.fetcherFactory({
-        useDPoP: this.useDPoP,
-        fetch: this.fetch,
-        getAccessToken: getAccessToken
+    let fetcher: Fetcher<Response>;
+    if (this.provider) {
+      fetcher = await this.provider.getProxyFetcher(cacheKey, async () => {
+        return this.fetcherFactory({
+          useDPoP: this.useDPoP,
+          fetch: this.fetch,
+          getAccessToken: getAccessToken
+        });
       });
-      this.proxyFetchers[options.audience] = fetcher;
     } else {
-      // @ts-expect-error Override fetcher's getAccessToken to capture token set side effects
-      fetcher.getAccessToken = getAccessToken;
+      // Static mode or no provider: use local cache
+      fetcher = this.proxyFetchers[options.audience];
+      if (!fetcher) {
+        fetcher = await this.fetcherFactory({
+          useDPoP: this.useDPoP,
+          fetch: this.fetch,
+          getAccessToken: getAccessToken
+        });
+        this.proxyFetchers[options.audience] = fetcher;
+      }
     }
+
+    // Override getAccessToken for the current request
+    // @ts-expect-error Override fetcher's getAccessToken to capture token set side effects
+    fetcher.getAccessToken = getAccessToken;
 
     try {
       const response = await fetcher.fetchWithAuth(
