@@ -30,6 +30,8 @@ export interface SessionData {
     sid: string;
     // the time at which the session was created in seconds since epoch
     createdAt: number;
+    // MCD metadata: domain and issuer used to authenticate this session
+    mcd?: import("../server/types.js").MCDMetadata;
   };
   connectionTokenSets?: ConnectionTokenSet[];
   [key: string]: unknown;
@@ -211,3 +213,9 @@ export type {
   InstrumentationEvent,
   InstrumentationLogger
 } from "./instrumentation.js";
+
+export type {
+  DomainResolver,
+  DiscoveryCacheOptions,
+  MCDMetadata
+} from "../server/types.js";

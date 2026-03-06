@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "http";
-import { cookies } from "next/headers.js";
+import { cookies, headers as getHeaders } from "next/headers.js";
 import { NextRequest, NextResponse } from "next/server.js";
 import { NextApiHandler, NextApiRequest, NextApiResponse } from "next/types.js";
 
@@ -35,6 +35,7 @@ import {
 import { validateDpopConfiguration } from "../utils/dpopUtils.js";
 import { isRequest } from "../utils/request.js";
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
+import { AuthClientProvider } from "./auth-client-provider.js";
 import {
   AuthClient,
   BeforeSessionSavedHook,
@@ -43,6 +44,7 @@ import {
   RoutesOptions
 } from "./auth-client.js";
 import { RequestCookies, ResponseCookies } from "./cookies.js";
+import { DiscoveryCache } from "./discovery-cache.js";
 import { AccessTokenFactory, CustomFetchImpl, Fetcher } from "./fetcher.js";
 import * as withApiAuthRequired from "./helpers/with-api-auth-required.js";
 import {
@@ -57,7 +59,12 @@ import {
   resolveLoggerFromEnvironment
 } from "./instrumentation-emitter.js";
 import { ServerMfaClient } from "./mfa/server-mfa-client.js";
-import { toNextRequest, toNextResponse } from "./next-compat.js";
+import {
+  toHeadersFromIncomingMessage,
+  toNextRequest,
+  toNextResponse,
+  toUrlFromPagesRouter
+} from "./next-compat.js";
 import {
   AbstractSessionStore,
   SessionConfiguration,
@@ -413,7 +420,7 @@ export type PagesRouterResponse =
 export class Auth0Client {
   private transactionStore: TransactionStore;
   private sessionStore: AbstractSessionStore;
-  private authClient: AuthClient;
+  private provider: AuthClientProvider;
   private routes: Routes;
   private domain: string;
   private _mfa?: ServerMfaClient;
@@ -533,50 +540,77 @@ export class Auth0Client {
           cookieOptions: sessionCookieOptions
         });
 
-    this.authClient = new AuthClient({
-      transactionStore: this.transactionStore,
-      sessionStore: this.sessionStore,
+    // Create discovery cache for the provider
+    const discoveryCache = new DiscoveryCache();
 
+    // Create provider that manages AuthClient instances
+    // Note: We defer the provider reference in the factory to avoid circular reference during construction.
+    // The factory captures 'this' by reference, and will read this.provider when called later (not during construction).
+    this.provider = new AuthClientProvider({
       domain,
-      clientId,
-      clientSecret,
-      clientAssertionSigningKey,
-      clientAssertionSigningAlg,
-      authorizationParameters: options.authorizationParameters,
-      pushedAuthorizationRequests: options.pushedAuthorizationRequests,
+      createAuthClient: (domainForClient) => {
+        return new AuthClient({
+          transactionStore: this.transactionStore,
+          sessionStore: this.sessionStore,
 
-      appBaseUrl,
-      secret,
-      signInReturnToPath: options.signInReturnToPath,
-      logoutStrategy: options.logoutStrategy,
-      includeIdTokenHintInOIDCLogoutUrl:
-        options.includeIdTokenHintInOIDCLogoutUrl,
+          domain: domainForClient,
+          clientId,
+          clientSecret,
+          clientAssertionSigningKey,
+          clientAssertionSigningAlg,
+          authorizationParameters: options.authorizationParameters,
+          pushedAuthorizationRequests: options.pushedAuthorizationRequests,
 
-      beforeSessionSaved: options.beforeSessionSaved,
-      onCallback: options.onCallback,
+          appBaseUrl,
+          secret,
+          signInReturnToPath: options.signInReturnToPath,
+          logoutStrategy: options.logoutStrategy,
+          includeIdTokenHintInOIDCLogoutUrl:
+            options.includeIdTokenHintInOIDCLogoutUrl,
 
-      routes: this.routes,
+          beforeSessionSaved: options.beforeSessionSaved,
+          onCallback: options.onCallback,
 
-      allowInsecureRequests: options.allowInsecureRequests,
-      httpTimeout: options.httpTimeout,
-      enableTelemetry: options.enableTelemetry,
-      enableAccessTokenEndpoint: options.enableAccessTokenEndpoint,
-      noContentProfileResponseWhenUnauthenticated:
-        options.noContentProfileResponseWhenUnauthenticated,
-      enableConnectAccountEndpoint: options.enableConnectAccountEndpoint,
-      useDPoP: options.useDPoP || false,
-      dpopKeyPair: options.dpopKeyPair || resolvedDpopKeyPair,
-      dpopOptions: options.dpopOptions || resolvedDpopOptions,
-      mfaTokenTtl,
-      logger
+          routes: this.routes,
+
+          allowInsecureRequests: options.allowInsecureRequests,
+          httpTimeout: options.httpTimeout,
+          enableTelemetry: options.enableTelemetry,
+          enableAccessTokenEndpoint: options.enableAccessTokenEndpoint,
+          noContentProfileResponseWhenUnauthenticated:
+            options.noContentProfileResponseWhenUnauthenticated,
+          enableConnectAccountEndpoint: options.enableConnectAccountEndpoint,
+          useDPoP: options.useDPoP || false,
+          dpopKeyPair: options.dpopKeyPair || resolvedDpopKeyPair,
+          dpopOptions: options.dpopOptions || resolvedDpopOptions,
+          mfaTokenTtl,
+          logger,
+
+          discoveryCache,
+          provider: this.provider
+        });
+      }
     });
+
+    // Update provider references in any already-created AuthClients (static mode)
+    // This is needed because the factory in static mode is called during AuthClientProvider construction,
+    // before this.provider is fully assigned. The closure captures 'this', so by this point it will be valid.
+    const staticClient = this.provider.getAuthClientForStaticMode();
+    if (staticClient) {
+      staticClient.provider = this.provider;
+    }
   }
 
   /**
    * middleware mounts the SDK routes to run as a middleware function.
    */
-  middleware(req: Request | NextRequest): Promise<NextResponse> {
-    return this.authClient.handler.bind(this.authClient)(toNextRequest(req));
+  async middleware(req: Request | NextRequest): Promise<NextResponse> {
+    const nextReq = toNextRequest(req);
+    const authClient = await this.provider.forRequest(
+      nextReq.headers,
+      nextReq.nextUrl
+    );
+    return authClient.handler.bind(authClient)(nextReq);
   }
 
   /**
@@ -601,19 +635,25 @@ export class Auth0Client {
   async getSession(
     req?: Request | PagesRouterRequest | NextRequest
   ): Promise<SessionData | null> {
-    if (req) {
-      // middleware usage
-      if (req instanceof Request) {
-        const nextReq = toNextRequest(req);
-        return this.sessionStore.get(nextReq.cookies);
-      }
+    const { authClient, normalizedReq } = await this.resolveRequestContext(req);
 
-      // pages router usage
-      return this.sessionStore.get(this.createRequestCookies(req));
+    // extract cookies
+    let reqCookies:
+      | RequestCookies
+      | import("./cookies.js").ReadonlyRequestCookies;
+    if (normalizedReq) {
+      reqCookies =
+        normalizedReq instanceof NextRequest
+          ? normalizedReq.cookies
+          : this.createRequestCookies(normalizedReq);
+    } else {
+      reqCookies = await cookies();
     }
 
-    // app router usage: Server Components, Server Actions, Route Handlers
-    return this.sessionStore.get(await cookies());
+    const { error, session } =
+      await authClient.getSessionWithDomainCheck(reqCookies);
+    if (error) throw error;
+    return session;
   }
 
   /**
@@ -735,8 +775,10 @@ export class Auth0Client {
     token_type?: string;
     audience?: string;
   }> {
-    const session: SessionData | null = req
-      ? await this.getSession(req)
+    const { authClient, normalizedReq } = await this.resolveRequestContext(req);
+
+    const session: SessionData | null = normalizedReq
+      ? await this.getSession(normalizedReq)
       : await this.getSession();
 
     if (!session) {
@@ -746,7 +788,7 @@ export class Auth0Client {
       );
     }
 
-    const [error, getTokenSetResponse] = await this.authClient.getTokenSet(
+    const [error, getTokenSetResponse] = await authClient.getTokenSet(
       session,
       options
     );
@@ -775,7 +817,7 @@ export class Auth0Client {
       }
       // call beforeSessionSaved callback if present
       // if not then filter id_token claims with default rules
-      const finalSession = await this.authClient.finalizeSession(
+      const finalSession = await authClient.finalizeSession(
         { ...session, ...sessionChanges },
         tokenSet.idToken
       );
@@ -837,9 +879,10 @@ export class Auth0Client {
     req?: PagesRouterRequest | NextRequest | Request,
     res?: PagesRouterResponse | NextResponse
   ): Promise<{ token: string; expiresAt: number; scope?: string }> {
-    const nextReq = req instanceof Request ? toNextRequest(req) : req;
-    const session: SessionData | null = nextReq
-      ? await this.getSession(nextReq)
+    const { authClient, normalizedReq } = await this.resolveRequestContext(req);
+
+    const session: SessionData | null = normalizedReq
+      ? await this.getSession(normalizedReq)
       : await this.getSession();
 
     if (!session) {
@@ -854,12 +897,11 @@ export class Auth0Client {
       (tokenSet) => tokenSet.connection === options.connection
     );
 
-    const [error, retrievedTokenSet] =
-      await this.authClient.getConnectionTokenSet(
-        session.tokenSet,
-        existingTokenSet,
-        options
-      );
+    const [error, retrievedTokenSet] = await authClient.getConnectionTokenSet(
+      session.tokenSet,
+      existingTokenSet,
+      options
+    );
 
     if (error !== null) {
       throw error;
@@ -895,7 +937,7 @@ export class Auth0Client {
           ...session,
           connectionTokenSets: tokenSets
         },
-        nextReq,
+        normalizedReq,
         res
       );
     }
@@ -938,8 +980,10 @@ export class Auth0Client {
   async customTokenExchange(
     options: CustomTokenExchangeOptions
   ): Promise<CustomTokenExchangeResponse> {
-    const [error, response] =
-      await this.authClient.customTokenExchange(options);
+    const reqHeaders = await getHeaders();
+    const authClient = await this.provider.forRequest(reqHeaders, undefined);
+
+    const [error, response] = await authClient.customTokenExchange(options);
 
     if (error !== null) {
       throw error;
@@ -985,7 +1029,7 @@ export class Auth0Client {
    */
   get mfa(): ServerMfaClient {
     if (!this._mfa) {
-      this._mfa = new ServerMfaClient(this.authClient);
+      this._mfa = new ServerMfaClient(this.provider);
     }
     return this._mfa;
   }
@@ -1124,25 +1168,62 @@ export class Auth0Client {
   }
 
   private createRequestCookies(req: PagesRouterRequest) {
-    const headers = new Headers();
+    return new RequestCookies(toHeadersFromIncomingMessage(req));
+  }
 
-    for (const key in req.headers) {
-      if (Array.isArray(req.headers[key])) {
-        for (const value of req.headers[key]) {
-          headers.append(key, value);
-        }
-      } else {
-        headers.append(key, req.headers[key] ?? "");
+  /**
+   * Resolves request context from any Next.js server context into a uniform shape.
+   *
+   * Handles the 3-way branch:
+   * - Request / NextRequest: extracts headers + nextUrl from nextReq
+   * - PagesRouterRequest (IncomingMessage): converts headers, constructs URL
+   * - No request (Server Components / Actions): uses next/headers, url is undefined
+   *
+   * @returns authClient and normalizedReq for downstream use.
+   *   Cookies are NOT included — only getSession needs them, and it handles
+   *   cookie extraction internally to avoid eagerly calling cookies() outside
+   *   request scope (which would throw in Server Components when called from
+   *   methods that don't need cookies, like getAccessToken).
+   * @internal
+   */
+  private async resolveRequestContext(
+    req?: Request | PagesRouterRequest | NextRequest
+  ): Promise<{
+    authClient: AuthClient;
+    normalizedReq?: NextRequest | PagesRouterRequest;
+  }> {
+    if (req) {
+      if (req instanceof Request) {
+        const nextReq = toNextRequest(req);
+        const authClient = await this.provider.forRequest(
+          nextReq.headers,
+          nextReq.nextUrl
+        );
+        return { authClient, normalizedReq: nextReq };
       }
+
+      // Pages Router (IncomingMessage / NextApiRequest)
+      const reqHeaders = toHeadersFromIncomingMessage(req);
+      const url = toUrlFromPagesRouter(req);
+      const authClient = await this.provider.forRequest(reqHeaders, url);
+      return {
+        authClient,
+        normalizedReq: req as PagesRouterRequest
+      };
     }
 
-    return new RequestCookies(headers);
+    // Server Components / Server Actions — no request object
+    const reqHeaders = await getHeaders();
+    const authClient = await this.provider.forRequest(reqHeaders, undefined);
+    return { authClient };
   }
 
   async startInteractiveLogin(
     options: StartInteractiveLoginOptions = {}
   ): Promise<NextResponse> {
-    return this.authClient.startInteractiveLogin(options);
+    const reqHeaders = await getHeaders();
+    const authClient = await this.provider.forRequest(reqHeaders, undefined);
+    return authClient.startInteractiveLogin(options);
   }
 
   /**
@@ -1154,8 +1235,11 @@ export class Auth0Client {
    * @see https://auth0.com/docs/get-started/authentication-and-authorization-flow/client-initiated-backchannel-authentication-flow
    */
   async getTokenByBackchannelAuth(options: BackchannelAuthenticationOptions) {
+    const reqHeaders = await getHeaders();
+    const authClient = await this.provider.forRequest(reqHeaders, undefined);
+
     const [error, response] =
-      await this.authClient.backchannelAuthentication(options);
+      await authClient.backchannelAuthentication(options);
 
     if (error) {
       throw error;
@@ -1176,6 +1260,9 @@ export class Auth0Client {
    * You must enable `Offline Access` from the Connection Permissions settings to be able to use the connection with Connected Accounts.
    */
   async connectAccount(options: ConnectAccountOptions): Promise<NextResponse> {
+    const reqHeaders = await getHeaders();
+    const authClient = await this.provider.forRequest(reqHeaders, undefined);
+
     const session = await this.getSession();
 
     if (!session) {
@@ -1185,23 +1272,24 @@ export class Auth0Client {
       });
     }
 
+    // Build issuer URL from authClient's domain
+    const issuer = `https://${authClient.domain}/`;
     const getMyAccountTokenOpts = {
-      audience: `${this.issuer}/me/`,
+      audience: `${issuer}me/`,
       scope: "create:me:connected_accounts"
     };
 
     const accessToken = await this.getAccessToken(getMyAccountTokenOpts);
 
-    const [error, connectAccountResponse] =
-      await this.authClient.connectAccount({
-        ...options,
-        tokenSet: {
-          accessToken: accessToken.token,
-          expiresAt: accessToken.expiresAt,
-          scope: getMyAccountTokenOpts.scope,
-          audience: accessToken.audience
-        }
-      });
+    const [error, connectAccountResponse] = await authClient.connectAccount({
+      ...options,
+      tokenSet: {
+        accessToken: accessToken.token,
+        expiresAt: accessToken.expiresAt,
+        scope: getMyAccountTokenOpts.scope,
+        audience: accessToken.audience
+      }
+    });
 
     if (error) {
       throw error;
@@ -1430,9 +1518,10 @@ export class Auth0Client {
       fetch?: CustomFetchImpl<TOutput>;
     }
   ) {
-    const nextReq = req instanceof Request ? toNextRequest(req) : req;
-    const session: SessionData | null = nextReq
-      ? await this.getSession(nextReq)
+    const { authClient, normalizedReq } = await this.resolveRequestContext(req);
+
+    const session: SessionData | null = normalizedReq
+      ? await this.getSession(normalizedReq)
       : await this.getSession();
 
     if (!session) {
@@ -1445,7 +1534,7 @@ export class Auth0Client {
     const getAccessToken = async (
       getAccessTokenOptions: GetAccessTokenOptions
     ) => {
-      const [error, getTokenSetResponse] = await this.authClient.getTokenSet(
+      const [error, getTokenSetResponse] = await authClient.getTokenSet(
         session,
         getAccessTokenOptions || {}
       );
@@ -1455,7 +1544,7 @@ export class Auth0Client {
       return getTokenSetResponse.tokenSet;
     };
 
-    const fetcher: Fetcher<TOutput> = await this.authClient.fetcherFactory({
+    const fetcher: Fetcher<TOutput> = await authClient.fetcherFactory({
       ...options,
       getAccessToken
     });
@@ -1499,12 +1588,5 @@ export class Auth0Client {
     }
 
     return DEFAULT_TTL;
-  }
-
-  private get issuer(): string {
-    return this.domain.startsWith("http://") ||
-      this.domain.startsWith("https://")
-      ? this.domain
-      : `https://${this.domain}`;
   }
 }

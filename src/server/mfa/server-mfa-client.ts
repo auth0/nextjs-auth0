@@ -1,3 +1,4 @@
+import { headers as getHeaders } from "next/headers.js";
 import { NextRequest, NextResponse } from "next/server.js";
 
 import type {
@@ -9,6 +10,7 @@ import type {
   MfaVerifyResponse,
   VerifyMfaOptions
 } from "../../types/index.js";
+import type { AuthClientProvider } from "../auth-client-provider.js";
 import type { AuthClient } from "../auth-client.js";
 
 /**
@@ -43,7 +45,12 @@ import type { AuthClient } from "../auth-client.js";
  * ```
  */
 export class ServerMfaClient implements MfaClient {
-  constructor(private authClient: AuthClient) {}
+  constructor(private provider: AuthClientProvider) {}
+
+  private async getAuthClient(): Promise<AuthClient> {
+    const reqHeaders = await getHeaders();
+    return this.provider.forRequest(reqHeaders, undefined);
+  }
 
   /**
    * List enrolled MFA authenticators.
@@ -80,7 +87,8 @@ export class ServerMfaClient implements MfaClient {
   async getAuthenticators(options: {
     mfaToken: string;
   }): Promise<Authenticator[]> {
-    return this.authClient.mfaGetAuthenticators(options.mfaToken);
+    const authClient = await this.getAuthClient();
+    return authClient.mfaGetAuthenticators(options.mfaToken);
   }
 
   /**
@@ -111,7 +119,8 @@ export class ServerMfaClient implements MfaClient {
     challengeType: string;
     authenticatorId?: string;
   }): Promise<ChallengeResponse> {
-    return this.authClient.mfaChallenge(
+    const authClient = await this.getAuthClient();
+    return authClient.mfaChallenge(
       options.mfaToken,
       options.challengeType,
       options.authenticatorId
@@ -148,7 +157,8 @@ export class ServerMfaClient implements MfaClient {
    */
   async enroll(options: EnrollOptions): Promise<EnrollmentResponse> {
     const { mfaToken, ...enrollOptions } = options;
-    return this.authClient.mfaEnroll(mfaToken, enrollOptions);
+    const authClient = await this.getAuthClient();
+    return authClient.mfaEnroll(mfaToken, enrollOptions);
   }
 
   /**
@@ -184,6 +194,8 @@ export class ServerMfaClient implements MfaClient {
     arg2?: NextResponse,
     arg3?: VerifyMfaOptions
   ): Promise<MfaVerifyResponse> {
+    const authClient = await this.getAuthClient();
+
     // Determine which overload based on arg types
     if (arg1 instanceof NextRequest) {
       // Pages Router/Middleware: verify(req, res, options)
@@ -193,9 +205,9 @@ export class ServerMfaClient implements MfaClient {
         );
       }
       // Verify MFA and get tokens
-      const result = await this.authClient.mfaVerify(arg3);
+      const result = await authClient.mfaVerify(arg3);
       // Cache tokens in session
-      await this.authClient.cacheTokenFromMfaVerify(
+      await authClient.cacheTokenFromMfaVerify(
         result,
         arg3.mfaToken,
         arg1.cookies,
@@ -210,15 +222,15 @@ export class ServerMfaClient implements MfaClient {
         );
       }
       // Verify MFA and get tokens
-      const result = await this.authClient.mfaVerify(arg1);
+      const result = await authClient.mfaVerify(arg1);
       // Get cookies from next/headers and cache tokens
-      const { cookies } = await import("next/headers.js");
-      const cookieStore = await cookies();
-      await this.authClient.cacheTokenFromMfaVerify(
+      const { cookies: cookiesLib } = await import("next/headers.js");
+      const cookies = await cookiesLib();
+      await authClient.cacheTokenFromMfaVerify(
         result,
         arg1.mfaToken,
-        cookieStore as any,
-        cookieStore as any
+        cookies as any,
+        cookies as any
       );
       return result;
     }

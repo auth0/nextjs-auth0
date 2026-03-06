@@ -34,3 +34,18 @@ export type {
   InstrumentationEvent,
   InstrumentationLogger
 } from "../types/instrumentation.js";
+
+// MCD (Multiple Custom Domains) public error classes
+export {
+  DomainResolutionError,
+  DomainValidationError,
+  IssuerValidationError,
+  InvalidConfigurationError
+} from "./errors.js";
+
+// MCD types and utilities
+export type {
+  DomainResolver,
+  DiscoveryCacheOptions,
+  MCDMetadata
+} from "./types.js";
