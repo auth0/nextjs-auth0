@@ -43,6 +43,20 @@ describe("encrypt/decrypt", async () => {
     expect(decrypted).toBeNull();
   });
 
+  it("should fail to decrypt a tampered payload", async () => {
+    const payload = { key: "value" };
+    const maxAge = 60 * 60; // 1 hour in seconds
+    const expiration = Math.floor(Date.now() / 1000 + maxAge);
+    const encrypted = await encrypt(payload, secret, expiration);
+
+    // Tamper with the encrypted payload by shifting the first character
+    const tampered =
+      String.fromCharCode(encrypted.charCodeAt(0) + 1) + encrypted.slice(1);
+
+    const decrypted = await decrypt(tampered, secret);
+    expect(decrypted).toBeNull();
+  });
+
   it("should fail to encrypt if a secret is not provided", async () => {
     const payload = { key: "value" };
     const maxAge = 60 * 60; // 1 hour in seconds
