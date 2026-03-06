@@ -71,7 +71,7 @@ import {
   User,
   VerifyMfaOptions
 } from "../types/index.js";
-import type { InstrumentationLogger } from "../types/instrumentation.js";
+import { resolveAppBaseUrl } from "../utils/app-base-url.js";
 import { mergeAuthorizationParamsIntoSearchParams } from "../utils/authorization-params-helpers.js";
 import {
   DEFAULT_MFA_CONTEXT_TTL_SECONDS,
@@ -122,7 +122,7 @@ import {
   mergeScopes,
   tokenSetFromAccessTokenSet
 } from "../utils/token-set-helpers.js";
-import { toSafeRedirect } from "../utils/url-helpers.js";
+import { isUrl, toSafeRedirect } from "../utils/url-helpers.js";
 import type { AuthClientProvider } from "./auth-client-provider.js";
 import { addCacheControlHeadersForSession } from "./cookies.js";
 import { DiscoveryCache } from "./discovery-cache.js";
@@ -138,7 +138,6 @@ import {
   FetcherHooks,
   FetcherMinimalConfig
 } from "./fetcher.js";
-import { InstrumentationEmitter } from "./instrumentation-emitter.js";
 import { normalizeDomain, normalizeIssuer } from "./normalize.js";
 import { AbstractSessionStore } from "./session/abstract-session-store.js";
 import { TransactionState, TransactionStore } from "./transaction-store.js";
@@ -174,6 +173,10 @@ export type OnCallbackContext = {
    */
   responseType?: RESPONSE_TYPES;
   /**
+   * The resolved base URL for the current request, used to build safe redirects.
+   */
+  appBaseUrl?: string;
+  /**
    * The URL or path the user should be redirected to after completing the transaction.
    */
   returnTo?: string;
@@ -187,6 +190,8 @@ export type OnCallbackHook = (
   ctx: OnCallbackContext,
   session: SessionData | null
 ) => Promise<NextResponse>;
+
+type ExpiresAtInput = number | string | null | undefined;
 
 // params passed to the /authorize endpoint that cannot be overwritten
 const INTERNAL_AUTHORIZE_PARAMS = [
@@ -255,7 +260,11 @@ export interface AuthClientOptions {
   pushedAuthorizationRequests?: boolean;
 
   secret: string;
-  appBaseUrl?: string;
+  /**
+   * Normalized appBaseUrl. When omitted, the SDK infers the base URL from the request.
+   * If you construct AuthClient directly, normalize the value first.
+   */
+  appBaseUrl?: string | string[];
   signInReturnToPath?: string;
   logoutStrategy?: LogoutStrategy;
   includeIdTokenHintInOIDCLogoutUrl?: boolean;
@@ -276,6 +285,7 @@ export interface AuthClientOptions {
   enableAccessTokenEndpoint?: boolean;
   noContentProfileResponseWhenUnauthenticated?: boolean;
   enableConnectAccountEndpoint?: boolean;
+  tokenRefreshBuffer?: number;
 
   useDPoP?: boolean;
   dpopKeyPair?: DpopKeyPair;
@@ -286,12 +296,6 @@ export interface AuthClientOptions {
    * Default: 300 (5 minutes, matching Auth0's mfa_token expiration)
    */
   mfaTokenTtl?: number;
-
-  /**
-   * Optional instrumentation logger callback.
-   * @see InstrumentationLogger
-   */
-  logger?: InstrumentationLogger;
 
   /**
    * @future This option is reserved for future implementation.
@@ -327,7 +331,8 @@ export class AuthClient {
   private authorizationParameters: AuthorizationParameters;
   private pushedAuthorizationRequests: boolean;
 
-  private appBaseUrl?: string;
+  // Normalized appBaseUrl for this client instance.
+  private appBaseUrl?: string | string[];
   private signInReturnToPath: string;
   private logoutStrategy: LogoutStrategy;
   private includeIdTokenHintInOIDCLogoutUrl: boolean;
@@ -350,6 +355,7 @@ export class AuthClient {
   private readonly enableAccessTokenEndpoint: boolean;
   private readonly noContentProfileResponseWhenUnauthenticated: boolean;
   private readonly enableConnectAccountEndpoint: boolean;
+  private readonly tokenRefreshBuffer: number;
 
   private dpopOptions?: DpopOptions;
 
@@ -360,14 +366,9 @@ export class AuthClient {
 
   private proxyFetchers: { [audience: string]: Fetcher<Response> } = {};
 
-  private emitter: InstrumentationEmitter;
-
   constructor(options: AuthClientOptions) {
     // dependencies
     this.fetch = options.fetch || fetch;
-    this.emitter = new InstrumentationEmitter(options.logger, {
-      domain: options.domain
-    });
     this.jwksCache = options.jwksCache || {};
     this.discoveryCache = options.discoveryCache || new DiscoveryCache();
     this.provider = options.provider;
@@ -399,16 +400,9 @@ export class AuthClient {
     };
 
     if (this.allowInsecureRequests && process.env.NODE_ENV === "production") {
-      this.emitter.emit("warn", "config:insecure-requests", {
-        environment: "production",
-        message:
-          "allowInsecureRequests is enabled in a production environment. This is not recommended."
-      });
-      if (!this.emitter.hasLogger) {
-        console.warn(
-          "allowInsecureRequests is enabled in a production environment. This is not recommended."
-        );
-      }
+      console.warn(
+        "allowInsecureRequests is enabled in a production environment. This is not recommended."
+      );
     }
 
     // stores
@@ -459,6 +453,22 @@ export class AuthClient {
     }
 
     // application
+    if (Array.isArray(options.appBaseUrl)) {
+      if (options.appBaseUrl.length === 0) {
+        throw new InvalidConfigurationError(
+          "APP_BASE_URL array configuration cannot be empty."
+        );
+      }
+      const invalidUrls = options.appBaseUrl.filter(
+        (url) => isUrl(url) === false
+      );
+      if (invalidUrls.length > 0) {
+        throw new InvalidConfigurationError(
+          `APP_BASE_URL array contains invalid URLs: ${invalidUrls.join(", ")}`
+        );
+      }
+    }
+
     this.appBaseUrl = options.appBaseUrl;
     this.signInReturnToPath = options.signInReturnToPath || "/";
 
@@ -487,6 +497,7 @@ export class AuthClient {
       options.noContentProfileResponseWhenUnauthenticated ?? false;
     this.enableConnectAccountEndpoint =
       options.enableConnectAccountEndpoint ?? false;
+    this.tokenRefreshBuffer = options.tokenRefreshBuffer ?? 0;
 
     this.useDPoP = options.useDPoP ?? false;
 
@@ -583,29 +594,27 @@ export class AuthClient {
         ...session
       });
       addCacheControlHeadersForSession(res);
-      this.emitter.emit("debug", "session:touch", {});
-
       return res;
     }
   }
 
   async startInteractiveLogin(
-    options: StartInteractiveLoginOptions = {}
+    options: StartInteractiveLoginOptions = {},
+    req?: NextRequest
   ): Promise<NextResponse> {
-    const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registered with the authorization server
+    const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
+    const redirectUri = createRouteUrl(
+      this.routes.callback,
+      appBaseUrl
+    ).toString(); // must be registered with the authorization server
     let returnTo = this.signInReturnToPath;
 
     // Validate returnTo parameter
     if (options.returnTo) {
-      const baseUrl =
+      const safeBaseUrl = new URL(
         (this.authorizationParameters.redirect_uri as string | undefined) ||
-        this.appBaseUrl;
-      if (!baseUrl) {
-        throw new Error(
-          "appBaseUrl is required for returnTo validation. Provide it in Auth0ClientOptions or ensure it can be resolved from request headers."
-        );
-      }
-      const safeBaseUrl = new URL(baseUrl);
+          appBaseUrl
+      );
       const sanitizedReturnTo = toSafeRedirect(options.returnTo, safeBaseUrl);
 
       if (sanitizedReturnTo) {
@@ -633,17 +642,12 @@ export class AuthClient {
       INTERNAL_AUTHORIZE_PARAMS
     );
     authorizationParams.set("client_id", this.clientMetadata.client_id);
-    authorizationParams.set("redirect_uri", redirectUri.toString());
+    authorizationParams.set("redirect_uri", redirectUri);
     authorizationParams.set("response_type", RESPONSE_TYPES.CODE);
     authorizationParams.set("code_challenge", codeChallenge);
     authorizationParams.set("code_challenge_method", codeChallengeMethod);
     authorizationParams.set("state", state);
     authorizationParams.set("nonce", nonce);
-
-    this.emitter.emit("info", "auth:login:start", {
-      scope: authorizationParams.get("scope") ?? undefined,
-      audience: authorizationParams.get("audience") ?? undefined
-    });
 
     // Add dpop_jkt parameter if DPoP is enabled
     if (this.dpopKeyPair) {
@@ -709,10 +713,6 @@ export class AuthClient {
       );
     }
 
-    this.emitter.emit("info", "auth:login:redirect", {
-      authorizationUrl: authorizationUrl.origin + authorizationUrl.pathname
-    });
-
     // Set response and save transaction
     const res = NextResponse.redirect(authorizationUrl.toString());
 
@@ -737,7 +737,7 @@ export class AuthClient {
       authorizationParameters,
       returnTo: returnTo
     };
-    return this.startInteractiveLogin(options);
+    return this.startInteractiveLogin(options, req);
   }
 
   async handleLogout(req: NextRequest): Promise<NextResponse> {
@@ -750,17 +750,10 @@ export class AuthClient {
     // Propagate domain mismatch error but don't delete session on domain mismatch
     const hasDomainMismatch = sessionError && sessionExists;
 
-    this.emitter.emit("info", "auth:logout:start", {
-      strategy: this.logoutStrategy,
-      hasSession: !!session,
-      hasDomainMismatch
-    });
-
     const [discoveryError, authorizationServerMetadata] =
       await this.discoverAuthorizationServerMetadata();
 
     if (discoveryError) {
-      this.emitter.emitError("logout", discoveryError);
       // Clean up session on discovery error (unless domain mismatch)
       const errorResponse = new NextResponse(
         "An error occurred while trying to initiate the logout request.",
@@ -772,23 +765,11 @@ export class AuthClient {
         await this.sessionStore.delete(req.cookies, errorResponse.cookies);
       }
       await this.transactionStore.deleteAll(req.cookies, errorResponse.cookies);
-      if (!hasDomainMismatch) {
-        this.emitter.emit("info", "session:delete", { reason: "logout" });
-      }
-      this.emitter.emit("info", "auth:logout:complete", {
-        sessionDeleted: !hasDomainMismatch
-      });
       return errorResponse;
     }
 
-    const defaultReturnTo =
-      req.nextUrl.searchParams.get("returnTo") || this.appBaseUrl;
-    if (!defaultReturnTo) {
-      throw new Error(
-        "appBaseUrl is required for logout. Provide it in Auth0ClientOptions or ensure it can be resolved from request headers."
-      );
-    }
-    const returnTo = defaultReturnTo;
+    const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
+    const returnTo = req.nextUrl.searchParams.get("returnTo") || appBaseUrl;
     const federated = req.nextUrl.searchParams.has("federated");
 
     const createV2LogoutResponse = (): NextResponse => {
@@ -853,15 +834,9 @@ export class AuthClient {
     } else {
       // Auto strategy (default): Try OIDC first, fallback to v2 if not available
       if (!authorizationServerMetadata.end_session_endpoint) {
-        this.emitter.emit("warn", "auth:logout:fallback", {
-          reason: "rp_initiated_logout_not_supported",
-          message: "RP-initiated logout not enabled, falling back to /v2/logout"
-        });
-        if (!this.emitter.hasLogger) {
-          console.warn(
-            "The Auth0 client does not have RP-initiated logout enabled, the user will be redirected to the `/v2/logout` endpoint instead. Learn how to enable it here: https://auth0.com/docs/authenticate/login/logout/log-users-out-of-auth0#enable-endpoint-discovery"
-          );
-        }
+        console.warn(
+          "The Auth0 client does not have RP-initiated logout enabled, the user will be redirected to the `/v2/logout` endpoint instead. Learn how to enable it here: https://auth0.com/docs/authenticate/login/logout/log-users-out-of-auth0#enable-endpoint-discovery"
+        );
         logoutResponse = createV2LogoutResponse();
       } else {
         logoutResponse = createOIDCLogoutResponse();
@@ -871,16 +846,11 @@ export class AuthClient {
     // Clean up session and transaction cookies (only if session matched domain)
     if (!hasDomainMismatch) {
       await this.sessionStore.delete(req.cookies, logoutResponse.cookies);
-      this.emitter.emit("info", "session:delete", { reason: "logout" });
     }
     addCacheControlHeadersForSession(logoutResponse);
 
     // Clear any orphaned transaction cookies
     await this.transactionStore.deleteAll(req.cookies, logoutResponse.cookies);
-
-    this.emitter.emit("info", "auth:logout:complete", {
-      sessionDeleted: !hasDomainMismatch
-    });
 
     return logoutResponse;
   }
@@ -893,12 +863,6 @@ export class AuthClient {
    */
   public async handleCallback(req: NextRequest): Promise<NextResponse> {
     const state = req.nextUrl.searchParams.get("state");
-
-    this.emitter.emit("info", "auth:callback:start", {
-      hasCode: req.nextUrl.searchParams.has("code"),
-      hasState: !!state,
-      hasError: req.nextUrl.searchParams.has("error")
-    });
 
     if (!state) {
       return this.handleCallbackError(new MissingStateError(), {}, req);
@@ -913,9 +877,11 @@ export class AuthClient {
     }
 
     const transactionState = transactionStateCookie.payload;
+    const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
     const onCallbackCtx: OnCallbackContext = {
       responseType: transactionState.responseType,
-      returnTo: transactionState.returnTo
+      returnTo: transactionState.returnTo,
+      appBaseUrl
     };
 
     // Unit-9: Callback domain delegation in resolver mode
@@ -979,7 +945,7 @@ export class AuthClient {
           connectCode: req.nextUrl.searchParams.get("connect_code")!,
           redirectUri: createRouteUrl(
             this.routes.callback,
-            this.appBaseUrl
+            appBaseUrl
           ).toString(),
           codeVerifier: transactionState.codeVerifier
         });
@@ -1046,7 +1012,9 @@ export class AuthClient {
     let authorizationCodeGrantRequestCall: () => Promise<Response>;
 
     try {
-      redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registered with the authorization server
+      redirectUri = new URL(
+        createRouteUrl(this.routes.callback, appBaseUrl).toString()
+      ); // must be registered with the authorization server
 
       // Create DPoP handle ONCE outside the closure so it persists across retries.
       // This is required by RFC 9449: the handle must learn and reuse the nonce from
@@ -1164,11 +1132,6 @@ export class AuthClient {
       }
     };
 
-    this.emitter.emit("info", "session:create", {
-      hasRefreshToken: !!oidcRes.refresh_token,
-      scope: oidcRes.scope
-    });
-
     const res = await this.onCallback(null, onCallbackCtx, session);
 
     // call beforeSessionSaved callback if present
@@ -1191,11 +1154,6 @@ export class AuthClient {
 
     // Clean up the current transaction cookie after successful authentication
     await this.transactionStore.delete(res.cookies, state);
-
-    this.emitter.emit("info", "auth:callback:complete", {
-      hasRefreshToken: !!oidcRes.refresh_token,
-      scope: oidcRes.scope
-    });
 
     return res;
   }
@@ -1430,8 +1388,6 @@ export class AuthClient {
   }
 
   async handleBackChannelLogout(req: NextRequest): Promise<NextResponse> {
-    this.emitter.emit("info", "auth:backchannel-logout:start", {});
-
     if (!this.sessionStore.store) {
       return new NextResponse("A session data store is not configured.", {
         status: 500
@@ -1479,7 +1435,6 @@ export class AuthClient {
         const [error, logoutTokenClaims] =
           await delegatedClient.verifyLogoutToken(logoutToken);
         if (error) {
-          this.emitter.emitError("backchannel_logout", error);
           return new NextResponse(error.message, {
             status: 400
           });
@@ -1488,16 +1443,10 @@ export class AuthClient {
         // Step 7: Delete session (verified successfully)
         await this.sessionStore.store.deleteByLogoutToken(logoutTokenClaims);
 
-        this.emitter.emit("info", "session:delete", {
-          reason: "backchannel_logout"
-        });
-        this.emitter.emit("info", "auth:backchannel-logout:complete", {});
-
         return new NextResponse(null, {
           status: 204
         });
       } catch (error: any) {
-        this.emitter.emitError("backchannel_logout", error);
         return new NextResponse(
           error.message || "Failed to process logout token.",
           {
@@ -1511,18 +1460,12 @@ export class AuthClient {
     const [error, logoutTokenClaims] =
       await this.verifyLogoutToken(logoutToken);
     if (error) {
-      this.emitter.emitError("backchannel_logout", error);
       return new NextResponse(error.message, {
         status: 400
       });
     }
 
     await this.sessionStore.store.deleteByLogoutToken(logoutTokenClaims);
-
-    this.emitter.emit("info", "session:delete", {
-      reason: "backchannel_logout"
-    });
-    this.emitter.emit("info", "auth:backchannel-logout:complete", {});
 
     return new NextResponse(null, {
       status: 204
@@ -1593,7 +1536,7 @@ export class AuthClient {
     }
 
     const [connectAccountError, connectAccountResponse] =
-      await this.connectAccount({ tokenSet, ...connectAccountParams });
+      await this.connectAccount({ tokenSet, ...connectAccountParams }, req);
 
     if (connectAccountError) {
       return new NextResponse(connectAccountError.message, {
@@ -1691,12 +1634,6 @@ export class AuthClient {
     sessionData: SessionData,
     options: GetAccessTokenOptions = {}
   ): Promise<[null, GetTokenSetResponse] | [SdkError, null]> {
-    this.emitter.emit("debug", "token:get:start", {
-      audience: options.audience,
-      hasRefreshToken: !!sessionData.tokenSet.refreshToken,
-      forceRefresh: !!options.refresh
-    });
-
     // This will merge the scopes from the authorization parameters and the options.
     // The scope from the options will be added to the scopes from the authorization parameters.
     // If there are duplicate scopes, they will be removed.
@@ -1715,6 +1652,31 @@ export class AuthClient {
         audience: options.audience ?? this.authorizationParameters.audience
       }
     );
+    const now = Date.now() / 1000;
+    const normalizeExpiresAt = (value: ExpiresAtInput): number | undefined => {
+      if (typeof value === "number") {
+        return Number.isFinite(value) ? value : undefined;
+      }
+      if (typeof value === "string") {
+        if (value.trim() === "") {
+          return undefined;
+        }
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : undefined;
+      }
+      return undefined;
+    };
+    const isBeforeOrEqual = (left: ExpiresAtInput, right: number) => {
+      const normalized = normalizeExpiresAt(left);
+      return normalized !== undefined && normalized <= right;
+    };
+
+    const expiresAt = normalizeExpiresAt(tokenSet.expiresAt);
+    const isExpired = isBeforeOrEqual(tokenSet.expiresAt, now);
+    const shouldRefresh = isBeforeOrEqual(
+      tokenSet.expiresAt,
+      now + this.tokenRefreshBuffer
+    );
 
     // no access token was found that matches the, optional, provided audience and scope
     if (!tokenSet.refreshToken && !tokenSet.accessToken) {
@@ -1728,12 +1690,7 @@ export class AuthClient {
     }
 
     // the access token was found, but it has expired and we do not have a refresh token
-    if (
-      !tokenSet.refreshToken &&
-      tokenSet.accessToken &&
-      tokenSet.expiresAt &&
-      tokenSet.expiresAt <= Date.now() / 1000
-    ) {
+    if (!tokenSet.refreshToken && tokenSet.accessToken && isExpired) {
       return [
         new AccessTokenError(
           AccessTokenErrorCode.MISSING_REFRESH_TOKEN,
@@ -1745,11 +1702,7 @@ export class AuthClient {
 
     if (tokenSet.refreshToken) {
       // either the access token has expired or we are forcing a refresh
-      if (
-        options.refresh ||
-        !tokenSet.expiresAt ||
-        tokenSet.expiresAt <= Date.now() / 1000
-      ) {
+      if (options.refresh || expiresAt === undefined || shouldRefresh) {
         const [error, response] = await this.#refreshTokenSet(tokenSet, {
           audience: options.audience,
           scope: options.scope ? scope : undefined,
@@ -1778,9 +1731,6 @@ export class AuthClient {
   async backchannelAuthentication(
     options: BackchannelAuthenticationOptions
   ): Promise<[null, BackchannelAuthenticationResponse] | [SdkError, null]> {
-    this.emitter.emit("info", "auth:backchannel:start", {});
-    const backchannelStart = Date.now();
-
     const [discoveryError, authorizationServerMetadata] =
       await this.discoverAuthorizationServerMetadata();
     if (discoveryError) {
@@ -1853,13 +1803,6 @@ export class AuthClient {
         Math.floor(Date.now() / 1000) +
         Number(tokenEndpointResponse.expires_in);
 
-      this.emitter.emit(
-        "info",
-        "auth:backchannel:complete",
-        { scope: tokenEndpointResponse.scope },
-        Date.now() - backchannelStart
-      );
-
       return [
         null,
         {
@@ -1875,10 +1818,6 @@ export class AuthClient {
         }
       ];
     } catch (e: any) {
-      this.emitter.emitError("backchannel_authentication", e, {
-        errorType: "BackchannelAuthenticationError",
-        durationMs: Date.now() - backchannelStart
-      });
       return [
         new BackchannelAuthenticationError({
           cause: new OAuth2Error({
@@ -1895,14 +1834,10 @@ export class AuthClient {
     [null, oauth.AuthorizationServer] | [SdkError, null]
   > {
     if (this.authorizationServerMetadata) {
-      this.emitter.emit("debug", "discovery:cache-hit", {});
       return [null, this.authorizationServerMetadata];
     }
 
     const issuer = new URL(this.issuer);
-    this.emitter.emit("debug", "discovery:start", {});
-
-    const start = Date.now();
 
     try {
       const authorizationServerMetadata = await this.discoveryCache.get(
@@ -1922,20 +1857,12 @@ export class AuthClient {
 
       this.authorizationServerMetadata = authorizationServerMetadata;
 
-      this.emitter.emit("debug", "discovery:complete", {}, Date.now() - start);
-
       return [null, authorizationServerMetadata];
     } catch (e) {
-      this.emitter.emitError("discovery", e, {
-        errorType: "DiscoveryError",
-        durationMs: Date.now() - start
-      });
-      if (!this.emitter.hasLogger) {
-        console.error(
-          `An error occurred while performing the discovery request. issuer=${issuer.toString()}, error:`,
-          e
-        );
-      }
+      console.error(
+        `An error occurred while performing the discovery request. issuer=${issuer.toString()}, error:`,
+        e
+      );
       return [
         new DiscoveryError(
           "Discovery failed for the OpenID Connect configuration."
@@ -1955,8 +1882,16 @@ export class AuthClient {
       });
     }
 
+    const appBaseUrl = ctx.appBaseUrl;
+
+    if (!appBaseUrl) {
+      throw new InvalidConfigurationError(
+        "appBaseUrl could not be resolved for the callback redirect."
+      );
+    }
+
     const res = NextResponse.redirect(
-      createRouteUrl(ctx.returnTo || "/", this.appBaseUrl)
+      createRouteUrl(ctx.returnTo || "/", appBaseUrl)
     );
 
     return res;
@@ -1971,8 +1906,6 @@ export class AuthClient {
     req: NextRequest,
     state?: string
   ): Promise<NextResponse> {
-    this.emitter.emitError("callback", error);
-
     const response = await this.onCallback(error, ctx, null);
 
     // Clean up the transaction cookie on error to prevent accumulation
@@ -2251,15 +2184,8 @@ export class AuthClient {
     try {
       const resCookies = new ResponseCookies(new Headers());
       await this.sessionStore.set(cookies, resCookies, session);
-      this.emitter.emit("debug", "session:backfill:mcd", {
-        domain: this.domain
-      });
     } catch (error) {
       // If backfill fails, still return the session but log the error
-      this.emitter.emit("warn", "session:backfill:mcd:failed", {
-        domain: this.domain,
-        error: error instanceof Error ? error.message : String(error)
-      });
     }
 
     return {
@@ -2291,12 +2217,6 @@ export class AuthClient {
   ): Promise<
     [AccessTokenForConnectionError, null] | [null, ConnectionTokenSet]
   > {
-    this.emitter.emit("debug", "token:connection:start", {
-      connection: options.connection,
-      hasCachedToken: !!connectionTokenSet
-    });
-    const connStart = Date.now();
-
     // If we do not have a refresh token
     // and we do not have a connection token set in the cache or the one we have is expired,
     // there is nothing to retrieve and we return an error.
@@ -2395,11 +2315,6 @@ export class AuthClient {
           }
         );
       } catch (err: any) {
-        this.emitter.emitError("connection_token_exchange", err, {
-          errorType: "AccessTokenForConnectionError",
-          code: AccessTokenForConnectionErrorCode.FAILED_TO_EXCHANGE,
-          durationMs: Date.now() - connStart
-        });
         return [
           new AccessTokenForConnectionError(
             AccessTokenForConnectionErrorCode.FAILED_TO_EXCHANGE,
@@ -2412,13 +2327,6 @@ export class AuthClient {
           null
         ];
       }
-
-      this.emitter.emit(
-        "debug",
-        "token:connection:complete",
-        { connection: options.connection },
-        Date.now() - connStart
-      );
 
       return [
         null,
@@ -2519,12 +2427,6 @@ export class AuthClient {
   ): Promise<
     [CustomTokenExchangeError, null] | [null, CustomTokenExchangeResponse]
   > {
-    this.emitter.emit("info", "token:exchange:start", {
-      subjectTokenType: options.subjectTokenType,
-      audience: options.audience
-    });
-    const cteStart = Date.now();
-
     // Note: CTE tokens are not cached per RWA SDK spec.
     // Caller is responsible for token storage if needed.
 
@@ -2644,10 +2546,6 @@ export class AuthClient {
         ...this.dpopOptions?.retry
       });
     } catch (err: any) {
-      this.emitter.emitError("custom_token_exchange", err, {
-        errorType: "CustomTokenExchangeError",
-        durationMs: Date.now() - cteStart
-      });
       return [
         new CustomTokenExchangeError(
           CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
@@ -2660,16 +2558,6 @@ export class AuthClient {
         null
       ];
     }
-
-    this.emitter.emit(
-      "info",
-      "token:exchange:complete",
-      {
-        subjectTokenType: options.subjectTokenType,
-        scope: tokenEndpointResponse.scope
-      },
-      Date.now() - cteStart
-    );
 
     // Map response: snake_case → camelCase
     return [
@@ -2716,26 +2604,19 @@ export class AuthClient {
    * The user will be redirected to authorize the connection.
    */
   async connectAccount(
-    options: ConnectAccountOptions & { tokenSet: TokenSet }
+    options: ConnectAccountOptions & { tokenSet: TokenSet },
+    req?: NextRequest
   ): Promise<[ConnectAccountError, null] | [null, NextResponse]> {
-    this.emitter.emit("info", "auth:connect-account:start", {
-      connection: options.connection
-    });
-
-    const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl);
+    const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
+    const redirectUri = createRouteUrl(
+      this.routes.callback,
+      appBaseUrl
+    ).toString();
     let returnTo = this.signInReturnToPath;
 
     // Validate returnTo parameter
     if (options.returnTo) {
-      const baseUrl =
-        (this.authorizationParameters.redirect_uri as string | undefined) ||
-        this.appBaseUrl;
-      if (!baseUrl) {
-        throw new Error(
-          "appBaseUrl is required for returnTo validation. Provide it in Auth0ClientOptions or ensure it can be resolved from request headers."
-        );
-      }
-      const safeBaseUrl = new URL(baseUrl);
+      const safeBaseUrl = new URL(appBaseUrl);
       const sanitizedReturnTo = toSafeRedirect(options.returnTo, safeBaseUrl);
 
       if (sanitizedReturnTo) {
@@ -2756,7 +2637,7 @@ export class AuthClient {
       await this.createConnectAccountTicket({
         tokenSet: options.tokenSet,
         connection: options.connection,
-        redirectUri: redirectUri.toString(),
+        redirectUri,
         state,
         codeChallenge,
         codeChallengeMethod,
@@ -3098,7 +2979,6 @@ export class AuthClient {
    * @throws {MfaGetAuthenticatorsError} On Auth0 API failure
    */
   async mfaGetAuthenticators(encryptedToken: string): Promise<Authenticator[]> {
-    this.emitter.emit("debug", "mfa:authenticators:start", {});
     // Decrypt token to extract context
     const context = await decryptMfaToken(
       encryptedToken,
@@ -3177,7 +3057,6 @@ export class AuthClient {
     challengeType: string,
     authenticatorId?: string
   ): Promise<ChallengeResponse> {
-    this.emitter.emit("debug", "mfa:challenge:start", { challengeType });
     // Decrypt token to extract context
     const context = await decryptMfaToken(
       encryptedToken,
@@ -3264,9 +3143,6 @@ export class AuthClient {
     encryptedToken: string,
     options: Omit<EnrollOptions, "mfaToken">
   ): Promise<EnrollmentResponse> {
-    this.emitter.emit("debug", "mfa:enroll:start", {
-      authenticatorTypes: options.authenticatorTypes
-    });
     // Decrypt token to extract context
     const context = await decryptMfaToken(
       encryptedToken,
@@ -3339,8 +3215,6 @@ export class AuthClient {
    * @throws {MfaRequiredError} For chained MFA (with encrypted token)
    */
   async mfaVerify(options: VerifyMfaOptions): Promise<MfaVerifyResponse> {
-    this.emitter.emit("debug", "mfa:verify:start", {});
-    const mfaVerifyStart = Date.now();
     // Decrypt token to extract context
     const { mfaToken, audience, scope } = await decryptMfaToken(
       options.mfaToken,
@@ -3448,13 +3322,6 @@ export class AuthClient {
           tokenEndpointResponse.token_type.slice(1)
         : "Bearer"
     } as MfaVerifyResponse;
-
-    this.emitter.emit(
-      "debug",
-      "mfa:verify:complete",
-      {},
-      Date.now() - mfaVerifyStart
-    );
 
     return result;
   }
@@ -3759,13 +3626,6 @@ export class AuthClient {
     | [null, { updatedTokenSet: TokenSet; idTokenClaims: oauth.IDToken }]
     | [SdkError, null]
   > {
-    this.emitter.emit("debug", "token:refresh:start", {
-      audience: options.audience,
-      scope: options.scope
-    });
-
-    const refreshStart = Date.now();
-
     const [discoveryError, authorizationServerMetadata] =
       await this.discoverAuthorizationServerMetadata();
 
@@ -3830,12 +3690,6 @@ export class AuthClient {
     } catch (e: any) {
       // Check if this is an MFA required error
       if (isMfaRequiredError(e)) {
-        this.emitter.emit("info", "mfa:required", {
-          operation: "token_refresh",
-          audience: options.audience,
-          hasMfaToken: !!extractMfaErrorDetails(e).mfa_token
-        });
-
         const { mfa_token, error_description, mfa_requirements } =
           extractMfaErrorDetails(e);
 
@@ -3869,11 +3723,9 @@ export class AuthClient {
           // 1. The refresh token was issued before MFA was enrolled
           // 2. The API doesn't support step-up (no authorization policies)
           // User needs to re-authenticate to get a new session with MFA
-          if (!this.emitter.hasLogger) {
-            console.error(
-              "MFA required but no mfa_token - user needs to re-authenticate"
-            );
-          }
+          console.error(
+            "MFA required but no mfa_token - user needs to re-authenticate"
+          );
           return [
             new MfaRequiredError(
               error_description ??
@@ -3889,12 +3741,6 @@ export class AuthClient {
           ];
         }
       }
-
-      this.emitter.emitError("token_refresh", e, {
-        errorType: "AccessTokenError",
-        code: AccessTokenErrorCode.FAILED_TO_REFRESH_TOKEN,
-        durationMs: Date.now() - refreshStart
-      });
 
       return [
         new AccessTokenError(
@@ -3944,16 +3790,6 @@ export class AuthClient {
       // we did not get a refresh token back, keep the current long-lived refresh token around
       updatedTokenSet.refreshToken = tokenSet.refreshToken;
     }
-
-    this.emitter.emit(
-      "debug",
-      "token:refresh:complete",
-      {
-        scope: oauthRes.scope,
-        rotated: !!oauthRes.refresh_token
-      },
-      Date.now() - refreshStart
-    );
 
     return [
       null,

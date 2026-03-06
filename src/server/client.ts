@@ -10,6 +10,7 @@ import {
   AccessTokenForConnectionErrorCode,
   ConnectAccountError,
   ConnectAccountErrorCodes,
+  InvalidConfigurationError,
   MfaRequiredError
 } from "../errors/index.js";
 import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
@@ -27,7 +28,6 @@ import {
   StartInteractiveLoginOptions,
   User
 } from "../types/index.js";
-import type { InstrumentationLogger } from "../types/instrumentation.js";
 import {
   DEFAULT_MFA_CONTEXT_TTL_SECONDS,
   DEFAULT_SCOPES
@@ -54,10 +54,6 @@ import {
   WithPageAuthRequiredAppRouterOptions,
   WithPageAuthRequiredPageRouterOptions
 } from "./helpers/with-page-auth-required.js";
-import {
-  InstrumentationEmitter,
-  resolveLoggerFromEnvironment
-} from "./instrumentation-emitter.js";
 import { ServerMfaClient } from "./mfa/server-mfa-client.js";
 import {
   toHeadersFromIncomingMessage,
@@ -122,9 +118,16 @@ export interface Auth0ClientOptions {
   /**
    * The URL of your application (e.g.: `http://localhost:3000`).
    *
+   * Can be a single URL string, or an array of allowed base URLs. When an array is
+   * provided, the SDK validates the incoming request origin against the list and uses
+   * the matching entry (allow-list mode). This is useful for multi-domain or preview
+   * deployments where you want to restrict which origins are accepted.
+   *
    * If it's not specified, it will be loaded from the `APP_BASE_URL` environment variable.
+   * Multiple origins can be provided as a comma-separated string (e.g. `https://app.example.com,https://myapp.vercel.app`).
+   * If neither is provided, the SDK will infer it from the request host at runtime.
    */
-  appBaseUrl?: string;
+  appBaseUrl?: string | string[];
   /**
    * A 32-byte, hex-encoded secret used for encrypting cookies.
    *
@@ -226,31 +229,6 @@ export interface Auth0ClientOptions {
   enableTelemetry?: boolean;
 
   /**
-   * Instrumentation configuration for SDK observability.
-   * When provided, the SDK emits structured events for auth flow lifecycle,
-   * token operations, errors, and session management.
-   *
-   * @example
-   * ```typescript
-   * const auth0 = new Auth0Client({
-   *   instrumentation: {
-   *     logger: (event) => console.log(`[${event.level}] ${event.event}`, event.data)
-   *   }
-   * });
-   * ```
-   */
-  instrumentation?: {
-    /**
-     * Logger callback invoked synchronously at each instrumentation point.
-     * If the logger throws, the error is silently swallowed.
-     * If the logger returns a Promise, it is not awaited.
-     *
-     * @see InstrumentationLogger
-     */
-    logger: InstrumentationLogger;
-  };
-
-  /**
    * Boolean value to enable the `/auth/access-token` endpoint for use in the client app.
    *
    * Defaults to `true`.
@@ -262,6 +240,16 @@ export interface Auth0ClientOptions {
    * See: https://datatracker.ietf.org/doc/html/draft-ietf-oauth-browser-based-apps#name-token-mediating-backend
    */
   enableAccessTokenEndpoint?: boolean;
+
+  /**
+   * Number of seconds to refresh access tokens early when calling `getAccessToken`.
+   * This is a server-side buffer applied to token expiration checks. For example,
+   * with a buffer of 60 seconds, tokens expiring within the next minute will be
+   * refreshed proactively when a refresh token is available.
+   *
+   * Defaults to `0` (no early refresh).
+   */
+  tokenRefreshBuffer?: number;
 
   /**
    * If true, the profile endpoint will return a 204 No Content response when the user is not authenticated
@@ -424,16 +412,10 @@ export class Auth0Client {
   private routes: Routes;
   private domain: string;
   private _mfa?: ServerMfaClient;
-  private emitter: InstrumentationEmitter;
   #options: Auth0ClientOptions;
 
   constructor(options: Auth0ClientOptions = {}) {
     this.#options = options;
-
-    // Programmatic logger takes precedence; fall back to env-based logger
-    const logger =
-      options.instrumentation?.logger ?? resolveLoggerFromEnvironment();
-    this.emitter = new InstrumentationEmitter(logger);
 
     // Extract and validate required options
     const {
@@ -462,14 +444,32 @@ export class Auth0Client {
       process.env.AUTH0_MFA_TOKEN_TTL
     );
 
+    const tokenRefreshBufferOption = options.tokenRefreshBuffer;
+    if (tokenRefreshBufferOption != null) {
+      if (
+        typeof tokenRefreshBufferOption !== "number" ||
+        !Number.isFinite(tokenRefreshBufferOption) ||
+        tokenRefreshBufferOption < 0
+      ) {
+        throw new TypeError(
+          "tokenRefreshBuffer must be a non-negative number of seconds."
+        );
+      }
+    }
+    const tokenRefreshBuffer = tokenRefreshBufferOption ?? 0;
+
     // Auto-detect base path for cookie configuration
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
 
+    // Session cookie secure can be configured via options or AUTH0_COOKIE_SECURE.
+    const envCookieSecure = process.env.AUTH0_COOKIE_SECURE;
+    const sessionSecureExplicit =
+      options.session?.cookie?.secure ??
+      (envCookieSecure !== undefined ? envCookieSecure === "true" : undefined);
+
     const sessionCookieOptions: SessionCookieOptions = {
       name: options.session?.cookie?.name ?? "__session",
-      secure:
-        options.session?.cookie?.secure ??
-        process.env.AUTH0_COOKIE_SECURE === "true",
+      secure: sessionSecureExplicit ?? false,
       sameSite:
         options.session?.cookie?.sameSite ??
         (process.env.AUTH0_COOKIE_SAME_SITE as "lax" | "strict" | "none") ??
@@ -485,20 +485,53 @@ export class Auth0Client {
       domain: options.session?.cookie?.domain ?? process.env.AUTH0_COOKIE_DOMAIN
     };
 
+    // Transaction cookies only support secure via options (no env var).
+    const transactionSecureExplicit = options.transactionCookie?.secure;
     const transactionCookieOptions: TransactionCookieOptions = {
       prefix: options.transactionCookie?.prefix ?? "__txn_",
-      secure: options.transactionCookie?.secure ?? false,
+      secure: transactionSecureExplicit ?? false,
       sameSite: options.transactionCookie?.sameSite ?? "lax",
       path: options.transactionCookie?.path ?? basePath ?? "/",
       maxAge: options.transactionCookie?.maxAge ?? 3600
     };
 
     if (appBaseUrl) {
-      const { protocol } = new URL(appBaseUrl);
-      if (protocol === "https:") {
+      const usesHttps = Array.isArray(appBaseUrl)
+        ? appBaseUrl.every((url) => new URL(url).protocol === "https:")
+        : new URL(appBaseUrl).protocol === "https:";
+
+      // Only enforce secure cookies when the configured base URL(s) are all https.
+      if (usesHttps) {
         sessionCookieOptions.secure = true;
         transactionCookieOptions.secure = true;
       }
+    } else if (process.env.NODE_ENV === "production") {
+      // No appBaseUrl is configured, so the SDK relies on the request host at runtime.
+      // In production we require secure cookies for this dynamic mode (and fail fast if
+      // a cookie is explicitly marked insecure) to avoid shipping non-secure defaults.
+      if (sessionSecureExplicit === false) {
+        throw new InvalidConfigurationError(
+          "Session cookies must be marked secure in production when appBaseUrl is not configured. Set AUTH0_COOKIE_SECURE=true or session.cookie.secure=true."
+        );
+      }
+
+      if (transactionSecureExplicit === false) {
+        throw new InvalidConfigurationError(
+          "Transaction cookies must be marked secure in production when appBaseUrl is not configured. Set transactionCookie.secure=true."
+        );
+      }
+
+      sessionCookieOptions.secure = true;
+      transactionCookieOptions.secure = true;
+    } else if (
+      process.env.NODE_ENV === "development" &&
+      (sessionSecureExplicit === false || transactionSecureExplicit === false)
+    ) {
+      // Warn during development when dynamic base URL resolution is combined with
+      // explicitly insecure cookies, since production will reject this configuration.
+      console.warn(
+        "'appBaseUrl' is not configured and cookies are explicitly marked insecure. This is allowed in development, but will throw in production. Configure appBaseUrl or set secure=true for session/transaction cookies."
+      );
     }
 
     this.routes = {
@@ -580,11 +613,11 @@ export class Auth0Client {
           noContentProfileResponseWhenUnauthenticated:
             options.noContentProfileResponseWhenUnauthenticated,
           enableConnectAccountEndpoint: options.enableConnectAccountEndpoint,
+          tokenRefreshBuffer,
           useDPoP: options.useDPoP || false,
           dpopKeyPair: options.dpopKeyPair || resolvedDpopKeyPair,
           dpopOptions: options.dpopOptions || resolvedDpopOptions,
           mfaTokenTtl,
-          logger,
 
           discoveryCache,
           provider: this.provider
@@ -822,7 +855,6 @@ export class Auth0Client {
         tokenSet.idToken
       );
       await this.saveToSession(finalSession, req, res);
-      this.emitter.emit("debug", "session:refresh", {});
     }
 
     return {
@@ -1072,8 +1104,6 @@ export class Auth0Client {
     if (res && res instanceof Response && !(res instanceof NextResponse)) {
       res = toNextResponse(res);
     }
-
-    this.emitter.emit("debug", "session:update", {});
 
     if (!res) {
       // app router: Server Actions, Route Handlers
@@ -1403,9 +1433,15 @@ export class Auth0Client {
     const requiredOptions = {
       domain: options.domain ?? process.env.AUTH0_DOMAIN,
       clientId: options.clientId ?? process.env.AUTH0_CLIENT_ID,
-      appBaseUrl: options.appBaseUrl ?? process.env.APP_BASE_URL,
       secret: options.secret ?? process.env.AUTH0_SECRET
     };
+
+    const envAppBaseUrl = process.env.APP_BASE_URL?.includes(",")
+      ? process.env.APP_BASE_URL.split(",")
+          .map((u) => u.trim())
+          .filter(Boolean)
+      : process.env.APP_BASE_URL;
+    const appBaseUrl = options.appBaseUrl ?? envAppBaseUrl;
 
     // Check client authentication options - either clientSecret OR clientAssertionSigningKey must be provided
     const clientSecret =
@@ -1431,7 +1467,6 @@ export class Auth0Client {
       const envVarNames: Record<string, string> = {
         domain: "AUTH0_DOMAIN",
         clientId: "AUTH0_CLIENT_ID",
-        appBaseUrl: "APP_BASE_URL",
         secret: "AUTH0_SECRET"
       };
 
@@ -1456,13 +1491,19 @@ export class Auth0Client {
     // Prepare the result object with all validated options
     const result = {
       ...requiredOptions,
+      appBaseUrl,
       clientSecret,
       clientAssertionSigningKey
     };
 
     // Type-safe assignment after validation
     return result as {
-      [K in keyof typeof result]: NonNullable<(typeof result)[K]>;
+      domain: NonNullable<typeof result.domain>;
+      clientId: NonNullable<typeof result.clientId>;
+      secret: NonNullable<typeof result.secret>;
+      appBaseUrl: typeof result.appBaseUrl;
+      clientSecret: typeof result.clientSecret;
+      clientAssertionSigningKey: typeof result.clientAssertionSigningKey;
     };
   }
 

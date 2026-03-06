@@ -209,12 +209,6 @@ export {
 } from "./mfa.js";
 
 export type {
-  LogLevel,
-  InstrumentationEvent,
-  InstrumentationLogger
-} from "./instrumentation.js";
-
-export type {
   DomainResolver,
   DiscoveryCacheOptions,
   MCDMetadata

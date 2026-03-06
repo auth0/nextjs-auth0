@@ -28,13 +28,6 @@ export {
   WithPageAuthRequiredAppRouter
 } from "./helpers/with-page-auth-required.js";
 
-// Instrumentation types for logger configuration
-export type {
-  LogLevel,
-  InstrumentationEvent,
-  InstrumentationLogger
-} from "../types/instrumentation.js";
-
 // MCD (Multiple Custom Domains) public error classes
 export {
   DomainResolutionError,
