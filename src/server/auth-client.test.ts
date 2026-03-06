@@ -3988,7 +3988,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const expectedContext = {
           responseType: RESPONSE_TYPES.CODE,
           returnTo: transactionState.returnTo,
-          returnStrategy: "redirect"
+          challengeMode: "redirect"
         };
 
         expect(mockOnCallback).toHaveBeenCalledWith(
@@ -4219,7 +4219,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           {
             responseType: RESPONSE_TYPES.CODE,
             returnTo: transactionState.returnTo,
-            returnStrategy: "redirect"
+            challengeMode: "redirect"
           },
           null
         );
@@ -4306,7 +4306,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           {
             responseType: RESPONSE_TYPES.CODE,
             returnTo: transactionState.returnTo,
-            returnStrategy: "redirect"
+            challengeMode: "redirect"
           },
           null
         );
@@ -4392,7 +4392,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           {
             responseType: RESPONSE_TYPES.CODE,
             returnTo: transactionState.returnTo,
-            returnStrategy: "redirect"
+            challengeMode: "redirect"
           },
           null
         );
@@ -4943,7 +4943,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           {
             responseType: RESPONSE_TYPES.CONNECT_CODE,
             returnTo: transactionState.returnTo,
-            returnStrategy: "redirect"
+            challengeMode: "redirect"
           },
           null
         );
@@ -5059,7 +5059,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           {
             responseType: RESPONSE_TYPES.CONNECT_CODE,
             returnTo: transactionState.returnTo,
-            returnStrategy: "redirect"
+            challengeMode: "redirect"
           },
           null
         );
@@ -5178,7 +5178,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           {
             responseType: RESPONSE_TYPES.CONNECT_CODE,
             returnTo: transactionState.returnTo,
-            returnStrategy: "redirect"
+            challengeMode: "redirect"
           },
           null
         );

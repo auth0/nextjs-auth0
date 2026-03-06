@@ -54,7 +54,7 @@ export function sanitizeCspNonce(nonce: string): string {
 
 /**
  * Returns an HTML page that posts a message to the opener window.
- * Used for popup-based auth flows (returnStrategy: "postMessage").
+ * Used for popup-based auth flows (challengeMode: "popup").
  *
  * The HTML page:
  * 1. Sends a postMessage to window.opener with auth result

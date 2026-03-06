@@ -458,7 +458,7 @@ class ClientMfaClient implements MfaClient {
    * Triggers MFA step-up authentication via a Universal Login popup.
    *
    * Opens a centered popup window that navigates to `/auth/login` with
-   * `returnStrategy=postMessage`. The user completes MFA through Auth0's
+   * `challengeMode=popup`. The user completes MFA through Auth0's
    * Universal Login in the popup. On completion, the popup sends a
    * `postMessage` back to the parent window, and the SDK retrieves the
    * cached access token from the server session.
@@ -513,14 +513,14 @@ class ClientMfaClient implements MfaClient {
       throw new PopupInProgressError();
     }
 
-    // 3. Construct login URL with returnStrategy=postMessage
+    // 3. Construct login URL with challengeMode=popup
     const params = new URLSearchParams({
       returnTo: options.returnTo || "/",
       acr_values:
         options.acr_values ||
         "http://schemas.openid.net/pape/policies/2007/06/multi-factor",
       audience: options.audience,
-      returnStrategy: "postMessage"
+      challengeMode: "popup"
     });
     // Only include prompt when explicitly provided. Omitting it lets Auth0
     // recognise the existing session and skip straight to the MFA challenge

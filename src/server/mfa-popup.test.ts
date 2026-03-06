@@ -26,7 +26,7 @@ function createSessionData(sessionData: Partial<SessionData>): SessionData {
   };
 }
 
-describe("MFA Popup (returnStrategy + postMessage)", async () => {
+describe("MFA Popup (challengeMode + postMessage)", async () => {
   const DEFAULT = {
     domain: "guabu.us.auth0.com",
     clientId: "client_123",
@@ -120,10 +120,10 @@ describe("MFA Popup (returnStrategy + postMessage)", async () => {
   }
 
   // ──────────────────────────────────────────────────────────────
-  //  handleLogin + returnStrategy
+  //  handleLogin + challengeMode
   // ──────────────────────────────────────────────────────────────
-  describe("handleLogin — returnStrategy", () => {
-    it("should parse returnStrategy=postMessage from URL and store in transaction", async () => {
+  describe("handleLogin — challengeMode", () => {
+    it("should parse challengeMode=postMessage from URL and store in transaction", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({ secret });
       const sessionStore = new StatelessSessionStore({ secret });
@@ -140,7 +140,7 @@ describe("MFA Popup (returnStrategy + postMessage)", async () => {
       });
 
       const url = new URL("/auth/login", DEFAULT.appBaseUrl);
-      url.searchParams.set("returnStrategy", "postMessage");
+      url.searchParams.set("challengeMode", "popup");
       url.searchParams.set("audience", "https://api.example.com");
       url.searchParams.set("prompt", "login");
       const request = new NextRequest(url, { method: "GET" });
@@ -148,15 +148,15 @@ describe("MFA Popup (returnStrategy + postMessage)", async () => {
       const response = await authClient.handleLogin(request);
       expect(response.status).toEqual(307);
 
-      // Verify returnStrategy NOT forwarded to Auth0
+      // Verify challengeMode NOT forwarded to Auth0
       const authUrl = new URL(response.headers.get("Location")!);
-      expect(authUrl.searchParams.has("returnStrategy")).toBe(false);
+      expect(authUrl.searchParams.has("challengeMode")).toBe(false);
       expect(authUrl.searchParams.get("audience")).toBe(
         "https://api.example.com"
       );
       expect(authUrl.searchParams.get("prompt")).toBe("login");
 
-      // Verify transaction state contains returnStrategy
+      // Verify transaction state contains challengeMode
       const state = authUrl.searchParams.get("state")!;
       const transactionCookie = response.cookies.get(`__txn_${state}`);
       expect(transactionCookie).toBeDefined();
@@ -164,10 +164,10 @@ describe("MFA Popup (returnStrategy + postMessage)", async () => {
         transactionCookie!.value,
         secret
       )) as jose.JWTDecryptResult;
-      expect(txn.returnStrategy).toBe("postMessage");
+      expect(txn.challengeMode).toBe("popup");
     });
 
-    it("should accept returnStrategy=redirect (no-op, default)", async () => {
+    it("should accept challengeMode=redirect (no-op, default)", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({ secret });
       const sessionStore = new StatelessSessionStore({ secret });
@@ -184,13 +184,13 @@ describe("MFA Popup (returnStrategy + postMessage)", async () => {
       });
 
       const url = new URL("/auth/login", DEFAULT.appBaseUrl);
-      url.searchParams.set("returnStrategy", "redirect");
+      url.searchParams.set("challengeMode", "redirect");
       const request = new NextRequest(url, { method: "GET" });
 
       const response = await authClient.handleLogin(request);
       expect(response.status).toEqual(307);
 
-      // returnStrategy=redirect → not stored in transaction (default)
+      // challengeMode=redirect → not stored in transaction (default)
       const authUrl = new URL(response.headers.get("Location")!);
       const state = authUrl.searchParams.get("state")!;
       const transactionCookie = response.cookies.get(`__txn_${state}`);
@@ -198,11 +198,11 @@ describe("MFA Popup (returnStrategy + postMessage)", async () => {
         transactionCookie!.value,
         secret
       )) as jose.JWTDecryptResult;
-      // When returnStrategy is 'redirect' (default), it's not stored to minimize cookie size
-      expect(txn.returnStrategy).toBeUndefined();
+      // When challengeMode is 'redirect' (default), it's not stored to minimize cookie size
+      expect(txn.challengeMode).toBeUndefined();
     });
 
-    it("should return 400 for invalid returnStrategy", async () => {
+    it("should return 400 for invalid challengeMode", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({ secret });
       const sessionStore = new StatelessSessionStore({ secret });
@@ -219,13 +219,13 @@ describe("MFA Popup (returnStrategy + postMessage)", async () => {
       });
 
       const url = new URL("/auth/login", DEFAULT.appBaseUrl);
-      url.searchParams.set("returnStrategy", "invalid_value");
+      url.searchParams.set("challengeMode", "invalid_value");
       const request = new NextRequest(url, { method: "GET" });
 
       const response = await authClient.handleLogin(request);
       expect(response.status).toEqual(400);
       const text = await response.text();
-      expect(text).toContain("Invalid returnStrategy");
+      expect(text).toContain("Invalid challengeMode");
     });
 
     it("should store audience and scope in transaction for postMessage flow", async () => {
@@ -245,7 +245,7 @@ describe("MFA Popup (returnStrategy + postMessage)", async () => {
       });
 
       const url = new URL("/auth/login", DEFAULT.appBaseUrl);
-      url.searchParams.set("returnStrategy", "postMessage");
+      url.searchParams.set("challengeMode", "popup");
       url.searchParams.set("audience", "https://api.example.com");
       url.searchParams.set("scope", "openid profile email read:data");
       const request = new NextRequest(url, { method: "GET" });
@@ -261,15 +261,15 @@ describe("MFA Popup (returnStrategy + postMessage)", async () => {
 
       expect(txn.audience).toBe("https://api.example.com");
       expect(txn.scope).toBe("openid profile email read:data");
-      expect(txn.returnStrategy).toBe("postMessage");
+      expect(txn.challengeMode).toBe("popup");
     });
   });
 
   // ──────────────────────────────────────────────────────────────
-  //  startInteractiveLogin — returnStrategy validation
+  //  startInteractiveLogin — challengeMode validation
   // ──────────────────────────────────────────────────────────────
-  describe("startInteractiveLogin — returnStrategy", () => {
-    it("should throw InvalidConfigurationError for invalid returnStrategy (programmatic)", async () => {
+  describe("startInteractiveLogin — challengeMode", () => {
+    it("should throw InvalidConfigurationError for invalid challengeMode (programmatic)", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({ secret });
       const sessionStore = new StatelessSessionStore({ secret });
@@ -287,12 +287,12 @@ describe("MFA Popup (returnStrategy + postMessage)", async () => {
 
       await expect(
         authClient.startInteractiveLogin({
-          returnStrategy: "bogus" as any
+          challengeMode: "bogus" as any
         })
-      ).rejects.toThrow(/Invalid returnStrategy/);
+      ).rejects.toThrow(/Invalid challengeMode/);
     });
 
-    it("should accept returnStrategy=postMessage (programmatic)", async () => {
+    it("should accept challengeMode=postMessage (programmatic)", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({ secret });
       const sessionStore = new StatelessSessionStore({ secret });
@@ -309,7 +309,7 @@ describe("MFA Popup (returnStrategy + postMessage)", async () => {
       });
 
       const response = await authClient.startInteractiveLogin({
-        returnStrategy: "postMessage",
+        challengeMode: "popup",
         authorizationParameters: {
           audience: "https://api.example.com"
         }
@@ -323,7 +323,7 @@ describe("MFA Popup (returnStrategy + postMessage)", async () => {
   //  handleCallback — postMessage branch
   // ──────────────────────────────────────────────────────────────
   describe("handleCallback — postMessage branch", () => {
-    it("should return HTML with postMessage on returnStrategy=postMessage", async () => {
+    it("should return HTML with postMessage on challengeMode=postMessage", async () => {
       const state = "txn-state";
       const code = "auth-code";
 
@@ -370,7 +370,7 @@ describe("MFA Popup (returnStrategy + postMessage)", async () => {
         responseType: RESPONSE_TYPES.CODE,
         state: state,
         returnTo: "/",
-        returnStrategy: "postMessage",
+        challengeMode: "popup",
         audience: "https://api.example.com",
         scope: "openid profile email"
       };
@@ -414,7 +414,7 @@ describe("MFA Popup (returnStrategy + postMessage)", async () => {
       expect(sessionCookie).toBeDefined();
     });
 
-    it("should return redirect for default returnStrategy (redirect)", async () => {
+    it("should return redirect for default challengeMode (redirect)", async () => {
       const state = "txn-state";
       const code = "auth-code";
 
@@ -446,7 +446,7 @@ describe("MFA Popup (returnStrategy + postMessage)", async () => {
         responseType: RESPONSE_TYPES.CODE,
         state: state,
         returnTo: "/dashboard"
-        // No returnStrategy → default 'redirect'
+        // No challengeMode → default 'redirect'
       };
       const maxAge = 60 * 60;
       const expiration = Math.floor(Date.now() / 1000 + maxAge);
@@ -507,7 +507,7 @@ describe("MFA Popup (returnStrategy + postMessage)", async () => {
         responseType: RESPONSE_TYPES.CODE,
         state: state,
         returnTo: "/",
-        returnStrategy: "postMessage"
+        challengeMode: "popup"
       };
       const maxAge = 60 * 60;
       const expiration = Math.floor(Date.now() / 1000 + maxAge);
@@ -567,7 +567,7 @@ describe("MFA Popup (returnStrategy + postMessage)", async () => {
         responseType: RESPONSE_TYPES.CODE,
         state: state,
         returnTo: "/",
-        returnStrategy: "postMessage"
+        challengeMode: "popup"
       };
       const maxAge = 60 * 60;
       const expiration = Math.floor(Date.now() / 1000 + maxAge);
@@ -589,7 +589,7 @@ describe("MFA Popup (returnStrategy + postMessage)", async () => {
   //  handleCallbackError — postMessage error branch
   // ──────────────────────────────────────────────────────────────
   describe("handleCallbackError — postMessage error", () => {
-    it("should return error HTML when returnStrategy=postMessage and OAuth error occurs", async () => {
+    it("should return error HTML when challengeMode=postMessage and OAuth error occurs", async () => {
       const state = "txn-state";
 
       const secret = await generateSecret(32);
@@ -622,7 +622,7 @@ describe("MFA Popup (returnStrategy + postMessage)", async () => {
         responseType: RESPONSE_TYPES.CODE,
         state: state,
         returnTo: "/",
-        returnStrategy: "postMessage"
+        challengeMode: "popup"
       };
       const maxAge = 60 * 60;
       const expiration = Math.floor(Date.now() / 1000 + maxAge);
@@ -654,7 +654,7 @@ describe("MFA Popup (returnStrategy + postMessage)", async () => {
       expect(txnCookie!.maxAge).toEqual(0);
     });
 
-    it("should return redirect error for standard flow (no returnStrategy)", async () => {
+    it("should return redirect error for standard flow (no challengeMode)", async () => {
       const state = "txn-state";
 
       const secret = await generateSecret(32);
@@ -686,7 +686,7 @@ describe("MFA Popup (returnStrategy + postMessage)", async () => {
         responseType: RESPONSE_TYPES.CODE,
         state: state,
         returnTo: "/"
-        // No returnStrategy → default 'redirect'
+        // No challengeMode → default 'redirect'
       };
       const maxAge = 60 * 60;
       const expiration = Math.floor(Date.now() / 1000 + maxAge);
@@ -1006,10 +1006,10 @@ describe("MFA Popup (returnStrategy + postMessage)", async () => {
   });
 
   // ──────────────────────────────────────────────────────────────
-  //  OnCallbackContext — returnStrategy exposure
+  //  OnCallbackContext — challengeMode exposure
   // ──────────────────────────────────────────────────────────────
-  describe("OnCallbackContext — returnStrategy", () => {
-    it("should include returnStrategy in onCallback context for postMessage flows", async () => {
+  describe("OnCallbackContext — challengeMode", () => {
+    it("should include challengeMode in onCallback context for postMessage flows", async () => {
       const state = "txn-state";
       const code = "auth-code";
       let capturedCtx: any;
@@ -1058,7 +1058,7 @@ describe("MFA Popup (returnStrategy + postMessage)", async () => {
         responseType: RESPONSE_TYPES.CODE,
         state: state,
         returnTo: "/",
-        returnStrategy: "postMessage"
+        challengeMode: "popup"
       };
       const maxAge = 60 * 60;
       const expiration = Math.floor(Date.now() / 1000 + maxAge);
@@ -1073,10 +1073,10 @@ describe("MFA Popup (returnStrategy + postMessage)", async () => {
       await authClient.handleCallback(request);
 
       expect(capturedCtx).toBeDefined();
-      expect(capturedCtx.returnStrategy).toBe("postMessage");
+      expect(capturedCtx.challengeMode).toBe("popup");
     });
 
-    it("should include returnStrategy=redirect in context for standard flows", async () => {
+    it("should include challengeMode=redirect in context for standard flows", async () => {
       const state = "txn-state";
       const code = "auth-code";
       let capturedCtx: any;
@@ -1116,7 +1116,7 @@ describe("MFA Popup (returnStrategy + postMessage)", async () => {
         responseType: RESPONSE_TYPES.CODE,
         state: state,
         returnTo: "/dashboard"
-        // No returnStrategy
+        // No challengeMode
       };
       const maxAge = 60 * 60;
       const expiration = Math.floor(Date.now() / 1000 + maxAge);
@@ -1131,7 +1131,7 @@ describe("MFA Popup (returnStrategy + postMessage)", async () => {
       await authClient.handleCallback(request);
 
       expect(capturedCtx).toBeDefined();
-      expect(capturedCtx.returnStrategy).toBe("redirect");
+      expect(capturedCtx.challengeMode).toBe("redirect");
     });
   });
 });

@@ -192,7 +192,7 @@ describe("challengeWithPopup", () => {
         "http://schemas.openid.net/pape/policies/2007/06/multi-factor"
       );
       expect(url.searchParams.get("audience")).toBe("https://api.example.com");
-      expect(url.searchParams.get("returnStrategy")).toBe("postMessage");
+      expect(url.searchParams.get("challengeMode")).toBe("popup");
       // Scope should NOT be present when not provided
       expect(url.searchParams.has("scope")).toBe(false);
     });

@@ -165,7 +165,7 @@ export type OnCallbackContext = {
    * - 'postMessage': Popup flow returning via window.postMessage
    * Hook authors can use this to detect popup flows and adapt behavior.
    */
-  returnStrategy?: "redirect" | "postMessage";
+  challengeMode?: "redirect" | "popup";
 };
 export type OnCallbackHook = (
   error: SdkError | null,
@@ -612,16 +612,16 @@ export class AuthClient {
       }
     }
 
-    // Resolve returnStrategy: controls whether handleCallback returns a redirect
+    // Resolve challengeMode: controls whether handleCallback returns a redirect
     // (standard) or postMessage HTML (popup flows). Only stored in TransactionState
     // when non-default to minimize encrypted cookie size.
-    const returnStrategy = options.returnStrategy || "redirect";
+    const challengeMode = options.challengeMode || "redirect";
 
     // Runtime guard — TypeScript enforces at compile time, but JS callers
     // or incorrect casts could pass invalid values.
-    if (returnStrategy !== "redirect" && returnStrategy !== "postMessage") {
+    if (challengeMode !== "redirect" && challengeMode !== "popup") {
       throw new InvalidConfigurationError(
-        `Invalid returnStrategy: ${returnStrategy}. Expected 'redirect' or 'postMessage'.`
+        `Invalid challengeMode: ${challengeMode}. Expected 'redirect' or 'popup'.`
       );
     }
 
@@ -635,7 +635,7 @@ export class AuthClient {
       returnTo,
       scope: authorizationParams.get("scope") || undefined,
       audience: authorizationParams.get("audience") || undefined,
-      returnStrategy: returnStrategy !== "redirect" ? returnStrategy : undefined
+      challengeMode: challengeMode !== "redirect" ? challengeMode : undefined
     };
 
     // Generate authorization URL with PAR handling
@@ -662,20 +662,20 @@ export class AuthClient {
   async handleLogin(req: NextRequest): Promise<NextResponse> {
     const searchParams = Object.fromEntries(req.nextUrl.searchParams.entries());
 
-    // Extract returnStrategy from URL query params.
-    // URL param takes precedence over programmatic StartInteractiveLoginOptions.returnStrategy.
+    // Extract challengeMode from URL query params.
+    // URL param takes precedence over programmatic StartInteractiveLoginOptions.challengeMode.
     // Must be deleted before forwarding remaining params to Auth0 /authorize.
-    const queryReturnStrategy = searchParams.returnStrategy;
-    delete searchParams.returnStrategy;
+    const queryChallengeMode = searchParams.challengeMode;
+    delete searchParams.challengeMode;
 
-    // Validate returnStrategy value
+    // Validate challengeMode value
     if (
-      queryReturnStrategy &&
-      queryReturnStrategy !== "postMessage" &&
-      queryReturnStrategy !== "redirect"
+      queryChallengeMode &&
+      queryChallengeMode !== "popup" &&
+      queryChallengeMode !== "redirect"
     ) {
       return new NextResponse(
-        `Invalid returnStrategy query param: ${queryReturnStrategy}. Expected 'redirect', 'postMessage', or omit.`,
+        `Invalid challengeMode query param: ${queryChallengeMode}. Expected 'redirect', 'popup', or omit.`,
         { status: 400 }
       );
     }
@@ -687,10 +687,7 @@ export class AuthClient {
     const options: StartInteractiveLoginOptions = {
       authorizationParameters,
       returnTo: returnTo,
-      returnStrategy: queryReturnStrategy as
-        | "redirect"
-        | "postMessage"
-        | undefined
+      challengeMode: queryChallengeMode as "redirect" | "popup" | undefined
     };
     return this.startInteractiveLogin(options);
   }
@@ -813,7 +810,7 @@ export class AuthClient {
     const onCallbackCtx: OnCallbackContext = {
       responseType: transactionState.responseType,
       returnTo: transactionState.returnTo,
-      returnStrategy: transactionState.returnStrategy || "redirect"
+      challengeMode: transactionState.challengeMode || "redirect"
     };
 
     if (transactionState.responseType === RESPONSE_TYPES.CONNECT_CODE) {
@@ -979,7 +976,7 @@ export class AuthClient {
       );
     }
     // Determine return strategy BEFORE processing token response
-    const returnStrategy = transactionState.returnStrategy || "redirect";
+    const challengeMode = transactionState.challengeMode || "redirect";
 
     let oidcRes: oauth.TokenEndpointResponse;
     try {
@@ -997,7 +994,7 @@ export class AuthClient {
         {
           expectedNonce: transactionState.nonce,
           maxAge: transactionState.maxAge,
-          requireIdToken: returnStrategy !== "postMessage"
+          requireIdToken: challengeMode !== "popup"
         }
       );
     } catch (e: any) {
@@ -1022,7 +1019,7 @@ export class AuthClient {
       : undefined;
 
     // ★ POSTMESSAGE BRANCH
-    if (returnStrategy === "postMessage") {
+    if (challengeMode === "popup") {
       // Merge new token into existing session (do NOT create fresh session)
       const existingSession = await this.sessionStore.get(req.cookies);
 
@@ -1791,19 +1788,19 @@ export class AuthClient {
   /**
    * Handle errors during the OAuth callback flow.
    *
-   * For popup flows (`returnStrategy: 'postMessage'`): returns error details
+   * For popup flows (`challengeMode: 'postMessage'`): returns error details
    * as a postMessage HTML page instead of redirecting. The parent window
    * receives `{ type: 'auth_complete', success: false, error: { code, message } }`
    * and the promise returned by `challengeWithPopup()` rejects with a typed error.
    *
-   * For standard flows (`returnStrategy: 'redirect'`): delegates to the
+   * For standard flows (`challengeMode: 'redirect'`): delegates to the
    * `onCallback` hook, which returns a redirect or error response.
    *
    * @param error - The SDK error that occurred during callback processing
-   * @param ctx - Callback context (responseType, returnTo, returnStrategy)
+   * @param ctx - Callback context (responseType, returnTo, challengeMode)
    * @param req - The incoming callback request
    * @param state - OAuth state parameter (for transaction cookie cleanup)
-   * @param transactionState - Loaded transaction state (provides returnStrategy)
+   * @param transactionState - Loaded transaction state (provides challengeMode)
    */
   private async handleCallbackError(
     error: SdkError,
@@ -1813,7 +1810,7 @@ export class AuthClient {
     transactionState?: TransactionState
   ): Promise<NextResponse> {
     // PostMessage branch: return error as postMessage HTML instead of redirect
-    if (transactionState?.returnStrategy === "postMessage") {
+    if (transactionState?.challengeMode === "popup") {
       const response = createAuthCompletePostMessageResponse({
         success: false,
         error: {

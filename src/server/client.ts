@@ -378,7 +378,7 @@ export interface Auth0ClientOptions {
    * Content Security Policy nonce for inline scripts in popup flows.
    *
    * Required when your application uses CSP and the popup-based step-up
-   * authentication flow (returnStrategy: 'postMessage'). The nonce is
+   * authentication flow (challengeMode: 'popup'). The nonce is
    * injected into the inline `<script>` tag of the postMessage HTML response.
    *
    * @example

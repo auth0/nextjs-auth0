@@ -10,9 +10,9 @@ export interface StartInteractiveLoginOptions {
   /**
    * Control callback return behavior.
    * - 'redirect' (default): Standard OAuth redirect to returnTo
-   * - 'postMessage': Return HTML with postMessage for popup flows
+   * - 'popup': Return HTML with postMessage for popup flows
    */
-  returnStrategy?: "redirect" | "postMessage";
+  challengeMode?: "redirect" | "popup";
 }
 
 export interface AuthorizationParameters {
