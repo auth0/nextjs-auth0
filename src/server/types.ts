@@ -1,43 +1,58 @@
 /**
- * MCD (Multiple Custom Domains) types and interfaces
- * @internal
+ * MCD (Multiple Custom Domains) types and interfaces.
+ *
+ * Public exports: {@link DomainResolver}, {@link DiscoveryCacheOptions}.
+ * Internal: {@link MCDMetadata}.
  */
 
 /**
- * A function that resolves the domain for the current request based on headers and URL.
- * Used in resolver mode to dynamically determine which domain should handle authentication.
+ * Resolves the Auth0 domain from request context.
+ * Called once per SDK operation in resolver mode.
  *
  * Supports both synchronous and asynchronous resolution patterns.
  *
- * @param config - Configuration object containing request headers and optional URL
- *   - headers: Request headers from current context
- *   - url?: Request URL, when available. Undefined in Server Components/Actions.
- * @returns The domain string.
+ * @param config.headers - Request headers from the current context.
+ *   In App Router Server Components / Server Actions: obtained via `headers()` from `next/headers`.
+ *   In Middleware / Route Handlers: extracted from `NextRequest`.
+ *   In Pages Router (`getServerSideProps`, API Routes): extracted from `IncomingMessage`.
+ *
+ * @param config.url - The request URL, when available.
+ *   In Middleware / Route Handlers: the full `NextRequest.nextUrl` (includes pathname, search params).
+ *   In Pages Router: constructed from `IncomingMessage.url` + Host header.
+ *   In App Router Server Components / Server Actions: `undefined` (no request object exists).
+ *   Use this for B2B multi-tenant routing where the application hostname determines the Auth0 domain.
+ *
+ * @returns The Auth0 custom domain hostname (e.g., `"auth.brand1.com"`).
  *   Can be returned synchronously or as a Promise.
- *   Must throw on resolution failure (not return null). SDK wraps thrown errors in DomainResolutionError.
+ *   Must throw on resolution failure — the SDK wraps thrown errors in {@link DomainResolutionError}.
+ *
+ * @security The resolver is responsible for preventing Host Header injection attacks.
+ *   The SDK validates the resolver's output via `normalizeDomain` (hostname format validation),
+ *   but input validation and SSRF prevention are the customer's responsibility.
  *
  * @example
- * // Synchronous resolver with URL-based routing
- * const domain = {
- *   domain: ({ headers, url }) => {
- *     const hostname = url?.hostname || headers.get("host");
- *     if (hostname?.startsWith("brand1.")) return "auth.brand1.com";
- *     return "auth.example.com";
+ * // Header-based routing (B2C multi-brand)
+ * const auth0 = new Auth0Client({
+ *   domain: ({ headers }) => {
+ *     const host = headers.get("host") ?? "";
+ *     if (host.startsWith("brand1.")) return "auth.brand1.com";
+ *     if (host.startsWith("brand2.")) return "auth.brand2.com";
+ *     return "auth.default.com";
  *   }
- * };
+ * });
  *
  * @example
- * // Asynchronous resolver with database lookup
- * const domain = {
- *   domain: async ({ headers, url }) => {
- *     const hostname = url?.hostname || headers.get("host");
- *     const resolvedDomain = await db.getDomain(hostname);
- *     if (!resolvedDomain) throw new Error("Domain not found");
- *     return resolvedDomain;
+ * // Database lookup (B2B SaaS)
+ * const auth0 = new Auth0Client({
+ *   domain: async ({ headers }) => {
+ *     const tenantId = headers.get("x-tenant-id");
+ *     const domain = await db.getAuth0Domain(tenantId);
+ *     if (!domain) throw new Error(`Unknown tenant: ${tenantId}`);
+ *     return domain;
  *   }
- * };
+ * });
  *
- * @internal
+ * @public
  */
 export type DomainResolver = (config: {
   headers: Headers;
@@ -45,12 +60,25 @@ export type DomainResolver = (config: {
 }) => Promise<string> | string;
 
 /**
- * Configuration options for the discovery cache used in domain resolution.
+ * Configuration for the OIDC discovery metadata cache.
+ * Applies in both static and resolver modes.
  *
- * @property ttl - Time-to-live for cached discovery metadata in seconds. Default: 600
- * @property maxEntries - Maximum number of domain metadata entries to cache. Default: 100
- * @property maxJwksEntries - Maximum number of JWKS entries to cache separately. Default: 10
- * @internal
+ * @property ttl - Time-to-live for cached discovery metadata in seconds. Default: 600 (10 minutes).
+ * @property maxEntries - Maximum number of cached issuers. Default: 100. LRU eviction.
+ * @property maxJwksEntries - Maximum number of cached JWKS entries. Default: 10. Independent LRU eviction.
+ *
+ * @example
+ * ```typescript
+ * const auth0 = new Auth0Client({
+ *   domain: myDomainResolver,
+ *   discoveryCache: {
+ *     ttl: 300,        // 5-minute TTL
+ *     maxEntries: 50,  // Cache up to 50 issuers
+ *   }
+ * });
+ * ```
+ *
+ * @public
  */
 export interface DiscoveryCacheOptions {
   ttl?: number;

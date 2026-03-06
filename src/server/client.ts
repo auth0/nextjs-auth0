@@ -72,15 +72,23 @@ import {
   TransactionCookieOptions,
   TransactionStore
 } from "./transaction-store.js";
+import type { DiscoveryCacheOptions, DomainResolver } from "./types.js";
 
 export interface Auth0ClientOptions {
   // authorization server configuration
   /**
-   * The Auth0 domain for the tenant (e.g.: `example.us.auth0.com`).
+   * The Auth0 domain for the tenant.
    *
-   * If it's not specified, it will be loaded from the `AUTH0_DOMAIN` environment variable.
+   * - `string`: Static domain (e.g., `"example.us.auth0.com"`). Existing behavior preserved.
+   * - `DomainResolver`: Async function resolving domain per-request from headers.
+   *   Enables Multiple Custom Domains (MCD) for B2C multi-brand, B2B SaaS, or domain migration.
+   *
+   * Falls back to `AUTH0_DOMAIN` environment variable if not provided.
+   *
+   * @see {@link DomainResolver} for resolver signature and examples.
+   * @see [MCD Examples](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#multiple-custom-domains-mcd)
    */
-  domain?: string;
+  domain?: string | DomainResolver;
   /**
    * The Auth0 client ID.
    *
@@ -398,6 +406,16 @@ export interface Auth0ClientOptions {
    * ```
    */
   mfaTokenTtl?: number;
+
+  /**
+   * Configuration for the OIDC discovery metadata cache.
+   * Controls TTL and maximum cached issuers for MCD resolver mode.
+   * Also applies in static mode (single cached entry).
+   *
+   * @see {@link DiscoveryCacheOptions}
+   * @see [MCD Examples](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#multiple-custom-domains-mcd)
+   */
+  discoveryCache?: DiscoveryCacheOptions;
 }
 
 export type PagesRouterRequest = IncomingMessage | NextApiRequest;
@@ -410,7 +428,6 @@ export class Auth0Client {
   private sessionStore: AbstractSessionStore;
   private provider: AuthClientProvider;
   private routes: Routes;
-  private domain: string;
   private _mfa?: ServerMfaClient;
   #options: Auth0ClientOptions;
 
@@ -426,7 +443,6 @@ export class Auth0Client {
       secret,
       clientAssertionSigningKey
     } = this.validateAndExtractRequiredOptions(options);
-    this.domain = domain;
 
     const clientAssertionSigningAlg =
       options.clientAssertionSigningAlg ||
@@ -576,7 +592,7 @@ export class Auth0Client {
         });
 
     // Create discovery cache for the provider
-    const discoveryCache = new DiscoveryCache();
+    const discoveryCache = new DiscoveryCache(options.discoveryCache);
 
     // Create provider that manages AuthClient instances
     // Note: We defer the provider reference in the factory to avoid circular reference during construction.
