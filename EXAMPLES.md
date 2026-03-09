@@ -3863,6 +3863,17 @@ export const auth0 = new Auth0Client({
 > [!IMPORTANT]
 > When using MCD with dynamic `appBaseUrl`, ensure all resulting callback and logout URLs are registered in your Auth0 application's **Allowed Callback URLs** and **Allowed Logout URLs**.
 
+> [!WARNING]
+> If your application is served through multiple hostnames (e.g., a reverse proxy, multi-brand fronts, or preview deployments), a static `APP_BASE_URL` / `appBaseUrl` string will force all `redirect_uri` values to that single origin — regardless of which hostname the user actually accessed. This causes **state parameter mismatches** because the transaction cookie is set on one origin but the callback arrives on another.
+>
+> | Scenario | Recommended `appBaseUrl` |
+> |----------|--------------------------|
+> | Single app hostname, multiple Auth0 domains | Static string: `"https://app.example.com"` |
+> | Multiple app hostnames, multiple Auth0 domains | Allow-list: `["https://brand1.com", "https://brand2.com"]` |
+> | Fully dynamic app hostnames | Omit `appBaseUrl` entirely (SDK infers from `x-forwarded-proto` / `x-forwarded-host` headers) |
+>
+> If you are migrating to MCD resolver mode and your app is reachable on multiple origins, **remove or replace your static `APP_BASE_URL`** with an allow-list or omit it to enable per-request inference.
+
 ### Session Domain Isolation
 
 In resolver mode, sessions are bound to the domain that created them. The SDK stores domain and issuer metadata in the session's internal state:
