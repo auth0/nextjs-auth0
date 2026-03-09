@@ -1,9 +1,15 @@
 /**
- * MCD (Multiple Custom Domains) specific error classes
- * @internal
+ * MCD (Multiple Custom Domains) specific error classes.
+ *
+ * Note: `InvalidConfigurationError` and `BackchannelLogoutError` are renamed
+ * with `Mcd` prefix to avoid collision with identically-named classes in
+ * `oauth-errors.ts`. The oauth-errors versions are generic SDK errors;
+ * these are MCD-specific with different default messages and error codes.
+ *
+ * @module errors/mcd
  */
 
-import { SdkError } from "../errors/index.js";
+import { SdkError } from "./sdk-error.js";
 
 /**
  * Error thrown when domain resolution fails during MCD initialization or request handling.
@@ -86,13 +92,16 @@ export class IssuerValidationError extends SdkError {
  * or when configuration is incomplete.
  * This error is public and may be caught by application code.
  *
+ * Renamed from `InvalidConfigurationError` to avoid collision with the generic
+ * `InvalidConfigurationError` in `oauth-errors.ts`.
+ *
  * @public
  */
-export class InvalidConfigurationError extends SdkError {
+export class McdInvalidConfigurationError extends SdkError {
   public code: string = "invalid_configuration";
 
   /**
-   * Creates a new InvalidConfigurationError instance.
+   * Creates a new McdInvalidConfigurationError instance.
    *
    * @param message - A descriptive error message
    */
@@ -134,13 +143,16 @@ export class SessionDomainMismatchError extends SdkError {
  *
  * This is an internal error used for backchannel logout handling.
  *
+ * Renamed from `BackchannelLogoutError` to avoid collision with the generic
+ * `BackchannelLogoutError` in `oauth-errors.ts`.
+ *
  * @internal
  */
-export class BackchannelLogoutError extends SdkError {
+export class McdBackchannelLogoutError extends SdkError {
   public code: string = "backchannel_logout_error";
 
   /**
-   * Creates a new BackchannelLogoutError instance.
+   * Creates a new McdBackchannelLogoutError instance.
    *
    * @param message - A descriptive error message
    */

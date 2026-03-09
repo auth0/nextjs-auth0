@@ -36,6 +36,11 @@ import {
   SdkError
 } from "../errors/index.js";
 import {
+  IssuerValidationError,
+  McdInvalidConfigurationError,
+  SessionDomainMismatchError
+} from "../errors/mcd.js";
+import {
   CompleteConnectAccountRequest,
   CompleteConnectAccountResponse,
   ConnectAccountOptions,
@@ -100,6 +105,7 @@ import {
   validateStringFieldAndThrow,
   validateVerificationCredentialAndThrow
 } from "../utils/mfa-validation-utils.js";
+import { normalizeDomain, normalizeIssuer } from "../utils/normalize.js";
 import {
   ensureNoLeadingSlash,
   ensureTrailingSlash,
@@ -127,18 +133,12 @@ import type { AuthClientProvider } from "./auth-client-provider.js";
 import { addCacheControlHeadersForSession } from "./cookies.js";
 import { DiscoveryCache } from "./discovery-cache.js";
 import {
-  InvalidConfigurationError,
-  IssuerValidationError,
-  SessionDomainMismatchError
-} from "./errors.js";
-import {
   AccessTokenFactory,
   Fetcher,
   FetcherConfig,
   FetcherHooks,
   FetcherMinimalConfig
 } from "./fetcher.js";
-import { normalizeDomain, normalizeIssuer } from "./normalize.js";
 import { AbstractSessionStore } from "./session/abstract-session-store.js";
 import { TransactionState, TransactionStore } from "./transaction-store.js";
 import { filterDefaultIdTokenClaims } from "./user.js";
@@ -455,7 +455,7 @@ export class AuthClient {
     // application
     if (Array.isArray(options.appBaseUrl)) {
       if (options.appBaseUrl.length === 0) {
-        throw new InvalidConfigurationError(
+        throw new McdInvalidConfigurationError(
           "APP_BASE_URL array configuration cannot be empty."
         );
       }
@@ -463,7 +463,7 @@ export class AuthClient {
         (url) => isUrl(url) === false
       );
       if (invalidUrls.length > 0) {
-        throw new InvalidConfigurationError(
+        throw new McdInvalidConfigurationError(
           `APP_BASE_URL array contains invalid URLs: ${invalidUrls.join(", ")}`
         );
       }
@@ -679,7 +679,7 @@ export class AuthClient {
 
       // Enforce openid scope in resolver mode
       if (!scopeSet.has("openid")) {
-        throw new InvalidConfigurationError(
+        throw new McdInvalidConfigurationError(
           'The "openid" scope is required in resolver mode (DomainResolver). ' +
             'Add "openid" to your SDK configuration or login options.'
         );
@@ -1141,7 +1141,7 @@ export class AuthClient {
     // Unit-8: Post-hook MCD validation - ensure hooks don't remove internal.mcd in resolver mode
     if (this.provider?.isResolverMode) {
       if (!session.internal?.mcd) {
-        throw new InvalidConfigurationError(
+        throw new McdInvalidConfigurationError(
           "beforeSessionSaved hook must not remove the internal.mcd field in resolver mode. " +
             "The internal.mcd object is required for multi-custom-domain session isolation. " +
             "If you need to modify session.internal, preserve the .mcd field."
@@ -1885,7 +1885,7 @@ export class AuthClient {
     const appBaseUrl = ctx.appBaseUrl;
 
     if (!appBaseUrl) {
-      throw new InvalidConfigurationError(
+      throw new McdInvalidConfigurationError(
         "appBaseUrl could not be resolved for the callback redirect."
       );
     }

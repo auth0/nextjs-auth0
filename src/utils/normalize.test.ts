@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { DomainValidationError } from "./errors.js";
+import { DomainValidationError } from "../errors/mcd.js";
 import {
   normalizeDomain,
   normalizeIssuer,

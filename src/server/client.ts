@@ -28,6 +28,7 @@ import {
   StartInteractiveLoginOptions,
   User
 } from "../types/index.js";
+import type { DiscoveryCacheOptions, DomainResolver } from "../types/mcd.js";
 import {
   DEFAULT_MFA_CONTEXT_TTL_SECONDS,
   DEFAULT_SCOPES
@@ -72,7 +73,6 @@ import {
   TransactionCookieOptions,
   TransactionStore
 } from "./transaction-store.js";
-import type { DiscoveryCacheOptions, DomainResolver } from "./types.js";
 
 export interface Auth0ClientOptions {
   // authorization server configuration

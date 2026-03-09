@@ -3,11 +3,14 @@
  * @internal
  */
 
+import {
+  DomainResolutionError,
+  McdInvalidConfigurationError
+} from "../errors/mcd.js";
+import type { DomainResolver } from "../types/mcd.js";
+import { normalizeDomain } from "../utils/normalize.js";
 import type { AuthClient } from "./auth-client.js";
 import { DiscoveryCache } from "./discovery-cache.js";
-import { InvalidConfigurationError } from "./errors.js";
-import { normalizeDomain } from "./normalize.js";
-import type { DomainResolver } from "./types.js";
 
 /**
  * Options for AuthClientProvider.
@@ -76,7 +79,7 @@ export class AuthClientProvider {
    * Creates a new AuthClientProvider instance.
    *
    * @param options - Configuration options
-   * @throws {InvalidConfigurationError} If configuration is invalid (neither domain nor resolver)
+   * @throws {McdInvalidConfigurationError} If configuration is invalid (neither domain nor resolver)
    *
    * @internal
    */
@@ -101,7 +104,7 @@ export class AuthClientProvider {
       this.mode = "resolver";
       this.resolver = options.domain;
     } else {
-      throw new InvalidConfigurationError(
+      throw new McdInvalidConfigurationError(
         "You must provide either a domain string or a DomainResolver function."
       );
     }
@@ -256,7 +259,9 @@ export class AuthClientProvider {
    */
   private async resolveDomain(headers: Headers, url?: URL): Promise<string> {
     if (!this.resolver) {
-      throw new InvalidConfigurationError("Domain resolver is not configured.");
+      throw new McdInvalidConfigurationError(
+        "Domain resolver is not configured."
+      );
     }
 
     let resolved: string;
@@ -264,12 +269,10 @@ export class AuthClientProvider {
       resolved = await this.resolver({ headers, url });
     } catch (err) {
       const cause = err instanceof Error ? err : new Error(String(err));
-      const { DomainResolutionError } = await import("./errors.js");
       throw new DomainResolutionError("Domain resolver threw an error.", cause);
     }
 
     if (!resolved) {
-      const { DomainResolutionError } = await import("./errors.js");
       throw new DomainResolutionError(
         "Domain resolver returned an empty string."
       );

@@ -13,16 +13,16 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import type { SessionData } from "../types/index.js";
-import { AuthClientProvider } from "./auth-client-provider.js";
-import { DiscoveryCache } from "./discovery-cache.js";
 import {
   DomainValidationError,
-  InvalidConfigurationError,
+  McdInvalidConfigurationError as InvalidConfigurationError,
   SessionDomainMismatchError
-} from "./errors.js";
-import { normalizeDomain } from "./normalize.js";
-import type { DomainResolver, MCDMetadata } from "./types.js";
+} from "../errors/mcd.js";
+import type { SessionData } from "../types/index.js";
+import type { DomainResolver, MCDMetadata } from "../types/mcd.js";
+import { normalizeDomain } from "../utils/normalize.js";
+import { AuthClientProvider } from "./auth-client-provider.js";
+import { DiscoveryCache } from "./discovery-cache.js";
 
 describe("MCD Integration Tests (Units 6-12)", () => {
   // ===== Helper functions =====

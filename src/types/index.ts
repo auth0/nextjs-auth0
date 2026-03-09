@@ -31,7 +31,7 @@ export interface SessionData {
     // the time at which the session was created in seconds since epoch
     createdAt: number;
     // MCD metadata: domain and issuer used to authenticate this session
-    mcd?: import("../server/types.js").MCDMetadata;
+    mcd?: import("./mcd.js").MCDMetadata;
   };
   connectionTokenSets?: ConnectionTokenSet[];
   [key: string]: unknown;
@@ -212,4 +212,4 @@ export type {
   DomainResolver,
   DiscoveryCacheOptions,
   MCDMetadata
-} from "../server/types.js";
+} from "./mcd.js";

@@ -6,13 +6,13 @@ import { describe, expect, it } from "vitest";
 
 import { SdkError } from "../errors/index.js";
 import {
-  BackchannelLogoutError,
+  McdBackchannelLogoutError as BackchannelLogoutError,
   DomainResolutionError,
   DomainValidationError,
-  InvalidConfigurationError,
+  McdInvalidConfigurationError as InvalidConfigurationError,
   IssuerValidationError,
   SessionDomainMismatchError
-} from "./errors.js";
+} from "../errors/mcd.js";
 
 describe("MCD Error Classes", () => {
   describe("DomainResolutionError", () => {

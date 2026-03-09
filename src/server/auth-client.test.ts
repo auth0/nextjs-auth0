@@ -12,6 +12,7 @@ import {
   InvalidConfigurationError,
   MyAccountApiError
 } from "../errors/index.js";
+import { McdInvalidConfigurationError } from "../errors/mcd.js";
 import { getDefaultRoutes } from "../test/defaults.js";
 import { generateSecret } from "../test/utils.js";
 import {
@@ -23,7 +24,6 @@ import {
 import { DEFAULT_SCOPES } from "../utils/constants.js";
 import { AuthClient } from "./auth-client.js";
 import { decrypt, encrypt } from "./cookies.js";
-import { InvalidConfigurationError as McdInvalidConfigurationError } from "./errors.js";
 import { StatefulSessionStore } from "./session/stateful-session-store.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import { TransactionState, TransactionStore } from "./transaction-store.js";

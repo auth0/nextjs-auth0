@@ -27,9 +27,12 @@ export function createInitialSessionData(
       expiresAt: now + 3600, // 1 hour from now
       scope: "read:data write:data",
       token_type: "Bearer",
-      // Add audience to match the /me proxy route configuration
-      // This ensures the token is recognized as valid for the proxy route
-      // Without this, getTokenSet will think it needs a new token for the requested audience
+      // Add audience to match the /me proxy route configuration.
+      // This ensures the token is recognized as valid for the proxy route.
+      // Without this, getTokenSet will think it needs a new token for the requested audience.
+      // Uses `.example.com` (RFC 2606) instead of `.local` because the MCD domain
+      // validator (`validateDomainHostname`) unconditionally rejects `.local` domains
+      // (mDNS namespace, never valid Auth0 custom domains).
       audience: "https://test.auth0.example.com/me/"
     },
     user: {

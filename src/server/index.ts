@@ -33,12 +33,14 @@ export {
   DomainResolutionError,
   DomainValidationError,
   IssuerValidationError,
-  InvalidConfigurationError
-} from "./errors.js";
+  McdInvalidConfigurationError,
+  SessionDomainMismatchError,
+  McdBackchannelLogoutError
+} from "../errors/mcd.js";
 
 // MCD types and utilities
 export type {
   DomainResolver,
   DiscoveryCacheOptions,
   MCDMetadata
-} from "./types.js";
+} from "../types/mcd.js";

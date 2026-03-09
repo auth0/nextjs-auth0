@@ -1,9 +1,17 @@
 /**
- * Utilities for normalizing and validating domains and issuers in MCD mode
+ * Utilities for normalizing and validating domains and issuers in MCD mode.
+ *
+ * Note on validation strictness: This validator is stricter than other Auth0 SDKs
+ * (spa-js, react, express-openid-connect do no hostname validation). The strictness
+ * is intentional for MCD resolver mode where the domain originates from a user-supplied
+ * function and SSRF prevention is critical. In static mode the same validation applies
+ * for consistency, but IP addresses and .local domains are never valid Auth0 custom
+ * domains regardless.
+ *
  * @internal
  */
 
-import { DomainValidationError } from "./errors.js";
+import { DomainValidationError } from "../errors/mcd.js";
 
 /**
  * Normalizes an issuer URL by ensuring it has a trailing slash.
@@ -31,13 +39,22 @@ interface ValidateDomainHostnameOptions {
 }
 
 /**
- * Validates a domain hostname to ensure it's a valid Auth0 domain.
+ * Validates a domain hostname to ensure it's a valid Auth0 custom domain.
+ *
+ * Auth0 custom domains must be DNS hostnames — IP addresses, localhost, and mDNS
+ * (.local) domains are never valid Auth0 custom domains and are rejected
+ * unconditionally (or conditionally for localhost when allowInsecureRequests is set).
+ *
+ * This is stricter than other Auth0 SDKs (spa-js, react, express-openid-connect
+ * perform no hostname validation). The strictness is intentional for MCD resolver
+ * mode where SSRF prevention is critical, and applies uniformly in static mode
+ * for consistency.
  *
  * Rejects:
- * - IPv4 addresses
- * - IPv6 addresses
- * - localhost
- * - .local domains
+ * - IPv4 addresses (never valid Auth0 custom domains)
+ * - IPv6 addresses (implicitly rejected via port/colon check)
+ * - localhost (unless allowInsecureRequests for dev scenarios)
+ * - .local domains (mDNS, unconditionally rejected)
  * - Hostnames with paths
  * - Hostnames with ports (unless already parsed)
  *
@@ -91,7 +108,7 @@ export function validateDomainHostname(
     throw new DomainValidationError("IPv4 addresses are not supported.");
   }
 
-  // IPv6 addresses are implicitly rejected above (line 68) because they contain colons.
+  // IPv6 addresses are implicitly rejected above because they contain colons.
   // The patterns below are kept as legacy documentation but are unreachable:
   // - /^\[?([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}\]?$/ (generic IPv6)
   // - /^::1$/ (IPv6 loopback)

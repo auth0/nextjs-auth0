@@ -52,6 +52,9 @@ import { TransactionStore } from "./transaction-store.js";
  * 11: CORS Handling
  */
 
+// Uses `.example.com` (RFC 2606) instead of `.local` because the MCD domain
+// validator (`validateDomainHostname`) unconditionally rejects `.local` domains
+// (mDNS namespace, never valid Auth0 custom domains).
 const DEFAULT = {
   domain: "test.auth0.example.com",
   clientId: "test_client_id",

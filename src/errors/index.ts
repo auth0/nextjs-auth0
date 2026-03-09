@@ -46,5 +46,8 @@ export {
 export {
   DomainResolutionError,
   DomainValidationError,
-  IssuerValidationError
-} from "../server/errors.js";
+  IssuerValidationError,
+  McdInvalidConfigurationError,
+  SessionDomainMismatchError,
+  McdBackchannelLogoutError
+} from "./mcd.js";
