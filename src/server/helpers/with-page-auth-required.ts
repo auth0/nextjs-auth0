@@ -134,13 +134,11 @@ export type WithPageAuthRequiredAppRouterOptions<
 > = {
   /**
    * The URL to redirect the user to after a successful login.
-   * * Can be a static string or a function that receives the page props. 
-   * When used as a function, the generic `P` ensures that `params` and `searchParams` 
+   * * Can be a static string or a function that receives the page props.
+   * When used as a function, the generic `P` ensures that `params` and `searchParams`
    * match the specific types of your route (e.g., from Next.js `PageProps`).
    */
-  returnTo?:
-    | string
-    | ((obj: P) => Promise<string> | string);
+  returnTo?: string | ((obj: P) => Promise<string> | string);
 };
 
 /**
