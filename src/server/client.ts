@@ -28,6 +28,7 @@ import {
   StartInteractiveLoginOptions,
   User
 } from "../types/index.js";
+import type { InstrumentationLogger } from "../types/instrumentation.js";
 import {
   DEFAULT_MFA_CONTEXT_TTL_SECONDS,
   DEFAULT_SCOPES
@@ -52,6 +53,10 @@ import {
   WithPageAuthRequiredAppRouterOptions,
   WithPageAuthRequiredPageRouterOptions
 } from "./helpers/with-page-auth-required.js";
+import {
+  InstrumentationEmitter,
+  resolveLoggerFromEnvironment
+} from "./instrumentation-emitter.js";
 import { ServerMfaClient } from "./mfa/server-mfa-client.js";
 import { toNextRequest, toNextResponse } from "./next-compat.js";
 import {
@@ -220,6 +225,31 @@ export interface Auth0ClientOptions {
    * via the `Auth0-Client` header. Defaults to `true`.
    */
   enableTelemetry?: boolean;
+
+  /**
+   * Instrumentation configuration for SDK observability.
+   * When provided, the SDK emits structured events for auth flow lifecycle,
+   * token operations, errors, and session management.
+   *
+   * @example
+   * ```typescript
+   * const auth0 = new Auth0Client({
+   *   instrumentation: {
+   *     logger: (event) => console.log(`[${event.level}] ${event.event}`, event.data)
+   *   }
+   * });
+   * ```
+   */
+  instrumentation?: {
+    /**
+     * Logger callback invoked synchronously at each instrumentation point.
+     * If the logger throws, the error is silently swallowed.
+     * If the logger returns a Promise, it is not awaited.
+     *
+     * @see InstrumentationLogger
+     */
+    logger: InstrumentationLogger;
+  };
 
   /**
    * Boolean value to enable the `/auth/access-token` endpoint for use in the client app.
@@ -405,10 +435,17 @@ export class Auth0Client {
   private routes: Routes;
   private domain: string;
   private _mfa?: ServerMfaClient;
+  private emitter: InstrumentationEmitter;
   #options: Auth0ClientOptions;
 
   constructor(options: Auth0ClientOptions = {}) {
     this.#options = options;
+
+    // Programmatic logger takes precedence; fall back to env-based logger
+    const logger =
+      options.instrumentation?.logger ?? resolveLoggerFromEnvironment();
+    this.emitter = new InstrumentationEmitter(logger);
+
     // Extract and validate required options
     const {
       domain,
@@ -600,7 +637,8 @@ export class Auth0Client {
       useDPoP: options.useDPoP || false,
       dpopKeyPair: options.dpopKeyPair || resolvedDpopKeyPair,
       dpopOptions: options.dpopOptions || resolvedDpopOptions,
-      mfaTokenTtl
+      mfaTokenTtl,
+      logger
     });
   }
 
@@ -812,6 +850,7 @@ export class Auth0Client {
         tokenSet.idToken
       );
       await this.saveToSession(finalSession, req, res);
+      this.emitter.emit("debug", "session:refresh", {});
     }
 
     return {
@@ -1059,6 +1098,8 @@ export class Auth0Client {
     if (res && res instanceof Response && !(res instanceof NextResponse)) {
       res = toNextResponse(res);
     }
+
+    this.emitter.emit("debug", "session:update", {});
 
     if (!res) {
       // app router: Server Actions, Route Handlers
