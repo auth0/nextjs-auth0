@@ -23,6 +23,7 @@ import {
   DiscoveryError,
   DPoPError,
   DPoPErrorCode,
+  InvalidConfigurationError,
   InvalidStateError,
   MfaChallengeError,
   MfaEnrollmentError,
@@ -37,7 +38,6 @@ import {
 } from "../errors/index.js";
 import {
   IssuerValidationError,
-  McdInvalidConfigurationError,
   SessionDomainMismatchError
 } from "../errors/mcd.js";
 import {
@@ -76,6 +76,7 @@ import {
   User,
   VerifyMfaOptions
 } from "../types/index.js";
+import type { SessionCheckResult } from "../types/mcd.js";
 import { resolveAppBaseUrl } from "../utils/app-base-url.js";
 import { mergeAuthorizationParamsIntoSearchParams } from "../utils/authorization-params-helpers.js";
 import {
@@ -139,24 +140,6 @@ import {
 import { AbstractSessionStore } from "./session/abstract-session-store.js";
 import { TransactionState, TransactionStore } from "./transaction-store.js";
 import { filterDefaultIdTokenClaims } from "./user.js";
-
-/**
- * Result of a session domain check operation.
- *
- * @field error - SDK error object (null if no error). Includes SessionDomainMismatchError on domain mismatch.
- * @field session - The session data, or null if not found, domain mismatch, or error occurred.
- * @field exists - Whether a session physically exists in the store (true even if domain mismatch or error).
- *                 Distinguishes "no session" from "session found but domain mismatch/error".
- *
- * Callers MUST check error first before using session.
- *
- * @internal
- */
-export interface SessionCheckResult {
-  error: SdkError | null;
-  session: SessionData | null;
-  exists: boolean;
-}
 
 export type BeforeSessionSavedHook = (
   session: SessionData,
@@ -438,7 +421,7 @@ export class AuthClient {
     // application
     if (Array.isArray(options.appBaseUrl)) {
       if (options.appBaseUrl.length === 0) {
-        throw new McdInvalidConfigurationError(
+        throw new InvalidConfigurationError(
           "APP_BASE_URL array configuration cannot be empty."
         );
       }
@@ -446,7 +429,7 @@ export class AuthClient {
         (url) => isUrl(url) === false
       );
       if (invalidUrls.length > 0) {
-        throw new McdInvalidConfigurationError(
+        throw new InvalidConfigurationError(
           `APP_BASE_URL array contains invalid URLs: ${invalidUrls.join(", ")}`
         );
       }
@@ -648,7 +631,7 @@ export class AuthClient {
       }
     }
 
-    // Unit-12: Enforce openid scope in resolver mode
+    // Enforce openid scope in resolver mode
     if (this.provider?.isResolverMode) {
       // Merge scopes from baseConfig defaults and explicit options
       const explicitScope = options.authorizationParameters?.scope;
@@ -662,7 +645,7 @@ export class AuthClient {
 
       // Enforce openid scope in resolver mode
       if (!scopeSet.has("openid")) {
-        throw new McdInvalidConfigurationError(
+        throw new InvalidConfigurationError(
           'The "openid" scope is required in resolver mode (DomainResolver). ' +
             'Add "openid" to your SDK configuration or login options.'
         );
@@ -679,7 +662,7 @@ export class AuthClient {
       returnTo,
       scope: authorizationParams.get("scope") || undefined,
       audience: authorizationParams.get("audience") || undefined,
-      // Unit-9: Store origin domain and issuer for callback delegation in resolver mode
+      // Store origin domain and issuer for callback delegation in resolver mode
       originDomain: this.provider?.isResolverMode ? this.domain : undefined,
       originIssuer: this.provider?.isResolverMode ? this.issuer : undefined
     };
@@ -867,7 +850,7 @@ export class AuthClient {
       appBaseUrl
     };
 
-    // Unit-9: Callback domain delegation in resolver mode
+    // Callback domain delegation in resolver mode
     if (
       state &&
       this.provider?.isResolverMode &&
@@ -1075,7 +1058,7 @@ export class AuthClient {
 
     const idTokenClaims = oauth.getValidatedIdTokenClaims(oidcRes)!;
 
-    // Unit-9: Secondary issuer check for defense-in-depth
+    // Secondary issuer check for defense-in-depth
     if (transactionState.originIssuer) {
       const actualIssuer = normalizeIssuer(idTokenClaims.iss);
       const expectedIssuer = normalizeIssuer(transactionState.originIssuer);
@@ -1103,7 +1086,7 @@ export class AuthClient {
       internal: {
         sid: idTokenClaims.sid as string,
         createdAt: Math.floor(Date.now() / 1000),
-        // Unit-9: Add MCD metadata when in resolver mode
+        // Add MCD metadata when in resolver mode
         ...(this.provider?.isResolverMode && {
           mcd: {
             domain: this.domain,
@@ -1119,10 +1102,10 @@ export class AuthClient {
     // if not then filter id_token claims with default rules
     session = await this.finalizeSession(session, oidcRes.id_token);
 
-    // Unit-8: Post-hook MCD validation - ensure hooks don't remove internal.mcd in resolver mode
+    // Post-hook MCD validation - ensure hooks don't remove internal.mcd in resolver mode
     if (this.provider?.isResolverMode) {
       if (!session.internal?.mcd) {
-        throw new McdInvalidConfigurationError(
+        throw new InvalidConfigurationError(
           "beforeSessionSaved hook must not remove the internal.mcd field in resolver mode. " +
             "The internal.mcd object is required for multi-custom-domain session isolation. " +
             "If you need to modify session.internal, preserve the .mcd field."
@@ -1393,7 +1376,7 @@ export class AuthClient {
       });
     }
 
-    // Unit-10: In resolver mode, extract issuer from logout token and delegate
+    // In resolver mode, extract issuer from logout token and delegate
     if (this.provider?.isResolverMode) {
       try {
         // Step 1: Decode unverified to extract iss claim
@@ -1849,7 +1832,7 @@ export class AuthClient {
     const appBaseUrl = ctx.appBaseUrl;
 
     if (!appBaseUrl) {
-      throw new McdInvalidConfigurationError(
+      throw new InvalidConfigurationError(
         "appBaseUrl could not be resolved for the callback redirect."
       );
     }
@@ -1880,10 +1863,6 @@ export class AuthClient {
     return response;
   }
 
-  /**
-   * Verify a logout token.
-   * @internal Used internally by backchannel logout handling and MCD delegation.
-   */
   async verifyLogoutToken(
     logoutToken: string
   ): Promise<[null, LogoutToken] | [SdkError, null]> {
@@ -2087,7 +2066,6 @@ export class AuthClient {
    * This method checks that the session domain matches the current request domain,
    * and backlills pre-MCD sessions atomically.
    *
-   * Implementation in Unit-8: Session Domain Gating
    *
    * @param cookies - Request cookies containing session information
    * @returns A SessionCheckResult object with the following properties:
@@ -3410,7 +3388,7 @@ export class AuthClient {
       return tokenSetResponse.tokenSet;
     };
 
-    // Unit-11: Get/create fetcher instance with domain-aware caching
+    // Get/create fetcher instance with domain-aware caching
     // In MCD mode, use provider.getProxyFetcher for shared caching across AuthClient instances
     // In static mode, use local proxyFetchers cache
     const cacheKey = this.provider

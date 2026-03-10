@@ -3,10 +3,8 @@
  * @internal
  */
 
-import {
-  DomainResolutionError,
-  McdInvalidConfigurationError
-} from "../errors/mcd.js";
+import { InvalidConfigurationError } from "../errors/index.js";
+import { DomainResolutionError } from "../errors/mcd.js";
 import type { DomainResolver } from "../types/mcd.js";
 import { normalizeDomain } from "../utils/normalize.js";
 import type { AuthClient } from "./auth-client.js";
@@ -79,7 +77,7 @@ export class AuthClientProvider {
    * Creates a new AuthClientProvider instance.
    *
    * @param options - Configuration options
-   * @throws {McdInvalidConfigurationError} If configuration is invalid (neither domain nor resolver)
+   * @throws {InvalidConfigurationError} If configuration is invalid (neither domain nor resolver)
    *
    * @internal
    */
@@ -104,7 +102,7 @@ export class AuthClientProvider {
       this.mode = "resolver";
       this.resolver = options.domain;
     } else {
-      throw new McdInvalidConfigurationError(
+      throw new InvalidConfigurationError(
         "You must provide either a domain string or a DomainResolver function."
       );
     }
@@ -259,9 +257,7 @@ export class AuthClientProvider {
    */
   private async resolveDomain(headers: Headers, url?: URL): Promise<string> {
     if (!this.resolver) {
-      throw new McdInvalidConfigurationError(
-        "Domain resolver is not configured."
-      );
+      throw new InvalidConfigurationError("Domain resolver is not configured.");
     }
 
     let resolved: string;

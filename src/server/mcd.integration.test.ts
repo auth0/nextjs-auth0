@@ -13,9 +13,9 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { InvalidConfigurationError } from "../errors/index.js";
 import {
   DomainValidationError,
-  McdInvalidConfigurationError as InvalidConfigurationError,
   SessionDomainMismatchError
 } from "../errors/mcd.js";
 import {

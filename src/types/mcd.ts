@@ -2,8 +2,11 @@
  * MCD (Multiple Custom Domains) types and interfaces.
  *
  * Public exports: {@link DomainResolver}, {@link DiscoveryCacheOptions}.
- * Internal: {@link MCDMetadata}.
+ * Internal: {@link MCDMetadata}, {@link SessionCheckResult}.
  */
+
+import type { SdkError } from "../errors/sdk-error.js";
+import type { SessionData } from "./index.js";
 
 /**
  * Resolves the Auth0 domain from request context.
@@ -97,4 +100,22 @@ export interface DiscoveryCacheOptions {
 export interface MCDMetadata {
   domain: string;
   issuer: string;
+}
+
+/**
+ * Result of a session domain check operation.
+ *
+ * @field error - SDK error object (null if no error). Includes SessionDomainMismatchError on domain mismatch.
+ * @field session - The session data, or null if not found, domain mismatch, or error occurred.
+ * @field exists - Whether a session physically exists in the store (true even if domain mismatch or error).
+ *                 Distinguishes "no session" from "session found but domain mismatch/error".
+ *
+ * Callers MUST check error first before using session.
+ *
+ * @internal
+ */
+export interface SessionCheckResult {
+  error: SdkError | null;
+  session: SessionData | null;
+  exists: boolean;
 }

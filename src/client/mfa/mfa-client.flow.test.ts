@@ -2,6 +2,7 @@ import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import {
   afterAll,
+  afterEach,
   beforeAll,
   beforeEach,
   describe,
@@ -10,7 +11,6 @@ import {
   vi
 } from "vitest";
 
-import { setupMswLifecycle } from "../../test/defaults.js";
 import {
   challengeScenarios,
   enrollScenarios,
@@ -32,6 +32,8 @@ const DEFAULT = {
 const server = setupServer();
 
 beforeAll(() => {
+  server.listen({ onUnhandledRequest: "error" });
+
   // Configure base URL for client routes via environment variables
   process.env.NEXT_PUBLIC_MFA_AUTHENTICATORS_ROUTE = `${DEFAULT.appBaseUrl}/auth/mfa/authenticators`;
   process.env.NEXT_PUBLIC_MFA_CHALLENGE_ROUTE = `${DEFAULT.appBaseUrl}/auth/mfa/challenge`;
@@ -39,13 +41,16 @@ beforeAll(() => {
   process.env.NEXT_PUBLIC_MFA_ENROLL_ROUTE = `${DEFAULT.appBaseUrl}/auth/mfa/enroll`;
 });
 
-setupMswLifecycle(server);
+afterEach(() => {
+  server.resetHandlers();
+});
 
 afterAll(() => {
   delete process.env.NEXT_PUBLIC_MFA_AUTHENTICATORS_ROUTE;
   delete process.env.NEXT_PUBLIC_MFA_CHALLENGE_ROUTE;
   delete process.env.NEXT_PUBLIC_MFA_VERIFY_ROUTE;
   delete process.env.NEXT_PUBLIC_MFA_ENROLL_ROUTE;
+  server.close();
 });
 
 describe("ClientMfaClient", () => {

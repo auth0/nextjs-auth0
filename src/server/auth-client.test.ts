@@ -12,7 +12,6 @@ import {
   InvalidConfigurationError,
   MyAccountApiError
 } from "../errors/index.js";
-import { McdInvalidConfigurationError } from "../errors/mcd.js";
 import { getDefaultRoutes } from "../test/defaults.js";
 import { generateSecret } from "../test/utils.js";
 import {
@@ -4913,7 +4912,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         await expect(
           (authClient as any).defaultOnCallback(null, { returnTo: "/" })
-        ).rejects.toThrow(McdInvalidConfigurationError);
+        ).rejects.toThrow(InvalidConfigurationError);
       });
     });
 

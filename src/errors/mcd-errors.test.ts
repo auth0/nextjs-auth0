@@ -4,12 +4,11 @@
 
 import { describe, expect, it } from "vitest";
 
-import { SdkError } from "../errors/index.js";
+import { InvalidConfigurationError, SdkError } from "../errors/index.js";
 import {
   McdBackchannelLogoutError as BackchannelLogoutError,
   DomainResolutionError,
   DomainValidationError,
-  McdInvalidConfigurationError as InvalidConfigurationError,
   IssuerValidationError,
   SessionDomainMismatchError
 } from "../errors/mcd.js";
@@ -128,10 +127,8 @@ describe("MCD Error Classes", () => {
     it("should create error with default message", () => {
       const error = new InvalidConfigurationError();
       expect(error).toBeInstanceOf(SdkError);
-      expect(error.message).toContain("MCD configuration");
-      expect(error.message.toLowerCase()).toContain("domain string");
-      expect(error.message.toLowerCase()).toContain("domainresolver function");
-      expect(error.name).toBe("McdInvalidConfigurationError");
+      expect(error.message).toContain("configuration is invalid");
+      expect(error.name).toBe("InvalidConfigurationError");
       expect(error.code).toBe("invalid_configuration");
     });
 
@@ -139,7 +136,7 @@ describe("MCD Error Classes", () => {
       const message = "Missing required configuration";
       const error = new InvalidConfigurationError(message);
       expect(error.message).toBe(message);
-      expect(error.name).toBe("McdInvalidConfigurationError");
+      expect(error.name).toBe("InvalidConfigurationError");
       expect(error.code).toBe("invalid_configuration");
     });
 

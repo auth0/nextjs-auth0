@@ -1,10 +1,10 @@
 /**
  * MCD (Multiple Custom Domains) specific error classes.
  *
- * Note: `InvalidConfigurationError` and `BackchannelLogoutError` are renamed
- * with `Mcd` prefix to avoid collision with identically-named classes in
- * `oauth-errors.ts`. The oauth-errors versions are generic SDK errors;
- * these are MCD-specific with different default messages and error codes.
+ * Note: `BackchannelLogoutError` is renamed with `Mcd` prefix to avoid
+ * collision with the identically-named class in `oauth-errors.ts`.
+ * MCD configuration errors use the shared `InvalidConfigurationError`
+ * from `oauth-errors.ts`.
  *
  * @module errors/mcd
  */
@@ -82,35 +82,6 @@ export class IssuerValidationError extends SdkError {
       `Issuer Mismatch: expected "${expectedIssuer}" but received "${actualIssuer}"`
     );
     this.name = "IssuerValidationError";
-  }
-}
-
-/**
- * Error thrown when the MCD configuration is invalid.
- *
- * This includes cases where neither a static domain nor a domain resolver is provided,
- * or when configuration is incomplete.
- * This error is public and may be caught by application code.
- *
- * Renamed from `InvalidConfigurationError` to avoid collision with the generic
- * `InvalidConfigurationError` in `oauth-errors.ts`.
- *
- * @public
- */
-export class McdInvalidConfigurationError extends SdkError {
-  public code: string = "invalid_configuration";
-
-  /**
-   * Creates a new McdInvalidConfigurationError instance.
-   *
-   * @param message - A descriptive error message
-   */
-  constructor(message?: string) {
-    super(
-      message ??
-        "The MCD configuration is invalid. You must provide either a domain string or a DomainResolver function."
-    );
-    this.name = "McdInvalidConfigurationError";
   }
 }
 
