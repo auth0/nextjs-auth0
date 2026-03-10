@@ -126,11 +126,21 @@ export type WithPageAuthRequiredPageRouter = <
 /**
  * Specify the URL to `returnTo` - this is important in app router pages because the server component
  * won't know the URL of the page.
+ * * @template P The type of the page or layout props, extending {@link AppRouterPageRouteOpts}.
+ * This allows the `returnTo` callback to access strongly-typed route parameters.
  */
-export type WithPageAuthRequiredAppRouterOptions = {
+export type WithPageAuthRequiredAppRouterOptions<
+  P extends AppRouterPageRouteOpts = AppRouterPageRouteOpts
+> = {
+  /**
+   * The URL to redirect the user to after a successful login.
+   * * Can be a static string or a function that receives the page props. 
+   * When used as a function, the generic `P` ensures that `params` and `searchParams` 
+   * match the specific types of your route (e.g., from Next.js `PageProps`).
+   */
   returnTo?:
     | string
-    | ((obj: AppRouterPageRouteOpts) => Promise<string> | string);
+    | ((obj: P) => Promise<string> | string);
 };
 
 /**
@@ -182,7 +192,7 @@ export type WithPageAuthRequiredAppRouter = <
   P extends AppRouterPageRouteOpts = AppRouterPageRouteOpts
 >(
   fn: AppRouterPageRoute<P>,
-  opts?: WithPageAuthRequiredAppRouterOptions
+  opts?: WithPageAuthRequiredAppRouterOptions<P>
 ) => AppRouterPageRoute<P>;
 
 /**
