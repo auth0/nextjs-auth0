@@ -3954,6 +3954,84 @@ export const auth0 = new Auth0Client({
 
 ### Security Considerations {#security-considerations-mcd}
 
+#### DomainResolver Patterns
+
+When implementing a `DomainResolver`, always prioritize the `url` parameter over headers for hostname resolution, as the `url` is parsed by Next.js from the actual request and is not affected by spoofed x-forwarded-* headers.
+
+**Preferred pattern: Use the `url` parameter**
+
+The `url` parameter is parsed by Next.js and represents the actual request URL, making it resistant to header spoofing attacks:
+
+```typescript
+const auth0 = new Auth0Client({
+  domain: ({ url }) => {
+    const hostname = url?.hostname ?? "default.example.com";
+    const ALLOWED_HOSTS = ["brand1.example.com", "brand2.example.com"];
+    if (!ALLOWED_HOSTS.includes(hostname)) {
+      throw new Error(`Untrusted hostname: ${hostname}`);
+    }
+    return hostname.startsWith("brand1.") ? "auth.brand1.com" : "auth.brand2.com";
+  }
+});
+```
+
+**If using headers: Always validate against a known allow-list**
+
+When `url` is unavailable (e.g., in Server Components or Server Actions), you must fall back to header-based resolution with strict validation:
+
+```typescript
+const auth0 = new Auth0Client({
+  domain: ({ headers }) => {
+    const host = headers.get("host") ?? "";
+    const ALLOWED_HOSTS = ["brand1.example.com", "brand2.example.com"];
+    if (!ALLOWED_HOSTS.includes(host)) {
+      throw new Error(`Untrusted host header: ${host}`);
+    }
+    return host.startsWith("brand1.") ? "auth.brand1.com" : "auth.brand2.com";
+  }
+});
+```
+
+**Warning: x-forwarded-* headers**
+
+In self-hosted deployments, the `x-forwarded-host` and `x-forwarded-proto` headers can be set by attackers if your reverse proxy is not properly configured. These headers are not cryptographically signed and bypass application validation. Use the `url` parameter whenever possible, as it's parsed by Next.js from the actual request URL and is not affected by spoofed forwarding headers.
+
+#### X-Forwarded Headers Trust Model
+
+When deploying behind a reverse proxy, the SDK's `inferBaseUrlFromRequest()` uses `x-forwarded-host` and `x-forwarded-proto` headers to determine the application's base URL. These headers are trusted by default.
+
+**Risk**: In self-hosted deployments without proper reverse proxy configuration, an attacker can set these headers to manipulate the resolved base URL, potentially enabling:
+- Open redirects via the `returnTo` parameter after authentication
+- Cookie domain misalignment in allow-list mode
+
+**Who is affected**:
+- Vercel deployments: NOT affected (Vercel strips/validates these headers)
+- Self-hosted behind properly configured reverse proxy: NOT affected (proxy overwrites headers)
+- Self-hosted WITHOUT reverse proxy or with misconfigured proxy: AFFECTED
+
+**Mitigations**:
+1. Always set a static `appBaseUrl` in production when possible — this bypasses header inference entirely
+2. When using `appBaseUrl` as an array (allow-list mode), the SDK validates the inferred URL against the allow-list, limiting the attack surface
+3. Ensure your reverse proxy sets `x-forwarded-host` and `x-forwarded-proto` and does not pass through client-supplied values
+4. When using a DomainResolver, prefer the `url` parameter over raw headers (as shown in the DomainResolver Patterns section above)
+
+```typescript
+// SAFE: Static appBaseUrl bypasses header inference
+const auth0 = new Auth0Client({
+  appBaseUrl: "https://myapp.example.com",
+  // ...
+});
+
+// SAFE: Allow-list validates inferred URL
+const auth0 = new Auth0Client({
+  appBaseUrl: [
+    "https://brand1.example.com",
+    "https://brand2.example.com"
+  ],
+  // ...
+});
+```
+
 #### Resolver Input Validation
 
 The `DomainResolver` receives request headers and optional URL. The SDK validates the resolver's **output** (domain hostname format), but the resolver is responsible for its own **input** validation:

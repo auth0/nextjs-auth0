@@ -131,7 +131,7 @@ describe("MCD Error Classes", () => {
       expect(error.message).toContain("MCD configuration");
       expect(error.message.toLowerCase()).toContain("domain string");
       expect(error.message.toLowerCase()).toContain("domainresolver function");
-      expect(error.name).toBe("InvalidConfigurationError");
+      expect(error.name).toBe("McdInvalidConfigurationError");
       expect(error.code).toBe("invalid_configuration");
     });
 
@@ -139,7 +139,7 @@ describe("MCD Error Classes", () => {
       const message = "Missing required configuration";
       const error = new InvalidConfigurationError(message);
       expect(error.message).toBe(message);
-      expect(error.name).toBe("InvalidConfigurationError");
+      expect(error.name).toBe("McdInvalidConfigurationError");
       expect(error.code).toBe("invalid_configuration");
     });
 
@@ -179,7 +179,7 @@ describe("MCD Error Classes", () => {
       const error = new BackchannelLogoutError();
       expect(error).toBeInstanceOf(SdkError);
       expect(error.message).toContain("backchannel logout");
-      expect(error.name).toBe("BackchannelLogoutError");
+      expect(error.name).toBe("McdBackchannelLogoutError");
       expect(error.code).toBe("backchannel_logout_error");
     });
 
@@ -187,7 +187,7 @@ describe("MCD Error Classes", () => {
       const message = "Logout request validation failed";
       const error = new BackchannelLogoutError(message);
       expect(error.message).toBe(message);
-      expect(error.name).toBe("BackchannelLogoutError");
+      expect(error.name).toBe("McdBackchannelLogoutError");
       expect(error.code).toBe("backchannel_logout_error");
     });
 

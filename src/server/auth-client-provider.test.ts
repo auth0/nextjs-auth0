@@ -16,6 +16,7 @@ describe("AuthClientProvider", () => {
   let createAuthClientMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
+    vi.clearAllMocks();
     mockAuthClient = {} as AuthClient;
     createAuthClientMock = vi.fn().mockReturnValue(mockAuthClient);
   });

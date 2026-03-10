@@ -17,41 +17,29 @@
  * - Error propagation patterns
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   DomainValidationError,
   IssuerValidationError,
   SessionDomainMismatchError
 } from "../errors/mcd.js";
-import type { SessionData } from "../types/index.js";
-import type { MCDMetadata } from "../types/mcd.js";
+import {
+  createMCDMetadata,
+  createTransactionState
+} from "../test/mcd-test-fixtures.js";
+import { SessionData } from "../types/index.js";
+import { MCDMetadata } from "../types/mcd.js";
 import { normalizeDomain } from "../utils/normalize.js";
-import type { TransactionState } from "./transaction-store.js";
 
 // =============================================================================
 // Part 1: Callback Domain Delegation (Unit 9)
 // =============================================================================
 
 describe("MCD Callback Domain Delegation (Unit 9)", () => {
-  // ===== Helper functions =====
-
-  function createTransactionState(
-    partial: Partial<TransactionState> = {}
-  ): TransactionState {
-    return {
-      codeVerifier: "code_verifier_123",
-      responseType: "code",
-      state: "state_value",
-      returnTo: "https://example.com/callback",
-      nonce: "nonce_123",
-      ...partial
-    } as TransactionState;
-  }
-
-  function createMCDMetadata(domain: string, issuer: string): MCDMetadata {
-    return { domain, issuer };
-  }
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   // ===== Callback Transaction Tests =====
 

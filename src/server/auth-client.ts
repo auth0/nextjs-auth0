@@ -106,12 +106,7 @@ import {
   validateVerificationCredentialAndThrow
 } from "../utils/mfa-validation-utils.js";
 import { normalizeDomain, normalizeIssuer } from "../utils/normalize.js";
-import {
-  ensureNoLeadingSlash,
-  ensureTrailingSlash,
-  normalizeWithBasePath,
-  removeTrailingSlash
-} from "../utils/pathUtils.js";
+import { createRouteUrl, removeTrailingSlash } from "../utils/pathUtils.js";
 import {
   buildForwardedRequestHeaders,
   buildForwardedResponseHeaders,
@@ -125,7 +120,9 @@ import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-h
 import {
   compareScopes,
   findAccessTokenSet,
+  isBeforeOrEqual,
   mergeScopes,
+  normalizeExpiresAt,
   tokenSetFromAccessTokenSet
 } from "../utils/token-set-helpers.js";
 import { isUrl, toSafeRedirect } from "../utils/url-helpers.js";
@@ -190,8 +187,6 @@ export type OnCallbackHook = (
   ctx: OnCallbackContext,
   session: SessionData | null
 ) => Promise<NextResponse>;
-
-type ExpiresAtInput = number | string | null | undefined;
 
 // params passed to the /authorize endpoint that cannot be overwritten
 const INTERNAL_AUTHORIZE_PARAMS = [
@@ -302,18 +297,6 @@ export interface AuthClientOptions {
    * Currently not used - placeholder for upcoming nonce persistence feature.
    */
   // dpopHandleStorage?: DPoPHandleStorageInterface; // Commented out until implementation
-}
-
-function createRouteUrl(path: string, baseUrl?: string) {
-  if (!baseUrl) {
-    throw new Error(
-      "appBaseUrl is required for this operation. Provide it in Auth0ClientOptions or ensure it can be resolved from request headers."
-    );
-  }
-  return new URL(
-    ensureNoLeadingSlash(normalizeWithBasePath(path)),
-    ensureTrailingSlash(baseUrl)
-  );
 }
 
 /**
@@ -1012,9 +995,7 @@ export class AuthClient {
     let authorizationCodeGrantRequestCall: () => Promise<Response>;
 
     try {
-      redirectUri = new URL(
-        createRouteUrl(this.routes.callback, appBaseUrl).toString()
-      ); // must be registered with the authorization server
+      redirectUri = createRouteUrl(this.routes.callback, appBaseUrl); // must be registered with the authorization server
 
       // Create DPoP handle ONCE outside the closure so it persists across retries.
       // This is required by RFC 9449: the handle must learn and reuse the nonce from
@@ -1653,23 +1634,6 @@ export class AuthClient {
       }
     );
     const now = Date.now() / 1000;
-    const normalizeExpiresAt = (value: ExpiresAtInput): number | undefined => {
-      if (typeof value === "number") {
-        return Number.isFinite(value) ? value : undefined;
-      }
-      if (typeof value === "string") {
-        if (value.trim() === "") {
-          return undefined;
-        }
-        const parsed = Number(value);
-        return Number.isFinite(parsed) ? parsed : undefined;
-      }
-      return undefined;
-    };
-    const isBeforeOrEqual = (left: ExpiresAtInput, right: number) => {
-      const normalized = normalizeExpiresAt(left);
-      return normalized !== undefined && normalized <= right;
-    };
 
     const expiresAt = normalizeExpiresAt(tokenSet.expiresAt);
     const isExpired = isBeforeOrEqual(tokenSet.expiresAt, now);
@@ -1891,7 +1855,7 @@ export class AuthClient {
     }
 
     const res = NextResponse.redirect(
-      createRouteUrl(ctx.returnTo || "/", appBaseUrl)
+      createRouteUrl(ctx.returnTo || "/", appBaseUrl).toString()
     );
 
     return res;
@@ -2180,13 +2144,11 @@ export class AuthClient {
       issuer: this.issuer
     };
 
-    // Persist immediately (atomic backfill)
-    try {
-      const resCookies = new ResponseCookies(new Headers());
-      await this.sessionStore.set(cookies, resCookies, session);
-    } catch (error) {
-      // If backfill fails, still return the session but log the error
-    }
+    // Backfill is in-memory only. Persistence is deferred to the next session
+    // touch/save operation (e.g., middleware handler's default case) where
+    // sessionStore.set() is called with actual response cookies attached to
+    // the HTTP response. This avoids creating orphaned ResponseCookies that
+    // would never be sent to the client in stateless (cookie-based) sessions.
 
     return {
       error: null,

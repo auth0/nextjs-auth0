@@ -410,5 +410,39 @@ describe("normalize.ts", () => {
         expect(() => normalizeDomain("   ")).toThrow(DomainValidationError);
       });
     });
+
+    describe("Punycode and Unicode domains", () => {
+      it("should accept Punycode-encoded domain", () => {
+        const result = normalizeDomain("xn--mnchen-3ya.auth0.com");
+        expect(result).toEqual({
+          domain: "xn--mnchen-3ya.auth0.com",
+          issuer: "https://xn--mnchen-3ya.auth0.com/"
+        });
+      });
+
+      it("should handle Punycode domain in URL format", () => {
+        const result = normalizeDomain("https://xn--mnchen-3ya.auth0.com");
+        expect(result).toEqual({
+          domain: "xn--mnchen-3ya.auth0.com",
+          issuer: "https://xn--mnchen-3ya.auth0.com/"
+        });
+      });
+
+      it("should handle mixed case Punycode domain", () => {
+        const result = normalizeDomain("XN--MNCHEN-3YA.AUTH0.COM");
+        expect(result).toEqual({
+          domain: "XN--MNCHEN-3YA.AUTH0.COM",
+          issuer: "https://XN--MNCHEN-3YA.AUTH0.COM/"
+        });
+      });
+
+      it("should handle multiple Punycode labels", () => {
+        const result = normalizeDomain("xn--80akhbyknj4f.xn--p1ai");
+        expect(result).toEqual({
+          domain: "xn--80akhbyknj4f.xn--p1ai",
+          issuer: "https://xn--80akhbyknj4f.xn--p1ai/"
+        });
+      });
+    });
   });
 });

@@ -11,6 +11,7 @@ describe("DiscoveryCache", () => {
   let cache: DiscoveryCache;
 
   beforeEach(() => {
+    vi.clearAllMocks();
     cache = new DiscoveryCache();
   });
 
@@ -181,6 +182,39 @@ describe("DiscoveryCache", () => {
 
       expect(result1).toEqual(mockMetadata1);
       expect(result2).toEqual(mockMetadata2);
+      expect(fetchMetadata).toHaveBeenCalledTimes(2);
+    });
+
+    it("should propagate failure to all concurrent waiters and allow retry", async () => {
+      let callCount = 0;
+      const fetchMetadata = vi.fn().mockImplementation(async () => {
+        callCount++;
+        if (callCount === 1) {
+          throw new Error("Network error");
+        }
+        return {
+          issuer: "https://example.auth0.com/",
+          token_endpoint: "https://example.auth0.com/oauth/token",
+          jwks_uri: "https://example.auth0.com/.well-known/jwks.json"
+        } as oauth.AuthorizationServer;
+      });
+
+      // Launch concurrent requests that share the same pending promise
+      const promise1 = cache.get("example.auth0.com", fetchMetadata);
+      const promise2 = cache.get("example.auth0.com", fetchMetadata);
+      const promise3 = cache.get("example.auth0.com", fetchMetadata);
+
+      // All should reject with the same error
+      await expect(promise1).rejects.toThrow("Network error");
+      await expect(promise2).rejects.toThrow("Network error");
+      await expect(promise3).rejects.toThrow("Network error");
+
+      // Only one fetch call should have been made (deduplication)
+      expect(fetchMetadata).toHaveBeenCalledTimes(1);
+
+      // After failure, a new request should trigger a fresh fetch (retry works)
+      const result = await cache.get("example.auth0.com", fetchMetadata);
+      expect(result.issuer).toBe("https://example.auth0.com/");
       expect(fetchMetadata).toHaveBeenCalledTimes(2);
     });
   });

@@ -14,23 +14,11 @@ import {
 } from "vitest";
 
 import { AccessTokenErrorCode } from "../errors/index.js";
+import { createNextHeadersMock } from "../test/mocks.js";
 import { SessionData } from "../types/index.js";
 import { Auth0Client } from "./client.js";
-import { RequestCookies } from "./cookies.js";
 
-vi.mock("next/headers.js", async (importActual) => {
-  const actual = await importActual<typeof import("next/headers.js")>();
-
-  return {
-    ...actual,
-    cookies: vi.fn().mockImplementation(async () => {
-      return new RequestCookies(new Headers());
-    }),
-    headers: vi.fn().mockImplementation(() => {
-      return new Headers();
-    })
-  };
-});
+vi.mock("next/headers.js", () => createNextHeadersMock());
 
 // Basic constants for testing
 const domain = "https://auth0.example.com";

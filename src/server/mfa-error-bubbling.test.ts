@@ -3,7 +3,6 @@ import * as jose from "jose";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import {
-  afterAll,
   afterEach,
   beforeAll,
   beforeEach,
@@ -14,17 +13,13 @@ import {
 } from "vitest";
 
 import { MfaRequiredError, OAuth2Error } from "../errors/index.js";
+import { setupMswLifecycle } from "../test/defaults.js";
+import { createNextHeadersMock } from "../test/mocks.js";
 import { MfaContext, SessionData } from "../types/index.js";
 import { Auth0Client } from "./client.js";
 import { decrypt } from "./cookies.js";
 
-vi.mock("next/headers.js", async (importActual) => {
-  const actual = await importActual<typeof import("next/headers.js")>();
-  return {
-    ...actual,
-    headers: vi.fn().mockImplementation(async () => new Headers())
-  };
-});
+vi.mock("next/headers.js", () => createNextHeadersMock({ cookies: false }));
 
 // Test configuration
 const domain = "https://auth0.example.com";
@@ -131,13 +126,11 @@ const server = setupServer(...handlers);
 
 beforeAll(async () => {
   keyPair = await jose.generateKeyPair(alg);
-  server.listen({ onUnhandledRequest: "error" });
 });
+setupMswLifecycle(server);
 afterEach(() => {
-  server.resetHandlers();
   shouldReturnMfaError = false;
 });
-afterAll(() => server.close());
 
 /**
  * Creates initial session data for tests.

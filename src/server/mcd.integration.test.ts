@@ -11,40 +11,27 @@
  * - Unit 12: openid scope enforcement
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   DomainValidationError,
   McdInvalidConfigurationError as InvalidConfigurationError,
   SessionDomainMismatchError
 } from "../errors/mcd.js";
-import type { SessionData } from "../types/index.js";
-import type { DomainResolver, MCDMetadata } from "../types/mcd.js";
+import {
+  createMCDMetadata,
+  createSessionData
+} from "../test/mcd-test-fixtures.js";
+import { SessionData } from "../types/index.js";
+import type { DomainResolver } from "../types/mcd.js";
 import { normalizeDomain } from "../utils/normalize.js";
 import { AuthClientProvider } from "./auth-client-provider.js";
 import { DiscoveryCache } from "./discovery-cache.js";
 
 describe("MCD Integration Tests (Units 6-12)", () => {
-  // ===== Helper functions =====
-
-  function createSessionData(partial: Partial<SessionData>): SessionData {
-    return {
-      user: { sub: "user_123" },
-      tokenSet: {
-        accessToken: "access_token_123",
-        expiresAt: Date.now() + 3600000
-      },
-      internal: {
-        sid: "sid_123",
-        createdAt: Date.now()
-      },
-      ...partial
-    };
-  }
-
-  function createMCDMetadata(domain: string, issuer: string): MCDMetadata {
-    return { domain, issuer };
-  }
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   function createMockHeaders(customHeaders: Record<string, string> = {}) {
     const h = new (globalThis as any).Headers();

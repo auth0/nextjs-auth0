@@ -110,7 +110,7 @@ export class McdInvalidConfigurationError extends SdkError {
       message ??
         "The MCD configuration is invalid. You must provide either a domain string or a DomainResolver function."
     );
-    this.name = "InvalidConfigurationError";
+    this.name = "McdInvalidConfigurationError";
   }
 }
 
@@ -120,7 +120,7 @@ export class McdInvalidConfigurationError extends SdkError {
  * This indicates a potential security issue where a user is attempting to use a session
  * created for a different domain.
  *
- * @internal
+ * @public
  */
 export class SessionDomainMismatchError extends SdkError {
   public code: string = "session_domain_mismatch";
@@ -146,7 +146,7 @@ export class SessionDomainMismatchError extends SdkError {
  * Renamed from `BackchannelLogoutError` to avoid collision with the generic
  * `BackchannelLogoutError` in `oauth-errors.ts`.
  *
- * @internal
+ * @public
  */
 export class McdBackchannelLogoutError extends SdkError {
   public code: string = "backchannel_logout_error";
@@ -161,6 +161,6 @@ export class McdBackchannelLogoutError extends SdkError {
       message ??
         "An error occurred while completing the backchannel logout request."
     );
-    this.name = "BackchannelLogoutError";
+    this.name = "McdBackchannelLogoutError";
   }
 }

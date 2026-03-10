@@ -2,17 +2,13 @@ import { NextRequest } from "next/server.js";
 import * as jose from "jose";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it
-} from "vitest";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { getDefaultRoutes } from "../test/defaults.js";
+import {
+  createAuthorizationServerMetadata,
+  getDefaultRoutes,
+  setupMswLifecycle
+} from "../test/defaults.js";
 import {
   createDPoPNonceRetryHandler,
   createInitialSessionData,
@@ -86,16 +82,9 @@ const UPSTREAM_RESPONSE_DATA = {
 };
 
 // Discovery metadata
-const _authorizationServerMetadata = {
-  issuer: `https://${DEFAULT.domain}`,
-  authorization_endpoint: `https://${DEFAULT.domain}/authorize`,
-  token_endpoint: `https://${DEFAULT.domain}/oauth/token`,
-  jwks_uri: `https://${DEFAULT.domain}/.well-known/jwks.json`,
-  response_types_supported: ["code"],
-  subject_types_supported: ["public"],
-  id_token_signing_alg_values_supported: ["RS256"],
-  dpop_signing_alg_values_supported: ["RS256", "ES256"]
-};
+const _authorizationServerMetadata = createAuthorizationServerMetadata(
+  DEFAULT.domain
+);
 
 let keyPair: jose.GenerateKeyPairResult;
 let dpopKeyPair: Awaited<ReturnType<typeof generateDpopKeyPair>>;
@@ -166,16 +155,9 @@ beforeAll(async () => {
   keyPair = await jose.generateKeyPair(DEFAULT.alg);
   dpopKeyPair = await generateDpopKeyPair();
   secret = await generateSecret(32);
-  server.listen({ onUnhandledRequest: "error" });
 });
 
-afterEach(() => {
-  server.resetHandlers();
-});
-
-afterAll(() => {
-  server.close();
-});
+setupMswLifecycle(server);
 
 describe("Authentication Client - Custom Proxy Handler", async () => {
   beforeEach(async () => {
