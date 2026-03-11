@@ -1,3 +1,5 @@
+import { InvalidConfigurationError } from "../errors/index.js";
+
 export function ensureLeadingSlash(value: string) {
   return value && !value.startsWith("/") ? `/${value}` : value;
 }
@@ -26,7 +28,7 @@ export const removeTrailingSlash = (path: string) =>
  */
 export function createRouteUrl(path: string, baseUrl?: string): URL {
   if (!baseUrl) {
-    throw new Error(
+    throw new InvalidConfigurationError(
       "appBaseUrl is required for this operation. Provide it in Auth0ClientOptions or ensure it can be resolved from request headers."
     );
   }

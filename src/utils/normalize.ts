@@ -81,6 +81,15 @@ export function validateDomainHostname(
     );
   }
 
+  // Reject IPv6 addresses (contain colons, checked before generic port rejection)
+  if (
+    /^\[?([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}\]?$/.test(trimmed) ||
+    trimmed === "::1" ||
+    trimmed === "::"
+  ) {
+    throw new DomainValidationError("IPv6 addresses are not supported.");
+  }
+
   // Reject domains with ports
   if (trimmed.includes(":")) {
     throw new DomainValidationError(
@@ -108,12 +117,8 @@ export function validateDomainHostname(
     throw new DomainValidationError("IPv4 addresses are not supported.");
   }
 
-  // IPv6 addresses are implicitly rejected above because they contain colons.
-  // The patterns below are kept as legacy documentation but are unreachable:
-  // - /^\[?([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}\]?$/ (generic IPv6)
-  // - /^::1$/ (IPv6 loopback)
-  // - /^::$/ (IPv6 any address)
-  // No separate IPv6 validation needed; port check above handles all cases.
+  // Note: IPv6 addresses are also caught by the port/colon check above as a fallback,
+  // but the explicit check above provides a clearer error message.
 }
 
 /**

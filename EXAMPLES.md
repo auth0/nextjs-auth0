@@ -3888,9 +3888,10 @@ SessionData.internal.mcd = {
 **Behavior:**
 
 - When reading a session (`getSession`, `getAccessToken`, middleware), the SDK resolves the current domain and compares it to `session.internal.mcd.domain`
-- If domains differ, the session is treated as **not found** (returns `null`) — not an error
+- If domains differ, the session is treated as **not found** (returns `null`) and a `SessionDomainMismatchError` is returned internally — the user must re-authenticate
 - If domain resolution itself fails, `DomainResolutionError` is thrown
 - In static mode, no domain check is performed (backward compatible)
+- **Pre-MCD sessions** (created before MCD support, without `internal.mcd` metadata) are automatically backfilled with the current domain and issuer on first access. This is a fail-open strategy: the session is accepted and tagged with the current domain. If the user later accesses the app on a different MCD domain, the backfilled session will be rejected due to domain mismatch
 
 This prevents a session created via `auth.brand1.com` from being used when the request resolves to `auth.brand2.com`, even if cookies are shared across subdomains.
 
@@ -3902,15 +3903,19 @@ MCD introduces three new error classes, all extending `SdkError`:
 import {
   DomainResolutionError,
   DomainValidationError,
-  IssuerValidationError
+  IssuerValidationError,
+  SessionDomainMismatchError,
+  McdBackchannelLogoutError
 } from "@auth0/nextjs-auth0/server";
 ```
 
 | Error | Code | When Thrown |
 |-------|------|-------------|
 | `DomainResolutionError` | `domain_resolution_error` | Resolver throws or returns empty string |
-| `DomainValidationError` | `domain_validation_error` | Resolved domain is not a valid hostname (IP, localhost, has path/port) |
+| `DomainValidationError` | `domain_validation_error` | Resolved domain is not a valid hostname (IP, localhost, IPv6, has path/port) |
 | `IssuerValidationError` | `issuer_validation_error` | ID token `iss` claim doesn't match the expected issuer during callback |
+| `SessionDomainMismatchError` | `session_domain_mismatch` | Session was created for a different MCD domain than the current request resolves to |
+| `McdBackchannelLogoutError` | `backchannel_logout_error` | Backchannel logout request fails in MCD context (e.g., domain resolution fails during logout) |
 
 **Handling resolver errors:**
 

@@ -44,6 +44,13 @@ interface AuthClientProviderOptions {
 const MAX_DOMAIN_CLIENTS = 100;
 
 /**
+ * Maximum number of proxy fetchers to cache.
+ * This prevents unbounded memory growth when many unique audience/domain
+ * combinations are used. Uses LRU eviction matching the domain clients pattern.
+ */
+const MAX_PROXY_FETCHERS = 100;
+
+/**
  * Helper to get the first key from a Map (for LRU eviction).
  */
 function getFirstMapKey<K>(map: Map<K, any>): K | undefined {
@@ -227,6 +234,14 @@ export class AuthClientProvider {
     if (!fetcher) {
       fetcher = await factory();
       this.proxyFetchers.set(key, fetcher);
+
+      // Enforce max entries boundary with LRU eviction
+      while (this.proxyFetchers.size > MAX_PROXY_FETCHERS) {
+        const oldestKey = getFirstMapKey(this.proxyFetchers);
+        if (oldestKey !== undefined) {
+          this.proxyFetchers.delete(oldestKey);
+        }
+      }
     }
     return fetcher;
   }

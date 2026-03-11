@@ -26,10 +26,10 @@ import {
 } from "../errors/mcd.js";
 import {
   createMCDMetadata,
+  createSessionData,
   createTransactionState
 } from "../test/mcd-test-fixtures.js";
 import { SessionData } from "../types/index.js";
-import { MCDMetadata } from "../types/mcd.js";
 import { normalizeDomain } from "../utils/normalize.js";
 
 // =============================================================================
@@ -70,8 +70,8 @@ describe("MCD Callback Domain Delegation (Unit 9)", () => {
         // no originDomain or originIssuer
       });
 
-      expect((preMCDTransaction as any).originDomain).toBeUndefined();
-      expect((preMCDTransaction as any).originIssuer).toBeUndefined();
+      expect(preMCDTransaction.originDomain).toBeUndefined();
+      expect(preMCDTransaction.originIssuer).toBeUndefined();
     });
 
     it("should store domain information during login initiation", () => {
@@ -356,7 +356,8 @@ describe("MCD Callback Domain Delegation (Unit 9)", () => {
         }
       };
 
-      expect((sessionData.internal as any).mcd).toBeUndefined();
+      // @ts-expect-error TS2339 - intentionally checking mcd absent on narrow type
+      expect(sessionData.internal?.mcd).toBeUndefined();
     });
 
     it("should set mcd domain to originDomain", () => {
@@ -410,7 +411,7 @@ describe("MCD Callback Domain Delegation (Unit 9)", () => {
 
       // Should process callback without delegation
       expect(transaction.state).toBe(state);
-      expect((transaction as any).originDomain).toBeUndefined();
+      expect(transaction.originDomain).toBeUndefined();
     });
 
     it("Mixed mode: some transactions with originDomain, some without", () => {
@@ -423,8 +424,7 @@ describe("MCD Callback Domain Delegation (Unit 9)", () => {
       });
 
       const txn1HasOrigin = "originDomain" in txn1 && !!txn1.originDomain;
-      const txn2HasOrigin =
-        "originDomain" in txn2 && !!(txn2 as any).originDomain;
+      const txn2HasOrigin = "originDomain" in txn2 && !!txn2.originDomain;
 
       expect(txn1HasOrigin).toBe(true);
       expect(txn2HasOrigin).toBeFalsy();
@@ -494,7 +494,7 @@ describe("MCD Callback Domain Delegation (Unit 9)", () => {
       });
 
       // Static mode: no originDomain needed
-      expect((transaction as any).originDomain).toBeUndefined();
+      expect(transaction.originDomain).toBeUndefined();
 
       // Local handler processes callback
       expect(transaction.returnTo).toBe("https://app.example.com/callback");
@@ -549,7 +549,7 @@ describe("MCD Callback Domain Delegation (Unit 9)", () => {
       });
 
       // Should fall through to local handler
-      expect((legacyTxn as any).originDomain).toBeUndefined();
+      expect(legacyTxn.originDomain).toBeUndefined();
     });
   });
 
@@ -689,27 +689,6 @@ interface SessionCheckResult {
 }
 
 describe("MCD Session Domain Gating (Unit 8)", () => {
-  // ===== Helper functions =====
-
-  function createSessionData(partial: Partial<SessionData> = {}): SessionData {
-    return {
-      user: { sub: "user_123" },
-      tokenSet: {
-        accessToken: "access_token_123",
-        expiresAt: Date.now() + 3600000
-      },
-      internal: {
-        sid: "sid_123",
-        createdAt: Date.now()
-      },
-      ...partial
-    };
-  }
-
-  function createMCDMetadata(domain: string, issuer: string): MCDMetadata {
-    return { domain, issuer };
-  }
-
   // ===== SessionCheckResult Interface Tests =====
 
   describe("SessionCheckResult Interface", () => {
@@ -1308,7 +1287,7 @@ describe("MCD Session Domain Gating (Unit 8)", () => {
       };
 
       // Original should still not have mcd
-      expect((originalSession.internal as any).mcd).toBeUndefined();
+      expect(originalSession.internal?.mcd).toBeUndefined();
 
       // Backed-filled copy has mcd
       expect(backedFilledSession.internal.mcd).toBeDefined();
@@ -1435,7 +1414,7 @@ describe("MCD Session Domain Gating (Unit 8)", () => {
         }
       });
 
-      const originalMcdValue = (original.internal as any).mcd;
+      const originalMcdValue = original.internal?.mcd;
 
       // Create backfilled copy
       const backfilled = {
@@ -1447,7 +1426,7 @@ describe("MCD Session Domain Gating (Unit 8)", () => {
       };
 
       // Original should remain unchanged
-      expect((original.internal as any).mcd).toBe(originalMcdValue);
+      expect(original.internal?.mcd).toBe(originalMcdValue);
       expect(backfilled.internal.mcd).toBeDefined();
     });
 

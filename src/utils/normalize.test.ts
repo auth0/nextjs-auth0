@@ -177,9 +177,8 @@ describe("normalize.ts", () => {
         expect(() => validateDomainHostname("2001:db8::8a2e:370:7334")).toThrow(
           DomainValidationError
         );
-        // IPv6 addresses have colons which are rejected as ports
         expect(() => validateDomainHostname("2001:db8::8a2e:370:7334")).toThrow(
-          "Domain cannot contain ports"
+          "IPv6 addresses are not supported"
         );
       });
 
@@ -187,9 +186,8 @@ describe("normalize.ts", () => {
         expect(() => validateDomainHostname("::1")).toThrow(
           DomainValidationError
         );
-        // IPv6 loopback has colons which are rejected as ports
         expect(() => validateDomainHostname("::1")).toThrow(
-          "Domain cannot contain ports"
+          "IPv6 addresses are not supported"
         );
       });
 
@@ -197,9 +195,8 @@ describe("normalize.ts", () => {
         expect(() => validateDomainHostname("::")).toThrow(
           DomainValidationError
         );
-        // IPv6 any address has colons which are rejected as ports
         expect(() => validateDomainHostname("::")).toThrow(
-          "Domain cannot contain ports"
+          "IPv6 addresses are not supported"
         );
       });
 
