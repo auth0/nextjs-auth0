@@ -1012,8 +1012,8 @@ export class AuthClient {
     await this.sessionStore.set(req.cookies, res.cookies, session, true);
     addCacheControlHeadersForSession(res);
 
-    // Clean up the current transaction cookie after successful authentication
-    await this.transactionStore.delete(res.cookies, state);
+    // Clean up all transaction cookies after successful authentication
+    await this.transactionStore.deleteAll(req.cookies, res.cookies);
 
     return res;
   }
