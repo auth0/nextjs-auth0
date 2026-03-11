@@ -841,6 +841,65 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const updatedSessionCookie = response.cookies.get("__session");
         expect(updatedSessionCookie).toBeUndefined();
       });
+
+      it("should not update the session expiry when rolling sessions are disabled", async () => {
+        const secret = await generateSecret(32);
+        const transactionStore = new TransactionStore({
+          secret
+        });
+        const sessionStore = new StatelessSessionStore({
+          secret,
+
+          rolling: false,
+          absoluteDuration: 3600
+        });
+        const authClient = new AuthClient({
+          transactionStore,
+          sessionStore,
+
+          domain: DEFAULT.domain,
+          clientId: DEFAULT.clientId,
+          clientSecret: DEFAULT.clientSecret,
+
+          secret,
+          appBaseUrl: DEFAULT.appBaseUrl,
+
+          routes: getDefaultRoutes(),
+
+          fetch: getMockAuthorizationServer()
+        });
+
+        const session: SessionData = {
+          user: { sub: DEFAULT.sub },
+          tokenSet: {
+            accessToken: DEFAULT.accessToken,
+            refreshToken: DEFAULT.refreshToken,
+            expiresAt: 123456
+          },
+          internal: {
+            sid: DEFAULT.sid,
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        const maxAge = 60 * 60; // 1 hour
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
+        const sessionCookie = await encrypt(session, secret, expiration);
+        const headers = new Headers();
+        headers.append("cookie", `__session=${sessionCookie}`);
+        const request = new NextRequest(
+          "https://example.com/dashboard/projects",
+          {
+            method: "GET",
+            headers
+          }
+        );
+
+        const response = await authClient.handler(request);
+
+        // rolling is disabled — the middleware must not touch the session cookie
+        const updatedSessionCookie = response.cookies.get("__session");
+        expect(updatedSessionCookie).toBeUndefined();
+      });
     });
 
     describe("with custom routes", async () => {
