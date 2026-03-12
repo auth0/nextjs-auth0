@@ -181,11 +181,21 @@ export class StatefulSessionStore extends AbstractSessionStore {
     reqCookies: cookies.RequestCookies,
     resCookies: cookies.ResponseCookies
   ) {
-    const cookieValue = reqCookies.get(this.sessionCookieName)?.value;
-    cookies.deleteCookie(resCookies, this.sessionCookieName, {
+    const deleteOptions = {
       domain: this.cookieConfig.domain,
       path: this.cookieConfig.path
-    });
+    };
+
+    const cookieValue = reqCookies.get(this.sessionCookieName)?.value;
+    cookies.deleteCookie(resCookies, this.sessionCookieName, deleteOptions);
+
+    // delete any existing v3 legacy cookie
+    if (
+      this.sessionCookieName !== LEGACY_COOKIE_NAME &&
+      reqCookies.has(LEGACY_COOKIE_NAME)
+    ) {
+      cookies.deleteCookie(resCookies, LEGACY_COOKIE_NAME, deleteOptions);
+    }
 
     if (!cookieValue) {
       return;
