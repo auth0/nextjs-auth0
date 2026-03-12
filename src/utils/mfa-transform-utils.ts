@@ -96,10 +96,35 @@ export function buildEnrollmentResponse(
 }
 
 /**
+ * Transforms wire-format verify body to SDK types.
+ *
+ * @param body - Request body with snake_case fields
+ * @returns Verify options for mfaVerify
+ * @throws InvalidRequestError if credentials are invalid
+ */
+export function transformVerifyBodyToOptions(
+  body: Record<string, any>
+): Omit<VerifyMfaOptions, "mfaToken"> {
+  if (body.otp) return { otp: body.otp };
+  const oobCode = body.oob_code;
+  const bindingCode = body.binding_code;
+  if (oobCode && bindingCode) {
+    return { oobCode, bindingCode };
+  }
+  const recoveryCode = body.recovery_code;
+  if (recoveryCode) return { recoveryCode };
+  throw new MfaVerifyError(
+    "invalid_request",
+    "Missing verification credential"
+  );
+}
+
+/**
  * Builds type-safe enrollment options from request body.
+ * Breaking change: snake_case ONLY (oob_channels, phone_number). No camelCase.
  * Validates type-specific required fields.
  *
- * @param body - Request body
+ * @param body - Request body with snake_case fields
  * @param authenticatorType - Type of authenticator to enroll
  * @returns Tuple of [options, null] or [null, errorResponse]
  */
@@ -112,22 +137,23 @@ export function buildEnrollOptions(
   | [null, NextResponse] {
   const bodyObj = body as Record<string, unknown>;
   if (authenticatorType === "oob") {
-    if (!bodyObj.oobChannels || !Array.isArray(bodyObj.oobChannels)) {
+    const oobChannels = bodyObj.oob_channels;
+    if (!oobChannels || !Array.isArray(oobChannels)) {
       return [
         null,
         NextResponse.json(
           {
             error: "invalid_request",
             error_description:
-              "Missing or invalid oobChannels for OOB enrollment"
+              "Missing or invalid oob_channels for OOB enrollment"
           },
           { status: 400 }
         )
       ];
     }
     const phoneNumber =
-      typeof bodyObj.phoneNumber === "string" && bodyObj.phoneNumber !== ""
-        ? bodyObj.phoneNumber
+      typeof bodyObj.phone_number === "string" && bodyObj.phone_number !== ""
+        ? bodyObj.phone_number
         : undefined;
     const email =
       typeof bodyObj.email === "string" && bodyObj.email !== ""
@@ -136,12 +162,7 @@ export function buildEnrollOptions(
     return [
       {
         authenticatorTypes: ["oob"] as ["oob"],
-        oobChannels: bodyObj.oobChannels as (
-          | "sms"
-          | "voice"
-          | "auth0"
-          | "email"
-        )[],
+        oobChannels: oobChannels as ("sms" | "voice" | "auth0" | "email")[],
         phoneNumber,
         email
       },

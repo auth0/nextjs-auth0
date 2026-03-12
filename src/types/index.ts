@@ -189,8 +189,11 @@ export { ConnectAccountOptions, RESPONSE_TYPES } from "./connected-accounts.js";
 export {
   MfaClient,
   Authenticator,
+  AuthenticatorApiResponse,
   ChallengeResponse,
+  ChallengeApiResponse,
   EnrollmentResponse,
+  EnrollmentApiResponse,
   EnrollOptions,
   EnrollOtpOptions,
   EnrollOobOptions,

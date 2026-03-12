@@ -46,15 +46,12 @@ import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
 import {
   AccessTokenForConnectionOptions,
   AccessTokenSet,
-  Authenticator,
   AuthorizationParameters,
   BackchannelAuthenticationOptions,
   BackchannelAuthenticationResponse,
-  ChallengeResponse,
   ConnectionTokenSet,
   CustomTokenExchangeOptions,
   CustomTokenExchangeResponse,
-  EnrollmentResponse,
   EnrollOobOptions,
   EnrollOptions,
   GetAccessTokenOptions,
@@ -69,7 +66,10 @@ import {
   SUBJECT_TOKEN_TYPES,
   TokenSet,
   User,
-  VerifyMfaOptions
+  VerifyMfaOptions,
+  type AuthenticatorApiResponse,
+  type ChallengeApiResponse,
+  type EnrollmentApiResponse
 } from "../types/index.js";
 import { mergeAuthorizationParamsIntoSearchParams } from "../utils/authorization-params-helpers.js";
 import {
@@ -78,12 +78,10 @@ import {
 } from "../utils/constants.js";
 import { withDPoPNonceRetry } from "../utils/dpopUtils.js";
 import {
-  buildEnrollmentResponse,
   buildEnrollOptions,
   buildVerifyParams,
-  camelizeAuthenticator,
-  camelizeChallengeResponse,
-  getVerifyGrantType
+  getVerifyGrantType,
+  transformVerifyBodyToOptions
 } from "../utils/mfa-transform-utils.js";
 import {
   decryptMfaToken,
@@ -202,7 +200,7 @@ export interface Routes {
   mfaAuthenticators: string;
   mfaChallenge: string;
   mfaVerify: string;
-  mfaEnroll: string;
+  mfaAssociate: string;
 }
 export type RoutesOptions = Partial<
   Pick<
@@ -494,9 +492,9 @@ export class AuthClient {
       return this.handleChallenge(req);
     } else if (
       method === "POST" &&
-      sanitizedPathname === this.routes.mfaEnroll
+      sanitizedPathname === this.routes.mfaAssociate
     ) {
-      return this.handleEnroll(req);
+      return this.handleAssociate(req);
     } else if (
       method === "POST" &&
       sanitizedPathname === this.routes.mfaVerify
@@ -1019,10 +1017,11 @@ export class AuthClient {
   /**
    * Route: POST /auth/mfa/challenge
    * Initiates an MFA challenge.
+   * Breaking change: snake_case ONLY (mfa_token, challenge_type, authenticator_id).
    *
-   * Body: {mfaToken, challengeType, authenticatorId?}
+   * Body: {mfa_token, challenge_type, authenticator_id?}
    *
-   * Response: 200 + ChallengeResponse
+   * Response: 200 + ChallengeResponse (snake_case)
    * Error: 400 + {error, error_description}
    */
   async handleChallenge(req: NextRequest): Promise<NextResponse> {
@@ -1030,17 +1029,17 @@ export class AuthClient {
       const body = await parseJsonBody(req);
       const bodyRecord = body as Record<string, any>;
       const mfaToken = validateStringFieldAndThrow(
-        bodyRecord.mfaToken,
-        "mfaToken"
+        bodyRecord.mfa_token,
+        "mfa_token"
       );
       const challengeType = validateStringFieldAndThrow(
-        bodyRecord.challengeType,
-        "challengeType"
+        bodyRecord.challenge_type,
+        "challenge_type"
       );
-      const authenticatorId = bodyRecord.authenticatorId
+      const authenticatorId = bodyRecord.authenticator_id
         ? validateStringFieldAndThrow(
-            bodyRecord.authenticatorId,
-            "authenticatorId"
+            bodyRecord.authenticator_id,
+            "authenticator_id"
           )
         : undefined;
       const result = await this.mfaChallenge(
@@ -1055,25 +1054,26 @@ export class AuthClient {
   }
 
   /**
-   * Route: POST /auth/mfa/enroll
-   * Enrolls a new MFA authenticator.
+   * Route: POST /auth/mfa/associate
+   * Associates a new MFA authenticator (Auth0-compliant naming).
+   * Breaking change: snake_case ONLY (authenticator_types, oob_channels, phone_number).
    *
-   * Body: {mfaToken, authenticatorTypes, oobChannels?, phoneNumber?, email?}
+   * Headers:
+   *   Authorization: Bearer <mfa-token>
    *
-   * Response: 200 + EnrollmentResponse
+   * Body: {authenticator_types, oob_channels?, phone_number?, email?}
+   *
+   * Response: 200 + EnrollmentResponse (snake_case)
    * Error: 400 + {error, error_description}
    */
-  async handleEnroll(req: NextRequest): Promise<NextResponse> {
+  async handleAssociate(req: NextRequest): Promise<NextResponse> {
     try {
+      const mfaToken = extractMfaToken(req);
       const body = await parseJsonBody(req);
       const bodyRecord = body as Record<string, any>;
-      const mfaToken = validateStringFieldAndThrow(
-        bodyRecord.mfaToken,
-        "mfaToken"
-      );
       const authenticatorTypes = validateArrayFieldAndThrow(
-        bodyRecord.authenticatorTypes,
-        "authenticatorTypes"
+        bodyRecord.authenticator_types,
+        "authenticator_types"
       );
 
       const authenticatorType = authenticatorTypes[0];
@@ -1083,7 +1083,7 @@ export class AuthClient {
       );
       if (errorResponse) return errorResponse;
 
-      const result = await this.mfaEnroll(mfaToken, enrollOptions);
+      const result = await this.mfaAssociate(mfaToken, enrollOptions);
       return NextResponse.json(result);
     } catch (e) {
       return handleMfaError(e);
@@ -1093,21 +1093,30 @@ export class AuthClient {
   /**
    * Route: POST /auth/mfa/verify
    * Verifies MFA code and returns tokens.
+   * Breaking change: snake_case ONLY (oob_code, binding_code, recovery_code).
    *
-   * Body: {mfaToken, otp | oobCode+bindingCode | recoveryCode}
+   * Headers:
+   *   Authorization: Bearer <mfa-token>
    *
-   * Response: 200 + TokenResponse + Set-Cookie
-   * Error: 400 + {error, error_description, mfaToken?}
+   * Body: {otp | oob_code+binding_code | recovery_code}
+   *
+   * Response: 200 + TokenResponse (snake_case) + Set-Cookie
+   * Error: 400 + {error, error_description}
    */
   async handleVerify(req: NextRequest): Promise<NextResponse> {
     try {
+      const mfaToken = extractMfaToken(req);
       const body = await parseJsonBody(req);
-      const bodyRecord = body as Record<string, any>;
-      validateStringFieldAndThrow(bodyRecord.mfaToken, "mfaToken");
       const validatedBody = validateVerificationCredentialAndThrow(body);
 
+      // Transform wire format to SDK options and add mfaToken
+      const verifyOptions = {
+        mfaToken,
+        ...transformVerifyBodyToOptions(validatedBody as Record<string, any>)
+      } as VerifyMfaOptions;
+
       // Verify MFA and get tokens
-      const result = await this.mfaVerify(validatedBody as VerifyMfaOptions);
+      const result = await this.mfaVerify(verifyOptions);
 
       // Create response FIRST so cookies can be attached
       const res = NextResponse.json(result);
@@ -1117,7 +1126,7 @@ export class AuthClient {
       if (session) {
         await this.cacheTokenFromMfaVerify(
           result,
-          bodyRecord.mfaToken,
+          mfaToken,
           req.cookies,
           res.cookies // Use actual response cookies, not temp
         );
@@ -2623,14 +2632,17 @@ export class AuthClient {
 
   /**
    * List enrolled MFA authenticators, filtered by allowed challenge types.
+   * Breaking change: Returns snake_case API response (not camelCase SDK type).
    *
    * @param encryptedToken - Encrypted MFA token from MfaRequiredError
-   * @returns Array of authenticators filtered by mfa_requirements
+   * @returns Array of authenticators (snake_case) filtered by mfa_requirements
    * @throws {MfaTokenInvalidError} If token cannot be decrypted
    * @throws {MfaTokenExpiredError} If token expired (>5 min)
    * @throws {MfaGetAuthenticatorsError} On Auth0 API failure
    */
-  async mfaGetAuthenticators(encryptedToken: string): Promise<Authenticator[]> {
+  async mfaGetAuthenticators(
+    encryptedToken: string
+  ): Promise<AuthenticatorApiResponse[]> {
     // Decrypt token to extract context
     const context = await decryptMfaToken(
       encryptedToken,
@@ -2662,10 +2674,9 @@ export class AuthClient {
         );
       }
 
-      const authenticators = await response.json();
-      const allAuthenticators = authenticators.map(camelizeAuthenticator);
+      const authenticators: AuthenticatorApiResponse[] = await response.json();
 
-      // Filter by allowed challenge types from mfa_requirements
+      // Filter by allowed challenge types from mfa_requirements (using snake_case field)
       const allowedTypes = new Set(
         (context.mfaRequirements?.challenge ?? []).map((c) =>
           c.type.toLowerCase()
@@ -2674,13 +2685,12 @@ export class AuthClient {
 
       // If no challenge types specified, return all (no filtering)
       if (allowedTypes.size === 0) {
-        return allAuthenticators;
+        return authenticators;
       }
 
       // Filter authenticators by type field
-      return allAuthenticators.filter(
-        (auth: Authenticator) =>
-          auth.type && allowedTypes.has(auth.type.toLowerCase())
+      return authenticators.filter(
+        (auth) => auth.type && allowedTypes.has(auth.type.toLowerCase())
       );
     } catch (e) {
       if (e instanceof MfaGetAuthenticatorsError) throw e;
@@ -2694,11 +2704,12 @@ export class AuthClient {
 
   /**
    * Initiate an MFA challenge.
+   * Breaking change: Returns snake_case API response (not camelCase SDK type).
    *
    * @param encryptedToken - Encrypted MFA token from MfaRequiredError
    * @param challengeType - Challenge type (otp, oob)
    * @param authenticatorId - Optional authenticator ID
-   * @returns Challenge response (oobCode, bindingMethod)
+   * @returns Challenge response (snake_case)
    * @throws {MfaTokenInvalidError} If token cannot be decrypted
    * @throws {MfaTokenExpiredError} If token expired
    * @throws {MfaNoAvailableFactorsError} If no challenge types available
@@ -2708,7 +2719,7 @@ export class AuthClient {
     encryptedToken: string,
     challengeType: string,
     authenticatorId?: string
-  ): Promise<ChallengeResponse> {
+  ): Promise<ChallengeApiResponse> {
     // Decrypt token to extract context
     const context = await decryptMfaToken(
       encryptedToken,
@@ -2768,8 +2779,8 @@ export class AuthClient {
         );
       }
 
-      const result = await response.json();
-      return camelizeChallengeResponse(result);
+      const result: ChallengeApiResponse = await response.json();
+      return result;
     } catch (e) {
       if (e instanceof MfaChallengeError) throw e;
       throw new MfaChallengeError(
@@ -2781,20 +2792,21 @@ export class AuthClient {
   }
 
   /**
-   * Enroll a new MFA authenticator during initial MFA setup.
-   * First-time enrollment only (requires mfa_token, not access token).
+   * Associate a new MFA authenticator during initial MFA setup (Auth0-compliant naming).
+   * Breaking change: Returns snake_case API response (not camelCase SDK type).
+   * First-time association only (requires mfa_token, not access token).
    *
    * @param encryptedToken - Encrypted MFA token from MfaRequiredError
-   * @param options - Enrollment options (otp | oob | email)
-   * @returns Enrollment response with authenticator details and optional recovery codes
+   * @param options - Association options (otp | oob | email)
+   * @returns Association response (snake_case) with authenticator details and optional recovery codes
    * @throws {MfaTokenInvalidError} If token cannot be decrypted
    * @throws {MfaTokenExpiredError} If token expired
    * @throws {MfaEnrollmentError} On Auth0 API failure
    */
-  async mfaEnroll(
+  async mfaAssociate(
     encryptedToken: string,
     options: Omit<EnrollOptions, "mfaToken">
-  ): Promise<EnrollmentResponse> {
+  ): Promise<EnrollmentApiResponse> {
     // Decrypt token to extract context
     const context = await decryptMfaToken(
       encryptedToken,
@@ -2845,8 +2857,8 @@ export class AuthClient {
         );
       }
 
-      const result = await response.json();
-      return buildEnrollmentResponse(result);
+      const result: EnrollmentApiResponse = await response.json();
+      return result;
     } catch (e) {
       if (e instanceof MfaEnrollmentError) throw e;
       throw new MfaEnrollmentError(

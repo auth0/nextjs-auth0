@@ -9,6 +9,11 @@ import type {
   MfaVerifyResponse,
   VerifyMfaOptions
 } from "../../types/index.js";
+import {
+  buildEnrollmentResponse,
+  camelizeAuthenticator,
+  camelizeChallengeResponse
+} from "../../utils/mfa-transform-utils.js";
 import type { AuthClient } from "../auth-client.js";
 
 /**
@@ -80,7 +85,10 @@ export class ServerMfaClient implements MfaClient {
   async getAuthenticators(options: {
     mfaToken: string;
   }): Promise<Authenticator[]> {
-    return this.authClient.mfaGetAuthenticators(options.mfaToken);
+    const apiResponse = await this.authClient.mfaGetAuthenticators(
+      options.mfaToken
+    );
+    return apiResponse.map(camelizeAuthenticator);
   }
 
   /**
@@ -111,20 +119,21 @@ export class ServerMfaClient implements MfaClient {
     challengeType: string;
     authenticatorId?: string;
   }): Promise<ChallengeResponse> {
-    return this.authClient.mfaChallenge(
+    const apiResponse = await this.authClient.mfaChallenge(
       options.mfaToken,
       options.challengeType,
       options.authenticatorId
     );
+    return camelizeChallengeResponse(apiResponse);
   }
 
   /**
-   * Enroll a new MFA authenticator.
+   * Associate a new MFA authenticator (Auth0-compliant naming).
    *
-   * @param options - Enrollment options (otp | oob | email)
-   * @returns Enrollment response with authenticator details and optional recovery codes
+   * @param options - Association options (otp | oob | email)
+   * @returns Association response with authenticator details and optional recovery codes
    *
-   * @example OTP Enrollment
+   * @example OTP Association
    * ```typescript
    * const enrollment = await auth0.mfa.enroll({
    *   mfaToken,
@@ -134,7 +143,7 @@ export class ServerMfaClient implements MfaClient {
    * // Returns: { id, secret, barcodeUri, recoveryCodes }
    * ```
    *
-   * @example SMS Enrollment
+   * @example SMS Association
    * ```typescript
    * const enrollment = await auth0.mfa.enroll({
    *   mfaToken,
@@ -148,7 +157,11 @@ export class ServerMfaClient implements MfaClient {
    */
   async enroll(options: EnrollOptions): Promise<EnrollmentResponse> {
     const { mfaToken, ...enrollOptions } = options;
-    return this.authClient.mfaEnroll(mfaToken, enrollOptions);
+    const apiResponse = await this.authClient.mfaAssociate(
+      mfaToken,
+      enrollOptions
+    );
+    return buildEnrollmentResponse(apiResponse);
   }
 
   /**
