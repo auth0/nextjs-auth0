@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server.js";
 
-import { MfaVerifyError } from "../errors/mfa-errors.js";
+import { InvalidRequestError, MfaVerifyError } from "../errors/mfa-errors.js";
 import type {
   Authenticator,
   ChallengeResponse,
@@ -97,6 +97,7 @@ export function buildEnrollmentResponse(
 
 /**
  * Builds type-safe enrollment options from request body.
+ * Accepts both snake_case (new) and camelCase (legacy) field names.
  * Validates type-specific required fields.
  *
  * @param body - Request body
@@ -112,23 +113,28 @@ export function buildEnrollOptions(
   | [null, NextResponse] {
   const bodyObj = body as Record<string, unknown>;
   if (authenticatorType === "oob") {
-    if (!bodyObj.oobChannels || !Array.isArray(bodyObj.oobChannels)) {
+    // Support both snake_case (preferred) and camelCase (deprecated)
+    const oobChannels = bodyObj.oob_channels ?? bodyObj.oobChannels;
+    if (!oobChannels || !Array.isArray(oobChannels)) {
       return [
         null,
         NextResponse.json(
           {
             error: "invalid_request",
             error_description:
-              "Missing or invalid oobChannels for OOB enrollment"
+              "Missing or invalid oob_channels for OOB enrollment"
           },
           { status: 400 }
         )
       ];
     }
     const phoneNumber =
-      typeof bodyObj.phoneNumber === "string" && bodyObj.phoneNumber !== ""
+      (typeof bodyObj.phone_number === "string" && bodyObj.phone_number !== ""
+        ? bodyObj.phone_number
+        : undefined) ??
+      (typeof bodyObj.phoneNumber === "string" && bodyObj.phoneNumber !== ""
         ? bodyObj.phoneNumber
-        : undefined;
+        : undefined);
     const email =
       typeof bodyObj.email === "string" && bodyObj.email !== ""
         ? bodyObj.email
@@ -136,12 +142,7 @@ export function buildEnrollOptions(
     return [
       {
         authenticatorTypes: ["oob"] as ["oob"],
-        oobChannels: bodyObj.oobChannels as (
-          | "sms"
-          | "voice"
-          | "auth0"
-          | "email"
-        )[],
+        oobChannels: oobChannels as ("sms" | "voice" | "auth0" | "email")[],
         phoneNumber,
         email
       },
@@ -156,6 +157,32 @@ export function buildEnrollOptions(
       null
     ];
   }
+}
+
+/**
+ * Transforms wire-format verify body to SDK options.
+ * Accepts both snake_case (new) and camelCase (legacy) field names.
+ *
+ * @param body - Request body with verification credential
+ * @returns Options compatible with VerifyMfaOptions (minus mfaToken)
+ * @throws {InvalidRequestError} If no valid credential found
+ */
+export function transformVerifyBodyToOptions(
+  body: Record<string, any>
+): Omit<VerifyMfaOptions, "mfaToken"> {
+  if (body.otp) {
+    return { otp: body.otp };
+  }
+  const oobCode = body.oob_code ?? body.oobCode;
+  const bindingCode = body.binding_code ?? body.bindingCode;
+  if (oobCode && bindingCode) {
+    return { oobCode, bindingCode };
+  }
+  const recoveryCode = body.recovery_code ?? body.recoveryCode;
+  if (recoveryCode) {
+    return { recoveryCode };
+  }
+  throw new InvalidRequestError("Missing verification credential");
 }
 
 export const buildVerifyParams = (

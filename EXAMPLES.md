@@ -3540,7 +3540,6 @@ The SDK provides typed error classes for all MFA operations:
 | `MfaRequiredError` | `mfa_required` | Token refresh requires MFA step-up | Accessing protected API |
 | `MfaGetAuthenticatorsError` | Various | Failed to list authenticators | Invalid/expired token |
 | `MfaEnrollmentError` | Various | Enrollment failed | Unsupported factor type |
-| `MfaDeleteAuthenticatorError` | Various | Delete failed | Authenticator not found |
 | `MfaChallengeError` | Various | Challenge failed | Invalid authenticator ID |
 | `MfaVerifyError` | `invalid_grant` | Verification failed | Invalid OTP code |
 | `MfaTokenNotFoundError` | `mfa_token_not_found` | No MFA context for token | Token not in session |

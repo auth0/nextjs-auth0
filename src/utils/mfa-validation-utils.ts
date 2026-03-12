@@ -1,7 +1,6 @@
 import type { NextRequest } from "next/server.js";
 
 import { InvalidRequestError } from "../errors/index.js";
-import type { VerifyCredentialBody } from "../types/mfa.js";
 
 /**
  * Extracts Bearer token from Authorization header.
@@ -19,23 +18,29 @@ export function extractBearerToken(req: NextRequest): string {
 }
 
 /**
- * Extracts MFA token from query param or Authorization header.
- * Prioritizes query param (SDK client pattern), falls back to header (API pattern).
+ * Extracts MFA token from Authorization header (preferred) or query param (deprecated fallback).
+ * Prioritizes Authorization header (standard OAuth pattern), falls back to query param.
  *
- * @param req - NextRequest with mfa_token query param or Authorization header
+ * @param req - NextRequest with Authorization header or mfa_token query param
  * @returns MFA token value
  * @throws {InvalidRequestError} If token is missing from both locations
  */
 export function extractMfaToken(req: NextRequest): string {
-  // Check query param first (client SDK sends here)
+  // Check Authorization header first (standard OAuth pattern, new preferred way)
+  const authHeader = req.headers.get("Authorization");
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.substring(7);
+    if (token !== "") return token;
+  }
+
+  // Deprecated fallback: query param (old SDK client pattern for backward compat)
   const url = new URL(req.url);
   const queryToken = url.searchParams.get("mfa_token");
   if (queryToken && queryToken !== "") {
     return queryToken;
   }
 
-  // Fall back to Authorization header (standard OAuth pattern)
-  return extractBearerToken(req);
+  throw new InvalidRequestError("Missing or invalid Authorization header");
 }
 
 /**
@@ -86,7 +91,8 @@ export function validateArrayFieldAndThrow(
 
 /**
  * Validates that request body contains at least one verification credential.
- * Credentials are: otp, oobCode+bindingCode, or recoveryCode.
+ * Credentials can be: otp, oob_code+binding_code (or camelCase), or recovery_code.
+ * Accepts both snake_case (new) and camelCase (legacy) for backward compatibility.
  *
  * @param body - Request body to validate
  * @returns Validated credential body
@@ -94,29 +100,38 @@ export function validateArrayFieldAndThrow(
  */
 export function validateVerificationCredentialAndThrow(
   body: unknown
-): VerifyCredentialBody {
+): Record<string, unknown> {
   const bodyObj = body as Record<string, unknown>;
   const hasOtp =
     "otp" in bodyObj && typeof bodyObj.otp === "string" && bodyObj.otp !== "";
   const hasOob =
-    "oobCode" in bodyObj &&
-    typeof bodyObj.oobCode === "string" &&
-    bodyObj.oobCode !== "" &&
-    "bindingCode" in bodyObj &&
-    typeof bodyObj.bindingCode === "string" &&
-    bodyObj.bindingCode !== "";
+    ("oob_code" in bodyObj &&
+      typeof bodyObj.oob_code === "string" &&
+      bodyObj.oob_code !== "" &&
+      "binding_code" in bodyObj &&
+      typeof bodyObj.binding_code === "string" &&
+      bodyObj.binding_code !== "") ||
+    ("oobCode" in bodyObj &&
+      typeof bodyObj.oobCode === "string" &&
+      bodyObj.oobCode !== "" &&
+      "bindingCode" in bodyObj &&
+      typeof bodyObj.bindingCode === "string" &&
+      bodyObj.bindingCode !== "");
   const hasRecovery =
-    "recoveryCode" in bodyObj &&
-    typeof bodyObj.recoveryCode === "string" &&
-    bodyObj.recoveryCode !== "";
+    ("recovery_code" in bodyObj &&
+      typeof bodyObj.recovery_code === "string" &&
+      bodyObj.recovery_code !== "") ||
+    ("recoveryCode" in bodyObj &&
+      typeof bodyObj.recoveryCode === "string" &&
+      bodyObj.recoveryCode !== "");
 
   if (!hasOtp && !hasOob && !hasRecovery) {
     throw new InvalidRequestError(
-      "Missing verification credential (otp, oobCode+bindingCode, or recoveryCode required)"
+      "Missing verification credential (otp, oob_code+binding_code, or recovery_code required)"
     );
   }
 
-  return bodyObj as VerifyCredentialBody;
+  return bodyObj;
 }
 
 /**

@@ -84,9 +84,10 @@ describe("ClientMfaClient", () => {
             http.get(
               `${DEFAULT.appBaseUrl}/auth/mfa/authenticators`,
               ({ request }) => {
-                // Verify query params
-                const url = new URL(request.url);
-                expect(url.searchParams.get("mfa_token")).toBe(encryptedToken);
+                // Verify Authorization header (new wire format)
+                expect(request.headers.get("Authorization")).toBe(
+                  `Bearer ${encryptedToken}`
+                );
 
                 return HttpResponse.json(scenario.mswResponse!.body, {
                   status: scenario.mswResponse!.status
@@ -118,9 +119,8 @@ describe("ClientMfaClient", () => {
     });
 
     it("should throw MfaGetAuthenticatorsError for network errors", async () => {
-      const { MfaGetAuthenticatorsError } = await import(
-        "../../errors/index.js"
-      );
+      const { MfaGetAuthenticatorsError } =
+        await import("../../errors/index.js");
 
       const encryptedToken = await encryptMfaToken(
         DEFAULT.mfaToken,
@@ -185,12 +185,12 @@ describe("ClientMfaClient", () => {
             http.post(
               `${DEFAULT.appBaseUrl}/auth/mfa/challenge`,
               async ({ request }) => {
-                // Client sends via JSON body
+                // Client sends snake_case via JSON body (new wire format)
                 const body = (await request.json()) as any;
-                expect(body.mfaToken).toBe(encryptedToken);
-                expect(body.challengeType).toBe(scenario.input.challengeType);
+                expect(body.mfa_token).toBe(encryptedToken);
+                expect(body.challenge_type).toBe(scenario.input.challengeType);
                 if (scenario.input.authenticatorId) {
-                  expect(body.authenticatorId).toBe(
+                  expect(body.authenticator_id).toBe(
                     scenario.input.authenticatorId
                   );
                 }
@@ -280,16 +280,20 @@ describe("ClientMfaClient", () => {
             http.post(
               `${DEFAULT.appBaseUrl}/auth/mfa/verify`,
               async ({ request }) => {
+                // Verify Authorization header (new wire format)
+                expect(request.headers.get("Authorization")).toBe(
+                  `Bearer ${encryptedToken}`
+                );
+
                 const body = (await request.json()) as any;
-                expect(body.mfaToken).toBe(encryptedToken);
 
                 if (scenario.input.otp) {
                   expect(body.otp).toBe(scenario.input.otp);
                 } else if (scenario.input.oobCode) {
-                  expect(body.oobCode).toBe(scenario.input.oobCode);
-                  expect(body.bindingCode).toBe(scenario.input.bindingCode);
+                  expect(body.oob_code).toBe(scenario.input.oobCode);
+                  expect(body.binding_code).toBe(scenario.input.bindingCode);
                 } else if (scenario.input.recoveryCode) {
-                  expect(body.recoveryCode).toBe(scenario.input.recoveryCode);
+                  expect(body.recovery_code).toBe(scenario.input.recoveryCode);
                 }
 
                 return HttpResponse.json(scenario.mswResponse!.body, {
@@ -452,37 +456,19 @@ describe("ClientMfaClient", () => {
             http.post(
               `${DEFAULT.appBaseUrl}/auth/mfa/enroll`,
               async ({ request }) => {
+                // Verify Authorization header (new wire format)
+                expect(request.headers.get("Authorization")).toBe(
+                  `Bearer ${encryptedToken}`
+                );
+
                 const body = (await request.json()) as any;
-                expect(body.mfaToken).toBe(encryptedToken);
-                expect(body.authenticatorTypes).toEqual(
+                expect(body.authenticator_types).toEqual(
                   scenario.input.authenticatorTypes
                 );
 
-                // Server route returns transformed camelCase response
-                const rawResponse = scenario.mswResponse!.body;
-                const transformedResponse: any = {};
-
-                if (rawResponse.authenticator_type)
-                  transformedResponse.authenticatorType =
-                    rawResponse.authenticator_type;
-                if (rawResponse.barcode_uri)
-                  transformedResponse.barcodeUri = rawResponse.barcode_uri;
-                if (rawResponse.secret)
-                  transformedResponse.secret = rawResponse.secret;
-                if (rawResponse.oob_channel)
-                  transformedResponse.oobChannel = rawResponse.oob_channel;
-                if (rawResponse.oob_code)
-                  transformedResponse.oobCode = rawResponse.oob_code;
-                if (rawResponse.recovery_codes)
-                  transformedResponse.recoveryCodes =
-                    rawResponse.recovery_codes;
-                if (rawResponse.error)
-                  transformedResponse.error = rawResponse.error;
-                if (rawResponse.error_description)
-                  transformedResponse.error_description =
-                    rawResponse.error_description;
-
-                return HttpResponse.json(transformedResponse, {
+                // Server route returns snake_case (new wire format)
+                // Client camelizes it
+                return HttpResponse.json(scenario.mswResponse!.body, {
                   status: scenario.mswResponse!.status
                 });
               }
@@ -571,8 +557,8 @@ describe("ClientMfaClient", () => {
       server.use(
         http.post(`${DEFAULT.appBaseUrl}/auth/mfa/enroll`, () => {
           return HttpResponse.json({
-            authenticatorType: "otp",
-            barcodeUri: "otpauth://...",
+            authenticator_type: "otp",
+            barcode_uri: "otpauth://...",
             secret: "SECRET"
           });
         })
@@ -591,13 +577,13 @@ describe("ClientMfaClient", () => {
           method: "POST",
           credentials: "omit",
           headers: expect.objectContaining({
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            Authorization: expect.stringContaining("Bearer")
           }),
           body: JSON.stringify({
-            mfaToken: encryptedToken,
-            authenticatorTypes: ["oob"],
-            oobChannels: ["sms"],
-            phoneNumber: "+15551234567"
+            authenticator_types: ["oob"],
+            oob_channels: ["sms"],
+            phone_number: "+15551234567"
           })
         })
       );
@@ -650,9 +636,8 @@ describe("ClientMfaClient", () => {
 
   describe("getAuthenticators - query param validation", () => {
     it("should handle empty query param gracefully", async () => {
-      const { MfaGetAuthenticatorsError } = await import(
-        "../../errors/index.js"
-      );
+      const { MfaGetAuthenticatorsError } =
+        await import("../../errors/index.js");
 
       // Server should reject empty mfa_token
       server.use(

@@ -17,6 +17,11 @@ import type {
   MfaVerifyResponse,
   VerifyMfaOptions
 } from "../../types/index.js";
+import {
+  buildEnrollmentResponse,
+  camelizeAuthenticator,
+  camelizeChallengeResponse
+} from "../../utils/mfa-transform-utils.js";
 import { normalizeWithBasePath } from "../../utils/pathUtils.js";
 
 /**
@@ -100,16 +105,16 @@ class ClientMfaClient implements MfaClient {
     mfaToken: string;
   }): Promise<Authenticator[]> {
     try {
-      const urlParams = new URLSearchParams();
-      urlParams.append("mfa_token", options.mfaToken);
-
-      const url = `${normalizeWithBasePath(
+      const url = normalizeWithBasePath(
         process.env.NEXT_PUBLIC_MFA_AUTHENTICATORS_ROUTE ||
           "/auth/mfa/authenticators"
-      )}?${urlParams.toString()}`;
+      );
 
       const response = await fetch(url, {
         method: "GET",
+        headers: {
+          Authorization: `Bearer ${options.mfaToken}`
+        },
         credentials: "omit" // Stateless operation, no session needed
       });
 
@@ -118,7 +123,9 @@ class ClientMfaClient implements MfaClient {
         throw this.parseError(error, "getAuthenticators", response.url);
       }
 
-      return await response.json();
+      // Route handler now returns snake_case - camelize for SDK consumption
+      const data = await response.json();
+      return data.map(camelizeAuthenticator);
     } catch (e) {
       // Re-throw typed errors
       if (
@@ -175,12 +182,12 @@ class ClientMfaClient implements MfaClient {
   }): Promise<ChallengeResponse> {
     try {
       const body: Record<string, string> = {
-        mfaToken: options.mfaToken,
-        challengeType: options.challengeType
+        mfa_token: options.mfaToken,
+        challenge_type: options.challengeType
       };
 
       if (options.authenticatorId) {
-        body.authenticatorId = options.authenticatorId;
+        body.authenticator_id = options.authenticatorId;
       }
 
       const url = normalizeWithBasePath(
@@ -201,7 +208,9 @@ class ClientMfaClient implements MfaClient {
         throw this.parseError(error, "challenge", response.url);
       }
 
-      return await response.json();
+      // Route handler now returns snake_case - camelize for SDK consumption
+      const data = await response.json();
+      return camelizeChallengeResponse(data);
     } catch (e) {
       // Re-throw typed errors
       if (
@@ -242,18 +251,16 @@ class ClientMfaClient implements MfaClient {
    */
   async verify(options: VerifyMfaOptions): Promise<MfaVerifyResponse> {
     try {
-      const body: Record<string, string> = {
-        mfaToken: options.mfaToken
-      };
+      const body: Record<string, string> = {};
 
       // Type-based field mapping (matches VerifyMfaOptions union type)
       if ("otp" in options) {
         body.otp = options.otp;
       } else if ("oobCode" in options) {
-        body.oobCode = options.oobCode;
-        body.bindingCode = options.bindingCode;
+        body.oob_code = options.oobCode;
+        body.binding_code = options.bindingCode;
       } else if ("recoveryCode" in options) {
-        body.recoveryCode = options.recoveryCode;
+        body.recovery_code = options.recoveryCode;
       }
 
       const url = normalizeWithBasePath(
@@ -263,7 +270,8 @@ class ClientMfaClient implements MfaClient {
       const response = await fetch(url, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${options.mfaToken}`
         },
         credentials: "include", // Session caching (verify stores token in session)
         body: JSON.stringify(body)
@@ -274,6 +282,7 @@ class ClientMfaClient implements MfaClient {
         throw this.parseError(error, "verify", response.url);
       }
 
+      // Verify response is already snake_case from Auth0 - no camelize needed
       return await response.json();
     } catch (e) {
       // Re-throw typed errors
@@ -340,12 +349,24 @@ class ClientMfaClient implements MfaClient {
         process.env.NEXT_PUBLIC_MFA_ENROLL_ROUTE || "/auth/mfa/enroll"
       );
 
+      // Build snake_case body from SDK options
+      const body: Record<string, any> = {
+        authenticator_types: options.authenticatorTypes
+      };
+
+      if ("oobChannels" in options) {
+        body.oob_channels = options.oobChannels;
+        if (options.phoneNumber) body.phone_number = options.phoneNumber;
+        if (options.email) body.email = options.email;
+      }
+
       const response = await fetch(url, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${options.mfaToken}`
         },
-        body: JSON.stringify(options),
+        body: JSON.stringify(body),
         credentials: "omit" // Stateless operation
       });
 
@@ -354,7 +375,9 @@ class ClientMfaClient implements MfaClient {
         throw this.parseError(error, "enroll", response.url);
       }
 
-      return await response.json();
+      // Route handler now returns snake_case - camelize for SDK consumption
+      const data = await response.json();
+      return buildEnrollmentResponse(data);
     } catch (e) {
       // Re-throw typed errors
       if (
