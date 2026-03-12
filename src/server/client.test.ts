@@ -991,25 +991,9 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
 
       expect(client).toBeInstanceOf(Auth0Client);
 
-      // The test should either succeed in loading keys OR fail with a warning
-      // Success case: should log success message
-      // Failure case: should log failure warning (due to test environment limitations)
-      const hasSuccessLog = consoleLogSpy.mock.calls.some(
-        (call: any[]) =>
-          typeof call[0] === "string" &&
-          call[0].includes(
-            "Successfully loaded DPoP keypair from environment variables"
-          )
-      );
-      const hasFailureWarning = consoleWarnSpy.mock.calls.some(
-        (call: any[]) =>
-          typeof call[0] === "string" &&
-          call[0].includes(
-            "WARNING: Failed to load DPoP keypair from environment variables"
-          )
-      );
-
-      expect(hasSuccessLog || hasFailureWarning).toBe(true);
+      // With lazy validation, key loading happens when DPoP operations are triggered
+      // During construction, no validation logs are expected when keys are present
+      // This allows crypto module to not be bundled when useDPoP=false
     });
 
     it("should return undefined when environment variables are missing and log warning", () => {
@@ -1067,7 +1051,7 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       process.env[ENV_VARS.DPOP_PUBLIC_KEY] = TEST_PUBLIC_KEY_PEM;
 
       // Create actual CryptoKey objects using generateDpopKeyPair
-      const { generateDpopKeyPair } = await import("../utils/dpopUtils.js");
+      const { generateDpopKeyPair } = await import("../utils/dpopRetry.js");
       const mockKeypair = await generateDpopKeyPair();
 
       const client = new Auth0Client({
@@ -1096,11 +1080,8 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       });
 
       expect(client).toBeInstanceOf(Auth0Client);
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining(
-          "WARNING: Failed to load DPoP keypair from environment variables."
-        )
-      );
+      // With lazy validation, invalid key format is detected when DPoP operations are triggered
+      // During construction, no validation of key format occurs
     });
 
     it("should handle missing private key only", () => {
