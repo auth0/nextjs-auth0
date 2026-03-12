@@ -1,3 +1,4 @@
+import { getOAuth2ErrorDetails } from "../utils/oauth2-error-utils.js";
 import { SdkError } from "./sdk-error.js";
 
 /**
@@ -14,6 +15,21 @@ export class OAuth2Error extends SdkError {
     );
     this.name = "OAuth2Error";
     this.code = code;
+  }
+
+  /**
+   * Create an OAuth2Error from a caught error (e.g. from oauth4webapi).
+   *
+   * Extracts error details from both 4xx (direct properties) and
+   * 5xx (Response body in .cause) oauth4webapi error shapes.
+   */
+  static async fromCaughtError(caught: unknown): Promise<OAuth2Error> {
+    const details = await getOAuth2ErrorDetails(caught);
+    return new OAuth2Error({
+      code: details.error ?? "unknown_error",
+      message:
+        details.error_description ?? (caught as any)?.message ?? undefined
+    });
   }
 }
 
