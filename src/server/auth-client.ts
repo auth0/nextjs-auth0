@@ -23,6 +23,7 @@ import {
   DiscoveryError,
   DPoPError,
   DPoPErrorCode,
+  InvalidConfigurationError,
   InvalidStateError,
   MfaChallengeError,
   MfaEnrollmentError,
@@ -71,6 +72,7 @@ import {
   type ChallengeApiResponse,
   type EnrollmentApiResponse
 } from "../types/index.js";
+import { resolveAppBaseUrl } from "../utils/app-base-url.js";
 import { mergeAuthorizationParamsIntoSearchParams } from "../utils/authorization-params-helpers.js";
 import {
   DEFAULT_MFA_CONTEXT_TTL_SECONDS,
@@ -143,6 +145,10 @@ export type OnCallbackContext = {
    * One of {@link RESPONSE_TYPES}
    */
   responseType?: RESPONSE_TYPES;
+  /**
+   * The resolved base URL for the current request, used to build safe redirects.
+   */
+  appBaseUrl?: string;
   /**
    * The URL or path the user should be redirected to after completing the transaction.
    */
@@ -225,7 +231,7 @@ export interface AuthClientOptions {
   pushedAuthorizationRequests?: boolean;
 
   secret: string;
-  appBaseUrl: string;
+  appBaseUrl?: string | string[];
   signInReturnToPath?: string;
   logoutStrategy?: LogoutStrategy;
   includeIdTokenHintInOIDCLogoutUrl?: boolean;
@@ -244,6 +250,7 @@ export interface AuthClientOptions {
   enableAccessTokenEndpoint?: boolean;
   noContentProfileResponseWhenUnauthenticated?: boolean;
   enableConnectAccountEndpoint?: boolean;
+  tokenRefreshBuffer?: number;
 
   useDPoP?: boolean;
   dpopKeyPair?: DpopKeyPair;
@@ -284,7 +291,7 @@ export class AuthClient {
   private authorizationParameters: AuthorizationParameters;
   private pushedAuthorizationRequests: boolean;
 
-  private appBaseUrl: string;
+  private appBaseUrl?: string | string[];
   private signInReturnToPath: string;
   private logoutStrategy: LogoutStrategy;
   private includeIdTokenHintInOIDCLogoutUrl: boolean;
@@ -305,6 +312,7 @@ export class AuthClient {
   private readonly enableAccessTokenEndpoint: boolean;
   private readonly noContentProfileResponseWhenUnauthenticated: boolean;
   private readonly enableConnectAccountEndpoint: boolean;
+  private readonly tokenRefreshBuffer: number;
 
   private dpopOptions?: DpopOptions;
 
@@ -400,6 +408,28 @@ export class AuthClient {
     }
 
     // application
+    // Validate appBaseUrl if it's an array
+    if (Array.isArray(options.appBaseUrl)) {
+      if (options.appBaseUrl.length === 0) {
+        throw new InvalidConfigurationError(
+          "APP_BASE_URL array configuration cannot be empty."
+        );
+      }
+      // Validate each URL in the array
+      const invalidUrls = options.appBaseUrl.filter((url) => {
+        try {
+          new URL(url);
+          return false;
+        } catch {
+          return true;
+        }
+      });
+      if (invalidUrls.length > 0) {
+        throw new InvalidConfigurationError(
+          `APP_BASE_URL array contains invalid URLs: ${invalidUrls.join(", ")}`
+        );
+      }
+    }
     this.appBaseUrl = options.appBaseUrl;
     this.signInReturnToPath = options.signInReturnToPath || "/";
 
@@ -428,6 +458,7 @@ export class AuthClient {
       options.noContentProfileResponseWhenUnauthenticated ?? false;
     this.enableConnectAccountEndpoint =
       options.enableConnectAccountEndpoint ?? false;
+    this.tokenRefreshBuffer = options.tokenRefreshBuffer ?? 0;
 
     this.useDPoP = options.useDPoP ?? false;
 
@@ -525,16 +556,18 @@ export class AuthClient {
   }
 
   async startInteractiveLogin(
-    options: StartInteractiveLoginOptions = {}
+    options: StartInteractiveLoginOptions = {},
+    req?: NextRequest
   ): Promise<NextResponse> {
-    const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registered with the authorization server
+    const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
+    const redirectUri = createRouteUrl(this.routes.callback, appBaseUrl); // must be registered with the authorization server
     let returnTo = this.signInReturnToPath;
 
     // Validate returnTo parameter
     if (options.returnTo) {
       const safeBaseUrl = new URL(
         (this.authorizationParameters.redirect_uri as string | undefined) ||
-          this.appBaseUrl
+          appBaseUrl
       );
       const sanitizedReturnTo = toSafeRedirect(options.returnTo, safeBaseUrl);
 
@@ -634,7 +667,7 @@ export class AuthClient {
       authorizationParameters,
       returnTo: returnTo
     };
-    return this.startInteractiveLogin(options);
+    return this.startInteractiveLogin(options, req);
   }
 
   async handleLogout(req: NextRequest): Promise<NextResponse> {
@@ -655,8 +688,9 @@ export class AuthClient {
       return errorResponse;
     }
 
+    const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
     const returnTo =
-      req.nextUrl.searchParams.get("returnTo") || this.appBaseUrl;
+      req.nextUrl.searchParams.get("returnTo") || appBaseUrl;
     const federated = req.nextUrl.searchParams.has("federated");
 
     const createV2LogoutResponse = (): NextResponse => {
@@ -752,8 +786,10 @@ export class AuthClient {
     }
 
     const transactionState = transactionStateCookie.payload;
+    const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
     const onCallbackCtx: OnCallbackContext = {
       responseType: transactionState.responseType,
+      appBaseUrl,
       returnTo: transactionState.returnTo
     };
 
@@ -797,7 +833,7 @@ export class AuthClient {
           connectCode: req.nextUrl.searchParams.get("connect_code")!,
           redirectUri: createRouteUrl(
             this.routes.callback,
-            this.appBaseUrl
+            appBaseUrl
           ).toString(),
           codeVerifier: transactionState.codeVerifier
         });
@@ -864,7 +900,7 @@ export class AuthClient {
     let authorizationCodeGrantRequestCall: () => Promise<Response>;
 
     try {
-      redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl); // must be registered with the authorization server
+      redirectUri = createRouteUrl(this.routes.callback, appBaseUrl); // must be registered with the authorization server
 
       // Create DPoP handle ONCE outside the closure so it persists across retries.
       // This is required by RFC 9449: the handle must learn and reuse the nonce from
@@ -1310,7 +1346,7 @@ export class AuthClient {
     }
 
     const [connectAccountError, connectAccountResponse] =
-      await this.connectAccount({ tokenSet, ...connectAccountParams });
+      await this.connectAccount({ tokenSet, ...connectAccountParams }, req);
 
     if (connectAccountError) {
       return new NextResponse(connectAccountError.message, {
@@ -1456,11 +1492,12 @@ export class AuthClient {
 
     if (tokenSet.refreshToken) {
       // either the access token has expired or we are forcing a refresh
-      if (
+      const now = Date.now() / 1000;
+      const shouldRefresh =
         options.refresh ||
         !tokenSet.expiresAt ||
-        tokenSet.expiresAt <= Date.now() / 1000
-      ) {
+        tokenSet.expiresAt <= now + this.tokenRefreshBuffer;
+      if (shouldRefresh) {
         const [error, response] = await this.#refreshTokenSet(tokenSet, {
           audience: options.audience,
           scope: options.scope ? scope : undefined,
@@ -1633,8 +1670,14 @@ export class AuthClient {
       });
     }
 
+    if (!ctx.appBaseUrl) {
+      throw new InvalidConfigurationError(
+        "APP_BASE_URL is not configured and the resolved base URL is not available in the callback context."
+      );
+    }
+
     const res = NextResponse.redirect(
-      createRouteUrl(ctx.returnTo || "/", this.appBaseUrl)
+      createRouteUrl(ctx.returnTo || "/", ctx.appBaseUrl)
     );
 
     return res;
@@ -2267,16 +2310,18 @@ export class AuthClient {
    * The user will be redirected to authorize the connection.
    */
   async connectAccount(
-    options: ConnectAccountOptions & { tokenSet: TokenSet }
+    options: ConnectAccountOptions & { tokenSet: TokenSet },
+    req?: NextRequest
   ): Promise<[ConnectAccountError, null] | [null, NextResponse]> {
-    const redirectUri = createRouteUrl(this.routes.callback, this.appBaseUrl);
+    const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
+    const redirectUri = createRouteUrl(this.routes.callback, appBaseUrl);
     let returnTo = this.signInReturnToPath;
 
     // Validate returnTo parameter
     if (options.returnTo) {
       const safeBaseUrl = new URL(
         (this.authorizationParameters.redirect_uri as string | undefined) ||
-          this.appBaseUrl
+          appBaseUrl
       );
       const sanitizedReturnTo = toSafeRedirect(options.returnTo, safeBaseUrl);
 
