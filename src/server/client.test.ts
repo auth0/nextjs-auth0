@@ -126,6 +126,36 @@ describe("Auth0Client", () => {
           originalValidateAndExtractRequiredOptions;
       }
     });
+
+    it("should throw when tokenRefreshBuffer is negative", () => {
+      const options = {
+        domain: "options.auth0.com",
+        clientId: "options_client_id",
+        clientSecret: "options_client_secret",
+        appBaseUrl: "https://options-app.com",
+        secret: "options_secret",
+        tokenRefreshBuffer: -1
+      };
+
+      expect(() => new Auth0Client(options)).toThrow(
+        "tokenRefreshBuffer must be a non-negative number of seconds."
+      );
+    });
+
+    it("should throw when tokenRefreshBuffer is not a finite number", () => {
+      const options = {
+        domain: "options.auth0.com",
+        clientId: "options_client_id",
+        clientSecret: "options_client_secret",
+        appBaseUrl: "https://options-app.com",
+        secret: "options_secret",
+        tokenRefreshBuffer: Number.NaN
+      };
+
+      expect(() => new Auth0Client(options)).toThrow(
+        "tokenRefreshBuffer must be a non-negative number of seconds."
+      );
+    });
   });
 
   // TODO: Re-implement DPoP handle management if needed
@@ -776,11 +806,17 @@ describe("Auth0Client", () => {
       expect(transactionStore.cookieOptions.secure).toBe(false);
     });
 
-    it("should throw when APP_BASE_URL contains multiple values", () => {
+    it("should parse a comma-separated APP_BASE_URL into an array", () => {
       process.env[ENV_VARS.APP_BASE_URL] =
-        "https://app.example.com, https://preview.example.com";
+        "https://app.example.com, https://myapp.vercel.app";
 
-      expect(() => new Auth0Client()).toThrowError(TypeError);
+      const client = new Auth0Client();
+      const sessionStore = client["sessionStore"] as any;
+      const transactionStore = (client as any).transactionStore;
+
+      // Both origins are HTTPS so secure cookies must be forced
+      expect(sessionStore.cookieConfig.secure).toBe(true);
+      expect(transactionStore.cookieOptions.secure).toBe(true);
     });
   });
 

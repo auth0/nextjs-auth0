@@ -111,10 +111,16 @@ export interface Auth0ClientOptions {
   /**
    * The URL of your application (e.g.: `http://localhost:3000`).
    *
+   * Can be a single URL string, or an array of allowed base URLs. When an array is
+   * provided, the SDK validates the incoming request origin against the list and uses
+   * the matching entry (allow-list mode). This is useful for multi-domain or preview
+   * deployments where you want to restrict which origins are accepted.
+   *
    * If it's not specified, it will be loaded from the `APP_BASE_URL` environment variable.
+   * Multiple origins can be provided as a comma-separated string (e.g. `https://app.example.com,https://myapp.vercel.app`).
    * If neither is provided, the SDK will infer it from the request host at runtime.
    */
-  appBaseUrl?: string;
+  appBaseUrl?: string | string[];
   /**
    * A 32-byte, hex-encoded secret used for encrypting cookies.
    *
@@ -227,6 +233,16 @@ export interface Auth0ClientOptions {
    * See: https://datatracker.ietf.org/doc/html/draft-ietf-oauth-browser-based-apps#name-token-mediating-backend
    */
   enableAccessTokenEndpoint?: boolean;
+
+  /**
+   * Number of seconds to refresh access tokens early when calling `getAccessToken`.
+   * This is a server-side buffer applied to token expiration checks. For example,
+   * with a buffer of 60 seconds, tokens expiring within the next minute will be
+   * refreshed proactively when a refresh token is available.
+   *
+   * Defaults to `0` (no early refresh).
+   */
+  tokenRefreshBuffer?: number;
 
   /**
    * If true, the profile endpoint will return a 204 No Content response when the user is not authenticated
@@ -420,6 +436,20 @@ export class Auth0Client {
       process.env.AUTH0_MFA_TOKEN_TTL
     );
 
+    const tokenRefreshBufferOption = options.tokenRefreshBuffer;
+    if (tokenRefreshBufferOption != null) {
+      if (
+        typeof tokenRefreshBufferOption !== "number" ||
+        !Number.isFinite(tokenRefreshBufferOption) ||
+        tokenRefreshBufferOption < 0
+      ) {
+        throw new TypeError(
+          "tokenRefreshBuffer must be a non-negative number of seconds."
+        );
+      }
+    }
+    const tokenRefreshBuffer = tokenRefreshBufferOption ?? 0;
+
     // Auto-detect base path for cookie configuration
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
 
@@ -458,9 +488,11 @@ export class Auth0Client {
     };
 
     if (appBaseUrl) {
-      const usesHttps = new URL(appBaseUrl).protocol === "https:";
+      const usesHttps = Array.isArray(appBaseUrl)
+        ? appBaseUrl.every((url) => new URL(url).protocol === "https:")
+        : new URL(appBaseUrl).protocol === "https:";
 
-      // Only enforce secure cookies when the configured base URL is https.
+      // Only enforce secure cookies when the configured base URL(s) are all https.
       if (usesHttps) {
         sessionCookieOptions.secure = true;
         transactionCookieOptions.secure = true;
@@ -564,6 +596,7 @@ export class Auth0Client {
       noContentProfileResponseWhenUnauthenticated:
         options.noContentProfileResponseWhenUnauthenticated,
       enableConnectAccountEndpoint: options.enableConnectAccountEndpoint,
+      tokenRefreshBuffer,
       useDPoP: options.useDPoP || false,
       dpopKeyPair: options.dpopKeyPair || resolvedDpopKeyPair,
       dpopOptions: options.dpopOptions || resolvedDpopOptions,
@@ -1314,7 +1347,12 @@ export class Auth0Client {
       secret: options.secret ?? process.env.AUTH0_SECRET
     };
 
-    const appBaseUrl = options.appBaseUrl ?? process.env.APP_BASE_URL;
+    const envAppBaseUrl = process.env.APP_BASE_URL?.includes(",")
+      ? process.env.APP_BASE_URL.split(",")
+          .map((u) => u.trim())
+          .filter(Boolean)
+      : process.env.APP_BASE_URL;
+    const appBaseUrl = options.appBaseUrl ?? envAppBaseUrl;
 
     // Check client authentication options - either clientSecret OR clientAssertionSigningKey must be provided
     const clientSecret =

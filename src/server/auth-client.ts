@@ -124,7 +124,7 @@ import {
   mergeScopes,
   tokenSetFromAccessTokenSet
 } from "../utils/token-set-helpers.js";
-import { toSafeRedirect } from "../utils/url-helpers.js";
+import { isUrl, toSafeRedirect } from "../utils/url-helpers.js";
 import { addCacheControlHeadersForSession } from "./cookies.js";
 import {
   AccessTokenFactory,
@@ -166,6 +166,8 @@ export type OnCallbackHook = (
   ctx: OnCallbackContext,
   session: SessionData | null
 ) => Promise<NextResponse>;
+
+type ExpiresAtInput = number | string | null | undefined;
 
 // params passed to the /authorize endpoint that cannot be overwritten
 const INTERNAL_AUTHORIZE_PARAMS = [
@@ -238,7 +240,7 @@ export interface AuthClientOptions {
    * Normalized appBaseUrl. When omitted, the SDK infers the base URL from the request.
    * If you construct AuthClient directly, normalize the value first.
    */
-  appBaseUrl?: string;
+  appBaseUrl?: string | string[];
   signInReturnToPath?: string;
   logoutStrategy?: LogoutStrategy;
   includeIdTokenHintInOIDCLogoutUrl?: boolean;
@@ -257,6 +259,7 @@ export interface AuthClientOptions {
   enableAccessTokenEndpoint?: boolean;
   noContentProfileResponseWhenUnauthenticated?: boolean;
   enableConnectAccountEndpoint?: boolean;
+  tokenRefreshBuffer?: number;
 
   useDPoP?: boolean;
   dpopKeyPair?: DpopKeyPair;
@@ -298,7 +301,7 @@ export class AuthClient {
   private pushedAuthorizationRequests: boolean;
 
   // Normalized appBaseUrl for this client instance.
-  private appBaseUrl?: string;
+  private appBaseUrl?: string | string[];
   private signInReturnToPath: string;
   private logoutStrategy: LogoutStrategy;
   private includeIdTokenHintInOIDCLogoutUrl: boolean;
@@ -319,6 +322,7 @@ export class AuthClient {
   private readonly enableAccessTokenEndpoint: boolean;
   private readonly noContentProfileResponseWhenUnauthenticated: boolean;
   private readonly enableConnectAccountEndpoint: boolean;
+  private readonly tokenRefreshBuffer: number;
 
   private dpopOptions?: DpopOptions;
 
@@ -414,6 +418,22 @@ export class AuthClient {
     }
 
     // application
+    if (Array.isArray(options.appBaseUrl)) {
+      if (options.appBaseUrl.length === 0) {
+        throw new InvalidConfigurationError(
+          "APP_BASE_URL array configuration cannot be empty."
+        );
+      }
+      const invalidUrls = options.appBaseUrl.filter(
+        (url) => isUrl(url) === false
+      );
+      if (invalidUrls.length > 0) {
+        throw new InvalidConfigurationError(
+          `APP_BASE_URL array contains invalid URLs: ${invalidUrls.join(", ")}`
+        );
+      }
+    }
+
     this.appBaseUrl = options.appBaseUrl;
     this.signInReturnToPath = options.signInReturnToPath || "/";
 
@@ -442,6 +462,7 @@ export class AuthClient {
       options.noContentProfileResponseWhenUnauthenticated ?? false;
     this.enableConnectAccountEndpoint =
       options.enableConnectAccountEndpoint ?? false;
+    this.tokenRefreshBuffer = options.tokenRefreshBuffer ?? 0;
 
     this.useDPoP = options.useDPoP ?? false;
 
@@ -1440,6 +1461,31 @@ export class AuthClient {
         audience: options.audience ?? this.authorizationParameters.audience
       }
     );
+    const now = Date.now() / 1000;
+    const normalizeExpiresAt = (value: ExpiresAtInput): number | undefined => {
+      if (typeof value === "number") {
+        return Number.isFinite(value) ? value : undefined;
+      }
+      if (typeof value === "string") {
+        if (value.trim() === "") {
+          return undefined;
+        }
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : undefined;
+      }
+      return undefined;
+    };
+    const isBeforeOrEqual = (left: ExpiresAtInput, right: number) => {
+      const normalized = normalizeExpiresAt(left);
+      return normalized !== undefined && normalized <= right;
+    };
+
+    const expiresAt = normalizeExpiresAt(tokenSet.expiresAt);
+    const isExpired = isBeforeOrEqual(tokenSet.expiresAt, now);
+    const shouldRefresh = isBeforeOrEqual(
+      tokenSet.expiresAt,
+      now + this.tokenRefreshBuffer
+    );
 
     // no access token was found that matches the, optional, provided audience and scope
     if (!tokenSet.refreshToken && !tokenSet.accessToken) {
@@ -1453,12 +1499,7 @@ export class AuthClient {
     }
 
     // the access token was found, but it has expired and we do not have a refresh token
-    if (
-      !tokenSet.refreshToken &&
-      tokenSet.accessToken &&
-      tokenSet.expiresAt &&
-      tokenSet.expiresAt <= Date.now() / 1000
-    ) {
+    if (!tokenSet.refreshToken && tokenSet.accessToken && isExpired) {
       return [
         new AccessTokenError(
           AccessTokenErrorCode.MISSING_REFRESH_TOKEN,
@@ -1470,11 +1511,7 @@ export class AuthClient {
 
     if (tokenSet.refreshToken) {
       // either the access token has expired or we are forcing a refresh
-      if (
-        options.refresh ||
-        !tokenSet.expiresAt ||
-        tokenSet.expiresAt <= Date.now() / 1000
-      ) {
+      if (options.refresh || expiresAt === undefined || shouldRefresh) {
         const [error, response] = await this.#refreshTokenSet(tokenSet, {
           audience: options.audience,
           scope: options.scope ? scope : undefined,
@@ -1648,7 +1685,7 @@ export class AuthClient {
       });
     }
 
-    const appBaseUrl = ctx.appBaseUrl || this.appBaseUrl;
+    const appBaseUrl = ctx.appBaseUrl;
 
     if (!appBaseUrl) {
       throw new InvalidConfigurationError(
