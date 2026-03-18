@@ -94,7 +94,6 @@ import {
   handleMfaError,
   isMfaRequiredError
 } from "../utils/mfa-utils.js";
-import { extractOAuthErrorDetails } from "../utils/oauth-error-utils.js";
 import {
   extractMfaToken,
   parseJsonBody,
@@ -102,6 +101,7 @@ import {
   validateStringFieldAndThrow,
   validateVerificationCredentialAndThrow
 } from "../utils/mfa-validation-utils.js";
+import { extractOAuthErrorDetails } from "../utils/oauth-error-utils.js";
 import {
   ensureNoLeadingSlash,
   ensureTrailingSlash,
@@ -2971,7 +2971,9 @@ export class AuthClient {
         // Extract error body from cause for oauth4webapi wrapped errors
         // ResponseBodyError wraps actual error in cause property
         const errorBody =
-          err.cause && typeof err.cause === "object" && !(err.cause instanceof Response)
+          err.cause &&
+          typeof err.cause === "object" &&
+          !(err.cause instanceof Response)
             ? (err.cause as any)
             : err;
 
@@ -2985,7 +2987,9 @@ export class AuthClient {
           DEFAULT_MFA_CONTEXT_TTL_SECONDS
         );
         throw new MfaRequiredError(
-          oauthErr.error_description || errorBody.error_description || "Additional MFA factor required",
+          oauthErr.error_description ||
+            errorBody.error_description ||
+            "Additional MFA factor required",
           encryptedToken,
           errorBody.mfa_requirements,
           new OAuth2Error({
@@ -2998,7 +3002,12 @@ export class AuthClient {
       throw new MfaVerifyError(
         oauthErr.error || "unknown_error",
         oauthErr.error_description || err.message || "MFA verification failed",
-        oauthErr.error ? { error: oauthErr.error, error_description: oauthErr.error_description ?? "" } : undefined
+        oauthErr.error
+          ? {
+              error: oauthErr.error,
+              error_description: oauthErr.error_description ?? ""
+            }
+          : undefined
       );
     }
 

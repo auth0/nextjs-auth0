@@ -23,6 +23,10 @@ export interface OAuthErrorDetails {
 /**
  * Extract `error` and `error_description` from an oauth4webapi error,
  * handling both 4xx `ResponseBodyError` and 5xx `OperationProcessingError`.
+ *
+ * Returns `{}` (empty `OAuthErrorDetails`) when the error structure is
+ * unrecognized or the 5xx response body is not JSON / lacks error fields.
+ * Callers should guard with `if (oauthErr.error)` before using the result.
  */
 export async function extractOAuthErrorDetails(
   err: unknown

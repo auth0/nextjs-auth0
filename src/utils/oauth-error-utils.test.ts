@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
+
 import { extractOAuthErrorDetails } from "./oauth-error-utils.js";
 
 describe("extractOAuthErrorDetails", () => {
@@ -60,7 +61,9 @@ describe("extractOAuthErrorDetails", () => {
   });
 
   it("returns empty object when Response body JSON has no error fields", async () => {
-    const response = new Response(JSON.stringify({ foo: "bar" }), { status: 500 });
+    const response = new Response(JSON.stringify({ foo: "bar" }), {
+      status: 500
+    });
     const err = { cause: response };
 
     const result = await extractOAuthErrorDetails(err);
@@ -70,7 +73,10 @@ describe("extractOAuthErrorDetails", () => {
   it("prefers direct error property over Response cause", async () => {
     // If error already has .error (ResponseBodyError), use it directly
     const response = new Response(
-      JSON.stringify({ error: "from_response", error_description: "from response" }),
+      JSON.stringify({
+        error: "from_response",
+        error_description: "from response"
+      }),
       { status: 500 }
     );
     const err = {
