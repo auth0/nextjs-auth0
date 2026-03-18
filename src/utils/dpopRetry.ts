@@ -1,4 +1,5 @@
 import { generateKeyPair, isDPoPNonceError } from "oauth4webapi";
+
 import { DpopKeyPair, RetryConfig } from "../types/dpop.js";
 
 /**
