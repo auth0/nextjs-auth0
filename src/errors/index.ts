@@ -47,6 +47,5 @@ export {
   DomainResolutionError,
   DomainValidationError,
   IssuerValidationError,
-  SessionDomainMismatchError,
-  McdBackchannelLogoutError
+  SessionDomainMismatchError
 } from "./mcd.js";

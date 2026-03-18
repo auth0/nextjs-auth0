@@ -6,7 +6,6 @@ import { describe, expect, it } from "vitest";
 
 import { InvalidConfigurationError, SdkError } from "../errors/index.js";
 import {
-  McdBackchannelLogoutError as BackchannelLogoutError,
   DomainResolutionError,
   DomainValidationError,
   IssuerValidationError,
@@ -171,30 +170,6 @@ describe("MCD Error Classes", () => {
     });
   });
 
-  describe("BackchannelLogoutError", () => {
-    it("should create error with default message", () => {
-      const error = new BackchannelLogoutError();
-      expect(error).toBeInstanceOf(SdkError);
-      expect(error.message).toContain("backchannel logout");
-      expect(error.name).toBe("McdBackchannelLogoutError");
-      expect(error.code).toBe("backchannel_logout_error");
-    });
-
-    it("should create error with custom message", () => {
-      const message = "Logout request validation failed";
-      const error = new BackchannelLogoutError(message);
-      expect(error.message).toBe(message);
-      expect(error.name).toBe("McdBackchannelLogoutError");
-      expect(error.code).toBe("backchannel_logout_error");
-    });
-
-    it("should extend SdkError", () => {
-      const error = new BackchannelLogoutError();
-      expect(error).toBeInstanceOf(SdkError);
-      expect(error).toBeInstanceOf(Error);
-    });
-  });
-
   describe("error inheritance", () => {
     it("DomainResolutionError should extend SdkError", () => {
       const error = new DomainResolutionError();
@@ -225,12 +200,6 @@ describe("MCD Error Classes", () => {
       expect(error instanceof SdkError).toBe(true);
       expect(error instanceof Error).toBe(true);
     });
-
-    it("BackchannelLogoutError should extend SdkError", () => {
-      const error = new BackchannelLogoutError();
-      expect(error instanceof SdkError).toBe(true);
-      expect(error instanceof Error).toBe(true);
-    });
   });
 
   describe("error codes", () => {
@@ -240,8 +209,7 @@ describe("MCD Error Classes", () => {
         new DomainValidationError(),
         new IssuerValidationError("a", "b"),
         new InvalidConfigurationError(),
-        new SessionDomainMismatchError(),
-        new BackchannelLogoutError()
+        new SessionDomainMismatchError()
       ];
 
       const codes = errors.map((e) => e.code);
@@ -271,10 +239,6 @@ describe("MCD Error Classes", () => {
         {
           error: new SessionDomainMismatchError(),
           expectedCode: "session_domain_mismatch"
-        },
-        {
-          error: new BackchannelLogoutError(),
-          expectedCode: "backchannel_logout_error"
         }
       ];
 
@@ -294,8 +258,7 @@ describe("MCD Error Classes", () => {
           "https://actual.auth0.com/"
         ),
         new InvalidConfigurationError(),
-        new SessionDomainMismatchError(),
-        new BackchannelLogoutError()
+        new SessionDomainMismatchError()
       ];
 
       errors.forEach((error) => {

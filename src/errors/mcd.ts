@@ -108,28 +108,3 @@ export class SessionDomainMismatchError extends SdkError {
     this.name = "SessionDomainMismatchError";
   }
 }
-
-/**
- * Error thrown when backchannel logout fails in an MCD context.
- *
- * Renamed from `BackchannelLogoutError` to avoid collision with the generic
- * `BackchannelLogoutError` in `oauth-errors.ts`.
- *
- * @public
- */
-export class McdBackchannelLogoutError extends SdkError {
-  public code: string = "backchannel_logout_error";
-
-  /**
-   * Creates a new McdBackchannelLogoutError instance.
-   *
-   * @param message - A descriptive error message
-   */
-  constructor(message?: string) {
-    super(
-      message ??
-        "An error occurred while completing the backchannel logout request."
-    );
-    this.name = "McdBackchannelLogoutError";
-  }
-}

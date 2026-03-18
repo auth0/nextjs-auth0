@@ -43,11 +43,6 @@ interface CacheOptions {
    * Maximum number of domain entries to cache. Default: 100
    */
   maxEntries?: number;
-
-  /**
-   * Maximum number of JWKS entries in the co-located cache. Default: 10
-   */
-  maxJwksEntries?: number;
 }
 
 /**
@@ -70,7 +65,6 @@ export class DiscoveryCache {
 
   private ttl: number;
   private maxEntries: number;
-  private maxJwksEntries: number;
 
   /**
    * Creates a new DiscoveryCache instance.
@@ -80,7 +74,6 @@ export class DiscoveryCache {
   constructor(options?: CacheOptions) {
     this.ttl = options?.ttl ?? 600; // 600 seconds = 10 minutes
     this.maxEntries = options?.maxEntries ?? 100;
-    this.maxJwksEntries = options?.maxJwksEntries ?? this.maxEntries;
   }
 
   /**
@@ -164,7 +157,7 @@ export class DiscoveryCache {
 
     if (!jwksEntry) {
       // Enforce max entries boundary BEFORE adding (LRU)
-      if (this.jwksCache.size >= this.maxJwksEntries) {
+      if (this.jwksCache.size >= this.maxEntries) {
         const firstKey = getFirstMapKey(this.jwksCache);
         if (firstKey !== undefined) {
           this.jwksCache.delete(firstKey);

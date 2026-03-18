@@ -149,17 +149,18 @@ describe("Auth0Client - getAccessToken (Concurrent Calls)", () => {
     // Instantiate Auth0Client normally, it will use intercepted fetch
     auth0Client = new Auth0Client(testAuth0ClientConfig);
 
+    const initialSession = await createInitialSession();
+
+    // Mock getSessionFromAuthClient (RC-6 helper) to return session
+    vi.spyOn(
+      Auth0Client.prototype as any,
+      "getSessionFromAuthClient"
+    ).mockResolvedValue(initialSession);
+
     // Mock saveToSession to avoid cookie/request context issues
     mockSaveToSession = vi
       .spyOn(Auth0Client.prototype as any, "saveToSession")
       .mockResolvedValue(undefined); // Mock successful save
-
-    const initialSession = await createInitialSession();
-
-    // Mock getSession specifically for this test
-    vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-      initialSession
-    );
   });
 
   afterEach(() => {
@@ -169,11 +170,6 @@ describe("Auth0Client - getAccessToken (Concurrent Calls)", () => {
   it("should handle multiple concurrent calls with the same audience and scope correctly", async () => {
     const audience = "https://api.example.com";
     const apiScope = "read:messages write:messages";
-
-    const session = await createInitialSession();
-    vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-      session
-    );
 
     // Make 3 concurrent calls with the same audience and scope
     const [result1, result2, result3] = await Promise.all([
@@ -202,11 +198,6 @@ describe("Auth0Client - getAccessToken (Concurrent Calls)", () => {
     const audience2 = "https://api2.example.com";
     const scope1 = "read:api1";
     const scope2 = "read:api2";
-
-    const session = await createInitialSession();
-    vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-      session
-    );
 
     // Make concurrent calls with different audiences (1 call per audience)
     const [result1, result2] = await Promise.all([
@@ -240,11 +231,6 @@ describe("Auth0Client - getAccessToken (Concurrent Calls)", () => {
     const audience2 = "https://api2.example.com";
     const scope1 = "read:api1";
     const scope2 = "read:api2";
-
-    const session = await createInitialSession();
-    vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-      session
-    );
 
     // Make concurrent calls with different audiences (2 calls per audience)
     const [result1, result2, result3, result4] = await Promise.all([
@@ -288,11 +274,6 @@ describe("Auth0Client - getAccessToken (Concurrent Calls)", () => {
     const audience = "https://api.example.com";
     const scope1 = "read:messages";
     const scope2 = "read:messages write:messages";
-
-    const session = await createInitialSession();
-    vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-      session
-    );
 
     // Make concurrent calls with same audience but different scopes
     const [result1, result2] = await Promise.all([

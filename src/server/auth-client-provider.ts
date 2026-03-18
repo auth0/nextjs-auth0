@@ -8,7 +8,6 @@ import { DomainResolutionError } from "../errors/mcd.js";
 import type { DomainResolver } from "../types/mcd.js";
 import { normalizeDomain } from "../utils/normalize.js";
 import type { AuthClient } from "./auth-client.js";
-import { DiscoveryCache } from "./discovery-cache.js";
 
 /**
  * Options for AuthClientProvider.
@@ -26,15 +25,6 @@ interface AuthClientProviderOptions {
    * Called when a new domain client is needed.
    */
   createAuthClient: (domain: string) => AuthClient;
-
-  /**
-   * Discovery cache options for sharing metadata across domains.
-   */
-  discoveryCacheOptions?: {
-    ttl?: number;
-    maxEntries?: number;
-    maxJwksEntries?: number;
-  };
 }
 
 /**
@@ -75,7 +65,6 @@ export class AuthClientProvider {
   private resolver?: DomainResolver;
 
   private domainClients: Map<string, AuthClient> = new Map();
-  private discoveryCache: DiscoveryCache;
 
   private createAuthClientFactory: (domain: string) => AuthClient;
   private proxyFetchers: Map<string, any> = new Map();
@@ -90,7 +79,6 @@ export class AuthClientProvider {
    */
   constructor(options: AuthClientProviderOptions) {
     this.createAuthClientFactory = options.createAuthClient;
-    this.discoveryCache = new DiscoveryCache(options.discoveryCacheOptions);
 
     // Detect mode and validate configuration
     if (typeof options.domain === "string") {
@@ -196,6 +184,9 @@ export class AuthClientProvider {
     // Check cache first
     let client = this.domainClients.get(normalizedDomain);
     if (client) {
+      // LRU: move to end
+      this.domainClients.delete(normalizedDomain);
+      this.domainClients.set(normalizedDomain, client);
       return client;
     }
 
@@ -231,30 +222,25 @@ export class AuthClientProvider {
     factory: () => Promise<any>
   ): Promise<any> {
     let fetcher = this.proxyFetchers.get(key);
-    if (!fetcher) {
-      fetcher = await factory();
+    if (fetcher) {
+      // LRU: move to end
+      this.proxyFetchers.delete(key);
       this.proxyFetchers.set(key, fetcher);
+      return fetcher;
+    }
 
-      // Enforce max entries boundary with LRU eviction
-      while (this.proxyFetchers.size > MAX_PROXY_FETCHERS) {
-        const oldestKey = getFirstMapKey(this.proxyFetchers);
-        if (oldestKey !== undefined) {
-          this.proxyFetchers.delete(oldestKey);
-        }
+    fetcher = await factory();
+    this.proxyFetchers.set(key, fetcher);
+
+    // Enforce max entries boundary with LRU eviction
+    while (this.proxyFetchers.size > MAX_PROXY_FETCHERS) {
+      const oldestKey = getFirstMapKey(this.proxyFetchers);
+      if (oldestKey !== undefined) {
+        this.proxyFetchers.delete(oldestKey);
       }
     }
-    return fetcher;
-  }
 
-  /**
-   * Gets the shared discovery cache used across all domains.
-   *
-   * @returns The DiscoveryCache instance
-   *
-   * @internal
-   */
-  getDiscoveryCache(): DiscoveryCache {
-    return this.discoveryCache;
+    return fetcher;
   }
 
   /**

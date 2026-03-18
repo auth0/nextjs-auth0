@@ -353,59 +353,6 @@ describe("DiscoveryCache", () => {
 
       expect(cache1).not.toBe(cache2);
     });
-
-    it("should evict JWKS entries with LRU when maxJwksEntries is reached", () => {
-      cache = new DiscoveryCache({ maxJwksEntries: 2 });
-
-      const cache1 = cache.getJwksCacheForUri("https://domain1.auth0.com/jwks");
-      const _cache2 = cache.getJwksCacheForUri(
-        "https://domain2.auth0.com/jwks"
-      );
-      const _cache3 = cache.getJwksCacheForUri(
-        "https://domain3.auth0.com/jwks"
-      );
-
-      // Adding 3rd entry should evict 1st
-      // Adding 4th should evict the current oldest
-      const _cache4 = cache.getJwksCacheForUri(
-        "https://domain4.auth0.com/jwks"
-      );
-
-      // Re-fetching cache1 should create a new entry (was evicted)
-      const cache1Again = cache.getJwksCacheForUri(
-        "https://domain1.auth0.com/jwks"
-      );
-      expect(cache1).not.toBe(cache1Again);
-    });
-
-    it("should promote JWKS entry on cache hit (LRU)", () => {
-      cache = new DiscoveryCache({ maxJwksEntries: 2 });
-
-      const cache1 = cache.getJwksCacheForUri("https://domain1.auth0.com/jwks");
-      const cache2 = cache.getJwksCacheForUri("https://domain2.auth0.com/jwks");
-
-      // Verify we have the same objects back
-      expect(cache1).toBeDefined();
-      expect(cache2).toBeDefined();
-
-      // Re-access cache1 to promote it - should return same object
-      const cache1Again = cache.getJwksCacheForUri(
-        "https://domain1.auth0.com/jwks"
-      );
-      expect(cache1).toBe(cache1Again);
-
-      // Add cache3 - should evict cache2 (oldest after cache1 was promoted)
-      const cache3 = cache.getJwksCacheForUri("https://domain3.auth0.com/jwks");
-      expect(cache3).toBeDefined();
-
-      // cache2 should be evicted now (will get a new object)
-      const cache2Again = cache.getJwksCacheForUri(
-        "https://domain2.auth0.com/jwks"
-      );
-      expect(cache2Again).toBeDefined();
-      // Note: cache2 was evicted so cache2Again is a new instance
-      expect(cache2).not.toBe(cache2Again);
-    });
   });
 
   describe("clear", () => {
@@ -533,16 +480,6 @@ describe("DiscoveryCache", () => {
       expect(fetchMetadata).toHaveBeenCalledTimes(102);
     });
 
-    it("[POST-IMPL-3] maxJwksEntries defaults to maxEntries (100)", () => {
-      cache = new DiscoveryCache({ maxEntries: 100 });
-      expect((cache as any).maxJwksEntries).toBe(100);
-    });
-
-    it("[POST-IMPL-4] maxJwksEntries respects custom limit", () => {
-      cache = new DiscoveryCache({ maxJwksEntries: 50 });
-      expect((cache as any).maxJwksEntries).toBe(50);
-    });
-
     it("[POST-IMPL-5] Discovery cache LRU promotion on cache hit", async () => {
       cache = new DiscoveryCache({ maxEntries: 3 });
 
@@ -573,47 +510,6 @@ describe("DiscoveryCache", () => {
       // domainA should still be cached
       await cache.get("domainA.auth0.com", fetchMetadata);
       expect(fetchMetadata).toHaveBeenCalledTimes(5); // Still cached
-    });
-
-    it("[POST-IMPL-6] JWKS cache LRU promotion on cache hit", () => {
-      cache = new DiscoveryCache({ maxJwksEntries: 3 });
-
-      const uri1 = cache.getJwksCacheForUri("https://d1.auth0.com/jwks");
-      const uri2 = cache.getJwksCacheForUri("https://d2.auth0.com/jwks");
-      const _uri3 = cache.getJwksCacheForUri("https://d3.auth0.com/jwks");
-
-      // Re-access uri1 to promote it
-      const uri1Again = cache.getJwksCacheForUri("https://d1.auth0.com/jwks");
-      expect(uri1Again).toBe(uri1); // Same reference
-
-      // Add uri4 - should evict uri2 (oldest after uri1 was promoted)
-      const uri4 = cache.getJwksCacheForUri("https://d4.auth0.com/jwks");
-      expect(uri4).toBeDefined();
-
-      // uri2 should be evicted (different reference when recreated)
-      const uri2Again = cache.getJwksCacheForUri("https://d2.auth0.com/jwks");
-      expect(uri2Again).not.toBe(uri2);
-
-      // uri1 should still be accessible
-      const uri1Again2 = cache.getJwksCacheForUri("https://d1.auth0.com/jwks");
-      expect(uri1Again2).toBe(uri1);
-    });
-
-    it("[POST-IMPL-7] JWKS cache boundary check >= prevents overflow", () => {
-      cache = new DiscoveryCache({ maxJwksEntries: 2 });
-
-      // Add 2 entries (at limit)
-      const _uri1 = cache.getJwksCacheForUri("https://d1.auth0.com/jwks");
-      const _uri2 = cache.getJwksCacheForUri("https://d2.auth0.com/jwks");
-      expect((cache as any).jwksCache.size).toBe(2);
-
-      // Add 3rd entry - should evict one to stay at limit
-      const _uri3 = cache.getJwksCacheForUri("https://d3.auth0.com/jwks");
-      expect((cache as any).jwksCache.size).toBe(2); // Still at limit, not 3
-
-      // Add 4th entry - should also stay at limit
-      const _uri4 = cache.getJwksCacheForUri("https://d4.auth0.com/jwks");
-      expect((cache as any).jwksCache.size).toBe(2); // Still at limit
     });
   });
 });

@@ -33,8 +33,7 @@ export {
   DomainResolutionError,
   DomainValidationError,
   IssuerValidationError,
-  SessionDomainMismatchError,
-  McdBackchannelLogoutError
+  SessionDomainMismatchError
 } from "../errors/mcd.js";
 
 // MCD types and utilities

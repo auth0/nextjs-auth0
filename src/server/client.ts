@@ -708,6 +708,31 @@ export class Auth0Client {
   }
 
   /**
+   * Fetches session using an already-resolved AuthClient, avoiding double resolver invocation.
+   * @internal
+   */
+  private async getSessionFromAuthClient(
+    authClient: AuthClient,
+    req?: PagesRouterRequest | NextRequest
+  ): Promise<SessionData | null> {
+    let reqCookies:
+      | RequestCookies
+      | import("./cookies.js").ReadonlyRequestCookies;
+    if (req) {
+      reqCookies =
+        req instanceof NextRequest
+          ? req.cookies
+          : this.createRequestCookies(req);
+    } else {
+      reqCookies = await cookies();
+    }
+    const { error, session } =
+      await authClient.getSessionWithDomainCheck(reqCookies);
+    if (error) throw error;
+    return session;
+  }
+
+  /**
    * getAccessToken returns the access token.
    *
    * This method can be used in Server Components, Server Actions, and Route Handlers in the **App Router**.
@@ -828,9 +853,10 @@ export class Auth0Client {
   }> {
     const { authClient, normalizedReq } = await this.resolveRequestContext(req);
 
-    const session: SessionData | null = normalizedReq
-      ? await this.getSession(normalizedReq)
-      : await this.getSession();
+    const session = await this.getSessionFromAuthClient(
+      authClient,
+      normalizedReq
+    );
 
     if (!session) {
       throw new AccessTokenError(
@@ -931,9 +957,10 @@ export class Auth0Client {
   ): Promise<{ token: string; expiresAt: number; scope?: string }> {
     const { authClient, normalizedReq } = await this.resolveRequestContext(req);
 
-    const session: SessionData | null = normalizedReq
-      ? await this.getSession(normalizedReq)
-      : await this.getSession();
+    const session = await this.getSessionFromAuthClient(
+      authClient,
+      normalizedReq
+    );
 
     if (!session) {
       throw new AccessTokenForConnectionError(

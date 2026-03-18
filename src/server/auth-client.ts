@@ -254,7 +254,6 @@ export interface AuthClientOptions {
 
   // custom fetch implementation to allow for dependency injection
   fetch?: typeof fetch;
-  jwksCache?: jose.JWKSCacheInput;
   discoveryCache?: DiscoveryCache;
   provider?: AuthClientProvider;
   allowInsecureRequests?: boolean;
@@ -309,7 +308,6 @@ export class AuthClient {
   private routes: Routes;
 
   private fetch: typeof fetch;
-  private jwksCache: jose.JWKSCacheInput;
   private discoveryCache: DiscoveryCache;
   public provider?: AuthClientProvider;
   private allowInsecureRequests: boolean;
@@ -335,7 +333,6 @@ export class AuthClient {
   constructor(options: AuthClientOptions) {
     // dependencies
     this.fetch = options.fetch || fetch;
-    this.jwksCache = options.jwksCache || {};
     this.discoveryCache = options.discoveryCache || new DiscoveryCache();
     this.provider = options.provider;
     this.allowInsecureRequests = options.allowInsecureRequests ?? false;
@@ -549,6 +546,9 @@ export class AuthClient {
         req.cookies
       );
 
+      if (error instanceof SessionDomainMismatchError) {
+        console.warn(`[nextjs-auth0] ${error.message}`);
+      }
       // Skip touch silently if domain mismatch or no session
       if (error || !session) {
         return res;
@@ -1879,7 +1879,9 @@ export class AuthClient {
     const keyInput = jose.createRemoteJWKSet(
       new URL(authorizationServerMetadata.jwks_uri!),
       {
-        [jose.jwksCache]: this.jwksCache
+        [jose.jwksCache]: this.discoveryCache.getJwksCacheForUri(
+          authorizationServerMetadata.jwks_uri!
+        )
       }
     );
 

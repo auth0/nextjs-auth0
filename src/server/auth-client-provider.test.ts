@@ -452,45 +452,54 @@ describe("AuthClientProvider", () => {
 
       expect(() => provider.forDomainSync("invalid.local")).toThrow();
     });
-  });
 
-  describe("discovery cache", () => {
-    it("should create discovery cache with default options", () => {
+    it("should use LRU behavior: access promotes to end", () => {
       const provider = new AuthClientProvider({
         domain: "example.auth0.com",
         createAuthClient: createAuthClientMock
       });
 
-      const cache = provider.getDiscoveryCache();
-      expect(cache).toBeDefined();
-    });
+      // Fill cache to near capacity (MAX_DOMAIN_CLIENTS is 100, 1 from constructor)
+      // Create 99 domains to nearly fill the cache
+      const clients: { [key: string]: any } = {};
+      for (let i = 0; i < 99; i++) {
+        const domain = `domain${i}.auth0.com`;
+        clients[domain] = provider.forDomainSync(domain);
+      }
 
-    it("should use custom discovery cache options", () => {
-      const provider = new AuthClientProvider({
-        domain: "example.auth0.com",
-        createAuthClient: createAuthClientMock,
-        discoveryCacheOptions: {
-          ttl: 300,
-          maxEntries: 50,
-          maxJwksEntries: 20
-        }
-      });
+      const lastCallCount = createAuthClientMock.mock.calls.length;
 
-      const cache = provider.getDiscoveryCache();
-      expect(cache).toBeDefined();
-    });
+      // Now we have 100 clients (1 from constructor + 99 added)
+      // Add client A (should be oldest, and will be candidate for eviction)
+      const clientA = provider.forDomainSync("domainA.auth0.com");
+      // This should evict the oldest (constructor domain)
+      expect(createAuthClientMock).toHaveBeenCalledTimes(lastCallCount + 1);
 
-    it("should share discovery cache across domains", () => {
-      const provider = new AuthClientProvider({
-        domain: () => Promise.resolve("example.auth0.com"),
-        createAuthClient: createAuthClientMock,
-        discoveryCacheOptions: { maxEntries: 10 }
-      });
+      // Access A - should promote it to end
+      const clientAAgain = provider.forDomainSync("domainA.auth0.com");
+      expect(clientAAgain).toBe(clientA);
+      // No new creation
+      expect(createAuthClientMock).toHaveBeenCalledTimes(lastCallCount + 1);
 
-      const cache1 = provider.getDiscoveryCache();
-      const cache2 = provider.getDiscoveryCache();
+      // Access first added domain (domain0) - check if still cached
+      createAuthClientMock.mockClear();
+      createAuthClientMock.mockReturnValue(mockAuthClient);
+      const _client0Again = provider.forDomainSync("domain0.auth0.com");
+      // domain0 should still be cached (not yet evicted)
+      expect(createAuthClientMock).not.toHaveBeenCalled();
 
-      expect(cache1).toBe(cache2);
+      // Now add more domains to trigger eviction
+      // Add 101 more domains to evict everything older than current
+      for (let i = 99; i < 200; i++) {
+        provider.forDomainSync(`domainNew${i}.auth0.com`);
+      }
+
+      // Now domainA should be evicted (was promoted but is now very old)
+      createAuthClientMock.mockClear();
+      createAuthClientMock.mockReturnValue(mockAuthClient);
+      const _clientAEvicted = provider.forDomainSync("domainA.auth0.com");
+      // Since A was evicted, should need recreation
+      expect(createAuthClientMock).toHaveBeenCalledWith("domainA.auth0.com");
     });
   });
 
@@ -532,6 +541,64 @@ describe("AuthClientProvider", () => {
       await provider.getProxyFetcher("key", factory);
 
       expect(factory).toHaveBeenCalledTimes(1);
+    });
+
+    it("should use LRU behavior for proxy fetchers", async () => {
+      const provider = new AuthClientProvider({
+        domain: "example.auth0.com",
+        createAuthClient: createAuthClientMock
+      });
+
+      // Fill cache to near capacity (MAX_PROXY_FETCHERS is 100)
+      const factories: { [key: string]: any } = {};
+      const fetchers: { [key: string]: any } = {};
+
+      // Create 99 fetchers to fill most of the cache
+      for (let i = 0; i < 99; i++) {
+        const key = `key${i}`;
+        const factory = vi.fn().mockResolvedValue({ id: `fetcher-${i}` });
+        factories[key] = factory;
+        fetchers[key] = await provider.getProxyFetcher(key, factory);
+      }
+
+      // Now we have 99 cached fetchers
+      // Add fetcher A (will be candidate for eviction if we exceed limit)
+      const factoryA = vi.fn().mockResolvedValue({ id: "fetcher-a" });
+      const fetcherA = await provider.getProxyFetcher("keyA", factoryA);
+      expect(fetcherA.id).toBe("fetcher-a");
+      expect(factoryA).toHaveBeenCalledTimes(1);
+
+      // We now have 100 cached fetchers (at max)
+
+      // Access A again - should promote it to end
+      const fetcherAAgain = await provider.getProxyFetcher("keyA", factoryA);
+      expect(fetcherAAgain).toBe(fetcherA);
+      expect(factoryA).toHaveBeenCalledTimes(1); // Still 1 call
+
+      // Add 2 more fetchers to trigger eviction
+      // This should evict the oldest entries (key0 and key1)
+      const factoryB = vi.fn().mockResolvedValue({ id: "fetcher-b" });
+      const factoryC = vi.fn().mockResolvedValue({ id: "fetcher-c" });
+      await provider.getProxyFetcher("keyB", factoryB);
+      await provider.getProxyFetcher("keyC", factoryC);
+
+      // Now key0 should be evicted (it was the oldest)
+      const factory0New = vi.fn().mockResolvedValue({ id: "fetcher-0-new" });
+      const _fetcher0Again = await provider.getProxyFetcher(
+        "key0",
+        factory0New
+      );
+      // key0 should have been evicted and factory should be called
+      expect(factory0New).toHaveBeenCalledTimes(1);
+
+      // A should still be cached (it was promoted)
+      const factoryANew = vi.fn().mockResolvedValue({ id: "fetcher-a-new" });
+      const fetcherAAgain2 = await provider.getProxyFetcher(
+        "keyA",
+        factoryANew
+      );
+      expect(fetcherAAgain2).toBe(fetcherA); // Same instance
+      expect(factoryANew).not.toHaveBeenCalled(); // Factory not called - was cached
     });
   });
 

@@ -147,17 +147,18 @@ describe("Auth0Client - getAccessToken (MRRT)", () => {
     // Instantiate Auth0Client normally, it will use intercepted fetch
     auth0Client = new Auth0Client(testAuth0ClientConfig);
 
+    const initialSession = await createInitialSession();
+
+    // Mock getSessionFromAuthClient (RC-6 helper) to return session
+    vi.spyOn(
+      Auth0Client.prototype as any,
+      "getSessionFromAuthClient"
+    ).mockResolvedValue(initialSession);
+
     // Mock saveToSession to avoid cookie/request context issues
     mockSaveToSession = vi
       .spyOn(Auth0Client.prototype as any, "saveToSession")
       .mockResolvedValue(undefined); // Mock successful save
-
-    const initialSession = await createInitialSession();
-
-    // Mock getSession specifically for this test
-    vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-      initialSession
-    );
   });
 
   afterEach(() => {
@@ -174,11 +175,6 @@ describe("Auth0Client - getAccessToken (MRRT)", () => {
     const audience2 = "https://api2.example.com";
     const scope1 = "read:api1";
     const scope2 = "read:api2";
-
-    const session = await createInitialSession();
-    vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-      session
-    );
 
     // Get token for audience 1
     const result1 = await auth0Client.getAccessToken({
@@ -222,11 +218,6 @@ describe("Auth0Client - getAccessToken (MRRT)", () => {
     const audience2 = "https://api2.example.com";
     const scope1 = "read:api1";
     const scope2 = "read:api2";
-
-    const session = await createInitialSession();
-    vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-      session
-    );
 
     // Get token for audience 1 and audience 2 in parallel
     const [result1, result2] = await Promise.all([
@@ -298,9 +289,10 @@ describe("Auth0Client - getAccessToken (MRRT)", () => {
       internal: { sid, createdAt: Date.now() / 1000 }
     };
 
-    vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-      session
-    );
+    vi.spyOn(
+      Auth0Client.prototype as any,
+      "getSessionFromAuthClient"
+    ).mockResolvedValue(session);
 
     // Get token for audience 1
     const result1 = await auth0Client.getAccessToken({
@@ -367,9 +359,10 @@ describe("Auth0Client - getAccessToken (MRRT)", () => {
       internal: { sid, createdAt: Date.now() / 1000 }
     };
 
-    vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-      session
-    );
+    vi.spyOn(
+      Auth0Client.prototype as any,
+      "getSessionFromAuthClient"
+    ).mockResolvedValue(session);
 
     // Get token for audience 1
     const result1 = await auth0Client.getAccessToken({
@@ -454,9 +447,10 @@ describe("Auth0Client - getAccessToken (MRRT)", () => {
         internal: { sid, createdAt: Math.floor(now.getTime() / 1000) }
       };
 
-      vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-        session
-      );
+      vi.spyOn(
+        Auth0Client.prototype as any,
+        "getSessionFromAuthClient"
+      ).mockResolvedValue(session);
       mockSaveToSession.mockClear();
 
       const result = await auth0Client.getAccessToken({
@@ -507,9 +501,10 @@ describe("Auth0Client - getAccessToken (MRRT)", () => {
         internal: { sid, createdAt: Math.floor(now.getTime() / 1000) }
       };
 
-      vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-        session
-      );
+      vi.spyOn(
+        Auth0Client.prototype as any,
+        "getSessionFromAuthClient"
+      ).mockResolvedValue(session);
       mockSaveToSession.mockClear();
 
       const result = await auth0Client.getAccessToken({
@@ -561,9 +556,10 @@ describe("Auth0Client - getAccessToken (MRRT)", () => {
       internal: { sid, createdAt: Date.now() / 1000 }
     };
 
-    vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-      session
-    );
+    vi.spyOn(
+      Auth0Client.prototype as any,
+      "getSessionFromAuthClient"
+    ).mockResolvedValue(session);
 
     // Get token for audience 1
     const result1 = await auth0Client.getAccessToken({

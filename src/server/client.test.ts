@@ -248,9 +248,9 @@ describe("Auth0Client", () => {
     };
 
     let client: Auth0Client;
-    let mockGetSession: ReturnType<typeof vi.spyOn>;
-    let mockSaveToSession: ReturnType<typeof vi.spyOn>;
-    let mockGetTokenSet: ReturnType<typeof vi.spyOn>; // Re-declare mockGetTokenSet
+    let _mockGetSession: ReturnType<typeof vi.spyOn>;
+    let _mockSaveToSession: ReturnType<typeof vi.spyOn>;
+    let _mockGetTokenSet: ReturnType<typeof vi.spyOn>;
 
     beforeEach(() => {
       // Reset mocks specifically if vi.restoreAllMocks isn't enough
@@ -266,15 +266,19 @@ describe("Auth0Client", () => {
       client = new Auth0Client();
 
       // Mock internal methods of Auth0Client
-      mockGetSession = vi
+      _mockGetSession = vi
         .spyOn(client as any, "getSession")
         .mockResolvedValue(mockSession);
-      mockSaveToSession = vi
+      _mockSaveToSession = vi
         .spyOn(client as any, "saveToSession")
         .mockResolvedValue(undefined);
 
       // Mock the provider's forRequest method to return a mock AuthClient
       const mockAuthClient = {
+        getSessionWithDomainCheck: vi.fn().mockResolvedValue({
+          session: mockSession,
+          error: null
+        }),
         getTokenSet: vi.fn().mockResolvedValue([
           null,
           {
@@ -285,7 +289,7 @@ describe("Auth0Client", () => {
         finalizeSession: vi.fn().mockResolvedValue(mockSession)
       };
 
-      mockGetTokenSet = mockAuthClient.getTokenSet;
+      _mockGetTokenSet = mockAuthClient.getTokenSet;
 
       vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue(
         mockAuthClient
@@ -293,8 +297,19 @@ describe("Auth0Client", () => {
     });
 
     it("should throw AccessTokenError if no session exists", async () => {
-      // Override getSession mock for this specific test
-      mockGetSession.mockResolvedValue(null);
+      // Mock the provider's forRequest method to return a mock AuthClient with no session
+      const mockAuthClient = {
+        getSessionWithDomainCheck: vi.fn().mockResolvedValue({
+          session: null,
+          error: null
+        }),
+        getTokenSet: vi.fn(),
+        finalizeSession: vi.fn()
+      };
+
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue(
+        mockAuthClient
+      );
 
       // Mock request and response objects
       const mockReq = new Request("https://myapp.test/api/test", {
@@ -306,13 +321,24 @@ describe("Auth0Client", () => {
         client.getAccessToken(mockReq as any, mockRes)
       ).rejects.toThrow("The user does not have an active session.");
       // Ensure getTokenSet was not called
-      expect(mockGetTokenSet).not.toHaveBeenCalled();
+      expect(mockAuthClient.getTokenSet).not.toHaveBeenCalled();
     });
 
     it("should throw error from getTokenSet if refresh fails", async () => {
       const refreshError = new Error("Refresh failed");
-      // Restore overriding the getTokenSet mock directly
-      mockGetTokenSet.mockResolvedValue([refreshError, null]);
+      // Mock the provider's forRequest method with refresh error
+      const mockAuthClient = {
+        getSessionWithDomainCheck: vi.fn().mockResolvedValue({
+          session: mockSession,
+          error: null
+        }),
+        getTokenSet: vi.fn().mockResolvedValue([refreshError, null]),
+        finalizeSession: vi.fn()
+      };
+
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue(
+        mockAuthClient
+      );
 
       // Mock request and response objects
       const mockReq = new Request("https://myapp.test/api/test", {
@@ -325,7 +351,8 @@ describe("Auth0Client", () => {
       ).rejects.toThrow("Refresh failed");
 
       // Verify save was not called
-      expect(mockSaveToSession).not.toHaveBeenCalled();
+      const saveToSession = vi.spyOn(client as any, "saveToSession");
+      expect(saveToSession).not.toHaveBeenCalled();
     });
 
     it("should provide the refreshed accessToken to beforeSessionSaved hook", async () => {
@@ -341,9 +368,12 @@ describe("Auth0Client", () => {
       });
 
       // Re-apply mocks for the new client instance
-      vi.spyOn(client as any, "getSession").mockResolvedValue(mockSession);
       vi.spyOn(client as any, "saveToSession").mockResolvedValue(undefined);
       const mockAuthClient = {
+        getSessionWithDomainCheck: vi.fn().mockResolvedValue({
+          session: mockSession,
+          error: null
+        }),
         getTokenSet: vi.fn().mockResolvedValue([
           null,
           {
@@ -392,8 +422,11 @@ describe("Auth0Client", () => {
       const newMockSaveToSession = vi
         .spyOn(client as any, "saveToSession")
         .mockResolvedValue(undefined);
-      vi.spyOn(client as any, "getSession").mockResolvedValue(mockSession);
       const mockAuthClient = {
+        getSessionWithDomainCheck: vi.fn().mockResolvedValue({
+          session: mockSession,
+          error: null
+        }),
         getTokenSet: vi.fn().mockResolvedValue([
           null,
           {
@@ -1148,18 +1181,25 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
     });
 
     it("should get access token for connection with plain Request", async () => {
-      vi.spyOn(client, "getSession").mockResolvedValue(mockSession);
       const expiresAt = Math.floor(Date.now() / 1000) + 3600;
-      const authClient = await client["provider"].forRequest(new Headers());
-      vi.spyOn(authClient, "getConnectionTokenSet").mockResolvedValue([
-        null,
-        {
-          accessToken: "abc",
-          expiresAt: expiresAt,
-          scope: "openid",
-          connection: "github"
-        }
-      ]);
+      const mockAuthClient = {
+        getSessionWithDomainCheck: vi.fn().mockResolvedValue({
+          session: mockSession,
+          error: null
+        }),
+        getConnectionTokenSet: vi.fn().mockResolvedValue([
+          null,
+          {
+            accessToken: "abc",
+            expiresAt: expiresAt,
+            scope: "openid",
+            connection: "github"
+          }
+        ])
+      };
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue(
+        mockAuthClient
+      );
       vi.spyOn(client as any, "saveToSession").mockResolvedValue(undefined);
 
       const req = new Request("https://myapp.test/api/test", { method: "GET" });

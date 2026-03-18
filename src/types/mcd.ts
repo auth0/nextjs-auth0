@@ -68,7 +68,6 @@ export type DomainResolver = (config: {
  *
  * @property ttl - Time-to-live for cached discovery metadata in seconds. Default: 600 (10 minutes).
  * @property maxEntries - Maximum number of cached issuers. Default: 100. LRU eviction.
- * @property maxJwksEntries - Maximum number of cached JWKS entries. Default: 10. Independent LRU eviction.
  *
  * @example
  * ```typescript
@@ -86,7 +85,6 @@ export type DomainResolver = (config: {
 export interface DiscoveryCacheOptions {
   ttl?: number;
   maxEntries?: number;
-  maxJwksEntries?: number;
 }
 
 /**
