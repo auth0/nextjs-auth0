@@ -199,7 +199,10 @@ export const appRouteHandlerFactory =
       loginUrl: string;
     }
   ): WithPageAuthRequiredAppRouter =>
-  <P extends AppRouterPageRouteOpts = AppRouterPageRouteOpts>(handler: AppRouterPageRoute<P>, opts: WithPageAuthRequiredAppRouterOptions = {}) =>
+  <P extends AppRouterPageRouteOpts = AppRouterPageRouteOpts>(
+    handler: AppRouterPageRoute<P>,
+    opts: WithPageAuthRequiredAppRouterOptions = {}
+  ) =>
   async (params: P) => {
     const session = await client.getSession();
 
