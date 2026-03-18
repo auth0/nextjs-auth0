@@ -450,14 +450,8 @@ export class Auth0Client {
       options.clientAssertionSigningAlg ||
       process.env.AUTH0_CLIENT_ASSERTION_SIGNING_ALG;
 
-    // DPoP: Don't validate config here to avoid bundling crypto module
-    // Validation will happen lazily in auth-client when first DPoP operation occurs
-    // This prevents crypto from being bundled when useDPoP is false
-    const resolvedDpopKeyPair = options.dpopKeyPair;
-    const resolvedDpopOptions = options.dpopOptions;
-
     // Early warning if DPoP is enabled but no keypair (doesn't require crypto)
-    if (options.useDPoP && !resolvedDpopKeyPair) {
+    if (options.useDPoP && !options.dpopKeyPair) {
       const privateKeyEnv = process.env.AUTH0_DPOP_PRIVATE_KEY;
       const publicKeyEnv = process.env.AUTH0_DPOP_PUBLIC_KEY;
       const hasBothKeys = Boolean(privateKeyEnv && publicKeyEnv);
@@ -653,8 +647,8 @@ export class Auth0Client {
           enableConnectAccountEndpoint: options.enableConnectAccountEndpoint,
           tokenRefreshBuffer,
           useDPoP: options.useDPoP || false,
-          dpopKeyPair: options.dpopKeyPair || resolvedDpopKeyPair,
-          dpopOptions: options.dpopOptions || resolvedDpopOptions,
+          dpopKeyPair: options.dpopKeyPair,
+          dpopOptions: options.dpopOptions,
           mfaTokenTtl,
 
           discoveryCache,

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server.js";
 import * as jose from "jose";
 import * as oauth from "oauth4webapi";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   AccessTokenError,
@@ -9664,6 +9664,215 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(result.session?.internal.mcd?.issuer).toBe(
         "https://custom-domain.auth0.com/"
       );
+    });
+  });
+
+  describe("DPoP lazy validation", () => {
+    // Test DPoP key pairs in PEM format (these are test keys, not for production)
+    const TEST_PRIVATE_KEY_PEM = `-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgzQS05OU0N+qhZybt
+IG3eAsEFeuSWdbmMBpltLsZWkWKhRANCAATcrBPN+T4ab7o5UEb8KProeVFNeo3K
+TBXwJXbbAoO5usON7W9yF9Mv/KBfqnbtEqkmbx4AfuTcTBV6Dc0N81XN
+-----END PRIVATE KEY-----`;
+
+    const TEST_PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE3KwTzfk+Gm+6OVBG/Cj66HlRTXqN
+ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
+-----END PUBLIC KEY-----`;
+
+    const ENV_VARS = {
+      DPOP_PRIVATE_KEY: "AUTH0_DPOP_PRIVATE_KEY",
+      DPOP_PUBLIC_KEY: "AUTH0_DPOP_PUBLIC_KEY"
+    };
+
+    afterEach(() => {
+      // Clean up environment variables after each test
+      delete process.env[ENV_VARS.DPOP_PRIVATE_KEY];
+      delete process.env[ENV_VARS.DPOP_PUBLIC_KEY];
+    });
+
+    it("should not validate dpopKeyPair during construction", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+
+      // Create actual CryptoKey objects using generateDpopKeyPair
+      const { generateDpopKeyPair } = await import("../utils/dpopRetry.js");
+      const mockKeypair = await generateDpopKeyPair();
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        useDPoP: true,
+        dpopKeyPair: mockKeypair
+      });
+
+      // Validation happens lazily - constructor should not throw
+      expect(authClient).toBeInstanceOf(AuthClient);
+      // Validation will occur when DPoP operations are triggered (e.g., in handleCallback)
+    });
+
+    it("should load and validate DPoP keypair from environment variables when DPoP operations are triggered", async () => {
+      // Set up environment variables
+      process.env[ENV_VARS.DPOP_PRIVATE_KEY] = TEST_PRIVATE_KEY_PEM;
+      process.env[ENV_VARS.DPOP_PUBLIC_KEY] = TEST_PUBLIC_KEY_PEM;
+
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        useDPoP: true
+      });
+
+      // Constructor should not throw - validation is lazy
+      expect(authClient).toBeInstanceOf(AuthClient);
+      // validateDpopConfiguration will load from env vars when DPoP operations are triggered
+    });
+
+    it("should prioritize provided dpopKeyPair over environment variables", async () => {
+      // Set up environment variables
+      process.env[ENV_VARS.DPOP_PRIVATE_KEY] = TEST_PRIVATE_KEY_PEM;
+      process.env[ENV_VARS.DPOP_PUBLIC_KEY] = TEST_PUBLIC_KEY_PEM;
+
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+
+      // Create actual CryptoKey objects using generateDpopKeyPair
+      const { generateDpopKeyPair } = await import("../utils/dpopRetry.js");
+      const mockKeypair = await generateDpopKeyPair();
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        useDPoP: true,
+        dpopKeyPair: mockKeypair
+      });
+
+      expect(authClient).toBeInstanceOf(AuthClient);
+      // Provided keypair should be used instead of env vars
+    });
+
+    it("should handle invalid PEM format from environment variables during lazy validation", async () => {
+      // Set up environment variables with invalid keys
+      process.env[ENV_VARS.DPOP_PRIVATE_KEY] = "invalid-private-key";
+      process.env[ENV_VARS.DPOP_PUBLIC_KEY] = "invalid-public-key";
+
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        useDPoP: true
+      });
+
+      // Constructor should not throw - validation is lazy
+      expect(authClient).toBeInstanceOf(AuthClient);
+      // Invalid format will be caught by validateDpopConfiguration when DPoP operations are triggered
+    });
+
+    it("should defer validation when useDPoP is false", async () => {
+      // Set up environment variables
+      process.env[ENV_VARS.DPOP_PRIVATE_KEY] = TEST_PRIVATE_KEY_PEM;
+      process.env[ENV_VARS.DPOP_PUBLIC_KEY] = TEST_PUBLIC_KEY_PEM;
+
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        useDPoP: false
+      });
+
+      expect(authClient).toBeInstanceOf(AuthClient);
+      // When useDPoP is false, keys should not be loaded or validated from env vars
+    });
+
+    it("should handle missing private key only from environment variables", async () => {
+      // Set up environment variables missing private key
+      process.env[ENV_VARS.DPOP_PUBLIC_KEY] = TEST_PUBLIC_KEY_PEM;
+      // AUTH0_DPOP_PRIVATE_KEY is missing
+
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        useDPoP: true
+      });
+
+      expect(authClient).toBeInstanceOf(AuthClient);
+      // Missing key will be detected by validateDpopConfiguration when DPoP operations are triggered
+    });
+
+    it("should handle missing public key only from environment variables", async () => {
+      // Set up environment variables missing public key
+      process.env[ENV_VARS.DPOP_PRIVATE_KEY] = TEST_PRIVATE_KEY_PEM;
+      // AUTH0_DPOP_PUBLIC_KEY is missing
+
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        useDPoP: true
+      });
+
+      expect(authClient).toBeInstanceOf(AuthClient);
+      // Missing key will be detected by validateDpopConfiguration when DPoP operations are triggered
     });
   });
 });

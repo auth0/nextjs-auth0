@@ -328,7 +328,6 @@ export class AuthClient {
   private dpopKeyPair?: DpopKeyPair;
   private readonly useDPoP: boolean;
   private dpopValidated = false;
-  private readonly dpopOptionsFromConstructor?: DpopOptions;
 
   private readonly mfaTokenTtl: number;
 
@@ -482,23 +481,17 @@ export class AuthClient {
     // MFA token TTL for token encryption
     this.mfaTokenTtl = options.mfaTokenTtl ?? DEFAULT_MFA_CONTEXT_TTL_SECONDS;
 
-    // Store options for lazy validation
-    this.dpopOptionsFromConstructor = options.dpopOptions;
-
-    // Initialize DPoP if keypair provided. Otherwise validate lazily.
-    if ((options.useDPoP ?? false) && options.dpopKeyPair) {
-      this.dpopKeyPair = options.dpopKeyPair;
-      this.dpopOptions = options.dpopOptions;
-      this.dpopValidated = true;
-    }
+    // Store keypair if provided, but validate lazily to avoid crypto bundling
+    this.dpopKeyPair = options.dpopKeyPair;
   }
 
   /**
-   * Lazy validation of DPoP configuration from environment variables.
+   * Lazy validation of DPoP configuration.
+   * Validates both provided keypairs and environment variables.
    * Only imports dpopUtils (with crypto) when actually needed.
    */
   private async ensureDpopValidated(): Promise<void> {
-    if (this.dpopValidated || !this.useDPoP || this.dpopKeyPair) {
+    if (this.dpopValidated || !this.useDPoP) {
       return;
     }
 
@@ -506,8 +499,8 @@ export class AuthClient {
     const dpopModule = await import("../utils/dpopUtils.js");
     const dpopConfig = dpopModule.validateDpopConfiguration({
       useDPoP: this.useDPoP,
-      dpopKeyPair: undefined,
-      dpopOptions: this.dpopOptionsFromConstructor
+      dpopKeyPair: this.dpopKeyPair, // Pass existing keypair for validation
+      dpopOptions: this.dpopOptions
     });
 
     if (dpopConfig.dpopKeyPair) {
