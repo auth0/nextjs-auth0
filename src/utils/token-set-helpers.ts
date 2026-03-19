@@ -1,6 +1,42 @@
 import { AccessTokenSet, SessionData, TokenSet } from "../types/index.js";
 
 /**
+ * Input type for expires-at values that may come from various sources.
+ * Supports number (epoch seconds), string (parseable number), null, or undefined.
+ */
+export type ExpiresAtInput = number | string | null | undefined;
+
+/**
+ * Normalizes an expires at value to a Unix timestamp (seconds).
+ * @param value The value to normalize
+ * @returns The normalized timestamp in seconds, or undefined if invalid
+ */
+export function normalizeExpiresAt(value: ExpiresAtInput): number | undefined {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : undefined;
+  }
+  if (typeof value === "string") {
+    if (value.trim() === "") {
+      return undefined;
+    }
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Checks if a left expires at value is before or equal to a right timestamp.
+ * @param left The expires at value to check
+ * @param right The reference timestamp in seconds
+ * @returns True if left is before or equal to right, false otherwise
+ */
+export function isBeforeOrEqual(left: ExpiresAtInput, right: number): boolean {
+  const normalized = normalizeExpiresAt(left);
+  return normalized !== undefined && normalized <= right;
+}
+
+/**
  * Converts a TokenSet to an AccessTokenSet, including optional audience and scope.
  * @param tokenSet the TokenSet to convert
  * @param options object containing optional audience

@@ -140,6 +140,23 @@
   - [Step-up Authentication](#step-up-authentication)
   - [Handling `MfaRequiredError`](#handling-mfarequirederror)
   - [MFA Tenant Configuration](#mfa-tenant-configuration)
+- [Multiple Custom Domains (MCD)](#multiple-custom-domains-mcd)
+  - [Overview](#overview-1)
+  - [Static Mode (Default)](#static-mode-default)
+  - [Resolver Mode](#resolver-mode)
+    - [Basic Setup](#basic-setup)
+    - [DomainResolver Signature](#domainresolver-signature)
+  - [Use Cases](#use-cases)
+    - [B2C Multi-Brand](#b2c-multi-brand)
+    - [B2B SaaS with Database Lookup](#b2b-saas-with-database-lookup)
+    - [URL-Based Routing](#url-based-routing)
+  - [Discovery Cache Configuration](#discovery-cache-configuration)
+  - [MCD with Dynamic appBaseUrl](#mcd-with-dynamic-appbaseurl)
+  - [Session Domain Isolation](#session-domain-isolation)
+  - [Error Handling](#error-handling-mcd)
+  - [Security Considerations](#security-considerations-mcd)
+  - [Backward Compatibility](#backward-compatibility)
+  - [Debugging MCD Issues](#debugging-mcd-issues)
 
 ## Passing authorization parameters
 
@@ -3628,3 +3645,464 @@ The SDK provides typed error classes for all MFA operations:
 | `MfaTokenNotFoundError` | `mfa_token_not_found` | No MFA context for token | Token not in session |
 | `MfaTokenExpiredError` | `mfa_token_expired` | Token TTL exceeded | Context expired |
 | `MfaTokenInvalidError` | `mfa_token_invalid` | Token tampered or wrong secret | Decryption failed |
+
+## Multiple Custom Domains (MCD)
+
+### Overview
+
+Multiple Custom Domains (MCD) enables a single `@auth0/nextjs-auth0` instance to authenticate users against different Auth0 custom domains on the same tenant. This is useful for:
+
+- **B2C Multi-Brand**: Multiple branded auth domains (`auth.brand1.com`, `auth.brand2.com`) on a single Auth0 tenant
+- **B2B SaaS**: Dynamic per-customer domains (`auth.customer-a.com`, `auth.customer-b.com`) resolved at runtime
+- **Domain Migration**: Both old and new domains valid simultaneously during transition
+
+The SDK operates in two modes:
+
+| Mode | Configuration | Behavior |
+|------|--------------|----------|
+| **Static** (default) | `domain: "example.auth0.com"` | Single domain, zero overhead, existing behavior preserved |
+| **Resolver** | `domain: (ctx) => string` | Per-request domain resolution via `DomainResolver` function |
+
+### Static Mode (Default)
+
+Static mode requires no changes. Existing applications continue to work as-is:
+
+```ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+// Static mode — single domain, same as pre-MCD behavior
+export const auth0 = new Auth0Client({
+  domain: "example.us.auth0.com"
+});
+```
+
+Or via environment variable:
+
+```env
+AUTH0_DOMAIN=example.us.auth0.com
+```
+
+### Resolver Mode
+
+#### Basic Setup
+
+Pass a function as the `domain` option to enable resolver mode:
+
+```ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+export const auth0 = new Auth0Client({
+  domain: ({ headers }) => {
+    const host = headers.get("host") ?? "";
+    if (host.startsWith("brand1.")) return "auth.brand1.com";
+    if (host.startsWith("brand2.")) return "auth.brand2.com";
+    return "auth.default.com";
+  }
+});
+```
+
+> [!IMPORTANT]
+> In resolver mode, the SDK automatically enforces the `openid` scope to ensure the callback contains an ID token with an `iss` claim for issuer validation.
+
+#### DomainResolver Signature
+
+```ts
+type DomainResolver = (config: {
+  headers: Headers;
+  url?: URL;
+}) => Promise<string> | string;
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `config.headers` | `Headers` | Request headers from the current context |
+| `config.url` | `URL \| undefined` | Request URL when available. `undefined` in Server Components/Actions |
+
+**Context availability by Next.js environment:**
+
+| Environment | `headers` | `url` |
+|------------|-----------|-------|
+| Middleware / Route Handlers | From `NextRequest` | `NextRequest.nextUrl` |
+| Pages Router (`getServerSideProps`, API Routes) | From `IncomingMessage` | Constructed from `req.url` + Host |
+| App Router Server Components / Server Actions | Via `headers()` from `next/headers` | `undefined` |
+
+**Return value:** The Auth0 custom domain hostname (e.g., `"auth.brand1.com"`). Must throw on failure — the SDK wraps thrown errors in `DomainResolutionError`.
+
+### Use Cases
+
+#### B2C Multi-Brand
+
+Multiple branded login experiences on a single tenant. Each brand has its own Auth0 custom domain.
+
+```ts
+export const auth0 = new Auth0Client({
+  domain: ({ headers }) => {
+    const host = headers.get("host") ?? "";
+
+    const brandDomains: Record<string, string> = {
+      "brand1.example.com": "auth.brand1.com",
+      "brand2.example.com": "auth.brand2.com",
+    };
+
+    const domain = brandDomains[host];
+    if (!domain) throw new Error(`Unknown brand host: ${host}`);
+    return domain;
+  }
+});
+```
+
+#### B2B SaaS with Database Lookup
+
+Resolve the Auth0 domain from a tenant database at runtime:
+
+```ts
+export const auth0 = new Auth0Client({
+  domain: async ({ headers }) => {
+    const tenantId = headers.get("x-tenant-id");
+    if (!tenantId) throw new Error("Missing x-tenant-id header");
+
+    const tenant = await db.tenants.findUnique({ where: { id: tenantId } });
+    if (!tenant?.auth0Domain) {
+      throw new Error(`No Auth0 domain configured for tenant: ${tenantId}`);
+    }
+
+    return tenant.auth0Domain;
+  }
+});
+```
+
+#### URL-Based Routing
+
+Use the request URL to determine the domain (available in Middleware and Route Handlers):
+
+```ts
+export const auth0 = new Auth0Client({
+  domain: ({ url }) => {
+    const subdomain = url?.hostname?.split(".")[0];
+
+    switch (subdomain) {
+      case "us": return "auth-us.example.com";
+      case "eu": return "auth-eu.example.com";
+      default:   return "auth.example.com";
+    }
+  }
+});
+```
+
+> [!NOTE]
+> `url` is `undefined` in Server Components and Server Actions. If your resolver depends on the URL, fall back to parsing `headers.get("host")` or use a cookie/header-based approach for those contexts.
+
+### Discovery Cache Configuration
+
+The SDK caches OIDC discovery metadata (`.well-known/openid-configuration`) to minimize network requests. Configure via the `discoveryCache` option:
+
+```ts
+export const auth0 = new Auth0Client({
+  domain: myDomainResolver,
+  discoveryCache: {
+    ttl: 300,           // Cache TTL in seconds (default: 600)
+    maxEntries: 50,     // Max cached issuers (default: 100, LRU eviction)
+    maxJwksEntries: 20  // Max cached JWKS entries (default: 10, LRU eviction)
+  }
+});
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `ttl` | `number` | `600` | Time-to-live for cached metadata (seconds) |
+| `maxEntries` | `number` | `100` | Maximum issuers to cache (LRU eviction when exceeded) |
+| `maxJwksEntries` | `number` | `10` | Maximum JWKS endpoints to cache (independent LRU) |
+
+The cache also deduplicates in-flight requests — multiple concurrent requests for the same domain share a single discovery fetch.
+
+### MCD with Dynamic appBaseUrl
+
+`domain` and `appBaseUrl` are orthogonal:
+
+- **`domain`** resolves which Auth0 custom domain to authenticate against
+- **`appBaseUrl`** resolves your application's own origin for `redirect_uri` construction
+
+All `appBaseUrl` modes compose with MCD resolver mode:
+
+```ts
+// B2C Multi-Brand: single app domain, multiple Auth0 domains
+export const auth0 = new Auth0Client({
+  appBaseUrl: "https://app.example.com",
+  domain: ({ headers }) => {
+    // Resolve Auth0 domain from a cookie or header
+    const brand = headers.get("x-brand") ?? "default";
+    return `auth.${brand}.example.com`;
+  }
+});
+```
+
+```ts
+// B2B Multi-Tenant: dynamic app origins + dynamic Auth0 domains
+export const auth0 = new Auth0Client({
+  appBaseUrl: [
+    "https://tenant-a.example.com",
+    "https://tenant-b.example.com"
+  ],
+  domain: async ({ headers }) => {
+    const host = headers.get("host") ?? "";
+    return await resolveTenantDomain(host);
+  }
+});
+```
+
+```ts
+// Fully Dynamic: inferred app origin + dynamic Auth0 domains
+export const auth0 = new Auth0Client({
+  // appBaseUrl omitted — inferred from request host
+  domain: async ({ headers }) => {
+    return await lookupAuth0Domain(headers);
+  }
+});
+```
+
+> [!IMPORTANT]
+> When using MCD with dynamic `appBaseUrl`, ensure all resulting callback and logout URLs are registered in your Auth0 application's **Allowed Callback URLs** and **Allowed Logout URLs**.
+
+> [!WARNING]
+> If your application is served through multiple hostnames (e.g., a reverse proxy, multi-brand fronts, or preview deployments), a static `APP_BASE_URL` / `appBaseUrl` string will force all `redirect_uri` values to that single origin — regardless of which hostname the user actually accessed. This causes **state parameter mismatches** because the transaction cookie is set on one origin but the callback arrives on another.
+>
+> | Scenario | Recommended `appBaseUrl` |
+> |----------|--------------------------|
+> | Single app hostname, multiple Auth0 domains | Static string: `"https://app.example.com"` |
+> | Multiple app hostnames, multiple Auth0 domains | Allow-list: `["https://brand1.com", "https://brand2.com"]` |
+> | Fully dynamic app hostnames | Omit `appBaseUrl` entirely (SDK infers from `x-forwarded-proto` / `x-forwarded-host` headers) |
+>
+> If you are migrating to MCD resolver mode and your app is reachable on multiple origins, **remove or replace your static `APP_BASE_URL`** with an allow-list or omit it to enable per-request inference.
+
+### Session Domain Isolation
+
+In resolver mode, sessions are bound to the domain that created them. The SDK stores domain and issuer metadata in the session's internal state:
+
+```
+SessionData.internal.mcd = {
+  domain: "auth.brand1.com",
+  issuer: "https://auth.brand1.com/"
+}
+```
+
+**Behavior:**
+
+- When reading a session (`getSession`, `getAccessToken`, middleware), the SDK resolves the current domain and compares it to `session.internal.mcd.domain`
+- If domains differ, the session is treated as **not found** (returns `null`) and a `SessionDomainMismatchError` is returned internally — the user must re-authenticate
+- If domain resolution itself fails, `DomainResolutionError` is thrown
+- In static mode, no domain check is performed (backward compatible)
+- **Pre-MCD sessions** (created before MCD support, without `internal.mcd` metadata) are automatically backfilled with the current domain and issuer on first access. This is a fail-open strategy: the session is accepted and tagged with the current domain. If the user later accesses the app on a different MCD domain, the backfilled session will be rejected due to domain mismatch
+
+This prevents a session created via `auth.brand1.com` from being used when the request resolves to `auth.brand2.com`, even if cookies are shared across subdomains.
+
+### Error Handling {#error-handling-mcd}
+
+MCD introduces three new error classes, all extending `SdkError`:
+
+```ts
+import {
+  DomainResolutionError,
+  DomainValidationError,
+  IssuerValidationError,
+  SessionDomainMismatchError,
+  McdBackchannelLogoutError
+} from "@auth0/nextjs-auth0/server";
+```
+
+| Error | Code | When Thrown |
+|-------|------|-------------|
+| `DomainResolutionError` | `domain_resolution_error` | Resolver throws or returns empty string |
+| `DomainValidationError` | `domain_validation_error` | Resolved domain is not a valid hostname (IP, localhost, IPv6, has path/port) |
+| `IssuerValidationError` | `issuer_validation_error` | ID token `iss` claim doesn't match the expected issuer during callback |
+| `SessionDomainMismatchError` | `session_domain_mismatch` | Session was created for a different MCD domain than the current request resolves to |
+| `McdBackchannelLogoutError` | `backchannel_logout_error` | Backchannel logout request fails in MCD context (e.g., domain resolution fails during logout) |
+
+**Handling resolver errors:**
+
+```ts
+import { auth0 } from "@/lib/auth0";
+import { DomainResolutionError } from "@auth0/nextjs-auth0/server";
+
+export default async function Page() {
+  try {
+    const session = await auth0.getSession();
+    // ...
+  } catch (error) {
+    if (error instanceof DomainResolutionError) {
+      // Domain resolver failed — possibly missing header or DB error
+      console.error("Domain resolution failed:", error.message, error.cause);
+      // Show fallback or redirect
+    }
+    throw error;
+  }
+}
+```
+
+**Handling issuer validation errors:**
+
+`IssuerValidationError` is thrown during the authentication callback when the ID token's issuer doesn't match the transaction's expected issuer. This indicates a potential cross-domain token confusion attack or misconfiguration.
+
+```ts
+export const auth0 = new Auth0Client({
+  domain: myResolver,
+  onCallback: async (error, context, session) => {
+    if (error instanceof IssuerValidationError) {
+      console.error(
+        `Issuer mismatch: expected ${error.expectedIssuer}, got ${error.actualIssuer}`
+      );
+      return new NextResponse("Authentication failed", { status: 403 });
+    }
+    // Handle other errors...
+  }
+});
+```
+
+### Security Considerations {#security-considerations-mcd}
+
+#### DomainResolver Patterns
+
+When implementing a `DomainResolver`, always prioritize the `url` parameter over headers for hostname resolution, as the `url` is parsed by Next.js from the actual request and is not affected by spoofed x-forwarded-* headers.
+
+**Preferred pattern: Use the `url` parameter**
+
+The `url` parameter is parsed by Next.js and represents the actual request URL, making it resistant to header spoofing attacks:
+
+```typescript
+const auth0 = new Auth0Client({
+  domain: ({ url }) => {
+    const hostname = url?.hostname ?? "default.example.com";
+    const ALLOWED_HOSTS = ["brand1.example.com", "brand2.example.com"];
+    if (!ALLOWED_HOSTS.includes(hostname)) {
+      throw new Error(`Untrusted hostname: ${hostname}`);
+    }
+    return hostname.startsWith("brand1.") ? "auth.brand1.com" : "auth.brand2.com";
+  }
+});
+```
+
+**If using headers: Always validate against a known allow-list**
+
+When `url` is unavailable (e.g., in Server Components or Server Actions), you must fall back to header-based resolution with strict validation:
+
+```typescript
+const auth0 = new Auth0Client({
+  domain: ({ headers }) => {
+    const host = headers.get("host") ?? "";
+    const ALLOWED_HOSTS = ["brand1.example.com", "brand2.example.com"];
+    if (!ALLOWED_HOSTS.includes(host)) {
+      throw new Error(`Untrusted host header: ${host}`);
+    }
+    return host.startsWith("brand1.") ? "auth.brand1.com" : "auth.brand2.com";
+  }
+});
+```
+
+**Warning: x-forwarded-* headers**
+
+In self-hosted deployments, the `x-forwarded-host` and `x-forwarded-proto` headers can be set by attackers if your reverse proxy is not properly configured. These headers are not cryptographically signed and bypass application validation. Use the `url` parameter whenever possible, as it's parsed by Next.js from the actual request URL and is not affected by spoofed forwarding headers.
+
+#### X-Forwarded Headers Trust Model
+
+When deploying behind a reverse proxy, the SDK's `inferBaseUrlFromRequest()` uses `x-forwarded-host` and `x-forwarded-proto` headers to determine the application's base URL. These headers are trusted by default.
+
+**Risk**: In self-hosted deployments without proper reverse proxy configuration, an attacker can set these headers to manipulate the resolved base URL, potentially enabling:
+- Open redirects via the `returnTo` parameter after authentication
+- Cookie domain misalignment in allow-list mode
+
+**Who is affected**:
+- Vercel deployments: NOT affected (Vercel strips/validates these headers)
+- Self-hosted behind properly configured reverse proxy: NOT affected (proxy overwrites headers)
+- Self-hosted WITHOUT reverse proxy or with misconfigured proxy: AFFECTED
+
+**Mitigations**:
+1. Always set a static `appBaseUrl` in production when possible — this bypasses header inference entirely
+2. When using `appBaseUrl` as an array (allow-list mode), the SDK validates the inferred URL against the allow-list, limiting the attack surface
+3. Ensure your reverse proxy sets `x-forwarded-host` and `x-forwarded-proto` and does not pass through client-supplied values
+4. When using a DomainResolver, prefer the `url` parameter over raw headers (as shown in the DomainResolver Patterns section above)
+
+```typescript
+// SAFE: Static appBaseUrl bypasses header inference
+const auth0 = new Auth0Client({
+  appBaseUrl: "https://myapp.example.com",
+  // ...
+});
+
+// SAFE: Allow-list validates inferred URL
+const auth0 = new Auth0Client({
+  appBaseUrl: [
+    "https://brand1.example.com",
+    "https://brand2.example.com"
+  ],
+  // ...
+});
+```
+
+#### Resolver Input Validation
+
+The `DomainResolver` receives request headers and optional URL. The SDK validates the resolver's **output** (domain hostname format), but the resolver is responsible for its own **input** validation:
+
+```ts
+// GOOD: Validate against an allowlist
+const auth0 = new Auth0Client({
+  domain: ({ headers }) => {
+    const host = headers.get("host") ?? "";
+    const allowed = ["brand1.example.com", "brand2.example.com"];
+    const match = allowed.find(d => host.includes(d));
+    if (!match) throw new Error(`Untrusted host: ${host}`);
+    return domainMap[match];
+  }
+});
+
+// BAD: Trusting raw header input without validation
+const auth0 = new Auth0Client({
+  domain: ({ headers }) => {
+    return headers.get("x-auth-domain")!; // Never trust raw headers!
+  }
+});
+```
+
+#### Domain Validation
+
+The SDK rejects domains that are:
+- IPv4 or IPv6 addresses
+- `localhost` or `.local` domains (unless `allowInsecureRequests` is enabled for dev)
+- Hostnames containing paths, ports, or non-HTTPS schemes
+
+#### Issuer Validation
+
+During the authentication callback, the SDK performs dual-layer issuer validation:
+1. Uses the transaction's `originDomain` for OIDC discovery (not the currently resolved domain)
+2. Explicitly compares the ID token `iss` claim against the stored `originIssuer`
+
+This prevents cross-domain token confusion where an attacker redirects the callback to a different domain.
+
+### Backward Compatibility
+
+MCD is fully backward compatible:
+
+- **Existing apps**: No changes required. `domain: "string"` and `AUTH0_DOMAIN` env var work as before
+- **Pre-MCD sessions**: Sessions without `internal.mcd` metadata continue to work in static mode. In resolver mode, pre-MCD sessions are rejected (fail-closed) to prevent domain confusion
+- **In-flight transactions**: Transaction cookies without `originDomain`/`originIssuer` are handled gracefully during SDK upgrades. The extra issuer validation is skipped for legacy transactions
+- **Type safety**: `domain` accepts `string | DomainResolver` — existing string configurations are unchanged
+
+### Debugging MCD Issues
+
+**Common issues and solutions:**
+
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| `DomainResolutionError` on every request | Resolver throws or returns empty | Check resolver logic and available headers |
+| Session returns `null` unexpectedly | Domain mismatch between login and current request | Verify resolver returns the same domain for login and subsequent requests |
+| `IssuerValidationError` during callback | Token issued by different domain than expected | Ensure the resolver is deterministic for the same user/session |
+| `DomainValidationError` | Resolver returned an IP, localhost, or invalid hostname | Return a valid FQDN from the resolver |
+| Pre-MCD sessions rejected | Upgrading to resolver mode with existing sessions | Users need to re-authenticate. Sessions created in static mode lack domain metadata |
+
+**Inspecting session domain metadata:**
+
+```ts
+const session = await auth0.getSession();
+if (session) {
+  console.log("Session domain:", session.internal.mcd?.domain);
+  console.log("Session issuer:", session.internal.mcd?.issuer);
+}
+```

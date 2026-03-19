@@ -23,6 +23,7 @@ import {
 import { DEFAULT_SCOPES } from "../utils/constants.js";
 import { AuthClient } from "./auth-client.js";
 import { decrypt, encrypt } from "./cookies.js";
+import { DiscoveryCache } from "./discovery-cache.js";
 import { StatefulSessionStore } from "./session/stateful-session-store.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import { TransactionState, TransactionStore } from "./transaction-store.js";
@@ -172,6 +173,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
             discoveryResponse ?? Response.json(_authorizationServerMetadata)
           );
         }
+        // JWKS endpoint
+        if (url.pathname === "/.well-known/jwks.json") {
+          const publicJwk = await jose.exportJWK(DEFAULT.keyPair.publicKey);
+          return Response.json({ keys: [publicJwk] });
+        }
         // PAR endpoint
         if (url.pathname === "/oauth/par") {
           if (onParRequest) {
@@ -308,6 +314,15 @@ ca/T0LLtgmbMmxSv/MmzIg==
       },
       uat: Date.now() - 1000 * 60
     };
+  }
+
+  async function getDiscoveryCacheWithJWKS(): Promise<DiscoveryCache> {
+    const cache = new DiscoveryCache();
+    const jwksUri = `https://${DEFAULT.domain}/.well-known/jwks.json`;
+    const entry = cache.getJwksCacheForUri(jwksUri);
+    const cachedJwks = await getCachedJWKS();
+    Object.assign(entry, cachedJwks);
+    return cache;
   }
 
   describe("initialization", async () => {
@@ -788,7 +803,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
             },
             internal: {
               sid: DEFAULT.sid,
-              createdAt: expect.any(Number)
+              createdAt: expect.any(Number),
+              mcd: {
+                domain: DEFAULT.domain,
+                issuer: `https://${DEFAULT.domain}/`
+              }
             }
           })
         );
@@ -5034,7 +5053,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
           },
           internal: {
             sid: expect.any(String),
-            createdAt: expect.any(Number)
+            createdAt: expect.any(Number),
+            mcd: {
+              domain: DEFAULT.domain,
+              issuer: `https://${DEFAULT.domain}/`
+            }
           }
         });
         const expectedContext = expect.objectContaining({
@@ -5753,7 +5776,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer(),
-        jwksCache: await getCachedJWKS()
+        discoveryCache: await getDiscoveryCacheWithJWKS()
       });
 
       const request = new NextRequest(
@@ -5798,8 +5821,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         routes: getDefaultRoutes(),
 
-        fetch: getMockAuthorizationServer(),
-        jwksCache: await getCachedJWKS()
+        fetch: getMockAuthorizationServer()
       });
 
       const request = new NextRequest(
@@ -5845,8 +5867,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         routes: getDefaultRoutes(),
 
-        fetch: getMockAuthorizationServer(),
-        jwksCache: await getCachedJWKS()
+        fetch: getMockAuthorizationServer()
       });
 
       const request = new NextRequest(
@@ -5896,7 +5917,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
-          jwksCache: await getCachedJWKS()
+          discoveryCache: await getDiscoveryCacheWithJWKS()
         });
 
         const request = new NextRequest(
@@ -5947,7 +5968,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
-          jwksCache: await getCachedJWKS()
+          discoveryCache: await getDiscoveryCacheWithJWKS()
         });
 
         const request = new NextRequest(
@@ -5992,7 +6013,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
-          jwksCache: await getCachedJWKS()
+          discoveryCache: await getDiscoveryCacheWithJWKS()
         });
 
         const request = new NextRequest(
@@ -6044,7 +6065,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
-          jwksCache: await getCachedJWKS()
+          discoveryCache: await getDiscoveryCacheWithJWKS()
         });
 
         const request = new NextRequest(
@@ -6095,7 +6116,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
-          jwksCache: await getCachedJWKS()
+          discoveryCache: await getDiscoveryCacheWithJWKS()
         });
 
         const request = new NextRequest(
@@ -6146,7 +6167,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
-          jwksCache: await getCachedJWKS()
+          discoveryCache: await getDiscoveryCacheWithJWKS()
         });
 
         const request = new NextRequest(
@@ -6197,7 +6218,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
-          jwksCache: await getCachedJWKS()
+          discoveryCache: await getDiscoveryCacheWithJWKS()
         });
 
         const request = new NextRequest(
@@ -6248,7 +6269,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
-          jwksCache: await getCachedJWKS()
+          discoveryCache: await getDiscoveryCacheWithJWKS()
         });
 
         const request = new NextRequest(

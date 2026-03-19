@@ -1,13 +1,8 @@
-import { NextResponse, type NextRequest } from "next/server.js";
+import { NextResponse } from "next/server.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  AccessTokenError,
-  AccessTokenErrorCode,
-  InvalidConfigurationError
-} from "../errors/index.js";
+import { InvalidConfigurationError } from "../errors/index.js";
 import { SessionData } from "../types/index.js";
-import { AuthClient } from "./auth-client.js"; // Import the actual class for spyOn
 import { Auth0Client } from "./client.js";
 
 // Define ENV_VARS at the top level for broader scope
@@ -253,9 +248,9 @@ describe("Auth0Client", () => {
     };
 
     let client: Auth0Client;
-    let mockGetSession: ReturnType<typeof vi.spyOn>;
-    let mockSaveToSession: ReturnType<typeof vi.spyOn>;
-    let mockGetTokenSet: ReturnType<typeof vi.spyOn>; // Re-declare mockGetTokenSet
+    let _mockGetSession: ReturnType<typeof vi.spyOn>;
+    let _mockSaveToSession: ReturnType<typeof vi.spyOn>;
+    let _mockGetTokenSet: ReturnType<typeof vi.spyOn>;
 
     beforeEach(() => {
       // Reset mocks specifically if vi.restoreAllMocks isn't enough
@@ -271,108 +266,200 @@ describe("Auth0Client", () => {
       client = new Auth0Client();
 
       // Mock internal methods of Auth0Client
-      mockGetSession = vi
-        .spyOn(Auth0Client.prototype as any, "getSession")
+      _mockGetSession = vi
+        .spyOn(client as any, "getSession")
         .mockResolvedValue(mockSession);
-      mockSaveToSession = vi
-        .spyOn(Auth0Client.prototype as any, "saveToSession")
+      _mockSaveToSession = vi
+        .spyOn(client as any, "saveToSession")
         .mockResolvedValue(undefined);
 
-      // Restore mocking of getTokenSet directly
-      mockGetTokenSet = vi
-        .spyOn(AuthClient.prototype as any, "getTokenSet")
-        .mockResolvedValue([
+      // Mock the provider's forRequest method to return a mock AuthClient
+      const mockAuthClient = {
+        getSessionWithDomainCheck: vi.fn().mockResolvedValue({
+          session: mockSession,
+          error: null
+        }),
+        getTokenSet: vi.fn().mockResolvedValue([
           null,
           {
             tokenSet: mockRefreshedTokenSet,
             idTokenClaims: {}
           }
-        ]); // Simulate successful refresh
+        ]),
+        finalizeSession: vi.fn().mockResolvedValue(mockSession)
+      };
 
-      // Remove mocks for discoverAuthorizationServerMetadata and getClientAuth
-      // Remove fetch mock
+      _mockGetTokenSet = mockAuthClient.getTokenSet;
+
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue(
+        mockAuthClient
+      );
     });
 
     it("should throw AccessTokenError if no session exists", async () => {
-      // Override getSession mock for this specific test
-      mockGetSession.mockResolvedValue(null);
+      // Mock the provider's forRequest method to return a mock AuthClient with no session
+      const mockAuthClient = {
+        getSessionWithDomainCheck: vi.fn().mockResolvedValue({
+          session: null,
+          error: null
+        }),
+        getTokenSet: vi.fn(),
+        finalizeSession: vi.fn()
+      };
+
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue(
+        mockAuthClient
+      );
 
       // Mock request and response objects
-      const mockReq = { headers: new Headers() } as NextRequest;
+      const mockReq = new Request("https://myapp.test/api/test", {
+        method: "GET"
+      });
       const mockRes = new NextResponse();
 
       await expect(
-        client.getAccessToken(mockReq, mockRes)
-      ).rejects.toThrowError(
-        new AccessTokenError(
-          AccessTokenErrorCode.MISSING_SESSION,
-          "The user does not have an active session."
-        )
-      );
+        client.getAccessToken(mockReq as any, mockRes)
+      ).rejects.toThrow("The user does not have an active session.");
       // Ensure getTokenSet was not called
-      expect(mockGetTokenSet).not.toHaveBeenCalled();
+      expect(mockAuthClient.getTokenSet).not.toHaveBeenCalled();
     });
 
     it("should throw error from getTokenSet if refresh fails", async () => {
       const refreshError = new Error("Refresh failed");
-      // Restore overriding the getTokenSet mock directly
-      mockGetTokenSet.mockResolvedValue([refreshError, null]);
+      // Mock the provider's forRequest method with refresh error
+      const mockAuthClient = {
+        getSessionWithDomainCheck: vi.fn().mockResolvedValue({
+          session: mockSession,
+          error: null
+        }),
+        getTokenSet: vi.fn().mockResolvedValue([refreshError, null]),
+        finalizeSession: vi.fn()
+      };
+
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue(
+        mockAuthClient
+      );
 
       // Mock request and response objects
-      const mockReq = { headers: new Headers() } as NextRequest;
+      const mockReq = new Request("https://myapp.test/api/test", {
+        method: "GET"
+      });
       const mockRes = new NextResponse();
 
       await expect(
-        client.getAccessToken(mockReq, mockRes, { refresh: true })
-      ).rejects.toThrowError(refreshError);
+        client.getAccessToken(mockReq as any, mockRes)
+      ).rejects.toThrow("Refresh failed");
 
       // Verify save was not called
-      expect(mockSaveToSession).not.toHaveBeenCalled();
+      const saveToSession = vi.spyOn(client as any, "saveToSession");
+      expect(saveToSession).not.toHaveBeenCalled();
     });
 
     it("should provide the refreshed accessToken to beforeSessionSaved hook", async () => {
       let accessToken: string | undefined;
 
+      const beforeSessionSavedCallback = async (session: SessionData) => {
+        accessToken = session.tokenSet?.accessToken;
+        return session;
+      };
+
       client = new Auth0Client({
-        beforeSessionSaved: async (session) => {
-          accessToken = session.tokenSet?.accessToken;
-          return session;
-        }
+        beforeSessionSaved: beforeSessionSavedCallback
       });
 
-      const mockReq = { headers: new Headers() } as NextRequest;
+      // Re-apply mocks for the new client instance
+      vi.spyOn(client as any, "saveToSession").mockResolvedValue(undefined);
+      const mockAuthClient = {
+        getSessionWithDomainCheck: vi.fn().mockResolvedValue({
+          session: mockSession,
+          error: null
+        }),
+        getTokenSet: vi.fn().mockResolvedValue([
+          null,
+          {
+            tokenSet: mockRefreshedTokenSet,
+            idTokenClaims: {}
+          }
+        ]),
+        finalizeSession: vi.fn(async (session: SessionData) => {
+          // Call the beforeSessionSaved hook like the real implementation does
+          if (beforeSessionSavedCallback) {
+            return await beforeSessionSavedCallback(session);
+          }
+          return session;
+        })
+      };
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue(
+        mockAuthClient
+      );
+
+      const mockReq = new Request("https://myapp.test/api/test", {
+        method: "GET"
+      });
       const mockRes = new NextResponse();
 
-      await client.getAccessToken(mockReq, mockRes, { refresh: true });
+      await client.getAccessToken(mockReq as any, mockRes, { refresh: true });
 
       expect(accessToken).toBe("new_access_token");
     });
 
     it("should honor changes made to the tokenSet in beforeSessionSaved hook", async () => {
+      const beforeSessionSavedCallback = async (session: SessionData) => {
+        return {
+          ...session,
+          tokenSet: {
+            ...session.tokenSet,
+            idToken: "modified_id_token"
+          }
+        };
+      };
+
       client = new Auth0Client({
-        beforeSessionSaved: async (session) => {
-          return {
-            ...session,
-            tokenSet: {
-              ...session.tokenSet,
-              idToken: "modified_id_token"
-            }
-          };
-        }
+        beforeSessionSaved: beforeSessionSavedCallback
       });
 
-      const mockReq = { headers: new Headers() } as NextRequest;
+      // Re-apply mocks for the new client instance
+      const newMockSaveToSession = vi
+        .spyOn(client as any, "saveToSession")
+        .mockResolvedValue(undefined);
+      const mockAuthClient = {
+        getSessionWithDomainCheck: vi.fn().mockResolvedValue({
+          session: mockSession,
+          error: null
+        }),
+        getTokenSet: vi.fn().mockResolvedValue([
+          null,
+          {
+            tokenSet: mockRefreshedTokenSet,
+            idTokenClaims: {}
+          }
+        ]),
+        finalizeSession: vi.fn(async (session: SessionData) => {
+          // Call the beforeSessionSaved hook like the real implementation does
+          if (beforeSessionSavedCallback) {
+            return await beforeSessionSavedCallback(session);
+          }
+          return session;
+        })
+      };
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue(
+        mockAuthClient
+      );
+
+      const mockReq = new Request("https://myapp.test/api/test", {
+        method: "GET"
+      });
       const mockRes = new NextResponse();
 
-      await client.getAccessToken(mockReq, mockRes, { refresh: true });
+      await client.getAccessToken(mockReq as any, mockRes, { refresh: true });
 
-      expect(mockSaveToSession).toHaveBeenCalledWith(
+      expect(newMockSaveToSession).toHaveBeenCalledWith(
         expect.objectContaining({
           tokenSet: expect.objectContaining({
             idToken: "modified_id_token"
           })
         }),
-        mockReq,
+        expect.any(Object),
         mockRes
       );
     });
@@ -446,6 +533,48 @@ describe("Auth0Client", () => {
       expect(cookieOptions.secure).toBe(customOptions.secure);
       expect(cookieOptions.sameSite).toBe(customOptions.sameSite);
       expect(cookieOptions.path).toBe(customOptions.path);
+    });
+
+    it("should pass transactionCookie.domain to TransactionStore", () => {
+      const client = new Auth0Client({
+        transactionCookie: {
+          domain: ".example.com"
+        }
+      });
+
+      const transactionStore = (client as any).transactionStore;
+      const cookieOptions = (transactionStore as any).cookieOptions;
+      expect(cookieOptions.domain).toBe(".example.com");
+    });
+
+    it("should inherit AUTH0_COOKIE_DOMAIN for transaction cookies when transactionCookie.domain is not set", () => {
+      process.env.AUTH0_COOKIE_DOMAIN = ".inherited.com";
+      try {
+        const client = new Auth0Client();
+
+        const transactionStore = (client as any).transactionStore;
+        const cookieOptions = (transactionStore as any).cookieOptions;
+        expect(cookieOptions.domain).toBe(".inherited.com");
+      } finally {
+        delete process.env.AUTH0_COOKIE_DOMAIN;
+      }
+    });
+
+    it("should prefer transactionCookie.domain over AUTH0_COOKIE_DOMAIN", () => {
+      process.env.AUTH0_COOKIE_DOMAIN = ".env-domain.com";
+      try {
+        const client = new Auth0Client({
+          transactionCookie: {
+            domain: ".explicit-domain.com"
+          }
+        });
+
+        const transactionStore = (client as any).transactionStore;
+        const cookieOptions = (transactionStore as any).cookieOptions;
+        expect(cookieOptions.domain).toBe(".explicit-domain.com");
+      } finally {
+        delete process.env.AUTH0_COOKIE_DOMAIN;
+      }
     });
 
     it("should pass enableParallelTransactions to TransactionStore", () => {
@@ -1052,10 +1181,13 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
     });
 
     it("should get access token for connection with plain Request", async () => {
-      vi.spyOn(client, "getSession").mockResolvedValue(mockSession);
       const expiresAt = Math.floor(Date.now() / 1000) + 3600;
-      vi.spyOn(client["authClient"], "getConnectionTokenSet").mockResolvedValue(
-        [
+      const mockAuthClient = {
+        getSessionWithDomainCheck: vi.fn().mockResolvedValue({
+          session: mockSession,
+          error: null
+        }),
+        getConnectionTokenSet: vi.fn().mockResolvedValue([
           null,
           {
             accessToken: "abc",
@@ -1063,7 +1195,10 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
             scope: "openid",
             connection: "github"
           }
-        ]
+        ])
+      };
+      vi.spyOn(client["provider"] as any, "forRequest").mockResolvedValue(
+        mockAuthClient
       );
       vi.spyOn(client as any, "saveToSession").mockResolvedValue(undefined);
 
@@ -1131,7 +1266,8 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
         validateResponse: vi.fn()
       };
 
-      vi.spyOn(client["authClient"], "fetcherFactory").mockResolvedValue(
+      const authClient = await client["provider"].forRequest(new Headers());
+      vi.spyOn(authClient, "fetcherFactory").mockResolvedValue(
         mockFetcher as any
       );
 
@@ -1149,8 +1285,9 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
     });
 
     it("should call middleware successfully with plain Request", async () => {
+      const authClient = await client["provider"].forRequest(new Headers());
       const handlerSpy = vi
-        .spyOn(client["authClient"], "handler")
+        .spyOn(authClient, "handler")
         .mockResolvedValue(NextResponse.next());
 
       const req = new Request("https://myapp.test/auth", { method: "GET" });

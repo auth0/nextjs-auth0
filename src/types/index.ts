@@ -30,6 +30,8 @@ export interface SessionData {
     sid: string;
     // the time at which the session was created in seconds since epoch
     createdAt: number;
+    // MCD metadata: domain and issuer used to authenticate this session
+    mcd?: import("./mcd.js").MCDMetadata;
   };
   connectionTokenSets?: ConnectionTokenSet[];
   [key: string]: unknown;
@@ -205,3 +207,9 @@ export {
   GRANT_TYPE_MFA_OOB,
   GRANT_TYPE_MFA_RECOVERY_CODE
 } from "./mfa.js";
+
+export type {
+  DomainResolver,
+  DiscoveryCacheOptions,
+  MCDMetadata
+} from "./mcd.js";
