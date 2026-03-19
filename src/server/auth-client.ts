@@ -2116,12 +2116,31 @@ export class AuthClient {
       };
     }
 
-    // Pre-MCD session (no mcd field): need to backfill
-    // Fail-open in both modes: backfill with current domain instead of throwing error
+    // Pre-MCD session (no mcd field): infer domain from ID token's iss claim.
+    // This is deterministic — the same session always yields the same domain,
+    // eliminating the race condition where the first resolver output claims it.
+    let inferredDomain: string | undefined;
+
+    if (session.tokenSet.idToken) {
+      try {
+        const { iss } = jose.decodeJwt(session.tokenSet.idToken);
+        if (typeof iss === "string") {
+          inferredDomain = normalizeDomain(iss).domain;
+        }
+      } catch {
+        // Malformed JWT — fall through to fallback
+      }
+    }
+
+    // Fallback: use current AuthClient's domain.
+    // Static mode: always correct (only one domain).
+    // Resolver mode: last resort if idToken absent.
+    const domain = inferredDomain ?? this.domain;
+
     session.internal = session.internal || {};
     session.internal.mcd = {
-      domain: this.domain,
-      issuer: this.issuer
+      domain,
+      issuer: `https://${domain}/`
     };
 
     // Backfill is in-memory only. Persistence is deferred to the next session

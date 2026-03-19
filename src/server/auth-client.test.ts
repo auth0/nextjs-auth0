@@ -9258,6 +9258,378 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(error).toBeNull();
     });
   });
+
+  describe("Pre-MCD session backfill with iss-inference", async () => {
+    it("should infer domain from idToken iss claim when no mcd field exists", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+
+      // Create a signed ID token with iss claim pointing to a different domain
+      const idToken = await new jose.SignJWT({
+        sub: DEFAULT.sub,
+        sid: DEFAULT.sid
+      })
+        .setProtectedHeader({ alg: DEFAULT.alg })
+        .setIssuer("https://domain-a.auth0.com/")
+        .setAudience(DEFAULT.clientId)
+        .setExpirationTime("2h")
+        .setIssuedAt()
+        .sign(DEFAULT.keyPair.privateKey);
+
+      // Create a pre-MCD session (no mcd field in internal)
+      const preMCDSession = createSessionData({
+        tokenSet: {
+          accessToken: "at_123",
+          refreshToken: "rt_123",
+          expiresAt: Date.now() + 3600000,
+          idToken
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Date.now()
+          // deliberately no mcd field
+        }
+      });
+
+      // Mock sessionStore to return the pre-MCD session
+      const mockSessionStore = {
+        get: vi.fn().mockResolvedValue(preMCDSession),
+        set: vi.fn().mockResolvedValue(undefined)
+      } as any;
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore: mockSessionStore,
+        domain: "domain-b.auth0.com",
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+
+      const mockCookies = {
+        getAll: vi.fn().mockReturnValue([])
+      };
+
+      const result = await authClient.getSessionWithDomainCheck(
+        mockCookies as any
+      );
+
+      // Verify backfill happened
+      expect(result.error).toBeNull();
+      expect(result.session).toBeDefined();
+      expect(result.exists).toBe(true);
+
+      // Verify domain was inferred from idToken iss, NOT from authClient.domain
+      expect(result.session?.internal.mcd).toBeDefined();
+      expect(result.session?.internal.mcd?.domain).toBe("domain-a.auth0.com");
+      expect(result.session?.internal.mcd?.issuer).toBe(
+        "https://domain-a.auth0.com/"
+      );
+    });
+
+    it("should fall back to authClient.domain when idToken is absent", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+
+      // Create a pre-MCD session without idToken
+      const preMCDSession = createSessionData({
+        tokenSet: {
+          accessToken: "at_123",
+          refreshToken: "rt_123",
+          expiresAt: Date.now() + 3600000
+          // no idToken
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Date.now()
+          // no mcd field
+        }
+      });
+
+      const mockSessionStore = {
+        get: vi.fn().mockResolvedValue(preMCDSession),
+        set: vi.fn().mockResolvedValue(undefined)
+      } as any;
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore: mockSessionStore,
+        domain: "fallback.auth0.com",
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+
+      const mockCookies = {
+        getAll: vi.fn().mockReturnValue([])
+      };
+
+      const result = await authClient.getSessionWithDomainCheck(
+        mockCookies as any
+      );
+
+      // Verify backfill used fallback domain
+      expect(result.error).toBeNull();
+      expect(result.session).toBeDefined();
+      expect(result.session?.internal.mcd?.domain).toBe("fallback.auth0.com");
+      expect(result.session?.internal.mcd?.issuer).toBe(
+        "https://fallback.auth0.com/"
+      );
+    });
+
+    it("should fall back to authClient.domain when idToken is malformed", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+
+      // Create a pre-MCD session with malformed idToken (not a valid JWT)
+      const preMCDSession = createSessionData({
+        tokenSet: {
+          accessToken: "at_123",
+          refreshToken: "rt_123",
+          expiresAt: Date.now() + 3600000,
+          idToken: "not-a-valid-jwt"
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Date.now()
+          // no mcd field
+        }
+      });
+
+      const mockSessionStore = {
+        get: vi.fn().mockResolvedValue(preMCDSession),
+        set: vi.fn().mockResolvedValue(undefined)
+      } as any;
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore: mockSessionStore,
+        domain: "fallback.auth0.com",
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+
+      const mockCookies = {
+        getAll: vi.fn().mockReturnValue([])
+      };
+
+      const result = await authClient.getSessionWithDomainCheck(
+        mockCookies as any
+      );
+
+      // Should not throw, but fall back to authClient.domain
+      expect(result.error).toBeNull();
+      expect(result.session).toBeDefined();
+      expect(result.session?.internal.mcd?.domain).toBe("fallback.auth0.com");
+      expect(result.session?.internal.mcd?.issuer).toBe(
+        "https://fallback.auth0.com/"
+      );
+    });
+
+    it("should use iss-inference deterministically in resolver mode", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+
+      // Create a signed ID token with iss pointing to domain-a
+      const idToken = await new jose.SignJWT({
+        sub: DEFAULT.sub,
+        sid: DEFAULT.sid
+      })
+        .setProtectedHeader({ alg: DEFAULT.alg })
+        .setIssuer("https://domain-a.auth0.com/")
+        .setAudience(DEFAULT.clientId)
+        .setExpirationTime("2h")
+        .setIssuedAt()
+        .sign(DEFAULT.keyPair.privateKey);
+
+      // Create a pre-MCD session
+      const preMCDSession = createSessionData({
+        tokenSet: {
+          accessToken: "at_123",
+          refreshToken: "rt_123",
+          expiresAt: Date.now() + 3600000,
+          idToken
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Date.now()
+          // no mcd field
+        }
+      });
+
+      const mockSessionStore = {
+        get: vi.fn().mockResolvedValue(preMCDSession),
+        set: vi.fn().mockResolvedValue(undefined)
+      } as any;
+
+      // Resolver mode: domain determined dynamically per request
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore: mockSessionStore,
+        domain: "domain-b.auth0.com", // This is the resolver's output for this request
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+
+      const mockCookies = {
+        getAll: vi.fn().mockReturnValue([])
+      };
+
+      const result = await authClient.getSessionWithDomainCheck(
+        mockCookies as any
+      );
+
+      // Verify iss-inference took precedence over resolver domain
+      // The backfill should use domain-a from idToken, NOT domain-b from resolver
+      expect(result.error).toBeNull();
+      expect(result.session?.internal.mcd?.domain).toBe("domain-a.auth0.com");
+      expect(result.session?.internal.mcd?.issuer).toBe(
+        "https://domain-a.auth0.com/"
+      );
+    });
+
+    it("should preserve existing mcd field without modification", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+
+      // Create a post-MCD session (with mcd field already present)
+      const postMCDSession = createSessionData({
+        tokenSet: {
+          accessToken: "at_123",
+          refreshToken: "rt_123",
+          expiresAt: Date.now() + 3600000
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Date.now(),
+          mcd: {
+            domain: "preserved.auth0.com",
+            issuer: "https://preserved.auth0.com/"
+          }
+        }
+      });
+
+      const mockSessionStore = {
+        get: vi.fn().mockResolvedValue(postMCDSession),
+        set: vi.fn().mockResolvedValue(undefined)
+      } as any;
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore: mockSessionStore,
+        domain: "preserved.auth0.com",
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+
+      const mockCookies = {
+        getAll: vi.fn().mockReturnValue([])
+      };
+
+      const result = await authClient.getSessionWithDomainCheck(
+        mockCookies as any
+      );
+
+      // Should return the session with original mcd domain intact
+      expect(result.error).toBeNull();
+      expect(result.session?.internal.mcd?.domain).toBe("preserved.auth0.com");
+    });
+
+    it("should handle idToken with iss that needs URL normalization", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+
+      // Create a signed ID token with iss as a full URL
+      const idToken = await new jose.SignJWT({
+        sub: DEFAULT.sub,
+        sid: DEFAULT.sid
+      })
+        .setProtectedHeader({ alg: DEFAULT.alg })
+        .setIssuer("https://custom-domain.auth0.com/")
+        .setAudience(DEFAULT.clientId)
+        .setExpirationTime("2h")
+        .setIssuedAt()
+        .sign(DEFAULT.keyPair.privateKey);
+
+      const preMCDSession = createSessionData({
+        tokenSet: {
+          accessToken: "at_123",
+          refreshToken: "rt_123",
+          expiresAt: Date.now() + 3600000,
+          idToken
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Date.now()
+          // no mcd field
+        }
+      });
+
+      const mockSessionStore = {
+        get: vi.fn().mockResolvedValue(preMCDSession),
+        set: vi.fn().mockResolvedValue(undefined)
+      } as any;
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore: mockSessionStore,
+        domain: "fallback.auth0.com",
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+
+      const mockCookies = {
+        getAll: vi.fn().mockReturnValue([])
+      };
+
+      const result = await authClient.getSessionWithDomainCheck(
+        mockCookies as any
+      );
+
+      // Verify normalizeDomain correctly extracted the hostname
+      expect(result.error).toBeNull();
+      expect(result.session?.internal.mcd?.domain).toBe(
+        "custom-domain.auth0.com"
+      );
+      expect(result.session?.internal.mcd?.issuer).toBe(
+        "https://custom-domain.auth0.com/"
+      );
+    });
+  });
 });
 
 const _authorizationServerMetadata = {
