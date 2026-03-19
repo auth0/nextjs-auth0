@@ -164,6 +164,13 @@ export type GetAccessTokenOptions = {
    * {@link https://auth0.com/docs/secure/tokens/refresh-tokens/multi-resource-refresh-token|See Auth0 Documentation on Multi-resource Refresh Tokens}
    */
   audience?: string | null;
+  /**
+   * Control scope merging behavior.
+   * When true (default): merge global scopes for default audience.
+   * When false: use ONLY requested scope (no global merge).
+   * Used by challengeWithPopup() to prevent global scope pollution.
+   */
+  mergeScopes?: boolean;
 };
 
 export type ProxyOptions = {
@@ -186,6 +193,9 @@ export {
   SUBJECT_TOKEN_TYPES
 } from "./token-vault.js";
 export { ConnectAccountOptions, RESPONSE_TYPES } from "./connected-accounts.js";
+export type { ChallengeWithPopupOptions } from "../client/mfa/index.js";
+export type { AccessTokenResponse } from "../client/helpers/get-access-token.js";
+export type { AuthCompleteMessage } from "../utils/popup-helpers.js";
 export {
   MfaClient,
   Authenticator,

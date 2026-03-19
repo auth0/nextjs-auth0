@@ -22,6 +22,13 @@ export interface TransactionState extends jose.JWTPayload {
    * The audience used for this transaction.
    */
   audience?: string;
+
+  /**
+   * The challenge mode for this transaction.
+   * - 'redirect' (default): Standard OAuth redirect flow
+   * - 'popup': Popup flow returning via window.postMessage
+   */
+  challengeMode?: "redirect" | "popup";
 }
 
 export interface TransactionCookieOptions {
