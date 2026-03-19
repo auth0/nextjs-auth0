@@ -15,7 +15,7 @@
     "@auth0/nextjs-auth0": "file:../../"
   },
   "devDependencies": {
-    "typescript": "^5",
+    "typescript": "~5.9.3",
     "@types/node": "file:../../node_modules/@types/node",
     "@types/react": "file:../../node_modules/@types/react",
     "@types/react-dom": "file:../../node_modules/@types/react-dom",
