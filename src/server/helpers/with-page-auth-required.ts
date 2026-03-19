@@ -209,7 +209,7 @@ export const appRouteHandlerFactory =
   ): WithPageAuthRequiredAppRouter =>
   <P extends AppRouterPageRouteOpts = AppRouterPageRouteOpts>(
     handler: AppRouterPageRoute<P>,
-    opts: WithPageAuthRequiredAppRouterOptions = {}
+    opts: WithPageAuthRequiredAppRouterOptions<P> = {}
   ) =>
   async (params: P) => {
     const session = await client.getSession();
