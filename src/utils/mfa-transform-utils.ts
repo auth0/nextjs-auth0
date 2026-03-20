@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server.js";
 
-import { MfaVerifyError } from "../errors/mfa-errors.js";
+import { InvalidRequestError, MfaVerifyError } from "../errors/mfa-errors.js";
 import type {
   Authenticator,
   ChallengeResponse,
   EnrollmentResponse,
   EnrollOobOptions,
+  EnrollOptions,
   EnrollOtpOptions
 } from "../types/index.js";
 import {
@@ -97,7 +98,7 @@ export function buildEnrollmentResponse(
 
 /**
  * Builds type-safe enrollment options from request body.
- * Validates type-specific required fields.
+ * snake_case ONLY (oob_channels, phone_number), no camelCase fallback.
  *
  * @param body - Request body
  * @param authenticatorType - Type of authenticator to enroll
@@ -112,22 +113,24 @@ export function buildEnrollOptions(
   | [null, NextResponse] {
   const bodyObj = body as Record<string, unknown>;
   if (authenticatorType === "oob") {
-    if (!bodyObj.oobChannels || !Array.isArray(bodyObj.oobChannels)) {
+    // snake_case ONLY
+    const oobChannels = bodyObj.oob_channels;
+    if (!oobChannels || !Array.isArray(oobChannels)) {
       return [
         null,
         NextResponse.json(
           {
             error: "invalid_request",
             error_description:
-              "Missing or invalid oobChannels for OOB enrollment"
+              "Missing or invalid oob_channels for OOB enrollment"
           },
           { status: 400 }
         )
       ];
     }
     const phoneNumber =
-      typeof bodyObj.phoneNumber === "string" && bodyObj.phoneNumber !== ""
-        ? bodyObj.phoneNumber
+      typeof bodyObj.phone_number === "string" && bodyObj.phone_number !== ""
+        ? bodyObj.phone_number
         : undefined;
     const email =
       typeof bodyObj.email === "string" && bodyObj.email !== ""
@@ -136,12 +139,7 @@ export function buildEnrollOptions(
     return [
       {
         authenticatorTypes: ["oob"] as ["oob"],
-        oobChannels: bodyObj.oobChannels as (
-          | "sms"
-          | "voice"
-          | "auth0"
-          | "email"
-        )[],
+        oobChannels: oobChannels as ("sms" | "voice" | "auth0" | "email")[],
         phoneNumber,
         email
       },
@@ -156,6 +154,29 @@ export function buildEnrollOptions(
       null
     ];
   }
+}
+
+/**
+ * Transforms wire-format verify body (snake_case) to SDK options (camelCase).
+ * Accepts snake_case ONLY. No camelCase fallback.
+ *
+ * @param body - Request body with snake_case fields (otp, oob_code+binding_code, recovery_code)
+ * @returns SDK options with camelCase fields
+ * @throws {InvalidRequestError} If no valid credential present or camelCase fields used
+ */
+export function transformVerifyBodyToOptions(
+  body: Record<string, any>
+): Omit<VerifyMfaOptions, "mfaToken"> {
+  if (body.otp) {
+    return { otp: body.otp };
+  }
+  if (body.oob_code && body.binding_code) {
+    return { oobCode: body.oob_code, bindingCode: body.binding_code };
+  }
+  if (body.recovery_code) {
+    return { recoveryCode: body.recovery_code };
+  }
+  throw new InvalidRequestError("Missing verification credential");
 }
 
 export const buildVerifyParams = (
@@ -201,3 +222,76 @@ export const getVerifyGrantType = (params: URLSearchParams) => {
     );
   }
 };
+
+/**
+ * Maps factor types to authenticator types and OOB channels.
+ * Used by normalizeEnrollOptions to transform factorType variants.
+ */
+export const FACTOR_MAPPING: Record<
+  string,
+  { authenticator_types: string[]; oob_channels?: string[] }
+> = {
+  otp: { authenticator_types: ["otp"] },
+  sms: { authenticator_types: ["oob"], oob_channels: ["sms"] },
+  voice: { authenticator_types: ["oob"], oob_channels: ["voice"] },
+  email: { authenticator_types: ["oob"], oob_channels: ["email"] },
+  push: { authenticator_types: ["oob"], oob_channels: ["auth0"] }
+};
+
+/**
+ * Normalizes EnrollOptions with factorType to standard authenticatorTypes format.
+ * Transforms factorType variants to their corresponding authenticatorTypes and oobChannels.
+ * Passes through existing authenticatorTypes format unchanged.
+ *
+ * @param options - Enrollment options (factorType or authenticatorTypes variant)
+ * @returns Normalized enrollment options in authenticatorTypes format
+ * @throws {Error} If factorType is unknown
+ *
+ * @example
+ * ```typescript
+ * // factorType variant
+ * const result1 = normalizeEnrollOptions({
+ *   mfaToken: 'token123',
+ *   factorType: 'sms',
+ *   phoneNumber: '+15551234567'
+ * });
+ * // Returns: { mfaToken, authenticatorTypes: ['oob'], oobChannels: ['sms'], phoneNumber }
+ *
+ * // authenticatorTypes variant (passthrough)
+ * const result2 = normalizeEnrollOptions({
+ *   mfaToken: 'token123',
+ *   authenticatorTypes: ['otp']
+ * });
+ * // Returns unchanged
+ * ```
+ */
+export function normalizeEnrollOptions(
+  options: EnrollOptions
+): EnrollOobOptions | EnrollOtpOptions {
+  if ("factorType" in options) {
+    const mapping = FACTOR_MAPPING[options.factorType];
+    if (!mapping) throw new Error(`Unknown factorType: ${options.factorType}`);
+
+    const result: any = {
+      mfaToken: options.mfaToken,
+      authenticatorTypes: mapping.authenticator_types
+    };
+
+    if (mapping.oob_channels) {
+      result.oobChannels = mapping.oob_channels;
+    }
+
+    if ("phoneNumber" in options && options.phoneNumber !== undefined) {
+      result.phoneNumber = options.phoneNumber;
+    }
+
+    if ("email" in options && options.email !== undefined) {
+      result.email = options.email;
+    }
+
+    return result;
+  }
+
+  // Passthrough for existing authenticatorTypes format
+  return options;
+}
