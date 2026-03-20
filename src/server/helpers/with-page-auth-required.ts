@@ -43,7 +43,7 @@ export type AppRouterPageRouteOpts = {
 
 /**
  * An app route that has been augmented with {@link WithPageAuthRequired}.
- * Returns unknown to avoid React dependency while maintaining type safety.
+ * Returns any to be compatible with React's return types while avoiding React dependency.
  *
  * The generic parameter `P` allows passing Next.js `PageProps` or `LayoutProps`
  * types for strongly-typed route parameters:
@@ -59,7 +59,7 @@ export type AppRouterPageRouteOpts = {
  */
 export type AppRouterPageRoute<
   P extends AppRouterPageRouteOpts = AppRouterPageRouteOpts
-> = (obj: P) => Promise<unknown>;
+> = (obj: P) => Promise<any>;
 
 /**
  * If you have a custom returnTo url you should specify it in `returnTo`.
@@ -126,11 +126,19 @@ export type WithPageAuthRequiredPageRouter = <
 /**
  * Specify the URL to `returnTo` - this is important in app router pages because the server component
  * won't know the URL of the page.
+ * * @template P The type of the page or layout props, extending {@link AppRouterPageRouteOpts}.
+ * This allows the `returnTo` callback to access strongly-typed route parameters.
  */
-export type WithPageAuthRequiredAppRouterOptions = {
-  returnTo?:
-    | string
-    | ((obj: AppRouterPageRouteOpts) => Promise<string> | string);
+export type WithPageAuthRequiredAppRouterOptions<
+  P extends AppRouterPageRouteOpts = AppRouterPageRouteOpts
+> = {
+  /**
+   * The URL to redirect the user to after a successful login.
+   * * Can be a static string or a function that receives the page props.
+   * When used as a function, the generic `P` ensures that `params` and `searchParams`
+   * match the specific types of your route (e.g., from Next.js `PageProps`).
+   */
+  returnTo?: string | ((obj: P) => Promise<string> | string);
 };
 
 /**
@@ -182,7 +190,7 @@ export type WithPageAuthRequiredAppRouter = <
   P extends AppRouterPageRouteOpts = AppRouterPageRouteOpts
 >(
   fn: AppRouterPageRoute<P>,
-  opts?: WithPageAuthRequiredAppRouterOptions
+  opts?: WithPageAuthRequiredAppRouterOptions<P>
 ) => AppRouterPageRoute<P>;
 
 /**
@@ -201,7 +209,7 @@ export const appRouteHandlerFactory =
   ): WithPageAuthRequiredAppRouter =>
   <P extends AppRouterPageRouteOpts = AppRouterPageRouteOpts>(
     handler: AppRouterPageRoute<P>,
-    opts: WithPageAuthRequiredAppRouterOptions = {}
+    opts: WithPageAuthRequiredAppRouterOptions<P> = {}
   ) =>
   async (params: P) => {
     const session = await client.getSession();
