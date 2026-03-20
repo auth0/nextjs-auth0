@@ -43,7 +43,7 @@ export type AppRouterPageRouteOpts = {
 
 /**
  * An app route that has been augmented with {@link WithPageAuthRequired}.
- * Returns unknown to avoid React dependency while maintaining type safety.
+ * Returns any to be compatible with React's return types while avoiding React dependency.
  *
  * The generic parameter `P` allows passing Next.js `PageProps` or `LayoutProps`
  * types for strongly-typed route parameters:
@@ -59,7 +59,7 @@ export type AppRouterPageRouteOpts = {
  */
 export type AppRouterPageRoute<
   P extends AppRouterPageRouteOpts = AppRouterPageRouteOpts
-> = (obj: P) => Promise<unknown>;
+> = (obj: P) => Promise<any>;
 
 /**
  * If you have a custom returnTo url you should specify it in `returnTo`.
