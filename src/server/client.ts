@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "http";
+import type { ParsedUrlQuery } from "querystring";
 import { cookies } from "next/headers.js";
 import { NextRequest, NextResponse } from "next/server.js";
 import { NextApiHandler, NextApiRequest, NextApiResponse } from "next/types.js";
@@ -47,6 +48,8 @@ import * as withApiAuthRequired from "./helpers/with-api-auth-required.js";
 import {
   appRouteHandlerFactory,
   AppRouterPageRoute,
+  AppRouterPageRouteOpts,
+  PageRoute,
   pageRouteHandlerFactory,
   WithPageAuthRequiredAppRouterOptions,
   WithPageAuthRequiredPageRouterOptions
@@ -1250,6 +1253,21 @@ export class Auth0Client {
     return connectAccountResponse;
   }
 
+  // Pages Router overload - no arguments
+  withPageAuthRequired(): PageRoute<{ [key: string]: any }, ParsedUrlQuery>;
+  // Pages Router overload - with options
+  withPageAuthRequired<
+    P extends { [key: string]: any } = { [key: string]: any },
+    Q extends ParsedUrlQuery = ParsedUrlQuery
+  >(opts: WithPageAuthRequiredPageRouterOptions<P, Q>): PageRoute<P, Q>;
+  // App Router overload - with component function
+  withPageAuthRequired<
+    P extends AppRouterPageRouteOpts = AppRouterPageRouteOpts
+  >(
+    fn: AppRouterPageRoute<P>,
+    opts?: WithPageAuthRequiredAppRouterOptions<P>
+  ): AppRouterPageRoute<P>;
+  // Implementation
   withPageAuthRequired(
     fnOrOpts?: WithPageAuthRequiredPageRouterOptions | AppRouterPageRoute,
     opts?: WithPageAuthRequiredAppRouterOptions
