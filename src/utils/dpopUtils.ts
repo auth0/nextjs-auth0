@@ -1,10 +1,4 @@
-import {
-  createPrivateKey,
-  createPublicKey,
-  createSign,
-  createVerify,
-  KeyObject
-} from "crypto";
+import type { KeyObject } from "crypto";
 
 import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
 import {
@@ -43,10 +37,10 @@ import { isEdgeRuntime } from "./dpopRetry.js";
  * }
  * ```
  */
-export function validateKeyPairCompatibility(
+export async function validateKeyPairCompatibility(
   privateKey: KeyObject,
   publicKey: KeyObject
-): boolean {
+): Promise<boolean> {
   // Skip key pair validation in Edge Runtime environments
   // Edge Runtime doesn't have access to Node.js crypto APIs needed for validation
   if (isEdgeRuntime()) {
@@ -54,6 +48,9 @@ export function validateKeyPairCompatibility(
   }
 
   try {
+    // Dynamic import prevents crypto from being bundled in Edge Runtime builds
+    const { createSign, createVerify } = await import("crypto");
+
     // Create test data
     const testData = "test-data-for-key-pair-validation";
 
@@ -136,10 +133,12 @@ export interface DpopConfigurationOptions {
  * @param options The configuration options containing DPoP settings
  * @returns Object containing DpopKeyPair and DpopOptions if validation succeeds, or both undefined if validation fails
  */
-export function validateDpopConfiguration(options: DpopConfigurationOptions): {
+export async function validateDpopConfiguration(
+  options: DpopConfigurationOptions
+): Promise<{
   dpopKeyPair?: DpopKeyPair;
   dpopOptions?: DpopOptions;
-} {
+}> {
   const useDPoP = options.useDPoP || false;
 
   // If DPoP is not enabled, return early with undefined values
@@ -234,8 +233,9 @@ export function validateDpopConfiguration(options: DpopConfigurationOptions): {
 
     if (privateKeyPem && publicKeyPem) {
       try {
-        // Note: Key loading is performed synchronously during initialization.
-        // Ensure keys are pre-loaded or cached to avoid blocking the event loop.
+        // Dynamic import prevents crypto from being bundled in Edge Runtime builds
+        const { createPrivateKey, createPublicKey } = await import("crypto");
+
         const privateKeyNodeJS = createPrivateKey(privateKeyPem);
         const publicKeyNodeJS = createPublicKey(publicKeyPem);
 
@@ -269,7 +269,7 @@ export function validateDpopConfiguration(options: DpopConfigurationOptions): {
         }
 
         // Validate key pair compatibility
-        const isKeyPairValid = validateKeyPairCompatibility(
+        const isKeyPairValid = await validateKeyPairCompatibility(
           privateKeyNodeJS,
           publicKeyNodeJS
         );
