@@ -497,7 +497,7 @@ export class AuthClient {
 
     // Dynamic import only when needed - prevents crypto from being bundled
     const dpopModule = await import("../utils/dpopUtils.js");
-    const dpopConfig = dpopModule.validateDpopConfiguration({
+    const dpopConfig = await dpopModule.validateDpopConfiguration({
       useDPoP: this.useDPoP,
       dpopKeyPair: this.dpopKeyPair, // Pass existing keypair for validation
       dpopOptions: this.dpopOptions
