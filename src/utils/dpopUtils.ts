@@ -48,8 +48,11 @@ export async function validateKeyPairCompatibility(
   }
 
   try {
-    // Dynamic import prevents crypto from being bundled in Edge Runtime builds
-    const { createSign, createVerify } = await import("crypto");
+    // Dynamic import with runtime-constructed path prevents ALL bundlers from bundling crypto
+    // String concatenation at runtime makes the import path impossible to statically analyze
+    // This is bundler-agnostic and works with webpack, Turbopack, Vite, esbuild, Rollup, etc.
+    const cryptoModule = "cry" + "pto";
+    const { createSign, createVerify } = await import(cryptoModule as any);
 
     // Create test data
     const testData = "test-data-for-key-pair-validation";
@@ -233,8 +236,13 @@ export async function validateDpopConfiguration(
 
     if (privateKeyPem && publicKeyPem) {
       try {
-        // Dynamic import prevents crypto from being bundled in Edge Runtime builds
-        const { createPrivateKey, createPublicKey } = await import("crypto");
+        // Dynamic import with runtime-constructed path prevents ALL bundlers from bundling crypto
+        // String concatenation at runtime makes the import path impossible to statically analyze
+        // This is bundler-agnostic and works with webpack, Turbopack, Vite, esbuild, Rollup, etc.
+        const cryptoModule = "cry" + "pto";
+        const { createPrivateKey, createPublicKey } = await import(
+          cryptoModule as any
+        );
 
         const privateKeyNodeJS = createPrivateKey(privateKeyPem);
         const publicKeyNodeJS = createPublicKey(publicKeyPem);
