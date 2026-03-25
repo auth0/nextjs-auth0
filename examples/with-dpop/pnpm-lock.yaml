@@ -60,8 +60,8 @@ importers:
         specifier: ^9.1.5
         version: 9.2.3(react-dom@19.0.1(react@19.0.1))(react@19.0.1)
       undici:
-        specifier: ^7.18.2
-        version: 7.18.2
+        specifier: ^7.24.0
+        version: 7.24.0
     devDependencies:
       '@babel/core':
         specifier: ^7.23.0
@@ -3999,8 +3999,8 @@ packages:
   undici-types@7.14.0:
     resolution: {integrity: sha512-QQiYxHuyZ9gQUIrmPo3IA+hUl4KYk8uSA7cHrcKd/l3p1OTpZcM0Tbp9x7FAtXdAYhlasd60ncPpgu6ihG6TOA==}
 
-  undici@7.18.2:
-    resolution: {integrity: sha512-y+8YjDFzWdQlSE9N5nzKMT3g4a5UBX1HKowfdXh0uvAnTaqqwqB92Jt4UXBAeKekDs5IaDKyJFR4X1gYVCgXcw==}
+  undici@7.24.0:
+    resolution: {integrity: sha512-jxytwMHhsbdpBXxLAcuu0fzlQeXCNnWdDyRHpvWsUl8vd98UwYdl9YTyn8/HcpcJPC3pwUveefsa3zTxyD/ERg==}
     engines: {node: '>=20.18.1'}
 
   universalify@0.2.0:
@@ -8757,7 +8757,7 @@ snapshots:
 
   undici-types@7.14.0: {}
 
-  undici@7.18.2: {}
+  undici@7.24.0: {}
 
   universalify@0.2.0: {}
 
