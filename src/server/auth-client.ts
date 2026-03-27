@@ -163,7 +163,11 @@ export type OnCallbackContext = {
 export type OnCallbackHook = (
   error: SdkError | null,
   ctx: OnCallbackContext,
-  session: SessionData | null
+  session: SessionData | null,
+  defaultOnCallback: (
+    error: SdkError | null,
+    ctx: OnCallbackContext
+  ) => Promise<NextResponse>
 ) => Promise<NextResponse>;
 
 type ExpiresAtInput = number | string | null | undefined;
@@ -787,7 +791,12 @@ export class AuthClient {
       state
     );
     if (!transactionStateCookie) {
-      return this.onCallback(new InvalidStateError(), {}, null);
+      return this.onCallback(
+        new InvalidStateError(),
+        {},
+        null,
+        this.defaultOnCallback
+      );
     }
 
     const transactionState = transactionStateCookie.payload;
@@ -858,7 +867,8 @@ export class AuthClient {
           ...onCallbackCtx,
           connectedAccount
         },
-        session
+        session,
+        this.defaultOnCallback
       );
 
       await this.transactionStore.delete(res.cookies, state);
@@ -1003,7 +1013,12 @@ export class AuthClient {
       }
     };
 
-    const res = await this.onCallback(null, onCallbackCtx, session);
+    const res = await this.onCallback(
+      null,
+      onCallbackCtx,
+      session,
+      this.defaultOnCallback
+    );
 
     // call beforeSessionSaved callback if present
     // if not then filter id_token claims with default rules
@@ -1705,7 +1720,12 @@ export class AuthClient {
     req: NextRequest,
     state?: string
   ): Promise<NextResponse> {
-    const response = await this.onCallback(error, ctx, null);
+    const response = await this.onCallback(
+      error,
+      ctx,
+      null,
+      this.defaultOnCallback
+    );
 
     // Clean up the transaction cookie on error to prevent accumulation
     if (state) {
