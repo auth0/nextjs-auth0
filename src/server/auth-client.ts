@@ -101,6 +101,7 @@ import {
   validateStringFieldAndThrow,
   validateVerificationCredentialAndThrow
 } from "../utils/mfa-validation-utils.js";
+import { getOAuth2ErrorDetails } from "../utils/oauth2-error-utils.js";
 import {
   ensureNoLeadingSlash,
   ensureTrailingSlash,
@@ -974,10 +975,7 @@ export class AuthClient {
     } catch (e: any) {
       return this.handleCallbackError(
         new AuthorizationCodeGrantError({
-          cause: new OAuth2Error({
-            code: e.error,
-            message: e.error_description
-          })
+          cause: await OAuth2Error.fromCaughtError(e)
         }),
         onCallbackCtx,
         req,
@@ -1626,10 +1624,7 @@ export class AuthClient {
     } catch (e: any) {
       return [
         new BackchannelAuthenticationError({
-          cause: new OAuth2Error({
-            code: e.error,
-            message: e.error_description
-          })
+          cause: await OAuth2Error.fromCaughtError(e)
         }),
         null
       ];
@@ -1859,10 +1854,7 @@ export class AuthClient {
       } catch (e: any) {
         return [
           new AuthorizationError({
-            cause: new OAuth2Error({
-              code: e.error,
-              message: e.error_description
-            }),
+            cause: await OAuth2Error.fromCaughtError(e),
             message:
               "An error occurred while pushing the authorization request."
           }),
@@ -2038,10 +2030,7 @@ export class AuthClient {
           new AccessTokenForConnectionError(
             AccessTokenForConnectionErrorCode.FAILED_TO_EXCHANGE,
             "There was an error trying to exchange the refresh token for a connection access token.",
-            new OAuth2Error({
-              code: err.error,
-              message: err.error_description
-            })
+            await OAuth2Error.fromCaughtError(err)
           ),
           null
         ];
@@ -2269,10 +2258,7 @@ export class AuthClient {
         new CustomTokenExchangeError(
           CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
           "There was an error trying to exchange the token.",
-          new OAuth2Error({
-            code: err.error ?? "unknown_error",
-            message: err.error_description ?? err.message
-          })
+          await OAuth2Error.fromCaughtError(err)
         ),
         null
       ];
@@ -2995,11 +2981,18 @@ export class AuthClient {
       );
     } catch (err: any) {
       // Handle chained MFA (subsequent mfa_required response)
-      if (err.error === "mfa_required") {
-        // Extract error body from cause for oauth4webapi wrapped errors
-        // ResponseBodyError wraps actual error in cause property
+      const errorDetails = await getOAuth2ErrorDetails(err);
+      if (
+        errorDetails.error === "mfa_required" ||
+        err.error === "mfa_required"
+      ) {
+        // Extract error body from cause only if it's not a Response (5xx has Response as cause)
         const errorBody =
-          err.cause && typeof err.cause === "object" ? (err.cause as any) : err;
+          err.cause &&
+          typeof err.cause === "object" &&
+          !(err.cause instanceof Response)
+            ? (err.cause as any)
+            : err;
 
         // Re-encrypt the new mfaToken for client use
         const encryptedToken = await encryptMfaToken(
@@ -3011,24 +3004,41 @@ export class AuthClient {
           DEFAULT_MFA_CONTEXT_TTL_SECONDS
         );
         throw new MfaRequiredError(
-          errorBody.error_description || "Additional MFA factor required",
+          errorDetails.error_description ||
+            errorBody.error_description ||
+            "Additional MFA factor required",
           encryptedToken,
           errorBody.mfa_requirements,
           new OAuth2Error({
             code: "mfa_required",
-            message: errorBody.error_description
+            message:
+              errorDetails.error_description ?? errorBody.error_description
           })
         );
       }
 
-      // Extract error body from cause for all oauth4webapi errors
+      // For non-MFA errors, extract errorBody safely
       const errorBody =
-        err.cause && typeof err.cause === "object" ? (err.cause as any) : err;
+        err.cause &&
+        typeof err.cause === "object" &&
+        !(err.cause instanceof Response)
+          ? (err.cause as any)
+          : err;
 
       throw new MfaVerifyError(
-        errorBody.error || "unknown_error",
-        errorBody.error_description || err.message || "MFA verification failed",
-        errorBody.error ? errorBody : undefined
+        errorDetails.error ?? errorBody.error ?? "unknown_error",
+        errorDetails.error_description ??
+          errorBody.error_description ??
+          err.message ??
+          "MFA verification failed",
+        errorDetails.error
+          ? {
+              error: errorDetails.error,
+              error_description: errorDetails.error_description ?? ""
+            }
+          : errorBody.error
+            ? errorBody
+            : undefined
       );
     }
 
@@ -3385,7 +3395,8 @@ export class AuthClient {
       );
     } catch (e: any) {
       // Check if this is an MFA required error
-      if (isMfaRequiredError(e)) {
+      const errorDetails = await getOAuth2ErrorDetails(e);
+      if (isMfaRequiredError(e) || errorDetails.error === "mfa_required") {
         const { mfa_token, error_description, mfa_requirements } =
           extractMfaErrorDetails(e);
 
@@ -3407,8 +3418,11 @@ export class AuthClient {
               encryptedToken,
               mfa_requirements,
               new OAuth2Error({
-                code: e.error,
-                message: e.error_description
+                code: errorDetails.error ?? e.error ?? "mfa_required",
+                message:
+                  error_description ??
+                  errorDetails.error_description ??
+                  e.error_description
               })
             ),
             null
@@ -3429,8 +3443,11 @@ export class AuthClient {
               "", // Empty token - signals re-auth needed
               mfa_requirements,
               new OAuth2Error({
-                code: e.error,
-                message: e.error_description
+                code: errorDetails.error ?? e.error ?? "mfa_required",
+                message:
+                  error_description ??
+                  errorDetails.error_description ??
+                  e.error_description
               })
             ),
             null
@@ -3443,8 +3460,8 @@ export class AuthClient {
           AccessTokenErrorCode.FAILED_TO_REFRESH_TOKEN,
           "The access token has expired and there was an error while trying to refresh it.",
           new OAuth2Error({
-            code: e.error,
-            message: e.error_description
+            code: errorDetails.error ?? "unknown_error",
+            message: errorDetails.error_description ?? e.message
           })
         ),
         null
