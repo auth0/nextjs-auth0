@@ -4142,6 +4142,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const expectedContext = {
           responseType: RESPONSE_TYPES.CODE,
           returnTo: transactionState.returnTo,
+          challengeMode: "redirect",
           appBaseUrl: DEFAULT.appBaseUrl
         };
 
@@ -4373,6 +4374,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           {
             responseType: RESPONSE_TYPES.CODE,
             returnTo: transactionState.returnTo,
+            challengeMode: "redirect",
             appBaseUrl: DEFAULT.appBaseUrl
           },
           null
@@ -4460,6 +4462,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           {
             responseType: RESPONSE_TYPES.CODE,
             returnTo: transactionState.returnTo,
+            challengeMode: "redirect",
             appBaseUrl: DEFAULT.appBaseUrl
           },
           null
@@ -4546,6 +4549,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           {
             responseType: RESPONSE_TYPES.CODE,
             returnTo: transactionState.returnTo,
+            challengeMode: "redirect",
             appBaseUrl: DEFAULT.appBaseUrl
           },
           null
@@ -5127,6 +5131,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           {
             responseType: RESPONSE_TYPES.CONNECT_CODE,
             returnTo: transactionState.returnTo,
+            challengeMode: "redirect",
             appBaseUrl: DEFAULT.appBaseUrl
           },
           null
@@ -5243,6 +5248,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           {
             responseType: RESPONSE_TYPES.CONNECT_CODE,
             returnTo: transactionState.returnTo,
+            challengeMode: "redirect",
             appBaseUrl: DEFAULT.appBaseUrl
           },
           null
@@ -5362,6 +5368,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           {
             responseType: RESPONSE_TYPES.CONNECT_CODE,
             returnTo: transactionState.returnTo,
+            challengeMode: "redirect",
             appBaseUrl: DEFAULT.appBaseUrl
           },
           null
