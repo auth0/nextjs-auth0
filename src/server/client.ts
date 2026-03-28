@@ -544,7 +544,8 @@ export class Auth0Client {
       mfaChallenge:
         process.env.NEXT_PUBLIC_MFA_CHALLENGE_ROUTE || "/auth/mfa/challenge",
       mfaVerify: process.env.NEXT_PUBLIC_MFA_VERIFY_ROUTE || "/auth/mfa/verify",
-      mfaEnroll: process.env.NEXT_PUBLIC_MFA_ENROLL_ROUTE || "/auth/mfa/enroll",
+      mfaAssociate:
+        process.env.NEXT_PUBLIC_MFA_ASSOCIATE_ROUTE || "/auth/mfa/associate",
       // deleteAuthenticator uses mfaAuthenticators route with DELETE method
       ...options.routes
     };

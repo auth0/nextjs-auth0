@@ -194,6 +194,9 @@ export {
   EnrollOptions,
   EnrollOtpOptions,
   EnrollOobOptions,
+  FactorType,
+  EnrollFactorTypeOtpOptions,
+  EnrollFactorTypeOobOptions,
   MfaVerifyResponse,
   VerifyMfaOptions,
   VerifyMfaOptionsBase,
@@ -203,5 +206,8 @@ export {
   MfaContext,
   GRANT_TYPE_MFA_OTP,
   GRANT_TYPE_MFA_OOB,
-  GRANT_TYPE_MFA_RECOVERY_CODE
+  GRANT_TYPE_MFA_RECOVERY_CODE,
+  AuthenticatorApiResponse,
+  ChallengeApiResponse,
+  EnrollmentApiResponse
 } from "./mfa.js";

@@ -9,6 +9,12 @@ import type {
   MfaVerifyResponse,
   VerifyMfaOptions
 } from "../../types/index.js";
+import {
+  buildEnrollmentResponse,
+  camelizeAuthenticator,
+  camelizeChallengeResponse,
+  normalizeEnrollOptions
+} from "../../utils/mfa-transform-utils.js";
 import type { AuthClient } from "../auth-client.js";
 
 /**
@@ -49,7 +55,7 @@ export class ServerMfaClient implements MfaClient {
    * List enrolled MFA authenticators.
    *
    * @param options - Options containing encrypted mfaToken
-   * @returns Array of authenticators filtered by mfa_requirements
+   * @returns Array of authenticators (camelCase SDK format) filtered by mfa_requirements
    *
    * @example App Router
    * ```typescript
@@ -80,14 +86,17 @@ export class ServerMfaClient implements MfaClient {
   async getAuthenticators(options: {
     mfaToken: string;
   }): Promise<Authenticator[]> {
-    return this.authClient.mfaGetAuthenticators(options.mfaToken);
+    const apiResponse = await this.authClient.mfaGetAuthenticators(
+      options.mfaToken
+    );
+    return apiResponse.map(camelizeAuthenticator);
   }
 
   /**
    * Initiate an MFA challenge.
    *
    * @param options - Challenge options
-   * @returns Challenge response (oobCode, bindingMethod)
+   * @returns Challenge response (camelCase SDK format: challengeType, oobCode, bindingMethod)
    *
    * @example
    * ```typescript
@@ -111,18 +120,19 @@ export class ServerMfaClient implements MfaClient {
     challengeType: string;
     authenticatorId?: string;
   }): Promise<ChallengeResponse> {
-    return this.authClient.mfaChallenge(
+    const apiResponse = await this.authClient.mfaChallenge(
       options.mfaToken,
       options.challengeType,
       options.authenticatorId
     );
+    return camelizeChallengeResponse(apiResponse);
   }
 
   /**
    * Enroll a new MFA authenticator.
    *
    * @param options - Enrollment options (otp | oob | email)
-   * @returns Enrollment response with authenticator details and optional recovery codes
+   * @returns Enrollment response (camelCase SDK format) with authenticator details and optional recovery codes
    *
    * @example OTP Enrollment
    * ```typescript
@@ -147,8 +157,15 @@ export class ServerMfaClient implements MfaClient {
    * ```
    */
   async enroll(options: EnrollOptions): Promise<EnrollmentResponse> {
-    const { mfaToken, ...enrollOptions } = options;
-    return this.authClient.mfaEnroll(mfaToken, enrollOptions);
+    // Normalize factorType variants to standard authenticatorTypes format
+    const normalizedOptions = normalizeEnrollOptions(options);
+
+    const { mfaToken, ...enrollOptions } = normalizedOptions;
+    const apiResponse = await this.authClient.mfaAssociate(
+      mfaToken,
+      enrollOptions
+    );
+    return buildEnrollmentResponse(apiResponse);
   }
 
   /**
