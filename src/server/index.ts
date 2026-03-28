@@ -6,6 +6,9 @@ export { AbstractSessionStore } from "./session/abstract-session-store.js";
 
 export { filterDefaultIdTokenClaims, DEFAULT_ID_TOKEN_CLAIMS } from "./user.js";
 
+// DPoP utilities
+export { generateDpopKeyPair } from "../utils/dpopRetry.js";
+
 // MFA error classes for handling MFA step-up authentication
 export {
   MfaRequiredError,
