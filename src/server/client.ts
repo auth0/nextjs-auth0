@@ -416,6 +416,66 @@ export interface Auth0ClientOptions {
    * @see [MCD Examples](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#multiple-custom-domains-mcd)
    */
   discoveryCache?: DiscoveryCacheOptions;
+
+  /**
+   * Configure backchannel logout (BCLO) behavior in Multiple Custom Domains (MCD) mode.
+   *
+   * **Security Note:** In resolver mode, BCLO requires an explicit list of trusted
+   * issuer domains to prevent issuer self-selection attacks. Without trustedDomains
+   * configured, the BCLO endpoint will return 422 Unprocessable Entity (fail-closed).
+   *
+   * **Static Mode:** This configuration is optional and ignored. BCLO is already
+   * secure because the configured domain acts as the trust anchor.
+   *
+   * **Resolver Mode:** When using a domain resolver function, provide either:
+   * - A static array of Auth0 custom domains (for fixed domain sets)
+   * - A resolver function that returns the list dynamically (for SaaS applications)
+   *
+   * @example
+   * ```typescript
+   * // Static array (B2C multi-brand)
+   * const auth0 = new Auth0Client({
+   *   domain: ({ headers }) => {
+   *     const host = headers.get("host");
+   *     if (host?.startsWith("brand1.")) return "brand1.custom-domain.com";
+   *     return "brand2.custom-domain.com";
+   *   },
+   *   backchannelLogout: {
+   *     trustedDomains: [
+   *       "brand1.custom-domain.com",
+   *       "brand2.custom-domain.com"
+   *     ]
+   *   }
+   * });
+   * ```
+   *
+   * @example
+   * ```typescript
+   * // Dynamic resolver (B2B SaaS)
+   * const auth0 = new Auth0Client({
+   *   domain: ({ headers }) => getTenantDomain(headers.get("x-tenant-id")),
+   *   backchannelLogout: {
+   *     trustedDomains: async () => {
+   *       return await db.getAllAuth0Domains();
+   *     }
+   *   }
+   * });
+   * ```
+   *
+   * @see https://auth0.com/docs/mcd-bclo for security details
+   */
+  backchannelLogout?: {
+    /**
+     * List of Auth0 domains to trust for backchannel logout token verification.
+     * Can be a static array for fixed domain sets, or an async resolver function.
+     *
+     * Each domain is normalized via hostname validation at verification time.
+     * Invalid domains are logged as warnings and skipped.
+     */
+    trustedDomains?:
+      | string[]
+      | import("../types/mcd.js").TrustedDomainsResolver;
+  };
 }
 
 export type PagesRouterRequest = IncomingMessage | NextApiRequest;
@@ -599,6 +659,7 @@ export class Auth0Client {
     // The factory captures 'this' by reference, and will read this.provider when called later (not during construction).
     this.provider = new AuthClientProvider({
       domain,
+      backchannelLogout: options.backchannelLogout,
       createAuthClient: (domainForClient) => {
         return new AuthClient({
           transactionStore: this.transactionStore,
@@ -649,6 +710,19 @@ export class Auth0Client {
     const staticClient = this.provider.getAuthClientForStaticMode();
     if (staticClient) {
       staticClient.provider = this.provider;
+    }
+
+    // Init-time validation: Resolver mode + BCLO without trustedDomains
+    if (
+      this.provider?.isResolverMode &&
+      options.backchannelLogout &&
+      !options.backchannelLogout.trustedDomains
+    ) {
+      console.warn(
+        "[Auth0] Backchannel logout is configured in resolver mode without `backchannelLogout.trustedDomains`. " +
+          "BCLO will be disabled (returning 422) at runtime until trustedDomains is provided. " +
+          "See: https://auth0.com/docs/mcd-bclo for details."
+      );
     }
   }
 

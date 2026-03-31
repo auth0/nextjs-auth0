@@ -330,9 +330,30 @@ export class AuthClient {
 
   private proxyFetchers: { [audience: string]: Fetcher<Response> } = {};
 
+  /**
+   * Maximum allowed response body size (1 MB). Responses exceeding this limit
+   * are aborted to prevent memory exhaustion from malicious or oversized
+   * OIDC discovery documents, JWKS responses, or token endpoint payloads.
+   * @internal
+   */
+  static readonly MAX_RESPONSE_BODY_SIZE = 1024 * 1024;
+
   constructor(options: AuthClientOptions) {
     // dependencies
-    this.fetch = options.fetch || fetch;
+    const baseFetch = options.fetch || fetch;
+    const maxBodySize = AuthClient.MAX_RESPONSE_BODY_SIZE;
+    this.fetch = async (input, init) => {
+      const response = await baseFetch(input, init);
+
+      const contentLength = response.headers.get("content-length");
+      if (contentLength && parseInt(contentLength, 10) > maxBodySize) {
+        throw new Error(
+          `Response body too large: ${contentLength} bytes exceeds ${maxBodySize} byte limit`
+        );
+      }
+
+      return response;
+    };
     this.discoveryCache = options.discoveryCache || new DiscoveryCache();
     this.provider = options.provider;
     this.allowInsecureRequests = options.allowInsecureRequests ?? false;
@@ -1376,7 +1397,7 @@ export class AuthClient {
       });
     }
 
-    // In resolver mode, extract issuer from logout token and delegate
+    // In resolver mode, validate trust BEFORE delegating to AuthClient
     if (this.provider?.isResolverMode) {
       try {
         // Step 1: Decode unverified to extract iss claim
@@ -1385,36 +1406,78 @@ export class AuthClient {
 
         if (!iss) {
           return new NextResponse("Missing 'iss' claim in logout token.", {
-            status: 400
+            status: 400,
+            headers: { "Content-Type": "text/plain" }
           });
         }
 
-        // Step 2-3: Normalize domain and validate (SSRF prevention)
-        const { domain } = normalizeDomain(iss);
+        // NEW Step 2: Trust validation — ensure trustedDomains is configured
+        if (!this.provider.hasTrustedDomains) {
+          return new NextResponse(
+            "Back-channel logout requires `backchannelLogout.trustedDomains` configuration in resolver mode.",
+            {
+              status: 422,
+              headers: { "Content-Type": "text/plain" }
+            }
+          );
+        }
 
-        // Step 4: Get AuthClient for the domain
-        const delegatedClient = this.provider.forDomainSync(domain);
+        // Step 3: Normalize issuer domain (may throw on invalid format)
+        let issuerDomain: string;
+        try {
+          ({ domain: issuerDomain } = normalizeDomain(iss));
+        } catch (e) {
+          // Invalid issuer format (e.g., IP address) — treat as untrusted
+          const err = e instanceof Error ? e : new Error(String(e));
+          return new NextResponse(
+            `Invalid issuer domain in logout token: ${err.message}`,
+            {
+              status: 403,
+              headers: { "Content-Type": "text/plain" }
+            }
+          );
+        }
 
-        // Step 5-6: Verify and delete via delegated client
+        // NEW Step 4: Trust validation — check against whitelist
+        const isTrusted = await this.provider.isTrustedDomain(issuerDomain);
+        if (!isTrusted) {
+          // Issuer not in allowlist — fail-closed
+          return new NextResponse(
+            `Logout token issuer '${issuerDomain}' is not in the configured trustedDomains.`,
+            {
+              status: 403,
+              headers: { "Content-Type": "text/plain" }
+            }
+          );
+        }
+
+        // Step 5: Get AuthClient for the domain (now verified trusted)
+        const delegatedClient = this.provider.forDomainSync(issuerDomain);
+
+        // Step 6: Verify token with delegated client (using trusted domain's JWKS)
         const [error, logoutTokenClaims] =
           await delegatedClient.verifyLogoutToken(logoutToken);
         if (error) {
           return new NextResponse(error.message, {
-            status: 400
+            status: 400,
+            headers: { "Content-Type": "text/plain" }
           });
         }
 
-        // Step 7: Delete session (verified successfully)
+        // Step 7: Delete session (verified successfully, issuer validated)
+        // Note: logoutTokenClaims now includes iss field from verified payload
         await this.sessionStore.store.deleteByLogoutToken(logoutTokenClaims);
 
         return new NextResponse(null, {
           status: 204
         });
       } catch (error: any) {
+        // Unexpected error (not a trust/normalization error)
         return new NextResponse(
           error.message || "Failed to process logout token.",
           {
-            status: 400
+            status: 500,
+            headers: { "Content-Type": "text/plain" }
           }
         );
       }
@@ -1425,7 +1488,8 @@ export class AuthClient {
       await this.verifyLogoutToken(logoutToken);
     if (error) {
       return new NextResponse(error.message, {
-        status: 400
+        status: 400,
+        headers: { "Content-Type": "text/plain" }
       });
     }
 
@@ -1881,7 +1945,9 @@ export class AuthClient {
       {
         [jose.jwksCache]: this.discoveryCache.getJwksCacheForUri(
           authorizationServerMetadata.jwks_uri!
-        )
+        ),
+        timeoutDuration: this.httpTimeout,
+        [jose.customFetch]: this.fetch
       }
     );
 
@@ -1948,11 +2014,15 @@ export class AuthClient {
       ];
     }
 
+    // Extract issuer from verified token payload
+    const issuer = payload.iss as string | undefined;
+
     return [
       null,
       {
         sid: payload.sid as string,
-        sub: payload.sub
+        sub: payload.sub,
+        iss: issuer // NEW: include issuer for issuer-matched deletion
       }
     ];
   }

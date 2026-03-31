@@ -59,7 +59,7 @@ export interface SessionDataStore {
   deleteByLogoutToken?(logoutToken: LogoutToken): Promise<void>;
 }
 
-export type LogoutToken = { sub?: string; sid?: string };
+export type LogoutToken = { sub?: string; sid?: string; iss?: string };
 
 export interface User {
   sub: string;

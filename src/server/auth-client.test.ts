@@ -5795,7 +5795,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       expect(deleteByLogoutTokenSpy).toHaveBeenCalledWith({
         sub: DEFAULT.sub,
-        sid: DEFAULT.sid
+        sid: DEFAULT.sid,
+        iss: "https://guabu.us.auth0.com/"
       });
     });
 

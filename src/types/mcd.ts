@@ -88,6 +88,49 @@ export interface DiscoveryCacheOptions {
 }
 
 /**
+ * Resolves the list of Auth0 domains trusted for backchannel logout.
+ *
+ * Called once per BCLO request to retrieve the list of domains whose logout tokens
+ * this application will accept. Only issuers in this list will be trusted.
+ *
+ * Unlike DomainResolver, this is stateless (takes no parameters) because BCLO is
+ * a canonical server-to-server endpoint from Auth0 with no per-request context.
+ *
+ * @returns Array of Auth0 custom domain hostnames (e.g., `["auth.brand1.com", "auth.brand2.com"]`)
+ *   Can be returned synchronously or as a Promise.
+ *   Each domain is normalized via `normalizeDomain()` at validation time.
+ *
+ * @example
+ * ```typescript
+ * // Static array
+ * trustedDomains: ["auth.brand1.com", "auth.brand2.com"]
+ *
+ * // Dynamic resolver
+ * trustedDomains: async () => {
+ *   const domains = await db.getAllAuth0Domains();
+ *   return domains.map(d => d.hostname);
+ * }
+ * ```
+ *
+ * @public
+ */
+export type TrustedDomainsResolver = () => string[] | Promise<string[]>;
+
+/**
+ * Configuration for backchannel logout (BCLO) in MCD mode.
+ *
+ * @property trustedDomains - List of Auth0 domains to trust for BCLO token verification.
+ *   In resolver mode, this is required for BCLO to function (fail-closed).
+ *   In static mode, this configuration is ignored (not needed, already safe).
+ *   Can be a static array for fixed domain sets, or a resolver function for dynamic sources.
+ *
+ * @internal
+ */
+export interface BackchannelLogoutConfig {
+  trustedDomains?: string[] | TrustedDomainsResolver;
+}
+
+/**
  * Metadata for a specific domain and its associated issuer.
  * Stored in session internal state to track which domain authenticated the user.
  *
