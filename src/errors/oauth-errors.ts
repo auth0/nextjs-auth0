@@ -92,53 +92,15 @@ export class AuthorizationCodeGrantError extends SdkError {
 
 /**
  * Error thrown when backchannel logout processing fails.
- *
- * Error codes:
- * - `backchannel_logout_error` - Generic/default error
- * - `untrusted_issuer` - Token issuer not in configured trustedDomains
- * - `missing_trust_config` - trustedDomains not provided in resolver mode
- * - `missing_iss_claim` - Token missing required `iss` claim
- * - `malformed_token` - Token decode or validation failed
  */
 export class BackchannelLogoutError extends SdkError {
-  public code: string;
+  public code: string = "backchannel_logout_error";
 
-  /**
-   * Creates a new BackchannelLogoutError.
-   *
-   * Overloaded constructor signatures:
-   * 1. `new BackchannelLogoutError(message)` — backward compatible, uses default code
-   * 2. `new BackchannelLogoutError(code, message)` — new parameterized form
-   *
-   * The constructor distinguishes between forms by checking if both parameters are
-   * provided AND the first parameter is a non-empty string (indicating a code value).
-   *
-   * @param codeOrMessage - Either error code string or error message (for backward compat)
-   * @param messageOrUndefined - Error message (only when codeOrMessage is code)
-   */
-  constructor(codeOrMessage?: string, messageOrUndefined?: string) {
-    // Backward compatibility: only treat as new form if BOTH args are strings and first is non-empty
-    let code: string;
-    let message: string;
-
-    if (
-      typeof codeOrMessage === "string" &&
-      typeof messageOrUndefined === "string" &&
-      codeOrMessage.length > 0
-    ) {
-      // New form: BackchannelLogoutError(code, message)
-      code = codeOrMessage;
-      message = messageOrUndefined;
-    } else {
-      // Old form: BackchannelLogoutError(message)
-      code = "backchannel_logout_error";
-      message =
-        codeOrMessage ??
-        "An error occurred while completing the backchannel logout request.";
-    }
-
-    super(message);
-    this.code = code;
+  constructor(message?: string) {
+    super(
+      message ??
+        "An error occurred while completing the backchannel logout request."
+    );
     this.name = "BackchannelLogoutError";
   }
 }

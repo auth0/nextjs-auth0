@@ -345,11 +345,45 @@ export class AuthClient {
     this.fetch = async (input, init) => {
       const response = await baseFetch(input, init);
 
+      // Fast path: reject if Content-Length is declared and exceeds limit
       const contentLength = response.headers.get("content-length");
       if (contentLength && parseInt(contentLength, 10) > maxBodySize) {
         throw new Error(
           `Response body too large: ${contentLength} bytes exceeds ${maxBodySize} byte limit`
         );
+      }
+
+      // Wrap response body to enforce size limit during streaming consumption
+      // (handles chunked transfer-encoding where Content-Length is absent)
+      if (response.body) {
+        const reader = response.body.getReader();
+        let totalBytes = 0;
+        const stream = new ReadableStream({
+          async pull(controller) {
+            const { done, value } = await reader.read();
+            if (done) {
+              controller.close();
+              return;
+            }
+            totalBytes += value.byteLength;
+            if (totalBytes > maxBodySize) {
+              controller.error(
+                new Error(
+                  `Response body too large: exceeded ${maxBodySize} byte limit`
+                )
+              );
+              reader.cancel();
+              return;
+            }
+            controller.enqueue(value);
+          }
+        });
+
+        return new Response(stream, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: response.headers
+        });
       }
 
       return response;
@@ -1411,10 +1445,10 @@ export class AuthClient {
           });
         }
 
-        // NEW Step 2: Trust validation — ensure trustedDomains is configured
+        // Step 2: Trust validation — ensure trustedDomains is configured
         if (!this.provider.hasTrustedDomains) {
           return new NextResponse(
-            "Back-channel logout requires `backchannelLogout.trustedDomains` configuration in resolver mode.",
+            "Back-channel logout is not configured for this application.",
             {
               status: 422,
               headers: { "Content-Type": "text/plain" }
@@ -1426,29 +1460,21 @@ export class AuthClient {
         let issuerDomain: string;
         try {
           ({ domain: issuerDomain } = normalizeDomain(iss));
-        } catch (e) {
+        } catch {
           // Invalid issuer format (e.g., IP address) — treat as untrusted
-          const err = e instanceof Error ? e : new Error(String(e));
-          return new NextResponse(
-            `Invalid issuer domain in logout token: ${err.message}`,
-            {
-              status: 403,
-              headers: { "Content-Type": "text/plain" }
-            }
-          );
+          return new NextResponse("Logout token issuer is not trusted.", {
+            status: 403,
+            headers: { "Content-Type": "text/plain" }
+          });
         }
 
-        // NEW Step 4: Trust validation — check against whitelist
+        // Step 4: Trust validation — check against whitelist
         const isTrusted = await this.provider.isTrustedDomain(issuerDomain);
         if (!isTrusted) {
-          // Issuer not in allowlist — fail-closed
-          return new NextResponse(
-            `Logout token issuer '${issuerDomain}' is not in the configured trustedDomains.`,
-            {
-              status: 403,
-              headers: { "Content-Type": "text/plain" }
-            }
-          );
+          return new NextResponse("Logout token issuer is not trusted.", {
+            status: 403,
+            headers: { "Content-Type": "text/plain" }
+          });
         }
 
         // Step 5: Get AuthClient for the domain (now verified trusted)
@@ -1471,15 +1497,12 @@ export class AuthClient {
         return new NextResponse(null, {
           status: 204
         });
-      } catch (error: any) {
-        // Unexpected error (not a trust/normalization error)
-        return new NextResponse(
-          error.message || "Failed to process logout token.",
-          {
-            status: 500,
-            headers: { "Content-Type": "text/plain" }
-          }
-        );
+      } catch (error) {
+        console.error("Unexpected error in backchannel logout:", error);
+        return new NextResponse("Failed to process logout token.", {
+          status: 400,
+          headers: { "Content-Type": "text/plain" }
+        });
       }
     }
 

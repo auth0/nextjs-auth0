@@ -28,7 +28,11 @@ import {
   StartInteractiveLoginOptions,
   User
 } from "../types/index.js";
-import type { DiscoveryCacheOptions, DomainResolver } from "../types/mcd.js";
+import type {
+  BackchannelLogoutConfig,
+  DiscoveryCacheOptions,
+  DomainResolver
+} from "../types/mcd.js";
 import {
   DEFAULT_MFA_CONTEXT_TTL_SECONDS,
   DEFAULT_SCOPES
@@ -464,18 +468,7 @@ export interface Auth0ClientOptions {
    *
    * @see https://auth0.com/docs/mcd-bclo for security details
    */
-  backchannelLogout?: {
-    /**
-     * List of Auth0 domains to trust for backchannel logout token verification.
-     * Can be a static array for fixed domain sets, or an async resolver function.
-     *
-     * Each domain is normalized via hostname validation at verification time.
-     * Invalid domains are logged as warnings and skipped.
-     */
-    trustedDomains?:
-      | string[]
-      | import("../types/mcd.js").TrustedDomainsResolver;
-  };
+  backchannelLogout?: BackchannelLogoutConfig;
 }
 
 export type PagesRouterRequest = IncomingMessage | NextApiRequest;

@@ -5,7 +5,11 @@
 
 import { InvalidConfigurationError } from "../errors/index.js";
 import { DomainResolutionError } from "../errors/mcd.js";
-import type { DomainResolver } from "../types/mcd.js";
+import type {
+  BackchannelLogoutConfig,
+  DomainResolver,
+  TrustedDomainsResolver
+} from "../types/mcd.js";
 import { normalizeDomain } from "../utils/normalize.js";
 import type { AuthClient } from "./auth-client.js";
 
@@ -31,11 +35,7 @@ interface AuthClientProviderOptions {
    * In resolver mode, specifies which domains' logout tokens to accept.
    * In static mode, this is ignored.
    */
-  backchannelLogout?: {
-    trustedDomains?:
-      | string[]
-      | import("../types/mcd.js").TrustedDomainsResolver;
-  };
+  backchannelLogout?: BackchannelLogoutConfig;
 }
 
 /**
@@ -81,9 +81,7 @@ export class AuthClientProvider {
   private proxyFetchers: Map<string, any> = new Map();
 
   // BCLO trust configuration (resolver mode only)
-  private trustedDomainsConfig?:
-    | string[]
-    | import("../types/mcd.js").TrustedDomainsResolver;
+  private trustedDomainsConfig?: string[] | TrustedDomainsResolver;
   private trustedDomainsNormalized?: string[]; // Cached normalized array (static case only)
   private isResolverFunction: boolean = false; // Track if resolver or static array
   public hasTrustedDomains: boolean = false; // Public flag for BCLO handler check
@@ -286,8 +284,7 @@ export class AuthClientProvider {
 
     if (this.isResolverFunction) {
       // Resolver mode: call function and check result
-      const resolverFn = this
-        .trustedDomainsConfig as import("../types/mcd.js").TrustedDomainsResolver;
+      const resolverFn = this.trustedDomainsConfig as TrustedDomainsResolver;
       try {
         const trustedDomains = await resolverFn();
         if (!Array.isArray(trustedDomains)) {
