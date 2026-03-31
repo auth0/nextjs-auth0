@@ -1496,21 +1496,21 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
      * CRITICAL TEST: Validates that tokenSetSideEffect is properly captured on each proxy call.
      *
      * PROBLEM:
-     * - Fetchers are cached per audience to reuse DPoP handles
+     * - Proxy requests reuse a DPoP handle per audience
      * - Each proxy call creates a new `getAccessToken` closure that captures `tokenSetSideEffect`
-     * - When a fetcher is reused, if we don't override its `getAccessToken`, it uses the STALE
-     *   closure from the first call, which references the OLD `tokenSetSideEffect` variable
+     * - If the same fetcher instance were reused directly, it would keep the STALE closure from
+     *   the first call, which references the OLD `tokenSetSideEffect` variable
      * - This causes the second token refresh to update the WRONG tokenSetSideEffect variable,
      *   leading to the session not being updated on the second call
      *
      * SOLUTION:
-     * - Override `fetcher.getAccessToken` on every proxy call to capture fresh `tokenSetSideEffect`
-     * - See auth-client.ts line ~2367: `fetcher.getAccessToken = getAccessToken;`
+     * - Create a fresh request-bound fetcher on every proxy call while reusing the cached
+     *   DPoP handle per audience
      *
      * This test validates that BOTH proxy calls properly update their sessions after token refresh,
      * which would fail if the tokenSetSideEffect closure is stale.
      */
-    it("8.3 should update session on BOTH calls when fetcher is reused for same audience", async () => {
+    it("8.3 should update session on BOTH calls when DPoP state is reused for same audience", async () => {
       const now = Math.floor(Date.now() / 1000);
 
       // Track how many times token endpoint is called
@@ -1595,8 +1595,8 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         `Bearer ${refreshedTokens[0]}`
       );
 
-      // ===== SECOND REQUEST (reusing fetcher for same audience) =====
-      // Key point: This will reuse the cached fetcher from the first request
+      // ===== SECOND REQUEST (reusing DPoP state for same audience) =====
+      // Key point: This will reuse the cached DPoP handle from the first request
       // If the getAccessToken closure is stale, tokenSetSideEffect won't be updated
 
       // Simulate passage of time - token expires again
@@ -1626,7 +1626,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
       expect(response2.status).toBe(200);
 
       // CRITICAL ASSERTION: Verify second session was ALSO updated
-      // BUG SCENARIO: If tokenSetSideEffect closure is stale from the cached fetcher,
+      // BUG SCENARIO: If tokenSetSideEffect closure were stale from a reused fetcher,
       // the second token refresh would populate the OLD tokenSetSideEffect variable
       // from the first call, which is no longer in scope. This would cause:
       // 1. tokenSetSideEffect to remain undefined in the second call
@@ -1649,9 +1649,9 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
       // Verify the two session cookies are different (proving both were independently updated)
       expect(setCookie2).not.toBe(setCookie1);
 
-      // Summary: This test passes because auth-client.ts overrides fetcher.getAccessToken
-      // on reuse (line ~2367). Without that override, this test would FAIL because the
-      // second call's tokenSetSideEffect wouldn't be captured, preventing session updates.
+      // Summary: This test passes because the proxy path creates a fresh fetcher per request
+      // while reusing only the cached DPoP handle. Without that, the second call's
+      // tokenSetSideEffect would be stale and the session would not update.
     });
   });
 
@@ -1928,6 +1928,149 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
 
       // All three concurrent requests should have been processed
       expect(meCallCount).toBe(3);
+    });
+
+    it("10.4 should keep DPoP nonce retry bound to the original session", async () => {
+      const now = Math.floor(Date.now() / 1000);
+
+      const raceClient = new AuthClient({
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        secret,
+        sessionStore: new StatelessSessionStore({ secret }),
+        transactionStore: new TransactionStore({ secret }),
+        useDPoP: true,
+        dpopKeyPair,
+        dpopOptions: {
+          retry: {
+            delay: 200,
+            jitter: false
+          }
+        },
+        fetch: (url, init) =>
+          fetch(url, { ...init, ...(init?.body ? { duplex: "half" } : {}) })
+      });
+
+      const sessionA = createInitialSessionData({
+        user: {
+          sub: "user-a"
+        },
+        internal: {
+          sid: "sid-a",
+          createdAt: now
+        },
+        tokenSet: {
+          accessToken: "tokenA",
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt: now + 3600,
+          scope: "read:data",
+          audience: DEFAULT.audience,
+          token_type: "DPoP"
+        }
+      });
+      const sessionB = createInitialSessionData({
+        user: {
+          sub: "user-b"
+        },
+        internal: {
+          sid: "sid-b",
+          createdAt: now
+        },
+        tokenSet: {
+          accessToken: "tokenB",
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt: now + 3600,
+          scope: "read:data",
+          audience: DEFAULT.audience,
+          token_type: "DPoP"
+        }
+      });
+
+      const cookieA = await createSessionCookie(sessionA, secret);
+      const cookieB = await createSessionCookie(sessionB, secret);
+
+      const upstreamRequests: Array<{
+        authorization: string;
+        nonce?: string;
+      }> = [];
+      let notifyNonceChallenge = () => {};
+      const nonceChallengeSeen = new Promise<void>((resolve) => {
+        notifyNonceChallenge = resolve;
+      });
+
+      server.use(
+        http.get(`${DEFAULT.upstreamBaseUrl}/data`, ({ request }) => {
+          upstreamRequests.push({
+            authorization: request.headers.get("authorization") || "",
+            nonce: extractDPoPInfo(request.headers.get("dpop")).nonce
+          });
+
+          if (upstreamRequests.length === 1) {
+            notifyNonceChallenge();
+            return new Response(
+              JSON.stringify({
+                error: "use_dpop_nonce",
+                error_description: "DPoP nonce is required"
+              }),
+              {
+                status: 401,
+                headers: {
+                  "www-authenticate": 'DPoP error="use_dpop_nonce"',
+                  "dpop-nonce": "server_nonce_123",
+                  "content-type": "application/json"
+                }
+              }
+            );
+          }
+
+          return HttpResponse.json({ success: true });
+        })
+      );
+
+      const requestA = new NextRequest(
+        new URL(`${DEFAULT.proxyPath}/data`, DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers: { cookie: cookieA }
+        }
+      );
+      const requestB = new NextRequest(
+        new URL(`${DEFAULT.proxyPath}/data`, DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers: { cookie: cookieB }
+        }
+      );
+
+      const responseAPromise = raceClient.handler(requestA);
+      await nonceChallengeSeen;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      const responseBPromise = raceClient.handler(requestB);
+
+      const [responseA, responseB] = await Promise.all([
+        responseAPromise,
+        responseBPromise
+      ]);
+
+      expect(responseA.status).toBe(200);
+      expect(responseB.status).toBe(200);
+      expect(upstreamRequests).toEqual([
+        {
+          authorization: "DPoP tokenA",
+          nonce: undefined
+        },
+        {
+          authorization: "DPoP tokenB",
+          nonce: "server_nonce_123"
+        },
+        {
+          authorization: "DPoP tokenA",
+          nonce: "server_nonce_123"
+        }
+      ]);
     });
   });
 

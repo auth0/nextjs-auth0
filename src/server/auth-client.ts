@@ -330,7 +330,7 @@ export class AuthClient {
 
   private readonly mfaTokenTtl: number;
 
-  private proxyFetchers: { [audience: string]: Fetcher<Response> } = {};
+  private proxyDpopHandles: { [audience: string]: oauth.DPoPHandle } = {};
 
   constructor(options: AuthClientOptions) {
     // dependencies
@@ -2620,9 +2620,10 @@ export class AuthClient {
     const fetcherConfig: FetcherConfig<TOutput> = {
       // Fetcher-scoped DPoP handle and nonce management
       dpopHandle:
-        this.useDPoP && (options.useDPoP ?? true)
+        options.dpopHandle ??
+        (this.useDPoP && (options.useDPoP ?? true)
           ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
-          : undefined,
+          : undefined),
       httpOptions: this.httpOptions,
       allowInsecureRequests: this.allowInsecureRequests,
       retryConfig: this.dpopOptions?.retry,
@@ -3162,20 +3163,23 @@ export class AuthClient {
       return tokenSetResponse.tokenSet;
     };
 
-    // get/create fetcher isntance
-    let fetcher = this.proxyFetchers[options.audience];
+    // Cache the DPoP handle per audience so nonce state is shared across
+    // requests, but always create a request-bound fetcher so token resolution
+    // stays tied to the current session.
+    const dpopHandle =
+      this.useDPoP && this.dpopKeyPair
+        ? (this.proxyDpopHandles[options.audience] ??= oauth.DPoP(
+            this.clientMetadata,
+            this.dpopKeyPair
+          ))
+        : undefined;
 
-    if (!fetcher) {
-      fetcher = await this.fetcherFactory({
-        useDPoP: this.useDPoP,
-        fetch: this.fetch,
-        getAccessToken: getAccessToken
-      });
-      this.proxyFetchers[options.audience] = fetcher;
-    } else {
-      // @ts-expect-error Override fetcher's getAccessToken to capture token set side effects
-      fetcher.getAccessToken = getAccessToken;
-    }
+    const fetcher = await this.fetcherFactory({
+      useDPoP: this.useDPoP,
+      fetch: this.fetch,
+      getAccessToken,
+      dpopHandle
+    });
 
     try {
       const response = await fetcher.fetchWithAuth(
@@ -3524,6 +3528,7 @@ type GetTokenSetResponse = {
 export type FetcherFactoryOptions<TOutput extends Response> = {
   useDPoP?: boolean;
   getAccessToken: AccessTokenFactory;
+  dpopHandle?: oauth.DPoPHandle;
 } & FetcherMinimalConfig<TOutput>;
 
 /**
