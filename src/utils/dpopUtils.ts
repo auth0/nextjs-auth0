@@ -293,12 +293,18 @@ export async function validateDpopConfiguration(
         }
 
         // Convert NodeJS KeyObjects to CryptoKeys synchronously
-        const privateKey = privateKeyNodeJS.toCryptoKey("ES256", false, [
-          "sign"
-        ]);
-        const publicKey = publicKeyNodeJS.toCryptoKey("ES256", false, [
-          "verify"
-        ]);
+        // toCryptoKey requires an algorithm object, not a string
+        // Keys must be extractable for JWK thumbprint calculation
+        const privateKey = privateKeyNodeJS.toCryptoKey(
+          { name: "ECDSA", namedCurve: "P-256" },
+          true,
+          ["sign"]
+        );
+        const publicKey = publicKeyNodeJS.toCryptoKey(
+          { name: "ECDSA", namedCurve: "P-256" },
+          true,
+          ["verify"]
+        );
 
         return {
           dpopKeyPair: { privateKey, publicKey },
