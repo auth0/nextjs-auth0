@@ -3139,10 +3139,49 @@ export class AuthClient {
       ? await clonedReq.arrayBuffer()
       : undefined;
 
+    // Keep a request-local session snapshot so proxy retries can see token refreshes
+    // immediately, without persisting cookies until the proxy call completes.
+    const requestSession = structuredClone(session);
+    const tokenSetResponsesByRequest = new Map<string, GetTokenSetResponse>();
+    const applyTokenSetResponseToRequestSession = (
+      tokenSetResponse: GetTokenSetResponse
+    ) => {
+      const sessionChanges = getSessionChangesAfterGetAccessToken(
+        requestSession,
+        tokenSetResponse.tokenSet,
+        {
+          scope: this.authorizationParameters?.scope ?? DEFAULT_SCOPES,
+          audience: this.authorizationParameters?.audience
+        }
+      );
+
+      if (sessionChanges) {
+        Object.assign(requestSession, sessionChanges);
+      }
+
+      if (tokenSetResponse.idTokenClaims) {
+        requestSession.user = tokenSetResponse.idTokenClaims as User;
+      }
+    };
+
     let tokenSetSideEffect!: GetTokenSetResponse;
 
     const getAccessToken: AccessTokenFactory = async (authParams) => {
-      const [error, tokenSetResponse] = await this.getTokenSet(session, {
+      // DPoP nonce retries re-enter getAccessToken() for the same audience/scope.
+      // Reuse the first token response for the lifetime of this proxy request.
+      const cacheKey = JSON.stringify([
+        authParams.refresh ?? false,
+        authParams.audience ?? null,
+        authParams.scope ?? null
+      ]);
+      const cachedTokenSetResponse = tokenSetResponsesByRequest.get(cacheKey);
+
+      if (cachedTokenSetResponse) {
+        tokenSetSideEffect = cachedTokenSetResponse;
+        return cachedTokenSetResponse.tokenSet;
+      }
+
+      const [error, tokenSetResponse] = await this.getTokenSet(requestSession, {
         audience: authParams.audience,
         scope: authParams.scope
       });
@@ -3150,6 +3189,9 @@ export class AuthClient {
       if (error) {
         throw error;
       }
+
+      applyTokenSetResponseToRequestSession(tokenSetResponse);
+      tokenSetResponsesByRequest.set(cacheKey, tokenSetResponse);
 
       // Tracking the last used token set response for session updates later as a side effect.
       // This relies on the fact that `getAccessToken` is called before the actual fetch.
@@ -3209,11 +3251,10 @@ export class AuthClient {
 
       return res;
     } catch (e: any) {
-      // Handle MFA required error - return 403 with MFA context
-      // Note: session.mfa was already mutated by getTokenSet() before the error was thrown.
-      // JavaScript is single-threaded, so no race condition exists.
+      // Handle MFA required error - return 403 with MFA context.
+      // The request-local session snapshot was mutated by getTokenSet() before the error was thrown.
       if (e instanceof MfaRequiredError) {
-        return this.#createMfaRequiredResponse(req, session, e);
+        return this.#createMfaRequiredResponse(req, requestSession, e);
       }
 
       // Return 401 for missing refresh token (cannot refresh expired token)
