@@ -929,6 +929,43 @@ export async function GET() {
 }
 ```
 
+**App Router Route Handlers — Refresh + Custom Response Headers/Cookies:**
+
+If your Route Handler needs to both refresh the session **and** return a `NextResponse` you fully control (e.g., to set additional cookies with a `Domain` or `SameSite` attribute), use the explicit `getAccessToken(req, res, options)` signature. This writes the refreshed session directly onto the `NextResponse` you pass, so all `Set-Cookie` headers — session and custom — are consolidated on the one response object you return.
+
+```typescript
+// app/api/refresh/route.ts
+import { NextRequest, NextResponse } from "next/server";
+
+import { auth0 } from "@/lib/auth0";
+
+export async function POST(req: NextRequest) {
+  // 1. Create the response object you will return.
+  const res = new NextResponse();
+
+  // 2. Pass req + res explicitly so the SDK writes the refreshed session
+  //    cookies directly onto `res` rather than into Next.js's internal
+  //    AsyncLocalStorage store. This makes the Set-Cookie headers (including
+  //    Domain, SameSite, Secure, etc. from your session.cookie config)
+  //    available on the response object you control.
+  const { token } = await auth0.getAccessToken(req, res, { refresh: true });
+
+  // 3. Set any additional cookies on the same response object.
+  res.cookies.set("my-cookie", "value", {
+    domain: ".example.com",
+    secure: true,
+    sameSite: "lax"
+  });
+
+  // 4. Return the single response — it now carries both the refreshed
+  //    session Set-Cookie headers and your custom cookie.
+  return res;
+}
+```
+
+> [!IMPORTANT]
+> Calling `getAccessToken({ refresh: true })` (without `req`/`res`) in a Route Handler writes the refreshed session through Next.js's internal cookie store, **not** onto a `NextResponse` you construct. If you then build a `new NextResponse()` and add cookies to it, that response will be missing the refreshed session cookies. Always pass `req` and `res` explicitly when you need all cookies on the same response object.
+
 **Pages Router (getServerSideProps, API Routes):**
 
 When calling `getAccessToken` with request and response objects (from `getServerSideProps` context or an API route), the options object is passed as the third argument.
