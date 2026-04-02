@@ -9826,13 +9826,15 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       warnSpy.mockRestore();
     });
 
-    it("should defer validation when useDPoP is false", async () => {
+    it("should skip DPoP validation entirely when useDPoP is false", async () => {
       process.env[ENV_VARS.DPOP_PRIVATE_KEY] = TEST_PRIVATE_KEY_PEM;
       process.env[ENV_VARS.DPOP_PUBLIC_KEY] = TEST_PUBLIC_KEY_PEM;
 
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({ secret });
       const sessionStore = new StatelessSessionStore({ secret });
+
+      const warnSpy = vi.spyOn(console, "warn");
 
       const authClient = new AuthClient({
         transactionStore,
@@ -9843,10 +9845,20 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
         routes: getDefaultRoutes(),
-        useDPoP: false
+        useDPoP: false,
+        fetch: getMockAuthorizationServer()
       });
 
       expect(authClient).toBeInstanceOf(AuthClient);
+
+      // Trigger operations that would validate DPoP if it were enabled
+      await expect(authClient.startInteractiveLogin()).resolves.toBeDefined();
+
+      // Verify NO DPoP-related warnings were issued - validation was completely skipped
+      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("DPoP"));
+      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("dpop"));
+
+      warnSpy.mockRestore();
     });
 
     it("should handle missing private key only from environment variables", async () => {
