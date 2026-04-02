@@ -240,7 +240,7 @@ export async function validateDpopConfiguration(
         // String concatenation at runtime makes the import path impossible to statically analyze
         // This is bundler-agnostic and works with webpack, Turbopack, Vite, esbuild, Rollup, etc.
         const cryptoModule = "cry" + "pto";
-        const { createPrivateKey, createPublicKey } = await import(
+        const { createPrivateKey, createPublicKey, webcrypto } = await import(
           cryptoModule as any
         );
 
@@ -292,15 +292,27 @@ export async function validateDpopConfiguration(
           return { dpopKeyPair: undefined, dpopOptions: undefined };
         }
 
-        // Convert NodeJS KeyObjects to CryptoKeys synchronously
-        // toCryptoKey requires an algorithm object, not a string
-        // Keys must be extractable for JWK thumbprint calculation
-        const privateKey = privateKeyNodeJS.toCryptoKey(
+        // Convert NodeJS KeyObjects to Web Crypto CryptoKeys
+        // Export to DER format then import via Web Crypto API
+        const privateKeyDer = privateKeyNodeJS.export({
+          type: "pkcs8",
+          format: "der"
+        });
+        const publicKeyDer = publicKeyNodeJS.export({
+          type: "spki",
+          format: "der"
+        });
+
+        const privateKey = await webcrypto.subtle.importKey(
+          "pkcs8",
+          privateKeyDer,
           { name: "ECDSA", namedCurve: "P-256" },
           true,
           ["sign"]
         );
-        const publicKey = publicKeyNodeJS.toCryptoKey(
+        const publicKey = await webcrypto.subtle.importKey(
+          "spki",
+          publicKeyDer,
           { name: "ECDSA", namedCurve: "P-256" },
           true,
           ["verify"]
