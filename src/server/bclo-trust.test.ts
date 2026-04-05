@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { BackchannelLogoutError } from "../errors/index.js";
+import { createSizeLimitedFetch } from "../utils/fetchUtils.js";
 import { AuthClientProvider } from "./auth-client-provider.js";
 import { AuthClient } from "./auth-client.js";
 
@@ -318,17 +319,17 @@ describe("BCLO Trust Validation", () => {
   });
 
   describe("Response Body Size Limit", () => {
+    const maxBodySize = AuthClient.MAX_RESPONSE_BODY_SIZE;
+
     it("rejects responses with Content-Length exceeding limit", async () => {
-      const oversizedLength = AuthClient.MAX_RESPONSE_BODY_SIZE + 1;
+      const oversizedLength = maxBodySize + 1;
       const mockFetch = vi.fn().mockResolvedValue(
         new Response("x", {
           headers: { "content-length": String(oversizedLength) }
         })
       );
 
-      // Access the wrapped fetch by constructing an AuthClient with a custom fetch
-      // and triggering a request through it
-      const wrappedFetch = buildSizeLimitedFetch(mockFetch);
+      const wrappedFetch = createSizeLimitedFetch(mockFetch, maxBodySize);
       await expect(wrappedFetch("https://example.com")).rejects.toThrow(
         /Response body too large/
       );
@@ -342,74 +343,21 @@ describe("BCLO Trust Validation", () => {
         })
       );
 
-      const wrappedFetch = buildSizeLimitedFetch(mockFetch);
+      const wrappedFetch = createSizeLimitedFetch(mockFetch, maxBodySize);
       const response = await wrappedFetch("https://example.com");
       expect(response.status).toEqual(200);
       expect(await response.text()).toEqual(body);
     });
 
     it("rejects chunked responses exceeding limit during streaming", async () => {
-      // Simulate chunked response (no Content-Length) with oversized body
-      const oversizedBody = "x".repeat(AuthClient.MAX_RESPONSE_BODY_SIZE + 1);
+      const oversizedBody = "x".repeat(maxBodySize + 1);
       const mockFetch = vi.fn().mockResolvedValue(
         new Response(oversizedBody) // No content-length header
       );
 
-      const wrappedFetch = buildSizeLimitedFetch(mockFetch);
+      const wrappedFetch = createSizeLimitedFetch(mockFetch, maxBodySize);
       const response = await wrappedFetch("https://example.com");
-      // Body consumption should throw
       await expect(response.text()).rejects.toThrow(/Response body too large/);
     });
   });
 });
-
-/**
- * Helper: builds the same size-limited fetch wrapper that AuthClient uses,
- * without needing a full AuthClient instance.
- */
-function buildSizeLimitedFetch(baseFetch: typeof fetch): typeof fetch {
-  const maxBodySize = AuthClient.MAX_RESPONSE_BODY_SIZE;
-  return async (input, init) => {
-    const response = await baseFetch(input, init);
-
-    const contentLength = response.headers.get("content-length");
-    if (contentLength && parseInt(contentLength, 10) > maxBodySize) {
-      throw new Error(
-        `Response body too large: ${contentLength} bytes exceeds ${maxBodySize} byte limit`
-      );
-    }
-
-    if (response.body) {
-      const reader = response.body.getReader();
-      let totalBytes = 0;
-      const stream = new ReadableStream({
-        async pull(controller) {
-          const { done, value } = await reader.read();
-          if (done) {
-            controller.close();
-            return;
-          }
-          totalBytes += value.byteLength;
-          if (totalBytes > maxBodySize) {
-            controller.error(
-              new Error(
-                `Response body too large: exceeded ${maxBodySize} byte limit`
-              )
-            );
-            reader.cancel();
-            return;
-          }
-          controller.enqueue(value);
-        }
-      });
-
-      return new Response(stream, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: response.headers
-      });
-    }
-
-    return response;
-  };
-}

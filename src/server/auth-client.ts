@@ -84,6 +84,7 @@ import {
   DEFAULT_SCOPES
 } from "../utils/constants.js";
 import { withDPoPNonceRetry } from "../utils/dpopUtils.js";
+import { createSizeLimitedFetch } from "../utils/fetchUtils.js";
 import {
   buildEnrollmentResponse,
   buildEnrollOptions,
@@ -344,54 +345,10 @@ export class AuthClient {
 
   constructor(options: AuthClientOptions) {
     // dependencies
-    const baseFetch = options.fetch || fetch;
-    const maxBodySize = AuthClient.MAX_RESPONSE_BODY_SIZE;
-    this.fetch = async (input, init) => {
-      const response = await baseFetch(input, init);
-
-      // Fast path: reject if Content-Length is declared and exceeds limit
-      const contentLength = response.headers.get("content-length");
-      if (contentLength && parseInt(contentLength, 10) > maxBodySize) {
-        throw new Error(
-          `Response body too large: ${contentLength} bytes exceeds ${maxBodySize} byte limit`
-        );
-      }
-
-      // Wrap response body to enforce size limit during streaming consumption
-      // (handles chunked transfer-encoding where Content-Length is absent)
-      if (response.body) {
-        const reader = response.body.getReader();
-        let totalBytes = 0;
-        const stream = new ReadableStream({
-          async pull(controller) {
-            const { done, value } = await reader.read();
-            if (done) {
-              controller.close();
-              return;
-            }
-            totalBytes += value.byteLength;
-            if (totalBytes > maxBodySize) {
-              controller.error(
-                new Error(
-                  `Response body too large: exceeded ${maxBodySize} byte limit`
-                )
-              );
-              reader.cancel();
-              return;
-            }
-            controller.enqueue(value);
-          }
-        });
-
-        return new Response(stream, {
-          status: response.status,
-          statusText: response.statusText,
-          headers: response.headers
-        });
-      }
-
-      return response;
-    };
+    this.fetch = createSizeLimitedFetch(
+      options.fetch || fetch,
+      AuthClient.MAX_RESPONSE_BODY_SIZE
+    );
     this.discoveryCache = options.discoveryCache || new DiscoveryCache();
     this.provider = options.provider;
     this.allowInsecureRequests = options.allowInsecureRequests ?? false;
@@ -2007,7 +1964,7 @@ export class AuthClient {
       {
         sid: payload.sid as string,
         sub: payload.sub,
-        iss: issuer // NEW: include issuer for issuer-matched deletion
+        iss: issuer // include issuer for issuer-matched deletion
       }
     ];
   }
