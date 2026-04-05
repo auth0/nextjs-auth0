@@ -106,7 +106,11 @@ import {
   validateStringFieldAndThrow,
   validateVerificationCredentialAndThrow
 } from "../utils/mfa-validation-utils.js";
-import { normalizeDomain, normalizeIssuer } from "../utils/normalize.js";
+import {
+  normalizeDomain,
+  normalizeIssuer,
+  tryNormalizeDomain
+} from "../utils/normalize.js";
 import { createRouteUrl, removeTrailingSlash } from "../utils/pathUtils.js";
 import {
   buildForwardedRequestHeaders,
@@ -1434,75 +1438,36 @@ export class AuthClient {
     // In resolver mode, validate trust BEFORE delegating to AuthClient
     if (this.provider?.isResolverMode) {
       try {
-        // Step 1: Decode unverified to extract iss claim
-        const payload = jose.decodeJwt(logoutToken);
-        const iss = payload.iss as string;
-
-        if (!iss) {
-          return new NextResponse("Missing 'iss' claim in logout token.", {
-            status: 400,
-            headers: { "Content-Type": "text/plain" }
-          });
+        // Extract and normalize issuer domain from unverified token
+        const issuerDomain = extractIssuerDomainFromToken(logoutToken);
+        if (!issuerDomain) {
+          return bcloErrorResponse("Missing 'iss' claim in logout token.", 400);
         }
 
-        // Step 2: Trust validation — ensure trustedDomains is configured
-        if (!this.provider.hasTrustedDomains) {
-          return new NextResponse(
-            "Back-channel logout is not configured for this application.",
-            {
-              status: 422,
-              headers: { "Content-Type": "text/plain" }
-            }
+        // Trust-gate and resolve client for the issuer domain
+        const bcloClientResult =
+          await this.provider.resolveClientForBclo(issuerDomain);
+        if (!bcloClientResult.ok) {
+          return bcloErrorResponse(
+            bcloClientResult.reason === "not_configured"
+              ? "Back-channel logout is not configured for this application."
+              : "Logout token issuer is not trusted.",
+            bcloClientResult.reason === "not_configured" ? 422 : 403
           );
         }
 
-        // Step 3: Normalize issuer domain (may throw on invalid format)
-        let issuerDomain: string;
-        try {
-          ({ domain: issuerDomain } = normalizeDomain(iss));
-        } catch {
-          // Invalid issuer format (e.g., IP address) — treat as untrusted
-          return new NextResponse("Logout token issuer is not trusted.", {
-            status: 403,
-            headers: { "Content-Type": "text/plain" }
-          });
-        }
-
-        // Step 4: Trust validation — check against whitelist
-        const isTrusted = await this.provider.isTrustedDomain(issuerDomain);
-        if (!isTrusted) {
-          return new NextResponse("Logout token issuer is not trusted.", {
-            status: 403,
-            headers: { "Content-Type": "text/plain" }
-          });
-        }
-
-        // Step 5: Get AuthClient for the domain (now verified trusted)
-        const delegatedClient = this.provider.forDomainSync(issuerDomain);
-
-        // Step 6: Verify token with delegated client (using trusted domain's JWKS)
+        // Verify token with trusted domain's JWKS and delete session
         const [error, logoutTokenClaims] =
-          await delegatedClient.verifyLogoutToken(logoutToken);
+          await bcloClientResult.client.verifyLogoutToken(logoutToken);
         if (error) {
-          return new NextResponse(error.message, {
-            status: 400,
-            headers: { "Content-Type": "text/plain" }
-          });
+          return bcloErrorResponse(error.message, 400);
         }
 
-        // Step 7: Delete session (verified successfully, issuer validated)
-        // Note: logoutTokenClaims now includes iss field from verified payload
         await this.sessionStore.store.deleteByLogoutToken(logoutTokenClaims);
-
-        return new NextResponse(null, {
-          status: 204
-        });
+        return new NextResponse(null, { status: 204 });
       } catch (error) {
         console.error("Unexpected error in backchannel logout:", error);
-        return new NextResponse("Failed to process logout token.", {
-          status: 400,
-          headers: { "Content-Type": "text/plain" }
-        });
+        return bcloErrorResponse("Failed to process logout token.", 400);
       }
     }
 
@@ -1510,10 +1475,7 @@ export class AuthClient {
     const [error, logoutTokenClaims] =
       await this.verifyLogoutToken(logoutToken);
     if (error) {
-      return new NextResponse(error.message, {
-        status: 400,
-        headers: { "Content-Type": "text/plain" }
-      });
+      return bcloErrorResponse(error.message, 400);
     }
 
     await this.sessionStore.store.deleteByLogoutToken(logoutTokenClaims);
@@ -3923,5 +3885,35 @@ export async function buildConnectAccountErrorResponse(
       }),
       null
     ];
+  }
+}
+
+/**
+ * Creates a NextResponse for BCLO error cases.
+ * Centralizes the response format (text/plain content type) for all BCLO error branches.
+ *
+ * @internal
+ */
+function bcloErrorResponse(message: string, status: number): NextResponse {
+  return new NextResponse(message, {
+    status,
+    headers: { "Content-Type": "text/plain" }
+  });
+}
+
+/**
+ * Extracts and normalizes the issuer domain from an unverified logout token.
+ * Returns null if the token cannot be decoded, has no iss claim, or the issuer
+ * domain fails normalization (e.g., IP address, localhost).
+ *
+ * @internal
+ */
+function extractIssuerDomainFromToken(logoutToken: string): string | null {
+  try {
+    const { iss } = jose.decodeJwt(logoutToken);
+    if (typeof iss !== "string" || !iss) return null;
+    return tryNormalizeDomain(iss);
+  } catch {
+    return null;
   }
 }

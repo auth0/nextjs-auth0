@@ -15,6 +15,16 @@ import { normalizeDomain } from "../utils/normalize.js";
 import type { AuthClient } from "./auth-client.js";
 
 /**
+ * Result of resolving a trusted AuthClient for BCLO.
+ * Discriminated union: ok=true yields a client, ok=false yields a reason.
+ *
+ * @internal
+ */
+export type BcloResolveResult =
+  | { ok: true; client: AuthClient }
+  | { ok: false; reason: "not_configured" | "untrusted" };
+
+/**
  * Options for AuthClientProvider.
  */
 interface AuthClientProviderOptions {
@@ -308,6 +318,32 @@ export class AuthClientProvider {
         ) ?? false
       );
     }
+  }
+
+  /**
+   * Resolves a trusted AuthClient for a BCLO issuer domain.
+   *
+   * Encapsulates the trust-gate-then-resolve pipeline:
+   * 1. Check trustedDomains is configured (not_configured if missing)
+   * 2. Validate domain against trust list (untrusted if not whitelisted)
+   * 3. Return cached/new AuthClient for the domain
+   *
+   * @param issuerDomain - Normalized domain extracted from logout token issuer
+   * @returns Discriminated union: ok=true with client, or ok=false with reason
+   *
+   * @internal
+   */
+  async resolveClientForBclo(issuerDomain: string): Promise<BcloResolveResult> {
+    if (!this.hasTrustedDomains) {
+      return { ok: false, reason: "not_configured" };
+    }
+
+    const trusted = await this.isTrustedDomain(issuerDomain);
+    if (!trusted) {
+      return { ok: false, reason: "untrusted" };
+    }
+
+    return { ok: true, client: this.forDomainSync(issuerDomain) };
   }
 
   /**

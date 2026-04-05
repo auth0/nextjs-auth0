@@ -182,6 +182,81 @@ describe("BCLO Trust Validation", () => {
     });
   });
 
+  describe("AuthClientProvider — resolveClientForBclo", () => {
+    it("returns ok with client for trusted domain", async () => {
+      const mockClient = {} as AuthClient;
+      const provider = new AuthClientProvider({
+        domain: () => "auth.example.com",
+        backchannelLogout: {
+          trustedDomains: ["auth.example.com"]
+        },
+        createAuthClient: () => mockClient
+      });
+
+      const result = await provider.resolveClientForBclo("auth.example.com");
+      expect(result.ok).toEqual(true);
+      if (result.ok) {
+        expect(result.client).toBeDefined();
+      }
+    });
+
+    it("returns not_configured when trustedDomains missing", async () => {
+      const provider = new AuthClientProvider({
+        domain: () => "auth.example.com",
+        createAuthClient: () => {
+          throw new Error("should not be called");
+        }
+      });
+
+      const result = await provider.resolveClientForBclo("auth.example.com");
+      expect(result).toEqual({ ok: false, reason: "not_configured" });
+    });
+
+    it("returns untrusted for domain not in trust list", async () => {
+      const provider = new AuthClientProvider({
+        domain: () => "auth.example.com",
+        backchannelLogout: {
+          trustedDomains: ["auth.example.com"]
+        },
+        createAuthClient: () => {
+          throw new Error("should not be called");
+        }
+      });
+
+      const result = await provider.resolveClientForBclo("attacker.com");
+      expect(result).toEqual({ ok: false, reason: "untrusted" });
+    });
+
+    it("returns untrusted for invalid domain format", async () => {
+      const provider = new AuthClientProvider({
+        domain: () => "auth.example.com",
+        backchannelLogout: {
+          trustedDomains: ["auth.example.com"]
+        },
+        createAuthClient: () => {
+          throw new Error("should not be called");
+        }
+      });
+
+      const result = await provider.resolveClientForBclo("192.168.1.1");
+      expect(result).toEqual({ ok: false, reason: "untrusted" });
+    });
+
+    it("works with resolver function for trusted domains", async () => {
+      const mockClient = {} as AuthClient;
+      const provider = new AuthClientProvider({
+        domain: () => "auth.example.com",
+        backchannelLogout: {
+          trustedDomains: async () => ["auth.example.com", "brand1.com"]
+        },
+        createAuthClient: () => mockClient
+      });
+
+      const result = await provider.resolveClientForBclo("brand1.com");
+      expect(result.ok).toEqual(true);
+    });
+  });
+
   describe("BackchannelLogoutError", () => {
     it("uses default code and custom message", () => {
       const error = new BackchannelLogoutError("custom message");
