@@ -2,12 +2,14 @@
  * Tests for domain and issuer normalization and validation utilities
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { DomainValidationError } from "../errors/mcd.js";
 import {
   normalizeDomain,
+  normalizeDomainArray,
   normalizeIssuer,
+  tryNormalizeDomain,
   validateDomainHostname
 } from "./normalize.js";
 
@@ -428,8 +430,8 @@ describe("normalize.ts", () => {
       it("should handle mixed case Punycode domain", () => {
         const result = normalizeDomain("XN--MNCHEN-3YA.AUTH0.COM");
         expect(result).toEqual({
-          domain: "XN--MNCHEN-3YA.AUTH0.COM",
-          issuer: "https://XN--MNCHEN-3YA.AUTH0.COM/"
+          domain: "xn--mnchen-3ya.auth0.com",
+          issuer: "https://xn--mnchen-3ya.auth0.com/"
         });
       });
 
@@ -440,6 +442,112 @@ describe("normalize.ts", () => {
           issuer: "https://xn--80akhbyknj4f.xn--p1ai/"
         });
       });
+    });
+  });
+
+  describe("normalizeDomainArray", () => {
+    it("should normalize valid domain array", () => {
+      const domains = ["example.auth0.com", "my-company.auth0.com"];
+      const result = normalizeDomainArray(domains);
+      expect(result).toEqual(["example.auth0.com", "my-company.auth0.com"]);
+    });
+
+    it("should normalize domains with URLs (https://...)", () => {
+      const domains = [
+        "https://example.auth0.com",
+        "https://my-company.auth0.com/"
+      ];
+      const result = normalizeDomainArray(domains);
+      expect(result).toEqual(["example.auth0.com", "my-company.auth0.com"]);
+    });
+
+    it("should return empty array for empty input", () => {
+      const result = normalizeDomainArray([]);
+      expect(result).toEqual([]);
+    });
+
+    it("should warn and skip invalid domains", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const domains = ["example.auth0.com", "192.168.1.1", "localhost"];
+      const result = normalizeDomainArray(domains);
+      expect(result).toEqual(["example.auth0.com"]);
+      expect(warnSpy).toHaveBeenCalledTimes(2);
+      warnSpy.mockRestore();
+    });
+
+    it("should log warning for invalid domains", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const domains = ["example.auth0.com", "192.168.1.1", "localhost"];
+      const result = normalizeDomainArray(domains);
+      expect(result).toEqual(["example.auth0.com"]);
+      expect(warnSpy).toHaveBeenCalledTimes(2);
+      expect(warnSpy).toHaveBeenCalledWith(
+        "Invalid domain in domain list: 192.168.1.1. Skipping."
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        "Invalid domain in domain list: localhost. Skipping."
+      );
+      warnSpy.mockRestore();
+    });
+
+    it("should handle all-invalid array → returns []", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const domains = ["192.168.1.1", "localhost", "example.local"];
+      const result = normalizeDomainArray(domains);
+      expect(result).toEqual([]);
+      expect(warnSpy).toHaveBeenCalledTimes(3);
+      warnSpy.mockRestore();
+    });
+
+    it("should filter mixed valid/invalid array", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const domains = [
+        "example.auth0.com",
+        "192.168.1.1",
+        "my-company.example.com",
+        "localhost",
+        "custom-domain.com"
+      ];
+      const result = normalizeDomainArray(domains);
+      expect(result).toEqual([
+        "example.auth0.com",
+        "my-company.example.com",
+        "custom-domain.com"
+      ]);
+      expect(warnSpy).toHaveBeenCalledTimes(2);
+      warnSpy.mockRestore();
+    });
+  });
+
+  describe("tryNormalizeDomain", () => {
+    it("should return normalized domain for valid input", () => {
+      const result = tryNormalizeDomain("example.auth0.com");
+      expect(result).toBe("example.auth0.com");
+    });
+
+    it("should return normalized domain for URL input", () => {
+      const result = tryNormalizeDomain("https://example.auth0.com");
+      expect(result).toBe("example.auth0.com");
+    });
+
+    it("should return null for .local domain", () => {
+      const result = tryNormalizeDomain("example.local");
+      expect(result).toBeNull();
+    });
+
+    it("should return null for IPv4 address", () => {
+      const result = tryNormalizeDomain("192.168.1.1");
+      expect(result).toBeNull();
+    });
+
+    it("should return null for localhost", () => {
+      const result = tryNormalizeDomain("localhost");
+      expect(result).toBeNull();
+    });
+
+    it("should return null for empty string", () => {
+      const result = tryNormalizeDomain("");
+      expect(result).toBeNull();
     });
   });
 });

@@ -471,12 +471,12 @@ describe("AuthClientProvider", () => {
 
       // Now we have 100 clients (1 from constructor + 99 added)
       // Add client A (should be oldest, and will be candidate for eviction)
-      const clientA = provider.forDomainSync("domainA.auth0.com");
+      const clientA = provider.forDomainSync("domain-a.auth0.com");
       // This should evict the oldest (constructor domain)
       expect(createAuthClientMock).toHaveBeenCalledTimes(lastCallCount + 1);
 
       // Access A - should promote it to end
-      const clientAAgain = provider.forDomainSync("domainA.auth0.com");
+      const clientAAgain = provider.forDomainSync("domain-a.auth0.com");
       expect(clientAAgain).toBe(clientA);
       // No new creation
       expect(createAuthClientMock).toHaveBeenCalledTimes(lastCallCount + 1);
@@ -497,9 +497,9 @@ describe("AuthClientProvider", () => {
       // Now domainA should be evicted (was promoted but is now very old)
       createAuthClientMock.mockClear();
       createAuthClientMock.mockReturnValue(mockAuthClient);
-      const _clientAEvicted = provider.forDomainSync("domainA.auth0.com");
+      const _clientAEvicted = provider.forDomainSync("domain-a.auth0.com");
       // Since A was evicted, should need recreation
-      expect(createAuthClientMock).toHaveBeenCalledWith("domainA.auth0.com");
+      expect(createAuthClientMock).toHaveBeenCalledWith("domain-a.auth0.com");
     });
   });
 

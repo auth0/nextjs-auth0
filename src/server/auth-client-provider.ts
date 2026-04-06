@@ -10,6 +10,7 @@ import type {
   DomainResolver,
   TrustedDomainsResolver
 } from "../types/mcd.js";
+import { LruMap } from "../utils/lru-map.js";
 import { normalizeDomain } from "../utils/normalize.js";
 import type { AuthClient } from "./auth-client.js";
 
@@ -52,13 +53,6 @@ const MAX_DOMAIN_CLIENTS = 100;
 const MAX_PROXY_FETCHERS = 100;
 
 /**
- * Helper to get the first key from a Map (for LRU eviction).
- */
-function getFirstMapKey<K>(map: Map<K, any>): K | undefined {
-  return map.keys().next().value;
-}
-
-/**
  * AuthClientProvider manages creating and caching AuthClient instances for MCD mode.
  *
  * Features:
@@ -75,10 +69,10 @@ export class AuthClientProvider {
   private staticDomain?: string;
   private resolver?: DomainResolver;
 
-  private domainClients: Map<string, AuthClient> = new Map();
+  private domainClients: LruMap<string, AuthClient>;
 
   private createAuthClientFactory: (domain: string) => AuthClient;
-  private proxyFetchers: Map<string, any> = new Map();
+  private proxyFetchers: LruMap<string, any>;
 
   // BCLO trust configuration (resolver mode only)
   private trustedDomainsConfig?: string[] | TrustedDomainsResolver;
@@ -96,6 +90,10 @@ export class AuthClientProvider {
    */
   constructor(options: AuthClientProviderOptions) {
     this.createAuthClientFactory = options.createAuthClient;
+
+    // Initialize LRU caches
+    this.domainClients = new LruMap(MAX_DOMAIN_CLIENTS);
+    this.proxyFetchers = new LruMap(MAX_PROXY_FETCHERS);
 
     // Detect mode and validate configuration
     if (typeof options.domain === "string") {
@@ -225,28 +223,17 @@ export class AuthClientProvider {
     const normalized = normalizeDomain(domain);
     const normalizedDomain = normalized.domain;
 
-    // Check cache first
-    let client = this.domainClients.get(normalizedDomain);
+    // Cache key is the normalized domain hostname.
+    // When mTLS support is added, extend key to `${domain}:${mtlsEnabled}`
+    // to cache separate AuthClient instances per mTLS mode (cf. server-js PR #119).
+    const client = this.domainClients.get(normalizedDomain);
     if (client) {
-      // LRU: move to end
-      this.domainClients.delete(normalizedDomain);
-      this.domainClients.set(normalizedDomain, client);
       return client;
     }
-
-    // Create new client
-    client = this.createAuthClientFactory(normalizedDomain);
-    this.domainClients.set(normalizedDomain, client);
-
-    // Enforce max entries boundary with LRU eviction
-    while (this.domainClients.size > MAX_DOMAIN_CLIENTS) {
-      const oldestKey = getFirstMapKey(this.domainClients);
-      if (oldestKey !== undefined) {
-        this.domainClients.delete(oldestKey);
-      }
-    }
-
-    return client;
+    // Create new client (LruMap.set() handles eviction)
+    const newClient = this.createAuthClientFactory(normalizedDomain);
+    this.domainClients.set(normalizedDomain, newClient);
+    return newClient;
   }
 
   /**
@@ -339,26 +326,15 @@ export class AuthClientProvider {
     key: string,
     factory: () => Promise<any>
   ): Promise<any> {
-    let fetcher = this.proxyFetchers.get(key);
+    // Check cache first (LruMap.get() handles promotion)
+    const fetcher = this.proxyFetchers.get(key);
     if (fetcher) {
-      // LRU: move to end
-      this.proxyFetchers.delete(key);
-      this.proxyFetchers.set(key, fetcher);
       return fetcher;
     }
-
-    fetcher = await factory();
-    this.proxyFetchers.set(key, fetcher);
-
-    // Enforce max entries boundary with LRU eviction
-    while (this.proxyFetchers.size > MAX_PROXY_FETCHERS) {
-      const oldestKey = getFirstMapKey(this.proxyFetchers);
-      if (oldestKey !== undefined) {
-        this.proxyFetchers.delete(oldestKey);
-      }
-    }
-
-    return fetcher;
+    // Create new fetcher (LruMap.set() handles eviction)
+    const newFetcher = await factory();
+    this.proxyFetchers.set(key, newFetcher);
+    return newFetcher;
   }
 
   /**

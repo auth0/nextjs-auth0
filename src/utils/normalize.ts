@@ -195,6 +195,9 @@ export function normalizeDomain(
     allowInsecureRequests: options?.allowInsecureRequests
   });
 
+  // Normalize hostname to lowercase (DNS is case-insensitive per RFC 4343)
+  const normalizedHostname = hostname.toLowerCase();
+
   // Construct the issuer URL
   let issuer: string;
   if (options?.issuerHint) {
@@ -202,11 +205,49 @@ export function normalizeDomain(
   } else {
     // Use scheme from parsed URL or default to https
     const protocol = options?.allowInsecureRequests ? scheme : "https";
-    issuer = normalizeIssuer(`${protocol}://${hostname}`);
+    issuer = normalizeIssuer(`${protocol}://${normalizedHostname}`);
   }
 
   return {
-    domain: hostname,
+    domain: normalizedHostname,
     issuer
   };
+}
+
+/**
+ * Normalizes an array of domain strings, filtering out invalid entries.
+ *
+ * Each domain is passed through normalizeDomain(). Invalid domains are skipped
+ * and logged via console.warn.
+ *
+ * @param domains - Array of domain strings to normalize
+ * @returns Array of normalized domain hostnames
+ * @internal
+ */
+export function normalizeDomainArray(domains: string[]): string[] {
+  return domains
+    .map((domain) => {
+      try {
+        return normalizeDomain(domain).domain;
+      } catch (e) {
+        console.warn(`Invalid domain in domain list: ${domain}. Skipping.`);
+        return null;
+      }
+    })
+    .filter((d): d is string => d !== null);
+}
+
+/**
+ * Safely normalizes a domain, returning null instead of throwing on invalid input.
+ *
+ * @param domain - The domain to normalize
+ * @returns Normalized domain hostname, or null if invalid
+ * @internal
+ */
+export function tryNormalizeDomain(domain: string): string | null {
+  try {
+    return normalizeDomain(domain).domain;
+  } catch {
+    return null;
+  }
 }
