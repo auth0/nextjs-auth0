@@ -25,6 +25,8 @@ export function createSizeLimitedFetch(
     // Fast path: reject if Content-Length is declared and exceeds limit
     const contentLength = response.headers.get("content-length");
     if (contentLength && parseInt(contentLength, 10) > maxBodySize) {
+      // Cancel the response body to release the connection
+      await response.body?.cancel();
       throw new Error(
         `Response body too large: ${contentLength} bytes exceeds ${maxBodySize} byte limit`
       );

@@ -42,9 +42,3 @@ export type {
   DiscoveryCacheOptions,
   MCDMetadata
 } from "../types/mcd.js";
-
-// MCD BCLO configuration types
-export type {
-  TrustedDomainsResolver,
-  BackchannelLogoutConfig
-} from "../types/mcd.js";

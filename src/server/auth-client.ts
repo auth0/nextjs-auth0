@@ -1392,39 +1392,63 @@ export class AuthClient {
       });
     }
 
-    // In resolver mode, validate trust BEFORE delegating to AuthClient
+    // Resolver mode: use request context as trust anchor
     if (this.provider?.isResolverMode) {
       try {
-        // Extract and normalize issuer domain from unverified token
+        // SECURITY: Extract iss from unverified token for comparison only.
+        // The unverified iss does NOT determine which JWKS to use — the resolved
+        // domain (from request context) determines the verification source.
         const issuerDomain = extractIssuerDomainFromToken(logoutToken);
         if (!issuerDomain) {
           return bcloErrorResponse("Missing 'iss' claim in logout token.", 400);
         }
 
-        // Trust-gate and resolve client for the issuer domain
-        const bcloClientResult =
-          await this.provider.resolveClientForBclo(issuerDomain);
-        if (!bcloClientResult.ok) {
+        // Resolve domain from request context (Host header → domain resolver)
+        const resolvedClient = await this.provider.forRequest(
+          req.headers,
+          req.nextUrl
+        );
+
+        // Trust anchor: resolved domain must match token's issuer domain
+        if (normalizeDomain(issuerDomain).domain !== resolvedClient.domain) {
           return bcloErrorResponse(
-            bcloClientResult.reason === "not_configured"
-              ? "Back-channel logout is not configured for this application."
-              : "Logout token issuer is not trusted.",
-            bcloClientResult.reason === "not_configured" ? 422 : 403
+            "Logout token issuer does not match the resolved domain.",
+            403
           );
         }
 
-        // Verify token with trusted domain's JWKS and delete session
+        // Verify token with resolved domain's JWKS
         const [error, logoutTokenClaims] =
-          await bcloClientResult.client.verifyLogoutToken(logoutToken);
+          await resolvedClient.verifyLogoutToken(logoutToken);
         if (error) {
           return bcloErrorResponse(error.message, 400);
         }
 
+        // Delete session with iss included for issuer-matched filtering
         await this.sessionStore.store.deleteByLogoutToken(logoutTokenClaims);
         return new NextResponse(null, { status: 204 });
       } catch (error) {
-        console.error("Unexpected error in backchannel logout:", error);
+        console.error(
+          `Unexpected error in backchannel logout: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
         return bcloErrorResponse("Failed to process logout token.", 400);
+      }
+    }
+
+    // Static mode: defense-in-depth iss pre-check.
+    // Custom domains on same tenant share signing keys, so a token from domain-a
+    // would pass JWKS verification using domain-b's keys. This pre-check catches that.
+    // If iss is missing, skip pre-check for backward compatibility and let
+    // verifyLogoutToken handle validation.
+    const issuerDomain = extractIssuerDomainFromToken(logoutToken);
+    if (issuerDomain) {
+      if (normalizeDomain(issuerDomain).domain !== this.domain) {
+        return bcloErrorResponse(
+          "Logout token issuer does not match the configured domain.",
+          403
+        );
       }
     }
 
@@ -3862,6 +3886,14 @@ function bcloErrorResponse(message: string, status: number): NextResponse {
  * Extracts and normalizes the issuer domain from an unverified logout token.
  * Returns null if the token cannot be decoded, has no iss claim, or the issuer
  * domain fails normalization (e.g., IP address, localhost).
+ *
+ * SECURITY: This function decodes the JWT without verification. The unverified
+ * `iss` claim is used ONLY for comparison against an independently-resolved domain
+ * (resolver mode) or the configured static domain (static mode). It does NOT
+ * determine which cryptographic key is used for verification — the JWKS source is
+ * determined by the resolver/configuration, not by the token itself. This prevents
+ * issuer-substitution attacks where an attacker supplies a token with a crafted
+ * `iss` and has it verified against their own JWKS.
  *
  * @internal
  */

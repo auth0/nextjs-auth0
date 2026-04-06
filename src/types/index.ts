@@ -57,10 +57,10 @@ export interface SessionDataStore {
    * Deletes the session with the given logout token which may contain a session ID or a user ID, or both.
    *
    * **MCD resolver mode:** When using multiple custom domains with a domain resolver,
-   * implementations SHOULD filter on the `iss` field in addition to `sub`/`sid` to
-   * ensure sessions are only deleted for the matching issuer. Failing to filter on
-   * `iss` could allow a logout token from one domain to delete sessions created by
-   * a different domain.
+   * implementations MUST filter on the `iss` field in addition to `sub`/`sid` to
+   * ensure sessions are only deleted for the matching issuer. Custom domains on the
+   * same tenant share signing keys, so failing to filter on `iss` allows a logout
+   * token from one domain to delete sessions created by a different domain.
    */
   deleteByLogoutToken?(logoutToken: LogoutToken): Promise<void>;
 }
