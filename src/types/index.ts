@@ -47,6 +47,12 @@ export interface SessionDataStore {
   set(id: string, session: SessionData): Promise<void>;
 
   /**
+   * Optional: update the session by its ID only if it already exists.
+   * Return `true` if updated, `false` if not found.
+   */
+  update?(id: string, session: SessionData): Promise<boolean>;
+
+  /**
    * Destroys the session with the given session ID.
    */
   delete(id: string): Promise<void>;

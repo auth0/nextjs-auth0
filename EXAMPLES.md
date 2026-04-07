@@ -2634,6 +2634,12 @@ export const auth0 = new Auth0Client({
     async delete(id) {
       // delete the session using its ID
     },
+
+    async update(id, sessionData) {
+      // optional: update the session by its ID only if it already exists; return true if updated, false if not found
+      // e.g. prevents a session deleted by logout from being re-created by a concurrent in-flight rolling write
+    },
+
     async deleteByLogoutToken({ sid, sub }: { sid?: string; sub?: string }) {
       // optional method to be implemented when using Back-Channel Logout
     }
