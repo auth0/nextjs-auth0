@@ -15,8 +15,6 @@ on:
     secrets:
       github-token:
         required: true
-      npm-token:
-        required: true
 
 ### TODO: Replace instances of './.github/actions/' w/ `auth0/dx-sdk-actions/` and append `@latest` after the common `dx-sdk-actions` repo is made public.
 ### TODO: Also remove `get-prerelease`, `get-version`, `release-create`, `tag-create` and `tag-exists` actions from this repo's .github/actions folder once the repo is public.
@@ -26,6 +24,9 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged && startsWith(github.event.pull_request.head.ref, 'release/'))
     runs-on: ubuntu-latest
     environment: release
+    permissions:
+      contents: write
+      id-token: write # Required for OIDC trusted publishing to npm
 
     steps:
       # Checkout the code
@@ -70,7 +71,6 @@ jobs:
           require-build: ${{ inputs.require-build }}
           release-directory: ${{ inputs.release-directory }}
           version: ${{ steps.get_version.outputs.version }}
-          npm-token: ${{ secrets.npm-token }}
 
       # Create a release for the tag
       - uses: ./.github/actions/release-create

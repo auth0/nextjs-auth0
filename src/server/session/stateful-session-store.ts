@@ -74,7 +74,9 @@ export class StatefulSessionStore extends AbstractSessionStore {
     try {
       const sessionCookie = await cookies.decrypt<SessionCookieValue>(
         cookie.value,
-        this.secret
+        this.secret,
+        undefined,
+        true // throwOnJWEErrors: allow catching ERR_JWE_INVALID to handle legacy sessions
       );
 
       if (sessionCookie === null) {

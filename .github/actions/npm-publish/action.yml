@@ -3,8 +3,6 @@ name: Publish release to npm
 inputs:
   node-version:
     required: true
-  npm-token:
-    required: true
   version:
     required: true
   require-build:
@@ -29,10 +27,15 @@ runs:
       with:
         node-version: 22
         cache: 'pnpm'
+        registry-url: 'https://registry.npmjs.org'
 
     - name: Install dependencies
       shell: bash
       run: pnpm install --frozen-lockfile
+
+    - name: Update npm for OIDC trusted publishing
+      shell: bash
+      run: npm install -g npm@~11.10.0
 
     - name: Build package
       if: inputs.require-build == 'true'
@@ -50,9 +53,7 @@ runs:
         else
           TAG="latest"
         fi
-        npm config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}"
-        pnpm publish --tag $TAG
+        npm publish --tag $TAG
       env:
-        NPM_TOKEN: ${{ inputs.npm-token }}
         VERSION: ${{ inputs.version }}
         NPM_CONFIG_PROVENANCE: true
