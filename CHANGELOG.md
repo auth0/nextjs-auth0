@@ -1,15 +1,5 @@
 # Change Log
 
-## [v4.16.2](https://github.com/auth0/nextjs-auth0/tree/v4.16.2) (2026-04-07)
-[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.16.1...v4.16.2)
-
-**Fixed**
-- fix: Middleware should not throw ERR_JWE_INVALID [\#2546](https://github.com/auth0/nextjs-auth0/pull/2546) ([crob](https://github.com/crob))
-- fix: preserve error details from HTTP 5xx OAuth responses [\#2533](https://github.com/auth0/nextjs-auth0/pull/2533) ([sleitor](https://github.com/sleitor))
-
-**Security**
-- chore(deps): update eslint to fix flatted vulnerability [\#2575](https://github.com/auth0/nextjs-auth0/pull/2575) ([Piyush-85](https://github.com/Piyush-85))
-
 ## [v4.16.1](https://github.com/auth0/nextjs-auth0/tree/v4.16.1) (2026-03-25)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.16.0...v4.16.1)
 
