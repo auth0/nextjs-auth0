@@ -184,8 +184,9 @@ describe("BCLO Resolver-Based Trust", () => {
 
     it("skips iss pre-check when iss not normalizable (backward compatibility)", async () => {
       const { authClient } = await createAuthClientWithStore();
-      // Token with non-normalizable iss (localhost) — extractIssuerDomainFromToken returns null
-      // Pre-check should be skipped, then verifyLogoutToken will reject (iss mismatch)
+      // Token with non-normalizable iss (localhost) — extractIssuerDomainFromToken
+      // returns [Error, null], so issuerInfo is null and pre-check is skipped.
+      // verifyLogoutToken then rejects via jose.jwtVerify (iss mismatch).
       const kp = await getKeyPair();
       const token = await new jose.SignJWT({
         events: {
@@ -196,7 +197,7 @@ describe("BCLO Resolver-Based Trust", () => {
       })
         .setProtectedHeader({ alg: "RS256", typ: "logout+jwt" })
         .setIssuedAt()
-        .setIssuer("http://localhost/") // tryNormalizeDomain returns null for localhost
+        .setIssuer("http://localhost/") // normalizeDomain rejects localhost
         .setAudience(DEFAULT.clientId)
         .setExpirationTime("2h")
         .setJti("some-jti")
@@ -204,11 +205,9 @@ describe("BCLO Resolver-Based Trust", () => {
 
       const req = makeBcloRequest(token);
 
-      // The pre-check is skipped (issuerDomain is null), so no 403 from our code.
-      // verifyLogoutToken then throws JWTClaimValidationFailed (iss mismatch) which
-      // is NOT caught in static mode — this propagates as an unhandled error.
-      // This matches existing behavior: non-normalizable issuers were never handled
-      // by the pre-check (backward compatibility).
+      // Pre-check skipped (issuerInfo is null), verifyLogoutToken throws
+      // JWTClaimValidationFailed (iss mismatch). Static mode has no try/catch
+      // (D-BCLO-2) so this propagates. Backward-compatible behavior.
       await expect(authClient.handleBackChannelLogout(req)).rejects.toThrow(
         'unexpected "iss" claim value'
       );
@@ -318,6 +317,25 @@ describe("BCLO Resolver-Based Trust", () => {
       const response = await authClient.handleBackChannelLogout(req);
       expect(response.status).toEqual(400);
       expect(await response.text()).toContain("Missing 'iss' claim");
+    });
+
+    it("returns 400 when domain resolver throws", async () => {
+      const { authClient } = await createAuthClientWithStore();
+
+      const provider = new AuthClientProvider({
+        domain: () => {
+          throw new Error("Database connection failed");
+        },
+        createAuthClient: () => authClient
+      });
+      authClient.provider = provider;
+
+      const token = await generateLogoutToken();
+      const req = makeBcloRequest(token);
+
+      const response = await authClient.handleBackChannelLogout(req);
+      expect(response.status).toEqual(400);
+      expect(await response.text()).toContain("Failed to process logout token");
     });
 
     it("deleteByLogoutToken receives iss field", async () => {

@@ -107,11 +107,7 @@ import {
   validateStringFieldAndThrow,
   validateVerificationCredentialAndThrow
 } from "../utils/mfa-validation-utils.js";
-import {
-  normalizeDomain,
-  normalizeIssuer,
-  tryNormalizeDomain
-} from "../utils/normalize.js";
+import { normalizeDomain, normalizeIssuer } from "../utils/normalize.js";
 import { createRouteUrl, removeTrailingSlash } from "../utils/pathUtils.js";
 import {
   buildForwardedRequestHeaders,
@@ -1392,14 +1388,17 @@ export class AuthClient {
       });
     }
 
-    // Resolver mode: use request context as trust anchor
+    // Resolver mode: use request context as trust anchor.
+    // Wrapped in try/catch because forRequest() can throw (DomainResolutionError
+    // from user-provided resolver) and normalizeDomain can throw on malformed iss.
     if (this.provider?.isResolverMode) {
       try {
         // SECURITY: Extract iss from unverified token for comparison only.
         // The unverified iss does NOT determine which JWKS to use — the resolved
         // domain (from request context) determines the verification source.
-        const issuerDomain = extractIssuerDomainFromToken(logoutToken);
-        if (!issuerDomain) {
+        const [extractErr, issuerInfo] =
+          extractIssuerDomainFromToken(logoutToken);
+        if (extractErr) {
           return bcloErrorResponse("Missing 'iss' claim in logout token.", 400);
         }
 
@@ -1409,8 +1408,10 @@ export class AuthClient {
           req.nextUrl
         );
 
-        // Trust anchor: resolved domain must match token's issuer domain
-        if (normalizeDomain(issuerDomain).domain !== resolvedClient.domain) {
+        // Trust anchor: resolved domain must match token's issuer domain.
+        // Both sides are pre-normalized (issuerInfo.domain by extractIssuerDomainFromToken,
+        // resolvedClient.domain by AuthClientProvider.resolveDomain) — direct comparison.
+        if (issuerInfo.domain !== resolvedClient.domain) {
           return bcloErrorResponse(
             "Logout token issuer does not match the resolved domain.",
             403
@@ -1440,16 +1441,18 @@ export class AuthClient {
     // Static mode: defense-in-depth iss pre-check.
     // Custom domains on same tenant share signing keys, so a token from domain-a
     // would pass JWKS verification using domain-b's keys. This pre-check catches that.
-    // If iss is missing, skip pre-check for backward compatibility and let
-    // verifyLogoutToken handle validation.
-    const issuerDomain = extractIssuerDomainFromToken(logoutToken);
-    if (issuerDomain) {
-      if (normalizeDomain(issuerDomain).domain !== this.domain) {
-        return bcloErrorResponse(
-          "Logout token issuer does not match the configured domain.",
-          403
-        );
-      }
+    // If extraction fails (missing iss, non-normalizable issuer like IP/localhost),
+    // skip pre-check for backward compatibility and let verifyLogoutToken handle validation.
+    //
+    // No try/catch here: extractIssuerDomainFromToken returns a tuple (never throws),
+    // verifyLogoutToken returns a tuple (never throws), and deleteByLogoutToken is
+    // user-provided store code — if it throws, that's the caller's responsibility.
+    const [, issuerInfo] = extractIssuerDomainFromToken(logoutToken);
+    if (issuerInfo && issuerInfo.domain !== this.domain) {
+      return bcloErrorResponse(
+        "Logout token issuer does not match the configured domain.",
+        403
+      );
     }
 
     // Static mode: verify with configured domain
@@ -3884,8 +3887,10 @@ function bcloErrorResponse(message: string, status: number): NextResponse {
 
 /**
  * Extracts and normalizes the issuer domain from an unverified logout token.
- * Returns null if the token cannot be decoded, has no iss claim, or the issuer
- * domain fails normalization (e.g., IP address, localhost).
+ *
+ * Returns `[null, { domain, issuer }]` on success, or `[Error, null]` if the token
+ * cannot be decoded, has no iss claim, or the issuer domain fails normalization
+ * (e.g., IP address, localhost).
  *
  * SECURITY: This function decodes the JWT without verification. The unverified
  * `iss` claim is used ONLY for comparison against an independently-resolved domain
@@ -3897,12 +3902,19 @@ function bcloErrorResponse(message: string, status: number): NextResponse {
  *
  * @internal
  */
-function extractIssuerDomainFromToken(logoutToken: string): string | null {
+function extractIssuerDomainFromToken(
+  logoutToken: string
+): [Error, null] | [null, { domain: string; issuer: string }] {
   try {
     const { iss } = jose.decodeJwt(logoutToken);
-    if (typeof iss !== "string" || !iss) return null;
-    return tryNormalizeDomain(iss);
-  } catch {
-    return null;
+    if (typeof iss !== "string" || !iss) {
+      return [
+        new Error("Missing or invalid 'iss' claim in logout token."),
+        null
+      ];
+    }
+    return [null, normalizeDomain(iss)];
+  } catch (err) {
+    return [err instanceof Error ? err : new Error(String(err)), null];
   }
 }
