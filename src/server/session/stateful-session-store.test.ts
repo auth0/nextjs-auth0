@@ -704,6 +704,45 @@ describe("Stateful Session Store", async () => {
         expect(store.set).toHaveBeenCalledOnce();
         expect(responseCookies.get("__session")).toBeDefined();
       });
+
+      it("should call store.set() and not store.update() for a brand-new session even when update() is implemented", async () => {
+        // When there is no existing session cookie, existingSessionId is null and the guard
+        // is bypassed entirely. store.set() must be called to create the new session;
+        // store.update() must NOT be called — it would immediately return false (nothing
+        // exists yet) and silently swallow the new session creation.
+        const secret = await generateSecret(32);
+        const session: SessionData = {
+          user: { sub: "user_123" },
+          tokenSet: {
+            accessToken: "at",
+            refreshToken: "rt",
+            expiresAt: 123456
+          },
+          internal: {
+            sid: "sid",
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        const store = {
+          get: vi.fn(),
+          set: vi.fn(),
+          delete: vi.fn(),
+          update: vi.fn() // must NOT be called for new sessions
+        };
+        const requestCookies = new RequestCookies(new Headers()); // no existing cookie
+        const responseCookies = new ResponseCookies(new Headers());
+
+        const sessionStore = new StatefulSessionStore({
+          secret,
+          store,
+          rolling: true
+        });
+        await sessionStore.set(requestCookies, responseCookies, session);
+
+        expect(store.update).not.toHaveBeenCalled();
+        expect(store.set).toHaveBeenCalledOnce();
+        expect(responseCookies.get("__session")).toBeDefined();
+      });
     });
 
     describe("session fixation", async () => {

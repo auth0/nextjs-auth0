@@ -35,6 +35,12 @@ export interface SessionData {
   [key: string]: unknown;
 }
 
+/**
+ * Interface for a custom session data store.
+ *
+ * **TTL contract:** every successful write method (`set`, `update`) must reset the session
+ * TTL/expiry so that active sessions are not silently expired between requests.
+ */
 export interface SessionDataStore {
   /**
    * Gets the session from the store given a session ID.
@@ -49,6 +55,7 @@ export interface SessionDataStore {
   /**
    * Optional: update the session by its ID only if it already exists.
    * Return `true` if updated, `false` if not found.
+   *
    */
   update?(id: string, session: SessionData): Promise<boolean>;
 

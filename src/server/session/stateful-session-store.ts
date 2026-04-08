@@ -172,7 +172,7 @@ export class StatefulSessionStore extends AbstractSessionStore {
         if (!existingSession) {
           return;
         }
-        await this.store.set(sessionId, session);
+        await this.store.set(existingSessionId, session);
       }
     } else {
       await this.store.set(sessionId, session);
