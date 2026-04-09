@@ -9697,17 +9697,17 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       // Clean up environment variables after each test
       delete process.env[ENV_VARS.DPOP_PRIVATE_KEY];
       delete process.env[ENV_VARS.DPOP_PUBLIC_KEY];
+      delete process.env.AUTH0_DPOP_CLOCK_SKEW;
+      delete process.env.AUTH0_DPOP_CLOCK_TOLERANCE;
     });
 
-    it("should not validate dpopKeyPair during construction", async () => {
+    it("should include dpop_jkt in authorization URL when dpopKeyPair is provided", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({ secret });
       const sessionStore = new StatelessSessionStore({ secret });
 
       const { generateDpopKeyPair } = await import("../utils/dpopRetry.js");
       const mockKeypair = await generateDpopKeyPair();
-
-      const warnSpy = vi.spyOn(console, "warn");
 
       const authClient = new AuthClient({
         transactionStore,
@@ -9719,16 +9719,28 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
         appBaseUrl: DEFAULT.appBaseUrl,
         routes: getDefaultRoutes(),
         useDPoP: true,
-        dpopKeyPair: mockKeypair
+        dpopKeyPair: mockKeypair,
+        fetch: getMockAuthorizationServer()
       });
 
-      expect(authClient).toBeInstanceOf(AuthClient);
-      expect(warnSpy).not.toHaveBeenCalled();
+      const request = new NextRequest(
+        new URL("/auth/login", DEFAULT.appBaseUrl),
+        { method: "GET" }
+      );
 
-      warnSpy.mockRestore();
+      const response = await authClient.handleLogin(request);
+      expect(response.status).toEqual(307);
+
+      const authorizationUrl = new URL(response.headers.get("Location")!);
+
+      // Verify DPoP is enabled (dpop_jkt parameter is present)
+      expect(authorizationUrl.searchParams.has("dpop_jkt")).toBe(true);
+      expect(authorizationUrl.searchParams.get("dpop_jkt")).toMatch(
+        /^[A-Za-z0-9_-]+$/
+      );
     });
 
-    it("should load and validate DPoP keypair from environment variables when DPoP operations are triggered", async () => {
+    it("should load DPoP keypair from environment variables and include dpop_jkt", async () => {
       process.env[ENV_VARS.DPOP_PRIVATE_KEY] = TEST_PRIVATE_KEY_PEM;
       process.env[ENV_VARS.DPOP_PUBLIC_KEY] = TEST_PUBLIC_KEY_PEM;
 
@@ -9749,22 +9761,27 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
         fetch: getMockAuthorizationServer()
       });
 
-      expect(authClient).toBeInstanceOf(AuthClient);
-
-      const warnSpy = vi.spyOn(console, "warn");
-
-      await expect(authClient.startInteractiveLogin()).resolves.toBeDefined();
-
-      expect(warnSpy).not.toHaveBeenCalledWith(
-        expect.stringContaining("Failed to load DPoP keypair")
+      const request = new NextRequest(
+        new URL("/auth/login", DEFAULT.appBaseUrl),
+        { method: "GET" }
       );
 
-      warnSpy.mockRestore();
+      const response = await authClient.handleLogin(request);
+      expect(response.status).toEqual(307);
+
+      const authorizationUrl = new URL(response.headers.get("Location")!);
+
+      // Verify DPoP is enabled (keypair loaded from env vars, dpop_jkt is present)
+      expect(authorizationUrl.searchParams.has("dpop_jkt")).toBe(true);
+      expect(authorizationUrl.searchParams.get("dpop_jkt")).toMatch(
+        /^[A-Za-z0-9_-]+$/
+      );
     });
 
     it("should prioritize provided dpopKeyPair over environment variables", async () => {
-      process.env[ENV_VARS.DPOP_PRIVATE_KEY] = TEST_PRIVATE_KEY_PEM;
-      process.env[ENV_VARS.DPOP_PUBLIC_KEY] = TEST_PUBLIC_KEY_PEM;
+      // Set INVALID env vars to ensure they are NOT used
+      process.env[ENV_VARS.DPOP_PRIVATE_KEY] = "invalid-private-key";
+      process.env[ENV_VARS.DPOP_PUBLIC_KEY] = "invalid-public-key";
 
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({ secret });
@@ -9787,17 +9804,32 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
         fetch: getMockAuthorizationServer()
       });
 
-      expect(authClient).toBeInstanceOf(AuthClient);
-      await expect(authClient.startInteractiveLogin()).resolves.toBeDefined();
+      const request = new NextRequest(
+        new URL("/auth/login", DEFAULT.appBaseUrl),
+        { method: "GET" }
+      );
+
+      const response = await authClient.handleLogin(request);
+      expect(response.status).toEqual(307);
+
+      const authorizationUrl = new URL(response.headers.get("Location")!);
+
+      // Verify DPoP is enabled with provided keypair (not invalid env vars)
+      expect(authorizationUrl.searchParams.has("dpop_jkt")).toBe(true);
+      expect(authorizationUrl.searchParams.get("dpop_jkt")).toMatch(
+        /^[A-Za-z0-9_-]+$/
+      );
     });
 
-    it("should handle invalid PEM format from environment variables during lazy validation", async () => {
+    it("should fall back to bearer auth when keypair not provided and environment variables contain invalid keys", async () => {
       process.env[ENV_VARS.DPOP_PRIVATE_KEY] = "invalid-private-key";
       process.env[ENV_VARS.DPOP_PUBLIC_KEY] = "invalid-public-key";
 
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({ secret });
       const sessionStore = new StatelessSessionStore({ secret });
+
+      const warnSpy = vi.spyOn(console, "warn");
 
       const authClient = new AuthClient({
         transactionStore,
@@ -9812,11 +9844,19 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
         fetch: getMockAuthorizationServer()
       });
 
-      expect(authClient).toBeInstanceOf(AuthClient);
+      const loginRequest = new NextRequest(
+        new URL("/auth/login", DEFAULT.appBaseUrl),
+        { method: "GET" }
+      );
+      const loginResponse = await authClient.handleLogin(loginRequest);
+      expect(loginResponse.status).toEqual(307);
 
-      const warnSpy = vi.spyOn(console, "warn");
-      await expect(authClient.startInteractiveLogin()).resolves.toBeDefined();
+      const authorizationUrl = new URL(loginResponse.headers.get("Location")!);
 
+      // Verify DPoP was NOT enabled (invalid keys = falls back to bearer auth)
+      expect(authorizationUrl.searchParams.has("dpop_jkt")).toBe(false);
+
+      // Verify warning about failed key loading
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining(
           "Failed to load DPoP keypair from environment variables"
@@ -9826,15 +9866,13 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       warnSpy.mockRestore();
     });
 
-    it("should skip DPoP validation entirely when useDPoP is false", async () => {
+    it("should not include dpop_jkt when useDPoP is false", async () => {
       process.env[ENV_VARS.DPOP_PRIVATE_KEY] = TEST_PRIVATE_KEY_PEM;
       process.env[ENV_VARS.DPOP_PUBLIC_KEY] = TEST_PUBLIC_KEY_PEM;
 
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({ secret });
       const sessionStore = new StatelessSessionStore({ secret });
-
-      const warnSpy = vi.spyOn(console, "warn");
 
       const authClient = new AuthClient({
         transactionStore,
@@ -9849,25 +9887,30 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
         fetch: getMockAuthorizationServer()
       });
 
-      expect(authClient).toBeInstanceOf(AuthClient);
+      const request = new NextRequest(
+        new URL("/auth/login", DEFAULT.appBaseUrl),
+        { method: "GET" }
+      );
 
-      // Trigger operations that would validate DPoP if it were enabled
-      await expect(authClient.startInteractiveLogin()).resolves.toBeDefined();
+      const response = await authClient.handleLogin(request);
+      expect(response.status).toEqual(307);
 
-      // Verify NO DPoP-related warnings were issued - validation was completely skipped
-      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("DPoP"));
-      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("dpop"));
+      const authorizationUrl = new URL(response.headers.get("Location")!);
 
-      warnSpy.mockRestore();
+      // Verify DPoP is NOT enabled (useDPoP=false)
+      expect(authorizationUrl.searchParams.has("dpop_jkt")).toBe(false);
     });
 
-    it("should handle missing private key only from environment variables", async () => {
+    it("should fall back to bearer auth when only public key is in environment variables", async () => {
+      // Only public key set, private key missing
       process.env[ENV_VARS.DPOP_PUBLIC_KEY] = TEST_PUBLIC_KEY_PEM;
 
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({ secret });
       const sessionStore = new StatelessSessionStore({ secret });
 
+      const warnSpy = vi.spyOn(console, "warn");
+
       const authClient = new AuthClient({
         transactionStore,
         sessionStore,
@@ -9881,12 +9924,80 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
         fetch: getMockAuthorizationServer()
       });
 
-      expect(authClient).toBeInstanceOf(AuthClient);
-      await expect(authClient.startInteractiveLogin()).resolves.toBeDefined();
+      const request = new NextRequest(
+        new URL("/auth/login", DEFAULT.appBaseUrl),
+        { method: "GET" }
+      );
+
+      const response = await authClient.handleLogin(request);
+      expect(response.status).toEqual(307);
+
+      const authorizationUrl = new URL(response.headers.get("Location")!);
+
+      // Verify DPoP was NOT enabled (missing private key)
+      expect(authorizationUrl.searchParams.has("dpop_jkt")).toBe(false);
+
+      // Verify warning about missing keypair
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "useDPoP is set to true but dpopKeyPair is not provided"
+        )
+      );
+
+      warnSpy.mockRestore();
     });
 
-    it("should handle missing public key only from environment variables", async () => {
+    it("should fall back to bearer auth when only private key is in environment variables", async () => {
+      // Only private key set, public key missing
       process.env[ENV_VARS.DPOP_PRIVATE_KEY] = TEST_PRIVATE_KEY_PEM;
+
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+
+      const warnSpy = vi.spyOn(console, "warn");
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        useDPoP: true,
+        fetch: getMockAuthorizationServer()
+      });
+
+      const request = new NextRequest(
+        new URL("/auth/login", DEFAULT.appBaseUrl),
+        { method: "GET" }
+      );
+
+      const response = await authClient.handleLogin(request);
+      expect(response.status).toEqual(307);
+
+      const authorizationUrl = new URL(response.headers.get("Location")!);
+
+      // Verify DPoP was NOT enabled (missing public key)
+      expect(authorizationUrl.searchParams.has("dpop_jkt")).toBe(false);
+
+      // Verify warning about missing keypair
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "useDPoP is set to true but dpopKeyPair is not provided"
+        )
+      );
+
+      warnSpy.mockRestore();
+    });
+
+    it("should update clientMetadata with clockSkew and clockTolerance from environment variables", async () => {
+      process.env[ENV_VARS.DPOP_PRIVATE_KEY] = TEST_PRIVATE_KEY_PEM;
+      process.env[ENV_VARS.DPOP_PUBLIC_KEY] = TEST_PUBLIC_KEY_PEM;
+      process.env.AUTH0_DPOP_CLOCK_SKEW = "15";
+      process.env.AUTH0_DPOP_CLOCK_TOLERANCE = "30";
 
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({ secret });
@@ -9905,8 +10016,28 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
         fetch: getMockAuthorizationServer()
       });
 
-      expect(authClient).toBeInstanceOf(AuthClient);
-      await expect(authClient.startInteractiveLogin()).resolves.toBeDefined();
+      // Before triggering DPoP operations, clientMetadata should not have the values
+      expect(authClient["clientMetadata"][oauth.clockSkew]).toBeUndefined();
+      expect(
+        authClient["clientMetadata"][oauth.clockTolerance]
+      ).toBeUndefined();
+
+      const request = new NextRequest(
+        new URL("/auth/login", DEFAULT.appBaseUrl),
+        { method: "GET" }
+      );
+
+      const response = await authClient.handleLogin(request);
+      expect(response.status).toEqual(307);
+
+      const authorizationUrl = new URL(response.headers.get("Location")!);
+
+      // Verify DPoP is enabled
+      expect(authorizationUrl.searchParams.has("dpop_jkt")).toBe(true);
+
+      // After lazy validation, clientMetadata should contain env var values
+      expect(authClient["clientMetadata"][oauth.clockSkew]).toBe(15);
+      expect(authClient["clientMetadata"][oauth.clockTolerance]).toBe(30);
     });
   });
 });

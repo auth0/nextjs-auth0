@@ -508,6 +508,16 @@ export class AuthClient {
     }
     if (dpopConfig.dpopOptions) {
       this.dpopOptions = dpopConfig.dpopOptions;
+
+      // Update clientMetadata with resolved values from environment variables
+      // This ensures clockSkew/clockTolerance from env vars are applied to OAuth operations
+      if (typeof this.dpopOptions.clockSkew === "number") {
+        this.clientMetadata[oauth.clockSkew] = this.dpopOptions.clockSkew;
+      }
+      if (typeof this.dpopOptions.clockTolerance === "number") {
+        this.clientMetadata[oauth.clockTolerance] =
+          this.dpopOptions.clockTolerance;
+      }
     }
     this.dpopValidated = true;
   }
