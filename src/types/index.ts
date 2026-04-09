@@ -30,6 +30,8 @@ export interface SessionData {
     sid: string;
     // the time at which the session was created in seconds since epoch
     createdAt: number;
+    // MCD metadata: domain and issuer used to authenticate this session
+    mcd?: import("./mcd.js").MCDMetadata;
   };
   connectionTokenSets?: ConnectionTokenSet[];
   [key: string]: unknown;
@@ -53,11 +55,17 @@ export interface SessionDataStore {
 
   /**
    * Deletes the session with the given logout token which may contain a session ID or a user ID, or both.
+   *
+   * **MCD resolver mode:** When using multiple custom domains with a domain resolver,
+   * implementations MUST filter on the `iss` field in addition to `sub`/`sid` to
+   * ensure sessions are only deleted for the matching issuer. Custom domains on the
+   * same tenant share signing keys, so failing to filter on `iss` allows a logout
+   * token from one domain to delete sessions created by a different domain.
    */
   deleteByLogoutToken?(logoutToken: LogoutToken): Promise<void>;
 }
 
-export type LogoutToken = { sub?: string; sid?: string };
+export type LogoutToken = { sub?: string; sid?: string; iss?: string };
 
 export interface User {
   sub: string;
@@ -205,3 +213,9 @@ export {
   GRANT_TYPE_MFA_OOB,
   GRANT_TYPE_MFA_RECOVERY_CODE
 } from "./mfa.js";
+
+export type {
+  DomainResolver,
+  DiscoveryCacheOptions,
+  MCDMetadata
+} from "./mcd.js";

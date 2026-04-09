@@ -199,7 +199,7 @@ You can customize the client by using the options below:
 
 | Option                      | Type                      | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | --------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| domain                      | `string`                  | The Auth0 domain for the tenant (e.g.: `example.us.auth0.com` or `https://example.us.auth0.com`). If it's not specified, it will be loaded from the `AUTH0_DOMAIN` environment variable.                                                                                                                                                                                                                                                                                                                                                                                            |
+| domain                      | `string \| DomainResolver`  | The Auth0 domain for the tenant (e.g.: `example.us.auth0.com`). Accepts a static string or a `DomainResolver` function for [Multiple Custom Domains](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#multiple-custom-domains-mcd). Falls back to `AUTH0_DOMAIN` environment variable.                                                                                                                                                                                                                                                                                            |
 | clientId                    | `string`                  | The Auth0 client ID. If it's not specified, it will be loaded from the `AUTH0_CLIENT_ID` environment variable.                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | clientSecret                | `string`                  | The Auth0 client secret. If it's not specified, it will be loaded from the `AUTH0_CLIENT_SECRET` environment variable.                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | authorizationParameters     | `AuthorizationParameters` | The authorization parameters to pass to the `/authorize` endpoint. See [Passing authorization parameters](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#passing-authorization-parameters) for more details.                                                                                                                                                                                                                                                                                                                                                           |
@@ -224,6 +224,7 @@ You can customize the client by using the options below:
 | useDPoP                     | `boolean`                 | Enable DPoP (Demonstration of Proof-of-Possession) for enhanced security. When enabled, the client will generate DPoP proofs for token requests and protected resource requests. Defaults to `false`.                                                                                                                                                                                                                                                                                                                                                                               |
 | dpopKeyPair                 | `DpopKeyPair`            | ES256 key pair for DPoP proof generation. If not provided, the SDK will attempt to load keys from `AUTH0_DPOP_PUBLIC_KEY` and `AUTH0_DPOP_PRIVATE_KEY` environment variables. Keys must be in PEM format.                                                                                                                                                                                                                                                                                                                                                                           |
 | dpopOptions                 | `DpopOptions`            | Configure DPoP timing validation. Supports `clockSkew` (adjust assumed current time) and `clockTolerance` (validation tolerance). Can also be configured via `AUTH0_DPOP_CLOCK_SKEW` and `AUTH0_DPOP_CLOCK_TOLERANCE` environment variables. See [DPoP Clock Validation](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#dpop-clock-validation) for details.           |
+| discoveryCache              | `DiscoveryCacheOptions`   | Configure the OIDC discovery metadata cache for [Multiple Custom Domains](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#discovery-cache-configuration). Controls TTL and maximum cached issuers. |
 
 ### Customizing Auth Handlers
 
@@ -428,6 +429,24 @@ The SDK performs validation of required configuration options when initializing 
 If any of these required options are missing, the SDK will issue a warning with a detailed message explaining which options are missing and how to provide them.
 
 `appBaseUrl` is optional; if omitted, the SDK will infer it from the request host at runtime.
+
+## Multiple Custom Domains (MCD)
+
+The SDK supports authenticating users against multiple Auth0 custom domains on the same tenant. Pass a `DomainResolver` function as the `domain` option to enable per-request domain resolution:
+
+```ts
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+export const auth0 = new Auth0Client({
+  domain: ({ headers }) => {
+    const host = headers.get("host") ?? "";
+    if (host.startsWith("brand1.")) return "auth.brand1.com";
+    return "auth.default.com";
+  }
+});
+```
+
+For complete documentation, configuration options, and examples, see [Multiple Custom Domains in EXAMPLES.md](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#multiple-custom-domains-mcd).
 
 ## Routes
 
