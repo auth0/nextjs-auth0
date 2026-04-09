@@ -23,6 +23,7 @@ import {
 import { DEFAULT_SCOPES } from "../utils/constants.js";
 import { AuthClient } from "./auth-client.js";
 import { decrypt, encrypt } from "./cookies.js";
+import { DiscoveryCache } from "./discovery-cache.js";
 import { StatefulSessionStore } from "./session/stateful-session-store.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import { TransactionState, TransactionStore } from "./transaction-store.js";
@@ -172,6 +173,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
             discoveryResponse ?? Response.json(_authorizationServerMetadata)
           );
         }
+        // JWKS endpoint
+        if (url.pathname === "/.well-known/jwks.json") {
+          const publicJwk = await jose.exportJWK(DEFAULT.keyPair.publicKey);
+          return Response.json({ keys: [publicJwk] });
+        }
         // PAR endpoint
         if (url.pathname === "/oauth/par") {
           if (onParRequest) {
@@ -308,6 +314,15 @@ ca/T0LLtgmbMmxSv/MmzIg==
       },
       uat: Date.now() - 1000 * 60
     };
+  }
+
+  async function getDiscoveryCacheWithJWKS(): Promise<DiscoveryCache> {
+    const cache = new DiscoveryCache();
+    const jwksUri = `https://${DEFAULT.domain}/.well-known/jwks.json`;
+    const entry = cache.getJwksCacheForUri(jwksUri);
+    const cachedJwks = await getCachedJWKS();
+    Object.assign(entry, cachedJwks);
+    return cache;
   }
 
   describe("initialization", async () => {
@@ -788,7 +803,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
             },
             internal: {
               sid: DEFAULT.sid,
-              createdAt: expect.any(Number)
+              createdAt: expect.any(Number),
+              mcd: {
+                domain: DEFAULT.domain,
+                issuer: `https://${DEFAULT.domain}/`
+              }
             }
           })
         );
@@ -5093,7 +5112,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
           },
           internal: {
             sid: expect.any(String),
-            createdAt: expect.any(Number)
+            createdAt: expect.any(Number),
+            mcd: {
+              domain: DEFAULT.domain,
+              issuer: `https://${DEFAULT.domain}/`
+            }
           }
         });
         const expectedContext = expect.objectContaining({
@@ -5812,7 +5835,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
         routes: getDefaultRoutes(),
 
         fetch: getMockAuthorizationServer(),
-        jwksCache: await getCachedJWKS()
+        discoveryCache: await getDiscoveryCacheWithJWKS()
       });
 
       const request = new NextRequest(
@@ -5831,7 +5854,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
       expect(deleteByLogoutTokenSpy).toHaveBeenCalledWith({
         sub: DEFAULT.sub,
-        sid: DEFAULT.sid
+        sid: DEFAULT.sid,
+        iss: "https://guabu.us.auth0.com/"
       });
     });
 
@@ -5857,8 +5881,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         routes: getDefaultRoutes(),
 
-        fetch: getMockAuthorizationServer(),
-        jwksCache: await getCachedJWKS()
+        fetch: getMockAuthorizationServer()
       });
 
       const request = new NextRequest(
@@ -5904,8 +5927,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         routes: getDefaultRoutes(),
 
-        fetch: getMockAuthorizationServer(),
-        jwksCache: await getCachedJWKS()
+        fetch: getMockAuthorizationServer()
       });
 
       const request = new NextRequest(
@@ -5955,7 +5977,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
-          jwksCache: await getCachedJWKS()
+          discoveryCache: await getDiscoveryCacheWithJWKS()
         });
 
         const request = new NextRequest(
@@ -6006,7 +6028,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
-          jwksCache: await getCachedJWKS()
+          discoveryCache: await getDiscoveryCacheWithJWKS()
         });
 
         const request = new NextRequest(
@@ -6051,7 +6073,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
-          jwksCache: await getCachedJWKS()
+          discoveryCache: await getDiscoveryCacheWithJWKS()
         });
 
         const request = new NextRequest(
@@ -6103,7 +6125,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
-          jwksCache: await getCachedJWKS()
+          discoveryCache: await getDiscoveryCacheWithJWKS()
         });
 
         const request = new NextRequest(
@@ -6154,7 +6176,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
-          jwksCache: await getCachedJWKS()
+          discoveryCache: await getDiscoveryCacheWithJWKS()
         });
 
         const request = new NextRequest(
@@ -6205,7 +6227,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
-          jwksCache: await getCachedJWKS()
+          discoveryCache: await getDiscoveryCacheWithJWKS()
         });
 
         const request = new NextRequest(
@@ -6256,7 +6278,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
-          jwksCache: await getCachedJWKS()
+          discoveryCache: await getDiscoveryCacheWithJWKS()
         });
 
         const request = new NextRequest(
@@ -6307,7 +6329,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
           routes: getDefaultRoutes(),
 
           fetch: getMockAuthorizationServer(),
-          jwksCache: await getCachedJWKS()
+          discoveryCache: await getDiscoveryCacheWithJWKS()
         });
 
         const request = new NextRequest(
@@ -9294,6 +9316,354 @@ ca/T0LLtgmbMmxSv/MmzIg==
       });
 
       expect(error).toBeNull();
+    });
+  });
+
+  describe("Pre-MCD session backfill with iss-inference", () => {
+    // Minimal mock types for sessionStore and cookies used in backfill tests.
+    // Full type-safe mocks for SessionStore/RequestCookies are a broader refactor (Q5).
+    type MockSessionStore = {
+      get: ReturnType<typeof vi.fn>;
+      set: ReturnType<typeof vi.fn>;
+    };
+    type MockCookies = { getAll: ReturnType<typeof vi.fn> };
+
+    const createMockSessionStore = (
+      session: ReturnType<typeof createSessionData>
+    ): MockSessionStore => ({
+      get: vi.fn().mockResolvedValue(session),
+      set: vi.fn().mockResolvedValue(undefined)
+    });
+
+    const createMockCookies = (): MockCookies => ({
+      getAll: vi.fn().mockReturnValue([])
+    });
+
+    it("should infer domain from idToken iss claim when no mcd field exists", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+
+      // Create a signed ID token with iss claim pointing to a different domain
+      const idToken = await new jose.SignJWT({
+        sub: DEFAULT.sub,
+        sid: DEFAULT.sid
+      })
+        .setProtectedHeader({ alg: DEFAULT.alg })
+        .setIssuer("https://domain-a.auth0.com/")
+        .setAudience(DEFAULT.clientId)
+        .setExpirationTime("2h")
+        .setIssuedAt()
+        .sign(DEFAULT.keyPair.privateKey);
+
+      // Create a pre-MCD session (no mcd field in internal)
+      const preMCDSession = createSessionData({
+        tokenSet: {
+          accessToken: "at_123",
+          refreshToken: "rt_123",
+          expiresAt: Date.now() + 3600000,
+          idToken
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Date.now()
+          // deliberately no mcd field
+        }
+      });
+
+      const mockSessionStore = createMockSessionStore(preMCDSession);
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore: mockSessionStore as any,
+        domain: "domain-b.auth0.com",
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+
+      const result = await authClient.getSessionWithDomainCheck(
+        createMockCookies() as any
+      );
+
+      // Verify backfill happened
+      expect(result.error).toBeNull();
+      expect(result.session).toBeDefined();
+      expect(result.exists).toBe(true);
+
+      // Verify domain was inferred from idToken iss, NOT from authClient.domain
+      expect(result.session?.internal.mcd).toBeDefined();
+      expect(result.session?.internal.mcd?.domain).toBe("domain-a.auth0.com");
+      expect(result.session?.internal.mcd?.issuer).toBe(
+        "https://domain-a.auth0.com/"
+      );
+    });
+
+    it("should fall back to authClient.domain when idToken is absent", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+
+      // Create a pre-MCD session without idToken
+      const preMCDSession = createSessionData({
+        tokenSet: {
+          accessToken: "at_123",
+          refreshToken: "rt_123",
+          expiresAt: Date.now() + 3600000
+          // no idToken
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Date.now()
+          // no mcd field
+        }
+      });
+
+      const mockSessionStore = createMockSessionStore(preMCDSession);
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore: mockSessionStore as any,
+        domain: "fallback.auth0.com",
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+
+      const result = await authClient.getSessionWithDomainCheck(
+        createMockCookies() as any
+      );
+
+      // Verify backfill used fallback domain
+      expect(result.error).toBeNull();
+      expect(result.session).toBeDefined();
+      expect(result.session?.internal.mcd?.domain).toBe("fallback.auth0.com");
+      expect(result.session?.internal.mcd?.issuer).toBe(
+        "https://fallback.auth0.com/"
+      );
+    });
+
+    it("should fall back to authClient.domain when idToken is malformed", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+
+      // Create a pre-MCD session with malformed idToken (not a valid JWT)
+      const preMCDSession = createSessionData({
+        tokenSet: {
+          accessToken: "at_123",
+          refreshToken: "rt_123",
+          expiresAt: Date.now() + 3600000,
+          idToken: "not-a-valid-jwt"
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Date.now()
+          // no mcd field
+        }
+      });
+
+      const mockSessionStore = createMockSessionStore(preMCDSession);
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore: mockSessionStore as any,
+        domain: "fallback.auth0.com",
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+
+      const result = await authClient.getSessionWithDomainCheck(
+        createMockCookies() as any
+      );
+
+      // Should not throw, but fall back to authClient.domain
+      expect(result.error).toBeNull();
+      expect(result.session).toBeDefined();
+      expect(result.session?.internal.mcd?.domain).toBe("fallback.auth0.com");
+      expect(result.session?.internal.mcd?.issuer).toBe(
+        "https://fallback.auth0.com/"
+      );
+    });
+
+    it("should use iss-inference deterministically in resolver mode", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+
+      // Create a signed ID token with iss pointing to domain-a
+      const idToken = await new jose.SignJWT({
+        sub: DEFAULT.sub,
+        sid: DEFAULT.sid
+      })
+        .setProtectedHeader({ alg: DEFAULT.alg })
+        .setIssuer("https://domain-a.auth0.com/")
+        .setAudience(DEFAULT.clientId)
+        .setExpirationTime("2h")
+        .setIssuedAt()
+        .sign(DEFAULT.keyPair.privateKey);
+
+      // Create a pre-MCD session
+      const preMCDSession = createSessionData({
+        tokenSet: {
+          accessToken: "at_123",
+          refreshToken: "rt_123",
+          expiresAt: Date.now() + 3600000,
+          idToken
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Date.now()
+          // no mcd field
+        }
+      });
+
+      const mockSessionStore = createMockSessionStore(preMCDSession);
+
+      // Resolver mode: domain determined dynamically per request
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore: mockSessionStore as any,
+        domain: "domain-b.auth0.com", // This is the resolver's output for this request
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+
+      const result = await authClient.getSessionWithDomainCheck(
+        createMockCookies() as any
+      );
+
+      // Verify iss-inference took precedence over resolver domain
+      // The backfill should use domain-a from idToken, NOT domain-b from resolver
+      expect(result.error).toBeNull();
+      expect(result.session?.internal.mcd?.domain).toBe("domain-a.auth0.com");
+      expect(result.session?.internal.mcd?.issuer).toBe(
+        "https://domain-a.auth0.com/"
+      );
+    });
+
+    it("should preserve existing mcd field without modification", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+
+      // Create a post-MCD session (with mcd field already present)
+      const postMCDSession = createSessionData({
+        tokenSet: {
+          accessToken: "at_123",
+          refreshToken: "rt_123",
+          expiresAt: Date.now() + 3600000
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Date.now(),
+          mcd: {
+            domain: "preserved.auth0.com",
+            issuer: "https://preserved.auth0.com/"
+          }
+        }
+      });
+
+      const mockSessionStore = createMockSessionStore(postMCDSession);
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore: mockSessionStore as any,
+        domain: "preserved.auth0.com",
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+
+      const result = await authClient.getSessionWithDomainCheck(
+        createMockCookies() as any
+      );
+
+      // Should return the session with original mcd domain intact
+      expect(result.error).toBeNull();
+      expect(result.session?.internal.mcd?.domain).toBe("preserved.auth0.com");
+    });
+
+    it("should handle idToken with iss that needs URL normalization", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+
+      // Create a signed ID token with iss as a full URL
+      const idToken = await new jose.SignJWT({
+        sub: DEFAULT.sub,
+        sid: DEFAULT.sid
+      })
+        .setProtectedHeader({ alg: DEFAULT.alg })
+        .setIssuer("https://custom-domain.auth0.com/")
+        .setAudience(DEFAULT.clientId)
+        .setExpirationTime("2h")
+        .setIssuedAt()
+        .sign(DEFAULT.keyPair.privateKey);
+
+      const preMCDSession = createSessionData({
+        tokenSet: {
+          accessToken: "at_123",
+          refreshToken: "rt_123",
+          expiresAt: Date.now() + 3600000,
+          idToken
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Date.now()
+          // no mcd field
+        }
+      });
+
+      const mockSessionStore = createMockSessionStore(preMCDSession);
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore: mockSessionStore as any,
+        domain: "fallback.auth0.com",
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+      });
+
+      const result = await authClient.getSessionWithDomainCheck(
+        createMockCookies() as any
+      );
+
+      // Verify normalizeDomain correctly extracted the hostname
+      expect(result.error).toBeNull();
+      expect(result.session?.internal.mcd?.domain).toBe(
+        "custom-domain.auth0.com"
+      );
+      expect(result.session?.internal.mcd?.issuer).toBe(
+        "https://custom-domain.auth0.com/"
+      );
     });
   });
 });
