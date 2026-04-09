@@ -1,5 +1,14 @@
 # Change Log
 
+## [v4.17.0](https://github.com/auth0/nextjs-auth0/tree/v4.17.0) (2026-04-09)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.16.2...v4.17.0)
+
+**Added**
+- feat: MCD (Multiple Custom Domains) Support [\#2545](https://github.com/auth0/nextjs-auth0/pull/2545) ([tusharpandey13](https://github.com/tusharpandey13))
+
+**Fixed**
+- fix: prevent rolling session from re-creating a deleted session on concurrent logout [\#2530](https://github.com/auth0/nextjs-auth0/pull/2530) ([sleitor](https://github.com/sleitor))
+
 ## [v4.16.2](https://github.com/auth0/nextjs-auth0/tree/v4.16.2) (2026-04-07)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.16.1...v4.16.2)
 
