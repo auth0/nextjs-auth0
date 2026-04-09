@@ -5,11 +5,7 @@
 
 import { InvalidConfigurationError } from "../errors/index.js";
 import { DomainResolutionError } from "../errors/mcd.js";
-import type {
-  BackchannelLogoutConfig,
-  DomainResolver,
-  TrustedDomainsResolver
-} from "../types/mcd.js";
+import type { DomainResolver } from "../types/mcd.js";
 import { LruMap } from "../utils/lru-map.js";
 import { normalizeDomain } from "../utils/normalize.js";
 import type { AuthClient } from "./auth-client.js";
@@ -30,13 +26,6 @@ interface AuthClientProviderOptions {
    * Called when a new domain client is needed.
    */
   createAuthClient: (domain: string) => AuthClient;
-
-  /**
-   * Optional BCLO trust configuration (resolver mode only).
-   * In resolver mode, specifies which domains' logout tokens to accept.
-   * In static mode, this is ignored.
-   */
-  backchannelLogout?: BackchannelLogoutConfig;
 }
 
 /**
@@ -74,12 +63,6 @@ export class AuthClientProvider {
   private createAuthClientFactory: (domain: string) => AuthClient;
   private proxyFetchers: LruMap<string, any>;
 
-  // BCLO trust configuration (resolver mode only)
-  private trustedDomainsConfig?: string[] | TrustedDomainsResolver;
-  private trustedDomainsNormalized?: string[]; // Cached normalized array (static case only)
-  private isResolverFunction: boolean = false; // Track if resolver or static array
-  public hasTrustedDomains: boolean = false; // Public flag for BCLO handler check
-
   /**
    * Creates a new AuthClientProvider instance.
    *
@@ -115,33 +98,6 @@ export class AuthClientProvider {
       throw new InvalidConfigurationError(
         "You must provide either a domain string or a DomainResolver function."
       );
-    }
-
-    // Initialize BCLO trust configuration
-    if (options.backchannelLogout?.trustedDomains) {
-      this.trustedDomainsConfig = options.backchannelLogout.trustedDomains;
-      this.hasTrustedDomains = true;
-
-      // If static array, normalize upfront for performance
-      if (Array.isArray(this.trustedDomainsConfig)) {
-        this.trustedDomainsNormalized = this.trustedDomainsConfig
-          .map((td) => {
-            try {
-              return normalizeDomain(td).domain;
-            } catch (e) {
-              // Skip invalid entries with warning
-              console.warn(
-                `[Auth0] Invalid domain in backchannelLogout.trustedDomains: ${td}. Skipping.`
-              );
-              return null;
-            }
-          })
-          .filter((d): d is string => d !== null);
-        this.isResolverFunction = false;
-      } else {
-        // Resolver function
-        this.isResolverFunction = true;
-      }
     }
   }
 
@@ -234,80 +190,6 @@ export class AuthClientProvider {
     const newClient = this.createAuthClientFactory(normalizedDomain);
     this.domainClients.set(normalizedDomain, newClient);
     return newClient;
-  }
-
-  /**
-   * Validates if a domain is in the trusted domains list.
-   *
-   * Used by BCLO handler to validate issuer claims before token verification.
-   * Returns true if domain is whitelisted, false otherwise.
-   *
-   * In resolver mode:
-   * - If trustedDomains is a function, calls it and compares normalized result
-   * - If trustedDomains is an array, compares against pre-normalized array
-   *
-   * In static mode or if no trustedDomains configured: returns false
-   * (BCLO is not using trust validation in these cases)
-   *
-   * @param domain - The domain to validate (may be extracted from issuer URL)
-   * @returns True if domain is trusted, false otherwise
-   *
-   * @internal
-   */
-  async isTrustedDomain(domain: string): Promise<boolean> {
-    // Not configured: not trusted
-    if (!this.trustedDomainsConfig || !this.hasTrustedDomains) {
-      return false;
-    }
-
-    // Normalize the input domain
-    let normalizedInputDomain: string;
-    try {
-      ({ domain: normalizedInputDomain } = normalizeDomain(domain));
-    } catch (e) {
-      // Invalid domain format: not trusted
-      return false;
-    }
-
-    if (this.isResolverFunction) {
-      // Resolver mode: call function and check result
-      const resolverFn = this.trustedDomainsConfig as TrustedDomainsResolver;
-      try {
-        const trustedDomains = await resolverFn();
-        if (!Array.isArray(trustedDomains)) {
-          console.warn("[Auth0] trustedDomains resolver must return an array.");
-          return false;
-        }
-
-        // Normalize and compare each entry
-        return trustedDomains.some((td) => {
-          try {
-            const { domain: normalizedTd } = normalizeDomain(td);
-            return (
-              normalizedTd.toLowerCase() === normalizedInputDomain.toLowerCase()
-            );
-          } catch {
-            // Skip invalid entries
-            return false;
-          }
-        });
-      } catch (error) {
-        // Resolver threw: fail closed (not trusted)
-        console.warn(
-          `[Auth0] trustedDomains resolver threw an error: ${
-            error instanceof Error ? error.message : String(error)
-          }`
-        );
-        return false;
-      }
-    } else {
-      // Static array mode: compare against pre-normalized list
-      return (
-        this.trustedDomainsNormalized?.some(
-          (td) => td.toLowerCase() === normalizedInputDomain.toLowerCase()
-        ) ?? false
-      );
-    }
   }
 
   /**

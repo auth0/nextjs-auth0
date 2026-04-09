@@ -1165,175 +1165,10 @@ describe("MCD Integration Tests (Units 6-12)", () => {
     });
   });
 
-  // ===== Additional Iss-Inference Backfill Integration Tests =====
+  // ===== Iss-Inference Normalization Tests =====
 
-  describe("Pre-MCD Session Backfill with Iss-Inference (Integration)", () => {
-    it("I1: Session backfill extracts domain from idToken iss claim", async () => {
-      const preMCDSession = createSessionData({
-        tokenSet: {
-          accessToken: "at_123",
-          expiresAt: Date.now() + 3600000,
-          idToken: "mock.jwt.with.iss.header" // Will be decoded by getSessionWithDomainCheck
-        },
-        internal: {
-          sid: "sid_123",
-          createdAt: Date.now()
-          // no mcd field - this is a pre-MCD session
-        }
-      });
-
-      // This test verifies that when getSessionWithDomainCheck is called with a
-      // pre-MCD session containing an idToken, it will extract the iss claim
-      // and use it for domain backfill instead of the resolver/static domain.
-      expect(preMCDSession.internal.mcd).toBeUndefined();
-      expect(preMCDSession.tokenSet.idToken).toBeDefined();
-    });
-
-    it("I2: Backfill domain is deterministic across requests", async () => {
-      // The iss-inference makes backfill deterministic:
-      // The same pre-MCD session will always get the same domain,
-      // regardless of which resolver output was active on first vs second request.
-
-      const preMCDSession1 = createSessionData({
-        tokenSet: {
-          accessToken: "at_123",
-          expiresAt: Date.now() + 3600000,
-          idToken: "jwt.with.issuer.claim"
-        },
-        internal: {
-          sid: "sid_123",
-          createdAt: Date.now()
-        }
-      });
-
-      const preMCDSession2 = createSessionData({
-        tokenSet: {
-          accessToken: "at_123",
-          expiresAt: Date.now() + 3600000,
-          idToken: "jwt.with.issuer.claim" // Same session data
-        },
-        internal: {
-          sid: "sid_123",
-          createdAt: Date.now()
-        }
-      });
-
-      // Both sessions should be deterministic (same idToken = same backfill domain)
-      expect(preMCDSession1.tokenSet.idToken).toBe(
-        preMCDSession2.tokenSet.idToken
-      );
-    });
-
-    it("I3: Backfill fallback when idToken is absent preserves authClient.domain", async () => {
-      const preMCDSessionNoIdToken = createSessionData({
-        tokenSet: {
-          accessToken: "at_123",
-          expiresAt: Date.now() + 3600000
-          // no idToken
-        },
-        internal: {
-          sid: "sid_123",
-          createdAt: Date.now()
-          // no mcd field
-        }
-      });
-
-      // When idToken is absent, backfill should fall back to authClient.domain
-      expect(preMCDSessionNoIdToken.tokenSet.idToken).toBeUndefined();
-      expect(preMCDSessionNoIdToken.internal.mcd).toBeUndefined();
-    });
-
-    it("I4: Malformed idToken gracefully falls back to authClient.domain", async () => {
-      const preMCDSessionMalformedJWT = createSessionData({
-        tokenSet: {
-          accessToken: "at_123",
-          expiresAt: Date.now() + 3600000,
-          idToken: "not.a.valid.jwt.at.all"
-        },
-        internal: {
-          sid: "sid_123",
-          createdAt: Date.now()
-          // no mcd field
-        }
-      });
-
-      // When idToken is malformed, try/catch block handles it and falls back
-      expect(preMCDSessionMalformedJWT.tokenSet.idToken).toBe(
-        "not.a.valid.jwt.at.all"
-      );
-    });
-
-    it("I5: Post-MCD session domain check prevents cross-domain reuse", async () => {
-      const postMCDSessionDomainA = createSessionData({
-        tokenSet: {
-          accessToken: "at_123",
-          expiresAt: Date.now() + 3600000
-        },
-        internal: {
-          sid: "sid_123",
-          createdAt: Date.now(),
-          mcd: createMCDMetadata(
-            "domain-a.auth0.com",
-            "https://domain-a.auth0.com/"
-          )
-        }
-      });
-
-      // If this session is accessed from domain-b.auth0.com request,
-      // getSessionWithDomainCheck will return SessionDomainMismatchError
-      expect(postMCDSessionDomainA.internal.mcd?.domain).toBe(
-        "domain-a.auth0.com"
-      );
-    });
-
-    it("I6: Iss-inference in resolver mode picks idToken domain over resolver output", async () => {
-      // When in resolver mode:
-      // - Resolver returns domain-b for this request
-      // - But session's idToken has iss pointing to domain-a
-      // - Backfill should use domain-a (from idToken), not domain-b (from resolver)
-      // This makes the backfill deterministic and prevents race conditions
-
-      const preMCDSessionWithIdToken = createSessionData({
-        tokenSet: {
-          accessToken: "at_123",
-          expiresAt: Date.now() + 3600000,
-          idToken: "jwt.with.iss.claim.for.domain.a"
-        },
-        internal: {
-          sid: "sid_123",
-          createdAt: Date.now()
-          // no mcd field
-        }
-      });
-
-      // The backfill logic will extract iss from idToken, not use resolver's domain-b
-      expect(preMCDSessionWithIdToken.tokenSet.idToken).toBeDefined();
-      expect(preMCDSessionWithIdToken.internal.mcd).toBeUndefined();
-    });
-
-    it("I7: Backfill preserves session data without side effects", async () => {
-      const preMCDSession = createSessionData({
-        user: { sub: "user_123" },
-        tokenSet: {
-          accessToken: "at_123",
-          refreshToken: "rt_123",
-          expiresAt: Date.now() + 3600000,
-          idToken: "jwt.with.issuer"
-        },
-        internal: {
-          sid: "sid_123",
-          createdAt: Date.now()
-        }
-      });
-
-      // getSessionWithDomainCheck should add mcd field in-memory only
-      // Original session reference should be modified (not cloned)
-      expect(preMCDSession.internal.mcd).toBeUndefined();
-      expect(preMCDSession.user.sub).toBe("user_123");
-      expect(preMCDSession.tokenSet.accessToken).toBe("at_123");
-    });
-
-    it("I8: normalizeDomain correctly extracts hostname from iss URL", async () => {
+  describe("Iss-Inference Normalization", () => {
+    it("normalizeDomain correctly extracts hostname from iss URL", async () => {
       const issuerUrl = "https://custom.domain.auth0.com/";
       const normalized = normalizeDomain(issuerUrl);
 
@@ -1342,7 +1177,7 @@ describe("MCD Integration Tests (Units 6-12)", () => {
       expect(normalized.issuer).toBe("https://custom.domain.auth0.com/");
     });
 
-    it("I9: Backfill works with bare domain (no https:// prefix) in iss", async () => {
+    it("normalizeDomain handles bare domain (no https:// prefix) in iss", async () => {
       const bareIss = "example.auth0.com";
       const normalized = normalizeDomain(bareIss);
 

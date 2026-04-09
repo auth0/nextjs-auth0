@@ -9260,7 +9260,26 @@ ca/T0LLtgmbMmxSv/MmzIg==
     });
   });
 
-  describe("Pre-MCD session backfill with iss-inference", async () => {
+  describe("Pre-MCD session backfill with iss-inference", () => {
+    // Minimal mock types for sessionStore and cookies used in backfill tests.
+    // Full type-safe mocks for SessionStore/RequestCookies are a broader refactor (Q5).
+    type MockSessionStore = {
+      get: ReturnType<typeof vi.fn>;
+      set: ReturnType<typeof vi.fn>;
+    };
+    type MockCookies = { getAll: ReturnType<typeof vi.fn> };
+
+    const createMockSessionStore = (
+      session: ReturnType<typeof createSessionData>
+    ): MockSessionStore => ({
+      get: vi.fn().mockResolvedValue(session),
+      set: vi.fn().mockResolvedValue(undefined)
+    });
+
+    const createMockCookies = (): MockCookies => ({
+      getAll: vi.fn().mockReturnValue([])
+    });
+
     it("should infer domain from idToken iss claim when no mcd field exists", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({
@@ -9294,15 +9313,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       });
 
-      // Mock sessionStore to return the pre-MCD session
-      const mockSessionStore = {
-        get: vi.fn().mockResolvedValue(preMCDSession),
-        set: vi.fn().mockResolvedValue(undefined)
-      } as any;
+      const mockSessionStore = createMockSessionStore(preMCDSession);
 
       const authClient = new AuthClient({
         transactionStore,
-        sessionStore: mockSessionStore,
+        sessionStore: mockSessionStore as any,
         domain: "domain-b.auth0.com",
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -9312,12 +9327,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         fetch: getMockAuthorizationServer()
       });
 
-      const mockCookies = {
-        getAll: vi.fn().mockReturnValue([])
-      };
-
       const result = await authClient.getSessionWithDomainCheck(
-        mockCookies as any
+        createMockCookies() as any
       );
 
       // Verify backfill happened
@@ -9354,14 +9365,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       });
 
-      const mockSessionStore = {
-        get: vi.fn().mockResolvedValue(preMCDSession),
-        set: vi.fn().mockResolvedValue(undefined)
-      } as any;
+      const mockSessionStore = createMockSessionStore(preMCDSession);
 
       const authClient = new AuthClient({
         transactionStore,
-        sessionStore: mockSessionStore,
+        sessionStore: mockSessionStore as any,
         domain: "fallback.auth0.com",
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -9371,12 +9379,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         fetch: getMockAuthorizationServer()
       });
 
-      const mockCookies = {
-        getAll: vi.fn().mockReturnValue([])
-      };
-
       const result = await authClient.getSessionWithDomainCheck(
-        mockCookies as any
+        createMockCookies() as any
       );
 
       // Verify backfill used fallback domain
@@ -9409,14 +9413,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       });
 
-      const mockSessionStore = {
-        get: vi.fn().mockResolvedValue(preMCDSession),
-        set: vi.fn().mockResolvedValue(undefined)
-      } as any;
+      const mockSessionStore = createMockSessionStore(preMCDSession);
 
       const authClient = new AuthClient({
         transactionStore,
-        sessionStore: mockSessionStore,
+        sessionStore: mockSessionStore as any,
         domain: "fallback.auth0.com",
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -9426,12 +9427,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         fetch: getMockAuthorizationServer()
       });
 
-      const mockCookies = {
-        getAll: vi.fn().mockReturnValue([])
-      };
-
       const result = await authClient.getSessionWithDomainCheck(
-        mockCookies as any
+        createMockCookies() as any
       );
 
       // Should not throw, but fall back to authClient.domain
@@ -9476,15 +9473,12 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       });
 
-      const mockSessionStore = {
-        get: vi.fn().mockResolvedValue(preMCDSession),
-        set: vi.fn().mockResolvedValue(undefined)
-      } as any;
+      const mockSessionStore = createMockSessionStore(preMCDSession);
 
       // Resolver mode: domain determined dynamically per request
       const authClient = new AuthClient({
         transactionStore,
-        sessionStore: mockSessionStore,
+        sessionStore: mockSessionStore as any,
         domain: "domain-b.auth0.com", // This is the resolver's output for this request
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -9494,12 +9488,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         fetch: getMockAuthorizationServer()
       });
 
-      const mockCookies = {
-        getAll: vi.fn().mockReturnValue([])
-      };
-
       const result = await authClient.getSessionWithDomainCheck(
-        mockCookies as any
+        createMockCookies() as any
       );
 
       // Verify iss-inference took precedence over resolver domain
@@ -9534,14 +9524,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       });
 
-      const mockSessionStore = {
-        get: vi.fn().mockResolvedValue(postMCDSession),
-        set: vi.fn().mockResolvedValue(undefined)
-      } as any;
+      const mockSessionStore = createMockSessionStore(postMCDSession);
 
       const authClient = new AuthClient({
         transactionStore,
-        sessionStore: mockSessionStore,
+        sessionStore: mockSessionStore as any,
         domain: "preserved.auth0.com",
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -9551,12 +9538,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         fetch: getMockAuthorizationServer()
       });
 
-      const mockCookies = {
-        getAll: vi.fn().mockReturnValue([])
-      };
-
       const result = await authClient.getSessionWithDomainCheck(
-        mockCookies as any
+        createMockCookies() as any
       );
 
       // Should return the session with original mcd domain intact
@@ -9596,14 +9579,11 @@ ca/T0LLtgmbMmxSv/MmzIg==
         }
       });
 
-      const mockSessionStore = {
-        get: vi.fn().mockResolvedValue(preMCDSession),
-        set: vi.fn().mockResolvedValue(undefined)
-      } as any;
+      const mockSessionStore = createMockSessionStore(preMCDSession);
 
       const authClient = new AuthClient({
         transactionStore,
-        sessionStore: mockSessionStore,
+        sessionStore: mockSessionStore as any,
         domain: "fallback.auth0.com",
         clientId: DEFAULT.clientId,
         clientSecret: DEFAULT.clientSecret,
@@ -9613,12 +9593,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         fetch: getMockAuthorizationServer()
       });
 
-      const mockCookies = {
-        getAll: vi.fn().mockReturnValue([])
-      };
-
       const result = await authClient.getSessionWithDomainCheck(
-        mockCookies as any
+        createMockCookies() as any
       );
 
       // Verify normalizeDomain correctly extracted the hostname

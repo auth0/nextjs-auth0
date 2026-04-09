@@ -84,6 +84,7 @@ import {
   DEFAULT_SCOPES
 } from "../utils/constants.js";
 import { withDPoPNonceRetry } from "../utils/dpopUtils.js";
+import { createSizeLimitedFetch } from "../utils/fetchUtils.js";
 import {
   buildEnrollmentResponse,
   buildEnrollOptions,
@@ -340,54 +341,10 @@ export class AuthClient {
 
   constructor(options: AuthClientOptions) {
     // dependencies
-    const baseFetch = options.fetch || fetch;
-    const maxBodySize = AuthClient.MAX_RESPONSE_BODY_SIZE;
-    this.fetch = async (input, init) => {
-      const response = await baseFetch(input, init);
-
-      // Fast path: reject if Content-Length is declared and exceeds limit
-      const contentLength = response.headers.get("content-length");
-      if (contentLength && parseInt(contentLength, 10) > maxBodySize) {
-        throw new Error(
-          `Response body too large: ${contentLength} bytes exceeds ${maxBodySize} byte limit`
-        );
-      }
-
-      // Wrap response body to enforce size limit during streaming consumption
-      // (handles chunked transfer-encoding where Content-Length is absent)
-      if (response.body) {
-        const reader = response.body.getReader();
-        let totalBytes = 0;
-        const stream = new ReadableStream({
-          async pull(controller) {
-            const { done, value } = await reader.read();
-            if (done) {
-              controller.close();
-              return;
-            }
-            totalBytes += value.byteLength;
-            if (totalBytes > maxBodySize) {
-              controller.error(
-                new Error(
-                  `Response body too large: exceeded ${maxBodySize} byte limit`
-                )
-              );
-              reader.cancel();
-              return;
-            }
-            controller.enqueue(value);
-          }
-        });
-
-        return new Response(stream, {
-          status: response.status,
-          statusText: response.statusText,
-          headers: response.headers
-        });
-      }
-
-      return response;
-    };
+    this.fetch = createSizeLimitedFetch(
+      options.fetch || fetch,
+      AuthClient.MAX_RESPONSE_BODY_SIZE
+    );
     this.discoveryCache = options.discoveryCache || new DiscoveryCache();
     this.provider = options.provider;
     this.allowInsecureRequests = options.allowInsecureRequests ?? false;
@@ -1431,89 +1388,78 @@ export class AuthClient {
       });
     }
 
-    // In resolver mode, validate trust BEFORE delegating to AuthClient
+    // Resolver mode: use request context as trust anchor.
+    // Wrapped in try/catch because forRequest() can throw (DomainResolutionError
+    // from user-provided resolver) and normalizeDomain can throw on malformed iss.
     if (this.provider?.isResolverMode) {
       try {
-        // Step 1: Decode unverified to extract iss claim
-        const payload = jose.decodeJwt(logoutToken);
-        const iss = payload.iss as string;
-
-        if (!iss) {
-          return new NextResponse("Missing 'iss' claim in logout token.", {
-            status: 400,
-            headers: { "Content-Type": "text/plain" }
-          });
+        // SECURITY: Extract iss from unverified token for comparison only.
+        // The unverified iss does NOT determine which JWKS to use — the resolved
+        // domain (from request context) determines the verification source.
+        const [extractErr, issuerInfo] =
+          extractIssuerDomainFromToken(logoutToken);
+        if (extractErr) {
+          return bcloErrorResponse("Missing 'iss' claim in logout token.", 400);
         }
 
-        // Step 2: Trust validation — ensure trustedDomains is configured
-        if (!this.provider.hasTrustedDomains) {
-          return new NextResponse(
-            "Back-channel logout is not configured for this application.",
-            {
-              status: 422,
-              headers: { "Content-Type": "text/plain" }
-            }
+        // Resolve domain from request context (Host header → domain resolver)
+        const resolvedClient = await this.provider.forRequest(
+          req.headers,
+          req.nextUrl
+        );
+
+        // Trust anchor: resolved domain must match token's issuer domain.
+        // Both sides are pre-normalized (issuerInfo.domain by extractIssuerDomainFromToken,
+        // resolvedClient.domain by AuthClientProvider.resolveDomain) — direct comparison.
+        if (issuerInfo.domain !== resolvedClient.domain) {
+          return bcloErrorResponse(
+            "Logout token issuer does not match the resolved domain.",
+            403
           );
         }
 
-        // Step 3: Normalize issuer domain (may throw on invalid format)
-        let issuerDomain: string;
-        try {
-          ({ domain: issuerDomain } = normalizeDomain(iss));
-        } catch {
-          // Invalid issuer format (e.g., IP address) — treat as untrusted
-          return new NextResponse("Logout token issuer is not trusted.", {
-            status: 403,
-            headers: { "Content-Type": "text/plain" }
-          });
-        }
-
-        // Step 4: Trust validation — check against whitelist
-        const isTrusted = await this.provider.isTrustedDomain(issuerDomain);
-        if (!isTrusted) {
-          return new NextResponse("Logout token issuer is not trusted.", {
-            status: 403,
-            headers: { "Content-Type": "text/plain" }
-          });
-        }
-
-        // Step 5: Get AuthClient for the domain (now verified trusted)
-        const delegatedClient = this.provider.forDomainSync(issuerDomain);
-
-        // Step 6: Verify token with delegated client (using trusted domain's JWKS)
+        // Verify token with resolved domain's JWKS
         const [error, logoutTokenClaims] =
-          await delegatedClient.verifyLogoutToken(logoutToken);
+          await resolvedClient.verifyLogoutToken(logoutToken);
         if (error) {
-          return new NextResponse(error.message, {
-            status: 400,
-            headers: { "Content-Type": "text/plain" }
-          });
+          return bcloErrorResponse(error.message, 400);
         }
 
-        // Step 7: Delete session (verified successfully, issuer validated)
-        // Note: logoutTokenClaims now includes iss field from verified payload
+        // Delete session with iss included for issuer-matched filtering
         await this.sessionStore.store.deleteByLogoutToken(logoutTokenClaims);
-
-        return new NextResponse(null, {
-          status: 204
-        });
+        return new NextResponse(null, { status: 204 });
       } catch (error) {
-        console.error("Unexpected error in backchannel logout:", error);
-        return new NextResponse("Failed to process logout token.", {
-          status: 400,
-          headers: { "Content-Type": "text/plain" }
-        });
+        console.error(
+          `Unexpected error in backchannel logout: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+        return bcloErrorResponse("Failed to process logout token.", 400);
       }
+    }
+
+    // Static mode: defense-in-depth iss pre-check.
+    // Custom domains on same tenant share signing keys, so a token from domain-a
+    // would pass JWKS verification using domain-b's keys. This pre-check catches that.
+    // If extraction fails (missing iss, non-normalizable issuer like IP/localhost),
+    // skip pre-check for backward compatibility and let verifyLogoutToken handle validation.
+    //
+    // No try/catch here: extractIssuerDomainFromToken returns a tuple (never throws),
+    // verifyLogoutToken returns a tuple (never throws), and deleteByLogoutToken is
+    // user-provided store code — if it throws, that's the caller's responsibility.
+    const [, issuerInfo] = extractIssuerDomainFromToken(logoutToken);
+    if (issuerInfo && issuerInfo.domain !== this.domain) {
+      return bcloErrorResponse(
+        "Logout token issuer does not match the configured domain.",
+        403
+      );
     }
 
     // Static mode: verify with configured domain
     const [error, logoutTokenClaims] =
       await this.verifyLogoutToken(logoutToken);
     if (error) {
-      return new NextResponse(error.message, {
-        status: 400,
-        headers: { "Content-Type": "text/plain" }
-      });
+      return bcloErrorResponse(error.message, 400);
     }
 
     await this.sessionStore.store.deleteByLogoutToken(logoutTokenClaims);
@@ -2045,7 +1991,7 @@ export class AuthClient {
       {
         sid: payload.sid as string,
         sub: payload.sub,
-        iss: issuer // NEW: include issuer for issuer-matched deletion
+        iss: issuer // include issuer for issuer-matched deletion
       }
     ];
   }
@@ -3923,5 +3869,52 @@ export async function buildConnectAccountErrorResponse(
       }),
       null
     ];
+  }
+}
+
+/**
+ * Creates a NextResponse for BCLO error cases.
+ * Centralizes the response format (text/plain content type) for all BCLO error branches.
+ *
+ * @internal
+ */
+function bcloErrorResponse(message: string, status: number): NextResponse {
+  return new NextResponse(message, {
+    status,
+    headers: { "Content-Type": "text/plain" }
+  });
+}
+
+/**
+ * Extracts and normalizes the issuer domain from an unverified logout token.
+ *
+ * Returns `[null, { domain, issuer }]` on success, or `[Error, null]` if the token
+ * cannot be decoded, has no iss claim, or the issuer domain fails normalization
+ * (e.g., IP address, localhost).
+ *
+ * SECURITY: This function decodes the JWT without verification. The unverified
+ * `iss` claim is used ONLY for comparison against an independently-resolved domain
+ * (resolver mode) or the configured static domain (static mode). It does NOT
+ * determine which cryptographic key is used for verification — the JWKS source is
+ * determined by the resolver/configuration, not by the token itself. This prevents
+ * issuer-substitution attacks where an attacker supplies a token with a crafted
+ * `iss` and has it verified against their own JWKS.
+ *
+ * @internal
+ */
+function extractIssuerDomainFromToken(
+  logoutToken: string
+): [Error, null] | [null, { domain: string; issuer: string }] {
+  try {
+    const { iss } = jose.decodeJwt(logoutToken);
+    if (typeof iss !== "string" || !iss) {
+      return [
+        new Error("Missing or invalid 'iss' claim in logout token."),
+        null
+      ];
+    }
+    return [null, normalizeDomain(iss)];
+  } catch (err) {
+    return [err instanceof Error ? err : new Error(String(err)), null];
   }
 }
