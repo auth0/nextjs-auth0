@@ -15,3 +15,4 @@ export {
 export { mfa } from "./mfa/index.js";
 export type { ChallengeWithPopupOptions } from "./mfa/index.js";
 export type { AccessTokenResponse } from "./helpers/get-access-token.js";
+export { passwordless } from "./passwordless/index.js";
