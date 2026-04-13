@@ -36,7 +36,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.ref }}
           
       - name: Setup pnpm
-        uses: pnpm/action-setup@v5 # docs https://pnpm.io/continuous-integration#github-actions
+        uses: pnpm/action-setup@v6 # docs https://pnpm.io/continuous-integration#github-actions
         with:
           version: 10
 
