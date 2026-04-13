@@ -34,6 +34,27 @@ export interface AuthorizationParameters {
    */
   organization?: string;
   /**
+   * The name of the Auth0 connection to use for authentication.
+   *
+   * Use this to skip the Universal Login page and go directly to a specific
+   * identity provider or authentication method (e.g. `'google-oauth2'`, `'github'`, `'email'`, `'sms'`).
+   */
+  connection?: string;
+  /**
+   * Hint to the Auth0 Universal Login page which screen to show.
+   *
+   * - `'login'` — show the login screen (default)
+   * - `'signup'` — show the sign-up / registration screen
+   */
+  screen_hint?: 'login' | 'signup';
+  /**
+   * Pre-fills the email or phone field on the Universal Login page.
+   *
+   * Pass the user's known identifier (email address or phone number) to
+   * improve UX by skipping manual entry.
+   */
+  login_hint?: string;
+  /**
    * Additional authorization parameters.
    */
   [key: string]: unknown;
