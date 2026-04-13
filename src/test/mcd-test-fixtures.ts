@@ -47,7 +47,7 @@ export const TEST_DEFAULT_ROUTES: Routes = {
   mfaAuthenticators: "/auth/mfa/authenticators",
   mfaChallenge: "/auth/mfa/challenge",
   mfaVerify: "/auth/mfa/verify",
-  mfaEnroll: "/auth/mfa/enroll"
+  mfaAssociate: "/auth/mfa/associate"
 };
 
 /**

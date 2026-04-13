@@ -94,9 +94,7 @@ export class ServerMfaClient implements MfaClient {
     mfaToken: string;
   }): Promise<Authenticator[]> {
     const authClient = await this.getAuthClient();
-    const apiResponse = await authClient.mfaGetAuthenticators(
-      options.mfaToken
-    );
+    const apiResponse = await authClient.mfaGetAuthenticators(options.mfaToken);
     return apiResponse.map(camelizeAuthenticator);
   }
 
@@ -171,10 +169,7 @@ export class ServerMfaClient implements MfaClient {
 
     const { mfaToken, ...enrollOptions } = normalizedOptions;
     const authClient = await this.getAuthClient();
-    const apiResponse = await authClient.mfaAssociate(
-      mfaToken,
-      enrollOptions
-    );
+    const apiResponse = await authClient.mfaAssociate(mfaToken, enrollOptions);
     return buildEnrollmentResponse(apiResponse);
   }
 
