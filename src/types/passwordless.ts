@@ -76,6 +76,25 @@ export type PasswordlessVerifyOptions =
   | PasswordlessVerifySmsOptions;
 
 /**
+ * Token response returned by Auth0 after a successful passwordless OTP verification.
+ * Uses snake_case to match Auth0 API and SPA SDK conventions.
+ */
+export interface PasswordlessVerifyTokenResponse {
+  /** Access token */
+  access_token: string;
+  /** Refresh token (if offline_access scope was granted) */
+  refresh_token?: string;
+  /** ID token */
+  id_token?: string;
+  /** Token type (usually "Bearer") */
+  token_type: string;
+  /** Granted scope */
+  scope?: string;
+  /** Expires in seconds */
+  expires_in: number;
+}
+
+/**
  * Public interface for the passwordless client.
  * Accessible via `auth0.passwordless` after initialization.
  */
