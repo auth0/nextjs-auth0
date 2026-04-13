@@ -462,6 +462,155 @@ describe("Stateful Session Store", async () => {
       });
     });
 
+    describe("rolling session race condition", async () => {
+      it("should not re-create a session that was deleted by a concurrent logout", async () => {
+        const sessionId = "ses_123";
+        const secret = await generateSecret(32);
+        const session: SessionData = {
+          user: { sub: "user_123" },
+          tokenSet: {
+            accessToken: "at_123",
+            refreshToken: "rt_123",
+            expiresAt: 123456
+          },
+          internal: {
+            sid: "auth0-sid",
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        // simulate a store where the session has already been deleted (e.g. by a concurrent logout)
+        const store = {
+          get: vi.fn().mockResolvedValue(null),
+          set: vi.fn(),
+          delete: vi.fn()
+        };
+        const maxAge = 60 * 60; // 1 hour in seconds
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
+        const encryptedCookieValue = await encrypt(
+          {
+            id: sessionId
+          },
+          secret,
+          expiration
+        );
+        const headers = new Headers();
+        headers.append("cookie", `__session=${encryptedCookieValue}`);
+        const requestCookies = new RequestCookies(headers);
+        const responseCookies = new ResponseCookies(new Headers());
+
+        const sessionStore = new StatefulSessionStore({
+          secret,
+          store,
+          rolling: true,
+          absoluteDuration: 3600,
+          inactivityDuration: 1800
+        });
+        await sessionStore.set(requestCookies, responseCookies, session);
+
+        // the session was deleted server-side (logout), so rolling must not re-create it
+        expect(store.set).not.toHaveBeenCalled();
+        expect(responseCookies.get("__session")).toBeUndefined();
+      });
+
+      it("should proceed with the rolling update when the session still exists in the store", async () => {
+        const sessionId = "ses_123";
+        const secret = await generateSecret(32);
+        const session: SessionData = {
+          user: { sub: "user_123" },
+          tokenSet: {
+            accessToken: "at_123",
+            refreshToken: "rt_123",
+            expiresAt: 123456
+          },
+          internal: {
+            sid: "auth0-sid",
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        const store = {
+          get: vi.fn().mockResolvedValue(session),
+          set: vi.fn(),
+          delete: vi.fn()
+        };
+        const maxAge = 60 * 60; // 1 hour in seconds
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
+        const encryptedCookieValue = await encrypt(
+          {
+            id: sessionId
+          },
+          secret,
+          expiration
+        );
+        const headers = new Headers();
+        headers.append("cookie", `__session=${encryptedCookieValue}`);
+        const requestCookies = new RequestCookies(headers);
+        const responseCookies = new ResponseCookies(new Headers());
+
+        const sessionStore = new StatefulSessionStore({
+          secret,
+          store,
+          rolling: true,
+          absoluteDuration: 3600,
+          inactivityDuration: 1800
+        });
+        await sessionStore.set(requestCookies, responseCookies, session);
+
+        // the session exists in the store, so rolling should proceed normally
+        expect(store.set).toHaveBeenCalledOnce();
+        expect(store.set).toHaveBeenCalledWith(sessionId, session);
+        expect(responseCookies.get("__session")).toBeDefined();
+      });
+
+      it("should not check the store for new sessions (session fixation prevention takes priority)", async () => {
+        const sessionId = "ses_123";
+        const secret = await generateSecret(32);
+        const session: SessionData = {
+          user: { sub: "user_123" },
+          tokenSet: {
+            accessToken: "at_123",
+            refreshToken: "rt_123",
+            expiresAt: 123456
+          },
+          internal: {
+            sid: "auth0-sid",
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        // store.get returning null simulates the old session being absent
+        const store = {
+          get: vi.fn().mockResolvedValue(null),
+          set: vi.fn(),
+          delete: vi.fn()
+        };
+        const maxAge = 60 * 60; // 1 hour in seconds
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
+        const encryptedCookieValue = await encrypt(
+          {
+            id: sessionId
+          },
+          secret,
+          expiration
+        );
+        const headers = new Headers();
+        headers.append("cookie", `__session=${encryptedCookieValue}`);
+        const requestCookies = new RequestCookies(headers);
+        const responseCookies = new ResponseCookies(new Headers());
+
+        const sessionStore = new StatefulSessionStore({
+          secret,
+          store,
+          rolling: false,
+          absoluteDuration: 3600
+        });
+        // isNew=true → new login; the race-condition guard must NOT apply
+        await sessionStore.set(requestCookies, responseCookies, session, true);
+
+        expect(store.delete).toHaveBeenCalledWith(sessionId);
+        expect(store.set).toHaveBeenCalledOnce();
+        expect(responseCookies.get("__session")).toBeDefined();
+      });
+    });
+
     describe("session fixation", async () => {
       it("should generate a new session ID if the session is new", async () => {
         const sessionId = "ses_123";

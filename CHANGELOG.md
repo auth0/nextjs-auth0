@@ -1,5 +1,31 @@
 # Change Log
 
+## [v4.17.0](https://github.com/auth0/nextjs-auth0/tree/v4.17.0) (2026-04-09)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.16.2...v4.17.0)
+
+**Added**
+- feat: MCD (Multiple Custom Domains) Support [\#2545](https://github.com/auth0/nextjs-auth0/pull/2545) ([tusharpandey13](https://github.com/tusharpandey13))
+
+**Fixed**
+- fix: prevent rolling session from re-creating a deleted session on concurrent logout [\#2530](https://github.com/auth0/nextjs-auth0/pull/2530) ([sleitor](https://github.com/sleitor))
+
+## [v4.16.2](https://github.com/auth0/nextjs-auth0/tree/v4.16.2) (2026-04-07)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.16.1...v4.16.2)
+
+**Fixed**
+- fix: Middleware should not throw ERR_JWE_INVALID [\#2546](https://github.com/auth0/nextjs-auth0/pull/2546) ([crob](https://github.com/crob))
+- fix: preserve error details from HTTP 5xx OAuth responses [\#2533](https://github.com/auth0/nextjs-auth0/pull/2533) ([sleitor](https://github.com/sleitor))
+
+**Security**
+- chore(deps): update eslint to fix flatted vulnerability [\#2575](https://github.com/auth0/nextjs-auth0/pull/2575) ([Piyush-85](https://github.com/Piyush-85))
+
+## [v4.16.1](https://github.com/auth0/nextjs-auth0/tree/v4.16.1) (2026-03-25)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.16.0...v4.16.1)
+
+**Fixed**
+- fix: make withPageAuthRequired generic to support PageProps/LayoutProps types [\#2529](https://github.com/auth0/nextjs-auth0/pull/2529) ([sleitor](https://github.com/sleitor))
+- fix: enable full generic type inference for withPageAuthRequired to correctly propagate PageProps and LayoutProps [\#2550](https://github.com/auth0/nextjs-auth0/pull/2550) ([Piyush-85](https://github.com/Piyush-85))
+
 ## [v4.16.0](https://github.com/auth0/nextjs-auth0/tree/v4.16.0) (2026-02-27)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.15.0...v4.16.0)
 

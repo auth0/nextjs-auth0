@@ -3,7 +3,6 @@ import * as jose from "jose";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import {
-  afterAll,
   afterEach,
   beforeAll,
   beforeEach,
@@ -14,12 +13,16 @@ import {
 } from "vitest";
 
 import { MfaRequiredError, OAuth2Error } from "../errors/index.js";
+import { setupMswLifecycle } from "../test/defaults.js";
+import { createNextHeadersMock } from "../test/mocks.js";
 import { MfaContext, SessionData } from "../types/index.js";
 import { Auth0Client } from "./client.js";
 import { decrypt } from "./cookies.js";
 
+vi.mock("next/headers.js", () => createNextHeadersMock({ cookies: false }));
+
 // Test configuration
-const domain = "https://auth0.local";
+const domain = "https://auth0.example.com";
 const alg = "RS256";
 const sub = "test-sub";
 const sid = "test-sid";
@@ -123,13 +126,11 @@ const server = setupServer(...handlers);
 
 beforeAll(async () => {
   keyPair = await jose.generateKeyPair(alg);
-  server.listen({ onUnhandledRequest: "error" });
 });
+setupMswLifecycle(server);
 afterEach(() => {
-  server.resetHandlers();
   shouldReturnMfaError = false;
 });
-afterAll(() => server.close());
 
 /**
  * Creates initial session data for tests.
@@ -157,6 +158,14 @@ describe("MFA Error Bubbling", () => {
     savedSession = null;
     auth0Client = new Auth0Client(testAuth0ClientConfig);
 
+    const initialSession = await createInitialSession();
+
+    // Mock getSessionFromAuthClient (RC-6 helper) to return session
+    vi.spyOn(
+      Auth0Client.prototype as any,
+      "getSessionFromAuthClient"
+    ).mockResolvedValue(initialSession);
+
     // Mock saveToSession to capture what would be saved
     mockSaveToSession = vi
       .spyOn(Auth0Client.prototype as any, "saveToSession")
@@ -172,11 +181,6 @@ describe("MFA Error Bubbling", () => {
   describe("1. MFA Detection", () => {
     it("should detect mfa_required error from token endpoint", async () => {
       shouldReturnMfaError = true;
-      const initialSession = await createInitialSession();
-
-      vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-        initialSession
-      );
 
       const mockReq = new NextRequest(
         `${testAuth0ClientConfig.appBaseUrl}/api`
@@ -190,11 +194,6 @@ describe("MFA Error Bubbling", () => {
 
     it("should include error code 'mfa_required'", async () => {
       shouldReturnMfaError = true;
-      const initialSession = await createInitialSession();
-
-      vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-        initialSession
-      );
 
       const mockReq = new NextRequest(
         `${testAuth0ClientConfig.appBaseUrl}/api`
@@ -215,11 +214,6 @@ describe("MFA Error Bubbling", () => {
   describe("2. Session Storage", () => {
     it("should NOT store MFA context in session (stateless design)", async () => {
       shouldReturnMfaError = true;
-      const initialSession = await createInitialSession();
-
-      vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-        initialSession
-      );
 
       const mockReq = new NextRequest(
         `${testAuth0ClientConfig.appBaseUrl}/api`
@@ -242,11 +236,6 @@ describe("MFA Error Bubbling", () => {
   describe("3. Encrypted Token", () => {
     it("should encrypt mfa_token as JWE", async () => {
       shouldReturnMfaError = true;
-      const initialSession = await createInitialSession();
-
-      vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-        initialSession
-      );
 
       const mockReq = new NextRequest(
         `${testAuth0ClientConfig.appBaseUrl}/api`
@@ -269,11 +258,6 @@ describe("MFA Error Bubbling", () => {
 
     it("should NOT expose raw mfa_token", async () => {
       shouldReturnMfaError = true;
-      const initialSession = await createInitialSession();
-
-      vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-        initialSession
-      );
 
       const mockReq = new NextRequest(
         `${testAuth0ClientConfig.appBaseUrl}/api`
@@ -294,11 +278,6 @@ describe("MFA Error Bubbling", () => {
 
     it("should be decryptable with SDK secret", async () => {
       shouldReturnMfaError = true;
-      const initialSession = await createInitialSession();
-
-      vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-        initialSession
-      );
 
       const mockReq = new NextRequest(
         `${testAuth0ClientConfig.appBaseUrl}/api`
@@ -330,11 +309,6 @@ describe("MFA Error Bubbling", () => {
   describe("4. MfaRequiredError Properties", () => {
     it("should include mfa_requirements from Auth0 response", async () => {
       shouldReturnMfaError = true;
-      const initialSession = await createInitialSession();
-
-      vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-        initialSession
-      );
 
       const mockReq = new NextRequest(
         `${testAuth0ClientConfig.appBaseUrl}/api`
@@ -354,11 +328,6 @@ describe("MFA Error Bubbling", () => {
 
     it("should include error_description", async () => {
       shouldReturnMfaError = true;
-      const initialSession = await createInitialSession();
-
-      vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-        initialSession
-      );
 
       const mockReq = new NextRequest(
         `${testAuth0ClientConfig.appBaseUrl}/api`
@@ -383,11 +352,6 @@ describe("MFA Error Bubbling", () => {
 
     it("should include OAuth2Error as cause", async () => {
       shouldReturnMfaError = true;
-      const initialSession = await createInitialSession();
-
-      vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-        initialSession
-      );
 
       const mockReq = new NextRequest(
         `${testAuth0ClientConfig.appBaseUrl}/api`
@@ -410,11 +374,6 @@ describe("MFA Error Bubbling", () => {
   describe("5. toJSON Serialization", () => {
     it("should serialize to REST-compatible JSON format", async () => {
       shouldReturnMfaError = true;
-      const initialSession = await createInitialSession();
-
-      vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-        initialSession
-      );
 
       const mockReq = new NextRequest(
         `${testAuth0ClientConfig.appBaseUrl}/api`
@@ -442,11 +401,6 @@ describe("MFA Error Bubbling", () => {
 
     it("should work with JSON.stringify", async () => {
       shouldReturnMfaError = true;
-      const initialSession = await createInitialSession();
-
-      vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-        initialSession
-      );
 
       const mockReq = new NextRequest(
         `${testAuth0ClientConfig.appBaseUrl}/api`
@@ -473,11 +427,6 @@ describe("MFA Error Bubbling", () => {
   describe("6. SDK getAccessToken Behavior", () => {
     it("should throw MfaRequiredError when MFA is required", async () => {
       shouldReturnMfaError = true;
-      const initialSession = await createInitialSession();
-
-      vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-        initialSession
-      );
 
       const mockReq = new NextRequest(
         `${testAuth0ClientConfig.appBaseUrl}/api`
@@ -491,11 +440,6 @@ describe("MFA Error Bubbling", () => {
 
     it("should NOT mutate session when throwing MfaRequiredError", async () => {
       shouldReturnMfaError = true;
-      const initialSession = await createInitialSession();
-
-      vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-        initialSession
-      );
 
       const mockReq = new NextRequest(
         `${testAuth0ClientConfig.appBaseUrl}/api`
@@ -515,11 +459,6 @@ describe("MFA Error Bubbling", () => {
 
     it("should work without req/res (App Router)", async () => {
       shouldReturnMfaError = true;
-      const initialSession = await createInitialSession();
-
-      vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-        initialSession
-      );
 
       await expect(
         auth0Client.getAccessToken({ refresh: true })
@@ -543,11 +482,6 @@ describe("MFA Error Bubbling", () => {
         })
       );
 
-      const initialSession = await createInitialSession();
-      vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-        initialSession
-      );
-
       const mockReq = new NextRequest(
         `${testAuth0ClientConfig.appBaseUrl}/api`
       );
@@ -561,11 +495,6 @@ describe("MFA Error Bubbling", () => {
 
     it("should create self-contained encrypted token for each MFA challenge", async () => {
       shouldReturnMfaError = true;
-      const initialSession = await createInitialSession();
-
-      vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-        initialSession
-      );
 
       const mockReq = new NextRequest(
         `${testAuth0ClientConfig.appBaseUrl}/api`
@@ -602,11 +531,7 @@ describe("MFA Error Bubbling", () => {
       });
 
       shouldReturnMfaError = true;
-      const initialSession = await createInitialSession();
 
-      vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-        initialSession
-      );
       vi.spyOn(
         Auth0Client.prototype as any,
         "saveToSession"
