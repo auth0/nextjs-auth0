@@ -42,6 +42,12 @@ export {
   type MfaRequirements
 } from "./mfa-errors.js";
 
+export {
+  PasswordlessStartError,
+  PasswordlessVerifyError,
+  type PasswordlessApiErrorResponse
+} from "./passwordless-errors.js";
+
 // MCD (Multiple Custom Domains) error classes
 export {
   DomainResolutionError,
