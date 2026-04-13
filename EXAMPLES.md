@@ -45,6 +45,14 @@
   - [Handling `MfaRequiredError`](#handling-mfarequirederror)
   - [MFA Tenant Configuration](#mfa-tenant-configuration)
   - [Critical Warning](#critical-warning)
+- [Passwordless Authentication](#passwordless-authentication)
+  - [Auth0 Setup](#auth0-setup)
+  - [Route Handler Setup](#route-handler-setup)
+  - [Client-Side Usage](#client-side-usage-passwordless)
+  - [Server-Side (Headless) Usage](#server-side-headless-usage)
+  - [Error Handling](#error-handling-passwordless)
+  - [Route Configuration](#route-configuration)
+  - [Error Types](#error-types)
 - [Silent authentication](#silent-authentication)
 - [DPoP (Demonstrating Proof-of-Possession)](#dpop-demonstrating-proof-of-possession)
   - [What is DPoP?](#what-is-dpop)
@@ -140,6 +148,14 @@
   - [Step-up Authentication](#step-up-authentication)
   - [Handling `MfaRequiredError`](#handling-mfarequirederror)
   - [MFA Tenant Configuration](#mfa-tenant-configuration)
+- [Passwordless Authentication](#passwordless-authentication)
+  - [Auth0 Setup](#auth0-setup)
+  - [Route Handler Setup](#route-handler-setup)
+  - [Client-Side Usage](#client-side-usage-passwordless)
+  - [Server-Side (Headless) Usage](#server-side-headless-usage)
+  - [Error Handling](#error-handling-passwordless)
+  - [Route Configuration](#route-configuration)
+  - [Error Types](#error-types)
 - [Multiple Custom Domains (MCD)](#multiple-custom-domains-mcd)
   - [Overview](#overview-1)
   - [Static Mode (Default)](#static-mode-default)
@@ -1433,6 +1449,233 @@ When MFA is required, the SDK automatically stores MFA context in the session ke
 
 > [!NOTE]
 > The MFA context is cleaned up automatically when the session is written. Expired contexts (based on `mfaContextTtl`) are removed to prevent session bloat.
+
+## Passwordless Authentication
+
+Auth0 supports passwordless authentication via one-time passwords (OTPs) or magic links delivered by **email** or **SMS**. No password is required — the user proves identity by possessing the inbox or phone.
+
+The SDK exposes:
+- **Built-in route handlers** registered through `auth0.handler()` that handle the full OTP lifecycle server-side
+- **`auth0.passwordless`** — a server-side client for calling start/verify from Server Actions or API routes directly
+- **`passwordless`** from `@auth0/nextjs-auth0/client` — a thin client-side singleton that calls the route handlers
+
+### Auth0 Setup
+
+Before using passwordless, enable a **Passwordless** connection in the Auth0 Dashboard:
+1. Go to **Authentication > Passwordless** and enable **Email** and/or **SMS**.
+2. Under **Applications**, enable the connection for your application.
+3. Ensure the application's **Grant Types** include the passwordless OTP grant (Auth0 enables this automatically for passwordless connections).
+
+### Route Handler Setup
+
+The SDK registers two handlers automatically when you mount `auth0.handler`:
+
+| Method | Default Path | Purpose |
+|--------|--------------|---------|
+| `POST` | `/auth/passwordless/start` | Send OTP to user's email or phone |
+| `POST` | `/auth/passwordless/verify` | Verify OTP and create a session |
+
+**App Router** — add `POST` to your existing catch-all auth route:
+
+```typescript
+// app/auth/[auth0]/route.ts
+import { auth0 } from "@/lib/auth0";
+
+export const GET = auth0.handler;
+export const POST = auth0.handler;
+```
+
+**Pages Router** — mount the handler in your API route:
+
+```typescript
+// pages/api/auth/[auth0].ts
+import { auth0 } from "@/lib/auth0";
+
+export default auth0.handler;
+```
+
+### Client-Side Usage {#client-side-usage-passwordless}
+
+Import the `passwordless` singleton from `@auth0/nextjs-auth0/client`. Call `start()` to send the OTP, then `verify()` after the user submits the code — the session cookie is set automatically.
+
+**Email OTP flow:**
+
+```tsx
+"use client";
+import { useState } from "react";
+import { passwordless } from "@auth0/nextjs-auth0/client";
+import { PasswordlessStartError, PasswordlessVerifyError } from "@auth0/nextjs-auth0/errors";
+
+export function EmailOtpForm() {
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [step, setStep] = useState<"start" | "verify">("start");
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleStart(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    try {
+      await passwordless.start({ connection: "email", email, send: "code" });
+      setStep("verify");
+    } catch (err) {
+      if (err instanceof PasswordlessStartError) {
+        setError(err.error_description);
+      }
+    }
+  }
+
+  async function handleVerify(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    try {
+      await passwordless.verify({ connection: "email", email, verificationCode: code });
+      window.location.href = "/dashboard";
+    } catch (err) {
+      if (err instanceof PasswordlessVerifyError) {
+        setError(err.error === "invalid_grant" ? "Invalid or expired code." : err.error_description);
+      }
+    }
+  }
+
+  if (step === "verify") {
+    return (
+      <form onSubmit={handleVerify}>
+        {error && <p>{error}</p>}
+        <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="Enter code" />
+        <button type="submit">Sign in</button>
+      </form>
+    );
+  }
+
+  return (
+    <form onSubmit={handleStart}>
+      {error && <p>{error}</p>}
+      <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Email" />
+      <button type="submit">Send code</button>
+    </form>
+  );
+}
+```
+
+**SMS OTP flow:**
+
+```typescript
+// Send OTP to phone number (E.164 format)
+await passwordless.start({ connection: "sms", phoneNumber: "+14155550100" });
+
+// Verify after user submits the code
+await passwordless.verify({ connection: "sms", phoneNumber: "+14155550100", verificationCode: "123456" });
+window.location.href = "/dashboard";
+```
+
+**Magic link (email only):**
+
+```typescript
+// Send a magic link instead of a code — user clicks the link to authenticate
+await passwordless.start({ connection: "email", email: "user@example.com", send: "link" });
+```
+
+### Server-Side (Headless) Usage
+
+Use `auth0.passwordless` directly in **Server Actions** or **API Routes** when you want full control over the request/response cycle, for example to return a custom JSON body.
+
+**App Router — Server Action:**
+
+```typescript
+"use server";
+import { auth0 } from "@/lib/auth0";
+
+export async function sendOtp(email: string) {
+  await auth0.passwordless.start({ connection: "email", email, send: "code" });
+}
+
+export async function verifyOtp(email: string, verificationCode: string) {
+  // Verifies the OTP and sets the session cookie via next/headers
+  await auth0.passwordless.verify({ connection: "email", email, verificationCode });
+}
+```
+
+**Pages Router — API Route:**
+
+```typescript
+import type { NextApiRequest, NextApiResponse } from "next";
+import { auth0 } from "@/lib/auth0";
+import { NextRequest, NextResponse } from "next/server";
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const { email, verificationCode } = req.body;
+  const nextReq = new NextRequest(req.url!, { method: "POST" });
+  const nextRes = new NextResponse();
+
+  await auth0.passwordless.verify(nextReq, nextRes, {
+    connection: "email",
+    email,
+    verificationCode
+  });
+
+  // Copy Set-Cookie headers from nextRes
+  nextRes.headers.getSetCookie().forEach((cookie) => {
+    res.setHeader("Set-Cookie", cookie);
+  });
+  res.status(200).end();
+}
+```
+
+### Error Handling {#error-handling-passwordless}
+
+Both `PasswordlessStartError` and `PasswordlessVerifyError` expose `error` (the OAuth error code) and `error_description`.
+
+```typescript
+import { PasswordlessStartError, PasswordlessVerifyError } from "@auth0/nextjs-auth0/errors";
+
+try {
+  await passwordless.start({ connection: "email", email, send: "code" });
+} catch (err) {
+  if (err instanceof PasswordlessStartError) {
+    // err.error           — e.g. 'invalid_request', 'too_many_requests'
+    // err.error_description — human-readable message
+    console.error(err.error, err.error_description);
+  }
+}
+
+try {
+  await passwordless.verify({ connection: "email", email, verificationCode: code });
+} catch (err) {
+  if (err instanceof PasswordlessVerifyError) {
+    if (err.error === "invalid_grant") {
+      // Wrong or expired OTP
+    }
+  }
+}
+```
+
+In server-side code the same error classes are thrown, so the same `instanceof` checks apply.
+
+> [!NOTE]
+> When the built-in route handlers return an error response (e.g. `400` or `403`), they serialize the error using `error.toJSON()` which matches the Auth0 API error shape `{ error, error_description }`. The client-side `passwordless` singleton re-throws a typed error from that JSON automatically.
+
+### Route Configuration
+
+The default route paths can be overridden with environment variables:
+
+```bash
+# .env.local
+NEXT_PUBLIC_PASSWORDLESS_START_ROUTE=/auth/passwordless/start
+NEXT_PUBLIC_PASSWORDLESS_VERIFY_ROUTE=/auth/passwordless/verify
+```
+
+Because both variables are prefixed with `NEXT_PUBLIC_`, they are inlined by the Next.js bundler and available on the client without an extra API call.
+
+### Error Types
+
+| Error Class | `error` Code | When Thrown |
+|-------------|--------------|-------------|
+| `PasswordlessStartError` | `invalid_request` | Missing or malformed body field |
+| `PasswordlessStartError` | `too_many_requests` | Auth0 rate limit on OTP delivery |
+| `PasswordlessStartError` | `client_error` | Network failure or unparseable response |
+| `PasswordlessVerifyError` | `invalid_grant` | Wrong or expired OTP |
+| `PasswordlessVerifyError` | `client_error` | Network failure or unparseable response |
 
 ## Silent authentication
 
