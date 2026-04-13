@@ -222,6 +222,8 @@ export interface Routes {
   mfaChallenge: string;
   mfaVerify: string;
   mfaEnroll: string;
+  passwordlessStart: string;
+  passwordlessVerify: string;
 }
 export type RoutesOptions = Partial<
   Pick<
@@ -552,6 +554,16 @@ export class AuthClient {
       sanitizedPathname === this.routes.mfaVerify
     ) {
       return this.handleVerify(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.passwordlessStart
+    ) {
+      return this.handlePasswordlessStart(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.passwordlessVerify
+    ) {
+      return this.handlePasswordlessVerify(req);
     } else if (sanitizedPathname.startsWith("/me/")) {
       return this.handleMyAccount(req);
     } else if (sanitizedPathname.startsWith("/my-org/")) {
@@ -1296,6 +1308,133 @@ export class AuthClient {
       return res; // Return response WITH cookies
     } catch (e) {
       return handleMfaError(e);
+    }
+  }
+
+  /**
+   * Route: POST /auth/passwordless/start
+   * Initiates a passwordless authentication flow.
+   *
+   * Body: { connection: "email", email, send: "code" | "link" }
+   *       { connection: "sms", phoneNumber }
+   *
+   * Response: 204 No Content
+   * Error: 400 + { error, error_description }
+   */
+  async handlePasswordlessStart(req: NextRequest): Promise<NextResponse> {
+    try {
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+      const connection = validateStringFieldAndThrow(
+        bodyRecord.connection,
+        "connection"
+      );
+
+      if (connection === "email") {
+        const email = validateStringFieldAndThrow(bodyRecord.email, "email");
+        const send = validateStringFieldAndThrow(bodyRecord.send, "send") as
+          | "code"
+          | "link";
+        await this.passwordlessStart({ connection: "email", email, send });
+      } else if (connection === "sms") {
+        const phoneNumber = validateStringFieldAndThrow(
+          bodyRecord.phoneNumber,
+          "phoneNumber"
+        );
+        await this.passwordlessStart({ connection: "sms", phoneNumber });
+      } else {
+        return NextResponse.json(
+          {
+            error: "invalid_connection",
+            error_description: "connection must be 'email' or 'sms'"
+          },
+          { status: 400 }
+        );
+      }
+
+      return new NextResponse(null, { status: 204 });
+    } catch (e) {
+      if (e instanceof PasswordlessStartError) {
+        return NextResponse.json(e.toJSON(), { status: 400 });
+      }
+      if (e instanceof SdkError) {
+        return NextResponse.json(
+          { error: e.code, error_description: e.message },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "server_error", error_description: "Internal server error" },
+        { status: 500 }
+      );
+    }
+  }
+
+  /**
+   * Route: POST /auth/passwordless/verify
+   * Verifies a passwordless OTP and establishes a session.
+   *
+   * Body: { connection: "email", email, verificationCode }
+   *       { connection: "sms", phoneNumber, verificationCode }
+   *
+   * Response: 200 { success: true } + Set-Cookie
+   * Error: 400/403 + { error, error_description }
+   */
+  async handlePasswordlessVerify(req: NextRequest): Promise<NextResponse> {
+    try {
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+      const connection = validateStringFieldAndThrow(
+        bodyRecord.connection,
+        "connection"
+      );
+      const verificationCode = validateStringFieldAndThrow(
+        bodyRecord.verificationCode,
+        "verificationCode"
+      );
+
+      let options: PasswordlessVerifyOptions;
+      if (connection === "email") {
+        const email = validateStringFieldAndThrow(bodyRecord.email, "email");
+        options = { connection: "email", email, verificationCode };
+      } else if (connection === "sms") {
+        const phoneNumber = validateStringFieldAndThrow(
+          bodyRecord.phoneNumber,
+          "phoneNumber"
+        );
+        options = { connection: "sms", phoneNumber, verificationCode };
+      } else {
+        return NextResponse.json(
+          {
+            error: "invalid_connection",
+            error_description: "connection must be 'email' or 'sms'"
+          },
+          { status: 400 }
+        );
+      }
+
+      const tokenResponse = await this.passwordlessVerify(options);
+      const res = NextResponse.json({ success: true });
+      await this.createSessionFromPasswordlessVerify(
+        tokenResponse,
+        req.cookies,
+        res.cookies
+      );
+      return res;
+    } catch (e) {
+      if (e instanceof PasswordlessVerifyError) {
+        return NextResponse.json(e.toJSON(), { status: 403 });
+      }
+      if (e instanceof SdkError) {
+        return NextResponse.json(
+          { error: e.code, error_description: e.message },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "server_error", error_description: "Internal server error" },
+        { status: 500 }
+      );
     }
   }
 
@@ -3393,6 +3532,54 @@ export class AuthClient {
 
     // Persist updated session
     await this.sessionStore.set(reqCookies, resCookies, session);
+  }
+
+  /**
+   * Creates a new session from a passwordless verify token response.
+   * Decodes the id_token to extract user claims, builds SessionData,
+   * runs the beforeSessionSaved hook, and persists the session.
+   *
+   * @param tokenResponse - Token response from passwordlessVerify
+   * @param reqCookies - Request cookies for session association
+   * @param resCookies - Response cookies for session persistence
+   * @throws {PasswordlessVerifyError} If id_token is absent from the response
+   */
+  async createSessionFromPasswordlessVerify(
+    tokenResponse: PasswordlessVerifyTokenResponse,
+    reqCookies: RequestCookies,
+    resCookies: ResponseCookies
+  ): Promise<void> {
+    if (!tokenResponse.id_token) {
+      throw new PasswordlessVerifyError(
+        "missing_id_token",
+        "No id_token in passwordless verify response. Ensure 'openid' scope is requested."
+      );
+    }
+
+    // jose.decodeJwt does a non-validating base64 decode — safe here because the
+    // token was received directly from Auth0's HTTPS token endpoint.
+    const claims = jose.decodeJwt(tokenResponse.id_token);
+    const user = claims as unknown as User;
+
+    let session: SessionData = {
+      user,
+      tokenSet: {
+        accessToken: tokenResponse.access_token,
+        idToken: tokenResponse.id_token,
+        scope: tokenResponse.scope,
+        refreshToken: tokenResponse.refresh_token,
+        expiresAt:
+          Math.floor(Date.now() / 1000) + Number(tokenResponse.expires_in),
+        token_type: tokenResponse.token_type
+      },
+      internal: {
+        sid: (claims.sid as string) || "",
+        createdAt: Math.floor(Date.now() / 1000)
+      }
+    };
+
+    session = await this.finalizeSession(session, tokenResponse.id_token);
+    await this.sessionStore.set(reqCookies, resCookies, session, true);
   }
 
   /**
