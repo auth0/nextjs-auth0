@@ -46,7 +46,7 @@ export interface AuthorizationParameters {
    * - `'login'` — show the login screen (default)
    * - `'signup'` — show the sign-up / registration screen
    */
-  screen_hint?: 'login' | 'signup';
+  screen_hint?: "login" | "signup";
   /**
    * Pre-fills the email or phone field on the Universal Login page.
    *
