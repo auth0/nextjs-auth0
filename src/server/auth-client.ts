@@ -3402,12 +3402,15 @@ export class AuthClient {
    * @param options - Connection type, user identifier, and (for email) delivery method.
    * @throws {PasswordlessStartError} On Auth0 API failure.
    */
-  async passwordlessStart(options: PasswordlessStartOptions): Promise<void> {
+  async passwordlessStart(
+    options: PasswordlessStartOptions,
+    authParams?: Record<string, string>
+  ): Promise<void> {
     const url = new URL("/passwordless/start", this.issuer).toString();
     const httpOptions = this.httpOptions();
     httpOptions.headers.set("Content-Type", "application/json");
 
-    const body: Record<string, string> = {
+    const body: Record<string, unknown> = {
       client_id: this.clientMetadata.client_id,
       connection: options.connection
     };
@@ -3421,6 +3424,10 @@ export class AuthClient {
       body.send = options.send;
     } else {
       body.phone_number = options.phoneNumber;
+    }
+
+    if (authParams) {
+      body.authParams = authParams;
     }
 
     try {
@@ -3477,13 +3484,13 @@ export class AuthClient {
     }
 
     const params = new URLSearchParams();
-    params.append("connection", options.connection);
-    params.append("verification_code", options.verificationCode);
+    params.append("realm", options.connection);
+    params.append("otp", options.verificationCode);
 
     if (options.connection === "email") {
-      params.append("email", options.email);
+      params.append("username", options.email);
     } else {
-      params.append("phone_number", options.phoneNumber);
+      params.append("username", options.phoneNumber);
     }
 
     // Resolve scope and audience from global authorizationParameters
