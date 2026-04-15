@@ -34,6 +34,8 @@ import {
   MissingStateError,
   MyAccountApiError,
   OAuth2Error,
+  PasswordlessStartError,
+  PasswordlessVerifyError,
   SdkError
 } from "../errors/index.js";
 import {
@@ -64,9 +66,13 @@ import {
   EnrollOptions,
   GetAccessTokenOptions,
   GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE,
+  GRANT_TYPE_PASSWORDLESS_OTP,
   LogoutStrategy,
   LogoutToken,
   MfaVerifyResponse,
+  PasswordlessStartOptions,
+  PasswordlessVerifyOptions,
+  PasswordlessVerifyTokenResponse,
   ProxyOptions,
   RESPONSE_TYPES,
   SessionData,
@@ -3387,6 +3393,184 @@ export class AuthClient {
 
     // Persist updated session
     await this.sessionStore.set(reqCookies, resCookies, session);
+  }
+
+  /**
+   * Initiates a passwordless authentication flow by POSTing to `/passwordless/start`.
+   * Auth0 sends an OTP code or magic link to the user's email or phone number.
+   *
+   * @param options - Connection type, user identifier, and (for email) delivery method.
+   * @throws {PasswordlessStartError} On Auth0 API failure.
+   */
+  async passwordlessStart(
+    options: PasswordlessStartOptions,
+    authParams?: Record<string, string>
+  ): Promise<void> {
+    const url = new URL("/passwordless/start", this.issuer).toString();
+    const httpOptions = this.httpOptions();
+    httpOptions.headers.set("Content-Type", "application/json");
+
+    const body: Record<string, unknown> = {
+      client_id: this.clientMetadata.client_id,
+      connection: options.connection
+    };
+
+    if (this.clientSecret) {
+      body.client_secret = this.clientSecret;
+    }
+
+    if (options.connection === "email") {
+      body.email = options.email;
+      body.send = options.send;
+    } else {
+      body.phone_number = options.phoneNumber;
+    }
+
+    if (authParams) {
+      body.authParams = authParams;
+    }
+
+    try {
+      const response = await this.fetch(url, {
+        method: "POST",
+        body: JSON.stringify(body),
+        ...httpOptions
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({
+          error: "unknown_error",
+          error_description: "Failed to start passwordless flow"
+        }));
+        throw new PasswordlessStartError(
+          errorBody.error || "unknown_error",
+          errorBody.error_description || "Failed to start passwordless flow",
+          errorBody.error ? errorBody : undefined
+        );
+      }
+    } catch (e) {
+      if (e instanceof PasswordlessStartError) throw e;
+      throw new PasswordlessStartError(
+        "unexpected_error",
+        "Unexpected error during passwordless start",
+        undefined
+      );
+    }
+  }
+
+  /**
+   * Verifies a passwordless OTP and exchanges it for tokens via the OAuth token endpoint.
+   * Returns raw tokens — the caller (route handler) is responsible for creating the session.
+   *
+   * Uses `grant_type=http://auth0.com/oauth/grant-type/passwordless/otp`.
+   * DPoP is applied when enabled.
+   *
+   * @param options - Connection type, user identifier, and verification code.
+   * @returns Token response from Auth0.
+   * @throws {PasswordlessVerifyError} On Auth0 API failure or discovery failure.
+   */
+  async passwordlessVerify(
+    options: PasswordlessVerifyOptions
+  ): Promise<PasswordlessVerifyTokenResponse> {
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      throw new PasswordlessVerifyError(
+        "discovery_error",
+        "Failed to discover authorization server metadata",
+        undefined
+      );
+    }
+
+    const params = new URLSearchParams();
+    params.append("realm", options.connection);
+    params.append("otp", options.verificationCode);
+
+    if (options.connection === "email") {
+      params.append("username", options.email);
+    } else {
+      params.append("username", options.phoneNumber);
+    }
+
+    // Resolve scope and audience from global authorizationParameters
+    const scope =
+      getScopeForAudience(
+        this.authorizationParameters.scope,
+        this.authorizationParameters.audience
+      ) || DEFAULT_SCOPES;
+    params.append("scope", scope);
+
+    if (this.authorizationParameters.audience) {
+      params.append(
+        "audience",
+        this.authorizationParameters.audience as string
+      );
+    }
+
+    // Create DPoP handle ONCE outside the closure so it persists across retries.
+    // This is required by RFC 9449: the handle must learn and reuse the nonce from
+    // the DPoP-Nonce header across multiple attempts.
+    const dpopHandle =
+      this.useDPoP && this.dpopKeyPair
+        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+        : undefined;
+
+    let tokenEndpointResponse: oauth.TokenEndpointResponse;
+    try {
+      tokenEndpointResponse = await withDPoPNonceRetry(
+        async () => {
+          const httpResponse = await oauth.genericTokenEndpointRequest(
+            authorizationServerMetadata,
+            this.clientMetadata,
+            await this.getClientAuth(),
+            GRANT_TYPE_PASSWORDLESS_OTP,
+            params,
+            {
+              ...this.httpOptions(),
+              [oauth.customFetch]: this.fetch,
+              [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+              ...(dpopHandle && { DPoP: dpopHandle })
+            }
+          );
+          return oauth.processGenericTokenEndpointResponse(
+            authorizationServerMetadata,
+            this.clientMetadata,
+            httpResponse
+          );
+        },
+        {
+          isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
+          ...this.dpopOptions?.retry
+        }
+      );
+    } catch (err: any) {
+      const oauthErr = await extractOAuthErrorDetails(err);
+      throw new PasswordlessVerifyError(
+        oauthErr.error || "unknown_error",
+        oauthErr.error_description ||
+          err.message ||
+          "Passwordless verification failed",
+        oauthErr.error
+          ? {
+              error: oauthErr.error,
+              error_description: oauthErr.error_description ?? ""
+            }
+          : undefined
+      );
+    }
+
+    return {
+      access_token: tokenEndpointResponse.access_token,
+      refresh_token: tokenEndpointResponse.refresh_token,
+      id_token: tokenEndpointResponse.id_token,
+      token_type: tokenEndpointResponse.token_type
+        ? tokenEndpointResponse.token_type.charAt(0).toUpperCase() +
+          tokenEndpointResponse.token_type.slice(1)
+        : "Bearer",
+      scope: tokenEndpointResponse.scope,
+      expires_in: Number(tokenEndpointResponse.expires_in)
+    };
   }
 
   /**

@@ -228,5 +228,6 @@ export {
   PasswordlessVerifyOptions,
   PasswordlessVerifyEmailOptions,
   PasswordlessVerifySmsOptions,
+  PasswordlessVerifyTokenResponse,
   GRANT_TYPE_PASSWORDLESS_OTP
 } from "./passwordless.js";
