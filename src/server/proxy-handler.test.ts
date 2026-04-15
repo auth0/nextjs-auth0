@@ -16,7 +16,7 @@ import {
   extractDPoPInfo
 } from "../test/proxy-handler-test-helpers.js";
 import { generateSecret } from "../test/utils.js";
-import { generateDpopKeyPair } from "../utils/dpopUtils.js";
+import { generateDpopKeyPair } from "../utils/dpopRetry.js";
 import { AuthClient } from "./auth-client.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import { TransactionStore } from "./transaction-store.js";
