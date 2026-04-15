@@ -1330,12 +1330,76 @@ export class AuthClient {
         "connection"
       );
 
+      const res = new NextResponse(null, { status: 204 });
+
       if (connection === "email") {
         const email = validateStringFieldAndThrow(bodyRecord.email, "email");
         const send = validateStringFieldAndThrow(bodyRecord.send, "send") as
           | "code"
           | "link";
-        await this.passwordlessStart({ connection: "email", email, send });
+
+        if (send === "link") {
+          // Magic link flow: set up PKCE so /auth/callback can complete the auth code exchange
+          // when the user clicks the emailed link.
+          const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
+          const redirectUri = createRouteUrl(
+            this.routes.callback,
+            appBaseUrl
+          ).toString();
+          const codeChallengeMethod = "S256";
+          const codeVerifier = oauth.generateRandomCodeVerifier();
+          const codeChallenge =
+            await oauth.calculatePKCECodeChallenge(codeVerifier);
+          const state = oauth.generateRandomState();
+          const nonce = oauth.generateRandomNonce();
+
+          const authParams: Record<string, string> = {
+            redirect_uri: redirectUri,
+            response_type: RESPONSE_TYPES.CODE,
+            state,
+            nonce,
+            code_challenge: codeChallenge,
+            code_challenge_method: codeChallengeMethod
+          };
+
+          const scope = getScopeForAudience(
+            this.authorizationParameters.scope,
+            this.authorizationParameters.audience as string | undefined
+          );
+          if (scope) authParams.scope = scope;
+          if (this.authorizationParameters.audience) {
+            authParams.audience = this.authorizationParameters
+              .audience as string;
+          }
+
+          await this.passwordlessStart(
+            { connection: "email", email, send },
+            authParams
+          );
+
+          const transactionState: TransactionState = {
+            nonce,
+            maxAge: this.authorizationParameters.max_age,
+            codeVerifier,
+            responseType: RESPONSE_TYPES.CODE,
+            state,
+            returnTo: this.signInReturnToPath,
+            scope: scope || undefined,
+            audience: this.authorizationParameters.audience as
+              | string
+              | undefined,
+            originDomain: this.provider?.isResolverMode
+              ? this.domain
+              : undefined,
+            originIssuer: this.provider?.isResolverMode
+              ? this.issuer
+              : undefined
+          };
+
+          await this.transactionStore.save(res.cookies, transactionState);
+        } else {
+          await this.passwordlessStart({ connection: "email", email, send });
+        }
       } else if (connection === "sms") {
         const phoneNumber = validateStringFieldAndThrow(
           bodyRecord.phoneNumber,
@@ -1352,7 +1416,7 @@ export class AuthClient {
         );
       }
 
-      return new NextResponse(null, { status: 204 });
+      return res;
     } catch (e) {
       if (e instanceof PasswordlessStartError) {
         return NextResponse.json(e.toJSON(), { status: 400 });

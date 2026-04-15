@@ -234,12 +234,13 @@ describe("AuthClient passwordless methods", () => {
       expect(capturedParams.get("grant_type")).toBe(
         "http://auth0.com/oauth/grant-type/passwordless/otp"
       );
-      expect(capturedParams.get("connection")).toBe("email");
-      expect(capturedParams.get("email")).toBe(DEFAULT.email);
-      expect(capturedParams.get("verification_code")).toBe(
-        DEFAULT.verificationCode
-      );
+      expect(capturedParams.get("realm")).toBe("email");
+      expect(capturedParams.get("username")).toBe(DEFAULT.email);
+      expect(capturedParams.get("otp")).toBe(DEFAULT.verificationCode);
+      expect(capturedParams.get("connection")).toBeNull();
+      expect(capturedParams.get("verification_code")).toBeNull();
       expect(capturedParams.get("phone_number")).toBeNull();
+      expect(capturedParams.get("email")).toBeNull();
 
       expect(result.access_token).toBe(DEFAULT.accessToken);
       expect(result.refresh_token).toBe(DEFAULT.refreshToken);
@@ -270,12 +271,13 @@ describe("AuthClient passwordless methods", () => {
         verificationCode: DEFAULT.verificationCode
       });
 
-      expect(capturedParams.get("connection")).toBe("sms");
-      expect(capturedParams.get("phone_number")).toBe(DEFAULT.phoneNumber);
-      expect(capturedParams.get("verification_code")).toBe(
-        DEFAULT.verificationCode
-      );
+      expect(capturedParams.get("realm")).toBe("sms");
+      expect(capturedParams.get("username")).toBe(DEFAULT.phoneNumber);
+      expect(capturedParams.get("otp")).toBe(DEFAULT.verificationCode);
+      expect(capturedParams.get("connection")).toBeNull();
+      expect(capturedParams.get("verification_code")).toBeNull();
       expect(capturedParams.get("email")).toBeNull();
+      expect(capturedParams.get("phone_number")).toBeNull();
     });
 
     it("capitalizes token_type in response", async () => {
