@@ -34,7 +34,6 @@ import {
   DEFAULT_MFA_CONTEXT_TTL_SECONDS,
   DEFAULT_SCOPES
 } from "../utils/constants.js";
-import { validateDpopConfiguration } from "../utils/dpopUtils.js";
 import { isRequest } from "../utils/request.js";
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
 import { AuthClientProvider } from "./auth-client-provider.js";
@@ -451,11 +450,23 @@ export class Auth0Client {
       options.clientAssertionSigningAlg ||
       process.env.AUTH0_CLIENT_ASSERTION_SIGNING_ALG;
 
-    // Validate DPoP configuration and resolve from environment variables if needed
-    const {
-      dpopKeyPair: resolvedDpopKeyPair,
-      dpopOptions: resolvedDpopOptions
-    } = validateDpopConfiguration(options);
+    // Early warning if DPoP is enabled but no keypair (doesn't require crypto)
+    if (options.useDPoP && !options.dpopKeyPair) {
+      const privateKeyEnv = process.env.AUTH0_DPOP_PRIVATE_KEY;
+      const publicKeyEnv = process.env.AUTH0_DPOP_PUBLIC_KEY;
+      const hasBothKeys = Boolean(privateKeyEnv && publicKeyEnv);
+
+      if (!hasBothKeys) {
+        console.warn(
+          "WARNING: useDPoP is set to true but dpopKeyPair is not provided. " +
+            "DPoP will not be used and protected requests will use bearer authentication instead. " +
+            "To enable DPoP, provide a dpopKeyPair in the Auth0Client options or set " +
+            "AUTH0_DPOP_PUBLIC_KEY and AUTH0_DPOP_PRIVATE_KEY environment variables."
+        );
+      }
+      // Note: If both env vars ARE present, validation happens lazily on first DPoP operation
+      // This prevents crypto module from being bundled when useDPoP=false
+    }
 
     // Resolve MFA token TTL from options or environment variable
     const mfaTokenTtl = this.resolveMfaTokenTtl(
@@ -636,8 +647,8 @@ export class Auth0Client {
           enableConnectAccountEndpoint: options.enableConnectAccountEndpoint,
           tokenRefreshBuffer,
           useDPoP: options.useDPoP || false,
-          dpopKeyPair: options.dpopKeyPair || resolvedDpopKeyPair,
-          dpopOptions: options.dpopOptions || resolvedDpopOptions,
+          dpopKeyPair: options.dpopKeyPair,
+          dpopOptions: options.dpopOptions,
           mfaTokenTtl,
 
           discoveryCache,
