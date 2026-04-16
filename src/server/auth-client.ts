@@ -83,7 +83,7 @@ import {
   DEFAULT_MFA_CONTEXT_TTL_SECONDS,
   DEFAULT_SCOPES
 } from "../utils/constants.js";
-import { withDPoPNonceRetry } from "../utils/dpopUtils.js";
+import { withDPoPNonceRetry } from "../utils/dpopRetry.js";
 import { createSizeLimitedFetch } from "../utils/fetchUtils.js";
 import { createAuthCompletePostMessageResponse } from "../utils/html-helpers.js";
 import {
@@ -346,6 +346,7 @@ export class AuthClient {
 
   private dpopKeyPair?: DpopKeyPair;
   private readonly useDPoP: boolean;
+  private dpopValidated = false;
 
   private readonly mfaTokenTtl: number;
   private readonly cspNonce?: string;
@@ -503,10 +504,45 @@ export class AuthClient {
     // CSP nonce for popup postMessage inline scripts
     this.cspNonce = options.cspNonce;
 
-    // Initialize DPoP if enabled. Check useDPoP flag first to avoid timing attacks.
-    if ((options.useDPoP ?? false) && options.dpopKeyPair) {
-      this.dpopKeyPair = options.dpopKeyPair;
+    // Store keypair if provided, but validate lazily to avoid crypto bundling
+    this.dpopKeyPair = options.dpopKeyPair;
+  }
+
+  /**
+   * Lazy validation of DPoP configuration.
+   * Validates both provided keypairs and environment variables.
+   * Only imports dpopUtils (with crypto) when actually needed.
+   */
+  private async ensureDpopValidated(): Promise<void> {
+    if (this.dpopValidated || !this.useDPoP) {
+      return;
     }
+
+    // Dynamic import only when needed - prevents crypto from being bundled
+    const dpopModule = await import("../utils/dpopUtils.js");
+    const dpopConfig = await dpopModule.validateDpopConfiguration({
+      useDPoP: this.useDPoP,
+      dpopKeyPair: this.dpopKeyPair, // Pass existing keypair for validation
+      dpopOptions: this.dpopOptions
+    });
+
+    if (dpopConfig.dpopKeyPair) {
+      this.dpopKeyPair = dpopConfig.dpopKeyPair;
+    }
+    if (dpopConfig.dpopOptions) {
+      this.dpopOptions = dpopConfig.dpopOptions;
+
+      // Update clientMetadata with resolved values from environment variables
+      // This ensures clockSkew/clockTolerance from env vars are applied to OAuth operations
+      if (typeof this.dpopOptions.clockSkew === "number") {
+        this.clientMetadata[oauth.clockSkew] = this.dpopOptions.clockSkew;
+      }
+      if (typeof this.dpopOptions.clockTolerance === "number") {
+        this.clientMetadata[oauth.clockTolerance] =
+          this.dpopOptions.clockTolerance;
+      }
+    }
+    this.dpopValidated = true;
   }
 
   async handler(req: NextRequest): Promise<NextResponse> {
@@ -606,6 +642,7 @@ export class AuthClient {
     options: StartInteractiveLoginOptions = {},
     req?: NextRequest
   ): Promise<NextResponse> {
+    await this.ensureDpopValidated();
     const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
     const redirectUri = createRouteUrl(
       this.routes.callback,
@@ -895,6 +932,7 @@ export class AuthClient {
    * @public (explicit visibility marker for cross-instance delegation)
    */
   public async handleCallback(req: NextRequest): Promise<NextResponse> {
+    await this.ensureDpopValidated();
     const state = req.nextUrl.searchParams.get("state");
 
     if (!state) {
@@ -2414,6 +2452,7 @@ export class AuthClient {
   ): Promise<
     [AccessTokenForConnectionError, null] | [null, ConnectionTokenSet]
   > {
+    await this.ensureDpopValidated();
     // If we do not have a refresh token
     // and we do not have a connection token set in the cache or the one we have is expired,
     // there is nothing to retrieve and we return an error.
@@ -2625,6 +2664,7 @@ export class AuthClient {
   ): Promise<
     [CustomTokenExchangeError, null] | [null, CustomTokenExchangeResponse]
   > {
+    await this.ensureDpopValidated();
     // Note: CTE tokens are not cached per RWA SDK spec.
     // Caller is responsible for token storage if needed.
 
@@ -3082,6 +3122,7 @@ export class AuthClient {
   async fetcherFactory<TOutput extends Response>(
     options: FetcherFactoryOptions<TOutput>
   ): Promise<Fetcher<TOutput>> {
+    await this.ensureDpopValidated();
     if (this.useDPoP && !this.dpopKeyPair) {
       throw new DPoPError(
         DPoPErrorCode.DPOP_CONFIGURATION_ERROR,
@@ -3414,6 +3455,7 @@ export class AuthClient {
    * @throws {MfaRequiredError} For chained MFA (with encrypted token)
    */
   async mfaVerify(options: VerifyMfaOptions): Promise<MfaVerifyResponse> {
+    await this.ensureDpopValidated();
     // Decrypt token to extract context
     const { mfaToken, audience, scope } = await decryptMfaToken(
       options.mfaToken,
@@ -3834,6 +3876,7 @@ export class AuthClient {
     | [null, { updatedTokenSet: TokenSet; idTokenClaims: oauth.IDToken }]
     | [SdkError, null]
   > {
+    await this.ensureDpopValidated();
     const [discoveryError, authorizationServerMetadata] =
       await this.discoverAuthorizationServerMetadata();
 
