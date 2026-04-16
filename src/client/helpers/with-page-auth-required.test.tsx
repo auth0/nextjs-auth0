@@ -250,9 +250,8 @@ describe("with-page-auth-required csr", () => {
       expect(window.location.assign).toHaveBeenCalled();
     });
     const url = new URL(
-      (
-        window.location.assign as MockedFunction<typeof window.location.assign>
-      ).mock.calls[0][0],
+      (window.location.assign as MockedFunction<typeof window.location.assign>)
+        .mock.calls[0][0],
       "https://example.com"
     );
     expect(url.searchParams.get("returnTo")).toEqual("/foo?bar=baz&qux=quux");
