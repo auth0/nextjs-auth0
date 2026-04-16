@@ -1,5 +1,12 @@
 # Change Log
 
+## [v4.17.1](https://github.com/auth0/nextjs-auth0/tree/v4.17.1) (2026-04-16)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.17.0...v4.17.1)
+
+**Fixed**
+- fix: defer `AuthClientProvider` construction when `AUTH0_DOMAIN` not set at build time [\#2604](https://github.com/auth0/nextjs-auth0/pull/2604) ([sleitor](https://github.com/sleitor))
+- fix: Next.js edge runtime build error for crypto module [\#2564](https://github.com/auth0/nextjs-auth0/pull/2564) ([Piyush-85](https://github.com/Piyush-85))
+
 ## [v4.17.0](https://github.com/auth0/nextjs-auth0/tree/v4.17.0) (2026-04-09)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.16.2...v4.17.0)
 
