@@ -9,6 +9,7 @@ import { RESPONSE_TYPES, SessionData } from "../types/index.js";
 import { createAuthCompletePostMessageResponse } from "../utils/html-helpers.js";
 import { AuthClient } from "./auth-client.js";
 import { decrypt, encrypt } from "./cookies.js";
+import { DiscoveryCache } from "./discovery-cache.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import { TransactionState, TransactionStore } from "./transaction-store.js";
 
@@ -111,12 +112,16 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
     );
   }
 
-  async function getCachedJWKS(): Promise<jose.ExportedJWKSCache> {
+  async function getDiscoveryCacheWithJWKS(): Promise<DiscoveryCache> {
+    const cache = new DiscoveryCache();
+    const jwksUri = `https://${DEFAULT.domain}/.well-known/jwks.json`;
+    const entry = cache.getJwksCacheForUri(jwksUri);
     const publicJwk = await jose.exportJWK(DEFAULT.keyPair.publicKey);
-    return {
+    Object.assign(entry, {
       jwks: { keys: [publicJwk] },
       uat: Date.now() - 1000 * 60
-    };
+    });
+    return cache;
   }
 
   // ──────────────────────────────────────────────────────────────
@@ -330,7 +335,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({ secret });
       const sessionStore = new StatelessSessionStore({ secret });
-      const jwksCache = await getCachedJWKS();
+      const discoveryCache = await getDiscoveryCacheWithJWKS();
       const authClient = new AuthClient({
         transactionStore,
         sessionStore,
@@ -341,7 +346,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
         appBaseUrl: DEFAULT.appBaseUrl,
         routes: getDefaultRoutes(),
         fetch: getMockAuthorizationServer(),
-        jwksCache
+        discoveryCache
       });
 
       // Pre-populate session (popup flows MERGE into existing session)
@@ -421,7 +426,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({ secret });
       const sessionStore = new StatelessSessionStore({ secret });
-      const jwksCache = await getCachedJWKS();
+      const discoveryCache = await getDiscoveryCacheWithJWKS();
       const authClient = new AuthClient({
         transactionStore,
         sessionStore,
@@ -432,7 +437,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
         appBaseUrl: DEFAULT.appBaseUrl,
         routes: getDefaultRoutes(),
         fetch: getMockAuthorizationServer(),
-        jwksCache
+        discoveryCache
       });
 
       const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
@@ -472,7 +477,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({ secret });
       const sessionStore = new StatelessSessionStore({ secret });
-      const jwksCache = await getCachedJWKS();
+      const discoveryCache = await getDiscoveryCacheWithJWKS();
       const authClient = new AuthClient({
         transactionStore,
         sessionStore,
@@ -483,7 +488,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
         appBaseUrl: DEFAULT.appBaseUrl,
         routes: getDefaultRoutes(),
         fetch: getMockAuthorizationServer(),
-        jwksCache,
+        discoveryCache,
         cspNonce: "abc123XYZ"
       });
 
@@ -533,7 +538,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({ secret });
       const sessionStore = new StatelessSessionStore({ secret });
-      const jwksCache = await getCachedJWKS();
+      const discoveryCache = await getDiscoveryCacheWithJWKS();
       const authClient = new AuthClient({
         transactionStore,
         sessionStore,
@@ -544,7 +549,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
         appBaseUrl: DEFAULT.appBaseUrl,
         routes: getDefaultRoutes(),
         fetch: getMockAuthorizationServer(),
-        jwksCache
+        discoveryCache
         // No cspNonce
       });
 
@@ -595,7 +600,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({ secret });
       const sessionStore = new StatelessSessionStore({ secret });
-      const jwksCache = await getCachedJWKS();
+      const discoveryCache = await getDiscoveryCacheWithJWKS();
       const authClient = new AuthClient({
         transactionStore,
         sessionStore,
@@ -606,7 +611,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
         appBaseUrl: DEFAULT.appBaseUrl,
         routes: getDefaultRoutes(),
         fetch: getMockAuthorizationServer(),
-        jwksCache
+        discoveryCache
       });
 
       // Create a callback URL with an OAuth error (access_denied)
@@ -660,7 +665,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({ secret });
       const sessionStore = new StatelessSessionStore({ secret });
-      const jwksCache = await getCachedJWKS();
+      const discoveryCache = await getDiscoveryCacheWithJWKS();
       const authClient = new AuthClient({
         transactionStore,
         sessionStore,
@@ -671,7 +676,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
         appBaseUrl: DEFAULT.appBaseUrl,
         routes: getDefaultRoutes(),
         fetch: getMockAuthorizationServer(),
-        jwksCache
+        discoveryCache
       });
 
       const url = new URL("/auth/callback", DEFAULT.appBaseUrl);
@@ -1017,7 +1022,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({ secret });
       const sessionStore = new StatelessSessionStore({ secret });
-      const jwksCache = await getCachedJWKS();
+      const discoveryCache = await getDiscoveryCacheWithJWKS();
       const authClient = new AuthClient({
         transactionStore,
         sessionStore,
@@ -1028,7 +1033,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
         appBaseUrl: DEFAULT.appBaseUrl,
         routes: getDefaultRoutes(),
         fetch: getMockAuthorizationServer(),
-        jwksCache,
+        discoveryCache,
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         onCallback: async (_error, ctx, _session) => {
           capturedCtx = ctx;
@@ -1084,7 +1089,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({ secret });
       const sessionStore = new StatelessSessionStore({ secret });
-      const jwksCache = await getCachedJWKS();
+      const discoveryCache = await getDiscoveryCacheWithJWKS();
       const authClient = new AuthClient({
         transactionStore,
         sessionStore,
@@ -1095,7 +1100,7 @@ describe("MFA Popup (challengeMode + postMessage)", async () => {
         appBaseUrl: DEFAULT.appBaseUrl,
         routes: getDefaultRoutes(),
         fetch: getMockAuthorizationServer(),
-        jwksCache,
+        discoveryCache,
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         onCallback: async (_error, ctx, _session) => {
           capturedCtx = ctx;

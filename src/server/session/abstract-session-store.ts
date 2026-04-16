@@ -87,7 +87,7 @@ export abstract class AbstractSessionStore {
   public secret: string;
   public sessionCookieName: string;
 
-  private rolling: boolean;
+  protected rolling: boolean;
   private absoluteDuration: number;
   private inactivityDuration: number;
 
@@ -142,6 +142,13 @@ export abstract class AbstractSessionStore {
     reqCookies: RequestCookies | ReadonlyRequestCookies,
     resCookies: ResponseCookies
   ): Promise<void>;
+
+  /**
+   * isRolling returns true if rolling sessions are enabled.
+   */
+  get isRolling(): boolean {
+    return this.rolling;
+  }
 
   /**
    * epoch returns the time since unix epoch in seconds.

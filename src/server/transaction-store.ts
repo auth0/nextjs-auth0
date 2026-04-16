@@ -29,6 +29,20 @@ export interface TransactionState extends jose.JWTPayload {
    * - 'popup': Popup flow returning via window.postMessage
    */
   challengeMode?: "redirect" | "popup";
+
+  /**
+   * The Auth0 domain used for this transaction (MCD mode).
+   * Stored to validate that the session is for the same domain.
+   * @internal
+   */
+  originDomain?: string;
+
+  /**
+   * The OIDC issuer URL for this transaction (MCD mode).
+   * Stored alongside originDomain for validation.
+   * @internal
+   */
+  originIssuer?: string;
 }
 
 export interface TransactionCookieOptions {

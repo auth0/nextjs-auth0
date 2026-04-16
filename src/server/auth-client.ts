@@ -37,6 +37,10 @@ import {
   SdkError
 } from "../errors/index.js";
 import {
+  IssuerValidationError,
+  SessionDomainMismatchError
+} from "../errors/mcd.js";
+import {
   CompleteConnectAccountRequest,
   CompleteConnectAccountResponse,
   ConnectAccountOptions,
@@ -72,6 +76,7 @@ import {
   User,
   VerifyMfaOptions
 } from "../types/index.js";
+import type { SessionCheckResult } from "../types/mcd.js";
 import { resolveAppBaseUrl } from "../utils/app-base-url.js";
 import { mergeAuthorizationParamsIntoSearchParams } from "../utils/authorization-params-helpers.js";
 import {
@@ -79,6 +84,7 @@ import {
   DEFAULT_SCOPES
 } from "../utils/constants.js";
 import { withDPoPNonceRetry } from "../utils/dpopUtils.js";
+import { createSizeLimitedFetch } from "../utils/fetchUtils.js";
 import { createAuthCompletePostMessageResponse } from "../utils/html-helpers.js";
 import {
   buildEnrollmentResponse,
@@ -102,12 +108,9 @@ import {
   validateStringFieldAndThrow,
   validateVerificationCredentialAndThrow
 } from "../utils/mfa-validation-utils.js";
-import {
-  ensureNoLeadingSlash,
-  ensureTrailingSlash,
-  normalizeWithBasePath,
-  removeTrailingSlash
-} from "../utils/pathUtils.js";
+import { normalizeDomain, normalizeIssuer } from "../utils/normalize.js";
+import { extractOAuthErrorDetails } from "../utils/oauth-error-utils.js";
+import { createRouteUrl, removeTrailingSlash } from "../utils/pathUtils.js";
 import {
   buildForwardedRequestHeaders,
   buildForwardedResponseHeaders,
@@ -125,11 +128,15 @@ import {
 import {
   compareScopes,
   findAccessTokenSet,
+  isBeforeOrEqual,
   mergeScopes,
+  normalizeExpiresAt,
   tokenSetFromAccessTokenSet
 } from "../utils/token-set-helpers.js";
 import { isUrl, toSafeRedirect } from "../utils/url-helpers.js";
+import type { AuthClientProvider } from "./auth-client-provider.js";
 import { addCacheControlHeadersForSession } from "./cookies.js";
+import { DiscoveryCache } from "./discovery-cache.js";
 import {
   AccessTokenFactory,
   Fetcher,
@@ -177,8 +184,6 @@ export type OnCallbackHook = (
   ctx: OnCallbackContext,
   session: SessionData | null
 ) => Promise<NextResponse>;
-
-type ExpiresAtInput = number | string | null | undefined;
 
 // params passed to the /authorize endpoint that cannot be overwritten
 const INTERNAL_AUTHORIZE_PARAMS = [
@@ -263,7 +268,8 @@ export interface AuthClientOptions {
 
   // custom fetch implementation to allow for dependency injection
   fetch?: typeof fetch;
-  jwksCache?: jose.JWKSCacheInput;
+  discoveryCache?: DiscoveryCache;
+  provider?: AuthClientProvider;
   allowInsecureRequests?: boolean;
   httpTimeout?: number;
   enableTelemetry?: boolean;
@@ -296,13 +302,6 @@ export interface AuthClientOptions {
   // dpopHandleStorage?: DPoPHandleStorageInterface; // Commented out until implementation
 }
 
-function createRouteUrl(path: string, baseUrl: string) {
-  return new URL(
-    ensureNoLeadingSlash(normalizeWithBasePath(path)),
-    ensureTrailingSlash(baseUrl)
-  );
-}
-
 /**
  * @private
  */
@@ -314,7 +313,7 @@ export class AuthClient {
   private clientSecret?: string;
   private clientAssertionSigningKey?: string | jose.CryptoKey;
   private clientAssertionSigningAlg: string;
-  private domain: string;
+  readonly domain: string;
   private authorizationParameters: AuthorizationParameters;
   private pushedAuthorizationRequests: boolean;
 
@@ -330,7 +329,8 @@ export class AuthClient {
   private routes: Routes;
 
   private fetch: typeof fetch;
-  private jwksCache: jose.JWKSCacheInput;
+  private discoveryCache: DiscoveryCache;
+  public provider?: AuthClientProvider;
   private allowInsecureRequests: boolean;
   private httpTimeout: number;
   private httpOptions: () => { signal: AbortSignal; headers: Headers };
@@ -352,10 +352,22 @@ export class AuthClient {
 
   private proxyFetchers: { [audience: string]: Fetcher<Response> } = {};
 
+  /**
+   * Maximum allowed response body size (1 MB). Responses exceeding this limit
+   * are aborted to prevent memory exhaustion from malicious or oversized
+   * OIDC discovery documents, JWKS responses, or token endpoint payloads.
+   * @internal
+   */
+  static readonly MAX_RESPONSE_BODY_SIZE = 1024 * 1024;
+
   constructor(options: AuthClientOptions) {
     // dependencies
-    this.fetch = options.fetch || fetch;
-    this.jwksCache = options.jwksCache || {};
+    this.fetch = createSizeLimitedFetch(
+      options.fetch || fetch,
+      AuthClient.MAX_RESPONSE_BODY_SIZE
+    );
+    this.discoveryCache = options.discoveryCache || new DiscoveryCache();
+    this.provider = options.provider;
     this.allowInsecureRequests = options.allowInsecureRequests ?? false;
     this.httpTimeout = options.httpTimeout ?? 5000;
     this.httpOptions = () => {
@@ -562,19 +574,28 @@ export class AuthClient {
     } else if (sanitizedPathname.startsWith("/my-org/")) {
       return this.handleMyOrg(req);
     } else {
-      // no auth handler found, simply touch the sessions
-      // TODO: this should only happen if rolling sessions are enabled. Also, we should
-      // try to avoid reading from the DB (for stateful sessions) on every request if possible.
+      // no auth handler found, simply touch the sessions if rolling sessions are enabled.
+      // TODO: we should try to avoid reading from the DB (for stateful sessions) on every
+      // request if possible.
       const res = NextResponse.next();
-      const session = await this.sessionStore.get(req.cookies);
 
-      if (session) {
-        // we pass the existing session (containing an `createdAt` timestamp) to the set method
-        // which will update the cookie's `maxAge` property based on the `createdAt` time
-        await this.sessionStore.set(req.cookies, res.cookies, {
-          ...session
-        });
-        addCacheControlHeadersForSession(res);
+      if (this.sessionStore.isRolling) {
+        const { error, session } = await this.getSessionWithDomainCheck(
+          req.cookies
+        );
+
+        if (error instanceof SessionDomainMismatchError) {
+          console.warn(`[nextjs-auth0] ${error.message}`);
+        }
+
+        if (!error && session) {
+          // we pass the existing session (containing an `createdAt` timestamp) to the set method
+          // which will update the cookie's `maxAge` property based on the `createdAt` time
+          await this.sessionStore.set(req.cookies, res.cookies, {
+            ...session
+          });
+          addCacheControlHeadersForSession(res);
+        }
       }
 
       return res;
@@ -661,6 +682,27 @@ export class AuthClient {
       );
     }
 
+    // Enforce openid scope in resolver mode
+    if (this.provider?.isResolverMode) {
+      // Merge scopes from baseConfig defaults and explicit options
+      const explicitScope = options.authorizationParameters?.scope;
+      const defaultScope = this.authorizationParameters.scope || "";
+
+      // Combine scopes: base config defaults + explicit options
+      const scopeString = [defaultScope, explicitScope]
+        .filter(Boolean)
+        .join(" ");
+      const scopeSet = new Set(scopeString.split(/\s+/).filter(Boolean));
+
+      // Enforce openid scope in resolver mode
+      if (!scopeSet.has("openid")) {
+        throw new InvalidConfigurationError(
+          'The "openid" scope is required in resolver mode (DomainResolver). ' +
+            'Add "openid" to your SDK configuration or login options.'
+        );
+      }
+    }
+
     // Prepare transaction state
     const transactionState: TransactionState = {
       nonce,
@@ -671,7 +713,10 @@ export class AuthClient {
       returnTo,
       scope: authorizationParams.get("scope") || undefined,
       audience: authorizationParams.get("audience") || undefined,
-      challengeMode: challengeMode !== "redirect" ? challengeMode : undefined
+      challengeMode: challengeMode !== "redirect" ? challengeMode : undefined,
+      // Store origin domain and issuer for callback delegation in resolver mode
+      originDomain: this.provider?.isResolverMode ? this.domain : undefined,
+      originIssuer: this.provider?.isResolverMode ? this.issuer : undefined
     };
 
     // Generate authorization URL with PAR handling
@@ -729,19 +774,29 @@ export class AuthClient {
   }
 
   async handleLogout(req: NextRequest): Promise<NextResponse> {
-    const session = await this.sessionStore.get(req.cookies);
+    const {
+      error: sessionError,
+      session,
+      exists: sessionExists
+    } = await this.getSessionWithDomainCheck(req.cookies);
+
+    // Propagate domain mismatch error but don't delete session on domain mismatch
+    const hasDomainMismatch = sessionError && sessionExists;
+
     const [discoveryError, authorizationServerMetadata] =
       await this.discoverAuthorizationServerMetadata();
 
     if (discoveryError) {
-      // Clean up session on discovery error
+      // Clean up session on discovery error (unless domain mismatch)
       const errorResponse = new NextResponse(
         "An error occurred while trying to initiate the logout request.",
         {
           status: 500
         }
       );
-      await this.sessionStore.delete(req.cookies, errorResponse.cookies);
+      if (!hasDomainMismatch) {
+        await this.sessionStore.delete(req.cookies, errorResponse.cookies);
+      }
       await this.transactionStore.deleteAll(req.cookies, errorResponse.cookies);
       return errorResponse;
     }
@@ -771,6 +826,7 @@ export class AuthClient {
         url.searchParams.set("logout_hint", session.internal.sid);
       }
 
+      // Only include id_token_hint if we have a valid session (domain match)
       if (this.includeIdTokenHintInOIDCLogoutUrl && session?.tokenSet.idToken) {
         url.searchParams.set("id_token_hint", session.tokenSet.idToken);
       }
@@ -791,14 +847,16 @@ export class AuthClient {
     } else if (this.logoutStrategy === "oidc") {
       // Always use OIDC RP-Initiated Logout
       if (!authorizationServerMetadata.end_session_endpoint) {
-        // Clean up session on OIDC error
+        // Clean up session on OIDC error (unless domain mismatch)
         const errorResponse = new NextResponse(
           "OIDC RP-Initiated Logout is not supported by the authorization server. Enable it or use a different logout strategy.",
           {
             status: 500
           }
         );
-        await this.sessionStore.delete(req.cookies, errorResponse.cookies);
+        if (!hasDomainMismatch) {
+          await this.sessionStore.delete(req.cookies, errorResponse.cookies);
+        }
         await this.transactionStore.deleteAll(
           req.cookies,
           errorResponse.cookies
@@ -818,8 +876,10 @@ export class AuthClient {
       }
     }
 
-    // Clean up session and transaction cookies
-    await this.sessionStore.delete(req.cookies, logoutResponse.cookies);
+    // Clean up session and transaction cookies (only if session matched domain)
+    if (!hasDomainMismatch) {
+      await this.sessionStore.delete(req.cookies, logoutResponse.cookies);
+    }
     addCacheControlHeadersForSession(logoutResponse);
 
     // Clear any orphaned transaction cookies
@@ -828,8 +888,15 @@ export class AuthClient {
     return logoutResponse;
   }
 
-  async handleCallback(req: NextRequest): Promise<NextResponse> {
+  /**
+   * Handle OAuth2/OIDC callback.
+   * @internal This method is not part of the public SDK API. It is called internally
+   * during callback delegation in resolver mode to route callbacks to the correct domain.
+   * @public (explicit visibility marker for cross-instance delegation)
+   */
+  public async handleCallback(req: NextRequest): Promise<NextResponse> {
     const state = req.nextUrl.searchParams.get("state");
+
     if (!state) {
       return this.handleCallbackError(new MissingStateError(), {}, req);
     }
@@ -851,15 +918,36 @@ export class AuthClient {
       appBaseUrl
     };
 
-    if (transactionState.responseType === RESPONSE_TYPES.CONNECT_CODE) {
-      const session = await this.sessionStore.get(req.cookies);
+    // Callback domain delegation in resolver mode
+    if (
+      state &&
+      this.provider?.isResolverMode &&
+      transactionState.originDomain
+    ) {
+      // Check if the origin domain differs from current domain
+      const normalizedOriginDomain = normalizeDomain(
+        transactionState.originDomain
+      ).domain;
+      if (normalizedOriginDomain !== this.domain) {
+        // Delegate to the domain-specific AuthClient
+        const delegatedClient = this.provider.forDomainSync(
+          normalizedOriginDomain
+        );
+        return delegatedClient.handleCallback(req);
+      }
+    }
 
-      if (!session) {
+    if (transactionState.responseType === RESPONSE_TYPES.CONNECT_CODE) {
+      const { error: sessionError, session } =
+        await this.getSessionWithDomainCheck(req.cookies);
+
+      if (sessionError || !session) {
         return this.handleCallbackError(
-          new ConnectAccountError({
-            code: ConnectAccountErrorCodes.MISSING_SESSION,
-            message: "The user does not have an active session."
-          }),
+          sessionError ||
+            new ConnectAccountError({
+              code: ConnectAccountErrorCodes.MISSING_SESSION,
+              message: "The user does not have an active session."
+            }),
           onCallbackCtx,
           req,
           state,
@@ -871,7 +959,7 @@ export class AuthClient {
       const [tokenSetError, tokenSetResponse] = await this.getTokenSet(
         session,
         {
-          audience: `${this.issuer}/me/`,
+          audience: `${this.issuer}me/`,
           scope: "create:me:connected_accounts"
         }
       );
@@ -944,11 +1032,12 @@ export class AuthClient {
         transactionState.state
       );
     } catch (e: any) {
+      const oauthErr = await extractOAuthErrorDetails(e);
       return this.handleCallbackError(
         new AuthorizationError({
           cause: new OAuth2Error({
-            code: e.error,
-            message: e.error_description
+            code: oauthErr.error ?? "unknown_error",
+            message: oauthErr.error_description
           })
         }),
         onCallbackCtx,
@@ -963,9 +1052,7 @@ export class AuthClient {
     let authorizationCodeGrantRequestCall: () => Promise<Response>;
 
     try {
-      redirectUri = new URL(
-        createRouteUrl(this.routes.callback, appBaseUrl).toString()
-      ); // must be registered with the authorization server
+      redirectUri = createRouteUrl(this.routes.callback, appBaseUrl); // must be registered with the authorization server
 
       // Create DPoP handle ONCE outside the closure so it persists across retries.
       // This is required by RFC 9449: the handle must learn and reuse the nonce from
@@ -1038,11 +1125,12 @@ export class AuthClient {
         }
       );
     } catch (e: any) {
+      const oauthErr = await extractOAuthErrorDetails(e);
       return this.handleCallbackError(
         new AuthorizationCodeGrantError({
           cause: new OAuth2Error({
-            code: e.error,
-            message: e.error_description
+            code: oauthErr.error ?? "unknown_error",
+            message: oauthErr.error_description
           })
         }),
         onCallbackCtx,
@@ -1057,6 +1145,20 @@ export class AuthClient {
     const idTokenClaims = oidcRes.id_token
       ? oauth.getValidatedIdTokenClaims(oidcRes)
       : undefined;
+
+    // Secondary issuer check for defense-in-depth (MCD)
+    if (transactionState.originIssuer && idTokenClaims) {
+      const actualIssuer = normalizeIssuer(idTokenClaims.iss);
+      const expectedIssuer = normalizeIssuer(transactionState.originIssuer);
+      if (actualIssuer !== expectedIssuer) {
+        return this.handleCallbackError(
+          new IssuerValidationError(expectedIssuer, actualIssuer),
+          onCallbackCtx,
+          req,
+          state
+        );
+      }
+    }
 
     // ★ POSTMESSAGE BRANCH
     if (challengeMode === "popup") {
@@ -1147,11 +1249,33 @@ export class AuthClient {
       transactionState
     );
 
+    // Add MCD metadata when in resolver mode
+    if (this.provider?.isResolverMode) {
+      session.internal = {
+        ...session.internal,
+        mcd: {
+          domain: this.domain,
+          issuer: this.issuer
+        }
+      };
+    }
+
     const res = await this.onCallback(null, onCallbackCtx, session);
 
     // call beforeSessionSaved callback if present
     // if not then filter id_token claims with default rules
     session = await this.finalizeSession(session, oidcRes.id_token);
+
+    // Post-hook MCD validation - ensure hooks don't remove internal.mcd in resolver mode
+    if (this.provider?.isResolverMode) {
+      if (!session.internal?.mcd) {
+        throw new InvalidConfigurationError(
+          "beforeSessionSaved hook must not remove the internal.mcd field in resolver mode. " +
+            "The internal.mcd object is required for multi-custom-domain session isolation. " +
+            "If you need to modify session.internal, preserve the .mcd field."
+        );
+      }
+    }
 
     await this.sessionStore.set(req.cookies, res.cookies, session, true);
     addCacheControlHeadersForSession(res);
@@ -1163,9 +1287,10 @@ export class AuthClient {
   }
 
   async handleProfile(req: NextRequest): Promise<NextResponse> {
-    const session = await this.sessionStore.get(req.cookies);
+    const { error: sessionError, session } =
+      await this.getSessionWithDomainCheck(req.cookies);
 
-    if (!session) {
+    if (sessionError || !session) {
       if (this.noContentProfileResponseWhenUnauthenticated) {
         return new NextResponse(null, {
           status: 204
@@ -1298,8 +1423,9 @@ export class AuthClient {
       const res = NextResponse.json(result);
 
       // Cache tokens in session if session exists
-      const session = await this.sessionStore.get(req.cookies);
-      if (session) {
+      const { error: sessionError, session } =
+        await this.getSessionWithDomainCheck(req.cookies);
+      if (!sessionError && session) {
         await this.cacheTokenFromMfaVerify(
           result,
           bodyRecord.mfaToken,
@@ -1315,17 +1441,20 @@ export class AuthClient {
   }
 
   async handleAccessToken(req: NextRequest): Promise<NextResponse> {
-    const session = await this.sessionStore.get(req.cookies);
+    const { error: sessionError, session } =
+      await this.getSessionWithDomainCheck(req.cookies);
     const audience = req.nextUrl.searchParams.get("audience");
     const scope = req.nextUrl.searchParams.get("scope");
     const mergeScopesParam = req.nextUrl.searchParams.get("mergeScopes");
 
-    if (!session) {
+    if (sessionError || !session) {
       return NextResponse.json(
         {
           error: {
-            message: "The user does not have an active session.",
-            code: AccessTokenErrorCode.MISSING_SESSION
+            message: sessionError
+              ? sessionError.message
+              : "The user does not have an active session.",
+            code: sessionError?.code ?? AccessTokenErrorCode.MISSING_SESSION
           }
         },
         {
@@ -1415,12 +1544,78 @@ export class AuthClient {
       });
     }
 
+    // Resolver mode: use request context as trust anchor.
+    // Wrapped in try/catch because forRequest() can throw (DomainResolutionError
+    // from user-provided resolver) and normalizeDomain can throw on malformed iss.
+    if (this.provider?.isResolverMode) {
+      try {
+        // SECURITY: Extract iss from unverified token for comparison only.
+        // The unverified iss does NOT determine which JWKS to use — the resolved
+        // domain (from request context) determines the verification source.
+        const [extractErr, issuerInfo] =
+          extractIssuerDomainFromToken(logoutToken);
+        if (extractErr) {
+          return bcloErrorResponse("Missing 'iss' claim in logout token.", 400);
+        }
+
+        // Resolve domain from request context (Host header → domain resolver)
+        const resolvedClient = await this.provider.forRequest(
+          req.headers,
+          req.nextUrl
+        );
+
+        // Trust anchor: resolved domain must match token's issuer domain.
+        // Both sides are pre-normalized (issuerInfo.domain by extractIssuerDomainFromToken,
+        // resolvedClient.domain by AuthClientProvider.resolveDomain) — direct comparison.
+        if (issuerInfo.domain !== resolvedClient.domain) {
+          return bcloErrorResponse(
+            "Logout token issuer does not match the resolved domain.",
+            403
+          );
+        }
+
+        // Verify token with resolved domain's JWKS
+        const [error, logoutTokenClaims] =
+          await resolvedClient.verifyLogoutToken(logoutToken);
+        if (error) {
+          return bcloErrorResponse(error.message, 400);
+        }
+
+        // Delete session with iss included for issuer-matched filtering
+        await this.sessionStore.store.deleteByLogoutToken(logoutTokenClaims);
+        return new NextResponse(null, { status: 204 });
+      } catch (error) {
+        console.error(
+          `Unexpected error in backchannel logout: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+        return bcloErrorResponse("Failed to process logout token.", 400);
+      }
+    }
+
+    // Static mode: defense-in-depth iss pre-check.
+    // Custom domains on same tenant share signing keys, so a token from domain-a
+    // would pass JWKS verification using domain-b's keys. This pre-check catches that.
+    // If extraction fails (missing iss, non-normalizable issuer like IP/localhost),
+    // skip pre-check for backward compatibility and let verifyLogoutToken handle validation.
+    //
+    // No try/catch here: extractIssuerDomainFromToken returns a tuple (never throws),
+    // verifyLogoutToken returns a tuple (never throws), and deleteByLogoutToken is
+    // user-provided store code — if it throws, that's the caller's responsibility.
+    const [, issuerInfo] = extractIssuerDomainFromToken(logoutToken);
+    if (issuerInfo && issuerInfo.domain !== this.domain) {
+      return bcloErrorResponse(
+        "Logout token issuer does not match the configured domain.",
+        403
+      );
+    }
+
+    // Static mode: verify with configured domain
     const [error, logoutTokenClaims] =
       await this.verifyLogoutToken(logoutToken);
     if (error) {
-      return new NextResponse(error.message, {
-        status: 400
-      });
+      return bcloErrorResponse(error.message, 400);
     }
 
     await this.sessionStore.store.deleteByLogoutToken(logoutTokenClaims);
@@ -1431,7 +1626,8 @@ export class AuthClient {
   }
 
   async handleConnectAccount(req: NextRequest): Promise<NextResponse> {
-    const session = await this.sessionStore.get(req.cookies);
+    const { error: sessionError, session } =
+      await this.getSessionWithDomainCheck(req.cookies);
 
     // pass all query params except `connection`, `returnTo`, `scopes` as authorization params
     const connection = req.nextUrl.searchParams.get("connection");
@@ -1450,17 +1646,20 @@ export class AuthClient {
       });
     }
 
-    if (!session) {
-      return new NextResponse("The user does not have an active session.", {
-        status: 401
-      });
+    if (sessionError || !session) {
+      return new NextResponse(
+        sessionError?.message ?? "The user does not have an active session.",
+        {
+          status: 401
+        }
+      );
     }
 
     const [getTokenSetError, getTokenSetResponse] = await this.getTokenSet(
       session,
       {
         scope: "create:me:connected_accounts",
-        audience: `${this.issuer}/me/`
+        audience: `${this.issuer}me/`
       }
     );
 
@@ -1512,8 +1711,8 @@ export class AuthClient {
   async handleMyAccount(req: NextRequest): Promise<NextResponse> {
     return this.#handleProxy(req, {
       proxyPath: "/me",
-      targetBaseUrl: `${this.issuer}/me/v1`,
-      audience: `${this.issuer}/me/`,
+      targetBaseUrl: `${this.issuer}me/v1`,
+      audience: `${this.issuer}me/`,
       scope: req.headers.get("scope")
     });
   }
@@ -1521,8 +1720,8 @@ export class AuthClient {
   async handleMyOrg(req: NextRequest): Promise<NextResponse> {
     return this.#handleProxy(req, {
       proxyPath: "/my-org",
-      targetBaseUrl: `${this.issuer}/my-org`,
-      audience: `${this.issuer}/my-org/`,
+      targetBaseUrl: `${this.issuer}my-org`,
+      audience: `${this.issuer}my-org/`,
       scope: req.headers.get("scope")
     });
   }
@@ -1612,23 +1811,6 @@ export class AuthClient {
       }
     );
     const now = Date.now() / 1000;
-    const normalizeExpiresAt = (value: ExpiresAtInput): number | undefined => {
-      if (typeof value === "number") {
-        return Number.isFinite(value) ? value : undefined;
-      }
-      if (typeof value === "string") {
-        if (value.trim() === "") {
-          return undefined;
-        }
-        const parsed = Number(value);
-        return Number.isFinite(parsed) ? parsed : undefined;
-      }
-      return undefined;
-    };
-    const isBeforeOrEqual = (left: ExpiresAtInput, right: number) => {
-      const normalized = normalizeExpiresAt(left);
-      return normalized !== undefined && normalized <= right;
-    };
 
     const expiresAt = normalizeExpiresAt(tokenSet.expiresAt);
     const isExpired = isBeforeOrEqual(tokenSet.expiresAt, now);
@@ -1777,11 +1959,12 @@ export class AuthClient {
         }
       ];
     } catch (e: any) {
+      const oauthErr = await extractOAuthErrorDetails(e);
       return [
         new BackchannelAuthenticationError({
           cause: new OAuth2Error({
-            code: e.error,
-            message: e.error_description
+            code: oauthErr.error ?? "unknown_error",
+            message: oauthErr.error_description
           })
         }),
         null
@@ -1799,13 +1982,20 @@ export class AuthClient {
     const issuer = new URL(this.issuer);
 
     try {
-      const authorizationServerMetadata = await oauth
-        .discoveryRequest(issuer, {
-          ...this.httpOptions(),
-          [oauth.customFetch]: this.fetch,
-          [oauth.allowInsecureRequests]: this.allowInsecureRequests
-        })
-        .then((response) => oauth.processDiscoveryResponse(issuer, response));
+      const authorizationServerMetadata = await this.discoveryCache.get(
+        this.domain,
+        async () => {
+          return await oauth
+            .discoveryRequest(issuer, {
+              ...this.httpOptions(),
+              [oauth.customFetch]: this.fetch,
+              [oauth.allowInsecureRequests]: this.allowInsecureRequests
+            })
+            .then((response) =>
+              oauth.processDiscoveryResponse(issuer, response)
+            );
+        }
+      );
 
       this.authorizationServerMetadata = authorizationServerMetadata;
 
@@ -1843,7 +2033,7 @@ export class AuthClient {
     }
 
     const res = NextResponse.redirect(
-      createRouteUrl(ctx.returnTo || "/", appBaseUrl)
+      createRouteUrl(ctx.returnTo || "/", appBaseUrl).toString()
     );
 
     return res;
@@ -1902,7 +2092,7 @@ export class AuthClient {
     return response;
   }
 
-  private async verifyLogoutToken(
+  async verifyLogoutToken(
     logoutToken: string
   ): Promise<[null, LogoutToken] | [SdkError, null]> {
     const [discoveryError, authorizationServerMetadata] =
@@ -1918,7 +2108,11 @@ export class AuthClient {
     const keyInput = jose.createRemoteJWKSet(
       new URL(authorizationServerMetadata.jwks_uri!),
       {
-        [jose.jwksCache]: this.jwksCache
+        [jose.jwksCache]: this.discoveryCache.getJwksCacheForUri(
+          authorizationServerMetadata.jwks_uri!
+        ),
+        timeoutDuration: this.httpTimeout,
+        [jose.customFetch]: this.fetch
       }
     );
 
@@ -1985,11 +2179,15 @@ export class AuthClient {
       ];
     }
 
+    // Extract issuer from verified token payload
+    const issuer = payload.iss as string | undefined;
+
     return [
       null,
       {
         sid: payload.sid as string,
-        sub: payload.sub
+        sub: payload.sub,
+        iss: issuer // include issuer for issuer-matched deletion
       }
     ];
   }
@@ -2044,11 +2242,12 @@ export class AuthClient {
           response
         );
       } catch (e: any) {
+        const oauthErr = await extractOAuthErrorDetails(e);
         return [
           new AuthorizationError({
             cause: new OAuth2Error({
-              code: e.error,
-              message: e.error_description
+              code: oauthErr.error ?? "unknown_error",
+              message: oauthErr.error_description
             }),
             message:
               "An error occurred while pushing the authorization request."
@@ -2095,10 +2294,102 @@ export class AuthClient {
   }
 
   private get issuer(): string {
-    return this.domain.startsWith("http://") ||
-      this.domain.startsWith("https://")
-      ? this.domain
-      : `https://${this.domain}`;
+    return `https://${this.domain}/`;
+  }
+
+  /**
+   * Gets the session with domain validation in MCD mode.
+   *
+   * In resolver mode, sessions are tagged with the domain they were created for.
+   * This method checks that the session domain matches the current request domain,
+   * and backlills pre-MCD sessions atomically.
+   *
+   *
+   * @param cookies - Request cookies containing session information
+   * @returns A SessionCheckResult object with the following properties:
+   *   - `error: null | SessionDomainMismatchError` — null if session is valid for current domain, or SessionDomainMismatchError if domain mismatch
+   *   - `session: null | SessionData` — the session object if valid, null otherwise
+   *   - `exists: boolean` — true if a session was found (regardless of domain match), false if no session
+   *
+   * @note SessionCheckResult is an internal contract used for session validation. Not part of public API.
+   *
+   * @internal
+   */
+  async getSessionWithDomainCheck(
+    cookies: RequestCookies | import("./cookies.js").ReadonlyRequestCookies
+  ): Promise<SessionCheckResult> {
+    // Read session from store
+    const session = await this.sessionStore.get(cookies);
+
+    // No session found
+    if (!session) {
+      return {
+        error: null,
+        session: null,
+        exists: false
+      };
+    }
+
+    // Session has domain metadata: check for match
+    if (session.internal?.mcd) {
+      // Compare session domain with current domain
+      if (session.internal.mcd.domain !== this.domain) {
+        // Domain mismatch - session was created for a different domain
+        return {
+          error: new SessionDomainMismatchError(
+            `Session was created for domain '${session.internal.mcd.domain}' but the current request is for domain '${this.domain}'. ` +
+              `This may indicate a cross-domain session reuse attempt.`
+          ),
+          session: null,
+          exists: true
+        };
+      }
+      // Domain matches - return session
+      return {
+        error: null,
+        session,
+        exists: true
+      };
+    }
+
+    // Pre-MCD session (no mcd field): infer domain from ID token's iss claim.
+    // This is deterministic — the same session always yields the same domain,
+    // eliminating the race condition where the first resolver output claims it.
+    let inferredDomain: string | undefined;
+
+    if (session.tokenSet.idToken) {
+      try {
+        const { iss } = jose.decodeJwt(session.tokenSet.idToken);
+        if (typeof iss === "string") {
+          inferredDomain = normalizeDomain(iss).domain;
+        }
+      } catch {
+        // Malformed JWT — fall through to fallback
+      }
+    }
+
+    // Fallback: use current AuthClient's domain.
+    // Static mode: always correct (only one domain).
+    // Resolver mode: last resort if idToken absent.
+    const domain = inferredDomain ?? this.domain;
+
+    session.internal = session.internal || {};
+    session.internal.mcd = {
+      domain,
+      issuer: `https://${domain}/`
+    };
+
+    // Backfill is in-memory only. Persistence is deferred to the next session
+    // touch/save operation (e.g., middleware handler's default case) where
+    // sessionStore.set() is called with actual response cookies attached to
+    // the HTTP response. This avoids creating orphaned ResponseCookies that
+    // would never be sent to the client in stateless (cookie-based) sessions.
+
+    return {
+      error: null,
+      session,
+      exists: true
+    };
   }
 
   /**
@@ -2221,13 +2512,14 @@ export class AuthClient {
           }
         );
       } catch (err: any) {
+        const oauthErr = await extractOAuthErrorDetails(err);
         return [
           new AccessTokenForConnectionError(
             AccessTokenForConnectionErrorCode.FAILED_TO_EXCHANGE,
             "There was an error trying to exchange the refresh token for a connection access token.",
             new OAuth2Error({
-              code: err.error,
-              message: err.error_description
+              code: oauthErr.error ?? "unknown_error",
+              message: oauthErr.error_description
             })
           ),
           null
@@ -2452,13 +2744,14 @@ export class AuthClient {
         ...this.dpopOptions?.retry
       });
     } catch (err: any) {
+      const oauthErr = await extractOAuthErrorDetails(err);
       return [
         new CustomTokenExchangeError(
           CustomTokenExchangeErrorCode.EXCHANGE_FAILED,
           "There was an error trying to exchange the token.",
           new OAuth2Error({
-            code: err.error ?? "unknown_error",
-            message: err.error_description ?? err.message
+            code: oauthErr.error ?? "unknown_error",
+            message: oauthErr.error_description ?? err.message
           })
         ),
         null
@@ -3181,12 +3474,18 @@ export class AuthClient {
         }
       );
     } catch (err: any) {
+      const oauthErr = await extractOAuthErrorDetails(err);
+
       // Handle chained MFA (subsequent mfa_required response)
-      if (err.error === "mfa_required") {
+      if (oauthErr.error === "mfa_required" || err.error === "mfa_required") {
         // Extract error body from cause for oauth4webapi wrapped errors
         // ResponseBodyError wraps actual error in cause property
         const errorBody =
-          err.cause && typeof err.cause === "object" ? (err.cause as any) : err;
+          err.cause &&
+          typeof err.cause === "object" &&
+          !(err.cause instanceof Response)
+            ? (err.cause as any)
+            : err;
 
         // Re-encrypt the new mfaToken for client use
         const encryptedToken = await encryptMfaToken(
@@ -3198,24 +3497,27 @@ export class AuthClient {
           DEFAULT_MFA_CONTEXT_TTL_SECONDS
         );
         throw new MfaRequiredError(
-          errorBody.error_description || "Additional MFA factor required",
+          oauthErr.error_description ||
+            errorBody.error_description ||
+            "Additional MFA factor required",
           encryptedToken,
           errorBody.mfa_requirements,
           new OAuth2Error({
             code: "mfa_required",
-            message: errorBody.error_description
+            message: oauthErr.error_description || errorBody.error_description
           })
         );
       }
 
-      // Extract error body from cause for all oauth4webapi errors
-      const errorBody =
-        err.cause && typeof err.cause === "object" ? (err.cause as any) : err;
-
       throw new MfaVerifyError(
-        errorBody.error || "unknown_error",
-        errorBody.error_description || err.message || "MFA verification failed",
-        errorBody.error ? errorBody : undefined
+        oauthErr.error || "unknown_error",
+        oauthErr.error_description || err.message || "MFA verification failed",
+        oauthErr.error
+          ? {
+              error: oauthErr.error,
+              error_description: oauthErr.error_description ?? ""
+            }
+          : undefined
       );
     }
 
@@ -3247,11 +3549,12 @@ export class AuthClient {
     reqCookies: RequestCookies,
     resCookies: ResponseCookies
   ): Promise<void> {
-    const session = await this.sessionStore.get(reqCookies);
-    if (!session) {
+    const { error: sessionError, session } =
+      await this.getSessionWithDomainCheck(reqCookies);
+    if (sessionError || !session) {
       throw new MfaVerifyError(
-        AccessTokenErrorCode.MISSING_SESSION,
-        "The user does not have an active session."
+        sessionError?.code ?? AccessTokenErrorCode.MISSING_SESSION,
+        sessionError?.message ?? "The user does not have an active session."
       );
     }
 
@@ -3290,11 +3593,15 @@ export class AuthClient {
     req: NextRequest,
     options: ProxyOptions
   ): Promise<NextResponse> {
-    const session = await this.sessionStore.get(req.cookies);
-    if (!session) {
-      return new NextResponse("The user does not have an active session.", {
-        status: 401
-      });
+    const { error: sessionError, session } =
+      await this.getSessionWithDomainCheck(req.cookies);
+    if (sessionError || !session) {
+      return new NextResponse(
+        sessionError?.message ?? "The user does not have an active session.",
+        {
+          status: 401
+        }
+      );
     }
 
     // handle preflight requests
@@ -3349,20 +3656,38 @@ export class AuthClient {
       return tokenSetResponse.tokenSet;
     };
 
-    // get/create fetcher isntance
-    let fetcher = this.proxyFetchers[options.audience];
+    // Get/create fetcher instance with domain-aware caching
+    // In MCD mode, use provider.getProxyFetcher for shared caching across AuthClient instances
+    // In static mode, use local proxyFetchers cache
+    const cacheKey = this.provider
+      ? `${this.domain}:${options.audience}`
+      : options.audience;
 
-    if (!fetcher) {
-      fetcher = await this.fetcherFactory({
-        useDPoP: this.useDPoP,
-        fetch: this.fetch,
-        getAccessToken: getAccessToken
+    let fetcher: Fetcher<Response>;
+    if (this.provider) {
+      fetcher = await this.provider.getProxyFetcher(cacheKey, async () => {
+        return this.fetcherFactory({
+          useDPoP: this.useDPoP,
+          fetch: this.fetch,
+          getAccessToken: getAccessToken
+        });
       });
-      this.proxyFetchers[options.audience] = fetcher;
     } else {
-      // @ts-expect-error Override fetcher's getAccessToken to capture token set side effects
-      fetcher.getAccessToken = getAccessToken;
+      // Static mode or no provider: use local cache
+      fetcher = this.proxyFetchers[options.audience];
+      if (!fetcher) {
+        fetcher = await this.fetcherFactory({
+          useDPoP: this.useDPoP,
+          fetch: this.fetch,
+          getAccessToken: getAccessToken
+        });
+        this.proxyFetchers[options.audience] = fetcher;
+      }
     }
+
+    // Override getAccessToken for the current request
+    // @ts-expect-error Override fetcher's getAccessToken to capture token set side effects
+    fetcher.getAccessToken = getAccessToken;
 
     try {
       const response = await fetcher.fetchWithAuth(
@@ -3571,6 +3896,8 @@ export class AuthClient {
         }
       );
     } catch (e: any) {
+      const oauthErr = await extractOAuthErrorDetails(e);
+
       // Check if this is an MFA required error
       if (isMfaRequiredError(e)) {
         const { mfa_token, error_description, mfa_requirements } =
@@ -3594,8 +3921,8 @@ export class AuthClient {
               encryptedToken,
               mfa_requirements,
               new OAuth2Error({
-                code: e.error,
-                message: e.error_description
+                code: oauthErr.error ?? "unknown_error",
+                message: oauthErr.error_description
               })
             ),
             null
@@ -3616,8 +3943,8 @@ export class AuthClient {
               "", // Empty token - signals re-auth needed
               mfa_requirements,
               new OAuth2Error({
-                code: e.error,
-                message: e.error_description
+                code: oauthErr.error ?? "unknown_error",
+                message: oauthErr.error_description
               })
             ),
             null
@@ -3630,8 +3957,8 @@ export class AuthClient {
           AccessTokenErrorCode.FAILED_TO_REFRESH_TOKEN,
           "The access token has expired and there was an error while trying to refresh it.",
           new OAuth2Error({
-            code: e.error,
-            message: e.error_description
+            code: oauthErr.error ?? "unknown_error",
+            message: oauthErr.error_description
           })
         ),
         null
@@ -3752,5 +4079,52 @@ export async function buildConnectAccountErrorResponse(
       }),
       null
     ];
+  }
+}
+
+/**
+ * Creates a NextResponse for BCLO error cases.
+ * Centralizes the response format (text/plain content type) for all BCLO error branches.
+ *
+ * @internal
+ */
+function bcloErrorResponse(message: string, status: number): NextResponse {
+  return new NextResponse(message, {
+    status,
+    headers: { "Content-Type": "text/plain" }
+  });
+}
+
+/**
+ * Extracts and normalizes the issuer domain from an unverified logout token.
+ *
+ * Returns `[null, { domain, issuer }]` on success, or `[Error, null]` if the token
+ * cannot be decoded, has no iss claim, or the issuer domain fails normalization
+ * (e.g., IP address, localhost).
+ *
+ * SECURITY: This function decodes the JWT without verification. The unverified
+ * `iss` claim is used ONLY for comparison against an independently-resolved domain
+ * (resolver mode) or the configured static domain (static mode). It does NOT
+ * determine which cryptographic key is used for verification — the JWKS source is
+ * determined by the resolver/configuration, not by the token itself. This prevents
+ * issuer-substitution attacks where an attacker supplies a token with a crafted
+ * `iss` and has it verified against their own JWKS.
+ *
+ * @internal
+ */
+function extractIssuerDomainFromToken(
+  logoutToken: string
+): [Error, null] | [null, { domain: string; issuer: string }] {
+  try {
+    const { iss } = jose.decodeJwt(logoutToken);
+    if (typeof iss !== "string" || !iss) {
+      return [
+        new Error("Missing or invalid 'iss' claim in logout token."),
+        null
+      ];
+    }
+    return [null, normalizeDomain(iss)];
+  } catch (err) {
+    return [err instanceof Error ? err : new Error(String(err)), null];
   }
 }

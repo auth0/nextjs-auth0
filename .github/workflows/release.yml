@@ -35,5 +35,4 @@ jobs:
       node-version: 22 ## Updated to Node.js 22
       require-build: false
     secrets:
-      npm-token: ${{ secrets.NPM_TOKEN }}
       github-token: ${{ secrets.GITHUB_TOKEN }}
