@@ -1,7 +1,10 @@
-import { NextResponse } from "next/server.js";
+import { NextRequest, NextResponse } from "next/server.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { InvalidConfigurationError } from "../errors/index.js";
+import {
+  DomainResolutionError,
+  InvalidConfigurationError
+} from "../errors/index.js";
 import { SessionData } from "../types/index.js";
 import { Auth0Client } from "./client.js";
 
@@ -150,6 +153,63 @@ describe("Auth0Client", () => {
       expect(() => new Auth0Client(options)).toThrow(
         "tokenRefreshBuffer must be a non-negative number of seconds."
       );
+    });
+
+    describe("deferred domain resolution (standalone / runtime-injected env)", () => {
+      it("should not throw during construction when AUTH0_DOMAIN is absent and domain is not passed", () => {
+        // Simulate a Next.js standalone build where AUTH0_DOMAIN is only injected at runtime.
+        // The Auth0Client constructor must not throw — domain validation is deferred to request time.
+        delete process.env[ENV_VARS.DOMAIN];
+        process.env[ENV_VARS.CLIENT_ID] = "client_123";
+        process.env[ENV_VARS.CLIENT_SECRET] = "client_secret";
+        process.env[ENV_VARS.APP_BASE_URL] = "https://app.example.com";
+        process.env[ENV_VARS.SECRET] = "secret_value";
+
+        expect(() => new Auth0Client()).not.toThrow();
+      });
+
+      it("should resolve domain at request time when AUTH0_DOMAIN is set after construction", async () => {
+        // Domain is absent at construction, but present when the first request is made.
+        delete process.env[ENV_VARS.DOMAIN];
+        process.env[ENV_VARS.CLIENT_ID] = "client_123";
+        process.env[ENV_VARS.CLIENT_SECRET] = "client_secret";
+        process.env[ENV_VARS.APP_BASE_URL] = "https://app.example.com";
+        process.env[ENV_VARS.SECRET] = "secret_value";
+
+        const client = new Auth0Client();
+
+        // Now inject the domain as if a container runtime has set it
+        process.env[ENV_VARS.DOMAIN] = "runtime.auth0.com";
+
+        // Calling getSession with no active session should not throw an
+        // InvalidConfigurationError — the domain is now resolvable.
+        // getSession returns null when there is no session; it should NOT throw
+        // because domain is now available via the deferred resolver.
+        const req = new NextRequest("https://app.example.com/");
+        await expect(client.getSession(req)).resolves.toBeNull();
+      });
+
+      it("should throw InvalidConfigurationError at request time when AUTH0_DOMAIN is still absent", async () => {
+        // Both build time and request time are missing AUTH0_DOMAIN — the deferred
+        // resolver must throw with a clear message rather than a cryptic internal error.
+        delete process.env[ENV_VARS.DOMAIN];
+        process.env[ENV_VARS.CLIENT_ID] = "client_123";
+        process.env[ENV_VARS.CLIENT_SECRET] = "client_secret";
+        process.env[ENV_VARS.APP_BASE_URL] = "https://app.example.com";
+        process.env[ENV_VARS.SECRET] = "secret_value";
+
+        const client = new Auth0Client();
+
+        // AUTH0_DOMAIN remains unset — should throw at request time.
+        // The deferred resolver throws InvalidConfigurationError, which the
+        // AuthClientProvider wraps in a DomainResolutionError. The original
+        // message is accessible via .cause.
+        const req = new NextRequest("https://app.example.com/");
+        const err = await client.getSession(req).catch((e) => e);
+        expect(err).toBeInstanceOf(DomainResolutionError);
+        expect(err.cause).toBeInstanceOf(InvalidConfigurationError);
+        expect(err.cause?.message).toContain("Missing: domain");
+      });
     });
   });
 
