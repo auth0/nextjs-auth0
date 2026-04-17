@@ -157,11 +157,25 @@ export class StatefulSessionStore extends AbstractSessionStore {
     // The guard only applies when we found an existing session ID in the request cookie
     // (existingSessionId !== null). Brand-new sessions (no cookie, or isNew login) bypass
     // the check because there is nothing in the store to verify against.
+    //
+    // If the store implements the optional update() method we use it as an atomic
+    // check-and-write (UPDATE WHERE id = $1). Otherwise we fall back to a non-atomic
+    // get() + set() pair.
     if (existingSessionId !== null) {
-      const existingSession = await this.store.get(existingSessionId);
-      if (!existingSession) {
-        return;
+      if (typeof this.store.update === "function") {
+        const updated = await this.store.update(existingSessionId, session);
+        if (!updated) {
+          return;
+        }
+      } else {
+        const existingSession = await this.store.get(existingSessionId);
+        if (!existingSession) {
+          return;
+        }
+        await this.store.set(existingSessionId, session);
       }
+    } else {
+      await this.store.set(sessionId, session);
     }
 
     const maxAge = this.calculateMaxAge(session.internal.createdAt);
@@ -180,7 +194,6 @@ export class StatefulSessionStore extends AbstractSessionStore {
       ...this.cookieConfig,
       maxAge
     });
-    await this.store.set(sessionId, session);
 
     // to enable read-after-write in the same request for middleware
     reqCookies.set(this.sessionCookieName, jwe.toString());

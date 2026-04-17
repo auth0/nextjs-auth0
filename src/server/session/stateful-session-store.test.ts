@@ -463,6 +463,101 @@ describe("Stateful Session Store", async () => {
     });
 
     describe("rolling session race condition", async () => {
+      it("should use store.update() atomically when implemented and bail if it returns false", async () => {
+        // store.update() returns false → session deleted by concurrent logout.
+        // The SDK must not fall through to store.set() — zero TOCTOU gap.
+        const sessionId = "ses_atomic";
+        const secret = await generateSecret(32);
+        const session: SessionData = {
+          user: { sub: "user_123" },
+          tokenSet: {
+            accessToken: "at_123",
+            refreshToken: "rt_123",
+            expiresAt: 123456
+          },
+          internal: {
+            sid: "auth0-sid",
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        const store = {
+          get: vi.fn(),
+          set: vi.fn(),
+          delete: vi.fn(),
+          update: vi.fn().mockResolvedValue(false) // session already gone
+        };
+        const maxAge = 60 * 60;
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
+        const encryptedCookieValue = await encrypt(
+          { id: sessionId },
+          secret,
+          expiration
+        );
+        const headers = new Headers();
+        headers.append("cookie", `__session=${encryptedCookieValue}`);
+        const requestCookies = new RequestCookies(headers);
+        const responseCookies = new ResponseCookies(new Headers());
+
+        const sessionStore = new StatefulSessionStore({
+          secret,
+          store,
+          rolling: true
+        });
+        await sessionStore.set(requestCookies, responseCookies, session);
+
+        expect(store.update).toHaveBeenCalledWith(sessionId, session);
+        expect(store.set).not.toHaveBeenCalled();
+        expect(store.get).not.toHaveBeenCalled(); // no fallback read
+        expect(responseCookies.get("__session")).toBeUndefined();
+      });
+
+      it("should use store.update() atomically and refresh the cookie when it returns true", async () => {
+        // store.update() returns true → session found and updated in one DB op.
+        const sessionId = "ses_atomic_alive";
+        const secret = await generateSecret(32);
+        const session: SessionData = {
+          user: { sub: "user_123" },
+          tokenSet: {
+            accessToken: "at_123",
+            refreshToken: "rt_123",
+            expiresAt: 123456
+          },
+          internal: {
+            sid: "auth0-sid",
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        const store = {
+          get: vi.fn(),
+          set: vi.fn(),
+          delete: vi.fn(),
+          update: vi.fn().mockResolvedValue(true)
+        };
+        const maxAge = 60 * 60;
+        const expiration = Math.floor(Date.now() / 1000 + maxAge);
+        const encryptedCookieValue = await encrypt(
+          { id: sessionId },
+          secret,
+          expiration
+        );
+        const headers = new Headers();
+        headers.append("cookie", `__session=${encryptedCookieValue}`);
+        const requestCookies = new RequestCookies(headers);
+        const responseCookies = new ResponseCookies(new Headers());
+
+        const sessionStore = new StatefulSessionStore({
+          secret,
+          store,
+          rolling: true
+        });
+        await sessionStore.set(requestCookies, responseCookies, session);
+
+        expect(store.update).toHaveBeenCalledWith(sessionId, session);
+        expect(store.set).not.toHaveBeenCalled();
+        expect(store.get).not.toHaveBeenCalled();
+        expect(responseCookies.get("__session")).toBeDefined();
+      });
+
       it("should not re-create a session that was deleted by a concurrent logout", async () => {
         const sessionId = "ses_123";
         const secret = await generateSecret(32);
@@ -606,6 +701,45 @@ describe("Stateful Session Store", async () => {
         await sessionStore.set(requestCookies, responseCookies, session, true);
 
         expect(store.delete).toHaveBeenCalledWith(sessionId);
+        expect(store.set).toHaveBeenCalledOnce();
+        expect(responseCookies.get("__session")).toBeDefined();
+      });
+
+      it("should call store.set() and not store.update() for a brand-new session even when update() is implemented", async () => {
+        // When there is no existing session cookie, existingSessionId is null and the guard
+        // is bypassed entirely. store.set() must be called to create the new session;
+        // store.update() must NOT be called — it would immediately return false (nothing
+        // exists yet) and silently swallow the new session creation.
+        const secret = await generateSecret(32);
+        const session: SessionData = {
+          user: { sub: "user_123" },
+          tokenSet: {
+            accessToken: "at",
+            refreshToken: "rt",
+            expiresAt: 123456
+          },
+          internal: {
+            sid: "sid",
+            createdAt: Math.floor(Date.now() / 1000)
+          }
+        };
+        const store = {
+          get: vi.fn(),
+          set: vi.fn(),
+          delete: vi.fn(),
+          update: vi.fn() // must NOT be called for new sessions
+        };
+        const requestCookies = new RequestCookies(new Headers()); // no existing cookie
+        const responseCookies = new ResponseCookies(new Headers());
+
+        const sessionStore = new StatefulSessionStore({
+          secret,
+          store,
+          rolling: true
+        });
+        await sessionStore.set(requestCookies, responseCookies, session);
+
+        expect(store.update).not.toHaveBeenCalled();
         expect(store.set).toHaveBeenCalledOnce();
         expect(responseCookies.get("__session")).toBeDefined();
       });
