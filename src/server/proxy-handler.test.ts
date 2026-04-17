@@ -2,17 +2,13 @@ import { NextRequest } from "next/server.js";
 import * as jose from "jose";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it
-} from "vitest";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { getDefaultRoutes } from "../test/defaults.js";
+import {
+  createAuthorizationServerMetadata,
+  getDefaultRoutes,
+  setupMswLifecycle
+} from "../test/defaults.js";
 import {
   createDPoPNonceRetryHandler,
   createInitialSessionData,
@@ -20,7 +16,7 @@ import {
   extractDPoPInfo
 } from "../test/proxy-handler-test-helpers.js";
 import { generateSecret } from "../test/utils.js";
-import { generateDpopKeyPair } from "../utils/dpopUtils.js";
+import { generateDpopKeyPair } from "../utils/dpopRetry.js";
 import { AuthClient } from "./auth-client.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import { TransactionStore } from "./transaction-store.js";
@@ -52,14 +48,17 @@ import { TransactionStore } from "./transaction-store.js";
  * 11: CORS Handling
  */
 
+// Uses `.example.com` (RFC 2606) instead of `.local` because the MCD domain
+// validator (`validateDomainHostname`) unconditionally rejects `.local` domains
+// (mDNS namespace, never valid Auth0 custom domains).
 const DEFAULT = {
-  domain: "test.auth0.local",
+  domain: "test.auth0.example.com",
   clientId: "test_client_id",
   clientSecret: "test_client_secret",
   appBaseUrl: "https://example.com",
   proxyPath: "/me",
-  upstreamBaseUrl: `https://test.auth0.local/me/v1`,
-  audience: `https://test.auth0.local/me/`,
+  upstreamBaseUrl: `https://test.auth0.example.com/me/v1`,
+  audience: `https://test.auth0.example.com/me/`,
   accessToken: "at_test_123",
   refreshToken: "rt_test_123",
   sub: "user_test_123",
@@ -83,16 +82,9 @@ const UPSTREAM_RESPONSE_DATA = {
 };
 
 // Discovery metadata
-const _authorizationServerMetadata = {
-  issuer: `https://${DEFAULT.domain}`,
-  authorization_endpoint: `https://${DEFAULT.domain}/authorize`,
-  token_endpoint: `https://${DEFAULT.domain}/oauth/token`,
-  jwks_uri: `https://${DEFAULT.domain}/.well-known/jwks.json`,
-  response_types_supported: ["code"],
-  subject_types_supported: ["public"],
-  id_token_signing_alg_values_supported: ["RS256"],
-  dpop_signing_alg_values_supported: ["RS256", "ES256"]
-};
+const _authorizationServerMetadata = createAuthorizationServerMetadata(
+  DEFAULT.domain
+);
 
 let keyPair: jose.GenerateKeyPairResult;
 let dpopKeyPair: Awaited<ReturnType<typeof generateDpopKeyPair>>;
@@ -163,16 +155,9 @@ beforeAll(async () => {
   keyPair = await jose.generateKeyPair(DEFAULT.alg);
   dpopKeyPair = await generateDpopKeyPair();
   secret = await generateSecret(32);
-  server.listen({ onUnhandledRequest: "error" });
 });
 
-afterEach(() => {
-  server.resetHandlers();
-});
-
-afterAll(() => {
-  server.close();
-});
+setupMswLifecycle(server);
 
 describe("Authentication Client - Custom Proxy Handler", async () => {
   beforeEach(async () => {

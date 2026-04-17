@@ -1,17 +1,13 @@
 import { NextRequest } from "next/server.js";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it
-} from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import { getDefaultRoutes } from "../test/defaults.js";
+import {
+  createAuthorizationServerMetadata,
+  getDefaultRoutes,
+  setupMswLifecycle
+} from "../test/defaults.js";
 import {
   challengeScenarios,
   enrollScenarios,
@@ -38,18 +34,14 @@ const DEFAULT = {
 };
 
 // Mock authorization server metadata
-const authorizationServerMetadata = {
-  issuer: `https://${DEFAULT.domain}/`,
-  authorization_endpoint: `https://${DEFAULT.domain}/authorize`,
-  token_endpoint: `https://${DEFAULT.domain}/oauth/token`,
-  userinfo_endpoint: `https://${DEFAULT.domain}/userinfo`,
-  jwks_uri: `https://${DEFAULT.domain}/.well-known/jwks.json`,
-  end_session_endpoint: `https://${DEFAULT.domain}/oidc/logout`,
-  response_types_supported: ["code"],
-  subject_types_supported: ["public"],
-  id_token_signing_alg_values_supported: ["RS256"],
-  scopes_supported: ["openid", "profile", "email"]
-};
+const authorizationServerMetadata = createAuthorizationServerMetadata(
+  DEFAULT.domain,
+  {
+    userinfo_endpoint: `https://${DEFAULT.domain}/userinfo`,
+    end_session_endpoint: `https://${DEFAULT.domain}/oidc/logout`,
+    scopes_supported: ["openid", "profile", "email"]
+  }
+);
 
 // MSW server setup
 const server = setupServer(
@@ -59,17 +51,7 @@ const server = setupServer(
   })
 );
 
-beforeAll(() => {
-  server.listen({ onUnhandledRequest: "error" });
-});
-
-afterEach(() => {
-  server.resetHandlers();
-});
-
-afterAll(() => {
-  server.close();
-});
+setupMswLifecycle(server);
 
 async function createSessionCookie(
   session: SessionData,
@@ -435,9 +417,8 @@ describe("AuthClient MFA Methods", () => {
     });
 
     it("should cache access token in session when cookies provided", async () => {
-      const { RequestCookies, ResponseCookies } = await import(
-        "@edge-runtime/cookies"
-      );
+      const { RequestCookies, ResponseCookies } =
+        await import("@edge-runtime/cookies");
 
       const session: SessionData = {
         user: { sub: DEFAULT.sub },

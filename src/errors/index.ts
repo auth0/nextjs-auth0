@@ -41,3 +41,11 @@ export {
   type MfaApiErrorResponse,
   type MfaRequirements
 } from "./mfa-errors.js";
+
+// MCD (Multiple Custom Domains) error classes
+export {
+  DomainResolutionError,
+  DomainValidationError,
+  IssuerValidationError,
+  SessionDomainMismatchError
+} from "./mcd.js";
