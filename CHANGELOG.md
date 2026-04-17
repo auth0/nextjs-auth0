@@ -1,5 +1,14 @@
 # Change Log
 
+## [v4.18.0](https://github.com/auth0/nextjs-auth0/tree/v4.18.0) (2026-04-17)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.17.1...v4.18.0)
+
+**Added**
+- Reapply feat: add optional update() to SessionDataStore (#2590) [\#2616](https://github.com/auth0/nextjs-auth0/pull/2616) ([Piyush-85](https://github.com/Piyush-85))
+
+**Fixed**
+- fix: DPoP nonce retry race issue [\#2580](https://github.com/auth0/nextjs-auth0/pull/2580) ([nandan-bhat](https://github.com/nandan-bhat))
+
 ## [v4.17.1](https://github.com/auth0/nextjs-auth0/tree/v4.17.1) (2026-04-16)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.17.0...v4.17.1)
 
