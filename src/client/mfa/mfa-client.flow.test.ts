@@ -38,7 +38,7 @@ beforeAll(() => {
   process.env.NEXT_PUBLIC_MFA_AUTHENTICATORS_ROUTE = `${DEFAULT.appBaseUrl}/auth/mfa/authenticators`;
   process.env.NEXT_PUBLIC_MFA_CHALLENGE_ROUTE = `${DEFAULT.appBaseUrl}/auth/mfa/challenge`;
   process.env.NEXT_PUBLIC_MFA_VERIFY_ROUTE = `${DEFAULT.appBaseUrl}/auth/mfa/verify`;
-  process.env.NEXT_PUBLIC_MFA_ENROLL_ROUTE = `${DEFAULT.appBaseUrl}/auth/mfa/enroll`;
+  process.env.NEXT_PUBLIC_MFA_ASSOCIATE_ROUTE = `${DEFAULT.appBaseUrl}/auth/mfa/associate`;
 });
 
 afterEach(() => {
@@ -49,7 +49,7 @@ afterAll(() => {
   delete process.env.NEXT_PUBLIC_MFA_AUTHENTICATORS_ROUTE;
   delete process.env.NEXT_PUBLIC_MFA_CHALLENGE_ROUTE;
   delete process.env.NEXT_PUBLIC_MFA_VERIFY_ROUTE;
-  delete process.env.NEXT_PUBLIC_MFA_ENROLL_ROUTE;
+  delete process.env.NEXT_PUBLIC_MFA_ASSOCIATE_ROUTE;
   server.close();
 });
 
@@ -84,10 +84,15 @@ describe("ClientMfaClient", () => {
             http.get(
               `${DEFAULT.appBaseUrl}/auth/mfa/authenticators`,
               ({ request }) => {
-                // Verify query params
-                const url = new URL(request.url);
-                expect(url.searchParams.get("mfa_token")).toBe(encryptedToken);
+                // Check Authorization header (not query param)
+                const authHeader = request.headers.get("Authorization");
+                expect(authHeader).toBe(`Bearer ${encryptedToken}`);
 
+                // No query param allowed
+                const url = new URL(request.url);
+                expect(url.searchParams.get("mfa_token")).toBeNull();
+
+                // Route handler returns snake_case, ClientMfaClient camelizes
                 return HttpResponse.json(scenario.mswResponse!.body, {
                   status: scenario.mswResponse!.status
                 });
@@ -184,16 +189,17 @@ describe("ClientMfaClient", () => {
             http.post(
               `${DEFAULT.appBaseUrl}/auth/mfa/challenge`,
               async ({ request }) => {
-                // Client sends via JSON body
+                // Challenge sends mfa_token in body (NOT Authorization header)
                 const body = (await request.json()) as any;
-                expect(body.mfaToken).toBe(encryptedToken);
-                expect(body.challengeType).toBe(scenario.input.challengeType);
+                expect(body.mfa_token).toBe(encryptedToken);
+                expect(body.challenge_type).toBe(scenario.input.challengeType);
                 if (scenario.input.authenticatorId) {
-                  expect(body.authenticatorId).toBe(
+                  expect(body.authenticator_id).toBe(
                     scenario.input.authenticatorId
                   );
                 }
 
+                // Route handler returns snake_case, ClientMfaClient camelizes
                 return HttpResponse.json(scenario.mswResponse!.body, {
                   status: scenario.mswResponse!.status
                 });
@@ -279,18 +285,23 @@ describe("ClientMfaClient", () => {
             http.post(
               `${DEFAULT.appBaseUrl}/auth/mfa/verify`,
               async ({ request }) => {
+                // Check Authorization header
+                const authHeader = request.headers.get("Authorization");
+                expect(authHeader).toBe(`Bearer ${encryptedToken}`);
+
+                // Expect snake_case credential fields
                 const body = (await request.json()) as any;
-                expect(body.mfaToken).toBe(encryptedToken);
 
                 if (scenario.input.otp) {
                   expect(body.otp).toBe(scenario.input.otp);
                 } else if (scenario.input.oobCode) {
-                  expect(body.oobCode).toBe(scenario.input.oobCode);
-                  expect(body.bindingCode).toBe(scenario.input.bindingCode);
+                  expect(body.oob_code).toBe(scenario.input.oobCode);
+                  expect(body.binding_code).toBe(scenario.input.bindingCode);
                 } else if (scenario.input.recoveryCode) {
-                  expect(body.recoveryCode).toBe(scenario.input.recoveryCode);
+                  expect(body.recovery_code).toBe(scenario.input.recoveryCode);
                 }
 
+                // Verify response is already snake_case
                 return HttpResponse.json(scenario.mswResponse!.body, {
                   status: scenario.mswResponse!.status
                 });
@@ -449,39 +460,28 @@ describe("ClientMfaClient", () => {
         if (scenario.mswResponse) {
           server.use(
             http.post(
-              `${DEFAULT.appBaseUrl}/auth/mfa/enroll`,
+              `${DEFAULT.appBaseUrl}/auth/mfa/associate`,
               async ({ request }) => {
+                // Check Authorization header
+                const authHeader = request.headers.get("Authorization");
+                expect(authHeader).toBe(`Bearer ${encryptedToken}`);
+
+                // Expect snake_case body fields
                 const body = (await request.json()) as any;
-                expect(body.mfaToken).toBe(encryptedToken);
-                expect(body.authenticatorTypes).toEqual(
+                expect(body.authenticator_types).toEqual(
                   scenario.input.authenticatorTypes
                 );
 
-                // Server route returns transformed camelCase response
-                const rawResponse = scenario.mswResponse!.body;
-                const transformedResponse: any = {};
+                if (scenario.input.oobChannels) {
+                  expect(body.oob_channels).toEqual(scenario.input.oobChannels);
+                }
+                if (scenario.input.phoneNumber) {
+                  expect(body.phone_number).toBe(scenario.input.phoneNumber);
+                }
 
-                if (rawResponse.authenticator_type)
-                  transformedResponse.authenticatorType =
-                    rawResponse.authenticator_type;
-                if (rawResponse.barcode_uri)
-                  transformedResponse.barcodeUri = rawResponse.barcode_uri;
-                if (rawResponse.secret)
-                  transformedResponse.secret = rawResponse.secret;
-                if (rawResponse.oob_channel)
-                  transformedResponse.oobChannel = rawResponse.oob_channel;
-                if (rawResponse.oob_code)
-                  transformedResponse.oobCode = rawResponse.oob_code;
-                if (rawResponse.recovery_codes)
-                  transformedResponse.recoveryCodes =
-                    rawResponse.recovery_codes;
-                if (rawResponse.error)
-                  transformedResponse.error = rawResponse.error;
-                if (rawResponse.error_description)
-                  transformedResponse.error_description =
-                    rawResponse.error_description;
-
-                return HttpResponse.json(transformedResponse, {
+                // Route handler returns snake_case response
+                // ClientMfaClient will camelize it
+                return HttpResponse.json(scenario.mswResponse!.body, {
                   status: scenario.mswResponse!.status
                 });
               }
@@ -538,7 +538,7 @@ describe("ClientMfaClient", () => {
       );
 
       server.use(
-        http.post(`${DEFAULT.appBaseUrl}/auth/mfa/enroll`, () => {
+        http.post(`${DEFAULT.appBaseUrl}/auth/mfa/associate`, () => {
           return HttpResponse.error();
         })
       );
@@ -568,11 +568,13 @@ describe("ClientMfaClient", () => {
       );
 
       server.use(
-        http.post(`${DEFAULT.appBaseUrl}/auth/mfa/enroll`, () => {
+        http.post(`${DEFAULT.appBaseUrl}/auth/mfa/associate`, () => {
+          // Route handler returns snake_case response
           return HttpResponse.json({
-            authenticatorType: "otp",
-            barcodeUri: "otpauth://...",
-            secret: "SECRET"
+            authenticator_type: "otp",
+            barcode_uri: "otpauth://...",
+            secret: "SECRET",
+            id: "totp|dev_abc"
           });
         })
       );
@@ -585,21 +587,108 @@ describe("ClientMfaClient", () => {
       } as any);
 
       expect(fetchSpy).toHaveBeenCalledWith(
-        expect.stringContaining("/auth/mfa/enroll"),
+        expect.stringContaining("/auth/mfa/associate"),
         expect.objectContaining({
           method: "POST",
           credentials: "omit",
           headers: expect.objectContaining({
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${encryptedToken}`
           }),
           body: JSON.stringify({
-            mfaToken: encryptedToken,
-            authenticatorTypes: ["oob"],
-            oobChannels: ["sms"],
-            phoneNumber: "+15551234567"
+            authenticator_types: ["oob"],
+            oob_channels: ["sms"],
+            phone_number: "+15551234567"
           })
         })
       );
+    });
+
+    // factorType variant tests
+    it("should enroll with factorType: 'sms' and normalize to authenticatorTypes", async () => {
+      const _fetchSpy = vi.spyOn(global, "fetch");
+      const encryptedToken = await encryptMfaToken(
+        DEFAULT.mfaToken,
+        "",
+        "openid profile",
+        undefined,
+        secret,
+        300
+      );
+
+      server.use(
+        http.post(
+          `${DEFAULT.appBaseUrl}/auth/mfa/associate`,
+          async ({ request }) => {
+            // Verify that factorType was normalized to authenticatorTypes
+            const body = (await request.json()) as any;
+            expect(body.authenticator_types).toEqual(["oob"]);
+            expect(body.oob_channels).toEqual(["sms"]);
+            expect(body.phone_number).toBe("+15551234567");
+
+            return HttpResponse.json({
+              authenticator_type: "oob",
+              oob_channel: "sms",
+              id: "sms|dev_abc",
+              name: "My SMS"
+            });
+          }
+        )
+      );
+
+      const result = await mfaClient.enroll({
+        mfaToken: encryptedToken,
+        factorType: "sms",
+        phoneNumber: "+15551234567"
+      } as any);
+
+      expect(result).toEqual({
+        authenticatorType: "oob",
+        oobChannel: "sms",
+        id: "sms|dev_abc",
+        name: "My SMS"
+      });
+    });
+
+    it("should enroll with factorType: 'otp'", async () => {
+      const encryptedToken = await encryptMfaToken(
+        DEFAULT.mfaToken,
+        "",
+        "openid profile",
+        undefined,
+        secret,
+        300
+      );
+
+      server.use(
+        http.post(
+          `${DEFAULT.appBaseUrl}/auth/mfa/associate`,
+          async ({ request }) => {
+            const body = (await request.json()) as any;
+            expect(body.authenticator_types).toEqual(["otp"]);
+            expect("oob_channels" in body).toBe(false);
+
+            return HttpResponse.json({
+              authenticator_type: "otp",
+              secret: "JBSWY3DPEBLW64TMMQ======",
+              barcode_uri: "otpauth://totp/test",
+              id: "totp|dev_abc"
+            });
+          }
+        )
+      );
+
+      const result = await mfaClient.enroll({
+        mfaToken: encryptedToken,
+        factorType: "otp"
+      } as any);
+
+      expect(result).toEqual({
+        authenticatorType: "otp",
+        secret: "JBSWY3DPEBLW64TMMQ======",
+        barcodeUri: "otpauth://totp/test",
+        id: "totp|dev_abc"
+      });
     });
   });
 
