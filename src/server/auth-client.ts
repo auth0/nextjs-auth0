@@ -2948,13 +2948,14 @@ export class AuthClient {
       throw discoveryError;
     }
 
+    const shouldUseDpop = this.useDPoP && (options.useDPoP ?? true);
+
     const fetcherConfig: FetcherConfig<TOutput> = {
       // Fetcher-scoped DPoP handle and nonce management
-      dpopHandle:
-        options.dpopHandle ??
-        (this.useDPoP && (options.useDPoP ?? true)
-          ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
-          : undefined),
+      dpopHandle: shouldUseDpop
+        ? (options.dpopHandle ??
+          oauth.DPoP(this.clientMetadata, this.dpopKeyPair!))
+        : undefined,
       httpOptions: this.httpOptions,
       allowInsecureRequests: this.allowInsecureRequests,
       retryConfig: this.dpopOptions?.retry,
@@ -2965,7 +2966,7 @@ export class AuthClient {
 
     const fetcherHooks: FetcherHooks = {
       getAccessToken: options.getAccessToken,
-      isDpopEnabled: () => options.useDPoP ?? this.useDPoP ?? false
+      isDpopEnabled: () => shouldUseDpop
     };
 
     return new Fetcher<TOutput>(fetcherConfig, fetcherHooks);
