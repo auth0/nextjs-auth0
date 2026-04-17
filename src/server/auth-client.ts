@@ -3510,14 +3510,12 @@ export class AuthClient {
     };
 
     // Cache only the DPoP handle so nonce state is shared across proxied
-    // requests. Always create a fresh request-bound fetcher so token resolution
-    // remains scoped to the current session instead of being shared or mutated.
-    const dpopHandleCacheKey = this.provider
-      ? `${this.domain}:${options.audience}`
-      : options.audience;
+    // requests for the same audience on this AuthClient instance. Always create
+    // a fresh request-bound fetcher so token resolution remains scoped to the
+    // current session instead of being shared or mutated.
     const dpopHandle =
       this.useDPoP && this.dpopKeyPair
-        ? (this.proxyDpopHandles[dpopHandleCacheKey] ??= oauth.DPoP(
+        ? (this.proxyDpopHandles[options.audience] ??= oauth.DPoP(
             this.clientMetadata,
             this.dpopKeyPair
           ))

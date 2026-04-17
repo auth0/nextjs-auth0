@@ -1917,6 +1917,30 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
 
     it("10.4 should keep DPoP nonce retry bound to the original session", async () => {
       const now = Math.floor(Date.now() / 1000);
+      const nonceRetryDelayMs = 200;
+      const requestBDuringRetryDelayMs = 10;
+      const createProxySession = (params: {
+        accessToken: string;
+        sid: string;
+        sub: string;
+      }) =>
+        createInitialSessionData({
+          user: {
+            sub: params.sub
+          },
+          internal: {
+            sid: params.sid,
+            createdAt: now
+          },
+          tokenSet: {
+            accessToken: params.accessToken,
+            refreshToken: DEFAULT.refreshToken,
+            expiresAt: now + 3600,
+            scope: "read:data",
+            audience: DEFAULT.audience,
+            token_type: "DPoP"
+          }
+        });
 
       const raceClient = new AuthClient({
         domain: DEFAULT.domain,
@@ -1931,7 +1955,7 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
         dpopKeyPair,
         dpopOptions: {
           retry: {
-            delay: 200,
+            delay: nonceRetryDelayMs,
             jitter: false
           }
         },
@@ -1939,39 +1963,15 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
           fetch(url, { ...init, ...(init?.body ? { duplex: "half" } : {}) })
       });
 
-      const sessionA = createInitialSessionData({
-        user: {
-          sub: "user-a"
-        },
-        internal: {
-          sid: "sid-a",
-          createdAt: now
-        },
-        tokenSet: {
-          accessToken: "tokenA",
-          refreshToken: DEFAULT.refreshToken,
-          expiresAt: now + 3600,
-          scope: "read:data",
-          audience: DEFAULT.audience,
-          token_type: "DPoP"
-        }
+      const sessionA = createProxySession({
+        accessToken: "tokenA",
+        sid: "sid-a",
+        sub: "user-a"
       });
-      const sessionB = createInitialSessionData({
-        user: {
-          sub: "user-b"
-        },
-        internal: {
-          sid: "sid-b",
-          createdAt: now
-        },
-        tokenSet: {
-          accessToken: "tokenB",
-          refreshToken: DEFAULT.refreshToken,
-          expiresAt: now + 3600,
-          scope: "read:data",
-          audience: DEFAULT.audience,
-          token_type: "DPoP"
-        }
+      const sessionB = createProxySession({
+        accessToken: "tokenB",
+        sid: "sid-b",
+        sub: "user-b"
       });
 
       const cookieA = await createSessionCookie(sessionA, secret);
@@ -2032,7 +2032,9 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
 
       const responseAPromise = raceClient.handler(requestA);
       await nonceChallengeSeen;
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await new Promise((resolve) =>
+        setTimeout(resolve, requestBDuringRetryDelayMs)
+      );
       const responseBPromise = raceClient.handler(requestB);
 
       const [responseA, responseB] = await Promise.all([
