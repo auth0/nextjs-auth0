@@ -24,6 +24,13 @@ export interface TransactionState extends jose.JWTPayload {
   audience?: string;
 
   /**
+   * The challenge mode for this transaction.
+   * - 'redirect' (default): Standard OAuth redirect flow
+   * - 'popup': Popup flow returning via window.postMessage
+   */
+  challengeMode?: "redirect" | "popup";
+
+  /**
    * The Auth0 domain used for this transaction (MCD mode).
    * Stored to validate that the session is for the same domain.
    * @internal
