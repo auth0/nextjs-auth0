@@ -59,10 +59,28 @@ export type AccessTokenOptions = {
   includeFullResponse?: boolean;
 
   /**
-   * Control scope merging behavior server-side.
-   * When true (default): merge global scopes for default audience.
-   * When false: use ONLY requested scope (no global merge).
-   * Passed as query param to /auth/access-token endpoint.
+   * Control scope merging behavior for token cache lookups.
+   *
+   * When `true` (default): merges globally configured scopes with the requested
+   * scope before looking up cached tokens. This is the standard behavior for the
+   * default audience.
+   *
+   * When `false`: uses ONLY the explicitly requested scope for cache lookup,
+   * without merging global defaults. This is necessary when retrieving tokens
+   * for non-default audiences (e.g., step-up MFA tokens) where the cached token
+   * was stored with a specific scope that differs from global defaults.
+   *
+   * @default true
+   *
+   * @example
+   * ```ts
+   * // Retrieve a step-up token cached with exact scope (no global merge)
+   * const token = await getAccessToken({
+   *   audience: 'https://api.example.com',
+   *   scope: 'read:sensitive',
+   *   mergeScopes: false
+   * });
+   * ```
    */
   mergeScopes?: boolean;
 };

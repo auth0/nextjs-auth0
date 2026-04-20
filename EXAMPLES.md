@@ -3862,7 +3862,10 @@ export const auth0 = new Auth0Client({
 The nonce is injected into the `<script>` tag of the popup callback HTML response, making it compliant with `script-src 'nonce-...'` CSP policies.
 
 > [!IMPORTANT]
-> The nonce must contain only base64 characters (`A-Za-z0-9+/=-_`). Invalid characters will throw an `InvalidConfigurationError`. The nonce should be generated per-request on the server side for maximum security.
+> The nonce must contain only base64 characters (`A-Za-z0-9+/=-_`). Invalid characters will throw an `InvalidConfigurationError`.
+
+> [!NOTE]
+> The `cspNonce` is set at `Auth0Client` construction time and remains static for the lifetime of the instance. Since `Auth0Client` is typically a singleton, this means the same nonce is reused across requests. This still provides protection over `'unsafe-inline'` (the script must know the nonce), but is weaker than per-request nonce rotation. If your security policy requires per-request nonces, you would need to create the `Auth0Client` per-request or use middleware to inject a fresh nonce via a custom header.
 
 If you do **not** configure a `cspNonce` and your CSP blocks inline scripts, the popup will complete the MFA flow but the parent window will never receive the `postMessage`. This manifests as a `PopupTimeoutError` after the configured timeout.
 
