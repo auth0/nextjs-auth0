@@ -2200,9 +2200,23 @@ export class AuthClient {
       };
     }
 
-    // Pre-MCD session (no mcd field): infer domain from ID token's iss claim.
-    // This is deterministic — the same session always yields the same domain,
-    // eliminating the race condition where the first resolver output claims it.
+    // Static mode: skip backfill entirely. There is only one domain, so
+    // internal.mcd provides no value and adding it grows the session cookie
+    // (~140 bytes), which can push sessions over the MAX_CHUNK_SIZE boundary
+    // and trigger unnecessary chunking. This preserves DD-2 (zero-overhead
+    // static mode). See: https://github.com/auth0/nextjs-auth0/issues/2595
+    if (!this.provider?.isResolverMode) {
+      return {
+        error: null,
+        session,
+        exists: true
+      };
+    }
+
+    // Resolver mode: pre-MCD session (no mcd field) — infer domain from ID
+    // token's iss claim. This is deterministic — the same session always yields
+    // the same domain, eliminating the race condition where the first resolver
+    // output claims it.
     let inferredDomain: string | undefined;
 
     if (session.tokenSet.idToken) {
@@ -2216,9 +2230,7 @@ export class AuthClient {
       }
     }
 
-    // Fallback: use current AuthClient's domain.
-    // Static mode: always correct (only one domain).
-    // Resolver mode: last resort if idToken absent.
+    // Fallback: use current AuthClient's domain (last resort if idToken absent)
     const domain = inferredDomain ?? this.domain;
 
     session.internal = session.internal || {};
