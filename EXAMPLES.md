@@ -2651,6 +2651,28 @@ export const auth0 = new Auth0Client({
     async delete(id) {
       // delete the session using its ID
     },
+
+    async update(id, sessionData) {
+      // Optional: update the session by its ID only if it already exists; return true if updated, false if not found.
+      // Prevents a session deleted by logout from being re-created by a concurrent in-flight rolling write.
+      //
+      // MUST be a single atomic operation — do not use get() + set() here,
+      // as that would recreate the TOCTOU race condition this method is designed to prevent.
+      //
+      // Example (PostgreSQL):
+      //   const r = await db.query(
+      //     "UPDATE sessions SET data=$2, expires_at=NOW()+interval'1 day' WHERE id=$1",
+      //     [id, sessionData]
+      //   );
+      //   return r.rowCount > 0;
+      //
+      // Example (Redis — Lua script for atomicity):
+      //   const lua = `if redis.call('exists',KEYS[1])==1 then
+      //     redis.call('set',KEYS[1],ARGV[1],'EX',ARGV[2]) return 1
+      //     else return 0 end`;
+      //   return await redis.eval(lua, 1, id, JSON.stringify(sessionData), ttl) === 1;
+    },
+
     async deleteByLogoutToken({ sid, sub }: { sid?: string; sub?: string }) {
       // optional method to be implemented when using Back-Channel Logout
     }
