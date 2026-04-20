@@ -351,7 +351,7 @@ export class AuthClient {
   private readonly mfaTokenTtl: number;
   private readonly cspNonce?: string;
 
-  private proxyFetchers: { [audience: string]: Fetcher<Response> } = {};
+  private proxyDpopHandles: { [audience: string]: oauth.DPoPHandle } = {};
 
   /**
    * Maximum allowed response body size (1 MB). Responses exceeding this limit
@@ -3138,12 +3138,14 @@ export class AuthClient {
       throw discoveryError;
     }
 
+    const shouldUseDpop = this.useDPoP && (options.useDPoP ?? true);
+
     const fetcherConfig: FetcherConfig<TOutput> = {
       // Fetcher-scoped DPoP handle and nonce management
-      dpopHandle:
-        this.useDPoP && (options.useDPoP ?? true)
-          ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
-          : undefined,
+      dpopHandle: shouldUseDpop
+        ? (options.dpopHandle ??
+          oauth.DPoP(this.clientMetadata, this.dpopKeyPair!))
+        : undefined,
       httpOptions: this.httpOptions,
       allowInsecureRequests: this.allowInsecureRequests,
       retryConfig: this.dpopOptions?.retry,
@@ -3154,7 +3156,7 @@ export class AuthClient {
 
     const fetcherHooks: FetcherHooks = {
       getAccessToken: options.getAccessToken,
-      isDpopEnabled: () => options.useDPoP ?? this.useDPoP ?? false
+      isDpopEnabled: () => shouldUseDpop
     };
 
     return new Fetcher<TOutput>(fetcherConfig, fetcherHooks);
@@ -3698,38 +3700,24 @@ export class AuthClient {
       return tokenSetResponse.tokenSet;
     };
 
-    // Get/create fetcher instance with domain-aware caching
-    // In MCD mode, use provider.getProxyFetcher for shared caching across AuthClient instances
-    // In static mode, use local proxyFetchers cache
-    const cacheKey = this.provider
-      ? `${this.domain}:${options.audience}`
-      : options.audience;
+    // Cache only the DPoP handle so nonce state is shared across proxied
+    // requests for the same audience on this AuthClient instance. Always create
+    // a fresh request-bound fetcher so token resolution remains scoped to the
+    // current session instead of being shared or mutated.
+    const dpopHandle =
+      this.useDPoP && this.dpopKeyPair
+        ? (this.proxyDpopHandles[options.audience] ??= oauth.DPoP(
+            this.clientMetadata,
+            this.dpopKeyPair
+          ))
+        : undefined;
 
-    let fetcher: Fetcher<Response>;
-    if (this.provider) {
-      fetcher = await this.provider.getProxyFetcher(cacheKey, async () => {
-        return this.fetcherFactory({
-          useDPoP: this.useDPoP,
-          fetch: this.fetch,
-          getAccessToken: getAccessToken
-        });
-      });
-    } else {
-      // Static mode or no provider: use local cache
-      fetcher = this.proxyFetchers[options.audience];
-      if (!fetcher) {
-        fetcher = await this.fetcherFactory({
-          useDPoP: this.useDPoP,
-          fetch: this.fetch,
-          getAccessToken: getAccessToken
-        });
-        this.proxyFetchers[options.audience] = fetcher;
-      }
-    }
-
-    // Override getAccessToken for the current request
-    // @ts-expect-error Override fetcher's getAccessToken to capture token set side effects
-    fetcher.getAccessToken = getAccessToken;
+    const fetcher = await this.fetcherFactory({
+      useDPoP: this.useDPoP,
+      fetch: this.fetch,
+      getAccessToken,
+      dpopHandle
+    });
 
     try {
       const response = await fetcher.fetchWithAuth(
@@ -4081,6 +4069,7 @@ type GetTokenSetResponse = {
 export type FetcherFactoryOptions<TOutput extends Response> = {
   useDPoP?: boolean;
   getAccessToken: AccessTokenFactory;
+  dpopHandle?: oauth.DPoPHandle;
 } & FetcherMinimalConfig<TOutput>;
 
 /**

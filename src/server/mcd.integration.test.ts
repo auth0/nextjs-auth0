@@ -732,57 +732,6 @@ describe("MCD Integration Tests (Units 6-12)", () => {
 
       expect(client.domain).toBe("example.com");
     });
-
-    it("U11-9: Proxy fetcher cached by key", async () => {
-      const createAuthClient = vi.fn(
-        () =>
-          ({
-            domain: "example.com"
-          }) as any
-      );
-
-      const provider = new AuthClientProvider({
-        domain: "example.com",
-        createAuthClient
-      });
-
-      const factory = vi.fn(async () => ({ fetch: vi.fn() }) as any);
-      const fetcher1 = await provider.getProxyFetcher(
-        "domain1:audience1",
-        factory
-      );
-      const fetcher2 = await provider.getProxyFetcher(
-        "domain1:audience1",
-        factory
-      );
-
-      expect(fetcher1).toBe(fetcher2);
-      expect(factory).toHaveBeenCalledTimes(1);
-    });
-
-    it("U11-10: Different keys have separate fetchers", async () => {
-      const createAuthClient = vi.fn(
-        () =>
-          ({
-            domain: "example.com"
-          }) as any
-      );
-
-      const provider = new AuthClientProvider({
-        domain: "example.com",
-        createAuthClient
-      });
-
-      const factory1 = vi.fn(async () => ({ fetch: "fetcher1" }) as any);
-      const factory2 = vi.fn(async () => ({ fetch: "fetcher2" }) as any);
-
-      const fetcher1 = await provider.getProxyFetcher("key1", factory1);
-      const fetcher2 = await provider.getProxyFetcher("key2", factory2);
-
-      expect(fetcher1).not.toBe(fetcher2);
-      expect(factory1).toHaveBeenCalledTimes(1);
-      expect(factory2).toHaveBeenCalledTimes(1);
-    });
   });
 
   // ===== Unit 12 Tests: openid Scope Enforcement =====
