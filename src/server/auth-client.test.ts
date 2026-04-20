@@ -10039,6 +10039,66 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       expect(authClient["clientMetadata"][oauth.clockSkew]).toBe(15);
       expect(authClient["clientMetadata"][oauth.clockTolerance]).toBe(30);
     });
+
+    it("should ignore a provided dpopHandle when DPoP is disabled on the client", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+      const dpopHandle = { privateKey: "test", publicKey: "test" } as any;
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        useDPoP: false,
+        fetch: getMockAuthorizationServer()
+      });
+
+      const fetcher = await authClient.fetcherFactory({
+        getAccessToken: vi.fn().mockResolvedValue("at_123"),
+        dpopHandle
+      });
+
+      expect((fetcher as any).config.dpopHandle).toBeUndefined();
+      expect((fetcher as any).hooks.isDpopEnabled()).toBe(false);
+    });
+
+    it("should ignore a provided dpopHandle when DPoP is disabled for the fetcher", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+      const { generateDpopKeyPair } = await import("../utils/dpopRetry.js");
+      const dpopKeyPair = await generateDpopKeyPair();
+      const dpopHandle = { privateKey: "test", publicKey: "test" } as any;
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        useDPoP: true,
+        dpopKeyPair,
+        fetch: getMockAuthorizationServer()
+      });
+
+      const fetcher = await authClient.fetcherFactory({
+        getAccessToken: vi.fn().mockResolvedValue("at_123"),
+        useDPoP: false,
+        dpopHandle
+      });
+
+      expect((fetcher as any).config.dpopHandle).toBeUndefined();
+      expect((fetcher as any).hooks.isDpopEnabled()).toBe(false);
+    });
   });
 });
 
