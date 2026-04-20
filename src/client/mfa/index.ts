@@ -454,7 +454,7 @@ class ClientMfaClient implements MfaClient {
       route === "getAuthenticators" || url.includes("/authenticators");
     const isChallenge = route === "challenge" || url.includes("/challenge");
     const isVerify = route === "verify" || url.includes("/verify");
-    const isEnroll = route === "enroll" || url.includes("/enroll");
+    const isEnroll = route === "enroll" || url.includes("/associate");
 
     if (isAuthenticators) {
       return new MfaGetAuthenticatorsError(code, description, undefined);
