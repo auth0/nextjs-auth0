@@ -1,3 +1,5 @@
+import type { NextRequest } from "next/server.js";
+
 import type { SessionData, SessionDataStore } from "../../types/index.js";
 import {
   CookieOptions,
@@ -5,6 +7,17 @@ import {
   RequestCookies,
   ResponseCookies
 } from "../cookies.js";
+
+/**
+ * A predicate function that decides whether the session should be rolled for an
+ * incoming request. Return `false` to skip rolling the session for that request.
+ *
+ * Useful for reducing load on the session store (e.g. Redis) by only rolling the
+ * session on requests you care about.
+ *
+ * If the hook throws, the SDK fails open and rolls the session as usual.
+ */
+export type BeforeSessionRolledHook = (req: NextRequest) => boolean;
 
 export interface SessionCookieOptions {
   /**
@@ -52,6 +65,17 @@ export interface SessionConfiguration {
    */
   rolling?: boolean;
   /**
+   * A predicate function that decides whether the session should be rolled for an
+   * incoming request. Return `false` to skip rolling the session for that request.
+   *
+   * Allows you to filter and optimize requests to the session store. Only consulted
+   * when `rolling` is enabled. If the hook throws, the SDK fails open and rolls the
+   * session as usual.
+   *
+   * Default: `undefined` (the session is always rolled).
+   */
+  beforeSessionRolled?: BeforeSessionRolledHook;
+  /**
    * The absolute duration after which the session will expire. The value must be specified in seconds.
    *
    * Once the absolute duration has been reached, the session will no longer be extended.
@@ -88,6 +112,7 @@ export abstract class AbstractSessionStore {
   public sessionCookieName: string;
 
   protected rolling: boolean;
+  private beforeSessionRolled?: BeforeSessionRolledHook;
   private absoluteDuration: number;
   private inactivityDuration: number;
 
@@ -99,6 +124,7 @@ export abstract class AbstractSessionStore {
     secret,
 
     rolling = true,
+    beforeSessionRolled,
     absoluteDuration = 60 * 60 * 24 * 3, // 3 days in seconds
     inactivityDuration = 60 * 60 * 24 * 1, // 1 day in seconds
     store,
@@ -108,6 +134,7 @@ export abstract class AbstractSessionStore {
     this.secret = secret;
 
     this.rolling = rolling;
+    this.beforeSessionRolled = beforeSessionRolled;
     this.absoluteDuration = absoluteDuration;
     this.inactivityDuration = inactivityDuration;
     this.store = store;
@@ -148,6 +175,22 @@ export abstract class AbstractSessionStore {
    */
   get isRolling(): boolean {
     return this.rolling;
+  }
+
+  shouldRollSession(req: NextRequest): boolean {
+    if (!this.beforeSessionRolled) {
+      return true;
+    }
+
+    try {
+      return this.beforeSessionRolled(req);
+    } catch (e) {
+      console.warn(
+        "The beforeSessionRolled hook threw an error. Defaulting to rolling the session.",
+        e
+      );
+      return true;
+    }
   }
 
   /**

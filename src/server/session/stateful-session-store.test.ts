@@ -1,3 +1,4 @@
+import { NextRequest } from "next/server.js";
 import * as jose from "jose";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -17,6 +18,77 @@ import {
 import { StatefulSessionStore } from "./stateful-session-store.js";
 
 describe("Stateful Session Store", async () => {
+  describe("shouldRollSession", async () => {
+    const mockStore = () => ({
+      get: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn()
+    });
+    const buildRequest = () =>
+      new NextRequest("https://example.com/dashboard", { method: "GET" });
+
+    it("should roll the session when no beforeSessionRolled hook is configured", async () => {
+      const secret = await generateSecret(32);
+      const sessionStore = new StatefulSessionStore({
+        secret,
+        store: mockStore()
+      });
+
+      expect(sessionStore.shouldRollSession(buildRequest())).toBe(true);
+    });
+
+    it("should defer to the hook return value", async () => {
+      const secret = await generateSecret(32);
+      const rollingStore = new StatefulSessionStore({
+        secret,
+        store: mockStore(),
+        beforeSessionRolled: () => true
+      });
+      const nonRollingStore = new StatefulSessionStore({
+        secret,
+        store: mockStore(),
+        beforeSessionRolled: () => false
+      });
+
+      expect(rollingStore.shouldRollSession(buildRequest())).toBe(true);
+      expect(nonRollingStore.shouldRollSession(buildRequest())).toBe(false);
+    });
+
+    it("should pass the request to the hook", async () => {
+      const secret = await generateSecret(32);
+      const beforeSessionRolled = vi.fn().mockReturnValue(false);
+      const sessionStore = new StatefulSessionStore({
+        secret,
+        store: mockStore(),
+        beforeSessionRolled
+      });
+      const req = buildRequest();
+
+      sessionStore.shouldRollSession(req);
+
+      expect(beforeSessionRolled).toHaveBeenCalledWith(req);
+    });
+
+    it("should fail open and roll the session when the hook throws", async () => {
+      const secret = await generateSecret(32);
+      const consoleWarnSpy = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => {});
+      const sessionStore = new StatefulSessionStore({
+        secret,
+        store: mockStore(),
+        beforeSessionRolled: () => {
+          throw new Error("hook failure");
+        }
+      });
+
+      expect(sessionStore.shouldRollSession(buildRequest())).toBe(true);
+      expect(consoleWarnSpy).toHaveBeenCalled();
+
+      consoleWarnSpy.mockRestore();
+    });
+  });
+
   describe("get", async () => {
     it("should call the store.get method with the session ID", async () => {
       const sessionId = "ses_123";

@@ -1,3 +1,4 @@
+import { NextRequest } from "next/server.js";
 import * as jose from "jose";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -20,6 +21,65 @@ describe("Stateless Session Store", async () => {
     sameSite: "lax",
     secure: false
   };
+
+  describe("shouldRollSession", async () => {
+    const buildRequest = () =>
+      new NextRequest("https://example.com/dashboard", { method: "GET" });
+
+    it("should roll the session when no beforeSessionRolled hook is configured", async () => {
+      const secret = await generateSecret(32);
+      const sessionStore = new StatelessSessionStore({ secret });
+
+      expect(sessionStore.shouldRollSession(buildRequest())).toBe(true);
+    });
+
+    it("should defer to the hook return value", async () => {
+      const secret = await generateSecret(32);
+      const rollingStore = new StatelessSessionStore({
+        secret,
+        beforeSessionRolled: () => true
+      });
+      const nonRollingStore = new StatelessSessionStore({
+        secret,
+        beforeSessionRolled: () => false
+      });
+
+      expect(rollingStore.shouldRollSession(buildRequest())).toBe(true);
+      expect(nonRollingStore.shouldRollSession(buildRequest())).toBe(false);
+    });
+
+    it("should pass the request to the hook", async () => {
+      const secret = await generateSecret(32);
+      const beforeSessionRolled = vi.fn().mockReturnValue(false);
+      const sessionStore = new StatelessSessionStore({
+        secret,
+        beforeSessionRolled
+      });
+      const req = buildRequest();
+
+      sessionStore.shouldRollSession(req);
+
+      expect(beforeSessionRolled).toHaveBeenCalledWith(req);
+    });
+
+    it("should fail open and roll the session when the hook throws", async () => {
+      const secret = await generateSecret(32);
+      const consoleWarnSpy = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => {});
+      const sessionStore = new StatelessSessionStore({
+        secret,
+        beforeSessionRolled: () => {
+          throw new Error("hook failure");
+        }
+      });
+
+      expect(sessionStore.shouldRollSession(buildRequest())).toBe(true);
+      expect(consoleWarnSpy).toHaveBeenCalled();
+
+      consoleWarnSpy.mockRestore();
+    });
+  });
 
   describe("get", async () => {
     it("should return the decrypted session cookie if it exists", async () => {
