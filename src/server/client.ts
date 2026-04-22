@@ -410,6 +410,22 @@ export interface Auth0ClientOptions {
   mfaTokenTtl?: number;
 
   /**
+   * Content Security Policy nonce for inline scripts in popup flows.
+   *
+   * Required when your application uses CSP and the popup-based step-up
+   * authentication flow (challengeMode: 'popup'). The nonce is
+   * injected into the inline `<script>` tag of the postMessage HTML response.
+   *
+   * @example
+   * ```typescript
+   * const auth0 = new Auth0Client({
+   *   cspNonce: crypto.randomUUID()
+   * });
+   * ```
+   */
+  cspNonce?: string;
+
+  /**
    * Configuration for the OIDC discovery metadata cache.
    * Controls TTL and maximum cached issuers for MCD resolver mode.
    * Also applies in static mode (single cached entry).
@@ -672,6 +688,7 @@ export class Auth0Client {
           dpopKeyPair: options.dpopKeyPair,
           dpopOptions: options.dpopOptions,
           mfaTokenTtl,
+          cspNonce: options.cspNonce,
 
           discoveryCache,
           provider: this.provider
