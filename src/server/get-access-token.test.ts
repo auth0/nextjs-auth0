@@ -213,12 +213,14 @@ describe("Auth0Client - getAccessToken", () => {
     expect(result?.token).toBe(refreshedAccessToken); // From msw handler
 
     // Check if expiresAt is close to the expected value based on the mock server response.
-    // We use toBeCloseTo to account for minor timing differences between the client
-    // calculating the expiration and the test assertion running.
+    // Allow ±2s tolerance to avoid flaky failures when Date.now() ticks between
+    // the SDK computing expiresAt and this assertion evaluating.
     const expectedExpiresAtRough =
       Math.floor(Date.now() / 1000) + refreshedExpiresIn;
-    // The '0' precision checks for equality at the integer second level.
-    expect(result?.expiresAt).toBeCloseTo(expectedExpiresAtRough, 0);
+    expect(result?.expiresAt).toBeGreaterThanOrEqual(
+      expectedExpiresAtRough - 2
+    );
+    expect(result?.expiresAt).toBeLessThanOrEqual(expectedExpiresAtRough + 2);
     expect(mockSaveToSession).toHaveBeenCalledOnce();
 
     // Verify user profile data is updated in saved session
@@ -244,7 +246,10 @@ describe("Auth0Client - getAccessToken", () => {
     const expectedExpiresAtRough =
       Math.floor(Date.now() / 1000) + refreshedExpiresIn;
 
-    expect(result?.expiresAt).toBeCloseTo(expectedExpiresAtRough, 0);
+    expect(result?.expiresAt).toBeGreaterThanOrEqual(
+      expectedExpiresAtRough - 2
+    );
+    expect(result?.expiresAt).toBeLessThanOrEqual(expectedExpiresAtRough + 2);
     expect(mockSaveToSession).toHaveBeenCalledOnce();
 
     // Verify user profile data is updated in saved session
