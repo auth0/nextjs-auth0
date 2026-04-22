@@ -811,11 +811,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
             },
             internal: {
               sid: DEFAULT.sid,
-              createdAt: expect.any(Number),
-              mcd: {
-                domain: DEFAULT.domain,
-                issuer: `https://${DEFAULT.domain}/`
-              }
+              createdAt: expect.any(Number)
+              // No mcd field in static mode — backfill is skipped to avoid
+              // unnecessary session growth and cookie chunking (#2595)
             }
           })
         );
@@ -5124,11 +5122,9 @@ ca/T0LLtgmbMmxSv/MmzIg==
           },
           internal: {
             sid: expect.any(String),
-            createdAt: expect.any(Number),
-            mcd: {
-              domain: DEFAULT.domain,
-              issuer: `https://${DEFAULT.domain}/`
-            }
+            createdAt: expect.any(Number)
+            // No mcd field in static mode (no provider) — callback only adds
+            // mcd in resolver mode per DD-2 (zero-overhead static mode)
           }
         });
         const expectedContext = expect.objectContaining({
@@ -9354,6 +9350,12 @@ ca/T0LLtgmbMmxSv/MmzIg==
       getAll: vi.fn().mockReturnValue([])
     });
 
+    // Backfill only runs in resolver mode. Provide a minimal mock provider
+    // so that `this.provider?.isResolverMode` evaluates to true.
+    const mockResolverProvider = {
+      isResolverMode: true
+    } as any;
+
     it("should infer domain from idToken iss claim when no mcd field exists", async () => {
       const secret = await generateSecret(32);
       const transactionStore = new TransactionStore({
@@ -9398,7 +9400,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
         routes: getDefaultRoutes(),
-        fetch: getMockAuthorizationServer()
+        fetch: getMockAuthorizationServer(),
+        provider: mockResolverProvider
       });
 
       const result = await authClient.getSessionWithDomainCheck(
@@ -9450,7 +9453,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
         routes: getDefaultRoutes(),
-        fetch: getMockAuthorizationServer()
+        fetch: getMockAuthorizationServer(),
+        provider: mockResolverProvider
       });
 
       const result = await authClient.getSessionWithDomainCheck(
@@ -9498,7 +9502,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
         routes: getDefaultRoutes(),
-        fetch: getMockAuthorizationServer()
+        fetch: getMockAuthorizationServer(),
+        provider: mockResolverProvider
       });
 
       const result = await authClient.getSessionWithDomainCheck(
@@ -9559,7 +9564,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
         routes: getDefaultRoutes(),
-        fetch: getMockAuthorizationServer()
+        fetch: getMockAuthorizationServer(),
+        provider: mockResolverProvider
       });
 
       const result = await authClient.getSessionWithDomainCheck(
@@ -9664,7 +9670,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         secret,
         appBaseUrl: DEFAULT.appBaseUrl,
         routes: getDefaultRoutes(),
-        fetch: getMockAuthorizationServer()
+        fetch: getMockAuthorizationServer(),
+        provider: mockResolverProvider
       });
 
       const result = await authClient.getSessionWithDomainCheck(
@@ -9679,6 +9686,109 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(result.session?.internal.mcd?.issuer).toBe(
         "https://custom-domain.auth0.com/"
       );
+    });
+
+    it("should skip backfill in static mode (no provider or static provider)", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+
+      const idToken = await new jose.SignJWT({
+        sub: DEFAULT.sub,
+        sid: DEFAULT.sid
+      })
+        .setProtectedHeader({ alg: DEFAULT.alg })
+        .setIssuer("https://example.auth0.com/")
+        .setAudience(DEFAULT.clientId)
+        .setExpirationTime("2h")
+        .setIssuedAt()
+        .sign(DEFAULT.keyPair.privateKey);
+
+      // Pre-MCD session without mcd field
+      const preMCDSession = createSessionData({
+        tokenSet: {
+          accessToken: "at_123",
+          refreshToken: "rt_123",
+          expiresAt: Date.now() + 3600000,
+          idToken
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Date.now()
+        }
+      });
+
+      const mockSessionStore = createMockSessionStore(preMCDSession);
+
+      // Static mode: no provider (or provider with isResolverMode=false)
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore: mockSessionStore as any,
+        domain: "example.auth0.com",
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer()
+        // no provider — static mode
+      });
+
+      const result = await authClient.getSessionWithDomainCheck(
+        createMockCookies() as any
+      );
+
+      // Session should be returned without backfill — no mcd field added
+      expect(result.error).toBeNull();
+      expect(result.session).toBeDefined();
+      expect(result.exists).toBe(true);
+      expect(result.session?.internal.mcd).toBeUndefined();
+    });
+
+    it("should skip backfill when provider is in static mode", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({
+        secret
+      });
+
+      const preMCDSession = createSessionData({
+        tokenSet: {
+          accessToken: "at_123",
+          refreshToken: "rt_123",
+          expiresAt: Date.now() + 3600000
+        },
+        internal: {
+          sid: DEFAULT.sid,
+          createdAt: Date.now()
+        }
+      });
+
+      const mockSessionStore = createMockSessionStore(preMCDSession);
+
+      const staticProvider = { isResolverMode: false } as any;
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore: mockSessionStore as any,
+        domain: "example.auth0.com",
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        fetch: getMockAuthorizationServer(),
+        provider: staticProvider
+      });
+
+      const result = await authClient.getSessionWithDomainCheck(
+        createMockCookies() as any
+      );
+
+      // Static mode: no backfill, session returned as-is
+      expect(result.error).toBeNull();
+      expect(result.session).toBeDefined();
+      expect(result.exists).toBe(true);
+      expect(result.session?.internal.mcd).toBeUndefined();
     });
   });
 
@@ -10045,6 +10155,66 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       // After lazy validation, clientMetadata should contain env var values
       expect(authClient["clientMetadata"][oauth.clockSkew]).toBe(15);
       expect(authClient["clientMetadata"][oauth.clockTolerance]).toBe(30);
+    });
+
+    it("should ignore a provided dpopHandle when DPoP is disabled on the client", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+      const dpopHandle = { privateKey: "test", publicKey: "test" } as any;
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        useDPoP: false,
+        fetch: getMockAuthorizationServer()
+      });
+
+      const fetcher = await authClient.fetcherFactory({
+        getAccessToken: vi.fn().mockResolvedValue("at_123"),
+        dpopHandle
+      });
+
+      expect((fetcher as any).config.dpopHandle).toBeUndefined();
+      expect((fetcher as any).hooks.isDpopEnabled()).toBe(false);
+    });
+
+    it("should ignore a provided dpopHandle when DPoP is disabled for the fetcher", async () => {
+      const secret = await generateSecret(32);
+      const transactionStore = new TransactionStore({ secret });
+      const sessionStore = new StatelessSessionStore({ secret });
+      const { generateDpopKeyPair } = await import("../utils/dpopRetry.js");
+      const dpopKeyPair = await generateDpopKeyPair();
+      const dpopHandle = { privateKey: "test", publicKey: "test" } as any;
+
+      const authClient = new AuthClient({
+        transactionStore,
+        sessionStore,
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        secret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        routes: getDefaultRoutes(),
+        useDPoP: true,
+        dpopKeyPair,
+        fetch: getMockAuthorizationServer()
+      });
+
+      const fetcher = await authClient.fetcherFactory({
+        getAccessToken: vi.fn().mockResolvedValue("at_123"),
+        useDPoP: false,
+        dpopHandle
+      });
+
+      expect((fetcher as any).config.dpopHandle).toBeUndefined();
+      expect((fetcher as any).hooks.isDpopEnabled()).toBe(false);
     });
   });
 });
