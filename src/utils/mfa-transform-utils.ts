@@ -280,10 +280,18 @@ export function normalizeEnrollOptions(
 ): EnrollOobOptions | EnrollOtpOptions {
   if ("factorType" in options) {
     const mapping = FACTOR_MAPPING[options.factorType];
-    if (!mapping) throw new InvalidRequestError(`Unknown factorType: ${options.factorType}`);
+    if (!mapping)
+      throw new InvalidRequestError(
+        `Unknown factorType: ${options.factorType}`
+      );
 
-    if ((options.factorType === "sms" || options.factorType === "voice") && !("phoneNumber" in options && options.phoneNumber)) {
-      throw new InvalidRequestError(`phoneNumber is required for factorType: ${options.factorType}`);
+    if (
+      (options.factorType === "sms" || options.factorType === "voice") &&
+      !("phoneNumber" in options && options.phoneNumber)
+    ) {
+      throw new InvalidRequestError(
+        `phoneNumber is required for factorType: ${options.factorType}`
+      );
     }
 
     const result: any = {
