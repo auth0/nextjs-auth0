@@ -145,13 +145,23 @@ export function buildEnrollOptions(
       },
       null
     ];
-  } else {
-    // otp
+  } else if (authenticatorType === "otp") {
     return [
       {
         authenticatorTypes: ["otp"] as ["otp"]
       },
       null
+    ];
+  } else {
+    return [
+      null,
+      NextResponse.json(
+        {
+          error: "invalid_request",
+          error_description: `Unsupported authenticator_type: ${authenticatorType}`
+        },
+        { status: 400 }
+      )
     ];
   }
 }
@@ -270,7 +280,11 @@ export function normalizeEnrollOptions(
 ): EnrollOobOptions | EnrollOtpOptions {
   if ("factorType" in options) {
     const mapping = FACTOR_MAPPING[options.factorType];
-    if (!mapping) throw new Error(`Unknown factorType: ${options.factorType}`);
+    if (!mapping) throw new InvalidRequestError(`Unknown factorType: ${options.factorType}`);
+
+    if ((options.factorType === "sms" || options.factorType === "voice") && !("phoneNumber" in options && options.phoneNumber)) {
+      throw new InvalidRequestError(`phoneNumber is required for factorType: ${options.factorType}`);
+    }
 
     const result: any = {
       mfaToken: options.mfaToken,

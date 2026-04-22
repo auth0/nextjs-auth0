@@ -149,18 +149,13 @@ describe("mfa-transform-utils", () => {
         });
       });
 
-      it("should not include phoneNumber if undefined", () => {
-        const result = normalizeEnrollOptions({
-          mfaToken: "token123",
-          factorType: "sms"
-        });
-
-        expect(result).toEqual({
-          mfaToken: "token123",
-          authenticatorTypes: ["oob"],
-          oobChannels: ["sms"]
-        });
-        expect("phoneNumber" in result).toBe(false);
+      it("should throw when phoneNumber is missing for sms factorType", () => {
+        expect(() => {
+          normalizeEnrollOptions({
+            mfaToken: "token123",
+            factorType: "sms"
+          });
+        }).toThrow("phoneNumber is required for factorType: sms");
       });
 
       it("should not include email if undefined", () => {
