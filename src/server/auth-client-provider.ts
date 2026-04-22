@@ -35,13 +35,6 @@ interface AuthClientProviderOptions {
 const MAX_DOMAIN_CLIENTS = 100;
 
 /**
- * Maximum number of proxy fetchers to cache.
- * This prevents unbounded memory growth when many unique audience/domain
- * combinations are used. Uses LRU eviction matching the domain clients pattern.
- */
-const MAX_PROXY_FETCHERS = 100;
-
-/**
  * AuthClientProvider manages creating and caching AuthClient instances for MCD mode.
  *
  * Features:
@@ -61,7 +54,6 @@ export class AuthClientProvider {
   private domainClients: LruMap<string, AuthClient>;
 
   private createAuthClientFactory: (domain: string) => AuthClient;
-  private proxyFetchers: LruMap<string, any>;
 
   /**
    * Creates a new AuthClientProvider instance.
@@ -76,7 +68,6 @@ export class AuthClientProvider {
 
     // Initialize LRU caches
     this.domainClients = new LruMap(MAX_DOMAIN_CLIENTS);
-    this.proxyFetchers = new LruMap(MAX_PROXY_FETCHERS);
 
     // Detect mode and validate configuration
     if (typeof options.domain === "string") {
@@ -190,33 +181,6 @@ export class AuthClientProvider {
     const newClient = this.createAuthClientFactory(normalizedDomain);
     this.domainClients.set(normalizedDomain, newClient);
     return newClient;
-  }
-
-  /**
-   * Gets a proxy fetcher from cache or creates one via the provided factory.
-   *
-   * Proxy fetchers are cached per key to avoid creating multiple instances
-   * for the same audience or configuration.
-   *
-   * @param key - A unique key for the fetcher (e.g., "domain:audience")
-   * @param factory - Factory function to create the fetcher if not cached
-   * @returns The cached or newly created fetcher
-   *
-   * @internal
-   */
-  async getProxyFetcher(
-    key: string,
-    factory: () => Promise<any>
-  ): Promise<any> {
-    // Check cache first (LruMap.get() handles promotion)
-    const fetcher = this.proxyFetchers.get(key);
-    if (fetcher) {
-      return fetcher;
-    }
-    // Create new fetcher (LruMap.set() handles eviction)
-    const newFetcher = await factory();
-    this.proxyFetchers.set(key, newFetcher);
-    return newFetcher;
   }
 
   /**

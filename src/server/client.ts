@@ -609,11 +609,33 @@ export class Auth0Client {
     // Create discovery cache for the provider
     const discoveryCache = new DiscoveryCache(options.discoveryCache);
 
+    // When AUTH0_DOMAIN is not available at module evaluation time (e.g. during a
+    // Next.js standalone build that injects env vars only at runtime), `domain` will
+    // be undefined. Passing undefined to AuthClientProvider causes it to throw
+    // immediately in the constructor, which breaks the build.
+    //
+    // Work around this by converting a missing domain into a DomainResolver that
+    // reads AUTH0_DOMAIN lazily on the first request. If the env var is still absent
+    // at request time, the resolver will throw with a clear error message.
+    //
+    // If domain is already a string or a DomainResolver function, it is used as-is.
+    const domainForProvider: string | DomainResolver =
+      domain ||
+      (() => {
+        const runtimeDomain = process.env.AUTH0_DOMAIN;
+        if (!runtimeDomain) {
+          throw new InvalidConfigurationError(
+            "Missing: domain: Set AUTH0_DOMAIN env var or pass domain in options."
+          );
+        }
+        return runtimeDomain;
+      });
+
     // Create provider that manages AuthClient instances
     // Note: We defer the provider reference in the factory to avoid circular reference during construction.
     // The factory captures 'this' by reference, and will read this.provider when called later (not during construction).
     this.provider = new AuthClientProvider({
-      domain,
+      domain: domainForProvider,
       createAuthClient: (domainForClient) => {
         return new AuthClient({
           transactionStore: this.transactionStore,
