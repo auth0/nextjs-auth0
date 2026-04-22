@@ -539,7 +539,9 @@ class ClientMfaClient implements MfaClient {
     }
 
     const loginUrl =
-      normalizeWithBasePath("/auth/login") + "?" + params.toString();
+      normalizeWithBasePath(
+        process.env.NEXT_PUBLIC_LOGIN_ROUTE || "/auth/login"
+      ) + "?" + params.toString();
 
     // 4. Open centered popup
     const width = options.popupWidth || DEFAULT_POPUP_WIDTH;

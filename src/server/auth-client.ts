@@ -1201,10 +1201,23 @@ export class AuthClient {
     // ★ POSTMESSAGE BRANCH
     if (challengeMode === "popup") {
       // Merge new token into existing session (do NOT create fresh session)
-      const existingSession = await this.sessionStore.get(req.cookies);
+      // Use getSessionWithDomainCheck to enforce MCD domain isolation
+      const { error: sessionError, session: existingSession } =
+        await this.getSessionWithDomainCheck(req.cookies);
 
-      // Call onCallback for side-effects (logging, analytics) - discard redirect response.
-      await this.onCallback(null, onCallbackCtx, existingSession);
+      // If domain check failed in MCD mode, return error via postMessage
+      if (sessionError) {
+        const popupResponse = createAuthCompletePostMessageResponse({
+          success: false,
+          error: {
+            code: sessionError.code || "session_domain_mismatch",
+            message: sessionError.message
+          },
+          nonce: this.cspNonce
+        });
+        await this.transactionStore.delete(popupResponse.cookies, state);
+        return popupResponse;
+      }
 
       if (existingSession) {
         mergePopupTokenIntoSession(
@@ -1217,6 +1230,9 @@ export class AuthClient {
           existingSession,
           oidcRes.id_token
         );
+
+        // Call onCallback after finalization with the actual saved session
+        await this.onCallback(null, onCallbackCtx, mergedSession);
 
         const popupResponse = createAuthCompletePostMessageResponse({
           success: true,
@@ -1259,6 +1275,9 @@ export class AuthClient {
           fallbackSession,
           oidcRes.id_token
         );
+
+        // Call onCallback after finalization with the actual saved session
+        await this.onCallback(null, onCallbackCtx, mergedSession);
 
         const popupResponse = createAuthCompletePostMessageResponse({
           success: true,
@@ -2103,6 +2122,9 @@ export class AuthClient {
   ): Promise<NextResponse> {
     // PostMessage branch: return error as postMessage HTML instead of redirect
     if (transactionState?.challengeMode === "popup") {
+      // Call onCallback for error observability, matching standard flow behavior
+      await this.onCallback(error, ctx, null);
+
       const response = createAuthCompletePostMessageResponse({
         success: false,
         error: {
