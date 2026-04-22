@@ -24,6 +24,12 @@ import type {
   MfaVerifyResponse,
   VerifyMfaOptions
 } from "../../types/index.js";
+import {
+  buildEnrollmentResponse,
+  camelizeAuthenticator,
+  camelizeChallengeResponse,
+  normalizeEnrollOptions
+} from "../../utils/mfa-transform-utils.js";
 import { normalizeWithBasePath } from "../../utils/pathUtils.js";
 import {
   DEFAULT_POPUP_HEIGHT,
@@ -180,16 +186,16 @@ class ClientMfaClient implements MfaClient {
     mfaToken: string;
   }): Promise<Authenticator[]> {
     try {
-      const urlParams = new URLSearchParams();
-      urlParams.append("mfa_token", options.mfaToken);
-
-      const url = `${normalizeWithBasePath(
+      const url = normalizeWithBasePath(
         process.env.NEXT_PUBLIC_MFA_AUTHENTICATORS_ROUTE ||
           "/auth/mfa/authenticators"
-      )}?${urlParams.toString()}`;
+      );
 
       const response = await fetch(url, {
         method: "GET",
+        headers: {
+          Authorization: `Bearer ${options.mfaToken}`
+        },
         credentials: "omit" // Stateless operation, no session needed
       });
 
@@ -198,7 +204,9 @@ class ClientMfaClient implements MfaClient {
         throw this.parseError(error, "getAuthenticators", response.url);
       }
 
-      return await response.json();
+      // Route handler returns snake_case, camelize for SDK
+      const data = await response.json();
+      return data.map(camelizeAuthenticator);
     } catch (e) {
       // Re-throw typed errors
       if (
@@ -255,12 +263,12 @@ class ClientMfaClient implements MfaClient {
   }): Promise<ChallengeResponse> {
     try {
       const body: Record<string, string> = {
-        mfaToken: options.mfaToken,
-        challengeType: options.challengeType
+        mfa_token: options.mfaToken,
+        challenge_type: options.challengeType
       };
 
       if (options.authenticatorId) {
-        body.authenticatorId = options.authenticatorId;
+        body.authenticator_id = options.authenticatorId;
       }
 
       const url = normalizeWithBasePath(
@@ -281,7 +289,9 @@ class ClientMfaClient implements MfaClient {
         throw this.parseError(error, "challenge", response.url);
       }
 
-      return await response.json();
+      // Route handler returns snake_case, camelize for SDK
+      const data = await response.json();
+      return camelizeChallengeResponse(data);
     } catch (e) {
       // Re-throw typed errors
       if (
@@ -322,18 +332,16 @@ class ClientMfaClient implements MfaClient {
    */
   async verify(options: VerifyMfaOptions): Promise<MfaVerifyResponse> {
     try {
-      const body: Record<string, string> = {
-        mfaToken: options.mfaToken
-      };
+      const body: Record<string, string> = {};
 
       // Type-based field mapping (matches VerifyMfaOptions union type)
       if ("otp" in options) {
         body.otp = options.otp;
       } else if ("oobCode" in options) {
-        body.oobCode = options.oobCode;
-        body.bindingCode = options.bindingCode;
+        body.oob_code = options.oobCode;
+        body.binding_code = options.bindingCode;
       } else if ("recoveryCode" in options) {
-        body.recoveryCode = options.recoveryCode;
+        body.recovery_code = options.recoveryCode;
       }
 
       const url = normalizeWithBasePath(
@@ -343,7 +351,8 @@ class ClientMfaClient implements MfaClient {
       const response = await fetch(url, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${options.mfaToken}`
         },
         credentials: "include", // Session caching (verify stores token in session)
         body: JSON.stringify(body)
@@ -354,6 +363,7 @@ class ClientMfaClient implements MfaClient {
         throw this.parseError(error, "verify", response.url);
       }
 
+      // Verify response is already snake_case from oauth4webapi
       return await response.json();
     } catch (e) {
       // Re-throw typed errors
@@ -416,16 +426,35 @@ class ClientMfaClient implements MfaClient {
    */
   async enroll(options: EnrollOptions): Promise<EnrollmentResponse> {
     try {
+      // Normalize factorType variants to standard authenticatorTypes format
+      const normalizedOptions = normalizeEnrollOptions(options);
+
+      const { mfaToken, ...enrollOptions } = normalizedOptions;
+      const body: Record<string, any> = {
+        authenticator_types: enrollOptions.authenticatorTypes
+      };
+
+      if ("oobChannels" in enrollOptions) {
+        body.oob_channels = enrollOptions.oobChannels;
+        if (enrollOptions.phoneNumber) {
+          body.phone_number = enrollOptions.phoneNumber;
+        }
+        if (enrollOptions.email) {
+          body.email = enrollOptions.email;
+        }
+      }
+
       const url = normalizeWithBasePath(
-        process.env.NEXT_PUBLIC_MFA_ENROLL_ROUTE || "/auth/mfa/enroll"
+        process.env.NEXT_PUBLIC_MFA_ASSOCIATE_ROUTE || "/auth/mfa/associate"
       );
 
       const response = await fetch(url, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${mfaToken}`
         },
-        body: JSON.stringify(options),
+        body: JSON.stringify(body),
         credentials: "omit" // Stateless operation
       });
 
@@ -434,7 +463,9 @@ class ClientMfaClient implements MfaClient {
         throw this.parseError(error, "enroll", response.url);
       }
 
-      return await response.json();
+      // Route handler returns snake_case, camelize for SDK
+      const data = await response.json();
+      return buildEnrollmentResponse(data);
     } catch (e) {
       // Re-throw typed errors
       if (
@@ -634,7 +665,7 @@ class ClientMfaClient implements MfaClient {
       route === "getAuthenticators" || url.includes("/authenticators");
     const isChallenge = route === "challenge" || url.includes("/challenge");
     const isVerify = route === "verify" || url.includes("/verify");
-    const isEnroll = route === "enroll" || url.includes("/enroll");
+    const isEnroll = route === "enroll" || url.includes("/associate");
 
     if (isAuthenticators) {
       return new MfaGetAuthenticatorsError(code, description, undefined);
