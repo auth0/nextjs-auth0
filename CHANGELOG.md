@@ -1,5 +1,15 @@
 # Change Log
 
+## [v4.19.0](https://github.com/auth0/nextjs-auth0/tree/v4.19.0) (2026-04-22)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.18.0...v4.19.0)
+
+**Added**
+- feat: add mfa.stepUpWithPopup() for reactive MFA step-up via Universal Login [\#2524](https://github.com/auth0/nextjs-auth0/pull/2524) ([tusharpandey13](https://github.com/tusharpandey13))
+
+**Fixed**
+- fix: MFA http contract parity fixes [\#2555](https://github.com/auth0/nextjs-auth0/pull/2555) ([tusharpandey13](https://github.com/tusharpandey13))
+- fix: skip MCD session backfill in static mode [\#2618](https://github.com/auth0/nextjs-auth0/pull/2618) ([tusharpandey13](https://github.com/tusharpandey13))
+
 ## [v4.18.0](https://github.com/auth0/nextjs-auth0/tree/v4.18.0) (2026-04-17)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.17.1...v4.18.0)
 
