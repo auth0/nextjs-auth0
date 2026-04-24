@@ -652,6 +652,7 @@ export class Auth0Client {
     // The factory captures 'this' by reference, and will read this.provider when called later (not during construction).
     this.provider = new AuthClientProvider({
       domain: domainForProvider,
+      allowInsecureRequests: options.allowInsecureRequests,
       createAuthClient: (domainForClient) => {
         return new AuthClient({
           transactionStore: this.transactionStore,
