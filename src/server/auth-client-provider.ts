@@ -80,7 +80,8 @@ export class AuthClientProvider {
       // Static mode: normalize and validate domain
       this.mode = "static";
       const normalized = normalizeDomain(options.domain, {
-        allowInsecureRequests: options.allowInsecureRequests ?? process.env.NODE_ENV === "test"
+        allowInsecureRequests:
+          options.allowInsecureRequests ?? process.env.NODE_ENV === "test"
       });
       this.staticDomain = normalized.domain;
 
