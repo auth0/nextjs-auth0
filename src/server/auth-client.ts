@@ -24,8 +24,6 @@ import {
   DPoPError,
   DPoPErrorCode,
   InvalidConfigurationError,
-  MtlsError,
-  MtlsErrorCode,
   InvalidStateError,
   MfaChallengeError,
   MfaEnrollmentError,
@@ -34,6 +32,8 @@ import {
   MfaRequiredError,
   MfaVerifyError,
   MissingStateError,
+  MtlsError,
+  MtlsErrorCode,
   MyAccountApiError,
   OAuth2Error,
   SdkError
