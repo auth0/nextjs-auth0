@@ -419,8 +419,9 @@ describe("AuthClient MFA Methods", () => {
     });
 
     it("should cache access token in session when cookies provided", async () => {
-      const { RequestCookies, ResponseCookies } =
-        await import("@edge-runtime/cookies");
+      const { RequestCookies, ResponseCookies } = await import(
+        "@edge-runtime/cookies"
+      );
 
       const session: SessionData = {
         user: { sub: DEFAULT.sub },

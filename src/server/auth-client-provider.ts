@@ -26,6 +26,12 @@ interface AuthClientProviderOptions {
    * Called when a new domain client is needed.
    */
   createAuthClient: (domain: string) => AuthClient;
+
+  /**
+   * Allow insecure HTTP requests to localhost during development.
+   * When true, HTTP (non-HTTPS) localhost domains are accepted.
+   */
+  allowInsecureRequests?: boolean;
 }
 
 /**
@@ -74,7 +80,8 @@ export class AuthClientProvider {
       // Static mode: normalize and validate domain
       this.mode = "static";
       const normalized = normalizeDomain(options.domain, {
-        allowInsecureRequests: process.env.NODE_ENV === "test"
+        allowInsecureRequests:
+          options.allowInsecureRequests ?? process.env.NODE_ENV === "test"
       });
       this.staticDomain = normalized.domain;
 
