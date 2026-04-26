@@ -394,6 +394,75 @@ export interface Auth0ClientOptions {
    */
   dpopOptions?: DpopOptions;
 
+  // mTLS Configuration
+  /**
+   * Enable mTLS (Mutual TLS, RFC 8705) client authentication.
+   *
+   * When `true`, the SDK authenticates with Auth0 using a client TLS certificate
+   * instead of a client secret or private-key JWT. Access tokens issued by Auth0
+   * will be certificate-bound (`cnf.x5t#S256` claim), providing strong proof-of-possession
+   * protection against token theft.
+   *
+   * Using mTLS requires:
+   * 1. A TLS-aware `customFetch` implementation that attaches your client certificate
+   *    (e.g. Node.js `undici` configured with `connect: { key, cert }`).
+   * 2. The mTLS feature to be enabled on your Auth0 tenant.
+   *
+   * You do **not** need to provide `clientSecret` or `clientAssertionSigningKey`
+   * when `useMtls` is `true` — the certificate is the sole client credential.
+   *
+   * Can also be enabled by setting the `AUTH0_MTLS=true` environment variable.
+   *
+   * @default false
+   *
+   * @example
+   * ```typescript
+   * import { Agent, fetch as undiciFetch } from "undici";
+   * import { readFileSync } from "fs";
+   *
+   * const tlsAgent = new Agent({
+   *   connect: {
+   *     key: readFileSync("client.key"),
+   *     cert: readFileSync("client.crt")
+   *   }
+   * });
+   *
+   * export const auth0 = new Auth0Client({
+   *   useMtls: true,
+   *   customFetch: (url, init) =>
+   *     undiciFetch(url, { ...init, dispatcher: tlsAgent })
+   * });
+   * ```
+   *
+   * @see {@link https://datatracker.ietf.org/doc/html/rfc8705 | RFC 8705: OAuth 2.0 Mutual-TLS Client Authentication}
+   */
+  useMtls?: boolean;
+
+  /**
+   * A custom `fetch` implementation used for all outbound requests to Auth0.
+   *
+   * Required when `useMtls` is `true` — provide a TLS-aware implementation that
+   * attaches your client certificate to every request (e.g. `undici` with
+   * `connect: { key, cert }`).
+   *
+   * Can also be used independently (without mTLS) to proxy requests, add custom
+   * headers, or inject test doubles in unit tests.
+   *
+   * @example
+   * ```typescript
+   * import { Agent, fetch as undiciFetch } from "undici";
+   *
+   * const tlsAgent = new Agent({ connect: { cert, key } });
+   *
+   * export const auth0 = new Auth0Client({
+   *   useMtls: true,
+   *   customFetch: (url, init) =>
+   *     undiciFetch(url, { ...init, dispatcher: tlsAgent })
+   * });
+   * ```
+   */
+  customFetch?: typeof fetch;
+
   /**
    * MFA context TTL in seconds. Controls how long encrypted mfa_token remains valid.
    * Default: 300 (5 minutes, matching Auth0's mfa_token expiration)
@@ -689,6 +758,8 @@ export class Auth0Client {
           useDPoP: options.useDPoP || false,
           dpopKeyPair: options.dpopKeyPair,
           dpopOptions: options.dpopOptions,
+          useMtls: options.useMtls ?? process.env.AUTH0_MTLS === "true",
+          fetch: options.customFetch,
           mfaTokenTtl,
           cspNonce: options.cspNonce,
 
@@ -1558,15 +1629,17 @@ export class Auth0Client {
       : process.env.APP_BASE_URL;
     const appBaseUrl = options.appBaseUrl ?? envAppBaseUrl;
 
-    // Check client authentication options - either clientSecret OR clientAssertionSigningKey must be provided
+    // Check client authentication options - either clientSecret OR clientAssertionSigningKey must be provided.
+    // mTLS (useMtls=true / AUTH0_MTLS=true) authenticates via a client certificate so no secret is needed.
     const clientSecret =
       options.clientSecret ?? process.env.AUTH0_CLIENT_SECRET;
     const clientAssertionSigningKey =
       options.clientAssertionSigningKey ??
       process.env.AUTH0_CLIENT_ASSERTION_SIGNING_KEY;
-    const hasClientAuthentication = !!(
-      clientSecret || clientAssertionSigningKey
-    );
+    const isMtls =
+      options.useMtls === true || process.env.AUTH0_MTLS === "true";
+    const hasClientAuthentication =
+      !!(clientSecret || clientAssertionSigningKey) || isMtls;
 
     const missing = Object.entries(requiredOptions)
       .filter(([, value]) => !value)
