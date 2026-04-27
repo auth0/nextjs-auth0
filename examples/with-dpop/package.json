@@ -27,7 +27,7 @@
     "cypress:open": "pnpm exec cypress open"
   },
   "dependencies": {
-    "@auth0/nextjs-auth0": "^4.13.1",
+    "@auth0/nextjs-auth0": "^4.17.1",
     "concurrently": "^8.2.0",
     "cors": "^2.8.5",
     "dotenv": "^16.0.3",
