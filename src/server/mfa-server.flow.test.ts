@@ -1,17 +1,13 @@
 import { NextRequest } from "next/server.js";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it
-} from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import { getDefaultRoutes } from "../test/defaults.js";
+import {
+  createAuthorizationServerMetadata,
+  getDefaultRoutes,
+  setupMswLifecycle
+} from "../test/defaults.js";
 import {
   challengeScenarios,
   enrollScenarios,
@@ -20,6 +16,7 @@ import {
 } from "../test/mfa-scenarios-shared.js";
 import { generateSecret } from "../test/utils.js";
 import type { SessionData } from "../types/index.js";
+import type { EnrollOobOptions } from "../types/mfa.js";
 import { encryptMfaToken } from "../utils/mfa-utils.js";
 import { AuthClient } from "./auth-client.js";
 import { encrypt } from "./cookies.js";
@@ -38,18 +35,14 @@ const DEFAULT = {
 };
 
 // Mock authorization server metadata
-const authorizationServerMetadata = {
-  issuer: `https://${DEFAULT.domain}/`,
-  authorization_endpoint: `https://${DEFAULT.domain}/authorize`,
-  token_endpoint: `https://${DEFAULT.domain}/oauth/token`,
-  userinfo_endpoint: `https://${DEFAULT.domain}/userinfo`,
-  jwks_uri: `https://${DEFAULT.domain}/.well-known/jwks.json`,
-  end_session_endpoint: `https://${DEFAULT.domain}/oidc/logout`,
-  response_types_supported: ["code"],
-  subject_types_supported: ["public"],
-  id_token_signing_alg_values_supported: ["RS256"],
-  scopes_supported: ["openid", "profile", "email"]
-};
+const authorizationServerMetadata = createAuthorizationServerMetadata(
+  DEFAULT.domain,
+  {
+    userinfo_endpoint: `https://${DEFAULT.domain}/userinfo`,
+    end_session_endpoint: `https://${DEFAULT.domain}/oidc/logout`,
+    scopes_supported: ["openid", "profile", "email"]
+  }
+);
 
 // MSW server setup
 const server = setupServer(
@@ -59,17 +52,7 @@ const server = setupServer(
   })
 );
 
-beforeAll(() => {
-  server.listen({ onUnhandledRequest: "error" });
-});
-
-afterEach(() => {
-  server.resetHandlers();
-});
-
-afterAll(() => {
-  server.close();
-});
+setupMswLifecycle(server);
 
 async function createSessionCookie(
   session: SessionData,
@@ -146,7 +129,7 @@ describe("AuthClient MFA Methods", () => {
         } else {
           const result = await authClient.mfaGetAuthenticators(encryptedToken);
           if (typeof scenario.expected === "function") {
-            scenario.expected(result);
+            scenario.expected(result as any);
           } else {
             expect(result).toEqual(scenario.expected);
           }
@@ -180,13 +163,14 @@ describe("AuthClient MFA Methods", () => {
       );
 
       const result = await authClient.mfaGetAuthenticators(encryptedToken);
+      // Business method returns snake_case ApiResponse
       expect(result[0]).toMatchObject({
         id: "auth_123",
-        authenticatorType: "otp",
+        authenticator_type: "otp",
         type: "otp",
         active: true,
-        createdAt: "2024-01-01T00:00:00.000Z",
-        lastAuthenticatedAt: "2024-01-15T00:00:00.000Z"
+        created_at: "2024-01-01T00:00:00.000Z",
+        last_auth: "2024-01-15T00:00:00.000Z"
       });
     });
 
@@ -313,7 +297,7 @@ describe("AuthClient MFA Methods", () => {
             scenario.input.authenticatorId
           );
           if (typeof scenario.expected === "function") {
-            scenario.expected(result);
+            scenario.expected(result as any);
           } else {
             expect(result).toEqual(scenario.expected);
           }
@@ -435,9 +419,8 @@ describe("AuthClient MFA Methods", () => {
     });
 
     it("should cache access token in session when cookies provided", async () => {
-      const { RequestCookies, ResponseCookies } = await import(
-        "@edge-runtime/cookies"
-      );
+      const { RequestCookies, ResponseCookies } =
+        await import("@edge-runtime/cookies");
 
       const session: SessionData = {
         user: { sub: DEFAULT.sub },
@@ -622,7 +605,7 @@ describe("AuthClient MFA Methods", () => {
     });
   });
 
-  describe("mfaEnroll", () => {
+  describe("mfaAssociate", () => {
     // Shared scenarios (4 tests)
     enrollScenarios.forEach((scenario) => {
       it(scenario.name, async () => {
@@ -658,7 +641,7 @@ describe("AuthClient MFA Methods", () => {
 
         if (scenario.expectError) {
           try {
-            await authClient.mfaEnroll(encryptedToken, {
+            await authClient.mfaAssociate(encryptedToken, {
               authenticatorTypes: scenario.input.authenticatorTypes,
               ...(scenario.input.oobChannels && {
                 oobChannels: scenario.input.oobChannels
@@ -673,7 +656,7 @@ describe("AuthClient MFA Methods", () => {
             scenario.expectError(error);
           }
         } else {
-          const result = await authClient.mfaEnroll(encryptedToken, {
+          const result = await authClient.mfaAssociate(encryptedToken, {
             authenticatorTypes: scenario.input.authenticatorTypes,
             ...(scenario.input.oobChannels && {
               oobChannels: scenario.input.oobChannels
@@ -684,14 +667,14 @@ describe("AuthClient MFA Methods", () => {
             ...(scenario.input.email && { email: scenario.input.email })
           } as any);
           if (typeof scenario.expected === "function") {
-            scenario.expected(result);
+            scenario.expected(result as any);
           }
         }
       });
     });
 
-    // Field mapping (1 test)
-    it("should map snake_case to camelCase", async () => {
+    // Response format (1 test)
+    it("should return snake_case response from business method", async () => {
       const encryptedToken = await encryptMfaToken(
         DEFAULT.mfaToken,
         "",
@@ -707,23 +690,26 @@ describe("AuthClient MFA Methods", () => {
             authenticator_type: "otp",
             barcode_uri: "otpauth://totp/test",
             secret: "base32secret",
-            recovery_codes: ["code1", "code2"]
+            recovery_codes: ["code1", "code2"],
+            id: "totp|dev_abc"
           });
         })
       );
 
-      const result = await authClient.mfaEnroll(encryptedToken, {
+      // Business method returns snake_case ApiResponse (not camelCase)
+      const result = await authClient.mfaAssociate(encryptedToken, {
         authenticatorTypes: ["otp"]
       });
 
+      // Business methods return snake_case, not camelCase
       expect(result).toMatchObject({
-        authenticatorType: "otp",
-        barcodeUri: "otpauth://totp/test",
+        authenticator_type: "otp",
+        barcode_uri: "otpauth://totp/test",
         secret: "base32secret",
-        recoveryCodes: ["code1", "code2"]
+        recovery_codes: ["code1", "code2"]
       });
-      expect(result).not.toHaveProperty("barcode_uri");
-      expect(result).not.toHaveProperty("recovery_codes");
+      expect(result).not.toHaveProperty("authenticatorType");
+      expect(result).not.toHaveProperty("barcodeUri");
     });
 
     // Token validation (2 tests)
@@ -731,7 +717,7 @@ describe("AuthClient MFA Methods", () => {
       const { MfaTokenInvalidError } = await import("../errors/index.js");
 
       try {
-        await authClient.mfaEnroll("malformed-token", {
+        await authClient.mfaAssociate("malformed-token", {
           authenticatorTypes: ["otp"]
         });
         throw new Error("Expected error to be thrown");
@@ -752,7 +738,7 @@ describe("AuthClient MFA Methods", () => {
       );
 
       try {
-        await authClient.mfaEnroll(expiredToken, {
+        await authClient.mfaAssociate(expiredToken, {
           authenticatorTypes: ["otp"]
         });
         throw new Error("Expected error to be thrown");
@@ -789,7 +775,7 @@ describe("AuthClient MFA Methods", () => {
         )
       );
 
-      await authClient.mfaEnroll(encryptedToken, {
+      await authClient.mfaAssociate(encryptedToken, {
         authenticatorTypes: ["otp"]
       });
 
@@ -798,11 +784,57 @@ describe("AuthClient MFA Methods", () => {
         authenticator_types: ["otp"]
       });
     });
+
+    // factorType variant tests
+    it("should normalize factorType to authenticatorTypes before calling Auth0", async () => {
+      const encryptedToken = await encryptMfaToken(
+        DEFAULT.mfaToken,
+        "",
+        "openid profile",
+        undefined,
+        secret,
+        300
+      );
+
+      let capturedBody: any;
+      server.use(
+        http.post(
+          `https://${DEFAULT.domain}/mfa/associate`,
+          async ({ request }) => {
+            capturedBody = await request.json();
+            return HttpResponse.json({
+              authenticator_type: "oob",
+              oob_channel: "sms",
+              id: "sms|dev_abc",
+              name: "My SMS"
+            });
+          }
+        )
+      );
+
+      const result = await authClient.mfaAssociate(encryptedToken, {
+        authenticatorTypes: ["oob"],
+        oobChannels: ["sms"],
+        phoneNumber: "+15551234567"
+      } as Omit<EnrollOobOptions, "mfaToken">);
+
+      expect(capturedBody).toMatchObject({
+        authenticator_types: ["oob"],
+        oob_channels: ["sms"],
+        phone_number: "+15551234567"
+      });
+
+      expect(result).toMatchObject({
+        authenticator_type: "oob",
+        oob_channel: "sms",
+        id: "sms|dev_abc"
+      });
+    });
   });
 
   describe("Route Handlers", () => {
-    describe("POST /auth/mfa/enroll", () => {
-      it("should route to handleEnroll and return 200", async () => {
+    describe("POST /auth/mfa/associate", () => {
+      it("should route to handleAssociate and return 200", async () => {
         const encryptedToken = await encryptMfaToken(
           DEFAULT.mfaToken,
           "",
@@ -817,36 +849,41 @@ describe("AuthClient MFA Methods", () => {
             return HttpResponse.json({
               authenticator_type: "otp",
               barcode_uri: "otpauth://...",
-              secret: "base32secret"
+              secret: "base32secret",
+              id: "totp|dev_abc"
             });
           })
         );
 
+        // Authorization header + snake_case body
         const request = new NextRequest(
-          new URL("/auth/mfa/enroll", DEFAULT.appBaseUrl),
+          new URL("/auth/mfa/associate", DEFAULT.appBaseUrl),
           {
             method: "POST",
             body: JSON.stringify({
-              mfaToken: encryptedToken,
-              authenticatorTypes: ["otp"]
+              authenticator_types: ["otp"]
             }),
-            headers: { "Content-Type": "application/json" }
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${encryptedToken}`
+            }
           }
         );
 
         const response = await authClient.handler(request);
         expect(response.status).toBe(200);
 
+        // Route handler returns snake_case response
         const result = await response.json();
-        expect(result.authenticatorType).toBe("otp");
+        expect(result.authenticator_type).toBe("otp");
       });
 
-      it("should return 400 for missing mfaToken", async () => {
+      it("should return 400 for missing Authorization header", async () => {
         const request = new NextRequest(
-          new URL("/auth/mfa/enroll", DEFAULT.appBaseUrl),
+          new URL("/auth/mfa/associate", DEFAULT.appBaseUrl),
           {
             method: "POST",
-            body: JSON.stringify({ authenticatorTypes: ["otp"] }),
+            body: JSON.stringify({ authenticator_types: ["otp"] }),
             headers: { "Content-Type": "application/json" }
           }
         );
@@ -859,20 +896,6 @@ describe("AuthClient MFA Methods", () => {
       });
 
       it("should return 400 for invalid JSON", async () => {
-        const request = new NextRequest(
-          new URL("/auth/mfa/enroll", DEFAULT.appBaseUrl),
-          {
-            method: "POST",
-            body: "invalid-json",
-            headers: { "Content-Type": "application/json" }
-          }
-        );
-
-        const response = await authClient.handler(request);
-        expect(response.status).toBe(400);
-      });
-
-      it("should return 400 for missing authenticatorTypes", async () => {
         const encryptedToken = await encryptMfaToken(
           DEFAULT.mfaToken,
           "",
@@ -883,11 +906,40 @@ describe("AuthClient MFA Methods", () => {
         );
 
         const request = new NextRequest(
-          new URL("/auth/mfa/enroll", DEFAULT.appBaseUrl),
+          new URL("/auth/mfa/associate", DEFAULT.appBaseUrl),
           {
             method: "POST",
-            body: JSON.stringify({ mfaToken: encryptedToken }),
-            headers: { "Content-Type": "application/json" }
+            body: "invalid-json",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${encryptedToken}`
+            }
+          }
+        );
+
+        const response = await authClient.handler(request);
+        expect(response.status).toBe(400);
+      });
+
+      it("should return 400 for missing authenticator_types (snake_case)", async () => {
+        const encryptedToken = await encryptMfaToken(
+          DEFAULT.mfaToken,
+          "",
+          "openid profile",
+          undefined,
+          secret,
+          300
+        );
+
+        const request = new NextRequest(
+          new URL("/auth/mfa/associate", DEFAULT.appBaseUrl),
+          {
+            method: "POST",
+            body: JSON.stringify({}),
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${encryptedToken}`
+            }
           }
         );
 
@@ -985,13 +1037,14 @@ describe("AuthClient MFA Methods", () => {
           })
         );
 
+        // Challenge uses snake_case body (mfa_token in body, not header)
         const request = new NextRequest(
           new URL("/auth/mfa/challenge", DEFAULT.appBaseUrl),
           {
             method: "POST",
             body: JSON.stringify({
-              mfaToken: encryptedToken,
-              challengeType: "otp"
+              mfa_token: encryptedToken,
+              challenge_type: "otp"
             }),
             headers: { "Content-Type": "application/json" }
           }
@@ -1000,8 +1053,9 @@ describe("AuthClient MFA Methods", () => {
         const response = await authClient.handleChallenge(request);
         expect(response.status).toBe(200);
 
+        // Route handler returns snake_case response
         const result = await response.json();
-        expect(result.challengeType).toBe("otp");
+        expect(result.challenge_type).toBe("otp");
       });
 
       it("should return 400 for invalid JSON", async () => {
@@ -1010,7 +1064,9 @@ describe("AuthClient MFA Methods", () => {
           {
             method: "POST",
             body: "invalid-json",
-            headers: { "Content-Type": "application/json" }
+            headers: {
+              "Content-Type": "application/json"
+            }
           }
         );
 
@@ -1040,26 +1096,30 @@ describe("AuthClient MFA Methods", () => {
           })
         );
 
+        // Authorization header + snake_case body
         const request = new NextRequest(
           new URL("/auth/mfa/verify", DEFAULT.appBaseUrl),
           {
             method: "POST",
             body: JSON.stringify({
-              mfaToken: encryptedToken,
               otp: "123456"
             }),
-            headers: { "Content-Type": "application/json" }
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${encryptedToken}`
+            }
           }
         );
 
         const response = await authClient.handleVerify(request);
         expect(response.status).toBe(200);
 
+        // Verify response is already snake_case
         const result = await response.json();
         expect(result.access_token).toBe("new-access-token");
       });
 
-      it("should return 400 with new mfaToken for chained MFA", async () => {
+      it("should return 403 with new mfaToken for chained MFA", async () => {
         const encryptedToken = await encryptMfaToken(
           DEFAULT.mfaToken,
           "https://api.example.com",
@@ -1095,10 +1155,12 @@ describe("AuthClient MFA Methods", () => {
           {
             method: "POST",
             body: JSON.stringify({
-              mfaToken: encryptedToken,
               otp: "000000"
             }),
-            headers: { "Content-Type": "application/json" }
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${encryptedToken}`
+            }
           }
         );
 

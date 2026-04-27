@@ -30,11 +30,19 @@ export interface SessionData {
     sid: string;
     // the time at which the session was created in seconds since epoch
     createdAt: number;
+    // MCD metadata: domain and issuer used to authenticate this session
+    mcd?: import("./mcd.js").MCDMetadata;
   };
   connectionTokenSets?: ConnectionTokenSet[];
   [key: string]: unknown;
 }
 
+/**
+ * Interface for a custom session data store.
+ *
+ * **TTL contract:** every successful write method (`set`, `update`) must reset the session
+ * TTL/expiry so that active sessions are not silently expired between requests.
+ */
 export interface SessionDataStore {
   /**
    * Gets the session from the store given a session ID.
@@ -47,17 +55,30 @@ export interface SessionDataStore {
   set(id: string, session: SessionData): Promise<void>;
 
   /**
+   * Optional: update the session by its ID only if it already exists.
+   * Return `true` if updated, `false` if not found.
+   *
+   */
+  update?(id: string, session: SessionData): Promise<boolean>;
+
+  /**
    * Destroys the session with the given session ID.
    */
   delete(id: string): Promise<void>;
 
   /**
    * Deletes the session with the given logout token which may contain a session ID or a user ID, or both.
+   *
+   * **MCD resolver mode:** When using multiple custom domains with a domain resolver,
+   * implementations MUST filter on the `iss` field in addition to `sub`/`sid` to
+   * ensure sessions are only deleted for the matching issuer. Custom domains on the
+   * same tenant share signing keys, so failing to filter on `iss` allows a logout
+   * token from one domain to delete sessions created by a different domain.
    */
   deleteByLogoutToken?(logoutToken: LogoutToken): Promise<void>;
 }
 
-export type LogoutToken = { sub?: string; sid?: string };
+export type LogoutToken = { sub?: string; sid?: string; iss?: string };
 
 export interface User {
   sub: string;
@@ -164,6 +185,13 @@ export type GetAccessTokenOptions = {
    * {@link https://auth0.com/docs/secure/tokens/refresh-tokens/multi-resource-refresh-token|See Auth0 Documentation on Multi-resource Refresh Tokens}
    */
   audience?: string | null;
+  /**
+   * Control scope merging behavior.
+   * When true (default): merge global scopes for default audience.
+   * When false: use ONLY requested scope (no global merge).
+   * Used by challengeWithPopup() to prevent global scope pollution.
+   */
+  mergeScopes?: boolean;
 };
 
 export type ProxyOptions = {
@@ -186,6 +214,9 @@ export {
   SUBJECT_TOKEN_TYPES
 } from "./token-vault.js";
 export { ConnectAccountOptions, RESPONSE_TYPES } from "./connected-accounts.js";
+export type { ChallengeWithPopupOptions } from "../client/mfa/index.js";
+export type { AccessTokenResponse } from "../client/helpers/get-access-token.js";
+export type { AuthCompleteMessage } from "../utils/popup-helpers.js";
 export {
   MfaClient,
   Authenticator,
@@ -194,6 +225,9 @@ export {
   EnrollOptions,
   EnrollOtpOptions,
   EnrollOobOptions,
+  FactorType,
+  EnrollFactorTypeOtpOptions,
+  EnrollFactorTypeOobOptions,
   MfaVerifyResponse,
   VerifyMfaOptions,
   VerifyMfaOptionsBase,
@@ -203,5 +237,14 @@ export {
   MfaContext,
   GRANT_TYPE_MFA_OTP,
   GRANT_TYPE_MFA_OOB,
-  GRANT_TYPE_MFA_RECOVERY_CODE
+  GRANT_TYPE_MFA_RECOVERY_CODE,
+  AuthenticatorApiResponse,
+  ChallengeApiResponse,
+  EnrollmentApiResponse
 } from "./mfa.js";
+
+export type {
+  DomainResolver,
+  DiscoveryCacheOptions,
+  MCDMetadata
+} from "./mcd.js";

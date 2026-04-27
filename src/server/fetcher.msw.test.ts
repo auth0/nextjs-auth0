@@ -12,11 +12,14 @@ import {
   vi
 } from "vitest";
 
+import { createNextHeadersMock } from "../test/mocks.js";
 import { SessionData } from "../types/index.js";
 import { Auth0Client } from "./client.js";
 import { Fetcher } from "./fetcher.js";
 
-const domain = "https://auth0.local";
+vi.mock("next/headers.js", () => createNextHeadersMock());
+
+const domain = "https://auth0.example.com";
 const issuer = domain;
 const alg = "RS256";
 const sub = "test-sub";
