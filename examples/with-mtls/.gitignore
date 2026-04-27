@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Next.js
+.next/
+out/
+
+# Env files — copy .env.local.example and fill in your values
+.env.local
+.env*.local
+
+# Certificates — never commit private keys!
+certs/
+
+# Misc
+.DS_Store
+*.pem

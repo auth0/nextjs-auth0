@@ -82,6 +82,17 @@
   - [Troubleshooting](#troubleshooting)
     - [Common Issues](#common-issues)
     - [Debug Logging](#debug-logging)
+- [mTLS (Mutual TLS Client Authentication)](#mtls-mutual-tls-client-authentication)
+  - [What is mTLS?](#what-is-mtls)
+  - [Prerequisites](#prerequisites)
+  - [Basic mTLS Setup](#basic-mtls-setup)
+    - [1. Generate Client Certificate](#1-generate-client-certificate)
+    - [2. Configure Auth0](#2-configure-auth0)
+    - [3. Configure the SDK](#3-configure-the-sdk)
+  - [How It Works](#how-it-works-1)
+  - [Example Application](#example-application)
+  - [Testing](#testing)
+  - [Important Notes](#important-notes)
 - [Proxy Handler for My Account and My Organization APIs](#proxy-handler-for-my-account-and-my-organization-apis)
   - [Overview](#overview)
   - [How It Works](#how-it-works)
@@ -2014,6 +2025,258 @@ const fetcher = await auth0.createFetcher(req, {
   }
 });
 ```
+
+## mTLS (Mutual TLS Client Authentication)
+
+Mutual TLS (mTLS) provides strong client authentication using X.509 certificates instead of client secrets. When enabled, the SDK authenticates to Auth0 using a client TLS certificate, and Auth0 issues certificate-bound access tokens with a `cnf.x5t#S256` claim for proof-of-possession protection.
+
+### What is mTLS?
+
+mTLS (Mutual TLS) is an authentication method defined in [RFC 8705](https://datatracker.ietf.org/doc/html/rfc8705) where the client proves its identity using an X.509 certificate during the TLS handshake, instead of sending a client secret in the request body. This provides several security benefits:
+
+- **No secrets in transit** — The certificate is presented during TLS, never in the HTTP request
+- **Certificate-bound tokens** — Access tokens include a `cnf` claim binding them to the client certificate
+- **Proof-of-possession** — Resource servers can verify the token presenter holds the private key
+
+### Prerequisites
+
+**Auth0 Tenant:**
+- Custom domain configured with mTLS enabled (see [Auth0 docs](https://auth0.com/docs/get-started/applications/configure-mtls))
+- Discovery document must include `mtls_endpoint_aliases`
+- Application Token Endpoint Authentication Method set to:
+  - **"Self-Signed TLS Client Authentication"** for self-signed certificates
+  - **"TLS Client Authentication"** for CA-issued certificates
+
+**Client Certificate:**
+- Valid X.509 certificate (self-signed for testing, CA-issued for production)
+- Private key accessible to your Next.js server
+- Certificate uploaded to Auth0 Dashboard → Applications → Credentials
+
+### Basic mTLS Setup
+
+#### 1. Generate Client Certificate
+
+**Option A: Self-Signed Certificate (Development/Testing)**
+
+Self-signed certificates are quick to generate and ideal for local development and testing:
+
+```bash
+# Create certificate directory
+mkdir -p certs
+
+# Generate private key
+openssl genrsa -out certs/client.key 2048
+
+# Generate self-signed certificate (valid 365 days)
+openssl req -new -x509 -key certs/client.key \
+  -out certs/client.crt -days 365 \
+  -subj "/CN=nextjs-mtls-client/O=YourOrg/C=US"
+
+# Get certificate fingerprint (needed for Auth0)
+openssl x509 -in certs/client.crt -noout -fingerprint -sha256
+```
+
+**Option B: CA-Issued Certificate (Production)**
+
+For production, obtain a certificate from a trusted Certificate Authority:
+
+```bash
+# Generate private key
+openssl genrsa -out certs/client.key 2048
+
+# Generate Certificate Signing Request (CSR)
+openssl req -new -key certs/client.key -out certs/client.csr \
+  -subj "/CN=nextjs-mtls-client/O=YourOrg/C=US"
+
+# Submit CSR to your CA (Let's Encrypt, DigiCert, or internal CA)
+# CA will return: client.crt (signed certificate) and ca-bundle.crt (CA chain)
+
+# Verify the certificate chain
+openssl verify -CAfile certs/ca-bundle.crt certs/client.crt
+```
+
+#### 2. Configure Auth0
+
+**For Self-Signed Certificates:**
+
+1. **Upload Certificate:**
+   - Go to Auth0 Dashboard → Applications → Your App → Credentials
+   - Click "Add Credential"
+   - Select **"Self-Signed Certificate"**
+   - Upload or paste the contents of `certs/client.crt`
+   - Verify the fingerprint matches what `openssl` shows
+
+2. **Set Authentication Method:**
+   - Go to Settings → Advanced → OAuth
+   - Token Endpoint Authentication Method: **"Self-Signed TLS Client Authentication"**
+
+**For CA-Issued Certificates:**
+
+1. **Upload CA Root Certificate (Tenant-Level):**
+   - Some Auth0 configurations require uploading the CA's root certificate at the tenant level
+   - Contact Auth0 support if your CA is not in Auth0's trust store
+
+2. **Set Authentication Method:**
+   - Go to Settings → Advanced → OAuth
+   - Token Endpoint Authentication Method: **"TLS Client Authentication"** (not "Self-Signed")
+
+3. **Configure Callbacks (Both Types):**
+   - Allowed Callback URLs: `http://localhost:3000/auth/callback`
+   - Allowed Logout URLs: `http://localhost:3000`
+
+**Comparison: Self-Signed vs CA-Issued**
+
+| Aspect | Self-Signed | CA-Issued |
+|--------|--------------|-----------|
+| **Use Case** | Development, testing, isolated environments | Production, public-facing applications |
+| **Certificate Issuance** | Generated locally with `openssl` | Obtained from trusted CA (commercial or internal) |
+| **Auth0 Upload** | Must upload individual certificate fingerprint per application | CA root may be trusted at tenant level (depends on CA) |
+| **Certificate Rotation** | Must re-upload to Auth0, restart application | May rotate locally if CA trusted; simpler renewal workflow |
+| **Trust Validation** | Auth0 validates against uploaded fingerprint | Auth0 validates chain to trusted CA root |
+| **Token Endpoint Auth** | `self_signed_tls_client_auth` | `tls_client_auth` |
+| **Cost** | Free | CA fees may apply (Let's Encrypt is free) |
+| **Security** | Secure if properly managed | Higher trust level, auditable chain |
+
+#### 3. Configure the SDK
+
+Install `undici` for TLS client certificate support:
+
+```bash
+npm install undici
+```
+
+Configure Next.js to externalize `undici` in `next.config.ts`:
+
+```typescript
+export default {
+  serverExternalPackages: ["undici"]
+};
+```
+
+Create the Auth0 client with mTLS in `lib/auth0.ts`:
+
+```typescript
+import { readFileSync } from "fs";
+import { Agent, fetch as undiciFetch } from "undici";
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+// Load client certificate and private key
+const cert = readFileSync(process.env.MTLS_CLIENT_CERT_PATH!);
+const key = readFileSync(process.env.MTLS_CLIENT_KEY_PATH!);
+
+// Create undici Agent with TLS client certificate
+const tlsAgent = new Agent({
+  connect: { cert, key }
+});
+
+// Wrapper that attaches the TLS agent to every request
+function mtlsFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  return undiciFetch(input as Parameters<typeof undiciFetch>[0], {
+    ...(init as Parameters<typeof undiciFetch>[1]),
+    dispatcher: tlsAgent
+  }) as unknown as Promise<Response>;
+}
+
+// Configure Auth0 client with mTLS
+export const auth0 = new Auth0Client({
+  useMtls: true,           // Enable mTLS authentication
+  customFetch: mtlsFetch,  // Use cert-carrying fetch
+});
+```
+
+Set environment variables in `.env.local`:
+
+```bash
+AUTH0_DOMAIN=your-custom-domain.com  # Must have mTLS enabled
+AUTH0_CLIENT_ID=your-client-id
+AUTH0_SECRET=your-session-secret
+APP_BASE_URL=http://localhost:3000
+
+MTLS_CLIENT_CERT_PATH=./certs/client.crt
+MTLS_CLIENT_KEY_PATH=./certs/client.key
+```
+
+**Note:** Middleware requires Node.js runtime. Add to `middleware.ts`:
+
+```typescript
+export const runtime = "nodejs"; // Required for fs.readFileSync and undici
+```
+
+### How It Works
+
+When `useMtls: true` is configured:
+
+1. **TLS Handshake:** The `undici` Agent presents the client certificate during TLS connection establishment
+2. **Token Request:** SDK uses `TlsClientAuth()` — sends only `client_id`, no `client_secret` in the request body
+3. **Endpoint Routing:** Requests go to `mtls_endpoint_aliases.token_endpoint` from the discovery document
+4. **Certificate Validation:** Auth0 validates the certificate fingerprint against what's uploaded in the Dashboard
+5. **Token Binding:** Auth0 issues an access token with `cnf.x5t#S256` claim containing the certificate fingerprint
+
+**Certificate-Bound Token Example:**
+
+```json
+{
+  "iss": "https://your-domain.com/",
+  "sub": "auth0|123456",
+  "aud": "https://api.example.com",
+  "cnf": {
+    "x5t#S256": "GRq9CsEnEBZ_VT-5WjZFb7ovYpKR5UlG08tTg4HfzCs"
+  }
+}
+```
+
+Resource servers can verify the token presenter holds the matching private key by checking the `cnf` claim against the TLS client certificate.
+
+### Example Application
+
+See [examples/with-mtls](https://github.com/auth0/nextjs-auth0/tree/main/examples/with-mtls) for a complete working example with:
+
+- Full Next.js App Router setup
+- Self-signed certificate generation
+- Local testing scripts
+- Comprehensive testing guide
+
+### Testing
+
+The example includes a local test script to verify the mTLS setup works before connecting to Auth0:
+
+```bash
+cd examples/with-mtls
+node test-mtls.mjs
+```
+
+This spins up a local HTTPS server that requests a client certificate and validates that `undici` correctly attaches it during the TLS handshake.
+
+### Important Notes
+
+1. **Custom Domain Required:** Default Auth0 domains (`*.auth0.com`) don't support mTLS. You must configure a custom domain with mTLS enabled.
+
+2. **Discovery Verification:** Check that `mtls_endpoint_aliases` appears in your discovery document:
+   ```bash
+   curl -s https://your-domain.com/.well-known/openid-configuration | grep mtls_endpoint_aliases
+   ```
+
+3. **Certificate Security:**
+   - Never commit private keys (`.key` files) to version control
+   - Use `.gitignore` to exclude `certs/` directory
+   - Store certificates securely in production:
+     - Environment variables (for containerized deployments)
+     - Secrets manager (AWS Secrets Manager, HashiCorp Vault, etc.)
+     - Kubernetes Secrets (for K8s deployments)
+   - Set file permissions: `chmod 400 certs/client.key` (read-only for owner)
+   - Monitor certificate expiration and automate rotation before expiry
+
+4. **Edge Runtime Limitation:** mTLS requires Node.js runtime because:
+   - `fs.readFileSync` is needed to load certificate files
+   - `undici` requires Node.js built-ins
+
+5. **Certificate Rotation:**
+   - **Self-signed:** Must re-upload new certificate to Auth0 Dashboard, restart application
+   - **CA-issued:** If Auth0 trusts the CA at tenant level, can rotate locally without Auth0 changes
+   - Set up monitoring 30-60 days before expiration
+   - Use cert management tools: `certbot` (Let's Encrypt), `cert-manager` (K8s)
+
+6. **Environment-Specific Certificates:** Use different certificates per environment (dev, staging, production) for proper isolation.
 
 ## Proxy Handler for My Account and My Organization APIs
 
