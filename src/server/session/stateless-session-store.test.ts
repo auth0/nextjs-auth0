@@ -879,14 +879,10 @@ describe("Stateless Session Store", async () => {
 
       await sessionStore.delete(requestCookies, responseCookies);
 
-      expect(responseCookies.set).toHaveBeenCalledWith(
-        LEGACY_COOKIE_NAME,
-        "",
-        {
-          maxAge: 0,
-          path: "/"
-        }
-      );
+      expect(responseCookies.set).toHaveBeenCalledWith(LEGACY_COOKIE_NAME, "", {
+        maxAge: 0,
+        path: "/"
+      });
     });
   });
 });

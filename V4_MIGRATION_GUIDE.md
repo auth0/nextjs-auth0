@@ -255,6 +255,27 @@ In v4, by default, the only claims that are persisted in the `user` object of se
 If you'd like to customize the `user` object to include additional custom claims from the ID token, you can use the `beforeSessionSaved` hook (see [beforeSessionSaved hook](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#beforesessionsaved))
 For a list of default claims included in the user object, refer to the [ID Token claims and the user object section in the Examples guide](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#id-token-claims-and-the-user-object).
 
+## Session Cookie Migration
+
+When upgrading from v3 to v4, the SDK handles legacy session cookie migration automatically. V3 used the `appSession` cookie, while v4 uses `__session` by default.
+
+### Automatic Migration Process
+
+The SDK automatically:
+1. **Reads legacy cookies**: If a v4 session cookie doesn't exist, the SDK falls back to reading the v3 `appSession` cookie
+2. **Migrates on login**: When a user logs in, a new v4 session is created and the legacy cookie is deleted
+3. **Cleans up on logout**: When a user logs out, both the v4 session and any lingering v3 cookies are removed
+
+### What This Means for You
+
+**No action required** - the migration happens transparently in the background. Your users will experience:
+- Seamless transition from v3 to v4 sessions
+- Automatic cleanup of old session cookies
+- No need to re-authenticate immediately after upgrading
+
+> [!NOTE]
+> The legacy cookie cleanup ensures that stale v3 sessions cannot be used to bypass authentication in v4. This is particularly important for logout flows, where both old and new session cookies must be removed to fully terminate the user's session.
+
 ## Handling Dynamic Base URLs (e.g. Vercel Preview Deployments)
 When deploying to platforms like Vercel with dynamic preview URLs, it's important to set the correct appBaseUrl and redirect_uri at runtime — especially in preview environments where URLs change per deployment.
 1. Set `APP_BASE_URL` dynamically in `next.config.js`:
