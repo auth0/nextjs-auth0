@@ -1190,14 +1190,10 @@ describe("Stateful Session Store", async () => {
 
       await sessionStore.delete(requestCookies, responseCookies);
 
-      expect(responseCookies.set).toHaveBeenCalledWith(
-        LEGACY_COOKIE_NAME,
-        "",
-        {
-          maxAge: 0,
-          path: "/"
-        }
-      );
+      expect(responseCookies.set).toHaveBeenCalledWith(LEGACY_COOKIE_NAME, "", {
+        maxAge: 0,
+        path: "/"
+      });
     });
 
     it("should not delete the legacy cookie if session cookie name matches LEGACY_COOKIE_NAME", async () => {
@@ -1224,7 +1220,10 @@ describe("Stateful Session Store", async () => {
 
       // Should only be called for __session (which is LEGACY_COOKIE_NAME here), not a second time
       const legacyCalls = (responseCookies.set as any).mock.calls.filter(
-        (call: any[]) => call[0] === LEGACY_COOKIE_NAME && call[1] === "" && call[2]?.maxAge === 0
+        (call: any[]) =>
+          call[0] === LEGACY_COOKIE_NAME &&
+          call[1] === "" &&
+          call[2]?.maxAge === 0
       );
       expect(legacyCalls).toHaveLength(1);
     });
