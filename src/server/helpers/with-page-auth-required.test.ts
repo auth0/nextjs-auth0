@@ -31,6 +31,9 @@ describe("with-page-auth-required ssr", () => {
         ...actual,
         cookies: vi.fn().mockImplementation(() => {
           return new RequestCookies(new Headers());
+        }),
+        headers: vi.fn().mockImplementation(() => {
+          return new Headers();
         })
       };
     });

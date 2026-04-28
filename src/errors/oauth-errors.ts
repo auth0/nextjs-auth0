@@ -90,6 +90,9 @@ export class AuthorizationCodeGrantError extends SdkError {
   }
 }
 
+/**
+ * Error thrown when backchannel logout processing fails.
+ */
 export class BackchannelLogoutError extends SdkError {
   public code: string = "backchannel_logout_error";
 
