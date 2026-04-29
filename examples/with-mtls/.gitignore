@@ -6,10 +6,6 @@ node_modules/
 .next/
 out/
 
-# Env files — copy .env.local.example and fill in your values
-.env.local
-.env*.local
-
 # Certificates — never commit private keys!
 certs/
 
