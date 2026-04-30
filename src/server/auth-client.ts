@@ -86,8 +86,8 @@ import {
 import { withDPoPNonceRetry } from "../utils/dpopRetry.js";
 import { createSizeLimitedFetch } from "../utils/fetchUtils.js";
 import { createAuthCompletePostMessageResponse } from "../utils/html-helpers.js";
+import { buildEnrollOptions } from "../utils/mfa-server-utils.js";
 import {
-  buildEnrollOptions,
   buildVerifyParams,
   getVerifyGrantType,
   transformVerifyBodyToOptions
