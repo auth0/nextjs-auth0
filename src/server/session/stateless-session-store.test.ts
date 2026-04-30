@@ -857,5 +857,32 @@ describe("Stateless Session Store", async () => {
         sessionStore.delete(requestCookies, responseCookies)
       ).resolves.not.toThrow();
     });
+
+    it("should delete the legacy cookie if it exists", async () => {
+      const secret = await generateSecret(32);
+      const requestCookies = new RequestCookies(new Headers());
+      const responseCookies = new ResponseCookies(new Headers());
+
+      const sessionStore = new StatelessSessionStore({
+        secret
+      });
+
+      vi.spyOn(responseCookies, "set");
+
+      // Mock getChunkedCookie to simulate existing legacy cookie
+      vi.spyOn(cookies, "getChunkedCookie").mockImplementation((name) => {
+        if (name === LEGACY_COOKIE_NAME) {
+          return "legacy_session_data";
+        }
+        return undefined;
+      });
+
+      await sessionStore.delete(requestCookies, responseCookies);
+
+      expect(responseCookies.set).toHaveBeenCalledWith(LEGACY_COOKIE_NAME, "", {
+        maxAge: 0,
+        path: "/"
+      });
+    });
   });
 });

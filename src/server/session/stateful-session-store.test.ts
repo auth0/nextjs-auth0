@@ -1167,5 +1167,65 @@ describe("Stateful Session Store", async () => {
       expect(cookie?.maxAge).toEqual(0);
       expect(store.delete).not.toHaveBeenCalled();
     });
+
+    it("should delete the legacy cookie if it exists", async () => {
+      const secret = await generateSecret(32);
+      const store = {
+        get: vi.fn(),
+        set: vi.fn(),
+        delete: vi.fn()
+      };
+      const requestCookies = new RequestCookies(new Headers());
+      const responseCookies = new ResponseCookies(new Headers());
+
+      const sessionStore = new StatefulSessionStore({
+        secret,
+        store
+      });
+
+      vi.spyOn(requestCookies, "has").mockImplementation(
+        (name) => name === LEGACY_COOKIE_NAME
+      );
+      vi.spyOn(responseCookies, "set");
+
+      await sessionStore.delete(requestCookies, responseCookies);
+
+      expect(responseCookies.set).toHaveBeenCalledWith(LEGACY_COOKIE_NAME, "", {
+        maxAge: 0,
+        path: "/"
+      });
+    });
+
+    it("should not delete the legacy cookie if session cookie name matches LEGACY_COOKIE_NAME", async () => {
+      const secret = await generateSecret(32);
+      const store = {
+        get: vi.fn(),
+        set: vi.fn(),
+        delete: vi.fn()
+      };
+      const requestCookies = new RequestCookies(new Headers());
+      const responseCookies = new ResponseCookies(new Headers());
+
+      vi.spyOn(requestCookies, "has").mockReturnValue(true);
+
+      const sessionStore = new StatefulSessionStore({
+        secret,
+        store,
+        cookieOptions: { name: LEGACY_COOKIE_NAME }
+      });
+
+      vi.spyOn(responseCookies, "set");
+
+      await sessionStore.delete(requestCookies, responseCookies);
+
+      // Should only be called for __session (which is LEGACY_COOKIE_NAME here), not a second time
+      const legacyCalls = (responseCookies.set as any).mock.calls.filter(
+        (call: any[]) =>
+          call[0] === LEGACY_COOKIE_NAME &&
+          call[1] === "" &&
+          call[2]?.maxAge === 0
+      );
+      expect(legacyCalls).toHaveLength(1);
+    });
   });
 });
