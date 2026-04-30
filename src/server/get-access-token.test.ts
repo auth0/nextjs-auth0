@@ -13,11 +13,15 @@ import {
   vi
 } from "vitest";
 
+import { AccessTokenError, AccessTokenErrorCode } from "../errors/index.js";
+import { createNextHeadersMock } from "../test/mocks.js";
 import { SessionData } from "../types/index.js";
 import { Auth0Client } from "./client.js";
 
+vi.mock("next/headers.js", () => createNextHeadersMock());
+
 // Basic constants for testing
-const domain = "https://auth0.local";
+const domain = "https://auth0.example.com";
 const alg = "RS256";
 const sub = "test-sub";
 const sid = "test-sid";
@@ -132,7 +136,43 @@ async function createInitialSession(): Promise<SessionData> {
 
 describe("Auth0Client - getAccessToken", () => {
   let mockSaveToSession: ReturnType<typeof vi.spyOn>;
+  let mockGetSession: ReturnType<typeof vi.spyOn>;
   let auth0Client: Auth0Client;
+
+  // Helper to set up mocks for a given auth0Client
+  async function setupClientMocks(client: Auth0Client) {
+    const initialSession = await createInitialSession();
+
+    // Create a mock authClient
+    const mockAuthClient = {
+      getSessionWithDomainCheck: vi.fn().mockResolvedValue({
+        session: initialSession,
+        error: null
+      }),
+      getTokenSet: vi.fn().mockResolvedValue([
+        null, // error
+        {
+          tokenSet: {
+            accessToken: refreshedAccessToken,
+            refreshToken: refreshedRefreshToken,
+            idToken: await generateToken({ name: updatedName }),
+            expiresAt: Math.floor(Date.now() / 1000) + refreshedExpiresIn,
+            scope
+          },
+          idTokenClaims: { name: updatedName }
+        }
+      ]),
+      finalizeSession: vi
+        .fn()
+        .mockImplementation(async (session: SessionData) => {
+          return session;
+        })
+    };
+
+    return vi
+      .spyOn((client as any).provider, "forRequest")
+      .mockResolvedValue(mockAuthClient);
+  }
 
   beforeEach(async () => {
     // Instantiate Auth0Client normally, it will use intercepted fetch
@@ -143,12 +183,8 @@ describe("Auth0Client - getAccessToken", () => {
       .spyOn(Auth0Client.prototype as any, "saveToSession")
       .mockResolvedValue(undefined); // Mock successful save
 
-    const initialSession = await createInitialSession();
-
-    // Mock getSession specifically for this test
-    vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-      initialSession
-    );
+    // Setup mocks for the auth0Client
+    mockGetSession = await setupClientMocks(auth0Client);
   });
 
   afterEach(() => {
@@ -177,12 +213,14 @@ describe("Auth0Client - getAccessToken", () => {
     expect(result?.token).toBe(refreshedAccessToken); // From msw handler
 
     // Check if expiresAt is close to the expected value based on the mock server response.
-    // We use toBeCloseTo to account for minor timing differences between the client
-    // calculating the expiration and the test assertion running.
+    // Allow ±2s tolerance to avoid flaky failures when Date.now() ticks between
+    // the SDK computing expiresAt and this assertion evaluating.
     const expectedExpiresAtRough =
       Math.floor(Date.now() / 1000) + refreshedExpiresIn;
-    // The '0' precision checks for equality at the integer second level.
-    expect(result?.expiresAt).toBeCloseTo(expectedExpiresAtRough, 0);
+    expect(result?.expiresAt).toBeGreaterThanOrEqual(
+      expectedExpiresAtRough - 2
+    );
+    expect(result?.expiresAt).toBeLessThanOrEqual(expectedExpiresAtRough + 2);
     expect(mockSaveToSession).toHaveBeenCalledOnce();
 
     // Verify user profile data is updated in saved session
@@ -208,11 +246,242 @@ describe("Auth0Client - getAccessToken", () => {
     const expectedExpiresAtRough =
       Math.floor(Date.now() / 1000) + refreshedExpiresIn;
 
-    expect(result?.expiresAt).toBeCloseTo(expectedExpiresAtRough, 0);
+    expect(result?.expiresAt).toBeGreaterThanOrEqual(
+      expectedExpiresAtRough - 2
+    );
+    expect(result?.expiresAt).toBeLessThanOrEqual(expectedExpiresAtRough + 2);
     expect(mockSaveToSession).toHaveBeenCalledOnce();
 
     // Verify user profile data is updated in saved session
     const savedSessionData = mockSaveToSession.mock.calls[0][0] as SessionData;
     expect(savedSessionData.user.name).toBe(updatedName);
+  });
+
+  it("should refresh token early when expiresAt is within tokenRefreshBuffer", async () => {
+    vi.useFakeTimers();
+    const now = new Date("2026-01-01T00:00:00.000Z");
+    vi.setSystemTime(now);
+
+    try {
+      auth0Client = new Auth0Client({
+        ...testAuth0ClientConfig,
+        tokenRefreshBuffer: 60
+      });
+
+      // Re-setup mocks for new client
+      mockGetSession = await setupClientMocks(auth0Client);
+
+      const session = await createInitialSession();
+      session.tokenSet.expiresAt = Math.floor(now.getTime() / 1000) + 30;
+
+      // Update the mock to return this specific session
+      const mockAuthClient = {
+        getSessionWithDomainCheck: vi.fn().mockResolvedValue({
+          session: session,
+          error: null
+        }),
+        getTokenSet: vi.fn().mockResolvedValue([
+          null,
+          {
+            tokenSet: {
+              accessToken: refreshedAccessToken,
+              refreshToken: refreshedRefreshToken,
+              idToken: await generateToken({ name: updatedName }),
+              expiresAt: Math.floor(Date.now() / 1000) + refreshedExpiresIn,
+              scope
+            },
+            idTokenClaims: { name: updatedName }
+          }
+        ]),
+        finalizeSession: vi.fn().mockImplementation(async (s: SessionData) => s)
+      };
+      mockGetSession.mockResolvedValue(mockAuthClient);
+      mockSaveToSession.mockClear();
+
+      const result = await auth0Client.getAccessToken();
+
+      expect(result).not.toBeNull();
+      expect(result?.token).toBe(refreshedAccessToken);
+      expect(mockSaveToSession).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("should not refresh when expiresAt is outside tokenRefreshBuffer", async () => {
+    vi.useFakeTimers();
+    const now = new Date("2026-01-01T00:00:00.000Z");
+    vi.setSystemTime(now);
+
+    try {
+      auth0Client = new Auth0Client({
+        ...testAuth0ClientConfig,
+        tokenRefreshBuffer: 60
+      });
+
+      // Re-setup mocks for new client
+      mockGetSession = await setupClientMocks(auth0Client);
+
+      const session = await createInitialSession();
+      session.tokenSet.expiresAt = Math.floor(now.getTime() / 1000) + 120;
+
+      // Update the mock to return this specific session
+      // Return the SAME tokenSet so no changes are detected
+      const mockAuthClient = {
+        getSessionWithDomainCheck: vi.fn().mockResolvedValue({
+          session: session,
+          error: null
+        }),
+        getTokenSet: vi.fn().mockResolvedValue([
+          null,
+          {
+            tokenSet: session.tokenSet,
+            idTokenClaims: session.user
+          }
+        ]),
+        finalizeSession: vi.fn().mockImplementation(async (s: SessionData) => s)
+      };
+      mockGetSession.mockResolvedValue(mockAuthClient);
+      mockSaveToSession.mockClear();
+
+      const result = await auth0Client.getAccessToken();
+
+      expect(result).not.toBeNull();
+      expect(result?.token).toBe("test-access-token");
+      expect(mockSaveToSession).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("should not treat near-expiry as expired when no refresh token is available", async () => {
+    vi.useFakeTimers();
+    const now = new Date("2026-01-01T00:00:00.000Z");
+    vi.setSystemTime(now);
+
+    try {
+      auth0Client = new Auth0Client({
+        ...testAuth0ClientConfig,
+        tokenRefreshBuffer: 60
+      });
+
+      // Re-setup mocks for new client
+      mockGetSession = await setupClientMocks(auth0Client);
+
+      const session = await createInitialSession();
+      session.tokenSet.expiresAt = Math.floor(now.getTime() / 1000) + 30;
+      delete session.tokenSet.refreshToken;
+
+      // Update the mock to return this specific session
+      // Return the SAME tokenSet so no changes are detected
+      const mockAuthClient = {
+        getSessionWithDomainCheck: vi.fn().mockResolvedValue({
+          session: session,
+          error: null
+        }),
+        getTokenSet: vi.fn().mockResolvedValue([
+          null,
+          {
+            tokenSet: session.tokenSet,
+            idTokenClaims: session.user
+          }
+        ]),
+        finalizeSession: vi.fn().mockImplementation(async (s: SessionData) => s)
+      };
+      mockGetSession.mockResolvedValue(mockAuthClient);
+      mockSaveToSession.mockClear();
+
+      const result = await auth0Client.getAccessToken();
+
+      expect(result).not.toBeNull();
+      expect(result?.token).toBe("test-access-token");
+      expect(mockSaveToSession).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("should still throw when token is expired and no refresh token is available", async () => {
+    vi.useFakeTimers();
+    const now = new Date("2026-01-01T00:00:00.000Z");
+    vi.setSystemTime(now);
+
+    try {
+      auth0Client = new Auth0Client({
+        ...testAuth0ClientConfig,
+        tokenRefreshBuffer: 60
+      });
+
+      // Re-setup mocks for new client
+      mockGetSession = await setupClientMocks(auth0Client);
+
+      const session = await createInitialSession();
+      session.tokenSet.expiresAt = Math.floor(now.getTime() / 1000) - 10;
+      delete session.tokenSet.refreshToken;
+
+      // Update the mock to return this specific session with error
+      const mockAuthClient = {
+        getSessionWithDomainCheck: vi.fn().mockResolvedValue({
+          session: session,
+          error: null
+        }),
+        getTokenSet: vi
+          .fn()
+          .mockResolvedValue([
+            new AccessTokenError(
+              AccessTokenErrorCode.MISSING_REFRESH_TOKEN,
+              "No refresh token available"
+            ),
+            null
+          ]),
+        finalizeSession: vi.fn().mockImplementation(async (s: SessionData) => s)
+      };
+      mockGetSession.mockResolvedValue(mockAuthClient);
+
+      await expect(auth0Client.getAccessToken()).rejects.toMatchObject({
+        code: AccessTokenErrorCode.MISSING_REFRESH_TOKEN
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("should treat string expiresAt as a timestamp when checking expiry", async () => {
+    vi.useFakeTimers();
+    const now = new Date("2026-01-01T00:00:00.000Z");
+    vi.setSystemTime(now);
+
+    try {
+      const session = await createInitialSession();
+      (session.tokenSet as any).expiresAt = String(
+        Math.floor(now.getTime() / 1000) - 10
+      );
+      delete session.tokenSet.refreshToken;
+
+      // Update the mock to return this specific session
+      const mockAuthClient = {
+        getSessionWithDomainCheck: vi.fn().mockResolvedValue({
+          session: session,
+          error: null
+        }),
+        getTokenSet: vi
+          .fn()
+          .mockResolvedValue([
+            new AccessTokenError(
+              AccessTokenErrorCode.MISSING_REFRESH_TOKEN,
+              "No refresh token available"
+            ),
+            null
+          ]),
+        finalizeSession: vi.fn().mockImplementation(async (s: SessionData) => s)
+      };
+      mockGetSession.mockResolvedValue(mockAuthClient);
+
+      await expect(auth0Client.getAccessToken()).rejects.toMatchObject({
+        code: AccessTokenErrorCode.MISSING_REFRESH_TOKEN
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

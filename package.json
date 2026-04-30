@@ -1,6 +1,6 @@
 {
   "name": "@auth0/nextjs-auth0",
-  "version": "4.14.0",
+  "version": "4.19.0",
   "description": "Auth0 Next.js SDK",
   "type": "module",
   "scripts": {
@@ -35,8 +35,8 @@
   },
   "homepage": "https://github.com/auth0/nextjs-auth0#readme",
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
     "@evilmartians/lefthook": "^1.10.10",
-    "@eslint/js": "^9.20.0",
     "@ianvs/prettier-plugin-sort-imports": "^4.3.1",
     "@playwright/test": "^1.48.2",
     "@stylistic/eslint-plugin-ts": "^3.1.0",
@@ -45,7 +45,7 @@
     "@types/react": "*",
     "@types/react-dom": "*",
     "@vitest/coverage-v8": "2.1.9",
-    "eslint": "^9.20.0",
+    "eslint": "^9.39.4",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-prettier": "5.5.5",
     "eslint-plugin-react": "^7.37.4",
@@ -57,7 +57,7 @@
     "typedoc": "^0.28.4",
     "typescript": "^5.6.3",
     "typescript-eslint": "^8.23.0",
-    "vite": "^5.4.11",
+    "vite": "^6.4.2",
     "vitest": "^2.1.4"
   },
   "peerDependencies": {

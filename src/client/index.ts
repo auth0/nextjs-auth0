@@ -12,3 +12,6 @@ export {
   Auth0Provider,
   type Auth0ProviderProps
 } from "./providers/auth0-provider.js";
+export { mfa } from "./mfa/index.js";
+export type { ChallengeWithPopupOptions } from "./mfa/index.js";
+export type { AccessTokenResponse } from "./helpers/get-access-token.js";

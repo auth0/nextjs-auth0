@@ -74,7 +74,9 @@ export class StatefulSessionStore extends AbstractSessionStore {
     try {
       const sessionCookie = await cookies.decrypt<SessionCookieValue>(
         cookie.value,
-        this.secret
+        this.secret,
+        undefined,
+        true // throwOnJWEErrors: allow catching ERR_JWE_INVALID to handle legacy sessions
       );
 
       if (sessionCookie === null) {
@@ -139,8 +141,41 @@ export class StatefulSessionStore extends AbstractSessionStore {
       sessionId = generateId();
     }
 
+    // Track whether the session ID was recovered from an existing cookie or is brand-new.
+    // This is needed for the race-condition guard below.
+    const existingSessionId = !isNew && sessionId !== null ? sessionId : null;
+
     if (!sessionId) {
       sessionId = generateId();
+    }
+
+    // For rolling session updates, verify the session we are about to update still exists
+    // in the store. This prevents a race condition where a concurrent logout deletes the
+    // session while an in-flight request is rolling it: without this check the in-flight
+    // response would re-create the deleted session and leave the user logged in.
+    //
+    // The guard only applies when we found an existing session ID in the request cookie
+    // (existingSessionId !== null). Brand-new sessions (no cookie, or isNew login) bypass
+    // the check because there is nothing in the store to verify against.
+    //
+    // If the store implements the optional update() method we use it as an atomic
+    // check-and-write (UPDATE WHERE id = $1). Otherwise we fall back to a non-atomic
+    // get() + set() pair.
+    if (existingSessionId !== null) {
+      if (typeof this.store.update === "function") {
+        const updated = await this.store.update(existingSessionId, session);
+        if (!updated) {
+          return;
+        }
+      } else {
+        const existingSession = await this.store.get(existingSessionId);
+        if (!existingSession) {
+          return;
+        }
+        await this.store.set(existingSessionId, session);
+      }
+    } else {
+      await this.store.set(sessionId, session);
     }
 
     const maxAge = this.calculateMaxAge(session.internal.createdAt);
@@ -159,7 +194,6 @@ export class StatefulSessionStore extends AbstractSessionStore {
       ...this.cookieConfig,
       maxAge
     });
-    await this.store.set(sessionId, session);
 
     // to enable read-after-write in the same request for middleware
     reqCookies.set(this.sessionCookieName, jwe.toString());

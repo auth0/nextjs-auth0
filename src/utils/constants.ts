@@ -64,3 +64,37 @@ export const DEFAULT_RETRY_DELAY = 100;
  * @default true - Jitter enabled for better load distribution
  */
 export const DEFAULT_RETRY_JITTER = true;
+
+/**
+ * Default TTL for MFA context in seconds.
+ * Controls how long encrypted mfa_token and session MFA context remain valid.
+ * Matches Auth0's mfa_token expiration (5 minutes).
+ *
+ * @default 300 - 5 minutes (300 seconds)
+ */
+export const DEFAULT_MFA_CONTEXT_TTL_SECONDS = 5 * 60; // 5 minutes (300 seconds)
+
+/**
+ * Default popup window width in pixels.
+ */
+export const DEFAULT_POPUP_WIDTH = 400;
+
+/**
+ * Default popup window height in pixels.
+ */
+export const DEFAULT_POPUP_HEIGHT = 600;
+
+/**
+ * Default popup timeout in milliseconds (60 seconds).
+ */
+export const DEFAULT_POPUP_TIMEOUT = 60000;
+
+/**
+ * Delay before popup auto-closes after sending postMessage (milliseconds).
+ */
+export const AUTO_CLOSE_DELAY = 2000;
+
+/**
+ * Interval for polling `popup.closed` state (milliseconds).
+ */
+export const POLL_INTERVAL = 500;

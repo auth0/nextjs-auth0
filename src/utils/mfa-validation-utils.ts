@@ -1,0 +1,141 @@
+import type { NextRequest } from "next/server.js";
+
+import { InvalidRequestError } from "../errors/index.js";
+
+/**
+ * Extracts Bearer token from Authorization header.
+ *
+ * @param req - NextRequest with Authorization header
+ * @returns Bearer token value
+ * @throws {InvalidRequestError} If header is missing or invalid format
+ */
+export function extractBearerToken(req: NextRequest): string {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    throw new InvalidRequestError("Missing or invalid Authorization header");
+  }
+  return authHeader.substring(7);
+}
+
+/**
+ * Extracts MFA token from Authorization header.
+ *
+ * @param req - NextRequest with Authorization header
+ * @returns MFA token value
+ * @throws {InvalidRequestError} If header is missing or invalid
+ */
+export function extractMfaToken(req: NextRequest): string {
+  return extractBearerToken(req);
+}
+
+/**
+ * Type guard to check if value is a non-empty string.
+ *
+ * @param value - Value to check
+ * @returns True if value is a non-empty string
+ */
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value !== "";
+}
+
+/**
+ * Validates that a field is a non-empty string.
+ *
+ * @param value - Value to validate
+ * @param fieldName - Field name for error messages
+ * @returns Validated string value
+ * @throws {InvalidRequestError} If value is not a non-empty string
+ */
+export function validateStringFieldAndThrow(
+  value: unknown,
+  fieldName: string
+): string {
+  if (!isNonEmptyString(value)) {
+    throw new InvalidRequestError(`Missing or invalid ${fieldName}`);
+  }
+  return value;
+}
+
+/**
+ * Validates that a field is a non-empty array.
+ *
+ * @param value - Value to validate
+ * @param fieldName - Field name for error messages
+ * @returns Validated array
+ * @throws {InvalidRequestError} If value is not a non-empty array
+ */
+export function validateArrayFieldAndThrow(
+  value: unknown,
+  fieldName: string
+): string[] {
+  if (!value || !Array.isArray(value) || value.length === 0) {
+    throw new InvalidRequestError(`Missing or invalid ${fieldName}`);
+  }
+  return value;
+}
+
+/**
+ * Validates that request body contains at least one verification credential.
+ * Credentials are: otp, oob_code+binding_code (snake_case), or recovery_code.
+ *
+ * @param body - Request body to validate
+ * @returns Validated credential body (snake_case keys)
+ * @throws {InvalidRequestError} If no valid credential present or camelCase fields used
+ */
+export function validateVerificationCredentialAndThrow(
+  body: unknown
+): Record<string, unknown> {
+  const bodyObj = body as Record<string, unknown>;
+  const hasOtp =
+    "otp" in bodyObj && typeof bodyObj.otp === "string" && bodyObj.otp !== "";
+  const hasOob =
+    "oob_code" in bodyObj &&
+    typeof bodyObj.oob_code === "string" &&
+    bodyObj.oob_code !== "" &&
+    "binding_code" in bodyObj &&
+    typeof bodyObj.binding_code === "string" &&
+    bodyObj.binding_code !== "";
+  const hasRecovery =
+    "recovery_code" in bodyObj &&
+    typeof bodyObj.recovery_code === "string" &&
+    bodyObj.recovery_code !== "";
+
+  if (!hasOtp && !hasOob && !hasRecovery) {
+    throw new InvalidRequestError(
+      "Missing verification credential (otp, oob_code+binding_code, or recovery_code required)"
+    );
+  }
+
+  return bodyObj;
+}
+
+/**
+ * Extracts path parameter from URL pathname.
+ *
+ * @param pathname - Request URL pathname
+ * @param paramName - Parameter name for error messages
+ * @returns Extracted parameter value
+ * @throws {InvalidRequestError} If parameter is missing
+ */
+export function extractPathParam(pathname: string, paramName: string): string {
+  const value = pathname.split("/").pop();
+  if (!value || value === "") {
+    throw new InvalidRequestError(`Missing ${paramName} in URL`);
+  }
+  return value;
+}
+
+/**
+ * Parses JSON from request body with error handling.
+ *
+ * @param req - NextRequest to parse
+ * @returns Parsed JSON body
+ * @throws {InvalidRequestError} If JSON is malformed
+ */
+export async function parseJsonBody(req: NextRequest): Promise<unknown> {
+  try {
+    return await req.json();
+  } catch (parseError) {
+    throw new InvalidRequestError("Invalid JSON in request body");
+  }
+}
