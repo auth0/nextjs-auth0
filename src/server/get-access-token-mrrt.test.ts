@@ -13,12 +13,15 @@ import {
   vi
 } from "vitest";
 
+import { createNextHeadersMock } from "../test/mocks.js";
 import { SessionData } from "../types/index.js";
 import { DEFAULT_SCOPES } from "../utils/constants.js";
 import { Auth0Client } from "./client.js";
 
+vi.mock("next/headers.js", () => createNextHeadersMock());
+
 // Basic constants for testing
-const domain = "https://auth0.local";
+const domain = "https://auth0.example.com";
 const alg = "RS256";
 const sub = "test-sub";
 const sid = "test-sid";
@@ -144,17 +147,18 @@ describe("Auth0Client - getAccessToken (MRRT)", () => {
     // Instantiate Auth0Client normally, it will use intercepted fetch
     auth0Client = new Auth0Client(testAuth0ClientConfig);
 
+    const initialSession = await createInitialSession();
+
+    // Mock getSessionFromAuthClient (RC-6 helper) to return session
+    vi.spyOn(
+      Auth0Client.prototype as any,
+      "getSessionFromAuthClient"
+    ).mockResolvedValue(initialSession);
+
     // Mock saveToSession to avoid cookie/request context issues
     mockSaveToSession = vi
       .spyOn(Auth0Client.prototype as any, "saveToSession")
       .mockResolvedValue(undefined); // Mock successful save
-
-    const initialSession = await createInitialSession();
-
-    // Mock getSession specifically for this test
-    vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-      initialSession
-    );
   });
 
   afterEach(() => {
@@ -171,11 +175,6 @@ describe("Auth0Client - getAccessToken (MRRT)", () => {
     const audience2 = "https://api2.example.com";
     const scope1 = "read:api1";
     const scope2 = "read:api2";
-
-    const session = await createInitialSession();
-    vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-      session
-    );
 
     // Get token for audience 1
     const result1 = await auth0Client.getAccessToken({
@@ -219,11 +218,6 @@ describe("Auth0Client - getAccessToken (MRRT)", () => {
     const audience2 = "https://api2.example.com";
     const scope1 = "read:api1";
     const scope2 = "read:api2";
-
-    const session = await createInitialSession();
-    vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-      session
-    );
 
     // Get token for audience 1 and audience 2 in parallel
     const [result1, result2] = await Promise.all([
@@ -295,9 +289,10 @@ describe("Auth0Client - getAccessToken (MRRT)", () => {
       internal: { sid, createdAt: Date.now() / 1000 }
     };
 
-    vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-      session
-    );
+    vi.spyOn(
+      Auth0Client.prototype as any,
+      "getSessionFromAuthClient"
+    ).mockResolvedValue(session);
 
     // Get token for audience 1
     const result1 = await auth0Client.getAccessToken({
@@ -364,9 +359,10 @@ describe("Auth0Client - getAccessToken (MRRT)", () => {
       internal: { sid, createdAt: Date.now() / 1000 }
     };
 
-    vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-      session
-    );
+    vi.spyOn(
+      Auth0Client.prototype as any,
+      "getSessionFromAuthClient"
+    ).mockResolvedValue(session);
 
     // Get token for audience 1
     const result1 = await auth0Client.getAccessToken({
@@ -415,6 +411,114 @@ describe("Auth0Client - getAccessToken (MRRT)", () => {
     expect(sessionAccessTokenForAudience2!.accessToken).toBe(token2);
   });
 
+  it("should refresh MRRT access token early when within tokenRefreshBuffer", async () => {
+    vi.useFakeTimers();
+    const now = new Date("2026-01-01T00:00:00.000Z");
+    vi.setSystemTime(now);
+
+    try {
+      auth0Client = new Auth0Client({
+        ...testAuth0ClientConfig,
+        tokenRefreshBuffer: 60
+      });
+
+      const audience1 = "https://api1.example.com";
+      const scope1 = "read:api1";
+      const existingAccessToken1 = await createTestToken(audience1, scope1);
+
+      const session = {
+        user: { sub },
+        tokenSet: {
+          accessToken: "test-access-token",
+          refreshToken: "test-refresh-token",
+          idToken: await createTestToken(testAuth0ClientConfig.clientId),
+          scope,
+          expiresAt: Math.floor(now.getTime() / 1000) + 3600
+        },
+        accessTokens: [
+          {
+            audience: audience1,
+            scope: `${DEFAULT_SCOPES} ${scope1}`,
+            requestedScope: `${DEFAULT_SCOPES} ${scope1}`,
+            accessToken: existingAccessToken1,
+            expiresAt: Math.floor(now.getTime() / 1000) + 30
+          }
+        ],
+        internal: { sid, createdAt: Math.floor(now.getTime() / 1000) }
+      };
+
+      vi.spyOn(
+        Auth0Client.prototype as any,
+        "getSessionFromAuthClient"
+      ).mockResolvedValue(session);
+      mockSaveToSession.mockClear();
+
+      const result = await auth0Client.getAccessToken({
+        audience: audience1,
+        scope: scope1
+      });
+
+      expect(result.token).not.toBe(existingAccessToken1);
+      expect(mockSaveToSession).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("should not refresh MRRT access token when outside tokenRefreshBuffer", async () => {
+    vi.useFakeTimers();
+    const now = new Date("2026-01-01T00:00:00.000Z");
+    vi.setSystemTime(now);
+
+    try {
+      auth0Client = new Auth0Client({
+        ...testAuth0ClientConfig,
+        tokenRefreshBuffer: 60
+      });
+
+      const audience1 = "https://api1.example.com";
+      const scope1 = "read:api1";
+      const existingAccessToken1 = await createTestToken(audience1, scope1);
+
+      const session = {
+        user: { sub },
+        tokenSet: {
+          accessToken: "test-access-token",
+          refreshToken: "test-refresh-token",
+          idToken: await createTestToken(testAuth0ClientConfig.clientId),
+          scope,
+          expiresAt: Math.floor(now.getTime() / 1000) + 3600
+        },
+        accessTokens: [
+          {
+            audience: audience1,
+            scope: `${DEFAULT_SCOPES} ${scope1}`,
+            requestedScope: `${DEFAULT_SCOPES} ${scope1}`,
+            accessToken: existingAccessToken1,
+            expiresAt: Math.floor(now.getTime() / 1000) + 120
+          }
+        ],
+        internal: { sid, createdAt: Math.floor(now.getTime() / 1000) }
+      };
+
+      vi.spyOn(
+        Auth0Client.prototype as any,
+        "getSessionFromAuthClient"
+      ).mockResolvedValue(session);
+      mockSaveToSession.mockClear();
+
+      const result = await auth0Client.getAccessToken({
+        audience: audience1,
+        scope: scope1
+      });
+
+      expect(result.token).toBe(existingAccessToken1);
+      expect(mockSaveToSession).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("should get the matching access token with the least possible amount of granted scopes", async () => {
     const audience1 = "https://api1.example.com";
     const scope1 = "read:api1";
@@ -452,9 +556,10 @@ describe("Auth0Client - getAccessToken (MRRT)", () => {
       internal: { sid, createdAt: Date.now() / 1000 }
     };
 
-    vi.spyOn(Auth0Client.prototype as any, "getSession").mockResolvedValue(
-      session
-    );
+    vi.spyOn(
+      Auth0Client.prototype as any,
+      "getSessionFromAuthClient"
+    ).mockResolvedValue(session);
 
     // Get token for audience 1
     const result1 = await auth0Client.getAccessToken({

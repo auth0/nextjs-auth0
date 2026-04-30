@@ -44,8 +44,10 @@ export function mergeAuthorizationParamsIntoSearchParams(
         );
       }
 
-      // Only when there is a defined value, we set it.
-      if (val) {
+      // Only when the value is not null or undefined, we set it.
+      // This allows to use values such as empty string or 0,
+      // which are falsy but valid values for authorization parameters.
+      if (val != null) {
         authorizationParams.set(key, String(val));
       }
     }

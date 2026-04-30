@@ -1,0 +1,765 @@
+import { http, HttpResponse } from "msw";
+import { setupServer } from "msw/node";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi
+} from "vitest";
+
+import {
+  challengeScenarios,
+  enrollScenarios,
+  getAuthenticatorsScenarios,
+  verifyScenarios
+} from "../../test/mfa-scenarios-shared.js";
+import { generateSecret } from "../../test/utils.js";
+import type { MfaClient } from "../../types/index.js";
+import { encryptMfaToken } from "../../utils/mfa-utils.js";
+
+// Test constants
+const DEFAULT = {
+  domain: "auth0.local",
+  appBaseUrl: "http://localhost:3000",
+  mfaToken: "raw-mfa-token-from-auth0"
+};
+
+// MSW server setup
+const server = setupServer();
+
+beforeAll(() => {
+  server.listen({ onUnhandledRequest: "error" });
+
+  // Configure base URL for client routes via environment variables
+  process.env.NEXT_PUBLIC_MFA_AUTHENTICATORS_ROUTE = `${DEFAULT.appBaseUrl}/auth/mfa/authenticators`;
+  process.env.NEXT_PUBLIC_MFA_CHALLENGE_ROUTE = `${DEFAULT.appBaseUrl}/auth/mfa/challenge`;
+  process.env.NEXT_PUBLIC_MFA_VERIFY_ROUTE = `${DEFAULT.appBaseUrl}/auth/mfa/verify`;
+  process.env.NEXT_PUBLIC_MFA_ASSOCIATE_ROUTE = `${DEFAULT.appBaseUrl}/auth/mfa/associate`;
+});
+
+afterEach(() => {
+  server.resetHandlers();
+});
+
+afterAll(() => {
+  delete process.env.NEXT_PUBLIC_MFA_AUTHENTICATORS_ROUTE;
+  delete process.env.NEXT_PUBLIC_MFA_CHALLENGE_ROUTE;
+  delete process.env.NEXT_PUBLIC_MFA_VERIFY_ROUTE;
+  delete process.env.NEXT_PUBLIC_MFA_ASSOCIATE_ROUTE;
+  server.close();
+});
+
+describe("ClientMfaClient", () => {
+  let secret: string;
+  let mfaClient: MfaClient;
+
+  beforeEach(async () => {
+    secret = await generateSecret(32);
+    const { mfa } = await import("./index.js");
+    mfaClient = mfa;
+  });
+
+  describe("getAuthenticators", () => {
+    getAuthenticatorsScenarios.forEach((scenario) => {
+      it(scenario.name, async () => {
+        // Encrypt mfaToken with context
+        const encryptedToken = await encryptMfaToken(
+          DEFAULT.mfaToken,
+          scenario.input.mfaRequirements?.challenge
+            ? "https://api.example.com"
+            : "",
+          "openid profile",
+          scenario.input.mfaRequirements,
+          secret,
+          300
+        );
+
+        // Setup MSW handler for SDK route
+        if (scenario.mswResponse) {
+          server.use(
+            http.get(
+              `${DEFAULT.appBaseUrl}/auth/mfa/authenticators`,
+              ({ request }) => {
+                // Check Authorization header (not query param)
+                const authHeader = request.headers.get("Authorization");
+                expect(authHeader).toBe(`Bearer ${encryptedToken}`);
+
+                // No query param allowed
+                const url = new URL(request.url);
+                expect(url.searchParams.get("mfa_token")).toBeNull();
+
+                // Route handler returns snake_case, ClientMfaClient camelizes
+                return HttpResponse.json(scenario.mswResponse!.body, {
+                  status: scenario.mswResponse!.status
+                });
+              }
+            )
+          );
+        }
+
+        // Execute test
+        if (scenario.expectError) {
+          try {
+            await mfaClient.getAuthenticators({ mfaToken: encryptedToken });
+            throw new Error("Expected error to be thrown");
+          } catch (error) {
+            scenario.expectError(error);
+          }
+        } else {
+          const result = await mfaClient.getAuthenticators({
+            mfaToken: encryptedToken
+          });
+          if (typeof scenario.expected === "function") {
+            scenario.expected(result);
+          } else {
+            expect(result).toEqual(scenario.expected);
+          }
+        }
+      });
+    });
+
+    it("should throw MfaGetAuthenticatorsError for network errors", async () => {
+      const { MfaGetAuthenticatorsError } =
+        await import("../../errors/index.js");
+
+      const encryptedToken = await encryptMfaToken(
+        DEFAULT.mfaToken,
+        "https://api.example.com",
+        "openid profile",
+        { challenge: [{ type: "otp" }] },
+        secret,
+        300
+      );
+
+      // Simulate network failure
+      server.use(
+        http.get(`${DEFAULT.appBaseUrl}/auth/mfa/authenticators`, () => {
+          return HttpResponse.error();
+        })
+      );
+
+      try {
+        await mfaClient.getAuthenticators({ mfaToken: encryptedToken });
+        throw new Error("Expected error to be thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(MfaGetAuthenticatorsError);
+        expect((error as any).code).toBe("client_error");
+      }
+    });
+  });
+
+  describe("challenge", () => {
+    challengeScenarios.forEach((scenario) => {
+      it(scenario.name, async () => {
+        // Setup MSW handler for SDK route
+        if (scenario.mswResponse) {
+          server.use(
+            http.post(
+              `${DEFAULT.appBaseUrl}/auth/mfa/challenge`,
+              async ({ request }) => {
+                const body = (await request.json()) as any;
+                expect(body?.mfaToken).toBeDefined();
+                expect(body?.challengeType).toBeDefined();
+
+                return HttpResponse.json(scenario.mswResponse!.body, {
+                  status: scenario.mswResponse!.status
+                });
+              }
+            )
+          );
+        }
+
+        // Encrypt mfaToken with context
+        const encryptedToken = await encryptMfaToken(
+          DEFAULT.mfaToken,
+          "https://api.example.com",
+          "openid profile",
+          scenario.input.mfaRequirements,
+          secret,
+          300
+        );
+
+        // Setup MSW handler for SDK route
+        if (scenario.mswResponse) {
+          server.use(
+            http.post(
+              `${DEFAULT.appBaseUrl}/auth/mfa/challenge`,
+              async ({ request }) => {
+                // Challenge sends mfa_token in body (NOT Authorization header)
+                const body = (await request.json()) as any;
+                expect(body.mfa_token).toBe(encryptedToken);
+                expect(body.challenge_type).toBe(scenario.input.challengeType);
+                if (scenario.input.authenticatorId) {
+                  expect(body.authenticator_id).toBe(
+                    scenario.input.authenticatorId
+                  );
+                }
+
+                // Route handler returns snake_case, ClientMfaClient camelizes
+                return HttpResponse.json(scenario.mswResponse!.body, {
+                  status: scenario.mswResponse!.status
+                });
+              }
+            )
+          );
+        }
+
+        // Execute test
+        if (scenario.expectError) {
+          try {
+            await mfaClient.challenge({
+              mfaToken: encryptedToken,
+              challengeType: scenario.input.challengeType,
+              authenticatorId: scenario.input.authenticatorId
+            });
+            throw new Error("Expected error to be thrown");
+          } catch (error) {
+            scenario.expectError(error);
+          }
+        } else {
+          const result = await mfaClient.challenge({
+            mfaToken: encryptedToken,
+            challengeType: scenario.input.challengeType,
+            authenticatorId: scenario.input.authenticatorId
+          });
+          if (typeof scenario.expected === "function") {
+            scenario.expected(result);
+          } else {
+            expect(result).toEqual(scenario.expected);
+          }
+        }
+      });
+    });
+
+    it("should throw MfaChallengeError for network errors", async () => {
+      const { MfaChallengeError } = await import("../../errors/index.js");
+
+      const encryptedToken = await encryptMfaToken(
+        DEFAULT.mfaToken,
+        "https://api.example.com",
+        "openid profile",
+        { challenge: [{ type: "otp" }] },
+        secret,
+        300
+      );
+
+      server.use(
+        http.post(`${DEFAULT.appBaseUrl}/auth/mfa/challenge`, () => {
+          return HttpResponse.error();
+        })
+      );
+
+      try {
+        await mfaClient.challenge({
+          mfaToken: encryptedToken,
+          challengeType: "otp"
+        });
+        throw new Error("Expected error to be thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(MfaChallengeError);
+        expect((error as any).code).toBe("client_error");
+      }
+    });
+  });
+
+  describe("verify", () => {
+    verifyScenarios.forEach((scenario) => {
+      it(scenario.name, async () => {
+        // Encrypt mfaToken with context
+        const encryptedToken = await encryptMfaToken(
+          DEFAULT.mfaToken,
+          scenario.input.audience || "https://api.example.com",
+          scenario.input.scope || "openid profile",
+          scenario.input.mfaRequirements,
+          secret,
+          300
+        );
+
+        // Setup MSW handler for SDK route
+        if (scenario.mswResponse) {
+          server.use(
+            http.post(
+              `${DEFAULT.appBaseUrl}/auth/mfa/verify`,
+              async ({ request }) => {
+                // Check Authorization header
+                const authHeader = request.headers.get("Authorization");
+                expect(authHeader).toBe(`Bearer ${encryptedToken}`);
+
+                // Expect snake_case credential fields
+                const body = (await request.json()) as any;
+
+                if (scenario.input.otp) {
+                  expect(body.otp).toBe(scenario.input.otp);
+                } else if (scenario.input.oobCode) {
+                  expect(body.oob_code).toBe(scenario.input.oobCode);
+                  expect(body.binding_code).toBe(scenario.input.bindingCode);
+                } else if (scenario.input.recoveryCode) {
+                  expect(body.recovery_code).toBe(scenario.input.recoveryCode);
+                }
+
+                // Verify response is already snake_case
+                return HttpResponse.json(scenario.mswResponse!.body, {
+                  status: scenario.mswResponse!.status
+                });
+              }
+            )
+          );
+        }
+
+        // Build verify options
+        const verifyOptions: any = { mfaToken: encryptedToken };
+        if (scenario.input.otp) verifyOptions.otp = scenario.input.otp;
+        if (scenario.input.oobCode) {
+          verifyOptions.oobCode = scenario.input.oobCode;
+          verifyOptions.bindingCode = scenario.input.bindingCode;
+        }
+        if (scenario.input.recoveryCode)
+          verifyOptions.recoveryCode = scenario.input.recoveryCode;
+
+        // Execute test
+        if (scenario.expectError) {
+          try {
+            await mfaClient.verify(verifyOptions);
+            throw new Error("Expected error to be thrown");
+          } catch (error) {
+            scenario.expectError(error);
+          }
+        } else {
+          const result = await mfaClient.verify(verifyOptions);
+          if (typeof scenario.expected === "function") {
+            scenario.expected(result);
+          } else {
+            expect(result).toEqual(scenario.expected);
+          }
+        }
+      });
+    });
+
+    it("should throw MfaVerifyError for network errors", async () => {
+      const { MfaVerifyError } = await import("../../errors/index.js");
+
+      const encryptedToken = await encryptMfaToken(
+        DEFAULT.mfaToken,
+        "https://api.example.com",
+        "openid profile",
+        { challenge: [{ type: "otp" }] },
+        secret,
+        300
+      );
+
+      server.use(
+        http.post(`${DEFAULT.appBaseUrl}/auth/mfa/verify`, () => {
+          return HttpResponse.error();
+        })
+      );
+
+      try {
+        await mfaClient.verify({ mfaToken: encryptedToken, otp: "123456" });
+        throw new Error("Expected error to be thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(MfaVerifyError);
+        expect((error as any).code).toBe("client_error");
+      }
+    });
+
+    it("should parse MfaRequiredError for chained MFA", async () => {
+      const { MfaRequiredError } = await import("../../errors/index.js");
+
+      const encryptedToken = await encryptMfaToken(
+        DEFAULT.mfaToken,
+        "https://api.example.com",
+        "openid profile",
+        { challenge: [{ type: "otp" }] },
+        secret,
+        300
+      );
+
+      const newEncryptedToken = await encryptMfaToken(
+        "new-raw-token",
+        "https://api.example.com",
+        "openid profile",
+        { challenge: [{ type: "otp" }] },
+        secret,
+        300
+      );
+
+      server.use(
+        http.post(`${DEFAULT.appBaseUrl}/auth/mfa/verify`, () => {
+          return HttpResponse.json(
+            {
+              error: "mfa_required",
+              error_description: "Invalid OTP",
+              mfa_token: newEncryptedToken,
+              mfa_requirements: {
+                challenge: [{ type: "otp" }]
+              }
+            },
+            { status: 400 }
+          );
+        })
+      );
+
+      try {
+        await mfaClient.verify({ mfaToken: encryptedToken, otp: "000000" });
+        throw new Error("Expected error to be thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(MfaRequiredError);
+        const mfaError = error as any;
+        expect(mfaError.mfa_token).toBe(newEncryptedToken);
+        expect(mfaError.mfa_requirements).toEqual({
+          challenge: [{ type: "otp" }]
+        });
+      }
+    });
+
+    it("should preserve token_type from server response", async () => {
+      const encryptedToken = await encryptMfaToken(
+        DEFAULT.mfaToken,
+        "https://api.example.com",
+        "openid profile",
+        { challenge: [{ type: "otp" }] },
+        secret,
+        300
+      );
+
+      server.use(
+        http.post(`${DEFAULT.appBaseUrl}/auth/mfa/verify`, () => {
+          return HttpResponse.json({
+            access_token: "new-access-token",
+            token_type: "Bearer",
+            expires_in: 3600
+          });
+        })
+      );
+
+      const result = await mfaClient.verify({
+        mfaToken: encryptedToken,
+        otp: "123456"
+      });
+      expect(result.token_type).toBe("Bearer");
+    });
+  });
+
+  describe("enroll", () => {
+    // Shared scenarios (4 tests)
+    enrollScenarios.forEach((scenario) => {
+      it(scenario.name, async () => {
+        const encryptedToken = await encryptMfaToken(
+          DEFAULT.mfaToken,
+          "",
+          "openid profile",
+          undefined,
+          secret,
+          300
+        );
+
+        if (scenario.mswResponse) {
+          server.use(
+            http.post(
+              `${DEFAULT.appBaseUrl}/auth/mfa/associate`,
+              async ({ request }) => {
+                // Check Authorization header
+                const authHeader = request.headers.get("Authorization");
+                expect(authHeader).toBe(`Bearer ${encryptedToken}`);
+
+                // Expect snake_case body fields
+                const body = (await request.json()) as any;
+                expect(body.authenticator_types).toEqual(
+                  scenario.input.authenticatorTypes
+                );
+
+                if (scenario.input.oobChannels) {
+                  expect(body.oob_channels).toEqual(scenario.input.oobChannels);
+                }
+                if (scenario.input.phoneNumber) {
+                  expect(body.phone_number).toBe(scenario.input.phoneNumber);
+                }
+
+                // Route handler returns snake_case response
+                // ClientMfaClient will camelize it
+                return HttpResponse.json(scenario.mswResponse!.body, {
+                  status: scenario.mswResponse!.status
+                });
+              }
+            )
+          );
+        }
+
+        if (scenario.expectError) {
+          try {
+            await mfaClient.enroll({
+              mfaToken: encryptedToken,
+              authenticatorTypes: scenario.input.authenticatorTypes,
+              ...(scenario.input.oobChannels && {
+                oobChannels: scenario.input.oobChannels
+              }),
+              ...(scenario.input.phoneNumber && {
+                phoneNumber: scenario.input.phoneNumber
+              }),
+              ...(scenario.input.email && { email: scenario.input.email })
+            } as any);
+            throw new Error("Expected error to be thrown");
+          } catch (error) {
+            scenario.expectError(error);
+          }
+        } else {
+          const result = await mfaClient.enroll({
+            mfaToken: encryptedToken,
+            authenticatorTypes: scenario.input.authenticatorTypes,
+            ...(scenario.input.oobChannels && {
+              oobChannels: scenario.input.oobChannels
+            }),
+            ...(scenario.input.phoneNumber && {
+              phoneNumber: scenario.input.phoneNumber
+            }),
+            ...(scenario.input.email && { email: scenario.input.email })
+          } as any);
+          if (typeof scenario.expected === "function") {
+            scenario.expected(result);
+          }
+        }
+      });
+    });
+
+    // Network errors (1 test)
+    it("should throw MfaEnrollmentError for network errors", async () => {
+      const { MfaEnrollmentError } = await import("../../errors/index.js");
+      const encryptedToken = await encryptMfaToken(
+        DEFAULT.mfaToken,
+        "",
+        "openid profile",
+        undefined,
+        secret,
+        300
+      );
+
+      server.use(
+        http.post(`${DEFAULT.appBaseUrl}/auth/mfa/associate`, () => {
+          return HttpResponse.error();
+        })
+      );
+
+      try {
+        await mfaClient.enroll({
+          mfaToken: encryptedToken,
+          authenticatorTypes: ["otp"]
+        });
+        throw new Error("Expected error to be thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(MfaEnrollmentError);
+        expect((error as any).code).toBe("client_error");
+      }
+    });
+
+    // Request format (1 test)
+    it("should send POST with JSON body", async () => {
+      const fetchSpy = vi.spyOn(global, "fetch");
+      const encryptedToken = await encryptMfaToken(
+        DEFAULT.mfaToken,
+        "",
+        "openid profile",
+        undefined,
+        secret,
+        300
+      );
+
+      server.use(
+        http.post(`${DEFAULT.appBaseUrl}/auth/mfa/associate`, () => {
+          // Route handler returns snake_case response
+          return HttpResponse.json({
+            authenticator_type: "otp",
+            barcode_uri: "otpauth://...",
+            secret: "SECRET",
+            id: "totp|dev_abc"
+          });
+        })
+      );
+
+      await mfaClient.enroll({
+        mfaToken: encryptedToken,
+        authenticatorTypes: ["oob"],
+        oobChannels: ["sms"],
+        phoneNumber: "+15551234567"
+      } as any);
+
+      expect(fetchSpy).toHaveBeenCalledWith(
+        expect.stringContaining("/auth/mfa/associate"),
+        expect.objectContaining({
+          method: "POST",
+          credentials: "omit",
+          headers: expect.objectContaining({
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${encryptedToken}`
+          }),
+          body: JSON.stringify({
+            authenticator_types: ["oob"],
+            oob_channels: ["sms"],
+            phone_number: "+15551234567"
+          })
+        })
+      );
+    });
+
+    // factorType variant tests
+    it("should enroll with factorType: 'sms' and normalize to authenticatorTypes", async () => {
+      const _fetchSpy = vi.spyOn(global, "fetch");
+      const encryptedToken = await encryptMfaToken(
+        DEFAULT.mfaToken,
+        "",
+        "openid profile",
+        undefined,
+        secret,
+        300
+      );
+
+      server.use(
+        http.post(
+          `${DEFAULT.appBaseUrl}/auth/mfa/associate`,
+          async ({ request }) => {
+            // Verify that factorType was normalized to authenticatorTypes
+            const body = (await request.json()) as any;
+            expect(body.authenticator_types).toEqual(["oob"]);
+            expect(body.oob_channels).toEqual(["sms"]);
+            expect(body.phone_number).toBe("+15551234567");
+
+            return HttpResponse.json({
+              authenticator_type: "oob",
+              oob_channel: "sms",
+              id: "sms|dev_abc",
+              name: "My SMS"
+            });
+          }
+        )
+      );
+
+      const result = await mfaClient.enroll({
+        mfaToken: encryptedToken,
+        factorType: "sms",
+        phoneNumber: "+15551234567"
+      } as any);
+
+      expect(result).toEqual({
+        authenticatorType: "oob",
+        oobChannel: "sms",
+        id: "sms|dev_abc",
+        name: "My SMS"
+      });
+    });
+
+    it("should enroll with factorType: 'otp'", async () => {
+      const encryptedToken = await encryptMfaToken(
+        DEFAULT.mfaToken,
+        "",
+        "openid profile",
+        undefined,
+        secret,
+        300
+      );
+
+      server.use(
+        http.post(
+          `${DEFAULT.appBaseUrl}/auth/mfa/associate`,
+          async ({ request }) => {
+            const body = (await request.json()) as any;
+            expect(body.authenticator_types).toEqual(["otp"]);
+            expect("oob_channels" in body).toBe(false);
+
+            return HttpResponse.json({
+              authenticator_type: "otp",
+              secret: "JBSWY3DPEBLW64TMMQ======",
+              barcode_uri: "otpauth://totp/test",
+              id: "totp|dev_abc"
+            });
+          }
+        )
+      );
+
+      const result = await mfaClient.enroll({
+        mfaToken: encryptedToken,
+        factorType: "otp"
+      } as any);
+
+      expect(result).toEqual({
+        authenticatorType: "otp",
+        secret: "JBSWY3DPEBLW64TMMQ======",
+        barcodeUri: "otpauth://totp/test",
+        id: "totp|dev_abc"
+      });
+    });
+  });
+
+  describe("Credentials Policy", () => {
+    it("stateless methods use credentials: omit, verify uses include", async () => {
+      const fetchSpy = vi.spyOn(global, "fetch");
+      const encryptedToken = await encryptMfaToken(
+        DEFAULT.mfaToken,
+        "",
+        "openid profile",
+        undefined,
+        secret,
+        300
+      );
+
+      // Test stateless: getAuthenticators
+      server.use(
+        http.get(`${DEFAULT.appBaseUrl}/auth/mfa/authenticators`, () => {
+          return HttpResponse.json([]);
+        })
+      );
+      await mfaClient.getAuthenticators({ mfaToken: encryptedToken });
+      expect(fetchSpy).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ credentials: "omit" })
+      );
+
+      fetchSpy.mockClear();
+
+      // Test stateful: verify (session caching)
+      server.use(
+        http.post(`${DEFAULT.appBaseUrl}/auth/mfa/verify`, () => {
+          return HttpResponse.json({
+            access_token: "test",
+            token_type: "Bearer",
+            expires_in: 3600
+          });
+        })
+      );
+      await mfaClient.verify({ mfaToken: encryptedToken, otp: "123456" });
+      expect(fetchSpy).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ credentials: "include" })
+      );
+    });
+  });
+
+  describe("getAuthenticators - query param validation", () => {
+    it("should handle empty query param gracefully", async () => {
+      const { MfaGetAuthenticatorsError } =
+        await import("../../errors/index.js");
+
+      // Server should reject empty mfa_token
+      server.use(
+        http.get(`${DEFAULT.appBaseUrl}/auth/mfa/authenticators`, () => {
+          return HttpResponse.json(
+            {
+              error: "invalid_request",
+              error_description: "Missing or invalid mfa_token"
+            },
+            { status: 400 }
+          );
+        })
+      );
+
+      try {
+        await mfaClient.getAuthenticators({ mfaToken: "" });
+        throw new Error("Expected error to be thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(MfaGetAuthenticatorsError);
+      }
+    });
+  });
+});

@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "http";
-import { cookies } from "next/headers.js";
+import type { ParsedUrlQuery } from "querystring";
+import { cookies, headers as getHeaders } from "next/headers.js";
 import { NextRequest, NextResponse } from "next/server.js";
 import { NextApiHandler, NextApiRequest, NextApiResponse } from "next/types.js";
 
@@ -9,7 +10,9 @@ import {
   AccessTokenForConnectionError,
   AccessTokenForConnectionErrorCode,
   ConnectAccountError,
-  ConnectAccountErrorCodes
+  ConnectAccountErrorCodes,
+  InvalidConfigurationError,
+  MfaRequiredError
 } from "../errors/index.js";
 import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
 import {
@@ -26,10 +29,14 @@ import {
   StartInteractiveLoginOptions,
   User
 } from "../types/index.js";
-import { DEFAULT_SCOPES } from "../utils/constants.js";
-import { validateDpopConfiguration } from "../utils/dpopUtils.js";
+import type { DiscoveryCacheOptions, DomainResolver } from "../types/mcd.js";
+import {
+  DEFAULT_MFA_CONTEXT_TTL_SECONDS,
+  DEFAULT_SCOPES
+} from "../utils/constants.js";
 import { isRequest } from "../utils/request.js";
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
+import { AuthClientProvider } from "./auth-client-provider.js";
 import {
   AuthClient,
   BeforeSessionSavedHook,
@@ -38,16 +45,25 @@ import {
   RoutesOptions
 } from "./auth-client.js";
 import { RequestCookies, ResponseCookies } from "./cookies.js";
+import { DiscoveryCache } from "./discovery-cache.js";
 import { AccessTokenFactory, CustomFetchImpl, Fetcher } from "./fetcher.js";
 import * as withApiAuthRequired from "./helpers/with-api-auth-required.js";
 import {
   appRouteHandlerFactory,
   AppRouterPageRoute,
+  AppRouterPageRouteOpts,
+  PageRoute,
   pageRouteHandlerFactory,
   WithPageAuthRequiredAppRouterOptions,
   WithPageAuthRequiredPageRouterOptions
 } from "./helpers/with-page-auth-required.js";
-import { toNextRequest, toNextResponse } from "./next-compat.js";
+import { ServerMfaClient } from "./mfa/server-mfa-client.js";
+import {
+  toHeadersFromIncomingMessage,
+  toNextRequest,
+  toNextResponse,
+  toUrlFromPagesRouter
+} from "./next-compat.js";
 import {
   AbstractSessionStore,
   SessionConfiguration,
@@ -63,11 +79,18 @@ import {
 export interface Auth0ClientOptions {
   // authorization server configuration
   /**
-   * The Auth0 domain for the tenant (e.g.: `example.us.auth0.com`).
+   * The Auth0 domain for the tenant.
    *
-   * If it's not specified, it will be loaded from the `AUTH0_DOMAIN` environment variable.
+   * - `string`: Static domain (e.g., `"example.us.auth0.com"`). Existing behavior preserved.
+   * - `DomainResolver`: Async function resolving domain per-request from headers.
+   *   Enables Multiple Custom Domains (MCD) for B2C multi-brand, B2B SaaS, or domain migration.
+   *
+   * Falls back to `AUTH0_DOMAIN` environment variable if not provided.
+   *
+   * @see {@link DomainResolver} for resolver signature and examples.
+   * @see [MCD Examples](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#multiple-custom-domains-mcd)
    */
-  domain?: string;
+  domain?: string | DomainResolver;
   /**
    * The Auth0 client ID.
    *
@@ -105,9 +128,16 @@ export interface Auth0ClientOptions {
   /**
    * The URL of your application (e.g.: `http://localhost:3000`).
    *
+   * Can be a single URL string, or an array of allowed base URLs. When an array is
+   * provided, the SDK validates the incoming request origin against the list and uses
+   * the matching entry (allow-list mode). This is useful for multi-domain or preview
+   * deployments where you want to restrict which origins are accepted.
+   *
    * If it's not specified, it will be loaded from the `APP_BASE_URL` environment variable.
+   * Multiple origins can be provided as a comma-separated string (e.g. `https://app.example.com,https://myapp.vercel.app`).
+   * If neither is provided, the SDK will infer it from the request host at runtime.
    */
-  appBaseUrl?: string;
+  appBaseUrl?: string | string[];
   /**
    * A 32-byte, hex-encoded secret used for encrypting cookies.
    *
@@ -220,6 +250,16 @@ export interface Auth0ClientOptions {
    * See: https://datatracker.ietf.org/doc/html/draft-ietf-oauth-browser-based-apps#name-token-mediating-backend
    */
   enableAccessTokenEndpoint?: boolean;
+
+  /**
+   * Number of seconds to refresh access tokens early when calling `getAccessToken`.
+   * This is a server-side buffer applied to token expiration checks. For example,
+   * with a buffer of 60 seconds, tokens expiring within the next minute will be
+   * refreshed proactively when a refresh token is available.
+   *
+   * Defaults to `0` (no early refresh).
+   */
+  tokenRefreshBuffer?: number;
 
   /**
    * If true, the profile endpoint will return a 204 No Content response when the user is not authenticated
@@ -353,6 +393,47 @@ export interface Auth0ClientOptions {
    * @see {@link DpopOptions} for detailed option descriptions
    */
   dpopOptions?: DpopOptions;
+
+  /**
+   * MFA context TTL in seconds. Controls how long encrypted mfa_token remains valid.
+   * Default: 300 (5 minutes, matching Auth0's mfa_token expiration)
+   *
+   * Can also be set via AUTH0_MFA_TOKEN_TTL environment variable.
+   *
+   * @example
+   * ```typescript
+   * const auth0 = new Auth0Client({
+   *   mfaTokenTtl: 600 // 10 minutes
+   * });
+   * ```
+   */
+  mfaTokenTtl?: number;
+
+  /**
+   * Content Security Policy nonce for inline scripts in popup flows.
+   *
+   * Required when your application uses CSP and the popup-based step-up
+   * authentication flow (challengeMode: 'popup'). The nonce is
+   * injected into the inline `<script>` tag of the postMessage HTML response.
+   *
+   * @example
+   * ```typescript
+   * const auth0 = new Auth0Client({
+   *   cspNonce: crypto.randomUUID()
+   * });
+   * ```
+   */
+  cspNonce?: string;
+
+  /**
+   * Configuration for the OIDC discovery metadata cache.
+   * Controls TTL and maximum cached issuers for MCD resolver mode.
+   * Also applies in static mode (single cached entry).
+   *
+   * @see {@link DiscoveryCacheOptions}
+   * @see [MCD Examples](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#multiple-custom-domains-mcd)
+   */
+  discoveryCache?: DiscoveryCacheOptions;
 }
 
 export type PagesRouterRequest = IncomingMessage | NextApiRequest;
@@ -363,13 +444,14 @@ export type PagesRouterResponse =
 export class Auth0Client {
   private transactionStore: TransactionStore;
   private sessionStore: AbstractSessionStore;
-  private authClient: AuthClient;
+  private provider: AuthClientProvider;
   private routes: Routes;
-  private domain: string;
+  private _mfa?: ServerMfaClient;
   #options: Auth0ClientOptions;
 
   constructor(options: Auth0ClientOptions = {}) {
     this.#options = options;
+
     // Extract and validate required options
     const {
       domain,
@@ -379,26 +461,61 @@ export class Auth0Client {
       secret,
       clientAssertionSigningKey
     } = this.validateAndExtractRequiredOptions(options);
-    this.domain = domain;
 
     const clientAssertionSigningAlg =
       options.clientAssertionSigningAlg ||
       process.env.AUTH0_CLIENT_ASSERTION_SIGNING_ALG;
 
-    // Validate DPoP configuration and resolve from environment variables if needed
-    const {
-      dpopKeyPair: resolvedDpopKeyPair,
-      dpopOptions: resolvedDpopOptions
-    } = validateDpopConfiguration(options);
+    // Early warning if DPoP is enabled but no keypair (doesn't require crypto)
+    if (options.useDPoP && !options.dpopKeyPair) {
+      const privateKeyEnv = process.env.AUTH0_DPOP_PRIVATE_KEY;
+      const publicKeyEnv = process.env.AUTH0_DPOP_PUBLIC_KEY;
+      const hasBothKeys = Boolean(privateKeyEnv && publicKeyEnv);
+
+      if (!hasBothKeys) {
+        console.warn(
+          "WARNING: useDPoP is set to true but dpopKeyPair is not provided. " +
+            "DPoP will not be used and protected requests will use bearer authentication instead. " +
+            "To enable DPoP, provide a dpopKeyPair in the Auth0Client options or set " +
+            "AUTH0_DPOP_PUBLIC_KEY and AUTH0_DPOP_PRIVATE_KEY environment variables."
+        );
+      }
+      // Note: If both env vars ARE present, validation happens lazily on first DPoP operation
+      // This prevents crypto module from being bundled when useDPoP=false
+    }
+
+    // Resolve MFA token TTL from options or environment variable
+    const mfaTokenTtl = this.resolveMfaTokenTtl(
+      options.mfaTokenTtl,
+      process.env.AUTH0_MFA_TOKEN_TTL
+    );
+
+    const tokenRefreshBufferOption = options.tokenRefreshBuffer;
+    if (tokenRefreshBufferOption != null) {
+      if (
+        typeof tokenRefreshBufferOption !== "number" ||
+        !Number.isFinite(tokenRefreshBufferOption) ||
+        tokenRefreshBufferOption < 0
+      ) {
+        throw new TypeError(
+          "tokenRefreshBuffer must be a non-negative number of seconds."
+        );
+      }
+    }
+    const tokenRefreshBuffer = tokenRefreshBufferOption ?? 0;
 
     // Auto-detect base path for cookie configuration
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
 
+    // Session cookie secure can be configured via options or AUTH0_COOKIE_SECURE.
+    const envCookieSecure = process.env.AUTH0_COOKIE_SECURE;
+    const sessionSecureExplicit =
+      options.session?.cookie?.secure ??
+      (envCookieSecure !== undefined ? envCookieSecure === "true" : undefined);
+
     const sessionCookieOptions: SessionCookieOptions = {
       name: options.session?.cookie?.name ?? "__session",
-      secure:
-        options.session?.cookie?.secure ??
-        process.env.AUTH0_COOKIE_SECURE === "true",
+      secure: sessionSecureExplicit ?? false,
       sameSite:
         options.session?.cookie?.sameSite ??
         (process.env.AUTH0_COOKIE_SAME_SITE as "lax" | "strict" | "none") ??
@@ -414,20 +531,55 @@ export class Auth0Client {
       domain: options.session?.cookie?.domain ?? process.env.AUTH0_COOKIE_DOMAIN
     };
 
+    // Transaction cookies only support secure via options (no env var).
+    const transactionSecureExplicit = options.transactionCookie?.secure;
     const transactionCookieOptions: TransactionCookieOptions = {
       prefix: options.transactionCookie?.prefix ?? "__txn_",
-      secure: options.transactionCookie?.secure ?? false,
+      secure: transactionSecureExplicit ?? false,
       sameSite: options.transactionCookie?.sameSite ?? "lax",
       path: options.transactionCookie?.path ?? basePath ?? "/",
-      maxAge: options.transactionCookie?.maxAge ?? 3600
+      maxAge: options.transactionCookie?.maxAge ?? 3600,
+      domain:
+        options.transactionCookie?.domain ?? process.env.AUTH0_COOKIE_DOMAIN
     };
 
     if (appBaseUrl) {
-      const { protocol } = new URL(appBaseUrl);
-      if (protocol === "https:") {
+      const usesHttps = Array.isArray(appBaseUrl)
+        ? appBaseUrl.every((url) => new URL(url).protocol === "https:")
+        : new URL(appBaseUrl).protocol === "https:";
+
+      // Only enforce secure cookies when the configured base URL(s) are all https.
+      if (usesHttps) {
         sessionCookieOptions.secure = true;
         transactionCookieOptions.secure = true;
       }
+    } else if (process.env.NODE_ENV === "production") {
+      // No appBaseUrl is configured, so the SDK relies on the request host at runtime.
+      // In production we require secure cookies for this dynamic mode (and fail fast if
+      // a cookie is explicitly marked insecure) to avoid shipping non-secure defaults.
+      if (sessionSecureExplicit === false) {
+        throw new InvalidConfigurationError(
+          "Session cookies must be marked secure in production when appBaseUrl is not configured. Set AUTH0_COOKIE_SECURE=true or session.cookie.secure=true."
+        );
+      }
+
+      if (transactionSecureExplicit === false) {
+        throw new InvalidConfigurationError(
+          "Transaction cookies must be marked secure in production when appBaseUrl is not configured. Set transactionCookie.secure=true."
+        );
+      }
+
+      sessionCookieOptions.secure = true;
+      transactionCookieOptions.secure = true;
+    } else if (
+      process.env.NODE_ENV === "development" &&
+      (sessionSecureExplicit === false || transactionSecureExplicit === false)
+    ) {
+      // Warn during development when dynamic base URL resolution is combined with
+      // explicitly insecure cookies, since production will reject this configuration.
+      console.warn(
+        "'appBaseUrl' is not configured and cookies are explicitly marked insecure. This is allowed in development, but will throw in production. Configure appBaseUrl or set secure=true for session/transaction cookies."
+      );
     }
 
     this.routes = {
@@ -439,6 +591,15 @@ export class Auth0Client {
       accessToken:
         process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token",
       connectAccount: "/auth/connect",
+      mfaAuthenticators:
+        process.env.NEXT_PUBLIC_MFA_AUTHENTICATORS_ROUTE ||
+        "/auth/mfa/authenticators",
+      mfaChallenge:
+        process.env.NEXT_PUBLIC_MFA_CHALLENGE_ROUTE || "/auth/mfa/challenge",
+      mfaVerify: process.env.NEXT_PUBLIC_MFA_VERIFY_ROUTE || "/auth/mfa/verify",
+      mfaAssociate:
+        process.env.NEXT_PUBLIC_MFA_ASSOCIATE_ROUTE || "/auth/mfa/associate",
+      // deleteAuthenticator uses mfaAuthenticators route with DELETE method
       ...options.routes
     };
 
@@ -461,48 +622,101 @@ export class Auth0Client {
           cookieOptions: sessionCookieOptions
         });
 
-    this.authClient = new AuthClient({
-      transactionStore: this.transactionStore,
-      sessionStore: this.sessionStore,
+    // Create discovery cache for the provider
+    const discoveryCache = new DiscoveryCache(options.discoveryCache);
 
-      domain,
-      clientId,
-      clientSecret,
-      clientAssertionSigningKey,
-      clientAssertionSigningAlg,
-      authorizationParameters: options.authorizationParameters,
-      pushedAuthorizationRequests: options.pushedAuthorizationRequests,
+    // When AUTH0_DOMAIN is not available at module evaluation time (e.g. during a
+    // Next.js standalone build that injects env vars only at runtime), `domain` will
+    // be undefined. Passing undefined to AuthClientProvider causes it to throw
+    // immediately in the constructor, which breaks the build.
+    //
+    // Work around this by converting a missing domain into a DomainResolver that
+    // reads AUTH0_DOMAIN lazily on the first request. If the env var is still absent
+    // at request time, the resolver will throw with a clear error message.
+    //
+    // If domain is already a string or a DomainResolver function, it is used as-is.
+    const domainForProvider: string | DomainResolver =
+      domain ||
+      (() => {
+        const runtimeDomain = process.env.AUTH0_DOMAIN;
+        if (!runtimeDomain) {
+          throw new InvalidConfigurationError(
+            "Missing: domain: Set AUTH0_DOMAIN env var or pass domain in options."
+          );
+        }
+        return runtimeDomain;
+      });
 
-      appBaseUrl,
-      secret,
-      signInReturnToPath: options.signInReturnToPath,
-      logoutStrategy: options.logoutStrategy,
-      includeIdTokenHintInOIDCLogoutUrl:
-        options.includeIdTokenHintInOIDCLogoutUrl,
-
-      beforeSessionSaved: options.beforeSessionSaved,
-      onCallback: options.onCallback,
-
-      routes: this.routes,
-
+    // Create provider that manages AuthClient instances
+    // Note: We defer the provider reference in the factory to avoid circular reference during construction.
+    // The factory captures 'this' by reference, and will read this.provider when called later (not during construction).
+    this.provider = new AuthClientProvider({
+      domain: domainForProvider,
       allowInsecureRequests: options.allowInsecureRequests,
-      httpTimeout: options.httpTimeout,
-      enableTelemetry: options.enableTelemetry,
-      enableAccessTokenEndpoint: options.enableAccessTokenEndpoint,
-      noContentProfileResponseWhenUnauthenticated:
-        options.noContentProfileResponseWhenUnauthenticated,
-      enableConnectAccountEndpoint: options.enableConnectAccountEndpoint,
-      useDPoP: options.useDPoP || false,
-      dpopKeyPair: options.dpopKeyPair || resolvedDpopKeyPair,
-      dpopOptions: options.dpopOptions || resolvedDpopOptions
+      createAuthClient: (domainForClient) => {
+        return new AuthClient({
+          transactionStore: this.transactionStore,
+          sessionStore: this.sessionStore,
+
+          domain: domainForClient,
+          clientId,
+          clientSecret,
+          clientAssertionSigningKey,
+          clientAssertionSigningAlg,
+          authorizationParameters: options.authorizationParameters,
+          pushedAuthorizationRequests: options.pushedAuthorizationRequests,
+
+          appBaseUrl,
+          secret,
+          signInReturnToPath: options.signInReturnToPath,
+          logoutStrategy: options.logoutStrategy,
+          includeIdTokenHintInOIDCLogoutUrl:
+            options.includeIdTokenHintInOIDCLogoutUrl,
+
+          beforeSessionSaved: options.beforeSessionSaved,
+          onCallback: options.onCallback,
+
+          routes: this.routes,
+
+          allowInsecureRequests: options.allowInsecureRequests,
+          httpTimeout: options.httpTimeout,
+          enableTelemetry: options.enableTelemetry,
+          enableAccessTokenEndpoint: options.enableAccessTokenEndpoint,
+          noContentProfileResponseWhenUnauthenticated:
+            options.noContentProfileResponseWhenUnauthenticated,
+          enableConnectAccountEndpoint: options.enableConnectAccountEndpoint,
+          tokenRefreshBuffer,
+          useDPoP: options.useDPoP || false,
+          dpopKeyPair: options.dpopKeyPair,
+          dpopOptions: options.dpopOptions,
+          mfaTokenTtl,
+          cspNonce: options.cspNonce,
+
+          discoveryCache,
+          provider: this.provider
+        });
+      }
     });
+
+    // Update provider references in any already-created AuthClients (static mode)
+    // This is needed because the factory in static mode is called during AuthClientProvider construction,
+    // before this.provider is fully assigned. The closure captures 'this', so by this point it will be valid.
+    const staticClient = this.provider.getAuthClientForStaticMode();
+    if (staticClient) {
+      staticClient.provider = this.provider;
+    }
   }
 
   /**
    * middleware mounts the SDK routes to run as a middleware function.
    */
-  middleware(req: Request | NextRequest): Promise<NextResponse> {
-    return this.authClient.handler.bind(this.authClient)(toNextRequest(req));
+  async middleware(req: Request | NextRequest): Promise<NextResponse> {
+    const nextReq = toNextRequest(req);
+    const authClient = await this.provider.forRequest(
+      nextReq.headers,
+      nextReq.nextUrl
+    );
+    return authClient.handler.bind(authClient)(nextReq);
   }
 
   /**
@@ -527,19 +741,50 @@ export class Auth0Client {
   async getSession(
     req?: Request | PagesRouterRequest | NextRequest
   ): Promise<SessionData | null> {
-    if (req) {
-      // middleware usage
-      if (req instanceof Request) {
-        const nextReq = toNextRequest(req);
-        return this.sessionStore.get(nextReq.cookies);
-      }
+    const { authClient, normalizedReq } = await this.resolveRequestContext(req);
 
-      // pages router usage
-      return this.sessionStore.get(this.createRequestCookies(req));
+    // extract cookies
+    let reqCookies:
+      | RequestCookies
+      | import("./cookies.js").ReadonlyRequestCookies;
+    if (normalizedReq) {
+      reqCookies =
+        normalizedReq instanceof NextRequest
+          ? normalizedReq.cookies
+          : this.createRequestCookies(normalizedReq);
+    } else {
+      reqCookies = await cookies();
     }
 
-    // app router usage: Server Components, Server Actions, Route Handlers
-    return this.sessionStore.get(await cookies());
+    const { error, session } =
+      await authClient.getSessionWithDomainCheck(reqCookies);
+    if (error) throw error;
+    return session;
+  }
+
+  /**
+   * Fetches session using an already-resolved AuthClient, avoiding double resolver invocation.
+   * @internal
+   */
+  private async getSessionFromAuthClient(
+    authClient: AuthClient,
+    req?: PagesRouterRequest | NextRequest
+  ): Promise<SessionData | null> {
+    let reqCookies:
+      | RequestCookies
+      | import("./cookies.js").ReadonlyRequestCookies;
+    if (req) {
+      reqCookies =
+        req instanceof NextRequest
+          ? req.cookies
+          : this.createRequestCookies(req);
+    } else {
+      reqCookies = await cookies();
+    }
+    const { error, session } =
+      await authClient.getSessionWithDomainCheck(reqCookies);
+    if (error) throw error;
+    return session;
   }
 
   /**
@@ -661,9 +906,12 @@ export class Auth0Client {
     token_type?: string;
     audience?: string;
   }> {
-    const session: SessionData | null = req
-      ? await this.getSession(req)
-      : await this.getSession();
+    const { authClient, normalizedReq } = await this.resolveRequestContext(req);
+
+    const session = await this.getSessionFromAuthClient(
+      authClient,
+      normalizedReq
+    );
 
     if (!session) {
       throw new AccessTokenError(
@@ -672,11 +920,16 @@ export class Auth0Client {
       );
     }
 
-    const [error, getTokenSetResponse] = await this.authClient.getTokenSet(
+    const [error, getTokenSetResponse] = await authClient.getTokenSet(
       session,
       options
     );
     if (error) {
+      // For MFA required errors, save session with MFA context before throwing
+      // Note: getTokenSet mutates session.mfa by reference when MFA is required
+      if (error instanceof MfaRequiredError) {
+        await this.saveToSession(session, req, res);
+      }
       throw error;
     }
     const { tokenSet, idTokenClaims } = getTokenSetResponse;
@@ -696,7 +949,7 @@ export class Auth0Client {
       }
       // call beforeSessionSaved callback if present
       // if not then filter id_token claims with default rules
-      const finalSession = await this.authClient.finalizeSession(
+      const finalSession = await authClient.finalizeSession(
         { ...session, ...sessionChanges },
         tokenSet.idToken
       );
@@ -757,10 +1010,12 @@ export class Auth0Client {
     req?: PagesRouterRequest | NextRequest | Request,
     res?: PagesRouterResponse | NextResponse
   ): Promise<{ token: string; expiresAt: number; scope?: string }> {
-    const nextReq = req instanceof Request ? toNextRequest(req) : req;
-    const session: SessionData | null = nextReq
-      ? await this.getSession(nextReq)
-      : await this.getSession();
+    const { authClient, normalizedReq } = await this.resolveRequestContext(req);
+
+    const session = await this.getSessionFromAuthClient(
+      authClient,
+      normalizedReq
+    );
 
     if (!session) {
       throw new AccessTokenForConnectionError(
@@ -774,12 +1029,11 @@ export class Auth0Client {
       (tokenSet) => tokenSet.connection === options.connection
     );
 
-    const [error, retrievedTokenSet] =
-      await this.authClient.getConnectionTokenSet(
-        session.tokenSet,
-        existingTokenSet,
-        options
-      );
+    const [error, retrievedTokenSet] = await authClient.getConnectionTokenSet(
+      session.tokenSet,
+      existingTokenSet,
+      options
+    );
 
     if (error !== null) {
       throw error;
@@ -815,7 +1069,7 @@ export class Auth0Client {
           ...session,
           connectionTokenSets: tokenSets
         },
-        nextReq,
+        normalizedReq,
         res
       );
     }
@@ -858,14 +1112,58 @@ export class Auth0Client {
   async customTokenExchange(
     options: CustomTokenExchangeOptions
   ): Promise<CustomTokenExchangeResponse> {
-    const [error, response] =
-      await this.authClient.customTokenExchange(options);
+    const reqHeaders = await getHeaders();
+    const authClient = await this.provider.forRequest(reqHeaders, undefined);
+
+    const [error, response] = await authClient.customTokenExchange(options);
 
     if (error !== null) {
       throw error;
     }
 
     return response;
+  }
+
+  /**
+   * MFA API for server-side operations.
+   *
+   * Provides access to MFA methods that require encrypted mfa_token from MfaRequiredError:
+   * - getAuthenticators: List enrolled MFA factors
+   * - challenge: Initiate MFA challenge (OTP/OOB)
+   * - verify: Complete MFA verification
+   *
+   * @example Handling MFA required scenario
+   * ```typescript
+   * try {
+   *   const { token } = await auth0.getAccessToken({ audience: 'https://api.example.com' });
+   * } catch (error) {
+   *   if (error instanceof MfaRequiredError) {
+   *     // Get available authenticators
+   *     const authenticators = await auth0.mfa.getAuthenticators({
+   *       mfaToken: error.mfa_token
+   *     });
+   *
+   *     // Initiate challenge
+   *     const challenge = await auth0.mfa.challenge({
+   *       mfaToken: error.mfa_token,
+   *       challengeType: 'otp',
+   *       authenticatorId: authenticators[0].id
+   *     });
+   *
+   *     // Verify code
+   *     const tokens = await auth0.mfa.verify({
+   *       mfaToken: error.mfa_token,
+   *       otp: '123456'
+   *     });
+   *   }
+   * }
+   * ```
+   */
+  get mfa(): ServerMfaClient {
+    if (!this._mfa) {
+      this._mfa = new ServerMfaClient(this.provider);
+    }
+    return this._mfa;
   }
 
   /**
@@ -1000,25 +1298,62 @@ export class Auth0Client {
   }
 
   private createRequestCookies(req: PagesRouterRequest) {
-    const headers = new Headers();
+    return new RequestCookies(toHeadersFromIncomingMessage(req));
+  }
 
-    for (const key in req.headers) {
-      if (Array.isArray(req.headers[key])) {
-        for (const value of req.headers[key]) {
-          headers.append(key, value);
-        }
-      } else {
-        headers.append(key, req.headers[key] ?? "");
+  /**
+   * Resolves request context from any Next.js server context into a uniform shape.
+   *
+   * Handles the 3-way branch:
+   * - Request / NextRequest: extracts headers + nextUrl from nextReq
+   * - PagesRouterRequest (IncomingMessage): converts headers, constructs URL
+   * - No request (Server Components / Actions): uses next/headers, url is undefined
+   *
+   * @returns authClient and normalizedReq for downstream use.
+   *   Cookies are NOT included — only getSession needs them, and it handles
+   *   cookie extraction internally to avoid eagerly calling cookies() outside
+   *   request scope (which would throw in Server Components when called from
+   *   methods that don't need cookies, like getAccessToken).
+   * @internal
+   */
+  private async resolveRequestContext(
+    req?: Request | PagesRouterRequest | NextRequest
+  ): Promise<{
+    authClient: AuthClient;
+    normalizedReq?: NextRequest | PagesRouterRequest;
+  }> {
+    if (req) {
+      if (req instanceof Request) {
+        const nextReq = toNextRequest(req);
+        const authClient = await this.provider.forRequest(
+          nextReq.headers,
+          nextReq.nextUrl
+        );
+        return { authClient, normalizedReq: nextReq };
       }
+
+      // Pages Router (IncomingMessage / NextApiRequest)
+      const reqHeaders = toHeadersFromIncomingMessage(req);
+      const url = toUrlFromPagesRouter(req);
+      const authClient = await this.provider.forRequest(reqHeaders, url);
+      return {
+        authClient,
+        normalizedReq: req as PagesRouterRequest
+      };
     }
 
-    return new RequestCookies(headers);
+    // Server Components / Server Actions — no request object
+    const reqHeaders = await getHeaders();
+    const authClient = await this.provider.forRequest(reqHeaders, undefined);
+    return { authClient };
   }
 
   async startInteractiveLogin(
     options: StartInteractiveLoginOptions = {}
   ): Promise<NextResponse> {
-    return this.authClient.startInteractiveLogin(options);
+    const reqHeaders = await getHeaders();
+    const authClient = await this.provider.forRequest(reqHeaders, undefined);
+    return authClient.startInteractiveLogin(options);
   }
 
   /**
@@ -1030,8 +1365,11 @@ export class Auth0Client {
    * @see https://auth0.com/docs/get-started/authentication-and-authorization-flow/client-initiated-backchannel-authentication-flow
    */
   async getTokenByBackchannelAuth(options: BackchannelAuthenticationOptions) {
+    const reqHeaders = await getHeaders();
+    const authClient = await this.provider.forRequest(reqHeaders, undefined);
+
     const [error, response] =
-      await this.authClient.backchannelAuthentication(options);
+      await authClient.backchannelAuthentication(options);
 
     if (error) {
       throw error;
@@ -1052,6 +1390,9 @@ export class Auth0Client {
    * You must enable `Offline Access` from the Connection Permissions settings to be able to use the connection with Connected Accounts.
    */
   async connectAccount(options: ConnectAccountOptions): Promise<NextResponse> {
+    const reqHeaders = await getHeaders();
+    const authClient = await this.provider.forRequest(reqHeaders, undefined);
+
     const session = await this.getSession();
 
     if (!session) {
@@ -1061,23 +1402,24 @@ export class Auth0Client {
       });
     }
 
+    // Build issuer URL from authClient's domain
+    const issuer = `https://${authClient.domain}/`;
     const getMyAccountTokenOpts = {
-      audience: `${this.issuer}/me/`,
+      audience: `${issuer}me/`,
       scope: "create:me:connected_accounts"
     };
 
     const accessToken = await this.getAccessToken(getMyAccountTokenOpts);
 
-    const [error, connectAccountResponse] =
-      await this.authClient.connectAccount({
-        ...options,
-        tokenSet: {
-          accessToken: accessToken.token,
-          expiresAt: accessToken.expiresAt,
-          scope: getMyAccountTokenOpts.scope,
-          audience: accessToken.audience
-        }
-      });
+    const [error, connectAccountResponse] = await authClient.connectAccount({
+      ...options,
+      tokenSet: {
+        accessToken: accessToken.token,
+        expiresAt: accessToken.expiresAt,
+        scope: getMyAccountTokenOpts.scope,
+        audience: accessToken.audience
+      }
+    });
 
     if (error) {
       throw error;
@@ -1086,6 +1428,21 @@ export class Auth0Client {
     return connectAccountResponse;
   }
 
+  // Pages Router overload - no arguments
+  withPageAuthRequired(): PageRoute<{ [key: string]: any }, ParsedUrlQuery>;
+  // Pages Router overload - with options
+  withPageAuthRequired<
+    P extends { [key: string]: any } = { [key: string]: any },
+    Q extends ParsedUrlQuery = ParsedUrlQuery
+  >(opts: WithPageAuthRequiredPageRouterOptions<P, Q>): PageRoute<P, Q>;
+  // App Router overload - with component function
+  withPageAuthRequired<
+    P extends AppRouterPageRouteOpts = AppRouterPageRouteOpts
+  >(
+    fn: AppRouterPageRoute<P>,
+    opts?: WithPageAuthRequiredAppRouterOptions<P>
+  ): AppRouterPageRoute<P>;
+  // Implementation
   withPageAuthRequired(
     fnOrOpts?: WithPageAuthRequiredPageRouterOptions | AppRouterPageRoute,
     opts?: WithPageAuthRequiredAppRouterOptions
@@ -1191,9 +1548,15 @@ export class Auth0Client {
     const requiredOptions = {
       domain: options.domain ?? process.env.AUTH0_DOMAIN,
       clientId: options.clientId ?? process.env.AUTH0_CLIENT_ID,
-      appBaseUrl: options.appBaseUrl ?? process.env.APP_BASE_URL,
       secret: options.secret ?? process.env.AUTH0_SECRET
     };
+
+    const envAppBaseUrl = process.env.APP_BASE_URL?.includes(",")
+      ? process.env.APP_BASE_URL.split(",")
+          .map((u) => u.trim())
+          .filter(Boolean)
+      : process.env.APP_BASE_URL;
+    const appBaseUrl = options.appBaseUrl ?? envAppBaseUrl;
 
     // Check client authentication options - either clientSecret OR clientAssertionSigningKey must be provided
     const clientSecret =
@@ -1219,7 +1582,6 @@ export class Auth0Client {
       const envVarNames: Record<string, string> = {
         domain: "AUTH0_DOMAIN",
         clientId: "AUTH0_CLIENT_ID",
-        appBaseUrl: "APP_BASE_URL",
         secret: "AUTH0_SECRET"
       };
 
@@ -1244,13 +1606,19 @@ export class Auth0Client {
     // Prepare the result object with all validated options
     const result = {
       ...requiredOptions,
+      appBaseUrl,
       clientSecret,
       clientAssertionSigningKey
     };
 
     // Type-safe assignment after validation
     return result as {
-      [K in keyof typeof result]: NonNullable<(typeof result)[K]>;
+      domain: NonNullable<typeof result.domain>;
+      clientId: NonNullable<typeof result.clientId>;
+      secret: NonNullable<typeof result.secret>;
+      appBaseUrl: typeof result.appBaseUrl;
+      clientSecret: typeof result.clientSecret;
+      clientAssertionSigningKey: typeof result.clientAssertionSigningKey;
     };
   }
 
@@ -1306,9 +1674,10 @@ export class Auth0Client {
       fetch?: CustomFetchImpl<TOutput>;
     }
   ) {
-    const nextReq = req instanceof Request ? toNextRequest(req) : req;
-    const session: SessionData | null = nextReq
-      ? await this.getSession(nextReq)
+    const { authClient, normalizedReq } = await this.resolveRequestContext(req);
+
+    const session: SessionData | null = normalizedReq
+      ? await this.getSession(normalizedReq)
       : await this.getSession();
 
     if (!session) {
@@ -1321,7 +1690,7 @@ export class Auth0Client {
     const getAccessToken = async (
       getAccessTokenOptions: GetAccessTokenOptions
     ) => {
-      const [error, getTokenSetResponse] = await this.authClient.getTokenSet(
+      const [error, getTokenSetResponse] = await authClient.getTokenSet(
         session,
         getAccessTokenOptions || {}
       );
@@ -1331,7 +1700,7 @@ export class Auth0Client {
       return getTokenSetResponse.tokenSet;
     };
 
-    const fetcher: Fetcher<TOutput> = await this.authClient.fetcherFactory({
+    const fetcher: Fetcher<TOutput> = await authClient.fetcherFactory({
       ...options,
       getAccessToken
     });
@@ -1339,10 +1708,41 @@ export class Auth0Client {
     return fetcher;
   }
 
-  private get issuer(): string {
-    return this.domain.startsWith("http://") ||
-      this.domain.startsWith("https://")
-      ? this.domain
-      : `https://${this.domain}`;
+  /**
+   * Resolve mfaContextTtl with validation and fallback to default.
+   * Issues console warning for invalid values instead of throwing.
+   */
+  private resolveMfaTokenTtl(
+    optionValue: number | undefined,
+    envValue: string | undefined
+  ): number {
+    const DEFAULT_TTL = DEFAULT_MFA_CONTEXT_TTL_SECONDS;
+
+    // Try option value first
+    if (optionValue !== undefined) {
+      if (Number.isFinite(optionValue) && optionValue > 0) {
+        return optionValue;
+      }
+      console.warn(
+        `[auth0-nextjs] Invalid mfaTokenTtl option value: ${optionValue}. ` +
+          `Using default: ${DEFAULT_TTL} seconds.`
+      );
+      return DEFAULT_TTL;
+    }
+
+    // Try environment variable
+    if (envValue !== undefined) {
+      const parsed = parseInt(envValue, 10);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        return parsed;
+      }
+      console.warn(
+        `[auth0-nextjs] Invalid AUTH0_MFA_TOKEN_TTL environment variable: ${envValue}. ` +
+          `Using default: ${DEFAULT_TTL} seconds.`
+      );
+      return DEFAULT_TTL;
+    }
+
+    return DEFAULT_TTL;
   }
 }
