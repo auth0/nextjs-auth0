@@ -32,6 +32,8 @@ import {
   MfaRequiredError,
   MfaVerifyError,
   MissingStateError,
+  MtlsError,
+  MtlsErrorCode,
   MyAccountApiError,
   OAuth2Error,
   SdkError
@@ -281,6 +283,21 @@ export interface AuthClientOptions {
   dpopOptions?: DpopOptions;
 
   /**
+   * Enable mTLS (Mutual TLS) client authentication (RFC 8705).
+   *
+   * When `true`, the SDK uses `oauth.TlsClientAuth()` for client authentication
+   * and routes all token requests to the mTLS endpoint aliases advertised in
+   * the Auth0 discovery document (`mtls_endpoint_aliases`).
+   *
+   * Requires the `fetch` option to be set with a TLS-aware implementation
+   * (e.g. Node.js `undici` with a client certificate). The standard `fetch`
+   * global has no client certificate API.
+   *
+   * @default false
+   */
+  useMtls?: boolean;
+
+  /**
    * MFA token TTL in seconds (for token encryption expiration).
    * Default: 300 (5 minutes, matching Auth0's mfa_token expiration)
    */
@@ -345,6 +362,8 @@ export class AuthClient {
   private dpopKeyPair?: DpopKeyPair;
   private readonly useDPoP: boolean;
   private dpopValidated = false;
+
+  private readonly useMtls: boolean;
 
   private readonly mfaTokenTtl: number;
   private readonly cspNonce?: string;
@@ -495,6 +514,19 @@ export class AuthClient {
     this.tokenRefreshBuffer = options.tokenRefreshBuffer ?? 0;
 
     this.useDPoP = options.useDPoP ?? false;
+
+    this.useMtls = options.useMtls ?? false;
+    if (this.useMtls && !options.fetch) {
+      throw new MtlsError(
+        MtlsErrorCode.MTLS_REQUIRES_CUSTOM_FETCH,
+        "useMtls requires a customFetch option with a TLS client certificate implementation. " +
+          "The standard fetch global has no client certificate API. " +
+          "See https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#mtls for setup instructions."
+      );
+    }
+    if (this.useMtls) {
+      this.clientMetadata.use_mtls_endpoint_aliases = true;
+    }
 
     // MFA token TTL for token encryption
     this.mfaTokenTtl = options.mfaTokenTtl ?? DEFAULT_MFA_CONTEXT_TTL_SECONDS;
@@ -2344,6 +2376,10 @@ export class AuthClient {
   }
 
   private async getClientAuth(): Promise<oauth.ClientAuth> {
+    if (this.useMtls) {
+      return oauth.TlsClientAuth();
+    }
+
     if (!this.clientSecret && !this.clientAssertionSigningKey) {
       throw new Error(
         "The client secret or client assertion signing key must be provided."
