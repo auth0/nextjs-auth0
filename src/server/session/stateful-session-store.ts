@@ -206,7 +206,10 @@ export class StatefulSessionStore extends AbstractSessionStore {
     ) {
       cookies.deleteCookie(resCookies, LEGACY_COOKIE_NAME, {
         domain: this.cookieConfig.domain,
-        path: this.cookieConfig.path
+        path: this.cookieConfig.path,
+        secure: this.cookieConfig.secure,
+        sameSite: this.cookieConfig.sameSite,
+        httpOnly: this.cookieConfig.httpOnly
       });
     }
   }
@@ -217,7 +220,10 @@ export class StatefulSessionStore extends AbstractSessionStore {
   ) {
     const deleteOptions = {
       domain: this.cookieConfig.domain,
-      path: this.cookieConfig.path
+      path: this.cookieConfig.path,
+      secure: this.cookieConfig.secure,
+      sameSite: this.cookieConfig.sameSite,
+      httpOnly: this.cookieConfig.httpOnly
     };
 
     const cookieValue = reqCookies.get(this.sessionCookieName)?.value;
