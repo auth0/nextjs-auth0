@@ -1,3 +1,5 @@
+import type { NextRequest } from "next/server.js";
+
 import type { SessionData, SessionDataStore } from "../../types/index.js";
 import {
   CookieOptions,
@@ -52,6 +54,14 @@ export interface SessionConfiguration {
    */
   rolling?: boolean;
   /**
+   * A predicate function that will decide if session should be rolled based on incoming request
+   *
+   * Allows to filter and optimize requests to session DB
+   *
+   * Default: undefined
+   */
+  shouldRollSession?: (req: NextRequest) => boolean;
+  /**
    * The absolute duration after which the session will expire. The value must be specified in seconds.
    *
    * Once the absolute duration has been reached, the session will no longer be extended.
@@ -88,6 +98,7 @@ export abstract class AbstractSessionStore {
   public sessionCookieName: string;
 
   protected rolling: boolean;
+  private shouldRoll: SessionConfiguration["shouldRollSession"];
   private absoluteDuration: number;
   private inactivityDuration: number;
 
@@ -99,6 +110,7 @@ export abstract class AbstractSessionStore {
     secret,
 
     rolling = true,
+    shouldRollSession,
     absoluteDuration = 60 * 60 * 24 * 3, // 3 days in seconds
     inactivityDuration = 60 * 60 * 24 * 1, // 1 day in seconds
     store,
@@ -108,6 +120,7 @@ export abstract class AbstractSessionStore {
     this.secret = secret;
 
     this.rolling = rolling;
+    this.shouldRoll = shouldRollSession;
     this.absoluteDuration = absoluteDuration;
     this.inactivityDuration = inactivityDuration;
     this.store = store;
@@ -148,6 +161,10 @@ export abstract class AbstractSessionStore {
    */
   get isRolling(): boolean {
     return this.rolling;
+  }
+
+  shouldRollSession(req: NextRequest) {
+    return !this.shouldRoll || this.shouldRoll(req);
   }
 
   /**

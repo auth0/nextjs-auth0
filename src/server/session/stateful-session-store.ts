@@ -1,3 +1,5 @@
+import { NextRequest } from "next/server.js";
+
 import { SessionData, SessionDataStore } from "../../types/index.js";
 import * as cookies from "../cookies.js";
 import {
@@ -19,6 +21,7 @@ interface StatefulSessionStoreOptions {
   secret: string;
 
   rolling?: boolean; // defaults to true
+  shouldRollSession?: (req: NextRequest) => boolean;
   absoluteDuration?: number; // defaults to 3 days
   inactivityDuration?: number; // defaults to 1 day
 
@@ -42,6 +45,7 @@ export class StatefulSessionStore extends AbstractSessionStore {
     secret,
     store,
     rolling,
+    shouldRollSession,
     absoluteDuration,
     inactivityDuration,
     cookieOptions
@@ -49,6 +53,7 @@ export class StatefulSessionStore extends AbstractSessionStore {
     super({
       secret,
       rolling,
+      shouldRollSession,
       absoluteDuration,
       inactivityDuration,
       cookieOptions
