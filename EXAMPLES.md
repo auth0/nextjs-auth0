@@ -1,6 +1,10 @@
 # Examples
 
 - [Passing authorization parameters](#passing-authorization-parameters)
+  - [Social Login](#social-login)
+  - [Passwordless (via Universal Login)](#passwordless-via-universal-login)
+  - [Showing the signup screen](#showing-the-signup-screen)
+  - [Pre-filling the login field](#pre-filling-the-login-field)
 - [The `returnTo` parameter](#the-returnto-parameter)
   - [Redirecting the user after authentication](#redirecting-the-user-after-authentication)
   - [Redirecting the user after logging out](#redirecting-the-user-after-logging-out)
@@ -184,6 +188,82 @@ The second option is through the query parameters to the `/auth/login` endpoint 
 
 ```html
 <a href="/auth/login?audience=urn:my-api">Login</a>
+```
+
+### Social Login
+
+To skip the Universal Login page and send users directly to a social provider, pass the `connection` parameter with the Auth0 connection name:
+
+```html
+<a href="/auth/login?connection=google-oauth2">Continue with Google</a>
+<a href="/auth/login?connection=github">Continue with GitHub</a>
+<a href="/auth/login?connection=facebook">Continue with Facebook</a>
+```
+
+Or configure it statically for all logins:
+
+```ts
+export const auth0 = new Auth0Client({
+  authorizationParameters: {
+    connection: "google-oauth2"
+  }
+});
+```
+
+### Passwordless (via Universal Login)
+
+Auth0 supports passwordless login using email magic links/OTP or SMS OTP through the Universal Login page. The SDK forwards the `connection` parameter to Auth0, which handles the entire passwordless flow and redirects back to your app with a standard authorization code.
+
+Prerequisites:
+
+- Enable the **Email** or **SMS** passwordless connection in the [Auth0 Dashboard](https://manage.auth0.com) under **Authentication > Passwordless**.
+- Add the connection to your application.
+
+**Email passwordless:**
+
+```html
+<!-- Auth0 will send a magic link or OTP to the user's email -->
+<a href="/auth/login?connection=email">Login with Email</a>
+```
+
+**SMS passwordless:**
+
+```html
+<!-- Auth0 will send an OTP to the user's phone number -->
+<a href="/auth/login?connection=sms">Login with SMS</a>
+```
+
+The user experience on the Auth0-hosted page (magic link vs. OTP code) is configured in the Auth0 Dashboard under the connection settings. Your application code does not change — the callback and session creation work identically to any other login.
+
+### Showing the signup screen
+
+To send users directly to the registration form instead of the login form:
+
+```html
+<a href="/auth/login?screen_hint=signup">Create account</a>
+```
+
+Or statically:
+
+```ts
+export const auth0 = new Auth0Client({
+  authorizationParameters: {
+    screen_hint: "signup"
+  }
+});
+```
+
+### Pre-filling the login field
+
+To pre-fill the email or phone number field on the Universal Login page:
+
+```ts
+// In a Server Action or Route Handler
+const response = await auth0.startInteractiveLogin({
+  authorizationParameters: {
+    login_hint: "user@example.com"
+  }
+});
 ```
 
 ## The `returnTo` parameter
