@@ -170,4 +170,79 @@ describe("useUser Integration with SWR Cache", () => {
     expect(fetchSpy).toHaveBeenCalledOnce();
     expect(fetchSpy).toHaveBeenCalledWith("/auth/profile");
   });
+
+  it("should use custom route when provided", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify(initialUser), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    );
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <swrModule.SWRConfig value={{ provider: () => new Map() }}>
+        {children}
+      </swrModule.SWRConfig>
+    );
+
+    const { result } = renderHook(() => useUser({ route: "/custom/profile" }), {
+      wrapper
+    });
+
+    // Wait for the initial data to load
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.user).toEqual(initialUser);
+    expect(result.current.error).toBe(null);
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    expect(fetchSpy).toHaveBeenCalledWith("/custom/profile");
+  });
+
+  it("should use custom route and invalidate correctly", async () => {
+    // Mock fetch to return initial data first
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify(initialUser), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    );
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <swrModule.SWRConfig value={{ provider: () => new Map() }}>
+        {children}
+      </swrModule.SWRConfig>
+    );
+
+    const { result } = renderHook(
+      () => useUser({ route: "/tenant-a/auth/profile" }),
+      { wrapper }
+    );
+
+    // Wait for the initial data to load
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.user).toEqual(initialUser);
+    expect(fetchSpy).toHaveBeenCalledWith("/tenant-a/auth/profile");
+
+    // Mock fetch to return updated data for the next call
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify(updatedUser), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    );
+
+    // Call invalidate to trigger re-fetch
+    await act(async () => {
+      result.current.invalidate();
+    });
+
+    // Wait for the hook to reflect the updated data
+    await waitFor(() => expect(result.current.user).toEqual(updatedUser));
+
+    // Assert both fetch calls used the custom route
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(fetchSpy).toHaveBeenNthCalledWith(1, "/tenant-a/auth/profile");
+    expect(fetchSpy).toHaveBeenNthCalledWith(2, "/tenant-a/auth/profile");
+  });
 });

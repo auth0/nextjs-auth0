@@ -227,12 +227,7 @@ export interface Routes {
   mfaVerify: string;
   mfaAssociate: string;
 }
-export type RoutesOptions = Partial<
-  Pick<
-    Routes,
-    "login" | "callback" | "logout" | "backChannelLogout" | "connectAccount"
-  >
->;
+export type RoutesOptions = Partial<Routes>;
 
 /**
  * @private
