@@ -147,7 +147,10 @@ export class StatelessSessionStore extends AbstractSessionStore {
         true,
         {
           domain: this.cookieConfig.domain,
-          path: this.cookieConfig.path
+          path: this.cookieConfig.path,
+          secure: this.cookieConfig.secure,
+          sameSite: this.cookieConfig.sameSite,
+          httpOnly: this.cookieConfig.httpOnly
         }
       );
     }
@@ -159,7 +162,10 @@ export class StatelessSessionStore extends AbstractSessionStore {
   ) {
     const deleteOptions = {
       domain: this.cookieConfig.domain,
-      path: this.cookieConfig.path
+      path: this.cookieConfig.path,
+      secure: this.cookieConfig.secure,
+      sameSite: this.cookieConfig.sameSite,
+      httpOnly: this.cookieConfig.httpOnly
     };
 
     cookies.deleteChunkedCookie(

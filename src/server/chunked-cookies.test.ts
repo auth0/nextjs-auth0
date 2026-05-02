@@ -346,8 +346,11 @@ describe("Chunked Cookie Utils", () => {
       );
       expect(resCookies.set).toHaveBeenNthCalledWith(4, name, "", {
         domain: "example.com",
+        httpOnly: true,
         maxAge: 0,
-        path: "/"
+        path: "/",
+        sameSite: "lax",
+        secure: true
       });
     });
 
@@ -417,8 +420,11 @@ describe("Chunked Cookie Utils", () => {
         expectedOptions
       );
       expect(resCookies.set).toHaveBeenNthCalledWith(4, name, "", {
+        httpOnly: true,
         maxAge: 0,
-        path: "/"
+        path: "/",
+        sameSite: "lax",
+        secure: true
       });
       expect(resCookies.set).not.toHaveBeenCalledWith(
         expect.any(String),
@@ -491,8 +497,11 @@ describe("Chunked Cookie Utils", () => {
         expectedOptions
       );
       expect(resCookies.set).toHaveBeenNthCalledWith(4, name, "", {
+        httpOnly: true,
         maxAge: 0,
-        path: "/"
+        path: "/",
+        sameSite: "lax",
+        secure: true
       });
     });
 
