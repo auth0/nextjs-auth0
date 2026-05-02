@@ -62,7 +62,7 @@ importers:
         version: 19.1.9(@types/react@19.1.16)
       '@vitest/coverage-v8':
         specifier: 2.1.9
-        version: 2.1.9(vitest@2.1.9(@types/node@22.18.8)(jsdom@26.1.0)(msw@2.13.6(@types/node@22.18.8)(typescript@5.9.3)))
+        version: 2.1.9(vitest@2.1.9(@types/node@22.18.8)(jsdom@26.1.0)(msw@2.14.2(@types/node@22.18.8)(typescript@5.9.3)))
       eslint:
         specifier: ^9.39.4
         version: 9.39.4
@@ -83,7 +83,7 @@ importers:
         version: 26.1.0
       msw:
         specifier: ^2.7.5
-        version: 2.13.6(@types/node@22.18.8)(typescript@5.9.3)
+        version: 2.14.2(@types/node@22.18.8)(typescript@5.9.3)
       next:
         specifier: 15.2.8
         version: 15.2.8(@playwright/test@1.59.1)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
@@ -104,7 +104,7 @@ importers:
         version: 6.4.2(@types/node@22.18.8)(yaml@2.8.3)
       vitest:
         specifier: ^2.1.4
-        version: 2.1.9(@types/node@22.18.8)(jsdom@26.1.0)(msw@2.13.6(@types/node@22.18.8)(typescript@5.9.3))
+        version: 2.1.9(@types/node@22.18.8)(jsdom@26.1.0)(msw@2.14.2(@types/node@22.18.8)(typescript@5.9.3))
 
 packages:
 
@@ -753,8 +753,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@mswjs/interceptors@0.41.6':
-    resolution: {integrity: sha512-qmDvJIjcNsZ6tXWy2G9yuCgMPTTn35GMA3dPpSLm7QJVpbQzYdw0ALy1bKoivXnEM3U93/OrK+/M719b+fg84Q==}
+  '@mswjs/interceptors@0.41.8':
+    resolution: {integrity: sha512-pRLMNKTSGRoLq+KnEB/7OY5vijw1XmcheAAOiv6pj7W1FG32kAGqj1C/RK/cqxRGr1Fh+zBi8sDur8kj3EQv6A==}
     engines: {node: '>=18'}
 
   '@next/env@15.2.8':
@@ -2051,8 +2051,8 @@ packages:
   ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
 
-  msw@2.13.6:
-    resolution: {integrity: sha512-GAJbQy8Ra/Ydjt0Hb2MGT2qhzd83J3+QZMHdH85uW7r/XkKc846+Ma2PLif5hGvTm5Yqa+wkcstpim0WeLZU9g==}
+  msw@2.14.2:
+    resolution: {integrity: sha512-D2bTe0tpuf9nw4DA39wFaqUD/hRPKj0DKpo2lAqu+A47Ifg4+h0hbfn6QxVOsiUY2uhgEN6TTpGSHDsc+ysYNg==}
     engines: {node: '>=18'}
     hasBin: true
     peerDependencies:
@@ -2521,15 +2521,15 @@ packages:
   tldts-core@6.1.86:
     resolution: {integrity: sha512-Je6p7pkk+KMzMv2XXKmAE3McmolOQFdxkKw0R8EYNr7sELW46JqnNeTX8ybPiQgvg1ymCoF8LXs5fzFaZvJPTA==}
 
-  tldts-core@7.0.28:
-    resolution: {integrity: sha512-7W5Efjhsc3chVdFhqtaU0KtK32J37Zcr9RKtID54nG+tIpcY79CQK/veYPODxtD/LJ4Lue66jvrQzIX2Z2/pUQ==}
+  tldts-core@7.0.29:
+    resolution: {integrity: sha512-W99NuU7b1DcG3uJ3v9k9VztCH3WialNbBkBft5wCs8V8mexu0XQqaZEYb9l9RNNzK8+3EJ9PKWB0/RUtTQ/o+Q==}
 
   tldts@6.1.86:
     resolution: {integrity: sha512-WMi/OQ2axVTf/ykqCQgXiIct+mSQDFdH2fkwhPwgEwvJ1kSzZRiinb0zF2Xb8u4+OqPChmyI6MEu4EezNJz+FQ==}
     hasBin: true
 
-  tldts@7.0.28:
-    resolution: {integrity: sha512-+Zg3vWhRUv8B1maGSTFdev9mjoo8Etn2Ayfs4cnjlD3CsGkxXX4QyW3j2WJ0wdjYcYmy7Lx2RDsZMhgCWafKIw==}
+  tldts@7.0.29:
+    resolution: {integrity: sha512-JIXCerhudr/N6OWLwLF1HVsTTUo7ry6qHa5eWZEkiMuxsIiAACL55tGLfqfHfoH7QaMQUW8fngD7u7TxWexYQg==}
     hasBin: true
 
   to-regex-range@5.0.1:
@@ -3284,7 +3284,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@mswjs/interceptors@0.41.6':
+  '@mswjs/interceptors@0.41.8':
     dependencies:
       '@open-draft/deferred-promise': 2.2.0
       '@open-draft/logger': 0.3.0
@@ -3658,7 +3658,7 @@ snapshots:
       '@typescript-eslint/types': 8.59.1
       eslint-visitor-keys: 5.0.1
 
-  '@vitest/coverage-v8@2.1.9(vitest@2.1.9(@types/node@22.18.8)(jsdom@26.1.0)(msw@2.13.6(@types/node@22.18.8)(typescript@5.9.3)))':
+  '@vitest/coverage-v8@2.1.9(vitest@2.1.9(@types/node@22.18.8)(jsdom@26.1.0)(msw@2.14.2(@types/node@22.18.8)(typescript@5.9.3)))':
     dependencies:
       '@ampproject/remapping': 2.3.0
       '@bcoe/v8-coverage': 0.2.3
@@ -3672,7 +3672,7 @@ snapshots:
       std-env: 3.9.0
       test-exclude: 7.0.1
       tinyrainbow: 1.2.0
-      vitest: 2.1.9(@types/node@22.18.8)(jsdom@26.1.0)(msw@2.13.6(@types/node@22.18.8)(typescript@5.9.3))
+      vitest: 2.1.9(@types/node@22.18.8)(jsdom@26.1.0)(msw@2.14.2(@types/node@22.18.8)(typescript@5.9.3))
     transitivePeerDependencies:
       - supports-color
 
@@ -3683,13 +3683,13 @@ snapshots:
       chai: 5.3.3
       tinyrainbow: 1.2.0
 
-  '@vitest/mocker@2.1.9(msw@2.13.6(@types/node@22.18.8)(typescript@5.9.3))(vite@5.4.21(@types/node@22.18.8))':
+  '@vitest/mocker@2.1.9(msw@2.14.2(@types/node@22.18.8)(typescript@5.9.3))(vite@5.4.21(@types/node@22.18.8))':
     dependencies:
       '@vitest/spy': 2.1.9
       estree-walker: 3.0.3
       magic-string: 0.30.19
     optionalDependencies:
-      msw: 2.13.6(@types/node@22.18.8)(typescript@5.9.3)
+      msw: 2.14.2(@types/node@22.18.8)(typescript@5.9.3)
       vite: 5.4.21(@types/node@22.18.8)
 
   '@vitest/pretty-format@2.1.9':
@@ -4766,10 +4766,10 @@ snapshots:
 
   ms@2.1.3: {}
 
-  msw@2.13.6(@types/node@22.18.8)(typescript@5.9.3):
+  msw@2.14.2(@types/node@22.18.8)(typescript@5.9.3):
     dependencies:
       '@inquirer/confirm': 6.0.12(@types/node@22.18.8)
-      '@mswjs/interceptors': 0.41.6
+      '@mswjs/interceptors': 0.41.8
       '@open-draft/deferred-promise': 3.0.0
       '@types/statuses': 2.0.6
       cookie: 1.1.1
@@ -5314,15 +5314,15 @@ snapshots:
 
   tldts-core@6.1.86: {}
 
-  tldts-core@7.0.28: {}
+  tldts-core@7.0.29: {}
 
   tldts@6.1.86:
     dependencies:
       tldts-core: 6.1.86
 
-  tldts@7.0.28:
+  tldts@7.0.29:
     dependencies:
-      tldts-core: 7.0.28
+      tldts-core: 7.0.29
 
   to-regex-range@5.0.1:
     dependencies:
@@ -5334,7 +5334,7 @@ snapshots:
 
   tough-cookie@6.0.1:
     dependencies:
-      tldts: 7.0.28
+      tldts: 7.0.29
 
   tr46@5.1.1:
     dependencies:
@@ -5470,10 +5470,10 @@ snapshots:
       fsevents: 2.3.3
       yaml: 2.8.3
 
-  vitest@2.1.9(@types/node@22.18.8)(jsdom@26.1.0)(msw@2.13.6(@types/node@22.18.8)(typescript@5.9.3)):
+  vitest@2.1.9(@types/node@22.18.8)(jsdom@26.1.0)(msw@2.14.2(@types/node@22.18.8)(typescript@5.9.3)):
     dependencies:
       '@vitest/expect': 2.1.9
-      '@vitest/mocker': 2.1.9(msw@2.13.6(@types/node@22.18.8)(typescript@5.9.3))(vite@5.4.21(@types/node@22.18.8))
+      '@vitest/mocker': 2.1.9(msw@2.14.2(@types/node@22.18.8)(typescript@5.9.3))(vite@5.4.21(@types/node@22.18.8))
       '@vitest/pretty-format': 2.1.9
       '@vitest/runner': 2.1.9
       '@vitest/snapshot': 2.1.9
