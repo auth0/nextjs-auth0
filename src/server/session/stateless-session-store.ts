@@ -170,6 +170,17 @@ export class StatelessSessionStore extends AbstractSessionStore {
       deleteOptions
     );
 
+    // delete any existing v3 legacy cookies
+    if (cookies.getChunkedCookie(LEGACY_COOKIE_NAME, reqCookies, true)) {
+      cookies.deleteChunkedCookie(
+        LEGACY_COOKIE_NAME,
+        reqCookies,
+        resCookies,
+        true,
+        deleteOptions
+      );
+    }
+
     this.getConnectionTokenSetsCookies(reqCookies).forEach((cookie) =>
       cookies.deleteCookie(resCookies, cookie.name, deleteOptions)
     );

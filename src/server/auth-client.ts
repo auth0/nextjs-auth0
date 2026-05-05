@@ -51,17 +51,17 @@ import { DpopKeyPair, DpopOptions } from "../types/dpop.js";
 import {
   AccessTokenForConnectionOptions,
   AccessTokenSet,
-  Authenticator,
+  AuthenticatorApiResponse,
   AuthorizationParameters,
   BackchannelAuthenticationOptions,
   BackchannelAuthenticationResponse,
-  ChallengeResponse,
+  ChallengeApiResponse,
   ConnectionTokenSet,
   CustomTokenExchangeOptions,
   CustomTokenExchangeResponse,
-  EnrollmentResponse,
+  EnrollmentApiResponse,
   EnrollOobOptions,
-  EnrollOptions,
+  EnrollOtpOptions,
   GetAccessTokenOptions,
   GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE,
   LogoutStrategy,
@@ -83,15 +83,14 @@ import {
   DEFAULT_MFA_CONTEXT_TTL_SECONDS,
   DEFAULT_SCOPES
 } from "../utils/constants.js";
-import { withDPoPNonceRetry } from "../utils/dpopUtils.js";
+import { withDPoPNonceRetry } from "../utils/dpopRetry.js";
 import { createSizeLimitedFetch } from "../utils/fetchUtils.js";
+import { createAuthCompletePostMessageResponse } from "../utils/html-helpers.js";
+import { buildEnrollOptions } from "../utils/mfa-server-utils.js";
 import {
-  buildEnrollmentResponse,
-  buildEnrollOptions,
   buildVerifyParams,
-  camelizeAuthenticator,
-  camelizeChallengeResponse,
-  getVerifyGrantType
+  getVerifyGrantType,
+  transformVerifyBodyToOptions
 } from "../utils/mfa-transform-utils.js";
 import {
   decryptMfaToken,
@@ -120,6 +119,10 @@ import {
   getScopeForAudience
 } from "../utils/scope-helpers.js";
 import { getSessionChangesAfterGetAccessToken } from "../utils/session-changes-helpers.js";
+import {
+  buildSessionFromCallback,
+  mergePopupTokenIntoSession
+} from "../utils/session-helpers.js";
 import {
   compareScopes,
   findAccessTokenSet,
@@ -166,6 +169,13 @@ export type OnCallbackContext = {
    * The connected account information when the responseType is {@link RESPONSE_TYPES.CONNECT_CODE}
    */
   connectedAccount?: CompleteConnectAccountResponse;
+  /**
+   * The return strategy for this callback flow.
+   * - 'redirect' (default): Standard OAuth redirect flow
+   * - 'postMessage': Popup flow returning via window.postMessage
+   * Hook authors can use this to detect popup flows and adapt behavior.
+   */
+  challengeMode?: "redirect" | "popup";
 };
 export type OnCallbackHook = (
   error: SdkError | null,
@@ -215,14 +225,9 @@ export interface Routes {
   mfaAuthenticators: string;
   mfaChallenge: string;
   mfaVerify: string;
-  mfaEnroll: string;
+  mfaAssociate: string;
 }
-export type RoutesOptions = Partial<
-  Pick<
-    Routes,
-    "login" | "callback" | "logout" | "backChannelLogout" | "connectAccount"
-  >
->;
+export type RoutesOptions = Partial<Routes>;
 
 /**
  * @private
@@ -277,6 +282,13 @@ export interface AuthClientOptions {
   mfaTokenTtl?: number;
 
   /**
+   * Content Security Policy nonce for inline scripts.
+   * Required when CSP is enabled and popup flows use postMessage return strategy.
+   * The nonce is injected into the <script> tag of the postMessage HTML response.
+   */
+  cspNonce?: string;
+
+  /**
    * @future This option is reserved for future implementation.
    * Currently not used - placeholder for upcoming nonce persistence feature.
    */
@@ -327,10 +339,12 @@ export class AuthClient {
 
   private dpopKeyPair?: DpopKeyPair;
   private readonly useDPoP: boolean;
+  private dpopValidated = false;
 
   private readonly mfaTokenTtl: number;
+  private readonly cspNonce?: string;
 
-  private proxyFetchers: { [audience: string]: Fetcher<Response> } = {};
+  private proxyDpopHandles: { [audience: string]: oauth.DPoPHandle } = {};
 
   /**
    * Maximum allowed response body size (1 MB). Responses exceeding this limit
@@ -480,10 +494,48 @@ export class AuthClient {
     // MFA token TTL for token encryption
     this.mfaTokenTtl = options.mfaTokenTtl ?? DEFAULT_MFA_CONTEXT_TTL_SECONDS;
 
-    // Initialize DPoP if enabled. Check useDPoP flag first to avoid timing attacks.
-    if ((options.useDPoP ?? false) && options.dpopKeyPair) {
-      this.dpopKeyPair = options.dpopKeyPair;
+    // CSP nonce for popup postMessage inline scripts
+    this.cspNonce = options.cspNonce;
+
+    // Store keypair if provided, but validate lazily to avoid crypto bundling
+    this.dpopKeyPair = options.dpopKeyPair;
+  }
+
+  /**
+   * Lazy validation of DPoP configuration.
+   * Validates both provided keypairs and environment variables.
+   * Only imports dpopUtils (with crypto) when actually needed.
+   */
+  private async ensureDpopValidated(): Promise<void> {
+    if (this.dpopValidated || !this.useDPoP) {
+      return;
     }
+
+    // Dynamic import only when needed - prevents crypto from being bundled
+    const dpopModule = await import("../utils/dpopUtils.js");
+    const dpopConfig = await dpopModule.validateDpopConfiguration({
+      useDPoP: this.useDPoP,
+      dpopKeyPair: this.dpopKeyPair, // Pass existing keypair for validation
+      dpopOptions: this.dpopOptions
+    });
+
+    if (dpopConfig.dpopKeyPair) {
+      this.dpopKeyPair = dpopConfig.dpopKeyPair;
+    }
+    if (dpopConfig.dpopOptions) {
+      this.dpopOptions = dpopConfig.dpopOptions;
+
+      // Update clientMetadata with resolved values from environment variables
+      // This ensures clockSkew/clockTolerance from env vars are applied to OAuth operations
+      if (typeof this.dpopOptions.clockSkew === "number") {
+        this.clientMetadata[oauth.clockSkew] = this.dpopOptions.clockSkew;
+      }
+      if (typeof this.dpopOptions.clockTolerance === "number") {
+        this.clientMetadata[oauth.clockTolerance] =
+          this.dpopOptions.clockTolerance;
+      }
+    }
+    this.dpopValidated = true;
   }
 
   async handler(req: NextRequest): Promise<NextResponse> {
@@ -538,9 +590,9 @@ export class AuthClient {
       return this.handleChallenge(req);
     } else if (
       method === "POST" &&
-      sanitizedPathname === this.routes.mfaEnroll
+      sanitizedPathname === this.routes.mfaAssociate
     ) {
-      return this.handleEnroll(req);
+      return this.handleAssociate(req);
     } else if (
       method === "POST" &&
       sanitizedPathname === this.routes.mfaVerify
@@ -583,6 +635,7 @@ export class AuthClient {
     options: StartInteractiveLoginOptions = {},
     req?: NextRequest
   ): Promise<NextResponse> {
+    await this.ensureDpopValidated();
     const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
     const redirectUri = createRouteUrl(
       this.routes.callback,
@@ -616,7 +669,6 @@ export class AuthClient {
     // Construct base authorization parameters
     // If provided on both sides, this does not merge the scope property,
     // instead, the scope from the right side (options) fully overrides the left side.
-    // This is done to avoid breaking existing behavior.
     const authorizationParams = mergeAuthorizationParamsIntoSearchParams(
       this.authorizationParameters,
       options.authorizationParameters,
@@ -644,6 +696,19 @@ export class AuthClient {
           error instanceof Error ? error : undefined
         );
       }
+    }
+
+    // Resolve challengeMode: controls whether handleCallback returns a redirect
+    // (standard) or postMessage HTML (popup flows). Only stored in TransactionState
+    // when non-default to minimize encrypted cookie size.
+    const challengeMode = options.challengeMode || "redirect";
+
+    // Runtime guard — TypeScript enforces at compile time, but JS callers
+    // or incorrect casts could pass invalid values.
+    if (challengeMode !== "redirect" && challengeMode !== "popup") {
+      throw new InvalidConfigurationError(
+        `Invalid challengeMode: ${challengeMode}. Expected 'redirect' or 'popup'.`
+      );
     }
 
     // Enforce openid scope in resolver mode
@@ -677,6 +742,7 @@ export class AuthClient {
       returnTo,
       scope: authorizationParams.get("scope") || undefined,
       audience: authorizationParams.get("audience") || undefined,
+      challengeMode: challengeMode !== "redirect" ? challengeMode : undefined,
       // Store origin domain and issuer for callback delegation in resolver mode
       originDomain: this.provider?.isResolverMode ? this.domain : undefined,
       originIssuer: this.provider?.isResolverMode ? this.issuer : undefined
@@ -706,9 +772,23 @@ export class AuthClient {
   async handleLogin(req: NextRequest): Promise<NextResponse> {
     const searchParams = Object.fromEntries(req.nextUrl.searchParams.entries());
 
-    // Always forward all parameters
-    // When PAR is disabled, parameters go to authorization URL as before
-    // When PAR is enabled, all parameters are sent securely in the PAR request body
+    // Extract challengeMode from URL query params.
+    // URL param takes precedence over programmatic StartInteractiveLoginOptions.challengeMode.
+    // Must be deleted before forwarding remaining params to Auth0 /authorize.
+    const queryChallengeMode = searchParams.challengeMode;
+    delete searchParams.challengeMode;
+
+    // Validate challengeMode value
+    if (
+      queryChallengeMode &&
+      queryChallengeMode !== "popup" &&
+      queryChallengeMode !== "redirect"
+    ) {
+      return new NextResponse(
+        `Invalid challengeMode query param: ${queryChallengeMode}. Expected 'redirect', 'popup', or omit.`,
+        { status: 400 }
+      );
+    }
 
     // do not pass returnTo as part of authorizationParameters
     // returnTo should only be used in txn state
@@ -716,7 +796,8 @@ export class AuthClient {
 
     const options: StartInteractiveLoginOptions = {
       authorizationParameters,
-      returnTo: returnTo
+      returnTo: returnTo,
+      challengeMode: queryChallengeMode as "redirect" | "popup" | undefined
     };
     return this.startInteractiveLogin(options, req);
   }
@@ -843,6 +924,7 @@ export class AuthClient {
    * @public (explicit visibility marker for cross-instance delegation)
    */
   public async handleCallback(req: NextRequest): Promise<NextResponse> {
+    await this.ensureDpopValidated();
     const state = req.nextUrl.searchParams.get("state");
 
     if (!state) {
@@ -862,6 +944,7 @@ export class AuthClient {
     const onCallbackCtx: OnCallbackContext = {
       responseType: transactionState.responseType,
       returnTo: transactionState.returnTo,
+      challengeMode: transactionState.challengeMode || "redirect",
       appBaseUrl
     };
 
@@ -897,7 +980,8 @@ export class AuthClient {
             }),
           onCallbackCtx,
           req,
-          state
+          state,
+          transactionState
         );
       }
 
@@ -915,7 +999,8 @@ export class AuthClient {
           tokenSetError,
           onCallbackCtx,
           req,
-          state
+          state,
+          transactionState
         );
       }
 
@@ -936,7 +1021,8 @@ export class AuthClient {
           completeConnectAccountError,
           onCallbackCtx,
           req,
-          state
+          state,
+          transactionState
         );
       }
 
@@ -962,7 +1048,8 @@ export class AuthClient {
         discoveryError,
         onCallbackCtx,
         req,
-        state
+        state,
+        transactionState
       );
     }
 
@@ -985,7 +1072,8 @@ export class AuthClient {
         }),
         onCallbackCtx,
         req,
-        state
+        state,
+        transactionState
       );
     }
 
@@ -1040,14 +1128,22 @@ export class AuthClient {
         new AuthorizationCodeGrantRequestError(e.message),
         onCallbackCtx,
         req,
-        state
+        state,
+        transactionState
       );
     }
+    // Determine return strategy BEFORE processing token response
+    const challengeMode = transactionState.challengeMode || "redirect";
+
     let oidcRes: oauth.TokenEndpointResponse;
     try {
       // Process the authorization code response
       // For authorization code flows, oauth4webapi handles DPoP nonce management internally
       // No need for manual retry since authorization codes are single-use
+      //
+      // Popup flows (postMessage): requireIdToken: false because API-only audiences
+      // may not return an ID token. If requireIdToken: true is used,
+      // processAuthorizationCodeResponse would throw AuthorizationCodeGrantError.
       oidcRes = await oauth.processAuthorizationCodeResponse(
         authorizationServerMetadata,
         this.clientMetadata,
@@ -1055,7 +1151,7 @@ export class AuthClient {
         {
           expectedNonce: transactionState.nonce,
           maxAge: transactionState.maxAge,
-          requireIdToken: true
+          requireIdToken: challengeMode !== "popup"
         }
       );
     } catch (e: any) {
@@ -1069,14 +1165,19 @@ export class AuthClient {
         }),
         onCallbackCtx,
         req,
-        state
+        state,
+        transactionState
       );
     }
 
-    const idTokenClaims = oauth.getValidatedIdTokenClaims(oidcRes)!;
+    // For standard flows, idTokenClaims is always present (requireIdToken: true)
+    // For popup flows, idTokenClaims may be undefined (requireIdToken: false)
+    const idTokenClaims = oidcRes.id_token
+      ? oauth.getValidatedIdTokenClaims(oidcRes)
+      : undefined;
 
-    // Secondary issuer check for defense-in-depth
-    if (transactionState.originIssuer) {
+    // Secondary issuer check for defense-in-depth (MCD)
+    if (transactionState.originIssuer && idTokenClaims) {
       const actualIssuer = normalizeIssuer(idTokenClaims.iss);
       const expectedIssuer = normalizeIssuer(transactionState.originIssuer);
       if (actualIssuer !== expectedIssuer) {
@@ -1089,29 +1190,124 @@ export class AuthClient {
       }
     }
 
-    let session: SessionData = {
-      user: idTokenClaims,
-      tokenSet: {
-        accessToken: oidcRes.access_token,
-        idToken: oidcRes.id_token,
-        scope: oidcRes.scope,
-        requestedScope: transactionState.scope,
-        audience: transactionState.audience,
-        refreshToken: oidcRes.refresh_token,
-        expiresAt: Math.floor(Date.now() / 1000) + Number(oidcRes.expires_in)
-      },
-      internal: {
-        sid: idTokenClaims.sid as string,
-        createdAt: Math.floor(Date.now() / 1000),
-        // Add MCD metadata when in resolver mode
-        ...(this.provider?.isResolverMode && {
-          mcd: {
-            domain: this.domain,
-            issuer: this.issuer
-          }
-        })
+    // ★ POSTMESSAGE BRANCH
+    if (challengeMode === "popup") {
+      // Merge new token into existing session (do NOT create fresh session)
+      // Use getSessionWithDomainCheck to enforce MCD domain isolation
+      const { error: sessionError, session: existingSession } =
+        await this.getSessionWithDomainCheck(req.cookies);
+
+      // If domain check failed in MCD mode, return error via postMessage
+      if (sessionError) {
+        const popupResponse = createAuthCompletePostMessageResponse({
+          success: false,
+          error: {
+            code: sessionError.code || "session_domain_mismatch",
+            message: sessionError.message
+          },
+          nonce: this.cspNonce
+        });
+        await this.transactionStore.delete(popupResponse.cookies, state);
+        return popupResponse;
       }
-    };
+
+      if (existingSession) {
+        mergePopupTokenIntoSession(
+          existingSession,
+          oidcRes,
+          transactionState,
+          idTokenClaims
+        );
+        const mergedSession = await this.finalizeSession(
+          existingSession,
+          oidcRes.id_token
+        );
+
+        // Call onCallback after finalization with the actual saved session
+        await this.onCallback(null, onCallbackCtx, mergedSession);
+
+        const popupResponse = createAuthCompletePostMessageResponse({
+          success: true,
+          user: {
+            sub: mergedSession.user.sub,
+            email: mergedSession.user.email
+          },
+          nonce: this.cspNonce
+        });
+        await this.sessionStore.set(
+          req.cookies,
+          popupResponse.cookies,
+          mergedSession,
+          true
+        );
+        addCacheControlHeadersForSession(popupResponse);
+        await this.transactionStore.delete(popupResponse.cookies, state);
+        return popupResponse;
+      } else {
+        // No existing session (edge case: session expired during popup flow)
+        if (!idTokenClaims) {
+          const popupResponse = createAuthCompletePostMessageResponse({
+            success: false,
+            error: {
+              code: "session_expired",
+              message:
+                "Session expired during popup flow and no ID token available to create new session"
+            },
+            nonce: this.cspNonce
+          });
+          await this.transactionStore.delete(popupResponse.cookies, state);
+          return popupResponse;
+        }
+        const fallbackSession = buildSessionFromCallback(
+          idTokenClaims,
+          oidcRes,
+          transactionState
+        );
+        const mergedSession = await this.finalizeSession(
+          fallbackSession,
+          oidcRes.id_token
+        );
+
+        // Call onCallback after finalization with the actual saved session
+        await this.onCallback(null, onCallbackCtx, mergedSession);
+
+        const popupResponse = createAuthCompletePostMessageResponse({
+          success: true,
+          user: {
+            sub: mergedSession.user.sub,
+            email: mergedSession.user.email
+          },
+          nonce: this.cspNonce
+        });
+        await this.sessionStore.set(
+          req.cookies,
+          popupResponse.cookies,
+          mergedSession,
+          true
+        );
+        addCacheControlHeadersForSession(popupResponse);
+        await this.transactionStore.delete(popupResponse.cookies, state);
+        return popupResponse;
+      }
+    }
+
+    // ★ STANDARD REDIRECT BRANCH (default, unchanged)
+    let session: SessionData = buildSessionFromCallback(
+      idTokenClaims!,
+      oidcRes,
+      transactionState
+    );
+
+    // Add MCD metadata when in resolver mode
+    if (this.provider?.isResolverMode) {
+      session.internal = {
+        ...session.internal,
+        mcd: {
+          domain: this.domain,
+          issuer: this.issuer
+        }
+      };
+    }
 
     const res = await this.onCallback(null, onCallbackCtx, session);
 
@@ -1166,8 +1362,9 @@ export class AuthClient {
    * Headers:
    *   Authorization: Bearer <encrypted-mfa-token>
    *
-   * Response: 200 + Authenticator[]
+   * Response: 200 + snake_case AuthenticatorApiResponse[]
    * Error: 400/401 + {error, error_description}
+   *
    */
   async handleGetAuthenticators(req: NextRequest): Promise<NextResponse> {
     try {
@@ -1183,27 +1380,29 @@ export class AuthClient {
    * Route: POST /auth/mfa/challenge
    * Initiates an MFA challenge.
    *
-   * Body: {mfaToken, challengeType, authenticatorId?}
+   * Body: {mfa_token, challenge_type, authenticator_id?}
    *
-   * Response: 200 + ChallengeResponse
+   * Response: 200 + snake_case ChallengeApiResponse
    * Error: 400 + {error, error_description}
+   *
+   * mfa_token in body (NOT Authorization header, matching Auth0 API contract).
    */
   async handleChallenge(req: NextRequest): Promise<NextResponse> {
     try {
       const body = await parseJsonBody(req);
       const bodyRecord = body as Record<string, any>;
       const mfaToken = validateStringFieldAndThrow(
-        bodyRecord.mfaToken,
-        "mfaToken"
+        bodyRecord.mfa_token,
+        "mfa_token"
       );
       const challengeType = validateStringFieldAndThrow(
-        bodyRecord.challengeType,
-        "challengeType"
+        bodyRecord.challenge_type,
+        "challenge_type"
       );
-      const authenticatorId = bodyRecord.authenticatorId
+      const authenticatorId = bodyRecord.authenticator_id
         ? validateStringFieldAndThrow(
-            bodyRecord.authenticatorId,
-            "authenticatorId"
+            bodyRecord.authenticator_id,
+            "authenticator_id"
           )
         : undefined;
       const result = await this.mfaChallenge(
@@ -1218,25 +1417,27 @@ export class AuthClient {
   }
 
   /**
-   * Route: POST /auth/mfa/enroll
+   * Route: POST /auth/mfa/associate
    * Enrolls a new MFA authenticator.
    *
-   * Body: {mfaToken, authenticatorTypes, oobChannels?, phoneNumber?, email?}
+   * Headers:
+   *   Authorization: Bearer <encrypted-mfa-token>
    *
-   * Response: 200 + EnrollmentResponse
+   * Body: {authenticator_types, oob_channels?, phone_number?, email?}
+   *
+   * Response: 200 + snake_case EnrollmentApiResponse
    * Error: 400 + {error, error_description}
+   *
+   * snake_case body fields ONLY. No camelCase fallback.
    */
-  async handleEnroll(req: NextRequest): Promise<NextResponse> {
+  async handleAssociate(req: NextRequest): Promise<NextResponse> {
     try {
+      const mfaToken = extractMfaToken(req);
       const body = await parseJsonBody(req);
       const bodyRecord = body as Record<string, any>;
-      const mfaToken = validateStringFieldAndThrow(
-        bodyRecord.mfaToken,
-        "mfaToken"
-      );
       const authenticatorTypes = validateArrayFieldAndThrow(
-        bodyRecord.authenticatorTypes,
-        "authenticatorTypes"
+        bodyRecord.authenticator_types,
+        "authenticator_types"
       );
 
       const authenticatorType = authenticatorTypes[0];
@@ -1246,7 +1447,7 @@ export class AuthClient {
       );
       if (errorResponse) return errorResponse;
 
-      const result = await this.mfaEnroll(mfaToken, enrollOptions);
+      const result = await this.mfaAssociate(mfaToken, enrollOptions!);
       return NextResponse.json(result);
     } catch (e) {
       return handleMfaError(e);
@@ -1257,20 +1458,31 @@ export class AuthClient {
    * Route: POST /auth/mfa/verify
    * Verifies MFA code and returns tokens.
    *
-   * Body: {mfaToken, otp | oobCode+bindingCode | recoveryCode}
+   * Headers:
+   *   Authorization: Bearer <encrypted-mfa-token>
+   *
+   * Body: {otp | oob_code+binding_code | recovery_code}
    *
    * Response: 200 + TokenResponse + Set-Cookie
-   * Error: 400 + {error, error_description, mfaToken?}
+   * Error: 400 + {error, error_description, mfa_token?}
+
+   * snake_case credential fields ONLY (oob_code, binding_code, recovery_code).
    */
   async handleVerify(req: NextRequest): Promise<NextResponse> {
     try {
+      const mfaToken = extractMfaToken(req);
       const body = await parseJsonBody(req);
-      const bodyRecord = body as Record<string, any>;
-      validateStringFieldAndThrow(bodyRecord.mfaToken, "mfaToken");
-      const validatedBody = validateVerificationCredentialAndThrow(body);
+      validateVerificationCredentialAndThrow(body);
+      const credentialOptions = transformVerifyBodyToOptions(
+        body as Record<string, any>
+      );
+      const verifyOptions = {
+        mfaToken,
+        ...credentialOptions
+      } as VerifyMfaOptions;
 
       // Verify MFA and get tokens
-      const result = await this.mfaVerify(validatedBody as VerifyMfaOptions);
+      const result = await this.mfaVerify(verifyOptions);
 
       // Create response FIRST so cookies can be attached
       const res = NextResponse.json(result);
@@ -1281,7 +1493,7 @@ export class AuthClient {
       if (!sessionError && session) {
         await this.cacheTokenFromMfaVerify(
           result,
-          bodyRecord.mfaToken,
+          mfaToken,
           req.cookies,
           res.cookies // Use actual response cookies, not temp
         );
@@ -1298,6 +1510,7 @@ export class AuthClient {
       await this.getSessionWithDomainCheck(req.cookies);
     const audience = req.nextUrl.searchParams.get("audience");
     const scope = req.nextUrl.searchParams.get("scope");
+    const mergeScopesParam = req.nextUrl.searchParams.get("mergeScopes");
 
     if (sessionError || !session) {
       return NextResponse.json(
@@ -1317,7 +1530,10 @@ export class AuthClient {
 
     const [error, getTokenSetResponse] = await this.getTokenSet(session, {
       scope,
-      audience
+      audience,
+      // Only set mergeScopes when explicitly passed as "false"
+      // Absence of param = default behavior (true)
+      mergeScopes: mergeScopesParam === "false" ? false : undefined
     });
 
     if (error) {
@@ -1636,16 +1852,21 @@ export class AuthClient {
     sessionData: SessionData,
     options: GetAccessTokenOptions = {}
   ): Promise<[null, GetTokenSetResponse] | [SdkError, null]> {
-    // This will merge the scopes from the authorization parameters and the options.
-    // The scope from the options will be added to the scopes from the authorization parameters.
-    // If there are duplicate scopes, they will be removed.
-    const scope = mergeScopes(
-      getScopeForAudience(
-        this.authorizationParameters.scope,
-        options.audience ?? this.authorizationParameters.audience
-      ),
-      options.scope
-    );
+    // Scope resolution:
+    // When mergeScopes !== false (default): merge global scopes for the audience with options.scope
+    // When mergeScopes === false: use ONLY options.scope (no global merge)
+    // This is critical for challengeWithPopup() which needs isolated scope to prevent
+    // refresh token grants requesting scopes beyond what the step-up flow needs.
+    const shouldMerge = options.mergeScopes !== false;
+    const scope = shouldMerge
+      ? mergeScopes(
+          getScopeForAudience(
+            this.authorizationParameters.scope,
+            options.audience ?? this.authorizationParameters.audience
+          ),
+          options.scope
+        )
+      : options.scope || "";
 
     const tokenSet: Partial<TokenSet> = this.#getTokenSetFromSession(
       sessionData,
@@ -1728,7 +1949,6 @@ export class AuthClient {
 
     // If provided on both sides, this does not merge the scope property,
     // instead, the scope from the right side (options) fully overrides the left side.
-    // This is done to avoid breaking existing behavior.
     const authorizationParams = mergeAuthorizationParamsIntoSearchParams(
       this.authorizationParameters,
       options.authorizationParams,
@@ -1884,14 +2104,51 @@ export class AuthClient {
   }
 
   /**
-   * Handle callback errors with transaction cleanup
+   * Handle errors during the OAuth callback flow.
+   *
+   * For popup flows (`challengeMode: 'postMessage'`): returns error details
+   * as a postMessage HTML page instead of redirecting. The parent window
+   * receives `{ type: 'auth_complete', success: false, error: { code, message } }`
+   * and the promise returned by `challengeWithPopup()` rejects with a typed error.
+   *
+   * For standard flows (`challengeMode: 'redirect'`): delegates to the
+   * `onCallback` hook, which returns a redirect or error response.
+   *
+   * @param error - The SDK error that occurred during callback processing
+   * @param ctx - Callback context (responseType, returnTo, challengeMode)
+   * @param req - The incoming callback request
+   * @param state - OAuth state parameter (for transaction cookie cleanup)
+   * @param transactionState - Loaded transaction state (provides challengeMode)
    */
   private async handleCallbackError(
     error: SdkError,
     ctx: OnCallbackContext,
     req: NextRequest,
-    state?: string
+    state?: string,
+    transactionState?: TransactionState
   ): Promise<NextResponse> {
+    // PostMessage branch: return error as postMessage HTML instead of redirect
+    if (transactionState?.challengeMode === "popup") {
+      // Call onCallback for error observability, matching standard flow behavior
+      await this.onCallback(error, ctx, null);
+
+      const response = createAuthCompletePostMessageResponse({
+        success: false,
+        error: {
+          code: error.code || "callback_error",
+          message: error.message
+        },
+        nonce: this.cspNonce
+      });
+
+      // Clean up the transaction cookie on error
+      if (state) {
+        await this.transactionStore.delete(response.cookies, state);
+      }
+
+      return response;
+    }
+
     const response = await this.onCallback(error, ctx, null);
 
     // Clean up the transaction cookie on error to prevent accumulation
@@ -2162,9 +2419,23 @@ export class AuthClient {
       };
     }
 
-    // Pre-MCD session (no mcd field): infer domain from ID token's iss claim.
-    // This is deterministic — the same session always yields the same domain,
-    // eliminating the race condition where the first resolver output claims it.
+    // Static mode: skip backfill entirely. There is only one domain, so
+    // internal.mcd provides no value and adding it grows the session cookie
+    // (~140 bytes), which can push sessions over the MAX_CHUNK_SIZE boundary
+    // and trigger unnecessary chunking. This preserves DD-2 (zero-overhead
+    // static mode). See: https://github.com/auth0/nextjs-auth0/issues/2595
+    if (!this.provider?.isResolverMode) {
+      return {
+        error: null,
+        session,
+        exists: true
+      };
+    }
+
+    // Resolver mode: pre-MCD session (no mcd field) — infer domain from ID
+    // token's iss claim. This is deterministic — the same session always yields
+    // the same domain, eliminating the race condition where the first resolver
+    // output claims it.
     let inferredDomain: string | undefined;
 
     if (session.tokenSet.idToken) {
@@ -2178,9 +2449,7 @@ export class AuthClient {
       }
     }
 
-    // Fallback: use current AuthClient's domain.
-    // Static mode: always correct (only one domain).
-    // Resolver mode: last resort if idToken absent.
+    // Fallback: use current AuthClient's domain (last resort if idToken absent)
     const domain = inferredDomain ?? this.domain;
 
     session.internal = session.internal || {};
@@ -2224,6 +2493,7 @@ export class AuthClient {
   ): Promise<
     [AccessTokenForConnectionError, null] | [null, ConnectionTokenSet]
   > {
+    await this.ensureDpopValidated();
     // If we do not have a refresh token
     // and we do not have a connection token set in the cache or the one we have is expired,
     // there is nothing to retrieve and we return an error.
@@ -2435,6 +2705,7 @@ export class AuthClient {
   ): Promise<
     [CustomTokenExchangeError, null] | [null, CustomTokenExchangeResponse]
   > {
+    await this.ensureDpopValidated();
     // Note: CTE tokens are not cached per RWA SDK spec.
     // Caller is responsible for token storage if needed.
 
@@ -2892,6 +3163,7 @@ export class AuthClient {
   async fetcherFactory<TOutput extends Response>(
     options: FetcherFactoryOptions<TOutput>
   ): Promise<Fetcher<TOutput>> {
+    await this.ensureDpopValidated();
     if (this.useDPoP && !this.dpopKeyPair) {
       throw new DPoPError(
         DPoPErrorCode.DPOP_CONFIGURATION_ERROR,
@@ -2907,12 +3179,14 @@ export class AuthClient {
       throw discoveryError;
     }
 
+    const shouldUseDpop = this.useDPoP && (options.useDPoP ?? true);
+
     const fetcherConfig: FetcherConfig<TOutput> = {
       // Fetcher-scoped DPoP handle and nonce management
-      dpopHandle:
-        this.useDPoP && (options.useDPoP ?? true)
-          ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair!)
-          : undefined,
+      dpopHandle: shouldUseDpop
+        ? (options.dpopHandle ??
+          oauth.DPoP(this.clientMetadata, this.dpopKeyPair!))
+        : undefined,
       httpOptions: this.httpOptions,
       allowInsecureRequests: this.allowInsecureRequests,
       retryConfig: this.dpopOptions?.retry,
@@ -2923,7 +3197,7 @@ export class AuthClient {
 
     const fetcherHooks: FetcherHooks = {
       getAccessToken: options.getAccessToken,
-      isDpopEnabled: () => options.useDPoP ?? this.useDPoP ?? false
+      isDpopEnabled: () => shouldUseDpop
     };
 
     return new Fetcher<TOutput>(fetcherConfig, fetcherHooks);
@@ -2982,12 +3256,14 @@ export class AuthClient {
    * List enrolled MFA authenticators, filtered by allowed challenge types.
    *
    * @param encryptedToken - Encrypted MFA token from MfaRequiredError
-   * @returns Array of authenticators filtered by mfa_requirements
+   * @returns Array of authenticators (snake_case ApiResponse format) filtered by mfa_requirements
    * @throws {MfaTokenInvalidError} If token cannot be decrypted
    * @throws {MfaTokenExpiredError} If token expired (>5 min)
    * @throws {MfaGetAuthenticatorsError} On Auth0 API failure
    */
-  async mfaGetAuthenticators(encryptedToken: string): Promise<Authenticator[]> {
+  async mfaGetAuthenticators(
+    encryptedToken: string
+  ): Promise<AuthenticatorApiResponse[]> {
     // Decrypt token to extract context
     const context = await decryptMfaToken(
       encryptedToken,
@@ -3019,8 +3295,7 @@ export class AuthClient {
         );
       }
 
-      const authenticators = await response.json();
-      const allAuthenticators = authenticators.map(camelizeAuthenticator);
+      const authenticators: AuthenticatorApiResponse[] = await response.json();
 
       // Filter by allowed challenge types from mfa_requirements
       const allowedTypes = new Set(
@@ -3031,13 +3306,12 @@ export class AuthClient {
 
       // If no challenge types specified, return all (no filtering)
       if (allowedTypes.size === 0) {
-        return allAuthenticators;
+        return authenticators;
       }
 
       // Filter authenticators by type field
-      return allAuthenticators.filter(
-        (auth: Authenticator) =>
-          auth.type && allowedTypes.has(auth.type.toLowerCase())
+      return authenticators.filter(
+        (auth) => auth.type && allowedTypes.has(auth.type.toLowerCase())
       );
     } catch (e) {
       if (e instanceof MfaGetAuthenticatorsError) throw e;
@@ -3055,7 +3329,7 @@ export class AuthClient {
    * @param encryptedToken - Encrypted MFA token from MfaRequiredError
    * @param challengeType - Challenge type (otp, oob)
    * @param authenticatorId - Optional authenticator ID
-   * @returns Challenge response (oobCode, bindingMethod)
+   * @returns Challenge response (snake_case ApiResponse format)
    * @throws {MfaTokenInvalidError} If token cannot be decrypted
    * @throws {MfaTokenExpiredError} If token expired
    * @throws {MfaNoAvailableFactorsError} If no challenge types available
@@ -3065,7 +3339,7 @@ export class AuthClient {
     encryptedToken: string,
     challengeType: string,
     authenticatorId?: string
-  ): Promise<ChallengeResponse> {
+  ): Promise<ChallengeApiResponse> {
     // Decrypt token to extract context
     const context = await decryptMfaToken(
       encryptedToken,
@@ -3125,8 +3399,8 @@ export class AuthClient {
         );
       }
 
-      const result = await response.json();
-      return camelizeChallengeResponse(result);
+      const result: ChallengeApiResponse = await response.json();
+      return result;
     } catch (e) {
       if (e instanceof MfaChallengeError) throw e;
       throw new MfaChallengeError(
@@ -3143,15 +3417,15 @@ export class AuthClient {
    *
    * @param encryptedToken - Encrypted MFA token from MfaRequiredError
    * @param options - Enrollment options (otp | oob | email)
-   * @returns Enrollment response with authenticator details and optional recovery codes
+   * @returns Enrollment response (snake_case ApiResponse format) with authenticator details and optional recovery codes
    * @throws {MfaTokenInvalidError} If token cannot be decrypted
    * @throws {MfaTokenExpiredError} If token expired
    * @throws {MfaEnrollmentError} On Auth0 API failure
    */
-  async mfaEnroll(
+  async mfaAssociate(
     encryptedToken: string,
-    options: Omit<EnrollOptions, "mfaToken">
-  ): Promise<EnrollmentResponse> {
+    options: Omit<EnrollOobOptions | EnrollOtpOptions, "mfaToken">
+  ): Promise<EnrollmentApiResponse> {
     // Decrypt token to extract context
     const context = await decryptMfaToken(
       encryptedToken,
@@ -3202,8 +3476,8 @@ export class AuthClient {
         );
       }
 
-      const result = await response.json();
-      return buildEnrollmentResponse(result);
+      const result: EnrollmentApiResponse = await response.json();
+      return result;
     } catch (e) {
       if (e instanceof MfaEnrollmentError) throw e;
       throw new MfaEnrollmentError(
@@ -3224,6 +3498,7 @@ export class AuthClient {
    * @throws {MfaRequiredError} For chained MFA (with encrypted token)
    */
   async mfaVerify(options: VerifyMfaOptions): Promise<MfaVerifyResponse> {
+    await this.ensureDpopValidated();
     // Decrypt token to extract context
     const { mfaToken, audience, scope } = await decryptMfaToken(
       options.mfaToken,
@@ -3443,10 +3718,48 @@ export class AuthClient {
       ? await clonedReq.arrayBuffer()
       : undefined;
 
+    // Keep an isolated, request-local session snapshot so retries within this
+    // proxy request can observe token refreshes immediately without writing the
+    // session cookie until the proxy response succeeds.
+    const requestSession = structuredClone(session);
+    const tokenSetResponsesByRequest = new Map<string, GetTokenSetResponse>();
+    const applyTokenSetResponseToRequestSession = (
+      tokenSetResponse: GetTokenSetResponse
+    ) => {
+      const sessionChanges = getSessionChangesAfterGetAccessToken(
+        requestSession,
+        tokenSetResponse.tokenSet,
+        {
+          scope: this.authorizationParameters?.scope ?? DEFAULT_SCOPES,
+          audience: this.authorizationParameters?.audience
+        }
+      );
+
+      if (sessionChanges) {
+        Object.assign(requestSession, sessionChanges);
+      }
+
+      if (tokenSetResponse.idTokenClaims) {
+        requestSession.user = tokenSetResponse.idTokenClaims as User;
+      }
+    };
+
     let tokenSetSideEffect!: GetTokenSetResponse;
 
     const getAccessToken: AccessTokenFactory = async (authParams) => {
-      const [error, tokenSetResponse] = await this.getTokenSet(session, {
+      const cacheKey = JSON.stringify([
+        authParams.refresh ?? false,
+        authParams.audience ?? null,
+        authParams.scope ?? null
+      ]);
+      const cachedTokenSetResponse = tokenSetResponsesByRequest.get(cacheKey);
+
+      if (cachedTokenSetResponse) {
+        tokenSetSideEffect = cachedTokenSetResponse;
+        return cachedTokenSetResponse.tokenSet;
+      }
+
+      const [error, tokenSetResponse] = await this.getTokenSet(requestSession, {
         audience: authParams.audience,
         scope: authParams.scope
       });
@@ -3454,6 +3767,9 @@ export class AuthClient {
       if (error) {
         throw error;
       }
+
+      applyTokenSetResponseToRequestSession(tokenSetResponse);
+      tokenSetResponsesByRequest.set(cacheKey, tokenSetResponse);
 
       // Tracking the last used token set response for session updates later as a side effect.
       // This relies on the fact that `getAccessToken` is called before the actual fetch.
@@ -3466,38 +3782,24 @@ export class AuthClient {
       return tokenSetResponse.tokenSet;
     };
 
-    // Get/create fetcher instance with domain-aware caching
-    // In MCD mode, use provider.getProxyFetcher for shared caching across AuthClient instances
-    // In static mode, use local proxyFetchers cache
-    const cacheKey = this.provider
-      ? `${this.domain}:${options.audience}`
-      : options.audience;
+    // Cache only the DPoP handle so nonce state is shared across proxied
+    // requests for the same audience on this AuthClient instance. Always create
+    // a fresh request-bound fetcher so token resolution remains scoped to the
+    // current session instead of being shared or mutated.
+    const dpopHandle =
+      this.useDPoP && this.dpopKeyPair
+        ? (this.proxyDpopHandles[options.audience] ??= oauth.DPoP(
+            this.clientMetadata,
+            this.dpopKeyPair
+          ))
+        : undefined;
 
-    let fetcher: Fetcher<Response>;
-    if (this.provider) {
-      fetcher = await this.provider.getProxyFetcher(cacheKey, async () => {
-        return this.fetcherFactory({
-          useDPoP: this.useDPoP,
-          fetch: this.fetch,
-          getAccessToken: getAccessToken
-        });
-      });
-    } else {
-      // Static mode or no provider: use local cache
-      fetcher = this.proxyFetchers[options.audience];
-      if (!fetcher) {
-        fetcher = await this.fetcherFactory({
-          useDPoP: this.useDPoP,
-          fetch: this.fetch,
-          getAccessToken: getAccessToken
-        });
-        this.proxyFetchers[options.audience] = fetcher;
-      }
-    }
-
-    // Override getAccessToken for the current request
-    // @ts-expect-error Override fetcher's getAccessToken to capture token set side effects
-    fetcher.getAccessToken = getAccessToken;
+    const fetcher = await this.fetcherFactory({
+      useDPoP: this.useDPoP,
+      fetch: this.fetch,
+      getAccessToken,
+      dpopHandle
+    });
 
     try {
       const response = await fetcher.fetchWithAuth(
@@ -3531,11 +3833,10 @@ export class AuthClient {
 
       return res;
     } catch (e: any) {
-      // Handle MFA required error - return 403 with MFA context
-      // Note: session.mfa was already mutated by getTokenSet() before the error was thrown.
-      // JavaScript is single-threaded, so no race condition exists.
+      // Handle MFA required error - return 403 with MFA context.
+      // The request-local session snapshot was passed to getTokenSet().
       if (e instanceof MfaRequiredError) {
-        return this.#createMfaRequiredResponse(req, session, e);
+        return this.#createMfaRequiredResponse(req, requestSession, e);
       }
 
       // Return 401 for missing refresh token (cannot refresh expired token)
@@ -3644,6 +3945,7 @@ export class AuthClient {
     | [null, { updatedTokenSet: TokenSet; idTokenClaims: oauth.IDToken }]
     | [SdkError, null]
   > {
+    await this.ensureDpopValidated();
     const [discoveryError, authorizationServerMetadata] =
       await this.discoverAuthorizationServerMetadata();
 
@@ -3848,6 +4150,7 @@ type GetTokenSetResponse = {
 export type FetcherFactoryOptions<TOutput extends Response> = {
   useDPoP?: boolean;
   getAccessToken: AccessTokenFactory;
+  dpopHandle?: oauth.DPoPHandle;
 } & FetcherMinimalConfig<TOutput>;
 
 /**

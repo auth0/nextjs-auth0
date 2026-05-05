@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getDefaultRoutes } from "../test/defaults.js";
 import { generateSecret } from "../test/utils.js";
-import { generateDpopKeyPair } from "../utils/dpopUtils.js";
+import { generateDpopKeyPair } from "../utils/dpopRetry.js";
 import { AuthClient } from "./auth-client.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import { TransactionStore } from "./transaction-store.js";

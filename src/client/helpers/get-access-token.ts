@@ -1,4 +1,4 @@
-import { AccessTokenError } from "../../errors/index.js";
+import { AccessTokenError, MfaRequiredError } from "../../errors/index.js";
 import { normalizeWithBasePath } from "../../utils/pathUtils.js";
 
 /**
@@ -20,6 +20,11 @@ import { normalizeWithBasePath } from "../../utils/pathUtils.js";
  * });
  * const ordersToken = await getAccessToken({
  *   audience: 'https://orders-api.example.com'
+ * });
+ *
+ * // Custom route - useful for multi-tenant applications
+ * const token = await getAccessToken({
+ *   route: '/tenant-a/auth/access-token'
  * });
  * ```
  */
@@ -51,19 +56,66 @@ export type AccessTokenOptions = {
   audience?: string;
 
   /**
+   * Custom route for the access token endpoint.
+   * Useful for multi-tenant applications where different tenants require different route configurations.
+   * If not specified, falls back to the NEXT_PUBLIC_ACCESS_TOKEN_ROUTE environment variable or "/auth/access-token".
+   *
+   * @example '/tenant-a/auth/access-token'
+   */
+  route?: string;
+
+  /**
    * When true, returns the full response from the `/auth/access-token` endpoint
    * instead of only the access token string.
    *
    * @default false
    */
   includeFullResponse?: boolean;
+
+  /**
+   * Control scope merging behavior for token cache lookups.
+   *
+   * When `true` (default): merges globally configured scopes with the requested
+   * scope before looking up cached tokens. This is the standard behavior for the
+   * default audience.
+   *
+   * When `false`: uses ONLY the explicitly requested scope for cache lookup,
+   * without merging global defaults. This is necessary when retrieving tokens
+   * for non-default audiences (e.g., step-up MFA tokens) where the cached token
+   * was stored with a specific scope that differs from global defaults.
+   *
+   * @default true
+   *
+   * @example
+   * ```ts
+   * // Retrieve a step-up token cached with exact scope (no global merge)
+   * const token = await getAccessToken({
+   *   audience: 'https://api.example.com',
+   *   scope: 'read:sensitive',
+   *   mergeScopes: false
+   * });
+   * ```
+   */
+  mergeScopes?: boolean;
 };
 
-type AccessTokenResponse = {
+/**
+ * Full response from the `/auth/access-token` endpoint.
+ *
+ * Returned by `getAccessToken({ includeFullResponse: true })` and by
+ * `mfa.challengeWithPopup()`. Contains the access token along with scope
+ * and expiration metadata.
+ */
+export type AccessTokenResponse = {
+  /** The access token string (JWT or opaque). */
   token: string;
+  /** Space-separated scopes granted by Auth0. */
   scope?: string;
+  /** Absolute expiration time in seconds since Unix epoch. */
   expires_at?: number;
+  /** Time-to-live in seconds from the time of issuance. */
   expires_in?: number;
+  /** Token type, typically `"Bearer"`. */
   token_type?: string;
 };
 
@@ -95,8 +147,17 @@ export async function getAccessToken(
     urlParams.append("scope", options.scope);
   }
 
+  // Forward mergeScopes to server-side handleAccessToken
+  // Only forward when explicitly false to maintain backward compatibility
+  // (server defaults to true when param is absent)
+  if (options.mergeScopes === false) {
+    urlParams.append("mergeScopes", "false");
+  }
+
   let url = normalizeWithBasePath(
-    process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE || "/auth/access-token"
+    options.route ||
+      process.env.NEXT_PUBLIC_ACCESS_TOKEN_ROUTE ||
+      "/auth/access-token"
   );
 
   // Only append the query string if we have any url parameters to add
@@ -118,9 +179,22 @@ export async function getAccessToken(
       );
     }
 
+    // Detect MFA required response (403 with flat { error: "mfa_required", mfa_token, ... })
+    // Server returns MfaRequiredError.toJSON() format from #createMfaRequiredResponse
+    if (tokenRes.status === 403 && accessTokenError.error === "mfa_required") {
+      throw new MfaRequiredError(
+        accessTokenError.error_description ||
+          "Multi-factor authentication is required.",
+        accessTokenError.mfa_token || "",
+        accessTokenError.mfa_requirements,
+        undefined
+      );
+    }
+
+    // Standard error format: { error: { code, message } }
     throw new AccessTokenError(
-      accessTokenError.error.code,
-      accessTokenError.error.message
+      accessTokenError.error?.code || accessTokenError.error,
+      accessTokenError.error?.message || accessTokenError.error_description
     );
   }
 

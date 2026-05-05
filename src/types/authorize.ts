@@ -7,6 +7,12 @@ export interface StartInteractiveLoginOptions {
    * The URL to redirect to after a successful login.
    */
   returnTo?: string;
+  /**
+   * Control callback return behavior.
+   * - 'redirect' (default): Standard OAuth redirect to returnTo
+   * - 'popup': Return HTML with postMessage for popup flows
+   */
+  challengeMode?: "redirect" | "popup";
 }
 
 export interface AuthorizationParameters {

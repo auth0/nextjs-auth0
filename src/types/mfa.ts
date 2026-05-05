@@ -139,6 +139,35 @@ export interface MfaVerifyResponse {
 }
 
 /**
+ * Factor types for MFA enrollment.
+ */
+export type FactorType = "otp" | "sms" | "voice" | "email" | "push";
+
+/**
+ * Enroll OTP authenticator using factorType.
+ */
+export interface EnrollFactorTypeOtpOptions {
+  /** Encrypted MFA token */
+  mfaToken: string;
+  /** Factor type discriminator */
+  factorType: "otp";
+}
+
+/**
+ * Enroll OOB authenticator using factorType.
+ */
+export interface EnrollFactorTypeOobOptions {
+  /** Encrypted MFA token */
+  mfaToken: string;
+  /** Factor type discriminator */
+  factorType: "sms" | "voice" | "email" | "push";
+  /** Phone number in E.164 format (required for sms/voice) */
+  phoneNumber?: string;
+  /** Email address (optional for email channel - uses user's email if not provided) */
+  email?: string;
+}
+
+/**
  * Enroll OTP authenticator (TOTP app like Authy/Google Authenticator).
  */
 export interface EnrollOtpOptions {
@@ -167,7 +196,11 @@ export interface EnrollOobOptions {
 /**
  * MFA enrollment options (discriminated union).
  */
-export type EnrollOptions = EnrollOtpOptions | EnrollOobOptions;
+export type EnrollOptions =
+  | EnrollFactorTypeOtpOptions
+  | EnrollFactorTypeOobOptions
+  | EnrollOtpOptions
+  | EnrollOobOptions;
 
 /**
  * OTP enrollment response.

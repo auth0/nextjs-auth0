@@ -22,7 +22,7 @@ const defaultRoutes = {
   mfaAuthenticators: "/auth/mfa/authenticators",
   mfaChallenge: "/auth/mfa/challenge",
   mfaVerify: "/auth/mfa/verify",
-  mfaEnroll: "/auth/mfa/enroll"
+  mfaAssociate: "/auth/mfa/associate"
 };
 
 describe("APP_BASE_URL Configuration", () => {

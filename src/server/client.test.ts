@@ -1,7 +1,10 @@
-import { NextResponse } from "next/server.js";
+import { NextRequest, NextResponse } from "next/server.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { InvalidConfigurationError } from "../errors/index.js";
+import {
+  DomainResolutionError,
+  InvalidConfigurationError
+} from "../errors/index.js";
 import { SessionData } from "../types/index.js";
 import { Auth0Client } from "./client.js";
 
@@ -150,6 +153,63 @@ describe("Auth0Client", () => {
       expect(() => new Auth0Client(options)).toThrow(
         "tokenRefreshBuffer must be a non-negative number of seconds."
       );
+    });
+
+    describe("deferred domain resolution (standalone / runtime-injected env)", () => {
+      it("should not throw during construction when AUTH0_DOMAIN is absent and domain is not passed", () => {
+        // Simulate a Next.js standalone build where AUTH0_DOMAIN is only injected at runtime.
+        // The Auth0Client constructor must not throw — domain validation is deferred to request time.
+        delete process.env[ENV_VARS.DOMAIN];
+        process.env[ENV_VARS.CLIENT_ID] = "client_123";
+        process.env[ENV_VARS.CLIENT_SECRET] = "client_secret";
+        process.env[ENV_VARS.APP_BASE_URL] = "https://app.example.com";
+        process.env[ENV_VARS.SECRET] = "secret_value";
+
+        expect(() => new Auth0Client()).not.toThrow();
+      });
+
+      it("should resolve domain at request time when AUTH0_DOMAIN is set after construction", async () => {
+        // Domain is absent at construction, but present when the first request is made.
+        delete process.env[ENV_VARS.DOMAIN];
+        process.env[ENV_VARS.CLIENT_ID] = "client_123";
+        process.env[ENV_VARS.CLIENT_SECRET] = "client_secret";
+        process.env[ENV_VARS.APP_BASE_URL] = "https://app.example.com";
+        process.env[ENV_VARS.SECRET] = "secret_value";
+
+        const client = new Auth0Client();
+
+        // Now inject the domain as if a container runtime has set it
+        process.env[ENV_VARS.DOMAIN] = "runtime.auth0.com";
+
+        // Calling getSession with no active session should not throw an
+        // InvalidConfigurationError — the domain is now resolvable.
+        // getSession returns null when there is no session; it should NOT throw
+        // because domain is now available via the deferred resolver.
+        const req = new NextRequest("https://app.example.com/");
+        await expect(client.getSession(req)).resolves.toBeNull();
+      });
+
+      it("should throw InvalidConfigurationError at request time when AUTH0_DOMAIN is still absent", async () => {
+        // Both build time and request time are missing AUTH0_DOMAIN — the deferred
+        // resolver must throw with a clear message rather than a cryptic internal error.
+        delete process.env[ENV_VARS.DOMAIN];
+        process.env[ENV_VARS.CLIENT_ID] = "client_123";
+        process.env[ENV_VARS.CLIENT_SECRET] = "client_secret";
+        process.env[ENV_VARS.APP_BASE_URL] = "https://app.example.com";
+        process.env[ENV_VARS.SECRET] = "secret_value";
+
+        const client = new Auth0Client();
+
+        // AUTH0_DOMAIN remains unset — should throw at request time.
+        // The deferred resolver throws InvalidConfigurationError, which the
+        // AuthClientProvider wraps in a DomainResolutionError. The original
+        // message is accessible via .cause.
+        const req = new NextRequest("https://app.example.com/");
+        const err = await client.getSession(req).catch((e) => e);
+        expect(err).toBeInstanceOf(DomainResolutionError);
+        expect(err.cause).toBeInstanceOf(InvalidConfigurationError);
+        expect(err.cause?.message).toContain("Missing: domain");
+      });
     });
   });
 
@@ -949,70 +1009,18 @@ describe("Auth0Client", () => {
     });
   });
 
-  describe("DPoP Environment Variable Configuration", () => {
-    // Test DPoP key pairs in PEM format (these are test keys, not for production)
-    const TEST_PRIVATE_KEY_PEM = `-----BEGIN PRIVATE KEY-----
-MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgzQS05OU0N+qhZybt
-IG3eAsEFeuSWdbmMBpltLsZWkWKhRANCAATcrBPN+T4ab7o5UEb8KProeVFNeo3K
-TBXwJXbbAoO5usON7W9yF9Mv/KBfqnbtEqkmbx4AfuTcTBV6Dc0N81XN
------END PRIVATE KEY-----`;
-
-    const TEST_PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
-MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE3KwTzfk+Gm+6OVBG/Cj66HlRTXqN
-ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
------END PUBLIC KEY-----`;
-
-    let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+  describe("DPoP early warning", () => {
     let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
 
     beforeEach(() => {
-      consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
       consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     });
 
     afterEach(() => {
-      consoleLogSpy.mockRestore();
       consoleWarnSpy.mockRestore();
     });
 
-    it("should load DPoP keypair from environment variables when useDPoP is true", () => {
-      // Set up environment variables
-      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
-      process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
-      process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
-      process.env[ENV_VARS.APP_BASE_URL] = "https://test.com";
-      process.env[ENV_VARS.SECRET] = "test_secret";
-      process.env[ENV_VARS.DPOP_PRIVATE_KEY] = TEST_PRIVATE_KEY_PEM;
-      process.env[ENV_VARS.DPOP_PUBLIC_KEY] = TEST_PUBLIC_KEY_PEM;
-
-      const client = new Auth0Client({
-        useDPoP: true
-      });
-
-      expect(client).toBeInstanceOf(Auth0Client);
-
-      // The test should either succeed in loading keys OR fail with a warning
-      // Success case: should log success message
-      // Failure case: should log failure warning (due to test environment limitations)
-      const hasSuccessLog = consoleLogSpy.mock.calls.some(
-        (call: any[]) =>
-          typeof call[0] === "string" &&
-          call[0].includes(
-            "Successfully loaded DPoP keypair from environment variables"
-          )
-      );
-      const hasFailureWarning = consoleWarnSpy.mock.calls.some(
-        (call: any[]) =>
-          typeof call[0] === "string" &&
-          call[0].includes(
-            "WARNING: Failed to load DPoP keypair from environment variables"
-          )
-      );
-
-      expect(hasSuccessLog || hasFailureWarning).toBe(true);
-    });
-
-    it("should return undefined when environment variables are missing and log warning", () => {
+    it("should warn when useDPoP is true but no keypair or environment variables provided", () => {
       // Set up required environment variables but omit DPoP keys
       process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
       process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
@@ -1023,117 +1031,6 @@ ykwV8CV22wKDubrDje1vchfTL/ygX6p27RKpJm8eAH7k3EwVeg3NDfNVzQ==
       // Ensure DPoP environment variables are not set
       delete process.env[ENV_VARS.DPOP_PRIVATE_KEY];
       delete process.env[ENV_VARS.DPOP_PUBLIC_KEY];
-
-      const client = new Auth0Client({
-        useDPoP: true
-      });
-
-      expect(client).toBeInstanceOf(Auth0Client);
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining(
-          "WARNING: useDPoP is set to true but dpopKeyPair is not provided"
-        )
-      );
-    });
-
-    it("should return undefined when useDPoP is false", () => {
-      // Set up environment variables including DPoP keys
-      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
-      process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
-      process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
-      process.env[ENV_VARS.APP_BASE_URL] = "https://test.com";
-      process.env[ENV_VARS.SECRET] = "test_secret";
-      process.env[ENV_VARS.DPOP_PRIVATE_KEY] = TEST_PRIVATE_KEY_PEM;
-      process.env[ENV_VARS.DPOP_PUBLIC_KEY] = TEST_PUBLIC_KEY_PEM;
-
-      const client = new Auth0Client({
-        useDPoP: false
-      });
-
-      expect(client).toBeInstanceOf(Auth0Client);
-      // Should not attempt to load keys or log anything
-      expect(consoleLogSpy).not.toHaveBeenCalled();
-      expect(consoleWarnSpy).not.toHaveBeenCalled();
-    });
-
-    it("should prioritize provided dpopKeyPair over environment variables", async () => {
-      // Set up environment variables
-      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
-      process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
-      process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
-      process.env[ENV_VARS.APP_BASE_URL] = "https://test.com";
-      process.env[ENV_VARS.SECRET] = "test_secret";
-      process.env[ENV_VARS.DPOP_PRIVATE_KEY] = TEST_PRIVATE_KEY_PEM;
-      process.env[ENV_VARS.DPOP_PUBLIC_KEY] = TEST_PUBLIC_KEY_PEM;
-
-      // Create actual CryptoKey objects using generateDpopKeyPair
-      const { generateDpopKeyPair } = await import("../utils/dpopUtils.js");
-      const mockKeypair = await generateDpopKeyPair();
-
-      const client = new Auth0Client({
-        useDPoP: true,
-        dpopKeyPair: mockKeypair
-      });
-
-      expect(client).toBeInstanceOf(Auth0Client);
-      // Should not attempt to load from env vars since keypair is provided
-      expect(consoleLogSpy).not.toHaveBeenCalled();
-      expect(consoleWarnSpy).not.toHaveBeenCalled();
-    });
-
-    it("should handle invalid PEM format gracefully with warning", () => {
-      // Set up environment variables with invalid keys
-      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
-      process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
-      process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
-      process.env[ENV_VARS.APP_BASE_URL] = "https://test.com";
-      process.env[ENV_VARS.SECRET] = "test_secret";
-      process.env[ENV_VARS.DPOP_PRIVATE_KEY] = "invalid-private-key";
-      process.env[ENV_VARS.DPOP_PUBLIC_KEY] = "invalid-public-key";
-
-      const client = new Auth0Client({
-        useDPoP: true
-      });
-
-      expect(client).toBeInstanceOf(Auth0Client);
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining(
-          "WARNING: Failed to load DPoP keypair from environment variables."
-        )
-      );
-    });
-
-    it("should handle missing private key only", () => {
-      // Set up environment variables missing private key
-      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
-      process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
-      process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
-      process.env[ENV_VARS.APP_BASE_URL] = "https://test.com";
-      process.env[ENV_VARS.SECRET] = "test_secret";
-      process.env[ENV_VARS.DPOP_PUBLIC_KEY] = TEST_PUBLIC_KEY_PEM;
-      // AUTH0_DPOP_PRIVATE_KEY is missing
-
-      const client = new Auth0Client({
-        useDPoP: true
-      });
-
-      expect(client).toBeInstanceOf(Auth0Client);
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining(
-          "WARNING: useDPoP is set to true but dpopKeyPair is not provided"
-        )
-      );
-    });
-
-    it("should handle missing public key only", () => {
-      // Set up environment variables missing public key
-      process.env[ENV_VARS.DOMAIN] = "test.auth0.com";
-      process.env[ENV_VARS.CLIENT_ID] = "test_client_id";
-      process.env[ENV_VARS.CLIENT_SECRET] = "test_client_secret";
-      process.env[ENV_VARS.APP_BASE_URL] = "https://test.com";
-      process.env[ENV_VARS.SECRET] = "test_secret";
-      process.env[ENV_VARS.DPOP_PRIVATE_KEY] = TEST_PRIVATE_KEY_PEM;
-      // AUTH0_DPOP_PUBLIC_KEY is missing
 
       const client = new Auth0Client({
         useDPoP: true

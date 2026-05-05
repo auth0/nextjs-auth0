@@ -37,6 +37,12 @@ export interface SessionData {
   [key: string]: unknown;
 }
 
+/**
+ * Interface for a custom session data store.
+ *
+ * **TTL contract:** every successful write method (`set`, `update`) must reset the session
+ * TTL/expiry so that active sessions are not silently expired between requests.
+ */
 export interface SessionDataStore {
   /**
    * Gets the session from the store given a session ID.
@@ -47,6 +53,13 @@ export interface SessionDataStore {
    * Upsert a session in the store given a session ID and `SessionData`.
    */
   set(id: string, session: SessionData): Promise<void>;
+
+  /**
+   * Optional: update the session by its ID only if it already exists.
+   * Return `true` if updated, `false` if not found.
+   *
+   */
+  update?(id: string, session: SessionData): Promise<boolean>;
 
   /**
    * Destroys the session with the given session ID.
@@ -172,6 +185,13 @@ export type GetAccessTokenOptions = {
    * {@link https://auth0.com/docs/secure/tokens/refresh-tokens/multi-resource-refresh-token|See Auth0 Documentation on Multi-resource Refresh Tokens}
    */
   audience?: string | null;
+  /**
+   * Control scope merging behavior.
+   * When true (default): merge global scopes for default audience.
+   * When false: use ONLY requested scope (no global merge).
+   * Used by challengeWithPopup() to prevent global scope pollution.
+   */
+  mergeScopes?: boolean;
 };
 
 export type ProxyOptions = {
@@ -194,6 +214,9 @@ export {
   SUBJECT_TOKEN_TYPES
 } from "./token-vault.js";
 export { ConnectAccountOptions, RESPONSE_TYPES } from "./connected-accounts.js";
+export type { ChallengeWithPopupOptions } from "../client/mfa/index.js";
+export type { AccessTokenResponse } from "../client/helpers/get-access-token.js";
+export type { AuthCompleteMessage } from "../utils/popup-helpers.js";
 export {
   MfaClient,
   Authenticator,
@@ -202,6 +225,9 @@ export {
   EnrollOptions,
   EnrollOtpOptions,
   EnrollOobOptions,
+  FactorType,
+  EnrollFactorTypeOtpOptions,
+  EnrollFactorTypeOobOptions,
   MfaVerifyResponse,
   VerifyMfaOptions,
   VerifyMfaOptionsBase,
@@ -211,7 +237,10 @@ export {
   MfaContext,
   GRANT_TYPE_MFA_OTP,
   GRANT_TYPE_MFA_OOB,
-  GRANT_TYPE_MFA_RECOVERY_CODE
+  GRANT_TYPE_MFA_RECOVERY_CODE,
+  AuthenticatorApiResponse,
+  ChallengeApiResponse,
+  EnrollmentApiResponse
 } from "./mfa.js";
 
 export type {

@@ -1,8 +1,13 @@
+import * as jose from "jose";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { generateSecret } from "../test/utils.js";
+import { SessionData } from "../types/index.js";
 import {
   CookieOptions,
+  decrypt,
   deleteChunkedCookie,
+  encrypt,
   getChunkedCookie,
   RequestCookies,
   ResponseCookies,
@@ -694,5 +699,309 @@ describe("Chunked Cookie Utils", () => {
         expect(result!.length).toBe(10000);
       });
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regression #2595: MCD backfill causes session chunking at boundary
+//
+// When getSessionWithDomainCheck() unconditionally backfills `internal.mcd`
+// in static mode, sessions near MAX_CHUNK_SIZE cross the threshold and get
+// chunked on every middleware pass. These tests verify the boundary behavior.
+//
+// @see https://github.com/auth0/nextjs-auth0/issues/2595
+// ---------------------------------------------------------------------------
+
+const MAX_CHUNK_SIZE = 3500;
+
+/**
+ * Build a pre-MCD session that, when encrypted, lands just below the 3500-byte
+ * chunking boundary. The access token is the primary size lever — matches the
+ * customer's `audience` config where the AT is stored in the session cookie.
+ */
+function buildPreMcdSession(accessTokenLength: number): SessionData {
+  return {
+    user: {
+      sub: "auth0|507f1f77bcf86cd799439011",
+      name: "Test User With A Reasonably Long Display Name",
+      email: "testuser.with.long.email@example-organization.com",
+      email_verified: true,
+      nickname: "testuser.with.long.nickname",
+      updated_at: "2026-04-13T00:00:00.000Z"
+    },
+    tokenSet: {
+      accessToken: "eyJhbGciOiJSUzI1NiJ9." + "A".repeat(accessTokenLength),
+      idToken:
+        "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9." +
+        btoa(
+          JSON.stringify({
+            iss: "https://example.auth0.com/",
+            sub: "auth0|507f1f77bcf86cd799439011",
+            aud: "test-client-id",
+            exp: Math.floor(Date.now() / 1000) + 3600,
+            iat: Math.floor(Date.now() / 1000)
+          })
+        ) +
+        ".fake-signature",
+      token_type: "Bearer",
+      expiresAt: Math.floor(Date.now() / 1000) + 3600,
+      scope: "openid profile email"
+    },
+    internal: {
+      sid: "session-id-abcdef1234567890",
+      createdAt: Math.floor(Date.now() / 1000)
+    }
+    // NOTE: no `internal.mcd` — this is a pre-MCD session
+  };
+}
+
+/** Find an access token length that puts the encrypted session just below the chunking threshold. */
+async function findBoundarySession(secret: string): Promise<{
+  session: SessionData;
+  encrypted: string;
+  size: number;
+}> {
+  let atLen = 1600;
+  let session: SessionData = {} as SessionData;
+  let encrypted: string = "";
+  let size: number = 0;
+
+  let found = false;
+  for (let attempt = 0; attempt < 50 && !found; attempt++) {
+    session = buildPreMcdSession(atLen);
+    const exp = Math.floor(Date.now() / 1000) + 3600;
+    encrypted = await encrypt(session, secret, exp);
+    size = new TextEncoder().encode(encrypted).length;
+    if (size < 3400) atLen += 30;
+    else if (size >= MAX_CHUNK_SIZE) atLen -= 10;
+    else found = true;
+  }
+
+  return { session, encrypted, size };
+}
+
+describe("Regression #2595: MCD backfill session chunking at boundary", () => {
+  let secret: string;
+
+  beforeEach(async () => {
+    secret = await generateSecret(32);
+  });
+
+  it("backfill pushes encrypted session past MAX_CHUNK_SIZE", async () => {
+    const { session, size: preSize } = await findBoundarySession(secret);
+
+    expect(preSize).toBeGreaterThanOrEqual(3400);
+    expect(preSize).toBeLessThan(MAX_CHUNK_SIZE);
+
+    // Simulate backfill
+    session.internal = session.internal || {};
+    (session.internal as any).mcd = {
+      domain: "example.auth0.com",
+      issuer: "https://example.auth0.com/"
+    };
+
+    const postEncrypted = await encrypt(
+      session,
+      secret,
+      Math.floor(Date.now() / 1000) + 3600
+    );
+    const postSize = new TextEncoder().encode(postEncrypted).length;
+
+    expect(postSize).toBeGreaterThan(MAX_CHUNK_SIZE);
+  });
+
+  it("setChunkedCookie produces chunks when backfilled session exceeds threshold", async () => {
+    const session = buildPreMcdSession(1800);
+    (session.internal as any).mcd = {
+      domain: "example.auth0.com",
+      issuer: "https://example.auth0.com/"
+    };
+
+    const encrypted = await encrypt(
+      session,
+      secret,
+      Math.floor(Date.now() / 1000) + 3600
+    );
+    expect(new TextEncoder().encode(encrypted).length).toBeGreaterThan(
+      MAX_CHUNK_SIZE
+    );
+
+    const { cookieStore, reqCookies, resCookies } = createMocks();
+    setChunkedCookie(
+      "__session",
+      encrypted,
+      { path: "/", sameSite: "lax" as const, httpOnly: true, secure: true },
+      reqCookies as unknown as RequestCookies,
+      resCookies as unknown as ResponseCookies
+    );
+
+    expect(cookieStore.has("__session__0")).toBe(true);
+    expect(cookieStore.has("__session__1")).toBe(true);
+    expect(cookieStore.has("__session")).toBe(false);
+  });
+
+  it("getChunkedCookie reassembles chunked session with full decrypt round-trip", async () => {
+    const session = buildPreMcdSession(1800);
+    (session.internal as any).mcd = {
+      domain: "example.auth0.com",
+      issuer: "https://example.auth0.com/"
+    };
+
+    const encrypted = await encrypt(
+      session,
+      secret,
+      Math.floor(Date.now() / 1000) + 3600
+    );
+
+    const { reqCookies, resCookies } = createMocks();
+    setChunkedCookie(
+      "__session",
+      encrypted,
+      { path: "/", sameSite: "lax" as const, httpOnly: true, secure: true },
+      reqCookies as unknown as RequestCookies,
+      resCookies as unknown as ResponseCookies
+    );
+
+    const reassembled = getChunkedCookie(
+      "__session",
+      reqCookies as unknown as RequestCookies
+    );
+    expect(reassembled).toBe(encrypted);
+
+    const decrypted = await decrypt<SessionData>(reassembled!, secret);
+    expect(decrypted).toBeDefined();
+    expect(decrypted!.payload.user.sub).toBe("auth0|507f1f77bcf86cd799439011");
+    expect((decrypted!.payload.internal as any).mcd.domain).toBe(
+      "example.auth0.com"
+    );
+  });
+
+  it("getChunkedCookie falls through to chunks when __session is empty string", () => {
+    const { cookieStore, reqCookies } = createMocks();
+    cookieStore.set("__session", "");
+    cookieStore.set("__session__0", "chunk0");
+    cookieStore.set("__session__1", "chunk1");
+
+    const result = getChunkedCookie(
+      "__session",
+      reqCookies as unknown as RequestCookies
+    );
+    expect(result).toBe("chunk0chunk1");
+  });
+
+  it("getChunkedCookie returns original value when __session is non-empty alongside chunks", async () => {
+    const session = buildPreMcdSession(1800);
+    const encrypted = await encrypt(
+      session,
+      secret,
+      Math.floor(Date.now() / 1000) + 3600
+    );
+
+    const { cookieStore, reqCookies } = createMocks();
+    cookieStore.set("__session", encrypted);
+    cookieStore.set("__session__0", "chunk0value");
+    cookieStore.set("__session__1", "chunk1value");
+
+    const result = getChunkedCookie(
+      "__session",
+      reqCookies as unknown as RequestCookies
+    );
+    // Non-empty __session takes precedence — returns pre-backfill session
+    expect(result).toBe(encrypted);
+  });
+
+  it("full round-trip: middleware backfill+chunk then route handler reassembly", async () => {
+    const {
+      session,
+      encrypted: originalEncrypted,
+      size: _originalSize
+    } = await findBoundarySession(secret);
+
+    // Middleware: backfill + re-encrypt
+    session.internal = session.internal || {};
+    (session.internal as any).mcd = {
+      domain: "example.auth0.com",
+      issuer: "https://example.auth0.com/"
+    };
+
+    const backfilledEncrypted = await encrypt(
+      session as unknown as jose.JWTPayload,
+      secret,
+      Math.floor(Date.now() / 1000) + 3600
+    );
+    expect(
+      new TextEncoder().encode(backfilledEncrypted).length
+    ).toBeGreaterThan(MAX_CHUNK_SIZE);
+
+    // Middleware writes chunks
+    const {
+      cookieStore: mwStore,
+      reqCookies: mwReq,
+      resCookies: mwRes
+    } = createMocks();
+    mwStore.set("__session", originalEncrypted);
+
+    setChunkedCookie(
+      "__session",
+      backfilledEncrypted,
+      { path: "/", sameSite: "lax" as const, httpOnly: true, secure: true },
+      mwReq as unknown as RequestCookies,
+      mwRes as unknown as ResponseCookies
+    );
+
+    expect(mwStore.has("__session__0")).toBe(true);
+    expect(mwStore.has("__session__1")).toBe(true);
+    expect(mwStore.has("__session")).toBe(false);
+
+    // Scenario A: same-request propagation (middleware store = merged store)
+    const resultA = getChunkedCookie(
+      "__session",
+      mwReq as unknown as RequestCookies
+    );
+    expect(resultA).toBe(backfilledEncrypted);
+
+    const sessionA = await decrypt<SessionData>(resultA!, secret);
+    expect(sessionA!.payload.user.sub).toBe("auth0|507f1f77bcf86cd799439011");
+
+    // Scenario B: next-request (browser sends only chunks)
+    const { cookieStore: browserStore, reqCookies: browserReq } = createMocks();
+    browserStore.set("__session__0", mwStore.get("__session__0")!);
+    browserStore.set("__session__1", mwStore.get("__session__1")!);
+
+    const resultB = getChunkedCookie(
+      "__session",
+      browserReq as unknown as RequestCookies
+    );
+    expect(resultB).toBe(backfilledEncrypted);
+  });
+
+  it("skipping backfill in static mode preserves session size below threshold", async () => {
+    const { session, size: _size } = await findBoundarySession(secret);
+
+    // Static mode: no backfill
+    expect((session.internal as any).mcd).toBeUndefined();
+
+    // Re-encrypt unchanged session (simulates rolling touch without backfill)
+    const reEncrypted = await encrypt(
+      session,
+      secret,
+      Math.floor(Date.now() / 1000) + 3600
+    );
+    const reEncryptedSize = new TextEncoder().encode(reEncrypted).length;
+    expect(reEncryptedSize).toBeLessThan(MAX_CHUNK_SIZE);
+
+    // Stays as single cookie
+    const { cookieStore, reqCookies, resCookies } = createMocks();
+    setChunkedCookie(
+      "__session",
+      reEncrypted,
+      { path: "/", sameSite: "lax" as const, httpOnly: true, secure: true },
+      reqCookies as unknown as RequestCookies,
+      resCookies as unknown as ResponseCookies
+    );
+
+    expect(cookieStore.has("__session")).toBe(true);
+    expect(cookieStore.has("__session__0")).toBe(false);
+    expect(cookieStore.has("__session__1")).toBe(false);
   });
 });

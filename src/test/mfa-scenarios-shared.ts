@@ -519,10 +519,15 @@ export const enrollScenarios: MfaTestScenario<
         secret: "base32secret"
       }
     },
-    expected: (result: EnrollmentResponse) => {
-      if (result.authenticatorType !== "otp")
-        throw new Error("Expected authenticatorType=otp");
-      if (!result.barcodeUri) throw new Error("Expected barcodeUri");
+    expected: (result: any) => {
+      // Business method returns snake_case, client camelizes
+      if (
+        result.authenticator_type !== "otp" &&
+        result.authenticatorType !== "otp"
+      )
+        throw new Error("Expected authenticator_type or authenticatorType=otp");
+      if (!result.barcode_uri && !result.barcodeUri)
+        throw new Error("Expected barcode_uri or barcodeUri");
       if (!result.secret) throw new Error("Expected secret");
     }
   },
@@ -542,11 +547,15 @@ export const enrollScenarios: MfaTestScenario<
         oob_code: "abc123"
       }
     },
-    expected: (result: EnrollmentResponse) => {
-      if (result.authenticatorType !== "oob")
-        throw new Error("Expected authenticatorType=oob");
-      if (result.oobChannel !== "sms")
-        throw new Error("Expected oobChannel=sms");
+    expected: (result: any) => {
+      // Business method returns snake_case, client camelizes
+      if (
+        result.authenticator_type !== "oob" &&
+        result.authenticatorType !== "oob"
+      )
+        throw new Error("Expected authenticator_type or authenticatorType=oob");
+      if (result.oob_channel !== "sms" && result.oobChannel !== "sms")
+        throw new Error("Expected oob_channel or oobChannel=sms");
     }
   },
   {
@@ -566,9 +575,12 @@ export const enrollScenarios: MfaTestScenario<
         oob_code: "email-code-123"
       }
     },
-    expected: (result: EnrollmentResponse) => {
-      if (result.authenticatorType !== "oob" || result.oobChannel !== "email")
-        throw new Error("Expected authenticatorType=oob with oobChannel=email");
+    expected: (result: any) => {
+      // Business method returns snake_case, client camelizes
+      if ((result.authenticator_type || result.authenticatorType) !== "oob")
+        throw new Error("Expected authenticator_type or authenticatorType=oob");
+      if ((result.oob_channel || result.oobChannel) !== "email")
+        throw new Error("Expected oob_channel or oobChannel=email");
     }
   },
   {

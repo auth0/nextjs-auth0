@@ -42,6 +42,14 @@ export {
   type MfaRequirements
 } from "./mfa-errors.js";
 
+export {
+  PopupBlockedError,
+  PopupCancelledError,
+  PopupTimeoutError,
+  PopupInProgressError,
+  ExecutionContextError
+} from "./popup-errors.js";
+
 // MCD (Multiple Custom Domains) error classes
 export {
   DomainResolutionError,

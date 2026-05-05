@@ -14,6 +14,7 @@ import {
   vi
 } from "vitest";
 
+import { AccessTokenError, MfaRequiredError } from "../../errors/index.js";
 import { getAccessToken } from "./get-access-token.js";
 
 export const restHandlers = [
@@ -75,6 +76,9 @@ export const restHandlers = [
     }
 
     return HttpResponse.json({ token });
+  }),
+  http.get("/custom/token", () => {
+    return HttpResponse.json({ token: "<access_token_from_custom_route>" });
   })
 ];
 
@@ -165,5 +169,169 @@ describe("getAccessToken", () => {
         audience: "trigger_not_ok_error"
       })
     ).rejects.toThrowError("The request is missing a required parameter.");
+  });
+
+  it("should use custom route when provided", async () => {
+    const result = await getAccessToken({
+      route: "/custom/token"
+    });
+
+    expect(result).toBe("<access_token_from_custom_route>");
+  });
+
+  it("should use custom route with audience and scope", async () => {
+    server.use(
+      http.get("/custom/token", ({ request }) => {
+        const url = new URL(request.url);
+        const audience = url.searchParams.get("audience");
+        const scope = url.searchParams.get("scope");
+
+        return HttpResponse.json({
+          token: `<custom_token_${audience}_${scope}>`
+        });
+      })
+    );
+
+    const result = await getAccessToken({
+      route: "/custom/token",
+      audience: "custom_audience",
+      scope: "read:custom"
+    });
+
+    expect(result).toBe("<custom_token_custom_audience_read:custom>");
+  });
+
+  describe("mergeScopes", () => {
+    it("should append mergeScopes=false to URL when mergeScopes is false", async () => {
+      let capturedUrl: URL | undefined;
+      server.use(
+        http.get("/auth/access-token", ({ request }) => {
+          capturedUrl = new URL(request.url);
+          return HttpResponse.json({
+            token: "<token>",
+            scope: "read:data"
+          });
+        })
+      );
+
+      await getAccessToken({
+        audience: "test_audience",
+        scope: "read:data",
+        mergeScopes: false
+      });
+
+      expect(capturedUrl).toBeDefined();
+      expect(capturedUrl!.searchParams.get("mergeScopes")).toBe("false");
+    });
+
+    it("should NOT append mergeScopes when mergeScopes is true", async () => {
+      let capturedUrl: URL | undefined;
+      server.use(
+        http.get("/auth/access-token", ({ request }) => {
+          capturedUrl = new URL(request.url);
+          return HttpResponse.json({ token: "<token>" });
+        })
+      );
+
+      await getAccessToken({
+        audience: "test_audience",
+        mergeScopes: true
+      });
+
+      expect(capturedUrl).toBeDefined();
+      expect(capturedUrl!.searchParams.has("mergeScopes")).toBe(false);
+    });
+
+    it("should NOT append mergeScopes when mergeScopes is undefined", async () => {
+      let capturedUrl: URL | undefined;
+      server.use(
+        http.get("/auth/access-token", ({ request }) => {
+          capturedUrl = new URL(request.url);
+          return HttpResponse.json({ token: "<token>" });
+        })
+      );
+
+      await getAccessToken({ audience: "test_audience" });
+
+      expect(capturedUrl).toBeDefined();
+      expect(capturedUrl!.searchParams.has("mergeScopes")).toBe(false);
+    });
+  });
+
+  describe("MfaRequiredError reconstruction", () => {
+    it("should throw MfaRequiredError for 403 mfa_required response", async () => {
+      server.use(
+        http.get("/auth/access-token", () => {
+          return HttpResponse.json(
+            {
+              error: "mfa_required",
+              error_description: "Multifactor authentication required",
+              mfa_token: "encrypted_mfa_token_value",
+              mfa_requirements: { challenge: [{ type: "otp" }] }
+            },
+            { status: 403 }
+          );
+        })
+      );
+
+      try {
+        await getAccessToken({ audience: "mfa_audience" });
+        throw new Error("Expected error to be thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(MfaRequiredError);
+        const mfaError = error as MfaRequiredError;
+        expect(mfaError.message).toBe("Multifactor authentication required");
+        expect(mfaError.mfa_token).toBe("encrypted_mfa_token_value");
+        expect(mfaError.mfa_requirements).toEqual({
+          challenge: [{ type: "otp" }]
+        });
+      }
+    });
+
+    it("should NOT throw MfaRequiredError for 403 without mfa_required error code", async () => {
+      server.use(
+        http.get("/auth/access-token", () => {
+          return HttpResponse.json(
+            {
+              error: { code: "forbidden", message: "Access forbidden" }
+            },
+            { status: 403 }
+          );
+        })
+      );
+
+      try {
+        await getAccessToken({ audience: "forbidden_audience" });
+        throw new Error("Expected error to be thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(AccessTokenError);
+        expect(error).not.toBeInstanceOf(MfaRequiredError);
+      }
+    });
+
+    it("should use default message when error_description is missing", async () => {
+      server.use(
+        http.get("/auth/access-token", () => {
+          return HttpResponse.json(
+            {
+              error: "mfa_required",
+              mfa_token: "token123"
+            },
+            { status: 403 }
+          );
+        })
+      );
+
+      try {
+        await getAccessToken({ audience: "mfa_audience" });
+        throw new Error("Expected error to be thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(MfaRequiredError);
+        const mfaError = error as MfaRequiredError;
+        expect(mfaError.message).toBe(
+          "Multi-factor authentication is required."
+        );
+      }
+    });
   });
 });

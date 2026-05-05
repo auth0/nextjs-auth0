@@ -1,5 +1,43 @@
 # Change Log
 
+## [v4.20.0](https://github.com/auth0/nextjs-auth0/tree/v4.20.0) (2026-05-05)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.19.0...v4.20.0)
+
+**Added**
+- feat: support customizing profile and accessToken routes [\#2451](https://github.com/auth0/nextjs-auth0/pull/2451) ([eliw00d](https://github.com/eliw00d))
+
+**Fixed**
+- fix: stale session reuse on proxy DPoP nonce retry [\#2582](https://github.com/auth0/nextjs-auth0/pull/2582) ([nandan-bhat](https://github.com/nandan-bhat))
+- fix: move NextResponse-dependent buildEnrollOptions to server-only module [\#2643](https://github.com/auth0/nextjs-auth0/pull/2643) ([sleitor](https://github.com/sleitor))
+- fix: delete v3 appSession cookie on logout [\#2552](https://github.com/auth0/nextjs-auth0/pull/2552) ([gmurphey](https://github.com/gmurphey))
+- fix: respect allowInsecureRequests option in AuthClientProvider domain validation [\#2630](https://github.com/auth0/nextjs-auth0/pull/2630) ([sleitor](https://github.com/sleitor))
+
+## [v4.19.0](https://github.com/auth0/nextjs-auth0/tree/v4.19.0) (2026-04-22)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.18.0...v4.19.0)
+
+**Added**
+- feat: add mfa.stepUpWithPopup() for reactive MFA step-up via Universal Login [\#2524](https://github.com/auth0/nextjs-auth0/pull/2524) ([tusharpandey13](https://github.com/tusharpandey13))
+
+**Fixed**
+- fix: MFA http contract parity fixes [\#2555](https://github.com/auth0/nextjs-auth0/pull/2555) ([tusharpandey13](https://github.com/tusharpandey13))
+- fix: skip MCD session backfill in static mode [\#2618](https://github.com/auth0/nextjs-auth0/pull/2618) ([tusharpandey13](https://github.com/tusharpandey13))
+
+## [v4.18.0](https://github.com/auth0/nextjs-auth0/tree/v4.18.0) (2026-04-17)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.17.1...v4.18.0)
+
+**Added**
+- Reapply feat: add optional update() to SessionDataStore (#2590) [\#2616](https://github.com/auth0/nextjs-auth0/pull/2616) ([Piyush-85](https://github.com/Piyush-85))
+
+**Fixed**
+- fix: DPoP nonce retry race issue [\#2580](https://github.com/auth0/nextjs-auth0/pull/2580) ([nandan-bhat](https://github.com/nandan-bhat))
+
+## [v4.17.1](https://github.com/auth0/nextjs-auth0/tree/v4.17.1) (2026-04-16)
+[Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.17.0...v4.17.1)
+
+**Fixed**
+- fix: defer `AuthClientProvider` construction when `AUTH0_DOMAIN` not set at build time [\#2604](https://github.com/auth0/nextjs-auth0/pull/2604) ([sleitor](https://github.com/sleitor))
+- fix: Next.js edge runtime build error for crypto module [\#2564](https://github.com/auth0/nextjs-auth0/pull/2564) ([Piyush-85](https://github.com/Piyush-85))
+
 ## [v4.17.0](https://github.com/auth0/nextjs-auth0/tree/v4.17.0) (2026-04-09)
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.16.2...v4.17.0)
 
