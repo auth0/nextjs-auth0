@@ -1360,6 +1360,102 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
       expect(retryDPoPInfo.hasNonce).toBe(true);
       expect(retryDPoPInfo.nonce).toBe("server_nonce_123");
     });
+
+    it("7.8 should not refresh twice when a nonce retry happens after refresh", async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const session = createInitialSessionData({
+        tokenSet: {
+          accessToken: "at-old",
+          refreshToken: "rt-old",
+          expiresAt: now - 10,
+          scope: "read:data",
+          audience: DEFAULT.audience,
+          token_type: "DPoP"
+        }
+      });
+      const cookie = await createSessionCookie(session, secret);
+      const refreshCalls: string[] = [];
+      const upstreamAuthHeaders: string[] = [];
+
+      server.use(
+        http.post(
+          `https://${DEFAULT.domain}/oauth/token`,
+          async ({ request }) => {
+            const params = new URLSearchParams(await request.text());
+            refreshCalls.push(params.get("refresh_token") ?? "");
+
+            if (refreshCalls.length > 1) {
+              return HttpResponse.json(
+                {
+                  error: "invalid_grant",
+                  error_description: "stale refresh token"
+                },
+                { status: 400 }
+              );
+            }
+
+            const jwt = await new jose.SignJWT({
+              sid: DEFAULT.sid,
+              auth_time: Math.floor(Date.now() / 1000),
+              nonce: "nonce-value"
+            })
+              .setProtectedHeader({ alg: DEFAULT.alg })
+              .setSubject(DEFAULT.sub)
+              .setIssuedAt()
+              .setIssuer(_authorizationServerMetadata.issuer)
+              .setAudience(DEFAULT.clientId)
+              .setExpirationTime("2h")
+              .sign(keyPair.privateKey);
+
+            return HttpResponse.json({
+              access_token: "at-new-1",
+              refresh_token: "rt-new-1",
+              id_token: jwt,
+              token_type: "DPoP",
+              expires_in: 3600,
+              scope: "read:data"
+            });
+          }
+        ),
+        http.get(`${DEFAULT.upstreamBaseUrl}/data`, ({ request }) => {
+          upstreamAuthHeaders.push(request.headers.get("authorization") ?? "");
+
+          if (upstreamAuthHeaders.length === 1) {
+            return new HttpResponse(
+              JSON.stringify({
+                error: "use_dpop_nonce",
+                error_description: "DPoP nonce is required"
+              }),
+              {
+                status: 401,
+                headers: {
+                  "www-authenticate": 'DPoP error="use_dpop_nonce"',
+                  "dpop-nonce": "server_nonce_123",
+                  "content-type": "application/json"
+                }
+              }
+            );
+          }
+
+          return HttpResponse.json({ success: true });
+        })
+      );
+
+      const request = new NextRequest(
+        new URL(`${DEFAULT.proxyPath}/data`, DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers: { cookie }
+        }
+      );
+
+      const response = await dpopAuthClient.handler(request);
+
+      expect(response.status).toBe(200);
+      expect(refreshCalls).toEqual(["rt-old"]);
+      expect(upstreamAuthHeaders).toEqual(["DPoP at-new-1", "DPoP at-new-1"]);
+      expect(response.headers.get("set-cookie")).toContain("__session=");
+    });
   });
 
   describe("Category 8: Session Update After Token Refresh", () => {
@@ -1716,6 +1812,65 @@ describe("Authentication Client - Custom Proxy Handler", async () => {
       const response = await authClient.handler(request);
 
       expect(response.status).toBe(401);
+    });
+
+    it("9.4 should return MFA required response when token refresh requires MFA", async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const session = createInitialSessionData({
+        tokenSet: {
+          accessToken: DEFAULT.accessToken,
+          refreshToken: DEFAULT.refreshToken,
+          expiresAt: now - 10,
+          scope: "read:data",
+          token_type: "Bearer"
+        }
+      });
+      const cookie = await createSessionCookie(session, secret);
+      let upstreamCallCount = 0;
+
+      server.use(
+        http.post(`https://${DEFAULT.domain}/oauth/token`, () => {
+          return HttpResponse.json(
+            {
+              error: "mfa_required",
+              error_description: "Multi-factor authentication is required.",
+              mfa_token: "raw-mfa-token",
+              mfa_requirements: {
+                challenge: [{ type: "otp" }]
+              }
+            },
+            { status: 403 }
+          );
+        }),
+        http.get(`${DEFAULT.upstreamBaseUrl}/data`, () => {
+          upstreamCallCount++;
+          return HttpResponse.json({ success: true });
+        })
+      );
+
+      const request = new NextRequest(
+        new URL(`${DEFAULT.proxyPath}/data`, DEFAULT.appBaseUrl),
+        {
+          method: "GET",
+          headers: { cookie }
+        }
+      );
+
+      const response = await authClient.handler(request);
+      const body = await response.json();
+
+      expect(response.status).toBe(403);
+      expect(body).toEqual({
+        error: "mfa_required",
+        error_description: "Multi-factor authentication is required.",
+        mfa_token: expect.any(String),
+        mfa_requirements: {
+          challenge: [{ type: "otp" }]
+        }
+      });
+      expect(body.mfa_token).not.toBe("raw-mfa-token");
+      expect(response.headers.get("set-cookie")).toContain("__session=");
+      expect(upstreamCallCount).toBe(0);
     });
   });
 
