@@ -1042,8 +1042,11 @@ describe("Stateful Session Store", async () => {
       await sessionStore.set(requestCookies, responseCookies, session);
 
       expect(responseCookies.set).toHaveBeenCalledWith(LEGACY_COOKIE_NAME, "", {
+        httpOnly: true,
         maxAge: 0,
-        path: "/"
+        path: "/",
+        sameSite: "lax",
+        secure: false
       });
     });
 
@@ -1191,8 +1194,11 @@ describe("Stateful Session Store", async () => {
       await sessionStore.delete(requestCookies, responseCookies);
 
       expect(responseCookies.set).toHaveBeenCalledWith(LEGACY_COOKIE_NAME, "", {
+        httpOnly: true,
         maxAge: 0,
-        path: "/"
+        path: "/",
+        sameSite: "lax",
+        secure: false
       });
     });
 
