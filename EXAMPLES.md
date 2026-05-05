@@ -1485,6 +1485,21 @@ The SDK exposes:
 - **`auth0.passwordless`** — a server-side client for calling start/verify from Server Actions or API routes directly
 - **`passwordless`** from `@auth0/nextjs-auth0/client` — a thin client-side singleton that calls the route handlers
 
+### Universal Login (Recommended)
+
+The simplest approach: pass the `connection` parameter to the standard login redirect. Auth0's Universal Login handles OTP delivery, input, and verification entirely on its hosted page — your app needs no custom form or error handling.
+
+```typescript
+// Works with any passwordless connection enabled on your application
+<a href="/auth/login?connection=email">Sign in with email</a>
+<a href="/auth/login?connection=sms">Sign in via SMS</a>
+```
+
+After the user completes the flow, Auth0 redirects to `/auth/callback` and the SDK creates a session — identical to a standard OAuth callback. No additional route handler setup is needed beyond the standard `auth0.handler` mount.
+
+> [!NOTE]
+> The rest of this section documents the **custom (headless) API** — `auth0.passwordless` and the `passwordless` client singleton — for cases where you need full control over the login UI.
+
 ### Auth0 Setup
 
 Before using passwordless, enable a **Passwordless** connection in the Auth0 Dashboard:

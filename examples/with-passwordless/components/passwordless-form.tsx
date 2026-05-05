@@ -8,7 +8,7 @@ import {
   PasswordlessVerifyError,
 } from "@auth0/nextjs-auth0/errors";
 
-type ConnectionType = "email" | "sms" | "magic-link";
+type ConnectionType = "email" | "sms" | "magic-link" | "universal-login";
 type Step = "start" | "verify" | "link-sent";
 
 export function PasswordlessForm() {
@@ -215,72 +215,105 @@ export function PasswordlessForm() {
         >
           Magic Link
         </button>
+        <button
+          type="button"
+          onClick={() => { setConnection("universal-login"); setError(null); }}
+          className={`flex-1 rounded-md py-1.5 font-medium transition ${
+            connection === "universal-login"
+              ? "bg-white text-gray-900 shadow-sm"
+              : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          Universal Login
+        </button>
       </div>
 
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
-      {connection === "email" || connection === "magic-link" ? (
-        <div>
-          <label
-            htmlFor="email"
-            className="mb-1 block text-sm font-medium text-gray-700"
+      {connection === "universal-login" ? (
+        <div className="space-y-3 pt-1">
+          <p className="text-center text-sm text-gray-500">
+            Auth0&apos;s Universal Login handles the full passwordless flow on a hosted page — no OTP code handling needed in your app.
+          </p>
+          <a
+            href="/auth/login?connection=email"
+            className="block w-full rounded-lg bg-blue-600 px-4 py-2 text-center text-sm font-semibold text-white transition hover:bg-blue-700"
           >
-            Email address
-          </label>
-          <input
-            id="email"
-            type="email"
-            autoComplete="email"
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            disabled={loading}
-            className={inputClass}
-          />
-          {connection === "magic-link" && (
-            <p className="mt-1 text-xs text-gray-400">We&apos;ll email you a one-click sign-in link — no code to type.</p>
-          )}
+            Continue with email
+          </a>
+          <a
+            href="/auth/login?connection=sms"
+            className="block w-full rounded-lg border border-gray-300 px-4 py-2 text-center text-sm font-medium text-gray-700 transition hover:bg-gray-100"
+          >
+            Continue with SMS
+          </a>
         </div>
       ) : (
-        <div>
-          <label
-            htmlFor="phone"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            Phone number
-          </label>
-          <input
-            id="phone"
-            type="tel"
-            autoComplete="tel"
-            placeholder="+14155550100"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            required
-            disabled={loading}
-            className={inputClass}
-          />
-          <p className="mt-1 text-xs text-gray-400">E.164 format (e.g. +14155550100)</p>
-        </div>
+        <>
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
+          {connection === "email" || connection === "magic-link" ? (
+            <div>
+              <label
+                htmlFor="email"
+                className="mb-1 block text-sm font-medium text-gray-700"
+              >
+                Email address
+              </label>
+              <input
+                id="email"
+                type="email"
+                autoComplete="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={loading}
+                className={inputClass}
+              />
+              {connection === "magic-link" && (
+                <p className="mt-1 text-xs text-gray-400">We&apos;ll email you a one-click sign-in link — no code to type.</p>
+              )}
+            </div>
+          ) : (
+            <div>
+              <label
+                htmlFor="phone"
+                className="mb-1 block text-sm font-medium text-gray-700"
+              >
+                Phone number
+              </label>
+              <input
+                id="phone"
+                type="tel"
+                autoComplete="tel"
+                placeholder="+14155550100"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                required
+                disabled={loading}
+                className={inputClass}
+              />
+              <p className="mt-1 text-xs text-gray-400">E.164 format (e.g. +14155550100)</p>
+            </div>
+          )}
+
+          <button type="submit" disabled={loading} className={btnPrimary}>
+            {loading
+              ? connection === "magic-link" ? "Sending link…" : "Sending code…"
+              : connection === "magic-link" ? "Send magic link" : "Send code"}
+          </button>
+
+          <p className="text-center text-xs text-gray-400">
+            Prefer a password?{" "}
+            <a href="/auth/login" className="text-blue-600 underline hover:text-blue-800">
+              Sign in with Auth0
+            </a>
+          </p>
+        </>
       )}
-
-      <button type="submit" disabled={loading} className={btnPrimary}>
-        {loading
-          ? connection === "magic-link" ? "Sending link…" : "Sending code…"
-          : connection === "magic-link" ? "Send magic link" : "Send code"}
-      </button>
-
-      <p className="text-center text-xs text-gray-400">
-        Prefer a password?{" "}
-        <a href="/auth/login" className="text-blue-600 underline hover:text-blue-800">
-          Sign in with Auth0
-        </a>
-      </p>
     </form>
   );
 }
