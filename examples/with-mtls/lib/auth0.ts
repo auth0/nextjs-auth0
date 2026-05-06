@@ -47,7 +47,10 @@ const tlsAgent = new Agent({
   connect: {
     cert: readFileSync(certPath),
     key: readFileSync(keyPath),
-    ...(caPath ? { ca: readFileSync(caPath) } : {})
+    ...(caPath ? { ca: readFileSync(caPath) } : {}),
+    // For local development with Vivaldi self-signed certificates,
+    // disable certificate validation. Remove for production!
+    rejectUnauthorized: false
   }
 });
 
@@ -55,7 +58,7 @@ const tlsAgent = new Agent({
  * A fetch implementation that routes all requests through the mTLS agent,
  * attaching the client certificate to every outbound TLS handshake.
  */
-function mtlsFetch(
+export function mtlsFetch(
   input: RequestInfo | URL,
   init?: RequestInit
 ): Promise<Response> {
