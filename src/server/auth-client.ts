@@ -1585,10 +1585,12 @@ export class AuthClient {
               .audience as string;
           }
 
-          await this.passwordlessStart(
-            { connection: "email", email, send },
+          await this.passwordlessStart({
+            connection: "email",
+            email,
+            send,
             authParams
-          );
+          });
 
           const transactionState: TransactionState = {
             nonce,
@@ -3891,8 +3893,10 @@ export class AuthClient {
       );
     }
 
-    // jose.decodeJwt does a non-validating base64 decode — safe here because the
-    // token was received directly from Auth0's HTTPS token endpoint.
+    // jose.decodeJwt does a non-validating base64 decode — safe here because
+    // the token was received from Auth0's HTTPS token endpoint (server-to-server)
+    // and iss/aud were already validated by oauth4webapi's
+    // processGenericTokenEndpointResponse inside passwordlessVerify().
     const claims = jose.decodeJwt(tokenResponse.id_token);
     const user = claims as unknown as User;
 
@@ -3924,13 +3928,17 @@ export class AuthClient {
    * @param options - Connection type, user identifier, and (for email) delivery method.
    * @throws {PasswordlessStartError} On Auth0 API failure.
    */
-  async passwordlessStart(
-    options: PasswordlessStartOptions,
-    authParams?: Record<string, string>
-  ): Promise<void> {
+  async passwordlessStart(options: PasswordlessStartOptions): Promise<void> {
     const url = new URL("/passwordless/start", this.issuer).toString();
     const httpOptions = this.httpOptions();
     httpOptions.headers.set("Content-Type", "application/json");
+
+    // Forward locale preference for Auth0 email template localization.
+    // Auth0's /passwordless/start respects x-request-language to select the
+    // correct email template language when multiple are configured.
+    if (options.language) {
+      httpOptions.headers.set("x-request-language", options.language);
+    }
 
     const body: Record<string, unknown> = {
       client_id: this.clientMetadata.client_id,
@@ -3948,8 +3956,8 @@ export class AuthClient {
       body.phone_number = options.phoneNumber;
     }
 
-    if (authParams) {
-      body.authParams = authParams;
+    if (options.authParams) {
+      body.authParams = options.authParams;
     }
 
     try {
@@ -4069,6 +4077,27 @@ export class AuthClient {
         }
       );
     } catch (err: any) {
+      // oauth4webapi validates the id_token (iss, aud, signature) inside
+      // processGenericTokenEndpointResponse and throws with code
+      // JWT_CLAIM_COMPARISON when a claim doesn't match the discovered ASM.
+      // Surface those as specific PasswordlessVerifyErrors so callers can
+      // distinguish misconfiguration from a bad grant.
+      if (err?.code === oauth.JWT_CLAIM_COMPARISON) {
+        const claim = (err.cause as any)?.claim;
+        if (claim === "iss") {
+          throw new PasswordlessVerifyError(
+            "invalid_issuer",
+            `ID token issuer mismatch. Check AUTH0_DOMAIN configuration.`
+          );
+        }
+        if (claim === "aud") {
+          throw new PasswordlessVerifyError(
+            "invalid_audience",
+            `ID token audience mismatch. Check AUTH0_CLIENT_ID configuration.`
+          );
+        }
+      }
+
       const oauthErr = await extractOAuthErrorDetails(err);
       throw new PasswordlessVerifyError(
         oauthErr.error || "unknown_error",
