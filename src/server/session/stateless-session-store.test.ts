@@ -454,8 +454,11 @@ describe("Stateless Session Store", async () => {
           LEGACY_COOKIE_NAME,
           "",
           {
+            httpOnly: true,
             maxAge: 0,
-            path: "/"
+            path: "/",
+            sameSite: "lax",
+            secure: false
           }
         );
       });
@@ -511,19 +514,37 @@ describe("Stateless Session Store", async () => {
           2,
           LEGACY_COOKIE_NAME,
           "",
-          { maxAge: 0, path: "/" }
+          {
+            httpOnly: true,
+            maxAge: 0,
+            path: "/",
+            sameSite: "lax",
+            secure: false
+          }
         );
         expect(responseCookies.set).toHaveBeenNthCalledWith(
           3,
           `${LEGACY_COOKIE_NAME}.0`,
           "",
-          { maxAge: 0, path: "/" }
+          {
+            httpOnly: true,
+            maxAge: 0,
+            path: "/",
+            sameSite: "lax",
+            secure: false
+          }
         );
         expect(responseCookies.set).toHaveBeenNthCalledWith(
           4,
           `${LEGACY_COOKIE_NAME}.1`,
           "",
-          { maxAge: 0, path: "/" }
+          {
+            httpOnly: true,
+            maxAge: 0,
+            path: "/",
+            sameSite: "lax",
+            secure: false
+          }
         );
       });
     });
@@ -808,8 +829,11 @@ describe("Stateless Session Store", async () => {
         legacyCookiesInSetup[0].name,
         "",
         {
+          httpOnly: true,
           maxAge: 0,
-          path: "/"
+          path: "/",
+          sameSite: "lax",
+          secure: false
         }
       );
     });
@@ -880,8 +904,11 @@ describe("Stateless Session Store", async () => {
       await sessionStore.delete(requestCookies, responseCookies);
 
       expect(responseCookies.set).toHaveBeenCalledWith(LEGACY_COOKIE_NAME, "", {
+        httpOnly: true,
         maxAge: 0,
-        path: "/"
+        path: "/",
+        sameSite: "lax",
+        secure: false
       });
     });
   });
