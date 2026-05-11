@@ -51,8 +51,12 @@ export interface AuthorizationParameters {
    *
    * - `'login'` — show the login screen (default)
    * - `'signup'` — show the sign-up / registration screen
+   * - `'reset-password'` — show the password reset screen (New Universal Login only)
+   *
+   * Auth0 may accept additional custom screen names; use `string & {}` to pass
+   * arbitrary values while retaining autocomplete for the known literals.
    */
-  screen_hint?: "login" | "signup";
+  screen_hint?: "login" | "signup" | "reset-password" | (string & {});
   /**
    * Pre-fills the email or phone field on the Universal Login page.
    *
@@ -60,6 +64,51 @@ export interface AuthorizationParameters {
    * improve UX by skipping manual entry.
    */
   login_hint?: string;
+  /**
+   * Controls whether the authorization server prompts the user for reauthentication
+   * or consent.
+   *
+   * - `'none'` — no UI shown; fails with `login_required` if interaction is needed
+   * - `'login'` — force reauthentication even if a session exists
+   * - `'consent'` — force consent prompt even if previously granted
+   * - `'select_account'` — prompt user to select an account
+   * - `'create'` — prompt user to create a new account (Auth0 New Universal Login)
+   *
+   * @see https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
+   */
+  prompt?:
+    | "none"
+    | "login"
+    | "consent"
+    | "select_account"
+    | "create"
+    | (string & {});
+  /**
+   * Requested Authentication Context Class Reference values.
+   * Space-separated string indicating the authentication context the authorization
+   * server should satisfy (e.g. step-up MFA policies).
+   *
+   * @see https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
+   */
+  acr_values?: string;
+  /**
+   * End-user's preferred languages for the UI, as a space-separated list of
+   * BCP 47 language tags in order of preference (e.g. `'fr-CA fr en'`).
+   *
+   * @see https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
+   */
+  ui_locales?: string;
+  /**
+   * Controls how the authorization server displays the authentication UI.
+   *
+   * - `'page'` — full page redirect (default)
+   * - `'popup'` — popup window
+   * - `'touch'` — touch-optimized UI
+   * - `'wap'` — WAP browser UI
+   *
+   * @see https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
+   */
+  display?: "page" | "popup" | "touch" | "wap" | (string & {});
   /**
    * Additional authorization parameters.
    */
