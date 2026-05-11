@@ -22,6 +22,28 @@ export interface PasswordlessStartEmailOptions {
    * - `'link'` — magic link
    */
   send: "code" | "link";
+  /**
+   * BCP 47 language tag (e.g. `'en'`, `'fr'`, `'pt-BR'`) forwarded as
+   * `x-request-language` to Auth0. Used to select the correct email
+   * template language when multiple are configured on the connection.
+   */
+  language?: string;
+  /**
+   * Additional authentication parameters passed to Auth0 in the `authParams`
+   * body field of `/passwordless/start`. Useful for magic-link flows where
+   * you need to set `redirect_uri`, `scope`, or custom parameters.
+   *
+   * @example
+   * ```ts
+   * await auth0.passwordless.start({
+   *   connection: 'email',
+   *   email: 'user@example.com',
+   *   send: 'link',
+   *   authParams: { redirect_uri: 'https://example.com/callback', scope: 'openid profile' }
+   * });
+   * ```
+   */
+  authParams?: Record<string, string>;
 }
 
 /**
@@ -33,6 +55,17 @@ export interface PasswordlessStartSmsOptions {
   connection: "sms";
   /** The phone number to send the OTP to, in E.164 format (e.g. `'+14155550100'`). */
   phoneNumber: string;
+  /**
+   * BCP 47 language tag (e.g. `'en'`, `'fr'`, `'pt-BR'`) forwarded as
+   * `x-request-language` to Auth0. Used to select the correct SMS
+   * template language when multiple are configured on the connection.
+   */
+  language?: string;
+  /**
+   * Additional authentication parameters passed to Auth0 in the `authParams`
+   * body field of `/passwordless/start`.
+   */
+  authParams?: Record<string, string>;
 }
 
 /**

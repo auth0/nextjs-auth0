@@ -39,20 +39,48 @@ import type { AuthClient } from "../auth-client.js";
 export class ServerPasswordlessClient implements PasswordlessClient {
   constructor(private provider: AuthClientProvider) {}
 
-  private async getAuthClient(): Promise<AuthClient> {
+  private async getAuthClient(req?: NextRequest): Promise<AuthClient> {
     const { headers } = await import("next/headers.js");
-    const reqHeaders = await headers();
-    return this.provider.forRequest(reqHeaders, undefined);
+    const reqHeaders = req ? req.headers : await headers();
+    const url = req?.nextUrl;
+    return this.provider.forRequest(reqHeaders, url);
   }
 
   /**
    * Initiate a passwordless flow by sending an OTP to the user's email or phone.
+   * App Router overload — reads headers from `next/headers`.
    *
    * @param options - Connection type and user identifier (email or phone)
    */
-  async start(options: PasswordlessStartOptions): Promise<void> {
+  async start(options: PasswordlessStartOptions): Promise<void>;
+
+  /**
+   * Initiate a passwordless flow by sending an OTP to the user's email or phone.
+   * Pages Router / Middleware overload — pass the request for Multi-Custom Domain resolution.
+   *
+   * @param req - Next.js request (provides URL context for MCD domain resolution)
+   * @param options - Connection type and user identifier (email or phone)
+   */
+  async start(
+    req: NextRequest,
+    options: PasswordlessStartOptions
+  ): Promise<void>;
+
+  async start(
+    arg1: PasswordlessStartOptions | NextRequest,
+    arg2?: PasswordlessStartOptions
+  ): Promise<void> {
+    if (arg1 instanceof NextRequest) {
+      if (!arg2) {
+        throw new TypeError(
+          "start(req, options): options argument is required"
+        );
+      }
+      const authClient = await this.getAuthClient(arg1);
+      return authClient.passwordlessStart(arg2);
+    }
     const authClient = await this.getAuthClient();
-    return authClient.passwordlessStart(options);
+    return authClient.passwordlessStart(arg1);
   }
 
   /**
@@ -82,15 +110,15 @@ export class ServerPasswordlessClient implements PasswordlessClient {
     arg2?: NextResponse,
     arg3?: PasswordlessVerifyOptions
   ): Promise<void> {
-    const authClient = await this.getAuthClient();
-
     if (arg1 instanceof NextRequest) {
       // Pages Router / Middleware: verify(req, res, options)
+      // req is passed so MCD resolver can pick the correct Auth0 domain
       if (!arg2 || !arg3) {
         throw new TypeError(
           "verify(req, res, options): All three arguments required for Pages Router"
         );
       }
+      const authClient = await this.getAuthClient(arg1);
       const tokenResponse = await authClient.passwordlessVerify(arg3);
       await authClient.createSessionFromPasswordlessVerify(
         tokenResponse,
@@ -104,6 +132,7 @@ export class ServerPasswordlessClient implements PasswordlessClient {
           "verify(options): Only one argument allowed for App Router"
         );
       }
+      const authClient = await this.getAuthClient();
       const tokenResponse = await authClient.passwordlessVerify(arg1);
       const cookiesLib = await getCookies();
       await authClient.createSessionFromPasswordlessVerify(
