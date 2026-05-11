@@ -1544,6 +1544,11 @@ export class AuthClient {
 
       const res = new NextResponse(null, { status: 204 });
 
+      const language =
+        typeof bodyRecord.language === "string" && bodyRecord.language
+          ? bodyRecord.language
+          : undefined;
+
       if (connection === "email") {
         const email = validateStringFieldAndThrow(bodyRecord.email, "email");
         const send = validateStringFieldAndThrow(bodyRecord.send, "send") as
@@ -1588,7 +1593,8 @@ export class AuthClient {
             connection: "email",
             email,
             send,
-            authParams
+            authParams,
+            language
           });
 
           const transactionState: TransactionState = {
@@ -1612,14 +1618,23 @@ export class AuthClient {
 
           await this.transactionStore.save(res.cookies, transactionState);
         } else {
-          await this.passwordlessStart({ connection: "email", email, send });
+          await this.passwordlessStart({
+            connection: "email",
+            email,
+            send,
+            language
+          });
         }
       } else if (connection === "sms") {
         const phoneNumber = validateStringFieldAndThrow(
           bodyRecord.phoneNumber,
           "phoneNumber"
         );
-        await this.passwordlessStart({ connection: "sms", phoneNumber });
+        await this.passwordlessStart({
+          connection: "sms",
+          phoneNumber,
+          language
+        });
       } else {
         return NextResponse.json(
           {

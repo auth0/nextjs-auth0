@@ -509,6 +509,69 @@ describe("AuthClient passwordless methods", () => {
         expect(res.status).toBe(204);
       });
 
+      it("forwards x-request-language header to Auth0 when language is provided", async () => {
+        let capturedHeaders: Record<string, string> = {};
+
+        server.use(
+          http.post(
+            `https://${DEFAULT.domain}/passwordless/start`,
+            async ({ request }) => {
+              capturedHeaders = Object.fromEntries(request.headers.entries());
+              return HttpResponse.json({}, { status: 200 });
+            }
+          )
+        );
+
+        const req = new NextRequest(
+          new URL("/auth/passwordless/start", DEFAULT.appBaseUrl),
+          {
+            method: "POST",
+            body: JSON.stringify({
+              connection: "email",
+              email: DEFAULT.email,
+              send: "code",
+              language: "fr"
+            }),
+            headers: { "Content-Type": "application/json" }
+          }
+        );
+
+        const res = await authClient.handler(req);
+        expect(res.status).toBe(204);
+        expect(capturedHeaders["x-request-language"]).toBe("fr");
+      });
+
+      it("does not forward x-request-language when language is omitted", async () => {
+        let capturedHeaders: Record<string, string> = {};
+
+        server.use(
+          http.post(
+            `https://${DEFAULT.domain}/passwordless/start`,
+            async ({ request }) => {
+              capturedHeaders = Object.fromEntries(request.headers.entries());
+              return HttpResponse.json({}, { status: 200 });
+            }
+          )
+        );
+
+        const req = new NextRequest(
+          new URL("/auth/passwordless/start", DEFAULT.appBaseUrl),
+          {
+            method: "POST",
+            body: JSON.stringify({
+              connection: "email",
+              email: DEFAULT.email,
+              send: "code"
+            }),
+            headers: { "Content-Type": "application/json" }
+          }
+        );
+
+        const res = await authClient.handler(req);
+        expect(res.status).toBe(204);
+        expect(capturedHeaders["x-request-language"]).toBeUndefined();
+      });
+
       it("returns 400 for missing connection field", async () => {
         const req = new NextRequest(
           new URL("/auth/passwordless/start", DEFAULT.appBaseUrl),
