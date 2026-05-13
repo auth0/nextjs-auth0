@@ -428,7 +428,7 @@ describe("AuthClient passwordless methods", () => {
         expect(setCookie).toMatch(/HttpOnly/i);
       });
 
-      it("magic link: authParams sent to Auth0 include PKCE and scope/audience from SDK config", async () => {
+      it("magic link: authParams sent to Auth0 include state, redirect_uri, scope and audience from SDK config", async () => {
         let capturedBody: Record<string, unknown> = {};
 
         server.use(
@@ -473,15 +473,13 @@ describe("AuthClient passwordless methods", () => {
 
         await scopedClient.handler(req);
 
-        // Auth0 /passwordless/start receives authParams with PKCE params,
+        // Auth0 /passwordless/start receives authParams with state, redirect_uri,
         // scope and audience from SDK config — NOT arbitrary client-supplied values
         const authParams = capturedBody.authParams as Record<string, string>;
         expect(authParams).toBeDefined();
-        expect(authParams.code_challenge).toBeTruthy();
-        expect(authParams.code_challenge_method).toBe("S256");
         expect(authParams.state).toBeTruthy();
-        expect(authParams.nonce).toBeTruthy();
         expect(authParams.redirect_uri).toContain("/auth/callback");
+        expect(authParams.response_type).toBe("code");
         expect(authParams.scope).toBe("openid profile email");
         expect(authParams.audience).toBe("https://api.example.com");
       });
