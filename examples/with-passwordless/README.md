@@ -39,6 +39,24 @@ A Next.js App Router example demonstrating passwordless authentication using [`@
 
 > **Note:** Email OTP and Magic Link both use the **Email** passwordless connection on Auth0. The `send` parameter (`"code"` vs `"link"`) controls which flow is triggered.
 
+### 3. Enable Allow Magic Link Verify Without Session (magic link only)
+
+If you are using the **Magic Link** flow, you must enable the `allow_magiclink_verify_without_session` tenant flag. Without it Auth0 requires its own session cookie (`nstate`) to be present when the user clicks the link — but that cookie lives on the Auth0 domain and cannot be planted by your app.
+
+
+
+Enable via the Management API:
+
+```bash
+PATCH https://<your-domain>/api/v2/tenants/settings
+Authorization: Bearer <MGMT_API_TOKEN>
+Content-Type: application/json
+
+{ "flags": { "allow_magiclink_verify_without_session": true } }
+```
+
+This setting is not required for Email OTP or SMS OTP.
+
 ## Configuration
 
 Create a `.env.local` file in this directory:
@@ -76,7 +94,7 @@ Open [http://localhost:3000](http://localhost:3000). You will see three tabs —
 
 ## How It Works
 
-The SDK mounts all auth routes through a single catch-all handler at `app/auth/[auth0]/route.ts`. Two routes are used by this example:
+All auth routes are handled by `proxy.ts` — a Next.js middleware that passes every request through `auth0.middleware()`. The SDK intercepts the relevant paths internally:
 
 | Method | Path | What it does |
 |--------|------|-------------|
@@ -100,7 +118,8 @@ await passwordless.verify({ connection: "email", email, verificationCode: code }
 await passwordless.start({ connection: "sms", phoneNumber });
 await passwordless.verify({ connection: "sms", phoneNumber, verificationCode: code });
 
-// Magic link — no verify step; Auth0 redirects to /auth/callback on click
+// Magic link — no verify step; when the user clicks the link Auth0 redirects
+// to /auth/callback?code=...&state=... and the SDK creates the session there.
 await passwordless.start({ connection: "email", email, send: "link" });
 ```
 
@@ -131,8 +150,6 @@ This example shows both approaches side-by-side. The **Universal Login** tab in 
 
 ```
 ├── app/
-│   ├── auth/
-│   │   └── [auth0]/route.ts    ← Mounts all SDK routes (login, callback, logout, passwordless, etc.)
 │   ├── dashboard/
 │   │   └── page.tsx            ← Protected page — shows user profile, email, phone
 │   ├── layout.tsx              ← Root layout
@@ -140,6 +157,6 @@ This example shows both approaches side-by-side. The **Universal Login** tab in 
 ├── components/
 │   └── passwordless-form.tsx   ← Tabbed UI: Universal Login / Email OTP / SMS OTP / Magic Link
 ├── lib/
-│   └── auth0.ts                ← Auth0Client singleton (shared across app and middleware)
-└── middleware.ts               ← Runs auth0.middleware() on every request for session refresh
+│   └── auth0.ts                ← Auth0Client singleton (shared across app and proxy)
+└── proxy.ts                    ← Next.js middleware — passes all requests through auth0.middleware()
 ```

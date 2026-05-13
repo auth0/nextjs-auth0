@@ -1481,7 +1481,7 @@ When MFA is required, the SDK automatically stores MFA context in the session ke
 Auth0 supports passwordless authentication via one-time passwords (OTPs) or magic links delivered by **email** or **SMS**. No password is required — the user proves identity by possessing the inbox or phone.
 
 The SDK exposes:
-- **Built-in route handlers** registered through `auth0.handler()` that handle the full OTP lifecycle server-side
+- **Built-in route handlers** served via `auth0.handler` (catch-all route) or `auth0.middleware` (proxy pattern) that handle the full OTP lifecycle server-side
 - **`auth0.passwordless`** — a server-side client for calling start/verify from Server Actions or API routes directly
 - **`passwordless`** from `@auth0/nextjs-auth0/client` — a thin client-side singleton that calls the route handlers
 
@@ -1489,8 +1489,8 @@ The SDK exposes:
 
 The simplest approach: pass the `connection` parameter to the standard login redirect. Auth0's Universal Login handles OTP delivery, input, and verification entirely on its hosted page — your app needs no custom form or error handling.
 
-```typescript
-// Works with any passwordless connection enabled on your application
+```tsx
+{/* Works with any passwordless connection enabled on your application */}
 <a href="/auth/login?connection=email">Sign in with email</a>
 <a href="/auth/login?connection=sms">Sign in via SMS</a>
 ```
@@ -1506,6 +1506,7 @@ Before using passwordless, enable a **Passwordless** connection in the Auth0 Das
 1. Go to **Authentication > Passwordless** and enable **Email** and/or **SMS**.
 2. Under **Applications**, enable the connection for your application.
 3. Ensure the application's **Grant Types** include the passwordless OTP grant (Auth0 enables this automatically for passwordless connections).
+4. **Magic link only** — Set the `allow_magiclink_verify_without_session` flag via the Management API. This is required so Auth0 does not demand its own session cookie when the user clicks the link.
 
 ### Route Handler Setup
 
@@ -1612,10 +1613,24 @@ window.location.href = "/dashboard";
 
 **Magic link (email only):**
 
+The magic link flow uses the standard OAuth authorization code grant. When the user clicks the emailed link, Auth0 redirects to `/auth/callback` with a `code` and `state` — the same callback used for regular logins. The SDK saves a transaction cookie during `start()` so the callback can complete the code exchange and create a session.
+
+> [!IMPORTANT]
+> Magic links require the **`allow_magiclink_verify_without_session`** tenant-level setting to be enabled. Without it, Auth0 requires its own session cookie (`nstate`) to be present when the user clicks the link — but that cookie lives on the Auth0 domain and cannot be set from your application. Enable it in **Auth0 Dashboard → Settings → Advanced → Allow Magic Link Verify Without Session**, or via the Management API:
+>
+> ```bash
+> PATCH /api/v2/tenants/settings
+> { "flags": { "allow_magiclink_verify_without_session": true } }
+> ```
+
 ```typescript
-// Send a magic link instead of a code — user clicks the link to authenticate
+// Step 1 — send the magic link (no verify step needed)
 await passwordless.start({ connection: "email", email: "user@example.com", send: "link" });
+// → User receives an email with a link like:
+//   https://<domain>/passwordless/verify_redirect?...&redirect_uri=https://yourapp.com/auth/callback&state=...
 ```
+
+When the user clicks the link, Auth0 redirects to your `/auth/callback` route with `?code=...&state=...`. The SDK resolves the transaction by matching `state` to the cookie saved during `start()`, exchanges the code for tokens, and creates a session — identical to a standard OAuth callback. No second `verify()` call is required.
 
 ### Server-Side (Headless) Usage
 
@@ -1640,13 +1655,18 @@ export async function verifyOtp(email: string, verificationCode: string) {
 **Pages Router — API Route:**
 
 ```typescript
-import type { NextApiRequest, NextApiResponse } from "next";
 import { auth0 } from "@/lib/auth0";
 import { NextRequest, NextResponse } from "next/server";
+import type { NextApiRequest, NextApiResponse } from "next";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { email, verificationCode } = req.body;
-  const nextReq = new NextRequest(req.url!, { method: "POST" });
+
+  // Wrap in NextRequest/NextResponse so the SDK can read/write cookies
+  const nextReq = new NextRequest(new URL(req.url!, "http://localhost"), {
+    method: req.method,
+    headers: req.headers as HeadersInit
+  });
   const nextRes = new NextResponse();
 
   await auth0.passwordless.verify(nextReq, nextRes, {
@@ -1655,11 +1675,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     verificationCode
   });
 
-  // Copy Set-Cookie headers from nextRes
-  nextRes.headers.getSetCookie().forEach((cookie) => {
-    res.setHeader("Set-Cookie", cookie);
-  });
-  res.status(200).end();
+  // Forward the session cookie set by the SDK back to the Pages Router response
+  for (const cookie of nextRes.cookies.getAll()) {
+    res.setHeader(
+      "Set-Cookie",
+      `${cookie.name}=${cookie.value}; Path=${cookie.path ?? "/"}; HttpOnly; SameSite=Lax`
+    );
+  }
+  res.status(200).json({ success: true });
 }
 ```
 
