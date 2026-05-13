@@ -1117,7 +1117,7 @@ export class AuthClient {
           await this.getClientAuth(),
           codeGrantParams,
           redirectUri.toString(),
-          transactionState.codeVerifier,
+          transactionState.codeVerifier ?? oauth.nopkce,
           {
             ...this.httpOptions(),
             [oauth.customFetch]: this.fetch,
@@ -1556,34 +1556,36 @@ export class AuthClient {
           | "link";
 
         if (send === "link") {
-          // Magic link flow: set up PKCE so /auth/callback can complete the auth code exchange
-          // when the user clicks the emailed link.
+          // Magic link flow: generate our own state, pass it as authParams.state
+          // to /passwordless/start so Auth0 embeds it in the emailed link, and
+          // save a transaction cookie keyed by it. When the user clicks the link,
+          // Auth0's /passwordless/verify_redirect will redirect to our callback
+          // with the same state, and handleCallback can resolve the transaction.
+          //
+          // Requires tenant setting `allow_magiclink_verify_without_session: true`
+          // so Auth0 does not require an nstate session cookie at link-click time
+          // (those cookies live on the Auth0 domain and cannot be planted from
+          // the application's domain).
           const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
           const redirectUri = createRouteUrl(
             this.routes.callback,
             appBaseUrl
           ).toString();
-          const codeChallengeMethod = "S256";
-          const codeVerifier = oauth.generateRandomCodeVerifier();
-          const codeChallenge =
-            await oauth.calculatePKCECodeChallenge(codeVerifier);
+
+          const scope =
+            getScopeForAudience(
+              this.authorizationParameters.scope,
+              this.authorizationParameters.audience as string | undefined
+            ) || "openid email profile";
+
           const state = oauth.generateRandomState();
-          const nonce = oauth.generateRandomNonce();
 
           const authParams: Record<string, string> = {
             redirect_uri: redirectUri,
             response_type: RESPONSE_TYPES.CODE,
-            state,
-            nonce,
-            code_challenge: codeChallenge,
-            code_challenge_method: codeChallengeMethod
+            scope,
+            state
           };
-
-          const scope = getScopeForAudience(
-            this.authorizationParameters.scope,
-            this.authorizationParameters.audience as string | undefined
-          );
-          if (scope) authParams.scope = scope;
           if (this.authorizationParameters.audience) {
             authParams.audience = this.authorizationParameters
               .audience as string;
@@ -1598,9 +1600,6 @@ export class AuthClient {
           });
 
           const transactionState: TransactionState = {
-            nonce,
-            maxAge: this.authorizationParameters.max_age,
-            codeVerifier,
             responseType: RESPONSE_TYPES.CODE,
             state,
             returnTo: this.signInReturnToPath,
@@ -1618,6 +1617,7 @@ export class AuthClient {
 
           await this.transactionStore.save(res.cookies, transactionState);
         } else {
+          // OTP flow: send the code directly, no authorize step needed
           await this.passwordlessStart({
             connection: "email",
             email,
