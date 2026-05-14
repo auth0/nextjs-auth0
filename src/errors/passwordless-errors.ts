@@ -28,9 +28,7 @@ abstract class PasswordlessError extends SdkError {
     };
   }
 
-  get code(): string {
-    return this.error;
-  }
+  public abstract get code(): string;
 }
 
 /**
@@ -45,6 +43,10 @@ export class PasswordlessStartError extends PasswordlessError {
   public readonly error: string;
   public readonly error_description: string;
   public readonly cause?: PasswordlessApiErrorResponse;
+
+  public get code(): string {
+    return "passwordless_start_error";
+  }
 
   constructor(
     error: string,
@@ -71,6 +73,10 @@ export class PasswordlessVerifyError extends PasswordlessError {
   public readonly error: string;
   public readonly error_description: string;
   public readonly cause?: PasswordlessApiErrorResponse;
+
+  public get code(): string {
+    return "passwordless_verify_error";
+  }
 
   constructor(
     error: string,
