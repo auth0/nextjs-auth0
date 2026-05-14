@@ -237,6 +237,12 @@ export interface AuthClientOptions {
   sessionStore: AbstractSessionStore;
 
   domain: string;
+  /**
+   * Issuer URL override. When provided, this is used instead of constructing
+   * the issuer from the domain hostname. Required for providers like Okta that
+   * use path-based authorization server URLs (e.g. https://myorg.okta.com/oauth2/default/).
+   */
+  issuer?: string;
   clientId: string;
   clientSecret?: string;
   clientAssertionSigningKey?: string | jose.CryptoKey;
@@ -307,6 +313,7 @@ export class AuthClient {
   private clientAssertionSigningKey?: string | jose.CryptoKey;
   private clientAssertionSigningAlg: string;
   readonly domain: string;
+  private readonly _issuer: string;
   private authorizationParameters: AuthorizationParameters;
   private pushedAuthorizationRequests: boolean;
 
@@ -401,6 +408,7 @@ export class AuthClient {
 
     // authorization server
     this.domain = options.domain;
+    this._issuer = options.issuer ?? `https://${options.domain}/`;
     this.clientMetadata = { client_id: options.clientId };
 
     // Apply DPoP timing validation options to client metadata if provided
@@ -2361,7 +2369,7 @@ export class AuthClient {
   }
 
   private get issuer(): string {
-    return `https://${this.domain}/`;
+    return this._issuer;
   }
 
   /**

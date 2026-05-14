@@ -25,7 +25,7 @@ interface AuthClientProviderOptions {
    * Factory function to create an AuthClient for a given domain.
    * Called when a new domain client is needed.
    */
-  createAuthClient: (domain: string) => AuthClient;
+  createAuthClient: (domain: string, issuer: string) => AuthClient;
 
   /**
    * Allow insecure HTTP requests to localhost during development.
@@ -59,7 +59,7 @@ export class AuthClientProvider {
 
   private domainClients: LruMap<string, AuthClient>;
 
-  private createAuthClientFactory: (domain: string) => AuthClient;
+  private createAuthClientFactory: (domain: string, issuer: string) => AuthClient;
 
   /**
    * Creates a new AuthClientProvider instance.
@@ -86,7 +86,7 @@ export class AuthClientProvider {
       this.staticDomain = normalized.domain;
 
       // Pre-populate cache with singleton AuthClient for static domain
-      const client = this.createAuthClientFactory(this.staticDomain);
+      const client = this.createAuthClientFactory(this.staticDomain, normalized.issuer);
       this.domainClients.set(this.staticDomain, client);
     } else if (typeof options.domain === "function") {
       // Resolver mode: store resolver function
@@ -185,7 +185,7 @@ export class AuthClientProvider {
       return client;
     }
     // Create new client (LruMap.set() handles eviction)
-    const newClient = this.createAuthClientFactory(normalizedDomain);
+    const newClient = this.createAuthClientFactory(normalizedDomain, normalized.issuer);
     this.domainClients.set(normalizedDomain, newClient);
     return newClient;
   }

@@ -28,7 +28,7 @@ describe("AuthClientProvider", () => {
 
       expect(provider.isResolverMode).toBe(false);
       expect(provider.configuredDomain).toBe("example.auth0.com");
-      expect(createAuthClientMock).toHaveBeenCalledWith("example.auth0.com");
+      expect(createAuthClientMock).toHaveBeenCalledWith("example.auth0.com", "https://example.auth0.com/");
     });
 
     it("should normalize domain in static mode", () => {
@@ -38,7 +38,7 @@ describe("AuthClientProvider", () => {
       });
 
       expect(provider.configuredDomain).toBe("example.auth0.com");
-      expect(createAuthClientMock).toHaveBeenCalledWith("example.auth0.com");
+      expect(createAuthClientMock).toHaveBeenCalledWith("example.auth0.com", "https://example.auth0.com/");
     });
 
     it("should validate domain in static mode", () => {
@@ -168,7 +168,7 @@ describe("AuthClientProvider", () => {
       const client = await provider.forRequest(headers);
 
       expect(resolver).toHaveBeenCalledWith({ headers });
-      expect(createAuthClientMock).toHaveBeenCalledWith("example.auth0.com");
+      expect(createAuthClientMock).toHaveBeenCalledWith("example.auth0.com", "https://example.auth0.com/");
       expect(client).toBe(mockAuthClient);
     });
 
@@ -411,7 +411,7 @@ describe("AuthClientProvider", () => {
       });
 
       const client1 = provider.forDomainSync("domain1.auth0.com");
-      expect(createAuthClientMock).toHaveBeenCalledWith("domain1.auth0.com");
+      expect(createAuthClientMock).toHaveBeenCalledWith("domain1.auth0.com", "https://domain1.auth0.com/");
       expect(client1).toBe(mockAuthClient);
 
       // Call again - should use cached
@@ -441,7 +441,7 @@ describe("AuthClientProvider", () => {
       createAuthClientMock.mockReturnValue(mockAuthClient);
 
       const _client = provider.forDomainSync(evictedDomain);
-      expect(createAuthClientMock).toHaveBeenCalledWith(evictedDomain);
+      expect(createAuthClientMock).toHaveBeenCalledWith(evictedDomain, `https://${evictedDomain}/`);
     });
 
     it("should validate domain in forDomainSync", () => {
@@ -499,7 +499,7 @@ describe("AuthClientProvider", () => {
       createAuthClientMock.mockReturnValue(mockAuthClient);
       const _clientAEvicted = provider.forDomainSync("domain-a.auth0.com");
       // Since A was evicted, should need recreation
-      expect(createAuthClientMock).toHaveBeenCalledWith("domain-a.auth0.com");
+      expect(createAuthClientMock).toHaveBeenCalledWith("domain-a.auth0.com", "https://domain-a.auth0.com/");
     });
   });
 

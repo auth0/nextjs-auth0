@@ -163,6 +163,7 @@ export function normalizeDomain(
 
   let hostname: string;
   let scheme = "https";
+  let urlPath = "/";
 
   try {
     // Try to parse as a URL (case-insensitive scheme detection)
@@ -172,12 +173,16 @@ export function normalizeDomain(
       hostname = url.hostname;
       scheme = url.protocol.replace(":", "");
 
-      // Validate that URL has no path, query, or fragment (except trailing slash)
-      if (url.pathname !== "/" || url.search || url.hash) {
+      // Reject query strings and fragments; paths are allowed for providers like
+      // Okta custom authorization servers (e.g. myorg.okta.com/oauth2/default)
+      if (url.search || url.hash) {
         throw new DomainValidationError(
-          "Domain URL cannot contain path, query, or fragment parameters."
+          "Domain URL cannot contain query or fragment parameters."
         );
       }
+
+      // Preserve path for use in issuer construction
+      urlPath = url.pathname;
     } else {
       // Treat as bare hostname
       hostname = trimmed;
@@ -199,13 +204,17 @@ export function normalizeDomain(
   const normalizedHostname = hostname.toLowerCase();
 
   // Construct the issuer URL
+  // When the input includes a path (e.g. Okta custom auth server
+  // https://myorg.okta.com/oauth2/default), preserve it in the issuer so that
+  // OIDC discovery hits the correct endpoint.
   let issuer: string;
   if (options?.issuerHint) {
     issuer = normalizeIssuer(options.issuerHint);
   } else {
-    // Use scheme from parsed URL or default to https
     const protocol = options?.allowInsecureRequests ? scheme : "https";
-    issuer = normalizeIssuer(`${protocol}://${normalizedHostname}`);
+    // Preserve a non-root path from the original URL (e.g. /oauth2/default)
+    const normalizedPath = urlPath.endsWith("/") ? urlPath : urlPath + "/";
+    issuer = `${protocol}://${normalizedHostname}${normalizedPath}`;
   }
 
   return {

@@ -653,12 +653,13 @@ export class Auth0Client {
     this.provider = new AuthClientProvider({
       domain: domainForProvider,
       allowInsecureRequests: options.allowInsecureRequests,
-      createAuthClient: (domainForClient) => {
+      createAuthClient: (domainForClient, issuerForClient) => {
         return new AuthClient({
           transactionStore: this.transactionStore,
           sessionStore: this.sessionStore,
 
           domain: domainForClient,
+          issuer: issuerForClient,
           clientId,
           clientSecret,
           clientAssertionSigningKey,
