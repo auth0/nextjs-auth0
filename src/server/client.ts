@@ -1403,10 +1403,11 @@ export class Auth0Client {
       });
     }
 
-    // Build issuer URL from authClient's domain
-    const issuer = `https://${authClient.domain}/`;
+    // Use the full issuer URL from authClient (including any path component for
+    // providers like Okta custom authorization servers, e.g.
+    // https://myorg.okta.com/oauth2/default/) so the audience is correct.
     const getMyAccountTokenOpts = {
-      audience: `${issuer}me/`,
+      audience: `${authClient.issuer}me/`,
       scope: "create:me:connected_accounts"
     };
 

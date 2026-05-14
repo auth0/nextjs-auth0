@@ -2368,7 +2368,7 @@ export class AuthClient {
       : oauth.ClientSecretPost(this.clientSecret!);
   }
 
-  private get issuer(): string {
+  get issuer(): string {
     return this._issuer;
   }
 

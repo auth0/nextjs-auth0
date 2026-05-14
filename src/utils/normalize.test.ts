@@ -283,9 +283,7 @@ describe("normalize.ts", () => {
       });
 
       it("should accept URLs with paths (e.g. Okta custom auth servers)", () => {
-        const result = normalizeDomain(
-          "https://myorg.okta.com/oauth2/default"
-        );
+        const result = normalizeDomain("https://myorg.okta.com/oauth2/default");
         expect(result).toEqual({
           domain: "myorg.okta.com",
           issuer: "https://myorg.okta.com/oauth2/default/"
