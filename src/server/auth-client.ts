@@ -2055,7 +2055,7 @@ export class AuthClient {
 
     try {
       const authorizationServerMetadata = await this.discoveryCache.get(
-        this.domain,
+        this.issuer,
         async () => {
           return await oauth
             .discoveryRequest(issuer, {
