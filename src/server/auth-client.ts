@@ -135,6 +135,7 @@ import {
   isBeforeOrEqual,
   mergeScopes,
   normalizeExpiresAt,
+  normalizeTokenType,
   tokenSetFromAccessTokenSet
 } from "../utils/token-set-helpers.js";
 import { isUrl, toSafeRedirect } from "../utils/url-helpers.js";
@@ -3612,14 +3613,9 @@ export class AuthClient {
       );
     }
 
-    // Ensure token_type is present (oauth4webapi marks it optional)
-    // oauth4webapi normalizes to lowercase, but we keep Auth0's casing for compatibility
     const result = {
       ...tokenEndpointResponse,
-      token_type: tokenEndpointResponse.token_type
-        ? tokenEndpointResponse.token_type.charAt(0).toUpperCase() +
-          tokenEndpointResponse.token_type.slice(1)
-        : "Bearer"
+      token_type: normalizeTokenType(tokenEndpointResponse.token_type)
     } as MfaVerifyResponse;
 
     return result;
@@ -3747,6 +3743,8 @@ export class AuthClient {
   async passwordlessVerify(
     options: PasswordlessVerifyOptions
   ): Promise<PasswordlessVerifyTokenResponse> {
+    await this.ensureDpopValidated();
+
     const [discoveryError, authorizationServerMetadata] =
       await this.discoverAuthorizationServerMetadata();
 
@@ -3839,10 +3837,7 @@ export class AuthClient {
       access_token: tokenEndpointResponse.access_token,
       refresh_token: tokenEndpointResponse.refresh_token,
       id_token: tokenEndpointResponse.id_token,
-      token_type: tokenEndpointResponse.token_type
-        ? tokenEndpointResponse.token_type.charAt(0).toUpperCase() +
-          tokenEndpointResponse.token_type.slice(1)
-        : "Bearer",
+      token_type: normalizeTokenType(tokenEndpointResponse.token_type),
       scope: tokenEndpointResponse.scope,
       expires_in: Number(tokenEndpointResponse.expires_in)
     };
