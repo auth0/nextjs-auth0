@@ -177,6 +177,38 @@ export type OnCallbackContext = {
    */
   challengeMode?: "redirect" | "popup";
 };
+/**
+ * Hook called once the user has been redirected back from Auth0 to your
+ * application's callback route, after the authorization code has been
+ * exchanged (or an error has occurred).
+ *
+ * Return a `NextResponse` to control where the user is sent next.
+ * If you do not need custom routing, simply return the result of calling
+ * the fourth argument (`defaultOnCallback`) to invoke the SDK's default behaviour.
+ *
+ * @param error - The error returned from Auth0 or during token exchange.
+ *   `null` when the callback completed successfully.
+ * @param ctx - Context about the transaction that initiated the auth flow
+ *   (e.g. `returnTo` URL, `responseType`, `challengeMode`).
+ * @param session - The `SessionData` that will be persisted after a
+ *   successful callback. `null` when `error` is present.
+ * @param defaultOnCallback - The SDK's built-in callback handler. Call this
+ *   to keep the default redirect/error behaviour while still running your own
+ *   side effects (e.g. syncing the user to your database, setting extra
+ *   cookies). Signature: `(error, ctx) => Promise<NextResponse>`.
+ *
+ * @example
+ * ```ts
+ * const auth0 = new Auth0Client({
+ *   async onCallback(error, ctx, session, defaultOnCallback) {
+ *     if (!error && session) {
+ *       await db.upsertUser(session.user); // side effect
+ *     }
+ *     return defaultOnCallback(error, ctx); // keep default redirect behaviour
+ *   }
+ * });
+ * ```
+ */
 export type OnCallbackHook = (
   error: SdkError | null,
   ctx: OnCallbackContext,
@@ -481,7 +513,7 @@ export class AuthClient {
 
     // hooks
     this.beforeSessionSaved = options.beforeSessionSaved;
-    this.onCallback = options.onCallback || this.defaultOnCallback;
+    this.onCallback = options.onCallback || this.defaultOnCallback.bind(this);
 
     // routes
     this.routes = options.routes;
@@ -944,7 +976,7 @@ export class AuthClient {
         new InvalidStateError(),
         {},
         null,
-        this.defaultOnCallback
+        this.defaultOnCallback.bind(this)
       );
     }
 
@@ -1042,7 +1074,7 @@ export class AuthClient {
           connectedAccount
         },
         session,
-        this.defaultOnCallback
+        this.defaultOnCallback.bind(this)
       );
 
       await this.transactionStore.delete(res.cookies, state);
@@ -1234,7 +1266,12 @@ export class AuthClient {
         );
 
         // Call onCallback after finalization with the actual saved session
-        await this.onCallback(null, onCallbackCtx, mergedSession, this.defaultOnCallback);
+        await this.onCallback(
+          null,
+          onCallbackCtx,
+          mergedSession,
+          this.defaultOnCallback.bind(this)
+        );
 
         const popupResponse = createAuthCompletePostMessageResponse({
           success: true,
@@ -1279,7 +1316,12 @@ export class AuthClient {
         );
 
         // Call onCallback after finalization with the actual saved session
-        await this.onCallback(null, onCallbackCtx, mergedSession, this.defaultOnCallback);
+        await this.onCallback(
+          null,
+          onCallbackCtx,
+          mergedSession,
+          this.defaultOnCallback.bind(this)
+        );
 
         const popupResponse = createAuthCompletePostMessageResponse({
           success: true,
@@ -1323,7 +1365,7 @@ export class AuthClient {
       null,
       onCallbackCtx,
       session,
-      this.defaultOnCallback
+      this.defaultOnCallback.bind(this)
     );
 
     // call beforeSessionSaved callback if present
@@ -2145,7 +2187,7 @@ export class AuthClient {
     // PostMessage branch: return error as postMessage HTML instead of redirect
     if (transactionState?.challengeMode === "popup") {
       // Call onCallback for error observability, matching standard flow behavior
-      await this.onCallback(error, ctx, null, this.defaultOnCallback);
+      await this.onCallback(error, ctx, null, this.defaultOnCallback.bind(this));
 
       const response = createAuthCompletePostMessageResponse({
         success: false,
@@ -2168,7 +2210,7 @@ export class AuthClient {
       error,
       ctx,
       null,
-      this.defaultOnCallback
+      this.defaultOnCallback.bind(this)
     );
 
     // Clean up the transaction cookie on error to prevent accumulation
