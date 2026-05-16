@@ -2187,7 +2187,12 @@ export class AuthClient {
     // PostMessage branch: return error as postMessage HTML instead of redirect
     if (transactionState?.challengeMode === "popup") {
       // Call onCallback for error observability, matching standard flow behavior
-      await this.onCallback(error, ctx, null, this.defaultOnCallback.bind(this));
+      await this.onCallback(
+        error,
+        ctx,
+        null,
+        this.defaultOnCallback.bind(this)
+      );
 
       const response = createAuthCompletePostMessageResponse({
         success: false,
