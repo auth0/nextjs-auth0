@@ -1573,24 +1573,45 @@ export class AuthClient {
             appBaseUrl
           ).toString();
 
-          const scope =
-            getScopeForAudience(
-              this.authorizationParameters.scope,
-              this.authorizationParameters.audience as string | undefined
-            ) || "openid email profile";
-
           const state = oauth.generateRandomState();
 
+          // Start from all global authorizationParameters so tenant-level defaults
+          // (organization, invitation, acr_values, login_hint, etc.) are preserved,
+          // then set magic-link specific fields on top.
+          // Exclude PKCE params (not applicable without code_verifier) and fields
+          // we set explicitly below.
+          const MAGIC_LINK_EXCLUDED_PARAMS = [
+            "client_id",
+            "redirect_uri",
+            "response_type",
+            "state",
+            "nonce",
+            "code_challenge",
+            "code_challenge_method"
+          ];
+          const baseParams = mergeAuthorizationParamsIntoSearchParams(
+            this.authorizationParameters,
+            undefined,
+            MAGIC_LINK_EXCLUDED_PARAMS
+          );
+
+          // Derive scope explicitly via getScopeForAudience so map-form scopes
+          // are resolved correctly, falling back to default if none configured.
+          const audience = this.authorizationParameters.audience as
+            | string
+            | undefined;
+          const scope =
+            getScopeForAudience(this.authorizationParameters.scope, audience) ||
+            "openid email profile";
+
           const authParams: Record<string, string> = {
+            ...Object.fromEntries(baseParams),
             redirect_uri: redirectUri,
             response_type: RESPONSE_TYPES.CODE,
             scope,
-            state
+            state,
+            ...(audience && { audience })
           };
-          if (this.authorizationParameters.audience) {
-            authParams.audience = this.authorizationParameters
-              .audience as string;
-          }
 
           await this.passwordlessStart({
             connection: "email",
@@ -1651,12 +1672,6 @@ export class AuthClient {
       if (e instanceof PasswordlessStartError) {
         return NextResponse.json(e.toJSON(), { status: 400 });
       }
-      if (e instanceof SdkError) {
-        return NextResponse.json(
-          { error: e.code, error_description: e.message },
-          { status: 400 }
-        );
-      }
       return NextResponse.json(
         { error: "server_error", error_description: "Internal server error" },
         { status: 500 }
@@ -1714,10 +1729,20 @@ export class AuthClient {
         req.cookies,
         res.cookies
       );
+      addCacheControlHeadersForSession(res);
       return res;
     } catch (e) {
       if (e instanceof PasswordlessVerifyError) {
         return NextResponse.json(e.toJSON(), { status: 403 });
+      }
+      if (
+        e instanceof DiscoveryError ||
+        e instanceof InvalidConfigurationError
+      ) {
+        return NextResponse.json(
+          { error: "server_error", error_description: "Internal server error" },
+          { status: 500 }
+        );
       }
       if (e instanceof SdkError) {
         return NextResponse.json(
@@ -3902,8 +3927,7 @@ export class AuthClient {
     resCookies: ResponseCookies
   ): Promise<void> {
     if (!tokenResponse.id_token) {
-      throw new PasswordlessVerifyError(
-        "missing_id_token",
+      throw new InvalidConfigurationError(
         "No id_token in passwordless verify response. Ensure 'openid' scope is requested."
       );
     }
@@ -3995,11 +4019,7 @@ export class AuthClient {
       }
     } catch (e) {
       if (e instanceof PasswordlessStartError) throw e;
-      throw new PasswordlessStartError(
-        "unexpected_error",
-        "Unexpected error during passwordless start",
-        undefined
-      );
+      throw e;
     }
   }
 
@@ -4023,10 +4043,8 @@ export class AuthClient {
       await this.discoverAuthorizationServerMetadata();
 
     if (discoveryError) {
-      throw new PasswordlessVerifyError(
-        "discovery_error",
-        "Failed to discover authorization server metadata",
-        undefined
+      throw new DiscoveryError(
+        "Failed to discover authorization server metadata for passwordless verify."
       );
     }
 
@@ -4100,15 +4118,13 @@ export class AuthClient {
       if (err?.code === oauth.JWT_CLAIM_COMPARISON) {
         const claim = (err.cause as any)?.claim;
         if (claim === "iss") {
-          throw new PasswordlessVerifyError(
-            "invalid_issuer",
-            `ID token issuer mismatch. Check AUTH0_DOMAIN configuration.`
+          throw new InvalidConfigurationError(
+            "ID token issuer mismatch. Check AUTH0_DOMAIN configuration."
           );
         }
         if (claim === "aud") {
-          throw new PasswordlessVerifyError(
-            "invalid_audience",
-            `ID token audience mismatch. Check AUTH0_CLIENT_ID configuration.`
+          throw new InvalidConfigurationError(
+            "ID token audience mismatch. Check AUTH0_CLIENT_ID configuration."
           );
         }
       }
