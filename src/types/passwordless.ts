@@ -23,16 +23,25 @@ export interface PasswordlessStartEmailOptions {
    */
   send: "code" | "link";
   /**
-   * BCP 47 language tag (e.g. `'en-US'`, `'fr'`) forwarded as the
-   * `x-request-language` header to Auth0. Auth0 uses this to localise
-   * the email template sent to the user.
+   * BCP 47 language tag (e.g. `'en'`, `'fr'`, `'pt-BR'`) forwarded as
+   * `x-request-language` to Auth0. Used to select the correct email
+   * template language when multiple are configured on the connection.
    */
   language?: string;
   /**
-   * Additional parameters to include in the Auth0 `/passwordless/start` request.
-   * Useful for passing custom Auth0 parameters (e.g. `auth_params.scope`).
-   * Note: security-sensitive params such as `client_id` and `client_secret`
-   * are set by the SDK and cannot be overridden.
+   * Additional authentication parameters passed to Auth0 in the `authParams`
+   * body field of `/passwordless/start`. Useful for magic-link flows where
+   * you need to set `redirect_uri`, `scope`, or custom parameters.
+   *
+   * @example
+   * ```ts
+   * await auth0.passwordless.start({
+   *   connection: 'email',
+   *   email: 'user@example.com',
+   *   send: 'link',
+   *   authParams: { redirect_uri: 'https://example.com/callback', scope: 'openid profile' }
+   * });
+   * ```
    */
   authParams?: Record<string, string>;
 }
@@ -47,16 +56,14 @@ export interface PasswordlessStartSmsOptions {
   /** The phone number to send the OTP to, in E.164 format (e.g. `'+14155550100'`). */
   phoneNumber: string;
   /**
-   * BCP 47 language tag (e.g. `'en-US'`, `'fr'`) forwarded as the
-   * `x-request-language` header to Auth0. Auth0 uses this to localise
-   * the SMS template sent to the user.
+   * BCP 47 language tag (e.g. `'en'`, `'fr'`, `'pt-BR'`) forwarded as
+   * `x-request-language` to Auth0. Used to select the correct SMS
+   * template language when multiple are configured on the connection.
    */
   language?: string;
   /**
-   * Additional parameters to include in the Auth0 `/passwordless/start` request.
-   * Useful for passing custom Auth0 parameters.
-   * Note: security-sensitive params such as `client_id` and `client_secret`
-   * are set by the SDK and cannot be overridden.
+   * Additional authentication parameters passed to Auth0 in the `authParams`
+   * body field of `/passwordless/start`.
    */
   authParams?: Record<string, string>;
 }
