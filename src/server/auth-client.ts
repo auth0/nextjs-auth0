@@ -3946,7 +3946,8 @@ export class AuthClient {
     resCookies: ResponseCookies
   ): Promise<void> {
     if (!tokenResponse.id_token) {
-      throw new InvalidConfigurationError(
+      throw new PasswordlessVerifyError(
+        "missing_id_token",
         "No id_token in passwordless verify response. Ensure 'openid' scope is requested."
       );
     }
@@ -4043,7 +4044,7 @@ export class AuthClient {
       if (e instanceof PasswordlessStartError) throw e;
       throw new PasswordlessStartError(
         "unexpected_error",
-        e instanceof Error ? e.message : "Failed to start passwordless flow",
+        "Unexpected error during passwordless start",
         undefined
       );
     }
@@ -4071,7 +4072,8 @@ export class AuthClient {
     if (discoveryError) {
       throw new PasswordlessVerifyError(
         "discovery_error",
-        "Failed to discover authorization server metadata for passwordless verify."
+        "Failed to discover authorization server metadata",
+        undefined
       );
     }
 
@@ -4138,20 +4140,22 @@ export class AuthClient {
       );
     } catch (err: any) {
       // oauth4webapi validates the id_token (iss, aud, signature) inside
-      // processGenericTokenEndpointResponse and throws with JWT_CLAIM_COMPARISON
-      // when a claim doesn't match the discovered ASM.
+      // processGenericTokenEndpointResponse and throws with code
+      // JWT_CLAIM_COMPARISON when a claim doesn't match the discovered ASM.
+      // Surface those as specific PasswordlessVerifyErrors so callers can
+      // distinguish misconfiguration from a bad grant.
       if (err?.code === oauth.JWT_CLAIM_COMPARISON) {
         const claim = (err.cause as any)?.claim;
         if (claim === "iss") {
           throw new PasswordlessVerifyError(
             "invalid_issuer",
-            "ID token issuer mismatch. Check AUTH0_DOMAIN configuration."
+            `ID token issuer mismatch. Check AUTH0_DOMAIN configuration.`
           );
         }
         if (claim === "aud") {
           throw new PasswordlessVerifyError(
             "invalid_audience",
-            "ID token audience mismatch. Check AUTH0_CLIENT_ID configuration."
+            `ID token audience mismatch. Check AUTH0_CLIENT_ID configuration.`
           );
         }
       }

@@ -419,7 +419,7 @@ describe("AuthClient passwordless methods", () => {
         const res = await authClient.handler(req);
         expect(res.status).toBe(204);
 
-        // Magic link requires a PKCE transaction cookie so /auth/callback can
+        // Magic link requires a transaction cookie so /auth/callback can
         // complete the code exchange when the user clicks the emailed link.
         // Without this cookie the callback throws InvalidStateError.
         const setCookie = res.headers.get("set-cookie");
