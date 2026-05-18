@@ -70,6 +70,18 @@ export class ServerPasswordlessClient implements PasswordlessClient {
     arg1: PasswordlessStartOptions | NextRequest,
     arg2?: PasswordlessStartOptions
   ): Promise<void> {
+    const options = arg1 instanceof NextRequest ? arg2 : arg1;
+    if (
+      options &&
+      "send" in options &&
+      options.connection === "email" &&
+      options.send === "link"
+    ) {
+      throw new TypeError(
+        "send: 'link' is not supported on this API surface. Magic-link flows require a response object to persist the transaction cookie. Use the /auth/passwordless/start route handler instead."
+      );
+    }
+
     if (arg1 instanceof NextRequest) {
       if (!arg2) {
         throw new TypeError(

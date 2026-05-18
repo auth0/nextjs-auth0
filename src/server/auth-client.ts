@@ -135,6 +135,7 @@ import {
   isBeforeOrEqual,
   mergeScopes,
   normalizeExpiresAt,
+  normalizeTokenType,
   tokenSetFromAccessTokenSet
 } from "../utils/token-set-helpers.js";
 import { isUrl, toSafeRedirect } from "../utils/url-helpers.js";
@@ -1572,24 +1573,45 @@ export class AuthClient {
             appBaseUrl
           ).toString();
 
-          const scope =
-            getScopeForAudience(
-              this.authorizationParameters.scope,
-              this.authorizationParameters.audience as string | undefined
-            ) || "openid email profile";
-
           const state = oauth.generateRandomState();
 
+          // Start from all global authorizationParameters so tenant-level defaults
+          // (organization, invitation, acr_values, login_hint, etc.) are preserved,
+          // then set magic-link specific fields on top.
+          // Exclude PKCE params (not applicable without code_verifier) and fields
+          // we set explicitly below.
+          const MAGIC_LINK_EXCLUDED_PARAMS = [
+            "client_id",
+            "redirect_uri",
+            "response_type",
+            "state",
+            "nonce",
+            "code_challenge",
+            "code_challenge_method"
+          ];
+          const baseParams = mergeAuthorizationParamsIntoSearchParams(
+            this.authorizationParameters,
+            undefined,
+            MAGIC_LINK_EXCLUDED_PARAMS
+          );
+
+          // Derive scope explicitly via getScopeForAudience so map-form scopes
+          // are resolved correctly, falling back to default if none configured.
+          const audience = this.authorizationParameters.audience as
+            | string
+            | undefined;
+          const scope =
+            getScopeForAudience(this.authorizationParameters.scope, audience) ||
+            "openid email profile";
+
           const authParams: Record<string, string> = {
+            ...Object.fromEntries(baseParams),
             redirect_uri: redirectUri,
             response_type: RESPONSE_TYPES.CODE,
             scope,
-            state
+            state,
+            ...(audience && { audience })
           };
-          if (this.authorizationParameters.audience) {
-            authParams.audience = this.authorizationParameters
-              .audience as string;
-          }
 
           await this.passwordlessStart({
             connection: "email",
@@ -1648,6 +1670,15 @@ export class AuthClient {
       return res;
     } catch (e) {
       if (e instanceof PasswordlessStartError) {
+        if (e.error === "unexpected_error") {
+          return NextResponse.json(
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
+            { status: 500 }
+          );
+        }
         return NextResponse.json(e.toJSON(), { status: 400 });
       }
       if (e instanceof SdkError) {
@@ -1713,9 +1744,23 @@ export class AuthClient {
         req.cookies,
         res.cookies
       );
+      addCacheControlHeadersForSession(res);
       return res;
     } catch (e) {
       if (e instanceof PasswordlessVerifyError) {
+        const serverErrorCodes = new Set([
+          "discovery_error",
+          "unexpected_error"
+        ]);
+        if (serverErrorCodes.has(e.error)) {
+          return NextResponse.json(
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
+            { status: 500 }
+          );
+        }
         return NextResponse.json(e.toJSON(), { status: 403 });
       }
       if (e instanceof SdkError) {
@@ -3832,14 +3877,9 @@ export class AuthClient {
       );
     }
 
-    // Ensure token_type is present (oauth4webapi marks it optional)
-    // oauth4webapi normalizes to lowercase, but we keep Auth0's casing for compatibility
     const result = {
       ...tokenEndpointResponse,
-      token_type: tokenEndpointResponse.token_type
-        ? tokenEndpointResponse.token_type.charAt(0).toUpperCase() +
-          tokenEndpointResponse.token_type.slice(1)
-        : "Bearer"
+      token_type: normalizeTokenType(tokenEndpointResponse.token_type)
     } as MfaVerifyResponse;
 
     return result;
@@ -3932,7 +3972,10 @@ export class AuthClient {
       },
       internal: {
         sid: (claims.sid as string) || "",
-        createdAt: Math.floor(Date.now() / 1000)
+        createdAt: Math.floor(Date.now() / 1000),
+        ...(this.provider?.isResolverMode && {
+          mcd: { domain: this.domain, issuer: this.issuer }
+        })
       }
     };
 
@@ -4021,6 +4064,8 @@ export class AuthClient {
   async passwordlessVerify(
     options: PasswordlessVerifyOptions
   ): Promise<PasswordlessVerifyTokenResponse> {
+    await this.ensureDpopValidated();
+
     const [discoveryError, authorizationServerMetadata] =
       await this.discoverAuthorizationServerMetadata();
 
@@ -4134,10 +4179,7 @@ export class AuthClient {
       access_token: tokenEndpointResponse.access_token,
       refresh_token: tokenEndpointResponse.refresh_token,
       id_token: tokenEndpointResponse.id_token,
-      token_type: tokenEndpointResponse.token_type
-        ? tokenEndpointResponse.token_type.charAt(0).toUpperCase() +
-          tokenEndpointResponse.token_type.slice(1)
-        : "Bearer",
+      token_type: normalizeTokenType(tokenEndpointResponse.token_type),
       scope: tokenEndpointResponse.scope,
       expires_in: Number(tokenEndpointResponse.expires_in)
     };

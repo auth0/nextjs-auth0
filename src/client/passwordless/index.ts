@@ -42,10 +42,10 @@ import { normalizeWithBasePath } from "../../utils/pathUtils.js";
  * 'use client';
  * import { passwordless } from '@auth0/nextjs-auth0/client';
  *
- * // Send the magic link — server sets a PKCE transaction cookie in the response.
+ * // Send the magic link — server stores a transaction cookie in the response.
  * // The browser stores it automatically (credentials: "same-origin").
- * // When the user clicks the link, /auth/callback completes the code exchange
- * // using that cookie and creates the session.
+ * // When the user clicks the link, Auth0 redirects to /auth/callback which
+ * // completes the code exchange using that cookie and creates the session.
  * await passwordless.start({ connection: 'email', email: 'user@example.com', send: 'link' });
  * // No verify() call needed — the callback route handles it.
  * ```
@@ -68,7 +68,7 @@ class ClientPasswordlessClient implements PasswordlessClient {
       response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "same-origin", // magic link (send: "link") requires Set-Cookie to be stored
+        credentials: "same-origin", // magic link requires the transaction cookie from Set-Cookie to be stored
         body: JSON.stringify(options)
       });
     } catch (e) {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server.js";
 import * as jose from "jose";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
   createAuthorizationServerMetadata,
@@ -419,7 +419,7 @@ describe("AuthClient passwordless methods", () => {
         const res = await authClient.handler(req);
         expect(res.status).toBe(204);
 
-        // Magic link requires a PKCE transaction cookie so /auth/callback can
+        // Magic link requires a transaction cookie so /auth/callback can
         // complete the code exchange when the user clicks the emailed link.
         // Without this cookie the callback throws InvalidStateError.
         const setCookie = res.headers.get("set-cookie");
@@ -1078,26 +1078,73 @@ describe("AuthClient passwordless methods", () => {
   // MCD resolver mode: ServerPasswordlessClient routes to correct domain
   // ---------------------------------------------------------------------------
 
+  describe("ServerPasswordlessClient", () => {
+    it("throws TypeError when start is called with send: 'link' (App Router overload)", async () => {
+      const passwordlessClient = new ServerPasswordlessClient({} as any);
+      await expect(
+        passwordlessClient.start({
+          connection: "email",
+          email: DEFAULT.email,
+          send: "link"
+        })
+      ).rejects.toThrow(TypeError);
+    });
+
+    it("throws TypeError when start is called with send: 'link' (Pages Router overload)", async () => {
+      const passwordlessClient = new ServerPasswordlessClient({} as any);
+      const req = new NextRequest(
+        new URL("/auth/passwordless/start", DEFAULT.appBaseUrl),
+        { method: "POST" }
+      );
+      await expect(
+        passwordlessClient.start(req, {
+          connection: "email",
+          email: DEFAULT.email,
+          send: "link"
+        })
+      ).rejects.toThrow(TypeError);
+    });
+  });
+
   describe("MCD resolver mode — ServerPasswordlessClient", () => {
-    it("start(req, options) calls forRequest with request headers and URL", async () => {
-      const mockPasswordlessStart = vi.fn().mockResolvedValue(undefined);
-      const mockAuthClient = {
-        passwordlessStart: mockPasswordlessStart
-      } as any;
-      const mockForRequest = vi.fn().mockResolvedValue(mockAuthClient);
-      const mockProvider = {
-        isResolverMode: true,
-        forRequest: mockForRequest
-      } as any;
+    it("start(req, options) routes to the correct tenant domain via host header", async () => {
+      const capturedUrls: string[] = [];
 
-      const passwordlessClient = new ServerPasswordlessClient(mockProvider);
+      server.use(
+        http.post(
+          "https://tenant-a.auth0.com/passwordless/start",
+          async ({ request }) => {
+            capturedUrls.push(request.url);
+            return HttpResponse.json({}, { status: 200 });
+          }
+        )
+      );
 
+      const sharedSecret = await generateSecret(32);
+      const resolver = async ({ headers }: { headers: Headers }) => {
+        const host = headers.get("host") ?? "";
+        if (host === "tenant-a.example.com") return "tenant-a.auth0.com";
+        throw new Error(`Unknown host: ${host}`);
+      };
+      const provider = new AuthClientProvider({
+        domain: resolver,
+        createAuthClient: (domain) =>
+          new AuthClient({
+            domain,
+            clientId: DEFAULT.clientId,
+            clientSecret: DEFAULT.clientSecret,
+            appBaseUrl: DEFAULT.appBaseUrl,
+            secret: sharedSecret,
+            transactionStore: new TransactionStore({ secret: sharedSecret }),
+            sessionStore: new StatelessSessionStore({ secret: sharedSecret }),
+            routes: getDefaultRoutes()
+          })
+      });
+
+      const passwordlessClient = new ServerPasswordlessClient(provider);
       const req = new NextRequest(
         new URL("/auth/passwordless/start", "https://tenant-a.example.com"),
-        {
-          method: "POST",
-          headers: { host: "tenant-a.example.com" }
-        }
+        { method: "POST", headers: { host: "tenant-a.example.com" } }
       );
 
       await passwordlessClient.start(req, {
@@ -1106,48 +1153,74 @@ describe("AuthClient passwordless methods", () => {
         send: "code"
       });
 
-      // forRequest must receive the request headers and URL for MCD resolution
-      expect(mockForRequest).toHaveBeenCalledWith(req.headers, req.nextUrl);
-
-      // The resolved auth client must be used for the actual passwordless call
-      expect(mockPasswordlessStart).toHaveBeenCalledWith({
-        connection: "email",
-        email: DEFAULT.email,
-        send: "code"
-      });
+      expect(capturedUrls).toHaveLength(1);
+      expect(capturedUrls[0]).toContain("tenant-a.auth0.com");
     });
 
-    it("verify(req, res, options) calls forRequest with request headers and URL", async () => {
-      const idToken = await generateIdToken();
-      const mockTokenResponse = {
-        access_token: DEFAULT.accessToken,
-        token_type: "Bearer",
-        expires_in: 86400,
-        id_token: idToken
+    it("verify(req, res, options) routes to the correct tenant and sets session cookie", async () => {
+      const idToken = await new jose.SignJWT({
+        sub: DEFAULT.sub,
+        sid: DEFAULT.sid
+      })
+        .setProtectedHeader({ alg: "RS256" })
+        .setIssuer("https://tenant-b.auth0.com")
+        .setAudience(DEFAULT.clientId)
+        .setIssuedAt()
+        .setExpirationTime("1h")
+        .sign(keyPair.privateKey);
+
+      server.use(
+        http.get(
+          "https://tenant-b.auth0.com/.well-known/openid-configuration",
+          () =>
+            HttpResponse.json(
+              createAuthorizationServerMetadata("tenant-b.auth0.com")
+            )
+        ),
+        http.get(
+          "https://tenant-b.auth0.com/.well-known/jwks.json",
+          async () => {
+            const jwk = await jose.exportJWK(keyPair.publicKey);
+            return HttpResponse.json({
+              keys: [{ ...jwk, kid: "test-key-1", alg: "RS256", use: "sig" }]
+            });
+          }
+        ),
+        http.post("https://tenant-b.auth0.com/oauth/token", () =>
+          HttpResponse.json({
+            access_token: DEFAULT.accessToken,
+            token_type: "Bearer",
+            expires_in: 86400,
+            id_token: idToken
+          })
+        )
+      );
+
+      const sharedSecret = await generateSecret(32);
+      const resolver = async ({ headers }: { headers: Headers }) => {
+        const host = headers.get("host") ?? "";
+        if (host === "tenant-b.example.com") return "tenant-b.auth0.com";
+        throw new Error(`Unknown host: ${host}`);
       };
+      const provider = new AuthClientProvider({
+        domain: resolver,
+        createAuthClient: (domain) =>
+          new AuthClient({
+            domain,
+            clientId: DEFAULT.clientId,
+            clientSecret: DEFAULT.clientSecret,
+            appBaseUrl: DEFAULT.appBaseUrl,
+            secret: sharedSecret,
+            transactionStore: new TransactionStore({ secret: sharedSecret }),
+            sessionStore: new StatelessSessionStore({ secret: sharedSecret }),
+            routes: getDefaultRoutes()
+          })
+      });
 
-      const mockPasswordlessVerify = vi
-        .fn()
-        .mockResolvedValue(mockTokenResponse);
-      const mockCreateSession = vi.fn().mockResolvedValue(undefined);
-      const mockAuthClient = {
-        passwordlessVerify: mockPasswordlessVerify,
-        createSessionFromPasswordlessVerify: mockCreateSession
-      } as any;
-      const mockForRequest = vi.fn().mockResolvedValue(mockAuthClient);
-      const mockProvider = {
-        isResolverMode: true,
-        forRequest: mockForRequest
-      } as any;
-
-      const passwordlessClient = new ServerPasswordlessClient(mockProvider);
-
+      const passwordlessClient = new ServerPasswordlessClient(provider);
       const req = new NextRequest(
         new URL("/auth/passwordless/verify", "https://tenant-b.example.com"),
-        {
-          method: "POST",
-          headers: { host: "tenant-b.example.com" }
-        }
+        { method: "POST", headers: { host: "tenant-b.example.com" } }
       );
       const res = new NextResponse();
 
@@ -1157,21 +1230,7 @@ describe("AuthClient passwordless methods", () => {
         verificationCode: DEFAULT.verificationCode
       });
 
-      // forRequest must receive the request headers and URL for MCD resolution
-      expect(mockForRequest).toHaveBeenCalledWith(req.headers, req.nextUrl);
-
-      expect(mockPasswordlessVerify).toHaveBeenCalledWith({
-        connection: "email",
-        email: DEFAULT.email,
-        verificationCode: DEFAULT.verificationCode
-      });
-
-      // Session creation must use the req/res cookies from the Pages Router call
-      expect(mockCreateSession).toHaveBeenCalledWith(
-        mockTokenResponse,
-        req.cookies,
-        res.cookies
-      );
+      expect(res.cookies.get("__session")).toBeDefined();
     });
 
     it("routes different host headers to different Auth0 domains", async () => {

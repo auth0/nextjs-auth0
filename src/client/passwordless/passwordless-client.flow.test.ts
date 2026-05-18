@@ -21,9 +21,14 @@ const DEFAULT = {
 
 const server = setupServer();
 
+let originalStartRoute: string | undefined;
+let originalVerifyRoute: string | undefined;
+
 beforeAll(() => {
   server.listen({ onUnhandledRequest: "error" });
 
+  originalStartRoute = process.env.NEXT_PUBLIC_PASSWORDLESS_START_ROUTE;
+  originalVerifyRoute = process.env.NEXT_PUBLIC_PASSWORDLESS_VERIFY_ROUTE;
   process.env.NEXT_PUBLIC_PASSWORDLESS_START_ROUTE = `${DEFAULT.appBaseUrl}/auth/passwordless/start`;
   process.env.NEXT_PUBLIC_PASSWORDLESS_VERIFY_ROUTE = `${DEFAULT.appBaseUrl}/auth/passwordless/verify`;
 });
@@ -33,8 +38,16 @@ afterEach(() => {
 });
 
 afterAll(() => {
-  delete process.env.NEXT_PUBLIC_PASSWORDLESS_START_ROUTE;
-  delete process.env.NEXT_PUBLIC_PASSWORDLESS_VERIFY_ROUTE;
+  if (originalStartRoute === undefined) {
+    delete process.env.NEXT_PUBLIC_PASSWORDLESS_START_ROUTE;
+  } else {
+    process.env.NEXT_PUBLIC_PASSWORDLESS_START_ROUTE = originalStartRoute;
+  }
+  if (originalVerifyRoute === undefined) {
+    delete process.env.NEXT_PUBLIC_PASSWORDLESS_VERIFY_ROUTE;
+  } else {
+    process.env.NEXT_PUBLIC_PASSWORDLESS_VERIFY_ROUTE = originalVerifyRoute;
+  }
   server.close();
 });
 
@@ -98,8 +111,6 @@ describe("ClientPasswordlessClient", () => {
     });
 
     it("throws PasswordlessStartError on Auth0 API error", async () => {
-      const { PasswordlessStartError } = await import("../../errors/index.js");
-
       server.use(
         http.post(`${DEFAULT.appBaseUrl}/auth/passwordless/start`, () =>
           HttpResponse.json(
@@ -116,14 +127,14 @@ describe("ClientPasswordlessClient", () => {
         .start({ connection: "email", email: DEFAULT.email, send: "code" })
         .catch((e) => e);
 
-      expect(err).toBeInstanceOf(PasswordlessStartError);
-      expect(err.error).toBe("bad.connection");
-      expect(err.error_description).toBe("Connection not found.");
+      expect(err).toMatchObject({
+        name: "PasswordlessStartError",
+        error: "bad.connection",
+        error_description: "Connection not found."
+      });
     });
 
     it("throws PasswordlessStartError on network failure", async () => {
-      const { PasswordlessStartError } = await import("../../errors/index.js");
-
       server.use(
         http.post(`${DEFAULT.appBaseUrl}/auth/passwordless/start`, () =>
           HttpResponse.error()
@@ -134,8 +145,10 @@ describe("ClientPasswordlessClient", () => {
         .start({ connection: "email", email: DEFAULT.email, send: "link" })
         .catch((e) => e);
 
-      expect(err).toBeInstanceOf(PasswordlessStartError);
-      expect(err.error).toBe("client_error");
+      expect(err).toMatchObject({
+        name: "PasswordlessStartError",
+        error: "client_error"
+      });
     });
   });
 
@@ -193,8 +206,6 @@ describe("ClientPasswordlessClient", () => {
     });
 
     it("throws PasswordlessVerifyError on invalid_grant", async () => {
-      const { PasswordlessVerifyError } = await import("../../errors/index.js");
-
       server.use(
         http.post(`${DEFAULT.appBaseUrl}/auth/passwordless/verify`, () =>
           HttpResponse.json(
@@ -215,14 +226,14 @@ describe("ClientPasswordlessClient", () => {
         })
         .catch((e) => e);
 
-      expect(err).toBeInstanceOf(PasswordlessVerifyError);
-      expect(err.error).toBe("invalid_grant");
-      expect(err.error_description).toBe("Wrong email or verification code.");
+      expect(err).toMatchObject({
+        name: "PasswordlessVerifyError",
+        error: "invalid_grant",
+        error_description: "Wrong email or verification code."
+      });
     });
 
     it("throws PasswordlessVerifyError on network failure", async () => {
-      const { PasswordlessVerifyError } = await import("../../errors/index.js");
-
       server.use(
         http.post(`${DEFAULT.appBaseUrl}/auth/passwordless/verify`, () =>
           HttpResponse.error()
@@ -237,8 +248,10 @@ describe("ClientPasswordlessClient", () => {
         })
         .catch((e) => e);
 
-      expect(err).toBeInstanceOf(PasswordlessVerifyError);
-      expect(err.error).toBe("client_error");
+      expect(err).toMatchObject({
+        name: "PasswordlessVerifyError",
+        error: "client_error"
+      });
     });
   });
 });
