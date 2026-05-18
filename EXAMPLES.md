@@ -1744,11 +1744,16 @@ import type { NextApiRequest, NextApiResponse } from "next";
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { email, verificationCode } = req.body;
 
-  // Wrap in NextRequest/NextResponse so the SDK can read/write cookies
-  const nextReq = new NextRequest(new URL(req.url!, `http://${req.headers.host}`), {
-    method: req.method,
-    headers: req.headers as HeadersInit
-  });
+  // Wrap in NextRequest/NextResponse so the SDK can read/write cookies.
+  // Build the URL from the actual host + protocol so it works in non-local deployments.
+  const host = Array.isArray(req.headers.host) ? req.headers.host[0] : req.headers.host;
+  const proto = (Array.isArray(req.headers["x-forwarded-proto"])
+    ? req.headers["x-forwarded-proto"][0]
+    : req.headers["x-forwarded-proto"]) ?? "https";
+  const nextReq = new NextRequest(
+    host ? new URL(req.url!, `${proto}://${host}`) : new URL(req.url!, "https://localhost"),
+    { method: req.method, headers: req.headers as HeadersInit }
+  );
   const nextRes = new NextResponse();
 
   await auth0.passwordless.verify(nextReq, nextRes, {

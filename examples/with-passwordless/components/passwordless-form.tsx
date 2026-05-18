@@ -3,10 +3,6 @@
 import { useState } from "react";
 
 import { passwordless } from "@auth0/nextjs-auth0/client";
-import {
-  PasswordlessStartError,
-  PasswordlessVerifyError,
-} from "@auth0/nextjs-auth0/errors";
 
 type ConnectionType = "email" | "sms" | "magic-link" | "universal-login";
 type Step = "start" | "verify" | "link-sent";
@@ -37,8 +33,12 @@ export function PasswordlessForm() {
       }
       setStep("verify");
     } catch (err) {
-      if (err instanceof Error && err.name === "PasswordlessStartError") {
-        setError((err as PasswordlessStartError).error_description);
+      const code = (err as { code?: string; error_description?: string })?.code;
+      if (code) {
+        setError(
+          (err as { error_description?: string }).error_description ??
+            "Unable to start passwordless flow."
+        );
       } else {
         setError("An unexpected error occurred. Please try again.");
       }
@@ -69,12 +69,12 @@ export function PasswordlessForm() {
       // Session cookie set — navigate to dashboard
       window.location.href = "/dashboard";
     } catch (err) {
-      if (err instanceof Error && err.name === "PasswordlessVerifyError") {
-        const verifyErr = err as PasswordlessVerifyError;
+      const e = err as { code?: string; error?: string; error_description?: string };
+      if (e.code) {
         setError(
-          verifyErr.error === "invalid_grant"
+          e.error === "invalid_grant"
             ? "Invalid or expired code. Please check and try again."
-            : verifyErr.error_description
+            : e.error_description ?? "Unable to verify code."
         );
       } else {
         setError("An unexpected error occurred. Please try again.");
