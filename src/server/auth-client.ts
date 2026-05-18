@@ -1672,6 +1672,12 @@ export class AuthClient {
       if (e instanceof PasswordlessStartError) {
         return NextResponse.json(e.toJSON(), { status: 400 });
       }
+      if (e instanceof SdkError) {
+        return NextResponse.json(
+          { error: e.code, error_description: e.message },
+          { status: 400 }
+        );
+      }
       return NextResponse.json(
         { error: "server_error", error_description: "Internal server error" },
         { status: 500 }
