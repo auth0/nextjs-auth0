@@ -184,7 +184,7 @@ describe("AuthClient passwordless methods", () => {
       });
     });
 
-    it("re-throws original error on network failure", async () => {
+    it("throws PasswordlessStartError with unexpected_error on network failure", async () => {
       server.use(
         http.post(`https://${DEFAULT.domain}/passwordless/start`, () => {
           return HttpResponse.error();
@@ -197,7 +197,10 @@ describe("AuthClient passwordless methods", () => {
           email: DEFAULT.email,
           send: "link"
         })
-      ).rejects.toThrow(TypeError);
+      ).rejects.toMatchObject({
+        name: "PasswordlessStartError",
+        error: "unexpected_error"
+      });
     });
   });
 
@@ -355,8 +358,8 @@ describe("AuthClient passwordless methods", () => {
           verificationCode: DEFAULT.verificationCode
         })
       ).rejects.toMatchObject({
-        name: "DiscoveryError",
-        code: "discovery_error"
+        name: "PasswordlessVerifyError",
+        error: "discovery_error"
       });
     });
   });
@@ -711,7 +714,7 @@ describe("AuthClient passwordless methods", () => {
         );
       });
 
-      it("returns 500 with server_error when id_token iss does not match domain", async () => {
+      it("returns 403 with invalid_issuer when id_token iss does not match domain", async () => {
         const idToken = await new jose.SignJWT({
           sub: DEFAULT.sub,
           sid: DEFAULT.sid
@@ -748,12 +751,12 @@ describe("AuthClient passwordless methods", () => {
         );
 
         const res = await authClient.handler(req);
-        expect(res.status).toBe(500);
+        expect(res.status).toBe(403);
         const body = await res.json();
-        expect(body.error).toBe("server_error");
+        expect(body.error).toBe("invalid_issuer");
       });
 
-      it("returns 500 with invalid_audience when id_token aud does not include client_id", async () => {
+      it("returns 403 with invalid_audience when id_token aud does not include client_id", async () => {
         const idToken = await new jose.SignJWT({
           sub: DEFAULT.sub,
           sid: DEFAULT.sid
@@ -790,9 +793,9 @@ describe("AuthClient passwordless methods", () => {
         );
 
         const res = await authClient.handler(req);
-        expect(res.status).toBe(500);
+        expect(res.status).toBe(403);
         const body = await res.json();
-        expect(body.error).toBe("server_error");
+        expect(body.error).toBe("invalid_audience");
       });
 
       it("returns 200 + Set-Cookie and creates session for email verify", async () => {

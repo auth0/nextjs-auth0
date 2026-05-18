@@ -1670,6 +1670,15 @@ export class AuthClient {
       return res;
     } catch (e) {
       if (e instanceof PasswordlessStartError) {
+        if (e.error === "unexpected_error") {
+          return NextResponse.json(
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
+            { status: 500 }
+          );
+        }
         return NextResponse.json(e.toJSON(), { status: 400 });
       }
       if (e instanceof SdkError) {
@@ -1739,16 +1748,20 @@ export class AuthClient {
       return res;
     } catch (e) {
       if (e instanceof PasswordlessVerifyError) {
+        const serverErrorCodes = new Set([
+          "discovery_error",
+          "unexpected_error"
+        ]);
+        if (serverErrorCodes.has(e.error)) {
+          return NextResponse.json(
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
+            { status: 500 }
+          );
+        }
         return NextResponse.json(e.toJSON(), { status: 403 });
-      }
-      if (
-        e instanceof DiscoveryError ||
-        e instanceof InvalidConfigurationError
-      ) {
-        return NextResponse.json(
-          { error: "server_error", error_description: "Internal server error" },
-          { status: 500 }
-        );
       }
       if (e instanceof SdkError) {
         return NextResponse.json(
@@ -4025,7 +4038,11 @@ export class AuthClient {
       }
     } catch (e) {
       if (e instanceof PasswordlessStartError) throw e;
-      throw e;
+      throw new PasswordlessStartError(
+        "unexpected_error",
+        e instanceof Error ? e.message : "Failed to start passwordless flow",
+        undefined
+      );
     }
   }
 
@@ -4049,7 +4066,8 @@ export class AuthClient {
       await this.discoverAuthorizationServerMetadata();
 
     if (discoveryError) {
-      throw new DiscoveryError(
+      throw new PasswordlessVerifyError(
+        "discovery_error",
         "Failed to discover authorization server metadata for passwordless verify."
       );
     }
@@ -4117,19 +4135,19 @@ export class AuthClient {
       );
     } catch (err: any) {
       // oauth4webapi validates the id_token (iss, aud, signature) inside
-      // processGenericTokenEndpointResponse and throws with code
-      // JWT_CLAIM_COMPARISON when a claim doesn't match the discovered ASM.
-      // Surface those as specific PasswordlessVerifyErrors so callers can
-      // distinguish misconfiguration from a bad grant.
+      // processGenericTokenEndpointResponse and throws with JWT_CLAIM_COMPARISON
+      // when a claim doesn't match the discovered ASM.
       if (err?.code === oauth.JWT_CLAIM_COMPARISON) {
         const claim = (err.cause as any)?.claim;
         if (claim === "iss") {
-          throw new InvalidConfigurationError(
+          throw new PasswordlessVerifyError(
+            "invalid_issuer",
             "ID token issuer mismatch. Check AUTH0_DOMAIN configuration."
           );
         }
         if (claim === "aud") {
-          throw new InvalidConfigurationError(
+          throw new PasswordlessVerifyError(
+            "invalid_audience",
             "ID token audience mismatch. Check AUTH0_CLIENT_ID configuration."
           );
         }
