@@ -6,7 +6,7 @@ import * as cookies from "./cookies.js";
 const TRANSACTION_COOKIE_PREFIX = "__txn_";
 
 export interface TransactionState extends jose.JWTPayload {
-  codeVerifier: string;
+  codeVerifier?: string;
   responseType: RESPONSE_TYPES;
   state: string; // the state parameter passed to the authorization server
   returnTo: string; // the URL to redirect to after login

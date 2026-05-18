@@ -195,8 +195,7 @@ describe("AuthClient passwordless methods", () => {
       expect(capturedParams.get("realm")).toBe("email");
       expect(capturedParams.get("username")).toBe(DEFAULT.email);
       expect(capturedParams.get("otp")).toBe(DEFAULT.verificationCode);
-      expect(capturedParams.get("phone_number")).toBeNull();
-      expect(capturedParams.get("email")).toBeNull();
+      expect(capturedParams.get("connection")).toBeNull();
 
       expect(result.access_token).toBe(DEFAULT.accessToken);
       expect(result.refresh_token).toBe(DEFAULT.refreshToken);
@@ -230,8 +229,7 @@ describe("AuthClient passwordless methods", () => {
       expect(capturedParams.get("realm")).toBe("sms");
       expect(capturedParams.get("username")).toBe(DEFAULT.phoneNumber);
       expect(capturedParams.get("otp")).toBe(DEFAULT.verificationCode);
-      expect(capturedParams.get("email")).toBeNull();
-      expect(capturedParams.get("phone_number")).toBeNull();
+      expect(capturedParams.get("connection")).toBeNull();
     });
 
     it("capitalizes token_type in response", async () => {

@@ -64,6 +64,7 @@ import {
   toNextResponse,
   toUrlFromPagesRouter
 } from "./next-compat.js";
+import { ServerPasswordlessClient } from "./passwordless/server-passwordless-client.js";
 import {
   AbstractSessionStore,
   SessionConfiguration,
@@ -447,6 +448,7 @@ export class Auth0Client {
   private provider: AuthClientProvider;
   private routes: Routes;
   private _mfa?: ServerMfaClient;
+  private _passwordless?: ServerPasswordlessClient;
   #options: Auth0ClientOptions;
 
   constructor(options: Auth0ClientOptions = {}) {
@@ -600,6 +602,12 @@ export class Auth0Client {
       mfaAssociate:
         process.env.NEXT_PUBLIC_MFA_ASSOCIATE_ROUTE || "/auth/mfa/associate",
       // deleteAuthenticator uses mfaAuthenticators route with DELETE method
+      passwordlessStart:
+        process.env.NEXT_PUBLIC_PASSWORDLESS_START_ROUTE ||
+        "/auth/passwordless/start",
+      passwordlessVerify:
+        process.env.NEXT_PUBLIC_PASSWORDLESS_VERIFY_ROUTE ||
+        "/auth/passwordless/verify",
       ...options.routes
     };
 
@@ -1164,6 +1172,18 @@ export class Auth0Client {
       this._mfa = new ServerMfaClient(this.provider);
     }
     return this._mfa;
+  }
+
+  /**
+   * Access server-side passwordless authentication operations.
+   * Use `auth0.passwordless.start()` to send an OTP, and
+   * `auth0.passwordless.verify()` to verify the code and log the user in.
+   */
+  get passwordless(): ServerPasswordlessClient {
+    if (!this._passwordless) {
+      this._passwordless = new ServerPasswordlessClient(this.provider);
+    }
+    return this._passwordless;
   }
 
   /**
