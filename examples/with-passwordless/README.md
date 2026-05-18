@@ -123,7 +123,7 @@ await passwordless.verify({ connection: "sms", phoneNumber, verificationCode: co
 await passwordless.start({ connection: "email", email, send: "link" });
 ```
 
-Session protection on `/dashboard` is handled by `auth0.getSession()` in the Server Component — if no session exists it redirects to `/`. The `middleware.ts` keeps the session rolling on every request.
+Session protection on `/dashboard` is handled by `auth0.getSession()` in the Server Component — if no session exists it redirects to `/`. The `proxy.ts` keeps the session rolling on every request.
 
 ## Universal Login
 
@@ -148,7 +148,7 @@ This example shows both approaches side-by-side. The **Universal Login** tab in 
 
 ## Project Structure
 
-```
+```text
 ├── app/
 │   ├── dashboard/
 │   │   └── page.tsx            ← Protected page — shows user profile, email, phone

@@ -61,9 +61,9 @@
 - [Passwordless Authentication](#passwordless-authentication)
   - [Auth0 Setup](#auth0-setup)
   - [Route Handler Setup](#route-handler-setup)
-  - [Client-Side Usage](#client-side-usage-passwordless)
+  - [Client-Side Usage](#client-side-usage)
   - [Server-Side (Headless) Usage](#server-side-headless-usage)
-  - [Error Handling](#error-handling-passwordless)
+  - [Error Handling](#error-handling)
   - [Route Configuration](#route-configuration)
   - [Error Types](#error-types)
 - [Silent authentication](#silent-authentication)
@@ -1617,7 +1617,7 @@ import { auth0 } from "@/lib/auth0";
 export default auth0.handler;
 ```
 
-### Client-Side Usage {#client-side-usage-passwordless}
+### Client-Side Usage
 
 Import the `passwordless` singleton from `@auth0/nextjs-auth0/client`. Call `start()` to send the OTP, then `verify()` after the user submits the code — the session cookie is set automatically.
 
@@ -1745,7 +1745,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { email, verificationCode } = req.body;
 
   // Wrap in NextRequest/NextResponse so the SDK can read/write cookies
-  const nextReq = new NextRequest(new URL(req.url!, "http://localhost"), {
+  const nextReq = new NextRequest(new URL(req.url!, `http://${req.headers.host}`), {
     method: req.method,
     headers: req.headers as HeadersInit
   });
@@ -1765,7 +1765,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 }
 ```
 
-### Error Handling {#error-handling-passwordless}
+### Error Handling
 
 Both `PasswordlessStartError` and `PasswordlessVerifyError` expose `error` (the OAuth error code) and `error_description`.
 

@@ -37,8 +37,8 @@ export function PasswordlessForm() {
       }
       setStep("verify");
     } catch (err) {
-      if (err instanceof PasswordlessStartError) {
-        setError(err.error_description);
+      if (err instanceof Error && err.name === "PasswordlessStartError") {
+        setError((err as PasswordlessStartError).error_description);
       } else {
         setError("An unexpected error occurred. Please try again.");
       }
@@ -69,11 +69,12 @@ export function PasswordlessForm() {
       // Session cookie set — navigate to dashboard
       window.location.href = "/dashboard";
     } catch (err) {
-      if (err instanceof PasswordlessVerifyError) {
+      if (err instanceof Error && err.name === "PasswordlessVerifyError") {
+        const verifyErr = err as PasswordlessVerifyError;
         setError(
-          err.error === "invalid_grant"
+          verifyErr.error === "invalid_grant"
             ? "Invalid or expired code. Please check and try again."
-            : err.error_description
+            : verifyErr.error_description
         );
       } else {
         setError("An unexpected error occurred. Please try again.");
