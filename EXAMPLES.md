@@ -61,9 +61,9 @@
 - [Passwordless Authentication](#passwordless-authentication)
   - [Auth0 Setup](#auth0-setup)
   - [Route Handler Setup](#route-handler-setup)
-  - [Client-Side Usage](#client-side-usage-passwordless)
+  - [Client-Side Usage](#client-side-usage)
   - [Server-Side (Headless) Usage](#server-side-headless-usage)
-  - [Error Handling](#error-handling-passwordless)
+  - [Error Handling](#error-handling)
   - [Route Configuration](#route-configuration)
   - [Error Types](#error-types)
 - [Silent authentication](#silent-authentication)
@@ -180,8 +180,8 @@
   - [Discovery Cache Configuration](#discovery-cache-configuration)
   - [MCD with Dynamic appBaseUrl](#mcd-with-dynamic-appbaseurl)
   - [Session Domain Isolation](#session-domain-isolation)
-  - [Error Handling](#error-handling-mcd)
-  - [Security Considerations](#security-considerations-mcd)
+  - [Error Handling](#error-handling-5)
+  - [Security Considerations](#security-considerations-2)
   - [Backward Compatibility](#backward-compatibility)
   - [Debugging MCD Issues](#debugging-mcd-issues)
 
@@ -1600,7 +1600,7 @@ import { auth0 } from "@/lib/auth0";
 export default auth0.handler;
 ```
 
-### Client-Side Usage {#client-side-usage-passwordless}
+### Client-Side Usage
 
 Import the `passwordless` singleton from `@auth0/nextjs-auth0/client`. Call `start()` to send the OTP, then `verify()` after the user submits the code — the session cookie is set automatically.
 
@@ -1720,15 +1720,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     verificationCode
   });
 
-  // Copy Set-Cookie headers from nextRes
-  nextRes.headers.getSetCookie().forEach((cookie) => {
-    res.setHeader("Set-Cookie", cookie);
-  });
+  const cookies = nextRes.headers.getSetCookie();
+  if (cookies.length > 0) {
+    res.setHeader("Set-Cookie", cookies);
+  }
   res.status(200).end();
 }
 ```
 
-### Error Handling {#error-handling-passwordless}
+### Error Handling
 
 Both `PasswordlessStartError` and `PasswordlessVerifyError` expose `error` (the OAuth error code) and `error_description`.
 
@@ -4537,7 +4537,7 @@ SessionData.internal.mcd = {
 
 This prevents a session created via `auth.brand1.com` from being used when the request resolves to `auth.brand2.com`, even if cookies are shared across subdomains.
 
-### Error Handling {#error-handling-mcd}
+### Error Handling
 
 MCD introduces three new error classes, all extending `SdkError`:
 
@@ -4628,7 +4628,7 @@ export const auth0 = new Auth0Client({
 });
 ```
 
-### Security Considerations {#security-considerations-mcd}
+### Security Considerations
 
 #### DomainResolver Patterns
 
