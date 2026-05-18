@@ -3971,7 +3971,10 @@ export class AuthClient {
       },
       internal: {
         sid: (claims.sid as string) || "",
-        createdAt: Math.floor(Date.now() / 1000)
+        createdAt: Math.floor(Date.now() / 1000),
+        ...(this.provider?.isResolverMode && {
+          mcd: { domain: this.domain, issuer: this.issuer }
+        })
       }
     };
 
