@@ -1,6 +1,10 @@
 # Examples
 
 - [Passing authorization parameters](#passing-authorization-parameters)
+  - [Social Login](#social-login)
+  - [Passwordless (via Universal Login)](#passwordless-via-universal-login)
+  - [Showing the signup screen](#showing-the-signup-screen)
+  - [Pre-filling the login field](#pre-filling-the-login-field)
 - [The `returnTo` parameter](#the-returnto-parameter)
   - [Redirecting the user after authentication](#redirecting-the-user-after-authentication)
   - [Redirecting the user after logging out](#redirecting-the-user-after-logging-out)
@@ -54,6 +58,14 @@
   - [Error Handling](#error-handling-2)
   - [Security Considerations](#security-considerations-1)
   - [Known Limitations](#known-limitations)
+- [Passwordless Authentication](#passwordless-authentication)
+  - [Auth0 Setup](#auth0-setup)
+  - [Route Handler Setup](#route-handler-setup)
+  - [Client-Side Usage](#client-side-usage)
+  - [Server-Side (Headless) Usage](#server-side-headless-usage)
+  - [Error Handling](#error-handling)
+  - [Route Configuration](#route-configuration)
+  - [Error Types](#error-types)
 - [Silent authentication](#silent-authentication)
 - [DPoP (Demonstrating Proof-of-Possession)](#dpop-demonstrating-proof-of-possession)
   - [What is DPoP?](#what-is-dpop)
@@ -145,10 +157,16 @@
   - [Run custom code before Auth Handlers](#run-custom-code-before-auth-handlers)
   - [Run code after callback](#run-code-after-callback)
 - [Next.js 16 Compatibility](#nextjs-16-compatibility)
-- [Multi-Factor Authentication (MFA)](#multi-factor-authentication-mfa)
-  - [Step-up Authentication](#step-up-authentication)
-  - [Handling `MfaRequiredError`](#handling-mfarequirederror)
-  - [MFA Tenant Configuration](#mfa-tenant-configuration)
+- [Multi-Factor Authentication (MFA)](#multi-factor-authentication-mfa-1)
+  - [Setup & Configuration](#setup--configuration)
+  - [Handling MfaRequiredError](#handling-mfarequirederror-1)
+  - [Accessing the MFA API](#accessing-the-mfa-api)
+  - [Getting Authenticators](#getting-authenticators)
+  - [Enrollment](#enrollment)
+  - [Challenge](#challenge)
+  - [Verify](#verify)
+  - [MFA Tenant Configuration](#mfa-tenant-configuration-1)
+  - [MFA Error Handling](#mfa-error-handling)
 - [Multiple Custom Domains (MCD)](#multiple-custom-domains-mcd)
   - [Overview](#overview-1)
   - [Static Mode (Default)](#static-mode-default)
@@ -162,8 +180,8 @@
   - [Discovery Cache Configuration](#discovery-cache-configuration)
   - [MCD with Dynamic appBaseUrl](#mcd-with-dynamic-appbaseurl)
   - [Session Domain Isolation](#session-domain-isolation)
-  - [Error Handling](#error-handling-mcd)
-  - [Security Considerations](#security-considerations-mcd)
+  - [Error Handling](#error-handling-5)
+  - [Security Considerations](#security-considerations-2)
   - [Backward Compatibility](#backward-compatibility)
   - [Debugging MCD Issues](#debugging-mcd-issues)
 
@@ -184,6 +202,82 @@ The second option is through the query parameters to the `/auth/login` endpoint 
 
 ```html
 <a href="/auth/login?audience=urn:my-api">Login</a>
+```
+
+### Social Login
+
+To skip the Universal Login page and send users directly to a social provider, pass the `connection` parameter with the Auth0 connection name:
+
+```html
+<a href="/auth/login?connection=google-oauth2">Continue with Google</a>
+<a href="/auth/login?connection=github">Continue with GitHub</a>
+<a href="/auth/login?connection=facebook">Continue with Facebook</a>
+```
+
+Or configure it statically for all logins:
+
+```ts
+export const auth0 = new Auth0Client({
+  authorizationParameters: {
+    connection: "google-oauth2"
+  }
+});
+```
+
+### Passwordless (via Universal Login)
+
+Auth0 supports passwordless login using email magic links/OTP or SMS OTP through the Universal Login page. The SDK forwards the `connection` parameter to Auth0, which handles the entire passwordless flow and redirects back to your app with a standard authorization code.
+
+Prerequisites:
+
+- Enable the **Email** or **SMS** passwordless connection in the [Auth0 Dashboard](https://manage.auth0.com) under **Authentication > Passwordless**.
+- Add the connection to your application.
+
+**Email passwordless:**
+
+```html
+<!-- Auth0 will send a magic link or OTP to the user's email -->
+<a href="/auth/login?connection=email">Login with Email</a>
+```
+
+**SMS passwordless:**
+
+```html
+<!-- Auth0 will send an OTP to the user's phone number -->
+<a href="/auth/login?connection=sms">Login with SMS</a>
+```
+
+The user experience on the Auth0-hosted page (magic link vs. OTP code) is configured in the Auth0 Dashboard under the connection settings. Your application code does not change — the callback and session creation work identically to any other login.
+
+### Showing the signup screen
+
+To send users directly to the registration form instead of the login form:
+
+```html
+<a href="/auth/login?screen_hint=signup">Create account</a>
+```
+
+Or statically:
+
+```ts
+export const auth0 = new Auth0Client({
+  authorizationParameters: {
+    screen_hint: "signup"
+  }
+});
+```
+
+### Pre-filling the login field
+
+To pre-fill the email or phone number field on the Universal Login page:
+
+```ts
+// In a Server Action or Route Handler
+const response = await auth0.startInteractiveLogin({
+  authorizationParameters: {
+    login_hint: "user@example.com"
+  }
+});
 ```
 
 ## The `returnTo` parameter
@@ -1461,6 +1555,275 @@ When MFA is required, the SDK automatically stores MFA context in the session ke
 
 > [!NOTE]
 > The MFA context is cleaned up automatically when the session is written. Expired contexts (based on `mfaContextTtl`) are removed to prevent session bloat.
+
+## Passwordless Authentication
+
+Auth0 supports passwordless authentication via one-time passwords (OTPs) or magic links delivered by **email** or **SMS**. No password is required — the user proves identity by possessing the inbox or phone.
+
+The SDK exposes:
+- **Built-in route handlers** served via `auth0.handler` (catch-all route) or `auth0.middleware` (proxy pattern) that handle the full OTP lifecycle server-side
+- **`auth0.passwordless`** — a server-side client for calling start/verify from Server Actions or API routes directly
+- **`passwordless`** from `@auth0/nextjs-auth0/client` — a thin client-side singleton that calls the route handlers
+
+### Universal Login (Recommended)
+
+The simplest approach: pass the `connection` parameter to the standard login redirect. Auth0's Universal Login handles OTP delivery, input, and verification entirely on its hosted page — your app needs no custom form or error handling.
+
+```tsx
+{/* Works with any passwordless connection enabled on your application */}
+<a href="/auth/login?connection=email">Sign in with email</a>
+<a href="/auth/login?connection=sms">Sign in via SMS</a>
+```
+
+After the user completes the flow, Auth0 redirects to `/auth/callback` and the SDK creates a session — identical to a standard OAuth callback. No additional route handler setup is needed beyond the standard `auth0.handler` mount.
+
+> [!NOTE]
+> The rest of this section documents the **custom (headless) API** — `auth0.passwordless` and the `passwordless` client singleton — for cases where you need full control over the login UI.
+
+
+### Auth0 Setup
+
+Before using passwordless, enable a **Passwordless** connection in the Auth0 Dashboard:
+1. Go to **Authentication > Passwordless** and enable **Email** and/or **SMS**.
+2. Under **Applications**, enable the connection for your application.
+3. Ensure the application's **Grant Types** include the passwordless OTP grant (Auth0 enables this automatically for passwordless connections).
+4. **Magic link only** — Set the `allow_magiclink_verify_without_session` flag via the Management API. This is required so Auth0 does not demand its own session cookie when the user clicks the link.
+
+### Route Handler Setup
+
+The SDK registers two handlers automatically when you mount `auth0.handler`:
+
+| Method | Default Path | Purpose |
+|--------|--------------|---------|
+| `POST` | `/auth/passwordless/start` | Send OTP to user's email or phone |
+| `POST` | `/auth/passwordless/verify` | Verify OTP and create a session |
+
+**App Router** — add `POST` to your existing catch-all auth route:
+
+```typescript
+// app/auth/[auth0]/route.ts
+import { auth0 } from "@/lib/auth0";
+
+export const GET = auth0.handler;
+export const POST = auth0.handler;
+```
+
+**Pages Router** — mount the handler in your API route:
+
+```typescript
+// pages/api/auth/[auth0].ts
+import { auth0 } from "@/lib/auth0";
+
+export default auth0.handler;
+```
+
+### Client-Side Usage
+
+Import the `passwordless` singleton from `@auth0/nextjs-auth0/client`. Call `start()` to send the OTP, then `verify()` after the user submits the code — the session cookie is set automatically.
+
+**Email OTP flow:**
+
+```tsx
+"use client";
+import { useState } from "react";
+import { passwordless } from "@auth0/nextjs-auth0/client";
+import { PasswordlessStartError, PasswordlessVerifyError } from "@auth0/nextjs-auth0/errors";
+
+export function EmailOtpForm() {
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [step, setStep] = useState<"start" | "verify">("start");
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleStart(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    try {
+      await passwordless.start({ connection: "email", email, send: "code" });
+      setStep("verify");
+    } catch (err) {
+      if (err instanceof PasswordlessStartError) {
+        setError(err.error_description);
+      }
+    }
+  }
+
+  async function handleVerify(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    try {
+      await passwordless.verify({ connection: "email", email, verificationCode: code });
+      window.location.href = "/dashboard";
+    } catch (err) {
+      if (err instanceof PasswordlessVerifyError) {
+        setError(err.error === "invalid_grant" ? "Invalid or expired code." : err.error_description);
+      }
+    }
+  }
+
+  if (step === "verify") {
+    return (
+      <form onSubmit={handleVerify}>
+        {error && <p>{error}</p>}
+        <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="Enter code" />
+        <button type="submit">Sign in</button>
+      </form>
+    );
+  }
+
+  return (
+    <form onSubmit={handleStart}>
+      {error && <p>{error}</p>}
+      <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Email" />
+      <button type="submit">Send code</button>
+    </form>
+  );
+}
+```
+
+**SMS OTP flow:**
+
+```typescript
+// Send OTP to phone number (E.164 format)
+await passwordless.start({ connection: "sms", phoneNumber: "+14155550100" });
+
+// Verify after user submits the code
+await passwordless.verify({ connection: "sms", phoneNumber: "+14155550100", verificationCode: "123456" });
+window.location.href = "/dashboard";
+```
+
+**Magic link (email only):**
+
+The magic link flow uses the standard OAuth authorization code grant. When the user clicks the emailed link, Auth0 redirects to `/auth/callback` with a `code` and `state` — the same callback used for regular logins. The SDK saves a transaction cookie during `start()` so the callback can complete the code exchange and create a session.
+
+> [!IMPORTANT]
+> Magic links require the **`allow_magiclink_verify_without_session`** tenant-level setting to be enabled. Without it, Auth0 requires its own session cookie (`nstate`) to be present when the user clicks the link — but that cookie lives on the Auth0 domain and cannot be set from your application. Enable it in **Auth0 Dashboard → Settings → Advanced → Allow Magic Link Verify Without Session**, or via the Management API:
+>
+> ```bash
+> PATCH /api/v2/tenants/settings
+> { "flags": { "allow_magiclink_verify_without_session": true } }
+> ```
+
+```typescript
+// Step 1 — send the magic link (no verify step needed)
+await passwordless.start({ connection: "email", email: "user@example.com", send: "link" });
+// → User receives an email with a link like:
+//   https://<domain>/passwordless/verify_redirect?...&redirect_uri=https://yourapp.com/auth/callback&state=...
+```
+
+When the user clicks the link, Auth0 redirects to your `/auth/callback` route with `?code=...&state=...`. The SDK resolves the transaction by matching `state` to the cookie saved during `start()`, exchanges the code for tokens, and creates a session — identical to a standard OAuth callback. No second `verify()` call is required.
+
+
+### Server-Side (Headless) Usage
+
+Use `auth0.passwordless` directly in **Server Actions** or **API Routes** when you want full control over the request/response cycle, for example to return a custom JSON body.
+
+**App Router — Server Action:**
+
+```typescript
+"use server";
+import { auth0 } from "@/lib/auth0";
+
+export async function sendOtp(email: string) {
+  await auth0.passwordless.start({ connection: "email", email, send: "code" });
+}
+
+export async function verifyOtp(email: string, verificationCode: string) {
+  // Verifies the OTP and sets the session cookie via next/headers
+  await auth0.passwordless.verify({ connection: "email", email, verificationCode });
+}
+```
+
+**Pages Router — API Route:**
+
+```typescript
+import { auth0 } from "@/lib/auth0";
+import { NextRequest, NextResponse } from "next/server";
+import type { NextApiRequest, NextApiResponse } from "next";
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const { email, verificationCode } = req.body;
+
+  // Wrap in NextRequest/NextResponse so the SDK can read/write cookies.
+  // Build the URL from the actual host + protocol so it works in non-local deployments.
+  const host = Array.isArray(req.headers.host) ? req.headers.host[0] : req.headers.host;
+  const proto = (Array.isArray(req.headers["x-forwarded-proto"])
+    ? req.headers["x-forwarded-proto"][0]
+    : req.headers["x-forwarded-proto"]) ?? "https";
+  const nextReq = new NextRequest(
+    host ? new URL(req.url!, `${proto}://${host}`) : new URL(req.url!, "https://localhost"),
+    { method: req.method, headers: req.headers as HeadersInit }
+  );
+  const nextRes = new NextResponse();
+
+  await auth0.passwordless.verify(nextReq, nextRes, {
+    connection: "email",
+    email,
+    verificationCode
+  });
+
+  const cookies = nextRes.headers.getSetCookie();
+  if (cookies.length > 0) {
+    res.setHeader("Set-Cookie", cookies);
+  }
+  res.status(200).json({ success: true });
+}
+```
+
+### Error Handling
+
+Both `PasswordlessStartError` and `PasswordlessVerifyError` expose `error` (the OAuth error code) and `error_description`.
+
+```typescript
+import { PasswordlessStartError, PasswordlessVerifyError } from "@auth0/nextjs-auth0/errors";
+
+try {
+  await passwordless.start({ connection: "email", email, send: "code" });
+} catch (err) {
+  if (err instanceof PasswordlessStartError) {
+    // err.error           — e.g. 'invalid_request', 'too_many_requests'
+    // err.error_description — human-readable message
+    console.error(err.error, err.error_description);
+  }
+}
+
+try {
+  await passwordless.verify({ connection: "email", email, verificationCode: code });
+} catch (err) {
+  if (err instanceof PasswordlessVerifyError) {
+    if (err.error === "invalid_grant") {
+      // Wrong or expired OTP
+    }
+  }
+}
+```
+
+In server-side code the same error classes are thrown, so the same `instanceof` checks apply.
+
+> [!NOTE]
+> When the built-in route handlers return an error response (e.g. `400` or `403`), they serialize the error using `error.toJSON()` which matches the Auth0 API error shape `{ error, error_description }`. The client-side `passwordless` singleton re-throws a typed error from that JSON automatically.
+
+### Route Configuration
+
+The default route paths can be overridden with environment variables:
+
+```bash
+# .env.local
+NEXT_PUBLIC_PASSWORDLESS_START_ROUTE=/auth/passwordless/start
+NEXT_PUBLIC_PASSWORDLESS_VERIFY_ROUTE=/auth/passwordless/verify
+```
+
+Because both variables are prefixed with `NEXT_PUBLIC_`, they are inlined by the Next.js bundler and available on the client without an extra API call.
+
+### Error Types
+
+| Error Class | `error` Code | When Thrown |
+|-------------|--------------|-------------|
+| `PasswordlessStartError` | `invalid_request` | Missing or malformed body field |
+| `PasswordlessStartError` | `too_many_requests` | Auth0 rate limit on OTP delivery |
+| `PasswordlessStartError` | `client_error` | Network failure or unparseable response |
+| `PasswordlessVerifyError` | `invalid_grant` | Wrong or expired OTP |
+| `PasswordlessVerifyError` | `client_error` | Network failure or unparseable response |
 
 ## Silent authentication
 
@@ -3734,7 +4097,6 @@ The SDK relies on background token refreshes to maintain user sessions. For thes
 > [!NOTE]
 > Enforcing **"Always"** or **"All Applications"** in your global Tenant MFA Policy will block background token refreshes, as they cannot satisfy an interactive MFA challenge.
 
-
 **Recommended Configuration:**
 Set Tenant MFA Policy to **"Adaptive"** or **"Never"**.
 
@@ -3968,6 +4330,11 @@ try {
   } else {
     // AccessTokenError or other errors
     console.error('MFA failed:', err.message);
+  }
+}
+```
+
+## Multiple Custom Domains (MCD)
 
 Multiple Custom Domains (MCD) enables a single `@auth0/nextjs-auth0` instance to authenticate users against different Auth0 custom domains on the same tenant. This is useful for:
 
@@ -4212,7 +4579,7 @@ SessionData.internal.mcd = {
 
 This prevents a session created via `auth.brand1.com` from being used when the request resolves to `auth.brand2.com`, even if cookies are shared across subdomains.
 
-### Error Handling {#error-handling-mcd}
+### Error Handling
 
 MCD introduces three new error classes, all extending `SdkError`:
 
@@ -4303,7 +4670,7 @@ export const auth0 = new Auth0Client({
 });
 ```
 
-### Security Considerations {#security-considerations-mcd}
+### Security Considerations
 
 #### DomainResolver Patterns
 
