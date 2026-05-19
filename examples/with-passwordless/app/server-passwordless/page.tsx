@@ -18,7 +18,10 @@ export default async function ServerPasswordlessPage({
   if (session) redirect("/dashboard");
 
   const params = await searchParams;
-  const tab = (params.tab ?? "email") as Tab;
+  const VALID_TABS: Tab[] = ["email", "sms", "magic-link"];
+  const tab: Tab = VALID_TABS.includes(params.tab as Tab)
+    ? (params.tab as Tab)
+    : "email";
   const error = params.error ?? null;
 
   // Magic link sent — show confirmation screen
@@ -55,10 +58,10 @@ export default async function ServerPasswordlessPage({
   async function startEmailOtp(formData: FormData) {
     "use server";
     const email = formData.get("email") as string;
-    console.log(`[server-passwordless] email OTP start — email=${email}`);
+    console.log("[server-passwordless] email OTP start");
     try {
       await auth0.passwordless.start({ connection: "email", email, send: "code" });
-      console.log(`[server-passwordless] email OTP start success — email=${email}`);
+      console.log("[server-passwordless] email OTP start success");
     } catch (err) {
       const e = err as { error?: string; error_description?: string };
       console.error(`[server-passwordless] email OTP start failed — ${e.error}: ${e.error_description}`);
@@ -70,10 +73,10 @@ export default async function ServerPasswordlessPage({
   async function startSmsOtp(formData: FormData) {
     "use server";
     const phone = formData.get("phone") as string;
-    console.log(`[server-passwordless] SMS OTP start — phone=${phone}`);
+    console.log("[server-passwordless] SMS OTP start");
     try {
       await auth0.passwordless.start({ connection: "sms", phoneNumber: phone });
-      console.log(`[server-passwordless] SMS OTP start success — phone=${phone}`);
+      console.log("[server-passwordless] SMS OTP start success");
     } catch (err) {
       const e = err as { error?: string; error_description?: string };
       console.error(`[server-passwordless] SMS OTP start failed — ${e.error}: ${e.error_description}`);
@@ -85,12 +88,12 @@ export default async function ServerPasswordlessPage({
   async function startMagicLink(formData: FormData) {
     "use server";
     const email = formData.get("email") as string;
-    console.log(`[server-passwordless] magic link start — email=${email}`);
+    console.log("[server-passwordless] magic link start");
     try {
       // passwordless.start writes the transaction cookie to next/headers automatically.
       // No client-side code involved — the entire flow runs server-side.
       await auth0.passwordless.start({ connection: "email", email, send: "link" });
-      console.log(`[server-passwordless] magic link start success — email=${email}, transaction cookie written`);
+      console.log("[server-passwordless] magic link start success — transaction cookie written");
     } catch (err) {
       const e = err as { error?: string; error_description?: string };
       console.error(`[server-passwordless] magic link start failed — ${e.error}: ${e.error_description}`);

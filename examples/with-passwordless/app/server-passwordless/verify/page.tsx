@@ -16,7 +16,9 @@ export default async function ServerPasswordlessVerifyPage({
   if (session) redirect("/dashboard");
 
   const params = await searchParams;
-  const connection = params.connection as "email" | "sms" | undefined;
+  const raw = params.connection;
+  const connection: "email" | "sms" | undefined =
+    raw === "email" || raw === "sms" ? raw : undefined;
   const email = params.email ?? "";
   const phone = params.phone ?? "";
   const error = params.error ?? null;
@@ -35,7 +37,7 @@ export default async function ServerPasswordlessVerifyPage({
     const code = formData.get("code") as string;
 
     if (connection === "email") {
-      console.log(`[server-passwordless] email OTP verify — email=${email} code=${code}`);
+      console.log("[server-passwordless] email OTP verify");
       try {
         // passwordless.verify exchanges the OTP for tokens and writes the
         // session cookie to next/headers — the user is signed in after this call.
@@ -44,7 +46,7 @@ export default async function ServerPasswordlessVerifyPage({
           email,
           verificationCode: code
         });
-        console.log(`[server-passwordless] email OTP verify success — session created for email=${email}`);
+        console.log("[server-passwordless] email OTP verify success — session created");
       } catch (err) {
         const e = err as { error?: string; error_description?: string };
         console.error(`[server-passwordless] email OTP verify failed — ${e.error}: ${e.error_description}`);
@@ -53,14 +55,14 @@ export default async function ServerPasswordlessVerifyPage({
         );
       }
     } else {
-      console.log(`[server-passwordless] SMS OTP verify — phone=${phone} code=${code}`);
+      console.log("[server-passwordless] SMS OTP verify");
       try {
         await auth0.passwordless.verify({
           connection: "sms",
           phoneNumber: phone,
           verificationCode: code
         });
-        console.log(`[server-passwordless] SMS OTP verify success — session created for phone=${phone}`);
+        console.log("[server-passwordless] SMS OTP verify success — session created");
       } catch (err) {
         const e = err as { error?: string; error_description?: string };
         console.error(`[server-passwordless] SMS OTP verify failed — ${e.error}: ${e.error_description}`);
