@@ -20,7 +20,13 @@ export function getDefaultRoutes(): Routes {
       process.env.NEXT_PUBLIC_MFA_CHALLENGE_ROUTE || "/auth/mfa/challenge",
     mfaVerify: process.env.NEXT_PUBLIC_MFA_VERIFY_ROUTE || "/auth/mfa/verify",
     mfaAssociate:
-      process.env.NEXT_PUBLIC_MFA_ASSOCIATE_ROUTE || "/auth/mfa/associate"
+      process.env.NEXT_PUBLIC_MFA_ASSOCIATE_ROUTE || "/auth/mfa/associate",
+    passwordlessStart:
+      process.env.NEXT_PUBLIC_PASSWORDLESS_START_ROUTE ||
+      "/auth/passwordless/start",
+    passwordlessVerify:
+      process.env.NEXT_PUBLIC_PASSWORDLESS_VERIFY_ROUTE ||
+      "/auth/passwordless/verify"
   };
 }
 
