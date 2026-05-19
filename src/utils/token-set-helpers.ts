@@ -1,6 +1,18 @@
 import { AccessTokenSet, SessionData, TokenSet } from "../types/index.js";
 
 /**
+ * Normalizes oauth4webapi's lowercase token_type to canonical OAuth casing.
+ * oauth4webapi returns token types in lowercase; consumers expect "Bearer" or "DPoP".
+ */
+export function normalizeTokenType(tokenType: string | undefined): string {
+  if (!tokenType) return "Bearer";
+  const lower = tokenType.toLowerCase();
+  if (lower === "dpop") return "DPoP";
+  if (lower === "bearer") return "Bearer";
+  return tokenType.charAt(0).toUpperCase() + tokenType.slice(1);
+}
+
+/**
  * Input type for expires-at values that may come from various sources.
  * Supports number (epoch seconds), string (parseable number), null, or undefined.
  */

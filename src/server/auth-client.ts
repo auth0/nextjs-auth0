@@ -34,6 +34,8 @@ import {
   MissingStateError,
   MyAccountApiError,
   OAuth2Error,
+  PasswordlessStartError,
+  PasswordlessVerifyError,
   SdkError
 } from "../errors/index.js";
 import {
@@ -64,9 +66,13 @@ import {
   EnrollOtpOptions,
   GetAccessTokenOptions,
   GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE,
+  GRANT_TYPE_PASSWORDLESS_OTP,
   LogoutStrategy,
   LogoutToken,
   MfaVerifyResponse,
+  PasswordlessStartOptions,
+  PasswordlessVerifyOptions,
+  PasswordlessVerifyTokenResponse,
   ProxyOptions,
   RESPONSE_TYPES,
   SessionData,
@@ -86,8 +92,8 @@ import {
 import { withDPoPNonceRetry } from "../utils/dpopRetry.js";
 import { createSizeLimitedFetch } from "../utils/fetchUtils.js";
 import { createAuthCompletePostMessageResponse } from "../utils/html-helpers.js";
+import { buildEnrollOptions } from "../utils/mfa-server-utils.js";
 import {
-  buildEnrollOptions,
   buildVerifyParams,
   getVerifyGrantType,
   transformVerifyBodyToOptions
@@ -129,6 +135,7 @@ import {
   isBeforeOrEqual,
   mergeScopes,
   normalizeExpiresAt,
+  normalizeTokenType,
   tokenSetFromAccessTokenSet
 } from "../utils/token-set-helpers.js";
 import { isUrl, toSafeRedirect } from "../utils/url-helpers.js";
@@ -226,13 +233,10 @@ export interface Routes {
   mfaChallenge: string;
   mfaVerify: string;
   mfaAssociate: string;
+  passwordlessStart: string;
+  passwordlessVerify: string;
 }
-export type RoutesOptions = Partial<
-  Pick<
-    Routes,
-    "login" | "callback" | "logout" | "backChannelLogout" | "connectAccount"
-  >
->;
+export type RoutesOptions = Partial<Routes>;
 
 /**
  * @private
@@ -603,6 +607,16 @@ export class AuthClient {
       sanitizedPathname === this.routes.mfaVerify
     ) {
       return this.handleVerify(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.passwordlessStart
+    ) {
+      return this.handlePasswordlessStart(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.passwordlessVerify
+    ) {
+      return this.handlePasswordlessVerify(req);
     } else if (sanitizedPathname.startsWith("/me/")) {
       return this.handleMyAccount(req);
     } else if (sanitizedPathname.startsWith("/my-org/")) {
@@ -1104,7 +1118,7 @@ export class AuthClient {
           await this.getClientAuth(),
           codeGrantParams,
           redirectUri.toString(),
-          transactionState.codeVerifier,
+          transactionState.codeVerifier ?? oauth.nopkce,
           {
             ...this.httpOptions(),
             [oauth.customFetch]: this.fetch,
@@ -1507,6 +1521,258 @@ export class AuthClient {
       return res; // Return response WITH cookies
     } catch (e) {
       return handleMfaError(e);
+    }
+  }
+
+  /**
+   * Route: POST /auth/passwordless/start
+   * Initiates a passwordless authentication flow.
+   *
+   * Body: { connection: "email", email, send: "code" | "link" }
+   *       { connection: "sms", phoneNumber }
+   *
+   * Response: 204 No Content
+   * Error: 400 + { error, error_description }
+   */
+  async handlePasswordlessStart(req: NextRequest): Promise<NextResponse> {
+    try {
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+      const connection = validateStringFieldAndThrow(
+        bodyRecord.connection,
+        "connection"
+      );
+
+      const res = new NextResponse(null, { status: 204 });
+
+      const language =
+        typeof bodyRecord.language === "string" && bodyRecord.language
+          ? bodyRecord.language
+          : undefined;
+
+      if (connection === "email") {
+        const email = validateStringFieldAndThrow(bodyRecord.email, "email");
+        const send = validateStringFieldAndThrow(bodyRecord.send, "send") as
+          | "code"
+          | "link";
+
+        if (send === "link") {
+          // Magic link flow: generate our own state, pass it as authParams.state
+          // to /passwordless/start so Auth0 embeds it in the emailed link, and
+          // save a transaction cookie keyed by it. When the user clicks the link,
+          // Auth0's /passwordless/verify_redirect will redirect to our callback
+          // with the same state, and handleCallback can resolve the transaction.
+          //
+          // Requires tenant setting `allow_magiclink_verify_without_session: true`
+          // so Auth0 does not require an nstate session cookie at link-click time
+          // (those cookies live on the Auth0 domain and cannot be planted from
+          // the application's domain).
+          const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
+          const redirectUri = createRouteUrl(
+            this.routes.callback,
+            appBaseUrl
+          ).toString();
+
+          const state = oauth.generateRandomState();
+
+          // Start from all global authorizationParameters so tenant-level defaults
+          // (organization, invitation, acr_values, login_hint, etc.) are preserved,
+          // then set magic-link specific fields on top.
+          // Exclude PKCE params (not applicable without code_verifier) and fields
+          // we set explicitly below.
+          const MAGIC_LINK_EXCLUDED_PARAMS = [
+            "client_id",
+            "redirect_uri",
+            "response_type",
+            "state",
+            "nonce",
+            "code_challenge",
+            "code_challenge_method"
+          ];
+          const baseParams = mergeAuthorizationParamsIntoSearchParams(
+            this.authorizationParameters,
+            undefined,
+            MAGIC_LINK_EXCLUDED_PARAMS
+          );
+
+          // Derive scope explicitly via getScopeForAudience so map-form scopes
+          // are resolved correctly, falling back to default if none configured.
+          const audience = this.authorizationParameters.audience as
+            | string
+            | undefined;
+          const scope =
+            getScopeForAudience(this.authorizationParameters.scope, audience) ||
+            "openid email profile";
+
+          const authParams: Record<string, string> = {
+            ...Object.fromEntries(baseParams),
+            redirect_uri: redirectUri,
+            response_type: RESPONSE_TYPES.CODE,
+            scope,
+            state,
+            ...(audience && { audience })
+          };
+
+          await this.passwordlessStart({
+            connection: "email",
+            email,
+            send,
+            authParams,
+            language
+          });
+
+          const transactionState: TransactionState = {
+            responseType: RESPONSE_TYPES.CODE,
+            state,
+            returnTo: this.signInReturnToPath,
+            scope: scope || undefined,
+            audience: this.authorizationParameters.audience as
+              | string
+              | undefined,
+            originDomain: this.provider?.isResolverMode
+              ? this.domain
+              : undefined,
+            originIssuer: this.provider?.isResolverMode
+              ? this.issuer
+              : undefined
+          };
+
+          await this.transactionStore.save(res.cookies, transactionState);
+        } else {
+          // OTP flow: send the code directly, no authorize step needed
+          await this.passwordlessStart({
+            connection: "email",
+            email,
+            send,
+            language
+          });
+        }
+      } else if (connection === "sms") {
+        const phoneNumber = validateStringFieldAndThrow(
+          bodyRecord.phoneNumber,
+          "phoneNumber"
+        );
+        await this.passwordlessStart({
+          connection: "sms",
+          phoneNumber,
+          language
+        });
+      } else {
+        return NextResponse.json(
+          {
+            error: "invalid_connection",
+            error_description: "connection must be 'email' or 'sms'"
+          },
+          { status: 400 }
+        );
+      }
+
+      return res;
+    } catch (e) {
+      if (e instanceof PasswordlessStartError) {
+        if (e.error === "unexpected_error") {
+          return NextResponse.json(
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json(e.toJSON(), { status: 400 });
+      }
+      if (e instanceof SdkError) {
+        return NextResponse.json(
+          { error: e.code, error_description: e.message },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "server_error", error_description: "Internal server error" },
+        { status: 500 }
+      );
+    }
+  }
+
+  /**
+   * Route: POST /auth/passwordless/verify
+   * Verifies a passwordless OTP and establishes a session.
+   *
+   * Body: { connection: "email", email, verificationCode }
+   *       { connection: "sms", phoneNumber, verificationCode }
+   *
+   * Response: 200 { success: true } + Set-Cookie
+   * Error: 400/403 + { error, error_description }
+   */
+  async handlePasswordlessVerify(req: NextRequest): Promise<NextResponse> {
+    try {
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+      const connection = validateStringFieldAndThrow(
+        bodyRecord.connection,
+        "connection"
+      );
+      const verificationCode = validateStringFieldAndThrow(
+        bodyRecord.verificationCode,
+        "verificationCode"
+      );
+
+      let options: PasswordlessVerifyOptions;
+      if (connection === "email") {
+        const email = validateStringFieldAndThrow(bodyRecord.email, "email");
+        options = { connection: "email", email, verificationCode };
+      } else if (connection === "sms") {
+        const phoneNumber = validateStringFieldAndThrow(
+          bodyRecord.phoneNumber,
+          "phoneNumber"
+        );
+        options = { connection: "sms", phoneNumber, verificationCode };
+      } else {
+        return NextResponse.json(
+          {
+            error: "invalid_connection",
+            error_description: "connection must be 'email' or 'sms'"
+          },
+          { status: 400 }
+        );
+      }
+
+      const tokenResponse = await this.passwordlessVerify(options);
+      const res = NextResponse.json({ success: true });
+      await this.createSessionFromPasswordlessVerify(
+        tokenResponse,
+        req.cookies,
+        res.cookies
+      );
+      addCacheControlHeadersForSession(res);
+      return res;
+    } catch (e) {
+      if (e instanceof PasswordlessVerifyError) {
+        const serverErrorCodes = new Set([
+          "discovery_error",
+          "unexpected_error"
+        ]);
+        if (serverErrorCodes.has(e.error)) {
+          return NextResponse.json(
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json(e.toJSON(), { status: 403 });
+      }
+      if (e instanceof SdkError) {
+        return NextResponse.json(
+          { error: e.code, error_description: e.message },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "server_error", error_description: "Internal server error" },
+        { status: 500 }
+      );
     }
   }
 
@@ -3611,14 +3877,9 @@ export class AuthClient {
       );
     }
 
-    // Ensure token_type is present (oauth4webapi marks it optional)
-    // oauth4webapi normalizes to lowercase, but we keep Auth0's casing for compatibility
     const result = {
       ...tokenEndpointResponse,
-      token_type: tokenEndpointResponse.token_type
-        ? tokenEndpointResponse.token_type.charAt(0).toUpperCase() +
-          tokenEndpointResponse.token_type.slice(1)
-        : "Bearer"
+      token_type: normalizeTokenType(tokenEndpointResponse.token_type)
     } as MfaVerifyResponse;
 
     return result;
@@ -3667,6 +3928,261 @@ export class AuthClient {
 
     // Persist updated session
     await this.sessionStore.set(reqCookies, resCookies, session);
+  }
+
+  /**
+   * Creates a new session from a passwordless verify token response.
+   * Decodes the id_token to extract user claims, builds SessionData,
+   * runs the beforeSessionSaved hook, and persists the session.
+   *
+   * @param tokenResponse - Token response from passwordlessVerify
+   * @param reqCookies - Request cookies for session association
+   * @param resCookies - Response cookies for session persistence
+   * @throws {PasswordlessVerifyError} If id_token is absent from the response
+   */
+  async createSessionFromPasswordlessVerify(
+    tokenResponse: PasswordlessVerifyTokenResponse,
+    reqCookies: RequestCookies,
+    resCookies: ResponseCookies
+  ): Promise<void> {
+    if (!tokenResponse.id_token) {
+      throw new PasswordlessVerifyError(
+        "missing_id_token",
+        "No id_token in passwordless verify response. Ensure 'openid' scope is requested."
+      );
+    }
+
+    // jose.decodeJwt does a non-validating base64 decode — safe here because
+    // the token was received from Auth0's HTTPS token endpoint (server-to-server)
+    // and iss/aud were already validated by oauth4webapi's
+    // processGenericTokenEndpointResponse inside passwordlessVerify().
+    const claims = jose.decodeJwt(tokenResponse.id_token);
+    const user = claims as unknown as User;
+
+    let session: SessionData = {
+      user,
+      tokenSet: {
+        accessToken: tokenResponse.access_token,
+        idToken: tokenResponse.id_token,
+        scope: tokenResponse.scope,
+        refreshToken: tokenResponse.refresh_token,
+        expiresAt:
+          Math.floor(Date.now() / 1000) + Number(tokenResponse.expires_in),
+        token_type: tokenResponse.token_type
+      },
+      internal: {
+        sid: (claims.sid as string) || "",
+        createdAt: Math.floor(Date.now() / 1000),
+        ...(this.provider?.isResolverMode && {
+          mcd: { domain: this.domain, issuer: this.issuer }
+        })
+      }
+    };
+
+    session = await this.finalizeSession(session, tokenResponse.id_token);
+    await this.sessionStore.set(reqCookies, resCookies, session, true);
+  }
+
+  /**
+   * Initiates a passwordless authentication flow by POSTing to `/passwordless/start`.
+   * Auth0 sends an OTP code or magic link to the user's email or phone number.
+   *
+   * @param options - Connection type, user identifier, and (for email) delivery method.
+   * @throws {PasswordlessStartError} On Auth0 API failure.
+   */
+  async passwordlessStart(options: PasswordlessStartOptions): Promise<void> {
+    const url = new URL("/passwordless/start", this.issuer).toString();
+    const httpOptions = this.httpOptions();
+    httpOptions.headers.set("Content-Type", "application/json");
+
+    // Forward locale preference for Auth0 email template localization.
+    // Auth0's /passwordless/start respects x-request-language to select the
+    // correct email template language when multiple are configured.
+    if (options.language) {
+      httpOptions.headers.set("x-request-language", options.language);
+    }
+
+    const body: Record<string, unknown> = {
+      client_id: this.clientMetadata.client_id,
+      connection: options.connection
+    };
+
+    if (this.clientSecret) {
+      body.client_secret = this.clientSecret;
+    }
+
+    if (options.connection === "email") {
+      body.email = options.email;
+      body.send = options.send;
+    } else {
+      body.phone_number = options.phoneNumber;
+    }
+
+    if (options.authParams) {
+      body.authParams = options.authParams;
+    }
+
+    try {
+      const response = await this.fetch(url, {
+        method: "POST",
+        body: JSON.stringify(body),
+        ...httpOptions
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({
+          error: "unknown_error",
+          error_description: "Failed to start passwordless flow"
+        }));
+        throw new PasswordlessStartError(
+          errorBody.error || "unknown_error",
+          errorBody.error_description || "Failed to start passwordless flow",
+          errorBody.error ? errorBody : undefined
+        );
+      }
+    } catch (e) {
+      if (e instanceof PasswordlessStartError) throw e;
+      throw new PasswordlessStartError(
+        "unexpected_error",
+        "Unexpected error during passwordless start",
+        undefined
+      );
+    }
+  }
+
+  /**
+   * Verifies a passwordless OTP and exchanges it for tokens via the OAuth token endpoint.
+   * Returns raw tokens — the caller (route handler) is responsible for creating the session.
+   *
+   * Uses `grant_type=http://auth0.com/oauth/grant-type/passwordless/otp`.
+   * DPoP is applied when enabled.
+   *
+   * @param options - Connection type, user identifier, and verification code.
+   * @returns Token response from Auth0.
+   * @throws {PasswordlessVerifyError} On Auth0 API failure or discovery failure.
+   */
+  async passwordlessVerify(
+    options: PasswordlessVerifyOptions
+  ): Promise<PasswordlessVerifyTokenResponse> {
+    await this.ensureDpopValidated();
+
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      throw new PasswordlessVerifyError(
+        "discovery_error",
+        "Failed to discover authorization server metadata",
+        undefined
+      );
+    }
+
+    const params = new URLSearchParams();
+    params.append("realm", options.connection);
+    params.append("otp", options.verificationCode);
+
+    if (options.connection === "email") {
+      params.append("username", options.email);
+    } else {
+      params.append("username", options.phoneNumber);
+    }
+
+    // Resolve scope and audience from global authorizationParameters
+    const scope =
+      getScopeForAudience(
+        this.authorizationParameters.scope,
+        this.authorizationParameters.audience
+      ) || DEFAULT_SCOPES;
+    params.append("scope", scope);
+
+    if (this.authorizationParameters.audience) {
+      params.append(
+        "audience",
+        this.authorizationParameters.audience as string
+      );
+    }
+
+    // Create DPoP handle ONCE outside the closure so it persists across retries.
+    // This is required by RFC 9449: the handle must learn and reuse the nonce from
+    // the DPoP-Nonce header across multiple attempts.
+    const dpopHandle =
+      this.useDPoP && this.dpopKeyPair
+        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+        : undefined;
+
+    let tokenEndpointResponse: oauth.TokenEndpointResponse;
+    try {
+      tokenEndpointResponse = await withDPoPNonceRetry(
+        async () => {
+          const httpResponse = await oauth.genericTokenEndpointRequest(
+            authorizationServerMetadata,
+            this.clientMetadata,
+            await this.getClientAuth(),
+            GRANT_TYPE_PASSWORDLESS_OTP,
+            params,
+            {
+              ...this.httpOptions(),
+              [oauth.customFetch]: this.fetch,
+              [oauth.allowInsecureRequests]: this.allowInsecureRequests,
+              ...(dpopHandle && { DPoP: dpopHandle })
+            }
+          );
+          return oauth.processGenericTokenEndpointResponse(
+            authorizationServerMetadata,
+            this.clientMetadata,
+            httpResponse
+          );
+        },
+        {
+          isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
+          ...this.dpopOptions?.retry
+        }
+      );
+    } catch (err: any) {
+      // oauth4webapi validates the id_token (iss, aud, signature) inside
+      // processGenericTokenEndpointResponse and throws with code
+      // JWT_CLAIM_COMPARISON when a claim doesn't match the discovered ASM.
+      // Surface those as specific PasswordlessVerifyErrors so callers can
+      // distinguish misconfiguration from a bad grant.
+      if (err?.code === oauth.JWT_CLAIM_COMPARISON) {
+        const claim = (err.cause as any)?.claim;
+        if (claim === "iss") {
+          throw new PasswordlessVerifyError(
+            "invalid_issuer",
+            `ID token issuer mismatch. Check AUTH0_DOMAIN configuration.`
+          );
+        }
+        if (claim === "aud") {
+          throw new PasswordlessVerifyError(
+            "invalid_audience",
+            `ID token audience mismatch. Check AUTH0_CLIENT_ID configuration.`
+          );
+        }
+      }
+
+      const oauthErr = await extractOAuthErrorDetails(err);
+      throw new PasswordlessVerifyError(
+        oauthErr.error || "unknown_error",
+        oauthErr.error_description ||
+          err.message ||
+          "Passwordless verification failed",
+        oauthErr.error
+          ? {
+              error: oauthErr.error,
+              error_description: oauthErr.error_description ?? ""
+            }
+          : undefined
+      );
+    }
+
+    return {
+      access_token: tokenEndpointResponse.access_token,
+      refresh_token: tokenEndpointResponse.refresh_token,
+      id_token: tokenEndpointResponse.id_token,
+      token_type: normalizeTokenType(tokenEndpointResponse.token_type),
+      scope: tokenEndpointResponse.scope,
+      expires_in: Number(tokenEndpointResponse.expires_in)
+    };
   }
 
   /**
@@ -3723,10 +4239,48 @@ export class AuthClient {
       ? await clonedReq.arrayBuffer()
       : undefined;
 
+    // Keep an isolated, request-local session snapshot so retries within this
+    // proxy request can observe token refreshes immediately without writing the
+    // session cookie until the proxy response succeeds.
+    const requestSession = structuredClone(session);
+    const tokenSetResponsesByRequest = new Map<string, GetTokenSetResponse>();
+    const applyTokenSetResponseToRequestSession = (
+      tokenSetResponse: GetTokenSetResponse
+    ) => {
+      const sessionChanges = getSessionChangesAfterGetAccessToken(
+        requestSession,
+        tokenSetResponse.tokenSet,
+        {
+          scope: this.authorizationParameters?.scope ?? DEFAULT_SCOPES,
+          audience: this.authorizationParameters?.audience
+        }
+      );
+
+      if (sessionChanges) {
+        Object.assign(requestSession, sessionChanges);
+      }
+
+      if (tokenSetResponse.idTokenClaims) {
+        requestSession.user = tokenSetResponse.idTokenClaims as User;
+      }
+    };
+
     let tokenSetSideEffect!: GetTokenSetResponse;
 
     const getAccessToken: AccessTokenFactory = async (authParams) => {
-      const [error, tokenSetResponse] = await this.getTokenSet(session, {
+      const cacheKey = JSON.stringify([
+        authParams.refresh ?? false,
+        authParams.audience ?? null,
+        authParams.scope ?? null
+      ]);
+      const cachedTokenSetResponse = tokenSetResponsesByRequest.get(cacheKey);
+
+      if (cachedTokenSetResponse) {
+        tokenSetSideEffect = cachedTokenSetResponse;
+        return cachedTokenSetResponse.tokenSet;
+      }
+
+      const [error, tokenSetResponse] = await this.getTokenSet(requestSession, {
         audience: authParams.audience,
         scope: authParams.scope
       });
@@ -3734,6 +4288,9 @@ export class AuthClient {
       if (error) {
         throw error;
       }
+
+      applyTokenSetResponseToRequestSession(tokenSetResponse);
+      tokenSetResponsesByRequest.set(cacheKey, tokenSetResponse);
 
       // Tracking the last used token set response for session updates later as a side effect.
       // This relies on the fact that `getAccessToken` is called before the actual fetch.
@@ -3797,11 +4354,10 @@ export class AuthClient {
 
       return res;
     } catch (e: any) {
-      // Handle MFA required error - return 403 with MFA context
-      // Note: session.mfa was already mutated by getTokenSet() before the error was thrown.
-      // JavaScript is single-threaded, so no race condition exists.
+      // Handle MFA required error - return 403 with MFA context.
+      // The request-local session snapshot was passed to getTokenSet().
       if (e instanceof MfaRequiredError) {
-        return this.#createMfaRequiredResponse(req, session, e);
+        return this.#createMfaRequiredResponse(req, requestSession, e);
       }
 
       // Return 401 for missing refresh token (cannot refresh expired token)

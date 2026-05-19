@@ -239,7 +239,10 @@ export function setChunkedCookie(
     getAllChunkedCookies(reqCookies, name).forEach((cookieChunk) => {
       deleteCookie(resCookies, cookieChunk.name, {
         path: finalOptions.path,
-        domain: finalOptions.domain
+        domain: finalOptions.domain,
+        secure: finalOptions.secure,
+        sameSite: finalOptions.sameSite,
+        httpOnly: finalOptions.httpOnly
       });
       reqCookies.delete(cookieChunk.name);
     });
@@ -271,7 +274,10 @@ export function setChunkedCookie(
       const chunkName = `${name}${CHUNK_PREFIX}${chunkIndexToRemove}`;
       deleteCookie(resCookies, chunkName, {
         path: finalOptions.path,
-        domain: finalOptions.domain
+        domain: finalOptions.domain,
+        secure: finalOptions.secure,
+        sameSite: finalOptions.sameSite,
+        httpOnly: finalOptions.httpOnly
       });
       reqCookies.delete(chunkName);
     }
@@ -280,7 +286,10 @@ export function setChunkedCookie(
   // When we have written chunked cookies, we should remove the non-chunked cookie
   deleteCookie(resCookies, name, {
     path: finalOptions.path,
-    domain: finalOptions.domain
+    domain: finalOptions.domain,
+    secure: finalOptions.secure,
+    sameSite: finalOptions.sameSite,
+    httpOnly: finalOptions.httpOnly
   });
   reqCookies.delete(name);
 }
@@ -350,7 +359,8 @@ export function deleteChunkedCookie(
   reqCookies: RequestCookies,
   resCookies: ResponseCookies,
   isLegacyCookie?: boolean,
-  options?: Pick<CookieOptions, "domain" | "path">
+  options?: Pick<CookieOptions, "domain" | "path"> &
+    Partial<Pick<CookieOptions, "secure" | "sameSite" | "httpOnly">>
 ): void {
   // Delete main cookie
   deleteCookie(resCookies, name, options);
@@ -380,18 +390,30 @@ export function addCacheControlHeadersForSession(res: NextResponse): void {
 }
 
 /**
- * Deletes a cookie from the response with optional domain and path specifications.
+ * Deletes a cookie from the response with optional domain, path, and security attribute specifications.
+ *
+ * Security attributes (Secure, SameSite, HttpOnly) must mirror those used when the cookie was originally
+ * set. Browsers require matching security attributes on deletion to correctly identify and remove the
+ * cookie, especially for Secure cookies under Scheme-Bound Cookie enforcement (Chromium 124+).
  *
  * @param resCookies - The response cookies object to manipulate.
  * @param name - The name of the cookie to delete.
- * @param options - Optional domain and path settings for cookie deletion.
+ * @param options - Optional domain, path, and security settings for cookie deletion.
  */
 export function deleteCookie(
   resCookies: ResponseCookies,
   name: string,
-  options?: Pick<CookieOptions, "domain" | "path">
+  options?: Pick<CookieOptions, "domain" | "path"> &
+    Partial<Pick<CookieOptions, "secure" | "sameSite" | "httpOnly">>
 ) {
-  const deleteOptions: { maxAge: number; domain?: string; path?: string } = {
+  const deleteOptions: {
+    maxAge: number;
+    domain?: string;
+    path?: string;
+    secure?: boolean;
+    sameSite?: "lax" | "strict" | "none";
+    httpOnly?: boolean;
+  } = {
     maxAge: 0 // Ensure the cookie is deleted immediately
   };
 
@@ -401,6 +423,18 @@ export function deleteCookie(
 
   if (options?.path) {
     deleteOptions.path = options.path;
+  }
+
+  if (options?.secure !== undefined) {
+    deleteOptions.secure = options.secure;
+  }
+
+  if (options?.sameSite !== undefined) {
+    deleteOptions.sameSite = options.sameSite;
+  }
+
+  if (options?.httpOnly !== undefined) {
+    deleteOptions.httpOnly = options.httpOnly;
   }
 
   resCookies.set(name, "", deleteOptions);

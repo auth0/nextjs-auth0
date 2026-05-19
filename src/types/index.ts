@@ -248,3 +248,15 @@ export type {
   DiscoveryCacheOptions,
   MCDMetadata
 } from "./mcd.js";
+
+export {
+  PasswordlessClient,
+  PasswordlessStartOptions,
+  PasswordlessStartEmailOptions,
+  PasswordlessStartSmsOptions,
+  PasswordlessVerifyOptions,
+  PasswordlessVerifyEmailOptions,
+  PasswordlessVerifySmsOptions,
+  PasswordlessVerifyTokenResponse,
+  GRANT_TYPE_PASSWORDLESS_OTP
+} from "./passwordless.js";
