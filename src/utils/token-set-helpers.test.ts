@@ -6,6 +6,7 @@ import {
   compareScopes,
   findAccessTokenSet,
   mergeScopes,
+  normalizeTokenType,
   tokenSetFromAccessTokenSet
 } from "./token-set-helpers.js";
 
@@ -867,6 +868,34 @@ describe("token-set-helpers", () => {
       expect(result).toBe(
         "read:user/profile write:user/settings delete:user/account"
       );
+    });
+  });
+
+  describe("normalizeTokenType", () => {
+    it("normalizes lowercase bearer to Bearer", () => {
+      expect(normalizeTokenType("bearer")).toBe("Bearer");
+    });
+
+    it("normalizes uppercase BEARER to Bearer", () => {
+      expect(normalizeTokenType("BEARER")).toBe("Bearer");
+    });
+
+    it("normalizes lowercase dpop to DPoP", () => {
+      expect(normalizeTokenType("dpop")).toBe("DPoP");
+    });
+
+    it("normalizes mixed-case dpop variants to DPoP", () => {
+      expect(normalizeTokenType("Dpop")).toBe("DPoP");
+      expect(normalizeTokenType("DPOP")).toBe("DPoP");
+      expect(normalizeTokenType("DPoP")).toBe("DPoP");
+    });
+
+    it("returns Bearer for undefined", () => {
+      expect(normalizeTokenType(undefined)).toBe("Bearer");
+    });
+
+    it("capitalizes the first letter of unknown token types", () => {
+      expect(normalizeTokenType("mac")).toBe("Mac");
     });
   });
 });
