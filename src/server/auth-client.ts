@@ -1556,97 +1556,11 @@ export class AuthClient {
           | "code"
           | "link";
 
-        if (send === "link") {
-          // Magic link flow: generate our own state, pass it as authParams.state
-          // to /passwordless/start so Auth0 embeds it in the emailed link, and
-          // save a transaction cookie keyed by it. When the user clicks the link,
-          // Auth0's /passwordless/verify_redirect will redirect to our callback
-          // with the same state, and handleCallback can resolve the transaction.
-          //
-          // Requires tenant setting `allow_magiclink_verify_without_session: true`
-          // so Auth0 does not require an nstate session cookie at link-click time
-          // (those cookies live on the Auth0 domain and cannot be planted from
-          // the application's domain).
-          const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
-          const redirectUri = createRouteUrl(
-            this.routes.callback,
-            appBaseUrl
-          ).toString();
-
-          const state = oauth.generateRandomState();
-
-          // Start from all global authorizationParameters so tenant-level defaults
-          // (organization, invitation, acr_values, login_hint, etc.) are preserved,
-          // then set magic-link specific fields on top.
-          // Exclude PKCE params (not applicable without code_verifier) and fields
-          // we set explicitly below.
-          const MAGIC_LINK_EXCLUDED_PARAMS = [
-            "client_id",
-            "redirect_uri",
-            "response_type",
-            "state",
-            "nonce",
-            "code_challenge",
-            "code_challenge_method"
-          ];
-          const baseParams = mergeAuthorizationParamsIntoSearchParams(
-            this.authorizationParameters,
-            undefined,
-            MAGIC_LINK_EXCLUDED_PARAMS
-          );
-
-          // Derive scope explicitly via getScopeForAudience so map-form scopes
-          // are resolved correctly, falling back to default if none configured.
-          const audience = this.authorizationParameters.audience as
-            | string
-            | undefined;
-          const scope =
-            getScopeForAudience(this.authorizationParameters.scope, audience) ||
-            "openid email profile";
-
-          const authParams: Record<string, string> = {
-            ...Object.fromEntries(baseParams),
-            redirect_uri: redirectUri,
-            response_type: RESPONSE_TYPES.CODE,
-            scope,
-            state,
-            ...(audience && { audience })
-          };
-
-          await this.passwordlessStart({
-            connection: "email",
-            email,
-            send,
-            authParams,
-            language
-          });
-
-          const transactionState: TransactionState = {
-            responseType: RESPONSE_TYPES.CODE,
-            state,
-            returnTo: this.signInReturnToPath,
-            scope: scope || undefined,
-            audience: this.authorizationParameters.audience as
-              | string
-              | undefined,
-            originDomain: this.provider?.isResolverMode
-              ? this.domain
-              : undefined,
-            originIssuer: this.provider?.isResolverMode
-              ? this.issuer
-              : undefined
-          };
-
-          await this.transactionStore.save(res.cookies, transactionState);
-        } else {
-          // OTP flow: send the code directly, no authorize step needed
-          await this.passwordlessStart({
-            connection: "email",
-            email,
-            send,
-            language
-          });
-        }
+        await this.passwordlessStart(
+          { connection: "email", email, send, language },
+          res.cookies,
+          req
+        );
       } else if (connection === "sms") {
         const phoneNumber = validateStringFieldAndThrow(
           bodyRecord.phoneNumber,
@@ -3987,17 +3901,86 @@ export class AuthClient {
    * Initiates a passwordless authentication flow by POSTing to `/passwordless/start`.
    * Auth0 sends an OTP code or magic link to the user's email or phone number.
    *
+   * When `options.send === 'link'` (magic link), `resCookies` must be provided so
+   * the transaction state can be persisted for the callback to resolve. `req` is
+   * optional and used for MCD domain resolution and appBaseUrl inference.
+   *
    * @param options - Connection type, user identifier, and (for email) delivery method.
+   * @param resCookies - Response cookies to write the transaction cookie into (magic link only).
+   * @param req - Optional NextRequest for MCD domain resolution and appBaseUrl inference.
    * @throws {PasswordlessStartError} On Auth0 API failure.
    */
-  async passwordlessStart(options: PasswordlessStartOptions): Promise<void> {
+  async passwordlessStart(
+    options: PasswordlessStartOptions,
+    resCookies?: ResponseCookies,
+    req?: NextRequest
+  ): Promise<void> {
+    // Magic link flow: build authParams (state, redirect_uri, etc.) and save
+    // a transaction cookie so /auth/callback can complete the code exchange.
+    let magicLinkTransactionState: TransactionState | undefined;
+    if (
+      options.connection === "email" &&
+      "send" in options &&
+      options.send === "link"
+    ) {
+      const appBaseUrl = resolveAppBaseUrl(this.appBaseUrl, req);
+      const redirectUri = createRouteUrl(
+        this.routes.callback,
+        appBaseUrl
+      ).toString();
+      const state = oauth.generateRandomState();
+
+      // Preserve tenant-level authorizationParameters (org, acr_values, etc.)
+      // but exclude PKCE and fields we set explicitly.
+      const MAGIC_LINK_EXCLUDED_PARAMS = [
+        "client_id",
+        "redirect_uri",
+        "response_type",
+        "state",
+        "nonce",
+        "code_challenge",
+        "code_challenge_method"
+      ];
+      const baseParams = mergeAuthorizationParamsIntoSearchParams(
+        this.authorizationParameters,
+        undefined,
+        MAGIC_LINK_EXCLUDED_PARAMS
+      );
+
+      const audience = this.authorizationParameters.audience as
+        | string
+        | undefined;
+      const scope =
+        getScopeForAudience(this.authorizationParameters.scope, audience) ||
+        "openid email profile";
+
+      options = {
+        ...options,
+        authParams: {
+          ...Object.fromEntries(baseParams),
+          redirect_uri: redirectUri,
+          response_type: RESPONSE_TYPES.CODE,
+          scope,
+          state,
+          ...(audience && { audience })
+        }
+      };
+
+      magicLinkTransactionState = {
+        responseType: RESPONSE_TYPES.CODE,
+        state,
+        returnTo: this.signInReturnToPath,
+        scope: scope || undefined,
+        audience: this.authorizationParameters.audience as string | undefined,
+        originDomain: this.provider?.isResolverMode ? this.domain : undefined,
+        originIssuer: this.provider?.isResolverMode ? this.issuer : undefined
+      };
+    }
+
     const url = new URL("/passwordless/start", this.issuer).toString();
     const httpOptions = this.httpOptions();
     httpOptions.headers.set("Content-Type", "application/json");
 
-    // Forward locale preference for Auth0 email template localization.
-    // Auth0's /passwordless/start respects x-request-language to select the
-    // correct email template language when multiple are configured.
     if (options.language) {
       httpOptions.headers.set("x-request-language", options.language);
     }
@@ -4047,6 +4030,10 @@ export class AuthClient {
         "Unexpected error during passwordless start",
         undefined
       );
+    }
+
+    if (magicLinkTransactionState && resCookies) {
+      await this.transactionStore.save(resCookies, magicLinkTransactionState);
     }
   }
 

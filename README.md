@@ -451,7 +451,7 @@ For complete documentation, configuration options, and examples, see [Multiple C
 
 ## Routes
 
-The SDK mounts 8 routes:
+The SDK mounts 13 routes:
 
 1. `/auth/login`: the login route that the user will be redirected to to initiate an authentication transaction
 2. `/auth/logout`: the logout route that must be added to your Auth0 application's Allowed Logout URLs
@@ -459,8 +459,13 @@ The SDK mounts 8 routes:
 4. `/auth/profile`: the route to check the user's session and return their attributes
 5. `/auth/access-token`: the route to check the user's session and return an access token (which will be automatically refreshed if a refresh token is available)
 6. `/auth/backchannel-logout`: the route that will receive a `logout_token` when a configured Back-Channel Logout initiator occurs
-7. `/auth/passwordless/start`: send an OTP code or magic link to a user's email or phone number
-8. `/auth/passwordless/verify`: verify an OTP code and create a session
+7. `/auth/connect`: the route to connect an additional account to the current user's session
+8. `/auth/mfa/authenticators`: the route to list the MFA authenticators enrolled for the current user
+9. `/auth/mfa/challenge`: the route to initiate an MFA challenge for a specific authenticator
+10. `/auth/mfa/verify`: the route to verify an MFA challenge response and step up the session
+11. `/auth/mfa/associate`: the route to enroll a new MFA authenticator for the current user
+12. `/auth/passwordless/start`: send an OTP code or magic link to a user's email or phone number
+13. `/auth/passwordless/verify`: verify an OTP code and create a session
 
 > [!NOTE]
 > The passwordless routes support both **Email OTP**, **SMS OTP**, and **Magic Link** flows. For magic links, the user clicks the emailed link and is redirected to `/auth/callback` — no separate verify step is needed. Magic links require the `allow_magiclink_verify_without_session` tenant flag to be enabled in the Auth0 Dashboard (**Settings → Advanced**). See [Passwordless Authentication](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#passwordless-authentication) in EXAMPLES.md for full setup and usage details.

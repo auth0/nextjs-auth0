@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server.js";
+import { ResponseCookies } from "@edge-runtime/cookies";
 import * as jose from "jose";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
@@ -201,6 +202,175 @@ describe("AuthClient passwordless methods", () => {
         name: "PasswordlessStartError",
         error: "unexpected_error"
       });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // passwordlessStart — magic link
+  // ---------------------------------------------------------------------------
+
+  describe("passwordlessStart — magic link (send: link)", () => {
+    it("POSTs to Auth0 with send: link and authParams containing state and redirect_uri", async () => {
+      let capturedBody: Record<string, unknown> = {};
+
+      server.use(
+        http.post(
+          `https://${DEFAULT.domain}/passwordless/start`,
+          async ({ request }) => {
+            capturedBody = (await request.json()) as Record<string, unknown>;
+            return HttpResponse.json({}, { status: 200 });
+          }
+        )
+      );
+
+      const resCookies = new ResponseCookies(new Headers());
+      await authClient.passwordlessStart(
+        { connection: "email", email: DEFAULT.email, send: "link" },
+        resCookies
+      );
+
+      expect(capturedBody.connection).toBe("email");
+      expect(capturedBody.email).toBe(DEFAULT.email);
+      expect(capturedBody.send).toBe("link");
+
+      const authParams = capturedBody.authParams as Record<string, string>;
+      expect(authParams).toBeDefined();
+      expect(authParams.state).toBeTruthy();
+      expect(authParams.redirect_uri).toContain("/auth/callback");
+      expect(authParams.response_type).toBe("code");
+    });
+
+    it("writes a transaction cookie to resCookies after a successful start", async () => {
+      server.use(
+        http.post(`https://${DEFAULT.domain}/passwordless/start`, () =>
+          HttpResponse.json({}, { status: 200 })
+        )
+      );
+
+      const headers = new Headers();
+      const resCookies = new ResponseCookies(headers);
+      await authClient.passwordlessStart(
+        { connection: "email", email: DEFAULT.email, send: "link" },
+        resCookies
+      );
+
+      const setCookieHeader = headers.get("set-cookie");
+      expect(setCookieHeader).toBeTruthy();
+      expect(setCookieHeader).toMatch(/HttpOnly/i);
+    });
+
+    it("forwards x-request-language when language is provided", async () => {
+      let capturedHeaders: Record<string, string> = {};
+
+      server.use(
+        http.post(
+          `https://${DEFAULT.domain}/passwordless/start`,
+          async ({ request }) => {
+            capturedHeaders = Object.fromEntries(request.headers.entries());
+            return HttpResponse.json({}, { status: 200 });
+          }
+        )
+      );
+
+      const resCookies = new ResponseCookies(new Headers());
+      await authClient.passwordlessStart(
+        {
+          connection: "email",
+          email: DEFAULT.email,
+          send: "link",
+          language: "pt-BR"
+        },
+        resCookies
+      );
+
+      expect(capturedHeaders["x-request-language"]).toBe("pt-BR");
+    });
+
+    it("includes audience in authParams when configured", async () => {
+      let capturedBody: Record<string, unknown> = {};
+
+      server.use(
+        http.post(
+          `https://${DEFAULT.domain}/passwordless/start`,
+          async ({ request }) => {
+            capturedBody = (await request.json()) as Record<string, unknown>;
+            return HttpResponse.json({}, { status: 200 });
+          }
+        )
+      );
+
+      const scopedSecret = await generateSecret(32);
+      const scopedClient = new AuthClient({
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        secret: scopedSecret,
+        transactionStore: new TransactionStore({ secret: scopedSecret }),
+        sessionStore: new StatelessSessionStore({ secret: scopedSecret }),
+        routes: getDefaultRoutes(),
+        authorizationParameters: {
+          scope: "openid profile email",
+          audience: "https://api.example.com"
+        }
+      });
+
+      const resCookies = new ResponseCookies(new Headers());
+      await scopedClient.passwordlessStart(
+        { connection: "email", email: DEFAULT.email, send: "link" },
+        resCookies
+      );
+
+      const authParams = capturedBody.authParams as Record<string, string>;
+      expect(authParams.audience).toBe("https://api.example.com");
+      expect(authParams.scope).toBe("openid profile email");
+    });
+
+    it("does not write a transaction cookie when resCookies is omitted", async () => {
+      server.use(
+        http.post(`https://${DEFAULT.domain}/passwordless/start`, () =>
+          HttpResponse.json({}, { status: 200 })
+        )
+      );
+
+      // No resCookies — the call should succeed but the cookie guard
+      // (if magicLinkTransactionState && resCookies) must be a no-op.
+      await expect(
+        authClient.passwordlessStart({
+          connection: "email",
+          email: DEFAULT.email,
+          send: "link"
+        })
+      ).resolves.toBeUndefined();
+    });
+
+    it("does not write a transaction cookie on Auth0 API failure", async () => {
+      server.use(
+        http.post(`https://${DEFAULT.domain}/passwordless/start`, () =>
+          HttpResponse.json(
+            {
+              error: "bad.connection",
+              error_description: "Connection not found."
+            },
+            { status: 400 }
+          )
+        )
+      );
+
+      const headers = new Headers();
+      const resCookies = new ResponseCookies(headers);
+      await expect(
+        authClient.passwordlessStart(
+          { connection: "email", email: DEFAULT.email, send: "link" },
+          resCookies
+        )
+      ).rejects.toMatchObject({
+        name: "PasswordlessStartError",
+        error: "bad.connection"
+      });
+
+      // transactionStore.save runs after the fetch — must not have been called
+      expect(headers.get("set-cookie")).toBeNull();
     });
   });
 
@@ -1079,35 +1249,25 @@ describe("AuthClient passwordless methods", () => {
   // ---------------------------------------------------------------------------
 
   describe("ServerPasswordlessClient", () => {
-    it("throws TypeError when start is called with send: 'link' (App Router overload)", async () => {
-      const passwordlessClient = new ServerPasswordlessClient({} as any);
-      await expect(
-        passwordlessClient.start({
-          connection: "email",
-          email: DEFAULT.email,
-          send: "link"
-        })
-      ).rejects.toThrow(TypeError);
-    });
-
-    it("throws TypeError when start is called with send: 'link' (Pages Router overload)", async () => {
+    it("throws TypeError when start(req, res, options) Pages Router call is missing res", async () => {
+      // The guard fires before connection/send is inspected — one test covers all variants.
       const passwordlessClient = new ServerPasswordlessClient({} as any);
       const req = new NextRequest(
         new URL("/auth/passwordless/start", DEFAULT.appBaseUrl),
         { method: "POST" }
       );
       await expect(
-        passwordlessClient.start(req, {
+        (passwordlessClient.start as any)(req, {
           connection: "email",
           email: DEFAULT.email,
-          send: "link"
+          send: "code"
         })
       ).rejects.toThrow(TypeError);
     });
   });
 
   describe("MCD resolver mode — ServerPasswordlessClient", () => {
-    it("start(req, options) routes to the correct tenant domain via host header", async () => {
+    it("start(req, res, options) routes to the correct tenant domain via host header", async () => {
       const capturedUrls: string[] = [];
 
       server.use(
@@ -1147,7 +1307,7 @@ describe("AuthClient passwordless methods", () => {
         { method: "POST", headers: { host: "tenant-a.example.com" } }
       );
 
-      await passwordlessClient.start(req, {
+      await passwordlessClient.start(req, new NextResponse(), {
         connection: "email",
         email: DEFAULT.email,
         send: "code"
@@ -1308,13 +1468,13 @@ describe("AuthClient passwordless methods", () => {
         { method: "POST", headers: { host: "tenant-b.example.com" } }
       );
 
-      await passwordlessClient.start(reqA, {
+      await passwordlessClient.start(reqA, new NextResponse(), {
         connection: "email",
         email: DEFAULT.email,
         send: "code"
       });
 
-      await passwordlessClient.start(reqB, {
+      await passwordlessClient.start(reqB, new NextResponse(), {
         connection: "email",
         email: DEFAULT.email,
         send: "code"

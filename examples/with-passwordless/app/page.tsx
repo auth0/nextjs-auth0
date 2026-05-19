@@ -23,6 +23,13 @@ export default async function Home() {
         </div>
 
         <PasswordlessForm />
+
+        <p className="mt-6 text-center text-xs text-gray-400">
+          Looking for a server-side example?{" "}
+          <a href="/server-passwordless" className="text-blue-600 underline hover:text-blue-800">
+            Email OTP / SMS OTP / Magic Link via Server Actions
+          </a>
+        </p>
       </div>
     </main>
   );
