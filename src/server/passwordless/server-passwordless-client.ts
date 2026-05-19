@@ -78,7 +78,7 @@ export class ServerPasswordlessClient implements PasswordlessClient {
       options.send === "link"
     ) {
       throw new TypeError(
-        "send: 'link' is not supported on this API surface. Magic-link flows require a response object to persist the PKCE transaction cookie. Use the /auth/passwordless/start route handler instead."
+        "send: 'link' is not supported on this API surface. Magic-link flows require a response object to persist the transaction cookie. Use the /auth/passwordless/start route handler instead."
       );
     }
 
