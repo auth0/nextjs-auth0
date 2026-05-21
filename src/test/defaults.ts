@@ -26,7 +26,15 @@ export function getDefaultRoutes(): Routes {
       "/auth/passwordless/start",
     passwordlessVerify:
       process.env.NEXT_PUBLIC_PASSWORDLESS_VERIFY_ROUTE ||
-      "/auth/passwordless/verify"
+      "/auth/passwordless/verify",
+    passkeySignupChallenge:
+      process.env.NEXT_PUBLIC_PASSKEY_SIGNUP_CHALLENGE_ROUTE ||
+      "/auth/passkey/signup-challenge",
+    passkeyLoginChallenge:
+      process.env.NEXT_PUBLIC_PASSKEY_LOGIN_CHALLENGE_ROUTE ||
+      "/auth/passkey/login-challenge",
+    passkeyVerify:
+      process.env.NEXT_PUBLIC_PASSKEY_VERIFY_ROUTE || "/auth/passkey/verify"
   };
 }
 

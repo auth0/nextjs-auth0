@@ -1,0 +1,426 @@
+/**
+ * Flow tests for AuthClient passkey core methods.
+ * Tests the raw AuthClient.passkeySignupChallenge / passkeyLoginChallenge /
+ * passkeyVerify methods — no Next.js runtime or cookie layer involved.
+ *
+ * The route handler and ServerPasskeyClient layers are tested in
+ * passkey-server.flow.test.ts and passkey/server-passkey-client.test.ts.
+ */
+import * as jose from "jose";
+import { http, HttpResponse } from "msw";
+import { setupServer } from "msw/node";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+
+import {
+  createAuthorizationServerMetadata,
+  getDefaultRoutes,
+  setupMswLifecycle
+} from "../test/defaults.js";
+import { generateSecret } from "../test/utils.js";
+import { AuthClient } from "./auth-client.js";
+import { StatelessSessionStore } from "./session/stateless-session-store.js";
+import { TransactionStore } from "./transaction-store.js";
+
+const DEFAULT = {
+  domain: "auth0.local",
+  clientId: "test-client-id",
+  clientSecret: "test-client-secret",
+  appBaseUrl: "http://localhost:3000",
+  sub: "passkeys|test-user-id",
+  sid: "test-sid",
+  authSession: "test-auth-session-token",
+  accessToken: "test-access-token",
+  refreshToken: "test-refresh-token"
+};
+
+const MOCK_AUTH_RESPONSE = {
+  id: "cred-id",
+  rawId: "cred-raw-id",
+  type: "public-key" as const,
+  response: {
+    clientDataJSON: "clientDataJSON-base64url",
+    attestationObject: "attestationObject-base64url"
+  }
+};
+
+let keyPair: jose.GenerateKeyPairResult;
+
+const authorizationServerMetadata = createAuthorizationServerMetadata(
+  DEFAULT.domain
+);
+
+const server = setupServer(
+  http.get(`https://${DEFAULT.domain}/.well-known/openid-configuration`, () =>
+    HttpResponse.json(authorizationServerMetadata)
+  ),
+  http.get(`https://${DEFAULT.domain}/.well-known/jwks.json`, async () => {
+    const jwk = await jose.exportJWK(keyPair.publicKey);
+    return HttpResponse.json({
+      keys: [{ ...jwk, kid: "test-key-1", alg: "RS256", use: "sig" }]
+    });
+  })
+);
+
+setupMswLifecycle(server);
+
+beforeAll(async () => {
+  keyPair = await jose.generateKeyPair("RS256");
+});
+
+describe("AuthClient passkey methods", () => {
+  let secret: string;
+  let authClient: AuthClient;
+
+  beforeEach(async () => {
+    secret = await generateSecret(32);
+    const transactionStore = new TransactionStore({ secret });
+    const sessionStore = new StatelessSessionStore({ secret });
+    authClient = new AuthClient({
+      domain: DEFAULT.domain,
+      clientId: DEFAULT.clientId,
+      clientSecret: DEFAULT.clientSecret,
+      appBaseUrl: DEFAULT.appBaseUrl,
+      secret,
+      transactionStore,
+      sessionStore,
+      routes: getDefaultRoutes()
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // passkeySignupChallenge
+  // ---------------------------------------------------------------------------
+
+  describe("passkeySignupChallenge", () => {
+    it("sends client_id and client_secret in request body", async () => {
+      let capturedBody: Record<string, unknown> = {};
+
+      server.use(
+        http.post(
+          `https://${DEFAULT.domain}/passkey/register`,
+          async ({ request }) => {
+            capturedBody = (await request.json()) as Record<string, unknown>;
+            return HttpResponse.json({
+              auth_session: DEFAULT.authSession,
+              authn_params_public_key: { challenge: "abc" }
+            });
+          }
+        )
+      );
+
+      await authClient.passkeySignupChallenge();
+
+      expect(capturedBody.client_id).toBe(DEFAULT.clientId);
+      expect(capturedBody.client_secret).toBe(DEFAULT.clientSecret);
+      expect(capturedBody.user_display_name).toBeUndefined();
+    });
+
+    it("includes user_display_name when provided", async () => {
+      let capturedBody: Record<string, unknown> = {};
+
+      server.use(
+        http.post(
+          `https://${DEFAULT.domain}/passkey/register`,
+          async ({ request }) => {
+            capturedBody = (await request.json()) as Record<string, unknown>;
+            return HttpResponse.json({
+              auth_session: DEFAULT.authSession,
+              authn_params_public_key: {}
+            });
+          }
+        )
+      );
+
+      await authClient.passkeySignupChallenge({ userDisplayName: "Jane Doe" });
+
+      expect(capturedBody.user_display_name).toBe("Jane Doe");
+    });
+
+    it("maps snake_case response to camelCase SDK shape", async () => {
+      server.use(
+        http.post(`https://${DEFAULT.domain}/passkey/register`, () =>
+          HttpResponse.json({
+            auth_session: DEFAULT.authSession,
+            authn_params_public_key: {
+              rp: { id: "example.com" },
+              challenge: "xyz"
+            }
+          })
+        )
+      );
+
+      const result = await authClient.passkeySignupChallenge();
+
+      expect(result.authSession).toBe(DEFAULT.authSession);
+      expect(result.authnParamsPublicKey).toEqual({
+        rp: { id: "example.com" },
+        challenge: "xyz"
+      });
+    });
+
+    it("throws PasskeySignupChallengeError on Auth0 API error", async () => {
+      server.use(
+        http.post(`https://${DEFAULT.domain}/passkey/register`, () =>
+          HttpResponse.json(
+            {
+              error: "passkeys_not_enabled",
+              error_description:
+                "Passkeys are not enabled for this application."
+            },
+            { status: 400 }
+          )
+        )
+      );
+
+      await expect(authClient.passkeySignupChallenge()).rejects.toMatchObject({
+        name: "PasskeySignupChallengeError",
+        error: "passkeys_not_enabled",
+        error_description: "Passkeys are not enabled for this application."
+      });
+    });
+
+    it("throws PasskeySignupChallengeError with unexpected_error on network failure", async () => {
+      server.use(
+        http.post(`https://${DEFAULT.domain}/passkey/register`, () =>
+          HttpResponse.error()
+        )
+      );
+
+      await expect(authClient.passkeySignupChallenge()).rejects.toMatchObject({
+        name: "PasskeySignupChallengeError",
+        error: "unexpected_error"
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // passkeyLoginChallenge
+  // ---------------------------------------------------------------------------
+
+  describe("passkeyLoginChallenge", () => {
+    it("sends client_id and client_secret in request body", async () => {
+      let capturedBody: Record<string, unknown> = {};
+
+      server.use(
+        http.post(
+          `https://${DEFAULT.domain}/passkey/challenge`,
+          async ({ request }) => {
+            capturedBody = (await request.json()) as Record<string, unknown>;
+            return HttpResponse.json({
+              auth_session: DEFAULT.authSession,
+              authn_params_public_key: {}
+            });
+          }
+        )
+      );
+
+      await authClient.passkeyLoginChallenge();
+
+      expect(capturedBody.client_id).toBe(DEFAULT.clientId);
+      expect(capturedBody.client_secret).toBe(DEFAULT.clientSecret);
+      expect(capturedBody.username).toBeUndefined();
+    });
+
+    it("includes username when provided", async () => {
+      let capturedBody: Record<string, unknown> = {};
+
+      server.use(
+        http.post(
+          `https://${DEFAULT.domain}/passkey/challenge`,
+          async ({ request }) => {
+            capturedBody = (await request.json()) as Record<string, unknown>;
+            return HttpResponse.json({
+              auth_session: DEFAULT.authSession,
+              authn_params_public_key: {}
+            });
+          }
+        )
+      );
+
+      await authClient.passkeyLoginChallenge({ username: "user@example.com" });
+
+      expect(capturedBody.username).toBe("user@example.com");
+    });
+
+    it("maps snake_case response to camelCase SDK shape", async () => {
+      server.use(
+        http.post(`https://${DEFAULT.domain}/passkey/challenge`, () =>
+          HttpResponse.json({
+            auth_session: DEFAULT.authSession,
+            authn_params_public_key: { challenge: "login-xyz", timeout: 60000 }
+          })
+        )
+      );
+
+      const result = await authClient.passkeyLoginChallenge();
+
+      expect(result.authSession).toBe(DEFAULT.authSession);
+      expect(result.authnParamsPublicKey).toEqual({
+        challenge: "login-xyz",
+        timeout: 60000
+      });
+    });
+
+    it("throws PasskeyLoginChallengeError on Auth0 API error", async () => {
+      server.use(
+        http.post(`https://${DEFAULT.domain}/passkey/challenge`, () =>
+          HttpResponse.json(
+            {
+              error: "passkeys_not_enabled",
+              error_description: "Passkeys are not enabled."
+            },
+            { status: 400 }
+          )
+        )
+      );
+
+      await expect(authClient.passkeyLoginChallenge()).rejects.toMatchObject({
+        name: "PasskeyLoginChallengeError",
+        error: "passkeys_not_enabled",
+        error_description: "Passkeys are not enabled."
+      });
+    });
+
+    it("throws PasskeyLoginChallengeError with unexpected_error on network failure", async () => {
+      server.use(
+        http.post(`https://${DEFAULT.domain}/passkey/challenge`, () =>
+          HttpResponse.error()
+        )
+      );
+
+      await expect(authClient.passkeyLoginChallenge()).rejects.toMatchObject({
+        name: "PasskeyLoginChallengeError",
+        error: "unexpected_error"
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // passkeyVerify
+  // ---------------------------------------------------------------------------
+
+  describe("passkeyVerify", () => {
+    it("sends auth_session and authn_response to /oauth/token", async () => {
+      let capturedParams: URLSearchParams = new URLSearchParams();
+
+      const idToken = await new jose.SignJWT({
+        sub: DEFAULT.sub,
+        sid: DEFAULT.sid
+      })
+        .setProtectedHeader({ alg: "RS256" })
+        .setIssuer(`https://${DEFAULT.domain}`)
+        .setAudience(DEFAULT.clientId)
+        .setIssuedAt()
+        .setExpirationTime("1h")
+        .sign(keyPair.privateKey);
+
+      server.use(
+        http.post(
+          `https://${DEFAULT.domain}/oauth/token`,
+          async ({ request }) => {
+            capturedParams = new URLSearchParams(await request.text());
+            return HttpResponse.json({
+              access_token: DEFAULT.accessToken,
+              token_type: "Bearer",
+              expires_in: 86400,
+              scope: "openid profile email",
+              id_token: idToken
+            });
+          }
+        )
+      );
+
+      const { RequestCookies, ResponseCookies } =
+        await import("@edge-runtime/cookies");
+      const reqCookies = new RequestCookies(new Headers());
+      const resHeaders = new Headers();
+      const resCookies = new ResponseCookies(resHeaders);
+
+      await authClient.passkeyVerify(
+        { authSession: DEFAULT.authSession, authResponse: MOCK_AUTH_RESPONSE },
+        reqCookies,
+        resCookies
+      );
+
+      expect(capturedParams.get("auth_session")).toBe(DEFAULT.authSession);
+      expect(capturedParams.get("authn_response")).toBeTruthy();
+      expect(capturedParams.get("grant_type")).toContain("webauthn");
+      // Session cookie written to resCookies
+      expect(resHeaders.get("set-cookie")).toMatch(/__session=/);
+    });
+
+    it("throws PasskeyVerifyError on invalid_grant from Auth0", async () => {
+      server.use(
+        http.post(`https://${DEFAULT.domain}/oauth/token`, () =>
+          HttpResponse.json(
+            {
+              error: "invalid_grant",
+              error_description: "Invalid passkey assertion."
+            },
+            { status: 400 }
+          )
+        )
+      );
+
+      const { RequestCookies, ResponseCookies } =
+        await import("@edge-runtime/cookies");
+      const reqCookies = new RequestCookies(new Headers());
+      const resCookies = new ResponseCookies(new Headers());
+
+      await expect(
+        authClient.passkeyVerify(
+          {
+            authSession: DEFAULT.authSession,
+            authResponse: MOCK_AUTH_RESPONSE
+          },
+          reqCookies,
+          resCookies
+        )
+      ).rejects.toMatchObject({
+        name: "PasskeyVerifyError",
+        error: "invalid_grant",
+        error_description: "Invalid passkey assertion."
+      });
+    });
+
+    it("throws PasskeyVerifyError on discovery failure", async () => {
+      server.use(
+        http.get(
+          `https://${DEFAULT.domain}/.well-known/openid-configuration`,
+          () => HttpResponse.error()
+        )
+      );
+
+      const freshSecret = await generateSecret(32);
+      const freshClient = new AuthClient({
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        secret: freshSecret,
+        transactionStore: new TransactionStore({ secret: freshSecret }),
+        sessionStore: new StatelessSessionStore({ secret: freshSecret }),
+        routes: getDefaultRoutes()
+      });
+
+      const { RequestCookies, ResponseCookies } =
+        await import("@edge-runtime/cookies");
+      const reqCookies = new RequestCookies(new Headers());
+      const resCookies = new ResponseCookies(new Headers());
+
+      await expect(
+        freshClient.passkeyVerify(
+          {
+            authSession: DEFAULT.authSession,
+            authResponse: MOCK_AUTH_RESPONSE
+          },
+          reqCookies,
+          resCookies
+        )
+      ).rejects.toMatchObject({
+        name: "PasskeyVerifyError",
+        error: "discovery_error"
+      });
+    });
+  });
+});

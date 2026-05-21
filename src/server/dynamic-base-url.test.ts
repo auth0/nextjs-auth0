@@ -24,7 +24,10 @@ const defaultRoutes = {
   mfaVerify: "/auth/mfa/verify",
   mfaAssociate: "/auth/mfa/associate",
   passwordlessStart: "/auth/passwordless/start",
-  passwordlessVerify: "/auth/passwordless/verify"
+  passwordlessVerify: "/auth/passwordless/verify",
+  passkeySignupChallenge: "/auth/passkey/signup-challenge",
+  passkeyLoginChallenge: "/auth/passkey/login-challenge",
+  passkeyVerify: "/auth/passkey/verify"
 };
 
 describe("APP_BASE_URL Configuration", () => {
