@@ -1,8 +1,15 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { PasswordlessStartError } from "@auth0/nextjs-auth0/errors";
 import { auth0 } from "@/lib/auth0";
 
 type Tab = "email" | "sms" | "magic-link";
+
+// Short-lived HttpOnly cookie that carries the user identifier between the
+// start action and the verify page — keeps PII out of the URL entirely.
+const PL_COOKIE = "pl_pending";
+const PL_COOKIE_MAX_AGE = 600; // 10 minutes — long enough to receive the code
 
 export default async function ServerPasswordlessPage({
   searchParams
@@ -10,7 +17,6 @@ export default async function ServerPasswordlessPage({
   searchParams: Promise<{
     tab?: string;
     sent?: string;
-    email?: string;
     error?: string;
   }>;
 }) {
@@ -24,8 +30,14 @@ export default async function ServerPasswordlessPage({
     : "email";
   const error = params.error ?? null;
 
-  // Magic link sent — show confirmation screen
-  if (params.sent === "1" && params.email) {
+  // Magic link sent — show confirmation screen.
+  // Email is read from the HttpOnly cookie rather than the URL.
+  if (params.sent === "1") {
+    const cookieStore = await cookies();
+    const raw = cookieStore.get(PL_COOKIE)?.value;
+    const pending = raw ? (JSON.parse(raw) as { email?: string }) : null;
+    const sentEmail = pending?.email ?? "";
+
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-6">
         <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-8 shadow-sm text-center space-y-4">
@@ -37,7 +49,7 @@ export default async function ServerPasswordlessPage({
           <h1 className="text-xl font-semibold text-gray-900">Check your email</h1>
           <p className="text-sm text-gray-500">
             We sent a magic link to{" "}
-            <span className="font-medium text-gray-900">{params.email}</span>.
+            <span className="font-medium text-gray-900">{sentEmail}</span>.
             Click the link to sign in — no code required.
           </p>
           <p className="text-xs text-gray-400">
@@ -54,7 +66,7 @@ export default async function ServerPasswordlessPage({
     );
   }
 
-  // Server Actions — one per flow so each form has a typed action
+  // Server Actions — one per flow so each form has a typed action.
   async function startEmailOtp(formData: FormData) {
     "use server";
     const email = formData.get("email") as string;
@@ -63,11 +75,22 @@ export default async function ServerPasswordlessPage({
       await auth0.passwordless.start({ connection: "email", email, send: "code" });
       console.log("[server-passwordless] email OTP start success");
     } catch (err) {
-      const e = err as { error?: string; error_description?: string };
-      console.error(`[server-passwordless] email OTP start failed — ${e.error}: ${e.error_description}`);
-      redirect(`/server-passwordless?tab=email&error=${encodeURIComponent(e.error_description ?? "Failed to send code")}`);
+      const message = err instanceof PasswordlessStartError
+        ? err.error_description ?? err.message
+        : (err instanceof Error ? err.message : "Failed to send code");
+      console.error(`[server-passwordless] email OTP start failed — ${message}`);
+      redirect(`/server-passwordless?tab=email&error=${encodeURIComponent(message)}`);
     }
-    redirect(`/server-passwordless/verify?connection=email&email=${encodeURIComponent(email)}`);
+    // Store the identifier in an HttpOnly cookie so the verify page can read it
+    // without it appearing in the URL or being accessible from client-side JS.
+    const cookieStore = await cookies();
+    cookieStore.set(PL_COOKIE, JSON.stringify({ connection: "email", email }), {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/server-passwordless",
+      maxAge: PL_COOKIE_MAX_AGE
+    });
+    redirect("/server-passwordless/verify");
   }
 
   async function startSmsOtp(formData: FormData) {
@@ -78,11 +101,20 @@ export default async function ServerPasswordlessPage({
       await auth0.passwordless.start({ connection: "sms", phoneNumber: phone });
       console.log("[server-passwordless] SMS OTP start success");
     } catch (err) {
-      const e = err as { error?: string; error_description?: string };
-      console.error(`[server-passwordless] SMS OTP start failed — ${e.error}: ${e.error_description}`);
-      redirect(`/server-passwordless?tab=sms&error=${encodeURIComponent(e.error_description ?? "Failed to send code")}`);
+      const message = err instanceof PasswordlessStartError
+        ? err.error_description ?? err.message
+        : (err instanceof Error ? err.message : "Failed to send code");
+      console.error(`[server-passwordless] SMS OTP start failed — ${message}`);
+      redirect(`/server-passwordless?tab=sms&error=${encodeURIComponent(message)}`);
     }
-    redirect(`/server-passwordless/verify?connection=sms&phone=${encodeURIComponent(phone)}`);
+    const cookieStore = await cookies();
+    cookieStore.set(PL_COOKIE, JSON.stringify({ connection: "sms", phone }), {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/server-passwordless",
+      maxAge: PL_COOKIE_MAX_AGE
+    });
+    redirect("/server-passwordless/verify");
   }
 
   async function startMagicLink(formData: FormData) {
@@ -95,11 +127,21 @@ export default async function ServerPasswordlessPage({
       await auth0.passwordless.start({ connection: "email", email, send: "link" });
       console.log("[server-passwordless] magic link start success — transaction cookie written");
     } catch (err) {
-      const e = err as { error?: string; error_description?: string };
-      console.error(`[server-passwordless] magic link start failed — ${e.error}: ${e.error_description}`);
-      redirect(`/server-passwordless?tab=magic-link&error=${encodeURIComponent(e.error_description ?? "Failed to send link")}`);
+      const message = err instanceof PasswordlessStartError
+        ? err.error_description ?? err.message
+        : (err instanceof Error ? err.message : "Failed to send link");
+      console.error(`[server-passwordless] magic link start failed — ${message}`);
+      redirect(`/server-passwordless?tab=magic-link&error=${encodeURIComponent(message)}`);
     }
-    redirect(`/server-passwordless?sent=1&email=${encodeURIComponent(email)}`);
+    // Store email for the confirmation screen — HttpOnly so it never hits the URL.
+    const cookieStore = await cookies();
+    cookieStore.set(PL_COOKIE, JSON.stringify({ connection: "email", email }), {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/server-passwordless",
+      maxAge: PL_COOKIE_MAX_AGE
+    });
+    redirect("/server-passwordless?sent=1");
   }
 
   const inputClass =

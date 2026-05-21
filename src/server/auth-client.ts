@@ -3970,7 +3970,7 @@ export class AuthClient {
         responseType: RESPONSE_TYPES.CODE,
         state,
         returnTo: this.signInReturnToPath,
-        scope: scope || undefined,
+        scope,
         audience: this.authorizationParameters.audience as string | undefined,
         originDomain: this.provider?.isResolverMode ? this.domain : undefined,
         originIssuer: this.provider?.isResolverMode ? this.issuer : undefined
@@ -3981,6 +3981,9 @@ export class AuthClient {
     const httpOptions = this.httpOptions();
     httpOptions.headers.set("Content-Type", "application/json");
 
+    // Forward locale preference for Auth0 email template localization.
+    // Auth0's /passwordless/start respects x-request-language to select the
+    // correct email template language when multiple are configured.
     if (options.language) {
       httpOptions.headers.set("x-request-language", options.language);
     }
@@ -4032,7 +4035,13 @@ export class AuthClient {
       );
     }
 
-    if (magicLinkTransactionState && resCookies) {
+    if (magicLinkTransactionState) {
+      if (!resCookies) {
+        throw new InvalidConfigurationError(
+          "Magic link requires a response cookies object to persist the transaction state. " +
+            "Pass the NextResponse cookies (App Router: next/headers cookies; Pages Router: res.cookies)."
+        );
+      }
       await this.transactionStore.save(resCookies, magicLinkTransactionState);
     }
   }

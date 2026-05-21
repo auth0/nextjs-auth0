@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { passwordless } from "@auth0/nextjs-auth0/client";
+import { PasswordlessStartError, PasswordlessVerifyError } from "@auth0/nextjs-auth0/errors";
 
 type ConnectionType = "email" | "sms" | "magic-link" | "universal-login";
 type Step = "start" | "verify" | "link-sent";
@@ -33,15 +34,11 @@ export function PasswordlessForm() {
       }
       setStep("verify");
     } catch (err) {
-      const code = (err as { code?: string; error_description?: string })?.code;
-      if (code) {
-        setError(
-          (err as { error_description?: string }).error_description ??
-            "Unable to start passwordless flow."
-        );
-      } else {
-        setError("An unexpected error occurred. Please try again.");
-      }
+      setError(
+        err instanceof PasswordlessStartError
+          ? err.error_description
+          : "An unexpected error occurred. Please try again."
+      );
     } finally {
       setLoading(false);
     }
@@ -69,16 +66,13 @@ export function PasswordlessForm() {
       // Session cookie set — navigate to dashboard
       window.location.href = "/dashboard";
     } catch (err) {
-      const e = err as { code?: string; error?: string; error_description?: string };
-      if (e.code) {
-        setError(
-          e.error === "invalid_grant"
+      setError(
+        err instanceof PasswordlessVerifyError
+          ? err.error === "invalid_grant"
             ? "Invalid or expired code. Please check and try again."
-            : e.error_description ?? "Unable to verify code."
-        );
-      } else {
-        setError("An unexpected error occurred. Please try again.");
-      }
+            : err.error_description
+          : "An unexpected error occurred. Please try again."
+      );
     } finally {
       setLoading(false);
     }
@@ -154,6 +148,8 @@ export function PasswordlessForm() {
             value={code}
             onChange={(e) => setCode(e.target.value)}
             required
+            minLength={6}
+            maxLength={6}
             disabled={loading}
             className={inputClass}
           />

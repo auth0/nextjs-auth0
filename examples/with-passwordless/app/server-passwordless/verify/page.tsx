@@ -1,32 +1,38 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { PasswordlessVerifyError } from "@auth0/nextjs-auth0/errors";
 import { auth0 } from "@/lib/auth0";
+
+// Same name as in page.tsx — keeps both files in sync.
+const PL_COOKIE = "pl_pending";
 
 export default async function ServerPasswordlessVerifyPage({
   searchParams
 }: {
-  searchParams: Promise<{
-    connection?: string;
-    email?: string;
-    phone?: string;
-    error?: string;
-  }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
   const session = await auth0.getSession();
   if (session) redirect("/dashboard");
 
-  const params = await searchParams;
-  const raw = params.connection;
-  const connection: "email" | "sms" | undefined =
-    raw === "email" || raw === "sms" ? raw : undefined;
-  const email = params.email ?? "";
-  const phone = params.phone ?? "";
-  const error = params.error ?? null;
+  // Read the identifier from the HttpOnly cookie set by the start action.
+  const cookieStore = await cookies();
+  const raw = cookieStore.get(PL_COOKIE)?.value;
+  const pending = raw
+    ? (JSON.parse(raw) as { connection: "email" | "sms"; email?: string; phone?: string })
+    : null;
 
-  if (!connection || (connection === "email" && !email) || (connection === "sms" && !phone)) {
+  if (
+    !pending ||
+    (pending.connection === "email" && !pending.email) ||
+    (pending.connection === "sms" && !pending.phone)
+  ) {
     redirect("/server-passwordless");
   }
 
+  const { connection, email = "", phone = "" } = pending!;
+  const params = await searchParams;
+  const error = params.error ?? null;
   const hint =
     connection === "email"
       ? `We sent a 6-digit code to ${email}`
@@ -36,42 +42,54 @@ export default async function ServerPasswordlessVerifyPage({
     "use server";
     const code = formData.get("code") as string;
 
-    if (connection === "email") {
+    // Re-read inside the action — Server Actions have their own execution context.
+    const actionCookies = await cookies();
+    const actionRaw = actionCookies.get(PL_COOKIE)?.value;
+    const actionPending = actionRaw
+      ? (JSON.parse(actionRaw) as { connection: "email" | "sms"; email?: string; phone?: string })
+      : null;
+
+    if (!actionPending) redirect("/server-passwordless");
+
+    if (actionPending!.connection === "email") {
       console.log("[server-passwordless] email OTP verify");
       try {
-        // passwordless.verify exchanges the OTP for tokens and writes the
-        // session cookie to next/headers — the user is signed in after this call.
+        // passwordless.verify exchanges the OTP for tokens and writes the session
+        // cookie via next/headers — the same mechanism as auth0.passwordless.start.
+        // After this call the user is signed in.
         await auth0.passwordless.verify({
           connection: "email",
-          email,
+          email: actionPending!.email!,
           verificationCode: code
         });
         console.log("[server-passwordless] email OTP verify success — session created");
       } catch (err) {
-        const e = err as { error?: string; error_description?: string };
-        console.error(`[server-passwordless] email OTP verify failed — ${e.error}: ${e.error_description}`);
-        redirect(
-          `/server-passwordless/verify?connection=email&email=${encodeURIComponent(email)}&error=${encodeURIComponent(e.error_description ?? "Invalid or expired code")}`
-        );
+        const message = err instanceof PasswordlessVerifyError
+          ? err.error_description ?? err.message
+          : (err instanceof Error ? err.message : "Invalid or expired code");
+        console.error(`[server-passwordless] email OTP verify failed — ${message}`);
+        redirect(`/server-passwordless/verify?error=${encodeURIComponent(message)}`);
       }
     } else {
       console.log("[server-passwordless] SMS OTP verify");
       try {
         await auth0.passwordless.verify({
           connection: "sms",
-          phoneNumber: phone,
+          phoneNumber: actionPending!.phone!,
           verificationCode: code
         });
         console.log("[server-passwordless] SMS OTP verify success — session created");
       } catch (err) {
-        const e = err as { error?: string; error_description?: string };
-        console.error(`[server-passwordless] SMS OTP verify failed — ${e.error}: ${e.error_description}`);
-        redirect(
-          `/server-passwordless/verify?connection=sms&phone=${encodeURIComponent(phone)}&error=${encodeURIComponent(e.error_description ?? "Invalid or expired code")}`
-        );
+        const message = err instanceof PasswordlessVerifyError
+          ? err.error_description ?? err.message
+          : (err instanceof Error ? err.message : "Invalid or expired code");
+        console.error(`[server-passwordless] SMS OTP verify failed — ${message}`);
+        redirect(`/server-passwordless/verify?error=${encodeURIComponent(message)}`);
       }
     }
 
+    // Clear the pending cookie — it's consumed once the session is created.
+    actionCookies.delete(PL_COOKIE);
     redirect("/dashboard");
   }
 
@@ -107,7 +125,8 @@ export default async function ServerPasswordlessVerifyPage({
               autoComplete="one-time-code"
               placeholder="123456"
               required
-              minLength={4}
+              minLength={6}
+              maxLength={6}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
             />
           </div>

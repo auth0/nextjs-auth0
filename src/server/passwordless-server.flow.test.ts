@@ -326,22 +326,22 @@ describe("AuthClient passwordless methods", () => {
       expect(authParams.scope).toBe("openid profile email");
     });
 
-    it("does not write a transaction cookie when resCookies is omitted", async () => {
+    it("throws InvalidConfigurationError when resCookies is omitted for magic link", async () => {
       server.use(
         http.post(`https://${DEFAULT.domain}/passwordless/start`, () =>
           HttpResponse.json({}, { status: 200 })
         )
       );
 
-      // No resCookies — the call should succeed but the cookie guard
-      // (if magicLinkTransactionState && resCookies) must be a no-op.
+      // Magic link requires resCookies to persist the transaction state.
+      // Omitting it is a developer mistake — throw rather than silently skip.
       await expect(
         authClient.passwordlessStart({
           connection: "email",
           email: DEFAULT.email,
           send: "link"
         })
-      ).resolves.toBeUndefined();
+      ).rejects.toMatchObject({ name: "InvalidConfigurationError" });
     });
 
     it("does not write a transaction cookie on Auth0 API failure", async () => {

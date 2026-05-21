@@ -101,8 +101,10 @@ export class ServerPasswordlessClient implements PasswordlessClient {
     // App Router: start(options)
     // Only read next/headers cookies for magic link — OTP flows don't write cookies.
     const authClient = await this.getAuthClient();
-    const isMagicLink =
-      arg1.connection === "email" && "send" in arg1 && arg1.send === "link";
+    const isMagicLink = arg1.connection === "email" && arg1.send === "link";
+    // `as any`: ReadonlyRequestCookies is typed as Omit<RequestCookies, 'set'|'clear'|'delete'>
+    // & Pick<ResponseCookies, 'set'|'delete'>, so it does expose .set() at runtime despite
+    // the name. The cast suppresses the TS mismatch against the ResponseCookies parameter type.
     const cookiesLib = isMagicLink ? await getCookies() : undefined;
     return authClient.passwordlessStart(arg1, cookiesLib as any);
   }
