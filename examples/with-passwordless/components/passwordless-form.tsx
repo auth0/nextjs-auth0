@@ -3,7 +3,6 @@
 import { useState } from "react";
 
 import { passwordless } from "@auth0/nextjs-auth0/client";
-import { PasswordlessStartError, PasswordlessVerifyError } from "@auth0/nextjs-auth0/errors";
 
 type ConnectionType = "email" | "sms" | "magic-link" | "universal-login";
 type Step = "start" | "verify" | "link-sent";
@@ -34,9 +33,10 @@ export function PasswordlessForm() {
       }
       setStep("verify");
     } catch (err) {
+      const e = err as { code?: string; error_description?: string };
       setError(
-        err instanceof PasswordlessStartError
-          ? err.error_description
+        e.code === "passwordless_start_error"
+          ? (e.error_description ?? "Failed to send. Please try again.")
           : "An unexpected error occurred. Please try again."
       );
     } finally {
@@ -66,11 +66,12 @@ export function PasswordlessForm() {
       // Session cookie set — navigate to dashboard
       window.location.href = "/dashboard";
     } catch (err) {
+      const e = err as { code?: string; error?: string; error_description?: string };
       setError(
-        err instanceof PasswordlessVerifyError
-          ? err.error === "invalid_grant"
+        e.code === "passwordless_verify_error"
+          ? e.error === "invalid_grant"
             ? "Invalid or expired code. Please check and try again."
-            : err.error_description
+            : (e.error_description ?? "Verification failed. Please try again.")
           : "An unexpected error occurred. Please try again."
       );
     } finally {
@@ -155,7 +156,7 @@ export function PasswordlessForm() {
           />
         </div>
 
-        <button type="submit" disabled={loading || code.length < 4} className={btnPrimary}>
+        <button type="submit" disabled={loading || code.length < 6} className={btnPrimary}>
           {loading ? "Verifying…" : "Sign in"}
         </button>
 
