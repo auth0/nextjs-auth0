@@ -260,3 +260,16 @@ export {
   PasswordlessVerifyTokenResponse,
   GRANT_TYPE_PASSWORDLESS_OTP
 } from "./passwordless.js";
+
+export {
+  GRANT_TYPE_PASSKEY,
+  PasskeySignupChallengeOptions,
+  PasskeyLoginChallengeOptions,
+  PasskeyChallengeResponse,
+  PasskeyAuthResponse,
+  PasskeyVerifyOptions,
+  PasskeyEnrollmentChallengeResponse,
+  PasskeyEnrollVerifyOptions,
+  PasskeyAuthenticationMethod,
+  PasskeyClient
+} from "./passkey.js";
