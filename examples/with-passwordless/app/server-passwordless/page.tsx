@@ -9,7 +9,16 @@ type Tab = "email" | "sms" | "magic-link";
 // Short-lived HttpOnly cookie that carries the user identifier between the
 // start action and the verify page — keeps PII out of the URL entirely.
 const PL_COOKIE = "pl_pending";
-const PL_COOKIE_MAX_AGE = 600; // 10 minutes — long enough to receive the code
+const PL_COOKIE_MAX_AGE = 600; /**
+ * Renders the server-side passwordless sign-in page with Email OTP, SMS OTP, and Magic Link flows.
+ *
+ * The component gatekeeps authenticated users (redirects to `/dashboard`), reads `searchParams` to determine
+ * the active tab and any error state, shows a confirmation screen when `sent=1` (reading the destination
+ * email from a short-lived HttpOnly cookie), and provides server actions for starting each passwordless flow.
+ *
+ * @param searchParams - A promise resolving to optional query parameters: `tab` (one of "email" | "sms" | "magic-link"), `sent`, and `error`.
+ * @returns The server-rendered JSX for the passwordless entry page, including the tabbed UI, forms wired to server actions, and any error or confirmation UI.
+ */
 
 export default async function ServerPasswordlessPage({
   searchParams
@@ -66,7 +75,15 @@ export default async function ServerPasswordlessPage({
     );
   }
 
-  // Server Actions — one per flow so each form has a typed action.
+  /**
+   * Initiates sending an email one-time passcode and records the pending request in a short-lived HttpOnly cookie.
+   *
+   * On failure, redirects back to `/server-passwordless?tab=email&error=...` with an encoded error message.
+   * On success, sets the `pl_pending` cookie with `{ connection: "email", email }` (HttpOnly, path `/server-passwordless`, limited maxAge)
+   * and redirects to `/server-passwordless/verify`.
+   *
+   * @param formData - FormData that must include the `email` field to receive the OTP code
+   */
   async function startEmailOtp(formData: FormData) {
     "use server";
     const email = formData.get("email") as string;
@@ -93,6 +110,11 @@ export default async function ServerPasswordlessPage({
     redirect("/server-passwordless/verify");
   }
 
+  /**
+   * Initiates an SMS one-time-password (OTP) start flow, stores a short-lived transaction cookie, and redirects to the verification page.
+   *
+   * @param formData - A FormData object containing a `phone` field (the destination phone number, expected in E.164 format).
+   */
   async function startSmsOtp(formData: FormData) {
     "use server";
     const phone = formData.get("phone") as string;
@@ -117,6 +139,13 @@ export default async function ServerPasswordlessPage({
     redirect("/server-passwordless/verify");
   }
 
+  /**
+   * Initiates a passwordless magic-link email flow and stores a short-lived server-side transaction cookie.
+   *
+   * Calls the Auth0 passwordless start for the email connection to send a magic link. On failure, redirects the request back to the passwordless page with `tab=magic-link` and an `error` query parameter describing the failure. On success, sets an HttpOnly transaction cookie containing `{ connection: "email", email }` and redirects to `/server-passwordless?sent=1`.
+   *
+   * @param formData - FormData containing an `email` field with the recipient address
+   */
   async function startMagicLink(formData: FormData) {
     "use server";
     const email = formData.get("email") as string;

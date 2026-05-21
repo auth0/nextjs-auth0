@@ -2,6 +2,16 @@ import { redirect } from "next/navigation";
 
 import { auth0 } from "@/lib/auth0";
 
+/**
+ * Render the authenticated user's dashboard page.
+ *
+ * If no active session is found, performs a redirect to "/". When a session
+ * exists, displays the user's identity and verification status, the derived
+ * authentication method, session creation and token expiration times, token
+ * type and scopes, access token availability, and a sign-out link.
+ *
+ * @returns A JSX element containing the dashboard UI that presents user and session/token information
+ */
 export default async function Dashboard() {
   const session = await auth0.getSession();
 
