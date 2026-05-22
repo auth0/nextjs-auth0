@@ -4,18 +4,10 @@
 [Full Changelog](https://github.com/auth0/nextjs-auth0/compare/v4.20.0...v4.21.0)
 
 **Added**
-- fix: add magic link server-side support, server example, and route ha… [\#2670](https://github.com/auth0/nextjs-auth0/pull/2670) ([Piyush-85](https://github.com/Piyush-85))
 - feat: allow-list auth0-client header for forwarding [\#2668](https://github.com/auth0/nextjs-auth0/pull/2668) ([tusharpandey13](https://github.com/tusharpandey13))
-- feat(passwordless): passwordless example [\#2634](https://github.com/auth0/nextjs-auth0/pull/2634) ([Piyush-85](https://github.com/Piyush-85))
-- feat(passwordless): add client-side passwordless module [\#2633](https://github.com/auth0/nextjs-auth0/pull/2633) ([Piyush-85](https://github.com/Piyush-85))
-- feat(passwordless): Add Next.js route handlers for passwordless flows [\#2608](https://github.com/auth0/nextjs-auth0/pull/2608) ([Piyush-85](https://github.com/Piyush-85))
-- feat(passwordless): add passwordlessStart and passwordlessVerify to AuthClient [\#2607](https://github.com/auth0/nextjs-auth0/pull/2607) ([Piyush-85](https://github.com/Piyush-85))
-- feat(passwordless): add error classes and types for passwordless authentication [\#2606](https://github.com/auth0/nextjs-auth0/pull/2606) ([Piyush-85](https://github.com/Piyush-85))
-- feat(passwordless): add connection, screen_hint, login_hint to AuthorizationParameters [\#2605](https://github.com/auth0/nextjs-auth0/pull/2605) ([Piyush-85](https://github.com/Piyush-85))
+- feat: Passwordless Authentication support [\#2634](https://github.com/auth0/nextjs-auth0/pull/2634) ([Piyush-85](https://github.com/Piyush-85))
 
 **Fixed**
-- Update EXAMPLES.md so that `resWithCombinedHeaders` accounts for chunked cookies [\#2503](https://github.com/auth0/nextjs-auth0/pull/2503) ([eliw00d](https://github.com/eliw00d))
-- chore: pin typescript to patch version as they do not use SemVer [\#2543](https://github.com/auth0/nextjs-auth0/pull/2543) ([frederikprijck](https://github.com/frederikprijck))
 - fix(cookies): include Secure/SameSite/HttpOnly on deletion Set-Cookie… [\#2651](https://github.com/auth0/nextjs-auth0/pull/2651) ([Piyush-85](https://github.com/Piyush-85))
 
 ## [v4.20.0](https://github.com/auth0/nextjs-auth0/tree/v4.20.0) (2026-05-05)
