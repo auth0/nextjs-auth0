@@ -14,13 +14,25 @@ import type { AuthClient } from "../auth-client.js";
  * Delegates all operations to AuthClient business logic.
  * Provides overload support for App Router and Pages Router.
  *
- * @example App Router — start
+ * @example App Router — OTP start
  * ```typescript
  * import { auth0 } from '@/lib/auth0';
  *
  * export async function POST(req: NextRequest) {
  *   const { connection, email, send } = await req.json();
  *   await auth0.passwordless.start({ connection, email, send });
+ *   return new Response(null, { status: 204 });
+ * }
+ * ```
+ *
+ * @example App Router — magic link start
+ * ```typescript
+ * import { auth0 } from '@/lib/auth0';
+ *
+ * export async function POST(req: NextRequest) {
+ *   const { email } = await req.json();
+ *   // Transaction cookie written to next/headers automatically
+ *   await auth0.passwordless.start({ connection: 'email', email, send: 'link' });
  *   return new Response(null, { status: 204 });
  * }
  * ```
@@ -47,52 +59,54 @@ export class ServerPasswordlessClient implements PasswordlessClient {
   }
 
   /**
-   * Initiate a passwordless flow by sending an OTP to the user's email or phone.
+   * Initiate a passwordless flow by sending an OTP or magic link to the user's email or phone.
    * App Router overload — reads headers from `next/headers`.
+   * For magic link (`send: 'link'`), the transaction cookie is written via `next/headers` automatically.
    *
    * @param options - Connection type and user identifier (email or phone)
    */
   async start(options: PasswordlessStartOptions): Promise<void>;
 
   /**
-   * Initiate a passwordless flow by sending an OTP to the user's email or phone.
-   * Pages Router / Middleware overload — pass the request for Multi-Custom Domain resolution.
+   * Initiate a passwordless flow by sending an OTP or magic link to the user's email or phone.
+   * Pages Router overload — explicit req/res for cookie and MCD domain resolution.
+   * For magic link (`send: 'link'`), the transaction cookie is written to `res`.
    *
    * @param req - Next.js request (provides URL context for MCD domain resolution)
+   * @param res - Next.js response (receives the transaction cookie for magic link)
    * @param options - Connection type and user identifier (email or phone)
    */
   async start(
     req: NextRequest,
+    res: NextResponse,
     options: PasswordlessStartOptions
   ): Promise<void>;
 
   async start(
     arg1: PasswordlessStartOptions | NextRequest,
-    arg2?: PasswordlessStartOptions
+    arg2?: NextResponse | PasswordlessStartOptions,
+    arg3?: PasswordlessStartOptions
   ): Promise<void> {
-    const options = arg1 instanceof NextRequest ? arg2 : arg1;
-    if (
-      options &&
-      "send" in options &&
-      options.connection === "email" &&
-      options.send === "link"
-    ) {
-      throw new TypeError(
-        "send: 'link' is not supported on this API surface. Magic-link flows require a response object to persist the transaction cookie. Use the /auth/passwordless/start route handler instead."
-      );
-    }
-
+    // Pages Router: start(req, res, options)
     if (arg1 instanceof NextRequest) {
-      if (!arg2) {
+      if (!(arg2 instanceof NextResponse) || !arg3) {
         throw new TypeError(
-          "start(req, options): options argument is required"
+          "start(req, res, options): All three arguments required for Pages Router"
         );
       }
       const authClient = await this.getAuthClient(arg1);
-      return authClient.passwordlessStart(arg2);
+      return authClient.passwordlessStart(arg3, arg2.cookies, arg1);
     }
+
+    // App Router: start(options)
+    // Only read next/headers cookies for magic link — OTP flows don't write cookies.
     const authClient = await this.getAuthClient();
-    return authClient.passwordlessStart(arg1);
+    const isMagicLink = arg1.connection === "email" && arg1.send === "link";
+    // `as any`: ReadonlyRequestCookies is typed as Omit<RequestCookies, 'set'|'clear'|'delete'>
+    // & Pick<ResponseCookies, 'set'|'delete'>, so it does expose .set() at runtime despite
+    // the name. The cast suppresses the TS mismatch against the ResponseCookies parameter type.
+    const cookiesLib = isMagicLink ? await getCookies() : undefined;
+    return authClient.passwordlessStart(arg1, cookiesLib as any);
   }
 
   /**
@@ -124,7 +138,6 @@ export class ServerPasswordlessClient implements PasswordlessClient {
   ): Promise<void> {
     if (arg1 instanceof NextRequest) {
       // Pages Router / Middleware: verify(req, res, options)
-      // req is passed so MCD resolver can pick the correct Auth0 domain
       if (!arg2 || !arg3) {
         throw new TypeError(
           "verify(req, res, options): All three arguments required for Pages Router"
