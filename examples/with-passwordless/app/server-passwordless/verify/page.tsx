@@ -7,6 +7,15 @@ import { auth0 } from "@/lib/auth0";
 // Same name as in page.tsx — keeps both files in sync.
 const PL_COOKIE = "pl_pending";
 
+/**
+ * Renders the server-side passwordless OTP verification page and provides an action to verify the submitted 6-digit code.
+ *
+ * The page reads the pending verification target (email or phone) from an HttpOnly cookie and shows a hint where the code was sent.
+ * If a user is already authenticated, the function redirects to `/dashboard`. If the pending cookie is missing or invalid, it redirects to `/server-passwordless`.
+ *
+ * @param searchParams - A promise resolving to an object that may contain `error` used to display an error banner on the page
+ * @returns The JSX element for the OTP verification page
+ */
 export default async function ServerPasswordlessVerifyPage({
   searchParams
 }: {

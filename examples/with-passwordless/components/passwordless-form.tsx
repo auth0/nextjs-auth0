@@ -7,6 +7,13 @@ import { passwordless } from "@auth0/nextjs-auth0/client";
 type ConnectionType = "email" | "sms" | "magic-link" | "universal-login";
 type Step = "start" | "verify" | "link-sent";
 
+/**
+ * Renders a passwordless authentication form that supports email OTP, SMS OTP, magic links, and redirect to Universal Login.
+ *
+ * The component manages input state, starts passwordless flows (send code or magic link), verifies one-time codes, displays errors, and navigates to /dashboard on successful verification. UI flows: "start" (choose method and send), "verify" (enter 6-digit code), and "link-sent" (magic link confirmation).
+ *
+ * @returns The JSX element for the passwordless authentication UI.
+ */
 export function PasswordlessForm() {
   const [connection, setConnection] = useState<ConnectionType>("email");
   const [email, setEmail] = useState("");
