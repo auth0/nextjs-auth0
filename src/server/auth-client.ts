@@ -960,17 +960,20 @@ export class AuthClient {
     if (
       state &&
       this.provider?.isResolverMode &&
-      transactionState.originDomain
+      (transactionState.originIssuer || transactionState.originDomain)
     ) {
-      // Check if the origin domain differs from current domain
-      const normalizedOriginDomain = normalizeDomain(
-        transactionState.originDomain
-      ).domain;
-      if (normalizedOriginDomain !== this.domain) {
-        // Delegate to the domain-specific AuthClient
-        const delegatedClient = this.provider.forDomainSync(
-          normalizedOriginDomain
-        );
+      // Prefer originIssuer (available since MCD v4.17.x) as it preserves path-based
+      // issuers (e.g. https://myorg.okta.com/oauth2/default). Fall back to
+      // originDomain for pre-MCD transaction cookies that only stored the hostname.
+      const originKey =
+        transactionState.originIssuer ?? transactionState.originDomain!;
+      const normalizedOrigin = normalizeDomain(originKey);
+      // Delegation is needed when the origin issuer differs from the current client's
+      // issuer (covers both hostname differences and same-host path differences).
+      if (normalizedOrigin.issuer !== this.issuer) {
+        // Pass the full issuer URL so forDomainSync can look up the correct
+        // path-based cache entry (e.g. /oauth2/default vs /oauth2/custom).
+        const delegatedClient = this.provider.forDomainSync(originKey);
         return delegatedClient.handleCallback(req);
       }
     }
@@ -2368,6 +2371,7 @@ export class AuthClient {
       : oauth.ClientSecretPost(this.clientSecret!);
   }
 
+  /** @internal */
   get issuer(): string {
     return this._issuer;
   }

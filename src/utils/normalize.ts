@@ -212,9 +212,9 @@ export function normalizeDomain(
     issuer = normalizeIssuer(options.issuerHint);
   } else {
     const protocol = options?.allowInsecureRequests ? scheme : "https";
-    // Preserve a non-root path from the original URL (e.g. /oauth2/default)
-    const normalizedPath = urlPath.endsWith("/") ? urlPath : urlPath + "/";
-    issuer = `${protocol}://${normalizedHostname}${normalizedPath}`;
+    // Preserve a non-root path from the original URL (e.g. /oauth2/default).
+    // normalizeIssuer ensures a trailing slash is always present.
+    issuer = normalizeIssuer(`${protocol}://${normalizedHostname}${urlPath}`);
   }
 
   return {

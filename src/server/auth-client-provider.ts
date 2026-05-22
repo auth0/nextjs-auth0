@@ -55,6 +55,7 @@ const MAX_DOMAIN_CLIENTS = 100;
 export class AuthClientProvider {
   private mode: "static" | "resolver";
   private staticDomain?: string;
+  private staticIssuer?: string;
   private resolver?: DomainResolver;
 
   private domainClients: LruMap<string, AuthClient>;
@@ -87,13 +88,15 @@ export class AuthClientProvider {
           options.allowInsecureRequests ?? process.env.NODE_ENV === "test"
       });
       this.staticDomain = normalized.domain;
+      this.staticIssuer = normalized.issuer;
 
-      // Pre-populate cache with singleton AuthClient for static domain
+      // Pre-populate cache with singleton AuthClient keyed by issuer URL
+      // (same key shape as resolver mode) to allow unified LRU lookup.
       const client = this.createAuthClientFactory(
         this.staticDomain,
         normalized.issuer
       );
-      this.domainClients.set(this.staticDomain, client);
+      this.domainClients.set(normalized.issuer, client);
     } else if (typeof options.domain === "function") {
       // Resolver mode: store resolver function
       this.mode = "resolver";
@@ -137,8 +140,8 @@ export class AuthClientProvider {
    * @internal
    */
   getAuthClientForStaticMode(): AuthClient | undefined {
-    if (this.mode === "static" && this.staticDomain) {
-      return this.domainClients.get(this.staticDomain);
+    if (this.mode === "static" && this.staticIssuer) {
+      return this.domainClients.get(this.staticIssuer);
     }
     return undefined;
   }
@@ -157,9 +160,9 @@ export class AuthClientProvider {
    * @internal
    */
   async forRequest(headers: Headers, url?: URL): Promise<AuthClient> {
-    if (this.mode === "static" && this.staticDomain) {
+    if (this.mode === "static" && this.staticIssuer) {
       // Static mode: always return the pre-cached client
-      return this.domainClients.get(this.staticDomain)!;
+      return this.domainClients.get(this.staticIssuer)!;
     }
 
     // Resolver mode: resolve domain and get/create client
