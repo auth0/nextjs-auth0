@@ -271,5 +271,6 @@ export {
   PasskeyEnrollmentChallengeResponse,
   PasskeyEnrollVerifyOptions,
   PasskeyAuthenticationMethod,
-  PasskeyClient
+  PasskeyClient,
+  PasskeyBrowserClient
 } from "./passkey.js";
