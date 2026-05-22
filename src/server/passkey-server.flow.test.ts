@@ -119,7 +119,7 @@ describe("AuthClient passkey route handlers", () => {
       expect(body.authnParamsPublicKey).toEqual({ challenge: "signup-abc" });
     });
 
-    it("forwards userDisplayName from request body", async () => {
+    it("forwards user_profile fields from request body", async () => {
       let capturedBody: Record<string, unknown> = {};
 
       server.use(
@@ -139,13 +139,16 @@ describe("AuthClient passkey route handlers", () => {
         new URL("/auth/passkey/signup-challenge", DEFAULT.appBaseUrl),
         {
           method: "POST",
-          body: JSON.stringify({ userDisplayName: "Jane Doe" }),
+          body: JSON.stringify({ email: "jane@example.com", name: "Jane Doe" }),
           headers: { "Content-Type": "application/json" }
         }
       );
 
       await authClient.handler(req);
-      expect(capturedBody.user_display_name).toBe("Jane Doe");
+      expect(capturedBody.user_profile).toMatchObject({
+        email: "jane@example.com",
+        name: "Jane Doe"
+      });
     });
 
     it("returns 400 with Auth0 error details on API failure", async () => {

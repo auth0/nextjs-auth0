@@ -34,8 +34,6 @@ import {
   MissingStateError,
   MyAccountApiError,
   OAuth2Error,
-  PasskeyEnrollmentChallengeError,
-  PasskeyEnrollVerifyError,
   PasskeyLoginChallengeError,
   PasskeySignupChallengeError,
   PasskeyVerifyError,
@@ -76,10 +74,7 @@ import {
   LogoutStrategy,
   LogoutToken,
   MfaVerifyResponse,
-  PasskeyAuthenticationMethod,
   PasskeyChallengeResponse,
-  PasskeyEnrollmentChallengeResponse,
-  PasskeyEnrollVerifyOptions,
   PasskeyLoginChallengeOptions,
   PasskeySignupChallengeOptions,
   PasskeyVerifyOptions,
@@ -3910,9 +3905,21 @@ export class AuthClient {
       body.client_secret = this.clientSecret;
     }
 
-    if (options?.userDisplayName) {
-      body.user_display_name = options.userDisplayName;
-    }
+    // Build user_profile from provided identity fields
+    const userProfile: Record<string, unknown> = {};
+    if (options?.name) userProfile.name = options.name;
+    if (options?.email) userProfile.email = options.email;
+    if (options?.username) userProfile.username = options.username;
+    if (options?.phoneNumber) userProfile.phone_number = options.phoneNumber;
+    if (options?.givenName) userProfile.given_name = options.givenName;
+    if (options?.familyName) userProfile.family_name = options.familyName;
+    if (options?.nickname) userProfile.nickname = options.nickname;
+    if (options?.picture) userProfile.picture = options.picture;
+    if (options?.userMetadata) userProfile.user_metadata = options.userMetadata;
+    body.user_profile = userProfile;
+
+    if (options?.connection) body.realm = options.connection;
+    if (options?.organization) body.organization = options.organization;
 
     try {
       const response = await this.fetch(url, {
@@ -3968,9 +3975,9 @@ export class AuthClient {
       body.client_secret = this.clientSecret;
     }
 
-    if (options?.username) {
-      body.username = options.username;
-    }
+    if (options?.username) body.username = options.username;
+    if (options?.connection) body.realm = options.connection;
+    if (options?.organization) body.organization = options.organization;
 
     try {
       const response = await this.fetch(url, {
@@ -4029,56 +4036,52 @@ export class AuthClient {
       );
     }
 
-    const params = new URLSearchParams();
-    params.append("auth_session", options.authSession);
-    params.append("authn_response", JSON.stringify(options.authResponse));
-
     const scope =
       getScopeForAudience(
         this.authorizationParameters.scope,
         this.authorizationParameters.audience
       ) || DEFAULT_SCOPES;
-    params.append("scope", scope);
 
-    if (this.authorizationParameters.audience) {
-      params.append(
-        "audience",
-        this.authorizationParameters.audience as string
-      );
-    }
+    // Auth0's passkey token endpoint requires a JSON body because authn_response
+    // is a nested object — URLSearchParams would stringify it, causing a 400.
+    const tokenUrl = new URL("/oauth/token", this.issuer).toString();
+    const httpOptions = this.httpOptions();
+    httpOptions.headers.set("Content-Type", "application/json");
 
-    const dpopHandle =
-      this.useDPoP && this.dpopKeyPair
-        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
-        : undefined;
+    const jsonBody: Record<string, unknown> = {
+      grant_type: GRANT_TYPE_PASSKEY,
+      client_id: this.clientMetadata.client_id,
+      auth_session: options.authSession,
+      authn_response: options.authResponse,
+      scope
+    };
+
+    if (this.clientSecret) jsonBody.client_secret = this.clientSecret;
+    if (this.authorizationParameters.audience)
+      jsonBody.audience = this.authorizationParameters.audience;
+    if (options.connection) jsonBody.realm = options.connection;
+    if (options.organization) jsonBody.organization = options.organization;
 
     let tokenEndpointResponse: oauth.TokenEndpointResponse;
     try {
-      tokenEndpointResponse = await withDPoPNonceRetry(
-        async () => {
-          const httpResponse = await oauth.genericTokenEndpointRequest(
-            authorizationServerMetadata,
-            this.clientMetadata,
-            await this.getClientAuth(),
-            GRANT_TYPE_PASSKEY,
-            params,
-            {
-              ...this.httpOptions(),
-              [oauth.customFetch]: this.fetch,
-              [oauth.allowInsecureRequests]: this.allowInsecureRequests,
-              ...(dpopHandle && { DPoP: dpopHandle })
-            }
-          );
-          return oauth.processGenericTokenEndpointResponse(
-            authorizationServerMetadata,
-            this.clientMetadata,
-            httpResponse
-          );
-        },
-        {
-          isDPoPEnabled: !!(this.useDPoP && this.dpopKeyPair),
-          ...this.dpopOptions?.retry
-        }
+      const httpResponse = await this.fetch(tokenUrl, {
+        method: "POST",
+        body: JSON.stringify(jsonBody),
+        ...httpOptions
+      });
+
+      if (!httpResponse.ok) {
+        const errBody = await httpResponse.json().catch(() => ({}));
+        throw Object.assign(
+          new Error(errBody.error_description || "token request failed"),
+          errBody
+        );
+      }
+
+      tokenEndpointResponse = await oauth.processGenericTokenEndpointResponse(
+        authorizationServerMetadata,
+        this.clientMetadata,
+        httpResponse
       );
     } catch (err: any) {
       if (err?.code === oauth.JWT_CLAIM_COMPARISON) {
@@ -4150,198 +4153,6 @@ export class AuthClient {
     await this.sessionStore.set(reqCookies, resCookies, session, true);
   }
 
-  /**
-   * Request a WebAuthn credential creation challenge for enrolling a new passkey
-   * on an existing authenticated account.
-   * Calls Auth0 MyAccount API POST /me/v1/authentication-methods.
-   */
-  async passkeyEnrollmentChallenge(
-    req?: NextRequest
-  ): Promise<PasskeyEnrollmentChallengeResponse> {
-    const { error: sessionError, session } =
-      await this.getSessionWithDomainCheck(
-        req
-          ? req.cookies
-          : await import("next/headers.js").then((m) => m.cookies())
-      );
-
-    if (sessionError || !session) {
-      throw new PasskeyEnrollmentChallengeError(
-        "not_authenticated",
-        "The user does not have an active session."
-      );
-    }
-
-    const [tokenError, tokenSetResponse] = await this.getTokenSet(session, {
-      audience: `${this.issuer}me/`,
-      scope: "create:me:authentication_methods"
-    });
-
-    if (tokenError) {
-      throw new PasskeyEnrollmentChallengeError(
-        "access_token_error",
-        tokenError.message
-      );
-    }
-
-    const { tokenSet } = tokenSetResponse;
-    const accessToken = tokenSet.accessToken;
-
-    if (!accessToken) {
-      throw new PasskeyEnrollmentChallengeError(
-        "missing_access_token",
-        "Could not obtain an access token for the MyAccount API."
-      );
-    }
-
-    const url = new URL(
-      "/me/v1/authentication-methods",
-      this.issuer
-    ).toString();
-    const httpOptions = this.httpOptions();
-    httpOptions.headers.set("Authorization", `Bearer ${accessToken}`);
-    httpOptions.headers.set("Content-Type", "application/json");
-
-    try {
-      const response = await this.fetch(url, {
-        method: "POST",
-        body: JSON.stringify({ type: "passkey" }),
-        ...httpOptions
-      });
-
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({
-          error: "unknown_error",
-          error_description: "Failed to get passkey enrollment challenge"
-        }));
-        throw new PasskeyEnrollmentChallengeError(
-          errorBody.error || "unknown_error",
-          errorBody.error_description ||
-            "Failed to get passkey enrollment challenge",
-          errorBody.error ? errorBody : undefined
-        );
-      }
-
-      const location = response.headers.get("location") ?? "";
-      const authenticationMethodId = location.split("/").pop() ?? "";
-
-      if (!authenticationMethodId) {
-        throw new PasskeyEnrollmentChallengeError(
-          "missing_location_header",
-          "Auth0 did not return a Location header with the authentication method ID."
-        );
-      }
-
-      const result = await response.json();
-      return {
-        authenticationMethodId,
-        authSession: result.auth_session,
-        authnParamsPublicKey: result.authn_params_public_key
-      };
-    } catch (e) {
-      if (e instanceof PasskeyEnrollmentChallengeError) throw e;
-      throw new PasskeyEnrollmentChallengeError(
-        "unexpected_error",
-        "Unexpected error during passkey enrollment challenge",
-        undefined
-      );
-    }
-  }
-
-  /**
-   * Complete a passkey enrollment by verifying the newly created credential.
-   * Calls Auth0 MyAccount API POST /me/v1/authentication-methods/{id}/verify.
-   */
-  async passkeyEnrollVerify(
-    options: PasskeyEnrollVerifyOptions,
-    req?: NextRequest
-  ): Promise<PasskeyAuthenticationMethod> {
-    const { error: sessionError, session } =
-      await this.getSessionWithDomainCheck(
-        req
-          ? req.cookies
-          : await import("next/headers.js").then((m) => m.cookies())
-      );
-
-    if (sessionError || !session) {
-      throw new PasskeyEnrollVerifyError(
-        "not_authenticated",
-        "The user does not have an active session."
-      );
-    }
-
-    const [tokenError, tokenSetResponse] = await this.getTokenSet(session, {
-      audience: `${this.issuer}me/`,
-      scope: "create:me:authentication_methods"
-    });
-
-    if (tokenError) {
-      throw new PasskeyEnrollVerifyError(
-        "access_token_error",
-        tokenError.message
-      );
-    }
-
-    const { tokenSet } = tokenSetResponse;
-    const accessToken = tokenSet.accessToken;
-
-    if (!accessToken) {
-      throw new PasskeyEnrollVerifyError(
-        "missing_access_token",
-        "Could not obtain an access token for the MyAccount API."
-      );
-    }
-
-    const url = new URL(
-      `/me/v1/authentication-methods/${options.authenticationMethodId}/verify`,
-      this.issuer
-    ).toString();
-    const httpOptions = this.httpOptions();
-    httpOptions.headers.set("Authorization", `Bearer ${accessToken}`);
-    httpOptions.headers.set("Content-Type", "application/json");
-
-    const body = {
-      auth_session: options.authSession,
-      authn_response: options.authResponse
-    };
-
-    try {
-      const response = await this.fetch(url, {
-        method: "POST",
-        body: JSON.stringify(body),
-        ...httpOptions
-      });
-
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({
-          error: "unknown_error",
-          error_description: "Failed to verify passkey enrollment"
-        }));
-        throw new PasskeyEnrollVerifyError(
-          errorBody.error || "unknown_error",
-          errorBody.error_description || "Failed to verify passkey enrollment",
-          errorBody.error ? errorBody : undefined
-        );
-      }
-
-      const result = await response.json();
-      return {
-        id: result.id,
-        type: result.type,
-        name: result.name,
-        createdAt: result.created_at,
-        lastAuthenticatedAt: result.last_authenticated_at
-      };
-    } catch (e) {
-      if (e instanceof PasskeyEnrollVerifyError) throw e;
-      throw new PasskeyEnrollVerifyError(
-        "unexpected_error",
-        "Unexpected error during passkey enrollment verification",
-        undefined
-      );
-    }
-  }
-
   // ---------------------------------------------------------------------------
   // Passkey route handlers
   // ---------------------------------------------------------------------------
@@ -4351,9 +4162,19 @@ export class AuthClient {
       const body = await parseJsonBody(req);
       const bodyRecord = body as Record<string, any>;
       const options: PasskeySignupChallengeOptions = {};
-      if (typeof bodyRecord.userDisplayName === "string") {
-        options.userDisplayName = bodyRecord.userDisplayName;
-      }
+      if (bodyRecord.email) options.email = bodyRecord.email;
+      if (bodyRecord.username) options.username = bodyRecord.username;
+      if (bodyRecord.phoneNumber) options.phoneNumber = bodyRecord.phoneNumber;
+      if (bodyRecord.name) options.name = bodyRecord.name;
+      if (bodyRecord.givenName) options.givenName = bodyRecord.givenName;
+      if (bodyRecord.familyName) options.familyName = bodyRecord.familyName;
+      if (bodyRecord.nickname) options.nickname = bodyRecord.nickname;
+      if (bodyRecord.picture) options.picture = bodyRecord.picture;
+      if (bodyRecord.userMetadata)
+        options.userMetadata = bodyRecord.userMetadata;
+      if (bodyRecord.connection) options.connection = bodyRecord.connection;
+      if (bodyRecord.organization)
+        options.organization = bodyRecord.organization;
       const challenge = await this.passkeySignupChallenge(options);
       return NextResponse.json(challenge);
     } catch (e) {
@@ -4387,9 +4208,12 @@ export class AuthClient {
       const body = await parseJsonBody(req);
       const bodyRecord = body as Record<string, any>;
       const options: PasskeyLoginChallengeOptions = {};
-      if (typeof bodyRecord.username === "string") {
+      if (typeof bodyRecord.username === "string")
         options.username = bodyRecord.username;
-      }
+      if (typeof bodyRecord.connection === "string")
+        options.connection = bodyRecord.connection;
+      if (typeof bodyRecord.organization === "string")
+        options.organization = bodyRecord.organization;
       const challenge = await this.passkeyLoginChallenge(options);
       return NextResponse.json(challenge);
     } catch (e) {
@@ -4444,6 +4268,10 @@ export class AuthClient {
         authSession,
         authResponse: bodyRecord.authResponse
       };
+      if (typeof bodyRecord.connection === "string")
+        options.connection = bodyRecord.connection;
+      if (typeof bodyRecord.organization === "string")
+        options.organization = bodyRecord.organization;
 
       const res = NextResponse.json({ success: true });
       await this.passkeyVerify(options, req.cookies, res.cookies);

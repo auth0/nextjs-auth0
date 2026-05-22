@@ -16,10 +16,8 @@ import {
   getDefaultRoutes,
   setupMswLifecycle
 } from "../../test/defaults.js";
-import { generateSecret } from "../../test/utils.js";
 import { AuthClientProvider } from "../auth-client-provider.js";
 import { AuthClient } from "../auth-client.js";
-import { encrypt } from "../cookies.js";
 import { StatelessSessionStore } from "../session/stateless-session-store.js";
 import { TransactionStore } from "../transaction-store.js";
 import { ServerPasskeyClient } from "./server-passkey-client.js";
@@ -39,8 +37,7 @@ const DEFAULT = {
   appBaseUrl: "http://localhost:3000",
   sub: "passkeys|test-user-id",
   sid: "test-sid",
-  authSession: "test-auth-session-token",
-  authenticationMethodId: "am_abc123"
+  authSession: "test-auth-session-token"
 };
 
 const MOCK_AUTH_RESPONSE = {
@@ -109,35 +106,6 @@ async function makePasskeyClient(
   } as unknown as AuthClientProvider);
 }
 
-async function makeSessionCookie(secret: string): Promise<string> {
-  const session = {
-    user: { sub: DEFAULT.sub },
-    tokenSet: {
-      accessToken: "existing-access-token",
-      refreshToken: "existing-refresh-token",
-      idToken: "existing-id-token",
-      expiresAt: Math.floor(Date.now() / 1000) + 3600,
-      scope: "openid profile email"
-    },
-    internal: { sid: DEFAULT.sid, createdAt: Math.floor(Date.now() / 1000) }
-  };
-  return encrypt(session, secret, Math.floor(Date.now() / 1000) + 3600);
-}
-
-/** Mock the token endpoint to return an access token for the me/ audience. */
-function mockMeAudienceTokenRefresh() {
-  server.use(
-    http.post(`https://${DEFAULT.domain}/oauth/token`, () =>
-      HttpResponse.json({
-        access_token: "me-audience-access-token",
-        token_type: "Bearer",
-        expires_in: 86400,
-        scope: "openid profile email create:me:authentication_methods"
-      })
-    )
-  );
-}
-
 // ---------------------------------------------------------------------------
 // signupChallenge
 // ---------------------------------------------------------------------------
@@ -163,7 +131,7 @@ describe("ServerPasskeyClient.signupChallenge()", () => {
     expect(result.authnParamsPublicKey).toEqual({ challenge: "abc123" });
   });
 
-  it("passes userDisplayName in request body", async () => {
+  it("passes user_profile fields in request body", async () => {
     let capturedBody: any;
     server.use(
       http.post(
@@ -181,10 +149,14 @@ describe("ServerPasskeyClient.signupChallenge()", () => {
     await (
       await makePasskeyClient()
     ).signupChallenge({
-      userDisplayName: "Jane Doe"
+      email: "jane@example.com",
+      name: "Jane Doe"
     });
 
-    expect(capturedBody.user_display_name).toBe("Jane Doe");
+    expect(capturedBody.user_profile).toMatchObject({
+      email: "jane@example.com",
+      name: "Jane Doe"
+    });
   });
 
   it("throws PasskeySignupChallengeError on Auth0 failure", async () => {
@@ -449,214 +421,5 @@ describe("ServerPasskeyClient.verify()", () => {
         })
       ).rejects.toThrow(TypeError);
     });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// enrollmentChallenge
-// ---------------------------------------------------------------------------
-
-describe("ServerPasskeyClient.enrollmentChallenge()", () => {
-  let secret: string;
-
-  beforeEach(async () => {
-    secret = await generateSecret(32);
-    mockCookieHeaders = new Headers();
-  });
-
-  it("returns enrollment challenge when session is present (App Router)", async () => {
-    const sessionValue = await makeSessionCookie(secret);
-    mockCookieHeaders.set(
-      "set-cookie",
-      `__session=${sessionValue}; Path=/; HttpOnly`
-    );
-
-    mockMeAudienceTokenRefresh();
-
-    server.use(
-      http.post(`https://${DEFAULT.domain}/me/v1/authentication-methods`, () =>
-        HttpResponse.json(
-          {
-            auth_session: DEFAULT.authSession,
-            authn_params_public_key: { challenge: "enroll-challenge" }
-          },
-          {
-            status: 201,
-            headers: {
-              location: `/me/v1/authentication-methods/${DEFAULT.authenticationMethodId}`
-            }
-          }
-        )
-      )
-    );
-
-    const client = new ServerPasskeyClient({
-      forRequest: async () =>
-        new AuthClient({
-          domain: DEFAULT.domain,
-          clientId: DEFAULT.clientId,
-          clientSecret: DEFAULT.clientSecret,
-          appBaseUrl: DEFAULT.appBaseUrl,
-          secret,
-          transactionStore: new TransactionStore({ secret }),
-          sessionStore: new StatelessSessionStore({ secret }),
-          routes: getDefaultRoutes()
-        }),
-      isResolverMode: false
-    } as unknown as AuthClientProvider);
-
-    const result = await client.enrollmentChallenge();
-
-    expect(result.authenticationMethodId).toBe(DEFAULT.authenticationMethodId);
-    expect(result.authSession).toBe(DEFAULT.authSession);
-    expect(result.authnParamsPublicKey).toEqual({
-      challenge: "enroll-challenge"
-    });
-  });
-
-  it("throws PasskeyEnrollmentChallengeError when no session", async () => {
-    // No session cookie — mockCookieHeaders is empty
-    await expect(
-      (await makePasskeyClient(secret)).enrollmentChallenge()
-    ).rejects.toMatchObject({
-      name: "PasskeyEnrollmentChallengeError",
-      error: "not_authenticated"
-    });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// enrollVerify
-// ---------------------------------------------------------------------------
-
-describe("ServerPasskeyClient.enrollVerify()", () => {
-  let secret: string;
-
-  beforeEach(async () => {
-    secret = await generateSecret(32);
-    mockCookieHeaders = new Headers();
-  });
-
-  it("returns authentication method on success (App Router)", async () => {
-    const sessionValue = await makeSessionCookie(secret);
-    mockCookieHeaders.set(
-      "set-cookie",
-      `__session=${sessionValue}; Path=/; HttpOnly`
-    );
-
-    mockMeAudienceTokenRefresh();
-
-    server.use(
-      http.post(
-        `https://${DEFAULT.domain}/me/v1/authentication-methods/${DEFAULT.authenticationMethodId}/verify`,
-        () =>
-          HttpResponse.json({
-            id: DEFAULT.authenticationMethodId,
-            type: "passkey",
-            name: "Touch ID",
-            created_at: "2024-01-01T00:00:00.000Z",
-            last_authenticated_at: "2024-01-01T00:00:00.000Z"
-          })
-      )
-    );
-
-    const client = new ServerPasskeyClient({
-      forRequest: async () =>
-        new AuthClient({
-          domain: DEFAULT.domain,
-          clientId: DEFAULT.clientId,
-          clientSecret: DEFAULT.clientSecret,
-          appBaseUrl: DEFAULT.appBaseUrl,
-          secret,
-          transactionStore: new TransactionStore({ secret }),
-          sessionStore: new StatelessSessionStore({ secret }),
-          routes: getDefaultRoutes()
-        }),
-      isResolverMode: false
-    } as unknown as AuthClientProvider);
-
-    const result = await client.enrollVerify({
-      authenticationMethodId: DEFAULT.authenticationMethodId,
-      authSession: DEFAULT.authSession,
-      authResponse: MOCK_AUTH_RESPONSE
-    });
-
-    expect(result.id).toBe(DEFAULT.authenticationMethodId);
-    expect(result.type).toBe("passkey");
-    expect(result.name).toBe("Touch ID");
-  });
-
-  it("throws PasskeyEnrollVerifyError when no session", async () => {
-    await expect(
-      (await makePasskeyClient(secret)).enrollVerify({
-        authenticationMethodId: DEFAULT.authenticationMethodId,
-        authSession: DEFAULT.authSession,
-        authResponse: MOCK_AUTH_RESPONSE
-      })
-    ).rejects.toMatchObject({
-      name: "PasskeyEnrollVerifyError",
-      error: "not_authenticated"
-    });
-  });
-
-  it("throws PasskeyEnrollVerifyError on API failure", async () => {
-    const sessionValue = await makeSessionCookie(secret);
-    mockCookieHeaders.set(
-      "set-cookie",
-      `__session=${sessionValue}; Path=/; HttpOnly`
-    );
-
-    mockMeAudienceTokenRefresh();
-
-    server.use(
-      http.post(
-        `https://${DEFAULT.domain}/me/v1/authentication-methods/${DEFAULT.authenticationMethodId}/verify`,
-        () =>
-          HttpResponse.json(
-            {
-              error: "credential_already_registered",
-              error_description: "This passkey is already registered."
-            },
-            { status: 400 }
-          )
-      )
-    );
-
-    const client = new ServerPasskeyClient({
-      forRequest: async () =>
-        new AuthClient({
-          domain: DEFAULT.domain,
-          clientId: DEFAULT.clientId,
-          clientSecret: DEFAULT.clientSecret,
-          appBaseUrl: DEFAULT.appBaseUrl,
-          secret,
-          transactionStore: new TransactionStore({ secret }),
-          sessionStore: new StatelessSessionStore({ secret }),
-          routes: getDefaultRoutes()
-        }),
-      isResolverMode: false
-    } as unknown as AuthClientProvider);
-
-    await expect(
-      client.enrollVerify({
-        authenticationMethodId: DEFAULT.authenticationMethodId,
-        authSession: DEFAULT.authSession,
-        authResponse: MOCK_AUTH_RESPONSE
-      })
-    ).rejects.toMatchObject({
-      name: "PasskeyEnrollVerifyError",
-      error: "credential_already_registered"
-    });
-  });
-
-  it("throws TypeError when options missing (Pages Router guard)", async () => {
-    const req = new NextRequest(
-      new URL("/api/passkey/enroll-verify", DEFAULT.appBaseUrl),
-      { method: "POST" }
-    );
-
-    await expect(
-      (await makePasskeyClient(secret)).enrollVerify(req as any)
-    ).rejects.toThrow(TypeError);
   });
 });

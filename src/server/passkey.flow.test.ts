@@ -131,9 +131,15 @@ describe("AuthClient passkey methods", () => {
         )
       );
 
-      await authClient.passkeySignupChallenge({ userDisplayName: "Jane Doe" });
+      await authClient.passkeySignupChallenge({
+        email: "jane@example.com",
+        name: "Jane Doe"
+      });
 
-      expect(capturedBody.user_display_name).toBe("Jane Doe");
+      expect(capturedBody.user_profile).toMatchObject({
+        email: "jane@example.com",
+        name: "Jane Doe"
+      });
     });
 
     it("maps snake_case response to camelCase SDK shape", async () => {
@@ -301,7 +307,7 @@ describe("AuthClient passkey methods", () => {
 
   describe("passkeyVerify", () => {
     it("sends auth_session and authn_response to /oauth/token", async () => {
-      let capturedParams: URLSearchParams = new URLSearchParams();
+      let capturedBody: Record<string, unknown> = {};
 
       const idToken = await new jose.SignJWT({
         sub: DEFAULT.sub,
@@ -318,7 +324,7 @@ describe("AuthClient passkey methods", () => {
         http.post(
           `https://${DEFAULT.domain}/oauth/token`,
           async ({ request }) => {
-            capturedParams = new URLSearchParams(await request.text());
+            capturedBody = (await request.json()) as Record<string, unknown>;
             return HttpResponse.json({
               access_token: DEFAULT.accessToken,
               token_type: "Bearer",
@@ -342,9 +348,9 @@ describe("AuthClient passkey methods", () => {
         resCookies
       );
 
-      expect(capturedParams.get("auth_session")).toBe(DEFAULT.authSession);
-      expect(capturedParams.get("authn_response")).toBeTruthy();
-      expect(capturedParams.get("grant_type")).toContain("webauthn");
+      expect(capturedBody.auth_session).toBe(DEFAULT.authSession);
+      expect(capturedBody.authn_response).toBeTruthy();
+      expect(String(capturedBody.grant_type)).toContain("webauthn");
       // Session cookie written to resCookies
       expect(resHeaders.get("set-cookie")).toMatch(/__session=/);
     });

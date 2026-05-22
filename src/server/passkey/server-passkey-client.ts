@@ -2,11 +2,8 @@ import { cookies as getCookies } from "next/headers.js";
 import { NextRequest, NextResponse } from "next/server.js";
 
 import type {
-  PasskeyAuthenticationMethod,
   PasskeyChallengeResponse,
   PasskeyClient,
-  PasskeyEnrollmentChallengeResponse,
-  PasskeyEnrollVerifyOptions,
   PasskeyLoginChallengeOptions,
   PasskeySignupChallengeOptions,
   PasskeyVerifyOptions
@@ -23,11 +20,6 @@ import type { AuthClient } from "../auth-client.js";
  * 1. Call signupChallenge() or loginChallenge() to get the WebAuthn options.
  * 2. In the browser: pass authnParamsPublicKey to navigator.credentials.create/get().
  * 3. Call verify() with authSession + serialised credential to create the session.
- *
- * Enrollment flow (add passkey to an existing authenticated account):
- * 1. Call enrollmentChallenge() to get the WebAuthn creation options.
- * 2. In the browser: pass authnParamsPublicKey to navigator.credentials.create().
- * 3. Call enrollVerify() with authenticationMethodId + authSession + credential.
  *
  * @example App Router — signup
  * ```typescript
@@ -155,56 +147,5 @@ export class ServerPasskeyClient implements PasskeyClient {
         cookiesLib as any
       );
     }
-  }
-
-  // ---------------------------------------------------------------------------
-  // enrollmentChallenge
-  // ---------------------------------------------------------------------------
-
-  /** App Router overload. */
-  async enrollmentChallenge(): Promise<PasskeyEnrollmentChallengeResponse>;
-
-  /** Pages Router / Middleware overload. */
-  async enrollmentChallenge(
-    req: NextRequest
-  ): Promise<PasskeyEnrollmentChallengeResponse>;
-
-  async enrollmentChallenge(
-    req?: NextRequest
-  ): Promise<PasskeyEnrollmentChallengeResponse> {
-    const authClient = await this.getAuthClient(req);
-    return authClient.passkeyEnrollmentChallenge(req);
-  }
-
-  // ---------------------------------------------------------------------------
-  // enrollVerify
-  // ---------------------------------------------------------------------------
-
-  /** App Router overload. */
-  async enrollVerify(
-    options: PasskeyEnrollVerifyOptions
-  ): Promise<PasskeyAuthenticationMethod>;
-
-  /** Pages Router / Middleware overload. */
-  async enrollVerify(
-    req: NextRequest,
-    options: PasskeyEnrollVerifyOptions
-  ): Promise<PasskeyAuthenticationMethod>;
-
-  async enrollVerify(
-    arg1: PasskeyEnrollVerifyOptions | NextRequest,
-    arg2?: PasskeyEnrollVerifyOptions
-  ): Promise<PasskeyAuthenticationMethod> {
-    if (arg1 instanceof NextRequest) {
-      if (!arg2) {
-        throw new TypeError(
-          "enrollVerify(req, options): options argument is required"
-        );
-      }
-      const authClient = await this.getAuthClient(arg1);
-      return authClient.passkeyEnrollVerify(arg2, arg1);
-    }
-    const authClient = await this.getAuthClient();
-    return authClient.passkeyEnrollVerify(arg1);
   }
 }
