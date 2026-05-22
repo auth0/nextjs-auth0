@@ -451,7 +451,7 @@ For complete documentation, configuration options, and examples, see [Multiple C
 
 ## Routes
 
-The SDK mounts 13 routes:
+The SDK mounts 16 routes:
 
 1. `/auth/login`: the login route that the user will be redirected to to initiate an authentication transaction
 2. `/auth/logout`: the logout route that must be added to your Auth0 application's Allowed Logout URLs
@@ -466,9 +466,15 @@ The SDK mounts 13 routes:
 11. `/auth/mfa/associate`: the route to enroll a new MFA authenticator for the current user
 12. `/auth/passwordless/start`: send an OTP code or magic link to a user's email or phone number
 13. `/auth/passwordless/verify`: verify an OTP code and create a session
+14. `/auth/passkey/signup-challenge`: get a WebAuthn credential creation challenge for a new user signup
+15. `/auth/passkey/login-challenge`: get a WebAuthn credential assertion challenge for an existing user login
+16. `/auth/passkey/verify`: verify the WebAuthn credential and create a session
 
 > [!NOTE]
 > The passwordless routes support both **Email OTP**, **SMS OTP**, and **Magic Link** flows. For magic links, the user clicks the emailed link and is redirected to `/auth/callback` — no separate verify step is needed. Magic links require the `allow_magiclink_verify_without_session` tenant flag to be enabled in the Auth0 Dashboard (**Settings → Advanced**). See [Passwordless Authentication](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#passwordless-authentication) in EXAMPLES.md for full setup and usage details.
+
+> [!NOTE]
+> The passkey routes implement the WebAuthn ceremony server-side. Use the `passkey` singleton from `@auth0/nextjs-auth0/client` for the full one-call API (`passkey.signup()`, `passkey.login()`), or call each route individually for step-by-step control. See [Passkey Authentication](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#passkey-authentication) in EXAMPLES.md for full setup and usage details.
 
 > [!NOTE]  
 > The `/auth/access-token` response includes `token`, `expires_at` (seconds since epoch), `expires_in` (TTL seconds), optional `scope`, and optional `token_type`. If you're using the client helper `getAccessToken()`, it returns only the token string by default; pass `{ includeFullResponse: true }` to get the full response payload.
