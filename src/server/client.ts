@@ -661,12 +661,13 @@ export class Auth0Client {
     this.provider = new AuthClientProvider({
       domain: domainForProvider,
       allowInsecureRequests: options.allowInsecureRequests,
-      createAuthClient: (domainForClient) => {
+      createAuthClient: (domainForClient, issuerForClient) => {
         return new AuthClient({
           transactionStore: this.transactionStore,
           sessionStore: this.sessionStore,
 
           domain: domainForClient,
+          issuer: issuerForClient,
           clientId,
           clientSecret,
           clientAssertionSigningKey,
@@ -1422,10 +1423,11 @@ export class Auth0Client {
       });
     }
 
-    // Build issuer URL from authClient's domain
-    const issuer = `https://${authClient.domain}/`;
+    // Use the full issuer URL from authClient (including any path component for
+    // providers like Okta custom authorization servers, e.g.
+    // https://myorg.okta.com/oauth2/default/) so the audience is correct.
     const getMyAccountTokenOpts = {
-      audience: `${issuer}me/`,
+      audience: `${authClient.issuer}me/`,
       scope: "create:me:connected_accounts"
     };
 

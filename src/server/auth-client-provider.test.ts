@@ -28,7 +28,10 @@ describe("AuthClientProvider", () => {
 
       expect(provider.isResolverMode).toBe(false);
       expect(provider.configuredDomain).toBe("example.auth0.com");
-      expect(createAuthClientMock).toHaveBeenCalledWith("example.auth0.com");
+      expect(createAuthClientMock).toHaveBeenCalledWith(
+        "example.auth0.com",
+        "https://example.auth0.com/"
+      );
     });
 
     it("should normalize domain in static mode", () => {
@@ -38,7 +41,10 @@ describe("AuthClientProvider", () => {
       });
 
       expect(provider.configuredDomain).toBe("example.auth0.com");
-      expect(createAuthClientMock).toHaveBeenCalledWith("example.auth0.com");
+      expect(createAuthClientMock).toHaveBeenCalledWith(
+        "example.auth0.com",
+        "https://example.auth0.com/"
+      );
     });
 
     it("should validate domain in static mode", () => {
@@ -168,7 +174,10 @@ describe("AuthClientProvider", () => {
       const client = await provider.forRequest(headers);
 
       expect(resolver).toHaveBeenCalledWith({ headers });
-      expect(createAuthClientMock).toHaveBeenCalledWith("example.auth0.com");
+      expect(createAuthClientMock).toHaveBeenCalledWith(
+        "example.auth0.com",
+        "https://example.auth0.com/"
+      );
       expect(client).toBe(mockAuthClient);
     });
 
@@ -273,6 +282,70 @@ describe("AuthClientProvider", () => {
       await expect(provider.forRequest(headers)).rejects.toThrow(
         ".local domains are not supported"
       );
+    });
+
+    it("should preserve path-based issuer from resolver (Okta custom auth server)", async () => {
+      const resolver = vi
+        .fn()
+        .mockResolvedValue("https://myorg.okta.com/oauth2/default");
+      const provider = new AuthClientProvider({
+        domain: resolver,
+        createAuthClient: createAuthClientMock
+      });
+
+      const headers = new Headers();
+      const client = await provider.forRequest(headers);
+
+      // createAuthClient should be called with the hostname as domain
+      // and the full path-based URL as issuer
+      expect(createAuthClientMock).toHaveBeenCalledWith(
+        "myorg.okta.com",
+        "https://myorg.okta.com/oauth2/default/"
+      );
+      expect(client).toBe(mockAuthClient);
+    });
+
+    it("should NOT cache-collide distinct issuer paths on the same host (Okta multi-tenant)", async () => {
+      let callCount = 0;
+      const resolver = vi.fn().mockImplementation(async () => {
+        callCount++;
+        return callCount === 1
+          ? "https://myorg.okta.com/oauth2/default"
+          : "https://myorg.okta.com/oauth2/custom";
+      });
+
+      const authClientDefault = { id: "default-client" } as any;
+      const authClientCustom = { id: "custom-client" } as any;
+
+      const createAuthClientFn = vi
+        .fn()
+        .mockImplementation((_domain, issuer) =>
+          issuer.includes("/oauth2/default")
+            ? authClientDefault
+            : authClientCustom
+        );
+
+      const provider = new AuthClientProvider({
+        domain: resolver,
+        createAuthClient: createAuthClientFn
+      });
+
+      const headers = new Headers();
+      const client1 = await provider.forRequest(headers);
+      const client2 = await provider.forRequest(headers);
+
+      // Two distinct issuer paths on the same host must produce two separate clients
+      expect(createAuthClientFn).toHaveBeenCalledTimes(2);
+      expect(createAuthClientFn).toHaveBeenCalledWith(
+        "myorg.okta.com",
+        "https://myorg.okta.com/oauth2/default/"
+      );
+      expect(createAuthClientFn).toHaveBeenCalledWith(
+        "myorg.okta.com",
+        "https://myorg.okta.com/oauth2/custom/"
+      );
+      expect(client1).toBe(authClientDefault);
+      expect(client2).toBe(authClientCustom);
     });
   });
 
@@ -411,7 +484,10 @@ describe("AuthClientProvider", () => {
       });
 
       const client1 = provider.forDomainSync("domain1.auth0.com");
-      expect(createAuthClientMock).toHaveBeenCalledWith("domain1.auth0.com");
+      expect(createAuthClientMock).toHaveBeenCalledWith(
+        "domain1.auth0.com",
+        "https://domain1.auth0.com/"
+      );
       expect(client1).toBe(mockAuthClient);
 
       // Call again - should use cached
@@ -441,7 +517,10 @@ describe("AuthClientProvider", () => {
       createAuthClientMock.mockReturnValue(mockAuthClient);
 
       const _client = provider.forDomainSync(evictedDomain);
-      expect(createAuthClientMock).toHaveBeenCalledWith(evictedDomain);
+      expect(createAuthClientMock).toHaveBeenCalledWith(
+        evictedDomain,
+        `https://${evictedDomain}/`
+      );
     });
 
     it("should validate domain in forDomainSync", () => {
@@ -499,7 +578,10 @@ describe("AuthClientProvider", () => {
       createAuthClientMock.mockReturnValue(mockAuthClient);
       const _clientAEvicted = provider.forDomainSync("domain-a.auth0.com");
       // Since A was evicted, should need recreation
-      expect(createAuthClientMock).toHaveBeenCalledWith("domain-a.auth0.com");
+      expect(createAuthClientMock).toHaveBeenCalledWith(
+        "domain-a.auth0.com",
+        "https://domain-a.auth0.com/"
+      );
     });
   });
 
