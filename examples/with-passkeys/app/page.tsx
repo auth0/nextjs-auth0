@@ -25,6 +25,13 @@ export default async function Home() {
         </div>
 
         <PasskeyForm />
+
+        <p className="mt-6 text-center text-xs text-gray-400">
+          Want full control?{" "}
+          <a href="/signup-advanced" className="underline hover:text-gray-600">
+            Step-by-step example with Server Actions
+          </a>
+        </p>
       </div>
     </main>
   );
