@@ -5,6 +5,10 @@ import type {
   PasskeyChallengeOptions,
   PasskeyChallengeResponse,
   PasskeyClient,
+  PasskeyEnrollmentChallengeOptions,
+  PasskeyEnrollmentChallengeResponse,
+  PasskeyEnrollmentVerifyOptions,
+  PasskeyEnrollmentVerifyResponse,
   PasskeyGetTokenOptions,
   PasskeyRegisterOptions,
   PasskeyRegisterResponse
@@ -144,5 +148,66 @@ export class ServerPasskeyClient implements PasskeyClient {
       const cookiesLib = await getCookies();
       await authClient.passkeyGetToken(arg1, cookiesLib, cookiesLib);
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // enrollmentChallenge
+  // ---------------------------------------------------------------------------
+
+  /** App Router overload. */
+  async enrollmentChallenge(
+    options?: PasskeyEnrollmentChallengeOptions
+  ): Promise<PasskeyEnrollmentChallengeResponse>;
+
+  /** Pages Router / Middleware overload. */
+  async enrollmentChallenge(
+    req: NextRequest,
+    options?: PasskeyEnrollmentChallengeOptions
+  ): Promise<PasskeyEnrollmentChallengeResponse>;
+
+  async enrollmentChallenge(
+    arg1?: PasskeyEnrollmentChallengeOptions | NextRequest,
+    arg2?: PasskeyEnrollmentChallengeOptions
+  ): Promise<PasskeyEnrollmentChallengeResponse> {
+    if (arg1 instanceof NextRequest) {
+      const authClient = await this.getAuthClient(arg1);
+      return authClient.passkeyEnrollmentChallenge(arg1.cookies, arg2);
+    }
+    const authClient = await this.getAuthClient();
+    const cookiesLib = await getCookies();
+    return authClient.passkeyEnrollmentChallenge(cookiesLib as any, arg1);
+  }
+
+  // ---------------------------------------------------------------------------
+  // enrollmentVerify
+  // ---------------------------------------------------------------------------
+
+  /** App Router overload. */
+  async enrollmentVerify(
+    options: PasskeyEnrollmentVerifyOptions
+  ): Promise<PasskeyEnrollmentVerifyResponse>;
+
+  /** Pages Router / Middleware overload. */
+  async enrollmentVerify(
+    req: NextRequest,
+    options: PasskeyEnrollmentVerifyOptions
+  ): Promise<PasskeyEnrollmentVerifyResponse>;
+
+  async enrollmentVerify(
+    arg1: PasskeyEnrollmentVerifyOptions | NextRequest,
+    arg2?: PasskeyEnrollmentVerifyOptions
+  ): Promise<PasskeyEnrollmentVerifyResponse> {
+    if (arg1 instanceof NextRequest) {
+      if (!arg2) {
+        throw new TypeError(
+          "enrollmentVerify(req, options): Both arguments required for Pages Router"
+        );
+      }
+      const authClient = await this.getAuthClient(arg1);
+      return authClient.passkeyEnrollmentVerify(arg2, arg1.cookies);
+    }
+    const authClient = await this.getAuthClient();
+    const cookiesLib = await getCookies();
+    return authClient.passkeyEnrollmentVerify(arg1, cookiesLib as any);
   }
 }

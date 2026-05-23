@@ -52,7 +52,9 @@ export const TEST_DEFAULT_ROUTES: Routes = {
   passwordlessVerify: "/auth/passwordless/verify",
   passkeyRegister: "/auth/passkey/register",
   passkeyChallenge: "/auth/passkey/challenge",
-  passkeyGetToken: "/auth/passkey/get-token"
+  passkeyGetToken: "/auth/passkey/get-token",
+  passkeyEnrollmentChallenge: "/auth/passkey/enrollment-challenge",
+  passkeyEnrollmentVerify: "/auth/passkey/enrollment-verify"
 };
 
 /**
