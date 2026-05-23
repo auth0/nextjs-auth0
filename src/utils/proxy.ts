@@ -33,6 +33,9 @@ const DEFAULT_HEADER_ALLOW_LIST: Set<string> = new Set([
   "x-forwarded-proto",
   "x-real-ip",
 
+  // SDK Telemetry
+  "auth0-client",
+
   // CORS REQUEST HEADERS
   // Without these headers, Preflight fails, browser blocks all cross-origin requests
   // See: RFC 7231 §4.3.1 (preflight semantics), RFC 6454 (origin), WHATWG Fetch Spec
