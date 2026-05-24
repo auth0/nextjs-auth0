@@ -199,6 +199,8 @@ export type ProxyOptions = {
   targetBaseUrl: string;
   audience: string;
   scope: string | null;
+  /** Force a fresh token exchange instead of returning a cached/unexpired token. */
+  forceTokenRefresh?: boolean;
 };
 
 export {
@@ -268,9 +270,13 @@ export {
   PasskeyChallengeResponse,
   PasskeyAuthResponse,
   PasskeyVerifyOptions,
+  PasskeyEnrollmentChallengeOptions,
   PasskeyEnrollmentChallengeResponse,
   PasskeyEnrollVerifyOptions,
   PasskeyAuthenticationMethod,
   PasskeyClient,
-  PasskeyBrowserClient
+  PasskeyBrowserClient,
+  PasskeyCreationOptionsJSON,
+  PasskeyRequestOptionsJSON,
+  PasskeyCredentialDescriptorJSON
 } from "./passkey.js";

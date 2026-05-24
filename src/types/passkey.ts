@@ -61,6 +61,58 @@ export interface PasskeyLoginChallengeOptions {
 }
 
 // ---------------------------------------------------------------------------
+// WebAuthn JSON-safe option shapes
+// ---------------------------------------------------------------------------
+
+/**
+ * JSON-safe representation of a WebAuthn credential descriptor.
+ * Binary fields are Base64URL-encoded strings (matching
+ * `PublicKeyCredential.parseCreationOptionsFromJSON()` conventions).
+ */
+export interface PasskeyCredentialDescriptorJSON {
+  id: string;
+  type: "public-key";
+  transports?: string[];
+}
+
+/**
+ * JSON-safe WebAuthn credential creation options returned by Auth0 for signup
+ * and enrollment flows. Pass directly to `navigator.credentials.create()`.
+ * Binary fields (`challenge`, `user.id`, `excludeCredentials[].id`) are
+ * Base64URL-encoded strings.
+ */
+export interface PasskeyCreationOptionsJSON {
+  challenge: string;
+  rp: { id?: string; name: string };
+  user: { id: string; name: string; displayName: string };
+  pubKeyCredParams: { type: "public-key"; alg: number }[];
+  timeout?: number;
+  excludeCredentials?: PasskeyCredentialDescriptorJSON[];
+  authenticatorSelection?: {
+    authenticatorAttachment?: string;
+    residentKey?: string;
+    requireResidentKey?: boolean;
+    userVerification?: string;
+  };
+  attestation?: string;
+  extensions?: Record<string, unknown>;
+}
+
+/**
+ * JSON-safe WebAuthn credential request options returned by Auth0 for login.
+ * Pass directly to `navigator.credentials.get()`.
+ * Binary fields (`challenge`, `allowCredentials[].id`) are Base64URL-encoded strings.
+ */
+export interface PasskeyRequestOptionsJSON {
+  challenge: string;
+  timeout?: number;
+  rpId?: string;
+  allowCredentials?: PasskeyCredentialDescriptorJSON[];
+  userVerification?: string;
+  extensions?: Record<string, unknown>;
+}
+
+// ---------------------------------------------------------------------------
 // Challenge response
 // ---------------------------------------------------------------------------
 
@@ -82,11 +134,11 @@ export interface PasskeyChallengeResponse {
   /** Flow state token — must be echoed back in the verify call. */
   authSession: string;
   /**
-   * WebAuthn PublicKeyCredentialCreationOptions (signup) or
-   * PublicKeyCredentialRequestOptions (login) from Auth0.
-   * Pass directly to `navigator.credentials.create()` or `.get()`.
+   * WebAuthn credential creation options (signup) or request options (login)
+   * from Auth0. Pass directly to `navigator.credentials.create()` or `.get()`.
+   * Binary fields are Base64URL-encoded strings.
    */
-  authnParamsPublicKey: Record<string, unknown>;
+  authnParamsPublicKey: PasskeyCreationOptionsJSON | PasskeyRequestOptionsJSON;
 }
 
 // ---------------------------------------------------------------------------
@@ -147,6 +199,23 @@ export interface PasskeyVerifyOptions {
 // ---------------------------------------------------------------------------
 
 /**
+ * Options for requesting a passkey enrollment challenge.
+ * Triggers Auth0 MyAccount POST /me/v1/authentication-methods.
+ */
+export interface PasskeyEnrollmentChallengeOptions {
+  /**
+   * Auth0 database connection name.
+   * Required when the tenant has multiple database connections.
+   */
+  connection?: string;
+  /**
+   * Identity user ID to associate the passkey with a specific identity
+   * when the user has multiple identities (linked accounts).
+   */
+  userIdentityId?: string;
+}
+
+/**
  * Response from Auth0 after requesting a passkey enrollment challenge.
  * The `authenticationMethodId` is extracted from the `Location` response header
  * and is required for the subsequent `enrollVerify` call.
@@ -157,10 +226,11 @@ export interface PasskeyEnrollmentChallengeResponse {
   /** Flow state token — must be echoed back in `enrollVerify`. */
   authSession: string;
   /**
-   * WebAuthn PublicKeyCredentialCreationOptions from Auth0.
+   * WebAuthn credential creation options from Auth0.
    * Pass directly to `navigator.credentials.create()`.
+   * Binary fields are Base64URL-encoded strings.
    */
-  authnParamsPublicKey: Record<string, unknown>;
+  authnParamsPublicKey: PasskeyCreationOptionsJSON;
 }
 
 /**
@@ -182,36 +252,37 @@ export interface PasskeyEnrollVerifyOptions {
 /**
  * A registered passkey authentication method on the user's account.
  * Returned by `enrollVerify` on success.
+ * Field names match the Auth0 MyAccount API wire format (snake_case).
  */
 export interface PasskeyAuthenticationMethod {
   /** Authentication method ID. */
   id: string;
   /** Method type — always `"passkey"` for passkey methods. */
-  type: string;
+  type: "passkey";
   /** ISO 8601 timestamp when the passkey was created. */
-  createdAt?: string;
+  created_at?: string;
   /** Supported usage modes (e.g. "mfa", "passwordless"). */
   usage?: string[];
   /** The user identity this passkey belongs to. */
-  identityUserId?: string;
+  identity_user_id?: string;
   /** Whether the credential is a multi-device credential. */
-  credentialDeviceType?: string;
+  credential_device_type?: string;
   /** Whether the credential is backed up to the cloud. */
-  credentialBackedUp?: boolean;
+  credential_backed_up?: boolean;
   /** Credential key ID. */
-  keyId?: string;
+  key_id?: string;
   /** Base64url-encoded public key. */
-  publicKey?: string;
+  public_key?: string;
   /** Authenticator transports (e.g. "internal", "hybrid"). */
   transports?: string[];
   /** User agent of the device that enrolled the passkey. */
-  userAgent?: string;
+  user_agent?: string;
   /** Base64url-encoded user handle. */
-  userHandle?: string;
+  user_handle?: string;
   /** AAGUID of the authenticator. */
   aaguid?: string;
   /** Relying party ID (your Auth0 custom domain). */
-  relyingPartyId?: string;
+  relying_party_id?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -253,6 +324,25 @@ export interface PasskeyClient {
    * @param options - `authSession` from the challenge + serialised credential.
    */
   verify(options: PasskeyVerifyOptions): Promise<void>;
+
+  /**
+   * Request a WebAuthn credential creation challenge to enroll a new passkey
+   * for the currently authenticated user.
+   * Calls Auth0 MyAccount `POST /me/v1/authentication-methods`.
+   * Requires an active session.
+   */
+  enrollmentChallenge(
+    options?: PasskeyEnrollmentChallengeOptions
+  ): Promise<PasskeyEnrollmentChallengeResponse>;
+
+  /**
+   * Complete a passkey enrollment by verifying the WebAuthn attestation.
+   * Calls Auth0 MyAccount `POST /me/v1/authentication-methods/{id}/verify`.
+   * Requires an active session.
+   */
+  enrollVerify(
+    options: PasskeyEnrollVerifyOptions
+  ): Promise<PasskeyAuthenticationMethod>;
 }
 
 /**
