@@ -1,13 +1,21 @@
 import {
+  PasskeyEnrollmentChallengeError,
+  PasskeyEnrollVerifyError,
   PasskeyLoginChallengeError,
   PasskeySignupChallengeError,
   PasskeyVerifyError
 } from "../../errors/index.js";
 import type {
+  PasskeyAuthenticationMethod,
   PasskeyAuthResponse,
   PasskeyBrowserClient,
   PasskeyChallengeResponse,
+  PasskeyCreationOptionsJSON,
+  PasskeyEnrollmentChallengeOptions,
+  PasskeyEnrollmentChallengeResponse,
+  PasskeyEnrollVerifyOptions,
   PasskeyLoginChallengeOptions,
+  PasskeyRequestOptionsJSON,
   PasskeySignupChallengeOptions,
   PasskeyVerifyOptions
 } from "../../types/index.js";
@@ -45,7 +53,7 @@ function base64urlDecode(value: string): ArrayBuffer {
 // ---------------------------------------------------------------------------
 
 function decodeCreationOptions(
-  raw: Record<string, unknown>
+  raw: PasskeyCreationOptionsJSON
 ): PublicKeyCredentialCreationOptions {
   const opts = raw as any;
   return {
@@ -63,7 +71,7 @@ function decodeCreationOptions(
 }
 
 function decodeRequestOptions(
-  raw: Record<string, unknown>
+  raw: PasskeyRequestOptionsJSON
 ): PublicKeyCredentialRequestOptions {
   const opts = raw as any;
   return {
@@ -213,7 +221,9 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
     let credential: PublicKeyCredential | null;
     try {
       credential = (await navigator.credentials.create({
-        publicKey: decodeCreationOptions(challenge.authnParamsPublicKey)
+        publicKey: decodeCreationOptions(
+          challenge.authnParamsPublicKey as PasskeyCreationOptionsJSON
+        )
       })) as PublicKeyCredential | null;
     } catch (err: any) {
       throw new PasskeyVerifyError(
@@ -264,7 +274,9 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
     let credential: PublicKeyCredential | null;
     try {
       credential = (await navigator.credentials.get({
-        publicKey: decodeRequestOptions(challenge.authnParamsPublicKey)
+        publicKey: decodeRequestOptions(
+          challenge.authnParamsPublicKey as PasskeyRequestOptionsJSON
+        )
       })) as PublicKeyCredential | null;
     } catch (err: any) {
       throw new PasskeyVerifyError(
@@ -358,6 +370,45 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
       throw new PasskeyVerifyError(
         err?.error ?? "client_error",
         err?.error_description ?? "Passkey verification failed",
+        err?.error ? err : undefined
+      );
+    }
+  }
+
+  async enrollmentChallenge(
+    options?: PasskeyEnrollmentChallengeOptions
+  ): Promise<PasskeyEnrollmentChallengeResponse> {
+    const challengeUrl = normalizeWithBasePath(
+      process.env.NEXT_PUBLIC_PASSKEY_ENROLLMENT_CHALLENGE_ROUTE ||
+        "/auth/passkey/enrollment-challenge"
+    );
+    try {
+      return await postJson<PasskeyEnrollmentChallengeResponse>(
+        challengeUrl,
+        options ?? {}
+      );
+    } catch (err: any) {
+      throw new PasskeyEnrollmentChallengeError(
+        err?.error ?? "client_error",
+        err?.error_description ?? "Failed to get passkey enrollment challenge",
+        err?.error ? err : undefined
+      );
+    }
+  }
+
+  async enrollVerify(
+    options: PasskeyEnrollVerifyOptions
+  ): Promise<PasskeyAuthenticationMethod> {
+    const verifyUrl = normalizeWithBasePath(
+      process.env.NEXT_PUBLIC_PASSKEY_ENROLL_VERIFY_ROUTE ||
+        "/auth/passkey/enroll-verify"
+    );
+    try {
+      return await postJson<PasskeyAuthenticationMethod>(verifyUrl, options);
+    } catch (err: any) {
+      throw new PasskeyEnrollVerifyError(
+        err?.error ?? "client_error",
+        err?.error_description ?? "Passkey enrollment verification failed",
         err?.error ? err : undefined
       );
     }
