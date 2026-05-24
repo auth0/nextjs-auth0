@@ -203,6 +203,94 @@ describe("ServerPasskeyClient.signupChallenge()", () => {
     expect(result.authSession).toBe(DEFAULT.authSession);
     expect(vi.mocked(cookies)).not.toHaveBeenCalled();
   });
+
+  it("sends realm when connection option is provided", async () => {
+    let capturedBody: any;
+    server.use(
+      http.post(
+        `https://${DEFAULT.domain}/passkey/register`,
+        async ({ request }) => {
+          capturedBody = await request.json();
+          return HttpResponse.json({
+            auth_session: DEFAULT.authSession,
+            authn_params_public_key: {}
+          });
+        }
+      )
+    );
+
+    await (
+      await makePasskeyClient()
+    ).signupChallenge({
+      email: "jane@example.com",
+      connection: "Username-Password-Authentication"
+    });
+
+    expect(capturedBody.realm).toBe("Username-Password-Authentication");
+  });
+
+  it("sends phone_number in user_profile when phoneNumber is provided", async () => {
+    let capturedBody: any;
+    server.use(
+      http.post(
+        `https://${DEFAULT.domain}/passkey/register`,
+        async ({ request }) => {
+          capturedBody = await request.json();
+          return HttpResponse.json({
+            auth_session: DEFAULT.authSession,
+            authn_params_public_key: {}
+          });
+        }
+      )
+    );
+
+    await (
+      await makePasskeyClient()
+    ).signupChallenge({ phoneNumber: "+1234567890" });
+
+    expect(capturedBody.user_profile.phone_number).toBe("+1234567890");
+  });
+
+  it("sends username in user_profile when username is provided", async () => {
+    let capturedBody: any;
+    server.use(
+      http.post(
+        `https://${DEFAULT.domain}/passkey/register`,
+        async ({ request }) => {
+          capturedBody = await request.json();
+          return HttpResponse.json({
+            auth_session: DEFAULT.authSession,
+            authn_params_public_key: {}
+          });
+        }
+      )
+    );
+
+    await (await makePasskeyClient()).signupChallenge({ username: "janedoe" });
+
+    expect(capturedBody.user_profile.username).toBe("janedoe");
+  });
+
+  it("throws PasskeySignupChallengeError when Auth0 rejects unknown user_profile field", async () => {
+    server.use(
+      http.post(`https://${DEFAULT.domain}/passkey/register`, () =>
+        HttpResponse.json(
+          {
+            error: "invalid_request",
+            error_description: "Unknown user_profile field."
+          },
+          { status: 400 }
+        )
+      )
+    );
+
+    await expect(
+      (await makePasskeyClient()).signupChallenge({ email: "jane@example.com" })
+    ).rejects.toMatchObject({
+      name: "PasskeySignupChallengeError",
+      error: "invalid_request"
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -298,6 +386,53 @@ describe("ServerPasskeyClient.loginChallenge()", () => {
     await (await makePasskeyClient()).loginChallenge(req);
 
     expect(vi.mocked(cookies)).not.toHaveBeenCalled();
+  });
+
+  it("sends realm when connection option is provided", async () => {
+    let capturedBody: any;
+    server.use(
+      http.post(
+        `https://${DEFAULT.domain}/passkey/challenge`,
+        async ({ request }) => {
+          capturedBody = await request.json();
+          return HttpResponse.json({
+            auth_session: DEFAULT.authSession,
+            authn_params_public_key: {}
+          });
+        }
+      )
+    );
+
+    await (
+      await makePasskeyClient()
+    ).loginChallenge({
+      connection: "Username-Password-Authentication"
+    });
+
+    expect(capturedBody.realm).toBe("Username-Password-Authentication");
+  });
+
+  it("throws PasskeyLoginChallengeError when no passkey found for user", async () => {
+    server.use(
+      http.post(`https://${DEFAULT.domain}/passkey/challenge`, () =>
+        HttpResponse.json(
+          {
+            error: "no_passkey_found",
+            error_description: "No passkey registered for this user."
+          },
+          { status: 400 }
+        )
+      )
+    );
+
+    await expect(
+      (await makePasskeyClient()).loginChallenge({
+        username: "no-passkey@example.com"
+      })
+    ).rejects.toMatchObject({
+      name: "PasskeyLoginChallengeError",
+      error: "no_passkey_found"
+    });
   });
 });
 
@@ -421,5 +556,88 @@ describe("ServerPasskeyClient.verify()", () => {
         })
       ).rejects.toThrow(TypeError);
     });
+  });
+
+  it("sends GRANT_TYPE_PASSKEY grant type in token request", async () => {
+    let capturedBody: any = null;
+    const idToken = await makeIdToken();
+
+    server.use(
+      http.post(
+        `https://${DEFAULT.domain}/oauth/token`,
+        async ({ request }) => {
+          capturedBody = await request.json();
+          return HttpResponse.json({
+            access_token: "new-access-token",
+            token_type: "Bearer",
+            expires_in: 86400,
+            scope: "openid profile email",
+            id_token: idToken
+          });
+        }
+      )
+    );
+
+    await (
+      await makePasskeyClient()
+    ).verify({
+      authSession: DEFAULT.authSession,
+      authResponse: MOCK_AUTH_RESPONSE
+    });
+
+    expect(capturedBody).not.toBeNull();
+    expect(capturedBody["grant_type"]).toBe(
+      "urn:okta:params:oauth:grant-type:webauthn"
+    );
+  });
+
+  it("stores id_token claims (email, name) in session after verify", async () => {
+    const idToken = await makeIdToken({
+      email: "jane@example.com",
+      name: "Jane Doe"
+    });
+
+    server.use(
+      http.post(`https://${DEFAULT.domain}/oauth/token`, () =>
+        HttpResponse.json({
+          access_token: "new-access-token",
+          token_type: "Bearer",
+          expires_in: 86400,
+          scope: "openid profile email",
+          id_token: idToken
+        })
+      )
+    );
+
+    await (
+      await makePasskeyClient()
+    ).verify({
+      authSession: DEFAULT.authSession,
+      authResponse: MOCK_AUTH_RESPONSE
+    });
+
+    const setCookie = mockCookieHeaders.get("set-cookie");
+    expect(setCookie).toBeTruthy();
+    expect(setCookie).toMatch(/__session=/);
+  });
+
+  it("throws PasskeyVerifyError when id_token is missing from response", async () => {
+    server.use(
+      http.post(`https://${DEFAULT.domain}/oauth/token`, () =>
+        HttpResponse.json({
+          access_token: "access-only",
+          token_type: "Bearer",
+          expires_in: 86400,
+          scope: "openid profile email"
+        })
+      )
+    );
+
+    await expect(
+      (await makePasskeyClient()).verify({
+        authSession: DEFAULT.authSession,
+        authResponse: MOCK_AUTH_RESPONSE
+      })
+    ).rejects.toThrow();
   });
 });
