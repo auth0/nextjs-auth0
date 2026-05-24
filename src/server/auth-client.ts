@@ -246,6 +246,12 @@ export interface AuthClientOptions {
   sessionStore: AbstractSessionStore;
 
   domain: string;
+  /**
+   * Issuer URL override. When provided, this is used instead of constructing
+   * the issuer from the domain hostname. Required for providers like Okta that
+   * use path-based authorization server URLs (e.g. https://myorg.okta.com/oauth2/default/).
+   */
+  issuer?: string;
   clientId: string;
   clientSecret?: string;
   clientAssertionSigningKey?: string | jose.CryptoKey;
@@ -316,6 +322,7 @@ export class AuthClient {
   private clientAssertionSigningKey?: string | jose.CryptoKey;
   private clientAssertionSigningAlg: string;
   readonly domain: string;
+  private readonly _issuer: string;
   private authorizationParameters: AuthorizationParameters;
   private pushedAuthorizationRequests: boolean;
 
@@ -410,6 +417,7 @@ export class AuthClient {
 
     // authorization server
     this.domain = options.domain;
+    this._issuer = options.issuer ?? `https://${options.domain}/`;
     this.clientMetadata = { client_id: options.clientId };
 
     // Apply DPoP timing validation options to client metadata if provided
@@ -971,17 +979,20 @@ export class AuthClient {
     if (
       state &&
       this.provider?.isResolverMode &&
-      transactionState.originDomain
+      (transactionState.originIssuer || transactionState.originDomain)
     ) {
-      // Check if the origin domain differs from current domain
-      const normalizedOriginDomain = normalizeDomain(
-        transactionState.originDomain
-      ).domain;
-      if (normalizedOriginDomain !== this.domain) {
-        // Delegate to the domain-specific AuthClient
-        const delegatedClient = this.provider.forDomainSync(
-          normalizedOriginDomain
-        );
+      // Prefer originIssuer (available since MCD v4.17.x) as it preserves path-based
+      // issuers (e.g. https://myorg.okta.com/oauth2/default). Fall back to
+      // originDomain for pre-MCD transaction cookies that only stored the hostname.
+      const originKey =
+        transactionState.originIssuer ?? transactionState.originDomain!;
+      const normalizedOrigin = normalizeDomain(originKey);
+      // Delegation is needed when the origin issuer differs from the current client's
+      // issuer (covers both hostname differences and same-host path differences).
+      if (normalizedOrigin.issuer !== this.issuer) {
+        // Pass the full issuer URL so forDomainSync can look up the correct
+        // path-based cache entry (e.g. /oauth2/default vs /oauth2/custom).
+        const delegatedClient = this.provider.forDomainSync(originKey);
         return delegatedClient.handleCallback(req);
       }
     }
@@ -2232,7 +2243,7 @@ export class AuthClient {
 
     try {
       const authorizationServerMetadata = await this.discoveryCache.get(
-        this.domain,
+        this.issuer,
         async () => {
           return await oauth
             .discoveryRequest(issuer, {
@@ -2545,8 +2556,9 @@ export class AuthClient {
       : oauth.ClientSecretPost(this.clientSecret!);
   }
 
-  private get issuer(): string {
-    return `https://${this.domain}/`;
+  /** @internal */
+  get issuer(): string {
+    return this._issuer;
   }
 
   /**
