@@ -6,9 +6,11 @@ A Next.js App Router example demonstrating passkey (WebAuthn) authentication usi
 
 - **Passkey signup** — new user registers a passkey tied to their device
 - **Passkey login** — returning user authenticates with a stored passkey
+- **Passkey enrollment** — authenticated user adds an additional passkey from the dashboard
+- **Step-by-step signup** (via Server Actions) — advanced example with full control over each WebAuthn step
 - **Universal Login fallback** — redirect to Auth0's hosted login page
 - Protected `/dashboard` route that redirects unauthenticated users to `/`
-- Typed error handling with `PasskeySignupChallengeError`, `PasskeyLoginChallengeError`, `PasskeyVerifyError`
+- Typed error handling with `PasskeySignupChallengeError`, `PasskeyLoginChallengeError`, `PasskeyVerifyError`, `PasskeyEnrollmentChallengeError`, `PasskeyEnrollVerifyError`
 
 ## Prerequisites
 
@@ -37,6 +39,16 @@ Passkeys use WebAuthn, which ties credentials to an `rpId` (relying party ID) ma
 - For production, configure a **Custom Domain** under **Branding → Custom Domains** — the passkey `rpId` will be your custom domain.
 
 > **Note:** Default database connections require an `email` field during signup. Auth0 will return an error if a required field is missing.
+
+### 3. Enable passkey enrollment (MyAccount API)
+
+The enrollment flow uses the Auth0 MyAccount API. To enable it:
+
+1. Enable the `my_account_resource_server` and `my_account_enrollment` feature flags on your tenant.
+2. Configure a **Multi-Resource Refresh Token (MRRT)** policy for your application with audience `https://{your-domain}/me/` and scope `create:me:authentication_methods`.
+3. Ensure `create:me:authentication_methods` is included in your application's allowed scopes.
+
+The SDK exchanges the session's refresh token for a MyAccount-scoped access token automatically at enrollment time via MRRT.
 
 ## Configuration
 
@@ -71,7 +83,7 @@ pnpm install
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Choose **Sign up** to register a new passkey or **Sign in** to authenticate with an existing one. After a successful ceremony you are redirected to `/dashboard`.
+Open [http://localhost:3000](http://localhost:3000). Choose **Sign up** to register a new passkey or **Sign in** to authenticate with an existing one. After a successful ceremony you are redirected to `/dashboard` where you can also enroll additional passkeys.
 
 > **Note:** Passkeys require HTTPS in production. For local testing, `localhost` is treated as a secure origin by browsers and works without TLS.
 
@@ -84,8 +96,10 @@ All auth routes are handled by `proxy.ts` — a Next.js middleware that passes e
 | `POST` | `/auth/passkey/signup-challenge` | Calls Auth0 `POST /passkey/register` and returns the WebAuthn creation options |
 | `POST` | `/auth/passkey/login-challenge` | Calls Auth0 `POST /passkey/challenge` and returns the WebAuthn request options |
 | `POST` | `/auth/passkey/verify` | Exchanges the signed WebAuthn credential for tokens via `POST /oauth/token` and sets the session cookie |
+| `POST` | `/auth/passkey/enrollment-challenge` | Calls Auth0 MyAccount `POST /me/v1/authentication-methods` — requires an active session |
+| `POST` | `/auth/passkey/enroll-verify` | Calls Auth0 MyAccount `POST /me/v1/authentication-methods/{id}/verify` — completes enrollment |
 
-The `<PasskeyForm />` client component drives both flows using the `passkey` singleton from `@auth0/nextjs-auth0/client`:
+The `<PasskeyForm />` client component drives signup and login using the `passkey` singleton from `@auth0/nextjs-auth0/client`. The `<PasskeyEnrollForm />` component on `/dashboard` drives enrollment for authenticated users by calling the enrollment routes directly via `fetch`.
 
 ```tsx
 import { passkey } from "@auth0/nextjs-auth0/client";
@@ -97,7 +111,7 @@ await passkey.signup({ email: "user@example.com", name: "Jane" });
 await passkey.login();
 ```
 
-All `ArrayBuffer ↔ base64url` conversion required by the WebAuthn API is handled internally. Session protection on `/dashboard` is handled by `auth0.getSession()` in the Server Component — if no session exists it redirects to `/`.
+All `ArrayBuffer ↔ base64url` conversion required by the WebAuthn API is handled internally by the SDK. Session protection on `/dashboard` is handled by `auth0.getSession()` in the Server Component — if no session exists it redirects to `/`.
 
 ## Universal Login
 
@@ -121,13 +135,19 @@ Auth0 redirects back to `/auth/callback` after authentication, and the SDK creat
 
 ```text
 ├── app/
+│   ├── actions/
+│   │   └── passkey.ts              ← Server Actions for the step-by-step signup flow
 │   ├── dashboard/
-│   │   └── page.tsx            ← Protected page — shows user profile
-│   ├── layout.tsx              ← Root layout
-│   └── page.tsx                ← Home page with the passkey form
+│   │   └── page.tsx                ← Protected page — shows user profile + enroll form
+│   ├── signup-advanced/
+│   │   └── page.tsx                ← Step-by-step signup using Server Actions
+│   ├── layout.tsx                  ← Root layout
+│   └── page.tsx                    ← Home page with the passkey form
 ├── components/
-│   └── passkey-form.tsx        ← Sign up / Sign in UI using the passkey singleton
+│   ├── passkey-form.tsx            ← Sign up / Sign in UI using the passkey singleton
+│   ├── passkey-advanced-form.tsx   ← Step-by-step signup form using Server Actions
+│   └── passkey-enroll-form.tsx     ← Enroll an additional passkey for authenticated users
 ├── lib/
-│   └── auth0.ts                ← Auth0Client singleton (shared across app and proxy)
-└── proxy.ts                    ← Next.js middleware — passes all requests through auth0.middleware()
+│   └── auth0.ts                    ← Auth0Client singleton
+└── proxy.ts                        ← Next.js middleware — passes all requests through auth0.middleware()
 ```

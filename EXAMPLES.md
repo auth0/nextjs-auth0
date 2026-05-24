@@ -2064,6 +2064,101 @@ try {
 }
 ```
 
+### Passkey Enrollment
+
+Authenticated users can enroll additional passkeys — useful for backup devices or shared computers. Enrollment uses the Auth0 MyAccount API and requires an active session.
+
+#### Auth0 Setup for Enrollment
+
+1. Enable the `my_account_resource_server` and `my_account_enrollment` feature flags on your tenant.
+2. Configure a **Multi-Resource Refresh Token (MRRT)** policy for your application:
+   - **Audience**: `https://{your-domain}/me/`
+   - **Scope**: `create:me:authentication_methods`
+3. The SDK exchanges the session refresh token for a MyAccount-scoped access token automatically at call time.
+
+#### Enrollment Route Handlers
+
+Two additional routes are registered automatically:
+
+| Method | Default Path | Purpose |
+|--------|--------------|---------|
+| `POST` | `/auth/passkey/enrollment-challenge` | Request a WebAuthn creation challenge for the current user (requires session) |
+| `POST` | `/auth/passkey/enroll-verify` | Verify the attestation and complete enrollment (requires session) |
+
+#### Server-Side Enrollment
+
+Call `auth0.passkey.enrollmentChallenge()` and `auth0.passkey.enrollVerify()` directly from a Server Action or API Route:
+
+```typescript
+"use server";
+import { auth0 } from "@/lib/auth0";
+import type { PasskeyEnrollVerifyOptions } from "@auth0/nextjs-auth0";
+
+export async function getEnrollmentChallenge() {
+  // Requires an active session — throws PasskeyEnrollmentChallengeError if not authenticated
+  return auth0.passkey.enrollmentChallenge();
+}
+
+export async function verifyEnrollment(options: PasskeyEnrollVerifyOptions) {
+  return auth0.passkey.enrollVerify(options);
+}
+```
+
+#### Client-Side Enrollment
+
+Call the enrollment route handlers from a client component:
+
+```tsx
+"use client";
+import { useState } from "react";
+
+export function PasskeyEnrollForm() {
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleEnroll() {
+    // Step 1 — get enrollment challenge
+    const challengeRes = await fetch("/auth/passkey/enrollment-challenge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({})
+    });
+    if (!challengeRes.ok) {
+      const err = await challengeRes.json().catch(() => ({}));
+      setError(err.error_description ?? "Failed to get enrollment challenge");
+      return;
+    }
+    const { authenticationMethodId, authSession, authnParamsPublicKey } = await challengeRes.json();
+
+    // Step 2 — WebAuthn ceremony
+    const credential = await navigator.credentials.create({
+      publicKey: decodeCreationOptions(authnParamsPublicKey) // decode base64url → ArrayBuffer
+    }) as PublicKeyCredential | null;
+    if (!credential) return;
+
+    // Step 3 — verify enrollment
+    const verifyRes = await fetch("/auth/passkey/enroll-verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ authenticationMethodId, authSession, authResponse: serializeCredential(credential) })
+    });
+    if (!verifyRes.ok) {
+      const err = await verifyRes.json().catch(() => ({}));
+      setError(err.error_description ?? "Enrollment verification failed");
+      return;
+    }
+    const method = await verifyRes.json(); // PasskeyAuthenticationMethod
+    console.log("Enrolled:", method.id, method.key_id);
+  }
+
+  return <button onClick={handleEnroll}>Enroll a passkey</button>;
+}
+```
+
+> [!NOTE]
+> `authnParamsPublicKey` contains base64url-encoded `ArrayBuffer` fields (`challenge`, `user.id`, `excludeCredentials[].id`). You must decode them before passing to `navigator.credentials.create()`. See `examples/with-passkeys/components/passkey-enroll-form.tsx` for a complete implementation.
+
 ### Route Configuration
 
 The default route paths can be overridden with environment variables:
@@ -2073,9 +2168,11 @@ The default route paths can be overridden with environment variables:
 NEXT_PUBLIC_PASSKEY_SIGNUP_CHALLENGE_ROUTE=/auth/passkey/signup-challenge
 NEXT_PUBLIC_PASSKEY_LOGIN_CHALLENGE_ROUTE=/auth/passkey/login-challenge
 NEXT_PUBLIC_PASSKEY_VERIFY_ROUTE=/auth/passkey/verify
+NEXT_PUBLIC_PASSKEY_ENROLLMENT_CHALLENGE_ROUTE=/auth/passkey/enrollment-challenge
+NEXT_PUBLIC_PASSKEY_ENROLL_VERIFY_ROUTE=/auth/passkey/enroll-verify
 ```
 
-Because all three variables are prefixed with `NEXT_PUBLIC_`, they are inlined by the Next.js bundler and available on the client without an extra API call.
+Because all three authentication variables are prefixed with `NEXT_PUBLIC_`, they are inlined by the Next.js bundler and available on the client without an extra API call.
 
 ### Error Types
 
@@ -2089,6 +2186,11 @@ Because all three variables are prefixed with `NEXT_PUBLIC_`, they are inlined b
 | `PasskeyVerifyError` | `webauthn_error` | User cancelled the browser dialog, or device doesn't support passkeys |
 | `PasskeyVerifyError` | `invalid_grant` | Invalid or replayed passkey assertion |
 | `PasskeyVerifyError` | `client_error` | Network failure or unparseable response |
+| `PasskeyEnrollmentChallengeError` | `not_authenticated` | No active session when enrollment challenge was requested |
+| `PasskeyEnrollmentChallengeError` | `passkeys_not_enabled` | Enrollment not enabled on the tenant |
+| `PasskeyEnrollmentChallengeError` | `missing_authentication_method_id` | Auth0 did not return a `Location` header |
+| `PasskeyEnrollVerifyError` | `not_authenticated` | No active session when enroll verify was called |
+| `PasskeyEnrollVerifyError` | `invalid_grant` | Invalid or replayed attestation |
 
 ## Silent authentication
 
