@@ -16,6 +16,7 @@ import type {
   PasskeyEnrollmentVerifyOptions,
   PasskeyEnrollmentVerifyResponse,
   PasskeyRegisterOptions,
+  PasskeyRegisterResponse,
   PasskeyRequestOptionsJSON
 } from "../../types/index.js";
 import { normalizeWithBasePath } from "../../utils/pathUtils.js";
@@ -202,9 +203,9 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
       process.env.NEXT_PUBLIC_PASSKEY_REGISTER_ROUTE || "/auth/passkey/register"
     );
 
-    let challenge: PasskeyChallengeResponse;
+    let challenge: PasskeyRegisterResponse;
     try {
-      challenge = await postJson<PasskeyChallengeResponse>(
+      challenge = await postJson<PasskeyRegisterResponse>(
         challengeUrl,
         options ?? {}
       );
