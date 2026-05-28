@@ -301,7 +301,8 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
     credential: PublicKeyCredential
   ): Promise<void> {
     const verifyUrl = normalizeWithBasePath(
-      process.env.NEXT_PUBLIC_PASSKEY_VERIFY_ROUTE || "/auth/passkey/verify"
+      process.env.NEXT_PUBLIC_PASSKEY_GET_TOKEN_ROUTE ||
+        "/auth/passkey/get-token"
     );
 
     try {

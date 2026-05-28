@@ -17,7 +17,7 @@ const BASE_URL = "http://localhost:3000";
 
 const REGISTER_URL = `${BASE_URL}/auth/passkey/register`;
 const CHALLENGE_URL = `${BASE_URL}/auth/passkey/challenge`;
-const VERIFY_URL = `${BASE_URL}/auth/passkey/verify`;
+const VERIFY_URL = `${BASE_URL}/auth/passkey/get-token`;
 
 // Minimal fake challenge payload returned by the SDK route handler (camelCase —
 // the handler transforms Auth0's snake_case response before returning JSON).
@@ -88,7 +88,7 @@ beforeAll(() => {
 
   process.env.NEXT_PUBLIC_PASSKEY_REGISTER_ROUTE = REGISTER_URL;
   process.env.NEXT_PUBLIC_PASSKEY_CHALLENGE_ROUTE = CHALLENGE_URL;
-  process.env.NEXT_PUBLIC_PASSKEY_VERIFY_ROUTE = VERIFY_URL;
+  process.env.NEXT_PUBLIC_PASSKEY_GET_TOKEN_ROUTE = VERIFY_URL;
 
   // jsdom does not implement navigator.credentials — define a stub so vi.spyOn works
   if (!navigator.credentials) {
@@ -114,7 +114,7 @@ afterEach(() => {
 afterAll(() => {
   delete process.env.NEXT_PUBLIC_PASSKEY_REGISTER_ROUTE;
   delete process.env.NEXT_PUBLIC_PASSKEY_CHALLENGE_ROUTE;
-  delete process.env.NEXT_PUBLIC_PASSKEY_VERIFY_ROUTE;
+  delete process.env.NEXT_PUBLIC_PASSKEY_GET_TOKEN_ROUTE;
   server.close();
 });
 
