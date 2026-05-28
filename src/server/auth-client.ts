@@ -644,12 +644,12 @@ export class AuthClient {
       method === "POST" &&
       sanitizedPathname === this.routes.passkeyRegister
     ) {
-      return this.handlePasskeySignupChallenge(req);
+      return this.handlePasskeyRegister(req);
     } else if (
       method === "POST" &&
       sanitizedPathname === this.routes.passkeyChallenge
     ) {
-      return this.handlePasskeyLoginChallenge(req);
+      return this.handlePasskeyChallenge(req);
     } else if (
       method === "POST" &&
       sanitizedPathname === this.routes.passkeyGetToken
@@ -4196,7 +4196,7 @@ export class AuthClient {
   // Passkey route handlers
   // ---------------------------------------------------------------------------
 
-  async handlePasskeySignupChallenge(req: NextRequest): Promise<NextResponse> {
+  async handlePasskeyRegister(req: NextRequest): Promise<NextResponse> {
     try {
       const body = await parseJsonBody(req);
       const bodyRecord = body as Record<string, any>;
@@ -4242,7 +4242,7 @@ export class AuthClient {
     }
   }
 
-  async handlePasskeyLoginChallenge(req: NextRequest): Promise<NextResponse> {
+  async handlePasskeyChallenge(req: NextRequest): Promise<NextResponse> {
     try {
       const body = await parseJsonBody(req);
       const bodyRecord = body as Record<string, any>;

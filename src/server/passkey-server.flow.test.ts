@@ -1,6 +1,6 @@
 /**
  * Flow tests for AuthClient passkey route handlers.
- * Tests handlePasskeySignupChallenge / handlePasskeyLoginChallenge /
+ * Tests handlePasskeyRegister / handlePasskeyChallenge /
  * handlePasskeyGetToken via authClient.handler() — the full HTTP dispatch layer.
  *
  * Core AuthClient passkey method tests live in passkey.flow.test.ts.
