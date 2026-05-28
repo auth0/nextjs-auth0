@@ -1,7 +1,7 @@
 /**
  * Flow tests for AuthClient passkey core methods.
- * Tests the raw AuthClient.passkeySignupChallenge / passkeyLoginChallenge /
- * passkeyVerify methods — no Next.js runtime or cookie layer involved.
+ * Tests the raw AuthClient.passkeyRegister / passkeyChallenge /
+ * passkeyGetToken methods — no Next.js runtime or cookie layer involved.
  *
  * The route handler and ServerPasskeyClient layers are tested in
  * passkey-server.flow.test.ts and passkey/server-passkey-client.test.ts.
@@ -17,6 +17,7 @@ import {
   setupMswLifecycle
 } from "../test/defaults.js";
 import { generateSecret } from "../test/utils.js";
+import { generateDpopKeyPair } from "../utils/dpopRetry.js";
 import { AuthClient } from "./auth-client.js";
 import { StatelessSessionStore } from "./session/stateless-session-store.js";
 import { TransactionStore } from "./transaction-store.js";
@@ -88,10 +89,10 @@ describe("AuthClient passkey methods", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // passkeySignupChallenge
+  // passkeyRegister
   // ---------------------------------------------------------------------------
 
-  describe("passkeySignupChallenge", () => {
+  describe("passkeyRegister", () => {
     it("sends client_id and client_secret in request body", async () => {
       let capturedBody: Record<string, unknown> = {};
 
@@ -108,7 +109,7 @@ describe("AuthClient passkey methods", () => {
         )
       );
 
-      await authClient.passkeySignupChallenge();
+      await authClient.passkeyRegister();
 
       expect(capturedBody.client_id).toBe(DEFAULT.clientId);
       expect(capturedBody.client_secret).toBe(DEFAULT.clientSecret);
@@ -131,7 +132,7 @@ describe("AuthClient passkey methods", () => {
         )
       );
 
-      await authClient.passkeySignupChallenge({
+      await authClient.passkeyRegister({
         email: "jane@example.com",
         name: "Jane Doe"
       });
@@ -140,6 +141,33 @@ describe("AuthClient passkey methods", () => {
         email: "jane@example.com",
         name: "Jane Doe"
       });
+    });
+
+    it("places user_metadata at top level, not inside user_profile", async () => {
+      let capturedBody: Record<string, unknown> = {};
+
+      server.use(
+        http.post(
+          `https://${DEFAULT.domain}/passkey/register`,
+          async ({ request }) => {
+            capturedBody = (await request.json()) as Record<string, unknown>;
+            return HttpResponse.json({
+              auth_session: DEFAULT.authSession,
+              authn_params_public_key: {}
+            });
+          }
+        )
+      );
+
+      await authClient.passkeyRegister({
+        email: "jane@example.com",
+        userMetadata: { plan: "pro" }
+      });
+
+      expect(capturedBody.user_metadata).toEqual({ plan: "pro" });
+      expect(
+        (capturedBody.user_profile as Record<string, unknown>).user_metadata
+      ).toBeUndefined();
     });
 
     it("maps snake_case response to camelCase SDK shape", async () => {
@@ -155,7 +183,7 @@ describe("AuthClient passkey methods", () => {
         )
       );
 
-      const result = await authClient.passkeySignupChallenge();
+      const result = await authClient.passkeyRegister();
 
       expect(result.authSession).toBe(DEFAULT.authSession);
       expect(result.authnParamsPublicKey).toEqual({
@@ -164,7 +192,7 @@ describe("AuthClient passkey methods", () => {
       });
     });
 
-    it("throws PasskeySignupChallengeError on Auth0 API error", async () => {
+    it("throws PasskeyRegisterError on Auth0 API error", async () => {
       server.use(
         http.post(`https://${DEFAULT.domain}/passkey/register`, () =>
           HttpResponse.json(
@@ -178,32 +206,32 @@ describe("AuthClient passkey methods", () => {
         )
       );
 
-      await expect(authClient.passkeySignupChallenge()).rejects.toMatchObject({
-        name: "PasskeySignupChallengeError",
+      await expect(authClient.passkeyRegister()).rejects.toMatchObject({
+        name: "PasskeyRegisterError",
         error: "passkeys_not_enabled",
         error_description: "Passkeys are not enabled for this application."
       });
     });
 
-    it("throws PasskeySignupChallengeError with unexpected_error on network failure", async () => {
+    it("throws PasskeyRegisterError with unexpected_error on network failure", async () => {
       server.use(
         http.post(`https://${DEFAULT.domain}/passkey/register`, () =>
           HttpResponse.error()
         )
       );
 
-      await expect(authClient.passkeySignupChallenge()).rejects.toMatchObject({
-        name: "PasskeySignupChallengeError",
+      await expect(authClient.passkeyRegister()).rejects.toMatchObject({
+        name: "PasskeyRegisterError",
         error: "unexpected_error"
       });
     });
   });
 
   // ---------------------------------------------------------------------------
-  // passkeyLoginChallenge
+  // passkeyChallenge
   // ---------------------------------------------------------------------------
 
-  describe("passkeyLoginChallenge", () => {
+  describe("passkeyChallenge", () => {
     it("sends client_id and client_secret in request body", async () => {
       let capturedBody: Record<string, unknown> = {};
 
@@ -220,32 +248,11 @@ describe("AuthClient passkey methods", () => {
         )
       );
 
-      await authClient.passkeyLoginChallenge();
+      await authClient.passkeyChallenge();
 
       expect(capturedBody.client_id).toBe(DEFAULT.clientId);
       expect(capturedBody.client_secret).toBe(DEFAULT.clientSecret);
       expect(capturedBody.username).toBeUndefined();
-    });
-
-    it("includes username when provided", async () => {
-      let capturedBody: Record<string, unknown> = {};
-
-      server.use(
-        http.post(
-          `https://${DEFAULT.domain}/passkey/challenge`,
-          async ({ request }) => {
-            capturedBody = (await request.json()) as Record<string, unknown>;
-            return HttpResponse.json({
-              auth_session: DEFAULT.authSession,
-              authn_params_public_key: {}
-            });
-          }
-        )
-      );
-
-      await authClient.passkeyLoginChallenge({ username: "user@example.com" });
-
-      expect(capturedBody.username).toBe("user@example.com");
     });
 
     it("maps snake_case response to camelCase SDK shape", async () => {
@@ -258,7 +265,7 @@ describe("AuthClient passkey methods", () => {
         )
       );
 
-      const result = await authClient.passkeyLoginChallenge();
+      const result = await authClient.passkeyChallenge();
 
       expect(result.authSession).toBe(DEFAULT.authSession);
       expect(result.authnParamsPublicKey).toEqual({
@@ -267,7 +274,7 @@ describe("AuthClient passkey methods", () => {
       });
     });
 
-    it("throws PasskeyLoginChallengeError on Auth0 API error", async () => {
+    it("throws PasskeyChallengeError on Auth0 API error", async () => {
       server.use(
         http.post(`https://${DEFAULT.domain}/passkey/challenge`, () =>
           HttpResponse.json(
@@ -280,32 +287,32 @@ describe("AuthClient passkey methods", () => {
         )
       );
 
-      await expect(authClient.passkeyLoginChallenge()).rejects.toMatchObject({
-        name: "PasskeyLoginChallengeError",
+      await expect(authClient.passkeyChallenge()).rejects.toMatchObject({
+        name: "PasskeyChallengeError",
         error: "passkeys_not_enabled",
         error_description: "Passkeys are not enabled."
       });
     });
 
-    it("throws PasskeyLoginChallengeError with unexpected_error on network failure", async () => {
+    it("throws PasskeyChallengeError with unexpected_error on network failure", async () => {
       server.use(
         http.post(`https://${DEFAULT.domain}/passkey/challenge`, () =>
           HttpResponse.error()
         )
       );
 
-      await expect(authClient.passkeyLoginChallenge()).rejects.toMatchObject({
-        name: "PasskeyLoginChallengeError",
+      await expect(authClient.passkeyChallenge()).rejects.toMatchObject({
+        name: "PasskeyChallengeError",
         error: "unexpected_error"
       });
     });
   });
 
   // ---------------------------------------------------------------------------
-  // passkeyVerify
+  // passkeyGetToken
   // ---------------------------------------------------------------------------
 
-  describe("passkeyVerify", () => {
+  describe("passkeyGetToken", () => {
     it("sends auth_session and authn_response to /oauth/token", async () => {
       let capturedBody: Record<string, unknown> = {};
 
@@ -342,7 +349,7 @@ describe("AuthClient passkey methods", () => {
       const resHeaders = new Headers();
       const resCookies = new ResponseCookies(resHeaders);
 
-      await authClient.passkeyVerify(
+      await authClient.passkeyGetToken(
         { authSession: DEFAULT.authSession, authResponse: MOCK_AUTH_RESPONSE },
         reqCookies,
         resCookies
@@ -355,7 +362,7 @@ describe("AuthClient passkey methods", () => {
       expect(resHeaders.get("set-cookie")).toMatch(/__session=/);
     });
 
-    it("throws PasskeyVerifyError on invalid_grant from Auth0", async () => {
+    it("throws PasskeyGetTokenError on invalid_grant from Auth0", async () => {
       server.use(
         http.post(`https://${DEFAULT.domain}/oauth/token`, () =>
           HttpResponse.json(
@@ -374,7 +381,7 @@ describe("AuthClient passkey methods", () => {
       const resCookies = new ResponseCookies(new Headers());
 
       await expect(
-        authClient.passkeyVerify(
+        authClient.passkeyGetToken(
           {
             authSession: DEFAULT.authSession,
             authResponse: MOCK_AUTH_RESPONSE
@@ -383,13 +390,228 @@ describe("AuthClient passkey methods", () => {
           resCookies
         )
       ).rejects.toMatchObject({
-        name: "PasskeyVerifyError",
+        name: "PasskeyGetTokenError",
         error: "invalid_grant",
         error_description: "Invalid passkey assertion."
       });
     });
 
-    it("throws PasskeyVerifyError on discovery failure", async () => {
+    it("does not send a DPoP header when useDPoP is not configured", async () => {
+      let capturedDpopHeader: string | null = null;
+
+      const idToken = await new jose.SignJWT({
+        sub: DEFAULT.sub,
+        sid: DEFAULT.sid
+      })
+        .setProtectedHeader({ alg: "RS256" })
+        .setIssuer(`https://${DEFAULT.domain}`)
+        .setAudience(DEFAULT.clientId)
+        .setIssuedAt()
+        .setExpirationTime("1h")
+        .sign(keyPair.privateKey);
+
+      server.use(
+        http.post(
+          `https://${DEFAULT.domain}/oauth/token`,
+          async ({ request }) => {
+            capturedDpopHeader = request.headers.get("dpop");
+            return HttpResponse.json({
+              access_token: DEFAULT.accessToken,
+              token_type: "Bearer",
+              expires_in: 86400,
+              scope: "openid profile email",
+              id_token: idToken
+            });
+          }
+        )
+      );
+
+      const { RequestCookies, ResponseCookies } =
+        await import("@edge-runtime/cookies");
+      const reqCookies = new RequestCookies(new Headers());
+      const resCookies = new ResponseCookies(new Headers());
+
+      await authClient.passkeyGetToken(
+        { authSession: DEFAULT.authSession, authResponse: MOCK_AUTH_RESPONSE },
+        reqCookies,
+        resCookies
+      );
+
+      expect(capturedDpopHeader).toBeNull();
+    });
+
+    it("sends a DPoP proof header when useDPoP is true", async () => {
+      const dpopKeyPair = await generateDpopKeyPair();
+      const dpopSecret = await generateSecret(32);
+      const dpopClient = new AuthClient({
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        secret: dpopSecret,
+        transactionStore: new TransactionStore({ secret: dpopSecret }),
+        sessionStore: new StatelessSessionStore({ secret: dpopSecret }),
+        routes: getDefaultRoutes(),
+        useDPoP: true,
+        dpopKeyPair
+      });
+
+      let capturedDpopHeader: string | null = null;
+
+      const idToken = await new jose.SignJWT({
+        sub: DEFAULT.sub,
+        sid: DEFAULT.sid
+      })
+        .setProtectedHeader({ alg: "RS256" })
+        .setIssuer(`https://${DEFAULT.domain}`)
+        .setAudience(DEFAULT.clientId)
+        .setIssuedAt()
+        .setExpirationTime("1h")
+        .sign(keyPair.privateKey);
+
+      server.use(
+        http.post(
+          `https://${DEFAULT.domain}/oauth/token`,
+          async ({ request }) => {
+            capturedDpopHeader = request.headers.get("dpop");
+            return HttpResponse.json({
+              access_token: DEFAULT.accessToken,
+              token_type: "Bearer",
+              expires_in: 86400,
+              scope: "openid profile email",
+              id_token: idToken
+            });
+          }
+        )
+      );
+
+      const { RequestCookies, ResponseCookies } =
+        await import("@edge-runtime/cookies");
+      const reqCookies = new RequestCookies(new Headers());
+      const resCookies = new ResponseCookies(new Headers());
+
+      await dpopClient.passkeyGetToken(
+        { authSession: DEFAULT.authSession, authResponse: MOCK_AUTH_RESPONSE },
+        reqCookies,
+        resCookies
+      );
+
+      expect(capturedDpopHeader).not.toBeNull();
+
+      // Verify the DPoP JWT structure: header.payload.signature
+      const [, payloadB64] = capturedDpopHeader!.split(".");
+      const payload = JSON.parse(
+        Buffer.from(payloadB64, "base64url").toString()
+      );
+      expect(payload.htm).toBe("POST");
+      expect(payload.htu).toBe(`https://${DEFAULT.domain}/oauth/token`);
+      expect(payload.iat).toBeDefined();
+      expect(payload.jti).toBeDefined();
+    });
+
+    it("retries with server-supplied nonce on use_dpop_nonce and includes nonce on second attempt", async () => {
+      const dpopKeyPair = await generateDpopKeyPair();
+      const dpopSecret = await generateSecret(32);
+      const dpopClient = new AuthClient({
+        domain: DEFAULT.domain,
+        clientId: DEFAULT.clientId,
+        clientSecret: DEFAULT.clientSecret,
+        appBaseUrl: DEFAULT.appBaseUrl,
+        secret: dpopSecret,
+        transactionStore: new TransactionStore({ secret: dpopSecret }),
+        sessionStore: new StatelessSessionStore({ secret: dpopSecret }),
+        routes: getDefaultRoutes(),
+        useDPoP: true,
+        dpopKeyPair
+      });
+
+      const idToken = await new jose.SignJWT({
+        sub: DEFAULT.sub,
+        sid: DEFAULT.sid
+      })
+        .setProtectedHeader({ alg: "RS256" })
+        .setIssuer(`https://${DEFAULT.domain}`)
+        .setAudience(DEFAULT.clientId)
+        .setIssuedAt()
+        .setExpirationTime("1h")
+        .sign(keyPair.privateKey);
+
+      const tokenRequests: Array<{ hasDPoP: boolean; dpopNonce?: string }> = [];
+      let callCount = 0;
+
+      server.use(
+        http.post(
+          `https://${DEFAULT.domain}/oauth/token`,
+          async ({ request }) => {
+            callCount++;
+            const dpopHeader = request.headers.get("dpop");
+            let dpopNonce: string | undefined;
+
+            if (dpopHeader) {
+              try {
+                const [, payloadB64] = dpopHeader.split(".");
+                const payload = JSON.parse(
+                  Buffer.from(payloadB64, "base64url").toString()
+                );
+                dpopNonce = payload.nonce as string | undefined;
+              } catch {
+                // ignore parse errors
+              }
+            }
+
+            tokenRequests.push({ hasDPoP: !!dpopHeader, dpopNonce });
+
+            if (callCount === 1) {
+              return HttpResponse.json(
+                {
+                  error: "use_dpop_nonce",
+                  error_description:
+                    "Authorization server requires nonce in DPoP proof"
+                },
+                {
+                  status: 400,
+                  headers: { "dpop-nonce": "server-issued-nonce-xyz" }
+                }
+              );
+            }
+
+            return HttpResponse.json({
+              access_token: DEFAULT.accessToken,
+              token_type: "Bearer",
+              expires_in: 86400,
+              scope: "openid profile email",
+              id_token: idToken
+            });
+          }
+        )
+      );
+
+      const { RequestCookies, ResponseCookies } =
+        await import("@edge-runtime/cookies");
+      const reqCookies = new RequestCookies(new Headers());
+      const resCookies = new ResponseCookies(new Headers());
+
+      await dpopClient.passkeyGetToken(
+        { authSession: DEFAULT.authSession, authResponse: MOCK_AUTH_RESPONSE },
+        reqCookies,
+        resCookies
+      );
+
+      // Two requests: initial attempt + nonce retry
+      expect(callCount).toBe(2);
+
+      // Both carried a DPoP proof
+      expect(tokenRequests[0].hasDPoP).toBe(true);
+      expect(tokenRequests[1].hasDPoP).toBe(true);
+
+      // First attempt had no nonce (server hadn't issued one yet)
+      expect(tokenRequests[0].dpopNonce).toBeUndefined();
+
+      // Retry included the server-issued nonce
+      expect(tokenRequests[1].dpopNonce).toBe("server-issued-nonce-xyz");
+    });
+
+    it("throws PasskeyGetTokenError on discovery failure", async () => {
       server.use(
         http.get(
           `https://${DEFAULT.domain}/.well-known/openid-configuration`,
@@ -415,7 +637,7 @@ describe("AuthClient passkey methods", () => {
       const resCookies = new ResponseCookies(new Headers());
 
       await expect(
-        freshClient.passkeyVerify(
+        freshClient.passkeyGetToken(
           {
             authSession: DEFAULT.authSession,
             authResponse: MOCK_AUTH_RESPONSE
@@ -424,7 +646,7 @@ describe("AuthClient passkey methods", () => {
           resCookies
         )
       ).rejects.toMatchObject({
-        name: "PasskeyVerifyError",
+        name: "PasskeyGetTokenError",
         error: "discovery_error"
       });
     });

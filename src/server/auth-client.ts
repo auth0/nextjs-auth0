@@ -34,9 +34,9 @@ import {
   MissingStateError,
   MyAccountApiError,
   OAuth2Error,
-  PasskeyLoginChallengeError,
-  PasskeySignupChallengeError,
-  PasskeyVerifyError,
+  PasskeyChallengeError,
+  PasskeyGetTokenError,
+  PasskeyRegisterError,
   PasswordlessStartError,
   PasswordlessVerifyError,
   SdkError
@@ -74,10 +74,11 @@ import {
   LogoutStrategy,
   LogoutToken,
   MfaVerifyResponse,
+  PasskeyChallengeOptions,
   PasskeyChallengeResponse,
-  PasskeyLoginChallengeOptions,
-  PasskeySignupChallengeOptions,
-  PasskeyVerifyOptions,
+  PasskeyGetTokenOptions,
+  PasskeyRegisterOptions,
+  PasskeyRegisterResponse,
   PasswordlessStartOptions,
   PasswordlessVerifyOptions,
   PasswordlessVerifyTokenResponse,
@@ -148,7 +149,10 @@ import {
 } from "../utils/token-set-helpers.js";
 import { isUrl, toSafeRedirect } from "../utils/url-helpers.js";
 import type { AuthClientProvider } from "./auth-client-provider.js";
-import { addCacheControlHeadersForSession } from "./cookies.js";
+import {
+  addCacheControlHeadersForSession,
+  type ReadonlyRequestCookies
+} from "./cookies.js";
 import { DiscoveryCache } from "./discovery-cache.js";
 import {
   AccessTokenFactory,
@@ -243,9 +247,9 @@ export interface Routes {
   mfaAssociate: string;
   passwordlessStart: string;
   passwordlessVerify: string;
-  passkeySignupChallenge: string;
-  passkeyLoginChallenge: string;
-  passkeyVerify: string;
+  passkeyRegister: string;
+  passkeyChallenge: string;
+  passkeyGetToken: string;
 }
 export type RoutesOptions = Partial<Routes>;
 
@@ -638,19 +642,19 @@ export class AuthClient {
       return this.handlePasswordlessVerify(req);
     } else if (
       method === "POST" &&
-      sanitizedPathname === this.routes.passkeySignupChallenge
+      sanitizedPathname === this.routes.passkeyRegister
     ) {
       return this.handlePasskeySignupChallenge(req);
     } else if (
       method === "POST" &&
-      sanitizedPathname === this.routes.passkeyLoginChallenge
+      sanitizedPathname === this.routes.passkeyChallenge
     ) {
       return this.handlePasskeyLoginChallenge(req);
     } else if (
       method === "POST" &&
-      sanitizedPathname === this.routes.passkeyVerify
+      sanitizedPathname === this.routes.passkeyGetToken
     ) {
-      return this.handlePasskeyVerify(req);
+      return this.handlePasskeyGetToken(req);
     } else if (sanitizedPathname.startsWith("/me/")) {
       return this.handleMyAccount(req);
     } else if (sanitizedPathname.startsWith("/my-org/")) {
@@ -3890,9 +3894,9 @@ export class AuthClient {
    * Request a WebAuthn credential creation challenge for new user signup.
    * Calls Auth0 POST /passkey/register.
    */
-  async passkeySignupChallenge(
-    options?: PasskeySignupChallengeOptions
-  ): Promise<PasskeyChallengeResponse> {
+  async passkeyRegister(
+    options?: PasskeyRegisterOptions
+  ): Promise<PasskeyRegisterResponse> {
     const url = new URL("/passkey/register", this.issuer).toString();
     const httpOptions = this.httpOptions();
     httpOptions.headers.set("Content-Type", "application/json");
@@ -3915,9 +3919,9 @@ export class AuthClient {
     if (options?.familyName) userProfile.family_name = options.familyName;
     if (options?.nickname) userProfile.nickname = options.nickname;
     if (options?.picture) userProfile.picture = options.picture;
-    if (options?.userMetadata) userProfile.user_metadata = options.userMetadata;
     body.user_profile = userProfile;
 
+    if (options?.userMetadata) body.user_metadata = options.userMetadata;
     if (options?.connection) body.realm = options.connection;
     if (options?.organization) body.organization = options.organization;
 
@@ -3933,7 +3937,7 @@ export class AuthClient {
           error: "unknown_error",
           error_description: "Failed to get passkey signup challenge"
         }));
-        throw new PasskeySignupChallengeError(
+        throw new PasskeyRegisterError(
           errorBody.error || "unknown_error",
           errorBody.error_description ||
             "Failed to get passkey signup challenge",
@@ -3947,8 +3951,8 @@ export class AuthClient {
         authnParamsPublicKey: result.authn_params_public_key
       };
     } catch (e) {
-      if (e instanceof PasskeySignupChallengeError) throw e;
-      throw new PasskeySignupChallengeError(
+      if (e instanceof PasskeyRegisterError) throw e;
+      throw new PasskeyRegisterError(
         "unexpected_error",
         "Unexpected error during passkey signup challenge",
         undefined
@@ -3960,8 +3964,8 @@ export class AuthClient {
    * Request a WebAuthn credential assertion challenge for login.
    * Calls Auth0 POST /passkey/challenge.
    */
-  async passkeyLoginChallenge(
-    options?: PasskeyLoginChallengeOptions
+  async passkeyChallenge(
+    options?: PasskeyChallengeOptions
   ): Promise<PasskeyChallengeResponse> {
     const url = new URL("/passkey/challenge", this.issuer).toString();
     const httpOptions = this.httpOptions();
@@ -3975,7 +3979,6 @@ export class AuthClient {
       body.client_secret = this.clientSecret;
     }
 
-    if (options?.username) body.username = options.username;
     if (options?.connection) body.realm = options.connection;
     if (options?.organization) body.organization = options.organization;
 
@@ -3991,7 +3994,7 @@ export class AuthClient {
           error: "unknown_error",
           error_description: "Failed to get passkey login challenge"
         }));
-        throw new PasskeyLoginChallengeError(
+        throw new PasskeyChallengeError(
           errorBody.error || "unknown_error",
           errorBody.error_description ||
             "Failed to get passkey login challenge",
@@ -4005,8 +4008,8 @@ export class AuthClient {
         authnParamsPublicKey: result.authn_params_public_key
       };
     } catch (e) {
-      if (e instanceof PasskeyLoginChallengeError) throw e;
-      throw new PasskeyLoginChallengeError(
+      if (e instanceof PasskeyChallengeError) throw e;
+      throw new PasskeyChallengeError(
         "unexpected_error",
         "Unexpected error during passkey login challenge",
         undefined
@@ -4018,9 +4021,9 @@ export class AuthClient {
    * Complete a passkey signup or login by exchanging the WebAuthn assertion for a session.
    * Calls Auth0 POST /oauth/token with the WebAuthn grant type.
    */
-  async passkeyVerify(
-    options: PasskeyVerifyOptions,
-    reqCookies: RequestCookies,
+  async passkeyGetToken(
+    options: PasskeyGetTokenOptions,
+    reqCookies: RequestCookies | ReadonlyRequestCookies,
     resCookies: ResponseCookies
   ): Promise<void> {
     await this.ensureDpopValidated();
@@ -4029,7 +4032,7 @@ export class AuthClient {
       await this.discoverAuthorizationServerMetadata();
 
     if (discoveryError) {
-      throw new PasskeyVerifyError(
+      throw new PasskeyGetTokenError(
         "discovery_error",
         "Failed to discover authorization server metadata",
         undefined
@@ -4044,9 +4047,10 @@ export class AuthClient {
 
     // Auth0's passkey token endpoint requires a JSON body because authn_response
     // is a nested object — URLSearchParams would stringify it, causing a 400.
+    // This means we cannot use oauth.genericTokenEndpointRequest (which only
+    // sends URLSearchParams), so DPoP must be attached manually via the handle's
+    // internal addProof method.
     const tokenUrl = new URL("/oauth/token", this.issuer).toString();
-    const httpOptions = this.httpOptions();
-    httpOptions.headers.set("Content-Type", "application/json");
 
     const jsonBody: Record<string, unknown> = {
       grant_type: GRANT_TYPE_PASSKEY,
@@ -4062,38 +4066,73 @@ export class AuthClient {
     if (options.connection) jsonBody.realm = options.connection;
     if (options.organization) jsonBody.organization = options.organization;
 
+    // Create DPoP handle once outside the retry closure so the handle can
+    // learn and reuse the server-issued nonce across attempts (RFC 9449).
+    const dpopHandle =
+      this.useDPoP && this.dpopKeyPair
+        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+        : undefined;
+
     let tokenEndpointResponse: oauth.TokenEndpointResponse;
     try {
-      const httpResponse = await this.fetch(tokenUrl, {
-        method: "POST",
-        body: JSON.stringify(jsonBody),
-        ...httpOptions
-      });
+      tokenEndpointResponse = await withDPoPNonceRetry(
+        async () => {
+          const httpOptions = this.httpOptions();
+          httpOptions.headers.set("Content-Type", "application/json");
 
-      if (!httpResponse.ok) {
-        const errBody = await httpResponse.json().catch(() => ({}));
-        throw Object.assign(
-          new Error(errBody.error_description || "token request failed"),
-          errBody
-        );
-      }
+          const url = new URL(tokenUrl);
 
-      tokenEndpointResponse = await oauth.processGenericTokenEndpointResponse(
-        authorizationServerMetadata,
-        this.clientMetadata,
-        httpResponse
+          // oauth4webapi does not expose addProof/cacheNonce publicly, but they
+          // are the only way to attach a DPoP proof to a manually-built JSON
+          // request (genericTokenEndpointRequest only sends URLSearchParams).
+          if (dpopHandle) {
+            await (dpopHandle as any).addProof(
+              url,
+              httpOptions.headers,
+              "POST"
+            );
+          }
+
+          const httpResponse = await this.fetch(tokenUrl, {
+            method: "POST",
+            body: JSON.stringify(jsonBody),
+            ...httpOptions
+          });
+
+          // Let the handle learn the server-issued nonce from the response so
+          // it can be included in the next attempt's proof (RFC 9449 §8).
+          // Must happen before processGenericTokenEndpointResponse consumes
+          // the body, and before the retry check so the nonce is available on
+          // the next attempt even when the response is an error.
+          if (dpopHandle) {
+            (dpopHandle as any).cacheNonce(httpResponse, url);
+          }
+
+          // Let oauth4webapi process the response — this throws a
+          // ResponseBodyError for error responses (including use_dpop_nonce),
+          // which withDPoPNonceRetry can detect and retry on.
+          return oauth.processGenericTokenEndpointResponse(
+            authorizationServerMetadata,
+            this.clientMetadata,
+            httpResponse
+          );
+        },
+        {
+          isDPoPEnabled: !!dpopHandle,
+          ...this.dpopOptions?.retry
+        }
       );
     } catch (err: any) {
       if (err?.code === oauth.JWT_CLAIM_COMPARISON) {
         const claim = (err.cause as any)?.claim;
         if (claim === "iss") {
-          throw new PasskeyVerifyError(
+          throw new PasskeyGetTokenError(
             "invalid_issuer",
             "ID token issuer mismatch. Check AUTH0_DOMAIN configuration."
           );
         }
         if (claim === "aud") {
-          throw new PasskeyVerifyError(
+          throw new PasskeyGetTokenError(
             "invalid_audience",
             "ID token audience mismatch. Check AUTH0_CLIENT_ID configuration."
           );
@@ -4101,7 +4140,7 @@ export class AuthClient {
       }
 
       const oauthErr = await extractOAuthErrorDetails(err);
-      throw new PasskeyVerifyError(
+      throw new PasskeyGetTokenError(
         oauthErr.error || "unknown_error",
         oauthErr.error_description ||
           err.message ||
@@ -4116,9 +4155,9 @@ export class AuthClient {
     }
 
     if (!tokenEndpointResponse.id_token) {
-      throw new PasskeyVerifyError(
+      throw new PasskeyGetTokenError(
         "missing_id_token",
-        "No id_token in passkey verify response. Ensure 'openid' scope is requested."
+        "No id_token in passkey get-token response. Ensure 'openid' scope is requested."
       );
     }
 
@@ -4161,7 +4200,7 @@ export class AuthClient {
     try {
       const body = await parseJsonBody(req);
       const bodyRecord = body as Record<string, any>;
-      const options: PasskeySignupChallengeOptions = {};
+      const options: PasskeyRegisterOptions = {};
       if (bodyRecord.email) options.email = bodyRecord.email;
       if (bodyRecord.username) options.username = bodyRecord.username;
       if (bodyRecord.phoneNumber) options.phoneNumber = bodyRecord.phoneNumber;
@@ -4175,10 +4214,10 @@ export class AuthClient {
       if (bodyRecord.connection) options.connection = bodyRecord.connection;
       if (bodyRecord.organization)
         options.organization = bodyRecord.organization;
-      const challenge = await this.passkeySignupChallenge(options);
+      const challenge = await this.passkeyRegister(options);
       return NextResponse.json(challenge);
     } catch (e) {
-      if (e instanceof PasskeySignupChallengeError) {
+      if (e instanceof PasskeyRegisterError) {
         if (e.error === "unexpected_error") {
           return NextResponse.json(
             {
@@ -4207,17 +4246,15 @@ export class AuthClient {
     try {
       const body = await parseJsonBody(req);
       const bodyRecord = body as Record<string, any>;
-      const options: PasskeyLoginChallengeOptions = {};
-      if (typeof bodyRecord.username === "string")
-        options.username = bodyRecord.username;
+      const options: PasskeyChallengeOptions = {};
       if (typeof bodyRecord.connection === "string")
         options.connection = bodyRecord.connection;
       if (typeof bodyRecord.organization === "string")
         options.organization = bodyRecord.organization;
-      const challenge = await this.passkeyLoginChallenge(options);
+      const challenge = await this.passkeyChallenge(options);
       return NextResponse.json(challenge);
     } catch (e) {
-      if (e instanceof PasskeyLoginChallengeError) {
+      if (e instanceof PasskeyChallengeError) {
         if (e.error === "unexpected_error") {
           return NextResponse.json(
             {
@@ -4242,7 +4279,7 @@ export class AuthClient {
     }
   }
 
-  async handlePasskeyVerify(req: NextRequest): Promise<NextResponse> {
+  async handlePasskeyGetToken(req: NextRequest): Promise<NextResponse> {
     try {
       const body = await parseJsonBody(req);
       const bodyRecord = body as Record<string, any>;
@@ -4264,7 +4301,7 @@ export class AuthClient {
         );
       }
 
-      const options: PasskeyVerifyOptions = {
+      const options: PasskeyGetTokenOptions = {
         authSession,
         authResponse: bodyRecord.authResponse
       };
@@ -4274,11 +4311,11 @@ export class AuthClient {
         options.organization = bodyRecord.organization;
 
       const res = NextResponse.json({ success: true });
-      await this.passkeyVerify(options, req.cookies, res.cookies);
+      await this.passkeyGetToken(options, req.cookies, res.cookies);
       addCacheControlHeadersForSession(res);
       return res;
     } catch (e) {
-      if (e instanceof PasskeyVerifyError) {
+      if (e instanceof PasskeyGetTokenError) {
         const serverErrorCodes = new Set([
           "discovery_error",
           "unexpected_error"

@@ -50,9 +50,9 @@ export const TEST_DEFAULT_ROUTES: Routes = {
   mfaAssociate: "/auth/mfa/associate",
   passwordlessStart: "/auth/passwordless/start",
   passwordlessVerify: "/auth/passwordless/verify",
-  passkeySignupChallenge: "/auth/passkey/signup-challenge",
-  passkeyLoginChallenge: "/auth/passkey/login-challenge",
-  passkeyVerify: "/auth/passkey/verify"
+  passkeyRegister: "/auth/passkey/register",
+  passkeyChallenge: "/auth/passkey/challenge",
+  passkeyGetToken: "/auth/passkey/get-token"
 };
 
 /**

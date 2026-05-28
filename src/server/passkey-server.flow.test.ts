@@ -1,7 +1,7 @@
 /**
  * Flow tests for AuthClient passkey route handlers.
  * Tests handlePasskeySignupChallenge / handlePasskeyLoginChallenge /
- * handlePasskeyVerify via authClient.handler() — the full HTTP dispatch layer.
+ * handlePasskeyGetToken via authClient.handler() — the full HTTP dispatch layer.
  *
  * Core AuthClient passkey method tests live in passkey.flow.test.ts.
  * ServerPasskeyClient (App/Pages Router overloads) is in
@@ -89,10 +89,10 @@ describe("AuthClient passkey route handlers", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // POST /auth/passkey/signup-challenge
+  // POST /auth/passkey/register
   // ---------------------------------------------------------------------------
 
-  describe("POST /auth/passkey/signup-challenge", () => {
+  describe("POST /auth/passkey/register", () => {
     it("returns 200 with challenge on success", async () => {
       server.use(
         http.post(`https://${DEFAULT.domain}/passkey/register`, () =>
@@ -104,7 +104,7 @@ describe("AuthClient passkey route handlers", () => {
       );
 
       const req = new NextRequest(
-        new URL("/auth/passkey/signup-challenge", DEFAULT.appBaseUrl),
+        new URL("/auth/passkey/register", DEFAULT.appBaseUrl),
         {
           method: "POST",
           body: JSON.stringify({}),
@@ -136,7 +136,7 @@ describe("AuthClient passkey route handlers", () => {
       );
 
       const req = new NextRequest(
-        new URL("/auth/passkey/signup-challenge", DEFAULT.appBaseUrl),
+        new URL("/auth/passkey/register", DEFAULT.appBaseUrl),
         {
           method: "POST",
           body: JSON.stringify({ email: "jane@example.com", name: "Jane Doe" }),
@@ -165,7 +165,7 @@ describe("AuthClient passkey route handlers", () => {
       );
 
       const req = new NextRequest(
-        new URL("/auth/passkey/signup-challenge", DEFAULT.appBaseUrl),
+        new URL("/auth/passkey/register", DEFAULT.appBaseUrl),
         {
           method: "POST",
           body: JSON.stringify({}),
@@ -188,7 +188,7 @@ describe("AuthClient passkey route handlers", () => {
       );
 
       const req = new NextRequest(
-        new URL("/auth/passkey/signup-challenge", DEFAULT.appBaseUrl),
+        new URL("/auth/passkey/register", DEFAULT.appBaseUrl),
         {
           method: "POST",
           body: JSON.stringify({}),
@@ -204,10 +204,10 @@ describe("AuthClient passkey route handlers", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // POST /auth/passkey/login-challenge
+  // POST /auth/passkey/challenge
   // ---------------------------------------------------------------------------
 
-  describe("POST /auth/passkey/login-challenge", () => {
+  describe("POST /auth/passkey/challenge", () => {
     it("returns 200 with challenge on success", async () => {
       server.use(
         http.post(`https://${DEFAULT.domain}/passkey/challenge`, () =>
@@ -219,7 +219,7 @@ describe("AuthClient passkey route handlers", () => {
       );
 
       const req = new NextRequest(
-        new URL("/auth/passkey/login-challenge", DEFAULT.appBaseUrl),
+        new URL("/auth/passkey/challenge", DEFAULT.appBaseUrl),
         {
           method: "POST",
           body: JSON.stringify({}),
@@ -232,35 +232,6 @@ describe("AuthClient passkey route handlers", () => {
       const body = await res.json();
       expect(body.authSession).toBe(DEFAULT.authSession);
       expect(body.authnParamsPublicKey).toEqual({ challenge: "login-abc" });
-    });
-
-    it("forwards username from request body", async () => {
-      let capturedBody: Record<string, unknown> = {};
-
-      server.use(
-        http.post(
-          `https://${DEFAULT.domain}/passkey/challenge`,
-          async ({ request }) => {
-            capturedBody = (await request.json()) as Record<string, unknown>;
-            return HttpResponse.json({
-              auth_session: DEFAULT.authSession,
-              authn_params_public_key: {}
-            });
-          }
-        )
-      );
-
-      const req = new NextRequest(
-        new URL("/auth/passkey/login-challenge", DEFAULT.appBaseUrl),
-        {
-          method: "POST",
-          body: JSON.stringify({ username: "user@example.com" }),
-          headers: { "Content-Type": "application/json" }
-        }
-      );
-
-      await authClient.handler(req);
-      expect(capturedBody.username).toBe("user@example.com");
     });
 
     it("returns 400 with Auth0 error details on API failure", async () => {
@@ -277,7 +248,7 @@ describe("AuthClient passkey route handlers", () => {
       );
 
       const req = new NextRequest(
-        new URL("/auth/passkey/login-challenge", DEFAULT.appBaseUrl),
+        new URL("/auth/passkey/challenge", DEFAULT.appBaseUrl),
         {
           method: "POST",
           body: JSON.stringify({}),
@@ -299,7 +270,7 @@ describe("AuthClient passkey route handlers", () => {
       );
 
       const req = new NextRequest(
-        new URL("/auth/passkey/login-challenge", DEFAULT.appBaseUrl),
+        new URL("/auth/passkey/challenge", DEFAULT.appBaseUrl),
         {
           method: "POST",
           body: JSON.stringify({}),
@@ -315,10 +286,10 @@ describe("AuthClient passkey route handlers", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // POST /auth/passkey/verify
+  // POST /auth/passkey/get-token
   // ---------------------------------------------------------------------------
 
-  describe("POST /auth/passkey/verify", () => {
+  describe("POST /auth/passkey/get-token", () => {
     it("returns 200 with session cookie on successful verify", async () => {
       const idToken = await new jose.SignJWT({
         sub: DEFAULT.sub,
@@ -344,7 +315,7 @@ describe("AuthClient passkey route handlers", () => {
       );
 
       const req = new NextRequest(
-        new URL("/auth/passkey/verify", DEFAULT.appBaseUrl),
+        new URL("/auth/passkey/get-token", DEFAULT.appBaseUrl),
         {
           method: "POST",
           body: JSON.stringify({
@@ -364,7 +335,7 @@ describe("AuthClient passkey route handlers", () => {
 
     it("returns 400 for missing authSession", async () => {
       const req = new NextRequest(
-        new URL("/auth/passkey/verify", DEFAULT.appBaseUrl),
+        new URL("/auth/passkey/get-token", DEFAULT.appBaseUrl),
         {
           method: "POST",
           body: JSON.stringify({ authResponse: MOCK_AUTH_RESPONSE }),
@@ -380,7 +351,7 @@ describe("AuthClient passkey route handlers", () => {
 
     it("returns 400 for missing authResponse", async () => {
       const req = new NextRequest(
-        new URL("/auth/passkey/verify", DEFAULT.appBaseUrl),
+        new URL("/auth/passkey/get-token", DEFAULT.appBaseUrl),
         {
           method: "POST",
           body: JSON.stringify({ authSession: DEFAULT.authSession }),
@@ -409,7 +380,7 @@ describe("AuthClient passkey route handlers", () => {
       );
 
       const req = new NextRequest(
-        new URL("/auth/passkey/verify", DEFAULT.appBaseUrl),
+        new URL("/auth/passkey/get-token", DEFAULT.appBaseUrl),
         {
           method: "POST",
           body: JSON.stringify({
@@ -451,7 +422,7 @@ describe("AuthClient passkey route handlers", () => {
       );
 
       const req = new NextRequest(
-        new URL("/auth/passkey/verify", DEFAULT.appBaseUrl),
+        new URL("/auth/passkey/get-token", DEFAULT.appBaseUrl),
         {
           method: "POST",
           body: JSON.stringify({
@@ -489,7 +460,7 @@ describe("AuthClient passkey route handlers", () => {
       });
 
       const req = new NextRequest(
-        new URL("/auth/passkey/verify", DEFAULT.appBaseUrl),
+        new URL("/auth/passkey/get-token", DEFAULT.appBaseUrl),
         {
           method: "POST",
           body: JSON.stringify({

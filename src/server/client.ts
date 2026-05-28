@@ -610,14 +610,15 @@ export class Auth0Client {
       passwordlessVerify:
         process.env.NEXT_PUBLIC_PASSWORDLESS_VERIFY_ROUTE ||
         "/auth/passwordless/verify",
-      passkeySignupChallenge:
-        process.env.NEXT_PUBLIC_PASSKEY_SIGNUP_CHALLENGE_ROUTE ||
-        "/auth/passkey/signup-challenge",
-      passkeyLoginChallenge:
-        process.env.NEXT_PUBLIC_PASSKEY_LOGIN_CHALLENGE_ROUTE ||
-        "/auth/passkey/login-challenge",
-      passkeyVerify:
-        process.env.NEXT_PUBLIC_PASSKEY_VERIFY_ROUTE || "/auth/passkey/verify",
+      passkeyRegister:
+        process.env.NEXT_PUBLIC_PASSKEY_REGISTER_ROUTE ||
+        "/auth/passkey/register",
+      passkeyChallenge:
+        process.env.NEXT_PUBLIC_PASSKEY_CHALLENGE_ROUTE ||
+        "/auth/passkey/challenge",
+      passkeyGetToken:
+        process.env.NEXT_PUBLIC_PASSKEY_GET_TOKEN_ROUTE ||
+        "/auth/passkey/get-token",
       ...options.routes
     };
 
@@ -1200,8 +1201,8 @@ export class Auth0Client {
   /**
    * Access server-side passkey (WebAuthn) authentication and enrollment operations.
    *
-   * Authentication: `auth0.passkey.signupChallenge()`, `auth0.passkey.loginChallenge()`, `auth0.passkey.verify()`
-   * Enrollment: `auth0.passkey.enrollmentChallenge()`, `auth0.passkey.enrollVerify()`
+   * Authentication: `auth0.passkey.register()`, `auth0.passkey.challenge()`, `auth0.passkey.getToken()`
+   * Enrollment: `auth0.passkey.enrollmentChallenge()`, `auth0.passkey.enrollmentVerify()`
    */
   get passkey(): ServerPasskeyClient {
     if (!this._passkey) {

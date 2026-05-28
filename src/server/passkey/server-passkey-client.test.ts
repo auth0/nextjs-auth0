@@ -107,10 +107,10 @@ async function makePasskeyClient(
 }
 
 // ---------------------------------------------------------------------------
-// signupChallenge
+// register
 // ---------------------------------------------------------------------------
 
-describe("ServerPasskeyClient.signupChallenge()", () => {
+describe("ServerPasskeyClient.register()", () => {
   beforeEach(() => {
     mockCookieHeaders = new Headers();
   });
@@ -125,7 +125,7 @@ describe("ServerPasskeyClient.signupChallenge()", () => {
       )
     );
 
-    const result = await (await makePasskeyClient()).signupChallenge();
+    const result = await (await makePasskeyClient()).register();
 
     expect(result.authSession).toBe(DEFAULT.authSession);
     expect(result.authnParamsPublicKey).toEqual({ challenge: "abc123" });
@@ -148,7 +148,7 @@ describe("ServerPasskeyClient.signupChallenge()", () => {
 
     await (
       await makePasskeyClient()
-    ).signupChallenge({
+    ).register({
       email: "jane@example.com",
       name: "Jane Doe"
     });
@@ -159,7 +159,7 @@ describe("ServerPasskeyClient.signupChallenge()", () => {
     });
   });
 
-  it("throws PasskeySignupChallengeError on Auth0 failure", async () => {
+  it("throws PasskeyRegisterError on Auth0 failure", async () => {
     server.use(
       http.post(`https://${DEFAULT.domain}/passkey/register`, () =>
         HttpResponse.json(
@@ -172,10 +172,8 @@ describe("ServerPasskeyClient.signupChallenge()", () => {
       )
     );
 
-    await expect(
-      (await makePasskeyClient()).signupChallenge()
-    ).rejects.toMatchObject({
-      name: "PasskeySignupChallengeError",
+    await expect((await makePasskeyClient()).register()).rejects.toMatchObject({
+      name: "PasskeyRegisterError",
       error: "passkeys_not_enabled"
     });
   });
@@ -194,11 +192,11 @@ describe("ServerPasskeyClient.signupChallenge()", () => {
     );
 
     const req = new NextRequest(
-      new URL("/api/passkey/signup-challenge", DEFAULT.appBaseUrl),
+      new URL("/api/passkey/register", DEFAULT.appBaseUrl),
       { method: "POST" }
     );
 
-    const result = await (await makePasskeyClient()).signupChallenge(req);
+    const result = await (await makePasskeyClient()).register(req);
 
     expect(result.authSession).toBe(DEFAULT.authSession);
     expect(vi.mocked(cookies)).not.toHaveBeenCalled();
@@ -221,7 +219,7 @@ describe("ServerPasskeyClient.signupChallenge()", () => {
 
     await (
       await makePasskeyClient()
-    ).signupChallenge({
+    ).register({
       email: "jane@example.com",
       connection: "Username-Password-Authentication"
     });
@@ -244,9 +242,7 @@ describe("ServerPasskeyClient.signupChallenge()", () => {
       )
     );
 
-    await (
-      await makePasskeyClient()
-    ).signupChallenge({ phoneNumber: "+1234567890" });
+    await (await makePasskeyClient()).register({ phoneNumber: "+1234567890" });
 
     expect(capturedBody.user_profile.phone_number).toBe("+1234567890");
   });
@@ -266,12 +262,12 @@ describe("ServerPasskeyClient.signupChallenge()", () => {
       )
     );
 
-    await (await makePasskeyClient()).signupChallenge({ username: "janedoe" });
+    await (await makePasskeyClient()).register({ username: "janedoe" });
 
     expect(capturedBody.user_profile.username).toBe("janedoe");
   });
 
-  it("throws PasskeySignupChallengeError when Auth0 rejects unknown user_profile field", async () => {
+  it("throws PasskeyRegisterError when Auth0 rejects unknown user_profile field", async () => {
     server.use(
       http.post(`https://${DEFAULT.domain}/passkey/register`, () =>
         HttpResponse.json(
@@ -285,19 +281,19 @@ describe("ServerPasskeyClient.signupChallenge()", () => {
     );
 
     await expect(
-      (await makePasskeyClient()).signupChallenge({ email: "jane@example.com" })
+      (await makePasskeyClient()).register({ email: "jane@example.com" })
     ).rejects.toMatchObject({
-      name: "PasskeySignupChallengeError",
+      name: "PasskeyRegisterError",
       error: "invalid_request"
     });
   });
 });
 
 // ---------------------------------------------------------------------------
-// loginChallenge
+// challenge
 // ---------------------------------------------------------------------------
 
-describe("ServerPasskeyClient.loginChallenge()", () => {
+describe("ServerPasskeyClient.challenge()", () => {
   beforeEach(() => {
     mockCookieHeaders = new Headers();
   });
@@ -312,7 +308,7 @@ describe("ServerPasskeyClient.loginChallenge()", () => {
       )
     );
 
-    const result = await (await makePasskeyClient()).loginChallenge();
+    const result = await (await makePasskeyClient()).challenge();
 
     expect(result.authSession).toBe(DEFAULT.authSession);
     expect(result.authnParamsPublicKey).toEqual({
@@ -320,31 +316,7 @@ describe("ServerPasskeyClient.loginChallenge()", () => {
     });
   });
 
-  it("passes username in request body", async () => {
-    let capturedBody: any;
-    server.use(
-      http.post(
-        `https://${DEFAULT.domain}/passkey/challenge`,
-        async ({ request }) => {
-          capturedBody = await request.json();
-          return HttpResponse.json({
-            auth_session: DEFAULT.authSession,
-            authn_params_public_key: {}
-          });
-        }
-      )
-    );
-
-    await (
-      await makePasskeyClient()
-    ).loginChallenge({
-      username: "user@example.com"
-    });
-
-    expect(capturedBody.username).toBe("user@example.com");
-  });
-
-  it("throws PasskeyLoginChallengeError on Auth0 failure", async () => {
+  it("throws PasskeyChallengeError on Auth0 failure", async () => {
     server.use(
       http.post(`https://${DEFAULT.domain}/passkey/challenge`, () =>
         HttpResponse.json(
@@ -357,12 +329,12 @@ describe("ServerPasskeyClient.loginChallenge()", () => {
       )
     );
 
-    await expect(
-      (await makePasskeyClient()).loginChallenge()
-    ).rejects.toMatchObject({
-      name: "PasskeyLoginChallengeError",
-      error: "passkeys_not_enabled"
-    });
+    await expect((await makePasskeyClient()).challenge()).rejects.toMatchObject(
+      {
+        name: "PasskeyChallengeError",
+        error: "passkeys_not_enabled"
+      }
+    );
   });
 
   it("returns challenge response via Pages Router overload", async () => {
@@ -379,11 +351,11 @@ describe("ServerPasskeyClient.loginChallenge()", () => {
     );
 
     const req = new NextRequest(
-      new URL("/api/passkey/login-challenge", DEFAULT.appBaseUrl),
+      new URL("/api/passkey/challenge", DEFAULT.appBaseUrl),
       { method: "POST" }
     );
 
-    await (await makePasskeyClient()).loginChallenge(req);
+    await (await makePasskeyClient()).challenge(req);
 
     expect(vi.mocked(cookies)).not.toHaveBeenCalled();
   });
@@ -405,14 +377,14 @@ describe("ServerPasskeyClient.loginChallenge()", () => {
 
     await (
       await makePasskeyClient()
-    ).loginChallenge({
+    ).challenge({
       connection: "Username-Password-Authentication"
     });
 
     expect(capturedBody.realm).toBe("Username-Password-Authentication");
   });
 
-  it("throws PasskeyLoginChallengeError when no passkey found for user", async () => {
+  it("throws PasskeyChallengeError when no passkey found for user", async () => {
     server.use(
       http.post(`https://${DEFAULT.domain}/passkey/challenge`, () =>
         HttpResponse.json(
@@ -425,14 +397,12 @@ describe("ServerPasskeyClient.loginChallenge()", () => {
       )
     );
 
-    await expect(
-      (await makePasskeyClient()).loginChallenge({
-        username: "no-passkey@example.com"
-      })
-    ).rejects.toMatchObject({
-      name: "PasskeyLoginChallengeError",
-      error: "no_passkey_found"
-    });
+    await expect((await makePasskeyClient()).challenge()).rejects.toMatchObject(
+      {
+        name: "PasskeyChallengeError",
+        error: "no_passkey_found"
+      }
+    );
   });
 });
 
@@ -440,7 +410,7 @@ describe("ServerPasskeyClient.loginChallenge()", () => {
 // verify
 // ---------------------------------------------------------------------------
 
-describe("ServerPasskeyClient.verify()", () => {
+describe("ServerPasskeyClient.getToken()", () => {
   beforeEach(() => {
     mockCookieHeaders = new Headers();
   });
@@ -462,7 +432,7 @@ describe("ServerPasskeyClient.verify()", () => {
 
     await (
       await makePasskeyClient()
-    ).verify({
+    ).getToken({
       authSession: DEFAULT.authSession,
       authResponse: MOCK_AUTH_RESPONSE
     });
@@ -472,7 +442,7 @@ describe("ServerPasskeyClient.verify()", () => {
     expect(setCookie).toMatch(/__session=/);
   });
 
-  it("throws PasskeyVerifyError on token exchange failure", async () => {
+  it("throws PasskeyGetTokenError on token exchange failure", async () => {
     server.use(
       http.post(`https://${DEFAULT.domain}/oauth/token`, () =>
         HttpResponse.json(
@@ -486,12 +456,12 @@ describe("ServerPasskeyClient.verify()", () => {
     );
 
     await expect(
-      (await makePasskeyClient()).verify({
+      (await makePasskeyClient()).getToken({
         authSession: DEFAULT.authSession,
         authResponse: MOCK_AUTH_RESPONSE
       })
     ).rejects.toMatchObject({
-      name: "PasskeyVerifyError",
+      name: "PasskeyGetTokenError",
       error: "invalid_grant"
     });
 
@@ -500,7 +470,7 @@ describe("ServerPasskeyClient.verify()", () => {
 
   it("throws TypeError when extra arguments passed (App Router guard)", async () => {
     await expect(
-      ((await makePasskeyClient()).verify as any)(
+      ((await makePasskeyClient()).getToken as any)(
         { authSession: DEFAULT.authSession, authResponse: MOCK_AUTH_RESPONSE },
         new NextResponse()
       )
@@ -527,14 +497,14 @@ describe("ServerPasskeyClient.verify()", () => {
       );
 
       const req = new NextRequest(
-        new URL("/api/passkey/verify", DEFAULT.appBaseUrl),
+        new URL("/api/passkey/get-token", DEFAULT.appBaseUrl),
         { method: "POST" }
       );
       const res = new NextResponse();
 
       await (
         await makePasskeyClient()
-      ).verify(req, res, {
+      ).getToken(req, res, {
         authSession: DEFAULT.authSession,
         authResponse: MOCK_AUTH_RESPONSE
       });
@@ -545,12 +515,12 @@ describe("ServerPasskeyClient.verify()", () => {
 
     it("throws TypeError when res is missing", async () => {
       const req = new NextRequest(
-        new URL("/api/passkey/verify", DEFAULT.appBaseUrl),
+        new URL("/api/passkey/get-token", DEFAULT.appBaseUrl),
         { method: "POST" }
       );
 
       await expect(
-        ((await makePasskeyClient()).verify as any)(req, {
+        ((await makePasskeyClient()).getToken as any)(req, {
           authSession: DEFAULT.authSession,
           authResponse: MOCK_AUTH_RESPONSE
         })
@@ -580,7 +550,7 @@ describe("ServerPasskeyClient.verify()", () => {
 
     await (
       await makePasskeyClient()
-    ).verify({
+    ).getToken({
       authSession: DEFAULT.authSession,
       authResponse: MOCK_AUTH_RESPONSE
     });
@@ -611,7 +581,7 @@ describe("ServerPasskeyClient.verify()", () => {
 
     await (
       await makePasskeyClient()
-    ).verify({
+    ).getToken({
       authSession: DEFAULT.authSession,
       authResponse: MOCK_AUTH_RESPONSE
     });
@@ -621,7 +591,7 @@ describe("ServerPasskeyClient.verify()", () => {
     expect(setCookie).toMatch(/__session=/);
   });
 
-  it("throws PasskeyVerifyError when id_token is missing from response", async () => {
+  it("throws PasskeyGetTokenError when id_token is missing from response", async () => {
     server.use(
       http.post(`https://${DEFAULT.domain}/oauth/token`, () =>
         HttpResponse.json({
@@ -634,7 +604,7 @@ describe("ServerPasskeyClient.verify()", () => {
     );
 
     await expect(
-      (await makePasskeyClient()).verify({
+      (await makePasskeyClient()).getToken({
         authSession: DEFAULT.authSession,
         authResponse: MOCK_AUTH_RESPONSE
       })
