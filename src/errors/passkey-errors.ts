@@ -1,3 +1,4 @@
+import { MyAccountApiError } from "./my-account-errors.js";
 import { SdkError } from "./sdk-error.js";
 
 /**
@@ -28,19 +29,19 @@ abstract class PasskeyError extends SdkError {
 }
 
 /**
- * Thrown when requesting a passkey signup challenge fails.
+ * Thrown when requesting a passkey signup challenge (POST /passkey/register) fails.
  *
  * Common causes:
  * - Passkeys not enabled for the application
  * - Invalid client configuration
  */
-export class PasskeySignupChallengeError extends PasskeyError {
+export class PasskeyRegisterError extends PasskeyError {
   public readonly error: string;
   public readonly error_description: string;
   public readonly cause?: PasskeyApiErrorResponse;
 
   public get code(): string {
-    return "passkey_signup_challenge_error";
+    return "passkey_register_error";
   }
 
   constructor(
@@ -49,28 +50,28 @@ export class PasskeySignupChallengeError extends PasskeyError {
     cause?: PasskeyApiErrorResponse
   ) {
     super(error_description);
-    this.name = "PasskeySignupChallengeError";
+    this.name = "PasskeyRegisterError";
     this.error = error;
     this.error_description = error_description;
     this.cause = cause;
-    Object.setPrototypeOf(this, PasskeySignupChallengeError.prototype);
+    Object.setPrototypeOf(this, PasskeyRegisterError.prototype);
   }
 }
 
 /**
- * Thrown when requesting a passkey login challenge fails.
+ * Thrown when requesting a passkey login challenge (POST /passkey/challenge) fails.
  *
  * Common causes:
  * - Passkeys not enabled for the application
  * - No passkey registered for the user
  */
-export class PasskeyLoginChallengeError extends PasskeyError {
+export class PasskeyChallengeError extends PasskeyError {
   public readonly error: string;
   public readonly error_description: string;
   public readonly cause?: PasskeyApiErrorResponse;
 
   public get code(): string {
-    return "passkey_login_challenge_error";
+    return "passkey_challenge_error";
   }
 
   constructor(
@@ -79,29 +80,29 @@ export class PasskeyLoginChallengeError extends PasskeyError {
     cause?: PasskeyApiErrorResponse
   ) {
     super(error_description);
-    this.name = "PasskeyLoginChallengeError";
+    this.name = "PasskeyChallengeError";
     this.error = error;
     this.error_description = error_description;
     this.cause = cause;
-    Object.setPrototypeOf(this, PasskeyLoginChallengeError.prototype);
+    Object.setPrototypeOf(this, PasskeyChallengeError.prototype);
   }
 }
 
 /**
- * Thrown when passkey verification (token exchange) fails.
+ * Thrown when passkey token exchange (POST /oauth/token with WebAuthn grant) fails.
  *
  * Common causes:
  * - Invalid or expired auth_session
  * - Credential assertion rejected by Auth0
  * - Passkey not recognized
  */
-export class PasskeyVerifyError extends PasskeyError {
+export class PasskeyGetTokenError extends PasskeyError {
   public readonly error: string;
   public readonly error_description: string;
   public readonly cause?: PasskeyApiErrorResponse;
 
   public get code(): string {
-    return "passkey_verify_error";
+    return "passkey_get_token_error";
   }
 
   constructor(
@@ -110,40 +111,30 @@ export class PasskeyVerifyError extends PasskeyError {
     cause?: PasskeyApiErrorResponse
   ) {
     super(error_description);
-    this.name = "PasskeyVerifyError";
+    this.name = "PasskeyGetTokenError";
     this.error = error;
     this.error_description = error_description;
     this.cause = cause;
-    Object.setPrototypeOf(this, PasskeyVerifyError.prototype);
+    Object.setPrototypeOf(this, PasskeyGetTokenError.prototype);
   }
 }
 
 /**
  * Thrown when requesting a passkey enrollment challenge fails.
+ * The MyAccount API returns errors in RFC 7807 problem detail format.
  *
  * Common causes:
  * - User not authenticated
  * - Insufficient scope (requires create:me:authentication_methods)
  * - Passkeys not enabled for the tenant
  */
-export class PasskeyEnrollmentChallengeError extends PasskeyError {
-  public readonly error: string;
-  public readonly error_description: string;
-  public readonly cause?: PasskeyApiErrorResponse;
+export class PasskeyEnrollmentChallengeError extends SdkError {
+  public readonly code: string = "passkey_enrollment_challenge_error";
+  public readonly cause?: MyAccountApiError;
 
-  public get code(): string {
-    return "passkey_enrollment_challenge_error";
-  }
-
-  constructor(
-    error: string,
-    error_description: string,
-    cause?: PasskeyApiErrorResponse
-  ) {
-    super(error_description);
+  constructor(message: string, cause?: MyAccountApiError) {
+    super(message);
     this.name = "PasskeyEnrollmentChallengeError";
-    this.error = error;
-    this.error_description = error_description;
     this.cause = cause;
     Object.setPrototypeOf(this, PasskeyEnrollmentChallengeError.prototype);
   }
@@ -151,31 +142,21 @@ export class PasskeyEnrollmentChallengeError extends PasskeyError {
 
 /**
  * Thrown when verifying a passkey enrollment fails.
+ * The MyAccount API returns errors in RFC 7807 problem detail format.
  *
  * Common causes:
  * - Invalid or expired auth_session
  * - Credential creation rejected
  * - Duplicate passkey (already registered)
  */
-export class PasskeyEnrollVerifyError extends PasskeyError {
-  public readonly error: string;
-  public readonly error_description: string;
-  public readonly cause?: PasskeyApiErrorResponse;
+export class PasskeyEnrollmentVerifyError extends SdkError {
+  public readonly code: string = "passkey_enrollment_verify_error";
+  public readonly cause?: MyAccountApiError;
 
-  public get code(): string {
-    return "passkey_enroll_verify_error";
-  }
-
-  constructor(
-    error: string,
-    error_description: string,
-    cause?: PasskeyApiErrorResponse
-  ) {
-    super(error_description);
-    this.name = "PasskeyEnrollVerifyError";
-    this.error = error;
-    this.error_description = error_description;
+  constructor(message: string, cause?: MyAccountApiError) {
+    super(message);
+    this.name = "PasskeyEnrollmentVerifyError";
     this.cause = cause;
-    Object.setPrototypeOf(this, PasskeyEnrollVerifyError.prototype);
+    Object.setPrototypeOf(this, PasskeyEnrollmentVerifyError.prototype);
   }
 }

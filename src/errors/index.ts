@@ -65,10 +65,10 @@ export {
 } from "./mcd.js";
 
 export {
-  PasskeySignupChallengeError,
-  PasskeyLoginChallengeError,
-  PasskeyVerifyError,
+  PasskeyRegisterError,
+  PasskeyChallengeError,
+  PasskeyGetTokenError,
   PasskeyEnrollmentChallengeError,
-  PasskeyEnrollVerifyError,
+  PasskeyEnrollmentVerifyError,
   type PasskeyApiErrorResponse
 } from "./passkey-errors.js";

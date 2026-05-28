@@ -1,8 +1,8 @@
 /**
  * Passkey (WebAuthn) types for authentication and enrollment flows.
  *
- * Response types use snake_case to match Auth0 API conventions.
- * SDK-facing types use camelCase.
+ * SDK-facing types use camelCase. `PasskeyEnrollmentVerifyResponse` fields use
+ * snake_case to match the Auth0 MyAccount API wire format.
  */
 
 /**
@@ -12,62 +12,12 @@
 export const GRANT_TYPE_PASSKEY = "urn:okta:params:oauth:grant-type:webauthn";
 
 // ---------------------------------------------------------------------------
-// Challenge request options
-// ---------------------------------------------------------------------------
-
-/**
- * Options for requesting a passkey signup challenge.
- * Triggers Auth0 POST /passkey/register.
- */
-export interface PasskeySignupChallengeOptions {
-  /** User's email address. */
-  email?: string;
-  /** Username for the new account. */
-  username?: string;
-  /** User's phone number in E.164 format. */
-  phoneNumber?: string;
-  /** User's full name, shown in the browser passkey dialog. */
-  name?: string;
-  /** User's given (first) name. */
-  givenName?: string;
-  /** User's family (last) name. */
-  familyName?: string;
-  /** User's nickname. */
-  nickname?: string;
-  /** URL of the user's profile picture. */
-  picture?: string;
-  /** Additional user metadata. */
-  userMetadata?: Record<string, unknown>;
-  /** Auth0 database connection name. */
-  connection?: string;
-  /** Auth0 organization ID. */
-  organization?: string;
-}
-
-/**
- * Options for requesting a passkey login challenge.
- * Triggers Auth0 POST /passkey/challenge.
- */
-export interface PasskeyLoginChallengeOptions {
-  /**
-   * Auth0 username or email — narrows the credential list in the browser
-   * passkey picker. Optional: omit for a discoverable credentials flow.
-   */
-  username?: string;
-  /** Auth0 database connection name. */
-  connection?: string;
-  /** Auth0 organization ID. */
-  organization?: string;
-}
-
-// ---------------------------------------------------------------------------
-// WebAuthn JSON-safe option shapes
+// WebAuthn JSON-safe primitives
 // ---------------------------------------------------------------------------
 
 /**
  * JSON-safe representation of a WebAuthn credential descriptor.
- * Binary fields are Base64URL-encoded strings (matching
- * `PublicKeyCredential.parseCreationOptionsFromJSON()` conventions).
+ * Binary fields are Base64URL-encoded strings.
  */
 export interface PasskeyCredentialDescriptorJSON {
   id: string;
@@ -112,39 +62,6 @@ export interface PasskeyRequestOptionsJSON {
   extensions?: Record<string, unknown>;
 }
 
-// ---------------------------------------------------------------------------
-// Challenge response
-// ---------------------------------------------------------------------------
-
-/**
- * Response from Auth0 after a signup or login challenge request.
- * `authnParamsPublicKey` is passed verbatim to `navigator.credentials.create()`
- * (signup) or `navigator.credentials.get()` (login).
- *
- * @example
- * ```typescript
- * const challenge = await auth0.passkey.signupChallenge({ email: 'user@example.com', name: 'Jane' });
- * const credential = await navigator.credentials.create({
- *   publicKey: challenge.authnParamsPublicKey
- * });
- * await auth0.passkey.verify({ authSession: challenge.authSession, authResponse: credential });
- * ```
- */
-export interface PasskeyChallengeResponse {
-  /** Flow state token — must be echoed back in the verify call. */
-  authSession: string;
-  /**
-   * WebAuthn credential creation options (signup) or request options (login)
-   * from Auth0. Pass directly to `navigator.credentials.create()` or `.get()`.
-   * Binary fields are Base64URL-encoded strings.
-   */
-  authnParamsPublicKey: PasskeyCreationOptionsJSON | PasskeyRequestOptionsJSON;
-}
-
-// ---------------------------------------------------------------------------
-// Verify (token exchange)
-// ---------------------------------------------------------------------------
-
 /**
  * Serialised form of the `PublicKeyCredential` returned by
  * `navigator.credentials.create()` or `navigator.credentials.get()`.
@@ -178,12 +95,102 @@ export interface PasskeyAuthResponse {
   clientExtensionResults?: Record<string, unknown>;
 }
 
+// ---------------------------------------------------------------------------
+// Register flow (signup)
+// ---------------------------------------------------------------------------
+
+/**
+ * Options for requesting a passkey signup challenge.
+ * Triggers Auth0 POST /passkey/register.
+ */
+export interface PasskeyRegisterOptions {
+  /** User's email address. */
+  email?: string;
+  /** Username for the new account. */
+  username?: string;
+  /** User's phone number in E.164 format. */
+  phoneNumber?: string;
+  /** User's full name, shown in the browser passkey dialog. */
+  name?: string;
+  /** User's given (first) name. */
+  givenName?: string;
+  /** User's family (last) name. */
+  familyName?: string;
+  /** User's nickname. */
+  nickname?: string;
+  /** URL of the user's profile picture. */
+  picture?: string;
+  /** Additional user metadata. */
+  userMetadata?: Record<string, string>;
+  /** Auth0 database connection name. */
+  connection?: string;
+  /** Auth0 organization ID. */
+  organization?: string;
+}
+
+/**
+ * Response from Auth0 after a signup challenge request (POST /passkey/register).
+ * `authnParamsPublicKey` is passed verbatim to `navigator.credentials.create()`.
+ *
+ * @example
+ * ```typescript
+ * const challenge = await auth0.passkey.register({ email: 'user@example.com', name: 'Jane' });
+ * const credential = await navigator.credentials.create({
+ *   publicKey: challenge.authnParamsPublicKey
+ * });
+ * await auth0.passkey.getToken({ authSession: challenge.authSession, authResponse: credential });
+ * ```
+ */
+export interface PasskeyRegisterResponse {
+  /** Flow state token — must be echoed back in the getToken call. */
+  authSession: string;
+  /**
+   * WebAuthn credential creation options from Auth0.
+   * Pass directly to `navigator.credentials.create()`.
+   * Binary fields are Base64URL-encoded strings.
+   */
+  authnParamsPublicKey: PasskeyCreationOptionsJSON;
+}
+
+// ---------------------------------------------------------------------------
+// Challenge flow (login)
+// ---------------------------------------------------------------------------
+
+/**
+ * Options for requesting a passkey login challenge.
+ * Triggers Auth0 POST /passkey/challenge.
+ */
+export interface PasskeyChallengeOptions {
+  /** Auth0 database connection name. */
+  connection?: string;
+  /** Auth0 organization ID. */
+  organization?: string;
+}
+
+/**
+ * Response from Auth0 after a login challenge request (POST /passkey/challenge).
+ */
+export interface PasskeyChallengeResponse {
+  /** Flow state token — must be echoed back in the getToken call. */
+  authSession: string;
+  /**
+   * WebAuthn credential request options from Auth0.
+   * Pass directly to `navigator.credentials.get()`.
+   * Binary fields are Base64URL-encoded strings.
+   */
+  authnParamsPublicKey: PasskeyRequestOptionsJSON;
+}
+
+// ---------------------------------------------------------------------------
+// Token exchange (getToken)
+// ---------------------------------------------------------------------------
+
 /**
  * Options for completing a passkey authentication flow (signup or login).
- * Combines the `auth_session` from the challenge with the serialised
+ * Combines the `authSession` from the challenge with the serialised
  * credential from the WebAuthn ceremony.
  */
-export interface PasskeyVerifyOptions {
+export interface PasskeyGetTokenOptions {
   /** Flow state token returned by the challenge call. */
   authSession: string;
   /** Serialised credential from `navigator.credentials.create/get()`. */
@@ -192,10 +199,14 @@ export interface PasskeyVerifyOptions {
   connection?: string;
   /** Auth0 organization ID. */
   organization?: string;
+  /** Requested OAuth scopes (e.g. `"openid profile email"`). */
+  scope?: string;
+  /** Requested API audience. */
+  audience?: string;
 }
 
 // ---------------------------------------------------------------------------
-// Enrollment
+// Enrollment flow
 // ---------------------------------------------------------------------------
 
 /**
@@ -218,12 +229,12 @@ export interface PasskeyEnrollmentChallengeOptions {
 /**
  * Response from Auth0 after requesting a passkey enrollment challenge.
  * The `authenticationMethodId` is extracted from the `Location` response header
- * and is required for the subsequent `enrollVerify` call.
+ * and is required for the subsequent `enrollmentVerify` call.
  */
 export interface PasskeyEnrollmentChallengeResponse {
-  /** ID extracted from the `Location` header — needed for `enrollVerify`. */
+  /** ID extracted from the `Location` header — needed for `enrollmentVerify`. */
   authenticationMethodId: string;
-  /** Flow state token — must be echoed back in `enrollVerify`. */
+  /** Flow state token — must be echoed back in `enrollmentVerify`. */
   authSession: string;
   /**
    * WebAuthn credential creation options from Auth0.
@@ -235,8 +246,9 @@ export interface PasskeyEnrollmentChallengeResponse {
 
 /**
  * Options for verifying a passkey enrollment.
+ * Triggers Auth0 MyAccount POST /me/v1/authentication-methods/{id}/verify.
  */
-export interface PasskeyEnrollVerifyOptions {
+export interface PasskeyEnrollmentVerifyOptions {
   /** Authentication method ID from the enrollment challenge `Location` header. */
   authenticationMethodId: string;
   /** Flow state token from the enrollment challenge response. */
@@ -245,16 +257,12 @@ export interface PasskeyEnrollVerifyOptions {
   authResponse: PasskeyAuthResponse;
 }
 
-// ---------------------------------------------------------------------------
-// Enrollment result
-// ---------------------------------------------------------------------------
-
 /**
  * A registered passkey authentication method on the user's account.
- * Returned by `enrollVerify` on success.
+ * Returned by `enrollmentVerify` on success.
  * Field names match the Auth0 MyAccount API wire format (snake_case).
  */
-export interface PasskeyAuthenticationMethod {
+export interface PasskeyEnrollmentVerifyResponse {
   /** Authentication method ID. */
   id: string;
   /** Method type — always `"passkey"` for passkey methods. */
@@ -286,7 +294,7 @@ export interface PasskeyAuthenticationMethod {
 }
 
 // ---------------------------------------------------------------------------
-// PasskeyClient interface
+// Client interfaces
 // ---------------------------------------------------------------------------
 
 /**
@@ -302,54 +310,48 @@ export interface PasskeyClient {
    * @param options - User profile and optional connection/organization.
    * @returns Challenge with `authSession` and `authnParamsPublicKey`.
    */
-  signupChallenge(
-    options?: PasskeySignupChallengeOptions
-  ): Promise<PasskeyChallengeResponse>;
+  register(options?: PasskeyRegisterOptions): Promise<PasskeyRegisterResponse>;
 
   /**
    * Request a WebAuthn credential assertion challenge for login.
    * Calls Auth0 `POST /passkey/challenge`.
    *
-   * @param options - Optional username, connection, or organization.
+   * @param options - Optional connection or organization.
    * @returns Challenge with `authSession` and `authnParamsPublicKey`.
    */
-  loginChallenge(
-    options?: PasskeyLoginChallengeOptions
+  challenge(
+    options?: PasskeyChallengeOptions
   ): Promise<PasskeyChallengeResponse>;
 
   /**
    * Complete a passkey signup or login by exchanging the WebAuthn assertion
    * for an Auth0 session. Calls Auth0 `POST /oauth/token` with the WebAuthn grant.
+   * Session cookie is set automatically by the SDK.
    *
    * @param options - `authSession` from the challenge + serialised credential.
    */
-  verify(options: PasskeyVerifyOptions): Promise<void>;
+  getToken(options: PasskeyGetTokenOptions): Promise<void>;
 }
 
 /**
- * Browser-side passkey interface — extends server steps with one-call convenience methods.
+ * Browser-side passkey interface — one-call convenience methods.
  * Used by the `passkey` singleton exported from `@auth0/nextjs-auth0/client`.
- *
- * Each flow has both a **one-call method** and **individual steps** for full control:
- *
- * Authentication:
- * - One-call: `signup(options?)` / `login(options?)`
- * - Steps:    `signupChallenge()` → `navigator.credentials.create/get()` → `verify()`
+ * Handles challenge fetch, WebAuthn ceremony, and token exchange internally.
  */
-export interface PasskeyBrowserClient extends PasskeyClient {
+export interface PasskeyBrowserClient {
   /**
    * Complete a full passkey signup in one call.
-   * Fetches the challenge, runs `navigator.credentials.create()`, then verifies.
+   * Fetches the challenge, runs `navigator.credentials.create()`, then exchanges for a session.
    *
    * @param options - User profile and optional connection/organization.
    */
-  signup(options?: PasskeySignupChallengeOptions): Promise<void>;
+  signup(options?: PasskeyRegisterOptions): Promise<void>;
 
   /**
    * Complete a full passkey login in one call.
-   * Fetches the challenge, runs `navigator.credentials.get()`, then verifies.
+   * Fetches the challenge, runs `navigator.credentials.get()`, then exchanges for a session.
    *
-   * @param options - Optional username, connection, or organization.
+   * @param options - Optional connection or organization.
    */
-  login(options?: PasskeyLoginChallengeOptions): Promise<void>;
+  login(options?: PasskeyChallengeOptions): Promise<void>;
 }
