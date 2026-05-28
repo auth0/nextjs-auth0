@@ -4502,7 +4502,7 @@ export class AuthClient {
     }
     const [tokenSetError, tokenSetResponse] = await this.getTokenSet(session, {
       audience: `${this.issuer}me/`,
-      scope: "create:authentication_methods"
+      scope: "create:me:authentication_methods"
     });
     if (tokenSetError) {
       throw new PasskeyEnrollmentChallengeError(
@@ -4569,7 +4569,7 @@ export class AuthClient {
     }
     const [tokenSetError, tokenSetResponse] = await this.getTokenSet(session, {
       audience: `${this.issuer}me/`,
-      scope: "create:authentication_methods"
+      scope: "create:me:authentication_methods"
     });
     if (tokenSetError) {
       throw new PasskeyEnrollmentVerifyError(

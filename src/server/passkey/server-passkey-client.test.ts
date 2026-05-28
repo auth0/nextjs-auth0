@@ -644,7 +644,7 @@ const myAccountTokenHandler = http.post(
       access_token: "myaccount-access-token",
       token_type: "Bearer",
       expires_in: 86400,
-      scope: "create:authentication_methods"
+      scope: "create:me:authentication_methods"
     })
 );
 
