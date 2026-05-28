@@ -466,9 +466,9 @@ The SDK mounts 16 routes:
 11. `/auth/mfa/associate`: the route to enroll a new MFA authenticator for the current user
 12. `/auth/passwordless/start`: send an OTP code or magic link to a user's email or phone number
 13. `/auth/passwordless/verify`: verify an OTP code and create a session
-14. `/auth/passkey/signup-challenge`: get a WebAuthn credential creation challenge for a new user signup
-15. `/auth/passkey/login-challenge`: get a WebAuthn credential assertion challenge for an existing user login
-16. `/auth/passkey/verify`: verify the WebAuthn credential and create a session
+14. `/auth/passkey/register`: get a WebAuthn credential creation challenge for a new user signup
+15. `/auth/passkey/challenge`: get a WebAuthn credential assertion challenge for an existing user login
+16. `/auth/passkey/get-token`: verify the WebAuthn credential and create a session
 
 > [!NOTE]
 > The passwordless routes support both **Email OTP**, **SMS OTP**, and **Magic Link** flows. For magic links, the user clicks the emailed link and is redirected to `/auth/callback` — no separate verify step is needed. Magic links require the `allow_magiclink_verify_without_session` tenant flag to be enabled in the Auth0 Dashboard (**Settings → Advanced**). See [Passwordless Authentication](https://github.com/auth0/nextjs-auth0/blob/main/EXAMPLES.md#passwordless-authentication) in EXAMPLES.md for full setup and usage details.

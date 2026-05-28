@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { getLoginChallenge, getSignupChallenge, verifyPasskey } from "@/app/actions/passkey";
-import type { PasskeyChallengeResponse, PasskeyCreationOptionsJSON, PasskeyRequestOptionsJSON } from "@auth0/nextjs-auth0/types";
+import type { PasskeyChallengeResponse, PasskeyCreationOptionsJSON, PasskeyRegisterResponse, PasskeyRequestOptionsJSON } from "@auth0/nextjs-auth0/types";
 
 type Mode = "login" | "signup";
 type Step = "form" | "ceremony" | "done";
@@ -80,7 +80,7 @@ export function PasskeyAdvancedForm() {
   const [step, setStep] = useState<Step>("form");
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [challenge, setChallenge] = useState<PasskeyChallengeResponse | null>(null);
+  const [challenge, setChallenge] = useState<PasskeyRegisterResponse | PasskeyChallengeResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

@@ -50,7 +50,7 @@ function decodeCreationOptions(
 }
 
 // ---------------------------------------------------------------------------
-// Serialise the attestation credential for the enroll-verify request
+// Serialise the attestation credential for the enrollment-verify request
 // ---------------------------------------------------------------------------
 
 function serializeCredential(credential: PublicKeyCredential): object {
@@ -122,7 +122,7 @@ export function PasskeyEnrollForm() {
       }
 
       // Step 3 — verify enrollment with server
-      const verifyRes = await fetch("/auth/passkey/enroll-verify", {
+      const verifyRes = await fetch("/auth/passkey/enrollment-verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",

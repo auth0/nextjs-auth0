@@ -3,8 +3,9 @@
 import { auth0 } from "@/lib/auth0";
 import type {
   PasskeyChallengeResponse,
-  PasskeySignupChallengeOptions,
-  PasskeyVerifyOptions
+  PasskeyGetTokenOptions,
+  PasskeyRegisterOptions,
+  PasskeyRegisterResponse
 } from "@auth0/nextjs-auth0/types";
 
 /**
@@ -15,8 +16,8 @@ import type {
  * validate org membership, rate-limit, etc.
  */
 export async function getSignupChallenge(
-  options: PasskeySignupChallengeOptions
-): Promise<PasskeyChallengeResponse> {
+  options: PasskeyRegisterOptions
+): Promise<PasskeyRegisterResponse> {
   if (!options.email) {
     throw { error: "invalid_request", error_description: "Email is required." };
   }
@@ -25,7 +26,7 @@ export async function getSignupChallenge(
   // const exists = await db.users.findByEmail(options.email);
   // if (exists) throw { error: "email_taken", error_description: "Account already exists." };
 
-  return auth0.passkey.signupChallenge(options);
+  return auth0.passkey.register(options);
 }
 
 /**
@@ -33,7 +34,7 @@ export async function getSignupChallenge(
  * Add any pre-challenge checks here before the browser ceremony runs.
  */
 export async function getLoginChallenge(): Promise<PasskeyChallengeResponse> {
-  return auth0.passkey.loginChallenge();
+  return auth0.passkey.challenge();
 }
 
 /**
@@ -43,6 +44,6 @@ export async function getLoginChallenge(): Promise<PasskeyChallengeResponse> {
  * Add post-verification logic here, e.g. write user to your DB on first
  * signup, emit analytics events, assign roles.
  */
-export async function verifyPasskey(options: PasskeyVerifyOptions): Promise<void> {
-  await auth0.passkey.verify(options);
+export async function verifyPasskey(options: PasskeyGetTokenOptions): Promise<void> {
+  await auth0.passkey.getToken(options);
 }

@@ -10,7 +10,7 @@ A Next.js App Router example demonstrating passkey (WebAuthn) authentication usi
 - **Step-by-step signup** (via Server Actions) — advanced example with full control over each WebAuthn step
 - **Universal Login fallback** — redirect to Auth0's hosted login page
 - Protected `/dashboard` route that redirects unauthenticated users to `/`
-- Typed error handling with `PasskeySignupChallengeError`, `PasskeyLoginChallengeError`, `PasskeyVerifyError`, `PasskeyEnrollmentChallengeError`, `PasskeyEnrollVerifyError`
+- Typed error handling with `PasskeyRegisterError`, `PasskeyChallengeError`, `PasskeyGetTokenError`, `PasskeyEnrollmentChallengeError`, `PasskeyEnrollmentVerifyError`
 
 ## Prerequisites
 
@@ -93,11 +93,11 @@ All auth routes are handled by `proxy.ts` — a Next.js middleware that passes e
 
 | Method | Path | What it does |
 |--------|------|--------------|
-| `POST` | `/auth/passkey/signup-challenge` | Calls Auth0 `POST /passkey/register` and returns the WebAuthn creation options |
-| `POST` | `/auth/passkey/login-challenge` | Calls Auth0 `POST /passkey/challenge` and returns the WebAuthn request options |
-| `POST` | `/auth/passkey/verify` | Exchanges the signed WebAuthn credential for tokens via `POST /oauth/token` and sets the session cookie |
+| `POST` | `/auth/passkey/register` | Calls Auth0 `POST /passkey/register` and returns the WebAuthn creation options |
+| `POST` | `/auth/passkey/challenge` | Calls Auth0 `POST /passkey/challenge` and returns the WebAuthn request options |
+| `POST` | `/auth/passkey/get-token` | Exchanges the signed WebAuthn credential for tokens via `POST /oauth/token` and sets the session cookie |
 | `POST` | `/auth/passkey/enrollment-challenge` | Calls Auth0 MyAccount `POST /me/v1/authentication-methods` — requires an active session |
-| `POST` | `/auth/passkey/enroll-verify` | Calls Auth0 MyAccount `POST /me/v1/authentication-methods/{id}/verify` — completes enrollment |
+| `POST` | `/auth/passkey/enrollment-verify` | Calls Auth0 MyAccount `POST /me/v1/authentication-methods/{id}/verify` — completes enrollment |
 
 The `<PasskeyForm />` client component drives signup and login using the `passkey` singleton from `@auth0/nextjs-auth0/client`. The `<PasskeyEnrollForm />` component on `/dashboard` drives enrollment for authenticated users by calling the enrollment routes directly via `fetch`.
 

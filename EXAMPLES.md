@@ -1877,9 +1877,9 @@ The SDK registers three handlers automatically when you mount `auth0.handler`:
 
 | Method | Default Path | Purpose |
 |--------|--------------|---------|
-| `POST` | `/auth/passkey/signup-challenge` | Get a WebAuthn credential creation challenge for a new user |
-| `POST` | `/auth/passkey/login-challenge` | Get a WebAuthn credential assertion challenge for an existing user |
-| `POST` | `/auth/passkey/verify` | Verify the WebAuthn credential and create a session |
+| `POST` | `/auth/passkey/register` | Get a WebAuthn credential creation challenge for a new user |
+| `POST` | `/auth/passkey/challenge` | Get a WebAuthn credential assertion challenge for an existing user |
+| `POST` | `/auth/passkey/get-token` | Verify the WebAuthn credential and create a session |
 
 **App Router** — add `POST` to your existing catch-all auth route:
 
@@ -1962,15 +1962,15 @@ For cases where you need to inspect the challenge or credential before verifying
 ```typescript
 import { passkey } from "@auth0/nextjs-auth0/client";
 
-// Signup — step by step
-const challenge = await passkey.signupChallenge({ email: "user@example.com", name: "Jane" });
-const credential = await navigator.credentials.create({ publicKey: challenge.authnParamsPublicKey });
-await passkey.verify({ authSession: challenge.authSession, authResponse: credential });
+// Signup — step by step (via Server Actions)
+const challenge = await getSignupChallenge({ email: "user@example.com", name: "Jane" });
+const credential = await navigator.credentials.create({ publicKey: decodeCreationOptions(challenge.authnParamsPublicKey) });
+await verifyPasskey({ authSession: challenge.authSession, authResponse: serializeCredential(credential) });
 
-// Login — step by step
-const challenge = await passkey.loginChallenge();
-const credential = await navigator.credentials.get({ publicKey: challenge.authnParamsPublicKey });
-await passkey.verify({ authSession: challenge.authSession, authResponse: credential });
+// Login — step by step (via Server Actions)
+const challenge = await getLoginChallenge();
+const credential = await navigator.credentials.get({ publicKey: decodeRequestOptions(challenge.authnParamsPublicKey) });
+await verifyPasskey({ authSession: challenge.authSession, authResponse: serializeCredential(credential) });
 ```
 
 > [!NOTE]
@@ -1985,14 +1985,14 @@ Use `auth0.passkey` directly in **Server Actions** or **API Routes** when you wa
 ```typescript
 "use server";
 import { auth0 } from "@/lib/auth0";
-import type { PasskeySignupChallengeOptions } from "@auth0/nextjs-auth0";
+import type { PasskeyRegisterOptions } from "@auth0/nextjs-auth0";
 
-export async function getSignupChallenge(options: PasskeySignupChallengeOptions) {
-  return auth0.passkey.signupChallenge(options);
+export async function getSignupChallenge(options: PasskeyRegisterOptions) {
+  return auth0.passkey.register(options);
 }
 
 export async function getLoginChallenge() {
-  return auth0.passkey.loginChallenge();
+  return auth0.passkey.challenge();
 }
 ```
 
@@ -2014,7 +2014,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   );
   const nextRes = new NextResponse();
 
-  await auth0.passkey.verify(nextReq, nextRes, {
+  await auth0.passkey.getToken(nextReq, nextRes, {
     authSession: req.body.authSession,
     authResponse: req.body.authResponse
   });
@@ -2031,19 +2031,19 @@ Passkey errors expose `error` (the error code) and `error_description`. Check `e
 
 ```typescript
 import {
-  PasskeySignupChallengeError,
-  PasskeyLoginChallengeError,
-  PasskeyVerifyError
+  PasskeyRegisterError,
+  PasskeyChallengeError,
+  PasskeyGetTokenError
 } from "@auth0/nextjs-auth0/errors";
 
 try {
   await passkey.signup({ email });
 } catch (err) {
-  if (err instanceof PasskeySignupChallengeError) {
+  if (err instanceof PasskeyRegisterError) {
     // err.error           — e.g. 'passkeys_not_enabled', 'invalid_request'
     // err.error_description — human-readable message
   }
-  if (err instanceof PasskeyVerifyError) {
+  if (err instanceof PasskeyGetTokenError) {
     if (err.error === "webauthn_error") {
       // User cancelled the browser dialog, or device doesn't support passkeys
     }
@@ -2053,10 +2053,10 @@ try {
 try {
   await passkey.login();
 } catch (err) {
-  if (err instanceof PasskeyLoginChallengeError) {
+  if (err instanceof PasskeyChallengeError) {
     // Challenge request failed
   }
-  if (err instanceof PasskeyVerifyError) {
+  if (err instanceof PasskeyGetTokenError) {
     if (err.error === "webauthn_error") {
       // User cancelled or device doesn't support passkeys
     }
@@ -2083,24 +2083,24 @@ Two additional routes are registered automatically:
 | Method | Default Path | Purpose |
 |--------|--------------|---------|
 | `POST` | `/auth/passkey/enrollment-challenge` | Request a WebAuthn creation challenge for the current user (requires session) |
-| `POST` | `/auth/passkey/enroll-verify` | Verify the attestation and complete enrollment (requires session) |
+| `POST` | `/auth/passkey/enrollment-verify` | Verify the attestation and complete enrollment (requires session) |
 
 #### Server-Side Enrollment
 
-Call `auth0.passkey.enrollmentChallenge()` and `auth0.passkey.enrollVerify()` directly from a Server Action or API Route:
+Call `auth0.passkey.enrollmentChallenge()` and `auth0.passkey.enrollmentVerify()` directly from a Server Action or API Route:
 
 ```typescript
 "use server";
 import { auth0 } from "@/lib/auth0";
-import type { PasskeyEnrollVerifyOptions } from "@auth0/nextjs-auth0";
+import type { PasskeyEnrollmentVerifyOptions } from "@auth0/nextjs-auth0";
 
 export async function getEnrollmentChallenge() {
   // Requires an active session — throws PasskeyEnrollmentChallengeError if not authenticated
   return auth0.passkey.enrollmentChallenge();
 }
 
-export async function verifyEnrollment(options: PasskeyEnrollVerifyOptions) {
-  return auth0.passkey.enrollVerify(options);
+export async function verifyEnrollment(options: PasskeyEnrollmentVerifyOptions) {
+  return auth0.passkey.enrollmentVerify(options);
 }
 ```
 
@@ -2137,7 +2137,7 @@ export function PasskeyEnrollForm() {
     if (!credential) return;
 
     // Step 3 — verify enrollment
-    const verifyRes = await fetch("/auth/passkey/enroll-verify", {
+    const verifyRes = await fetch("/auth/passkey/enrollment-verify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "same-origin",
@@ -2165,11 +2165,11 @@ The default route paths can be overridden with environment variables:
 
 ```bash
 # .env.local
-NEXT_PUBLIC_PASSKEY_SIGNUP_CHALLENGE_ROUTE=/auth/passkey/signup-challenge
-NEXT_PUBLIC_PASSKEY_LOGIN_CHALLENGE_ROUTE=/auth/passkey/login-challenge
-NEXT_PUBLIC_PASSKEY_VERIFY_ROUTE=/auth/passkey/verify
+NEXT_PUBLIC_PASSKEY_REGISTER_ROUTE=/auth/passkey/register
+NEXT_PUBLIC_PASSKEY_CHALLENGE_ROUTE=/auth/passkey/challenge
+NEXT_PUBLIC_PASSKEY_GET_TOKEN_ROUTE=/auth/passkey/get-token
 NEXT_PUBLIC_PASSKEY_ENROLLMENT_CHALLENGE_ROUTE=/auth/passkey/enrollment-challenge
-NEXT_PUBLIC_PASSKEY_ENROLL_VERIFY_ROUTE=/auth/passkey/enroll-verify
+NEXT_PUBLIC_PASSKEY_ENROLLMENT_VERIFY_ROUTE=/auth/passkey/enrollment-verify
 ```
 
 Because all three authentication variables are prefixed with `NEXT_PUBLIC_`, they are inlined by the Next.js bundler and available on the client without an extra API call.
@@ -2178,19 +2178,19 @@ Because all three authentication variables are prefixed with `NEXT_PUBLIC_`, the
 
 | Error Class | `error` Code | When Thrown |
 |-------------|--------------|-------------|
-| `PasskeySignupChallengeError` | `passkeys_not_enabled` | Passkeys not enabled for the application |
-| `PasskeySignupChallengeError` | `invalid_request` | Missing or malformed body field |
-| `PasskeySignupChallengeError` | `client_error` | Network failure or unparseable response |
-| `PasskeyLoginChallengeError` | `invalid_request` | Missing or malformed body field |
-| `PasskeyLoginChallengeError` | `client_error` | Network failure or unparseable response |
-| `PasskeyVerifyError` | `webauthn_error` | User cancelled the browser dialog, or device doesn't support passkeys |
-| `PasskeyVerifyError` | `invalid_grant` | Invalid or replayed passkey assertion |
-| `PasskeyVerifyError` | `client_error` | Network failure or unparseable response |
-| `PasskeyEnrollmentChallengeError` | `not_authenticated` | No active session when enrollment challenge was requested |
-| `PasskeyEnrollmentChallengeError` | `passkeys_not_enabled` | Enrollment not enabled on the tenant |
-| `PasskeyEnrollmentChallengeError` | `missing_authentication_method_id` | Auth0 did not return a `Location` header |
-| `PasskeyEnrollVerifyError` | `not_authenticated` | No active session when enroll verify was called |
-| `PasskeyEnrollVerifyError` | `invalid_grant` | Invalid or replayed attestation |
+| `PasskeyRegisterError` | `passkeys_not_enabled` | Passkeys not enabled for the application |
+| `PasskeyRegisterError` | `invalid_request` | Missing or malformed body field |
+| `PasskeyRegisterError` | `client_error` | Network failure or unparseable response |
+| `PasskeyChallengeError` | `invalid_request` | Missing or malformed body field |
+| `PasskeyChallengeError` | `client_error` | Network failure or unparseable response |
+| `PasskeyGetTokenError` | `webauthn_error` | User cancelled the browser dialog, or device doesn't support passkeys |
+| `PasskeyGetTokenError` | `invalid_grant` | Invalid or replayed passkey assertion |
+| `PasskeyGetTokenError` | `client_error` | Network failure or unparseable response |
+| `PasskeyEnrollmentChallengeError` | — | No active session when enrollment challenge was requested |
+| `PasskeyEnrollmentChallengeError` | — | Enrollment not enabled on the tenant |
+| `PasskeyEnrollmentChallengeError` | — | Auth0 did not return a `Location` header |
+| `PasskeyEnrollmentVerifyError` | — | No active session when enrollment verify was called |
+| `PasskeyEnrollmentVerifyError` | — | Invalid or replayed attestation |
 
 ## Silent authentication
 
