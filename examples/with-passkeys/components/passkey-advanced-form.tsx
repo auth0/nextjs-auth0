@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { getLoginChallenge, getSignupChallenge, verifyPasskey } from "@/app/actions/passkey";
-import type { PasskeyChallengeResponse } from "@auth0/nextjs-auth0/types";
+import type { PasskeyChallengeResponse, PasskeyCreationOptionsJSON, PasskeyRequestOptionsJSON } from "@auth0/nextjs-auth0/types";
 
 type Mode = "login" | "signup";
 type Step = "form" | "ceremony" | "done";
@@ -24,7 +24,7 @@ function base64urlEncode(buffer: ArrayBuffer): string {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 }
 
-function decodeCreationOptions(raw: Record<string, unknown>): PublicKeyCredentialCreationOptions {
+function decodeCreationOptions(raw: PasskeyCreationOptionsJSON): PublicKeyCredentialCreationOptions {
   const opts = raw as any;
   return {
     ...opts,
@@ -37,7 +37,7 @@ function decodeCreationOptions(raw: Record<string, unknown>): PublicKeyCredentia
   };
 }
 
-function decodeRequestOptions(raw: Record<string, unknown>): PublicKeyCredentialRequestOptions {
+function decodeRequestOptions(raw: PasskeyRequestOptionsJSON): PublicKeyCredentialRequestOptions {
   const opts = raw as any;
   return {
     ...opts,
@@ -120,11 +120,11 @@ export function PasskeyAdvancedForm() {
     try {
       if (mode === "signup") {
         credential = (await navigator.credentials.create({
-          publicKey: decodeCreationOptions(challenge.authnParamsPublicKey)
+          publicKey: decodeCreationOptions(challenge.authnParamsPublicKey as PasskeyCreationOptionsJSON)
         })) as PublicKeyCredential | null;
       } else {
         credential = (await navigator.credentials.get({
-          publicKey: decodeRequestOptions(challenge.authnParamsPublicKey)
+          publicKey: decodeRequestOptions(challenge.authnParamsPublicKey as PasskeyRequestOptionsJSON)
         })) as PublicKeyCredential | null;
       }
     } catch (err: any) {
