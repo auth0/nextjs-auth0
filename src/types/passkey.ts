@@ -354,4 +354,24 @@ export interface PasskeyBrowserClient {
    * @param options - Optional connection or organization.
    */
   login(options?: PasskeyChallengeOptions): Promise<void>;
+
+  /**
+   * Request a passkey enrollment challenge for an already-authenticated user.
+   * Calls Auth0 MyAccount `POST /me/v1/authentication-methods`.
+   *
+   * @param options - Optional connection or identity user ID.
+   */
+  enrollmentChallenge(
+    options?: PasskeyEnrollmentChallengeOptions
+  ): Promise<PasskeyEnrollmentChallengeResponse>;
+
+  /**
+   * Verify and complete a passkey enrollment.
+   * Calls Auth0 MyAccount `POST /me/v1/authentication-methods/{id}/verify`.
+   *
+   * @param options - Authentication method ID, auth session, and serialised credential.
+   */
+  enrollmentVerify(
+    options: PasskeyEnrollmentVerifyOptions
+  ): Promise<PasskeyEnrollmentVerifyResponse>;
 }

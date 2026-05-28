@@ -15,8 +15,8 @@ import {
 
 const BASE_URL = "http://localhost:3000";
 
-const SIGNUP_CHALLENGE_URL = `${BASE_URL}/auth/passkey/signup-challenge`;
-const LOGIN_CHALLENGE_URL = `${BASE_URL}/auth/passkey/login-challenge`;
+const REGISTER_URL = `${BASE_URL}/auth/passkey/register`;
+const CHALLENGE_URL = `${BASE_URL}/auth/passkey/challenge`;
 const VERIFY_URL = `${BASE_URL}/auth/passkey/verify`;
 
 // Minimal fake challenge payload returned by the SDK route handler (camelCase —
@@ -86,8 +86,8 @@ const server = setupServer();
 beforeAll(() => {
   server.listen({ onUnhandledRequest: "error" });
 
-  process.env.NEXT_PUBLIC_PASSKEY_SIGNUP_CHALLENGE_ROUTE = SIGNUP_CHALLENGE_URL;
-  process.env.NEXT_PUBLIC_PASSKEY_LOGIN_CHALLENGE_ROUTE = LOGIN_CHALLENGE_URL;
+  process.env.NEXT_PUBLIC_PASSKEY_REGISTER_ROUTE = REGISTER_URL;
+  process.env.NEXT_PUBLIC_PASSKEY_CHALLENGE_ROUTE = CHALLENGE_URL;
   process.env.NEXT_PUBLIC_PASSKEY_VERIFY_ROUTE = VERIFY_URL;
 
   // jsdom does not implement navigator.credentials — define a stub so vi.spyOn works
@@ -112,8 +112,8 @@ afterEach(() => {
 });
 
 afterAll(() => {
-  delete process.env.NEXT_PUBLIC_PASSKEY_SIGNUP_CHALLENGE_ROUTE;
-  delete process.env.NEXT_PUBLIC_PASSKEY_LOGIN_CHALLENGE_ROUTE;
+  delete process.env.NEXT_PUBLIC_PASSKEY_REGISTER_ROUTE;
+  delete process.env.NEXT_PUBLIC_PASSKEY_CHALLENGE_ROUTE;
   delete process.env.NEXT_PUBLIC_PASSKEY_VERIFY_ROUTE;
   server.close();
 });
@@ -136,7 +136,7 @@ describe("ClientPasskeyClient", () => {
       let capturedVerifyBody: Record<string, unknown> = {};
 
       server.use(
-        http.post(SIGNUP_CHALLENGE_URL, async ({ request }) => {
+        http.post(REGISTER_URL, async ({ request }) => {
           capturedChallengeBody = (await request.json()) as Record<
             string,
             unknown
@@ -173,7 +173,7 @@ describe("ClientPasskeyClient", () => {
       let capturedChallengeBody: unknown = undefined;
 
       server.use(
-        http.post(SIGNUP_CHALLENGE_URL, async ({ request }) => {
+        http.post(REGISTER_URL, async ({ request }) => {
           capturedChallengeBody = await request.json();
           return HttpResponse.json(FAKE_CHALLENGE_RESPONSE);
         }),
@@ -189,9 +189,9 @@ describe("ClientPasskeyClient", () => {
       expect(capturedChallengeBody).toEqual({});
     });
 
-    it("throws PasskeySignupChallengeError when challenge request fails", async () => {
+    it("throws PasskeyRegisterError when challenge request fails", async () => {
       server.use(
-        http.post(SIGNUP_CHALLENGE_URL, () =>
+        http.post(REGISTER_URL, () =>
           HttpResponse.json(
             {
               error: "passkeys_not_enabled",
@@ -205,25 +205,25 @@ describe("ClientPasskeyClient", () => {
 
       const err = await client.signup().catch((e) => e);
 
-      expect(err.name).toBe("PasskeySignupChallengeError");
+      expect(err.name).toBe("PasskeyRegisterError");
       expect(err.error).toBe("passkeys_not_enabled");
       expect(err.error_description).toBe(
         "Passkeys are not enabled for this application."
       );
     });
 
-    it("throws PasskeySignupChallengeError on network failure during challenge", async () => {
-      server.use(http.post(SIGNUP_CHALLENGE_URL, () => HttpResponse.error()));
+    it("throws PasskeyRegisterError on network failure during challenge", async () => {
+      server.use(http.post(REGISTER_URL, () => HttpResponse.error()));
 
       const err = await client.signup().catch((e) => e);
 
-      expect(err.name).toBe("PasskeySignupChallengeError");
+      expect(err.name).toBe("PasskeyRegisterError");
       expect(err.error).toBe("client_error");
     });
 
-    it("throws PasskeyVerifyError when navigator.credentials.create throws", async () => {
+    it("throws PasskeyGetTokenError when navigator.credentials.create throws", async () => {
       server.use(
-        http.post(SIGNUP_CHALLENGE_URL, () =>
+        http.post(REGISTER_URL, () =>
           HttpResponse.json(FAKE_CHALLENGE_RESPONSE)
         )
       );
@@ -234,13 +234,13 @@ describe("ClientPasskeyClient", () => {
 
       const err = await client.signup().catch((e) => e);
 
-      expect(err.name).toBe("PasskeyVerifyError");
+      expect(err.name).toBe("PasskeyGetTokenError");
       expect(err.error).toBe("webauthn_error");
     });
 
-    it("throws PasskeyVerifyError when credentials.create returns null", async () => {
+    it("throws PasskeyGetTokenError when credentials.create returns null", async () => {
       server.use(
-        http.post(SIGNUP_CHALLENGE_URL, () =>
+        http.post(REGISTER_URL, () =>
           HttpResponse.json(FAKE_CHALLENGE_RESPONSE)
         )
       );
@@ -249,13 +249,13 @@ describe("ClientPasskeyClient", () => {
 
       const err = await client.signup().catch((e) => e);
 
-      expect(err.name).toBe("PasskeyVerifyError");
+      expect(err.name).toBe("PasskeyGetTokenError");
       expect(err.error).toBe("webauthn_error");
     });
 
-    it("throws PasskeyVerifyError when verify route returns an error", async () => {
+    it("throws PasskeyGetTokenError when verify route returns an error", async () => {
       server.use(
-        http.post(SIGNUP_CHALLENGE_URL, () =>
+        http.post(REGISTER_URL, () =>
           HttpResponse.json(FAKE_CHALLENGE_RESPONSE)
         ),
         http.post(VERIFY_URL, () =>
@@ -275,7 +275,7 @@ describe("ClientPasskeyClient", () => {
 
       const err = await client.signup().catch((e) => e);
 
-      expect(err.name).toBe("PasskeyVerifyError");
+      expect(err.name).toBe("PasskeyGetTokenError");
       expect(err.error).toBe("invalid_grant");
     });
 
@@ -283,7 +283,7 @@ describe("ClientPasskeyClient", () => {
       let capturedVerifyBody: Record<string, any> = {};
 
       server.use(
-        http.post(SIGNUP_CHALLENGE_URL, () =>
+        http.post(REGISTER_URL, () =>
           HttpResponse.json(FAKE_CHALLENGE_RESPONSE)
         ),
         http.post(VERIFY_URL, async ({ request }) => {
@@ -317,7 +317,7 @@ describe("ClientPasskeyClient", () => {
       let capturedVerifyBody: Record<string, unknown> = {};
 
       server.use(
-        http.post(LOGIN_CHALLENGE_URL, async ({ request }) => {
+        http.post(CHALLENGE_URL, async ({ request }) => {
           capturedChallengeBody = (await request.json()) as Record<
             string,
             unknown
@@ -337,10 +337,10 @@ describe("ClientPasskeyClient", () => {
         makeFakeAssertionCredential()
       );
 
-      await client.login({ username: "user@example.com" });
+      await client.login({ connection: "Username-Password-Authentication" });
 
       expect(capturedChallengeBody).toMatchObject({
-        username: "user@example.com"
+        connection: "Username-Password-Authentication"
       });
       expect(navigator.credentials.get).toHaveBeenCalledOnce();
       expect(capturedVerifyBody).toMatchObject({
@@ -352,7 +352,7 @@ describe("ClientPasskeyClient", () => {
       let capturedChallengeBody: unknown = undefined;
 
       server.use(
-        http.post(LOGIN_CHALLENGE_URL, async ({ request }) => {
+        http.post(CHALLENGE_URL, async ({ request }) => {
           capturedChallengeBody = await request.json();
           return HttpResponse.json(FAKE_CHALLENGE_RESPONSE);
         }),
@@ -368,9 +368,9 @@ describe("ClientPasskeyClient", () => {
       expect(capturedChallengeBody).toEqual({});
     });
 
-    it("throws PasskeyLoginChallengeError when challenge request fails", async () => {
+    it("throws PasskeyChallengeError when challenge request fails", async () => {
       server.use(
-        http.post(LOGIN_CHALLENGE_URL, () =>
+        http.post(CHALLENGE_URL, () =>
           HttpResponse.json(
             {
               error: "no_passkey_registered",
@@ -383,22 +383,22 @@ describe("ClientPasskeyClient", () => {
 
       const err = await client.login().catch((e) => e);
 
-      expect(err.name).toBe("PasskeyLoginChallengeError");
+      expect(err.name).toBe("PasskeyChallengeError");
       expect(err.error).toBe("no_passkey_registered");
     });
 
-    it("throws PasskeyLoginChallengeError on network failure during challenge", async () => {
-      server.use(http.post(LOGIN_CHALLENGE_URL, () => HttpResponse.error()));
+    it("throws PasskeyChallengeError on network failure during challenge", async () => {
+      server.use(http.post(CHALLENGE_URL, () => HttpResponse.error()));
 
       const err = await client.login().catch((e) => e);
 
-      expect(err.name).toBe("PasskeyLoginChallengeError");
+      expect(err.name).toBe("PasskeyChallengeError");
       expect(err.error).toBe("client_error");
     });
 
-    it("throws PasskeyVerifyError when navigator.credentials.get throws", async () => {
+    it("throws PasskeyGetTokenError when navigator.credentials.get throws", async () => {
       server.use(
-        http.post(LOGIN_CHALLENGE_URL, () =>
+        http.post(CHALLENGE_URL, () =>
           HttpResponse.json(FAKE_CHALLENGE_RESPONSE)
         )
       );
@@ -409,13 +409,13 @@ describe("ClientPasskeyClient", () => {
 
       const err = await client.login().catch((e) => e);
 
-      expect(err.name).toBe("PasskeyVerifyError");
+      expect(err.name).toBe("PasskeyGetTokenError");
       expect(err.error).toBe("webauthn_error");
     });
 
-    it("throws PasskeyVerifyError when credentials.get returns null", async () => {
+    it("throws PasskeyGetTokenError when credentials.get returns null", async () => {
       server.use(
-        http.post(LOGIN_CHALLENGE_URL, () =>
+        http.post(CHALLENGE_URL, () =>
           HttpResponse.json(FAKE_CHALLENGE_RESPONSE)
         )
       );
@@ -424,7 +424,7 @@ describe("ClientPasskeyClient", () => {
 
       const err = await client.login().catch((e) => e);
 
-      expect(err.name).toBe("PasskeyVerifyError");
+      expect(err.name).toBe("PasskeyGetTokenError");
       expect(err.error).toBe("webauthn_error");
     });
 
@@ -432,7 +432,7 @@ describe("ClientPasskeyClient", () => {
       let capturedVerifyBody: Record<string, any> = {};
 
       server.use(
-        http.post(LOGIN_CHALLENGE_URL, () =>
+        http.post(CHALLENGE_URL, () =>
           HttpResponse.json(FAKE_CHALLENGE_RESPONSE)
         ),
         http.post(VERIFY_URL, async ({ request }) => {

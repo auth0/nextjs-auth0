@@ -1,23 +1,22 @@
 import {
+  PasskeyChallengeError,
   PasskeyEnrollmentChallengeError,
-  PasskeyEnrollVerifyError,
-  PasskeyLoginChallengeError,
-  PasskeySignupChallengeError,
-  PasskeyVerifyError
+  PasskeyEnrollmentVerifyError,
+  PasskeyGetTokenError,
+  PasskeyRegisterError
 } from "../../errors/index.js";
 import type {
-  PasskeyAuthenticationMethod,
   PasskeyAuthResponse,
   PasskeyBrowserClient,
+  PasskeyChallengeOptions,
   PasskeyChallengeResponse,
   PasskeyCreationOptionsJSON,
   PasskeyEnrollmentChallengeOptions,
   PasskeyEnrollmentChallengeResponse,
-  PasskeyEnrollVerifyOptions,
-  PasskeyLoginChallengeOptions,
-  PasskeyRequestOptionsJSON,
-  PasskeySignupChallengeOptions,
-  PasskeyVerifyOptions
+  PasskeyEnrollmentVerifyOptions,
+  PasskeyEnrollmentVerifyResponse,
+  PasskeyRegisterOptions,
+  PasskeyRequestOptionsJSON
 } from "../../types/index.js";
 import { normalizeWithBasePath } from "../../utils/pathUtils.js";
 
@@ -176,14 +175,14 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
  * window.location.href = '/dashboard';
  * ```
  *
- * @example Step-by-step (full control)
+ * @example Enroll a passkey for an existing user
  * ```typescript
  * 'use client';
  * import { passkey } from '@auth0/nextjs-auth0/client';
  *
- * const challenge = await passkey.signupChallenge();
- * const credential = await navigator.credentials.create({ publicKey: ... });
- * await passkey.verify({ authSession: challenge.authSession, authResponse: credential });
+ * const challenge = await passkey.enrollmentChallenge();
+ * const credential = await navigator.credentials.create({ publicKey: challenge.authnParamsPublicKey });
+ * await passkey.enrollmentVerify({ authenticationMethodId: challenge.authenticationMethodId, authSession: challenge.authSession, authResponse: credential });
  * ```
  */
 class ClientPasskeyClient implements PasskeyBrowserClient {
@@ -195,13 +194,12 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
    * Complete a full passkey signup in one call.
    * Fetches the challenge, runs navigator.credentials.create(), then verifies.
    *
-   * @throws {PasskeySignupChallengeError} If the challenge request fails
-   * @throws {PasskeyVerifyError} If the WebAuthn ceremony or token exchange fails
+   * @throws {PasskeyRegisterError} If the challenge request fails
+   * @throws {PasskeyGetTokenError} If the WebAuthn ceremony or token exchange fails
    */
-  async signup(options?: PasskeySignupChallengeOptions): Promise<void> {
+  async signup(options?: PasskeyRegisterOptions): Promise<void> {
     const challengeUrl = normalizeWithBasePath(
-      process.env.NEXT_PUBLIC_PASSKEY_SIGNUP_CHALLENGE_ROUTE ||
-        "/auth/passkey/signup-challenge"
+      process.env.NEXT_PUBLIC_PASSKEY_REGISTER_ROUTE || "/auth/passkey/register"
     );
 
     let challenge: PasskeyChallengeResponse;
@@ -211,7 +209,7 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
         options ?? {}
       );
     } catch (err: any) {
-      throw new PasskeySignupChallengeError(
+      throw new PasskeyRegisterError(
         err?.error ?? "client_error",
         err?.error_description ?? "Failed to get passkey signup challenge",
         err?.error ? err : undefined
@@ -226,7 +224,7 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
         )
       })) as PublicKeyCredential | null;
     } catch (err: any) {
-      throw new PasskeyVerifyError(
+      throw new PasskeyGetTokenError(
         "webauthn_error",
         err?.message ?? "WebAuthn credential creation failed",
         undefined
@@ -234,7 +232,7 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
     }
 
     if (!credential) {
-      throw new PasskeyVerifyError(
+      throw new PasskeyGetTokenError(
         "webauthn_error",
         "navigator.credentials.create returned null",
         undefined
@@ -248,13 +246,13 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
    * Complete a full passkey login in one call.
    * Fetches the challenge, runs navigator.credentials.get(), then verifies.
    *
-   * @throws {PasskeyLoginChallengeError} If the challenge request fails
-   * @throws {PasskeyVerifyError} If the WebAuthn ceremony or token exchange fails
+   * @throws {PasskeyChallengeError} If the challenge request fails
+   * @throws {PasskeyGetTokenError} If the WebAuthn ceremony or token exchange fails
    */
-  async login(options?: PasskeyLoginChallengeOptions): Promise<void> {
+  async login(options?: PasskeyChallengeOptions): Promise<void> {
     const challengeUrl = normalizeWithBasePath(
-      process.env.NEXT_PUBLIC_PASSKEY_LOGIN_CHALLENGE_ROUTE ||
-        "/auth/passkey/login-challenge"
+      process.env.NEXT_PUBLIC_PASSKEY_CHALLENGE_ROUTE ||
+        "/auth/passkey/challenge"
     );
 
     let challenge: PasskeyChallengeResponse;
@@ -264,7 +262,7 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
         options ?? {}
       );
     } catch (err: any) {
-      throw new PasskeyLoginChallengeError(
+      throw new PasskeyChallengeError(
         err?.error ?? "client_error",
         err?.error_description ?? "Failed to get passkey login challenge",
         err?.error ? err : undefined
@@ -279,7 +277,7 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
         )
       })) as PublicKeyCredential | null;
     } catch (err: any) {
-      throw new PasskeyVerifyError(
+      throw new PasskeyGetTokenError(
         "webauthn_error",
         err?.message ?? "WebAuthn credential assertion failed",
         undefined
@@ -287,7 +285,7 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
     }
 
     if (!credential) {
-      throw new PasskeyVerifyError(
+      throw new PasskeyGetTokenError(
         "webauthn_error",
         "navigator.credentials.get returned null",
         undefined
@@ -295,61 +293,6 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
     }
 
     await this._verify(challenge.authSession, credential);
-  }
-
-  // ---------------------------------------------------------------------------
-  // Individual step methods — for callers who want full control
-  // ---------------------------------------------------------------------------
-
-  async signupChallenge(
-    options?: PasskeySignupChallengeOptions
-  ): Promise<PasskeyChallengeResponse> {
-    const url = normalizeWithBasePath(
-      process.env.NEXT_PUBLIC_PASSKEY_SIGNUP_CHALLENGE_ROUTE ||
-        "/auth/passkey/signup-challenge"
-    );
-    try {
-      return await postJson<PasskeyChallengeResponse>(url, options ?? {});
-    } catch (err: any) {
-      throw new PasskeySignupChallengeError(
-        err?.error ?? "client_error",
-        err?.error_description ?? "Failed to get passkey signup challenge",
-        err?.error ? err : undefined
-      );
-    }
-  }
-
-  async loginChallenge(
-    options?: PasskeyLoginChallengeOptions
-  ): Promise<PasskeyChallengeResponse> {
-    const url = normalizeWithBasePath(
-      process.env.NEXT_PUBLIC_PASSKEY_LOGIN_CHALLENGE_ROUTE ||
-        "/auth/passkey/login-challenge"
-    );
-    try {
-      return await postJson<PasskeyChallengeResponse>(url, options ?? {});
-    } catch (err: any) {
-      throw new PasskeyLoginChallengeError(
-        err?.error ?? "client_error",
-        err?.error_description ?? "Failed to get passkey login challenge",
-        err?.error ? err : undefined
-      );
-    }
-  }
-
-  async verify(options: PasskeyVerifyOptions): Promise<void> {
-    const url = normalizeWithBasePath(
-      process.env.NEXT_PUBLIC_PASSKEY_VERIFY_ROUTE || "/auth/passkey/verify"
-    );
-    try {
-      await postJson(url, options);
-    } catch (err: any) {
-      throw new PasskeyVerifyError(
-        err?.error ?? "client_error",
-        err?.error_description ?? "Passkey verification failed",
-        err?.error ? err : undefined
-      );
-    }
   }
 
   // Shared verify step used by both signup() and login()
@@ -367,7 +310,7 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
         authResponse: serializeCredential(credential)
       });
     } catch (err: any) {
-      throw new PasskeyVerifyError(
+      throw new PasskeyGetTokenError(
         err?.error ?? "client_error",
         err?.error_description ?? "Passkey verification failed",
         err?.error ? err : undefined
@@ -389,27 +332,26 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
       );
     } catch (err: any) {
       throw new PasskeyEnrollmentChallengeError(
-        err?.error ?? "client_error",
-        err?.error_description ?? "Failed to get passkey enrollment challenge",
-        err?.error ? err : undefined
+        err?.error_description ?? "Failed to get passkey enrollment challenge"
       );
     }
   }
 
-  async enrollVerify(
-    options: PasskeyEnrollVerifyOptions
-  ): Promise<PasskeyAuthenticationMethod> {
+  async enrollmentVerify(
+    options: PasskeyEnrollmentVerifyOptions
+  ): Promise<PasskeyEnrollmentVerifyResponse> {
     const verifyUrl = normalizeWithBasePath(
       process.env.NEXT_PUBLIC_PASSKEY_ENROLL_VERIFY_ROUTE ||
         "/auth/passkey/enroll-verify"
     );
     try {
-      return await postJson<PasskeyAuthenticationMethod>(verifyUrl, options);
+      return await postJson<PasskeyEnrollmentVerifyResponse>(
+        verifyUrl,
+        options
+      );
     } catch (err: any) {
-      throw new PasskeyEnrollVerifyError(
-        err?.error ?? "client_error",
-        err?.error_description ?? "Passkey enrollment verification failed",
-        err?.error ? err : undefined
+      throw new PasskeyEnrollmentVerifyError(
+        err?.error_description ?? "Passkey enrollment verification failed"
       );
     }
   }
@@ -428,10 +370,10 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
  * // One-call login
  * await passkey.login();
  *
- * // Step-by-step (full control)
- * const challenge = await passkey.signupChallenge();
+ * // Enroll a passkey for an authenticated user
+ * const challenge = await passkey.enrollmentChallenge();
  * // ... run navigator.credentials.create() yourself ...
- * await passkey.verify({ authSession: challenge.authSession, authResponse: credential });
+ * await passkey.enrollmentVerify({ authenticationMethodId: challenge.authenticationMethodId, authSession: challenge.authSession, authResponse: credential });
  * ```
  */
 export const passkey: PasskeyBrowserClient = new ClientPasskeyClient();
