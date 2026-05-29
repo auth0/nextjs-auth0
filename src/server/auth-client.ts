@@ -4389,7 +4389,10 @@ export class AuthClient {
         }
         if (e.error === "unexpected_error") {
           return NextResponse.json(
-            { error: "server_error", error_description: "Internal server error" },
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
             { status: 500 }
           );
         }
@@ -4446,7 +4449,10 @@ export class AuthClient {
         }
         if (e.error === "unexpected_error") {
           return NextResponse.json(
-            { error: "server_error", error_description: "Internal server error" },
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
             { status: 500 }
           );
         }
