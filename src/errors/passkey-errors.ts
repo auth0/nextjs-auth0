@@ -1,4 +1,3 @@
-import { MyAccountApiError } from "./my-account-errors.js";
 import { SdkError } from "./sdk-error.js";
 
 /**
@@ -128,13 +127,24 @@ export class PasskeyGetTokenError extends PasskeyError {
  * - Insufficient scope (requires create:me:authentication_methods)
  * - Passkeys not enabled for the tenant
  */
-export class PasskeyEnrollmentChallengeError extends SdkError {
-  public readonly code: string = "passkey_enrollment_challenge_error";
-  public readonly cause?: MyAccountApiError;
+export class PasskeyEnrollmentChallengeError extends PasskeyError {
+  public readonly error: string;
+  public readonly error_description: string;
+  public readonly cause?: Record<string, unknown>;
 
-  constructor(message: string, cause?: MyAccountApiError) {
-    super(message);
+  public get code(): string {
+    return "passkey_enrollment_challenge_error";
+  }
+
+  constructor(
+    error: string,
+    error_description: string,
+    cause?: Record<string, unknown>
+  ) {
+    super(error_description);
     this.name = "PasskeyEnrollmentChallengeError";
+    this.error = error;
+    this.error_description = error_description;
     this.cause = cause;
     Object.setPrototypeOf(this, PasskeyEnrollmentChallengeError.prototype);
   }
@@ -142,20 +152,30 @@ export class PasskeyEnrollmentChallengeError extends SdkError {
 
 /**
  * Thrown when verifying a passkey enrollment fails.
- * The MyAccount API returns errors in RFC 7807 problem detail format.
  *
  * Common causes:
  * - Invalid or expired auth_session
  * - Credential creation rejected
  * - Duplicate passkey (already registered)
  */
-export class PasskeyEnrollmentVerifyError extends SdkError {
-  public readonly code: string = "passkey_enrollment_verify_error";
-  public readonly cause?: MyAccountApiError;
+export class PasskeyEnrollmentVerifyError extends PasskeyError {
+  public readonly error: string;
+  public readonly error_description: string;
+  public readonly cause?: Record<string, unknown>;
 
-  constructor(message: string, cause?: MyAccountApiError) {
-    super(message);
+  public get code(): string {
+    return "passkey_enrollment_verify_error";
+  }
+
+  constructor(
+    error: string,
+    error_description: string,
+    cause?: Record<string, unknown>
+  ) {
+    super(error_description);
     this.name = "PasskeyEnrollmentVerifyError";
+    this.error = error;
+    this.error_description = error_description;
     this.cause = cause;
     Object.setPrototypeOf(this, PasskeyEnrollmentVerifyError.prototype);
   }

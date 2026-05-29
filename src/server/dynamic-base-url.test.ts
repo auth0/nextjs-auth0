@@ -27,7 +27,9 @@ const defaultRoutes = {
   passwordlessVerify: "/auth/passwordless/verify",
   passkeyRegister: "/auth/passkey/register",
   passkeyChallenge: "/auth/passkey/challenge",
-  passkeyGetToken: "/auth/passkey/get-token"
+  passkeyGetToken: "/auth/passkey/get-token",
+  passkeyEnrollmentChallenge: "/auth/passkey/enrollment-challenge",
+  passkeyEnrollmentVerify: "/auth/passkey/enrollment-verify"
 };
 
 describe("APP_BASE_URL Configuration", () => {

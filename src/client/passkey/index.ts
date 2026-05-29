@@ -361,6 +361,7 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
       );
     } catch (err: any) {
       throw new PasskeyEnrollmentChallengeError(
+        err?.error ?? "unknown_error",
         err?.error_description ?? "Failed to get passkey enrollment challenge"
       );
     }
@@ -370,8 +371,8 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
     options: PasskeyEnrollmentVerifyOptions
   ): Promise<PasskeyEnrollmentVerifyResponse> {
     const verifyUrl = normalizeWithBasePath(
-      process.env.NEXT_PUBLIC_PASSKEY_ENROLL_VERIFY_ROUTE ||
-        "/auth/passkey/enroll-verify"
+      process.env.NEXT_PUBLIC_PASSKEY_ENROLLMENT_VERIFY_ROUTE ||
+        "/auth/passkey/enrollment-verify"
     );
     try {
       return await postJson<PasskeyEnrollmentVerifyResponse>(
@@ -380,6 +381,7 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
       );
     } catch (err: any) {
       throw new PasskeyEnrollmentVerifyError(
+        err?.error ?? "unknown_error",
         err?.error_description ?? "Passkey enrollment verification failed"
       );
     }
