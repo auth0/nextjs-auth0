@@ -1859,7 +1859,7 @@ After the user completes the flow, Auth0 redirects to `/auth/callback` and the S
 
 Before using passkeys, enable passkey support in the Auth0 Dashboard:
 
-1. Go to **Security → Attack Protection → Multi-factor Authentication** and ensure your application is configured for passkeys, **or** contact Auth0 support to enable the `native_passkeys` feature flag on your tenant.
+1. Go to **Security → Attack Protection → Multi-factor Authentication** and ensure your application is configured for passkeys.
 2. Go to **Applications → \<your app\> → Settings** and ensure:
    - **Allowed Callback URLs** includes your app's callback URL
    - **Allowed Web Origins** includes your app's origin (required for WebAuthn's `rpId` check)
@@ -2070,8 +2070,7 @@ Authenticated users can enroll additional passkeys — useful for backup devices
 
 #### Auth0 Setup for Enrollment
 
-1. Enable the `my_account_resource_server` and `my_account_enrollment` feature flags on your tenant.
-2. Configure a **Multi-Resource Refresh Token (MRRT)** policy for your application:
+1. Configure a **Multi-Resource Refresh Token (MRRT)** policy for your application:
    - **Audience**: `https://{your-domain}/me/`
    - **Scope**: `create:me:authentication_methods`
 3. The SDK exchanges the session refresh token for a MyAccount-scoped access token automatically at call time.

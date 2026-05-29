@@ -17,7 +17,7 @@ A Next.js App Router example demonstrating passkey (WebAuthn) authentication usi
 - Node.js 20+
 - `pnpm`
 - An [Auth0 account](https://auth0.com/signup)
-- Passkeys enabled on your Auth0 tenant (contact Auth0 support to enable the `native_passkeys` feature flag if not already available)
+- Passkeys enabled on your Auth0 tenant
 
 ## Auth0 Dashboard Setup
 
@@ -38,15 +38,14 @@ Passkeys use WebAuthn, which ties credentials to an `rpId` (relying party ID) ma
 - For local development, the `rpId` is `localhost`.
 - For production, configure a **Custom Domain** under **Branding → Custom Domains** — the passkey `rpId` will be your custom domain.
 
-> **Note:** Default database connections require an `email` field during signup. Auth0 will return an error if a required field is missing.
+> **Note:** The required signup identifier (email, username, or phone) depends on your database connection's **Attributes** configuration. Ensure the field you pass during signup matches the identifier type configured on your connection.
 
 ### 3. Enable passkey enrollment (MyAccount API)
 
 The enrollment flow uses the Auth0 MyAccount API. To enable it:
 
-1. Enable the `my_account_resource_server` and `my_account_enrollment` feature flags on your tenant.
-2. Configure a **Multi-Resource Refresh Token (MRRT)** policy for your application with audience `https://{your-domain}/me/` and scope `create:me:authentication_methods`.
-3. Ensure `create:me:authentication_methods` is included in your application's allowed scopes.
+1. Configure a **Multi-Resource Refresh Token (MRRT)** policy for your application with audience `https://{your-domain}/me/` and scope `create:me:authentication_methods`.
+2. Ensure `create:me:authentication_methods` is included in your application's allowed scopes.
 
 The SDK exchanges the session's refresh token for a MyAccount-scoped access token automatically at enrollment time via MRRT.
 
