@@ -34,6 +34,9 @@ import {
   MissingStateError,
   MyAccountApiError,
   OAuth2Error,
+  PasskeyChallengeError,
+  PasskeyGetTokenError,
+  PasskeyRegisterError,
   PasswordlessStartError,
   PasswordlessVerifyError,
   SdkError
@@ -66,10 +69,16 @@ import {
   EnrollOtpOptions,
   GetAccessTokenOptions,
   GRANT_TYPE_CUSTOM_TOKEN_EXCHANGE,
+  GRANT_TYPE_PASSKEY,
   GRANT_TYPE_PASSWORDLESS_OTP,
   LogoutStrategy,
   LogoutToken,
   MfaVerifyResponse,
+  PasskeyChallengeOptions,
+  PasskeyChallengeResponse,
+  PasskeyGetTokenOptions,
+  PasskeyRegisterOptions,
+  PasskeyRegisterResponse,
   PasswordlessStartOptions,
   PasswordlessVerifyOptions,
   PasswordlessVerifyTokenResponse,
@@ -140,7 +149,10 @@ import {
 } from "../utils/token-set-helpers.js";
 import { isUrl, toSafeRedirect } from "../utils/url-helpers.js";
 import type { AuthClientProvider } from "./auth-client-provider.js";
-import { addCacheControlHeadersForSession } from "./cookies.js";
+import {
+  addCacheControlHeadersForSession,
+  type ReadonlyRequestCookies
+} from "./cookies.js";
 import { DiscoveryCache } from "./discovery-cache.js";
 import {
   AccessTokenFactory,
@@ -235,6 +247,9 @@ export interface Routes {
   mfaAssociate: string;
   passwordlessStart: string;
   passwordlessVerify: string;
+  passkeyRegister: string;
+  passkeyChallenge: string;
+  passkeyGetToken: string;
 }
 export type RoutesOptions = Partial<Routes>;
 
@@ -625,6 +640,21 @@ export class AuthClient {
       sanitizedPathname === this.routes.passwordlessVerify
     ) {
       return this.handlePasswordlessVerify(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.passkeyRegister
+    ) {
+      return this.handlePasskeyRegister(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.passkeyChallenge
+    ) {
+      return this.handlePasskeyChallenge(req);
+    } else if (
+      method === "POST" &&
+      sanitizedPathname === this.routes.passkeyGetToken
+    ) {
+      return this.handlePasskeyGetToken(req);
     } else if (sanitizedPathname.startsWith("/me/")) {
       return this.handleMyAccount(req);
     } else if (sanitizedPathname.startsWith("/my-org/")) {
@@ -3854,6 +3884,464 @@ export class AuthClient {
 
     // Persist updated session
     await this.sessionStore.set(reqCookies, resCookies, session);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Passkey core methods
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Request a WebAuthn credential creation challenge for new user signup.
+   * Calls Auth0 POST /passkey/register.
+   */
+  async passkeyRegister(
+    options?: PasskeyRegisterOptions
+  ): Promise<PasskeyRegisterResponse> {
+    const url = new URL("/passkey/register", this.issuer).toString();
+    const httpOptions = this.httpOptions();
+    httpOptions.headers.set("Content-Type", "application/json");
+
+    const body: Record<string, unknown> = {
+      client_id: this.clientMetadata.client_id
+    };
+
+    if (this.clientSecret) {
+      body.client_secret = this.clientSecret;
+    }
+
+    // Build user_profile from provided identity fields
+    const userProfile: Record<string, unknown> = {};
+    if (options?.name) userProfile.name = options.name;
+    if (options?.email) userProfile.email = options.email;
+    if (options?.username) userProfile.username = options.username;
+    if (options?.phoneNumber) userProfile.phone_number = options.phoneNumber;
+    if (options?.givenName) userProfile.given_name = options.givenName;
+    if (options?.familyName) userProfile.family_name = options.familyName;
+    if (options?.nickname) userProfile.nickname = options.nickname;
+    if (options?.picture) userProfile.picture = options.picture;
+    body.user_profile = userProfile;
+
+    if (options?.userMetadata) body.user_metadata = options.userMetadata;
+    if (options?.connection) body.realm = options.connection;
+    if (options?.organization) body.organization = options.organization;
+
+    try {
+      const response = await this.fetch(url, {
+        method: "POST",
+        body: JSON.stringify(body),
+        ...httpOptions
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({
+          error: "unknown_error",
+          error_description: "Failed to get passkey signup challenge"
+        }));
+        throw new PasskeyRegisterError(
+          errorBody.error || "unknown_error",
+          errorBody.error_description ||
+            "Failed to get passkey signup challenge",
+          errorBody.error ? errorBody : undefined
+        );
+      }
+
+      const result = await response.json();
+      return {
+        authSession: result.auth_session,
+        authnParamsPublicKey: result.authn_params_public_key
+      };
+    } catch (e) {
+      if (e instanceof PasskeyRegisterError) throw e;
+      throw new PasskeyRegisterError(
+        "unexpected_error",
+        "Unexpected error during passkey signup challenge",
+        undefined
+      );
+    }
+  }
+
+  /**
+   * Request a WebAuthn credential assertion challenge for login.
+   * Calls Auth0 POST /passkey/challenge.
+   */
+  async passkeyChallenge(
+    options?: PasskeyChallengeOptions
+  ): Promise<PasskeyChallengeResponse> {
+    const url = new URL("/passkey/challenge", this.issuer).toString();
+    const httpOptions = this.httpOptions();
+    httpOptions.headers.set("Content-Type", "application/json");
+
+    const body: Record<string, unknown> = {
+      client_id: this.clientMetadata.client_id
+    };
+
+    if (this.clientSecret) {
+      body.client_secret = this.clientSecret;
+    }
+
+    if (options?.connection) body.realm = options.connection;
+    if (options?.organization) body.organization = options.organization;
+
+    try {
+      const response = await this.fetch(url, {
+        method: "POST",
+        body: JSON.stringify(body),
+        ...httpOptions
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({
+          error: "unknown_error",
+          error_description: "Failed to get passkey login challenge"
+        }));
+        throw new PasskeyChallengeError(
+          errorBody.error || "unknown_error",
+          errorBody.error_description ||
+            "Failed to get passkey login challenge",
+          errorBody.error ? errorBody : undefined
+        );
+      }
+
+      const result = await response.json();
+      return {
+        authSession: result.auth_session,
+        authnParamsPublicKey: result.authn_params_public_key
+      };
+    } catch (e) {
+      if (e instanceof PasskeyChallengeError) throw e;
+      throw new PasskeyChallengeError(
+        "unexpected_error",
+        "Unexpected error during passkey login challenge",
+        undefined
+      );
+    }
+  }
+
+  /**
+   * Complete a passkey signup or login by exchanging the WebAuthn assertion for a session.
+   * Calls Auth0 POST /oauth/token with the WebAuthn grant type.
+   */
+  async passkeyGetToken(
+    options: PasskeyGetTokenOptions,
+    reqCookies: RequestCookies | ReadonlyRequestCookies,
+    resCookies: ResponseCookies
+  ): Promise<void> {
+    await this.ensureDpopValidated();
+
+    const [discoveryError, authorizationServerMetadata] =
+      await this.discoverAuthorizationServerMetadata();
+
+    if (discoveryError) {
+      throw new PasskeyGetTokenError(
+        "discovery_error",
+        "Failed to discover authorization server metadata",
+        undefined
+      );
+    }
+
+    const scope =
+      getScopeForAudience(
+        this.authorizationParameters.scope,
+        this.authorizationParameters.audience
+      ) || DEFAULT_SCOPES;
+
+    // Auth0's passkey token endpoint requires a JSON body because authn_response
+    // is a nested object — URLSearchParams would stringify it, causing a 400.
+    // This means we cannot use oauth.genericTokenEndpointRequest (which only
+    // sends URLSearchParams), so DPoP must be attached manually via the handle's
+    // internal addProof method.
+    const tokenUrl = new URL("/oauth/token", this.issuer).toString();
+
+    const jsonBody: Record<string, unknown> = {
+      grant_type: GRANT_TYPE_PASSKEY,
+      client_id: this.clientMetadata.client_id,
+      auth_session: options.authSession,
+      authn_response: options.authResponse,
+      scope
+    };
+
+    if (this.clientSecret) jsonBody.client_secret = this.clientSecret;
+    if (this.authorizationParameters.audience)
+      jsonBody.audience = this.authorizationParameters.audience;
+    if (options.connection) jsonBody.realm = options.connection;
+    if (options.organization) jsonBody.organization = options.organization;
+
+    // Create DPoP handle once outside the retry closure so the handle can
+    // learn and reuse the server-issued nonce across attempts (RFC 9449).
+    const dpopHandle =
+      this.useDPoP && this.dpopKeyPair
+        ? oauth.DPoP(this.clientMetadata, this.dpopKeyPair)
+        : undefined;
+
+    let tokenEndpointResponse: oauth.TokenEndpointResponse;
+    try {
+      tokenEndpointResponse = await withDPoPNonceRetry(
+        async () => {
+          const httpOptions = this.httpOptions();
+          httpOptions.headers.set("Content-Type", "application/json");
+
+          const url = new URL(tokenUrl);
+
+          // oauth4webapi does not expose addProof/cacheNonce publicly, but they
+          // are the only way to attach a DPoP proof to a manually-built JSON
+          // request (genericTokenEndpointRequest only sends URLSearchParams).
+          if (dpopHandle) {
+            await (dpopHandle as any).addProof(
+              url,
+              httpOptions.headers,
+              "POST"
+            );
+          }
+
+          const httpResponse = await this.fetch(tokenUrl, {
+            method: "POST",
+            body: JSON.stringify(jsonBody),
+            ...httpOptions
+          });
+
+          // Let the handle learn the server-issued nonce from the response so
+          // it can be included in the next attempt's proof (RFC 9449 §8).
+          // Must happen before processGenericTokenEndpointResponse consumes
+          // the body, and before the retry check so the nonce is available on
+          // the next attempt even when the response is an error.
+          if (dpopHandle) {
+            (dpopHandle as any).cacheNonce(httpResponse, url);
+          }
+
+          // Let oauth4webapi process the response — this throws a
+          // ResponseBodyError for error responses (including use_dpop_nonce),
+          // which withDPoPNonceRetry can detect and retry on.
+          return oauth.processGenericTokenEndpointResponse(
+            authorizationServerMetadata,
+            this.clientMetadata,
+            httpResponse
+          );
+        },
+        {
+          isDPoPEnabled: !!dpopHandle,
+          ...this.dpopOptions?.retry
+        }
+      );
+    } catch (err: any) {
+      if (err?.code === oauth.JWT_CLAIM_COMPARISON) {
+        const claim = (err.cause as any)?.claim;
+        if (claim === "iss") {
+          throw new PasskeyGetTokenError(
+            "invalid_issuer",
+            "ID token issuer mismatch. Check AUTH0_DOMAIN configuration."
+          );
+        }
+        if (claim === "aud") {
+          throw new PasskeyGetTokenError(
+            "invalid_audience",
+            "ID token audience mismatch. Check AUTH0_CLIENT_ID configuration."
+          );
+        }
+      }
+
+      const oauthErr = await extractOAuthErrorDetails(err);
+      throw new PasskeyGetTokenError(
+        oauthErr.error || "unknown_error",
+        oauthErr.error_description ||
+          err.message ||
+          "Passkey verification failed",
+        oauthErr.error
+          ? {
+              error: oauthErr.error,
+              error_description: oauthErr.error_description ?? ""
+            }
+          : undefined
+      );
+    }
+
+    if (!tokenEndpointResponse.id_token) {
+      throw new PasskeyGetTokenError(
+        "missing_id_token",
+        "No id_token in passkey get-token response. Ensure 'openid' scope is requested."
+      );
+    }
+
+    const claims = jose.decodeJwt(tokenEndpointResponse.id_token);
+    const user = claims as unknown as User;
+
+    let session: SessionData = {
+      user,
+      tokenSet: {
+        accessToken: tokenEndpointResponse.access_token,
+        idToken: tokenEndpointResponse.id_token,
+        scope: tokenEndpointResponse.scope,
+        refreshToken: tokenEndpointResponse.refresh_token,
+        expiresAt:
+          Math.floor(Date.now() / 1000) +
+          Number(tokenEndpointResponse.expires_in),
+        token_type: normalizeTokenType(tokenEndpointResponse.token_type)
+      },
+      internal: {
+        sid: (claims.sid as string) || "",
+        createdAt: Math.floor(Date.now() / 1000),
+        ...(this.provider?.isResolverMode && {
+          mcd: { domain: this.domain, issuer: this.issuer }
+        })
+      }
+    };
+
+    session = await this.finalizeSession(
+      session,
+      tokenEndpointResponse.id_token
+    );
+    await this.sessionStore.set(reqCookies, resCookies, session, true);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Passkey route handlers
+  // ---------------------------------------------------------------------------
+
+  async handlePasskeyRegister(req: NextRequest): Promise<NextResponse> {
+    try {
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+      const options: PasskeyRegisterOptions = {};
+      if (bodyRecord.email) options.email = bodyRecord.email;
+      if (bodyRecord.username) options.username = bodyRecord.username;
+      if (bodyRecord.phoneNumber) options.phoneNumber = bodyRecord.phoneNumber;
+      if (bodyRecord.name) options.name = bodyRecord.name;
+      if (bodyRecord.givenName) options.givenName = bodyRecord.givenName;
+      if (bodyRecord.familyName) options.familyName = bodyRecord.familyName;
+      if (bodyRecord.nickname) options.nickname = bodyRecord.nickname;
+      if (bodyRecord.picture) options.picture = bodyRecord.picture;
+      if (bodyRecord.userMetadata)
+        options.userMetadata = bodyRecord.userMetadata;
+      if (bodyRecord.connection) options.connection = bodyRecord.connection;
+      if (bodyRecord.organization)
+        options.organization = bodyRecord.organization;
+      const challenge = await this.passkeyRegister(options);
+      return NextResponse.json(challenge);
+    } catch (e) {
+      if (e instanceof PasskeyRegisterError) {
+        if (e.error === "unexpected_error") {
+          return NextResponse.json(
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json(e.toJSON(), { status: 400 });
+      }
+      if (e instanceof SdkError) {
+        return NextResponse.json(
+          { error: e.code, error_description: e.message },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "server_error", error_description: "Internal server error" },
+        { status: 500 }
+      );
+    }
+  }
+
+  async handlePasskeyChallenge(req: NextRequest): Promise<NextResponse> {
+    try {
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+      const options: PasskeyChallengeOptions = {};
+      if (typeof bodyRecord.connection === "string")
+        options.connection = bodyRecord.connection;
+      if (typeof bodyRecord.organization === "string")
+        options.organization = bodyRecord.organization;
+      const challenge = await this.passkeyChallenge(options);
+      return NextResponse.json(challenge);
+    } catch (e) {
+      if (e instanceof PasskeyChallengeError) {
+        if (e.error === "unexpected_error") {
+          return NextResponse.json(
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json(e.toJSON(), { status: 400 });
+      }
+      if (e instanceof SdkError) {
+        return NextResponse.json(
+          { error: e.code, error_description: e.message },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "server_error", error_description: "Internal server error" },
+        { status: 500 }
+      );
+    }
+  }
+
+  async handlePasskeyGetToken(req: NextRequest): Promise<NextResponse> {
+    try {
+      const body = await parseJsonBody(req);
+      const bodyRecord = body as Record<string, any>;
+
+      const authSession = validateStringFieldAndThrow(
+        bodyRecord.authSession,
+        "authSession"
+      );
+      if (
+        !bodyRecord.authResponse ||
+        typeof bodyRecord.authResponse !== "object"
+      ) {
+        return NextResponse.json(
+          {
+            error: "invalid_request",
+            error_description: "authResponse is required"
+          },
+          { status: 400 }
+        );
+      }
+
+      const options: PasskeyGetTokenOptions = {
+        authSession,
+        authResponse: bodyRecord.authResponse
+      };
+      if (typeof bodyRecord.connection === "string")
+        options.connection = bodyRecord.connection;
+      if (typeof bodyRecord.organization === "string")
+        options.organization = bodyRecord.organization;
+
+      const res = NextResponse.json({ success: true });
+      await this.passkeyGetToken(options, req.cookies, res.cookies);
+      addCacheControlHeadersForSession(res);
+      return res;
+    } catch (e) {
+      if (e instanceof PasskeyGetTokenError) {
+        const serverErrorCodes = new Set([
+          "discovery_error",
+          "unexpected_error"
+        ]);
+        if (serverErrorCodes.has(e.error)) {
+          return NextResponse.json(
+            {
+              error: "server_error",
+              error_description: "Internal server error"
+            },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json(e.toJSON(), { status: 403 });
+      }
+      if (e instanceof SdkError) {
+        return NextResponse.json(
+          { error: e.code, error_description: e.message },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "server_error", error_description: "Internal server error" },
+        { status: 500 }
+      );
+    }
   }
 
   /**

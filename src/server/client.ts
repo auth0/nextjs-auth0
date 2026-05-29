@@ -64,6 +64,7 @@ import {
   toNextResponse,
   toUrlFromPagesRouter
 } from "./next-compat.js";
+import { ServerPasskeyClient } from "./passkey/server-passkey-client.js";
 import { ServerPasswordlessClient } from "./passwordless/server-passwordless-client.js";
 import {
   AbstractSessionStore,
@@ -449,6 +450,7 @@ export class Auth0Client {
   private routes: Routes;
   private _mfa?: ServerMfaClient;
   private _passwordless?: ServerPasswordlessClient;
+  private _passkey?: ServerPasskeyClient;
   #options: Auth0ClientOptions;
 
   constructor(options: Auth0ClientOptions = {}) {
@@ -608,6 +610,15 @@ export class Auth0Client {
       passwordlessVerify:
         process.env.NEXT_PUBLIC_PASSWORDLESS_VERIFY_ROUTE ||
         "/auth/passwordless/verify",
+      passkeyRegister:
+        process.env.NEXT_PUBLIC_PASSKEY_REGISTER_ROUTE ||
+        "/auth/passkey/register",
+      passkeyChallenge:
+        process.env.NEXT_PUBLIC_PASSKEY_CHALLENGE_ROUTE ||
+        "/auth/passkey/challenge",
+      passkeyGetToken:
+        process.env.NEXT_PUBLIC_PASSKEY_GET_TOKEN_ROUTE ||
+        "/auth/passkey/get-token",
       ...options.routes
     };
 
@@ -1185,6 +1196,19 @@ export class Auth0Client {
       this._passwordless = new ServerPasswordlessClient(this.provider);
     }
     return this._passwordless;
+  }
+
+  /**
+   * Access server-side passkey (WebAuthn) authentication and enrollment operations.
+   *
+   * Authentication: `auth0.passkey.register()`, `auth0.passkey.challenge()`, `auth0.passkey.getToken()`
+   * Enrollment: `auth0.passkey.enrollmentChallenge()`, `auth0.passkey.enrollmentVerify()`
+   */
+  get passkey(): ServerPasskeyClient {
+    if (!this._passkey) {
+      this._passkey = new ServerPasskeyClient(this.provider);
+    }
+    return this._passkey;
   }
 
   /**
