@@ -128,13 +128,24 @@ export class PasskeyGetTokenError extends PasskeyError {
  * - Insufficient scope (requires create:me:authentication_methods)
  * - Passkeys not enabled for the tenant
  */
-export class PasskeyEnrollmentChallengeError extends SdkError {
-  public readonly code: string = "passkey_enrollment_challenge_error";
+export class PasskeyEnrollmentChallengeError extends PasskeyError {
+  public readonly error: string;
+  public readonly error_description: string;
   public readonly cause?: MyAccountApiError;
 
-  constructor(message: string, cause?: MyAccountApiError) {
-    super(message);
+  public get code(): string {
+    return "passkey_enrollment_challenge_error";
+  }
+
+  constructor(
+    error: string,
+    error_description: string,
+    cause?: MyAccountApiError
+  ) {
+    super(error_description);
     this.name = "PasskeyEnrollmentChallengeError";
+    this.error = error;
+    this.error_description = error_description;
     this.cause = cause;
     Object.setPrototypeOf(this, PasskeyEnrollmentChallengeError.prototype);
   }
@@ -149,13 +160,24 @@ export class PasskeyEnrollmentChallengeError extends SdkError {
  * - Credential creation rejected
  * - Duplicate passkey (already registered)
  */
-export class PasskeyEnrollmentVerifyError extends SdkError {
-  public readonly code: string = "passkey_enrollment_verify_error";
+export class PasskeyEnrollmentVerifyError extends PasskeyError {
+  public readonly error: string;
+  public readonly error_description: string;
   public readonly cause?: MyAccountApiError;
 
-  constructor(message: string, cause?: MyAccountApiError) {
-    super(message);
+  public get code(): string {
+    return "passkey_enrollment_verify_error";
+  }
+
+  constructor(
+    error: string,
+    error_description: string,
+    cause?: MyAccountApiError
+  ) {
+    super(error_description);
     this.name = "PasskeyEnrollmentVerifyError";
+    this.error = error;
+    this.error_description = error_description;
     this.cause = cause;
     Object.setPrototypeOf(this, PasskeyEnrollmentVerifyError.prototype);
   }

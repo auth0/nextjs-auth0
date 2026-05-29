@@ -4384,26 +4384,16 @@ export class AuthClient {
       return NextResponse.json(challenge);
     } catch (e) {
       if (e instanceof PasskeyEnrollmentChallengeError) {
-        const msg = e.message;
-        if (msg === "not_authenticated" || msg === "token_error") {
-          return NextResponse.json(
-            { error: msg, error_description: e.message },
-            { status: 401 }
-          );
+        if (e.error === "not_authenticated" || e.error === "token_error") {
+          return NextResponse.json(e.toJSON(), { status: 401 });
         }
-        if (msg === "unexpected_error") {
+        if (e.error === "unexpected_error") {
           return NextResponse.json(
-            {
-              error: "server_error",
-              error_description: "Internal server error"
-            },
+            { error: "server_error", error_description: "Internal server error" },
             { status: 500 }
           );
         }
-        return NextResponse.json(
-          { error: e.code, error_description: e.message },
-          { status: 400 }
-        );
+        return NextResponse.json(e.toJSON(), { status: 400 });
       }
       if (e instanceof SdkError) {
         return NextResponse.json(
@@ -4451,26 +4441,16 @@ export class AuthClient {
       return NextResponse.json(result);
     } catch (e) {
       if (e instanceof PasskeyEnrollmentVerifyError) {
-        const msg = e.message;
-        if (msg === "not_authenticated" || msg === "token_error") {
-          return NextResponse.json(
-            { error: msg, error_description: e.message },
-            { status: 401 }
-          );
+        if (e.error === "not_authenticated" || e.error === "token_error") {
+          return NextResponse.json(e.toJSON(), { status: 401 });
         }
-        if (msg === "unexpected_error") {
+        if (e.error === "unexpected_error") {
           return NextResponse.json(
-            {
-              error: "server_error",
-              error_description: "Internal server error"
-            },
+            { error: "server_error", error_description: "Internal server error" },
             { status: 500 }
           );
         }
-        return NextResponse.json(
-          { error: e.code, error_description: e.message },
-          { status: 400 }
-        );
+        return NextResponse.json(e.toJSON(), { status: 400 });
       }
       if (e instanceof SdkError) {
         return NextResponse.json(
@@ -4497,6 +4477,7 @@ export class AuthClient {
       await this.getSessionWithDomainCheck(reqCookies);
     if (sessionError || !session) {
       throw new PasskeyEnrollmentChallengeError(
+        "not_authenticated",
         sessionError?.message ?? "The user does not have an active session."
       );
     }
@@ -4506,6 +4487,7 @@ export class AuthClient {
     });
     if (tokenSetError) {
       throw new PasskeyEnrollmentChallengeError(
+        "token_error",
         "Failed to retrieve MyAccount access token."
       );
     }
@@ -4531,14 +4513,17 @@ export class AuthClient {
           error_description: "Failed to get passkey enrollment challenge"
         }));
         throw new PasskeyEnrollmentChallengeError(
+          errorBody.error || "unknown_error",
           errorBody.error_description ||
-            "Failed to get passkey enrollment challenge"
+            "Failed to get passkey enrollment challenge",
+          errorBody.error ? errorBody : undefined
         );
       }
       const locationHeader = response.headers.get("Location") ?? "";
       const authenticationMethodId = locationHeader.split("/").pop() ?? "";
       if (!authenticationMethodId) {
         throw new PasskeyEnrollmentChallengeError(
+          "unexpected_error",
           "No authentication method ID in Location header."
         );
       }
@@ -4551,6 +4536,7 @@ export class AuthClient {
     } catch (e) {
       if (e instanceof PasskeyEnrollmentChallengeError) throw e;
       throw new PasskeyEnrollmentChallengeError(
+        "unexpected_error",
         "Unexpected error during passkey enrollment challenge."
       );
     }
@@ -4564,6 +4550,7 @@ export class AuthClient {
       await this.getSessionWithDomainCheck(reqCookies);
     if (sessionError || !session) {
       throw new PasskeyEnrollmentVerifyError(
+        "not_authenticated",
         sessionError?.message ?? "The user does not have an active session."
       );
     }
@@ -4573,6 +4560,7 @@ export class AuthClient {
     });
     if (tokenSetError) {
       throw new PasskeyEnrollmentVerifyError(
+        "token_error",
         "Failed to retrieve MyAccount access token."
       );
     }
@@ -4598,13 +4586,16 @@ export class AuthClient {
           error_description: "Failed to verify passkey enrollment"
         }));
         throw new PasskeyEnrollmentVerifyError(
-          errorBody.error_description || "Failed to verify passkey enrollment"
+          errorBody.error || "unknown_error",
+          errorBody.error_description || "Failed to verify passkey enrollment",
+          errorBody.error ? errorBody : undefined
         );
       }
       return (await response.json()) as PasskeyEnrollmentVerifyResponse;
     } catch (e) {
       if (e instanceof PasskeyEnrollmentVerifyError) throw e;
       throw new PasskeyEnrollmentVerifyError(
+        "unexpected_error",
         "Unexpected error during passkey enrollment verification."
       );
     }

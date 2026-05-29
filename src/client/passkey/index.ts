@@ -361,6 +361,7 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
       );
     } catch (err: any) {
       throw new PasskeyEnrollmentChallengeError(
+        err?.error ?? "unknown_error",
         err?.error_description ?? "Failed to get passkey enrollment challenge"
       );
     }
@@ -380,6 +381,7 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
       );
     } catch (err: any) {
       throw new PasskeyEnrollmentVerifyError(
+        err?.error ?? "unknown_error",
         err?.error_description ?? "Passkey enrollment verification failed"
       );
     }
