@@ -1,4 +1,3 @@
-import { MyAccountApiError } from "./my-account-errors.js";
 import { SdkError } from "./sdk-error.js";
 
 /**
@@ -131,7 +130,7 @@ export class PasskeyGetTokenError extends PasskeyError {
 export class PasskeyEnrollmentChallengeError extends PasskeyError {
   public readonly error: string;
   public readonly error_description: string;
-  public readonly cause?: MyAccountApiError;
+  public readonly cause?: Record<string, unknown>;
 
   public get code(): string {
     return "passkey_enrollment_challenge_error";
@@ -140,7 +139,7 @@ export class PasskeyEnrollmentChallengeError extends PasskeyError {
   constructor(
     error: string,
     error_description: string,
-    cause?: MyAccountApiError
+    cause?: Record<string, unknown>
   ) {
     super(error_description);
     this.name = "PasskeyEnrollmentChallengeError";
@@ -153,7 +152,6 @@ export class PasskeyEnrollmentChallengeError extends PasskeyError {
 
 /**
  * Thrown when verifying a passkey enrollment fails.
- * The MyAccount API returns errors in RFC 7807 problem detail format.
  *
  * Common causes:
  * - Invalid or expired auth_session
@@ -163,7 +161,7 @@ export class PasskeyEnrollmentChallengeError extends PasskeyError {
 export class PasskeyEnrollmentVerifyError extends PasskeyError {
   public readonly error: string;
   public readonly error_description: string;
-  public readonly cause?: MyAccountApiError;
+  public readonly cause?: Record<string, unknown>;
 
   public get code(): string {
     return "passkey_enrollment_verify_error";
@@ -172,7 +170,7 @@ export class PasskeyEnrollmentVerifyError extends PasskeyError {
   constructor(
     error: string,
     error_description: string,
-    cause?: MyAccountApiError
+    cause?: Record<string, unknown>
   ) {
     super(error_description);
     this.name = "PasskeyEnrollmentVerifyError";
