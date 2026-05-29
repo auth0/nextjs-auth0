@@ -2171,7 +2171,7 @@ NEXT_PUBLIC_PASSKEY_ENROLLMENT_CHALLENGE_ROUTE=/auth/passkey/enrollment-challeng
 NEXT_PUBLIC_PASSKEY_ENROLLMENT_VERIFY_ROUTE=/auth/passkey/enrollment-verify
 ```
 
-Because all three authentication variables are prefixed with `NEXT_PUBLIC_`, they are inlined by the Next.js bundler and available on the client without an extra API call.
+Because these variables are prefixed with `NEXT_PUBLIC_`, they are inlined by the Next.js bundler and available on the client without an extra API call.
 
 ### Error Types
 
