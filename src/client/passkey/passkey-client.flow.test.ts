@@ -90,7 +90,14 @@ beforeAll(() => {
   process.env.NEXT_PUBLIC_PASSKEY_CHALLENGE_ROUTE = CHALLENGE_URL;
   process.env.NEXT_PUBLIC_PASSKEY_GET_TOKEN_ROUTE = VERIFY_URL;
 
-  // jsdom does not implement navigator.credentials — define a stub so vi.spyOn works
+  // jsdom does not implement PublicKeyCredential or navigator.credentials — stub both
+  if (!window.PublicKeyCredential) {
+    Object.defineProperty(window, "PublicKeyCredential", {
+      value: class PublicKeyCredential {},
+      writable: true,
+      configurable: true
+    });
+  }
   if (!navigator.credentials) {
     Object.defineProperty(navigator, "credentials", {
       value: { create: vi.fn(), get: vi.fn() },

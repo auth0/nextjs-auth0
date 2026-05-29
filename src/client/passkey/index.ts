@@ -89,7 +89,7 @@ function decodeRequestOptions(
 // Converts all ArrayBuffers back to base64url strings for JSON transport.
 // ---------------------------------------------------------------------------
 
-function serializeCredential(
+export function serializeCredential(
   credential: PublicKeyCredential
 ): PasskeyAuthResponse {
   const response = credential.response as any;
@@ -142,6 +142,10 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
     return Promise.reject(err);
   }
 
+  if (response.status === 204) {
+    return undefined as unknown as T;
+  }
+
   return response.json();
 }
 
@@ -179,14 +183,33 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
  * @example Enroll a passkey for an existing user
  * ```typescript
  * 'use client';
- * import { passkey } from '@auth0/nextjs-auth0/client';
+ * import { passkey, serializeCredential } from '@auth0/nextjs-auth0/client';
  *
  * const challenge = await passkey.enrollmentChallenge();
- * const credential = await navigator.credentials.create({ publicKey: challenge.authnParamsPublicKey });
- * await passkey.enrollmentVerify({ authenticationMethodId: challenge.authenticationMethodId, authSession: challenge.authSession, authResponse: credential });
+ * const rawCredential = await navigator.credentials.create({ publicKey: challenge.authnParamsPublicKey });
+ * await passkey.enrollmentVerify({
+ *   authenticationMethodId: challenge.authenticationMethodId,
+ *   authSession: challenge.authSession,
+ *   authResponse: serializeCredential(rawCredential as PublicKeyCredential)
+ * });
  * ```
  */
 class ClientPasskeyClient implements PasskeyBrowserClient {
+  private assertWebAuthnSupported(): void {
+    if (
+      typeof window === "undefined" ||
+      !window.PublicKeyCredential ||
+      typeof navigator?.credentials?.create !== "function" ||
+      typeof navigator?.credentials?.get !== "function"
+    ) {
+      throw new PasskeyGetTokenError(
+        "webauthn_not_supported",
+        "WebAuthn is not supported in this browser",
+        undefined
+      );
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // One-call convenience methods
   // ---------------------------------------------------------------------------
@@ -195,10 +218,12 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
    * Complete a full passkey signup in one call.
    * Fetches the challenge, runs navigator.credentials.create(), then verifies.
    *
+   * @throws {PasskeyGetTokenError} If WebAuthn is not supported in this browser
    * @throws {PasskeyRegisterError} If the challenge request fails
    * @throws {PasskeyGetTokenError} If the WebAuthn ceremony or token exchange fails
    */
   async signup(options?: PasskeyRegisterOptions): Promise<void> {
+    this.assertWebAuthnSupported();
     const challengeUrl = normalizeWithBasePath(
       process.env.NEXT_PUBLIC_PASSKEY_REGISTER_ROUTE || "/auth/passkey/register"
     );
@@ -247,10 +272,12 @@ class ClientPasskeyClient implements PasskeyBrowserClient {
    * Complete a full passkey login in one call.
    * Fetches the challenge, runs navigator.credentials.get(), then verifies.
    *
+   * @throws {PasskeyGetTokenError} If WebAuthn is not supported in this browser
    * @throws {PasskeyChallengeError} If the challenge request fails
    * @throws {PasskeyGetTokenError} If the WebAuthn ceremony or token exchange fails
    */
   async login(options?: PasskeyChallengeOptions): Promise<void> {
+    this.assertWebAuthnSupported();
     const challengeUrl = normalizeWithBasePath(
       process.env.NEXT_PUBLIC_PASSKEY_CHALLENGE_ROUTE ||
         "/auth/passkey/challenge"
