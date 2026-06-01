@@ -12,37 +12,37 @@ importers:
         specifier: ^4.17.1
         version: 4.17.1(next@15.5.18(@babel/core@7.28.4)(react-dom@19.0.1(react@19.0.1))(react@19.0.1))(react-dom@19.0.1(react@19.0.1))(react@19.0.1)
       concurrently:
-        specifier: ^8.2.0
+        specifier: ^8.2.2
         version: 8.2.2
       cors:
         specifier: ^2.8.5
         version: 2.8.5
       dotenv:
-        specifier: ^16.0.3
+        specifier: ^16.6.1
         version: 16.6.1
       express:
-        specifier: ^4.18.2
+        specifier: ^4.21.2
         version: 4.21.2
       express-jwt:
-        specifier: ^8.0
+        specifier: ^8.5.1
         version: 8.5.1
       express-rate-limit:
         specifier: ^7.5.1
         version: 7.5.1(express@4.21.2)
       helmet:
-        specifier: ^7.1.0
+        specifier: ^7.2.0
         version: 7.2.0
       jwks-rsa:
-        specifier: ^3.1.0
+        specifier: ^3.2.0
         version: 3.2.0
       morgan:
-        specifier: ^1.10.0
+        specifier: ^1.10.1
         version: 1.10.1
       next:
         specifier: 15.5.18
         version: 15.5.18(@babel/core@7.28.4)(react-dom@19.0.1(react@19.0.1))(react@19.0.1)
       nodemon:
-        specifier: ^3.0.0
+        specifier: ^3.1.10
         version: 3.1.10
       oauth4webapi:
         specifier: ^3.8.2
@@ -57,32 +57,32 @@ importers:
         specifier: 19.0.1
         version: 19.0.1(react@19.0.1)
       reactstrap:
-        specifier: ^9.1.5
+        specifier: ^9.2.3
         version: 9.2.3(react-dom@19.0.1(react@19.0.1))(react@19.0.1)
       undici:
         specifier: ^7.24.0
         version: 7.24.0
     devDependencies:
       '@babel/core':
-        specifier: ^7.23.0
+        specifier: ^7.28.4
         version: 7.28.4
       '@testing-library/dom':
-        specifier: ^10.4.0
+        specifier: ^10.4.1
         version: 10.4.1
       '@testing-library/jest-dom':
-        specifier: ^6.6.3
+        specifier: ^6.9.1
         version: 6.9.1
       '@testing-library/react':
-        specifier: ^16.2.0
+        specifier: ^16.3.0
         version: 16.3.0(@testing-library/dom@10.4.1)(react-dom@19.0.1(react@19.0.1))(react@19.0.1)
       '@vitejs/plugin-react':
-        specifier: ^4.3.4
+        specifier: ^4.7.0
         version: 4.7.0(vite@7.1.9(@types/node@24.7.2))
       babel-jest:
         specifier: ^29.7.0
         version: 29.7.0(@babel/core@7.28.4)
       cypress:
-        specifier: ^12.7.0
+        specifier: ^12.17.4
         version: 12.17.4
       eslint-config-next:
         specifier: 15.2.4
@@ -97,13 +97,13 @@ importers:
         specifier: ^29.7.0
         version: 29.7.0
       prettier:
-        specifier: ^3.1.0
+        specifier: ^3.6.2
         version: 3.6.2
       start-server-and-test:
-        specifier: ^2.0.0
+        specifier: ^2.1.2
         version: 2.1.2
       vitest:
-        specifier: ^3.0.9
+        specifier: ^3.2.4
         version: 3.2.4(@types/node@24.7.2)(jsdom@20.0.3)
 
 packages:
@@ -1034,8 +1034,8 @@ packages:
       '@types/react-dom':
         optional: true
 
-  '@tootallnate/once@2.0.0':
-    resolution: {integrity: sha512-XCuKFP5PS55gnMVu3dty8KPatLqUoy/ZYzDzAGCQ8JNFCkLXzmI7vNHCR+XpbZaMWQK/vQubr7PkYq8g470J/A==}
+  '@tootallnate/once@2.0.1':
+    resolution: {integrity: sha512-HqmEUIGRJ5fSXchkVgR5F7qn48bDBzv0kWj/Kfu5e6uci4UlEeng4331LnBkWffb++Ei3FOVLxo8JJWMFBDMeQ==}
     engines: {node: '>= 10'}
 
   '@tybys/wasm-util@0.10.1':
@@ -5158,7 +5158,7 @@ snapshots:
       react: 19.0.1
       react-dom: 19.0.1(react@19.0.1)
 
-  '@tootallnate/once@2.0.0': {}
+  '@tootallnate/once@2.0.1': {}
 
   '@tybys/wasm-util@0.10.1':
     dependencies:
@@ -6941,7 +6941,7 @@ snapshots:
 
   http-proxy-agent@5.0.0:
     dependencies:
-      '@tootallnate/once': 2.0.0
+      '@tootallnate/once': 2.0.1
       agent-base: 6.0.2
       debug: 4.4.3(supports-color@5.5.0)
     transitivePeerDependencies:
