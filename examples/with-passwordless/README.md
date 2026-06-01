@@ -92,6 +92,8 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000). You will see three tabs — **Email OTP**, **SMS OTP**, and **Magic Link**. Sign in using any flow and you will be redirected to `/dashboard`.
 
+For the **server-side example** (no client JS), visit [http://localhost:3000/server-passwordless](http://localhost:3000/server-passwordless). All three flows run entirely via Server Actions. Watch the terminal for per-step logs prefixed with `[server-passwordless]` to trace each operation.
+
 ## How It Works
 
 All auth routes are handled by `proxy.ts` — a Next.js middleware that passes every request through `auth0.middleware()`. The SDK intercepts the relevant paths internally:
@@ -151,12 +153,16 @@ This example shows both approaches side-by-side. The **Universal Login** tab in 
 ```text
 ├── app/
 │   ├── dashboard/
-│   │   └── page.tsx            ← Protected page — shows user profile, email, phone
-│   ├── layout.tsx              ← Root layout
-│   └── page.tsx                ← Home page with the tabbed passwordless form
+│   │   └── page.tsx                  ← Protected page — shows user profile, email, phone
+│   ├── server-passwordless/
+│   │   ├── page.tsx                  ← Server-side example: Email OTP / SMS OTP / Magic Link via Server Actions
+│   │   └── verify/
+│   │       └── page.tsx              ← Server-side OTP verify step (email & SMS)
+│   ├── layout.tsx                    ← Root layout
+│   └── page.tsx                      ← Home page with the tabbed passwordless form
 ├── components/
-│   └── passwordless-form.tsx   ← Tabbed UI: Universal Login / Email OTP / SMS OTP / Magic Link
+│   └── passwordless-form.tsx         ← Tabbed UI: Universal Login / Email OTP / SMS OTP / Magic Link
 ├── lib/
-│   └── auth0.ts                ← Auth0Client singleton (shared across app and proxy)
-└── proxy.ts                    ← Next.js middleware — passes all requests through auth0.middleware()
+│   └── auth0.ts                      ← Auth0Client singleton (shared across app and proxy)
+└── proxy.ts                          ← Next.js middleware — passes all requests through auth0.middleware()
 ```

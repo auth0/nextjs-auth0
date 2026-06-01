@@ -26,7 +26,22 @@ export function getDefaultRoutes(): Routes {
       "/auth/passwordless/start",
     passwordlessVerify:
       process.env.NEXT_PUBLIC_PASSWORDLESS_VERIFY_ROUTE ||
-      "/auth/passwordless/verify"
+      "/auth/passwordless/verify",
+    passkeyRegister:
+      process.env.NEXT_PUBLIC_PASSKEY_REGISTER_ROUTE ||
+      "/auth/passkey/register",
+    passkeyChallenge:
+      process.env.NEXT_PUBLIC_PASSKEY_CHALLENGE_ROUTE ||
+      "/auth/passkey/challenge",
+    passkeyGetToken:
+      process.env.NEXT_PUBLIC_PASSKEY_GET_TOKEN_ROUTE ||
+      "/auth/passkey/get-token",
+    passkeyEnrollmentChallenge:
+      process.env.NEXT_PUBLIC_PASSKEY_ENROLLMENT_CHALLENGE_ROUTE ||
+      "/auth/passkey/enrollment-challenge",
+    passkeyEnrollmentVerify:
+      process.env.NEXT_PUBLIC_PASSKEY_ENROLLMENT_VERIFY_ROUTE ||
+      "/auth/passkey/enrollment-verify"
   };
 }
 

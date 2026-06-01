@@ -64,6 +64,7 @@ import {
   toNextResponse,
   toUrlFromPagesRouter
 } from "./next-compat.js";
+import { ServerPasskeyClient } from "./passkey/server-passkey-client.js";
 import { ServerPasswordlessClient } from "./passwordless/server-passwordless-client.js";
 import {
   AbstractSessionStore,
@@ -449,6 +450,7 @@ export class Auth0Client {
   private routes: Routes;
   private _mfa?: ServerMfaClient;
   private _passwordless?: ServerPasswordlessClient;
+  private _passkey?: ServerPasskeyClient;
   #options: Auth0ClientOptions;
 
   constructor(options: Auth0ClientOptions = {}) {
@@ -608,6 +610,21 @@ export class Auth0Client {
       passwordlessVerify:
         process.env.NEXT_PUBLIC_PASSWORDLESS_VERIFY_ROUTE ||
         "/auth/passwordless/verify",
+      passkeyRegister:
+        process.env.NEXT_PUBLIC_PASSKEY_REGISTER_ROUTE ||
+        "/auth/passkey/register",
+      passkeyChallenge:
+        process.env.NEXT_PUBLIC_PASSKEY_CHALLENGE_ROUTE ||
+        "/auth/passkey/challenge",
+      passkeyGetToken:
+        process.env.NEXT_PUBLIC_PASSKEY_GET_TOKEN_ROUTE ||
+        "/auth/passkey/get-token",
+      passkeyEnrollmentChallenge:
+        process.env.NEXT_PUBLIC_PASSKEY_ENROLLMENT_CHALLENGE_ROUTE ||
+        "/auth/passkey/enrollment-challenge",
+      passkeyEnrollmentVerify:
+        process.env.NEXT_PUBLIC_PASSKEY_ENROLLMENT_VERIFY_ROUTE ||
+        "/auth/passkey/enrollment-verify",
       ...options.routes
     };
 
@@ -661,12 +678,13 @@ export class Auth0Client {
     this.provider = new AuthClientProvider({
       domain: domainForProvider,
       allowInsecureRequests: options.allowInsecureRequests,
-      createAuthClient: (domainForClient) => {
+      createAuthClient: (domainForClient, issuerForClient) => {
         return new AuthClient({
           transactionStore: this.transactionStore,
           sessionStore: this.sessionStore,
 
           domain: domainForClient,
+          issuer: issuerForClient,
           clientId,
           clientSecret,
           clientAssertionSigningKey,
@@ -1187,6 +1205,19 @@ export class Auth0Client {
   }
 
   /**
+   * Access server-side passkey (WebAuthn) authentication and enrollment operations.
+   *
+   * Authentication: `auth0.passkey.register()`, `auth0.passkey.challenge()`, `auth0.passkey.getToken()`
+   * Enrollment: `auth0.passkey.enrollmentChallenge()`, `auth0.passkey.enrollmentVerify()`
+   */
+  get passkey(): ServerPasskeyClient {
+    if (!this._passkey) {
+      this._passkey = new ServerPasskeyClient(this.provider);
+    }
+    return this._passkey;
+  }
+
+  /**
    * updateSession updates the session of the currently authenticated user. If the user does not have a session, an error is thrown.
    *
    * This method can be used in middleware and `getServerSideProps`, API routes, and middleware in the **Pages Router**.
@@ -1422,10 +1453,11 @@ export class Auth0Client {
       });
     }
 
-    // Build issuer URL from authClient's domain
-    const issuer = `https://${authClient.domain}/`;
+    // Use the full issuer URL from authClient (including any path component for
+    // providers like Okta custom authorization servers, e.g.
+    // https://myorg.okta.com/oauth2/default/) so the audience is correct.
     const getMyAccountTokenOpts = {
-      audience: `${issuer}me/`,
+      audience: `${authClient.issuer}me/`,
       scope: "create:me:connected_accounts"
     };
 
