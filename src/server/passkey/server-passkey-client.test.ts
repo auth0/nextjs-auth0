@@ -18,6 +18,7 @@ import {
 } from "../../test/defaults.js";
 import { AuthClientProvider } from "../auth-client-provider.js";
 import { AuthClient } from "../auth-client.js";
+import { encrypt } from "../cookies.js";
 import { StatelessSessionStore } from "../session/stateless-session-store.js";
 import { TransactionStore } from "../transaction-store.js";
 import { ServerPasskeyClient } from "./server-passkey-client.js";
@@ -609,5 +610,323 @@ describe("ServerPasskeyClient.getToken()", () => {
         authResponse: MOCK_AUTH_RESPONSE
       })
     ).rejects.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Enrollment helpers
+// ---------------------------------------------------------------------------
+
+const TEST_SECRET = "test-secret-long-enough-for-hs256-algorithm";
+
+async function makeSessionCookie(): Promise<string> {
+  const session = {
+    user: { sub: DEFAULT.sub },
+    tokenSet: {
+      accessToken: "main-access-token",
+      refreshToken: "main-refresh-token",
+      idToken: "mock-id-token",
+      scope: "openid profile email",
+      expiresAt: Math.floor(Date.now() / 1000) + 3600,
+      token_type: "Bearer" as const
+    },
+    internal: { sid: DEFAULT.sid, createdAt: Math.floor(Date.now() / 1000) }
+  };
+  const expiration = Math.floor(Date.now() / 1000) + 3600;
+  return encrypt(session, TEST_SECRET, expiration);
+}
+
+// MSW handler that returns a new MyAccount access token on /oauth/token
+const myAccountTokenHandler = http.post(
+  `https://${DEFAULT.domain}/oauth/token`,
+  () =>
+    HttpResponse.json({
+      access_token: "myaccount-access-token",
+      token_type: "Bearer",
+      expires_in: 86400,
+      scope: "create:me:authentication_methods"
+    })
+);
+
+// ---------------------------------------------------------------------------
+// enrollmentChallenge
+// ---------------------------------------------------------------------------
+
+describe("ServerPasskeyClient.enrollmentChallenge()", () => {
+  beforeEach(() => {
+    mockCookieHeaders = new Headers();
+  });
+
+  it("returns enrollment challenge on success (App Router)", async () => {
+    const sessionCookie = await makeSessionCookie();
+    mockCookieHeaders.set(
+      "set-cookie",
+      `__session=${sessionCookie}; Path=/; HttpOnly`
+    );
+
+    server.use(
+      myAccountTokenHandler,
+      http.post(`https://${DEFAULT.domain}/me/v1/authentication-methods`, () =>
+        HttpResponse.json(
+          {
+            auth_session: DEFAULT.authSession,
+            authn_params_public_key: { challenge: "enroll-challenge" }
+          },
+          {
+            headers: {
+              Location: `https://${DEFAULT.domain}/me/v1/authentication-methods/amth_abc123`
+            }
+          }
+        )
+      )
+    );
+
+    const client = await makePasskeyClient(TEST_SECRET);
+    const result = await client.enrollmentChallenge();
+
+    expect(result.authenticationMethodId).toBe("amth_abc123");
+    expect(result.authSession).toBe(DEFAULT.authSession);
+    expect(result.authnParamsPublicKey).toEqual({
+      challenge: "enroll-challenge"
+    });
+  });
+
+  it("passes connection and identity options in request body", async () => {
+    const sessionCookie = await makeSessionCookie();
+    mockCookieHeaders.set(
+      "set-cookie",
+      `__session=${sessionCookie}; Path=/; HttpOnly`
+    );
+
+    let capturedBody: any;
+    server.use(
+      myAccountTokenHandler,
+      http.post(
+        `https://${DEFAULT.domain}/me/v1/authentication-methods`,
+        async ({ request }) => {
+          capturedBody = await request.json();
+          return HttpResponse.json(
+            {
+              auth_session: DEFAULT.authSession,
+              authn_params_public_key: {}
+            },
+            {
+              headers: {
+                Location: `https://${DEFAULT.domain}/me/v1/authentication-methods/amth_opts`
+              }
+            }
+          );
+        }
+      )
+    );
+
+    const client = await makePasskeyClient(TEST_SECRET);
+    await client.enrollmentChallenge({
+      connection: "Username-Password-Authentication",
+      userIdentityId: "identity-user-id"
+    });
+
+    expect(capturedBody.connection).toBe("Username-Password-Authentication");
+    expect(capturedBody.identity).toBe("identity-user-id");
+  });
+
+  it("throws PasskeyEnrollmentChallengeError when not authenticated", async () => {
+    // No session cookie — empty mockCookieHeaders
+    const client = await makePasskeyClient(TEST_SECRET);
+
+    await expect(client.enrollmentChallenge()).rejects.toMatchObject({
+      name: "PasskeyEnrollmentChallengeError",
+      code: "passkey_enrollment_challenge_error"
+    });
+  });
+
+  it("throws PasskeyEnrollmentChallengeError on Auth0 API failure", async () => {
+    const sessionCookie = await makeSessionCookie();
+    mockCookieHeaders.set(
+      "set-cookie",
+      `__session=${sessionCookie}; Path=/; HttpOnly`
+    );
+
+    server.use(
+      myAccountTokenHandler,
+      http.post(`https://${DEFAULT.domain}/me/v1/authentication-methods`, () =>
+        HttpResponse.json(
+          {
+            error: "passkeys_not_enabled",
+            error_description: "Passkeys are not enabled."
+          },
+          { status: 400 }
+        )
+      )
+    );
+
+    const client = await makePasskeyClient(TEST_SECRET);
+    await expect(client.enrollmentChallenge()).rejects.toMatchObject({
+      name: "PasskeyEnrollmentChallengeError",
+      code: "passkey_enrollment_challenge_error"
+    });
+  });
+
+  it("returns enrollment challenge via Pages Router overload", async () => {
+    const { cookies } = await import("next/headers.js");
+    vi.mocked(cookies).mockClear();
+
+    const sessionCookie = await makeSessionCookie();
+
+    server.use(
+      myAccountTokenHandler,
+      http.post(`https://${DEFAULT.domain}/me/v1/authentication-methods`, () =>
+        HttpResponse.json(
+          { auth_session: DEFAULT.authSession, authn_params_public_key: {} },
+          {
+            headers: {
+              Location: `https://${DEFAULT.domain}/me/v1/authentication-methods/amth_pages`
+            }
+          }
+        )
+      )
+    );
+
+    const req = new NextRequest(
+      new URL("/api/passkey/enrollment-challenge", DEFAULT.appBaseUrl),
+      {
+        method: "POST",
+        headers: { cookie: `__session=${sessionCookie}` }
+      }
+    );
+
+    const client = await makePasskeyClient(TEST_SECRET);
+    const result = await client.enrollmentChallenge(req);
+
+    expect(result.authenticationMethodId).toBe("amth_pages");
+    expect(vi.mocked(cookies)).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// enrollmentVerify
+// ---------------------------------------------------------------------------
+
+describe("ServerPasskeyClient.enrollmentVerify()", () => {
+  const MOCK_ENROLL_VERIFY_OPTIONS = {
+    authenticationMethodId: "amth_abc123",
+    authSession: "enroll-auth-session",
+    authResponse: MOCK_AUTH_RESPONSE
+  };
+
+  const MOCK_AUTHENTICATION_METHOD = {
+    id: "amth_abc123",
+    type: "passkey",
+    createdAt: "2024-01-01T00:00:00.000Z",
+    keyId: "key-id-abc"
+  };
+
+  beforeEach(() => {
+    mockCookieHeaders = new Headers();
+  });
+
+  it("returns authentication method on success (App Router)", async () => {
+    const sessionCookie = await makeSessionCookie();
+    mockCookieHeaders.set(
+      "set-cookie",
+      `__session=${sessionCookie}; Path=/; HttpOnly`
+    );
+
+    server.use(
+      myAccountTokenHandler,
+      http.post(
+        `https://${DEFAULT.domain}/me/v1/authentication-methods/amth_abc123/verify`,
+        () => HttpResponse.json(MOCK_AUTHENTICATION_METHOD)
+      )
+    );
+
+    const client = await makePasskeyClient(TEST_SECRET);
+    const result = await client.enrollmentVerify(MOCK_ENROLL_VERIFY_OPTIONS);
+
+    expect(result.id).toBe("amth_abc123");
+    expect(result.type).toBe("passkey");
+  });
+
+  it("throws PasskeyEnrollmentVerifyError when not authenticated", async () => {
+    const client = await makePasskeyClient(TEST_SECRET);
+
+    await expect(
+      client.enrollmentVerify(MOCK_ENROLL_VERIFY_OPTIONS)
+    ).rejects.toMatchObject({
+      name: "PasskeyEnrollmentVerifyError",
+      code: "passkey_enrollment_verify_error"
+    });
+  });
+
+  it("throws PasskeyEnrollmentVerifyError on Auth0 API failure", async () => {
+    const sessionCookie = await makeSessionCookie();
+    mockCookieHeaders.set(
+      "set-cookie",
+      `__session=${sessionCookie}; Path=/; HttpOnly`
+    );
+
+    server.use(
+      myAccountTokenHandler,
+      http.post(
+        `https://${DEFAULT.domain}/me/v1/authentication-methods/amth_abc123/verify`,
+        () =>
+          HttpResponse.json(
+            { error: "invalid_grant", error_description: "Invalid assertion." },
+            { status: 400 }
+          )
+      )
+    );
+
+    const client = await makePasskeyClient(TEST_SECRET);
+    await expect(
+      client.enrollmentVerify(MOCK_ENROLL_VERIFY_OPTIONS)
+    ).rejects.toMatchObject({
+      name: "PasskeyEnrollmentVerifyError",
+      code: "passkey_enrollment_verify_error"
+    });
+  });
+
+  it("returns authentication method via Pages Router overload", async () => {
+    const { cookies } = await import("next/headers.js");
+    vi.mocked(cookies).mockClear();
+
+    const sessionCookie = await makeSessionCookie();
+
+    server.use(
+      myAccountTokenHandler,
+      http.post(
+        `https://${DEFAULT.domain}/me/v1/authentication-methods/amth_abc123/verify`,
+        () => HttpResponse.json(MOCK_AUTHENTICATION_METHOD)
+      )
+    );
+
+    const req = new NextRequest(
+      new URL("/api/passkey/enrollment-verify", DEFAULT.appBaseUrl),
+      {
+        method: "POST",
+        headers: { cookie: `__session=${sessionCookie}` }
+      }
+    );
+
+    const client = await makePasskeyClient(TEST_SECRET);
+    const result = await client.enrollmentVerify(
+      req,
+      MOCK_ENROLL_VERIFY_OPTIONS
+    );
+
+    expect(result.id).toBe("amth_abc123");
+    expect(vi.mocked(cookies)).not.toHaveBeenCalled();
+  });
+
+  it("throws TypeError when options are missing for Pages Router", async () => {
+    const client = await makePasskeyClient(TEST_SECRET);
+    const req = new NextRequest(
+      new URL("/api/passkey/enrollment-verify", DEFAULT.appBaseUrl),
+      { method: "POST" }
+    );
+
+    await expect((client.enrollmentVerify as any)(req)).rejects.toThrow(
+      TypeError
+    );
   });
 });

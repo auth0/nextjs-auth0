@@ -331,6 +331,25 @@ export interface PasskeyClient {
    * @param options - `authSession` from the challenge + serialised credential.
    */
   getToken(options: PasskeyGetTokenOptions): Promise<void>;
+
+  /**
+   * Request a WebAuthn credential creation challenge to enroll a new passkey
+   * for the currently authenticated user.
+   * Calls Auth0 MyAccount `POST /me/v1/authentication-methods`.
+   * Requires an active session.
+   */
+  enrollmentChallenge(
+    options?: PasskeyEnrollmentChallengeOptions
+  ): Promise<PasskeyEnrollmentChallengeResponse>;
+
+  /**
+   * Complete a passkey enrollment by verifying the WebAuthn attestation.
+   * Calls Auth0 MyAccount `POST /me/v1/authentication-methods/{id}/verify`.
+   * Requires an active session.
+   */
+  enrollmentVerify(
+    options: PasskeyEnrollmentVerifyOptions
+  ): Promise<PasskeyEnrollmentVerifyResponse>;
 }
 
 /**
