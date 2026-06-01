@@ -63,3 +63,12 @@ export {
   IssuerValidationError,
   SessionDomainMismatchError
 } from "./mcd.js";
+
+export {
+  PasskeyRegisterError,
+  PasskeyChallengeError,
+  PasskeyGetTokenError,
+  PasskeyEnrollmentChallengeError,
+  PasskeyEnrollmentVerifyError,
+  type PasskeyApiErrorResponse
+} from "./passkey-errors.js";

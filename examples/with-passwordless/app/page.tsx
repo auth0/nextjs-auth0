@@ -3,6 +3,15 @@ import { redirect } from "next/navigation";
 import { PasswordlessForm } from "@/components/passwordless-form";
 import { auth0 } from "@/lib/auth0";
 
+/**
+ * Render the sign-in page or redirect authenticated users to the dashboard.
+ *
+ * Renders a centered sign-in UI that describes available passwordless methods
+ * (email/SMS one-time codes or magic link), includes the <PasswordlessForm />
+ * component to initiate authentication, and links to a server-side example.
+ *
+ * @returns The sign-in page JSX; if a user session exists, the function triggers a navigation to `/dashboard` instead of rendering the page.
+ */
 export default async function Home() {
   const session = await auth0.getSession();
 
@@ -23,6 +32,13 @@ export default async function Home() {
         </div>
 
         <PasswordlessForm />
+
+        <p className="mt-6 text-center text-xs text-gray-400">
+          Looking for a server-side example?{" "}
+          <a href="/server-passwordless" className="text-blue-600 underline hover:text-blue-800">
+            Email OTP / SMS OTP / Magic Link via Server Actions
+          </a>
+        </p>
       </div>
     </main>
   );

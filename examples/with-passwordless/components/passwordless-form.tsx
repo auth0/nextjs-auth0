@@ -7,6 +7,13 @@ import { passwordless } from "@auth0/nextjs-auth0/client";
 type ConnectionType = "email" | "sms" | "magic-link" | "universal-login";
 type Step = "start" | "verify" | "link-sent";
 
+/**
+ * Renders a passwordless authentication form that supports email OTP, SMS OTP, magic links, and redirect to Universal Login.
+ *
+ * The component manages input state, starts passwordless flows (send code or magic link), verifies one-time codes, displays errors, and navigates to /dashboard on successful verification. UI flows: "start" (choose method and send), "verify" (enter 6-digit code), and "link-sent" (magic link confirmation).
+ *
+ * @returns The JSX element for the passwordless authentication UI.
+ */
 export function PasswordlessForm() {
   const [connection, setConnection] = useState<ConnectionType>("email");
   const [email, setEmail] = useState("");
@@ -33,15 +40,12 @@ export function PasswordlessForm() {
       }
       setStep("verify");
     } catch (err) {
-      const code = (err as { code?: string; error_description?: string })?.code;
-      if (code) {
-        setError(
-          (err as { error_description?: string }).error_description ??
-            "Unable to start passwordless flow."
-        );
-      } else {
-        setError("An unexpected error occurred. Please try again.");
-      }
+      const e = err as { code?: string; error_description?: string };
+      setError(
+        e.code === "passwordless_start_error"
+          ? (e.error_description ?? "Failed to send. Please try again.")
+          : "An unexpected error occurred. Please try again."
+      );
     } finally {
       setLoading(false);
     }
@@ -70,15 +74,13 @@ export function PasswordlessForm() {
       window.location.href = "/dashboard";
     } catch (err) {
       const e = err as { code?: string; error?: string; error_description?: string };
-      if (e.code) {
-        setError(
-          e.error === "invalid_grant"
+      setError(
+        e.code === "passwordless_verify_error"
+          ? e.error === "invalid_grant"
             ? "Invalid or expired code. Please check and try again."
-            : e.error_description ?? "Unable to verify code."
-        );
-      } else {
-        setError("An unexpected error occurred. Please try again.");
-      }
+            : (e.error_description ?? "Verification failed. Please try again.")
+          : "An unexpected error occurred. Please try again."
+      );
     } finally {
       setLoading(false);
     }
@@ -154,12 +156,14 @@ export function PasswordlessForm() {
             value={code}
             onChange={(e) => setCode(e.target.value)}
             required
+            minLength={6}
+            maxLength={6}
             disabled={loading}
             className={inputClass}
           />
         </div>
 
-        <button type="submit" disabled={loading || code.length < 4} className={btnPrimary}>
+        <button type="submit" disabled={loading || code.length < 6} className={btnPrimary}>
           {loading ? "Verifying…" : "Sign in"}
         </button>
 
