@@ -525,9 +525,14 @@ export async function middleware(request: NextRequest) {
 
   if (!session) {
     // user is not authenticated, redirect to login page
-    return NextResponse.redirect(
-      new URL("/auth/login", request.nextUrl.origin)
+    // preserve the URL the user was trying to reach so they land back there after login
+    // returnTo must be a relative path — absolute external URLs are rejected to prevent open redirects
+    const loginUrl = new URL("/auth/login", request.nextUrl.origin);
+    loginUrl.searchParams.set(
+      "returnTo",
+      request.nextUrl.pathname + request.nextUrl.search
     );
+    return NextResponse.redirect(loginUrl);
   }
 
   // the headers from the auth middleware should always be returned
@@ -552,6 +557,8 @@ export default function Profile({ user }) {
   return <div>Hello {user.name}</div>;
 }
 
+// withPageAuthRequired automatically uses ctx.resolvedUrl as returnTo, so the user
+// is redirected back to the exact page (including query string) they tried to visit.
 // You can optionally pass your own `getServerSideProps` function into
 // `withPageAuthRequired` and the props will be merged with the `user` prop
 export const getServerSideProps = auth0.withPageAuthRequired();
@@ -572,7 +579,8 @@ export default auth0.withPageAuthRequired(
   },
   { returnTo: "/profile" }
 );
-// You need to provide a `returnTo` since Server Components aren't aware of the page's URL
+// returnTo is required for App Router — Server Components don't know their own URL.
+// For dynamic routes, pass a function: returnTo({ params }) { return `/profile/${params.id}`; }
 ```
 
 ## Protecting a Client-Side Rendered (CSR) Page
