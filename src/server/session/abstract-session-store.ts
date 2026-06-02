@@ -11,13 +11,16 @@ import {
 /**
  * A predicate function that decides whether the session should be rolled for an
  * incoming request. Return `false` to skip rolling the session for that request.
+ * May be synchronous or asynchronous.
  *
  * Useful for reducing load on the session store (e.g. Redis) by only rolling the
  * session on requests you care about.
  *
- * If the hook throws, the SDK fails open and rolls the session as usual.
+ * If the hook throws or rejects, the SDK fails open and rolls the session as usual.
  */
-export type BeforeSessionRolledHook = (req: NextRequest) => boolean;
+export type BeforeSessionRolledHook = (
+  req: NextRequest
+) => boolean | Promise<boolean>;
 
 export interface SessionCookieOptions {
   /**
@@ -67,10 +70,11 @@ export interface SessionConfiguration {
   /**
    * A predicate function that decides whether the session should be rolled for an
    * incoming request. Return `false` to skip rolling the session for that request.
+   * May be synchronous or asynchronous.
    *
    * Allows you to filter and optimize requests to the session store. Only consulted
-   * when `rolling` is enabled. If the hook throws, the SDK fails open and rolls the
-   * session as usual.
+   * when `rolling` is enabled. If the hook throws or rejects, the SDK fails open and
+   * rolls the session as usual.
    *
    * Default: `undefined` (the session is always rolled).
    */
@@ -177,13 +181,17 @@ export abstract class AbstractSessionStore {
     return this.rolling;
   }
 
-  shouldRollSession(req: NextRequest): boolean {
+  async shouldRollSession(req: NextRequest): Promise<boolean> {
+    if (!this.rolling) {
+      return false;
+    }
+
     if (!this.beforeSessionRolled) {
       return true;
     }
 
     try {
-      return this.beforeSessionRolled(req);
+      return await this.beforeSessionRolled(req);
     } catch (e) {
       console.warn(
         "The beforeSessionRolled hook threw an error. Defaulting to rolling the session.",

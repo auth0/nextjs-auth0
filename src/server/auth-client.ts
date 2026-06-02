@@ -685,7 +685,7 @@ export class AuthClient {
 
       if (
         this.sessionStore.isRolling &&
-        this.sessionStore.shouldRollSession(req)
+        (await this.sessionStore.shouldRollSession(req))
       ) {
         const { error, session } = await this.getSessionWithDomainCheck(
           req.cookies

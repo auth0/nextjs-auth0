@@ -953,7 +953,7 @@ ca/T0LLtgmbMmxSv/MmzIg==
 
         const buildAuthClient = (
           secret: string,
-          beforeSessionRolled: (req: NextRequest) => boolean
+          beforeSessionRolled: (req: NextRequest) => boolean | Promise<boolean>
         ) => {
           const transactionStore = new TransactionStore({ secret });
           const sessionStore = new StatelessSessionStore({
@@ -1009,22 +1009,77 @@ ca/T0LLtgmbMmxSv/MmzIg==
           const consoleWarnSpy = vi
             .spyOn(console, "warn")
             .mockImplementation(() => {});
-          const beforeSessionRolled = vi.fn().mockImplementation(() => {
-            throw new Error("hook failure");
-          });
+          try {
+            const beforeSessionRolled = vi.fn().mockImplementation(() => {
+              throw new Error("hook failure");
+            });
+            const authClient = buildAuthClient(secret, beforeSessionRolled);
+            const request = await buildRollingRequest(secret);
+
+            const response = await authClient.handler(request);
+
+            expect(beforeSessionRolled).toHaveBeenCalledOnce();
+            expect(consoleWarnSpy).toHaveBeenCalled();
+            // failing open means the session is still rolled
+            const updatedSessionCookie = response.cookies.get("__session");
+            expect(updatedSessionCookie).toBeDefined();
+            expect(updatedSessionCookie?.maxAge).toEqual(1800);
+          } finally {
+            consoleWarnSpy.mockRestore();
+          }
+        });
+
+        it("should await an async hook and roll the session when it resolves true", async () => {
+          const secret = await generateSecret(32);
+          const beforeSessionRolled = vi.fn().mockResolvedValue(true);
           const authClient = buildAuthClient(secret, beforeSessionRolled);
           const request = await buildRollingRequest(secret);
 
           const response = await authClient.handler(request);
 
           expect(beforeSessionRolled).toHaveBeenCalledOnce();
-          expect(consoleWarnSpy).toHaveBeenCalled();
-          // failing open means the session is still rolled
           const updatedSessionCookie = response.cookies.get("__session");
           expect(updatedSessionCookie).toBeDefined();
           expect(updatedSessionCookie?.maxAge).toEqual(1800);
+        });
 
-          consoleWarnSpy.mockRestore();
+        it("should await an async hook and not roll the session when it resolves false", async () => {
+          const secret = await generateSecret(32);
+          const beforeSessionRolled = vi.fn().mockResolvedValue(false);
+          const authClient = buildAuthClient(secret, beforeSessionRolled);
+          const request = await buildRollingRequest(secret);
+
+          const response = await authClient.handler(request);
+
+          expect(beforeSessionRolled).toHaveBeenCalledOnce();
+          // hook opted out — the middleware must not touch the session cookie
+          const updatedSessionCookie = response.cookies.get("__session");
+          expect(updatedSessionCookie).toBeUndefined();
+        });
+
+        it("should fail open and roll the session when an async hook rejects", async () => {
+          const secret = await generateSecret(32);
+          const consoleWarnSpy = vi
+            .spyOn(console, "warn")
+            .mockImplementation(() => {});
+          try {
+            const beforeSessionRolled = vi
+              .fn()
+              .mockRejectedValue(new Error("async hook failure"));
+            const authClient = buildAuthClient(secret, beforeSessionRolled);
+            const request = await buildRollingRequest(secret);
+
+            const response = await authClient.handler(request);
+
+            expect(beforeSessionRolled).toHaveBeenCalledOnce();
+            expect(consoleWarnSpy).toHaveBeenCalled();
+            // failing open means the session is still rolled
+            const updatedSessionCookie = response.cookies.get("__session");
+            expect(updatedSessionCookie).toBeDefined();
+            expect(updatedSessionCookie?.maxAge).toEqual(1800);
+          } finally {
+            consoleWarnSpy.mockRestore();
+          }
         });
       });
     });
