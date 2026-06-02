@@ -4081,17 +4081,31 @@ const result = await auth0.customTokenExchange({
 
 ### With Actor Token (Delegation)
 
-For delegation scenarios where a service acts on behalf of a user:
+For delegation scenarios where a service or agent acts on behalf of a user (RFC 8693 §4.4). The `act` claim in the returned ID token identifies the acting party and is automatically decoded and returned on the response:
 
 ```ts
 const result = await auth0.customTokenExchange({
   subjectToken: userToken,
   subjectTokenType: "urn:acme:user-token",
-  actorToken: serviceToken,
-  actorTokenType: "urn:acme:service-token",
+  actorToken: agentToken,
+  actorTokenType: "https://idp.example.com/token-type/agent",
   audience: "https://downstream-api.example.com"
 });
+
+// act claim decoded from the ID token — set via Auth0 Action using api.authentication.setActor()
+console.log(result.act);
+// { sub: "agent|abc123" }
 ```
+
+The `act` claim is also accessible on `session.user.act` when present in a session-creating flow (e.g. standard OIDC login with an Action that calls `api.authentication.setActor()`):
+
+```ts
+const session = await auth0.getSession();
+console.log(session?.user?.act);
+// { sub: "agent|abc123" }
+```
+
+> **Note**: Auth0 suppresses the refresh token when `actor_token` is present in the request. `result.refreshToken` will be `undefined` in delegation flows — this is expected behaviour, not an error.
 
 ### Error Handling
 
