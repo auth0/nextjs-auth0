@@ -643,29 +643,26 @@ describe("Custom Token Exchange", () => {
     it("should decode and return act claim from ID token", async () => {
       const actClaim = { sub: "agent|abc123", client_id: "agent-client" };
       server.use(
-        http.post(
-          `https://${DEFAULT.domain}/oauth/token`,
-          async () => {
-            const jwt = await new jose.SignJWT({
-              sid: DEFAULT.sid,
-              act: actClaim
-            })
-              .setProtectedHeader({ alg: DEFAULT.alg })
-              .setSubject(DEFAULT.sub)
-              .setIssuedAt()
-              .setIssuer(authorizationServerMetadata.issuer)
-              .setAudience(DEFAULT.clientId)
-              .setExpirationTime("2h")
-              .sign(keyPair.privateKey);
+        http.post(`https://${DEFAULT.domain}/oauth/token`, async () => {
+          const jwt = await new jose.SignJWT({
+            sid: DEFAULT.sid,
+            act: actClaim
+          })
+            .setProtectedHeader({ alg: DEFAULT.alg })
+            .setSubject(DEFAULT.sub)
+            .setIssuedAt()
+            .setIssuer(authorizationServerMetadata.issuer)
+            .setAudience(DEFAULT.clientId)
+            .setExpirationTime("2h")
+            .sign(keyPair.privateKey);
 
-            return HttpResponse.json({
-              token_type: "Bearer",
-              access_token: "at_test",
-              id_token: jwt,
-              expires_in: 3600
-            });
-          }
-        )
+          return HttpResponse.json({
+            token_type: "Bearer",
+            access_token: "at_test",
+            id_token: jwt,
+            expires_in: 3600
+          });
+        })
       );
 
       const [error, response] = await authClient.customTokenExchange({
@@ -717,29 +714,26 @@ describe("Custom Token Exchange", () => {
         act: { sub: "agent|abc123" }
       };
       server.use(
-        http.post(
-          `https://${DEFAULT.domain}/oauth/token`,
-          async () => {
-            const jwt = await new jose.SignJWT({
-              sid: DEFAULT.sid,
-              act: nestedAct
-            })
-              .setProtectedHeader({ alg: DEFAULT.alg })
-              .setSubject(DEFAULT.sub)
-              .setIssuedAt()
-              .setIssuer(authorizationServerMetadata.issuer)
-              .setAudience(DEFAULT.clientId)
-              .setExpirationTime("2h")
-              .sign(keyPair.privateKey);
+        http.post(`https://${DEFAULT.domain}/oauth/token`, async () => {
+          const jwt = await new jose.SignJWT({
+            sid: DEFAULT.sid,
+            act: nestedAct
+          })
+            .setProtectedHeader({ alg: DEFAULT.alg })
+            .setSubject(DEFAULT.sub)
+            .setIssuedAt()
+            .setIssuer(authorizationServerMetadata.issuer)
+            .setAudience(DEFAULT.clientId)
+            .setExpirationTime("2h")
+            .sign(keyPair.privateKey);
 
-            return HttpResponse.json({
-              token_type: "Bearer",
-              access_token: "at_test",
-              id_token: jwt,
-              expires_in: 3600
-            });
-          }
-        )
+          return HttpResponse.json({
+            token_type: "Bearer",
+            access_token: "at_test",
+            id_token: jwt,
+            expires_in: 3600
+          });
+        })
       );
 
       const [error, response] = await authClient.customTokenExchange({
@@ -756,27 +750,24 @@ describe("Custom Token Exchange", () => {
 
     it("should not error when refresh token is absent (actor token suppression)", async () => {
       server.use(
-        http.post(
-          `https://${DEFAULT.domain}/oauth/token`,
-          async () => {
-            const jwt = await new jose.SignJWT({ sid: DEFAULT.sid })
-              .setProtectedHeader({ alg: DEFAULT.alg })
-              .setSubject(DEFAULT.sub)
-              .setIssuedAt()
-              .setIssuer(authorizationServerMetadata.issuer)
-              .setAudience(DEFAULT.clientId)
-              .setExpirationTime("2h")
-              .sign(keyPair.privateKey);
+        http.post(`https://${DEFAULT.domain}/oauth/token`, async () => {
+          const jwt = await new jose.SignJWT({ sid: DEFAULT.sid })
+            .setProtectedHeader({ alg: DEFAULT.alg })
+            .setSubject(DEFAULT.sub)
+            .setIssuedAt()
+            .setIssuer(authorizationServerMetadata.issuer)
+            .setAudience(DEFAULT.clientId)
+            .setExpirationTime("2h")
+            .sign(keyPair.privateKey);
 
-            return HttpResponse.json({
-              token_type: "Bearer",
-              access_token: "at_test",
-              id_token: jwt,
-              expires_in: 3600
-              // no refresh_token — Auth0 suppresses it when actor_token is present
-            });
-          }
-        )
+          return HttpResponse.json({
+            token_type: "Bearer",
+            access_token: "at_test",
+            id_token: jwt,
+            expires_in: 3600
+            // no refresh_token — Auth0 suppresses it when actor_token is present
+          });
+        })
       );
 
       const [error, response] = await authClient.customTokenExchange({
