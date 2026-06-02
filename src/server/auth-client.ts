@@ -2984,6 +2984,25 @@ export class AuthClient {
       ];
     }
 
+    // Validate actorTokenType URI (same rules as subjectTokenType)
+    if (options.actorToken && options.actorTokenType) {
+      const actorTokenTypeError = this.validateSubjectTokenType(
+        options.actorTokenType
+      );
+      if (actorTokenTypeError) {
+        return [
+          new CustomTokenExchangeError(
+            actorTokenTypeError.code,
+            actorTokenTypeError.message.replace(
+              "subject_token_type",
+              "actor_token_type"
+            )
+          ),
+          null
+        ];
+      }
+    }
+
     // Discover authorization server metadata
     const [discoveryError, authorizationServerMetadata] =
       await this.discoverAuthorizationServerMetadata();
@@ -3084,6 +3103,13 @@ export class AuthClient {
       ];
     }
 
+    // Decode act claim from ID token for delegation/impersonation flows (RFC 8693 §4.4)
+    const act = tokenEndpointResponse.id_token
+      ? (jose.decodeJwt(tokenEndpointResponse.id_token).act as
+          | import("../types/token-vault.js").CustomTokenExchangeResponse["act"]
+          | undefined)
+      : undefined;
+
     // Map response: snake_case → camelCase
     return [
       null,
@@ -3093,7 +3119,8 @@ export class AuthClient {
         refreshToken: tokenEndpointResponse.refresh_token,
         tokenType: tokenEndpointResponse.token_type ?? "Bearer",
         expiresIn: Number(tokenEndpointResponse.expires_in),
-        scope: tokenEndpointResponse.scope
+        scope: tokenEndpointResponse.scope,
+        act
       }
     ];
   }

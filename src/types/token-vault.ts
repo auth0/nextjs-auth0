@@ -137,7 +137,11 @@ export interface CustomTokenExchangeResponse {
   accessToken: string;
   /** The ID token, if openid scope was requested */
   idToken?: string;
-  /** The refresh token, if offline_access scope was requested */
+  /**
+   * The refresh token, if offline_access scope was requested.
+   * Note: Auth0 suppresses the refresh token when `actor_token` is present in the request.
+   * This field will be undefined in delegation/impersonation flows.
+   */
   refreshToken?: string;
   /** Token type, typically "Bearer" or "DPoP" */
   tokenType: string;
@@ -145,4 +149,9 @@ export interface CustomTokenExchangeResponse {
   expiresIn: number;
   /** Granted scopes */
   scope?: string;
+  /**
+   * The actor claim decoded from the ID token, present in delegation/impersonation flows (RFC 8693 §4.4).
+   * Represents the acting party. May be nested to reflect a delegation chain.
+   */
+  act?: import("./index.js").ActClaim;
 }

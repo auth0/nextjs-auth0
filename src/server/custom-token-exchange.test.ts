@@ -336,6 +336,50 @@ describe("Custom Token Exchange", () => {
         expect(error).toBeNull();
         expect(response).not.toBeNull();
       });
+
+      it("should return error when actorTokenType is too short", async () => {
+        const [error, response] = await authClient.customTokenExchange({
+          subjectToken: "valid-token",
+          subjectTokenType: "urn:acme:legacy-token",
+          actorToken: "actor-token-value",
+          actorTokenType: "urn:a:bcd" // 9 chars
+        });
+
+        expect(error).not.toBeNull();
+        expect(error?.code).toBe(
+          CustomTokenExchangeErrorCode.INVALID_SUBJECT_TOKEN_TYPE
+        );
+        expect(error?.message).toContain("actor_token_type");
+        expect(response).toBeNull();
+      });
+
+      it("should return error when actorTokenType is not a valid URI", async () => {
+        const [error, response] = await authClient.customTokenExchange({
+          subjectToken: "valid-token",
+          subjectTokenType: "urn:acme:legacy-token",
+          actorToken: "actor-token-value",
+          actorTokenType: "not-a-valid-uri-1234"
+        });
+
+        expect(error).not.toBeNull();
+        expect(error?.code).toBe(
+          CustomTokenExchangeErrorCode.INVALID_SUBJECT_TOKEN_TYPE
+        );
+        expect(error?.message).toContain("actor_token_type");
+        expect(response).toBeNull();
+      });
+
+      it("should accept actorTokenType as HTTPS URL", async () => {
+        const [error, response] = await authClient.customTokenExchange({
+          subjectToken: "valid-token",
+          subjectTokenType: "urn:acme:legacy-token",
+          actorToken: "actor-token-value",
+          actorTokenType: "http://corporate-idp/id-token"
+        });
+
+        expect(error).toBeNull();
+        expect(response).not.toBeNull();
+      });
     });
   });
 
@@ -594,6 +638,158 @@ describe("Custom Token Exchange", () => {
       expect(response).not.toHaveProperty("id_token");
       expect(response).not.toHaveProperty("token_type");
       expect(response).not.toHaveProperty("expires_in");
+    });
+
+    it("should decode and return act claim from ID token", async () => {
+      const actClaim = { sub: "agent|abc123", client_id: "agent-client" };
+      server.use(
+        http.post(
+          `https://${DEFAULT.domain}/oauth/token`,
+          async () => {
+            const jwt = await new jose.SignJWT({
+              sid: DEFAULT.sid,
+              act: actClaim
+            })
+              .setProtectedHeader({ alg: DEFAULT.alg })
+              .setSubject(DEFAULT.sub)
+              .setIssuedAt()
+              .setIssuer(authorizationServerMetadata.issuer)
+              .setAudience(DEFAULT.clientId)
+              .setExpirationTime("2h")
+              .sign(keyPair.privateKey);
+
+            return HttpResponse.json({
+              token_type: "Bearer",
+              access_token: "at_test",
+              id_token: jwt,
+              expires_in: 3600
+            });
+          }
+        )
+      );
+
+      const [error, response] = await authClient.customTokenExchange({
+        subjectToken: "external-token",
+        subjectTokenType: "urn:acme:legacy-token",
+        actorToken: "actor-jwt-token",
+        actorTokenType: "urn:acme:actor-type"
+      });
+
+      expect(error).toBeNull();
+      expect(response?.act).toEqual(actClaim);
+    });
+
+    it("should return undefined act when ID token has no act claim", async () => {
+      // Default MSW handler issues an ID token without act claim
+      const [error, response] = await authClient.customTokenExchange({
+        subjectToken: "external-token",
+        subjectTokenType: "urn:acme:legacy-token"
+      });
+
+      expect(error).toBeNull();
+      expect(response?.act).toBeUndefined();
+    });
+
+    it("should return undefined act when no ID token in response", async () => {
+      server.use(
+        http.post(`https://${DEFAULT.domain}/oauth/token`, () => {
+          return HttpResponse.json({
+            token_type: "Bearer",
+            access_token: "at_test",
+            expires_in: 3600
+            // no id_token
+          });
+        })
+      );
+
+      const [error, response] = await authClient.customTokenExchange({
+        subjectToken: "external-token",
+        subjectTokenType: "urn:acme:legacy-token"
+      });
+
+      expect(error).toBeNull();
+      expect(response?.act).toBeUndefined();
+    });
+
+    it("should preserve nested act delegation chain", async () => {
+      const nestedAct = {
+        sub: "service|xyz",
+        act: { sub: "agent|abc123" }
+      };
+      server.use(
+        http.post(
+          `https://${DEFAULT.domain}/oauth/token`,
+          async () => {
+            const jwt = await new jose.SignJWT({
+              sid: DEFAULT.sid,
+              act: nestedAct
+            })
+              .setProtectedHeader({ alg: DEFAULT.alg })
+              .setSubject(DEFAULT.sub)
+              .setIssuedAt()
+              .setIssuer(authorizationServerMetadata.issuer)
+              .setAudience(DEFAULT.clientId)
+              .setExpirationTime("2h")
+              .sign(keyPair.privateKey);
+
+            return HttpResponse.json({
+              token_type: "Bearer",
+              access_token: "at_test",
+              id_token: jwt,
+              expires_in: 3600
+            });
+          }
+        )
+      );
+
+      const [error, response] = await authClient.customTokenExchange({
+        subjectToken: "external-token",
+        subjectTokenType: "urn:acme:legacy-token",
+        actorToken: "actor-jwt-token",
+        actorTokenType: "urn:acme:actor-type"
+      });
+
+      expect(error).toBeNull();
+      expect(response?.act).toEqual(nestedAct);
+      expect(response?.act?.act?.sub).toBe("agent|abc123");
+    });
+
+    it("should not error when refresh token is absent (actor token suppression)", async () => {
+      server.use(
+        http.post(
+          `https://${DEFAULT.domain}/oauth/token`,
+          async () => {
+            const jwt = await new jose.SignJWT({ sid: DEFAULT.sid })
+              .setProtectedHeader({ alg: DEFAULT.alg })
+              .setSubject(DEFAULT.sub)
+              .setIssuedAt()
+              .setIssuer(authorizationServerMetadata.issuer)
+              .setAudience(DEFAULT.clientId)
+              .setExpirationTime("2h")
+              .sign(keyPair.privateKey);
+
+            return HttpResponse.json({
+              token_type: "Bearer",
+              access_token: "at_test",
+              id_token: jwt,
+              expires_in: 3600
+              // no refresh_token — Auth0 suppresses it when actor_token is present
+            });
+          }
+        )
+      );
+
+      const [error, response] = await authClient.customTokenExchange({
+        subjectToken: "external-token",
+        subjectTokenType: "urn:acme:legacy-token",
+        actorToken: "actor-jwt-token",
+        actorTokenType: "urn:acme:actor-type"
+      });
+
+      expect(error).toBeNull();
+      expect(response).not.toBeNull();
+      expect(response?.refreshToken).toBeUndefined();
+      expect(response?.accessToken).toBe("at_test");
     });
   });
 

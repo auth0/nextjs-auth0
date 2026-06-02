@@ -80,6 +80,20 @@ export interface SessionDataStore {
 
 export type LogoutToken = { sub?: string; sid?: string; iss?: string };
 
+/**
+ * Represents the `act` (actor) claim from an ID token issued via RFC 8693 delegation.
+ * The `act` claim identifies the acting party and may be nested to represent a delegation chain.
+ *
+ * @see {@link https://datatracker.ietf.org/doc/html/rfc8693#section-4.4 RFC 8693 §4.4}
+ */
+export interface ActClaim {
+  /** The subject identifier of the acting party. */
+  sub: string;
+  /** Nested actor claim representing a delegation chain. */
+  act?: ActClaim;
+  [key: string]: unknown;
+}
+
 export interface User {
   sub: string;
   name?: string;
@@ -94,6 +108,11 @@ export interface User {
    * This field is populated when the user logs in through an organization.
    */
   org_id?: string;
+  /**
+   * The actor claim from the ID token, present in delegation/impersonation flows (RFC 8693).
+   * Set by an Auth0 Action via `api.authentication.setActor()`.
+   */
+  act?: ActClaim;
 
   [key: string]: any;
 }
