@@ -9,14 +9,19 @@ import {
 } from "../cookies.js";
 
 /**
- * A predicate function that decides whether the session should be rolled for an
- * incoming request. Return `false` to skip rolling the session for that request.
- * May be synchronous or asynchronous.
+ * A predicate function that decides whether the session expiry should be extended
+ * on a pass-through request (one that does not match an auth route). Return `false`
+ * to skip the expiry bump for that request. May be synchronous or asynchronous.
  *
- * Useful for reducing load on the session store (e.g. Redis) by only rolling the
- * session on requests you care about.
+ * Only consulted when `rolling` is enabled. Only applies to the middleware's passive
+ * session-touch path — writes triggered by token refresh, `updateSession`, or
+ * authentication flows always proceed regardless of this hook, because the session
+ * data itself changed.
  *
- * If the hook throws or rejects, the SDK fails open and rolls the session as usual.
+ * If the hook throws or rejects, the SDK fails open and rolls the session as usual
+ * (a warning is logged).
+ *
+ * Default: `undefined` (the session is always rolled).
  */
 export type BeforeSessionRolledHook = (
   req: NextRequest

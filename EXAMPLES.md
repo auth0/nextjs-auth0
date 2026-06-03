@@ -3307,6 +3307,7 @@ Notes:
 - The hook may be asynchronous; the SDK awaits its result before deciding.
 - If the hook throws or rejects, the SDK fails open and rolls the session as usual (a warning is logged).
 - Skipping rolling does not log the user out — it only avoids extending the session (and the corresponding write to the session store) for that request. The session still expires according to `inactivityDuration` and `absoluteDuration`.
+- This hook only controls the middleware's passive expiry-bump on pass-through requests. Writes triggered by token refresh, updateSession, or authentication flows always proceed regardless of this hook — those writes occur because the session data itself changed, not just its expiry.
 
 ## Cookie Configuration
 
