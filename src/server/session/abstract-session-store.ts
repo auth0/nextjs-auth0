@@ -1,3 +1,5 @@
+import type { NextRequest } from "next/server.js";
+
 import type { SessionData, SessionDataStore } from "../../types/index.js";
 import {
   CookieOptions,
@@ -5,6 +7,25 @@ import {
   RequestCookies,
   ResponseCookies
 } from "../cookies.js";
+
+/**
+ * A predicate function that decides whether the session expiry should be extended
+ * on a pass-through request (one that does not match an auth route). Return `false`
+ * to skip the expiry bump for that request. May be synchronous or asynchronous.
+ *
+ * Only consulted when `rolling` is enabled. Only applies to the middleware's passive
+ * session-touch path — writes triggered by token refresh, `updateSession`, or
+ * authentication flows always proceed regardless of this hook, because the session
+ * data itself changed.
+ *
+ * If the hook throws or rejects, the SDK fails open and rolls the session as usual
+ * (a warning is logged).
+ *
+ * Default: `undefined` (the session is always rolled).
+ */
+export type BeforeSessionRolledHook = (
+  req: NextRequest
+) => boolean | Promise<boolean>;
 
 export interface SessionCookieOptions {
   /**
@@ -52,6 +73,18 @@ export interface SessionConfiguration {
    */
   rolling?: boolean;
   /**
+   * A predicate function that decides whether the session should be rolled for an
+   * incoming request. Return `false` to skip rolling the session for that request.
+   * May be synchronous or asynchronous.
+   *
+   * Allows you to filter and optimize requests to the session store. Only consulted
+   * when `rolling` is enabled. If the hook throws or rejects, the SDK fails open and
+   * rolls the session as usual.
+   *
+   * Default: `undefined` (the session is always rolled).
+   */
+  beforeSessionRolled?: BeforeSessionRolledHook;
+  /**
    * The absolute duration after which the session will expire. The value must be specified in seconds.
    *
    * Once the absolute duration has been reached, the session will no longer be extended.
@@ -88,6 +121,7 @@ export abstract class AbstractSessionStore {
   public sessionCookieName: string;
 
   protected rolling: boolean;
+  private beforeSessionRolled?: BeforeSessionRolledHook;
   private absoluteDuration: number;
   private inactivityDuration: number;
 
@@ -99,6 +133,7 @@ export abstract class AbstractSessionStore {
     secret,
 
     rolling = true,
+    beforeSessionRolled,
     absoluteDuration = 60 * 60 * 24 * 3, // 3 days in seconds
     inactivityDuration = 60 * 60 * 24 * 1, // 1 day in seconds
     store,
@@ -108,6 +143,7 @@ export abstract class AbstractSessionStore {
     this.secret = secret;
 
     this.rolling = rolling;
+    this.beforeSessionRolled = beforeSessionRolled;
     this.absoluteDuration = absoluteDuration;
     this.inactivityDuration = inactivityDuration;
     this.store = store;
@@ -148,6 +184,26 @@ export abstract class AbstractSessionStore {
    */
   get isRolling(): boolean {
     return this.rolling;
+  }
+
+  async shouldRollSession(req: NextRequest): Promise<boolean> {
+    if (!this.rolling) {
+      return false;
+    }
+
+    if (!this.beforeSessionRolled) {
+      return true;
+    }
+
+    try {
+      return await this.beforeSessionRolled(req);
+    } catch (e) {
+      console.warn(
+        "The beforeSessionRolled hook threw an error. Defaulting to rolling the session.",
+        e
+      );
+      return true;
+    }
   }
 
   /**

@@ -134,6 +134,7 @@ export type {
 export type { TransactionCookieOptions } from "../server/transaction-store.js";
 
 export type {
+  BeforeSessionRolledHook,
   SessionConfiguration,
   SessionCookieOptions,
   SessionStoreOptions

@@ -925,6 +925,163 @@ ca/T0LLtgmbMmxSv/MmzIg==
         const updatedSessionCookie = response.cookies.get("__session");
         expect(updatedSessionCookie).toBeUndefined();
       });
+
+      describe("beforeSessionRolled hook", async () => {
+        const buildRollingRequest = async (secret: string) => {
+          const session: SessionData = {
+            user: { sub: DEFAULT.sub },
+            tokenSet: {
+              accessToken: DEFAULT.accessToken,
+              refreshToken: DEFAULT.refreshToken,
+              expiresAt: 123456
+            },
+            internal: {
+              sid: DEFAULT.sid,
+              createdAt: Math.floor(Date.now() / 1000)
+            }
+          };
+          const maxAge = 60 * 60; // 1 hour
+          const expiration = Math.floor(Date.now() / 1000 + maxAge);
+          const sessionCookie = await encrypt(session, secret, expiration);
+          const headers = new Headers();
+          headers.append("cookie", `__session=${sessionCookie}`);
+          return new NextRequest("https://example.com/dashboard/projects", {
+            method: "GET",
+            headers
+          });
+        };
+
+        const buildAuthClient = (
+          secret: string,
+          beforeSessionRolled: (req: NextRequest) => boolean | Promise<boolean>
+        ) => {
+          const transactionStore = new TransactionStore({ secret });
+          const sessionStore = new StatelessSessionStore({
+            secret,
+            rolling: true,
+            absoluteDuration: 3600,
+            inactivityDuration: 1800,
+            beforeSessionRolled
+          });
+          return new AuthClient({
+            transactionStore,
+            sessionStore,
+            domain: DEFAULT.domain,
+            clientId: DEFAULT.clientId,
+            clientSecret: DEFAULT.clientSecret,
+            secret,
+            appBaseUrl: DEFAULT.appBaseUrl,
+            routes: getDefaultRoutes(),
+            fetch: getMockAuthorizationServer()
+          });
+        };
+
+        it("should roll the session when the hook returns true", async () => {
+          const secret = await generateSecret(32);
+          const beforeSessionRolled = vi.fn().mockReturnValue(true);
+          const authClient = buildAuthClient(secret, beforeSessionRolled);
+          const request = await buildRollingRequest(secret);
+
+          const response = await authClient.handler(request);
+
+          expect(beforeSessionRolled).toHaveBeenCalledOnce();
+          const updatedSessionCookie = response.cookies.get("__session");
+          expect(updatedSessionCookie).toBeDefined();
+          expect(updatedSessionCookie?.maxAge).toEqual(1800);
+        });
+
+        it("should not roll the session when the hook returns false", async () => {
+          const secret = await generateSecret(32);
+          const beforeSessionRolled = vi.fn().mockReturnValue(false);
+          const authClient = buildAuthClient(secret, beforeSessionRolled);
+          const request = await buildRollingRequest(secret);
+
+          const response = await authClient.handler(request);
+
+          expect(beforeSessionRolled).toHaveBeenCalledOnce();
+          // hook opted out — the middleware must not touch the session cookie
+          const updatedSessionCookie = response.cookies.get("__session");
+          expect(updatedSessionCookie).toBeUndefined();
+        });
+
+        it("should fail open and roll the session when the hook throws", async () => {
+          const secret = await generateSecret(32);
+          const consoleWarnSpy = vi
+            .spyOn(console, "warn")
+            .mockImplementation(() => {});
+          try {
+            const beforeSessionRolled = vi.fn().mockImplementation(() => {
+              throw new Error("hook failure");
+            });
+            const authClient = buildAuthClient(secret, beforeSessionRolled);
+            const request = await buildRollingRequest(secret);
+
+            const response = await authClient.handler(request);
+
+            expect(beforeSessionRolled).toHaveBeenCalledOnce();
+            expect(consoleWarnSpy).toHaveBeenCalled();
+            // failing open means the session is still rolled
+            const updatedSessionCookie = response.cookies.get("__session");
+            expect(updatedSessionCookie).toBeDefined();
+            expect(updatedSessionCookie?.maxAge).toEqual(1800);
+          } finally {
+            consoleWarnSpy.mockRestore();
+          }
+        });
+
+        it("should await an async hook and roll the session when it resolves true", async () => {
+          const secret = await generateSecret(32);
+          const beforeSessionRolled = vi.fn().mockResolvedValue(true);
+          const authClient = buildAuthClient(secret, beforeSessionRolled);
+          const request = await buildRollingRequest(secret);
+
+          const response = await authClient.handler(request);
+
+          expect(beforeSessionRolled).toHaveBeenCalledOnce();
+          const updatedSessionCookie = response.cookies.get("__session");
+          expect(updatedSessionCookie).toBeDefined();
+          expect(updatedSessionCookie?.maxAge).toEqual(1800);
+        });
+
+        it("should await an async hook and not roll the session when it resolves false", async () => {
+          const secret = await generateSecret(32);
+          const beforeSessionRolled = vi.fn().mockResolvedValue(false);
+          const authClient = buildAuthClient(secret, beforeSessionRolled);
+          const request = await buildRollingRequest(secret);
+
+          const response = await authClient.handler(request);
+
+          expect(beforeSessionRolled).toHaveBeenCalledOnce();
+          // hook opted out — the middleware must not touch the session cookie
+          const updatedSessionCookie = response.cookies.get("__session");
+          expect(updatedSessionCookie).toBeUndefined();
+        });
+
+        it("should fail open and roll the session when an async hook rejects", async () => {
+          const secret = await generateSecret(32);
+          const consoleWarnSpy = vi
+            .spyOn(console, "warn")
+            .mockImplementation(() => {});
+          try {
+            const beforeSessionRolled = vi
+              .fn()
+              .mockRejectedValue(new Error("async hook failure"));
+            const authClient = buildAuthClient(secret, beforeSessionRolled);
+            const request = await buildRollingRequest(secret);
+
+            const response = await authClient.handler(request);
+
+            expect(beforeSessionRolled).toHaveBeenCalledOnce();
+            expect(consoleWarnSpy).toHaveBeenCalled();
+            // failing open means the session is still rolled
+            const updatedSessionCookie = response.cookies.get("__session");
+            expect(updatedSessionCookie).toBeDefined();
+            expect(updatedSessionCookie?.maxAge).toEqual(1800);
+          } finally {
+            consoleWarnSpy.mockRestore();
+          }
+        });
+      });
     });
 
     describe("with custom routes", async () => {
