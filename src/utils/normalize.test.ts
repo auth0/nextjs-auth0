@@ -315,6 +315,20 @@ describe("normalize.ts", () => {
         });
       });
 
+      it("should add trailing slash for root-path (Auth0-style) issuers", () => {
+        // Auth0 publishes its issuer with a trailing slash in both the discovery
+        // document and iss token claims (https://tenant.auth0.com/). We must
+        // preserve this so jose's strict issuer comparison succeeds.
+        const withoutSlash = normalizeDomain("https://tenant.auth0.com");
+        expect(withoutSlash.issuer).toBe("https://tenant.auth0.com/");
+
+        const withSlash = normalizeDomain("https://tenant.auth0.com/");
+        expect(withSlash.issuer).toBe("https://tenant.auth0.com/");
+
+        const bareHostname = normalizeDomain("tenant.auth0.com");
+        expect(bareHostname.issuer).toBe("https://tenant.auth0.com/");
+      });
+
       it("should reject URLs with query parameters", () => {
         expect(() =>
           normalizeDomain("https://example.auth0.com?foo=bar")
