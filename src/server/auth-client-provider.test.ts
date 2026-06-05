@@ -300,7 +300,7 @@ describe("AuthClientProvider", () => {
       // and the full path-based URL as issuer
       expect(createAuthClientMock).toHaveBeenCalledWith(
         "myorg.okta.com",
-        "https://myorg.okta.com/oauth2/default/"
+        "https://myorg.okta.com/oauth2/default"
       );
       expect(client).toBe(mockAuthClient);
     });
@@ -338,11 +338,11 @@ describe("AuthClientProvider", () => {
       expect(createAuthClientFn).toHaveBeenCalledTimes(2);
       expect(createAuthClientFn).toHaveBeenCalledWith(
         "myorg.okta.com",
-        "https://myorg.okta.com/oauth2/default/"
+        "https://myorg.okta.com/oauth2/default"
       );
       expect(createAuthClientFn).toHaveBeenCalledWith(
         "myorg.okta.com",
-        "https://myorg.okta.com/oauth2/custom/"
+        "https://myorg.okta.com/oauth2/custom"
       );
       expect(client1).toBe(authClientDefault);
       expect(client2).toBe(authClientCustom);
